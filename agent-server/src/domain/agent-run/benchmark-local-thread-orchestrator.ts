@@ -19,6 +19,7 @@ import {
 } from '../benchmark/variant-proposal.js';
 import {
   createWorkspaceLease, createWorkspaceStepBoundary, resolveWorkspacePlacement,
+  withActiveWorkspaceLease,
   type CoderReviewVariant, type TrialSnapshotPaths, type WorkspaceLease,
   type WorkspacePlacement, type WorkspaceStepBoundary,
 } from '../benchmark/workspace-lease.js';
@@ -134,6 +135,7 @@ interface PreparedThreadRun {
   identity: BenchmarkRoleIdentity;
   roleIdentities: Map<string, BenchmarkRoleIdentity>;
   modelProtocolProblem: string | null;
+  roleIdentityProblem: string | null;
   startedAt: string;
   /** Each step's last assistant message, keyed by step index, as the journal recorded it. A step
    *  that emitted none is absent — which is a different fact from one that emitted nothing to say. */
@@ -432,7 +434,9 @@ async function createRunArtifacts(
   backend: Backend,
 ): Promise<PreparedThreadRun> {
   fs.mkdirSync(request.trajectoryRoot, { recursive: true });
-  const identities = freezeBenchmarkThreadIdentities(request, profile, template, backend);
+  const identities = freezeBenchmarkThreadIdentities(
+    request, profile, template, backend, request.trialPolicy,
+  );
   const identity = identities.entry;
   const thread = createBenchmarkRecord(request);
   assertArtifactInsideTrial(request, thread);
@@ -449,6 +453,7 @@ async function createRunArtifacts(
   return {
     request, profile, template, thread, journal, lifecycle, identity,
     roleIdentities: identities.roles, modelProtocolProblem: identities.modelProtocolProblem,
+    roleIdentityProblem: identities.roleIdentityProblem,
     startedAt, terminalAssistantText: new Map(),
   };
 }
@@ -622,11 +627,11 @@ async function runLocalThread(
   control: RunControl,
   supervisorBinary: string,
 ): Promise<{ result: ThreadRunResult | null; error: unknown }> {
-  if (prepared.modelProtocolProblem) {
-    return {
-      result: null,
-      error: new BenchmarkIdentityProtocolError(prepared.modelProtocolProblem),
-    };
+  // Either identity gate refuses, and both refuse here — before the workspace is taken and before
+  // any spawner exists, so a divergent identity can never reach a process.
+  const problem = prepared.modelProtocolProblem ?? prepared.roleIdentityProblem;
+  if (problem) {
+    return { result: null, error: new BenchmarkIdentityProtocolError(problem) };
   }
   try {
     takeThreadWorkspace(control.lease);
@@ -1006,12 +1011,16 @@ async function runBenchmarkThreadScoped(
   const prepared = await prepareRun(request);
   const control = installControl(prepared);
   try {
-    const outcome = await executeRun(prepared, control, supervisorBinary);
-    const thread = threadStore.get(prepared.thread.id) ?? prepared.thread;
-    const classified = classifyRun(prepared, control, outcome);
-    const committed = commitTerminal(prepared, classified, thread);
-    const proposal = proposeOutcome(prepared, committed, thread, control, outcome);
-    return buildResult(prepared, committed, thread, proposal);
+    // The lease is published for the whole run so each step's spawn config can read the state it
+    // was armed under, rather than one captured before the lease existed (16.1 LS3).
+    return await withActiveWorkspaceLease(control.lease, async () => {
+      const outcome = await executeRun(prepared, control, supervisorBinary);
+      const thread = threadStore.get(prepared.thread.id) ?? prepared.thread;
+      const classified = classifyRun(prepared, control, outcome);
+      const committed = commitTerminal(prepared, classified, thread);
+      const proposal = proposeOutcome(prepared, committed, thread, control, outcome);
+      return buildResult(prepared, committed, thread, proposal);
+    });
   } finally {
     cleanupControl(control);
     await disposeSupervisors(control);

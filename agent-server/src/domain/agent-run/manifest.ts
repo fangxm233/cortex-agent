@@ -630,9 +630,12 @@ function trackRoleIdentity(state: JournalScanState, value: Record<string, unknow
   if (!matchesExpectedRole(state, slot, observed)) return false;
   const expected = state.roleIdentities.get(slot);
   if (!expected) {
+    // Distinctness is asked of the role hash only. A compiled trial policy carries one
+    // `bundle_manifest_hash` for the whole arm, so every slot of a policy-backed run legitimately
+    // presents the same one (design section 16 (16.2) ID2); and a slot that presents another slot's
+    // whole identity still shares its role hash, which this clause catches on its own.
     const reused = [...state.roleIdentities.values()].some(identity => (
       identity.roleToolSurfaceHash === observed.roleToolSurfaceHash
-      || identity.bundleManifestHash === observed.bundleManifestHash
     ));
     if (reused) return false;
     state.roleIdentities.set(slot, observed);

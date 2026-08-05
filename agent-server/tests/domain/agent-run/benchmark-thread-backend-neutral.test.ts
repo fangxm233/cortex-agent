@@ -59,7 +59,7 @@ vi.mock('../../../src/domain/agent-run/supervisor.js', async (importOriginal) =>
   };
 });
 
-import { CONFIG_DIR, DATA_DIR } from '../../../src/core/paths.js';
+import { CONFIG_DIR, DATA_DIR, DEFAULTS_DIR } from '../../../src/core/paths.js';
 import type { Backend } from '../../../src/agent-adapter/types.js';
 import { openJournal } from '../../../src/domain/agent-run/journal.js';
 import { writeStartedMarker } from '../../../src/domain/agent-run/manifest.js';
@@ -67,6 +67,8 @@ import { preparePinnedTrialPaths } from '../../../src/domain/agent-run/pinned-no
 import {
   createBenchmarkTrialRunAgent,
 } from '../../../src/domain/benchmark/trial-thread-adapter.js';
+import { resolvePiToolGate } from '../../../src/agent-adapter/pi/policy-guard.js';
+import { readActiveLeaseState } from '../../../src/domain/benchmark/workspace-lease.js';
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';
 import { profileRepo } from '../../../src/store/profile-repo.js';
 import {
@@ -74,6 +76,7 @@ import {
   type TrialPolicyFixture,
 } from '../benchmark/trial-thread-policy-fixture.js';
 import { writeFakeBackendCli, type FakeStepScript as StepScript } from './fake-backend-cli.js';
+import { seedShippedPrompts } from './benchmark-shipped-prompts.js';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-neutral-'));
 const snapshotParent = path.join(DATA_DIR, 'tmp', 'review-snapshot');
@@ -89,15 +92,22 @@ function sha256Text(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
+/** The slot's own shipped surface behind this suite's simpler prompt template: the compiled policy
+ *  and the projection must agree member for member, so the projection may not simplify what the
+ *  launcher composes. */
 function benchmarkAgent(name: string): Record<string, unknown> {
+  const shipped = JSON.parse(fs.readFileSync(
+    path.join(DEFAULTS_DIR, 'config', 'thread-templates', 'agents', `${name}.json`), 'utf8',
+  ));
   return {
     name, profile: '__active__', persistSession: false,
-    directive: `${name} directive`, systemPrompt: `${name} template system`,
-    promptTemplate: 'Complete {{input}}', tools: 'Bash', pluginDirs: [],
+    directive: `file:${name}.md`, systemPrompt: `file:${name}.md`,
+    promptTemplate: 'Complete {{input}}', tools: shipped.tools, pluginDirs: [],
   };
 }
 
 function seedTemplates(): void {
+  seedShippedPrompts();
   const base = path.join(CONFIG_DIR, 'thread-templates');
   writeJson(path.join(base, 'agents', 'benchmark-coder.json'), benchmarkAgent('benchmark-coder'));
   writeJson(path.join(base, 'agents', 'benchmark-reviewer.json'), benchmarkAgent('benchmark-reviewer'));
@@ -184,6 +194,7 @@ function prepareTrial(
         policy: fixture.policy, config: fixture.config,
         paths: preparePinnedTrialPaths(trialHome),
         supervisor: { binary: process.execPath, graceMs: 1_000 },
+        leaseState: readActiveLeaseState,
       }),
     },
     fixture, trialHome, cli, observations, workspaceCwd,
@@ -431,3 +442,117 @@ it('refuses a lifecycle hook override that is present but undefined', async () =
   );
   assert.equal(harness.attachOptions.length, 0);
 });
+
+// --- The per-step guard lease state, proved on the spawn record (design section 16 (16.1) LS8) ---
+
+/** §6.1's closed vocabulary, so WL10's intersection can be taken against something. */
+const LEASE_STATES = [
+  'parent-writable', 'draining', 'thread-owned', 'answer-frozen', 'released',
+];
+
+/** Wraps the run's own `runAgent` so the lease the ORCHESTRATOR holds is read at the same instant
+ *  the step's spawn config is built. Asserting an internal variable would say nothing about the
+ *  process; this pairs the lease read with the environment the child was actually given. */
+function recordLeaseReads(run: TrialRun): string[] {
+  const reads: string[] = [];
+  const inner = run.overrides.runAgent as (message: string, options: any) => any;
+  run.overrides.runAgent = (message: string, options: any) => {
+    reads.push(readActiveLeaseState());
+    return inner(message, options);
+  };
+  return reads;
+}
+
+it('spawns every PI in-trial step under the lease state its compiled guard names', async () => {
+  // Four steps, so each slot runs twice: the reviewer never approves, so the transition engine
+  // returns to the coder rather than converging.
+  const run = prepareTrial('lease-pi', 'pi', [
+    { text: 'coder done' }, { text: 'audit failed' },
+    { text: 'retry done' }, { text: 'still failing' },
+  ], 'fixture-audit-retry');
+  const reads = recordLeaseReads(run);
+
+  const result = await runBenchmarkThread(run.request, run.overrides);
+
+  assert.equal(result.state, 'completed');
+  assert.equal(result.steps, 4);
+
+  // LS8(ii): every in-trial child slot compiles a single-key `thread-owned` table whose allow-list
+  // is the role's frozen tool list, and WL10's vocabulary intersection is empty.
+  for (const slot of ['benchmark-coder', 'benchmark-reviewer']) {
+    const guard = run.fixture.policy.role_policy_guard[slot] as Record<string, string[]>;
+    assert.deepEqual(Object.keys(guard), ['thread-owned']);
+    assert.deepEqual(guard['thread-owned'], run.fixture.policy.roles[slot].tools);
+    assert.deepEqual(Object.keys(guard).filter(state => !LEASE_STATES.includes(state)), []);
+  }
+
+  // LS8(i): the process that actually ran carries the selector, and the lease read `thread-owned`
+  // at the instant that step's config was built.
+  assert.deepEqual(reads, ['thread-owned', 'thread-owned', 'thread-owned', 'thread-owned']);
+  for (const index of [0, 1, 2, 3]) {
+    assert.equal(observed(run, index).env.CORTEX_PI_LEASE_STATE, reads[index]);
+    assert.equal(observed(run, index).env.CORTEX_PI_LEASE_STATE, 'thread-owned');
+  }
+
+  // LS1/LS5: the compiled table is byte-identical across both steps of each slot — the guard the
+  // child was handed is the compiler's own object, not one rebuilt per step.
+  assert.equal(
+    observed(run, 0).env.CORTEX_PI_POLICY_GUARD, observed(run, 2).env.CORTEX_PI_POLICY_GUARD,
+  );
+  assert.equal(
+    observed(run, 1).env.CORTEX_PI_POLICY_GUARD, observed(run, 3).env.CORTEX_PI_POLICY_GUARD,
+  );
+  assert.equal(
+    observed(run, 0).env.CORTEX_PI_POLICY_GUARD,
+    JSON.stringify(run.fixture.policy.role_policy_guard['benchmark-coder']),
+  );
+  assert.notEqual(
+    observed(run, 0).env.CORTEX_PI_POLICY_GUARD, observed(run, 1).env.CORTEX_PI_POLICY_GUARD,
+  );
+
+  // LS6/LS8(iv): one role hash per slot across the whole run, read from the durable journal.
+  const events = fs.readFileSync(result.journalPath, 'utf8').trim().split('\n')
+    .map(line => JSON.parse(line))
+    .filter(event => typeof event.role_tool_surface_hash === 'string');
+  const hashes = new Map<string, Set<string>>();
+  for (const event of events) {
+    const seen = hashes.get(event.agent_slot) ?? new Set<string>();
+    seen.add(event.role_tool_surface_hash);
+    hashes.set(event.agent_slot, seen);
+  }
+  assert.ok(hashes.size >= 2);
+  for (const [slot, seen] of hashes) {
+    assert.equal(seen.size, 1, `slot ${slot} recorded ${seen.size} role hashes`);
+  }
+}, 60_000);
+
+it('denies every tool of the role when the selector names another lease state', async () => {
+  // LS8(iii), the predicate a static guard passes and a coupled guard fails. Nothing about the
+  // compiled table changes: only the state the step selects.
+  const run = prepareTrial('lease-forced', 'pi', [{ text: 'coder done' }, { text: null }]);
+  run.overrides.runAgent = createBenchmarkTrialRunAgent({
+    policy: run.fixture.policy, config: run.fixture.config,
+    paths: preparePinnedTrialPaths(run.trialHome),
+    supervisor: { binary: process.execPath, graceMs: 1_000 },
+    leaseState: () => 'parent-writable',
+  });
+
+  const result = await runBenchmarkThread(run.request, run.overrides);
+
+  assert.equal(result.state, 'completed');
+  const env = observed(run, 0).env;
+  assert.equal(env.CORTEX_PI_LEASE_STATE, 'parent-writable');
+  // The gate the PI child resolves for itself, fed the environment the child was really given.
+  const gate = resolvePiToolGate(env);
+  assert.equal(gate.guarded, true);
+  const tools = run.fixture.policy.roles['benchmark-coder'].tools;
+  assert.ok(tools.length > 0);
+  for (const tool of tools) {
+    const decision = gate.decide(tool);
+    assert.equal(decision.allow, false, `${tool} was allowed under the wrong lease state`);
+    assert.equal(decision.reason, "no allow-list for lease state 'parent-writable'");
+  }
+  // The control: the same guard bytes allow the same list under the state the compiler keyed.
+  const armed = resolvePiToolGate({ ...env, CORTEX_PI_LEASE_STATE: 'thread-owned' });
+  for (const tool of tools) assert.equal(armed.decide(tool).allow, true);
+}, 60_000);

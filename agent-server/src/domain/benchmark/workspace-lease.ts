@@ -3,6 +3,7 @@
 // pos:    Single-writer workspace lease for in-trial benchmark threads
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AgentSlotId } from '../../core/types/thread-types.js';
@@ -64,6 +65,29 @@ export interface WorkspaceLease {
 
 /** The trial roots a disposable snapshot is placed under. */
 export interface TrialSnapshotPaths { root: string; tempDir: string; }
+
+const activeLease = new AsyncLocalStorage<WorkspaceLease>();
+
+/**
+ * Publish the run's lease for the duration of its steps. The per-step trial adapter is built by the
+ * caller that admits the run, which is strictly before the lease exists, so the selector cannot be
+ * handed down as a value — it is read back out of this scope at each spawn-config build
+ * (design section 16 (16.1) LS3).
+ */
+export function withActiveWorkspaceLease<T>(
+  lease: WorkspaceLease,
+  action: () => Promise<T>,
+): Promise<T> {
+  return activeLease.run(lease, action);
+}
+
+/** The live lease state. Pure — `read()` performs no filesystem and no name lookup — and total: a
+ *  step reached outside a lease scope has no state to select and fails closed. */
+export function readActiveLeaseState(): LeaseState {
+  const lease = activeLease.getStore();
+  if (lease === undefined) throw new Error('No benchmark workspace lease is in scope');
+  return lease.read().state;
+}
 
 export interface WorkspaceLeaseInput {
   sharedRoot: string;

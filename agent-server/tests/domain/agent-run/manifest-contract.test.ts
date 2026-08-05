@@ -360,6 +360,25 @@ it('accepts per-role event identities while keeping the header model identity', 
   }
 });
 
+it('accepts two slots that share one trial-level bundle manifest hash', async () => {
+  // A compiled trial policy holds ONE `bundle_manifest_hash` for the whole arm and one role hash per
+  // slot (`policy-compiler.ts` `policyIdentity`), so once that policy is the identity of record every
+  // slot in the run presents the same bundle hash. Distinctness is a property of the role hash alone
+  // (design section 16 (16.2) ID2).
+  const root = makeRoot();
+  try {
+    const trajectory = await createTrajectory(root);
+    rewriteJournal(trajectory.journalPath, records => {
+      records[1].agent_slot = 'benchmark-coder';
+      records[1].role_tool_surface_hash = '8'.repeat(64);
+    });
+    syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
+    assert.deepEqual(validateTrajectoryRoot(root), { ok: true, problems: [] });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 it('reads back the fixer slot and still refuses a slot nothing declares', async () => {
   // The readback validator is the site that fails LATE: widening only the orchestrator's admission
   // set lets the whole run spawn, journal and finish, and then loses the terminal manifest here.
