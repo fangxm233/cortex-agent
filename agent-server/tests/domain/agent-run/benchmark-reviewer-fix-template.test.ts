@@ -34,10 +34,9 @@ const P_FIX = 'Original task:\n{{input}}\n\nRead {{artifactPath}} for the coder\
 
 /**
  * NI2/NI3 are polarity predicates, not vocabulary bans: a document cannot forbid assuming git
- * without naming git, and `plan:20` bans the assumption. The closed list is (14.1.5)'s three
- * authored negation clauses; an occurrence outside it fails, which is the friction worth having.
- * The original substring form was unsatisfiable against NI4's own mandated literal and was
- * corrected in the contract by the `6449` manager (design commit `c4da29c5`).
+ * without naming git, and what is banned is the assumption. The closed list is the three authored
+ * negation clauses; an occurrence outside it fails, which is the friction worth having — a new
+ * git-mentioning sentence breaks this test unless someone deliberately extends the list.
  */
 const NEGATION_CLAUSES = [
   'may not be a git repository',
