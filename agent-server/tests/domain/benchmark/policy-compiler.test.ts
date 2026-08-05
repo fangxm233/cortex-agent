@@ -262,6 +262,30 @@ function configureCoderReview(input: ArmResolution, includeRoles = true): void {
   input.roles['benchmark-reviewer'] = structuredClone(input.roles.parent);
 }
 
+/** The other variant: its own template, its own third agent, and its own role slot. */
+function configureReviewerFix(input: ArmResolution, includeFixerRole = true): void {
+  const value = input.arm as ReturnType<typeof arm>;
+  value.orchestration.mode = 'coder-review' as 'direct';
+  Object.assign(value.orchestration, { coder_review_variant: 'reviewer-fix' });
+  value.limits.max_thread_starts = 1;
+  input.thread_templates = {
+    'benchmark-coder-review-fix': path.resolve(
+      'defaults/config/thread-templates/templates/benchmark-coder-review-fix.json',
+    ),
+  };
+  input.thread_agents = {
+    'benchmark-coder': path.resolve(
+      'defaults/config/thread-templates/agents/benchmark-coder.json',
+    ),
+    'benchmark-fixer': path.resolve(
+      'defaults/config/thread-templates/agents/benchmark-fixer.json',
+    ),
+  };
+  input.roles['benchmark-coder'] = structuredClone(input.roles.parent);
+  if (!includeFixerRole) return;
+  input.roles['benchmark-fixer'] = structuredClone(input.roles.parent);
+}
+
 function configureBenchmarkMcp(input: ArmResolution): void {
   const mcp = writeAsset('mcp-benchmark-thread.json', JSON.stringify({
     mcpServers: { 'cortex-benchmark-thread': { command: 'cortex', args: ['mcp'] } },
@@ -811,6 +835,30 @@ it('enforces closed template, capability, and required-role whitelists', () => {
 
   const denied = structuredClone(input);
   denied.thread_templates.ambient = input.thread_templates['benchmark-coder-review'];
+  expectFailure(denied, 'template_not_whitelisted', 20);
+});
+
+it('requires a role for the third agent the reviewer-fix template names', () => {
+  // The fifth site of the slot price, and the only one that is not a TypeScript vocabulary: a
+  // whitelisted template naming an agent with no matching `roles` slot fails the compile outright.
+  const missingFixer = resolution();
+  configureReviewerFix(missingFixer, false);
+  const failure = expectFailure(missingFixer, 'asset_missing', 15);
+  assert.match(String(failure.message), /role:\/\/benchmark-fixer/);
+
+  const input = resolution();
+  configureReviewerFix(input);
+  const policy = compileResolvedTrialPolicy(input, dependencies());
+  assert.deepEqual(policy.child_template_whitelist, ['benchmark-coder-review-fix']);
+  assert.deepEqual(Object.keys(policy.roles).sort(), [
+    'benchmark-coder', 'benchmark-fixer', 'parent',
+  ]);
+  // The variant's own template is the only one admitted: the sibling variant's is refused even
+  // though it is a shipped benchmark document.
+  const denied = structuredClone(input);
+  denied.thread_templates['benchmark-coder-review'] = path.resolve(
+    'defaults/config/thread-templates/templates/benchmark-coder-review.json',
+  );
   expectFailure(denied, 'template_not_whitelisted', 20);
 });
 

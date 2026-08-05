@@ -23,15 +23,25 @@ const ROLE_TOOLS: Record<Backend, Record<string, string[]>> = {
     parent: ['Read', 'Write'],
     'benchmark-coder': ['Read', 'Write', 'Edit'],
     'benchmark-reviewer': ['Read', 'Grep'],
+    'benchmark-fixer': ['Read', 'Write', 'Edit'],
   },
   pi: {
     parent: ['read', 'write'],
     'benchmark-coder': ['read', 'write', 'edit'],
     'benchmark-reviewer': ['read', 'grep'],
+    'benchmark-fixer': ['read', 'write', 'edit'],
   },
 };
 
 export const THREAD_SLOTS = ['benchmark-coder', 'benchmark-reviewer'] as const;
+
+/** Which template and which verdict-speaking slot each variant compiles with. */
+const VARIANT_ASSETS = {
+  'audit-retry': { template: 'benchmark-coder-review', reviewSlot: 'benchmark-reviewer' },
+  'reviewer-fix': { template: 'benchmark-coder-review-fix', reviewSlot: 'benchmark-fixer' },
+} as const;
+
+export type FixtureVariant = keyof typeof VARIANT_ASSETS;
 
 export interface TrialPolicyFixture {
   policy: ResolvedTrialPolicy;
@@ -82,11 +92,15 @@ export interface TrialPolicyInput {
   /** Absolute path of the CLI artifact the trial pins. */
   cli: string;
   label?: string;
+  /** Which coder-review variant the arm declares. Defaults to `audit-retry`. */
+  variant?: FixtureVariant;
   mutate?: (input: any) => void;
 }
 
 export function armResolution(input: TrialPolicyInput): Record<string, unknown> {
   const { root, backend } = input;
+  const variant: FixtureVariant = input.variant ?? 'audit-retry';
+  const assets = VARIANT_ASSETS[variant];
   const defaults = path.resolve('defaults/config/thread-templates');
   return {
     schema_version: 'cortex-benchmark-arm-resolution/1',
@@ -94,7 +108,7 @@ export function armResolution(input: TrialPolicyInput): Record<string, unknown> 
       schema_version: 'cortex-benchmark-arm/2',
       kind: 'cortex', name: `cortex-${backend}-coder-review`, backend, provider: 'anthropic',
       model: FIXTURE_MODEL, credential_capability: 'claude-api-key',
-      orchestration: { mode: 'coder-review', coder_review_variant: 'audit-retry', ask_manager: false },
+      orchestration: { mode: 'coder-review', coder_review_variant: variant, ask_manager: false },
       limits: {
         max_thread_starts: 1, max_parent_questions: 0, max_task_depth: 0, max_tasks: 0,
         max_provider_requests: 8, max_resident_agent_processes: 3, max_cost_usd: '2.50',
@@ -128,14 +142,14 @@ export function armResolution(input: TrialPolicyInput): Record<string, unknown> 
     roles: {
       parent: role(root, backend, 'parent'),
       'benchmark-coder': role(root, backend, 'benchmark-coder'),
-      'benchmark-reviewer': role(root, backend, 'benchmark-reviewer'),
+      [assets.reviewSlot]: role(root, backend, assets.reviewSlot),
     },
     thread_templates: {
-      'benchmark-coder-review': path.join(defaults, 'templates', 'benchmark-coder-review.json'),
+      [assets.template]: path.join(defaults, 'templates', `${assets.template}.json`),
     },
     thread_agents: {
       'benchmark-coder': path.join(defaults, 'agents', 'benchmark-coder.json'),
-      'benchmark-reviewer': path.join(defaults, 'agents', 'benchmark-reviewer.json'),
+      [assets.reviewSlot]: path.join(defaults, 'agents', `${assets.reviewSlot}.json`),
     },
     // Without it every PI arm refuses at construction before a single step runs.
     pi_benchmark_capability_proven: true,
