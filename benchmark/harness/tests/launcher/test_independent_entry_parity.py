@@ -9,9 +9,10 @@
 #    `CortexBenchAgent(...)` constructor: no subclass, no monkeypatch, no
 #    `setattr` on a production object, no fixture that hands in a role, a system
 #    prompt, a tool list, a plugin directory, an MCP config, a thread template,
-#    a merge step or a scan step. The constructor receives caller-known trial
-#    facts only. Whatever the shipped loader reports below was therefore
-#    composed by the production path by itself.
+#    a thread-policy document, a merge step or a scan step. The constructor
+#    receives caller-known trial facts only. Whatever the shipped loader reports
+#    below was therefore composed by the production path by itself. The scope of
+#    this contract is the whole agent-dir output, not the arm resolution alone.
 #
 # 2. `tests/scan/stub_trial.py` still carries the policy-injection path: it
 #    subclasses the shipped agent and overrides `_compose_arm_resolution` with a
@@ -55,6 +56,16 @@ IMAGE_REF = f"registry.invalid/terminal-task@{IMAGE_DIGEST}"
 ROOT_RUN_ID = "independent-parity.cortex-direct"
 TRIAL_ID = "independent-parity-trial"
 ARM_NAME = "cortex-direct"
+CODER_REVIEW_ARM_NAME = "cortex-coder-review"
+THREAD_POLICY_FILENAME = "benchmark-thread-policy.json"
+BENCHMARK_MCP_FILENAME = "mcp-config-benchmark-thread.json"
+POLICY_PATH_ENV = "CORTEX_BENCHMARK_THREAD_POLICY_PATH"
+# The ten members of the thread-policy document, named here so an eleventh is a failure on this
+# side too: everything the production path composes is re-derived from `run_config_path`.
+THREAD_POLICY_MEMBERS = {
+    "schema_version", "canonical_instruction", "workspace_cwd", "run_config_path", "trial_root",
+    "template", "profile_name", "root_run_id", "trajectory_root", "limits",
+}
 PROFILE_NAME = "benchmark"
 MODEL_NAME = "claude-sonnet"
 BACKEND_CLI_VERSION = "9.9.9 (fake backend cli)"
@@ -229,6 +240,37 @@ def completed_agent(tmp_path: Path) -> tuple[CortexBenchAgent, FakeContainer]:
     agent = public_agent(tmp_path)
     container = FakeContainer(fake_backend_cli(tmp_path))
     asyncio.run(agent.setup(container))
+    return agent, container
+
+
+def coder_review_seed() -> dict[str, object]:
+    """The same caller-known facts with one member changed — the orchestration mode — plus the
+    capacity that mode requires. Still no role, no template and no policy document."""
+    seed = trial_seed()
+    arm = dict(seed["arm"])  # type: ignore[arg-type]
+    arm["name"] = CODER_REVIEW_ARM_NAME
+    arm["orchestration"] = {
+        "mode": "coder-review", "coder_review_variant": "audit-retry", "ask_manager": False,
+    }
+    arm["limits"] = {
+        **arm["limits"],  # type: ignore[dict-item]
+        "max_thread_starts": 1, "max_resident_agent_processes": 3,
+    }
+    seed["arm"] = arm
+    seed["arm_path"] = f"arm://{CODER_REVIEW_ARM_NAME}"
+    return seed
+
+
+def completed_coder_review(tmp_path: Path) -> tuple[CortexBenchAgent, FakeContainer]:
+    agent = CortexBenchAgent(
+        logs_dir=tmp_path / "trial" / "agent",
+        artifact_dir=tmp_path / "trial" / "artifacts",
+        manifest={**build_manifest(tmp_path), "arm": CODER_REVIEW_ARM_NAME},
+        trial_seed=coder_review_seed(),
+    )
+    container = FakeContainer(fake_backend_cli(tmp_path))
+    asyncio.run(agent.setup(container))
+    asyncio.run(agent.run("Solve the task.", container, AgentContext()))
     return agent, container
 
 
@@ -432,6 +474,50 @@ def test_composition_owes_nothing_to_the_stub_trial_helper(tmp_path: Path) -> No
     }
     assert document["thread_templates"] == {}
     assert document["thread_agents"] == {}
+
+
+def test_the_thread_policy_is_the_shipped_writers_output_not_a_fixtures(tmp_path: Path) -> None:
+    """P1, with its scope extended from the arm resolution to the thread policy. This module hands
+    the entry no document of any kind; the one read below exists because the shipped writer ran."""
+    assert not any(name.endswith("stub_trial") for name in sys.modules)
+
+    agent, _ = completed_coder_review(tmp_path)
+
+    for method in ("install", "setup", "run", "preview_run_argv",
+                   "_compose_arm_resolution", "_write_thread_policy"):
+        assert getattr(agent, method).__func__ is getattr(CortexBenchAgent, method)
+    document = json.loads((agent.logs_dir / THREAD_POLICY_FILENAME).read_text())
+    assert document["schema_version"] == "cortex-benchmark-thread-policy/2"
+    assert document["run_config_path"] == str(
+        EnvironmentPaths().agent_dir / "arm-resolution.json",
+    )
+    assert document["canonical_instruction"] == "Solve the task."
+    assert document["workspace_cwd"] == CONTAINER_CWD
+    # PW3-NEG on the produced bytes, not only on the reading schema.
+    assert set(document) == THREAD_POLICY_MEMBERS
+    assert not any(name.endswith("stub_trial") for name in sys.modules)
+
+
+def test_no_profile_borne_policy_path_injection_reaches_the_trial(tmp_path: Path) -> None:
+    """P6. The one place the server's policy path may come from is the launcher's own MCP
+    declaration. A profile `extraEnv` entry carrying it — the test-only glue this gate exists to
+    forbid — reaches the model process and never the MCP child, so a trial that depended on one
+    would be green here and dead in a container."""
+    agent, _ = completed_coder_review(tmp_path)
+    home = tmp_path / "cortex-home"
+    write_benchmark_profile(home)
+
+    profile = (home / "config" / "profiles.json").read_text()
+
+    assert POLICY_PATH_ENV not in profile
+    carriers = sorted(
+        path.name for path in agent.logs_dir.rglob("*")
+        if path.is_file() and POLICY_PATH_ENV in path.read_text(errors="ignore")
+    )
+    assert carriers == [BENCHMARK_MCP_FILENAME]
+    declaration = json.loads((agent.logs_dir / BENCHMARK_MCP_FILENAME).read_text())
+    env = declaration["mcpServers"]["cortex-benchmark-thread"]["env"]
+    assert env[POLICY_PATH_ENV] == str(EnvironmentPaths().agent_dir / THREAD_POLICY_FILENAME)
 
 
 def vendor_baseline_arm() -> dict[str, object]:
