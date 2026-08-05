@@ -526,7 +526,7 @@ def start_trial_proxy(
     may shorten the lease from it by echoing back a duration, and may never lengthen it past it."""
     _validate_inputs(trial_id, upstream_base_url, adapter, absolute_deadline)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    dummy_token = f"dummy-{secrets.token_urlsafe(24)}"
+    dummy_token = _dummy_token(adapter)
     provisional_bound_ms = int(absolute_deadline.timestamp() * 1000)
     state = ProxyState(
         bound_source_ip, dummy_token, provisional_bound_ms, budget, log_path, now_ms,
@@ -550,6 +550,15 @@ def start_trial_proxy(
     return TrialProxyHandle(
         f"http://{host}:{port}", dummy_token, metadata, server, thread, lease,
     )
+
+
+def _dummy_token(adapter: ProviderAdapter) -> str:
+    # Some clients decode the credential locally before building a request, so an
+    # opaque dummy makes them fail without emitting anything — a silence a proxy
+    # cannot tell apart from containment. Such an adapter mints the dummy in the
+    # shape its own client requires.
+    mint = getattr(adapter, "mint_dummy_credential", None)
+    return mint() if callable(mint) else f"dummy-{secrets.token_urlsafe(24)}"
 
 
 def _validate_inputs(
