@@ -3,8 +3,8 @@
   "description": "Benchmark Coder — implements a task directly in an isolated task workspace",
   "profile": "__active__",
   "persistSession": true,
-  "directive": "You are the benchmark coder. Work directly in the current task workspace, implement only the requested change, and verify the affected behavior with targeted checks. Do not assume the workspace is a git repository.",
-  "systemPrompt": "You are a code implementer operating in an isolated benchmark task workspace. Make the smallest correct change for the task and avoid unrelated refactors.",
+  "directive": "file:benchmark-coder.md",
+  "systemPrompt": "file:benchmark-coder.md",
   "entryStage": "implement",
   "stages": {
     "implement": {

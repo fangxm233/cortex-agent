@@ -28,6 +28,7 @@ import { CONFIG_DIR, DEFAULTS_DIR, PROMPTS_DIR } from '../../../src/core/paths.j
 import { runBenchmarkThread } from '../../../src/domain/agent-run/benchmark-local-thread-orchestrator.js';
 import { loadConfig, getAgent } from '../../../src/domain/threads/template-loader.js';
 import { profileRepo } from '../../../src/store/profile-repo.js';
+import { seedShippedPrompts } from './benchmark-shipped-prompts.js';
 
 const SHIPPED_TEMPLATES = path.join(DEFAULTS_DIR, 'config', 'thread-templates');
 const SHIPPED_PROMPTS = path.join(DEFAULTS_DIR, 'prompts');
@@ -70,6 +71,7 @@ const REMOVED_SYSTEM_PROMPT: Record<string, string> = {
 };
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-prompt-assets-'));
+let previousSupervisorBinary: string | undefined;
 
 function shippedDocument(name: string): Record<string, unknown> {
   return JSON.parse(
@@ -109,7 +111,7 @@ function seedShipped(): void {
     path.join(SHIPPED_TEMPLATES, 'templates', 'benchmark-coder-review.json'),
     path.join(LIVE_TEMPLATES, 'templates', 'benchmark-coder-review.json'),
   );
-  fs.cpSync(SHIPPED_PROMPTS, PROMPTS_DIR, { recursive: true });
+  seedShippedPrompts();
   loadConfig();
 }
 
@@ -119,9 +121,19 @@ beforeAll(() => {
   seedShipped();
 });
 
-beforeEach(() => { harness.runAgent.mockReset(); });
+beforeEach(() => {
+  harness.runAgent.mockReset();
+  // Real and executable, so the supervisor probe that runs before template resolution passes and
+  // the refusal under test is the one this suite is about.
+  previousSupervisorBinary = process.env.CORTEX_SUPERVISOR_BINARY;
+  process.env.CORTEX_SUPERVISOR_BINARY = process.execPath;
+});
 
-afterEach(() => { seedShipped(); });
+afterEach(() => {
+  if (previousSupervisorBinary === undefined) delete process.env.CORTEX_SUPERVISOR_BINARY;
+  else process.env.CORTEX_SUPERVISOR_BINARY = previousSupervisorBinary;
+  seedShipped();
+});
 
 afterAll(() => { fs.rmSync(root, { recursive: true, force: true }); });
 

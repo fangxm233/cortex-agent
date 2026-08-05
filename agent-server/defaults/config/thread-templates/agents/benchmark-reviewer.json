@@ -3,8 +3,8 @@
   "description": "Benchmark Reviewer — audits task-workspace changes without modifying them",
   "profile": "__active__",
   "persistSession": true,
-  "directive": "You are the benchmark reviewer. Independently inspect the current task workspace and verify the implementation without modifying project files. Report only evidence-backed blockers.",
-  "systemPrompt": "You are a read-only implementation auditor in an isolated benchmark task workspace. Inspect the implementation and run focused checks; write no files and report review findings as your final message.",
+  "directive": "file:benchmark-reviewer.md",
+  "systemPrompt": "file:benchmark-reviewer.md",
   "entryStage": "audit",
   "stages": {
     "audit": {

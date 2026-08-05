@@ -44,6 +44,17 @@ copyDefault('agents', 'benchmark-coder');
 copyDefault('agents', 'benchmark-reviewer');
 copyDefault('templates', 'benchmark-coder-review');
 fs.mkdirSync(path.join(templateRoot, 'shells'), { recursive: true });
+// The agent documents name their prompts as `file:` refs, which resolve against DATA_DIR/prompts.
+// Copied read+write like the documents above rather than with cpSync, whose sendfile(2) is not one
+// of the syscalls the C8 boundary classifies and would be counted as a violation of this probe.
+for (const kind of ['directives', 'systemPrompts']) {
+  for (const name of ['benchmark-coder', 'benchmark-reviewer']) {
+    const source = path.join(agentRoot, 'defaults/prompts', kind, `${name}.md`);
+    const destination = path.join(cortexHome, 'prompts', kind, `${name}.md`);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(destination, fs.readFileSync(source));
+  }
+}
 
 const { runBenchmarkThread } = await import(
   path.join(agentRoot, 'dist/domain/agent-run/benchmark-local-thread-orchestrator.js')

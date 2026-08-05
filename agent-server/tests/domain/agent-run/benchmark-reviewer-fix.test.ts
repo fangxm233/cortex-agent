@@ -67,6 +67,7 @@ import {
   compileTrialPolicy, FIXTURE_MODEL, FIXTURE_PROFILE, writeFixtureAsset,
 } from '../benchmark/trial-thread-policy-fixture.js';
 import { writeFakeBackendCli, type FakeStepScript } from './fake-backend-cli.js';
+import { seedShippedPrompts } from './benchmark-shipped-prompts.js';
 
 const SHIPPED = path.join(DEFAULTS_DIR, 'config', 'thread-templates');
 const TEMPLATE = 'benchmark-coder-review-fix';
@@ -91,6 +92,7 @@ function seedShippedDocuments(): void {
     fs.copyFileSync(path.join(SHIPPED, kind, `${name}.json`), target);
   }
   fs.mkdirSync(path.join(base, 'shells'), { recursive: true });
+  seedShippedPrompts();
 }
 
 function seedParentLifecycle(

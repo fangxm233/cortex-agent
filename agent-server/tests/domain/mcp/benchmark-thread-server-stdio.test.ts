@@ -102,6 +102,11 @@ function copyBenchmarkTemplates(home: string): void {
     fs.copyFileSync(path.join(DEFAULT_TEMPLATES, kind, name), path.join(target, kind, name));
   }
   fs.mkdirSync(path.join(target, 'shells'), { recursive: true });
+  // The agent documents name their prompts as `file:` refs, which resolve against DATA_DIR/prompts —
+  // the same copy `cortex init` performs, and without it the run refuses fail-closed.
+  fs.cpSync(path.join(SERVER_ROOT, 'defaults/prompts'), path.join(home, 'prompts'), {
+    recursive: true,
+  });
 }
 
 function seedRuntimeConfig(fixture: Fixture): void {
