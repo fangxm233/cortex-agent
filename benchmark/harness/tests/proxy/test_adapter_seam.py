@@ -228,6 +228,28 @@ def test_unparsable_usage_leaves_accounting_unavailable_and_revokes(tmp_path: Pa
     assert len(upstream.requests) == 1
 
 
+def test_stream_that_stops_before_message_delta_is_unaccounted_and_revokes(
+    tmp_path: Path,
+) -> None:
+    with SyntheticUpstream() as upstream:
+        upstream.server.content_type = "text/event-stream"
+        upstream.server.raw_body = (
+            b'data: {"type":"message_start","message":{"model":"'
+            + SYNTHETIC_MODEL.encode()
+            + b'","usage":{"input_tokens":9,"output_tokens":1}}}\n\n'
+        )
+        handle = start_proxy(tmp_path, upstream.base_url)
+        try:
+            first, payload = proxy_request(handle.base_url, handle.dummy_token, "stream")
+            second, _ = proxy_request(handle.base_url, handle.dummy_token, "after")
+        finally:
+            handle.stop()
+    assert first == 502
+    assert json.loads(payload) == {"error": "budget_accounting_unavailable"}
+    assert second == 410
+    assert len(upstream.requests) == 1
+
+
 def test_proxy_refuses_to_start_for_an_upstream_the_adapter_does_not_declare(
     tmp_path: Path,
 ) -> None:
