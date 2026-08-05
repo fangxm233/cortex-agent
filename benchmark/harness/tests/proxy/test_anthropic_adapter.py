@@ -143,6 +143,18 @@ def test_injects_the_api_key_header_and_never_a_bearer() -> None:
     assert outbound["content-type"] == "application/json"
 
 
+def test_inject_auth_strips_an_inbound_api_key_whatever_casing_it_arrives_in() -> None:
+    # The adapter is exercised as a standalone contract: no proxy, no hop-header strip
+    # upstream of it. The casing differs from the one the adapter writes on purpose —
+    # with matching casing a plain dict assignment would mask a missing filter.
+    forged = "sk-ant-CONTAINER-FORGED-UNIQUE"
+    outbound = adapter().inject_auth(
+        {"X-Api-Key": forged, "content-type": "application/json"}, MESSAGES_BETA_ROUTE)
+    assert [key for key in outbound if key.lower() == "x-api-key"] == ["x-api-key"]
+    assert outbound["x-api-key"] == CREDENTIAL
+    assert forged not in outbound.values()
+
+
 def test_missing_credential_refuses_rather_than_injecting_nothing() -> None:
     with pytest.raises(AuthInjectionUnavailable):
         adapter(credential=None).inject_auth({}, MESSAGES_BETA_ROUTE)
@@ -206,6 +218,23 @@ def test_streaming_usage_is_unaccounted_when_an_event_line_is_unparsable() -> No
     assert adapter().extract_usage(body, "text/event-stream").accounted is False
 
 
+def test_an_unparsable_event_is_surfaced_as_malformed_in_an_otherwise_complete_stream() -> None:
+    # The stream is complete in every other respect — message_start carries the input
+    # count, message_delta closes it with an output count — so nothing but surfacing the
+    # unparsable event can hold `accounted` down. A dropped event would leave this partial
+    # count looking complete, and the totals are what a later gate reconciles against.
+    events = [
+        {"type": "message_start",
+         "message": {"model": FROZEN_MODEL, "usage": {"input_tokens": 9}}},
+        {"type": "message_delta", "usage": {"output_tokens": 4}},
+    ]
+    intact = adapter().extract_usage(_sse_body(events), "text/event-stream")
+    corrupt = adapter().extract_usage(
+        _sse_body_with_unparsable_event(events), "text/event-stream")
+    assert intact == ProxyUsage(FROZEN_MODEL, 9, 4, True)
+    assert corrupt.accounted is False
+
+
 def test_streaming_usage_ignores_output_tokens_outside_message_delta() -> None:
     body = _sse_body([
         {"type": "message_start",
@@ -244,3 +273,8 @@ def test_upstream_hosts_is_one_host_taken_from_the_frozen_upstream() -> None:
 def _sse_body(documents: list[dict[str, object]]) -> bytes:
     lines = [f"data: {json.dumps(document)}" for document in documents]
     return ("\n\n".join(lines) + "\n\n").encode()
+
+
+def _sse_body_with_unparsable_event(documents: list[dict[str, object]]) -> bytes:
+    truncated = b'data: {"type":"content_block_delta","delta":{"text":"cut\n\n'
+    return _sse_body(documents[:1]) + truncated + _sse_body(documents[1:])
