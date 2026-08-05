@@ -59,6 +59,9 @@ export type FixtureVariant = keyof typeof VARIANT_ASSETS;
 export interface TrialPolicyFixture {
   policy: ResolvedTrialPolicy;
   config: ResolvedAgentRunConfig;
+  /** Absolute path of the arm-resolution document the policy was compiled from. This is what a
+   *  production request carries instead of the compiled policy itself. */
+  resolutionPath: string;
   /** Absolute path of the prompt file each slot's system prompt was compiled from. */
   systemPromptOf(slot: string): string;
 }
@@ -208,6 +211,7 @@ export function compileTrialPolicy(input: TrialPolicyInput): TrialPolicyFixture 
   return {
     policy: loaded.policy!,
     config: loaded.config,
+    resolutionPath: file,
     systemPromptOf: slot => roles[slot].system_prompt_path,
   };
 }
