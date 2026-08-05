@@ -4,7 +4,9 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { Backend } from '../../agent-adapter/types.js';
-import type { IdentityJsonValue } from '../agent-run/identity.js';
+import type {
+  IdentityJsonValue, PluginDirIdentityInput, RoleToolSurfaceInput, SkillIdentityInput,
+} from '../agent-run/identity.js';
 import type { ResolvedAgentRunRole } from '../agent-run/run-config.js';
 import type { ArmDefinition, ArmLimits } from './arm-schema.js';
 import type { BenchmarkBrokerCapability } from './capabilities.js';
@@ -209,6 +211,59 @@ export interface ResolvedTrialPolicy {
   limits: ArmLimits;
   derived: { effective_admission_budget: number };
   artifact_inventory_spec: IdentityJsonValue;
+}
+
+/** The inventory keys every per-role asset as `<slot>:<rest>`; a slot is the part before the first
+ *  separator, so `benchmark-coder` never matches `benchmark-coder-x`. */
+function inventoryFor(
+  policy: ResolvedTrialPolicy, kind: AssetKind, slot: string,
+): PolicyAssetInventoryEntry[] {
+  return policy.asset_inventory.filter(entry => (
+    entry.kind === kind && entry.logical_name.slice(0, entry.logical_name.indexOf(':')) === slot
+  ));
+}
+
+function inventoryNamed(
+  policy: ResolvedTrialPolicy, kind: AssetKind, logicalName: string,
+): PolicyAssetInventoryEntry | undefined {
+  return policy.asset_inventory.find(entry => (
+    entry.kind === kind && entry.logical_name === logicalName
+  ));
+}
+
+/**
+ * The role surface the phase-B compiler hashed for a slot, read back out of the frozen policy. The
+ * compiler's own `roleSurface` is not exported and its working value is gone by the time a thread
+ * runs, so this reconstructs the same members from what the policy publishes: the prompt and
+ * directive digests and the plugin and skill content hashes from the asset inventory, and the tool
+ * list, MCP composition and the hard-coded empty hook policy from the resolved role. The compiled
+ * guard is deliberately NOT included — a caller that wants the full eight-member surface adds
+ * `role_policy_guard[slot]`, which is the difference between the two byte sources.
+ * Returns null for a slot the policy does not compile.
+ */
+export function compiledRoleSurface(
+  policy: ResolvedTrialPolicy,
+  slot: string,
+): RoleToolSurfaceInput | null {
+  const role = policy.roles[slot];
+  const systemPrompt = inventoryNamed(policy, 'prompt', `${slot}:system_prompt`);
+  const directive = inventoryNamed(policy, 'prompt', `${slot}:directive`);
+  if (role === undefined || systemPrompt === undefined || directive === undefined) return null;
+  const pluginDirs: PluginDirIdentityInput[] = inventoryFor(policy, 'plugin_dir', slot)
+    .map(entry => ({ path: entry.resolved_path, content_sha256: entry.content_sha256 }));
+  const skills: SkillIdentityInput[] = inventoryFor(policy, 'skill', slot).map(entry => ({
+    name: entry.logical_name.slice(entry.logical_name.indexOf(':') + 1),
+    content_sha256: entry.content_sha256,
+  }));
+  return {
+    systemPromptSha256: systemPrompt.content_sha256,
+    directiveSha256: directive.content_sha256,
+    tools: [...role.tools],
+    pluginDirs,
+    skills,
+    mcpComposition: role.mcpComposition,
+    hookPolicy: {},
+  };
 }
 
 function cloneArray(value: unknown[], seen: Set<object>): unknown[] {

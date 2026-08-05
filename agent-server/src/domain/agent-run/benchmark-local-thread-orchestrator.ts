@@ -135,6 +135,7 @@ interface PreparedThreadRun {
   identity: BenchmarkRoleIdentity;
   roleIdentities: Map<string, BenchmarkRoleIdentity>;
   modelProtocolProblem: string | null;
+  roleIdentityProblem: string | null;
   startedAt: string;
   /** Each step's last assistant message, keyed by step index, as the journal recorded it. A step
    *  that emitted none is absent — which is a different fact from one that emitted nothing to say. */
@@ -433,7 +434,9 @@ async function createRunArtifacts(
   backend: Backend,
 ): Promise<PreparedThreadRun> {
   fs.mkdirSync(request.trajectoryRoot, { recursive: true });
-  const identities = freezeBenchmarkThreadIdentities(request, profile, template, backend);
+  const identities = freezeBenchmarkThreadIdentities(
+    request, profile, template, backend, request.trialPolicy,
+  );
   const identity = identities.entry;
   const thread = createBenchmarkRecord(request);
   assertArtifactInsideTrial(request, thread);
@@ -450,6 +453,7 @@ async function createRunArtifacts(
   return {
     request, profile, template, thread, journal, lifecycle, identity,
     roleIdentities: identities.roles, modelProtocolProblem: identities.modelProtocolProblem,
+    roleIdentityProblem: identities.roleIdentityProblem,
     startedAt, terminalAssistantText: new Map(),
   };
 }
@@ -623,11 +627,11 @@ async function runLocalThread(
   control: RunControl,
   supervisorBinary: string,
 ): Promise<{ result: ThreadRunResult | null; error: unknown }> {
-  if (prepared.modelProtocolProblem) {
-    return {
-      result: null,
-      error: new BenchmarkIdentityProtocolError(prepared.modelProtocolProblem),
-    };
+  // Either identity gate refuses, and both refuse here — before the workspace is taken and before
+  // any spawner exists, so a divergent identity can never reach a process.
+  const problem = prepared.modelProtocolProblem ?? prepared.roleIdentityProblem;
+  if (problem) {
+    return { result: null, error: new BenchmarkIdentityProtocolError(problem) };
   }
   try {
     takeThreadWorkspace(control.lease);
