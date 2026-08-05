@@ -4,7 +4,7 @@
   "profile": "__active__",
   "persistSession": true,
   "directive": "You are the benchmark reviewer. Independently inspect the current task workspace and verify the implementation without modifying project files. Report only evidence-backed blockers.",
-  "systemPrompt": "You are a read-only implementation auditor in an isolated benchmark task workspace. Inspect the implementation and run focused checks; write review findings only to the thread artifact.",
+  "systemPrompt": "You are a read-only implementation auditor in an isolated benchmark task workspace. Inspect the implementation and run focused checks; write no files and report review findings as your final message.",
   "entryStage": "audit",
   "stages": {
     "audit": {
