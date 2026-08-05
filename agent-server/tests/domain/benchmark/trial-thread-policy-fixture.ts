@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Backend } from '../../../src/agent-adapter/types.js';
+import { fromCanonical, toCanonical } from '../../../src/agent-adapter/normalize/tool-names.js';
 import {
   loadAgentRunConfigWithPolicy, type ResolvedAgentRunConfig,
 } from '../../../src/domain/agent-run/run-config.js';
@@ -17,21 +18,33 @@ export const FIXTURE_PROFILE = 'benchmark-profile';
 export const FIXTURE_PROXY_BASE_URL = 'http://127.0.0.1:49152';
 const CLI_VERSION = 'fixture-cli/9.9.9';
 
-/** One tool label per backend namespace, so a role's allow-list is drawn from the arm's own set. */
-const ROLE_TOOLS: Record<Backend, Record<string, string[]>> = {
-  claude: {
-    parent: ['Read', 'Write'],
-    'benchmark-coder': ['Read', 'Write', 'Edit'],
-    'benchmark-reviewer': ['Read', 'Grep'],
-    'benchmark-fixer': ['Read', 'Write', 'Edit'],
-  },
-  pi: {
-    parent: ['read', 'write'],
-    'benchmark-coder': ['read', 'write', 'edit'],
-    'benchmark-reviewer': ['read', 'grep'],
-    'benchmark-fixer': ['read', 'write', 'edit'],
-  },
+/** The parent is not a document-backed slot: its surface is the composer's, so it keeps a minimal
+ *  pair drawn from the arm's own label namespace. */
+const PARENT_TOOLS: Record<Backend, string[]> = {
+  claude: ['Read', 'Write'],
+  pi: ['read', 'write'],
 };
+
+/**
+ * A benchmark slot's tools are its shipped agent document's `tools` string in document order, with
+ * the PI-native image substituted for a PI arm. Read from the document rather than restated: a
+ * fixture that simplifies the surface compiles a role the shipped document never describes, and
+ * every assertion downstream of it then measures the fixture instead of the product.
+ */
+function documentTools(backend: Backend, slot: string): string[] {
+  const file = path.resolve('defaults/config/thread-templates/agents', `${slot}.json`);
+  const names = String(JSON.parse(fs.readFileSync(file, 'utf8')).tools).split(',');
+  if (backend === 'claude') return names;
+  return names.map(name => {
+    const image = fromCanonical('pi', toCanonical('claude', name) as string);
+    if (!image) throw new Error(`no PI image for ${slot} tool ${name}`);
+    return image;
+  });
+}
+
+function roleTools(backend: Backend, slot: string): string[] {
+  return slot === 'parent' ? PARENT_TOOLS[backend] : documentTools(backend, slot);
+}
 
 export const THREAD_SLOTS = ['benchmark-coder', 'benchmark-reviewer'] as const;
 
@@ -78,7 +91,7 @@ function role(root: string, backend: Backend, slot: string): Record<string, unkn
   return {
     system_prompt_path: writeFixtureAsset(root, `${slot}-system.txt`, `You are the ${slot}.\n`),
     directive_path: writeFixtureAsset(root, `${slot}-directive.txt`, `Act as the ${slot}.\n`),
-    tools: ROLE_TOOLS[backend][slot],
+    tools: roleTools(backend, slot),
     plugin_dirs: [],
     mcp_composition: 'none',
     mcp_config_paths: [writeFixtureAsset(root, `${slot}-mcp.json`, '{"mcpServers":{}}\n')],

@@ -78,9 +78,18 @@ function occurrencesOutsideNegations(text: string, word: string): string[] {
   return stray;
 }
 
+function promptAsset(kind: 'directives' | 'systemPrompts', name: string): string {
+  return fs.readFileSync(path.join(DEFAULTS_DIR, 'prompts', kind, `${name}.md`), 'utf8');
+}
+
+/** The fixer's authored surface is the document PLUS the two prompt assets design (14.2.2) extracted
+ *  out of it: after the extraction the JSON no longer carries D-FIX or S-FIX, so a predicate that
+ *  read only the JSON would silently stop covering two thirds of the authored prose. */
 const newDocuments = (): { label: string; text: string }[] => [
   { label: `templates/${TEMPLATE}`, text: documentText('templates', TEMPLATE) },
   { label: `agents/${FIXER}`, text: documentText('agents', FIXER) },
+  { label: `prompts/directives/${FIXER}`, text: promptAsset('directives', FIXER) },
+  { label: `prompts/systemPrompts/${FIXER}`, text: promptAsset('systemPrompts', FIXER) },
 ];
 
 const stockDocuments = (): { label: string; text: string }[] => [
@@ -161,7 +170,7 @@ it('TA4: the fixer agent document carries exactly the frozen field table', () =>
   assert.equal(fixer.mcpComposition, 'none');
   assert.deepEqual(Object.keys(fixer.stages), ['auditFix']);
   assert.deepEqual(Object.keys(fixer.stages.auditFix).sort(), ['description', 'promptTemplate']);
-  // A fresh session is what `plan:17`'s "independent" buys, so the stage may not continue one.
+  // A fresh session is what makes this reviewer independent, so the stage may not continue one.
   assert.equal('continuesSession' in fixer.stages.auditFix, false);
   assert.equal(
     fixer.stages.auditFix.description,
@@ -172,17 +181,21 @@ it('TA4: the fixer agent document carries exactly the frozen field table', () =>
 it('(14.1.5): the three authored prompt assets are byte-identical to the frozen literals', () => {
   const fixer = documentOf('agents', FIXER);
 
-  assert.equal(fixer.systemPrompt, S_FIX);
-  assert.equal(fixer.directive, D_FIX);
+  // Design (14.2.2) moved S-FIX and D-FIX out of the document into their own prompt assets. The
+  // bytes are unchanged and are still (14.1.5)'s, so they are asserted where they now live.
+  assert.equal(promptAsset('systemPrompts', FIXER), S_FIX);
+  assert.equal(promptAsset('directives', FIXER), D_FIX);
   assert.equal(fixer.stages.auditFix.promptTemplate, P_FIX);
   // The verdict token is the last thing in the message, so the proposal's read is a suffix test
   // rather than a scan of prose that may quote the token while discussing it.
   assert.ok(P_FIX.includes('end your message with the exact token [FIX-VERIFIED]'));
-  // The prompts are authored, not loaded from the stock role files the stock agent points at.
-  assert.equal(String(fixer.directive).startsWith('file:'), false);
-  assert.equal(String(fixer.systemPrompt).startsWith('file:'), false);
+  // The prompts are authored, not the stock role files the stock agent points at: the fixer's refs
+  // name its own assets, never `coder.md` or `coder-reviewer.md`.
+  assert.equal(fixer.directive, `file:${FIXER}.md`);
+  assert.equal(fixer.systemPrompt, `file:${FIXER}.md`);
   const stock = documentOf('agents', 'coder-reviewer');
-  assert.ok(String(stock.directive).startsWith('file:') || String(stock.systemPrompt).startsWith('file:'));
+  assert.equal(stock.directive, 'file:coder-reviewer.md');
+  assert.equal(stock.systemPrompt, 'file:coder.md');
 });
 
 // ---------------------------------------------------------------- NI1–NI10
@@ -210,7 +223,7 @@ it('NI2/NI3: git, commits and SHAs appear only inside the authored negation clau
     assert.equal(document.text.includes('SHA'), false, document.label);
   }
   // Discriminating: every stock document that mentions git or a commit does so OUTSIDE any
-  // negation, which is precisely the assumption `plan:20` forbids inheriting.
+  // negation, which is precisely the assumption a benchmark document must not inherit.
   const stray = stockDocuments()
     .flatMap(document => [
       ...occurrencesOutsideNegations(document.text, 'git'),

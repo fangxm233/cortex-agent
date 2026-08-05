@@ -3,8 +3,8 @@
   "description": "Benchmark Fixer — independently audits the task-workspace implementation and directly fixes the blockers it finds",
   "profile": "__active__",
   "persistSession": true,
-  "directive": "You are the benchmark fixing reviewer. Independently inspect the current task workspace, verify the implementation against the task, and directly fix every blocker you can confirm with evidence. Work in place in the current workspace. Do not assume git, commits, a repository-wide test command, or any task-tracking system exists, and do not attempt to use one.",
-  "systemPrompt": "You are an implementation auditor operating in an isolated benchmark task workspace. You are the last stage of this pipeline: audit the implementation, and fix the blockers you confirm rather than reporting them. Keep every fix minimal and scoped to the blocker that motivated it. The workspace may not be a git repository and may have no repository-wide test command; verify only the behavior you changed.",
+  "directive": "file:benchmark-fixer.md",
+  "systemPrompt": "file:benchmark-fixer.md",
   "entryStage": "auditFix",
   "stages": {
     "auditFix": {

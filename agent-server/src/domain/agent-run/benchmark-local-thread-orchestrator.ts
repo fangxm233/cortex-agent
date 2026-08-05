@@ -10,7 +10,7 @@ import type {
   AgentProcessSpawner, AgentProcessSupervision, Backend,
 } from '../../agent-adapter/types.js';
 import type {
-  AgentSlotId, BenchmarkThreadEvent, ThreadRecord,
+  AgentSlotConfig, AgentSlotId, BenchmarkThreadEvent, ThreadRecord,
 } from '../../core/types/thread-types.js';
 import { resolveProfileConfig as daemonResolveProfile } from '../agents/profile-manager.js';
 import type { ResolvedTrialPolicy } from '../benchmark/resolved-policy.js';
@@ -27,6 +27,7 @@ import {
   getTemplate as daemonGetTemplate,
   loadConfig as daemonLoadConfig,
   resolveTemplateAgents as daemonResolveTemplateAgents,
+  FILE_REF_PREFIX,
 } from '../threads/index.js';
 import {
   createLocalThreadRuntimeDeps,
@@ -336,6 +337,22 @@ function resolveProfile(name: string, backend: Backend): ResolvedProfile {
   return profile;
 }
 
+/** `resolveFileRef` is fail-soft: an unreadable prompt file makes the resolved value the raw
+ *  `file:<name>.md` string, so a benchmark step would run with that literal as its entire system
+ *  prompt while phase B hashed the bundle's real bytes. Its fail-soft behaviour is shared with
+ *  every non-benchmark agent and is left alone; a benchmark run refuses here instead. */
+function assertResolvedPrompts(agents: AgentSlotConfig[]): void {
+  for (const agent of agents) {
+    for (const field of ['directive', 'systemPrompt'] as const) {
+      if (agent[field]?.startsWith(FILE_REF_PREFIX)) {
+        throw new Error(
+          `Benchmark agent ${agent.slotId} ${field} did not resolve: ${agent[field]}`,
+        );
+      }
+    }
+  }
+}
+
 function resolveTemplate(name: string): ResolvedTemplate {
   const template = getTemplate(name);
   if (!template) throw new Error(`Unknown benchmark template: ${name}`);
@@ -343,6 +360,7 @@ function resolveTemplate(name: string): ResolvedTemplate {
   if (agents.length === 0 || agents.some(agent => !BENCHMARK_SLOTS.has(agent.slotId))) {
     throw new Error('Benchmark template contains a non-benchmark agent slot');
   }
+  assertResolvedPrompts(agents);
   if (!BENCHMARK_SLOTS.has(template.entryAgent)) {
     throw new Error('Benchmark template entry agent is not a benchmark slot');
   }

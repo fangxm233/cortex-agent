@@ -113,6 +113,14 @@ def direct_arm() -> dict[str, object]:
     }
 
 
+def manager_arm() -> dict[str, object]:
+    """A mode whose role set no gate has authored yet, so composition still refuses it."""
+    value = direct_arm()
+    value["name"] = "cortex-manager"
+    value["orchestration"] = {"mode": "manager", "ask_manager": False}
+    return value
+
+
 def coder_review_arm() -> dict[str, object]:
     value = direct_arm()
     value["name"] = "cortex-coder-review"
@@ -347,7 +355,6 @@ def test_constructor_rejects_launcher_owned_seed_fields(
 @pytest.mark.parametrize(
     ("variant", "error_type", "reason"),
     [
-        ("coder-review", ArmCompositionUnsupportedError, "arm_composition_unsupported"),
         ("manager", ArmCompositionUnsupportedError, "arm_composition_unsupported"),
         ("unknown-backend", BackendUnsupportedForKindError, "backend_unsupported_for_kind"),
         ("vendor-baseline", ValueError, None),
@@ -361,7 +368,7 @@ def test_public_constructor_refuses_uncomposable_seed_before_setup(
 ) -> None:
     arm = direct_arm()
     arm["name"] = f"cortex-{variant}"
-    if variant in {"coder-review", "manager"}:
+    if variant == "manager":
         arm["orchestration"] = {"mode": variant, "ask_manager": False}
     elif variant == "unknown-backend":
         arm["backend"] = variant
@@ -384,9 +391,11 @@ def test_public_constructor_refuses_uncomposable_seed_before_setup(
 
 
 def test_public_constructor_has_no_unsupported_seed_opt_out(tmp_path: Path) -> None:
-    seed = trial_seed({"arm": coder_review_arm()})
+    # Anchored on `manager`, the mode that still refuses: coder-review composes now, so using it
+    # here would let the flag become an opt-out again without any test noticing.
+    seed = trial_seed({"arm": manager_arm()})
     manifest = manifest_seed(tmp_path)
-    manifest["arm"] = "cortex-coder-review"
+    manifest["arm"] = "cortex-manager"
 
     with pytest.raises(ArmCompositionUnsupportedError):
         CortexBenchAgent(
