@@ -23,7 +23,7 @@ from cortex_bench_harness.proxy.adapters.openai_codex_responses import (
     TOKEN_PATH,
     OpenAICodexResponsesOAuthAdapter,
 )
-from synthetic import SyntheticUpstream
+from synthetic import LEASE_TERMS, SyntheticUpstream
 from test_openai_codex_adapter import (
     CODEX_MODEL,
     HOST_ACCESS_TOKEN,
@@ -153,7 +153,7 @@ def start_proxy(tmp_path: Path, upstream: SyntheticUpstream, adapter):
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
         budget=ProxyBudget(
             Decimal("20"), Decimal("5"), Decimal("1000000"), Decimal("1000000")),
-        log_path=tmp_path / "codex-refresh.jsonl",
+        log_path=tmp_path / "codex-refresh.jsonl", lease_terms=LEASE_TERMS,
     )
 
 

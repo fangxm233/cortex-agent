@@ -9,14 +9,16 @@ import os
 import secrets
 import socket
 import threading
-from datetime import UTC, datetime
+import time
+from datetime import datetime
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Mapping, cast
+from typing import Callable, Mapping, cast
 from urllib.parse import urlsplit
 
 from .adapters.base import AuthInjectionUnavailable, Billable, ProviderAdapter
+from .lease import LEASE_ECHO_TARGET, LeaseRefused, LeaseTerms, TrialLease
 from .models import ProxyBudget, ProxyMetadata, ProxyUsage, decimal_text, utc_text
 from .upstream import (
     HOP_HEADERS,
@@ -27,14 +29,20 @@ from .upstream import (
 )
 
 
+def host_now_ms() -> int:
+    """The host wall clock, as the single injectable read of it."""
+    return time.time_ns() // 1_000_000
+
+
 class ProxyState:
     def __init__(
-        self, source_ip: str, dummy_token: str, deadline: datetime,
-        budget: ProxyBudget, log_path: Path,
+        self, source_ip: str, dummy_token: str, deadline_ms: int,
+        budget: ProxyBudget, log_path: Path, now_ms: Callable[[], int],
     ) -> None:
         self.source_ip = source_ip
         self.dummy_token = dummy_token
-        self.deadline = deadline
+        self.deadline_ms = deadline_ms
+        self.now_ms = now_ms
         self.budget = budget
         self.log_path = log_path
         self.request_lock = threading.Lock()
@@ -50,7 +58,7 @@ class ProxyState:
         lifecycle_error = self.lifecycle_error()
         if lifecycle_error is not None:
             return lifecycle_error
-        caller_error = self._caller_error(source_ip, authorization)
+        caller_error = self.caller_error(source_ip, authorization)
         if caller_error is not None:
             return caller_error
         remaining = self.budget.max_cost_usd - self.budget_consumed_usd
@@ -66,11 +74,16 @@ class ProxyState:
         return None
 
     def deadline_expired(self) -> bool:
-        return self.expired or datetime.now(UTC) >= self.deadline.astimezone(UTC)
+        return self.expired or self.now_ms() >= self.deadline_ms
 
     def remaining_seconds(self) -> float:
-        remaining = self.deadline.astimezone(UTC) - datetime.now(UTC)
-        return max(remaining.total_seconds(), 0.001)
+        return max((self.deadline_ms - self.now_ms()) / 1000, 0.001)
+
+    def set_deadline_ms(self, epoch_ms: int) -> None:
+        self.deadline_ms = epoch_ms
+
+    def record_lease(self, entry: Mapping[str, object]) -> bool:
+        return self._persist(entry)
 
     def reserve(self) -> None:
         self.budget_consumed_usd += self.budget.max_request_cost_usd
@@ -81,7 +94,7 @@ class ProxyState:
     def deactivate(self) -> None:
         self.active = False
 
-    def _caller_error(self, source_ip: str, authorization: str | None):
+    def caller_error(self, source_ip: str, authorization: str | None):
         if source_ip != self.source_ip:
             return 403, "source_rejected"
         expected = f"Bearer {self.dummy_token}"
@@ -185,6 +198,9 @@ class ProxyState:
 
 class TrialHttpServer(ThreadingHTTPServer):
     daemon_threads = True
+    # Assigned by `start_trial_proxy` before the serve thread starts; the lease needs this server
+    # to revoke the route, so it cannot be built inside the constructor.
+    lease: TrialLease
 
     def __init__(
         self, address: tuple[str, int], state: ProxyState, upstream: FixedUpstream,
@@ -266,6 +282,11 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         server = cast(TrialHttpServer, self.server)
+        # The lease-echo control route is matched before the adapter's route allow-list and is
+        # answered here; it is never forwarded upstream.
+        if _is_lease_echo_target(self.path):
+            self._handle_lease_echo(server)
+            return
         error = self._admission_error(server.state)
         if error is not None:
             self._send_error(*error)
@@ -287,6 +308,27 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
                          decision.reason or "request_model_rejected")
             return
         self._forward_reserved(server, body, route.route_id)
+
+    def _handle_lease_echo(self, server: TrialHttpServer) -> None:
+        # Authenticated exactly as a model call is. Budget and lifecycle are not authentication:
+        # a route that already expired or stopped refuses the echo as `lease_echo_after_terminal`,
+        # and is never re-armed.
+        error = self._caller_admission(server.state)
+        if error is not None:
+            self._send_error(*error)
+            return
+        body = self._read_body(server)
+        if body is None:
+            return
+        try:
+            self._send_json(200, server.lease.apply_echo(body))
+        except LeaseRefused as refusal:
+            self._send_error(refusal.status, refusal.reason)
+
+    def _caller_admission(self, state: ProxyState):
+        with state.request_lock:
+            return state.caller_error(
+                self.client_address[0], self.headers.get("authorization"))
 
     def _refuse(
         self, state: ProxyState, status: int, wire_reason: str, audit_outcome: str,
@@ -410,7 +452,10 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         self.close_connection = True
 
     def _send_error(self, status: int, reason: str) -> None:
-        payload = json.dumps({"error": reason}, separators=(",", ":")).encode()
+        self._send_json(status, {"error": reason})
+
+    def _send_json(self, status: int, document: Mapping[str, object]) -> None:
+        payload = json.dumps(document, separators=(",", ":")).encode()
         try:
             self.send_response(status)
             self.send_header("content-type", "application/json")
@@ -435,8 +480,7 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
 class TrialProxyHandle:
     def __init__(
         self, base_url: str, dummy_token: str, metadata: ProxyMetadata,
-        server: TrialHttpServer, thread: threading.Thread,
-        deadline_timer: threading.Timer,
+        server: TrialHttpServer, thread: threading.Thread, lease: TrialLease,
     ) -> None:
         self.base_url = base_url
         self.dummy_token = dummy_token
@@ -444,19 +488,24 @@ class TrialProxyHandle:
         self._metadata = metadata
         self._server = server
         self._thread = thread
-        self._deadline_timer = deadline_timer
-        self._stop_lock = threading.Lock()
+        self._lease = lease
+        # The lease owns the lock, so a re-arm and a stop cannot interleave.
+        self._stop_lock = lease.lock
         self._stopped = False
 
     @property
     def manifest_block(self) -> dict[str, object]:
         return self._metadata.manifest_block(self.base_url)
 
+    @property
+    def lease_echo_record(self) -> dict[str, object]:
+        return self._lease.record
+
     def stop(self) -> None:
         with self._stop_lock:
             if self._stopped:
                 return
-            self._deadline_timer.cancel()
+            self._lease.stop()
             self._server.state.deactivate()
             self._server.close_active_clients()
             self._server.shutdown()
@@ -470,13 +519,18 @@ class TrialProxyHandle:
 def start_trial_proxy(
     *, trial_id: str, upstream_base_url: str, adapter: ProviderAdapter,
     bound_source_ip: str, absolute_deadline: datetime, budget: ProxyBudget,
-    log_path: Path, listen_host: str = "127.0.0.1",
-    advertised_host: str | None = None,
+    log_path: Path, lease_terms: LeaseTerms, listen_host: str = "127.0.0.1",
+    advertised_host: str | None = None, now_ms: Callable[[], int] = host_now_ms,
 ) -> TrialProxyHandle:
+    """Start one per-trial proxy. `absolute_deadline` is the provisional bound `P`: the container
+    may shorten the lease from it by echoing back a duration, and may never lengthen it past it."""
     _validate_inputs(trial_id, upstream_base_url, adapter, absolute_deadline)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     dummy_token = _dummy_token(adapter)
-    state = ProxyState(bound_source_ip, dummy_token, absolute_deadline, budget, log_path)
+    provisional_bound_ms = int(absolute_deadline.timestamp() * 1000)
+    state = ProxyState(
+        bound_source_ip, dummy_token, provisional_bound_ms, budget, log_path, now_ms,
+    )
     upstream = FixedUpstream(upstream_base_url, adapter)
     server = TrialHttpServer((listen_host, 0), state, upstream, adapter)
     host = advertised_host or cast(tuple[str, int], server.server_address)[0]
@@ -485,16 +539,16 @@ def start_trial_proxy(
         trial_id, upstream_base_url, bound_source_ip, absolute_deadline,
         budget, log_path.name, adapter.adapter_id,
     )
-    deadline_timer = threading.Timer(
-        _deadline_delay(absolute_deadline), server.expire_route,
+    lease = TrialLease(
+        trial_id=trial_id, state=state, server=server,
+        provisional_bound_ms=provisional_bound_ms, terms=lease_terms, now_ms=now_ms,
     )
-    deadline_timer.daemon = True
-    deadline_timer.start()
+    server.lease = lease
+    lease.arm_provisional_bound()
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return TrialProxyHandle(
-        f"http://{host}:{port}", dummy_token, metadata, server, thread,
-        deadline_timer,
+        f"http://{host}:{port}", dummy_token, metadata, server, thread, lease,
     )
 
 
@@ -521,14 +575,14 @@ def _validate_inputs(
     utc_text(deadline)
 
 
-def _deadline_delay(deadline: datetime) -> float:
-    remaining = deadline.astimezone(UTC) - datetime.now(UTC)
-    return max(remaining.total_seconds(), 0)
-
-
 def _valid_request_target(target: str) -> bool:
     parsed = urlsplit(target)
     return not parsed.scheme and not parsed.netloc and parsed.path.startswith("/")
+
+
+def _is_lease_echo_target(target: str) -> bool:
+    parsed = urlsplit(target)
+    return not parsed.scheme and not parsed.netloc and parsed.path == LEASE_ECHO_TARGET
 
 
 def _append_log(path: Path, record: Mapping[str, object]) -> None:

@@ -6,6 +6,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 |---|---|---|
 | arm-schema.ts | 类型 | 校验 v2 arm 与版本化 phase-A 输入 |
 | capabilities.ts | 策略 | 派生封闭模板与能力白名单 |
+| lease-echo.ts | 核心 | 用容器时钟组成并投递凭据租约回声 |
 | policy-backed-runtime-deps.ts | 策略 | 仅从冻结快照解析运行时名称 |
 | policy-compiler.ts | 核心 | 有序解析资产并编译冻结策略 |
 | resolved-policy.ts | 类型 | 定义策略值与 1–44 失败分类 |

@@ -17,6 +17,7 @@ import pytest
 import cortex_bench_harness.proxy.server as proxy_server
 from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
 from synthetic import (
+    LEASE_TERMS,
     MESSAGES_TARGET,
     SyntheticUpstream,
     proxy_request,
@@ -48,6 +49,7 @@ def start_proxy(
         absolute_deadline=deadline or datetime.now(UTC) + timedelta(minutes=5),
         budget=budget(max_cost),
         log_path=tmp_path / "proxy.jsonl",
+        lease_terms=LEASE_TERMS,
     )
 
 
@@ -74,6 +76,7 @@ def test_rejects_request_without_enough_budget_for_maximum_call(tmp_path: Path) 
             bound_source_ip="127.0.0.1",
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
             budget=budget("4", "5"), log_path=tmp_path / "reservation.jsonl",
+            lease_terms=LEASE_TERMS,
         )
         try:
             status, payload = proxy_request(handle.base_url, handle.dummy_token, "blocked")
@@ -106,7 +109,7 @@ def test_connect_failure_releases_reservation_and_writes_audit(tmp_path: Path) -
         adapter=row_one_adapter(f"http://127.0.0.1:{port}", REAL_CREDENTIAL),
         bound_source_ip="127.0.0.1",
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-        budget=budget(), log_path=log_path,
+        budget=budget(), log_path=log_path, lease_terms=LEASE_TERMS,
     )
     try:
         first, _ = proxy_request(handle.base_url, handle.dummy_token, "connect-fail")
@@ -373,7 +376,7 @@ def test_log_persistence_failure_revokes_route(
             adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
             bound_source_ip="127.0.0.1",
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-            budget=budget("20", "5"), log_path=log_path,
+            budget=budget("20", "5"), log_path=log_path, lease_terms=LEASE_TERMS,
         )
         try:
             first, payload = proxy_request(handle.base_url, handle.dummy_token, "logged")

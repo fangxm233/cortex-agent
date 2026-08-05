@@ -16,3 +16,4 @@ Proxy tests prove host credential isolation, policy enforcement, and Docker egre
 | test_offline_containment.py | test | Proves H7 and host-set properties offline |
 | test_openai_codex_adapter.py | test | Verifies the Codex responses adapter duties |
 | test_openai_codex_second_host.py | test | Proves refresh shape and CP1, CP2, CP3 |
+| test_lease_echo.py | test | Proves skew-invariant lease arming and revocation |

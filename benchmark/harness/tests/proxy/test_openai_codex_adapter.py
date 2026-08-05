@@ -34,7 +34,13 @@ from cortex_bench_harness.proxy.adapters.openai_codex_responses import (
     extract_account_id,
 )
 from cortex_bench_harness.proxy.models import PROXY_SCHEMA_VERSION
-from synthetic import SYNTHETIC_MODEL, SyntheticUpstream, proxy_request, row_one_adapter
+from synthetic import (
+    LEASE_TERMS,
+    SYNTHETIC_MODEL,
+    SyntheticUpstream,
+    proxy_request,
+    row_one_adapter,
+)
 
 CODEX_MODEL = "gpt-synthetic-codex"
 HOST_ACCOUNT_ID = "acct-synthetic-host-7"
@@ -92,7 +98,7 @@ def start_proxy(
         budget=ProxyBudget(
             Decimal(max_cost), Decimal("5"), Decimal("1000000"), Decimal("1000000"),
         ),
-        log_path=tmp_path / "codex.jsonl",
+        log_path=tmp_path / "codex.jsonl", lease_terms=LEASE_TERMS,
     )
 
 
@@ -260,7 +266,7 @@ def test_a_row_without_that_requirement_keeps_the_shipped_opaque_dummy(
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
             budget=ProxyBudget(
                 Decimal("20"), Decimal("5"), Decimal("1"), Decimal("1")),
-            log_path=tmp_path / "row-one.jsonl",
+            log_path=tmp_path / "row-one.jsonl", lease_terms=LEASE_TERMS,
         )
         try:
             dummy = handle.dummy_token
@@ -675,7 +681,7 @@ def test_a_priced_call_beyond_the_per_request_limit_is_refused(tmp_path: Path) -
             budget=ProxyBudget(
                 Decimal("20"), Decimal("0.000001"), Decimal("1000000"),
                 Decimal("1000000")),
-            log_path=tmp_path / "codex-limit.jsonl",
+            log_path=tmp_path / "codex-limit.jsonl", lease_terms=LEASE_TERMS,
         )
         try:
             status, payload = codex_request(handle)

@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
 from docker_gate import docker_opt_in
 from docker_tools import external_network, internal_network, raw_proxy_request, run_container
-from synthetic import SyntheticUpstream, row_one_adapter
+from synthetic import LEASE_TERMS, SyntheticUpstream, row_one_adapter
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-PROXY-CONTAINER"
 
@@ -31,6 +31,7 @@ def start_network_proxy(tmp_path: Path, upstream: SyntheticUpstream, network):
             Decimal("20"), Decimal("5"), Decimal("1000000"), Decimal("1000000"),
         ),
         log_path=tmp_path / "container-proxy.jsonl",
+        lease_terms=LEASE_TERMS,
         listen_host=network.gateway,
         advertised_host=network.gateway,
     )

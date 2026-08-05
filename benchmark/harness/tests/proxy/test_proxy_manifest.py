@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from cortex_bench_harness.proxy import ProxyBudget, fill_proxy_manifest, start_trial_proxy
-from synthetic import SyntheticUpstream, row_one_adapter
+from synthetic import LEASE_TERMS, SyntheticUpstream, row_one_adapter
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-MANIFEST-UNIQUE"
 
@@ -90,6 +90,7 @@ def _start_proxy(tmp_path: Path, upstream_url: str, deadline: datetime):
         bound_source_ip="127.0.0.1",
         absolute_deadline=deadline, budget=budget,
         log_path=tmp_path / "proxy.jsonl",
+        lease_terms=LEASE_TERMS,
     )
 
 
