@@ -9,3 +9,4 @@ Host launcher modules select immutable arms and project non-secret trial configu
 | arms.py | core | Binds selected arms to seeds and builds AgentConfig |
 | credential_capabilities.py | registry | Projects host-authoritative capability metadata |
 | lease_bound.py | policy | Computes the provisional credential-lease bound |
+| trial_proxy.py | core | Arms, produces, declares and revokes the trial route |

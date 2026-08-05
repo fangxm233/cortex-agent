@@ -231,7 +231,12 @@ def _direct_parent_role(bundle_root: str, backend: str) -> dict[str, object]:
     }
 
 
-def compose_arm_resolution(seed: TrialSeed, facts: ContainerFacts) -> dict[str, object]:
+def compose_arm_resolution(
+    seed: TrialSeed, facts: ContainerFacts, *,
+    credential: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    """`credential` is the block an armed trial proxy produced. Its shape is the seed's: the
+    launcher supplies the members' producer, it does not reshape the document."""
     require_composable_arm(seed.arm)
     return build_arm_resolution(ArmResolutionInputs(
         arm=seed.arm,
@@ -241,7 +246,7 @@ def compose_arm_resolution(seed: TrialSeed, facts: ContainerFacts) -> dict[str, 
         task=seed.task,
         profile_name=seed.profile_name,
         paid_run=seed.paid_run,
-        credential=seed.credential,
+        credential=seed.credential if credential is None else credential,
         cli_artifact={"path": facts.backend_cli_path, "version": facts.backend_cli_version},
         model_alias_policy=seed.model_alias_policy,
         roles={"parent": _direct_parent_role(facts.bundle_root, arm_backend(seed.arm))},

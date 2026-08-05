@@ -55,6 +55,21 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
 })
 
 
+def capability_key_for(capability_id: str) -> CredentialCapabilityKey:
+    """The key an arm's `credential_capability` id names.
+
+    Adapter selection is by exact key; the id is only how an arm points at one. An id no row
+    declares is a refusal, because a trial may not run on a capability the host never registered.
+    """
+    matches = [
+        key for key, capability in CAPABILITY_REGISTRY.items()
+        if capability.id == capability_id
+    ]
+    if len(matches) != 1:
+        raise LookupError(f"no credential capability is registered as {capability_id!r}")
+    return matches[0]
+
+
 def _project_row(
     key: CredentialCapabilityKey,
     capability: CredentialCapability,
