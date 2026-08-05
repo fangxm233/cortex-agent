@@ -13,11 +13,14 @@ from harbor.models.trial.config import AgentConfig
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.arms import (
+    COMPOSABLE_MODES,
+    MODE_LIFTING_GATES,
     ArmCompositionUnsupportedError,
     BackendUnsupportedForKindError,
     ImageDigestUnpinnedError,
     backend_cli_binary,
     build_agent_config,
+    require_composable_arm,
     require_pinned_image,
     select_arm,
     select_task,
@@ -212,9 +215,7 @@ def build_unsupported(tmp_path: Path, arm: dict[str, object]) -> AgentConfig:
     )
 
 
-@pytest.mark.parametrize(
-    ("mode", "gate"), [("coder-review", "gate 3"), ("manager", "gate 6")],
-)
+@pytest.mark.parametrize(("mode", "gate"), [("manager", "gate 6")])
 def test_unimplemented_modes_refuse_on_the_host(
     tmp_path: Path, mode: str, gate: str,
 ) -> None:
@@ -228,6 +229,54 @@ def test_unimplemented_modes_refuse_on_the_host(
     assert error.value.reason == "arm_composition_unsupported"
     for expected in (f"cortex-{mode}", "claude", mode, gate):
         assert expected in str(error.value)
+
+
+# Design section 3.1(h.5) row 2 lifts at this gate, and RB6 makes the lift's BOUNDS a done-when
+# rather than a nicety: a test that only proves the new pairs compose is half a test.
+@pytest.mark.parametrize("variant", ["audit-retry", "reviewer-fix"])
+@pytest.mark.parametrize("backend", ["claude", "pi"])
+def test_coder_review_arms_compose_on_both_backends(
+    tmp_path: Path, backend: str, variant: str,
+) -> None:
+    arm = copy.deepcopy(cortex_arm())
+    arm["name"] = f"cortex-{backend}-{variant}"
+    arm["backend"] = backend
+    arm["orchestration"] = {
+        "mode": "coder-review", "coder_review_variant": variant, "ask_manager": False,
+    }
+    arm["limits"] = {**arm["limits"], "max_thread_starts": 1}
+    seed = {**trial_seed(), "arm": copy.deepcopy(arm)}
+
+    config = build_agent_config(
+        arm, cli_version="2026.8.3", artifact_dir=tmp_path / "artifacts",
+        manifest=manifest(tmp_path), trial_seed=seed,
+    )
+
+    assert isinstance(config, AgentConfig)
+    assert backend_cli_binary(arm) == backend
+
+
+def test_the_manager_mode_gate_is_the_only_one_left_standing() -> None:
+    # RB6, read off the table rather than off a message: coder-review no longer names a lifting
+    # gate because it no longer refuses, and gate 6 keeps its entry.
+    assert MODE_LIFTING_GATES == {"manager": "gate 6"}
+    assert "coder-review" in COMPOSABLE_MODES
+    assert "manager" not in COMPOSABLE_MODES
+
+
+def test_vendor_baselines_are_unaffected_by_the_mode_lift(tmp_path: Path) -> None:
+    # RB6's other half: a baseline declares no orchestration at all, so a change to which modes
+    # compose must leave it exactly where it was.
+    arm = baseline_arm("claude-code")
+
+    config = build_agent_config(
+        arm, cli_version="2026.8.3", artifact_dir=tmp_path / "artifacts",
+        manifest=manifest(tmp_path),
+    )
+
+    assert isinstance(config, AgentConfig)
+    with pytest.raises(ValueError, match="Cortex arm"):
+        require_composable_arm(arm)
 
 
 def test_pi_backed_direct_arms_compose_on_the_host(tmp_path: Path) -> None:
