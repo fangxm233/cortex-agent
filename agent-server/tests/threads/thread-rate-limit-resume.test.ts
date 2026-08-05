@@ -174,7 +174,7 @@ test('recordStepOutcome: rate-limited but NOT throttled falls through to termina
 
 test('buildThreadSummary shows a paused headline for rate_limited', () => {
   const thr = makeThread('thr_sum', { status: 'rate_limited' });
-  const summary = buildThreadSummary({ thread: thr, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null });
+  const summary = buildThreadSummary({ thread: thr, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
   assert.match(summary, /paused/i);
   assert.match(summary, /rate limited/i);
 });

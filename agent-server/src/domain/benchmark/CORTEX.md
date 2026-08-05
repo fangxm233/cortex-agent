@@ -11,4 +11,5 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | resolved-policy.ts | 类型 | 定义策略值与 1–44 失败分类 |
 | trial-adapter-factory.ts | 核心 | 仅从冻结策略构造每次试验的适配器 |
 | trial-thread-adapter.ts | 核心 | 为线程每一步构造并关闭一个试验适配器 |
+| variant-proposal.ts | 核心 | 由流水线线程自身的记录判定提案，只决定不执行 |
 | workspace-lease.ts | 核心 | 单写者工作区租约、每步放置与步边界结算 |

@@ -252,14 +252,14 @@ function minimalAbortedThread(reason: string | null, endedAt: string | null): Th
 
 test('buildThreadSummary renders stopped emoji for aborted status', () => {
   const thread = minimalAbortedThread('blocked on upstream', '2026-04-16T10:00:05Z');
-  const summary = buildThreadSummary({ thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null });
+  const summary = buildThreadSummary({ thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
   assert.match(summary, /^🛑/);
   assert.match(summary, /Aborted: blocked on upstream/);
 });
 
 test('buildThreadSummary renders "Aborted (no reason given)" when abortReason is null', () => {
   const thread = minimalAbortedThread(null, '2026-04-16T10:00:05Z');
-  const summary = buildThreadSummary({ thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null });
+  const summary = buildThreadSummary({ thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
   assert.match(summary, /Aborted \(no reason given\)/);
 });
 

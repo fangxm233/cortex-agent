@@ -15,6 +15,9 @@ import type {
 import { resolveProfileConfig as daemonResolveProfile } from '../agents/profile-manager.js';
 import type { ResolvedTrialPolicy } from '../benchmark/resolved-policy.js';
 import {
+  variantProposal, type ProposalIntent, type ProposalStopReason,
+} from '../benchmark/variant-proposal.js';
+import {
   createWorkspaceLease, createWorkspaceStepBoundary, resolveWorkspacePlacement,
   type CoderReviewVariant, type TrialSnapshotPaths, type WorkspaceLease,
   type WorkspacePlacement, type WorkspaceStepBoundary,
@@ -89,6 +92,9 @@ export interface BenchmarkThreadResult {
   costUsd: number;
   durationMs: number;
   summary: string;
+  /** What this pipeline concluded, decided and never applied. Null for a run that declares no
+   *  coder-review variant and therefore has no verdict-speaking role. */
+  proposal: ProposalIntent | null;
 }
 
 const executionRepo = scopedLocalThreadService(
@@ -128,6 +134,9 @@ interface PreparedThreadRun {
   roleIdentities: Map<string, BenchmarkRoleIdentity>;
   modelProtocolProblem: string | null;
   startedAt: string;
+  /** Each step's last assistant message, keyed by step index, as the journal recorded it. A step
+   *  that emitted none is absent — which is a different fact from one that emitted nothing to say. */
+  terminalAssistantText: Map<number, string>;
 }
 
 interface RunControl {
@@ -229,10 +238,26 @@ function validateLimits(request: BenchmarkThreadRequest): void {
   }
 }
 
+/** The compiled arm is the single authority on which variant a trial runs, exactly as it is on the
+ *  backend. A request that carries no compiled policy is the shipped path and keeps its own field;
+ *  a request that contradicts the arm is refused rather than silently overridden. */
+function expectedVariant(request: BenchmarkThreadRequest): CoderReviewVariant | undefined {
+  const policy = request.trialPolicy;
+  const armVariant = policy?.arm.orchestration?.coder_review_variant;
+  if (armVariant === undefined) return request.coderReviewVariant;
+  if (request.coderReviewVariant !== undefined && request.coderReviewVariant !== armVariant) {
+    throw new Error(
+      `Benchmark request coder-review variant '${request.coderReviewVariant}' `
+      + `disagrees with arm '${policy!.arm.name}' variant '${armVariant}'`,
+    );
+  }
+  return armVariant;
+}
+
 /** The one placement decision of the run: a function of (variant, slot) and of nothing else.
  *  A run that declares no variant has a single workspace — the shared writable root. */
 function stepPlacement(request: BenchmarkThreadRequest): (slot: AgentSlotId) => WorkspacePlacement {
-  const variant = request.coderReviewVariant;
+  const variant = expectedVariant(request);
   if (!variant) return () => 'shared-writable';
   return slot => resolveWorkspacePlacement(variant, slot);
 }
@@ -245,7 +270,7 @@ function trialSnapshotPaths(request: BenchmarkThreadRequest): TrialSnapshotPaths
 }
 
 function validateWorkspacePlacement(request: BenchmarkThreadRequest): void {
-  if (!request.coderReviewVariant || request.trialRoot) return;
+  if (!expectedVariant(request) || request.trialRoot) return;
   const placement = stepPlacement(request);
   const snapshotRoles = ['parent', 'benchmark-coder', 'benchmark-reviewer', 'benchmark-fixer']
     .filter((slot) => {
@@ -404,7 +429,7 @@ async function createRunArtifacts(
   return {
     request, profile, template, thread, journal, lifecycle, identity,
     roleIdentities: identities.roles, modelProtocolProblem: identities.modelProtocolProblem,
-    startedAt,
+    startedAt, terminalAssistantText: new Map(),
   };
 }
 
@@ -614,6 +639,11 @@ function reportedModel(event: BenchmarkThreadEvent['event']): string | null {
 function writeNormalizedEvent(prepared: PreparedThreadRun, input: BenchmarkThreadEvent): void {
   const identity = prepared.roleIdentities.get(input.agentSlotId);
   if (!identity) throw new Error(`Missing benchmark role identity: ${input.agentSlotId}`);
+  // The verdict is read from the stream the role actually spoke, so it is captured here rather
+  // than recovered later from the artifact file or from a summary one backend never populates.
+  if (input.event.type === 'assistant_text') {
+    prepared.terminalAssistantText.set(input.step, input.event.text);
+  }
   prepared.journal.writeEvent({
     threadId: prepared.thread.id, step: input.step,
     agentSlot: asAgentSlot(input.agentSlotId), backend: prepared.profile.backend,
@@ -883,10 +913,42 @@ function truncateSummary(thread: ThreadRecord): string {
   return characters.length > SUMMARY_LIMIT ? truncatedSummary(characters) : text;
 }
 
+/** The step loop's own account of why it stopped. Absent → this run's admission boundary closed
+ *  it, or it left for a reason nobody recorded; either way it is not an approval to propose on. */
+function proposalStopReason(control: RunControl, outcome: RunOutcome): ProposalStopReason {
+  return outcome.result?.stopReason ?? (control.reason ? 'admission_limit' : 'unavailable');
+}
+
+/** Decided here and applied nowhere: no broker call, no ledger write and no bus event. A run with
+ *  no coder-review variant has no verdict-speaking role, and so has nothing to propose. */
+function proposeOutcome(
+  prepared: PreparedThreadRun,
+  committed: TerminalCommit,
+  thread: ThreadRecord,
+  control: RunControl,
+  outcome: RunOutcome,
+): ProposalIntent | null {
+  const variant = expectedVariant(prepared.request);
+  if (!variant) return null;
+  const finalStep = thread.steps.at(-1) ?? null;
+  return variantProposal({
+    variant,
+    terminalState: committed.classified.state,
+    finalStep: finalStep && {
+      agentSlotId: finalStep.agentSlotId, stage: finalStep.stage, index: finalStep.stepIndex,
+    },
+    finalAssistantText: finalStep
+      ? prepared.terminalAssistantText.get(finalStep.stepIndex) ?? null
+      : null,
+    stopReason: proposalStopReason(control, outcome),
+  });
+}
+
 function buildResult(
   prepared: PreparedThreadRun,
-  committed: ReturnType<typeof commitTerminal>,
+  committed: TerminalCommit,
   thread: ThreadRecord,
+  proposal: ProposalIntent | null,
 ): BenchmarkThreadResult {
   return {
     threadId: thread.id,
@@ -900,6 +962,7 @@ function buildResult(
     costUsd: thread.totalCostUsd,
     durationMs: Math.max(0, Date.now() - new Date(prepared.startedAt).getTime()),
     summary: truncateSummary(thread),
+    proposal,
   };
 }
 
@@ -927,7 +990,8 @@ async function runBenchmarkThreadScoped(
     const thread = threadStore.get(prepared.thread.id) ?? prepared.thread;
     const classified = classifyRun(prepared, control, outcome);
     const committed = commitTerminal(prepared, classified, thread);
-    return buildResult(prepared, committed, thread);
+    const proposal = proposeOutcome(prepared, committed, thread, control, outcome);
+    return buildResult(prepared, committed, thread, proposal);
   } finally {
     cleanupControl(control);
     await disposeSupervisors(control);

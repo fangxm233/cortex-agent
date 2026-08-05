@@ -66,6 +66,7 @@ import type {
   ThreadTemplate,
   RunThreadOptions,
   BenchmarkThreadRunOptions,
+  TransitionResult,
 } from '@core/types/thread-types.js';
 import {
   getLocalThreadRuntimeDeps,
@@ -114,6 +115,10 @@ const NOOP_STEP_TRANSCRIPT_RECORDER: StepTranscriptRecorder = {
 
 // --- Result types ---
 
+/** Why the step loop stopped scheduling, in the transition engine's own terms. `transition` is
+ *  excluded because it is the one verdict that does not stop the loop. */
+export type ThreadStopReason = Exclude<TransitionResult['reason'], 'transition'>;
+
 export class BenchmarkRateLimitError extends Error {
   readonly code = 'BENCHMARK_RATE_LIMITED';
 
@@ -135,6 +140,9 @@ interface ThreadRunResult {
   lastAgentResult: any;
   /** The execution ID from the last completed step — used by handleAgentSuccess in the wrapper. */
   executionId: string | null;
+  /** Why the transition engine stopped scheduling steps, in its own typed terms. Null when the
+   *  loop left for a reason the engine never judged. */
+  stopReason: ThreadStopReason | null;
 }
 
 // --- Internal context types ---
@@ -150,6 +158,9 @@ interface ThreadContext {
   /** Set when a step was interrupted by a provider throttle.
    *  Pauses the thread (status='rate_limited') instead of completing/failing it. */
   rateLimited?: boolean;
+  /** Why the transition engine stopped scheduling steps. Null when the loop left for a reason the
+   *  engine never judged — an abort, a wait or a throttle. */
+  stopReason: ThreadStopReason | null;
 }
 
 /** Per-step config built once by buildStepConfig — fully populated, no placeholders. */
@@ -239,7 +250,10 @@ function initThreadContext(threadId: string, opts: RunThreadOptions): ThreadCont
   // Pass the full statusMsg as anchorRef so CompositeAdapter can resolve a per-platform
   // thread anchor for each sub-stream (a Slack ts must not be used as a Feishu message_id).
   const stream = opts.adapter.openOutputStream(opts.destination, { threadId: opts.threadAnchorId, anchorRef: opts.statusMsg });
-  return { thread, template, meta: thread.metadata, stream, lastAgentResult: null, totalNumTurns: 0 };
+  return {
+    thread, template, meta: thread.metadata, stream, lastAgentResult: null, totalNumTurns: 0,
+    stopReason: null,
+  };
 }
 
 async function executeConfiguredLifecycleHooks(
@@ -835,7 +849,12 @@ async function evaluateAndTransition(
 
   // Evaluate transitions for template-based multi-agent
   const transition = evaluateTransitions(threadId);
-  if (!transition.shouldTransition) return false;
+  if (!transition.shouldTransition) {
+    // Why the loop ends, in the engine's own typed terms. A caller that re-derived it from the
+    // thread record would be inferring what the engine already decided.
+    ctx.stopReason = transition.reason === 'transition' ? null : transition.reason;
+    return false;
+  }
   // transition.nextAgent / nextStage are already set on the thread by evaluateTransitions
 
   const prevAgent = stepCtx.agentSlotId;
@@ -876,6 +895,7 @@ async function finalizeThread(threadId: string, ctx: ThreadContext): Promise<Thr
     totalNumTurns: ctx.totalNumTurns,
     lastAgentResult: ctx.lastAgentResult,
     executionId: finalThread.steps[finalThread.steps.length - 1]?.executionId ?? null,
+    stopReason: ctx.stopReason,
   };
 }
 

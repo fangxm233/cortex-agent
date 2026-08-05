@@ -345,11 +345,13 @@ function assertC2(resultValue: any): any[] {
 function assertCompletedResult(result: any): void {
   assert.deepEqual(Object.keys(result).sort(), [
     'artifactPath', 'costUsd', 'durationMs', 'journalPath', 'manifestCommitted',
-    'manifestPath', 'state', 'steps', 'summary', 'terminalReason', 'threadId',
+    'manifestPath', 'proposal', 'state', 'steps', 'summary', 'terminalReason', 'threadId',
   ].sort());
   assert.equal(result.state, 'completed');
   assert.equal(result.terminalReason, null);
   assert.equal(result.manifestCommitted, true);
+  // This run declares no coder-review variant, so it has no verdict-speaking role to propose on.
+  assert.equal(result.proposal, null);
 }
 
 function expectedRoleHash(slot: 'benchmark-coder' | 'benchmark-reviewer'): string {

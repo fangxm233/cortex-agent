@@ -380,7 +380,7 @@ function createWebhookHandler(_options: {
                     }).catch(() => {});
                   } else if (t) {
                     const totalNumTurns = t.steps.reduce((s, st) => s + (st.numTurns || 0), 0);
-                    const summaryText = buildThreadSummary({ thread: t, totalCostUsd: t.totalCostUsd, totalNumTurns, finalOutput: null, lastAgentResult: null, executionId: null });
+                    const summaryText = buildThreadSummary({ thread: t, totalCostUsd: t.totalCostUsd, totalNumTurns, finalOutput: null, lastAgentResult: null, executionId: null, stopReason: null });
                     void jobCtx.adapter!.updateMessage(statusMsg, {
                       text: summaryText,
                       richBlocks: buildSealedStatusActionBlocks(summaryText, { channel, sessionName: null, isDm: false, threadId: t.id }),
