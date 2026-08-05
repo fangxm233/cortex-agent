@@ -87,10 +87,36 @@ export function writeTrialProfile(backend: Backend): void {
   profileRepo.invalidate();
 }
 
-function role(root: string, backend: Backend, slot: string): Record<string, unknown> {
+/**
+ * The prompt files each slot compiles from, named exactly as the launcher names them: a benchmark
+ * slot takes the shipped `<slot>.md` pair its agent document also resolves to, and the parent takes
+ * the frozen direct pair. A fixture that wrote prompts of its own would compile a role whose bytes
+ * no thread agent document can ever produce, and the identity check would then measure the fixture.
+ */
+const PARENT_PROMPTS = { systemPrompt: 'direct.md', directive: 'executor.md' };
+
+function promptPath(kind: 'systemPrompts' | 'directives', file: string): string {
+  return path.resolve('defaults/prompts', kind, file);
+}
+
+function rolePrompts(slot: string): { systemPrompt: string; directive: string } {
+  if (slot === 'parent') {
+    return {
+      systemPrompt: promptPath('systemPrompts', PARENT_PROMPTS.systemPrompt),
+      directive: promptPath('directives', PARENT_PROMPTS.directive),
+    };
+  }
   return {
-    system_prompt_path: writeFixtureAsset(root, `${slot}-system.txt`, `You are the ${slot}.\n`),
-    directive_path: writeFixtureAsset(root, `${slot}-directive.txt`, `Act as the ${slot}.\n`),
+    systemPrompt: promptPath('systemPrompts', `${slot}.md`),
+    directive: promptPath('directives', `${slot}.md`),
+  };
+}
+
+function role(root: string, backend: Backend, slot: string): Record<string, unknown> {
+  const prompts = rolePrompts(slot);
+  return {
+    system_prompt_path: prompts.systemPrompt,
+    directive_path: prompts.directive,
     tools: roleTools(backend, slot),
     plugin_dirs: [],
     mcp_composition: 'none',

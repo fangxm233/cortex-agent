@@ -59,7 +59,7 @@ vi.mock('../../../src/domain/agent-run/supervisor.js', async (importOriginal) =>
   };
 });
 
-import { CONFIG_DIR, DATA_DIR } from '../../../src/core/paths.js';
+import { CONFIG_DIR, DATA_DIR, DEFAULTS_DIR } from '../../../src/core/paths.js';
 import type { Backend } from '../../../src/agent-adapter/types.js';
 import { openJournal } from '../../../src/domain/agent-run/journal.js';
 import { writeStartedMarker } from '../../../src/domain/agent-run/manifest.js';
@@ -76,6 +76,7 @@ import {
   type TrialPolicyFixture,
 } from '../benchmark/trial-thread-policy-fixture.js';
 import { writeFakeBackendCli, type FakeStepScript as StepScript } from './fake-backend-cli.js';
+import { seedShippedPrompts } from './benchmark-shipped-prompts.js';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-neutral-'));
 const snapshotParent = path.join(DATA_DIR, 'tmp', 'review-snapshot');
@@ -91,15 +92,22 @@ function sha256Text(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
+/** The slot's own shipped surface behind this suite's simpler prompt template: the compiled policy
+ *  and the projection must agree member for member, so the projection may not simplify what the
+ *  launcher composes. */
 function benchmarkAgent(name: string): Record<string, unknown> {
+  const shipped = JSON.parse(fs.readFileSync(
+    path.join(DEFAULTS_DIR, 'config', 'thread-templates', 'agents', `${name}.json`), 'utf8',
+  ));
   return {
     name, profile: '__active__', persistSession: false,
-    directive: `${name} directive`, systemPrompt: `${name} template system`,
-    promptTemplate: 'Complete {{input}}', tools: 'Bash', pluginDirs: [],
+    directive: `file:${name}.md`, systemPrompt: `file:${name}.md`,
+    promptTemplate: 'Complete {{input}}', tools: shipped.tools, pluginDirs: [],
   };
 }
 
 function seedTemplates(): void {
+  seedShippedPrompts();
   const base = path.join(CONFIG_DIR, 'thread-templates');
   writeJson(path.join(base, 'agents', 'benchmark-coder.json'), benchmarkAgent('benchmark-coder'));
   writeJson(path.join(base, 'agents', 'benchmark-reviewer.json'), benchmarkAgent('benchmark-reviewer'));
