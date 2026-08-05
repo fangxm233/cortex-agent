@@ -7,12 +7,20 @@ import json
 import socket
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from http.client import HTTPConnection
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
 from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
-from synthetic import SYNTHETIC_MODEL, SyntheticUpstream, proxy_request, row_one_adapter
+from synthetic import (
+    MESSAGES_TARGET,
+    SYNTHETIC_MODEL,
+    SyntheticUpstream,
+    proxy_request,
+    row_one_adapter,
+)
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-SEAM-UNIQUE"
 DENIED_TARGETS = [
@@ -250,6 +258,37 @@ def test_manifest_records_the_adapter_that_carried_the_trial(tmp_path: Path) -> 
             handle.stop()
     assert handle.manifest_block["adapter_id"] == adapter.adapter_id
     assert in_force is adapter
+
+
+@pytest.mark.parametrize(
+    ("method", "target", "status"),
+    [
+        ("GET", MESSAGES_TARGET, 405),
+        ("GET", "/v1/messages/batches/batch_1?beta=true", 405),
+        ("DELETE", "/v1/messages/batches/batch_1?beta=true", 501),
+    ],
+)
+def test_non_post_methods_are_refused_by_the_listener_and_never_forwarded(
+    tmp_path: Path, method: str, target: str, status: int,
+) -> None:
+    with SyntheticUpstream() as upstream:
+        handle = start_proxy(tmp_path, upstream.base_url)
+        try:
+            answered = _method_request(handle.base_url, handle.dummy_token, method, target)
+        finally:
+            handle.stop()
+    assert answered == status
+    assert upstream.requests == []
+
+
+def _method_request(base_url: str, token: str, method: str, target: str) -> int:
+    listener = urlsplit(base_url)
+    connection = HTTPConnection(listener.hostname, listener.port, timeout=3)
+    connection.request(method, target, headers={"authorization": f"Bearer {token}"})
+    response = connection.getresponse()
+    response.read()
+    connection.close()
+    return response.status
 
 
 def _unused_port() -> int:
