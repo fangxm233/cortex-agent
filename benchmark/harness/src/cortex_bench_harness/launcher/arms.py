@@ -19,8 +19,12 @@ BACKEND_CLI_BINARIES = {"claude": "claude", "pi": "pi"}
 # owns the proof. Empty is not "everything is allowed": an undeclared backend has no CLI binary
 # either, so it still refuses, with the generic wording below.
 BACKEND_LIFTING_GATES: dict[str, str] = {}
-MODE_LIFTING_GATES = {"coder-review": "gate 3", "manager": "gate 6"}
-COMPOSABLE_MODE = "direct"
+# A mode composes once the gate that owns its role set has authored one; until then it names that
+# gate. `coder-review` left this table when its two variant role sets landed; `manager` has not.
+MODE_LIFTING_GATES = {"manager": "gate 6"}
+COMPOSABLE_MODES = frozenset({"direct", "coder-review"})
+CODER_REVIEW_MODE = "coder-review"
+CODER_REVIEW_VARIANTS = frozenset({"audit-retry", "reviewer-fix"})
 
 
 class ImageDigestUnpinnedError(ValueError):
@@ -130,6 +134,23 @@ def arm_backend(arm: ArmDefinition) -> str:
     return _required_text(arm, "backend")
 
 
+def arm_orchestration_mode(arm: ArmDefinition) -> str:
+    """The orchestration mode that selects which role set the composer emits."""
+    return _orchestration_mode(arm)
+
+
+def arm_coder_review_variant(arm: ArmDefinition) -> str:
+    """The variant that selects the third role slot and the whitelisted child template."""
+    orchestration = arm.get("orchestration")
+    variant = orchestration.get("coder_review_variant") if isinstance(orchestration, Mapping) else None
+    if variant not in CODER_REVIEW_VARIANTS:
+        raise ValueError(
+            f"arm {_arm_name(arm)} requires orchestration.coder_review_variant"
+            f" in {sorted(CODER_REVIEW_VARIANTS)}"
+        )
+    return cast(str, variant)
+
+
 def backend_cli_binary(arm: ArmDefinition) -> str:
     backend = arm_backend(arm)
     binary = BACKEND_CLI_BINARIES.get(backend)
@@ -147,7 +168,7 @@ def require_composable_arm(arm: ArmDefinition) -> None:
     backend = _required_text(arm, "backend")
     backend_cli_binary(arm)
     mode = _orchestration_mode(arm)
-    if mode != COMPOSABLE_MODE:
+    if mode not in COMPOSABLE_MODES:
         gate = MODE_LIFTING_GATES.get(mode, "its owning gate")
         raise ArmCompositionUnsupportedError(
             f"arm {_arm_name(arm)} ({backend}, {mode}) composition is unsupported"

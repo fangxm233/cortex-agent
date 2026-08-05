@@ -58,6 +58,8 @@ vi.mock('../../../src/domain/agent-run/supervisor.js', async (importOriginal) =>
 
 import { CONFIG_DIR, DATA_DIR, DEFAULTS_DIR } from '../../../src/core/paths.js';
 import type { Backend } from '../../../src/agent-adapter/types.js';
+import { fromCanonical, toCanonical } from '../../../src/agent-adapter/normalize/tool-names.js';
+import { PI_POLICY_GUARD_ENV } from '../../../src/agent-adapter/pi/policy-guard.js';
 import { openJournal } from '../../../src/domain/agent-run/journal.js';
 import { validateTrajectoryLifecycle, writeStartedMarker } from '../../../src/domain/agent-run/manifest.js';
 import { preparePinnedTrialPaths } from '../../../src/domain/agent-run/pinned-node-process.js';
@@ -67,6 +69,7 @@ import {
   compileTrialPolicy, FIXTURE_MODEL, FIXTURE_PROFILE, writeFixtureAsset,
 } from '../benchmark/trial-thread-policy-fixture.js';
 import { writeFakeBackendCli, type FakeStepScript } from './fake-backend-cli.js';
+import { seedShippedPrompts } from './benchmark-shipped-prompts.js';
 
 const SHIPPED = path.join(DEFAULTS_DIR, 'config', 'thread-templates');
 const TEMPLATE = 'benchmark-coder-review-fix';
@@ -91,6 +94,7 @@ function seedShippedDocuments(): void {
     fs.copyFileSync(path.join(SHIPPED, kind, `${name}.json`), target);
   }
   fs.mkdirSync(path.join(base, 'shells'), { recursive: true });
+  seedShippedPrompts();
 }
 
 function seedParentLifecycle(
@@ -389,3 +393,49 @@ it('refuses a request whose variant disagrees with the compiled reviewer-fix arm
   await assert.rejects(runBenchmarkThread(run), /variant/i);
   assert.equal(harness.attachOptions.length, 0);
 });
+
+// Carried from wave 3b's review: NI8 pins the DOCUMENT's eight names, and until now nothing proved
+// those eight reach the process. The compiled role is the identity of record, so the assertion runs
+// against what the admitted process actually carries — argv for Claude, the guard env for PI.
+const FIXER_DOCUMENT_TOOLS = ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'TodoWrite', 'Skill'];
+
+function admittedToolSurface(
+  attach: { args: string[]; env?: Record<string, string> }, backend: Backend,
+): string[] {
+  if (backend === 'claude') {
+    const at = attach.args.indexOf('--tools');
+    assert.notEqual(at, -1, JSON.stringify(attach.args));
+    return attach.args[at + 1].split(',');
+  }
+  // PI takes no tool list on argv: its dispatch boundary reads the compiled guard from the
+  // environment, keyed by lease state, so that is where its admitted surface is.
+  const guard = attach.env?.[PI_POLICY_GUARD_ENV];
+  assert.ok(guard, 'PI admits its surface through the policy guard, and none was set');
+  return Object.values(JSON.parse(guard) as Record<string, string[]>).flat();
+}
+
+for (const backend of ['claude', 'pi'] as const) {
+  it(`carries the fixer document's eight tool names into the admitted process on backend=${backend}`, async () => {
+    const shipped = JSON.parse(fs.readFileSync(
+      path.join(SHIPPED, 'agents', 'benchmark-fixer.json'), 'utf8',
+    ));
+    const documentNames = String(shipped.tools).split(',');
+    assert.deepEqual(documentNames, FIXER_DOCUMENT_TOOLS);
+    const expected = backend === 'claude'
+      ? documentNames
+      : documentNames.map(name => fromCanonical('pi', toCanonical('claude', name) as string));
+
+    const run = prepareTrial(`fixer-surface-${backend}`, backend, [
+      { text: 'implemented' }, { text: `fixed. ${FIX_MARKER}` },
+    ]);
+    const result = await runBenchmarkThread(run);
+
+    assert.equal(result.state, 'completed');
+    assert.equal(harness.attachOptions.length, 2);
+    const fixer = admittedToolSurface(harness.attachOptions[1], backend);
+    assert.deepEqual(fixer, expected);
+    // Discriminating: the reviewer-fix fixer's surface is the coder's, so a run that simplified
+    // one slot and not the other would still be caught by comparing the two.
+    assert.deepEqual(admittedToolSurface(harness.attachOptions[0], backend), expected);
+  }, 60_000);
+}

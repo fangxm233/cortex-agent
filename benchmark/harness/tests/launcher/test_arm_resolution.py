@@ -281,15 +281,15 @@ def test_parse_trial_seed_carries_the_optional_host_authorisations() -> None:
 
 
 def test_composition_fails_closed_for_every_other_combination() -> None:
-    coder_review = copy.deepcopy(seed_document())
-    coder_review["arm"] = {**BASE_ARM, "orchestration": {
-        "mode": "coder-review", "coder_review_variant": "audit-retry", "ask_manager": False,
-    }}
+    # coder-review composes now that its variant role sets exist; the manager mode does not, and
+    # its refusal still names the gate that owes it a role set.
+    manager = copy.deepcopy(seed_document())
+    manager["arm"] = {**BASE_ARM, "orchestration": {"mode": "manager", "ask_manager": False}}
     undeclared_backend = copy.deepcopy(seed_document())
     undeclared_backend["arm"] = {**BASE_ARM, "backend": "unknown-backend"}
 
-    with pytest.raises(ArmCompositionUnsupportedError, match="gate 3"):
-        compose_arm_resolution(parse_trial_seed(coder_review), FACTS)
+    with pytest.raises(ArmCompositionUnsupportedError, match="gate 6"):
+        compose_arm_resolution(parse_trial_seed(manager), FACTS)
     with pytest.raises(BackendUnsupportedForKindError, match="its owning gate"):
         compose_arm_resolution(parse_trial_seed(undeclared_backend), FACTS)
 

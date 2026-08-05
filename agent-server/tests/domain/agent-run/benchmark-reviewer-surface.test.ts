@@ -56,6 +56,7 @@ import { openJournal } from '../../../src/domain/agent-run/journal.js';
 import { writeStartedMarker } from '../../../src/domain/agent-run/manifest.js';
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';
 import { profileRepo } from '../../../src/store/profile-repo.js';
+import { seedShippedPrompts } from './benchmark-shipped-prompts.js';
 
 const SHIPPED = path.join(DEFAULTS_DIR, 'config', 'thread-templates');
 const APPROVAL_MARKER = '[IMPL-APPROVED]';
@@ -80,6 +81,7 @@ function seedShippedDocuments(): void {
     fs.copyFileSync(path.join(SHIPPED, kind, `${name}.json`), target);
   }
   fs.mkdirSync(path.join(base, 'shells'), { recursive: true });
+  seedShippedPrompts();
 }
 
 function seedProfile(): void {
@@ -223,9 +225,17 @@ it('stops instructing the shipped reviewer to write the thread artifact', () => 
   assert.ok(reviewer.stages.finalAudit.promptTemplate.includes('{{artifactPath}}'));
 });
 
+/** Design (14.2.2) moved the prompt bytes out of the document into their own asset; the document
+ *  now names the file the loader reads. Both halves are asserted below. */
+function shippedPrompt(kind: 'directives' | 'systemPrompts', name: string): string {
+  return fs.readFileSync(path.join(DEFAULTS_DIR, 'prompts', kind, `${name}.md`), 'utf8');
+}
+
 it('stops declaring the shipped reviewer an agent that writes the thread artifact', () => {
   const reviewer = shippedDocument('agents', 'benchmark-reviewer');
-  const systemPrompt = String(reviewer.systemPrompt);
+  assert.equal(reviewer.systemPrompt, 'file:benchmark-reviewer.md');
+  assert.equal(reviewer.directive, 'file:benchmark-reviewer.md');
+  const systemPrompt = shippedPrompt('systemPrompts', 'benchmark-reviewer');
 
   // The tool surface denies the write and the coordinator does the appending, so a system prompt
   // that still names the artifact as this role's output instructs an action it cannot perform.
@@ -234,7 +244,9 @@ it('stops declaring the shipped reviewer an agent that writes the thread artifac
   assert.ok(systemPrompt.includes('final message'), systemPrompt);
   // The read-only identity itself is untouched: it is what TA1 rests on.
   assert.ok(systemPrompt.includes('read-only implementation auditor'), systemPrompt);
-  assert.ok(String(reviewer.directive).includes('without modifying project files'));
+  assert.ok(
+    shippedPrompt('directives', 'benchmark-reviewer').includes('without modifying project files'),
+  );
   // Same document, same run: the tool list is the one WL7 left, and this change did not widen it.
   assert.deepEqual(String(reviewer.tools).split(','), [
     'Bash', 'Read', 'Glob', 'Grep', 'TodoWrite', 'Skill',
