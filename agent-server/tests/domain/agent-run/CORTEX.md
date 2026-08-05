@@ -16,10 +16,12 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | benchmark-local-thread-entry.ts | fixture | runs one orchestrator in a pinned child |
 | benchmark-local-thread-orchestrator.test.ts | test | proves bounds, identity and supervisor gating |
 | benchmark-local-thread-process.test.ts | e2e | proves full-run journal and C8 confinement |
+| benchmark-reviewer-fix-template.test.ts | test | proves the reviewer-fix documents are authored, not copied, row by row |
+| benchmark-reviewer-fix.test.ts | test | proves reviewer-fix's own stage count, shared placement, surviving fix and proposal |
 | benchmark-reviewer-surface.test.ts | test | proves the snapshot reviewer holds no write tool and is told to write nothing |
 | benchmark-thread-backend-neutral.test.ts | test | proves per-step trial adapters, widened pins and artifact convergence on both backends |
 | benchmark-thread-workspace.test.ts | test | proves per-step placement, writer refusal, discard and append |
-| fake-backend-cli.ts | fixture | answers one queued step per invocation in either backend's wire shape |
+| fake-backend-cli.ts | fixture | answers one queued step per invocation in either backend's wire shape, writing any files the step declares |
 | fake-run-agent-loader.mjs | fixture | redirects thread-runtime agent imports to a fake |
 | fake-run-agent-module.mjs | fixture | returns one deterministic no-model result |
 | fake-run-agent-register.mjs | fixture | installs the fake agent loader before import |
