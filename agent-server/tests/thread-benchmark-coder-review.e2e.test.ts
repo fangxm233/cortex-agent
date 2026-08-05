@@ -37,9 +37,12 @@ const TEMPLATE_PATH = path.join(
   'templates',
   'benchmark-coder-review.json',
 );
-const ALLOWED_TOOLS = [
-  'Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'TodoWrite', 'Skill',
-];
+// The two placements have two surfaces: the coder mutates the shared workspace, while the reviewer
+// runs in a disposable snapshot and holds no file-writing tool at all.
+const ALLOWED_TOOLS: Record<string, string[]> = {
+  'benchmark-coder': ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'TodoWrite', 'Skill'],
+  'benchmark-reviewer': ['Bash', 'Read', 'Glob', 'Grep', 'TodoWrite', 'Skill'],
+};
 const createdThreadIds = new Set<string>();
 
 beforeAll(() => {
@@ -207,7 +210,7 @@ test('benchmark agents resolve the exact native tools and zero MCP tools', () =>
     'benchmark-reviewer',
   ]);
   for (const agent of agents) {
-    assert.deepEqual(agent.tools?.split(','), ALLOWED_TOOLS);
+    assert.deepEqual(agent.tools?.split(','), ALLOWED_TOOLS[agent.slotId]);
     assert.equal(agent.mcpComposition, 'none');
     assert.deepEqual(declaredMcpServers(agent), []);
   }
@@ -242,7 +245,10 @@ test('benchmark reviewer prompts require targeted read-only workspace audit', ()
     const prompt = reviewer.stages?.[stageName]?.promptTemplate ?? '';
     assert.match(prompt, /inspect the current task workspace/i);
     assert.match(prompt, /targeted verification/i);
-    assert.match(prompt, /only file you may write is \{\{artifactPath\}\}/i);
+    // The verdict is the reviewer's final message, not a file it writes: the coordinator appends
+    // that message to the artifact, so the reviewer needs no write of its own.
+    assert.match(prompt, /as your final message/i);
+    assert.doesNotMatch(prompt, /you may write|Append/i);
     assert.doesNotMatch(prompt, /full test suite|whole-repository|commit/i);
   }
 });

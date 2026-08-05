@@ -130,7 +130,7 @@ export async function sealSuspendedStatusMsg(threadId: string, adapter?: Platfor
   if (!a) return;
   const totalNumTurns = t.steps.reduce((acc, st) => acc + (st.numTurns || 0), 0);
   // Background seal: buildThreadSummary text, no interactive action blocks (no live user to click).
-  await sealThreadStatus(a, ref, { thread: t, totalCostUsd: t.totalCostUsd, totalNumTurns, finalOutput: null, lastAgentResult: null, executionId: null })
+  await sealThreadStatus(a, ref, { thread: t, totalCostUsd: t.totalCostUsd, totalNumTurns, finalOutput: null, lastAgentResult: null, executionId: null, stopReason: null })
     .catch((e) => log.warn(`seal status msg ${threadId}: ${(e as Error).message}`));
 }
 

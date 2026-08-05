@@ -124,7 +124,7 @@ test('buildThreadSummary renders completed single-step thread on one line', () =
     createdAt: '2026-04-16T10:00:00Z', endedAt: '2026-04-16T10:00:12Z',
     steps: [{ stepIndex: 0, agentSlotId: 'main', stage: null, executionId: null, sessionId: null, sessionName: null, input: '', output: 'ok', costUsd: 0.1234, numTurns: 2, durationS: 12, startedAt: null, endedAt: null }],
   });
-  const summary = buildThreadSummary({ thread, finalOutput: 'ok', totalCostUsd: 0.1234, totalNumTurns: 2, lastAgentResult: null, executionId: null });
+  const summary = buildThreadSummary({ thread, finalOutput: 'ok', totalCostUsd: 0.1234, totalNumTurns: 2, lastAgentResult: null, executionId: null, stopReason: null });
   assert.match(summary, /^✅ Thread complete \| 1 steps \| \$0\.1234 \|/);
   assert.equal(summary.split('\n').length, 1, 'single-step threads should not include per-step breakdown');
 });
@@ -138,7 +138,7 @@ test('buildThreadSummary includes per-step breakdown when >1 step', () => {
       { stepIndex: 1, agentSlotId: 'coder', stage: null, executionId: null, sessionId: null, sessionName: null, input: '', output: 'b', costUsd: 0.2, numTurns: 3, durationS: 20, startedAt: null, endedAt: null },
     ],
   });
-  const summary = buildThreadSummary({ thread, finalOutput: 'b', totalCostUsd: 0.3, totalNumTurns: 4, lastAgentResult: null, executionId: null });
+  const summary = buildThreadSummary({ thread, finalOutput: 'b', totalCostUsd: 0.3, totalNumTurns: 4, lastAgentResult: null, executionId: null, stopReason: null });
   const lines = summary.split('\n');
   assert.equal(lines.length, 3);
   assert.match(lines[1], /planner: 1 turns · \$0\.1000 ·/);
@@ -149,8 +149,8 @@ test('buildThreadSummary uses blocked emoji for cancelled and error for failed',
   const base = makeThreadRecord({ id: 'thr_y', channel: 'C1', createdAt: '2026-04-16T10:00:00Z', endedAt: '2026-04-16T10:00:01Z' });
   const cancelled = { ...base, status: 'cancelled' as const };
   const failed = { ...base, status: 'failed' as const, error: 'boom' };
-  const sCancel = buildThreadSummary({ thread: cancelled, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null });
-  const sFail = buildThreadSummary({ thread: failed, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null });
+  const sCancel = buildThreadSummary({ thread: cancelled, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
+  const sFail = buildThreadSummary({ thread: failed, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
   assert.match(sCancel, /^🚫/);
   assert.match(sFail, /^❌/);
   assert.match(sFail, /Error: boom/);
@@ -165,7 +165,7 @@ test('buildThreadSummary handles missing per-step cost/turns/duration as "?"', (
       { stepIndex: 1, agentSlotId: 'b', stage: null, executionId: null, sessionId: null, sessionName: null, input: '', output: null, costUsd: null, numTurns: null, durationS: null, startedAt: null, endedAt: null },
     ],
   });
-  const summary = buildThreadSummary({ thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null });
+  const summary = buildThreadSummary({ thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
   assert.match(summary, /a: \? · \? · \?/);
   assert.match(summary, /b: \? · \? · \?/);
 });
@@ -175,7 +175,7 @@ test('buildThreadSummary elapsed is 0 when endedAt is null', () => {
     id: 'thr_w', channel: 'C1', status: 'completed', totalCostUsd: 0, endedAt: null,
     steps: [{ stepIndex: 0, agentSlotId: 'main', stage: null, executionId: null, sessionId: null, sessionName: null, input: '', output: '', costUsd: 0, numTurns: 0, durationS: 0, startedAt: null, endedAt: null }],
   });
-  const summary = buildThreadSummary({ thread, finalOutput: '', totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null });
+  const summary = buildThreadSummary({ thread, finalOutput: '', totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
   assert.ok(summary.length > 0);
   assert.doesNotMatch(summary, /NaN/);
 });
@@ -202,7 +202,7 @@ test('initThreadContext throws when thread does not exist', () => {
 test('evaluateAndTransition returns false for ad-hoc thread (no template)', async () => {
   const id = uniqueThreadId('eval-adhoc');
   registerTestThread(makeThreadRecord({ id, channel: 'C-eval-2', templateName: null }));
-  const ctx: ThreadContext = { thread: threadStore.get(id)!, template: null, meta: null, stream: noopStream, lastAgentResult: null, totalNumTurns: 0 };
+  const ctx: ThreadContext = { thread: threadStore.get(id)!, template: null, meta: null, stream: noopStream, lastAgentResult: null, totalNumTurns: 0, stopReason: null };
   const stepCtx = { agentSlotId: 'main', agentConfig: { slotId: 'main', profile: '__active__', persistSession: false }, isFirstStep: true, multiAgent: false } as any;
   const result = await evaluateAndTransition(id, stepCtx, ctx, makeRunOpts('C-eval-2'));
   assert.equal(result, false);
@@ -240,7 +240,7 @@ test('finalizeThread falls back to lastAgentResult.finalOutput when artifact mis
   registerTestThread(makeThreadRecord({ id, channel: 'C-fin-1', templateName: null, artifactPath: '/nonexistent/path/artifact.md', totalCostUsd: 0.5 }));
   const ctx: ThreadContext = {
     thread: threadStore.get(id)!, template: null, meta: null, stream: noopStream,
-    lastAgentResult: { finalOutput: 'from-agent' }, totalNumTurns: 3,
+    lastAgentResult: { finalOutput: 'from-agent' }, totalNumTurns: 3, stopReason: null,
   };
   const result = await finalizeThread(id, ctx);
   assert.equal(result.finalOutput, 'from-agent');
@@ -257,7 +257,7 @@ test('finalizeThread reads artifact file when present and prefers it over lastAg
   registerTestThread(makeThreadRecord({ id, channel: 'C-fin-2', templateName: null, artifactPath, totalCostUsd: 0.1 }));
   const ctx: ThreadContext = {
     thread: threadStore.get(id)!, template: null, meta: null, stream: noopStream,
-    lastAgentResult: { finalOutput: 'from-agent-fallback' }, totalNumTurns: 1,
+    lastAgentResult: { finalOutput: 'from-agent-fallback' }, totalNumTurns: 1, stopReason: null,
   };
   const result = await finalizeThread(id, ctx);
   assert.equal(result.finalOutput, 'from-artifact');
@@ -279,7 +279,7 @@ test('finalizeThread flushes OutputStream with final output when stream is prese
   };
   const ctx: ThreadContext = {
     thread: threadStore.get(id)!, template: null, meta: null, stream: fakeStream as any,
-    lastAgentResult: null, totalNumTurns: 0,
+    lastAgentResult: null, totalNumTurns: 0, stopReason: null,
   };
   await finalizeThread(id, ctx);
   assert.deepEqual(appended, ['final text']);
@@ -294,7 +294,7 @@ test('finalizeThread does not flush stream when finalOutput is null', async () =
   const fakeStream = { emitText: () => {}, flush: async () => { flushed = true; } };
   const ctx: ThreadContext = {
     thread: threadStore.get(id)!, template: null, meta: null, stream: fakeStream as any,
-    lastAgentResult: null, totalNumTurns: 0,
+    lastAgentResult: null, totalNumTurns: 0, stopReason: null,
   };
   const result = await finalizeThread(id, ctx);
   assert.equal(result.finalOutput, null);
@@ -315,7 +315,7 @@ test('finalizeThread includes executionId from last step when steps have executi
   }));
   const ctx: ThreadContext = {
     thread: threadStore.get(id)!, template: null, meta: null, stream: noopStream,
-    lastAgentResult: null, totalNumTurns: 0,
+    lastAgentResult: null, totalNumTurns: 0, stopReason: null,
   };
   const result = await finalizeThread(id, ctx);
   assert.equal(result.executionId, 'exec_abc123');
@@ -329,7 +329,7 @@ test('finalizeThread returns null executionId when no steps exist', async () => 
   }));
   const ctx: ThreadContext = {
     thread: threadStore.get(id)!, template: null, meta: null, stream: noopStream,
-    lastAgentResult: null, totalNumTurns: 0,
+    lastAgentResult: null, totalNumTurns: 0, stopReason: null,
   };
   const result = await finalizeThread(id, ctx);
   assert.equal(result.executionId, null);

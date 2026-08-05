@@ -12,11 +12,14 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | agent-run-e2e-fixture.ts | fixture | builds and cleans process-level run fixtures |
 | agent-run-e2e.test.ts | e2e | proves containment, cleanup and completion |
 | agent-run-protocol-e2e.test.ts | e2e | proves stdin, cache-inclusive accounting and failures |
+| benchmark-audit-retry.test.ts | test | proves audit-retry's own stage count, placement, convergence rule and proposal |
 | benchmark-local-thread-entry.ts | fixture | runs one orchestrator in a pinned child |
 | benchmark-local-thread-orchestrator.test.ts | test | proves bounds, identity and supervisor gating |
 | benchmark-local-thread-process.test.ts | e2e | proves full-run journal and C8 confinement |
+| benchmark-reviewer-surface.test.ts | test | proves the snapshot reviewer holds no write tool and is told to write nothing |
 | benchmark-thread-backend-neutral.test.ts | test | proves per-step trial adapters, widened pins and artifact convergence on both backends |
 | benchmark-thread-workspace.test.ts | test | proves per-step placement, writer refusal, discard and append |
+| fake-backend-cli.ts | fixture | answers one queued step per invocation in either backend's wire shape |
 | fake-run-agent-loader.mjs | fixture | redirects thread-runtime agent imports to a fake |
 | fake-run-agent-module.mjs | fixture | returns one deterministic no-model result |
 | fake-run-agent-register.mjs | fixture | installs the fake agent loader before import |
