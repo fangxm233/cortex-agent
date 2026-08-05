@@ -42,12 +42,27 @@ def _key(
 
 
 CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = MappingProxyType({
+    # Every row is `unsupported` under proxy schema /2. That is a determination, not a
+    # placeholder. The claude/api-key row was LOWERED from `offline-contract-passed`, for two
+    # reasons that are worth keeping next to the value: evidence gathered under a different
+    # proxy schema version does not carry across the bump, which re-keyed all five rows; and
+    # the adapter-seam paths (selection, the route/body/auth/usage/limit failure branches, the
+    # offline containment properties and the upstream-host rules) have no evidence that their
+    # tests fail when the behaviour is removed. The one test there that was checked that way
+    # turned out to pass vacuously. Raising a row is reserved to the gate that owns the raise
+    # checklist, and is an all-or-nothing act — a row is never raised on all-but-one.
     _key("claude", "anthropic", "anthropic-messages", "api-key-bearer"):
-        CredentialCapability("claude-api-key", "offline-contract-passed"),
+        CredentialCapability("claude-api-key", "unsupported"),
     _key("claude", "anthropic", "anthropic-messages", "subscription-oauth"):
         CredentialCapability("claude-subscription", "unsupported"),
     _key("pi", "??", "??", "api-key"):
         CredentialCapability("pi-api-key", "unsupported"),
+    # DO NOT FILL THIS `??` YET, even though its value is now established from the installed
+    # package's own registry. An adapter IS registered for the filled form of this key, and
+    # nothing on the arming path consults `state` — so filling it would make a row declared
+    # `unsupported` arm a live credential route. The `??` is currently the only thing holding
+    # that shut, by accident rather than by design. Land a state check at the arming point
+    # first; then fill this, and the interlock is a mechanism instead of a typo.
     _key("pi", "openai-codex", "??", "oauth"):
         CredentialCapability("pi-openai-codex-oauth", "unsupported"),
     _key("codex-cli", "openai", "??", "subscription"):
