@@ -1,5 +1,5 @@
 // input:  a compiled coder-review policy per backend, the real orchestrator and real child CLIs
-// output: per-step trial adapters, widened identity pins and both-backend parity
+// output: per-step trial adapters, widened identity pins and both-backend artifact convergence
 // pos:    Backend neutrality proof for the in-trial benchmark thread
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -82,6 +82,8 @@ let previousSupervisorBinary: string | undefined;
 interface StepScript {
   /** Terminal text this step's model produces; null → the step produces none at all. */
   text: string | null;
+  /** An earlier, separate assistant message the same step emits before its terminal one. */
+  lead?: string;
 }
 
 function writeJson(file: string, value: unknown): void {
@@ -149,6 +151,9 @@ const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
     ? `
 lines.once('line', (line) => {
   const request = JSON.parse(line);
+  if (step.lead) {
+    say({ type: 'assistant', message: { id: 'a0', model: 'fixture-reported', content: [{ type: 'text', text: step.lead }] } });
+  }
   if (step.text !== null) {
     say({ type: 'assistant', message: { id: 'a1', model: 'fixture-reported', content: [{ type: 'text', text: step.text }] } });
   }
@@ -173,6 +178,11 @@ lines.on('line', (line) => {
     return;
   }
   if (command.type === 'prompt') {
+    // Distinct message ids, so the adapter's delta buffer flushes each one as its own
+    // assistant_text rather than concatenating both into a single message.
+    if (step.lead) {
+      say({ type: 'message_update', message: { id: 'msg-0' }, assistantMessageEvent: { type: 'text_delta', delta: step.lead } });
+    }
     if (step.text !== null) {
       say({ type: 'message_update', message: { id: 'msg-1' }, assistantMessageEvent: { type: 'text_delta', delta: step.text } });
     }
@@ -362,6 +372,34 @@ for (const backend of ['claude', 'pi'] as const) {
     const artifact = fs.readFileSync(result.artifactPath, 'utf8');
     assert.equal(artifact.includes('--- snapshot step '), false);
     assert.equal(fs.existsSync(snapshotParent), false);
+  }, 60_000);
+}
+
+for (const backend of ['claude', 'pi'] as const) {
+  it(`appends only the terminal message of a multi-message step on backend=${backend}`, async () => {
+    // "Terminal" is the whole contract word: a step that speaks twice must contribute its LAST
+    // message and only that, verbatim. The earlier message is deliberately long and the terminal
+    // one short, which is the shape the Claude result channel used to merge into
+    // `longest + "\n\n---\n" + terminal` (claude/event-parser.ts:175-181) — so a settlement sourced
+    // from that channel appends the earlier text too, and a PI settlement appends nothing at all.
+    const lead = 'audit body '.repeat(40);
+    const verdict = 'verdict: approved';
+    const run = prepareTrial(`terminal-${backend}`, backend, [
+      { text: 'coder done' },
+      { lead, text: verdict },
+    ]);
+
+    const result = await runBenchmarkThread(run.request, run.overrides);
+
+    assert.equal(result.state, 'completed');
+    assert.equal(result.steps, 2);
+    const artifact = fs.readFileSync(result.artifactPath, 'utf8');
+    // Exactly one appended block, and its body is the terminal message verbatim.
+    const headers = artifact.split('\n').filter(line => line.startsWith('--- snapshot step '));
+    assert.equal(headers.length, 1);
+    assert.equal(artifact.endsWith(`\n${verdict}\n`), true);
+    // The earlier message reached neither the block nor the file by any other route.
+    assert.equal(artifact.includes(lead), false);
   }, 60_000);
 }
 
