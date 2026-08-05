@@ -12,6 +12,7 @@ import json
 import socket
 from http.client import HTTPConnection
 from pathlib import Path
+from types import MappingProxyType
 from urllib.parse import urlsplit
 
 import pytest
@@ -19,6 +20,11 @@ from harbor.environments.base import ExecResult
 from harbor.models.agent.context import AgentContext
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
+from cortex_bench_harness.launcher import credential_capabilities, trial_proxy
+from cortex_bench_harness.launcher.credential_capabilities import (
+    CAPABILITY_REGISTRY,
+    CredentialCapability,
+)
 from cortex_bench_harness.launcher.trial_proxy import (
     PROXY_ARTIFACT_SOURCES,
     PROXY_EXPORT_SOURCE,
@@ -166,9 +172,22 @@ class OfflineTrial:
         return sorted(path for root in roots for path in root.rglob("*") if path.is_file())
 
 
+def admit_the_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The arming point refuses a row no authority admits, and every shipped row is `unsupported`.
+    This file is about what a trial's flows write, not about the determination, so the row it uses
+    is admitted here — patching the namespaces that read the registry, never the registry itself."""
+    registry = MappingProxyType({
+        key: CredentialCapability(capability.id, "offline-contract-passed")
+        for key, capability in CAPABILITY_REGISTRY.items()
+    })
+    monkeypatch.setattr(credential_capabilities, "CAPABILITY_REGISTRY", registry)
+    monkeypatch.setattr(trial_proxy, "CAPABILITY_REGISTRY", registry)
+
+
 def offline_trial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> OfflineTrial:
     """One whole trial through the shipped class: arm at construction, compose and fill at setup,
     exercise the lease-echo and model routes, then revoke in the run's `finally`."""
+    admit_the_row(monkeypatch)
     monkeypatch.setenv(CREDENTIAL_ENV, REAL_CREDENTIAL)
     upstream = closed_upstream()
     agent = CortexBenchAgent(
