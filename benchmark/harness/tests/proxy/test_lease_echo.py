@@ -7,6 +7,8 @@ import json
 import os
 import subprocess
 import threading
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from http.client import HTTPConnection, HTTPException
@@ -22,6 +24,8 @@ from cortex_bench_harness.launcher.lease_bound import (
     provisional_lease_bound_ms,
 )
 from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from cortex_bench_harness.proxy.adapters import ProviderAdapter
+from cortex_bench_harness.proxy.adapters.openai_codex_responses import RESPONSES_PATH
 from cortex_bench_harness.proxy.lease import (
     LEASE_ECHO_SCHEMA_VERSION,
     LEASE_ECHO_TARGET,
@@ -29,7 +33,20 @@ from cortex_bench_harness.proxy.lease import (
     LeaseTerms,
     lease_echo_terminal_check,
 )
-from synthetic import MESSAGES_TARGET, SyntheticUpstream, proxy_request, row_one_adapter
+from synthetic import (
+    MESSAGES_TARGET,
+    SYNTHETIC_MODEL,
+    SyntheticUpstream,
+    proxy_request,
+    row_one_adapter,
+)
+from test_openai_codex_adapter import (
+    CODEX_MODEL,
+    row_four_adapter,
+    serve_stream,
+    sse_stream,
+    terminal_event,
+)
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-LEASE-UNIQUE"
 TRIAL_ID = "trial-lease"
@@ -39,6 +56,43 @@ SETUP_MS = 90_000
 ELAPSED_MS = 120_000
 CONTAINER_ORIGIN_MS = 1_800_000_000_000
 SKEWS = (-600_000, -1, 0, 1, 600_000)
+
+
+@dataclass(frozen=True)
+class TrialRow:
+    """One capability row's binding: the adapter that carries it, the upstream shape that adapter
+    needs to meter a call, and a model call it admits.
+
+    The lease is adapter-independent by construction, which is exactly why a row proves it rather
+    than inherits it: an adapter is the thing that could break the calls the lease assertions read.
+    """
+
+    name: str
+    build_adapter: Callable[[str], ProviderAdapter]
+    prepare_upstream: Callable[[SyntheticUpstream], None]
+    target: str
+    model: str
+
+
+def _row_four_stream(upstream: SyntheticUpstream) -> None:
+    # The Codex row meters off the wire terminal event, so an unaccounted reply would revoke the
+    # route and every "the call still succeeds" assertion below would pass for the wrong reason.
+    serve_stream(upstream, sse_stream([terminal_event(input_tokens=1, output_tokens=1)]))
+
+
+ROW_ONE = TrialRow(
+    "row_one", lambda upstream: row_one_adapter(upstream, REAL_CREDENTIAL),
+    lambda _upstream: None, MESSAGES_TARGET, SYNTHETIC_MODEL,
+)
+ROW_FOUR = TrialRow(
+    "row_four", row_four_adapter, _row_four_stream, RESPONSES_PATH, CODEX_MODEL,
+)
+ROWS = (ROW_ONE, ROW_FOUR)
+ROW_IDS = [row.name for row in ROWS]
+
+
+def row_request(row: TrialRow, base_url: str, token: str, prompt: str) -> tuple[int, bytes]:
+    return proxy_request(base_url, token, prompt, target=row.target, model=row.model)
 
 
 class VirtualClock:
@@ -79,15 +133,17 @@ def budget(max_cost: str = "500") -> ProxyBudget:
 def start_leased_proxy(
     tmp_path: Path, upstream: SyntheticUpstream, clocks: TrialClocks, *,
     bound_ms: int | None = None, terms: LeaseTerms | None = None,
+    row: TrialRow = ROW_ONE,
 ):
     """The launcher's own step: read H0, arm the provisional bound, then create the container."""
+    row.prepare_upstream(upstream)
     provisional = bound_ms if bound_ms is not None else provisional_lease_bound_ms(
         clocks.host.now_ms(), BUDGET_MS,
     )
     return start_trial_proxy(
         trial_id=TRIAL_ID,
         upstream_base_url=upstream.base_url,
-        adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
+        adapter=row.build_adapter(upstream.base_url),
         bound_source_ip="127.0.0.1",
         absolute_deadline=datetime.fromtimestamp(provisional / 1000, UTC),
         budget=budget(),
@@ -133,9 +189,12 @@ def post_echo(
     return response.status, json.loads(body)
 
 
-def run_trial(tmp_path: Path, clocks: TrialClocks, upstream: SyntheticUpstream):
+def run_trial(
+    tmp_path: Path, clocks: TrialClocks, upstream: SyntheticUpstream,
+    row: TrialRow = ROW_ONE,
+):
     """H0 → arm P → setup → phase-B compile → some elapsed trial time."""
-    handle = start_leased_proxy(tmp_path, upstream, clocks)
+    handle = start_leased_proxy(tmp_path, upstream, clocks, row=row)
     clocks.advance(SETUP_MS)
     deadline = compile_deadline(clocks)
     clocks.advance(ELAPSED_MS)
@@ -145,11 +204,14 @@ def run_trial(tmp_path: Path, clocks: TrialClocks, upstream: SyntheticUpstream):
 # ---------------------------------------------------------------- the OC-10 test
 
 
+@pytest.mark.parametrize("row", ROWS, ids=ROW_IDS)
 @pytest.mark.parametrize("skew_ms", SKEWS)
-def test_lease_survives_host_clock_skew(tmp_path: Path, skew_ms: int) -> None:
+def test_lease_survives_host_clock_skew(
+    tmp_path: Path, skew_ms: int, row: TrialRow,
+) -> None:
     clocks = TrialClocks(skew_ms)
     with SyntheticUpstream() as upstream:
-        handle, deadline = run_trial(tmp_path, clocks, upstream)
+        handle, deadline = run_trial(tmp_path, clocks, upstream, row)
         try:
             remaining_ms = BUDGET_MS - ELAPSED_MS
             status, echoed = post_echo(
@@ -158,11 +220,12 @@ def test_lease_survives_host_clock_skew(tmp_path: Path, skew_ms: int) -> None:
 
             # (a) one second before the container's own deadline, an admitted call still works.
             clocks.advance(remaining_ms - 1000)
-            alive, _ = proxy_request(handle.base_url, handle.dummy_token, "before-deadline")
+            alive, _ = row_request(row, handle.base_url, handle.dummy_token, "before-deadline")
 
             # (b) past the deadline plus the teardown grace, the route is dead.
             clocks.advance(1000 + TEARDOWN_GRACE_MS + 1000)
-            dead, payload = proxy_request(handle.base_url, handle.dummy_token, "after-deadline")
+            dead, payload = row_request(
+                row, handle.base_url, handle.dummy_token, "after-deadline")
         finally:
             handle.stop()
 
@@ -174,12 +237,15 @@ def test_lease_survives_host_clock_skew(tmp_path: Path, skew_ms: int) -> None:
     assert echoed["armed_remaining_ms"] == remaining_ms
 
 
-def test_armed_remaining_does_not_vary_with_host_clock_skew(tmp_path: Path) -> None:
+@pytest.mark.parametrize("row", ROWS, ids=ROW_IDS)
+def test_armed_remaining_does_not_vary_with_host_clock_skew(
+    tmp_path: Path, row: TrialRow,
+) -> None:
     armed: dict[int, int] = {}
     for skew_ms in SKEWS:
         clocks = TrialClocks(skew_ms)
         with SyntheticUpstream() as upstream:
-            handle, deadline = run_trial(tmp_path, clocks, upstream)
+            handle, deadline = run_trial(tmp_path, clocks, upstream, row)
             try:
                 _, echoed = post_echo(
                     handle.base_url, handle.dummy_token,
@@ -195,23 +261,26 @@ def test_armed_remaining_does_not_vary_with_host_clock_skew(tmp_path: Path) -> N
 # ---------------------------------------------------------------- the three companions
 
 
-def test_echo_cannot_extend_lease_beyond_provisional_bound(tmp_path: Path) -> None:
+@pytest.mark.parametrize("row", ROWS, ids=ROW_IDS)
+def test_echo_cannot_extend_lease_beyond_provisional_bound(
+    tmp_path: Path, row: TrialRow,
+) -> None:
     """A container that echoes a whole unspent budget later than the setup timeout would allow is
     asking for a lease past `P`. It gets `P`, and the overreach is recorded as an anomaly."""
     overrun_ms = 60_000
     clocks = TrialClocks(0)
     with SyntheticUpstream() as upstream:
         bound_ms = provisional_lease_bound_ms(clocks.host.now_ms(), BUDGET_MS)
-        handle = start_leased_proxy(tmp_path, upstream, clocks, bound_ms=bound_ms)
+        handle = start_leased_proxy(tmp_path, upstream, clocks, bound_ms=bound_ms, row=row)
         clocks.advance(SETUP_TIMEOUT_MS + overrun_ms)
         deadline = compile_deadline(clocks)
         try:
             status, echoed = post_echo(
                 handle.base_url, handle.dummy_token, echo_document(deadline, BUDGET_MS),
             )
-            before, _ = proxy_request(handle.base_url, handle.dummy_token, "still-live")
+            before, _ = row_request(row, handle.base_url, handle.dummy_token, "still-live")
             clocks.host.advance(bound_ms - clocks.host.now_ms() + 1000)
-            after, payload = proxy_request(handle.base_url, handle.dummy_token, "past-bound")
+            after, payload = row_request(row, handle.base_url, handle.dummy_token, "past-bound")
             record = handle.lease_echo_record
         finally:
             handle.stop()
@@ -235,10 +304,11 @@ def test_remaining_beyond_the_budget_is_refused_rather_than_clamped(tmp_path: Pa
     echo_refusal_leaves_the_bound(tmp_path, document, (400, "lease_echo_inconsistent"))
 
 
-def test_second_echo_does_not_move_the_lease(tmp_path: Path) -> None:
+@pytest.mark.parametrize("row", ROWS, ids=ROW_IDS)
+def test_second_echo_does_not_move_the_lease(tmp_path: Path, row: TrialRow) -> None:
     clocks = TrialClocks(0)
     with SyntheticUpstream() as upstream:
-        handle, deadline = run_trial(tmp_path, clocks, upstream)
+        handle, deadline = run_trial(tmp_path, clocks, upstream, row)
         try:
             first, accepted = post_echo(
                 handle.base_url, handle.dummy_token,
@@ -247,25 +317,35 @@ def test_second_echo_does_not_move_the_lease(tmp_path: Path) -> None:
             second, refusal = post_echo(
                 handle.base_url, handle.dummy_token, echo_document(deadline, 60_000),
             )
+            # Read at the route, not only in the record: the second echo asked for a minute, so a
+            # lease that moved would already be dead here.
+            clocks.advance(BUDGET_MS - ELAPSED_MS - 1000)
+            alive, _ = row_request(row, handle.base_url, handle.dummy_token, "after-duplicate")
+            clocks.advance(2000 + TEARDOWN_GRACE_MS)
+            dead, _ = row_request(row, handle.base_url, handle.dummy_token, "past-first-lease")
             record = handle.lease_echo_record
         finally:
             handle.stop()
 
     assert first == 200
     assert (second, refusal) == (409, {"error": "lease_echo_duplicate"})
+    assert (alive, dead) == (200, 410)
     assert record["value"]["armed_remaining_ms"] == accepted["armed_remaining_ms"]
 
 
-def test_missing_echo_leaves_bound_and_marks_unavailable(tmp_path: Path) -> None:
+@pytest.mark.parametrize("row", ROWS, ids=ROW_IDS)
+def test_missing_echo_leaves_bound_and_marks_unavailable(
+    tmp_path: Path, row: TrialRow,
+) -> None:
     clocks = TrialClocks(0)
     with SyntheticUpstream() as upstream:
         bound_ms = provisional_lease_bound_ms(clocks.host.now_ms(), BUDGET_MS)
-        handle = start_leased_proxy(tmp_path, upstream, clocks, bound_ms=bound_ms)
+        handle = start_leased_proxy(tmp_path, upstream, clocks, bound_ms=bound_ms, row=row)
         clocks.advance(SETUP_MS + BUDGET_MS - 1000)
         try:
-            alive, _ = proxy_request(handle.base_url, handle.dummy_token, "no-echo-yet")
+            alive, _ = row_request(row, handle.base_url, handle.dummy_token, "no-echo-yet")
             clocks.host.advance(bound_ms - clocks.host.now_ms() + 1000)
-            dead, payload = proxy_request(handle.base_url, handle.dummy_token, "past-bound")
+            dead, payload = row_request(row, handle.base_url, handle.dummy_token, "past-bound")
             record = handle.lease_echo_record
         finally:
             handle.stop()
