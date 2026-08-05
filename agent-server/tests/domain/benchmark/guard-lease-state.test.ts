@@ -265,19 +265,32 @@ it('keeps the lease state out of the role surface, so the role hash is a per-rol
     supervisor: { binary: path.join(root, 'supervisor'), graceMs: 1_000 },
     cwd: workspace,
   });
-  const before = computeRoleToolSurfaceHash(trial.roleSurface);
-
-  // The overlay LS4 performs, applied to the very config the surface was taken from.
-  trial.spawnConfig.benchmarkLeaseState = 'thread-owned';
-  const after = roleSurfaceFromSpawnConfig(
+  const directive = trial.roleSurface.directiveSha256;
+  const surfaceOf = () => roleSurfaceFromSpawnConfig(
     trial.spawnConfig, '', trial.spawnConfig.benchmarkPolicyGuard,
   );
+  const before = surfaceOf();
 
-  assert.equal(JSON.stringify(after).includes('thread-owned'), false);
-  assert.equal(JSON.stringify(after).includes('LeaseState'), false);
-  assert.equal(before, computeRoleToolSurfaceHash({ ...after, directiveSha256: trial.roleSurface.directiveSha256 }));
+  // The overlay LS4 performs, applied twice to the very config the surface is taken from.
+  trial.spawnConfig.benchmarkLeaseState = 'thread-owned';
+  const armed = surfaceOf();
+  trial.spawnConfig.benchmarkLeaseState = 'parent-writable';
+  const rearmed = surfaceOf();
+
+  // No member of the surface names the selector — not the shape, and so not the hash either.
+  const members = Object.keys(armed);
+  assert.deepEqual(members, [
+    'systemPromptSha256', 'directiveSha256', 'tools', 'pluginDirs', 'skills',
+    'mcpComposition', 'hookPolicy', 'benchmarkPolicyGuard',
+  ]);
+  assert.deepEqual(members.filter(name => /lease/i.test(name)), []);
+  assert.equal(JSON.stringify(armed), JSON.stringify(before));
+  assert.equal(JSON.stringify(armed), JSON.stringify(rearmed));
+  // The role hash therefore stays a per-role constant, and it is the compiled policy's own.
+  assert.equal(computeRoleToolSurfaceHash(armed), computeRoleToolSurfaceHash(rearmed));
   assert.equal(
-    before, built.policy.identity.role_tool_surface_hash['benchmark-reviewer'],
+    computeRoleToolSurfaceHash({ ...armed, directiveSha256: directive }),
+    built.policy.identity.role_tool_surface_hash['benchmark-reviewer'],
   );
 });
 

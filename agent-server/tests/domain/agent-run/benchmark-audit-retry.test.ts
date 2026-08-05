@@ -62,6 +62,7 @@ import { openJournal } from '../../../src/domain/agent-run/journal.js';
 import { writeStartedMarker } from '../../../src/domain/agent-run/manifest.js';
 import { preparePinnedTrialPaths } from '../../../src/domain/agent-run/pinned-node-process.js';
 import { createBenchmarkTrialRunAgent } from '../../../src/domain/benchmark/trial-thread-adapter.js';
+import { readActiveLeaseState } from '../../../src/domain/benchmark/workspace-lease.js';
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';
 import {
   compileTrialPolicy, FIXTURE_MODEL, FIXTURE_PROFILE, writeFixtureAsset,
@@ -153,6 +154,7 @@ function prepareTrial(
         policy: fixture.policy, config: fixture.config,
         paths: preparePinnedTrialPaths(path.join(root, label, 'trial-home')),
         supervisor: { binary: process.execPath, graceMs: 1_000 },
+        leaseState: readActiveLeaseState,
       }),
     },
     observations, workspaceCwd,

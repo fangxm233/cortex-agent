@@ -29,6 +29,7 @@ import {
 import {
   createBenchmarkTrialRunAgent,
 } from '../../../src/domain/benchmark/trial-thread-adapter.js';
+import type { LeaseState } from '../../../src/domain/benchmark/workspace-lease.js';
 import {
   compileTrialPolicy, FIXTURE_PROXY_BASE_URL, writeFixtureAsset, type TrialPolicyFixture,
 } from './trial-thread-policy-fixture.js';
@@ -111,6 +112,7 @@ function trialInput(built: TrialPolicyFixture) {
     config: built.config,
     paths: preparePinnedTrialPaths(path.join(root, 'trial-home')),
     supervisor: { binary: path.join(root, 'supervisor'), graceMs: 1_000 },
+    leaseState: (): LeaseState => 'thread-owned',
   };
 }
 

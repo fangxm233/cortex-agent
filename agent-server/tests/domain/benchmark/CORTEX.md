@@ -5,6 +5,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | filename | role | function |
 |---|---|---|
 | accounting-reconciliation.test.ts | 测试 | 验证标记联合、纯度、容差与未记账角色 |
+| guard-lease-state.test.ts | 测试 | 验证守卫表按角色类编译、选择器每步取自实时租约 |
 | lease-echo.test.ts | 测试 | 验证回声文档、控制路由投递与拒绝传播 |
 | policy-backed-runtime-deps.test.ts | 测试 | 验证冻结解析与运行时拒绝 |
 | policy-compiler.test.ts | 测试 | 验证 arm 编译、分发、调用一致性与投影 |
