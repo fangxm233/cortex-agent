@@ -24,7 +24,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | benchmark-shipped-prompts.ts | fixture | seeds the shipped prompts tree the benchmark agents' file refs resolve against |
 | benchmark-thread-backend-neutral.test.ts | test | proves per-step trial adapters, widened pins and artifact convergence on both backends |
 | benchmark-thread-workspace.test.ts | test | proves per-step placement, writer refusal, discard and append |
-| fake-backend-cli.ts | fixture | answers one queued step per invocation in either backend's wire shape, writing any files the step declares |
+| fake-backend-cli.ts | fixture | answers, hangs on or prices one queued step per invocation in either backend's wire shape, recording its prompts, lifecycle and declared writes through baked-in paths |
 | fake-run-agent-loader.mjs | fixture | redirects thread-runtime agent imports to a fake |
 | fake-run-agent-module.mjs | fixture | returns one deterministic no-model result |
 | fake-run-agent-register.mjs | fixture | installs the fake agent loader before import |

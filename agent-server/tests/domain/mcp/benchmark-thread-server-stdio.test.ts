@@ -1,7 +1,13 @@
-// input:  MCP config, stdio transport, fake Claude, relative journal
+// input:  MCP config, stdio transport, queue-driven fake backend, relative journal
 // output: benchmark thread policy, lifecycle and cancellation proof
 // pos:    End-to-end benchmark-only thread MCP integration test
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
+// OBSERVATION CHANNEL. The fake backend is driven by a queue file and writes into an observations
+// directory, both baked into the generated script. Neither travels through the environment: a
+// trial pins its child's environment to a fixed set (`trial-adapter-factory.ts` spawns with
+// `pinnedTrialEnvironment(paths, {})`), so an env-carried channel is deleted before the child
+// reads it, and this suite would then observe nothing at all.
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -23,37 +29,40 @@ import { openJournal } from '../../../src/domain/agent-run/journal.js';
 import {
   validateTrajectoryLifecycle, writeStartedMarker,
 } from '../../../src/domain/agent-run/manifest.js';
+import {
+  FAKE_BACKEND_CLI_VERSION, FAKE_BACKEND_LIFECYCLE_FILE, FAKE_BACKEND_PROMPTS_FILE,
+  writeFakeBackendCli, type FakeStepScript,
+} from '../agent-run/fake-backend-cli.js';
 
 const SERVER_ROOT = path.resolve(import.meta.dirname, '../../..');
 const DEFAULT_TEMPLATES = path.join(SERVER_ROOT, 'defaults/config/thread-templates');
 const SUPERVISOR = path.join(SERVER_ROOT, 'native/cortex-supervisor/dist/cortex-supervisor');
+const APPROVAL_MARKER = '[IMPL-APPROVED]';
+const STEP_COST_USD = 0.1;
 const roots: string[] = [];
 
-const FAKE_CLAUDE = `#!/usr/bin/env node
-import fs from 'node:fs';
-import { createInterface } from 'node:readline';
-const args = process.argv.slice(2);
-if (args.includes('--version')) { console.log('fixture-claude 1.0.0'); process.exit(0); }
-const append = (file, value) => fs.appendFileSync(file, JSON.stringify(value) + '\\n');
-append(process.env.FAKE_CLAUDE_INVOCATIONS, { args, cwd: process.cwd(), pid: process.pid });
-process.on('SIGTERM', () => { append(process.env.FAKE_CLAUDE_EVENTS, { event: 'stopped', pid: process.pid }); process.exit(0); });
-createInterface({ input: process.stdin, crlfDelay: Infinity }).once('line', (line) => {
-  const request = JSON.parse(line);
-  append(process.env.FAKE_CLAUDE_PROMPTS, request.message.content);
-  append(process.env.FAKE_CLAUDE_EVENTS, { event: 'started', pid: process.pid });
-  if (process.env.FAKE_CLAUDE_MODE === 'hang') return void setInterval(() => {}, 1000);
-  const systemIndex = args.indexOf('--system-prompt');
-  const reviewer = systemIndex >= 0 && args[systemIndex + 1].includes('auditor');
-  const longSummary = 'x'.repeat(1900) + '😀' + 'y'.repeat(500) + '\\n[IMPL-APPROVED]';
-  const text = reviewer && process.env.FAKE_CLAUDE_MODE === 'long-summary'
-    ? longSummary
-    : reviewer ? 'review complete\\n[IMPL-APPROVED]' : 'implementation complete';
-  const artifact = request.message.content.match(/(\\/[^\\s]+\\/artifact\\.md)/)?.[1];
-  if (reviewer && artifact) fs.appendFileSync(artifact, '\\n[IMPL-APPROVED]\\n');
-  console.log(JSON.stringify({ type: 'assistant', message: { id: 'a1', model: 'fixture-reported', content: [{ type: 'text', text }] } }));
-  console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: request.session_id, result: text, total_cost_usd: 0.1, num_turns: 1 }));
-});
-`;
+/** Long enough that the summary boundary is crossed inside a surrogate pair. */
+const LONG_REVIEW = `${'x'.repeat(1900)}😀${'y'.repeat(500)}\n${APPROVAL_MARKER}`;
+
+/** One queue per mode. Every text the fake emits is named here, so no assertion below reads a
+ *  value the fixture invented for itself. */
+const STEP_QUEUES: Record<Fixture['mode'], FakeStepScript[]> = {
+  success: [
+    { text: 'implementation complete', costUsd: STEP_COST_USD },
+    {
+      text: `review complete\n${APPROVAL_MARKER}`, costUsd: STEP_COST_USD,
+      appendsToArtifact: `\n${APPROVAL_MARKER}\n`,
+    },
+  ],
+  'long-summary': [
+    { text: 'implementation complete', costUsd: STEP_COST_USD },
+    {
+      text: LONG_REVIEW, costUsd: STEP_COST_USD,
+      appendsToArtifact: `\n${APPROVAL_MARKER}\n`,
+    },
+  ],
+  hang: [{ text: null, hang: true }],
+};
 
 interface Fixture {
   root: string;
@@ -64,9 +73,8 @@ interface Fixture {
   rootRunId: string;
   canonicalInstruction: string;
   parentModelHash: string;
-  invocations: string;
-  prompts: string;
-  events: string;
+  queue: string;
+  observations: string;
   mode: 'success' | 'hang' | 'long-summary';
 }
 
@@ -181,11 +189,11 @@ async function createFixture(
     parentModelHash: computeModelExecutionIdentityHash({
       backend: 'claude', requestedModel: 'fixture-model', modelAliasPolicy: null,
       providerProtocol: 'anthropic', configuredRouteBaseHost: null,
-      claudeCliVersion: 'fixture-claude 1.0.0', cliName: 'claude',
-      cliVersion: 'fixture-claude 1.0.0', reasoningEffort: null, fallbackEmpty: true,
+      claudeCliVersion: FAKE_BACKEND_CLI_VERSION, cliName: 'claude',
+      cliVersion: FAKE_BACKEND_CLI_VERSION, reasoningEffort: null, fallbackEmpty: true,
     }),
-    invocations: path.join(root, 'invocations.ndjson'),
-    prompts: path.join(root, 'prompts.ndjson'), events: path.join(root, 'events.ndjson'),
+    queue: path.join(root, 'queue.json'),
+    observations: path.join(root, 'observations'),
   };
   for (const directory of [fixture.home, fixture.workspace, fixture.trajectoryRoot]) {
     fs.mkdirSync(directory, { recursive: true });
@@ -193,14 +201,21 @@ async function createFixture(
   seedRuntimeConfig(fixture);
   writePolicy(fixture, policy);
   await seedParentLifecycle(fixture);
-  installFakeClaude(fixture);
+  installFakeBackend(fixture);
   return fixture;
 }
 
-function installFakeClaude(fixture: Fixture): void {
+/** The generated script carries its own queue and observation paths, so the only thing the server
+ *  environment still has to supply is where on PATH the backend binary lives. */
+function installFakeBackend(fixture: Fixture): void {
+  fs.writeFileSync(fixture.queue, JSON.stringify(STEP_QUEUES[fixture.mode]));
+  const generated = writeFakeBackendCli(
+    fixture.root, 'backend', 'claude', fixture.queue, fixture.observations,
+  );
   const bin = path.join(fixture.root, 'bin');
   fs.mkdirSync(bin);
-  fs.writeFileSync(path.join(bin, 'claude'), FAKE_CLAUDE, { mode: 0o755 });
+  fs.copyFileSync(generated, path.join(bin, 'claude'));
+  fs.chmodSync(path.join(bin, 'claude'), 0o755);
 }
 
 function serverEnvironment(fixture: Fixture): Record<string, string> {
@@ -215,10 +230,6 @@ function serverEnvironment(fixture: Fixture): Record<string, string> {
     PATH: `${path.join(fixture.root, 'bin')}${path.delimiter}${process.env.PATH ?? ''}`,
     CORTEX_BENCHMARK_THREAD_POLICY_PATH: fixture.policyPath,
     CORTEX_SUPERVISOR_BINARY: SUPERVISOR,
-    FAKE_CLAUDE_MODE: fixture.mode,
-    FAKE_CLAUDE_INVOCATIONS: fixture.invocations,
-    FAKE_CLAUDE_PROMPTS: fixture.prompts,
-    FAKE_CLAUDE_EVENTS: fixture.events,
   };
 }
 
@@ -252,6 +263,23 @@ function readRowsIfPresent(file: string): any[] {
   return fs.existsSync(file) ? readRows(file) : [];
 }
 
+function observationFile(fixture: Fixture, name: string): string {
+  return path.join(fixture.observations, name);
+}
+
+/** One record per child process, in the order the steps were taken. */
+function invocations(fixture: Fixture): { argv: string[]; cwd: string; pid: number }[] {
+  if (!fs.existsSync(fixture.observations)) return [];
+  return fs.readdirSync(fixture.observations)
+    .filter(name => /^step-\d+\.json$/.test(name))
+    .sort((left, right) => Number(left.match(/\d+/)![0]) - Number(right.match(/\d+/)![0]))
+    .map(name => JSON.parse(fs.readFileSync(observationFile(fixture, name), 'utf8')));
+}
+
+function prompts(fixture: Fixture): string[] {
+  return readRowsIfPresent(observationFile(fixture, FAKE_BACKEND_PROMPTS_FILE));
+}
+
 async function waitFor<T>(read: () => T | null, label: string): Promise<T> {
   const deadline = Date.now() + 12_000;
   while (Date.now() < deadline) {
@@ -263,8 +291,9 @@ async function waitFor<T>(read: () => T | null, label: string): Promise<T> {
 }
 
 function startedPid(fixture: Fixture): number | null {
-  if (!fs.existsSync(fixture.events)) return null;
-  return readRows(fixture.events).find(row => row.event === 'started')?.pid ?? null;
+  const lifecycle = observationFile(fixture, FAKE_BACKEND_LIFECYCLE_FILE);
+  if (!fs.existsSync(lifecycle)) return null;
+  return readRows(lifecycle).find(row => row.event === 'started')?.pid ?? null;
 }
 
 function threadTerminal(fixture: Fixture): any | null {
@@ -283,21 +312,21 @@ async function closeServer(connected: ConnectedServer): Promise<void> {
 }
 
 function assertChildComposition(fixture: Fixture): void {
-  const invocations = readRows(fixture.invocations);
-  assert.equal(invocations.length, 2);
-  const systemPrompts = invocations.map((invocation) => {
-    const index = invocation.args.indexOf('--system-prompt');
-    return invocation.args[index + 1];
+  const records = invocations(fixture);
+  assert.equal(records.length, 2);
+  const systemPrompts = records.map((invocation) => {
+    const index = invocation.argv.indexOf('--system-prompt');
+    return invocation.argv[index + 1];
   });
   assert.match(systemPrompts[0], /code implementer/);
   assert.match(systemPrompts[1], /implementation auditor/);
-  for (const invocation of invocations) {
+  for (const invocation of records) {
     assert.equal(invocation.cwd, fixture.workspace);
-    assert.ok(invocation.args.includes('--strict-mcp-config'));
-    const mcpPath = invocation.args[invocation.args.indexOf('--mcp-config') + 1];
+    assert.ok(invocation.argv.includes('--strict-mcp-config'));
+    const mcpPath = invocation.argv[invocation.argv.indexOf('--mcp-config') + 1];
     assert.deepEqual(JSON.parse(fs.readFileSync(mcpPath, 'utf8')), { mcpServers: {} });
     assert.equal(path.basename(mcpPath), 'mcp-config-empty.json');
-    const tools = invocation.args[invocation.args.indexOf('--tools') + 1];
+    const tools = invocation.argv[invocation.argv.indexOf('--tools') + 1];
     assert.equal(/mcp__|thread_abort|thread_split|thread_wait/.test(tools), false);
   }
 }
@@ -305,7 +334,7 @@ function assertChildComposition(fixture: Fixture): void {
 function assertSuccessArtifacts(fixture: Fixture, payload: any): void {
   assert.equal(payload.status, 'completed');
   assert.equal(payload.steps, 2);
-  assert.equal(payload.cost_usd, 0.2);
+  assert.equal(payload.cost_usd, 2 * STEP_COST_USD);
   assert.ok(fs.existsSync(payload.artifact_path));
   assert.ok(fs.existsSync(payload.trajectory_paths.journal));
   assert.ok(fs.existsSync(payload.trajectory_paths.manifest));
@@ -321,12 +350,11 @@ function assertSuccessArtifacts(fixture: Fixture, payload: any): void {
 }
 
 function assertPolicyWins(fixture: Fixture, handoff: string): void {
-  const prompts = readRows(fixture.prompts);
-  assert.match(prompts[0], /Implement the canonical benchmark task\./);
-  assert.match(prompts[0], /FORGED_TEMPLATE/);
-  const invocations = readRows(fixture.invocations);
-  for (const invocation of invocations) {
-    assert.equal(invocation.args[invocation.args.indexOf('--model') + 1], 'fixture-model');
+  const recorded = prompts(fixture);
+  assert.match(recorded[0], /Implement the canonical benchmark task\./);
+  assert.match(recorded[0], /FORGED_TEMPLATE/);
+  for (const invocation of invocations(fixture)) {
+    assert.equal(invocation.argv[invocation.argv.indexOf('--model') + 1], 'fixture-model');
   }
   const journal = path.join(fixture.trajectoryRoot, threadTerminal(fixture).journal_path);
   const header = readRows(journal)[0];
@@ -434,7 +462,7 @@ test.each([
     });
     assert.equal(result.isError, true, server.stderr());
     assert.equal(textPayload(result).terminal_reason, scenario.reason);
-    assert.equal(readRowsIfPresent(fixture.invocations).length, scenario.invocations);
+    assert.equal(invocations(fixture).length, scenario.invocations);
     const terminal = await waitFor(() => threadTerminal(fixture), `${scenario.name} terminal manifest`);
     assert.equal(terminal.terminal_reason, scenario.reason);
   } finally {
