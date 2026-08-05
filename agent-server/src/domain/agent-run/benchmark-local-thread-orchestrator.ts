@@ -17,9 +17,10 @@ import type { ResolvedTrialPolicy } from '../benchmark/resolved-policy.js';
 import {
   variantProposal, type ProposalIntent, type ProposalStopReason,
 } from '../benchmark/variant-proposal.js';
+import type { TrialThreadAdapterInput } from '../benchmark/trial-thread-adapter.js';
 import {
-  createWorkspaceLease, createWorkspaceStepBoundary, resolveWorkspacePlacement,
-  withActiveWorkspaceLease,
+  createWorkspaceLease, createWorkspaceStepBoundary, readActiveLeaseState,
+  resolveWorkspacePlacement, withActiveWorkspaceLease,
   type CoderReviewVariant, type TrialSnapshotPaths, type WorkspaceLease,
   type WorkspacePlacement, type WorkspaceStepBoundary,
 } from '../benchmark/workspace-lease.js';
@@ -58,6 +59,8 @@ import {
   type TerminalManifestInput, type TerminalReason, type TerminalState,
 } from './manifest.js';
 import { terminalManifestProblem } from './manifest-contract.js';
+import { preparePinnedTrialPaths } from './pinned-node-process.js';
+import { loadAgentRunConfigWithPolicy } from './run-config.js';
 import {
   attachSupervisor, resolveSupervisorBinary, SupervisorContainmentError,
   type SupervisorSession,
@@ -71,6 +74,13 @@ interface BenchmarkThreadRequest {
   profileName: string;
   rootRunId: string;
   trajectoryRoot: string;
+  /** Absolute container path of the arm-resolution document the parent's `agent-run` was given.
+   *  The production route always carries it — the `/2` thread-policy document makes it structurally
+   *  required at the producer — and it is the single input the whole trial-adapter route is derived
+   *  from. It stays optional here for the same reason `trialRoot` does: the requirement belongs at
+   *  the producer, and enforcing it here would refuse the shipped policy-supplied route.
+   *  Design section 16 (16.3.2) PW1 / PW1-PLACE. */
+  runConfigPath?: string;
   /** Absolute trial root. Required for a variant that places a role in a disposable snapshot. */
   trialRoot?: string;
   /** Fixes each role's workspace placement. Absent → every step runs in the shared workspace. */
@@ -136,6 +146,7 @@ interface PreparedThreadRun {
   roleIdentities: Map<string, BenchmarkRoleIdentity>;
   modelProtocolProblem: string | null;
   roleIdentityProblem: string | null;
+  parentIdentityProblem: string | null;
   startedAt: string;
   /** Each step's last assistant message, keyed by step index, as the journal recorded it. A step
    *  that emitted none is absent — which is a different fact from one that emitted nothing to say. */
@@ -454,6 +465,7 @@ async function createRunArtifacts(
     request, profile, template, thread, journal, lifecycle, identity,
     roleIdentities: identities.roles, modelProtocolProblem: identities.modelProtocolProblem,
     roleIdentityProblem: identities.roleIdentityProblem,
+    parentIdentityProblem: identities.parentIdentityProblem,
     startedAt, terminalAssistantText: new Map(),
   };
 }
@@ -627,9 +639,11 @@ async function runLocalThread(
   control: RunControl,
   supervisorBinary: string,
 ): Promise<{ result: ThreadRunResult | null; error: unknown }> {
-  // Either identity gate refuses, and both refuse here — before the workspace is taken and before
-  // any spawner exists, so a divergent identity can never reach a process.
-  const problem = prepared.modelProtocolProblem ?? prepared.roleIdentityProblem;
+  // Any identity gate refuses, and all of them refuse here — before the workspace is taken and
+  // before any spawner exists, so a divergent identity can never reach a process.
+  const problem = prepared.modelProtocolProblem
+    ?? prepared.roleIdentityProblem
+    ?? prepared.parentIdentityProblem;
   if (problem) {
     return { result: null, error: new BenchmarkIdentityProtocolError(problem) };
   }
@@ -1025,6 +1039,35 @@ async function runBenchmarkThreadScoped(
     cleanupControl(control);
     await disposeSupervisors(control);
   }
+}
+
+/**
+ * Everything the per-step trial adapter needs, derived from the two paths the request carries and
+ * from nothing else: the compiled policy and the resolved run config from ONE call of the shipped
+ * loader over the arm-resolution document, the pinned trial paths from the trial root, and the
+ * supervisor from the shipped resolver. The policy is RE-COMPILED here, in the process that will
+ * run the thread, rather than transported — which is what makes the parent role-hash equality a
+ * comparison of two independent compiles instead of a tautology. A request that carried a
+ * pre-built `ResolvedAgentRunConfig`, `PinnedTrialPaths` or supervisor descriptor would let a
+ * caller supply what production must derive. Design section 16 (16.3.2) PW1 and PW2.
+ */
+export function trialThreadAdapterInput(
+  runConfigPath: string,
+  trialRoot: string,
+): TrialThreadAdapterInput {
+  const loaded = loadAgentRunConfigWithPolicy({
+    runConfigFile: runConfigPath, agentSlot: 'parent',
+  });
+  if (!loaded.policy) {
+    throw new Error(`Benchmark run config compiled no trial policy: ${runConfigPath}`);
+  }
+  return {
+    policy: loaded.policy,
+    config: loaded.config,
+    paths: preparePinnedTrialPaths(trialRoot),
+    supervisor: { binary: resolveSupervisorBinary(), graceMs: SUPERVISOR_GRACE_MS },
+    leaseState: readActiveLeaseState,
+  };
 }
 
 /** The lifecycle hook runner reaches an agent through the unscoped module import, so an override

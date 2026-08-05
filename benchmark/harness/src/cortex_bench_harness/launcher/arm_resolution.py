@@ -1,5 +1,5 @@
 # input:  trial seed, container-observed bundle root and backend CLI facts
-# output: composed phase-A ArmResolution JSON document and agent-dir file
+# output: composed phase-A ArmResolution, thread-policy and MCP documents as agent-dir files
 # pos:    Launcher-owned composer for the benchmark compiler input
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -62,11 +62,27 @@ BENCHMARK_THREAD_MCP_CONTAINER_PATH: PurePosixPath = (
 # (`runner.ts:361`) and the shipped launcher always passes
 # trajectoryRoot = <agent_dir>/trajectory (`harbor_agent.py:_agent_paths`), so the value is a
 # deterministic function of the agent dir this module already writes the resolution into.
-CODER_REVIEW_CORTEX_HOME: PurePosixPath = (
-    EnvironmentPaths().agent_dir / "trial-home" / "cortex-home"
-)
+CODER_REVIEW_TRIAL_ROOT: PurePosixPath = EnvironmentPaths().agent_dir / "trial-home"
+CODER_REVIEW_CORTEX_HOME: PurePosixPath = CODER_REVIEW_TRIAL_ROOT / "cortex-home"
 BENCHMARK_THREAD_MCP_SERVER = "cortex-benchmark-thread"
 BENCHMARK_THREAD_SERVER_SCRIPT = "dist/domain/mcp/benchmark-thread-server.js"
+
+# --- the in-trial thread policy ------------------------------------------------------------------
+# The document names WHICH trial the in-trial thread is and WHERE its compiler input lives. It
+# carries no role, no prompt, no tool list, no plugin dir, no MCP config, no thread template and no
+# compiled policy: the server process re-derives every one of those from `run_config_path`, which is
+# the same document the parent's own `agent-run` was given. Design section 16 (16.3.2) PW3-NEG/PW4.
+BENCHMARK_THREAD_POLICY_SCHEMA_VERSION = "cortex-benchmark-thread-policy/2"
+BENCHMARK_THREAD_POLICY_FILENAME = "benchmark-thread-policy.json"
+BENCHMARK_THREAD_POLICY_SOURCE = "benchmark_thread_policy"
+BENCHMARK_THREAD_POLICY_CONTAINER_PATH: PurePosixPath = (
+    EnvironmentPaths().agent_dir / BENCHMARK_THREAD_POLICY_FILENAME
+)
+BENCHMARK_THREAD_POLICY_ENV = "CORTEX_BENCHMARK_THREAD_POLICY_PATH"
+# The trajectory the parent's argv already names (`harbor_agent._agent_paths`). The thread's
+# lifecycle records land beside the parent's and its started marker is read from here, so the two
+# sides must not derive this value independently.
+TRAJECTORY_CONTAINER_PATH: PurePosixPath = EnvironmentPaths().agent_dir / "trajectory"
 
 THREAD_TEMPLATES_DIR = "defaults/config/thread-templates"
 SYSTEM_PROMPTS_DIR = "defaults/prompts/systemPrompts"
@@ -359,7 +375,13 @@ def build_benchmark_thread_mcp_config(bundle_root: str) -> dict[str, object]:
                 "command": "node",
                 "args": [str(PurePosixPath(bundle_root) / BENCHMARK_THREAD_SERVER_SCRIPT)],
                 "cwd": bundle_root,
-                "env": {"CORTEX_HOME": str(CODER_REVIEW_CORTEX_HOME)},
+                "env": {
+                    "CORTEX_HOME": str(CODER_REVIEW_CORTEX_HOME),
+                    # PW5: the server refuses to start without it, and the same allowlist that
+                    # blocks CORTEX_HOME blocks this name too — so a value set anywhere else
+                    # reaches the model process and never the MCP child.
+                    BENCHMARK_THREAD_POLICY_ENV: str(BENCHMARK_THREAD_POLICY_CONTAINER_PATH),
+                },
             },
         },
     }
@@ -376,6 +398,64 @@ def write_benchmark_thread_mcp_config(agent_dir: Path, bundle_root: str) -> Path
     return output
 
 
+def build_benchmark_thread_policy(
+    arm: Mapping[str, object], *,
+    canonical_instruction: str,
+    workspace_cwd: str,
+    profile_name: str,
+    root_run_id: str,
+    started_epoch_ms: int,
+) -> dict[str, object]:
+    """The thread-policy document the in-trial MCP server reads at startup.
+
+    The limits are the arm's own bounds and nothing finer: the launcher knows no thread-specific
+    budget, and the thread cannot outlive or outspend the trial that contains it. `deadline_seconds`
+    becomes an instant here because the reading side compares it against the clock.
+    """
+    if arm_orchestration_mode(arm) != CODER_REVIEW_MODE:
+        raise ValueError("a thread policy is emitted only for a coder-review arm")
+    if not canonical_instruction:
+        raise ValueError("a thread policy requires the canonical instruction")
+    if not PurePosixPath(workspace_cwd).is_absolute():
+        raise ValueError("a thread policy workspace_cwd must be an absolute container path")
+    limits = arm["limits"]
+    if not isinstance(limits, Mapping):
+        raise ValueError("arm limits must be a mapping")
+    return {
+        "schema_version": BENCHMARK_THREAD_POLICY_SCHEMA_VERSION,
+        "canonical_instruction": canonical_instruction,
+        "workspace_cwd": workspace_cwd,
+        "run_config_path": str(ARM_RESOLUTION_CONTAINER_PATH),
+        "trial_root": str(CODER_REVIEW_TRIAL_ROOT),
+        "template": CODER_REVIEW_TEMPLATE[arm_coder_review_variant(arm)],
+        "profile_name": profile_name,
+        "root_run_id": root_run_id,
+        "trajectory_root": str(TRAJECTORY_CONTAINER_PATH),
+        "limits": {
+            "max_calls": 1,
+            "max_steps": int(str(limits["max_provider_requests"])),
+            "max_cost_usd": float(str(limits["max_cost_usd"])),
+            "deadline_epoch_ms": started_epoch_ms + int(str(limits["deadline_seconds"])) * 1_000,
+        },
+    }
+
+
+def write_benchmark_thread_policy(
+    agent_dir: Path, document: Mapping[str, object],
+) -> Path:
+    output = agent_dir / BENCHMARK_THREAD_POLICY_FILENAME
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # Written fresh each time: the previous file is read-only, so an in-place rewrite would fail.
+    output.unlink(missing_ok=True)
+    output.write_text(
+        json.dumps(document, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    # The server refuses a writable document: a trial reads its own policy and never edits it.
+    output.chmod(0o444)
+    return output
+
+
 def compose_arm_resolution(
     seed: TrialSeed, facts: ContainerFacts, *,
     credential: Mapping[str, object] | None = None,
@@ -389,9 +469,11 @@ def compose_arm_resolution(
         variant = arm_coder_review_variant(seed.arm)
         roles = _coder_review_roles(facts.bundle_root, backend, variant)
         thread_templates, thread_agents = _thread_assets(facts.bundle_root, variant)
-        # The MCP config is a new file under the trial roots; an unclassified file fails section
-        # 3.1(f) closed, so its source is declared here rather than left to the inventory default.
+        # The MCP config and the thread policy are new files under the trial roots; an unclassified
+        # file fails section 3.1(f) closed, so their sources are declared here rather than left to
+        # the inventory default.
         inventory.append(BENCHMARK_THREAD_MCP_SOURCE)
+        inventory.append(BENCHMARK_THREAD_POLICY_SOURCE)
     else:
         roles = {"parent": _direct_parent_role(facts.bundle_root, backend)}
         thread_templates, thread_agents = {}, {}

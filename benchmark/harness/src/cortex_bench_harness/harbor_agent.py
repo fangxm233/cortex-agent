@@ -5,6 +5,7 @@
 
 import shlex
 import shutil
+import time
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, override
 
@@ -16,13 +17,22 @@ from harbor.models.trial.paths import EnvironmentPaths
 from .cwd import ResolvedCwd, resolve_task_workdir
 from .launcher.arm_resolution import (
     ARM_RESOLUTION_CONTAINER_PATH,
+    TRAJECTORY_CONTAINER_PATH,
     ContainerFacts,
     TrialSeed,
+    build_benchmark_thread_policy,
     compose_arm_resolution,
     parse_trial_seed,
     write_arm_resolution,
+    write_benchmark_thread_mcp_config,
+    write_benchmark_thread_policy,
 )
-from .launcher.arms import backend_cli_binary, require_composable_arm
+from .launcher.arms import (
+    CODER_REVIEW_MODE,
+    arm_orchestration_mode,
+    backend_cli_binary,
+    require_composable_arm,
+)
 from .launcher.trial_proxy import (
     TrialProxySession,
     arm_trial_proxy,
@@ -230,6 +240,9 @@ class CortexBenchAgent(BaseInstalledAgent):
             "Installed Cortex CLI version probe returned no version",
         )
 
+    def _is_coder_review(self) -> bool:
+        return arm_orchestration_mode(self._trial_seed.arm) == CODER_REVIEW_MODE
+
     def _compose_arm_resolution(self, facts: ContainerFacts) -> dict[str, object]:
         credential = (
             None if self._proxy_session is None
@@ -265,7 +278,32 @@ class CortexBenchAgent(BaseInstalledAgent):
         write_arm_resolution(
             self.logs_dir, self._compose_arm_resolution(self._container_facts),
         )
+        if self._is_coder_review():
+            # The declaration the composed parent role's `mcp_config_paths` already names. It is
+            # instruction-independent, so it is written here rather than at run time.
+            write_benchmark_thread_mcp_config(
+                self.logs_dir, self._container_facts.bundle_root,
+            )
         self._resolved_cwd = resolved_cwd
+
+    def _write_thread_policy(self, instruction: str) -> None:
+        """The in-trial thread's policy, written beside the resolution the instant before the run.
+
+        It cannot be written at setup time: the canonical instruction is only handed to `run`, and
+        the deadline is an instant rather than a duration, so it is anchored on the run that is
+        about to start rather than on a setup that may have been slow.
+        """
+        if not self._is_coder_review():
+            return
+        assert self._resolved_cwd is not None
+        write_benchmark_thread_policy(self.logs_dir, build_benchmark_thread_policy(
+            self._trial_seed.arm,
+            canonical_instruction=instruction,
+            workspace_cwd=self._resolved_cwd.realpath,
+            profile_name=PROFILE_NAME,
+            root_run_id=self._manifest_seed.root_run_id,
+            started_epoch_ms=int(time.time() * 1_000),
+        ))
 
     def _agent_paths(
         self,
@@ -273,8 +311,8 @@ class CortexBenchAgent(BaseInstalledAgent):
         agent_dir = EnvironmentPaths().agent_dir
         return (
             agent_dir / "instruction.md",
-            agent_dir / "trajectory" / "events.jsonl",
-            agent_dir / "trajectory",
+            TRAJECTORY_CONTAINER_PATH / "events.jsonl",
+            TRAJECTORY_CONTAINER_PATH,
             ARM_RESOLUTION_CONTAINER_PATH,
         )
 
@@ -315,6 +353,7 @@ class CortexBenchAgent(BaseInstalledAgent):
                 raise RuntimeError("CortexBenchAgent.setup() must complete before run")
             self.logs_dir.mkdir(parents=True, exist_ok=True)
             (self.logs_dir / "instruction.md").write_text(instruction)
+            self._write_thread_policy(instruction)
             _, _, trajectory_root, _ = self._agent_paths()
             await self.exec_as_agent(
                 environment, f"mkdir -p {shlex.quote(str(trajectory_root))}")

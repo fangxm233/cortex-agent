@@ -7,11 +7,15 @@ from .arm_resolution import (
     ARM_RESOLUTION_CONTAINER_PATH,
     ARM_RESOLUTION_SCHEMA_VERSION,
     ARM_RESOLUTION_SOURCE,
+    BENCHMARK_THREAD_POLICY_CONTAINER_PATH,
+    BENCHMARK_THREAD_POLICY_SOURCE,
     ContainerFacts,
     TrialSeed,
+    build_benchmark_thread_policy,
     compose_arm_resolution,
     parse_trial_seed,
     write_arm_resolution,
+    write_benchmark_thread_policy,
 )
 from .arms import (
     ArmCompositionUnsupportedError,
@@ -44,6 +48,8 @@ __all__ = [
     "ARM_RESOLUTION_CONTAINER_PATH",
     "ARM_RESOLUTION_SCHEMA_VERSION",
     "ARM_RESOLUTION_SOURCE",
+    "BENCHMARK_THREAD_POLICY_CONTAINER_PATH",
+    "BENCHMARK_THREAD_POLICY_SOURCE",
     "CAPABILITY_REGISTRY",
     "CAPABILITY_STATES",
     "PROXY_ARTIFACT_SOURCES",
@@ -57,6 +63,7 @@ __all__ = [
     "arm_trial_proxy",
     "backend_cli_binary",
     "build_agent_config",
+    "build_benchmark_thread_policy",
     "capability_key_for",
     "capture_trial_inventory",
     "compose_arm_resolution",
@@ -69,4 +76,5 @@ __all__ = [
     "select_arm",
     "select_task",
     "write_arm_resolution",
+    "write_benchmark_thread_policy",
 ]
