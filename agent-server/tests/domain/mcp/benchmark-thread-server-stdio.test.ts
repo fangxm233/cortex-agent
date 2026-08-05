@@ -149,7 +149,7 @@ function seedRuntimeConfig(fixture: Fixture): void {
 
 /** The parent's own compile, as its `agent-run` would have recorded it. The role surface hash is
  *  the real compiled one: a fabricated value is exactly what the pre-first-step check refuses. */
-async function seedParentLifecycle(fixture: Fixture): Promise<void> {
+async function seedParentLifecycle(fixture: Fixture, parentHash?: string): Promise<void> {
   const journal = openJournal({
     path: path.join(fixture.trajectoryRoot, 'parent.journal.ndjson'),
     header: {
@@ -160,7 +160,7 @@ async function seedParentLifecycle(fixture: Fixture): Promise<void> {
       systemPromptSha256: '1'.repeat(64), toolManifestSha256: '2'.repeat(64),
       pluginManifestSha256: '3'.repeat(64),
       modelExecutionIdentityHash: fixture.parentModelHash,
-      roleToolSurfaceHash: fixture.trialPolicy.identity.role_tool_surface_hash.parent,
+      roleToolSurfaceHash: parentHash ?? fixture.trialPolicy.identity.role_tool_surface_hash.parent,
       bundleManifestHash: fixture.trialPolicy.identity.bundle_manifest_hash,
     },
   });
@@ -209,6 +209,7 @@ function writeArmResolution(fixture: Fixture, cli: string): void {
 async function createFixture(
   mode: Fixture['mode'],
   policy: PolicyOverrides = {},
+  parent: { roleSurfaceHash?: string } = {},
 ): Promise<Fixture> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-thread-mcp-'));
   roots.push(root);
@@ -239,7 +240,7 @@ async function createFixture(
   fixture.trialPolicy = compiled.policy;
   fixture.parentModelHash = compiled.policy!.identity.model_execution_identity_hash.parent;
   writePolicy(fixture, policy);
-  await seedParentLifecycle(fixture);
+  await seedParentLifecycle(fixture, parent.roleSurfaceHash);
   return fixture;
 }
 
@@ -554,6 +555,26 @@ test('stdin close cancels the contained thread and emits a typed tool error', as
     assert.equal(terminal.state, 'cancelled');
     assert.deepEqual(terminal.supervisor, { quiescent: true, descendants: 0 });
     await waitFor(() => processGone(pid) ? true : null, 'stdin-close child exit');
+  } finally {
+    await closeServer(server);
+  }
+}, 30_000);
+
+/** The cross-process half of PW2 and PW4. Nothing compiled travels to the server: it is handed a
+ *  document naming `run_config_path`, and the only way it can hold a parent role surface hash to
+ *  disagree with is to have compiled that document itself, in its own process. The green tests
+ *  above are the agreeing case; this is the same comparison made to fail on purpose. */
+test('server-side recompile refuses a parent marker naming another role surface', async () => {
+  const fixture = await createFixture('success', {}, { roleSurfaceHash: 'd'.repeat(64) });
+  const server = await connectServer(fixture);
+  try {
+    const result = await server.client.callTool({ name: 'thread_run', arguments: {} });
+
+    assert.equal(result.isError, true, server.stderr());
+    assert.equal(textPayload(result).terminal_reason, 'protocol_violation');
+    // Pre-spawn: no child process ever existed under the divergent parent identity.
+    assert.equal(invocations(fixture).length, 0);
+    assert.deepEqual(prompts(fixture), []);
   } finally {
     await closeServer(server);
   }
