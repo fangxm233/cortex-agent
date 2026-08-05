@@ -15,7 +15,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 from ..proxy.adapters import ProviderAdapter, select_adapter
 from ..proxy.export import render_proxy_export
@@ -48,7 +48,6 @@ SPEC_FIELDS = frozenset({
     "credential_env", "bound_source_ip", "max_request_cost_usd",
     "input_cost_per_million_usd", "output_cost_per_million_usd",
 })
-Captured = TypeVar("Captured")
 
 
 @dataclass(frozen=True)
@@ -201,16 +200,20 @@ def arm_trial_proxy(
 
 
 def revoke_trial_proxy(
-    session: TrialProxySession, *, capture_inventory: Callable[[], Captured],
+    session: TrialProxySession, *, capture_inventory: Callable[[], object],
 ) -> TrialRevocation:
     """The finally-ordered revoke: inventory capture, then the proxy export, then the stop.
 
     A stop that cannot prove its handlers are gone raises, and that failure is the trial's — it is
-    never swallowed by the cleanup it happens to sit in.
+    never swallowed by the cleanup it happens to sit in. The reverse never happens either: an
+    accounting write that fails takes the route down with it, because a live credential-injecting
+    route is the worse of the two outcomes.
     """
-    inventory = capture_inventory()
-    export_path, lease_echo_path = session.write_accounting()
-    session.handle.stop()
+    try:
+        inventory = capture_inventory()
+        export_path, lease_echo_path = session.write_accounting()
+    finally:
+        session.handle.stop()
     return TrialRevocation(inventory, export_path, lease_echo_path)
 
 

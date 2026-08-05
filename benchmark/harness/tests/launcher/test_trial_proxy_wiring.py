@@ -48,9 +48,6 @@ CLI_VERSION = "1.2.3 (Claude Code)"
 # A fixed host instant, so the provisional bound is an exact arithmetic expectation rather than a
 # window. It is a host reading; nothing in this file derives it from a container clock.
 H0_EPOCH_MS = 1_800_000_000_000
-# What a container-derived absolute deadline would look like: phase B compiles later, on the
-# container's clock, and adds the same budget. Arming from it is the OC-10 defect.
-CONTAINER_COMPILED_AT_MS = H0_EPOCH_MS + 240_000
 
 
 def closed_upstream() -> str:
@@ -191,11 +188,6 @@ def test_arms_the_provisional_bound_and_not_a_container_derived_instant(tmp_path
         # The value the proxy actually armed, read back off the block it publishes rather than
         # off the argument the launcher computed.
         assert armed == utc_text(epoch_datetime(expected))
-        # The container's own absolute deadline does not exist at this instant, and arming from
-        # one would land on a different value entirely.
-        container_absolute = CONTAINER_COMPILED_AT_MS + DEADLINE_SECONDS * 1000
-        assert armed != utc_text(epoch_datetime(container_absolute))
-        assert session.provisional_bound_ms > container_absolute
     finally:
         session.handle.stop()
 
@@ -317,12 +309,15 @@ def test_double_fill_guard_still_raises_after_the_production_fill(
 class RecordingHandle:
     """A handle stand-in that records the order in which the revoke reads it."""
 
-    def __init__(self, calls: list[str], *, stop_error: bool = False) -> None:
+    def __init__(
+        self, calls: list[str], *, stop_error: bool = False, export_error: bool = False,
+    ) -> None:
         self.calls = calls
         self.base_url = "http://127.0.0.1:1"
         self.dummy_token = "dummy-recording"
         self.trial_id = TRIAL_ID
         self._stop_error = stop_error
+        self._export_error = export_error
 
     @property
     def lease_echo_record(self) -> dict[str, object]:
@@ -331,6 +326,8 @@ class RecordingHandle:
     @property
     def accounting_export(self) -> dict[str, object]:
         self.calls.append("export")
+        if self._export_error:
+            raise OSError("no space left on device")
         return {"schema_version": "cortex-bench-proxy-export/1", "trial_id": TRIAL_ID}
 
     def stop(self) -> None:
@@ -339,11 +336,13 @@ class RecordingHandle:
             raise RuntimeError("proxy client handlers did not stop")
 
 
-def recording_session(tmp_path: Path, calls: list[str], *, stop_error: bool = False):
+def recording_session(
+    tmp_path: Path, calls: list[str], *, stop_error: bool = False, export_error: bool = False,
+):
     proxy_dir = tmp_path / "artifacts" / "proxy"
     proxy_dir.mkdir(parents=True, exist_ok=True)
     return TrialProxySession(
-        handle=RecordingHandle(calls, stop_error=stop_error),
+        handle=RecordingHandle(calls, stop_error=stop_error, export_error=export_error),
         upstream_base_url="http://127.0.0.1:1",
         absolute_deadline=epoch_datetime(H0_EPOCH_MS),
         provisional_bound_ms=H0_EPOCH_MS,
@@ -374,6 +373,19 @@ def test_stop_failure_propagates_after_the_export_is_written(tmp_path: Path) -> 
 
     assert calls == ["inventory", "export", "stop"]
     assert session.export_path.is_file()
+
+
+def test_an_accounting_failure_still_takes_the_route_down(tmp_path: Path) -> None:
+    """The mandated order says the export is written before the stop, not instead of it. A route
+    left live because a disk filled is the worse of the two failures, so the stop still runs and
+    the accounting error is the one that reaches the trial."""
+    calls: list[str] = []
+    session = recording_session(tmp_path, calls, export_error=True)
+
+    with pytest.raises(OSError, match="no space left"):
+        revoke_trial_proxy(session, capture_inventory=lambda: calls.append("inventory"))
+
+    assert calls == ["inventory", "export", "stop"]
 
 
 def test_public_entry_revokes_the_route_when_the_run_returns(
@@ -415,6 +427,62 @@ def test_public_entry_run_does_not_swallow_a_stop_failure(
         live.handle.stop()
 
     assert calls[-1] == "stop"
+
+
+class BrokenContainerEnvironment(ContainerEnvironment):
+    """A container whose bundle-root probe answers nothing, which is how a mis-installed image
+    fails: inside `setup()`, after the route has been armed."""
+
+    async def exec(self, command: str, **kwargs: object) -> ExecResult:
+        if "npm ls --global" in command:
+            self.calls.append(command)
+            return ExecResult(stdout="", return_code=0)
+        return await super().exec(command, **kwargs)
+
+
+def route_is_dead(session: TrialProxySession) -> bool:
+    host, port = session.handle.base_url.removeprefix("http://").split(":")
+    try:
+        socket.create_connection((host, int(port)), 2).close()
+    except OSError:
+        return True
+    return False
+
+
+def test_public_entry_revokes_the_route_when_setup_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Harbor never reaches `run()` when `setup()` raises, and it offers no teardown hook, so a
+    revoke that only hangs off `run()` would leave the route live for the rest of the process —
+    on the most common trial failure there is."""
+    monkeypatch.setenv(CREDENTIAL_ENV, REAL_CREDENTIAL)
+    agent = public_agent(tmp_path, closed_upstream())
+    session = agent.proxy_session
+
+    with pytest.raises(RuntimeError, match="bundle root probe"):
+        asyncio.run(agent.setup(BrokenContainerEnvironment()))
+
+    assert route_is_dead(session)
+    assert session.export_path.is_file()
+    assert set(agent.captured_inventory.expected_sources) >= set(PROXY_ARTIFACT_SOURCES)
+
+
+def test_a_route_already_revoked_is_not_revoked_a_second_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second revoke would re-read registers that went with the stopped process and rewrite the
+    documents the first one published, so the revoked trial stays revoked."""
+    monkeypatch.setenv(CREDENTIAL_ENV, REAL_CREDENTIAL)
+    agent = public_agent(tmp_path, closed_upstream())
+    with pytest.raises(RuntimeError, match="bundle root probe"):
+        asyncio.run(agent.setup(BrokenContainerEnvironment()))
+
+    calls: list[str] = []
+    agent._proxy_session = recording_session(tmp_path, calls)
+    with pytest.raises(RuntimeError, match="setup"):
+        asyncio.run(agent.run("Complete the task.", ContainerEnvironment(), AgentContext()))
+
+    assert calls == []
 
 
 # W5 — adapter selection at start, and refusal when nothing matches.

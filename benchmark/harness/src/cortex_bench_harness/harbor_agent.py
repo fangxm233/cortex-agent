@@ -73,6 +73,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._cortex_cli_version: str | None = None
         self._container_facts: ContainerFacts | None = None
         self._captured_inventory: ArtifactInventory | None = None
+        self._revoked = False
         super().__init__(logs_dir, *args, version=version, **kwargs)
         # Harbor builds the agent inside `Trial.__init__` and creates the container much later,
         # from `Trial.run()`. This is therefore the last instant before the container exists, and
@@ -113,6 +114,19 @@ class CortexBenchAgent(BaseInstalledAgent):
             proxy_dir=self._artifact_dir / "proxy",
             trial_roots=(self._artifact_dir,),
         )
+
+    def _revoke_proxy(self) -> None:
+        """Revoke from whichever lifecycle point ends the trial first, and only once.
+
+        Harbor gives an installed agent no teardown hook and stops calling it the moment one of its
+        methods raises, so every method that can be the last one entered has to be able to take the
+        route down. The flag is set before the revoke, not after: a revoke that raises has already
+        published what it could and must not be re-run by an outer handler.
+        """
+        if self._proxy_session is None or self._revoked:
+            return
+        self._revoked = True
+        revoke_trial_proxy(self._proxy_session, capture_inventory=self._capture_inventory)
 
     def _capture_inventory(self) -> ArtifactInventory:
         self._captured_inventory = capture_trial_inventory(
@@ -225,6 +239,16 @@ class CortexBenchAgent(BaseInstalledAgent):
 
     @override
     async def setup(self, environment: BaseEnvironment) -> None:
+        try:
+            await self._setup(environment)
+        except BaseException:
+            # Harbor abandons the agent when setup raises and never reaches run(), and a cancelled
+            # setup (its timeout) arrives here as a BaseException too. Either way this is the last
+            # code of ours that executes, so the route it armed goes down here.
+            self._revoke_proxy()
+            raise
+
+    async def _setup(self, environment: BaseEnvironment) -> None:
         resolved_cwd = await resolve_task_workdir(environment)
         await super().setup(environment)
         assert self._staged_npm_artifact is not None
@@ -283,12 +307,12 @@ class CortexBenchAgent(BaseInstalledAgent):
         environment: BaseEnvironment,
         _context: AgentContext,
     ) -> None:
-        if self._resolved_cwd is None:
-            raise RuntimeError("CortexBenchAgent.setup() must complete before run")
-        self.logs_dir.mkdir(parents=True, exist_ok=True)
-        (self.logs_dir / "instruction.md").write_text(instruction)
-        _, _, trajectory_root, _ = self._agent_paths()
         try:
+            if self._resolved_cwd is None:
+                raise RuntimeError("CortexBenchAgent.setup() must complete before run")
+            self.logs_dir.mkdir(parents=True, exist_ok=True)
+            (self.logs_dir / "instruction.md").write_text(instruction)
+            _, _, trajectory_root, _ = self._agent_paths()
             await self.exec_as_agent(
                 environment, f"mkdir -p {shlex.quote(str(trajectory_root))}")
             await self.exec_as_agent(
@@ -299,7 +323,6 @@ class CortexBenchAgent(BaseInstalledAgent):
         finally:
             # Inventory capture, then the proxy export, then the stop. A stop that cannot prove
             # its handlers are gone raises out of here: it is a trial failure, not a cleanup note.
-            if self._proxy_session is not None:
-                revoke_trial_proxy(
-                    self._proxy_session, capture_inventory=self._capture_inventory,
-                )
+            # The whole body is inside the try, so no statement of ours can end the trial with the
+            # route still armed.
+            self._revoke_proxy()

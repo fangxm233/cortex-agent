@@ -20,10 +20,7 @@ from harbor.models.agent.context import AgentContext
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.trial_proxy import (
-    ADAPTER_SELECTION_RECORD_SOURCE,
-    LEASE_ECHO_RECORD_SOURCE,
     PROXY_ARTIFACT_SOURCES,
-    PROXY_AUDIT_LOG_SOURCE,
     PROXY_EXPORT_SOURCE,
 )
 from cortex_bench_harness.manifest import MANIFEST_FILENAME
@@ -283,12 +280,12 @@ def test_no_artifact_carries_the_dummy_to_real_mapping(
     files = trial.artifact_files()
 
     assert files
+    # One half of the mapping is expected to be present — the dummy token is the container-visible
+    # surface by design — which is what makes the other half's absence a statement about the
+    # mapping rather than about a token nothing wrote.
+    assert [path for path in files if trial.dummy_token.encode() in path.read_bytes()]
     for path in files:
-        payload = path.read_bytes()
-        assert REAL_CREDENTIAL.encode() not in payload, path
-        assert not (
-            trial.dummy_token.encode() in payload and REAL_CREDENTIAL.encode() in payload
-        ), path
+        assert REAL_CREDENTIAL.encode() not in path.read_bytes(), path
 
 
 def test_scan_output_reports_positions_and_never_the_matched_bytes(
@@ -313,8 +310,16 @@ def test_scan_output_reports_positions_and_never_the_matched_bytes(
     }
 
 
-def test_the_new_sources_are_the_four_the_flows_produce() -> None:
-    assert PROXY_ARTIFACT_SOURCES == (
-        PROXY_AUDIT_LOG_SOURCE, PROXY_EXPORT_SOURCE, LEASE_ECHO_RECORD_SOURCE,
-        ADAPTER_SELECTION_RECORD_SOURCE,
-    )
+def test_the_new_sources_are_the_four_the_flows_produce(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The names are a wire contract with the scanner's expected set, so they are pinned as
+    literals — and each has to name a file the trial actually wrote, not a constant nothing
+    produces."""
+    trial = offline_trial(tmp_path, monkeypatch)
+    sources = trial.agent.captured_inventory.sources
+
+    assert set(PROXY_ARTIFACT_SOURCES) == {
+        "proxy_audit_log", "proxy_export", "lease_echo_record", "adapter_selection_record",
+    }
+    assert all(sources[name].is_file() for name in PROXY_ARTIFACT_SOURCES)
