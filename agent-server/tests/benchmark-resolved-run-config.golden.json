@@ -93,7 +93,7 @@
       {
         "kind": "credential_capability",
         "logical_name": "claude-api-key",
-        "content_sha256": "78a6864ba9ff7486d65a9ee9e733fc657d3d16f91cd1a6f190dde0f2dc70373c"
+        "content_sha256": "c3c4774fbf7dbe6dd4e34ac9c4d4c4d9775e1cccea638a13a91452a6f7036cbc"
       },
       {
         "kind": "provider_route",
