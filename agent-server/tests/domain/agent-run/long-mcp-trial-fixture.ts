@@ -194,7 +194,7 @@ function armResolution(
       id: 'claude-api-key', state: 'offline-contract-passed',
       key: {
         runner_or_backend: 'claude', provider: 'anthropic', protocol: 'anthropic-messages',
-        credential_kind: 'api-key-bearer', proxy_adapter_version: 'cortex-bench-trial-proxy/1',
+        credential_kind: 'api-key-bearer', proxy_adapter_version: 'cortex-bench-trial-proxy/2',
       },
     }],
     credential: {

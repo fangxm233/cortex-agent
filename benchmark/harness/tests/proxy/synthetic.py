@@ -1,5 +1,5 @@
 # input:  stdlib HTTP requests and fixed synthetic responses
-# output: loopback upstream captures and proxy request helper
+# output: loopback upstream captures, adapter binding, and proxy request helper
 # pos:    Synthetic model endpoint fixture
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -9,13 +9,35 @@ import time
 from dataclasses import dataclass
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Mapping
 from urllib.parse import urlsplit
+
+from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
+from cortex_bench_harness.proxy.adapters import ProviderAdapter, select_adapter
+
+SYNTHETIC_MODEL = "claude-synthetic-1"
+MESSAGES_TARGET = "/v1/messages?beta=true"
+ROW_ONE_KEY = CredentialCapabilityKey(
+    "claude", "anthropic", "anthropic-messages", "api-key-bearer",
+)
+
+
+def row_one_adapter(
+    upstream_base_url: str, credential: str | None,
+    frozen_model: str | None = SYNTHETIC_MODEL,
+) -> ProviderAdapter:
+    return select_adapter(
+        ROW_ONE_KEY, upstream_base_url=upstream_base_url,
+        credential=credential, frozen_model=frozen_model,
+    )
 
 
 @dataclass(frozen=True)
 class CapturedRequest:
     headers: dict[str, str]
     body: bytes
+    method: str = "POST"
+    path: str = ""
 
 
 class SyntheticServer(ThreadingHTTPServer):
@@ -26,13 +48,22 @@ class SyntheticServer(ThreadingHTTPServer):
         self.requests: list[CapturedRequest] = []
         self.response_delay_seconds = 0.0
         self.response_chunk_delay_seconds = 0.0
+        self.status = 200
+        self.content_type = "application/json"
+        self.extra_headers: dict[str, str] = {}
+        self.raw_body: bytes | None = None
         self.response = {
             "id": "msg_synthetic",
             "type": "message",
-            "model": "claude-synthetic-1",
+            "model": SYNTHETIC_MODEL,
             "usage": {"input_tokens": 2, "output_tokens": 3},
             "content": [],
         }
+
+    def payload(self) -> bytes:
+        if self.raw_body is not None:
+            return self.raw_body
+        return json.dumps(self.response).encode()
 
 
 class SyntheticHandler(BaseHTTPRequestHandler):
@@ -40,11 +71,14 @@ class SyntheticHandler(BaseHTTPRequestHandler):
         server: SyntheticServer = self.server  # type: ignore[assignment]
         length = int(self.headers.get("content-length", "0"))
         body = self.rfile.read(length)
-        server.requests.append(CapturedRequest(dict(self.headers.items()), body))
+        server.requests.append(CapturedRequest(
+            dict(self.headers.items()), body, self.command, self.path))
         time.sleep(server.response_delay_seconds)
-        payload = json.dumps(server.response).encode()
-        self.send_response(200)
-        self.send_header("content-type", "application/json")
+        payload = server.payload()
+        self.send_response(server.status)
+        self.send_header("content-type", server.content_type)
+        for key, value in server.extra_headers.items():
+            self.send_header(key, value)
         self.send_header("content-length", str(len(payload)))
         self.end_headers()
         self._write_payload(server, payload)
@@ -92,13 +126,19 @@ class SyntheticUpstream:
         self.stop()
 
 
-def proxy_request(base_url: str, token: str, prompt: str) -> tuple[int, bytes]:
-    target = urlsplit(base_url)
-    body = json.dumps({"model": "claude-synthetic-1", "prompt": prompt}).encode()
-    connection = HTTPConnection(target.hostname, target.port, timeout=3)
+def proxy_request(
+    base_url: str, token: str, prompt: str, *, target: str = MESSAGES_TARGET,
+    model: str | None = SYNTHETIC_MODEL, body: bytes | None = None,
+    extra_headers: Mapping[str, str] | None = None,
+) -> tuple[int, bytes]:
+    payload = body if body is not None else json.dumps(
+        {"model": model, "prompt": prompt}).encode()
+    listener = urlsplit(base_url)
+    connection = HTTPConnection(listener.hostname, listener.port, timeout=3)
     headers = {"authorization": f"Bearer {token}", "content-type": "application/json"}
-    connection.request("POST", "/v1/messages", body=body, headers=headers)
+    headers.update(extra_headers or {})
+    connection.request("POST", target, body=payload, headers=headers)
     response = connection.getresponse()
-    payload = response.read()
+    document = response.read()
     connection.close()
-    return response.status, payload
+    return response.status, document

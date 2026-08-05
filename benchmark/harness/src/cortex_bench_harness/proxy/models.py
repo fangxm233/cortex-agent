@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
-PROXY_SCHEMA_VERSION = "cortex-bench-trial-proxy/1"
+PROXY_SCHEMA_VERSION = "cortex-bench-trial-proxy/2"
 MILLION = Decimal("1000000")
 
 
@@ -63,10 +63,12 @@ class ProxyMetadata:
     absolute_deadline: datetime
     budget: ProxyBudget
     log_filename: str
+    adapter_id: str
 
     def manifest_block(self, base_url: str) -> dict[str, object]:
         return {
             "schema_version": PROXY_SCHEMA_VERSION,
+            "adapter_id": self.adapter_id,
             "base_url": base_url,
             "upstream_base_url": self.upstream_base_url,
             "source_binding": {"kind": "ip", "value": self.bound_source_ip},
