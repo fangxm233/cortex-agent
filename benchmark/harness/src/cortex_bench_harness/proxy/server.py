@@ -18,6 +18,7 @@ from typing import Callable, Mapping, cast
 from urllib.parse import urlsplit
 
 from .adapters.base import AuthInjectionUnavailable, Billable, ProviderAdapter
+from .export import build_proxy_export
 from .lease import LEASE_ECHO_TARGET, LeaseRefused, LeaseTerms, TrialLease
 from .models import ProxyBudget, ProxyMetadata, ProxyUsage, decimal_text, utc_text
 from .upstream import (
@@ -500,6 +501,16 @@ class TrialProxyHandle:
     @property
     def lease_echo_record(self) -> dict[str, object]:
         return self._lease.record
+
+    @property
+    def accounting_export(self) -> dict[str, object]:
+        """The A1 side of the accounting reconciliation. Read before `stop()`: the live registers
+        go with the process, while the audit log stays on disk."""
+        return build_proxy_export(
+            trial_id=self._metadata.trial_id, adapter_id=self._metadata.adapter_id,
+            counters=self._server.state, log_path=self._server.state.log_path,
+            lease_echo=self.lease_echo_record,
+        )
 
     def stop(self) -> None:
         with self._stop_lock:

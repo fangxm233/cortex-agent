@@ -4,8 +4,10 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 
 | filename | role | function |
 |---|---|---|
+| accounting-reconciliation.ts | 核心 | 比对代理与日志账目，缺失一律标记不可用 |
 | arm-schema.ts | 类型 | 校验 v2 arm 与版本化 phase-A 输入 |
 | capabilities.ts | 策略 | 派生封闭模板与能力白名单 |
+| decimal-text.ts | 工具 | 以整数单位做精确十进制解析与比较 |
 | lease-echo.ts | 核心 | 用容器时钟组成并投递凭据租约回声 |
 | policy-backed-runtime-deps.ts | 策略 | 仅从冻结快照解析运行时名称 |
 | policy-compiler.ts | 核心 | 有序解析资产并编译冻结策略 |

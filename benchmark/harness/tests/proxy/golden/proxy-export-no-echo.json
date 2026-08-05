@@ -1,0 +1,35 @@
+{
+  "adapter_id": "anthropic-messages/api-key-bearer",
+  "audit_log": {
+    "status": "available",
+    "value": {
+      "agrees_with_counters": true,
+      "durable_cost_usd": "0.000102",
+      "durable_requests": 2,
+      "entries": 2
+    }
+  },
+  "cost_usd": {
+    "status": "available",
+    "value": "0.000102"
+  },
+  "input_tokens": {
+    "status": "available",
+    "value": 4
+  },
+  "lease_echo": {
+    "reason": "no_echo_received",
+    "status": "unavailable"
+  },
+  "output_tokens": {
+    "status": "available",
+    "value": 6
+  },
+  "requests": {
+    "status": "available",
+    "value": 2
+  },
+  "schema_version": "cortex-bench-proxy-export/1",
+  "source": "proxy_export",
+  "trial_id": "trial-export"
+}

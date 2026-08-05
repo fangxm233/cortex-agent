@@ -9,6 +9,7 @@ from .adapters import (
     ProviderAdapter,
     select_adapter,
 )
+from .export import PROXY_EXPORT_SCHEMA_VERSION, build_proxy_export, render_proxy_export
 from .lease import (
     LEASE_ECHO_SCHEMA_VERSION,
     LEASE_ECHO_TARGET,
@@ -23,6 +24,7 @@ from .server import TrialProxyHandle, start_trial_proxy
 __all__ = [
     "LEASE_ECHO_SCHEMA_VERSION",
     "LEASE_ECHO_TARGET",
+    "PROXY_EXPORT_SCHEMA_VERSION",
     "AdapterUnavailable",
     "AdapterVersionMismatch",
     "LeaseTerms",
@@ -30,8 +32,10 @@ __all__ = [
     "ProxyBudget",
     "TerminalCheck",
     "TrialProxyHandle",
+    "build_proxy_export",
     "fill_proxy_manifest",
     "lease_echo_terminal_check",
+    "render_proxy_export",
     "select_adapter",
     "start_trial_proxy",
 ]
