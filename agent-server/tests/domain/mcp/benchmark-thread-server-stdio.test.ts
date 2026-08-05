@@ -215,7 +215,8 @@ async function createFixture(
   roots.push(root);
   const fixture: Fixture = {
     // The launcher's own layout: the agent dir holds the resolution, the trajectory and the trial
-    // home, and the server's CORTEX_HOME is `<trialRoot>/cortex-home` (`arm_resolution.py:65`).
+    // home, and the server's CORTEX_HOME is `<trialRoot>/cortex-home`, as the launcher's own
+    // `CODER_REVIEW_TRIAL_ROOT` / `CODER_REVIEW_CORTEX_HOME` pair fixes it.
     root, mode, home: path.join(root, 'trial-home', 'cortex-home'),
     workspace: path.join(root, 'workspace'), trajectoryRoot: path.join(root, 'trajectory'),
     policyPath: path.join(root, 'policy.json'),
