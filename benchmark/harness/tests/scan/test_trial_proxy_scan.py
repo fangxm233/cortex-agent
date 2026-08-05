@@ -27,6 +27,7 @@ from cortex_bench_harness.manifest import MANIFEST_FILENAME
 from cortex_bench_harness.proxy.lease import LEASE_ECHO_SCHEMA_VERSION, LEASE_ECHO_TARGET
 from cortex_bench_harness.scan.models import ArtifactInventory, ScanPolicy
 from cortex_bench_harness.scan.scanner import scan_trial_artifacts
+from capability_admission import admit_every_capability
 
 DIGEST = f"sha256:{'a' * 64}"
 ROOT_RUN_ID = "trial-scan.cortex-direct"
@@ -169,6 +170,9 @@ class OfflineTrial:
 def offline_trial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> OfflineTrial:
     """One whole trial through the shipped class: arm at construction, compose and fill at setup,
     exercise the lease-echo and model routes, then revoke in the run's `finally`."""
+    # The arming point refuses a row no authority admits, and every shipped row is `unsupported`.
+    # This file is about what a trial's flows write, not about the determination.
+    admit_every_capability(monkeypatch)
     monkeypatch.setenv(CREDENTIAL_ENV, REAL_CREDENTIAL)
     upstream = closed_upstream()
     agent = CortexBenchAgent(

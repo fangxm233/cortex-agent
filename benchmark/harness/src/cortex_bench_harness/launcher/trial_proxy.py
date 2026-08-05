@@ -23,7 +23,11 @@ from ..proxy.lease import LeaseTerms
 from ..proxy.models import PROXY_SCHEMA_VERSION, ProxyBudget
 from ..proxy.server import TrialProxyHandle, host_now_ms, start_trial_proxy
 from ..scan.models import ArtifactInventory
-from .credential_capabilities import CredentialCapabilityKey, capability_key_for
+from .credential_capabilities import (
+    CAPABILITY_REGISTRY,
+    CredentialCapabilityKey,
+    capability_key_for,
+)
 from .lease_bound import TEARDOWN_GRACE_MS, provisional_lease_bound_ms
 
 PROXY_AUDIT_LOG_SOURCE = "proxy_audit_log"
@@ -157,6 +161,27 @@ class TrialRevocation:
     lease_echo_path: Path
 
 
+class CapabilityStateRefused(Exception):
+    """A route was asked for on behalf of a capability row no authority admits."""
+
+
+def _admitted_capability_key(capability_id: str) -> CredentialCapabilityKey:
+    """The key an admitted row names, or a refusal.
+
+    The registry is host-authoritative and is readable right here, while the compiler that enforces
+    the same state reads only a projection of it and does not run until the container exists. So a
+    launcher that armed on the id alone would open a real-credential route for a row the compiler
+    goes on to refuse.
+    """
+    key = capability_key_for(capability_id)
+    state = CAPABILITY_REGISTRY[key].state
+    if state == "unsupported":
+        raise CapabilityStateRefused(
+            f"credential capability {capability_id!r} is {state}; a route is never armed for a "
+            "capability row no authority admits")
+    return key
+
+
 def arm_trial_proxy(
     *, arm: Mapping[str, object], trial_id: str, upstream_base_url: str,
     spec: TrialProxySpec, proxy_dir: Path, trial_roots: Sequence[Path],
@@ -166,7 +191,8 @@ def arm_trial_proxy(
     """Arm the trial's credential route. Called before the container is created."""
     _require_contained(proxy_dir, trial_roots)
     capability_id = _text(arm, "credential_capability")
-    key = capability_key_for(capability_id)
+    # Before the credential is read, so a refused row never loads one.
+    key = _admitted_capability_key(capability_id)
     credential = _host_credential(spec.credential_env, environ)
     # Selection is by exact capability key, and an unadapted route is never opened: this refusal
     # happens before anything is started or written.

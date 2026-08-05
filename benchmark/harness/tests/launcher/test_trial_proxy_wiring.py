@@ -33,6 +33,7 @@ from cortex_bench_harness.manifest import MANIFEST_FILENAME
 from cortex_bench_harness.proxy.adapters import AdapterUnavailable
 from cortex_bench_harness.proxy.manifest import fill_proxy_manifest
 from cortex_bench_harness.proxy.models import PROXY_SCHEMA_VERSION, utc_text
+from capability_admission import admit_every_capability
 
 DIGEST = f"sha256:{'a' * 64}"
 ROOT_RUN_ID = "trial-wiring.cortex-direct"
@@ -48,6 +49,14 @@ CLI_VERSION = "1.2.3 (Claude Code)"
 # A fixed host instant, so the provisional bound is an exact arithmetic expectation rather than a
 # window. It is a host reading; nothing in this file derives it from a container clock.
 H0_EPOCH_MS = 1_800_000_000_000
+
+
+@pytest.fixture(autouse=True)
+def admitted_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every shipped row is `unsupported` and the arming point now refuses one, so a wiring test
+    would otherwise never reach the wiring. The refusal itself is proven against the shipped
+    registry in `test_capability_state_gate.py`."""
+    admit_every_capability(monkeypatch)
 
 
 def closed_upstream() -> str:
