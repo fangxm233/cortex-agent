@@ -90,7 +90,7 @@ def raw_proxy_request(
 
 def _http_request(host: str, token: str, payload: str) -> str:
     lines = [
-        "POST /v1/messages HTTP/1.1", f"Host: {host}",
+        "POST /v1/messages?beta=true HTTP/1.1", f"Host: {host}",
         f"Authorization: Bearer {token}", "Content-Type: application/json",
         f"Content-Length: {len(payload.encode())}", "Connection: close", "", payload,
     ]

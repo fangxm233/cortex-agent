@@ -187,6 +187,35 @@ def test_streaming_usage_is_incomplete_before_message_delta() -> None:
     assert adapter().extract_usage(body, "text/event-stream").accounted is False
 
 
+def test_streaming_usage_is_incomplete_when_message_start_already_carries_output() -> None:
+    body = _sse_body([
+        {"type": "message_start",
+         "message": {"model": FROZEN_MODEL,
+                     "usage": {"input_tokens": 9, "output_tokens": 1}}},
+        {"type": "content_block_delta", "delta": {"text": "hello"}},
+    ])
+    assert adapter().extract_usage(body, "text/event-stream").accounted is False
+
+
+def test_streaming_usage_is_unaccounted_when_an_event_line_is_unparsable() -> None:
+    body = (
+        b'data: {"type":"message_start","message":{"model":"' + FROZEN_MODEL.encode()
+        + b'","usage":{"input_tokens":9,"output_tokens":1}}}\n\n'
+        b'data: {"type":"message_delta","usage":{"output_toke\n\n'
+    )
+    assert adapter().extract_usage(body, "text/event-stream").accounted is False
+
+
+def test_streaming_usage_ignores_output_tokens_outside_message_delta() -> None:
+    body = _sse_body([
+        {"type": "message_start",
+         "message": {"model": FROZEN_MODEL,
+                     "usage": {"input_tokens": 9, "output_tokens": 1}}},
+        {"type": "content_block_stop", "usage": {"output_tokens": 4}},
+    ])
+    assert adapter().extract_usage(body, "text/event-stream").accounted is False
+
+
 @pytest.mark.parametrize(
     "body",
     [b"<html>gateway error</html>", b'{"usage":{"input_tokens":1,"output_tokens":"two"}}', b""],

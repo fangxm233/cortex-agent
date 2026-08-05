@@ -149,9 +149,10 @@ def test_missing_upstream_usage_revokes_budget_route(tmp_path: Path) -> None:
 
 def test_sse_usage_allows_fields_split_across_events() -> None:
     body = _sse_body([
-        {"message": {"model": "claude-synthetic-1",
+        {"type": "message_start",
+         "message": {"model": "claude-synthetic-1",
                      "usage": {"input_tokens": 2}}},
-        {"usage": {"output_tokens": 3}},
+        {"type": "message_delta", "usage": {"output_tokens": 3}},
     ])
     usage = _adapter().extract_usage(body, "text/event-stream")
     assert usage.accounted is True
@@ -160,9 +161,10 @@ def test_sse_usage_allows_fields_split_across_events() -> None:
 
 def test_sse_usage_rejects_later_malformed_token_field() -> None:
     body = _sse_body([
-        {"message": {"model": "claude-synthetic-1",
+        {"type": "message_start",
+         "message": {"model": "claude-synthetic-1",
                      "usage": {"input_tokens": 2, "output_tokens": 3}}},
-        {"usage": {"output_tokens": -1}},
+        {"type": "message_delta", "usage": {"output_tokens": -1}},
     ])
     assert _adapter().extract_usage(body, "text/event-stream").accounted is False
 

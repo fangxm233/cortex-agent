@@ -14,6 +14,7 @@ MESSAGES_PATH = "/v1/messages"
 COUNT_TOKENS_PATH = "/v1/messages/count_tokens"
 BATCHES_PATH = "/v1/messages/batches"
 BETA_QUERY = "beta=true"
+MESSAGE_DELTA_EVENT = "message_delta"
 
 
 class AnthropicMessagesApiKeyAdapter:
@@ -71,25 +72,32 @@ class AnthropicMessagesApiKeyAdapter:
         return outbound
 
     def extract_usage(self, body: bytes, content_type: str) -> ProxyUsage:
-        documents = (
-            _sse_documents(body) if "text/event-stream" in content_type
-            else [_json_object(body) or {}]
-        )
+        streamed = "text/event-stream" in content_type
+        documents = _sse_documents(body) if streamed else [_json_object(body)]
         model: str | None = None
         input_tokens = 0
         output_tokens = 0
         seen_input = False
         seen_output = False
+        # A streamed call's usage is complete only after message_delta, so a
+        # stream that stops earlier is unaccounted even when message_start
+        # already carried a provisional output count.
+        complete = not streamed
         malformed = False
         for document in documents:
+            if document is None:
+                malformed = True
+                continue
             usage = _usage(document)
             malformed = malformed or _invalid_present_token(usage)
             seen_input = seen_input or _valid_token(usage, "input_tokens")
             seen_output = seen_output or _valid_token(usage, "output_tokens")
+            complete = complete or _closes_stream(document, usage)
             model, input_tokens, output_tokens = _merge_usage(
                 document, model, input_tokens, output_tokens)
         accounted = (
-            seen_input and seen_output and not malformed and bool(model and model.strip())
+            seen_input and seen_output and complete and not malformed
+            and bool(model and model.strip())
         )
         return ProxyUsage(model, input_tokens, output_tokens, accounted)
 
@@ -120,12 +128,23 @@ def _refused_route(reason: str) -> RouteDecision:
     return RouteDecision(False, None, reason)
 
 
-def _sse_documents(body: bytes) -> list[dict[str, object]]:
-    documents: list[dict[str, object]] = []
+def _sse_documents(body: bytes) -> list[dict[str, object] | None]:
+    # An event this adapter cannot parse is reported as None, never dropped:
+    # a silently skipped event would leave a partial count looking complete.
+    documents: list[dict[str, object] | None] = []
     for line in body.splitlines():
         if line.startswith(b"data:") and line[5:].strip() != b"[DONE]":
-            documents.append(_json_object(line[5:].strip()) or {})
+            documents.append(_json_object(line[5:].strip()))
     return documents
+
+
+def _closes_stream(
+    document: dict[str, object], usage: dict[str, object] | None,
+) -> bool:
+    return (
+        document.get("type") == MESSAGE_DELTA_EVENT
+        and _valid_token(usage, "output_tokens")
+    )
 
 
 def _json_object(payload: bytes) -> dict[str, object] | None:
