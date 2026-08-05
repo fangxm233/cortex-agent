@@ -1,12 +1,15 @@
 # input:  a capability id and, where the shipped key is incomplete, the member that fills it
-# output: a test-local registry in which the named rows are admitted
+# output: a test-local registry in which the named rows are admitted or refused
 # pos:    Capability admission fixture
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
-# Every shipped row is `unsupported` and the arming point refuses one, so without this no test can
-# reach the wiring at all. It patches the two module namespaces that read the registry and never
-# the registry object: raising a row is reserved to the gate that owns the raise checklist, and a
-# test that mutated the shipped declaration would exercise a state no authority granted.
+# The arming point refuses an unadmitted row, so without the admitting direction a test cannot
+# reach the wiring behind the gate at all. The refusing direction exists for the mirror reason: a
+# row's state is a determination that moves as evidence arrives, so a test that needs a refusal
+# states it here rather than resting on whichever row happens to be unadmitted this week.
+# It patches the two module namespaces that read the registry and never the registry object:
+# raising a row is reserved to the gate that owns the raise checklist, and a test that mutated the
+# shipped declaration would exercise a state no authority granted.
 
 from dataclasses import replace
 from types import MappingProxyType
@@ -21,6 +24,7 @@ from cortex_bench_harness.launcher.credential_capabilities import (
 )
 
 ADMITTED = "offline-contract-passed"
+UNADMITTED = "unsupported"
 
 
 def _install(monkeypatch: pytest.MonkeyPatch, rows: dict) -> None:
@@ -40,6 +44,17 @@ def admit_capability(
     rows[admitted] = CredentialCapability(capability_id, ADMITTED)
     _install(monkeypatch, rows)
     return admitted
+
+
+def refuse_capability(
+    monkeypatch: pytest.MonkeyPatch, capability_id: str,
+) -> CredentialCapabilityKey:
+    """Refuse one row for this test, leaving its key — and so adapter selection — untouched."""
+    rows = dict(CAPABILITY_REGISTRY)
+    key = next(key for key, row in rows.items() if row.id == capability_id)
+    rows[key] = CredentialCapability(capability_id, UNADMITTED)
+    _install(monkeypatch, rows)
+    return key
 
 
 def admit_every_capability(monkeypatch: pytest.MonkeyPatch) -> None:
