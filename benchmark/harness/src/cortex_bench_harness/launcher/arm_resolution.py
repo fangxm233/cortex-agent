@@ -46,10 +46,24 @@ DIRECT_CLAUDE_PLUGIN_DIRS = ("defaults/plugins/cortex-common", "defaults/plugins
 # of the direct surface changes: the MCP composition, and the single config path that value forces.
 # `thread_run` is an MCP tool rather than a `tools` member, so the native tool list is untouched.
 CODER_REVIEW_PARENT_MCP_COMPOSITION = "benchmark-thread-run"
-BENCHMARK_THREAD_MCP_FILENAME = "benchmark-thread-mcp.json"
+# Design (14.6.4) EV-ENV fixes the filename to the shipped constant's basename
+# (`config-generator.ts:19`, `mcp-config-benchmark-thread.json`), superseding the placeholder name
+# (14.2.3)'s row originally used: two names for one declaration would be the same drift RB-EXTRACT
+# exists to prevent, with each side individually valid.
+BENCHMARK_THREAD_MCP_FILENAME = "mcp-config-benchmark-thread.json"
 BENCHMARK_THREAD_MCP_SOURCE = "benchmark_thread_mcp"
 BENCHMARK_THREAD_MCP_CONTAINER_PATH: PurePosixPath = (
     EnvironmentPaths().agent_dir / BENCHMARK_THREAD_MCP_FILENAME
+)
+# The spawned benchmark-thread server must read the same store root as the coordinator, or the
+# trial runs with a split brain. EV-ENV therefore makes the emitted config carry the coordinator's
+# CORTEX_HOME. The coordinator pins it as <trialRoot>/cortex-home
+# (`pinned-node-process.ts:179,217`) where trialRoot is dirname(trajectoryRoot)/trial-home
+# (`agent-run-cli.ts:361`) and the shipped launcher always passes
+# trajectoryRoot = <agent_dir>/trajectory (`harbor_agent.py:_agent_paths`), so the value is a
+# deterministic function of the agent dir this module already writes the resolution into.
+CODER_REVIEW_CORTEX_HOME: PurePosixPath = (
+    EnvironmentPaths().agent_dir / "trial-home" / "cortex-home"
 )
 BENCHMARK_THREAD_MCP_SERVER = "cortex-benchmark-thread"
 BENCHMARK_THREAD_SERVER_SCRIPT = "dist/domain/mcp/benchmark-thread-server.js"
@@ -334,7 +348,10 @@ def _thread_assets(bundle_root: str, variant: str) -> tuple[dict[str, str], dict
 
 def build_benchmark_thread_mcp_config(bundle_root: str) -> dict[str, object]:
     """The declaration a coder-review parent's `mcp_config_paths` names. Exactly one server: the
-    compile refuses any other set for a `benchmark-thread-run` role.
+    compile refuses any other set for a `benchmark-thread-run` role. Carries the coordinator's
+    CORTEX_HOME per EV-ENV: the config's own `env` is the only channel that reaches the MCP child
+    through Claude's stdio allowlist merge (EV3), and without it the server reads a different
+    DATA_DIR than the agent-run that admitted the trial.
     """
     return {
         "mcpServers": {
@@ -342,6 +359,7 @@ def build_benchmark_thread_mcp_config(bundle_root: str) -> dict[str, object]:
                 "command": "node",
                 "args": [str(PurePosixPath(bundle_root) / BENCHMARK_THREAD_SERVER_SCRIPT)],
                 "cwd": bundle_root,
+                "env": {"CORTEX_HOME": str(CODER_REVIEW_CORTEX_HOME)},
             },
         },
     }

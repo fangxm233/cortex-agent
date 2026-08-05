@@ -218,10 +218,17 @@ def test_the_declared_mcp_file_exposes_only_the_benchmark_thread_server(tmp_path
     # The compile is code 19 unless the composition exposes exactly this one server.
     config = build_benchmark_thread_mcp_config(BUNDLE_ROOT)
     assert list(config["mcpServers"]) == ["cortex-benchmark-thread"]
+    # EV-ENV: the file's name is the shipped constant's basename (config-generator.ts:19), and the
+    # entry must carry the coordinator's CORTEX_HOME so the spawned server reads the same store
+    # root as the agent-run that admitted the trial.
+    assert BENCHMARK_THREAD_MCP_CONTAINER_PATH.name == "mcp-config-benchmark-thread.json"
     assert config["mcpServers"]["cortex-benchmark-thread"] == {
         "command": "node",
         "args": [f"{BUNDLE_ROOT}/dist/domain/mcp/benchmark-thread-server.js"],
         "cwd": BUNDLE_ROOT,
+        "env": {
+            "CORTEX_HOME": f"{BENCHMARK_THREAD_MCP_CONTAINER_PATH.parent}/trial-home/cortex-home",
+        },
     }
 
     output = write_benchmark_thread_mcp_config(tmp_path, BUNDLE_ROOT)
