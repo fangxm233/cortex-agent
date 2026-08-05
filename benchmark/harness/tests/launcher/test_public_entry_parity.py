@@ -42,6 +42,7 @@ FORBIDDEN_TOOLS = [
 ]
 ROLE_TOOL_SURFACE_HASH = re.compile(r"[0-9a-f]{64}\Z")
 ARM_NAMES = {"claude": "cortex-direct", "pi": "cortex-pi-direct"}
+CODER_REVIEW_ARM_NAMES = {"claude": "cortex-coder-review", "pi": "cortex-pi-coder-review"}
 CLI_VERSIONS = {"claude": BACKEND_CLI_VERSION, "pi": PI_CLI_VERSION}
 FROZEN_PARENT_TOOLS = {"claude": FROZEN_TOOLS, "pi": FROZEN_PI_TOOLS}
 # The compiled guard and the parent role hash are read from the RESOLVED policy, which only exists
@@ -163,6 +164,36 @@ def public_agent(tmp_path: Path, backend: str = "claude") -> CortexBenchAgent:
         logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
         manifest=manifest(tmp_path, backend), trial_seed=trial_seed(backend),
     )
+
+
+def coder_review_seed(backend: str = "claude") -> dict[str, object]:
+    """The direct seed with its orchestration mode changed and the capacity that mode needs. Still
+    caller-known trial facts only: no role, no template, no policy document."""
+    seed = trial_seed(backend)
+    arm = dict(seed["arm"])  # type: ignore[arg-type]
+    arm["name"] = CODER_REVIEW_ARM_NAMES[backend]
+    arm["orchestration"] = {
+        "mode": "coder-review", "coder_review_variant": "audit-retry", "ask_manager": False,
+    }
+    arm["limits"] = {
+        **arm["limits"],  # type: ignore[dict-item]
+        "max_thread_starts": 1, "max_resident_agent_processes": 3,
+    }
+    seed["arm"] = arm
+    seed["arm_path"] = f"arm://{CODER_REVIEW_ARM_NAMES[backend]}"
+    return seed
+
+
+def coder_review_agent(tmp_path: Path, backend: str = "claude") -> CortexBenchAgent:
+    return CortexBenchAgent(
+        logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
+        manifest={**manifest(tmp_path, backend), "arm": CODER_REVIEW_ARM_NAMES[backend]},
+        trial_seed=coder_review_seed(backend),
+    )
+
+
+def host_path_behind_mount(agent: CortexBenchAgent, container_path: str) -> Path:
+    return agent.logs_dir / Path(container_path).relative_to(Path("/logs/agent"))
 
 
 def write_profile(home: Path, backend: str = "claude") -> None:
@@ -299,6 +330,46 @@ def test_public_entry_sources_container_facts_not_the_caller(tmp_path: Path) -> 
     )
     assert document["thread_templates"] == {}
     assert document["thread_agents"] == {}
+
+
+def test_public_entry_produces_the_thread_policy_beside_the_resolution(tmp_path: Path) -> None:
+    """P2/P3. The thread-policy document has a production producer, and it is this entry: nothing
+    below writes one, and the `--run-config` the entry actually executes is the same path the
+    produced document names as the compiler input its server re-derives everything from."""
+    agent = coder_review_agent(tmp_path)
+    environment = RecordingEnvironment()
+    asyncio.run(agent.setup(environment))
+
+    resolution = assert_run_argv(agent, environment)
+
+    document = json.loads((agent.logs_dir / "benchmark-thread-policy.json").read_text())
+    assert document["schema_version"] == "cortex-benchmark-thread-policy/2"
+    assert host_path_behind_mount(agent, document["run_config_path"]) == resolution
+    assert document["canonical_instruction"] == "Complete the task."
+    assert document["workspace_cwd"] == "/app"
+    assert document["template"] == "benchmark-coder-review"
+    assert document["root_run_id"] == ROOT_RUN_ID
+    assert document["limits"]["max_calls"] == 1
+    # The server refuses a writable document, and the file it will read is this one.
+    assert (agent.logs_dir / "benchmark-thread-policy.json").stat().st_mode & 0o222 == 0
+    # O2: the MCP declaration the parent role's `mcp_config_paths` names is written by the same
+    # entry. Without it the parent composes a config path that does not exist.
+    mcp = json.loads((agent.logs_dir / "mcp-config-benchmark-thread.json").read_text())
+    entry = mcp["mcpServers"]["cortex-benchmark-thread"]
+    assert entry["env"]["CORTEX_BENCHMARK_THREAD_POLICY_PATH"] == document["run_config_path"].replace(
+        "arm-resolution.json", "benchmark-thread-policy.json",
+    )
+    assert json.loads(resolution.read_text())["roles"]["parent"]["mcp_config_paths"] == [
+        "/logs/agent/mcp-config-benchmark-thread.json",
+    ]
+
+
+def test_a_direct_arm_produces_no_thread_policy_and_no_mcp_declaration(tmp_path: Path) -> None:
+    agent, environment = compose_through_public_entry(tmp_path, "claude")
+    asyncio.run(agent.run("Complete the task.", environment, AgentContext()))
+
+    assert not (agent.logs_dir / "benchmark-thread-policy.json").exists()
+    assert not (agent.logs_dir / "mcp-config-benchmark-thread.json").exists()
 
 
 def test_public_constructor_refuses_a_prebuilt_resolution(tmp_path: Path) -> None:

@@ -4,6 +4,7 @@ MCP tool tests: registration and handler behaviour of the tool surfaces Cortex e
 
 | filename | role | function |
 |---|---|---|
+| benchmark-thread-policy-document.test.ts | test | pins the /2 thread-policy schema and refuses /1 and every composed member |
 | benchmark-thread-server-stdio.test.ts | test | benchmark stdio policy and relative lifecycle paths |
 | cortex-schedule.test.ts | test | schedule target shorthand resolution |
 | feishu-file.test.ts | test | Feishu upload channel id prefix handling |

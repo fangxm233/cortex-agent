@@ -27,6 +27,10 @@ export interface BenchmarkIdentityRequest {
   profileName: string;
   rootRunId: string;
   trajectoryRoot: string;
+  /** Present exactly when the policy below was compiled in this process from that document. Only
+   *  then are the parent's compile and this one two independent compiles of the same bytes, which
+   *  is what makes comparing them evidence rather than a tautology. */
+  runConfigPath?: string;
   limits: { maxSteps: number; maxCostUsd: number; deadlineEpochMs: number };
 }
 
@@ -43,6 +47,10 @@ export interface BenchmarkThreadIdentities {
   /** Divergence between the template projection and the compiled policy role for some slot. Null
    *  when no policy is present, because then the projection is the only source there is. */
   roleIdentityProblem: string | null;
+  /** Divergence between the parent role surface this process compiled and the one the parent's own
+   *  `agent-run` recorded in the started marker. Null unless the policy was compiled here from a
+   *  named run config. Design section 16 (16.3.2) PW4. */
+  parentIdentityProblem: string | null;
 }
 
 export class BenchmarkIdentityProtocolError extends Error {
@@ -249,6 +257,23 @@ function parentModelObservationProblem(
   return matches ? null : 'Benchmark resolved profile does not match parent model observation';
 }
 
+/**
+ * PW4. The parent's `agent-run` compiled the arm resolution in its own process and recorded the
+ * parent role's surface hash in the started marker; this process compiled the same document again.
+ * Unequal means the two processes did not compile the same role, so the thread would run under an
+ * identity the trial record does not describe — refused before the thread takes the workspace.
+ */
+function parentRoleSurfaceProblem(
+  parent: ReturnType<typeof readStartedJournalIdentity>,
+  request: BenchmarkIdentityRequest,
+  policy: ResolvedTrialPolicy | undefined,
+): string | null {
+  if (policy === undefined || request.runConfigPath === undefined) return null;
+  const compiled = policy.identity.role_tool_surface_hash.parent;
+  if (compiled !== undefined && compiled === parent.roleToolSurfaceHash) return null;
+  return 'Benchmark compiled parent role surface does not match the parent started marker';
+}
+
 export function freezeBenchmarkThreadIdentities(
   request: BenchmarkIdentityRequest,
   profile: ResolvedProfileConfig,
@@ -268,6 +293,7 @@ export function freezeBenchmarkThreadIdentities(
   if (!entry) throw new Error(`Missing benchmark entry identity: ${template.entryAgent}`);
   return {
     entry, roles: record.roles, modelProtocolProblem, roleIdentityProblem: record.problem,
+    parentIdentityProblem: parentRoleSurfaceProblem(parent, request, trialPolicy),
   };
 }
 

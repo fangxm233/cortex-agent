@@ -21,7 +21,6 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
 import { BENCHMARK_THREAD_MCP_CONFIG } from '../../../src/agent-adapter/claude/defaults.js';
 import { generateMcpConfig } from '../../../src/core/config-generator.js';
-import { computeModelExecutionIdentityHash } from '../../../src/domain/agent-run/identity.js';
 import {
   BENCHMARK_THREAD_POLICY_ENV, loadBenchmarkThreadPolicy,
 } from '../../../src/domain/mcp/tools/benchmark-thread-run.js';
@@ -29,10 +28,14 @@ import { openJournal } from '../../../src/domain/agent-run/journal.js';
 import {
   validateTrajectoryLifecycle, writeStartedMarker,
 } from '../../../src/domain/agent-run/manifest.js';
+import { loadAgentRunConfigWithPolicy } from '../../../src/domain/agent-run/run-config.js';
 import {
-  FAKE_BACKEND_CLI_VERSION, FAKE_BACKEND_LIFECYCLE_FILE, FAKE_BACKEND_PROMPTS_FILE,
-  writeFakeBackendCli, type FakeStepScript,
+  FAKE_BACKEND_LIFECYCLE_FILE, FAKE_BACKEND_PROMPTS_FILE, writeFakeBackendCli,
+  type FakeStepScript,
 } from '../agent-run/fake-backend-cli.js';
+import {
+  armResolution, FIXTURE_MODEL, FIXTURE_PROFILE, writeTrialProfile,
+} from '../benchmark/trial-thread-policy-fixture.js';
 
 const SERVER_ROOT = path.resolve(import.meta.dirname, '../../..');
 const DEFAULT_TEMPLATES = path.join(SERVER_ROOT, 'defaults/config/thread-templates');
@@ -70,6 +73,12 @@ interface Fixture {
   workspace: string;
   trajectoryRoot: string;
   policyPath: string;
+  /** The arm-resolution document the /2 policy names, and the trial root it derives from. */
+  runConfigPath: string;
+  trialRoot: string;
+  /** The compiled trial policy, as this process compiles it from `runConfigPath`. The server
+   *  process compiles the same document independently; the two must agree. */
+  trialPolicy: any;
   rootRunId: string;
   canonicalInstruction: string;
   parentModelHash: string;
@@ -117,20 +126,29 @@ function copyBenchmarkTemplates(home: string): void {
   });
 }
 
-function seedRuntimeConfig(fixture: Fixture): void {
-  writeJson(path.join(fixture.home, 'config/profiles.json'), {
-    defaultProfile: 'benchmark-fixture',
+/** The one profile document, in both homes: this process compiles the arm resolution to learn the
+ *  parent role hash, and the server process compiles it again under its own CORTEX_HOME. A profile
+ *  that differed between them would compile two different arms. */
+function profileDocument(): Record<string, unknown> {
+  return {
+    defaultProfile: FIXTURE_PROFILE,
     profiles: {
-      'benchmark-fixture': {
-        model: 'fixture-model', backend: 'claude', claudeBackend: 'print',
-        provider: 'anthropic', fallback: [],
+      [FIXTURE_PROFILE]: {
+        model: FIXTURE_MODEL, backend: 'claude', mode: 'api', provider: 'anthropic',
+        extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: 'high', fallback: [],
       },
     },
-  });
-  writeJson(path.join(fixture.home, 'config/mcp-config-empty.json'), { mcpServers: {} });
+  };
+}
+
+function seedRuntimeConfig(fixture: Fixture): void {
+  writeJson(path.join(fixture.home, 'config/profiles.json'), profileDocument());
+  writeTrialProfile('claude');
   copyBenchmarkTemplates(fixture.home);
 }
 
+/** The parent's own compile, as its `agent-run` would have recorded it. The role surface hash is
+ *  the real compiled one: a fabricated value is exactly what the pre-first-step check refuses. */
 async function seedParentLifecycle(fixture: Fixture): Promise<void> {
   const journal = openJournal({
     path: path.join(fixture.trajectoryRoot, 'parent.journal.ndjson'),
@@ -142,12 +160,13 @@ async function seedParentLifecycle(fixture: Fixture): Promise<void> {
       systemPromptSha256: '1'.repeat(64), toolManifestSha256: '2'.repeat(64),
       pluginManifestSha256: '3'.repeat(64),
       modelExecutionIdentityHash: fixture.parentModelHash,
-      roleToolSurfaceHash: '4'.repeat(64), bundleManifestHash: '5'.repeat(64),
+      roleToolSurfaceHash: fixture.trialPolicy.identity.role_tool_surface_hash.parent,
+      bundleManifestHash: fixture.trialPolicy.identity.bundle_manifest_hash,
     },
   });
   journal.writeEvent({
     threadId: null, step: null, agentSlot: 'parent', backend: 'claude',
-    provider: 'anthropic', requestedModel: 'fixture-model', reportedModel: 'fixture-reported',
+    provider: 'anthropic', requestedModel: FIXTURE_MODEL, reportedModel: 'fixture-reported',
     event: { type: 'tool_use', toolUseId: 'thread-call', name: 'thread_run', input: {} },
   });
   await journal.close();
@@ -159,11 +178,13 @@ async function seedParentLifecycle(fixture: Fixture): Promise<void> {
 
 function writePolicy(fixture: Fixture, overrides: PolicyOverrides): void {
   writeJson(fixture.policyPath, {
-    schema_version: 'cortex-benchmark-thread-policy/1',
+    schema_version: 'cortex-benchmark-thread-policy/2',
     canonical_instruction: fixture.canonicalInstruction,
     workspace_cwd: fixture.workspace,
+    run_config_path: fixture.runConfigPath,
+    trial_root: fixture.trialRoot,
     template: 'benchmark-coder-review',
-    profile_name: 'benchmark-fixture',
+    profile_name: FIXTURE_PROFILE,
     root_run_id: fixture.rootRunId,
     trajectory_root: fixture.trajectoryRoot,
     limits: {
@@ -175,6 +196,16 @@ function writePolicy(fixture: Fixture, overrides: PolicyOverrides): void {
   }, 0o444);
 }
 
+/** The compiler input the parent's `agent-run` was given, composed the way the launcher composes
+ *  it: absolute prompt paths out of the shipped bundle and the trial's own pinned CLI. */
+function writeArmResolution(fixture: Fixture, cli: string): void {
+  const resolution = armResolution({
+    root: path.join(fixture.root, 'assets'), backend: 'claude', cli, label: 'stdio',
+  });
+  (resolution as any).root_run_id = fixture.rootRunId;
+  writeJson(fixture.runConfigPath, resolution);
+}
+
 async function createFixture(
   mode: Fixture['mode'],
   policy: PolicyOverrides = {},
@@ -182,16 +213,16 @@ async function createFixture(
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-thread-mcp-'));
   roots.push(root);
   const fixture: Fixture = {
-    root, mode, home: path.join(root, 'cortex-home'),
+    // The launcher's own layout: the agent dir holds the resolution, the trajectory and the trial
+    // home, and the server's CORTEX_HOME is `<trialRoot>/cortex-home` (`arm_resolution.py:65`).
+    root, mode, home: path.join(root, 'trial-home', 'cortex-home'),
     workspace: path.join(root, 'workspace'), trajectoryRoot: path.join(root, 'trajectory'),
-    policyPath: path.join(root, 'policy.json'), rootRunId: `run-${path.basename(root)}`,
+    policyPath: path.join(root, 'policy.json'),
+    runConfigPath: path.join(root, 'arm-resolution.json'),
+    trialRoot: path.join(root, 'trial-home'),
+    trialPolicy: null, rootRunId: `run-${path.basename(root)}`,
     canonicalInstruction: 'Implement the canonical benchmark task.',
-    parentModelHash: computeModelExecutionIdentityHash({
-      backend: 'claude', requestedModel: 'fixture-model', modelAliasPolicy: null,
-      providerProtocol: 'anthropic', configuredRouteBaseHost: null,
-      claudeCliVersion: FAKE_BACKEND_CLI_VERSION, cliName: 'claude',
-      cliVersion: FAKE_BACKEND_CLI_VERSION, reasoningEffort: null, fallbackEmpty: true,
-    }),
+    parentModelHash: '',
     queue: path.join(root, 'queue.json'),
     observations: path.join(root, 'observations'),
   };
@@ -199,23 +230,26 @@ async function createFixture(
     fs.mkdirSync(directory, { recursive: true });
   }
   seedRuntimeConfig(fixture);
+  writeArmResolution(fixture, installFakeBackend(fixture));
+  // The parent's compile, performed here. The server process compiles the same document again from
+  // `run_config_path`, and PW4 refuses the run unless the two agree on the parent role surface.
+  const compiled = loadAgentRunConfigWithPolicy({
+    runConfigFile: fixture.runConfigPath, agentSlot: 'parent',
+  });
+  fixture.trialPolicy = compiled.policy;
+  fixture.parentModelHash = compiled.policy!.identity.model_execution_identity_hash.parent;
   writePolicy(fixture, policy);
   await seedParentLifecycle(fixture);
-  installFakeBackend(fixture);
   return fixture;
 }
 
-/** The generated script carries its own queue and observation paths, so the only thing the server
- *  environment still has to supply is where on PATH the backend binary lives. */
-function installFakeBackend(fixture: Fixture): void {
+/** The generated script carries its own queue and observation paths. The trial pins it by absolute
+ *  path out of the compiled policy, so nothing here depends on PATH. */
+function installFakeBackend(fixture: Fixture): string {
   fs.writeFileSync(fixture.queue, JSON.stringify(STEP_QUEUES[fixture.mode]));
-  const generated = writeFakeBackendCli(
+  return writeFakeBackendCli(
     fixture.root, 'backend', 'claude', fixture.queue, fixture.observations,
   );
-  const bin = path.join(fixture.root, 'bin');
-  fs.mkdirSync(bin);
-  fs.copyFileSync(generated, path.join(bin, 'claude'));
-  fs.chmodSync(path.join(bin, 'claude'), 0o755);
 }
 
 function serverEnvironment(fixture: Fixture): Record<string, string> {
@@ -227,7 +261,7 @@ function serverEnvironment(fixture: Fixture): Record<string, string> {
     XDG_CONFIG_HOME: path.join(fixture.root, 'xdg-config'),
     XDG_CACHE_HOME: path.join(fixture.root, 'xdg-cache'),
     TMPDIR: path.join(fixture.root, 'tmp'),
-    PATH: `${path.join(fixture.root, 'bin')}${path.delimiter}${process.env.PATH ?? ''}`,
+    PATH: process.env.PATH ?? '',
     CORTEX_BENCHMARK_THREAD_POLICY_PATH: fixture.policyPath,
     CORTEX_SUPERVISOR_BINARY: SUPERVISOR,
   };
@@ -311,6 +345,9 @@ async function closeServer(connected: ConnectedServer): Promise<void> {
   await connected.transport.close().catch(() => {});
 }
 
+/** Each step is composed from the compiled role of the slot it runs, and from nothing else: the
+ *  step's own MCP surface is the compiled role's config path, whose content is still empty, so the
+ *  contained thread reaches no MCP server — including the one that admitted it. */
 function assertChildComposition(fixture: Fixture): void {
   const records = invocations(fixture);
   assert.equal(records.length, 2);
@@ -320,14 +357,20 @@ function assertChildComposition(fixture: Fixture): void {
   });
   assert.match(systemPrompts[0], /code implementer/);
   assert.match(systemPrompts[1], /implementation auditor/);
-  for (const invocation of records) {
-    assert.equal(invocation.cwd, fixture.workspace);
+  // The writing slot holds the workspace lease; the reviewing slot reads a disposable snapshot of
+  // it, placed inside the trial root, so the workspace has exactly one writer.
+  assert.equal(records[0].cwd, fixture.workspace);
+  assert.notEqual(records[1].cwd, fixture.workspace);
+  assert.ok(records[1].cwd.startsWith(`${fixture.trialRoot}${path.sep}`), records[1].cwd);
+  for (const [index, slot] of ['benchmark-coder', 'benchmark-reviewer'].entries()) {
+    const invocation = records[index];
     assert.ok(invocation.argv.includes('--strict-mcp-config'));
     const mcpPath = invocation.argv[invocation.argv.indexOf('--mcp-config') + 1];
     assert.deepEqual(JSON.parse(fs.readFileSync(mcpPath, 'utf8')), { mcpServers: {} });
-    assert.equal(path.basename(mcpPath), 'mcp-config-empty.json');
+    assert.deepEqual(fixture.trialPolicy.roles[slot].mcpConfigPaths, [mcpPath]);
     const tools = invocation.argv[invocation.argv.indexOf('--tools') + 1];
     assert.equal(/mcp__|thread_abort|thread_split|thread_wait/.test(tools), false);
+    assert.deepEqual(tools.split(','), fixture.trialPolicy.roles[slot].tools);
   }
 }
 
@@ -354,7 +397,7 @@ function assertPolicyWins(fixture: Fixture, handoff: string): void {
   assert.match(recorded[0], /Implement the canonical benchmark task\./);
   assert.match(recorded[0], /FORGED_TEMPLATE/);
   for (const invocation of invocations(fixture)) {
-    assert.equal(invocation.argv[invocation.argv.indexOf('--model') + 1], 'fixture-model');
+    assert.equal(invocation.argv[invocation.argv.indexOf('--model') + 1], FIXTURE_MODEL);
   }
   const journal = path.join(fixture.trajectoryRoot, threadTerminal(fixture).journal_path);
   const header = readRows(journal)[0];

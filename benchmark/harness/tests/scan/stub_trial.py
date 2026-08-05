@@ -35,6 +35,8 @@ from harbor.utils.trajectory_validator import TrajectoryValidator
 from cortex_bench_harness import CortexBenchAgent
 from cortex_bench_harness.launcher import ARM_RESOLUTION_CONTAINER_PATH, ARM_RESOLUTION_SOURCE
 from cortex_bench_harness.launcher.arm_resolution import (
+    BENCHMARK_THREAD_MCP_SOURCE,
+    BENCHMARK_THREAD_POLICY_SOURCE,
     ArmResolutionInputs,
     ContainerFacts,
     build_arm_resolution,
@@ -251,10 +253,14 @@ def arm_definition() -> dict[str, object]:
 
 
 def policy_document() -> dict[str, object]:
+    # `/2`: the server re-compiles the trial from `run_config_path` — the same document the
+    # parent's own `agent-run` was given — and asserts every step stays inside `trial_root`, which
+    # for this fixture is the bind-mounted store root its own artifacts live under.
     return {
-        "schema_version": "cortex-benchmark-thread-policy/1",
+        "schema_version": "cortex-benchmark-thread-policy/2",
         "canonical_instruction": "Complete the synthetic dynamic-thread trial.",
         "workspace_cwd": "/app", "template": "benchmark-coder-review",
+        "run_config_path": str(ARM_RESOLUTION_CONTAINER_PATH), "trial_root": "/cortex-home",
         "profile_name": "benchmark", "root_run_id": ROOT_RUN_ID,
         "trajectory_root": "/logs/agent/trajectory",
         "limits": {
@@ -408,7 +414,12 @@ def arm_resolution_document(image: dict[str, object]) -> dict[str, object]:
             "benchmark-reviewer": role_asset("benchmark-reviewer"),
         },
         thread_templates=templates, thread_agents=agents,
-        artifact_inventory_spec={"expected": [ARM_RESOLUTION_SOURCE]},
+        # The shipped launcher now writes its own MCP declaration and thread policy beside the
+        # resolution for a coder-review arm; an undeclared file under a trial root fails the scan
+        # closed, so this fixture declares the sources its own entry produces.
+        artifact_inventory_spec={"expected": [
+            ARM_RESOLUTION_SOURCE, BENCHMARK_THREAD_MCP_SOURCE, BENCHMARK_THREAD_POLICY_SOURCE,
+        ]},
     )
     return build_arm_resolution(inputs)
 

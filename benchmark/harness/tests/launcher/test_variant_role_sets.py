@@ -220,14 +220,17 @@ def test_the_declared_mcp_file_exposes_only_the_benchmark_thread_server(tmp_path
     assert list(config["mcpServers"]) == ["cortex-benchmark-thread"]
     # EV-ENV: the file's name is the shipped constant's basename (config-generator.ts:19), and the
     # entry must carry the coordinator's CORTEX_HOME so the spawned server reads the same store
-    # root as the agent-run that admitted the trial.
+    # root as the agent-run that admitted the trial. PW5 adds the second name the same allowlist
+    # blocks: without it the server refuses to start at all.
     assert BENCHMARK_THREAD_MCP_CONTAINER_PATH.name == "mcp-config-benchmark-thread.json"
+    agent_dir = BENCHMARK_THREAD_MCP_CONTAINER_PATH.parent
     assert config["mcpServers"]["cortex-benchmark-thread"] == {
         "command": "node",
         "args": [f"{BUNDLE_ROOT}/dist/domain/mcp/benchmark-thread-server.js"],
         "cwd": BUNDLE_ROOT,
         "env": {
-            "CORTEX_HOME": f"{BENCHMARK_THREAD_MCP_CONTAINER_PATH.parent}/trial-home/cortex-home",
+            "CORTEX_HOME": f"{agent_dir}/trial-home/cortex-home",
+            "CORTEX_BENCHMARK_THREAD_POLICY_PATH": f"{agent_dir}/benchmark-thread-policy.json",
         },
     }
 

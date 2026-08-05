@@ -8,19 +8,33 @@ import path from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
-  runBenchmarkThread, type BenchmarkThreadResult,
+  runBenchmarkThread, trialThreadAdapterInput, type BenchmarkThreadResult,
 } from '../../agent-run/benchmark-local-thread-orchestrator.js';
+import type { ResolvedTrialPolicy } from '../../benchmark/resolved-policy.js';
+import { createBenchmarkTrialRunAgent } from '../../benchmark/trial-thread-adapter.js';
 import { MCP_PROGRESS_HEARTBEAT_MS } from '../../../agent-adapter/pi/mcp-duration.js';
 
 export const BENCHMARK_THREAD_POLICY_ENV = 'CORTEX_BENCHMARK_THREAD_POLICY_PATH';
 export const MAX_BENCHMARK_HANDOFF_LENGTH = 2_000;
 const MAX_BENCHMARK_SUMMARY_CODE_POINTS = 2_000;
 
+/**
+ * The document names WHICH trial this is and WHERE its compiler input lives. It carries no role, no
+ * system prompt, no tool list, no plugin dir, no MCP config, no thread template and no compiled
+ * policy: every one of those is composed by the production path and re-derived from
+ * `run_config_path` inside this process. `.strict()` is what makes that a property of the schema
+ * rather than a convention. Design section 16 (16.3.2) PW3 and PW3-NEG.
+ */
 const policySchema = z.object({
-  schema_version: z.literal('cortex-benchmark-thread-policy/1'),
+  schema_version: z.literal('cortex-benchmark-thread-policy/2'),
   canonical_instruction: z.string().min(1),
   workspace_cwd: z.string().min(1).refine(path.isAbsolute, 'workspace_cwd must be absolute'),
-  template: z.literal('benchmark-coder-review'),
+  run_config_path: z.string().min(1).refine(path.isAbsolute, 'run_config_path must be absolute'),
+  trial_root: z.string().min(1).refine(path.isAbsolute, 'trial_root must be absolute'),
+  template: z.union([
+    z.literal('benchmark-coder-review'),
+    z.literal('benchmark-coder-review-fix'),
+  ]),
   profile_name: z.string().min(1),
   root_run_id: z.string().min(1),
   trajectory_root: z.string().min(1).refine(path.isAbsolute, 'trajectory_root must be absolute'),
@@ -91,6 +105,7 @@ function orchestratorRequest(
   policy: BenchmarkThreadPolicy,
   input: ThreadRunInput,
   signal: AbortSignal,
+  trialPolicy: ResolvedTrialPolicy,
 ) {
   return {
     workspaceCwd: policy.workspace_cwd,
@@ -100,6 +115,9 @@ function orchestratorRequest(
     profileName: policy.profile_name,
     rootRunId: policy.root_run_id,
     trajectoryRoot: policy.trajectory_root,
+    runConfigPath: policy.run_config_path,
+    trialRoot: policy.trial_root,
+    trialPolicy,
     limits: {
       maxSteps: policy.limits.max_steps,
       maxCostUsd: policy.limits.max_cost_usd,
@@ -184,7 +202,14 @@ async function executeAdmittedRun(
   const stopHeartbeat = startMcpProgressHeartbeat(extra);
   try {
     const signal = linkedSignal(extra.signal, shutdownSignal);
-    const result = await runBenchmarkThread(orchestratorRequest(policy, input, signal));
+    // The trial is re-compiled here, in this process, from the document the parent's `agent-run`
+    // was given. Nothing pre-built travels on the request, and the override set is exactly the one
+    // member — a lifecycle hook runner is refused by presence on the far side.
+    const trial = trialThreadAdapterInput(policy.run_config_path, policy.trial_root);
+    const result = await runBenchmarkThread(
+      orchestratorRequest(policy, input, signal, trial.policy),
+      { runAgent: createBenchmarkTrialRunAgent(trial) },
+    );
     if (result.state !== 'completed' || !result.manifestCommitted) return failedRunResult(result);
     const payload = successPayload(result);
     return { ...textResult(payload), structuredContent: payload };

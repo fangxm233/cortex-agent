@@ -17,6 +17,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | benchmark-local-thread-entry.ts | fixture | runs one orchestrator in a pinned child |
 | benchmark-local-thread-orchestrator.test.ts | test | proves bounds, identity and supervisor gating |
 | benchmark-local-thread-process.test.ts | e2e | proves full-run journal and C8 confinement |
+| benchmark-production-wiring.test.ts | test | proves the trial-adapter route is derived from the two request paths and that a divergent parent identity refuses before any spawn |
 | benchmark-prompt-assets.test.ts | test | proves the extracted prompt files carry the removed bytes and that an unresolved ref fails closed |
 | benchmark-reviewer-fix-template.test.ts | test | proves the reviewer-fix documents are authored, not copied, row by row |
 | benchmark-reviewer-fix.test.ts | test | proves reviewer-fix's own stage count, shared placement, surviving fix and proposal |
