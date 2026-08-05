@@ -19,6 +19,7 @@ import {
 } from '../benchmark/variant-proposal.js';
 import {
   createWorkspaceLease, createWorkspaceStepBoundary, resolveWorkspacePlacement,
+  withActiveWorkspaceLease,
   type CoderReviewVariant, type TrialSnapshotPaths, type WorkspaceLease,
   type WorkspacePlacement, type WorkspaceStepBoundary,
 } from '../benchmark/workspace-lease.js';
@@ -1006,12 +1007,16 @@ async function runBenchmarkThreadScoped(
   const prepared = await prepareRun(request);
   const control = installControl(prepared);
   try {
-    const outcome = await executeRun(prepared, control, supervisorBinary);
-    const thread = threadStore.get(prepared.thread.id) ?? prepared.thread;
-    const classified = classifyRun(prepared, control, outcome);
-    const committed = commitTerminal(prepared, classified, thread);
-    const proposal = proposeOutcome(prepared, committed, thread, control, outcome);
-    return buildResult(prepared, committed, thread, proposal);
+    // The lease is published for the whole run so each step's spawn config can read the state it
+    // was armed under, rather than one captured before the lease existed (16.1 LS3).
+    return await withActiveWorkspaceLease(control.lease, async () => {
+      const outcome = await executeRun(prepared, control, supervisorBinary);
+      const thread = threadStore.get(prepared.thread.id) ?? prepared.thread;
+      const classified = classifyRun(prepared, control, outcome);
+      const committed = commitTerminal(prepared, classified, thread);
+      const proposal = proposeOutcome(prepared, committed, thread, control, outcome);
+      return buildResult(prepared, committed, thread, proposal);
+    });
   } finally {
     cleanupControl(control);
     await disposeSupervisors(control);

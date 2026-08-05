@@ -1024,6 +1024,7 @@ export class PIAdapter implements AgentAdapter {
       piAgentDir: agentDir,
       allowedTools,
       policyGuard: guard,
+      leaseState: config.benchmarkLeaseState,
       mcpComposition: composition,
       deadlineEpochMs: config.benchmarkDeadlineEpochMs,
       // A13: the trial's exact allowlisted environment replaces host inheritance wholesale.

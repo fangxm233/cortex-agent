@@ -51,6 +51,9 @@ export interface PIEnvOptions {
   allowedTools?: string | null;
   /** Compiled benchmark policy guard. Present puts the child in guarded mode (§13 GT6). */
   policyGuard?: IdentityJsonValue;
+  /** Which key of that guard this spawn selects. Absent keeps the one-shot parent's default
+   *  (design section 16 (16.1) LS7). */
+  leaseState?: string;
   /** Resolved MCP composition; the bridge derives its server set from it (§5.6 P1). */
   mcpComposition?: McpComposition;
   /** Absolute trial deadline the MCP bridge bounds its calls against (§5.6 P2/P5). */
@@ -104,7 +107,9 @@ export function buildPiEnv(
   // alone puts the child in guarded mode, so an empty or malformed value denies rather than allows.
   if (options.policyGuard !== undefined) {
     env[PI_POLICY_GUARD_ENV] = JSON.stringify(options.policyGuard);
-    env[PI_LEASE_STATE_ENV] = GATE2_LEASE_STATE;
+    // The selected state, not a constant: an in-trial step names the state it was armed under, and
+    // the one-shot parent path — which supplies none — keeps Gate 2's default.
+    env[PI_LEASE_STATE_ENV] = options.leaseState ?? GATE2_LEASE_STATE;
   }
   setOptional(env, PI_MCP_COMPOSITION_ENV, options.mcpComposition);
   setOptional(env, PI_BENCHMARK_DEADLINE_ENV, options.deadlineEpochMs);

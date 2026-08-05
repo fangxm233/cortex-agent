@@ -391,6 +391,17 @@ const LEASE_STATES: ReadonlySet<string> = new Set([
   'parent-writable', 'draining', 'thread-owned', 'answer-frozen', 'released',
 ]);
 
+// The lease state each role class runs its steps under (design section 16 (16.1) LS2). It is a
+// function of the slot's role class and of nothing else — never of a prompt, a template field or an
+// environment variable. `parent` keeps Gate 2's one-shot state; every in-trial child slot is only
+// ever armed while the lease is `thread-owned`, so a second key would name a state no step reaches.
+const ROLE_CLASS_LEASE_STATE: Record<string, string> = {
+  parent: GATE2_LEASE_STATE,
+  'benchmark-coder': 'thread-owned',
+  'benchmark-reviewer': 'thread-owned',
+  'benchmark-fixer': 'thread-owned',
+};
+
 // GS4: one document carries exactly one tool-label namespace, the arm's own backend's. Claude's set
 // is the shipped DEFAULT_TOOLS; PI's is its native map plus the shim-registered `agent`. Both are
 // read from the tables their adapters dispatch through, never restated here.
@@ -414,8 +425,8 @@ function compiledGuard(rules: Record<string, readonly string[]>): Record<string,
  * allow-list is `tools` verbatim and in frozen order (GC2) under the one lease state Gate 2 can
  * enter (GC1/GS2); nothing is enumerated as denied, because everything outside the list denies by
  * the evaluator's default (GC3), which is what makes §3.1(h.4)'s six forbidden tools forbidden here
- * (GC4). The lease state is a parameter so Gates 3/6/7 vary it without reopening the guard's shape
- * (GC7, D-GUARD-STATIC).
+ * (GC4). The lease state is `ROLE_CLASS_LEASE_STATE`'s entry for the slot, which is what varies the
+ * guard with the lease without reopening its shape (GC7; design section 16 (16.1) LS1/LS2).
  *
  * Every compiled benchmark role governs a model process, so it may not run unguarded: a derivation
  * that cannot produce a rule set fails the compile rather than yielding an unguarded spawn — §6.8
@@ -425,7 +436,6 @@ function roleGuard(
   slot: string,
   source: ResolvedRoleAsset,
   backend: Backend | undefined,
-  leaseState: string,
 ): Record<string, IdentityJsonValue> {
   // Reached by every vendor baseline: it declares no backend, so there is no namespace to draw an
   // allow-list from and no guard can be derived.
@@ -433,10 +443,12 @@ function roleGuard(
   if (labels === undefined) {
     fail('policy_guard_absent', `role://${slot} declares no backend to draw tool labels from`);
   }
-  // Unreachable at Gate 2 and deliberately kept: `promptRole` is the single caller and passes the
-  // GATE2_LEASE_STATE constant, which is a member. It guards the parameter GC7 exists to let Gates
-  // 3/6/7 vary, and it is the branch that refuses a state they have not yet designed an allow-list
-  // for. Not a fallback — reaching it is a defect in the caller, and it fails closed.
+  const leaseState = ROLE_CLASS_LEASE_STATE[slot];
+  if (leaseState === undefined) {
+    fail('policy_guard_absent', `role://${slot} names no guard role class`);
+  }
+  // Kept as the branch that refuses a state no allow-list has been designed for. Not a fallback —
+  // reaching it is a defect in the table above, and it fails closed.
   if (!LEASE_STATES.has(leaseState)) {
     fail('policy_guard_absent', `role://${slot} lease state '${leaseState}' names no lease state`);
   }
@@ -476,7 +488,7 @@ function promptRole(context: CompileContext, slot: string): WorkingRole {
     directiveSha256: sha256(directive),
     pluginDirs: [],
     skills: [],
-    benchmarkPolicyGuard: roleGuard(slot, source, context.arm.backend, GATE2_LEASE_STATE),
+    benchmarkPolicyGuard: roleGuard(slot, source, context.arm.backend),
   };
 }
 

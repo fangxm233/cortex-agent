@@ -92,6 +92,10 @@ export interface AgentSpawnConfig {
   cliPath?: string;
   /** Compiled benchmark policy guard for this role. Present replaces the ambient hook surface. */
   benchmarkPolicyGuard?: IdentityJsonValue;
+  /** Which key of the compiled guard this spawn selects — the live lease state at the moment the
+   *  step's config was built. A spawn-time parameter like `sessionId`, deliberately outside the
+   *  role surface: the table is identity, the selection is not (design section 16 (16.1) LS4/LS6). */
+  benchmarkLeaseState?: string;
   /** Exact allowlisted child environment for an isolated trial; replaces host inheritance. */
   pinnedEnv?: NodeJS.ProcessEnv;
   /** Absolute trial deadline. A backend that bounds an in-process call derives its remaining budget

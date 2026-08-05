@@ -14,6 +14,7 @@ import type { ResolvedTrialPolicy } from './resolved-policy.js';
 import {
   createTrialAdapter, trialAgentConfig, type TrialAdapter,
 } from './trial-adapter-factory.js';
+import type { LeaseState } from './workspace-lease.js';
 
 /** Everything a trial fixes for its whole lifetime. What varies per step — the role, the workspace,
  *  the resume target and the admission boundary — is read from that step's own run options. */
@@ -22,6 +23,10 @@ export interface TrialThreadAdapterInput {
   config: ResolvedAgentRunConfig;
   paths: PinnedTrialPaths;
   supervisor: { binary: string; graceMs: number; deadlineMs?: number };
+  /** The live lease, as a reader. This factory runs once per trial while the closure it returns
+   *  runs once per step, so a `LeaseState` value member would be read at construction and frozen
+   *  for the whole thread — the staleness the rule exists to forbid (design section 16 (16.1) LS3). */
+  leaseState: () => LeaseState;
 }
 
 function requireSlot(options: RunAgentOptions): AgentSlot {
@@ -62,11 +67,18 @@ function requireSpawner(options: RunAgentOptions): AgentProcessSpawner {
  * a field added to the trial reaches the step by construction, while the overlay stays a closed,
  * enumerable set.
  */
-function stepSpawnConfig(trial: TrialAdapter, options: RunAgentOptions): TrialAdapter['spawnConfig'] {
+function stepSpawnConfig(
+  trial: TrialAdapter,
+  options: RunAgentOptions,
+  leaseState: () => LeaseState,
+): TrialAdapter['spawnConfig'] {
   const spawnConfig = trial.spawnConfig;
   spawnConfig.processSpawner = requireSpawner(options);
   spawnConfig.sessionId = options.sessionId ?? null;
   spawnConfig.resume = !!options.sessionId;
+  // Read here and nowhere earlier: the step has been armed, so this is the state it executes under
+  // rather than the state the trial started in (design section 16 (16.1) LS3/LS4).
+  spawnConfig.benchmarkLeaseState = leaseState();
   return spawnConfig;
 }
 
@@ -122,7 +134,7 @@ export function createBenchmarkTrialRunAgent(
       const handle = runWithAdapter(
         trial.adapter,
         message,
-        { ...options, preparedSpawnConfig: stepSpawnConfig(trial, options) },
+        { ...options, preparedSpawnConfig: stepSpawnConfig(trial, options, input.leaseState) },
         trialAgentConfig(input.policy, trial.backend),
         undefined,
       );
