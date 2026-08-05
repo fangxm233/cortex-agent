@@ -260,6 +260,9 @@ for (const backend of ['claude', 'pi'] as const) {
     assert.deepEqual(journalAssistantText(result, 'benchmark-reviewer'), [
       `audit: the change is correct. ${APPROVAL_MARKER}`,
     ]);
+    // PI's own result shape carries no final output, so its summary is empty while the very same
+    // proposal is complete. A decision that read the summary would refuse this run on PI alone.
+    if (backend === 'pi') assert.equal(result.summary, '');
   }, 60_000);
 }
 
