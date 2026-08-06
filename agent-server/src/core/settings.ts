@@ -1,14 +1,15 @@
-// input:  CONFIG_DIR, settings spec, process env, filesystem
-// output: validated settings, disk updates, and test reset
-// pos:    L0 file-backed runtime settings boundary
+// input:  CONFIG_DIR, settings spec, env, resilient file monitor
+// output: validated settings, disk updates, hot reload, test reset
+// pos:    File-backed runtime settings boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { readFileSync, watch, type FSWatcher } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { AsyncMutex } from './async-mutex.js';
 import { atomicWrite } from './atomic-write.js';
 import { createLogger } from './log.js';
 import { CONFIG_DIR } from './paths.js';
+import { createFileWatchMonitor, type WatchMonitor } from './resilient-watch.js';
 import {
   SETTINGS_SPEC,
   type SettingKey,
@@ -39,7 +40,7 @@ let initialized = false;
 let cachedOverrides: Record<string, unknown> = {};
 let cachedSettings: Settings | null = null;
 let cachedSettingsSnapshot: SettingSnapshotEntry[] | null = null;
-let settingsWatcher: FSWatcher | null = null;
+let settingsMonitor: WatchMonitor | null = null;
 let reloadTimer: ReturnType<typeof setTimeout> | null = null;
 let selfWriting = false;
 
@@ -192,19 +193,14 @@ function reloadSettings(): void {
   }
 }
 
-function handleWatchEvent(filename: string | Buffer | null): void {
-  if (filename !== null && filename.toString() !== 'settings.json') return;
-  scheduleReload();
-}
-
 function startWatcher(): void {
-  try {
-    settingsWatcher = watch(CONFIG_DIR, (_eventType, filename) => handleWatchEvent(filename));
-    settingsWatcher.on('error', (error) => log.error('settings.json watcher failed:', error));
-    settingsWatcher.unref();
-  } catch (error) {
-    log.error('Failed to watch settings.json:', error);
-  }
+  settingsMonitor = createFileWatchMonitor({
+    label: 'settings.json',
+    filePath: SETTINGS_FILE,
+    onChange: scheduleReload,
+    warn: (message) => log.error(message),
+    unref: true,
+  });
 }
 
 function initialize(): void {
@@ -223,8 +219,8 @@ function initialize(): void {
 export function resetSettingsForTests(): void {
   if (reloadTimer) clearTimeout(reloadTimer);
   reloadTimer = null;
-  settingsWatcher?.close();
-  settingsWatcher = null;
+  settingsMonitor?.close();
+  settingsMonitor = null;
   initialized = false;
   cachedOverrides = {};
   cachedSettings = null;

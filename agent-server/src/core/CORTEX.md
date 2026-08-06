@@ -23,12 +23,13 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | paths.ts | config | defines install, data, and config paths |
 | pi-session-filename.ts | util | selects deterministic PI transcript filenames |
 | profile-generator.ts | config | generates the agent profiles file |
+| resilient-watch.ts | util | falls back from filesystem watchers to polling |
 | resume-reminder.ts | data | continuation prompt for interrupted work |
 | runtime-env.ts | config | excludes file-only metadata from runtime env |
 | running-executions.ts | state | registers and kills live agent executions |
 | settings-migration.ts | config | safely migrates legacy env settings at startup |
 | settings-spec.ts | config | defines runtime settings metadata and parsers |
-| settings.ts | config | loads, watches, resets, and merges runtime settings |
+| settings.ts | config | reloads runtime settings with polling fallback |
 | singleton-lock.ts | util | claims and releases a process pidfile |
 | status-format.ts | util | formats status and progress messages |
 | task-node.ts | util | locates and creates task node artifacts |

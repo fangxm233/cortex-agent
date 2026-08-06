@@ -52,8 +52,9 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | cortex-md-scanner.test.ts | test | CORTEX.md ancestor chain scanning |
 | cortex-run-callback-handler.test.ts | test | Remote callback generation and state-first fencing |
 | cortex-run-cli-dispatch.test.ts | test | Cortex-run parsing and unowned linkage rejection |
-| daemon.test.ts | test | daemon watcher fallback, rebuild and abort notice |
+| daemon.test.ts | test | daemon import, rebuild and abort notice behavior |
 | disk-monitor.test.ts | test | disk path, toggle, alerts and byte formatting |
+| dispatch-utils-watcher.test.ts | test | machine config polling after watcher failure |
 | dispatch-utils.test.ts | test | device registry, task id and session names |
 | domain/ | subdir | domain service, MCP tool and UI-service tests |
 | entry/ | subdir | Runtime wiring and CLI entry-point tests |

@@ -1,17 +1,13 @@
-// Thread template config loading and hot-reload.
-// input:  DATA_DIR/config/thread-templates/{agents,templates,shells}/ (directory form, preferred) or
-//         the legacy single file DATA_DIR/config/thread-templates.json (fallback), prompts/ directory
-// output: loadConfig / migrateThreadTemplatesToDir / mergeThreadTemplates / startConfigWatcher /
-//         stopConfigWatcher / getTemplate / getAgent / listTemplates / listAgents / resolvePluginDir
-// pos:    DR-0017 D6 Phase 2.5 — config is directory-based (one file per agent/template/shell); shell
-//         transition graphs are pure JSON (shells/*.json) expanded via the generic shell-templates
-//         engine. A legacy single file is auto-migrated to the directory on startup.
+// input:  thread-template config, prompts, shells, resilient watch
+// output: thread config load, migration, lookup, and hot reload APIs
+// pos:    Thread template configuration loader and watcher
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { readFileSync, writeFileSync, readdirSync, renameSync, existsSync, mkdirSync, watch, type FSWatcher } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, renameSync, existsSync, mkdirSync, statSync, watch, type FSWatcher } from 'fs';
 import * as path from 'path';
 import { CONFIG_DIR, DATA_DIR, PROMPTS_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
+import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
 import { Icons } from '../../core/icons.js';
 import { resolveTemplate } from './template-resolver.js';
 import { isShellBinding, expandShell } from './shell-templates.js';
@@ -321,11 +317,10 @@ export function loadConfig(): { agents: Record<string, AgentDefinition>; templat
 
 // --- Config hot-reload ---
 // Watches the config dir (or legacy single file) for external changes and reloads on modification.
-// Directory form: watch each entity subdir (agents/templates/shells) — flat dirs, so a plain watch
-// catches file adds/edits/removes. Single-file form: re-create the watcher on 'rename' events
-// because atomic file replacement (temp+rename) changes the inode.
+// Directory form watches each flat entity subdir for adds, edits, and removes. Legacy single-file
+// form watches CONFIG_DIR so atomic replacement does not invalidate the watcher.
 
-let _watchers: FSWatcher[] = [];
+let _configWatchMonitor: WatchMonitor | null = null;
 let _reloadTimer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleConfigReload(label: string): void {
@@ -338,29 +333,70 @@ function scheduleConfigReload(label: string): void {
   }, 300);
 }
 
-function closeConfigWatchers(): void {
-  for (const w of _watchers) w.close();
-  _watchers = [];
+function pathStamp(filePath: string): string {
+  try {
+    const stat = statSync(filePath);
+    return `${filePath}:${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    return `${filePath}:missing`;
+  }
 }
 
-function setupConfigWatch(): void {
-  closeConfigWatchers();
+function threadConfigSnapshot(): string {
+  if (!existsSync(CONFIG_TEMPLATES_DIR)) return pathStamp(CONFIG_FILE);
+  const parts: string[] = [];
+  for (const sub of ENTITY_SUBDIRS) {
+    const dir = path.join(CONFIG_TEMPLATES_DIR, sub);
+    try {
+      const files = readdirSync(dir).filter((file) => file.endsWith('.json')).sort();
+      parts.push(`${sub}:${files.map((file) => pathStamp(path.join(dir, file))).join(',')}`);
+    } catch {
+      parts.push(`${sub}:missing`);
+    }
+  }
+  return parts.join('|');
+}
+
+function startConfigFsWatchers(onChange: (label: string) => void): FSWatcher[] {
+  const watchers: FSWatcher[] = [];
   try {
     if (existsSync(CONFIG_TEMPLATES_DIR)) {
       for (const sub of ENTITY_SUBDIRS) {
         const dir = path.join(CONFIG_TEMPLATES_DIR, sub);
-        if (!existsSync(dir)) continue;
-        _watchers.push(watch(dir, () => scheduleConfigReload(`thread-templates/${sub}`)));
+        if (existsSync(dir)) watchers.push(watch(dir, () => onChange(`thread-templates/${sub}`)));
       }
-    } else if (existsSync(CONFIG_FILE)) {
-      _watchers.push(watch(CONFIG_FILE, (eventType) => {
-        if (eventType === 'rename') setTimeout(() => setupConfigWatch(), 100);
-        scheduleConfigReload('thread-templates.json');
+    } else {
+      const filename = path.basename(CONFIG_FILE);
+      watchers.push(watch(CONFIG_DIR, (_event, changed) => {
+        if (changed === null || changed.toString() === filename) onChange('thread-templates.json');
       }));
     }
-  } catch (e: any) {
-    log.error(`Failed to watch thread-templates config: ${e.message}`);
+    if (watchers.length === 0) throw new Error('no thread-template paths exist');
+    return watchers;
+  } catch (error) {
+    for (const watcher of watchers) watcher.close();
+    throw error;
   }
+}
+
+function setupConfigWatch(): void {
+  _configWatchMonitor?.close();
+  let observedSnapshot = threadConfigSnapshot();
+  const handleChange = (label: string) => {
+    observedSnapshot = threadConfigSnapshot();
+    scheduleConfigReload(label);
+  };
+  const poll = () => {
+    const nextSnapshot = threadConfigSnapshot();
+    if (nextSnapshot === observedSnapshot) return;
+    observedSnapshot = nextSnapshot;
+    scheduleConfigReload('thread-templates');
+  };
+  _configWatchMonitor = createResilientWatchMonitor({
+    label: 'thread-templates config', poll,
+    startWatching: () => startConfigFsWatchers(handleChange),
+    warn: (message) => log.error(message),
+  });
 }
 
 // --- Prompts directory hot-reload ---
@@ -407,11 +443,10 @@ export function startConfigWatcher(): void {
 }
 
 export function stopConfigWatcher(): void {
-  closeConfigWatchers();
-  if (_reloadTimer) {
-    clearTimeout(_reloadTimer);
-    _reloadTimer = null;
-  }
+  _configWatchMonitor?.close();
+  _configWatchMonitor = null;
+  if (_reloadTimer) clearTimeout(_reloadTimer);
+  _reloadTimer = null;
   stopPromptsWatcher();
 }
 

@@ -1,13 +1,14 @@
-// input:  profiles.json, JsonRepository
-// output: ProfileRepo and successful-reload-aware file watcher
-// pos:    Profile persistence, sync caching, and hot reload
+// input:  profiles.json, JsonRepository, resilient file monitor
+// output: ProfileRepo and polling-backed hot reload
+// pos:    Profile persistence, sync cache, and hot reload
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { readFileSync, watch, existsSync, type FSWatcher } from 'fs';
+import { readFileSync } from 'fs';
 import * as path from 'path';
 import { JsonRepository } from '@core/json-repository.js';
 import { CONFIG_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
+import { createFileWatchMonitor } from '@core/resilient-watch.js';
 import { Icons } from '../core/icons.js';
 import type { ProfilesFile } from '@domain/agents/profile-manager.js';
 
@@ -93,60 +94,41 @@ export function setAdminNotifier(fn: (text: string) => void): void { _adminNotif
  * @param filePath Path to watch (defaults to PROFILES_FILE).
  * @param onReload Called only after a valid file has replaced the cached profile snapshot.
  */
+function reloadProfiles(repo: ProfileRepo, filePath: string, onReload?: () => void): void {
+  try {
+    const raw = readFileSync(filePath, 'utf8');
+    JSON.parse(raw);
+    repo.invalidate();
+    repo.readSync();
+    onReload?.();
+    log.info('Hot-reload: profiles.json reloaded');
+    _adminNotifier?.(`${Icons.refresh} \`profiles.json\` hot-reloaded`);
+  } catch (e) {
+    log.error(`Hot-reload profiles.json failed: ${(e as Error).message} — keeping previous config`);
+    _adminNotifier?.(`${Icons.warning} \`profiles.json\` hot-reload FAILED — keeping previous config`);
+  }
+}
+
 export function startProfileWatcher(
   repo: ProfileRepo = profileRepo,
   filePath: string = PROFILES_FILE,
   onReload?: () => void,
 ): () => void {
-  if (!existsSync(filePath)) return () => {};
-
-  let watcher: FSWatcher | null = null;
   let reloadTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const reload = () => {
-    try {
-      // Validate the file is parseable BEFORE touching the cache.
-      // This prevents invalidate() from leaving cache null if the file is corrupt.
-      const raw = readFileSync(filePath, 'utf8');
-      JSON.parse(raw); // throws on invalid JSON — cache stays intact
-      repo.invalidate();
-      repo.readSync(); // re-fill cache from the validated content
-      onReload?.();
-      log.info('Hot-reload: profiles.json reloaded');
-      _adminNotifier?.(`${Icons.refresh} \`profiles.json\` hot-reloaded`);
-    } catch (e) {
-      log.error(`Hot-reload profiles.json failed: ${(e as Error).message} — keeping previous config`);
-      _adminNotifier?.(`${Icons.warning} \`profiles.json\` hot-reload FAILED — keeping previous config`);
-    }
+  const scheduleReload = () => {
+    if (reloadTimer) clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(() => {
+      reloadTimer = null;
+      reloadProfiles(repo, filePath, onReload);
+    }, 300);
   };
-
-  const setup = () => {
-    try {
-      if (watcher) watcher.close();
-      watcher = watch(filePath, (eventType) => {
-        if (eventType === 'rename') {
-          // File was atomically replaced (inode changed); reload now and re-create
-          // the watcher on the new inode after a short settle delay.
-          reload();
-          setTimeout(() => setup(), 100);
-          return;
-        }
-        // 'change' event — debounce to coalesce rapid writes.
-        if (reloadTimer) clearTimeout(reloadTimer);
-        reloadTimer = setTimeout(() => {
-          reloadTimer = null;
-          reload();
-        }, 300);
-      });
-    } catch (e) {
-      log.error(`Failed to watch profiles.json: ${(e as Error).message}`);
-    }
-  };
-
-  setup();
-
+  const monitor = createFileWatchMonitor({
+    label: 'profiles.json', filePath, onChange: scheduleReload,
+    warn: (message) => log.error(message),
+  });
   return () => {
-    if (watcher) { watcher.close(); watcher = null; }
-    if (reloadTimer) { clearTimeout(reloadTimer); reloadTimer = null; }
+    monitor.close();
+    if (reloadTimer) clearTimeout(reloadTimer);
+    reloadTimer = null;
   };
 }

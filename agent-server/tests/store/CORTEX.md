@@ -16,6 +16,7 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | pending-injection-repo.test.ts | test | Covers pending message persistence and removal |
 | plugin-sync.test.ts | test | Covers managed plugin deploy and refresh rules |
 | profile-repo.test.ts | test | Covers profile reads, writes and file watching |
+| profile-watcher-fallback.test.ts | test | Covers profile polling after watcher failure |
 | project-dir-repo.test.ts | test | Covers per-machine project directory mapping |
 | project-notes-repo.test.ts | test | Covers private notes CRUD, stable timestamps, and concurrency |
 | prompt-migrations.test.ts | test | Covers coder assets, prompt migrations and customization |

@@ -19,7 +19,7 @@ Also runs startup file migrations and keeps deployed hooks and plugins in sync w
 | schedule-repo.ts | store | Scheduled-task persistence |
 | provider-state-repo.ts | store | Persists provider state and guards legacy migration |
 | cost-repo.ts | store | Cost records and budget persistence |
-| profile-repo.ts | store | Agent profiles with hot reload |
+| profile-repo.ts | store | Reloads cached profiles with polling fallback |
 | task-repo.ts | store | TASKS.yaml read, write, lock, and git sync |
 | prompt-migration-replacements.ts | config | Defines coder, reviewer, manager and STATUS-register prompt replacements |
 | version-migrations.ts | startup | Migrates config, stock prompts, and hook collisions |
