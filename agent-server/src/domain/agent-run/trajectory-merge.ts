@@ -738,18 +738,29 @@ export function isNativeSubagentCall(
 }
 
 /**
- * §17 G4-SA10 — A2's "refuses to guess", in the strong direction. An `Agent`/`Task` call with zero
- * census events would have to be reported as zero turns, which asserts that a subagent that
- * demonstrably ran produced nothing. The merge says "I don't know" instead.
+ * §17 G4-SA10 — A2's "refuses to guess", in the strong direction, and the census↔call bijection is
+ * checked BOTH WAYS because this function owns that bijection and each direction fails open on its
+ * own. Forwards: an `Agent`/`Task` call with zero census events would have to be reported as zero
+ * turns, which asserts that a subagent that demonstrably ran produced nothing. Backwards: a census
+ * event naming a call this fragment never made would contribute a turn to a parent that does not
+ * exist, so the turn total is not derivable from this fragment either. The merge says "I don't
+ * know" in both directions rather than guessing.
  */
 function assertSubagentCensus(fragment: SourceFragment): void {
   const attested = new Set(fragment.events.flatMap(record => (
     record.event.type === 'subagent_activity' ? [record.event.parentToolUseId] : []
   )));
+  const called = new Set(fragment.events.flatMap(record => (
+    isNativeSubagentCall(record.event) ? [record.event.toolUseId] : []
+  )));
   for (const record of fragment.events) {
     const event = record.event;
     if (!isNativeSubagentCall(event) || attested.has(event.toolUseId)) continue;
     underivable(`Native subagent call ${event.toolUseId} has no subagent_activity event`);
+  }
+  for (const parentToolUseId of attested) {
+    if (called.has(parentToolUseId)) continue;
+    underivable(`subagent_activity names ${parentToolUseId}, which this fragment never called`);
   }
 }
 

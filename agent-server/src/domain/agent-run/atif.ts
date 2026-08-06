@@ -144,6 +144,14 @@ function collectToolResults(
     records.push(record);
     index += 1;
   }
+  // The allowance above is BOUNDED by the attested call's own result, and nothing else in the
+  // journal marks that boundary: the adapter pushes `turn_complete` once, immediately before
+  // `stream.close()` (`claude/adapter.ts:1444-1449`), and `turn_progress` is absorbed at :126
+  // precisely because it lands mid-span. So reaching the end of the fragment with a span still
+  // open means the journal never said where the subagent's output stopped — and every record from
+  // the call onward was pushed RAW, so no batch guard inspected any of it. §9.6 A2 refuses rather
+  // than guessing a boundary; §17 G4-SA10 is fail-closed by design.
+  if (openSubagentCalls.size > 0) malformed('unclosed_subagent_span');
   return { records, next: index };
 }
 

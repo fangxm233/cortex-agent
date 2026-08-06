@@ -318,6 +318,137 @@ describe('the production wire shape publishes', () => {
   });
 });
 
+// --- F9: the attested span is BOUNDED (the absorption ends at the call's own result or refuses) ---
+
+const SHARED = { ts: '2026-08-01T00:00:02.000Z', step: null, agentSlot: 'parent' } as const;
+
+function use(toolUseId: string, name: string): EventSpec {
+  return { ...SHARED, event: { type: 'tool_use', toolUseId, name, input: {} } };
+}
+
+function result(toolUseId: string): EventSpec {
+  return { ...SHARED, event: { type: 'tool_result', toolUseId, ok: true, content: 'ok' } };
+}
+
+/** One census event, i.e. the attestation that opens the absorption span for `callId`. */
+function census(callId: string, kind: 'assistant' | 'tool_result' = 'assistant'): EventSpec {
+  return { ...SHARED, event: {
+    type: 'subagent_activity', parentToolUseId: callId, subagentType: 'explore', kind,
+  } };
+}
+
+describe('F9 — an attested span left open at fragment end refuses instead of absorbing', () => {
+  // THE DEFECT ITSELF. An `Agent`/`Task` call that never closes used to absorb the rest of the
+  // fragment AS RAW RECORDS, so the absorbed `tool_use` events never re-entered `collectToolUses`
+  // and `duplicate_tool_call_id` (`atif.ts:158`) never saw the duplicate. A journal the base
+  // REFUSED then published. Remove the fragment-end bound and this test publishes 1 step carrying
+  // `tool_call_ids=[toolu_agent_1, bash-1, bash-1]`.
+  it('refuses a duplicate tool_use id inside an UNCLOSED attested span', () => {
+    const events: EventSpec[] = [
+      use('toolu_agent_1', 'Task'),
+      census('toolu_agent_1'),
+      use('bash-1', 'Bash'),
+      use('bash-1', 'Bash'),
+      result('bash-1'),
+      // NO tool_result for toolu_agent_1 — the cut-short-trial case.
+    ];
+    expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(MALFORMED);
+  });
+
+  // The control that proves the guard, not the bound, is what the row above is about: the same
+  // duplicate with no attested span anywhere refuses at the base and must keep refusing.
+  it('refuses the same duplicate with no attested span at all', () => {
+    const events: EventSpec[] = [use('bash-1', 'Bash'), use('bash-1', 'Bash'), result('bash-1')];
+    expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(MALFORMED);
+  });
+
+  // THE BOUND ON ITS OWN, with nothing else wrong. Absorption may only run to the attested call's
+  // own result; reaching the end of the fragment with the span still open means the journal never
+  // said where the subagent's output stopped, so §9.6 A2 refuses rather than guessing a boundary.
+  it('refuses an unclosed attested span even when nothing else is malformed', () => {
+    const events: EventSpec[] = [use('toolu_agent_1', 'Task'), census('toolu_agent_1')];
+    expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(MALFORMED);
+  });
+
+  // G-C `unpaired_tool_result` (`atif.ts:181`) under an unclosed span: the orphan used to be
+  // absorbed to fragment end and published. It must refuse.
+  it('refuses an unpaired tool_result an unclosed span would have swallowed', () => {
+    const events: EventSpec[] = [
+      use('toolu_agent_1', 'Task'), census('toolu_agent_1'), result('never-called'),
+    ];
+    expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(MALFORMED);
+  });
+
+  // G-B `duplicate_tool_result` (`atif.ts:163`) is NOT masked by absorption at either revision:
+  // absorbed results still land in `resultIds`. Pinned inside a CLOSED span so the bound cannot be
+  // what produces the refusal — delete `resultIds`' duplicate check and this publishes.
+  it('still catches a duplicate tool_result absorbed inside a closed attested span', () => {
+    const events: EventSpec[] = [
+      use('toolu_agent_1', 'Task'),
+      census('toolu_agent_1'),
+      use('bash-1', 'Bash'),
+      result('bash-1'),
+      result('bash-1'),
+      result('toolu_agent_1'),
+    ];
+    expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(MALFORMED);
+  });
+
+  // done_when (7): the accounting half reads `fragment.events` directly, never the groups. Both
+  // journals carry the SAME accounting events and the same one assistant-kind census event, so
+  // identical `final_metrics` is required; their ATIF step counts differ, so grouping demonstrably
+  // did see the difference. Make any accounting reader consume `groupEvents` and this fails.
+  it('keeps accounting independent of how much the attested span absorbs', () => {
+    const bare = publishParent(makeRoot(), [
+      use('toolu_agent_1', 'Task'), census('toolu_agent_1'), result('toolu_agent_1'),
+    ]);
+    const absorbing = publishParent(makeRoot(), [
+      use('toolu_agent_1', 'Task'),
+      census('toolu_agent_1'),
+      { ...SHARED, event: { type: 'assistant_text', text: 'subagent speaking' } },
+      use('sub-1', 'Bash'),
+      result('sub-1'),
+      result('toolu_agent_1'),
+      { ...SHARED, event: { type: 'assistant_text', text: 'parent resumes' } },
+    ]);
+    expect(absorbing.final_metrics).toEqual(bare.final_metrics);
+    expect(absorbing.steps.length).not.toBe(bare.steps.length);
+    // The absorbed records landed inside the span's own step, not in steps of their own.
+    expect(JSON.stringify(absorbing.steps[0])).toContain('subagent speaking');
+  });
+});
+
+describe('G4-N24 — the census is validated against the call structure in BOTH directions', () => {
+  // `assertSubagentCensus` walked calls -> attestation only, so a census naming a call the fragment
+  // never made contributed a turn to a parent that does not exist: a fail-OPEN inside a
+  // fail-CLOSED design. It rides the census function's own existing refusal.
+  it('refuses a census event naming a call the fragment never made', () => {
+    const events: EventSpec[] = [
+      use('toolu_agent_1', 'Task'),
+      census('toolu_agent_1'),
+      census('toolu_agent_ghost'),
+      result('toolu_agent_1'),
+    ];
+    expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(UNDERIVABLE);
+  });
+
+  it('refuses an orphan census even when it is the only census in the fragment', () => {
+    const events: EventSpec[] = [
+      use('bash-1', 'Bash'), result('bash-1'), census('toolu_agent_ghost'),
+    ];
+    expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(UNDERIVABLE);
+  });
+
+  // THE OTHER DIRECTION, so the check cannot be satisfied by refusing everything: a census whose
+  // call IS present still derives its turns, for both aliases and for a tool_result-kind event.
+  it('still derives the turns of a census whose call the fragment did make', () => {
+    const trajectory = publishParent(makeRoot(), censusEvents({
+      callId: 'call-1', toolName: 'Task', assistantLines: 3, toolResultLines: 2,
+    }));
+    expect(trajectory.final_metrics.extra.subagent_turns).toBe(3);
+  });
+});
+
 // --- the wave-3 recursive DAG walk (plan:274) ---
 
 function treeWithCensus(root: string, census: {
