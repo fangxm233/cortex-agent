@@ -13,6 +13,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | lease-echo.ts | 核心 | 用容器时钟组成并投递凭据租约回声 |
 | policy-backed-runtime-deps.ts | 策略 | 仅从冻结快照解析运行时名称 |
 | policy-compiler.ts | 核心 | 有序解析资产并编译冻结策略 |
+| proposal-seal.ts | 核心 | 持有提案存储与封存判定：S1-S4 合取、V1-V3 失效、失败即关闭的读取与两类边投影 |
 | resolved-policy.ts | 类型 | 定义策略值与 1–44 失败分类 |
 | trial-adapter-factory.ts | 核心 | 仅从冻结策略构造每次试验的适配器 |
 | trial-thread-adapter.ts | 核心 | 为线程每一步构造并关闭一个试验适配器 |

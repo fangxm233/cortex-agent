@@ -5,7 +5,8 @@
 //         only dedupes within one thread incarnation). Semantics: delivery is
 //         at-least-once per manager incarnation until a verdict is recorded;
 //         'accepted' children never re-deliver; 'rejected' children re-open
-//         (verdict → pending, rework_round preserved) when they complete again after rework.
+//         (verdict → pending, rework_round preserved) when they complete again after rework;
+//         'superseded' + superseded_by (D-10) record a child replaced by an accepted rerun.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { readFileSync, mkdirSync } from 'fs';
@@ -13,7 +14,10 @@ import * as path from 'path';
 import { managerNodeDir } from '@core/task-node.js';
 import { atomicWriteSync } from '@core/atomic-write.js';
 
-export type LedgerVerdict = 'pending' | 'accepted' | 'rejected';
+/** `superseded` is the fourth verdict (D-10): success requires every delivered child "accepted or
+ *  superseded by an accepted replacement", which the three-value union cannot express — a replaced
+ *  child would stay `rejected` forever. */
+export type LedgerVerdict = 'pending' | 'accepted' | 'rejected' | 'superseded';
 
 export interface LedgerEntry {
   child: string;
@@ -23,6 +27,9 @@ export interface LedgerEntry {
   verdict_at: string | null;
   verdict_note: string | null;
   rework_round: number;
+  /** The replacement child, non-null on a `superseded` verdict (D-10). Always present, like every
+   *  other member: `| null` marks a value that may be null, never an optional key. */
+  superseded_by: string | null;
 }
 
 export interface AcceptanceLedger {
@@ -70,6 +77,7 @@ export async function recordDelivered(project: string, taskId: string, childId: 
     verdict_at: null,
     verdict_note: existing?.verdict_note ?? null,
     rework_round: existing?.rework_round ?? 0,
+    superseded_by: existing?.superseded_by ?? null,
   };
   writeLedger(ledger);
   return true;
@@ -88,6 +96,7 @@ export function recordVerdict(project: string, taskId: string, childId: string, 
     verdict_at: null,
     verdict_note: null,
     rework_round: 0,
+    superseded_by: null,
   };
   entry.verdict = verdict;
   entry.verdict_at = new Date().toISOString();
