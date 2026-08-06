@@ -380,6 +380,25 @@ it('V4 — an invalidated proposal is RECORDED, not discarded; `invalidated_by` 
   assert.equal((INVALIDATION_RULES as readonly string[]).includes('V4'), false);
 });
 
+it('V4 — invalidation CARRIES the last refused seal\'s findings, it does not erase them', () => {
+  seedProposal('attempt-1');
+  attemptSeal(project, key('attempt-1'), {
+    currentAttemptId: 'attempt-1', operands: sealOperands(['S2', 'S3']),
+  });
+  const [invalidated] = applyAttemptTerminal(project, TASK, 'attempt-1', 'failed');
+  // `unmet` is "empty when sealed; the failing preconditions otherwise" — an invalidated row that
+  // was refused for S2 and S3 still says so.
+  assert.deepEqual([...invalidated.unmet], ['S2', 'S3']);
+  assert.equal(invalidated.state, 'invalidated');
+  assert.equal(invalidated.invalidated_by, 'V1');
+  assert.deepEqual([...readProposalStore(project, TASK).proposals[0].unmet], ['S2', 'S3']);
+
+  // A row no seal was ever attempted for carries no findings, because none ever failed.
+  seedProposal('attempt-2');
+  const [never] = applyAttemptTerminal(project, TASK, 'attempt-2', 'failed');
+  assert.deepEqual([...never.unmet], []);
+});
+
 // ── (17.2.3) the persisted row ──────────────────────────────────────────────
 
 it('the persisted row is exactly (17.2.3)\'s TEN fields — enumerated, not row-counted', () => {
@@ -408,8 +427,8 @@ it('the row invariants — `unmet` empty iff sealed, `settled_at` non-null iff s
     assert.match(row.proposed_at, stamp);
     assert.equal(row.settled_at !== null, row.state !== 'proposed', `settled_at wrong for ${row.state}`);
     if (row.settled_at !== null) assert.match(row.settled_at, stamp);
-    // `unmet` is empty for every settled row — it is the record of a REFUSED seal.
-    if (row.state !== 'proposed') assert.deepEqual([...row.unmet], []);
+    // `unmet` is EMPTY when sealed, the failing preconditions otherwise.
+    if (row.state === 'sealed') assert.deepEqual([...row.unmet], []);
   }
   const refused = readProposalStore(project, TASK).proposals[0];
   assert.deepEqual([...refused.unmet], ['S2', 'S4']);

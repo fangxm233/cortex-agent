@@ -125,7 +125,9 @@ export interface ProposalRow {
   /** The actor's note, carried OPAQUELY and never parsed (G4-SM7). */
   readonly note: string | null;
   readonly state: ProposalState;
-  /** Empty when `sealed`; the failing preconditions of the last refused seal otherwise. */
+  /** Empty when `sealed`, the failing preconditions otherwise — so an invalidation CARRIES the last
+   *  refused seal's findings rather than erasing them. Empty on a row no seal was ever attempted
+   *  for, because then no precondition ever failed. */
   readonly unmet: readonly SealPrecondition[];
   /** `null` while `proposed` or `sealed`. */
   readonly invalidated_by: InvalidationRule | null;
@@ -381,7 +383,7 @@ export function attemptSeal(
   if (row.state === 'sealed') return row;
   if (key.attempt_id !== input.currentAttemptId) {
     return replaced(store, index, buildRow({
-      ...row, state: 'invalidated', unmet: [], invalidated_by: 'V2', settled_at: now(),
+      ...row, state: 'invalidated', invalidated_by: 'V2', settled_at: now(),
     }));
   }
   const unmet = unmetPreconditions(input.operands);
@@ -412,7 +414,7 @@ function invalidateWhere(
   const proposals = store.proposals.map(row => {
     if (row.state !== 'proposed' || !match(row)) return row;
     const next = buildRow({
-      ...row, state: 'invalidated', unmet: [], invalidated_by: rule, settled_at: settledAt,
+      ...row, state: 'invalidated', invalidated_by: rule, settled_at: settledAt,
     });
     invalidated.push(next);
     return next;
