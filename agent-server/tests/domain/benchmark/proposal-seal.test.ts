@@ -106,6 +106,50 @@ function shippedAcceptsManifestState(state: string): boolean {
   return terminalManifestProblem(manifest) !== 'state';
 }
 
+/** Whether the SHIPPED manifest validator faults on this value used as a lifecycle timestamp.
+ *  Same technique as `shippedAcceptsManifestState`: the answer comes from `manifest-contract.ts`'s
+ *  own `isTimestamp`, never from a pattern restated in this test. */
+function shippedAcceptsTimestamp(value: string): boolean {
+  const sha = 'a'.repeat(64);
+  const manifest = buildTerminalManifest({
+    trajectoryRoot: '/trial', rootRunId: 'run-1', threadId: null,
+    state: 'completed',
+    startedAt: value, endedAt: '2026-08-06T00:00:01.000Z',
+    journalPath: '/trial/journal.jsonl', journalSha256: sha, eventCount: 1,
+    supervisor: { quiescent: true, descendants: 0 },
+    steps: 1, costUsd: null, tokens: { input: 1, output: 1 },
+    modelExecutionIdentityHash: sha, roleToolSurfaceHash: sha, bundleManifestHash: sha,
+    terminalReason: 'ok',
+  });
+  return terminalManifestProblem(manifest) !== 'started_at';
+}
+
+/** Writes a store file by hand so a CORRUPT row can be presented to the fail-closed reader. */
+function writeStoreFile(rows: readonly Record<string, unknown>[]): void {
+  const target = proposalStorePath(project, TASK);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, JSON.stringify({ task_id: TASK, project, proposals: rows }, null, 2));
+}
+
+function validRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    task_id: TASK, dispatch_generation: 'gen-1', attempt_id: 'attempt-1',
+    intent: 'complete', note: null, state: 'proposed', unmet: [], invalidated_by: null,
+    proposed_at: '2026-08-06T00:00:00.000Z', settled_at: null,
+    ...overrides,
+  };
+}
+
+function storeReadable(): boolean {
+  try {
+    readProposalStore(project, TASK);
+    return true;
+  } catch (error) {
+    assert.equal(error instanceof ProposalSealError && error.code === 42, true);
+    return false;
+  }
+}
+
 function seedProposal(attemptId = 'attempt-1', note: string | null = 'note'): void {
   recordProposal(project, { key: key(attemptId), intent: 'complete', note });
 }
@@ -485,6 +529,33 @@ it('G4-SM4 — an unreadable store (a directory in its place) raises 42, and so 
     () => readProposalStore(project, TASK),
     (error: unknown) => error instanceof ProposalSealError && error.code === 42,
   );
+});
+
+it('G4-SM4 — a row timestamp outside the SHIPPED grammar is a corrupt store, not a lenient read', () => {
+  // (17.2.3) types both row timestamps as TIMESTAMP_PATTERN, so `typeof === "string"` is not the
+  // contract. The restated pattern is checked against the shipped validator, never against itself.
+  for (const candidate of [
+    '2026-08-06T00:00:00.000Z',
+    '2026-08-06T00:00:00Z',
+    '2026-08-06T00:00:00.000+00:00',
+    '2026-08-06',
+    'not-a-time',
+    '',
+  ]) {
+    writeStoreFile([validRow({ proposed_at: candidate })]);
+    assert.equal(storeReadable(), shippedAcceptsTimestamp(candidate),
+      `proposed_at grammar disagrees with manifest-contract.ts for ${candidate || '<empty>'}`);
+  }
+  // ...and the nullable one: null is legal, a malformed string is not.
+  writeStoreFile([validRow({ state: 'sealed', settled_at: '2026-08-06T00:00:00.000Z' })]);
+  assert.equal(storeReadable(), true);
+  writeStoreFile([validRow({ state: 'sealed', settled_at: '2026-08-06' })]);
+  assert.equal(storeReadable(), false);
+  // Every timestamp this module WRITES satisfies the grammar it enforces on read.
+  fs.rmSync(proposalStorePath(project, TASK));
+  seedProposal();
+  sealed();
+  assert.equal(storeReadable(), true);
 });
 
 it('G4-SM4 — a MISSING store is the absence of a row, not a read error', () => {

@@ -56,6 +56,16 @@ const INVALIDATING_TERMINALS: ReadonlySet<string> = new Set(['failed', 'cancelle
 const TERMINAL_THREAD_STATUSES: ReadonlySet<string> = new Set(['completed', 'failed', 'cancelled', 'aborted']);
 const TERMINAL_MANIFEST_STATES: ReadonlySet<string> = new Set(['completed', 'failed', 'cancelled', 'timeout']);
 
+/**
+ * The shipped lifecycle timestamp grammar, restated for the same reason: it exists as three private
+ * copies (`manifest-contract.ts:9`, `manifest.ts:21`, `supervisor.ts:13`) and none is exported.
+ * (17.2.3) types both row timestamps as this pattern, so the fail-closed reader enforces the
+ * pattern rather than merely `typeof === 'string'` — a store carrying an unparseable
+ * `settled_at` is a corrupt store, and reading it leniently is the fail-open this module exists
+ * not to copy. The test asserts the restatement against the shipped validator's own verdict.
+ */
+const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
 // ── G4-SM2 the seal evaluator ───────────────────────────────────────────────
 
 /**
@@ -223,8 +233,11 @@ function rowProblem(value: unknown): string | null {
   const keys = Object.keys(value);
   if (keys.length !== PROPOSAL_ROW_KEYS.length
     || !PROPOSAL_ROW_KEYS.every((key, index) => keys[index] === key)) return 'row_keys';
-  for (const key of ['task_id', 'dispatch_generation', 'attempt_id', 'proposed_at'] as const) {
+  for (const key of ['task_id', 'dispatch_generation', 'attempt_id'] as const) {
     if (typeof value[key] !== 'string') return key;
+  }
+  if (typeof value.proposed_at !== 'string' || !TIMESTAMP_PATTERN.test(value.proposed_at)) {
+    return 'proposed_at';
   }
   if (value.intent !== 'complete' && value.intent !== 'block') return 'intent';
   if (value.note !== null && typeof value.note !== 'string') return 'note';
@@ -237,7 +250,10 @@ function rowProblem(value: unknown): string | null {
     && !(INVALIDATION_RULES as readonly unknown[]).includes(value.invalidated_by)) {
     return 'invalidated_by';
   }
-  if (value.settled_at !== null && typeof value.settled_at !== 'string') return 'settled_at';
+  if (value.settled_at !== null
+    && (typeof value.settled_at !== 'string' || !TIMESTAMP_PATTERN.test(value.settled_at))) {
+    return 'settled_at';
+  }
   if ((value.settled_at !== null) !== (value.state !== 'proposed')) return 'settled_at_state';
   return null;
 }
