@@ -280,16 +280,18 @@ describe('the production wire shape publishes', () => {
     expect(carried).toContain('subagent speaking');
   });
 
+  // PINS THE ATTESTATION GATE ITSELF. This is an ORDINARY tool call — no census attests it — with
+  // content interleaved before its result. Absorbing that would be a real loosening of
+  // `unpaired_tool_result`, so the grouper must still break, orphan the result and refuse. Delete
+  // the `openSubagentCalls.size === 0` guard and this test publishes instead of refusing.
   it('keeps unpaired_tool_result strict when no census attests the open call', () => {
-    const events = interleavedSubagentEvents('toolu_agent_1')
-      .filter(spec => (spec.event as { type: string }).type !== 'subagent_activity');
-    // Without attestation the census refuses first, so drop the call and keep only the orphan
-    // result: an unattested interleaving must still be malformed, exactly as it is today.
-    const orphan: EventSpec[] = events.filter(spec => {
-      const event = spec.event as { type: string; toolUseId?: string };
-      return !(event.type === 'tool_use' && event.toolUseId === 'toolu_agent_1');
-    });
-    expect(refusalOf(() => publishParent(makeRoot(), orphan))).toBe(MALFORMED);
+    const shared = { ts: '2026-08-01T00:00:02.000Z', step: null, agentSlot: 'parent' } as const;
+    const events: EventSpec[] = [
+      { ...shared, event: { type: 'tool_use', toolUseId: 'bash-1', name: 'Bash', input: {} } },
+      { ...shared, event: { type: 'assistant_text', text: 'interleaved, unattested' } },
+      { ...shared, event: { type: 'tool_result', toolUseId: 'bash-1', ok: true, content: 'ok' } },
+    ];
+    expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(MALFORMED);
   });
 
   it('still refuses the production shape when the census is empty', () => {
