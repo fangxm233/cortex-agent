@@ -128,6 +128,7 @@ function isQuestion(value: unknown): boolean {
 
 const isQuestionArray: FieldRule = value => Array.isArray(value) && value.every(isQuestion);
 const isAccuracy: FieldRule = value => value === 'exact' || value === 'estimate';
+const isSubagentKind: FieldRule = value => value === 'assistant' || value === 'tool_result';
 
 const EVENT_SCHEMAS: Record<string, EventSchema> = {
   session_started: {
@@ -181,6 +182,13 @@ const EVENT_SCHEMAS: Record<string, EventSchema> = {
   turn_complete: {
     required: { numTurns: isNullableNumber, totalCostUsd: isNullableNumber },
     optional: { error: isNullableString },
+  },
+  // §17 G4-SA6. Journal validation is a closed whitelist (`validNormalizedEvent`), so a union
+  // member without a row here makes every journal that carries it a malformed fragment.
+  subagent_activity: {
+    required: {
+      parentToolUseId: isString, subagentType: isNullableString, kind: isSubagentKind,
+    },
   },
   error: {
     required: { message: isString, fatal: isBoolean },

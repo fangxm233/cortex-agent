@@ -40,4 +40,14 @@ export type NormalizedEvent =
   | CostRecordEvent
   | { type: 'turn_progress'; numTurns: number }
   | { type: 'turn_complete'; numTurns: number | null; totalCostUsd: number | null; error?: string | null }
+  // OC-11 / §17 G4-SA6: a native subagent produced output under this `Agent`/`Task` call. A CENSUS,
+  // not an allocation — it carries no text and no cost, because the CLI keeps one process-global
+  // cost accumulator and no per-subagent turn counter, and inventing either would be the guess
+  // §9.6 A2 forbids. Subagent text reaches the journal through the existing members, not this one.
+  | {
+      type: 'subagent_activity';
+      parentToolUseId: string;
+      subagentType: string | null;
+      kind: 'assistant' | 'tool_result';
+    }
   | { type: 'error'; message: string; fatal: boolean };

@@ -59,6 +59,13 @@ export interface AtifFinalMetrics {
   extra: {
     prompt_tokens_definition: string;
     cached_tokens_definition: string;
+    /**
+     * §17 G4-SA11 — native-subagent turns, DERIVED by Cortex from the journal's census events
+     * because the CLI maintains no such counter (G4-SA4). Carried BESIDE `total_steps`, never
+     * summed into it: `total_steps` is the parent's own turn total. Reconciling the two would
+     * erase exactly the distinction this field exists to record.
+     */
+    subagent_turns: number;
   };
 }
 
@@ -109,7 +116,10 @@ function collectToolResults(
   let index = start;
   while (index < events.length) {
     const record = events[index];
-    if (eventType(record) === 'turn_progress') {
+    // Progress and native-subagent census events interleave with the results of the call that is
+    // still open — a subagent's lines land between its `Agent`/`Task` call and that call's result.
+    // Absorbing them keeps the batch contiguous; breaking on them would orphan the result.
+    if (eventType(record) === 'turn_progress' || eventType(record) === 'subagent_activity') {
       records.push(record);
       index += 1;
       continue;

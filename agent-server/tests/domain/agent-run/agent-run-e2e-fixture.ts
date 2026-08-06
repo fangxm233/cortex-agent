@@ -81,6 +81,14 @@ lines.once('line', (line) => {
     console.log(JSON.stringify({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto', pre_tokens: 42 } }));
   }
   console.log(JSON.stringify({ type: 'assistant', message: { id: 'a1', model: 'claude-reported-fixture', content: [{ type: 'text', text: 'first result' }] } }));
+  if (process.env.FAKE_CLAUDE_SUBAGENT === '1') {
+    // One native subagent call in the CLI's own wire shape: the Agent/Task call, the subagent's
+    // own lines carrying parent_tool_use_id, and the call's result on the parent's line.
+    console.log(JSON.stringify({ type: 'assistant', message: { id: 'ag', model: 'claude-reported-fixture', content: [{ type: 'tool_use', id: 'toolu_agent_1', name: 'Task', input: { prompt: 'survey' } }] } }));
+    console.log(JSON.stringify({ type: 'assistant', parent_tool_use_id: 'toolu_agent_1', subagent_type: 'explore', message: { id: 's1', model: 'claude-reported-fixture', content: [{ type: 'text', text: 'subagent speaking' }] } }));
+    console.log(JSON.stringify({ type: 'user', parent_tool_use_id: 'toolu_agent_1', message: { content: [{ type: 'tool_result', tool_use_id: 'sub-call-1', content: 'sub ok' }] } }));
+    console.log(JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_agent_1', content: 'agent done' }] } }));
+  }
   const firstResult = process.env.FAKE_CLAUDE_FIRST_RESULT
     ? JSON.parse(process.env.FAKE_CLAUDE_FIRST_RESULT)
     : { type: 'result', subtype: 'success', is_error: false, session_id: request.session_id, result: 'first result', total_cost_usd: 0.25, num_turns: 1 };

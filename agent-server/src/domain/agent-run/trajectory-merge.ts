@@ -11,6 +11,7 @@ import { validateTrajectoryRoot } from './manifest.js';
 import {
   mintAttemptId, type AttemptEdge, type AttemptRecord, type EndpointRef,
 } from '../benchmark/attempt-record.js';
+import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import {
   buildAtifTree,
   type AtifFinalMetrics,
@@ -716,6 +717,50 @@ interface MetricAccumulator {
   cached: number;
   cost: number;
   steps: number;
+  /** §17 G4-SA8 — derived native-subagent turns. Never folded into `steps`. */
+  subagentTurns: number;
+}
+
+const ZERO_METRICS: MetricAccumulator = {
+  prompt: 0, completion: 0, cached: 0, cost: 0, steps: 0, subagentTurns: 0,
+};
+
+/**
+ * §17 G4-SA12 — the census key, BINDING. The CLI declares `Agent` and `Task` as two live constants
+ * for ONE tool and its own subagent-type extractor tests both, so a census keyed on `Agent` alone
+ * passes vacuously on a transcript that emitted the alias — reintroducing the invisibility OC-11
+ * exists to close. Exported so §9.4's F7 evaluation uses this predicate rather than restating it.
+ */
+export function isNativeSubagentCall(
+  event: NormalizedEvent,
+): event is Extract<NormalizedEvent, { type: 'tool_use' }> {
+  return event.type === 'tool_use' && (event.name === 'Agent' || event.name === 'Task');
+}
+
+/**
+ * §17 G4-SA10 — A2's "refuses to guess", in the strong direction. An `Agent`/`Task` call with zero
+ * census events would have to be reported as zero turns, which asserts that a subagent that
+ * demonstrably ran produced nothing. The merge says "I don't know" instead.
+ */
+function assertSubagentCensus(fragment: SourceFragment): void {
+  const attested = new Set(fragment.events.flatMap(record => (
+    record.event.type === 'subagent_activity' ? [record.event.parentToolUseId] : []
+  )));
+  for (const record of fragment.events) {
+    const event = record.event;
+    if (!isNativeSubagentCall(event) || attested.has(event.toolUseId)) continue;
+    underivable(`Native subagent call ${event.toolUseId} has no subagent_activity event`);
+  }
+}
+
+/** §17 G4-SA8 — one turn per subagent ASSISTANT line. A `tool_result` line is the subagent's tool
+ *  coming back, not a turn it took. */
+function fragmentSubagentTurns(fragment: SourceFragment): number {
+  return fragment.events.reduce((total, record) => {
+    const event = record.event;
+    if (event.type !== 'subagent_activity' || event.kind !== 'assistant') return total;
+    return sumToken(total, 1, 'subagent_turns');
+  }, 0);
 }
 
 function underivable(detail: string): never {
@@ -753,7 +798,7 @@ function addCostRecord(total: MetricAccumulator, record: SourceJournalEvent): Me
 function fragmentCostMetrics(fragment: SourceFragment): MetricAccumulator {
   const records = fragment.events.filter(record => record.event.type === 'cost_record');
   if (records.length === 0) return underivable('Fragment has no cost_record event');
-  return records.reduce(addCostRecord, { prompt: 0, completion: 0, cached: 0, cost: 0, steps: 0 });
+  return records.reduce(addCostRecord, { ...ZERO_METRICS });
 }
 
 function fragmentSteps(fragment: SourceFragment): number {
@@ -768,7 +813,12 @@ function fragmentSteps(fragment: SourceFragment): number {
 
 function fragmentMetrics(fragment: SourceFragment): MetricAccumulator {
   const metrics = fragmentCostMetrics(fragment);
-  return { ...metrics, steps: fragmentSteps(fragment) };
+  assertSubagentCensus(fragment);
+  return {
+    ...metrics,
+    steps: fragmentSteps(fragment),
+    subagentTurns: fragmentSubagentTurns(fragment),
+  };
 }
 
 function addFragmentMetrics(total: MetricAccumulator, fragment: SourceFragment): MetricAccumulator {
@@ -779,6 +829,7 @@ function addFragmentMetrics(total: MetricAccumulator, fragment: SourceFragment):
     cached: sumToken(total.cached, metrics.cached, 'total_cached_tokens'),
     cost: total.cost + metrics.cost,
     steps: sumToken(total.steps, metrics.steps, 'total_steps'),
+    subagentTurns: sumToken(total.subagentTurns, metrics.subagentTurns, 'subagent_turns'),
   };
 }
 
@@ -793,8 +844,7 @@ function addPlanMetrics(total: MetricAccumulator, node: PlanNode): MetricAccumul
 }
 
 function aggregateFinalMetrics(root: PlanNode): AtifFinalMetrics {
-  const zero = { prompt: 0, completion: 0, cached: 0, cost: 0, steps: 0 };
-  const total = addPlanMetrics(zero, root);
+  const total = addPlanMetrics({ ...ZERO_METRICS }, root);
   if (!Number.isFinite(total.cost)) return underivable('total_cost_usd is not finite');
   return {
     total_prompt_tokens: total.prompt,
@@ -806,6 +856,7 @@ function aggregateFinalMetrics(root: PlanNode): AtifFinalMetrics {
       prompt_tokens_definition:
         'input_tokens + cache_creation_input_tokens + cache_read_input_tokens',
       cached_tokens_definition: 'cache_read_input_tokens',
+      subagent_turns: total.subagentTurns,
     },
   };
 }

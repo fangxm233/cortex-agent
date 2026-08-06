@@ -375,3 +375,30 @@ it('journals compaction without reading or watching daemon settings', async () =
   const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
   assert.ok(records.some(record => record.event?.type === 'context_compacted'));
 });
+
+// §17 G4-SA5/G4-SA7 on the PRODUCTION path: the census event is produced by the live stream
+// handler reading the spawned CLI's stdout, and lands in the parent's journal under the parent's
+// slot with `threadId: null, step: null` — which IS the fold under OC-11 option (ii). Nothing
+// here supplies production composition: the fixture supplies only the CLI's wire bytes.
+it('journals a native subagent census under the parent slot without diverting its output', async () => {
+  const fixture = createFixture('native-subagent-census');
+  fs.writeFileSync(fixture.releaseMarker, 'release');
+  const child = spawnRun(fixture, { FAKE_CLAUDE_SUBAGENT: '1' });
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 0, output.stderr);
+
+  const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
+  const census = records.filter(record => record.event?.type === 'subagent_activity');
+  assert.deepEqual(census.map(record => record.event), [
+    { type: 'subagent_activity', parentToolUseId: 'toolu_agent_1', subagentType: 'explore', kind: 'assistant' },
+    { type: 'subagent_activity', parentToolUseId: 'toolu_agent_1', subagentType: null, kind: 'tool_result' },
+  ]);
+  for (const record of census) {
+    assert.equal(record.thread_id, null);
+    assert.equal(record.step, null);
+    assert.equal(record.agent_slot, records[0].agent_slot);
+  }
+  // Additive: the same subagent line still reaches the handlers that journal its text today.
+  assert.ok(records.some(record => record.event?.type === 'assistant_text'
+    && record.event.text === 'subagent speaking'));
+});

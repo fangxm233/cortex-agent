@@ -52,4 +52,5 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | trajectory-merge-cli.test.ts | test | verifies context-free accounting and typed failures |
 | transport-teardown-e2e.test.ts | e2e | proves finalization survives sidecar teardown |
 | trajectory-merge-fixtures.ts | fixture | writes print-mode accounted fragment events |
+| trajectory-merge-subagent.test.ts | test | proves the native-subagent census key, the derived subagent turn total, the zero-census refusal and the surviving named refusals |
 | trajectory-merge.test.ts | test | verifies documented aggregate ATIF conversion |

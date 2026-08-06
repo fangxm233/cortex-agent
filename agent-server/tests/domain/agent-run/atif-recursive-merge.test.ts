@@ -330,6 +330,7 @@ describe('§9.3 M5/M6/M8/M9 generalise to the DAG without changing semantics', (
         prompt_tokens_definition:
           'input_tokens + cache_creation_input_tokens + cache_read_input_tokens',
         cached_tokens_definition: 'cache_read_input_tokens',
+        subagent_turns: 0,
       },
     });
     expect(fixture.totals.prompt).toBe(1_000 + 200 + 400 + 40 + 8);
