@@ -294,6 +294,23 @@ describe('the production wire shape publishes', () => {
     expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(MALFORMED);
   });
 
+  // PINS THE OTHER HALF OF THE GATE: absorption must STOP at the attested call's own result. Here
+  // the span closes cleanly, so a LATER orphaned `tool_result` lies outside it and must still be
+  // caught. Make `openSubagentCalls.delete(result.toolUseId)` a no-op and the span never closes,
+  // this orphan is swallowed, and the journal publishes instead of refusing.
+  it('stops absorbing at the attested call result, so a later orphan still refuses', () => {
+    const shared = { ts: '2026-08-01T00:00:03.000Z', step: null, agentSlot: 'parent' } as const;
+    const events: EventSpec[] = [
+      ...interleavedSubagentEvents('toolu_agent_1'),
+      { ...shared, event: { type: 'tool_use', toolUseId: 'bash-1', name: 'Bash', input: {} } },
+      { ...shared, event: { type: 'tool_result', toolUseId: 'bash-1', ok: true, content: 'ok' } },
+      { ...shared, event: {
+        type: 'tool_result', toolUseId: 'never-called', ok: true, content: 'orphan',
+      } },
+    ];
+    expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(MALFORMED);
+  });
+
   it('still refuses the production shape when the census is empty', () => {
     const events = interleavedSubagentEvents('toolu_agent_1')
       .filter(spec => (spec.event as { type: string }).type !== 'subagent_activity');
