@@ -8,12 +8,16 @@
 // are INPUT DATA in the exact shape `adapter.ts` emits (`event-types.ts` `subagent_activity`).
 //
 // TWO journal shapes appear here, deliberately. `censusEvents` is the MINIMAL shape (a call, its
-// census events, its result). `interleavedSubagentEvents` is the FULL PRODUCTION shape, in which
-// the subagent's own `assistant_text` and `tool_result` events also land between the `Agent`/`Task`
-// call and that call's result, exactly as the adapter emits them (proved by
-// `tests/agent-adapter/claude-subagent-activity.test.ts`, which asserts a subagent line still
-// reaches `onAssistantMessage`/`onToolUse`). The minimal shape alone would let an ATIF grouping
-// defect through, so the derivation is asserted against BOTH.
+// census events, its result). `interleavedSubagentEvents` is the INTERLEAVED shape, in which the
+// subagent's own `assistant_text` and `tool_result` events also land between the `Agent`/`Task`
+// call and that call's result. It is a STRICT SUBSET of the wire, not the whole of it: it carries
+// an orphaned `tool_result sub-call-1` with no preceding `tool_use sub-call-1`, whereas
+// `tests/agent-adapter/claude-subagent-activity.test.ts` proves a subagent line carrying a
+// `tool_use` block does reach `onToolUse` and so IS journaled. The omission makes the fixture the
+// STRICTER case, which is why it stays; the shape with the subagent's own `tool_use` present is
+// covered by `still publishes the subagent OWN tool_use and tool_result inside the span` below.
+// The minimal shape alone would let an ATIF grouping defect through, so the derivation is asserted
+// against BOTH.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -377,6 +381,44 @@ describe('F9 — an attested span left open at fragment end refuses instead of a
       use('toolu_agent_1', 'Task'), census('toolu_agent_1'), result('never-called'),
     ];
     expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(MALFORMED);
+  });
+
+  // F9-b — THE SECOND INSTANCE OF F9, in the CLOSED span. The bound above removes the unbounded
+  // EXTENT of the absorption; it does not restore the guards OVER that extent. `toolBatch` reads
+  // `resultIds` from `results.records`, which includes the absorbed records, but reads `callIds`
+  // from `uses.records` only — so a duplicate call id absorbed inside a span that closes cleanly
+  // was still invisible, and a journal `1e5dd037` refused still published. Measured, not assumed:
+  // 1e5dd037 REFUSES duplicate_tool_call_id, 5336432c PUBLISHES ids=[a1,bash-1,bash-1].
+  it('refuses a duplicate tool_use id absorbed inside a CLOSED attested span', () => {
+    const events: EventSpec[] = [
+      use('toolu_agent_1', 'Task'),
+      census('toolu_agent_1'),
+      use('bash-1', 'Bash'),
+      use('bash-1', 'Bash'),
+      result('bash-1'),
+      result('toolu_agent_1'),
+    ];
+    expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(MALFORMED);
+  });
+
+  // The positive control for the check above, and the answer to G4-N28: the subagent's OWN
+  // `tool_use` — which the shared `interleavedSubagentEvents` fixture omits — is journaled by the
+  // adapter (`onToolUse` fires for a subagent line, `claude-subagent-activity.test.ts`). It has an
+  // id of its own, so it must still PUBLISH inside the span, unpaired result and all.
+  it('still publishes the subagent OWN tool_use and tool_result inside the span', () => {
+    const trajectory = publishParent(makeRoot(), [
+      use('toolu_agent_1', 'Task'),
+      { ...SHARED, event: { type: 'assistant_text', text: 'subagent speaking' } },
+      census('toolu_agent_1'),
+      use('sub-call-1', 'Bash'),
+      result('sub-call-1'),
+      census('toolu_agent_1', 'tool_result'),
+      result('orphan-of-the-subagent'),
+      result('toolu_agent_1'),
+    ]);
+    expect(trajectory.final_metrics.extra.subagent_turns).toBe(1);
+    const ids = JSON.stringify(trajectory.steps);
+    expect(ids).toContain('sub-call-1');
   });
 
   // G-B `duplicate_tool_result` (`atif.ts:163`) is NOT masked by absorption at either revision:

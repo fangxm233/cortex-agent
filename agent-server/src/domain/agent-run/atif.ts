@@ -169,6 +169,16 @@ function toolBatch(
     record.event.type === 'tool_result' ? [record.event.toolUseId] : []
   ));
   if (new Set(resultIds).size !== resultIds.length) malformed('duplicate_tool_result');
+  // Absorbed records are INSIDE this batch, so the batch's uniqueness rules bind them too.
+  // `resultIds` above already spans them because it reads `results.records`; the call-id check at
+  // :166 could not, because `callIds` has to exist before absorption starts. That asymmetry is
+  // what let a duplicate call id ride into a cleanly closed span unseen. Result PAIRING stays
+  // relaxed inside the span — a native subagent's own result legitimately has no call here — but
+  // an id emitted twice is corruption in any agent's id space, and the two checks now agree.
+  const batchCallIds = [...callIds, ...results.records.flatMap(record => (
+    record.event.type === 'tool_use' ? [record.event.toolUseId] : []
+  ))];
+  if (new Set(batchCallIds).size !== batchCallIds.length) malformed('duplicate_tool_call_id');
   return { group: { records: [...uses.records, ...results.records] }, next: results.next };
 }
 
