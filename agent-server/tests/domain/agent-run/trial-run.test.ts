@@ -1,5 +1,5 @@
 // input:  a compiled arm resolution, the real supervisor and a generated backend CLI
-// output: end-to-end proof that a trial run is supervised, isolated and normalized
+// output: end-to-end proof that a trial run is supervised, isolated, normalized and composite-published
 // pos:    Run-level battery for the Gate-2 trial adapter seam
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -21,6 +21,13 @@ import { runOneShotAgent, type AgentRunIo } from '../../../src/domain/agent-run/
 import type { AgentRunCliOptions } from '../../../src/domain/agent-run/agent-run-cli.js';
 import type { ResolvedTrialPolicy } from '../../../src/domain/benchmark/resolved-policy.js';
 import { profileRepo } from '../../../src/store/profile-repo.js';
+import {
+  COMPOSITE_MANIFEST_KEYS, COMPOSITE_MANIFEST_SCHEMA_VERSION, canonicalCompositeManifestBytes,
+  checkIdsForMode, validateCompositeManifest,
+} from '../../../src/domain/benchmark/composite-manifest.js';
+import {
+  ATTEMPT_RECORD_KEYS, mintAttemptId,
+} from '../../../src/domain/benchmark/attempt-record.js';
 
 const installRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const supervisorBinary = path.join(installRoot, 'native/cortex-supervisor/dist/cortex-supervisor');
@@ -600,3 +607,104 @@ it('runs the trial to completion when the lease echo cannot be delivered (T15)',
   assert.equal(outcome.terminal.state, 'completed');
   assert.match(outcome.stderr, /lease echo unavailable/);
 }, 60_000);
+
+// --- T16: F7/F8 — the composite manifest has a PRODUCER ON THE PRODUCTION PATH ---
+//
+// G4-PB7. Nothing below hands the runner a pre-built object. `fixture()` writes a real arm
+// document, the SHIPPED `loadAgentRunConfigWithPolicy` compiles it, and `runTrial` drives the real
+// `runOneShotAgent` — the same five-link chain G4-PB3 names, with no test helper, subclass or
+// monkeypatch supplying what production must compose. The manifest is observed through the file F8
+// publishes, which is the design's own acceptance surface (design:2817-2818), not through a spy.
+// Before this wave the trajectory merge had NO production writer at all (§17 17.4.2).
+
+it('publishes a valid composite manifest from inside runOneShotAgent (T16)', async () => {
+  const built = fixture();
+  const outcome = await runTrial(built);
+  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
+
+  const published = path.join(built.options.trajectoryRoot, 'composite-manifest.json');
+  assert.equal(fs.existsSync(published), true, 'F8 published no composite manifest');
+  const bytes = fs.readFileSync(published);
+  const manifest = JSON.parse(bytes.toString('utf8'));
+
+  // Eleven top-level members, in declaration order (G4-CM1, count ruled by enumeration).
+  assert.deepEqual(Object.keys(manifest), [...COMPOSITE_MANIFEST_KEYS]);
+  assert.equal(manifest.schema_version, COMPOSITE_MANIFEST_SCHEMA_VERSION);
+  assert.equal(manifest.trial_id, 'trial-001');
+  assert.equal(manifest.root_run_id, ROOT_RUN_ID);
+
+  // §9.4 D2: exactly one node — the parent attempt — and zero spawn/dispatch/decompose edges.
+  assert.equal(manifest.nodes.length, 1);
+  assert.deepEqual(manifest.edges, []);
+  const node = manifest.nodes[0];
+  assert.equal(node.attempt_id, `run-${ROOT_RUN_ID}`);
+  assert.equal(node.attempt_id, mintAttemptId(ROOT_RUN_ID, null));
+  assert.equal(node.attempt_ordinal, 1);
+  assert.equal(node.thread_id, null);
+  // The attempt_id names the REAL lifecycle pair (§9.2 invariant 4).
+  assert.equal(fs.existsSync(
+    path.join(built.options.trajectoryRoot, `${node.attempt_id}.started.json`),
+  ), true);
+
+  // All 39 members present, every key, `| null` only ever a nullable VALUE (G4-CM2).
+  assert.deepEqual(Object.keys(node), [...ATTEMPT_RECORD_KEYS]);
+  // G4-CM11 taskless shape: task_id re-uses trial_id, and roots.root_task_id is the ONE flag.
+  assert.equal(node.task_id, 'trial-001');
+  assert.equal(manifest.roots.root_task_id, null);
+  assert.equal(manifest.roots.parent_attempt_id, node.attempt_id);
+  // D-NULL3: null means UNDERIVABLE — never 0, never "".
+  assert.equal(node.dispatch_generation, null);
+  assert.equal(node.root_thread_id, null);
+  assert.equal(node.template, null);
+
+  // The observed identity scalars are the run's own, and the frozen expectation is the policy's map.
+  assert.equal(node.model_execution_identity_hash,
+    built.policy.identity.model_execution_identity_hash.parent);
+  assert.deepEqual(manifest.identity.model_execution_identity_hash,
+    built.policy.identity.model_execution_identity_hash);
+
+  // O-G4-ACCT: the shipped nine-member record, `checks` included.
+  assert.equal(Object.keys(manifest.accounting).length, 9);
+  assert.ok(Array.isArray(manifest.accounting.checks));
+  assert.equal(Object.keys(manifest.accounting.proxy).length, 7);
+  assert.equal(manifest.accounting.trial_id, manifest.trial_id);
+
+  // predicate: exhaustive for the mode, and NEVER a pass nobody earned.
+  assert.equal(manifest.predicate.mode, 'direct');
+  assert.deepEqual(manifest.predicate.checks.map((c: any) => c.check_id), checkIdsForMode('direct'));
+  assert.equal(manifest.predicate.checks.some((c: any) => c.result === 'pass'), false);
+
+  // The document the producer emitted passes its own structural validator, in production.
+  const stems = fs.readdirSync(built.options.trajectoryRoot)
+    .filter(name => name.endsWith('.started.json'))
+    .map(name => name.slice(0, -'.started.json'.length));
+  assert.deepEqual(validateCompositeManifest(manifest, {
+    limits: {
+      max_task_depth: built.policy.limits.max_task_depth,
+      max_tasks: built.policy.limits.max_tasks,
+    },
+    lifecycleStems: stems,
+  }), []);
+
+  // G4-CM5: the published bytes re-read and re-hash to the manifest's identity.
+  assert.deepEqual(bytes, canonicalCompositeManifestBytes(manifest));
+}, 60_000);
+
+it('G4-PB6: trajectory-merge-cli is NOT promoted to a bin, and F8 spawns no CLI (T17)', () => {
+  // One production writer, one publication: a second route to the same publication turns the
+  // `output_path_exists` hard failure into a race.
+  const pkg = JSON.parse(fs.readFileSync(path.join(installRoot, 'package.json'), 'utf8'));
+  assert.deepEqual(Object.keys(pkg.bin), ['cortex', 'cortex-hook', 'cortex-run', 'cortex-task']);
+  assert.equal(JSON.stringify(pkg.bin).includes('trajectory-merge'), false);
+  // G4-PB5: the publication path contains no spawn. F8 runs after F2 has proven quiescence, so a
+  // Node subprocess here would falsify the very evidence §9.4 G2 publishes.
+  const source = fs.readFileSync(
+    fileURLToPath(new URL('../../../src/domain/benchmark/composite-manifest.ts', import.meta.url)),
+    'utf8',
+  );
+  // Asserted as the CAPABILITY, not as the word: `spawn` is also the name of a §9.2 edge kind, and
+  // §9.2 is frozen, so a bare /spawn/ would only ever be satisfiable by renaming the design's own
+  // vocabulary. What G4-PB5 forbids is reaching the process-spawning API at all.
+  assert.equal(/child_process/.test(source), false);
+  assert.equal(/\b(?:spawn|spawnSync|exec|execSync|execFile|execFileSync|fork)\s*\(/.test(source), false);
+});

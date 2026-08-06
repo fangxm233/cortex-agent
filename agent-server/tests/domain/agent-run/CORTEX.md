@@ -46,7 +46,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | run-config.test.ts | test | proves schema dispatch, roles, argv and MCP inputs |
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
 | trial-run-pi.test.ts | test | proves PI supervision, cancel, deadline and run identity |
-| trial-run.test.ts | test | proves supervised, isolated and normalized trial runs |
+| trial-run.test.ts | test | proves supervised, isolated and normalized trial runs, and that the composite manifest is published from inside the production runner |
 | trajectory-merge-cli.test.ts | test | verifies context-free accounting and typed failures |
 | transport-teardown-e2e.test.ts | e2e | proves finalization survives sidecar teardown |
 | trajectory-merge-fixtures.ts | fixture | writes print-mode accounted fragment events |

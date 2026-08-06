@@ -26,7 +26,17 @@ import {
   type TrialAdapter, type TrialAdapterSpec,
 } from '../benchmark/trial-adapter-factory.js';
 import { publishLeaseEcho } from '../benchmark/lease-echo.js';
-import { PolicyCompilationError, reportBenchmarkFailure } from '../benchmark/resolved-policy.js';
+import {
+  PolicyCompilationError, reportBenchmarkFailure, type ResolvedTrialPolicy,
+} from '../benchmark/resolved-policy.js';
+import { mintAttemptId, type AttemptRecord } from '../benchmark/attempt-record.js';
+import {
+  CompositeManifestError, buildCompositeManifest, publishComposite, validateCompositeManifest,
+} from '../benchmark/composite-manifest.js';
+import {
+  PROXY_EXPORT_SCHEMA_VERSION, journalCostFromNumber, reconcileAccounting,
+  type AccountingRecord, type JournalTotals, type ProxyExport, type Tagged,
+} from '../benchmark/accounting-reconciliation.js';
 import { preparePinnedTrialPaths } from './pinned-node-process.js';
 import {
   canonicalJsonSha256, freezeIdentity, IdentityProfileFallbackError,
@@ -82,6 +92,9 @@ interface RunStats {
   output: number;
   sawInput: boolean;
   sawOutput: boolean;
+  /** The backend's own model self-report, retained for AttemptRecord field 18. Stays `null` when
+   * the backend reported none — it is NEVER defaulted to `requested_model` (§9.6 A5). */
+  reportedModel: string | null;
 }
 
 interface ExecutionOutcome {
@@ -480,6 +493,7 @@ function trajectorySink(
         event,
       };
       const record = journal.writeEvent(input);
+      stats.reportedModel = input.reportedModel ?? stats.reportedModel;
       collectStats(stats, event);
       writeJsonLine(io, record);
     },
@@ -761,6 +775,217 @@ function writeTerminalOutput(
   });
 }
 
+const COMPOSITE_MANIFEST_FILE = 'composite-manifest.json';
+
+/**
+ * The composite manifest's operands — trial, arm and frozen identity — exist only on the benchmark
+ * path. This is an explicit typed condition rather than a truthiness check, because a skip that
+ * cannot be told apart from a refusal is the silent drop §9.6 A5 exists to forbid.
+ */
+type CompositeApplicability =
+  | { readonly applicable: false }
+  | { readonly applicable: true; readonly policy: ResolvedTrialPolicy };
+
+function compositeApplicability(
+  run: PreparedRun, terminal: Record<string, unknown> | null,
+): CompositeApplicability {
+  // A non-benchmark `agent-run` has no trial_id, arm or identity to build a manifest from, so the
+  // manifest is correctly NOT APPLICABLE rather than missing.
+  if (!run.policy) return { applicable: false };
+  // G4-PB4: `terminalManifest` returns null the moment the run is not quiescent (`:715`), and
+  // §9.5's corollary 2 rules that a containment failure publishes no terminal manifest, "so F7/F8
+  // cannot run and the grader is never admitted". A guard on the F6 result, not a `try`.
+  if (terminal === null) return { applicable: false };
+  return { applicable: true, policy: run.policy };
+}
+
+function observedLifecycleStems(trajectoryRoot: string): string[] {
+  return fs.readdirSync(trajectoryRoot)
+    .filter(name => name.endsWith('.started.json'))
+    .map(name => name.slice(0, -'.started.json'.length));
+}
+
+/** The parent process's own attempt — one fragment, one journal, one lifecycle pair (§17 17.3.1). */
+function parentAttemptRecord(
+  run: PreparedRun,
+  policy: ResolvedTrialPolicy,
+  terminal: Record<string, unknown>,
+  stats: RunStats,
+): AttemptRecord {
+  const attemptId = mintAttemptId(run.rootRunId, null);
+  const terminalRelative = `${attemptId}.terminal.json`;
+  const tokens = (terminal.tokens ?? {}) as Record<string, number | null | undefined>;
+  return {
+    trial_id: policy.trial_id,
+    root_run_id: run.rootRunId,
+    // G4-CM11: a taskless mode RE-USES `trial_id` as `task_id` — an existing authoritative
+    // identifier rather than a mint, which is the distinction that makes it legal under §9.6 A5.
+    task_id: policy.trial_id,
+    parent_task_id: null,
+    dispatch_generation: null,
+    attempt_id: attemptId,
+    // G4-AI4: base 1, scoped to task_id. The parent of a taskless trial is ordinal 1.
+    attempt_ordinal: 1,
+    thread_id: null,
+    parent_thread_id: null,
+    root_thread_id: null,
+    task_ancestry: [policy.trial_id],
+    template: null,
+    // G4-AI8: verbatim the journal header's `agentSlot` (written from this same value at `:727`).
+    role: run.options.agentSlot,
+    stage: null,
+    backend: policy.model_execution.backend,
+    provider: runProvider(run),
+    requested_model: runRequestedModel(run),
+    // Never defaulted to `requested_model`: that is synthesized data labelled native (§9.6 A5).
+    reported_model: stats.reportedModel,
+    model_execution_identity_hash: run.identity.modelExecutionIdentityHash,
+    role_tool_surface_hash: run.identity.roleToolSurfaceHash,
+    bundle_manifest_hash: run.identity.bundleManifestHash,
+    terminal_state: terminal.state as AttemptRecord['terminal_state'],
+    terminal_reason: terminal.terminal_reason as AttemptRecord['terminal_reason'],
+    disposition: 'none',
+    superseded_by: null,
+    artifact_path: null,
+    artifact_sha256: null,
+    journal_path: terminal.journal_path as string,
+    journal_sha256: terminal.journal_sha256 as string,
+    event_count: terminal.event_count as number,
+    terminal_manifest_path: terminalRelative,
+    // (17.1.4) field 32 is NEW: hashed over the PUBLISHED bytes, after the rename that publishes
+    // them — never over the pre-publication buffer.
+    terminal_manifest_sha256: createHash('sha256')
+      .update(fs.readFileSync(path.join(run.options.trajectoryRoot, terminalRelative)))
+      .digest('hex'),
+    edges: [],
+    started_at: terminal.started_at as string,
+    ended_at: terminal.ended_at as string,
+    steps: (terminal.steps ?? null) as number | null,
+    cost_usd: (terminal.cost_usd ?? null) as number | null,
+    // All four members always present (G4-CM2).
+    tokens: {
+      input: tokens.input ?? null,
+      output: tokens.output ?? null,
+      cache_read: tokens.cache_read ?? null,
+      cache_creation: tokens.cache_creation ?? null,
+    },
+    // G4-N4: no shipped mechanism produces a per-attempt request count. Writing 0 is forbidden.
+    provider_requests: null,
+  };
+}
+
+function taggedCount(value: number | null): Tagged<number> {
+  return value === null
+    ? { status: 'unavailable', reason: 'journal_underivable' }
+    : { status: 'available', value };
+}
+
+/**
+ * Gate 8 delivers the value; Gate 4 delivers the carrier. Both operands are recorded at their
+ * honest availability and nothing is defaulted to zero (§9.6 A5, R-A5-1):
+ *
+ * - the PROXY is A1-authoritative and runs on the HOST, so from inside the container its counters
+ *   are unreadable — every proxy figure is `counter_unreadable`, never 0;
+ * - `journal.requests` is PERMANENTLY unavailable (G4-RQ1): Cortex has no request counter, and the
+ *   two sides count different events, so a conversion between them would be a guess.
+ *
+ * The record this returns is placed VERBATIM and no arithmetic is performed on it (G4-CM23).
+ */
+function attemptAccounting(policy: ResolvedTrialPolicy, node: AttemptRecord): AccountingRecord {
+  const unreadable = { status: 'unavailable', reason: 'counter_unreadable' } as const;
+  const proxy: ProxyExport = {
+    schema_version: PROXY_EXPORT_SCHEMA_VERSION,
+    trial_id: policy.trial_id,
+    adapter_id: node.attempt_id,
+    requests: unreadable,
+    cost_usd: unreadable,
+    input_tokens: unreadable,
+    output_tokens: unreadable,
+    audit_log: unreadable,
+    lease_echo: unreadable,
+    source: 'proxy_export',
+  };
+  const journal: JournalTotals = {
+    requests: { status: 'unavailable', reason: 'journal_underivable' },
+    cost_usd: journalCostFromNumber(node.cost_usd),
+    steps: taggedCount(node.steps),
+    tokens: {
+      input: taggedCount(node.tokens.input),
+      output: taggedCount(node.tokens.output),
+      cached: taggedCount(node.tokens.cache_read),
+    },
+    source: 'trajectory_merge',
+    roles: [node.role],
+  };
+  return reconcileAccounting(proxy, journal);
+}
+
+/**
+ * F7 and F8's composite-manifest half, at §17 G4-PB2's call site: AFTER F6's terminal manifest and
+ * BEFORE `writeTerminalOutput`, because that line carries `ok` and `state` (`:753-761`) and §4.5
+ * rules that §5.2's `completed` status is written against F8 — a terminal line emitted before F8
+ * would report a status F8 had not yet earned.
+ *
+ * G4-PB5: `mergeTrajectory` is never spawned as a CLI here. F8 runs after F2 has proven
+ * quiescence, and creating a Node descendant at this point would falsify the very evidence §9.4 G2
+ * publishes. Nothing in this path spawns a process.
+ *
+ * Fails CLOSED: a benchmark run that cannot publish its manifest is not gradable, and the refusal
+ * rides the shipped codes 39/40 with its JSON reason on stderr — the class-R invariant.
+ */
+function publishCompositeManifest(
+  run: PreparedRun,
+  terminal: Record<string, unknown> | null,
+  stats: RunStats,
+  io: AgentRunIo,
+): void {
+  const applicability = compositeApplicability(run, terminal);
+  if (!applicability.applicable) return;
+  const { policy } = applicability;
+  try {
+    const mode = policy.arm.orchestration?.mode;
+    if (!mode) {
+      throw new CompositeManifestError(
+        'composite_manifest_invalid', 'the arm declares no orchestration mode',
+      );
+    }
+    const node = parentAttemptRecord(run, policy, terminal!, stats);
+    const manifest = buildCompositeManifest({
+      trial_id: policy.trial_id,
+      root_run_id: run.rootRunId,
+      arm_name: policy.arm.name,
+      arm_canonical_sha256: policy.arm_canonical_sha256,
+      // Copied from the frozen policy, never recomputed: §1.4 is the only authority on identity.
+      identity: policy.identity,
+      nodes: [node],
+      edges: [],
+      roots: { parent_attempt_id: node.attempt_id, root_task_id: null },
+      accounting: attemptAccounting(policy, node),
+      mode,
+    });
+    const violations = validateCompositeManifest(manifest, {
+      limits: {
+        max_task_depth: policy.limits.max_task_depth,
+        max_tasks: policy.limits.max_tasks,
+      },
+      lifecycleStems: observedLifecycleStems(run.options.trajectoryRoot),
+    });
+    if (violations.length > 0) {
+      throw new CompositeManifestError(
+        'composite_manifest_invalid',
+        violations.map(violation => violation.code).join(','),
+        violations,
+      );
+    }
+    publishComposite(manifest, path.join(run.options.trajectoryRoot, COMPOSITE_MANIFEST_FILE));
+  } catch (error) {
+    if (error instanceof CompositeManifestError) {
+      io.stderr.write(`${JSON.stringify(error.record())}\n`);
+    }
+    throw error;
+  }
+}
+
 /**
  * The trial proxy's credential lease was armed from the host clock before this container existed,
  * so it is a provisional bound rather than the trial's own deadline. Hand the proxy the remaining
@@ -803,10 +1028,14 @@ export async function runOneShotAgent(
     writeStart(run);
     // Before any model process is admitted.
     await echoTrialLease(run, io);
-    const stats: RunStats = { input: 0, output: 0, sawInput: false, sawOutput: false };
+    const stats: RunStats = {
+      input: 0, output: 0, sawInput: false, sawOutput: false, reportedModel: null,
+    };
     const outcome = await executeTurn(run, journal, io, stats);
     const classified = classify(outcome);
     const manifest = terminalManifest(run, journal, stats, outcome, classified);
+    // F7 + F8 (§9.5): build the attempt DAG, then publish the composite manifest atomically.
+    publishCompositeManifest(run, manifest, stats, io);
     writeTerminalOutput(io, rootRunId, manifest, classified);
     return classified.exitCode;
   } catch (error) {

@@ -6,7 +6,9 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 |---|---|---|
 | accounting-reconciliation.ts | 核心 | 比对代理与日志账目，缺失一律标记不可用 |
 | arm-schema.ts | 类型 | 校验 v2 arm 与版本化 phase-A 输入 |
+| attempt-record.ts | 类型 | 定义 39 成员尝试记录、13 类边与尝试标识铸造 |
 | capabilities.ts | 策略 | 派生封闭模板与能力白名单 |
+| composite-manifest.ts | 核心 | 编码复合清单规范形式并按命名码校验 DAG 不变量 |
 | decimal-text.ts | 工具 | 以整数单位做精确十进制解析与比较 |
 | lease-echo.ts | 核心 | 用容器时钟组成并投递凭据租约回声 |
 | policy-backed-runtime-deps.ts | 策略 | 仅从冻结快照解析运行时名称 |

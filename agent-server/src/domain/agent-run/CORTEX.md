@@ -18,7 +18,7 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | pinned-node-process.ts | process | launches Node with canonical trial-pinned paths |
 | role-surface.ts | identity | hashes exact spawn defaults, directives and guards |
 | run-config.ts | config | dispatches legacy and benchmark run configs |
-| runner.ts | core | coordinates policy-held lifecycle and accounting |
+| runner.ts | core | coordinates policy-held lifecycle and accounting, and publishes the composite manifest on the benchmark path |
 | supervisor.ts | core | resolves the binary and gates process containment |
 | trajectory-merge-cli.ts | cli | publishes one merged trajectory with typed failures |
 | trajectory-merge.ts | core | fails closed and publishes accounted journal metrics |
