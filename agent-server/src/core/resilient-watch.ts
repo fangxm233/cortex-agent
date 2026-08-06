@@ -3,7 +3,8 @@
 // pos:    Shared resilient filesystem watch lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { statSync, watch, type FSWatcher } from 'node:fs';
+import { readFileSync, watch, type FSWatcher } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 export const WATCH_FALLBACK_MS = 5_000;
@@ -106,28 +107,25 @@ export function createResilientWatchMonitor(options: ResilientWatchOptions): Wat
 
 export function createSnapshotWatchMonitor(options: SnapshotWatchOptions): WatchMonitor {
   let observedSnapshot = options.snapshot();
-  const handleWatchChange = () => {
-    observedSnapshot = options.snapshot();
-    options.onChange();
-  };
-  const poll = () => {
+  const reconcile = () => {
     const nextSnapshot = options.snapshot();
     if (nextSnapshot === observedSnapshot) return;
     observedSnapshot = nextSnapshot;
     options.onChange();
   };
-  return createResilientWatchMonitor({
+  const monitor = createResilientWatchMonitor({
     label: options.label,
-    startWatching: () => options.startWatching(handleWatchChange),
-    poll,
+    startWatching: () => options.startWatching(reconcile),
+    poll: reconcile,
     warn: options.warn,
   });
+  reconcile();
+  return monitor;
 }
 
 function fileStamp(filePath: string): string | null {
   try {
-    const stat = statSync(filePath);
-    return `${stat.mtimeMs}:${stat.size}`;
+    return createHash('sha256').update(readFileSync(filePath)).digest('hex');
   } catch {
     return null;
   }

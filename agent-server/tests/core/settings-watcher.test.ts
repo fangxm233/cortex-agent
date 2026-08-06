@@ -1,5 +1,5 @@
 // input:  mocked fs watcher, isolated settings file
-// output: ordering, reset, null-filename, polling fallback tests
+// output: ordering, reset, polling fallback and content tests
 // pos:    Settings watcher edge-case regressions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -99,6 +99,28 @@ describe.sequential('settings watcher ordering', () => {
       await vi.advanceTimersByTimeAsync(5_300);
 
       assert.equal(getSettings().turnNotify, target);
+    } finally {
+      resetSettingsForTests();
+      watchState.throwOnWatch = false;
+      vi.useRealTimers();
+    }
+  });
+
+  test('polling detects same-size content changes with a preserved mtime', async () => {
+    const fixedTime = new Date('2024-01-01T00:00:00.000Z');
+    await fs.writeFile(SETTINGS_FILE, JSON.stringify({ adminChannel: 'alpha' }));
+    await fs.utimes(SETTINGS_FILE, fixedTime, fixedTime);
+    resetSettingsForTests();
+    watchState.throwOnWatch = true;
+    vi.useFakeTimers();
+    try {
+      assert.equal(getSettings().adminChannel, 'alpha');
+      await fs.writeFile(SETTINGS_FILE, JSON.stringify({ adminChannel: 'bravo' }));
+      await fs.utimes(SETTINGS_FILE, fixedTime, fixedTime);
+
+      await vi.advanceTimersByTimeAsync(5_300);
+
+      assert.equal(getSettings().adminChannel, 'bravo');
     } finally {
       resetSettingsForTests();
       watchState.throwOnWatch = false;

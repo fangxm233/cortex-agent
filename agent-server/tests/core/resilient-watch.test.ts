@@ -1,5 +1,5 @@
 // input:  fake filesystem watchers and snapshots
-// output: watcher failure fallback and cleanup regressions
+// output: fallback, registration race, and cleanup tests
 // pos:    Resilient watcher-to-polling lifecycle tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -88,6 +88,48 @@ test('snapshot monitor reloads only after the observed snapshot changes', () => 
   vi.advanceTimersByTime(5_000);
   assert.equal(reloads, 1);
 
+  monitor.close();
+});
+
+test('reconciles a snapshot change that occurs while the watcher starts', () => {
+  const watcher = new FakeWatcher();
+  let snapshot = 'before';
+  let reloads = 0;
+  const monitor = createSnapshotWatchMonitor({
+    label: 'machines.json',
+    snapshot: () => snapshot,
+    startWatching: () => {
+      snapshot = 'during-registration';
+      return [watcher as any];
+    },
+    onChange: () => { reloads += 1; },
+    warn: () => {},
+  });
+
+  assert.equal(reloads, 1);
+  monitor.close();
+});
+
+test('does not replay registration reconciliation on a delayed watcher event', () => {
+  const watcher = new FakeWatcher();
+  let notifyWatchChange: (() => void) | null = null;
+  let snapshot = 'before';
+  let reloads = 0;
+  const monitor = createSnapshotWatchMonitor({
+    label: 'settings.json',
+    snapshot: () => snapshot,
+    startWatching: (onChange) => {
+      notifyWatchChange = onChange;
+      snapshot = 'during-registration';
+      return [watcher as any];
+    },
+    onChange: () => { reloads += 1; },
+    warn: () => {},
+  });
+
+  assert.equal(reloads, 1);
+  notifyWatchChange?.();
+  assert.equal(reloads, 1);
   monitor.close();
 });
 

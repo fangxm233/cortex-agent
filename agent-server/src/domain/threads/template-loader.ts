@@ -3,7 +3,8 @@
 // pos:    Thread template configuration loader and watcher
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { readFileSync, writeFileSync, readdirSync, renameSync, existsSync, mkdirSync, statSync, watch, type FSWatcher } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, renameSync, existsSync, mkdirSync, watch, type FSWatcher } from 'fs';
+import { createHash } from 'node:crypto';
 import * as path from 'path';
 import { CONFIG_DIR, DATA_DIR, PROMPTS_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
@@ -335,8 +336,8 @@ function scheduleConfigReload(label: string): void {
 
 function pathStamp(filePath: string): string {
   try {
-    const stat = statSync(filePath);
-    return `${filePath}:${stat.mtimeMs}:${stat.size}`;
+    const digest = createHash('sha256').update(readFileSync(filePath)).digest('hex');
+    return `${filePath}:${digest}`;
   } catch {
     return `${filePath}:missing`;
   }
@@ -383,7 +384,9 @@ function setupConfigWatch(): void {
   _configWatchMonitor?.close();
   let observedSnapshot = threadConfigSnapshot();
   const handleChange = (label: string) => {
-    observedSnapshot = threadConfigSnapshot();
+    const nextSnapshot = threadConfigSnapshot();
+    if (nextSnapshot === observedSnapshot) return;
+    observedSnapshot = nextSnapshot;
     scheduleConfigReload(label);
   };
   const poll = () => {
@@ -397,6 +400,7 @@ function setupConfigWatch(): void {
     startWatching: () => startConfigFsWatchers(handleChange),
     warn: (message) => log.error(message),
   });
+  poll();
 }
 
 // --- Prompts directory hot-reload ---

@@ -13,7 +13,7 @@ Core infrastructure tests: paths, config and profile generation, auth, locks, i1
 | i18n.test.ts | test | locale lookup, fallback, and table parity |
 | paths.test.ts | test | install, data, project, and workspace paths |
 | profile-generator.test.ts | test | profile generation and default choices |
-| resilient-watch.test.ts | test | watcher failure, polling, and cleanup lifecycle |
+| resilient-watch.test.ts | test | watcher failure, registration race, and cleanup |
 | runtime-env.test.ts | test | excludes file-only metadata from runtime env |
 | settings-initial-error.test.ts | test | first-read corruption fallback and recovery |
 | settings-migration.test.ts | test | legacy env migration and isolated reset lifecycle |
