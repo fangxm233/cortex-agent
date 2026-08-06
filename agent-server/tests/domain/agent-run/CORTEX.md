@@ -5,6 +5,8 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | filename | role | function |
 |---|---|---|
 | access-probe-cli.test.ts | test | verifies help and dual-format probe output |
+| atif-dag-fixtures.ts | fixture | writes manager- and coder-review-shaped attempt DAGs with their lifecycle pairs |
+| atif-recursive-merge.test.ts | test | proves recursion past one level, role-indexed identity, DAG partition and named refusals |
 | access-probe-fixture.mjs | fixture | emits tamper, timeout and forbidden syscalls |
 | access-probe-policy.test.ts | test | proves process, path, count and stream policy |
 | access-probe.test.ts | e2e | proves evidence isolation and containment |

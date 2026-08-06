@@ -9,8 +9,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { validateTrajectoryRoot } from './manifest.js';
 import {
+  mintAttemptId, type AttemptEdge, type AttemptRecord, type EndpointRef,
+} from '../benchmark/attempt-record.js';
+import {
   buildAtifTree,
   type AtifFinalMetrics,
+  type AtifNode,
   type SourceFragment,
   type SourceJournalEvent,
   type SourceJournalHeader,
@@ -58,10 +62,31 @@ export const NODE_TRAJECTORY_MERGE_FS: TrajectoryMergeFileSystem = {
   unlink: filePath => fs.unlinkSync(filePath),
 };
 
+/**
+ * The subset of §9.2's composite manifest the merge walks. A `CompositeManifest` satisfies it
+ * structurally, which keeps `composite-manifest.ts` → `trajectory-merge.ts` the only dependency
+ * direction between the two modules while still letting the merge read the real document.
+ */
+export interface AttemptDag {
+  readonly nodes: readonly AttemptRecord[];
+  readonly edges: readonly AttemptEdge[];
+  readonly roots: { readonly parent_attempt_id: string };
+  /** §9.3 M4 / design B-1: a role-indexed MAP, never a scalar. A scalar cannot be indexed by role
+   *  and would silently degrade M4 back to the shipped parent-equality check. */
+  readonly identity: { readonly model_execution_identity_hash: Readonly<Record<string, string>> };
+}
+
 export interface MergeTrajectoryOptions {
   trajectoryRoot: string;
   outputPath: string;
   subagentLinks?: ThreadLink[];
+  /**
+   * §9.2's attempt DAG. When supplied, the merge partitions at `roots.parent_attempt_id` and
+   * recurses over the authoritative edges (§9.3 M2/M3) and indexes identity by role (M4). Without
+   * it the merge keeps the shipped one-level, tool-result-derived path — the modes that have no
+   * composite manifest producer yet.
+   */
+  attemptDag?: AttemptDag;
 }
 
 export interface FragmentOutcome {
@@ -373,6 +398,248 @@ function orderChildren(children: SourceFragment[], links: ThreadLink[]): SourceF
   return links.map(link => byId.get(link.threadId)!);
 }
 
+// ---------------------------------------------------------------------------------------------
+// §9.3 M2/M3/M4/M7 — the plan the builder walks, rooted in the attempt DAG
+// ---------------------------------------------------------------------------------------------
+
+interface PlanNode extends AtifNode {
+  readonly fragment: SourceFragment;
+  readonly links: ThreadLink[];
+  readonly children: PlanNode[];
+}
+
+/** §9.2's parent→child subset. `depends_on` is task→task ordering, not descent, and is excluded. */
+const DAG_EDGE_KINDS = new Set<AttemptEdge['kind']>(['spawn', 'decompose', 'dispatch']);
+const ATTEMPT_PREFIX = 'attempt ';
+
+function endpointKey(ref: EndpointRef): string {
+  return ref.ref === 'direct-parent' ? 'direct-parent ' : `${ref.ref} ${ref.id}`;
+}
+
+function dagAdjacency(edges: readonly AttemptEdge[]): ReadonlyMap<string, string[]> {
+  const adjacency = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (!DAG_EDGE_KINDS.has(edge.kind)) continue;
+    const from = endpointKey(edge.from);
+    const bucket = adjacency.get(from);
+    if (bucket) bucket.push(endpointKey(edge.to));
+    else adjacency.set(from, [endpointKey(edge.to)]);
+  }
+  return adjacency;
+}
+
+/**
+ * The attempts exactly one ATTEMPT hop below `attemptId`. Task vertices are transparent: a manager
+ * descends `attempt --decompose→ task --dispatch→ attempt`, so a walk that only followed
+ * attempt→attempt edges would see a manager tree as a flat list of one.
+ */
+function childAttempts(adjacency: ReadonlyMap<string, string[]>, attemptId: string): string[] {
+  const children: string[] = [];
+  const seen = new Set<string>();
+  const queue = [`${ATTEMPT_PREFIX}${attemptId}`];
+  while (queue.length > 0) {
+    for (const next of adjacency.get(queue.shift()!) ?? []) {
+      if (seen.has(next)) continue;
+      seen.add(next);
+      if (next.startsWith(ATTEMPT_PREFIX)) children.push(next.slice(ATTEMPT_PREFIX.length));
+      else queue.push(next);
+    }
+  }
+  return children;
+}
+
+function fragmentAttemptId(fragment: SourceFragment): string {
+  return mintAttemptId(fragment.header.root_run_id, fragment.header.thread_id);
+}
+
+interface DagDescent {
+  readonly childrenOf: ReadonlyMap<string, string[]>;
+  readonly reachable: ReadonlySet<string>;
+}
+
+/** One parent per attempt: the published ATIF is a tree, so an attempt two parents claim has no
+ *  single place in it. Also catches a cycle, which re-visits an already-claimed attempt. */
+function descend(dag: AttemptDag, rootId: string): DagDescent {
+  const adjacency = dagAdjacency(dag.edges);
+  const childrenOf = new Map<string, string[]>();
+  const reachable = new Set<string>([rootId]);
+  const queue = [rootId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const children = childAttempts(adjacency, current);
+    childrenOf.set(current, children);
+    for (const child of children) {
+      if (reachable.has(child)) {
+        mergeError('ambiguous_subagent_link', `Two attempts claim child attempt ${child}`);
+      }
+      reachable.add(child);
+      queue.push(child);
+    }
+  }
+  return { childrenOf, reachable };
+}
+
+function indexFragments(fragments: SourceFragment[]): ReadonlyMap<string, SourceFragment> {
+  const byAttempt = new Map<string, SourceFragment>();
+  for (const fragment of fragments) {
+    const attemptId = fragmentAttemptId(fragment);
+    if (byAttempt.has(attemptId)) {
+      mergeError('ambiguous_subagent_link', `Two fragments claim attempt ${attemptId}`);
+    }
+    byAttempt.set(attemptId, fragment);
+  }
+  return byAttempt;
+}
+
+function indexNodes(dag: AttemptDag): ReadonlyMap<string, number> {
+  const order = new Map<string, number>();
+  dag.nodes.forEach((node, index) => {
+    if (order.has(node.attempt_id)) {
+      mergeError('ambiguous_subagent_link', `Two nodes claim attempt ${node.attempt_id}`);
+    }
+    order.set(node.attempt_id, index);
+  });
+  return order;
+}
+
+/**
+ * §9.3 M7, generalised from a flat list to DAG nodes ↔ lifecycle pairs. Every unaccounted attempt
+ * gets a NAMED refusal; nothing is dropped and nothing is reconstructed by guess.
+ */
+function assertDagCompleteness(
+  dag: AttemptDag,
+  descent: DagDescent,
+  order: ReadonlyMap<string, number>,
+  byAttempt: ReadonlyMap<string, SourceFragment>,
+): void {
+  for (const attemptId of descent.reachable) {
+    if (!order.has(attemptId)) {
+      mergeError('missing_child_fragment', `Edge reaches undeclared attempt ${attemptId}`);
+    }
+  }
+  for (const node of dag.nodes) {
+    if (!descent.reachable.has(node.attempt_id)) {
+      mergeError('unresolvable_subagent_link', `Attempt ${node.attempt_id} is not reachable from the root`);
+    }
+    if (!byAttempt.has(node.attempt_id)) {
+      mergeError('missing_child_fragment', `Attempt ${node.attempt_id} has no lifecycle pair`);
+    }
+  }
+  for (const attemptId of byAttempt.keys()) {
+    if (!order.has(attemptId)) {
+      mergeError('unbound_child_fragment', `Lifecycle pair ${attemptId} has no attempt node`);
+    }
+  }
+}
+
+/**
+ * §9.3 M4 / design B-1 — an INDEXING operation. The attempt's own scalar MEIH (§9.1) must equal
+ * `identity.model_execution_identity_hash[attempt.role]`; a role with no entry, or an entry the
+ * attempt disagrees with, is `identity_hash_drift`. `plan:222` permits heterogeneous role models
+ * when frozen in policy, which parent-equality cannot express.
+ */
+function assertRoleIndexedIdentity(
+  dag: AttemptDag, byAttempt: ReadonlyMap<string, SourceFragment>,
+): void {
+  const frozen = dag.identity.model_execution_identity_hash;
+  for (const node of dag.nodes) {
+    if (!Object.hasOwn(frozen, node.role)) {
+      mergeError('identity_hash_drift', `Role ${node.role} has no frozen model execution identity`);
+    }
+    const observed = byAttempt.get(node.attempt_id)!.header.model_execution_identity_hash;
+    if (observed !== frozen[node.role]) {
+      mergeError('identity_hash_drift', `Attempt ${node.attempt_id} disagrees with its role's frozen identity`);
+    }
+  }
+}
+
+function assertOneRootRunId(fragments: SourceFragment[], rootRunId: string): void {
+  if (fragments.some(fragment => fragment.header.root_run_id !== rootRunId)) {
+    mergeError('malformed_fragment', 'Root run id differs between attempts');
+  }
+}
+
+/** Links annotate observations only. In the DAG path they must still name a child of their OWN
+ *  node, or the published `subagent_trajectory_ref` would point outside this node's subtree. */
+function nodeLinks(
+  fragment: SourceFragment, children: readonly PlanNode[], explicit: ThreadLink[] | undefined,
+): ThreadLink[] {
+  const callIds = new Set(threadCalls(fragment.events).map(call => call.callId));
+  const own = explicit === undefined
+    ? collectThreadLinks(fragment.events)
+    : explicitLinksInCallOrder(fragment.events, explicit.filter(link => callIds.has(link.callId)));
+  const childThreads = new Set(children.map(child => child.fragment.header.thread_id));
+  if (own.some(link => !childThreads.has(link.threadId))) {
+    mergeError('unresolvable_subagent_link', 'Resolved link names an attempt that is not a child of its caller');
+  }
+  return own;
+}
+
+function planNode(
+  attemptId: string,
+  descent: DagDescent,
+  order: ReadonlyMap<string, number>,
+  byAttempt: ReadonlyMap<string, SourceFragment>,
+  explicit: ThreadLink[] | undefined,
+): PlanNode {
+  const fragment = byAttempt.get(attemptId)!;
+  // G4-CM12's total order is the manifest's own; re-deriving one here would make the published
+  // tree depend on the merge instead of on the document it walks.
+  const children = [...(descent.childrenOf.get(attemptId) ?? [])]
+    .sort((left, right) => order.get(left)! - order.get(right)!)
+    .map(child => planNode(child, descent, order, byAttempt, explicit));
+  return { fragment, links: nodeLinks(fragment, children, explicit), children };
+}
+
+function planFromDag(
+  fragments: SourceFragment[], dag: AttemptDag, explicit: ThreadLink[] | undefined,
+): PlanNode {
+  const rootId = dag.roots.parent_attempt_id;
+  const order = indexNodes(dag);
+  if (!order.has(rootId)) {
+    mergeError('malformed_fragment', `Root attempt ${rootId} is not declared by the manifest`);
+  }
+  const byAttempt = indexFragments(fragments);
+  const descent = descend(dag, rootId);
+  assertDagCompleteness(dag, descent, order, byAttempt);
+  assertOneRootRunId(fragments, byAttempt.get(rootId)!.header.root_run_id);
+  assertRoleIndexedIdentity(dag, byAttempt);
+  return planNode(rootId, descent, order, byAttempt, explicit);
+}
+
+/** The shipped one-level path, unchanged, for the modes with no composite manifest producer. */
+function planFromLinks(
+  fragments: SourceFragment[], explicit: ThreadLink[] | undefined,
+): { root: PlanNode; source: 'tool_result' | 'explicit' } {
+  const { parent, children } = partitionFragments(fragments);
+  assertRootIdentity(parent, children);
+  const resolved = resolveLinks(parent, explicit);
+  return {
+    root: {
+      fragment: parent,
+      links: resolved.links,
+      children: orderChildren(children, resolved.links)
+        .map(child => ({ fragment: child, links: [], children: [] })),
+    },
+    source: resolved.source,
+  };
+}
+
+function buildPlan(
+  fragments: SourceFragment[], options: MergeTrajectoryOptions,
+): { root: PlanNode; source: 'tool_result' | 'explicit' } {
+  const explicit = options.subagentLinks?.length ? options.subagentLinks : undefined;
+  if (!options.attemptDag) return planFromLinks(fragments, explicit);
+  return {
+    root: planFromDag(fragments, options.attemptDag, explicit),
+    source: explicit === undefined ? 'tool_result' : 'explicit',
+  };
+}
+
+function planFragments(node: PlanNode): SourceFragment[] {
+  return [node.fragment, ...node.children.flatMap(planFragments)];
+}
+
 function removeIfExists(filePath: string, fileSystem: TrajectoryMergeFileSystem): void {
   if (fileSystem.exists(filePath)) fileSystem.unlink(filePath);
 }
@@ -519,9 +786,15 @@ function assertMetricsDerivable(fragments: SourceFragment[]): void {
   for (const fragment of fragments) fragmentMetrics(fragment);
 }
 
-function aggregateFinalMetrics(fragments: SourceFragment[]): AtifFinalMetrics {
+/** §9.3 M6 — summed RECURSIVELY over the DAG, keeping the safe-integer guards. A sum over the root
+ *  and its direct children alone would silently omit every grandchild's spend. */
+function addPlanMetrics(total: MetricAccumulator, node: PlanNode): MetricAccumulator {
+  return node.children.reduce(addPlanMetrics, addFragmentMetrics(total, node.fragment));
+}
+
+function aggregateFinalMetrics(root: PlanNode): AtifFinalMetrics {
   const zero = { prompt: 0, completion: 0, cached: 0, cost: 0, steps: 0 };
-  const total = fragments.reduce(addFragmentMetrics, zero);
+  const total = addPlanMetrics(zero, root);
   if (!Number.isFinite(total.cost)) return underivable('total_cost_usd is not finite');
   return {
     total_prompt_tokens: total.prompt,
@@ -555,27 +828,21 @@ function resolveLinks(
 }
 
 function mergeBytes(
-  root: string, fileSystem: TrajectoryMergeFileSystem, explicit: ThreadLink[] | undefined,
+  root: string, fileSystem: TrajectoryMergeFileSystem, options: MergeTrajectoryOptions,
 ): { bytes: Buffer; trajectoryId: string; fragments: FragmentOutcome[] } {
   const inputs = loadInputs(root, fileSystem);
+  // M5 and M8 hold for every node of the DAG because every node is one of these inputs.
   assertContainment(inputs);
   const fragments = inputs.map(parseJournal);
   assertMetricsDerivable(fragments);
   validateSnapshot(inputs);
-  const { parent, children } = partitionFragments(fragments);
-  assertRootIdentity(parent, children);
-  const resolved = resolveLinks(parent, explicit);
-  const orderedChildren = orderChildren(children, resolved.links);
-  const orderedFragments = [parent, ...orderedChildren];
-  const finalMetrics = aggregateFinalMetrics(orderedFragments);
-  const trajectory = buildAtifTree(
-    parent, orderedChildren, resolved.links, resolved.source, finalMetrics,
-  );
-  const outcomes = orderedFragments.map(fragmentOutcome);
+  const plan = buildPlan(fragments, options);
+  const finalMetrics = aggregateFinalMetrics(plan.root);
+  const trajectory = buildAtifTree(plan.root, plan.source, finalMetrics);
   return {
     bytes: Buffer.from(`${JSON.stringify(trajectory, null, 2)}\n`),
     trajectoryId: trajectory.trajectory_id,
-    fragments: outcomes,
+    fragments: planFragments(plan.root).map(fragmentOutcome),
   };
 }
 
@@ -586,9 +853,7 @@ export function mergeTrajectory(
   const outputPath = path.resolve(options.outputPath);
   try {
     assertOutputPrecondition(outputPath, fileSystem);
-    const merged = mergeBytes(
-      path.resolve(options.trajectoryRoot), fileSystem, options.subagentLinks,
-    );
+    const merged = mergeBytes(path.resolve(options.trajectoryRoot), fileSystem, options);
     publish(outputPath, merged.bytes, fileSystem);
     return {
       outputPath,

@@ -38,6 +38,18 @@ export interface ThreadLink {
   threadId: string;
 }
 
+/**
+ * One node of the attempt DAG as the ATIF builder walks it (§9.3 M3). `links` are the tool calls
+ * THIS node made that resolve to a child trajectory; they annotate observations and never define
+ * structure — a manager edge (`decompose`/`dispatch`) appears in no tool result at all, so `links`
+ * is legitimately empty while `children` is not.
+ */
+export interface AtifNode {
+  readonly fragment: SourceFragment;
+  readonly links: readonly ThreadLink[];
+  readonly children: readonly AtifNode[];
+}
+
 export interface AtifFinalMetrics {
   total_prompt_tokens: number;
   total_completion_tokens: number;
@@ -254,9 +266,14 @@ function buildSteps(
   return groupEvents(fragment.events).map((group, index) => buildStep(group, index + 1, links));
 }
 
-function buildTrajectory(
-  fragment: SourceFragment, links: ReadonlyMap<string, string>,
-): AtifTrajectory {
+/**
+ * §9.3 M3 — recursive. Every node is built with ITS OWN link map, so nesting follows the DAG to
+ * whatever depth the DAG has: one level for `coder-review` (§9.4 C7), the full depth for `manager`
+ * (§9.4 M-16). The two are the same code because depth is a property of the DAG, not of the builder.
+ */
+function buildTrajectory(node: AtifNode): AtifTrajectory {
+  const fragment = node.fragment;
+  const links = new Map(node.links.map(link => [link.callId, link.threadId]));
   const id = fragment.header.thread_id ?? fragment.header.root_run_id;
   const trajectory: AtifTrajectory = {
     schema_version: 'ATIF-v1.7',
@@ -266,6 +283,9 @@ function buildTrajectory(
     extra: trajectoryExtra(fragment),
   };
   if (fragment.header.thread_id === null) trajectory.session_id = fragment.header.root_run_id;
+  if (node.children.length > 0) {
+    trajectory.subagent_trajectories = node.children.map(buildTrajectory);
+  }
   return trajectory;
 }
 
@@ -286,22 +306,14 @@ function attachFinalMetrics(root: AtifTrajectory, metrics: AtifFinalMetrics): At
   return root;
 }
 
-/** Children are supplied in parent thread_run call order; timestamps never order trajectories. */
+/** Children arrive already ordered by the caller — call order, or the DAG's own node order for a
+ *  manager tree. Timestamps never order trajectories. */
 export function buildAtifTree(
-  parent: SourceFragment,
-  children: SourceFragment[],
-  threadLinks: ThreadLink[],
+  root: AtifNode,
   linkSource: 'tool_result' | 'explicit',
   finalMetrics: AtifFinalMetrics,
 ): AtifTrajectory {
-  const links = new Map(threadLinks.map(link => [link.callId, link.threadId]));
-  const childById = new Map(children.map(child => [child.header.thread_id, child]));
-  const root = buildTrajectory(parent, links);
-  root.extra.subagent_link_source = linkSource;
-  if (threadLinks.length > 0) {
-    root.subagent_trajectories = threadLinks.map(link => (
-      buildTrajectory(childById.get(link.threadId)!, new Map())
-    ));
-  }
-  return attachFinalMetrics(root, finalMetrics);
+  const trajectory = buildTrajectory(root);
+  trajectory.extra.subagent_link_source = linkSource;
+  return attachFinalMetrics(trajectory, finalMetrics);
 }
