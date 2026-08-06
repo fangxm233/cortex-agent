@@ -111,8 +111,12 @@ function collectToolUses(
 
 function collectToolResults(
   events: SourceJournalEvent[], start: number, callIds: Set<string>,
+  attested: ReadonlySet<string>,
 ): { records: SourceJournalEvent[]; next: number } {
   const records: SourceJournalEvent[] = [];
+  // Calls in this batch that a `subagent_activity` event attests — i.e. the spans in which a
+  // native subagent is producing output of its own. Emptied as each one's result arrives.
+  const openSubagentCalls = new Set([...callIds].filter(id => attested.has(id)));
   let index = start;
   while (index < events.length) {
     const record = events[index];
@@ -125,21 +129,34 @@ function collectToolResults(
       continue;
     }
     const result = record.event;
-    if (result.type !== 'tool_result' || !callIds.has(result.toolUseId)) break;
+    if (result.type === 'tool_result' && callIds.has(result.toolUseId)) {
+      openSubagentCalls.delete(result.toolUseId);
+      records.push(record);
+      index += 1;
+      continue;
+    }
+    // A native subagent runs INSIDE its caller's tool call, so its own text and tool events land
+    // between that call and that call's result (D-ADDITIVE keeps them flowing to the handlers that
+    // journal them). While such a call is open and attested, those events belong to this batch.
+    // Nothing is absorbed on an unattested call, so `unpaired_tool_result` keeps its full strength
+    // for every journal that has no native-subagent census.
+    if (openSubagentCalls.size === 0) break;
     records.push(record);
     index += 1;
   }
   return { records, next: index };
 }
 
-function toolBatch(events: SourceJournalEvent[], start: number): { group: EventGroup; next: number } {
+function toolBatch(
+  events: SourceJournalEvent[], start: number, attested: ReadonlySet<string>,
+): { group: EventGroup; next: number } {
   const uses = collectToolUses(events, start);
   const callIds = new Set(uses.records.map(record => {
     const event = record.event;
     return event.type === 'tool_use' ? event.toolUseId : '';
   }));
   if (callIds.size !== uses.records.length) malformed('duplicate_tool_call_id');
-  const results = collectToolResults(events, uses.next, callIds);
+  const results = collectToolResults(events, uses.next, callIds, attested);
   const resultIds = results.records.flatMap(record => (
     record.event.type === 'tool_result' ? [record.event.toolUseId] : []
   ));
@@ -147,9 +164,17 @@ function toolBatch(events: SourceJournalEvent[], start: number): { group: EventG
   return { group: { records: [...uses.records, ...results.records] }, next: results.next };
 }
 
+/** The tool calls this fragment's census events attest a native subagent ran under (§17 G4-SA6). */
+function attestedSubagentCalls(events: SourceJournalEvent[]): ReadonlySet<string> {
+  return new Set(events.flatMap(record => (
+    record.event.type === 'subagent_activity' ? [record.event.parentToolUseId] : []
+  )));
+}
+
 /** Preserve each fragment's C2 seq order; contiguous tool calls and results form one ATIF step. */
 function groupEvents(events: SourceJournalEvent[]): EventGroup[] {
   const groups: EventGroup[] = [];
+  const attested = attestedSubagentCalls(events);
   let index = 0;
   while (index < events.length) {
     const type = eventType(events[index]);
@@ -159,7 +184,7 @@ function groupEvents(events: SourceJournalEvent[]): EventGroup[] {
       index += 1;
       continue;
     }
-    const batch = toolBatch(events, index);
+    const batch = toolBatch(events, index, attested);
     groups.push(batch.group);
     index = batch.next;
   }

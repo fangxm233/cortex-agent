@@ -6,6 +6,14 @@
 // SEAM NOTE. Every case runs the production `mergeTrajectory` over on-disk journals written by the
 // shared fixtures; nothing test-supplied stands in for production composition. The census events
 // are INPUT DATA in the exact shape `adapter.ts` emits (`event-types.ts` `subagent_activity`).
+//
+// TWO journal shapes appear here, deliberately. `censusEvents` is the MINIMAL shape (a call, its
+// census events, its result). `interleavedSubagentEvents` is the FULL PRODUCTION shape, in which
+// the subagent's own `assistant_text` and `tool_result` events also land between the `Agent`/`Task`
+// call and that call's result, exactly as the adapter emits them (proved by
+// `tests/agent-adapter/claude-subagent-activity.test.ts`, which asserts a subagent line still
+// reaches `onAssistantMessage`/`onToolUse`). The minimal shape alone would let an ATIF grouping
+// defect through, so the derivation is asserted against BOTH.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -235,6 +243,59 @@ describe('G4-SA11 — publication', () => {
     });
     expect(result.status, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout).ok).toBe(true);
+  });
+});
+
+/**
+ * The FULL production wire shape for one native-subagent call, in the order the adapter journals
+ * it: the `Agent`/`Task` call, then the subagent's own output (its text and its tool results, which
+ * D-ADDITIVE keeps flowing to the existing handlers) interleaved with the census events, then the
+ * call's own result. Mirrors `agent-run-e2e-fixture.ts`'s `FAKE_CLAUDE_SUBAGENT` lines.
+ */
+function interleavedSubagentEvents(callId: string, toolName = 'Task'): EventSpec[] {
+  const shared = { ts: '2026-08-01T00:00:02.000Z', step: null, agentSlot: 'parent' } as const;
+  const activity = (kind: 'assistant' | 'tool_result') => ({
+    ...shared,
+    event: {
+      type: 'subagent_activity', parentToolUseId: callId, subagentType: 'explore', kind,
+    },
+  });
+  return [
+    { ...shared, event: { type: 'tool_use', toolUseId: callId, name: toolName, input: { prompt: 'go' } } },
+    { ...shared, event: { type: 'assistant_text', text: 'subagent speaking' } },
+    activity('assistant'),
+    { ...shared, event: { type: 'tool_result', toolUseId: 'sub-call-1', ok: true, content: 'sub ok' } },
+    activity('tool_result'),
+    { ...shared, event: { type: 'tool_result', toolUseId: callId, ok: true, content: 'agent done' } },
+  ];
+}
+
+describe('the production wire shape publishes', () => {
+  it('derives the census from a journal the adapter would really write', () => {
+    const trajectory = publishParent(makeRoot(), interleavedSubagentEvents('toolu_agent_1'));
+    expect(trajectory.final_metrics.extra.subagent_turns).toBe(1);
+    expect(trajectory.final_metrics.total_steps).toBe(1);
+    // The subagent's own text is still carried, through the existing members and not the census.
+    const carried = JSON.stringify(trajectory.steps);
+    expect(carried).toContain('subagent speaking');
+  });
+
+  it('keeps unpaired_tool_result strict when no census attests the open call', () => {
+    const events = interleavedSubagentEvents('toolu_agent_1')
+      .filter(spec => (spec.event as { type: string }).type !== 'subagent_activity');
+    // Without attestation the census refuses first, so drop the call and keep only the orphan
+    // result: an unattested interleaving must still be malformed, exactly as it is today.
+    const orphan: EventSpec[] = events.filter(spec => {
+      const event = spec.event as { type: string; toolUseId?: string };
+      return !(event.type === 'tool_use' && event.toolUseId === 'toolu_agent_1');
+    });
+    expect(refusalOf(() => publishParent(makeRoot(), orphan))).toBe(MALFORMED);
+  });
+
+  it('still refuses the production shape when the census is empty', () => {
+    const events = interleavedSubagentEvents('toolu_agent_1')
+      .filter(spec => (spec.event as { type: string }).type !== 'subagent_activity');
+    expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(UNDERIVABLE);
   });
 });
 
