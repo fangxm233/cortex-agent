@@ -410,10 +410,10 @@ interface PlanNode extends AtifNode {
 
 /** §9.2's parent→child subset. `depends_on` is task→task ordering, not descent, and is excluded. */
 const DAG_EDGE_KINDS = new Set<AttemptEdge['kind']>(['spawn', 'decompose', 'dispatch']);
-const ATTEMPT_PREFIX = 'attempt ';
+const ATTEMPT_PREFIX = 'attempt\u0000';
 
 function endpointKey(ref: EndpointRef): string {
-  return ref.ref === 'direct-parent' ? 'direct-parent ' : `${ref.ref} ${ref.id}`;
+  return ref.ref === 'direct-parent' ? 'direct-parent\u0000' : `${ref.ref}\u0000${ref.id}`;
 }
 
 function dagAdjacency(edges: readonly AttemptEdge[]): ReadonlyMap<string, string[]> {
