@@ -1,5 +1,5 @@
 // input:  PI WebSearch tool, stubbed provider HTTP responses
-// output: WebSearch dispatch, terminal, and mislabeled SSE tests
+// output: DeepSeek routing, terminal, and SSE decoding tests
 // pos:    PI WebSearch response validation regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -155,6 +155,42 @@ test('dispatches anthropic-messages through model.baseUrl and returns source URL
   assert.match(result.content[0].text, /current release is 24\.1\.0/i);
   assert.match(result.content[0].text, /Queries:\n- runtime release status/);
   assert.equal(result.content[0].text.match(new RegExp(SOURCE_URL, 'g'))?.length, 1);
+});
+
+test('routes PI DeepSeek completions models through the Anthropic web-search endpoint', async () => {
+  const ctx = makeContext({
+    api: 'openai-completions',
+    provider: 'deepseek',
+    baseUrl: 'https://gateway.example.test/m/deepseek/deepseek',
+  });
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+    content: [
+      { type: 'server_tool_use', input: { query: 'deepseek runtime release' } },
+      { type: 'web_search_tool_result', content: [{ url: SOURCE_URL }] },
+      { type: 'text', text: 'DeepSeek returned a sourced search result.' },
+    ],
+  }), { headers: { 'content-type': 'application/json' } }));
+
+  const result = await executeSearch(ctx);
+
+  assert.equal(
+    fetchSpy.mock.calls[0][0],
+    'https://gateway.example.test/m/deepseek/deepseek/anthropic/v1/messages',
+  );
+  const init = fetchSpy.mock.calls[0][1] as RequestInit;
+  const headers = new Headers(init.headers);
+  assert.equal(headers.get('authorization'), 'Bearer test-api-key');
+  assert.equal(headers.has('x-api-key'), false);
+  const body = JSON.parse(String(init.body));
+  assert.equal(body.model, 'search-model');
+  assert.deepEqual(body.tools, [{
+    type: 'web_search_20250305',
+    name: 'web_search',
+    max_uses: 3,
+  }]);
+  assert.match(result.content[0].text, /DeepSeek returned a sourced search result/);
+  assert.match(result.content[0].text, /Queries:\n- deepseek runtime release/);
+  assert.match(result.content[0].text, new RegExp(SOURCE_URL));
 });
 
 test('uses bearer authentication for Anthropic OAuth tokens', async () => {

@@ -1,5 +1,5 @@
 // input:  TypeBox, PI model context, provider HTTP APIs
-// output: Validated API-dispatched PI WebSearch tool
+// output: Validated provider/API-dispatched PI WebSearch tool
 // pos:    PI search request and resilient response decoder
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -141,6 +141,19 @@ function anthropicTool(
   };
 }
 
+function anthropicBody(
+  model: ExtensionModel,
+  params: WebSearchParams,
+  sendDomainFields: boolean,
+): Record<string, unknown> {
+  return {
+    model: model.id,
+    max_tokens: model.maxTokens,
+    messages: [{ role: 'user', content: searchPrompt(params) }],
+    tools: [anthropicTool(params, sendDomainFields)],
+  };
+}
+
 function buildAnthropicRequest(
   model: ExtensionModel,
   auth: ResolvedRequestAuth & { ok: true },
@@ -150,15 +163,33 @@ function buildAnthropicRequest(
   const headers = mergedHeaders(model, auth, 'application/json');
   setAnthropicAuth(headers, auth.apiKey);
   if (!headers.has('anthropic-version')) headers.set('anthropic-version', '2023-06-01');
-  const body = {
-    model: model.id,
-    max_tokens: model.maxTokens,
-    messages: [{ role: 'user', content: searchPrompt(params) }],
-    tools: [anthropicTool(params, sendDomainFields)],
-  };
   return {
     url: joinEndpoint(model.baseUrl, '/v1/messages'),
-    init: { method: 'POST', headers, body: JSON.stringify(body) },
+    init: {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(anthropicBody(model, params, sendDomainFields)),
+    },
+    responseType: 'anthropic',
+  };
+}
+
+function buildDeepSeekRequest(
+  model: ExtensionModel,
+  auth: ResolvedRequestAuth & { ok: true },
+  params: WebSearchParams,
+  sendDomainFields: boolean,
+): SearchRequest {
+  const headers = mergedHeaders(model, auth, 'application/json');
+  setBearerAuth(headers, auth.apiKey);
+  if (!headers.has('anthropic-version')) headers.set('anthropic-version', '2023-06-01');
+  return {
+    url: joinEndpoint(model.baseUrl, '/anthropic/v1/messages'),
+    init: {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(anthropicBody(model, params, sendDomainFields)),
+    },
     responseType: 'anthropic',
   };
 }
@@ -288,8 +319,15 @@ const searchBackends: Record<string, SearchBackend> = {
   },
   'openai-codex-responses': { buildRequest: buildCodexRequest, sendsDomainFields: false },
 };
+const deepSeekSearchBackend: SearchBackend = {
+  buildRequest: buildDeepSeekRequest,
+  sendsDomainFields: true,
+};
 
 function resolveSearchBackend(model: ExtensionModel): SearchBackend | null {
+  if (model.provider === 'deepseek' && model.api === 'openai-completions') {
+    return deepSeekSearchBackend;
+  }
   return searchBackends[model.api] ?? null;
 }
 

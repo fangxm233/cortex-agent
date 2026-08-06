@@ -22,7 +22,7 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 | mcp-bridge-logic.ts | core | decides server loading and maps tool content |
 | hook-bridge.ts | bridge | preserves native PI hook results and mutations |
 | web-fetch.ts | tool | fetches bounded HTTP(S) and strips data images |
-| web-search.ts | tool | decodes search responses from the active model API |
+| web-search.ts | tool | routes and decodes provider-side search responses |
 | subagent.ts | tool | describes role names and runs scoped PI children |
 | tool-shims.ts | bridge | gates Agent, interaction, todo, and web tools |
 | quota-probe.ts | bridge | reports provider quota read off response headers |
