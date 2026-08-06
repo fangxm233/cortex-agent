@@ -93,7 +93,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | manager-rotation.test.ts | test | live settings and task-artifact rehydration |
 | manager-task-artifact.test.ts | test | task-keyed manager artifact placement |
 | memory-index-regen.test.ts | test | memory index rebuild lifecycle sections |
-| message-router.test.ts | test | message routing branches and edit handoff |
+| message-router.test.ts | test | message routing, mention normalization and edits |
 | mode-manager.test.ts | test | per-request mode routing and API key policy |
 | module-loader.ts | helper | fresh ESM import and root path helpers |
 | native/ | subdir | real Linux native process integration tests |

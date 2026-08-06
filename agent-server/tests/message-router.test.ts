@@ -1,5 +1,5 @@
 // input:  Node test runner + registerMessageHandler + MockAdapter
-// output: early-return branches + edit delegation tests
+// output: mention normalization, routing, and edit delegation tests
 // pos:    Verify message-router core routing branches
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -107,6 +107,35 @@ test('non-thread command that dispatchCommand claims causes early return', async
   assert.equal(dispatchCalls[0].text, '!status');
   // Dispatch claimed it — no further postMessage should have been emitted by the router.
   assert.equal(adapter.posted.length, 0);
+});
+
+const MENTIONED_COMMANDS = [
+  ['Slack leading mention', '<@U_CORTEX> !status', '!status'],
+  ['Feishu leading mention', '@Cortex !status', '!status'],
+  ['Feishu placeholder mention', '@_user_1 !status', '!status'],
+  ['trailing mention', '!profile @Cortex', '!profile'],
+  ['mentions on both sides', '<@U_CORTEX>   !profile   @Cortex', '!profile'],
+] as const;
+
+for (const [name, input, expected] of MENTIONED_COMMANDS) {
+  test(`command dispatch ignores ${name}`, async () => {
+    const adapter = new MockAdapter();
+    const { deps, dispatchCalls } = buildDeps(/* dispatchReturns */ true);
+    registerMessageHandler(adapter, deps);
+
+    await adapter.simulateMessage('C1', input, { senderId: 'U1' });
+    assert.equal(dispatchCalls.length, 1);
+    assert.equal(dispatchCalls[0].text, expected);
+  });
+}
+
+test('ordinary messages retain standalone mentions during command check', async () => {
+  const adapter = new MockAdapter();
+  const { deps, dispatchCalls } = buildDeps(/* dispatchReturns */ true);
+  registerMessageHandler(adapter, deps);
+
+  await adapter.simulateMessage('C1', '@Cortex please review this', { senderId: 'U1' });
+  assert.equal(dispatchCalls[0].text, '@Cortex please review this');
 });
 
 test('handleMessageEdit is NOT invoked on plain message events (short-circuited by dispatchCommand)', async () => {

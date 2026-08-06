@@ -10,5 +10,5 @@ Covers chat messages, message edits, file attachments, agent hook requests and H
 | file-handler.ts | util | downloads attachments and classifies types |
 | hook-bridge.ts | core | pairs hook requests with replies and blocking TTL |
 | hook-bridge-subscribers.ts | handlers | posts question and plan requests to users |
-| message-router.ts | entry | routes chat messages to the orchestrator |
+| message-router.ts | entry | normalizes mentions and routes chat commands |
 | webhook.ts | entry | serves routes with settings-backed depth limits |
