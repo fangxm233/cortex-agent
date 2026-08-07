@@ -26,8 +26,12 @@ import {
   checkIdsForMode, validateCompositeManifest,
 } from '../../../src/domain/benchmark/composite-manifest.js';
 import {
-  ATTEMPT_RECORD_KEYS, mintAttemptId,
+  ATTEMPT_EDGE_KINDS, ATTEMPT_RECORD_KEYS, mintAttemptId,
 } from '../../../src/domain/benchmark/attempt-record.js';
+import {
+  writeStartedMarker, writeTerminalManifest,
+} from '../../../src/domain/agent-run/manifest.js';
+import { createHash } from 'node:crypto';
 import { BENCHMARK_FAILURES } from '../../../src/domain/benchmark/resolved-policy.js';
 import {
   mergeTrajectory, TrajectoryMergeError,
@@ -158,16 +162,34 @@ function writeProfile(): void {
   profileRepo.invalidate();
 }
 
-function armResolution(cli: string): Record<string, unknown> {
+type ArmMode = 'direct' | 'coder-review';
+
+function armResolution(cli: string, mode: ArmMode = 'direct'): Record<string, unknown> {
+  const coderReview = mode === 'coder-review';
+  // §1.3 rule 7 keeps BOTH task limits at 0 for every non-manager mode, and `arm-schema.ts`
+  // requires `max_thread_starts` to be exactly 1 for coder-review and 0 otherwise.
+  const parentRole = {
+    system_prompt_path: write(path.join(root, 'parent-system.txt'), 'You are the benchmark parent.\n'),
+    directive_path: write(path.join(root, 'parent-directive.txt'), 'Solve the task.\n'),
+    tools: ['Read', 'Write'],
+    plugin_dirs: [],
+    mcp_composition: 'none',
+    mcp_config_paths: [write(path.join(root, 'mcp-empty.json'), '{"mcpServers":{}}\n')],
+    disable_hooks: true,
+  };
+  const templateDir = path.join(installRoot, 'defaults/config/thread-templates');
   return {
     schema_version: 'cortex-benchmark-arm-resolution/1',
     arm: {
       schema_version: 'cortex-benchmark-arm/2',
       kind: 'cortex', name: 'cortex-direct', backend: 'claude', provider: 'anthropic',
       model: 'claude-sonnet', credential_capability: 'claude-api-key',
-      orchestration: { mode: 'direct', ask_manager: false },
+      orchestration: coderReview
+        ? { mode: 'coder-review', coder_review_variant: 'audit-retry', ask_manager: false }
+        : { mode: 'direct', ask_manager: false },
       limits: {
-        max_thread_starts: 0, max_parent_questions: 0, max_task_depth: 0, max_tasks: 0,
+        max_thread_starts: coderReview ? 1 : 0,
+        max_parent_questions: 0, max_task_depth: 0, max_tasks: 0,
         max_provider_requests: 8, max_resident_agent_processes: 3, max_cost_usd: '2.50',
         deadline_seconds: 90,
       },
@@ -196,28 +218,39 @@ function armResolution(cli: string): Record<string, unknown> {
     },
     cli_artifact: { path: cli, version: CLI_VERSION },
     model_alias_policy: { kind: 'exact' },
-    roles: {
-      parent: {
-        system_prompt_path: write(path.join(root, 'parent-system.txt'), 'You are the benchmark parent.\n'),
-        directive_path: write(path.join(root, 'parent-directive.txt'), 'Solve the task.\n'),
-        tools: ['Read', 'Write'],
-        plugin_dirs: [],
-        mcp_composition: 'none',
-        mcp_config_paths: [write(path.join(root, 'mcp-empty.json'), '{"mcpServers":{}}\n')],
-        disable_hooks: true,
-      },
-    },
-    thread_templates: {},
-    thread_agents: {},
+    roles: coderReview
+      ? {
+          parent: parentRole,
+          // The role-slot vocabulary is CLOSED; these are the two the template names.
+          'benchmark-coder': structuredClone(parentRole),
+          'benchmark-reviewer': structuredClone(parentRole),
+        }
+      : { parent: parentRole },
+    thread_templates: coderReview
+      ? {
+          'benchmark-coder-review':
+            path.join(templateDir, 'templates/benchmark-coder-review.json'),
+        }
+      : {},
+    thread_agents: coderReview
+      ? {
+          'benchmark-coder': path.join(templateDir, 'agents/benchmark-coder.json'),
+          'benchmark-reviewer': path.join(templateDir, 'agents/benchmark-reviewer.json'),
+        }
+      : {},
     artifact_inventory_spec: { expected: ['stdout', 'stderr', 'manifest'] },
   };
 }
 
-function fixture(behaviour: BackendBehaviour = {}, deadlineMs?: number): Fixture {
+function fixture(
+  behaviour: BackendBehaviour = {}, deadlineMs?: number, mode: ArmMode = 'direct',
+): Fixture {
   writeProfile();
   const observation = path.join(root, 'backend-observation.json');
   const cli = writeBackendCli(path.join(root, 'bundle', 'claude-trial'), observation, behaviour);
-  const runConfigFile = write(path.join(root, 'arm-resolution.json'), JSON.stringify(armResolution(cli)));
+  const runConfigFile = write(
+    path.join(root, 'arm-resolution.json'), JSON.stringify(armResolution(cli, mode)),
+  );
   const workspace = path.join(root, 'workspace');
   fs.mkdirSync(workspace, { recursive: true });
   const agentDir = path.join(root, 'agent');
@@ -814,4 +847,129 @@ it('the SAME native call ATTESTED by a subagent_activity passes D2 (T19b)', asyn
     path.join(built.options.trajectoryRoot, 'composite-manifest.json'), 'utf8',
   ));
   assert.equal(manifest.predicate.checks.find((c: any) => c.check_id === 'D2').result, 'pass');
+}, 60_000);
+
+// --- T20: nodes[] and edges[] are DERIVED from the lifecycle pairs on disk ---
+//
+// The parent process cannot spawn a real pipeline thread under a fake backend, so the child's
+// evidence is written the way the orchestrator writes it — through the SAME production writers
+// (`writeStartedMarker`, `writeTerminalManifest`) into the SAME trajectory root
+// (`benchmark-local-thread-orchestrator.ts:404,424`), carrying the trial's OWN policy identity.
+// Nothing hands the runner a node, an edge or a manifest: it discovers the pair by scanning, and
+// the assertion is made against the file F8 published.
+
+function writeChildAttempt(built: Fixture, threadId: string, role: string): string {
+  const root = built.options.trajectoryRoot;
+  const identity = {
+    modelExecutionIdentityHash: built.policy.identity.model_execution_identity_hash[role],
+    roleToolSurfaceHash: built.policy.identity.role_tool_surface_hash[role],
+    bundleManifestHash: built.policy.identity.bundle_manifest_hash,
+  };
+  const journalPath = path.join(root, `thread-${threadId}.journal.ndjson`);
+  const at = '2026-08-01T00:00:01.000Z';
+  const base = {
+    schema_version: 'cortex-bench-journal/1', root_run_id: ROOT_RUN_ID, thread_id: threadId,
+    agent_slot: role,
+    model_execution_identity_hash: identity.modelExecutionIdentityHash,
+    role_tool_surface_hash: identity.roleToolSurfaceHash,
+    bundle_manifest_hash: identity.bundleManifestHash,
+  };
+  const events = [
+    { type: 'assistant_text', text: 'child works' },
+    {
+      type: 'cost_record', provider: 'anthropic', model: 'claude-reported-trial',
+      tokens_in: 10, tokens_out: 2, prompt_tokens: 10, cached_tokens: 0, cost_usd: 0.001,
+    },
+    { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.001 },
+  ];
+  const prompt = 'c'.repeat(64);
+  const records = [
+    {
+      ...base, type: 'run_header', seq: 0, ts: at, resolved_cwd: built.workspace,
+      canonical_instruction_sha256: prompt, model_visible_prompt_sha256: prompt,
+      system_prompt_sha256: prompt, tool_manifest_sha256: prompt, plugin_manifest_sha256: prompt,
+    },
+    ...events.map((event, index) => ({
+      ...base, type: 'event', step: 1, seq: index + 1, ts: at,
+      backend: 'claude', provider: 'anthropic',
+      requested_model: 'claude-sonnet', reported_model: 'claude-reported-trial', event,
+    })),
+  ];
+  const bytes = `${records.map(record => JSON.stringify(record)).join('\n')}\n`;
+  fs.writeFileSync(journalPath, bytes);
+
+  writeStartedMarker({
+    trajectoryRoot: root, rootRunId: ROOT_RUN_ID, threadId, journalPath,
+    now: () => new Date(at),
+  });
+  // The real writer VALIDATES linkage against the journal bytes, so a child whose evidence does not
+  // cohere cannot be written at all — which is what makes this a faithful stand-in for the
+  // orchestrator rather than a hand-placed file.
+  writeTerminalManifest({
+    trajectoryRoot: root, rootRunId: ROOT_RUN_ID, threadId, state: 'completed',
+    startedAt: at, endedAt: at, journalPath,
+    journalSha256: createHash('sha256').update(bytes).digest('hex'),
+    eventCount: events.length,
+    // §9.4 G2: the child is quiescent with no surviving descendants.
+    supervisor: { quiescent: true, descendants: 0 },
+    steps: 1, costUsd: 0.001,
+    tokens: { input: 10, output: 2, cache_read: 0, cache_creation: 0 },
+    ...identity,
+    terminalReason: 'ok',
+  });
+  return `thread-${threadId}`;
+}
+
+it('emits one AttemptRecord per attempt and a spawn edge between them (T20)', async () => {
+  const built = fixture({ accounted: true }, undefined, 'coder-review');
+  const childId = writeChildAttempt(built, 'c1', 'benchmark-coder');
+
+  const outcome = await runTrial(built);
+  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
+
+  const manifest = JSON.parse(fs.readFileSync(
+    path.join(built.options.trajectoryRoot, 'composite-manifest.json'), 'utf8',
+  ));
+
+  // TWO nodes, one per lifecycle pair — derived, not hardcoded.
+  assert.equal(manifest.nodes.length, 2);
+  assert.deepEqual(
+    manifest.nodes.map((node: any) => node.attempt_id).sort(),
+    [mintAttemptId(ROOT_RUN_ID, null), childId].sort(),
+  );
+
+  // The child is a THREAD attempt and carries the G4-N14 thread-scoped identity in full.
+  const child = manifest.nodes.find((node: any) => node.attempt_id === childId);
+  assert.equal(child.thread_id, 'c1');
+  assert.equal(child.root_thread_id, 'c1');
+  assert.equal(child.template, 'benchmark-coder-review');
+  assert.equal(child.role, 'benchmark-coder');
+  assert.deepEqual(Object.keys(child), [...ATTEMPT_RECORD_KEYS]);
+
+  // ONE edge, drawn from the CLOSED union, parent -> child.
+  assert.equal(manifest.edges.length, 1);
+  assert.deepEqual(manifest.edges[0], {
+    kind: 'spawn',
+    from: { ref: 'attempt', id: mintAttemptId(ROOT_RUN_ID, null) },
+    to: { ref: 'attempt', id: childId },
+  });
+  assert.equal((ATTEMPT_EDGE_KINDS as readonly string[]).includes(manifest.edges[0].kind), true);
+
+  // G4-CM18: the edge projects onto its `from` node and onto no other.
+  const parentNode = manifest.nodes.find(
+    (node: any) => node.attempt_id === mintAttemptId(ROOT_RUN_ID, null),
+  );
+  assert.deepEqual(parentNode.edges, manifest.edges);
+  assert.deepEqual(child.edges, []);
+
+  // The published document passes the real validator at the arm's own taskless limits.
+  assert.deepEqual(validateCompositeManifest(manifest, {
+    limits: {
+      max_task_depth: built.policy.limits.max_task_depth,
+      max_tasks: built.policy.limits.max_tasks,
+    },
+    lifecycleStems: fs.readdirSync(built.options.trajectoryRoot)
+      .filter(name => name.endsWith('.started.json'))
+      .map(name => name.slice(0, -'.started.json'.length)),
+  }), []);
 }, 60_000);
