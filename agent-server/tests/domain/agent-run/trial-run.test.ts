@@ -835,6 +835,15 @@ it('an UNATTESTED native subagent call fails D2 and raises code 41 (T19)', async
     fs.existsSync(path.join(built.options.trajectoryRoot, 'composite-manifest.json')), false,
     'a trial that failed its terminal predicate must not publish a gradable manifest',
   );
+
+  // ...and fails closed AT THE PROCESS BOUNDARY. Without this the trial could refuse its own
+  // predicate and still exit 0, which a harness would score as a SUCCESSFUL trial — the manifest's
+  // absence would be read as "nothing to grade" rather than "refused". Pinned to the shipped class-R
+  // convention: the 41 rides the stderr JSON, while the terminal record carries the generic
+  // protocol_violation, exactly as code 40 already behaves (see :576 for the code-40 precedent).
+  assert.notEqual(outcome.exitCode, 0, 'a predicate refusal must not exit 0');
+  assert.equal(outcome.exitCode, 1);
+  assert.equal(outcome.terminal.terminal_reason, 'protocol_violation');
 }, 60_000);
 
 it('the SAME native call ATTESTED by a subagent_activity passes D2 (T19b)', async () => {
