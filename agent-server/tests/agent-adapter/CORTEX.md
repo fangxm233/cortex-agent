@@ -16,6 +16,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | claude-mid-turn-inject.test.ts | test | Claude mid-turn user message injection |
 | claude-print-resume.test.ts | test | print-mode resume guard on fresh sessions |
 | claude-stream-deltas.test.ts | test | Claude delta and reported model parsing |
+| claude-subagent-activity.test.ts | test | proves the native-subagent census event and that a subagent line still reaches every handler it reaches today |
 | claude-tmux-control.test.ts | test | tmux argv, secure buffers, and tempfiles |
 | claude-tui-resume.test.ts | test | TUI first-turn resume guard |
 | fixtures/ | subdir | recorded backend streams and golden outputs |

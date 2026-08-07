@@ -38,6 +38,18 @@ export interface ThreadLink {
   threadId: string;
 }
 
+/**
+ * One node of the attempt DAG as the ATIF builder walks it (§9.3 M3). `links` are the tool calls
+ * THIS node made that resolve to a child trajectory; they annotate observations and never define
+ * structure — a manager edge (`decompose`/`dispatch`) appears in no tool result at all, so `links`
+ * is legitimately empty while `children` is not.
+ */
+export interface AtifNode {
+  readonly fragment: SourceFragment;
+  readonly links: readonly ThreadLink[];
+  readonly children: readonly AtifNode[];
+}
+
 export interface AtifFinalMetrics {
   total_prompt_tokens: number;
   total_completion_tokens: number;
@@ -47,6 +59,13 @@ export interface AtifFinalMetrics {
   extra: {
     prompt_tokens_definition: string;
     cached_tokens_definition: string;
+    /**
+     * §17 G4-SA11 — native-subagent turns, DERIVED by Cortex from the journal's census events
+     * because the CLI maintains no such counter (G4-SA4). Carried BESIDE `total_steps`, never
+     * summed into it: `total_steps` is the parent's own turn total. Reconciling the two would
+     * erase exactly the distinction this field exists to record.
+     */
+    subagent_turns: number;
   };
 }
 
@@ -92,42 +111,88 @@ function collectToolUses(
 
 function collectToolResults(
   events: SourceJournalEvent[], start: number, callIds: Set<string>,
+  attested: ReadonlySet<string>,
 ): { records: SourceJournalEvent[]; next: number } {
   const records: SourceJournalEvent[] = [];
+  // Calls in this batch that a `subagent_activity` event attests — i.e. the spans in which a
+  // native subagent is producing output of its own. Emptied as each one's result arrives.
+  const openSubagentCalls = new Set([...callIds].filter(id => attested.has(id)));
   let index = start;
   while (index < events.length) {
     const record = events[index];
-    if (eventType(record) === 'turn_progress') {
+    // Progress and native-subagent census events interleave with the results of the call that is
+    // still open — a subagent's lines land between its `Agent`/`Task` call and that call's result.
+    // Absorbing them keeps the batch contiguous; breaking on them would orphan the result.
+    if (eventType(record) === 'turn_progress' || eventType(record) === 'subagent_activity') {
       records.push(record);
       index += 1;
       continue;
     }
     const result = record.event;
-    if (result.type !== 'tool_result' || !callIds.has(result.toolUseId)) break;
+    if (result.type === 'tool_result' && callIds.has(result.toolUseId)) {
+      openSubagentCalls.delete(result.toolUseId);
+      records.push(record);
+      index += 1;
+      continue;
+    }
+    // A native subagent runs INSIDE its caller's tool call, so its own text and tool events land
+    // between that call and that call's result (D-ADDITIVE keeps them flowing to the handlers that
+    // journal them). While such a call is open and attested, those events belong to this batch.
+    // Nothing is absorbed on an unattested call, so `unpaired_tool_result` keeps its full strength
+    // for every journal that has no native-subagent census.
+    if (openSubagentCalls.size === 0) break;
     records.push(record);
     index += 1;
   }
+  // The allowance above is BOUNDED by the attested call's own result, and nothing else in the
+  // journal marks that boundary: the adapter pushes `turn_complete` once, immediately before
+  // `stream.close()` (`claude/adapter.ts:1444-1449`), and `turn_progress` is absorbed at :126
+  // precisely because it lands mid-span. So reaching the end of the fragment with a span still
+  // open means the journal never said where the subagent's output stopped — and every record from
+  // the call onward was pushed RAW, so no batch guard inspected any of it. §9.6 A2 refuses rather
+  // than guessing a boundary; §17 G4-SA10 is fail-closed by design.
+  if (openSubagentCalls.size > 0) malformed('unclosed_subagent_span');
   return { records, next: index };
 }
 
-function toolBatch(events: SourceJournalEvent[], start: number): { group: EventGroup; next: number } {
+function toolBatch(
+  events: SourceJournalEvent[], start: number, attested: ReadonlySet<string>,
+): { group: EventGroup; next: number } {
   const uses = collectToolUses(events, start);
   const callIds = new Set(uses.records.map(record => {
     const event = record.event;
     return event.type === 'tool_use' ? event.toolUseId : '';
   }));
   if (callIds.size !== uses.records.length) malformed('duplicate_tool_call_id');
-  const results = collectToolResults(events, uses.next, callIds);
+  const results = collectToolResults(events, uses.next, callIds, attested);
   const resultIds = results.records.flatMap(record => (
     record.event.type === 'tool_result' ? [record.event.toolUseId] : []
   ));
   if (new Set(resultIds).size !== resultIds.length) malformed('duplicate_tool_result');
+  // Absorbed records are INSIDE this batch, so the batch's uniqueness rules bind them too.
+  // `resultIds` above already spans them because it reads `results.records`; the call-id check at
+  // :166 could not, because `callIds` has to exist before absorption starts. That asymmetry is
+  // what let a duplicate call id ride into a cleanly closed span unseen. Result PAIRING stays
+  // relaxed inside the span — a native subagent's own result legitimately has no call here — but
+  // an id emitted twice is corruption in any agent's id space, and the two checks now agree.
+  const batchCallIds = [...callIds, ...results.records.flatMap(record => (
+    record.event.type === 'tool_use' ? [record.event.toolUseId] : []
+  ))];
+  if (new Set(batchCallIds).size !== batchCallIds.length) malformed('duplicate_tool_call_id');
   return { group: { records: [...uses.records, ...results.records] }, next: results.next };
+}
+
+/** The tool calls this fragment's census events attest a native subagent ran under (§17 G4-SA6). */
+function attestedSubagentCalls(events: SourceJournalEvent[]): ReadonlySet<string> {
+  return new Set(events.flatMap(record => (
+    record.event.type === 'subagent_activity' ? [record.event.parentToolUseId] : []
+  )));
 }
 
 /** Preserve each fragment's C2 seq order; contiguous tool calls and results form one ATIF step. */
 function groupEvents(events: SourceJournalEvent[]): EventGroup[] {
   const groups: EventGroup[] = [];
+  const attested = attestedSubagentCalls(events);
   let index = 0;
   while (index < events.length) {
     const type = eventType(events[index]);
@@ -137,7 +202,7 @@ function groupEvents(events: SourceJournalEvent[]): EventGroup[] {
       index += 1;
       continue;
     }
-    const batch = toolBatch(events, index);
+    const batch = toolBatch(events, index, attested);
     groups.push(batch.group);
     index = batch.next;
   }
@@ -254,9 +319,14 @@ function buildSteps(
   return groupEvents(fragment.events).map((group, index) => buildStep(group, index + 1, links));
 }
 
-function buildTrajectory(
-  fragment: SourceFragment, links: ReadonlyMap<string, string>,
-): AtifTrajectory {
+/**
+ * §9.3 M3 — recursive. Every node is built with ITS OWN link map, so nesting follows the DAG to
+ * whatever depth the DAG has: one level for `coder-review` (§9.4 C7), the full depth for `manager`
+ * (§9.4 M-16). The two are the same code because depth is a property of the DAG, not of the builder.
+ */
+function buildTrajectory(node: AtifNode): AtifTrajectory {
+  const fragment = node.fragment;
+  const links = new Map(node.links.map(link => [link.callId, link.threadId]));
   const id = fragment.header.thread_id ?? fragment.header.root_run_id;
   const trajectory: AtifTrajectory = {
     schema_version: 'ATIF-v1.7',
@@ -266,6 +336,9 @@ function buildTrajectory(
     extra: trajectoryExtra(fragment),
   };
   if (fragment.header.thread_id === null) trajectory.session_id = fragment.header.root_run_id;
+  if (node.children.length > 0) {
+    trajectory.subagent_trajectories = node.children.map(buildTrajectory);
+  }
   return trajectory;
 }
 
@@ -286,22 +359,14 @@ function attachFinalMetrics(root: AtifTrajectory, metrics: AtifFinalMetrics): At
   return root;
 }
 
-/** Children are supplied in parent thread_run call order; timestamps never order trajectories. */
+/** Children arrive already ordered by the caller — call order, or the DAG's own node order for a
+ *  manager tree. Timestamps never order trajectories. */
 export function buildAtifTree(
-  parent: SourceFragment,
-  children: SourceFragment[],
-  threadLinks: ThreadLink[],
+  root: AtifNode,
   linkSource: 'tool_result' | 'explicit',
   finalMetrics: AtifFinalMetrics,
 ): AtifTrajectory {
-  const links = new Map(threadLinks.map(link => [link.callId, link.threadId]));
-  const childById = new Map(children.map(child => [child.header.thread_id, child]));
-  const root = buildTrajectory(parent, links);
-  root.extra.subagent_link_source = linkSource;
-  if (threadLinks.length > 0) {
-    root.subagent_trajectories = threadLinks.map(link => (
-      buildTrajectory(childById.get(link.threadId)!, new Map())
-    ));
-  }
-  return attachFinalMetrics(root, finalMetrics);
+  const trajectory = buildTrajectory(root);
+  trajectory.extra.subagent_link_source = linkSource;
+  return attachFinalMetrics(trajectory, finalMetrics);
 }

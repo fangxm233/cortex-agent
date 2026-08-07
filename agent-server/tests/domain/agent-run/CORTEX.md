@@ -5,6 +5,8 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | filename | role | function |
 |---|---|---|
 | access-probe-cli.test.ts | test | verifies help and dual-format probe output |
+| atif-dag-fixtures.ts | fixture | writes manager- and coder-review-shaped attempt DAGs with their lifecycle pairs |
+| atif-recursive-merge.test.ts | test | proves recursion past one level, role-indexed identity, DAG partition and named refusals |
 | access-probe-fixture.mjs | fixture | emits tamper, timeout and forbidden syscalls |
 | access-probe-policy.test.ts | test | proves process, path, count and stream policy |
 | access-probe.test.ts | e2e | proves evidence isolation and containment |
@@ -46,8 +48,9 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | run-config.test.ts | test | proves schema dispatch, roles, argv and MCP inputs |
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
 | trial-run-pi.test.ts | test | proves PI supervision, cancel, deadline and run identity |
-| trial-run.test.ts | test | proves supervised, isolated and normalized trial runs |
+| trial-run.test.ts | test | proves supervised, isolated and normalized trial runs, that the composite manifest and the merged ATIF are published from inside the production runner as one all-or-nothing pair, that nodes, edges and the §9.3 M1 link map are derived from the observed lifecycle pairs, that an underivable §9.1 template refuses, that the journal side has one producer, and that an unattested native subagent call fails the checklist on code 41 |
 | trajectory-merge-cli.test.ts | test | verifies context-free accounting and typed failures |
 | transport-teardown-e2e.test.ts | e2e | proves finalization survives sidecar teardown |
 | trajectory-merge-fixtures.ts | fixture | writes print-mode accounted fragment events |
+| trajectory-merge-subagent.test.ts | test | proves the native-subagent census key, the derived subagent turn total, the zero-census refusal and the surviving named refusals |
 | trajectory-merge.test.ts | test | verifies documented aggregate ATIF conversion |

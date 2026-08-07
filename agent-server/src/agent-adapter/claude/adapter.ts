@@ -73,6 +73,8 @@ function spawnClaudeProcess(
 
 // --- Persistent session ---
 
+type SubagentActivityKind = 'assistant' | 'tool_result';
+
 interface PendingTurn {
   resolve: (value: any) => void;
   reject: (error: Error) => void;
@@ -95,12 +97,24 @@ interface PendingTurn {
   onToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   onCompact: ((info: { trigger: string; preTokens?: number }) => void) | null;
   onContextUsage: ((usage: ContextUsage) => void) | null;
+  /** OC-11 / §17 G4-SA5: one census call per native-subagent line, carrying only the linkage. */
+  onSubagentActivity: ((
+    parentToolUseId: string, subagentType: string | null, kind: SubagentActivityKind,
+  ) => void) | null;
   rawStream: Writable;
   txtStream: Writable;
   killed: boolean;
   /** True for a synthetic turn opened to capture a background-task continuation
    *  (the spontaneous turn the CLI emits after a run_in_background task finishes). */
   spontaneous?: boolean;
+}
+
+/** The two subagent line shapes §17 G4-SA6 admits. A replay echo is the CLI's delivery ack for an
+ *  injected message, not subagent work, so it is not a census line. */
+function subagentActivityKind(data: any): SubagentActivityKind | null {
+  if (data.type === 'assistant') return 'assistant';
+  if (data.type === 'user' && !data.isReplay) return 'tool_result';
+  return null;
 }
 
 type ContinuationDelivery = (sink: ContinuationSink) => void;
@@ -494,6 +508,7 @@ class ClaudeSession {
       onToolResult: options.onToolResult || null,
       onCompact: options.onCompact || null,
       onContextUsage: options.onContextUsage || null,
+      onSubagentActivity: options.onSubagentActivity || null,
       rawStream: streams.rawStream,
       txtStream: streams.txtStream,
       killed: false,
@@ -619,7 +634,7 @@ class ClaudeSession {
       resultData: null, planFilePath: null,
       enteredPlanMode: false, exitedPlanMode: false,
       askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0,
-      onProgress: null, onAssistantDelta: null, onCompact: null,
+      onProgress: null, onAssistantDelta: null, onCompact: null, onSubagentActivity: null,
       rawStream: streams.rawStream, txtStream: streams.txtStream,
       killed: false, spontaneous: true,
     };
@@ -665,6 +680,9 @@ class ClaudeSession {
     onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
     onCompact?: ((info: { trigger: string; preTokens?: number }) => void) | null;
     onContextUsage?: ((usage: ContextUsage) => void) | null;
+    onSubagentActivity?: ((
+      parentToolUseId: string, subagentType: string | null, kind: SubagentActivityKind,
+    ) => void) | null;
   }): Promise<any> {
     if (!this.alive) {
       this.needsResume = true;
@@ -867,6 +885,25 @@ class ClaudeSession {
     catch (e) { log.warn('onContextUsage threw:', (e as Error).message); }
   }
 
+  /**
+   * OC-11 / §17 G4-SA5 — read the linkage the CLI already puts on the wire. A non-null
+   * `parent_tool_use_id` means the line is a native subagent's output; `null` or absent is the
+   * parent's own turn. Purely ADDITIVE: every branch above still sees the line, because
+   * `adapter.ts` is shared by every Cortex session and diverting subagent output would change
+   * assistant streaming and turn counting for every product surface.
+   */
+  private emitSubagentActivity(data: any): void {
+    const parentToolUseId = data?.parent_tool_use_id;
+    if (typeof parentToolUseId !== 'string') return;
+    const kind = subagentActivityKind(data);
+    if (!kind) return;
+    const subagentType = typeof data.subagent_type === 'string' ? data.subagent_type : null;
+    const callback = this.currentTurn?.onSubagentActivity;
+    if (typeof callback !== 'function') return;
+    try { callback(parentToolUseId, subagentType, kind); }
+    catch (e) { log.warn('onSubagentActivity threw:', (e as Error).message); }
+  }
+
   private handleLine(line: string) {
     if (!line) return;
     this.resetIdleTimer();
@@ -940,6 +977,9 @@ class ClaudeSession {
         return;
       }
       if (data.type === 'assistant' && this.currentTurn) this.handleAssistantEvent(this.currentTurn, data);
+      // Emitted last so the census event trails the normalized events the same line already
+      // produced, keeping contiguous tool batches contiguous for the ATIF grouper.
+      this.emitSubagentActivity(data);
       const formatted = formatEvent(data);
       if (formatted && this.currentTurn?.txtStream) this.currentTurn.txtStream.write(formatted + '\n');
     } catch {
@@ -1352,6 +1392,9 @@ export class ClaudeAdapter implements AgentAdapter {
             onProgress: (p: { num_turns?: number } | null) => {
               stream.push({ type: 'turn_progress', numTurns: p?.num_turns ?? 0 });
             },
+            onSubagentActivity: (
+              parentToolUseId: string, subagentType: string | null, kind: SubagentActivityKind,
+            ) => stream.push({ type: 'subagent_activity', parentToolUseId, subagentType, kind }),
           });
           // Derived events, in order, before the terminating turn_complete.
           for (const q of (result.askUserQuestions || [])) {

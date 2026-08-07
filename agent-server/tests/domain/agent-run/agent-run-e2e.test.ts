@@ -8,6 +8,7 @@ import type { ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { it } from 'vitest';
+import { mergeTrajectory } from '../../../src/domain/agent-run/trajectory-merge.js';
 import {
   SHA256,
   type Fixture,
@@ -18,6 +19,7 @@ import {
   createFixture,
   fileTree,
   fixtureRoot,
+  fakeClaudeResult,
   parseNdjson,
   processOutput,
   processTree,
@@ -374,4 +376,56 @@ it('journals compaction without reading or watching daemon settings', async () =
   assert.deepEqual(snapshotTree(fixture.home), homeBefore);
   const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
   assert.ok(records.some(record => record.event?.type === 'context_compacted'));
+});
+
+// §17 G4-SA5/G4-SA7 on the PRODUCTION path: the census event is produced by the live stream
+// handler reading the spawned CLI's stdout, and lands in the parent's journal under the parent's
+// slot with `threadId: null, step: null` — which IS the fold under OC-11 option (ii). Nothing
+// here supplies production composition: the fixture supplies only the CLI's wire bytes.
+it('journals a native subagent census under the parent slot without diverting its output', async () => {
+  const fixture = createFixture('native-subagent-census');
+  fs.writeFileSync(fixture.releaseMarker, 'release');
+  // Token-bearing results so the run's own journal is accountable end to end; the merge derives
+  // the census from the same journal it derives cost from.
+  const accounted = (result: string, extra: Record<string, unknown> = {}) => fakeClaudeResult(
+    'e2e-run', result,
+    {
+      total_cost_usd: 0.08,
+      usage: {
+        input_tokens: 10, output_tokens: 5,
+        cache_creation_input_tokens: 3, cache_read_input_tokens: 7,
+      },
+      ...extra,
+    },
+  );
+  const child = spawnRun(fixture, {
+    FAKE_CLAUDE_SUBAGENT: '1',
+    FAKE_CLAUDE_FIRST_RESULT: accounted('first result'),
+    FAKE_CLAUDE_CONTINUATION_RESULT: accounted('background done', { origin: { kind: 'task-notification' } }),
+  });
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 0, output.stderr);
+
+  const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
+  const census = records.filter(record => record.event?.type === 'subagent_activity');
+  assert.deepEqual(census.map(record => record.event), [
+    { type: 'subagent_activity', parentToolUseId: 'toolu_agent_1', subagentType: 'explore', kind: 'assistant' },
+    { type: 'subagent_activity', parentToolUseId: 'toolu_agent_1', subagentType: null, kind: 'tool_result' },
+  ]);
+  for (const record of census) {
+    assert.equal(record.thread_id, null);
+    assert.equal(record.step, null);
+    assert.equal(record.agent_slot, records[0].agent_slot);
+  }
+  // Additive: the same subagent line still reaches the handlers that journal its text today.
+  assert.ok(records.some(record => record.event?.type === 'assistant_text'
+    && record.event.text === 'subagent speaking'));
+
+  // CLOSE THE LOOP: the journal this run really wrote must PUBLISH, and the census derived from it
+  // must be the one the CLI's own lines imply. A census that can be journaled but not merged would
+  // leave OC-11 open in a new place.
+  const outputPath = `${fixture.trajectoryRoot}.merged.json`;
+  mergeTrajectory({ trajectoryRoot: fixture.trajectoryRoot, outputPath });
+  const published = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+  assert.equal(published.final_metrics.extra.subagent_turns, 1);
 });

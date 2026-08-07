@@ -139,6 +139,7 @@ it('sums non-null final metrics across parent and every child fragment', () => {
       prompt_tokens_definition:
         'input_tokens + cache_creation_input_tokens + cache_read_input_tokens',
       cached_tokens_definition: 'cache_read_input_tokens',
+      subagent_turns: 0,
     },
   });
   assert.equal(treeStepCount(trajectory), 7 + 8 + 8);

@@ -231,6 +231,7 @@ it('aggregates accounted fragments without context usage provenance', () => {
       prompt_tokens_definition:
         'input_tokens + cache_creation_input_tokens + cache_read_input_tokens',
       cached_tokens_definition: 'cache_read_input_tokens',
+      subagent_turns: 0,
     },
   });
 });

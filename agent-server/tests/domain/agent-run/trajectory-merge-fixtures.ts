@@ -7,8 +7,8 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ROOT_RUN_ID = 'run-001';
-const MODEL_HASH = '1'.repeat(64);
+export const ROOT_RUN_ID = 'run-001';
+export const MODEL_HASH = '1'.repeat(64);
 const BUNDLE_HASH = '3'.repeat(64);
 const HASH_KEYS = {
   canonical_instruction_sha256: 'a'.repeat(64),
@@ -33,17 +33,17 @@ export interface MergeFixture {
   sourceEvents: Array<Record<string, unknown>>;
 }
 
-interface EventSpec {
+export interface EventSpec {
   ts: string;
   step: number | null;
-  agentSlot: 'parent' | 'benchmark-coder' | 'benchmark-reviewer';
+  agentSlot: 'parent' | 'benchmark-coder' | 'benchmark-reviewer' | 'benchmark-fixer';
   reportedModel?: string | null;
   event: Record<string, unknown>;
 }
 
-interface JournalSpec {
+export interface JournalSpec {
   threadId: string | null;
-  agentSlot: 'parent' | 'benchmark-coder';
+  agentSlot: EventSpec['agentSlot'];
   roleHash: string;
   events: EventSpec[];
 }
@@ -82,10 +82,10 @@ function eventIdentity(spec: JournalSpec, event: EventSpec): {
   roleHash: string;
   bundleHash: string;
 } {
-  if (event.agentSlot !== 'benchmark-reviewer') {
+  if (event.agentSlot === spec.agentSlot) {
     return { roleHash: spec.roleHash, bundleHash: BUNDLE_HASH };
   }
-  const prefix = `${spec.threadId}:benchmark-reviewer`;
+  const prefix = `${spec.threadId}:${event.agentSlot}`;
   return { roleHash: sha256(`${prefix}:role`), bundleHash: sha256(`${prefix}:bundle`) };
 }
 
@@ -136,7 +136,7 @@ function terminalRecord(
   };
 }
 
-function writeJournal(root: string, spec: JournalSpec): FixtureJournal {
+export function writeJournal(root: string, spec: JournalSpec): FixtureJournal {
   const journalPath = path.join(root, journalName(spec.threadId));
   const records = [header(spec, root), ...spec.events.map((item, index) => (
     eventRecord(spec, item, index + 1)
@@ -155,13 +155,13 @@ function writeJournal(root: string, spec: JournalSpec): FixtureJournal {
   return { threadId: spec.threadId, journalPath, startedPath, terminalPath, events: records.slice(1) };
 }
 
-function mcpResult(threadId: string): string {
+export function mcpResult(threadId: string): string {
   return JSON.stringify({
     content: [{ type: 'text', text: JSON.stringify({ thread_id: threadId, status: 'completed' }) }],
   });
 }
 
-function accountingEvents(input: {
+export function accountingEvents(input: {
   ts: string;
   step: number | null;
   agentSlot: EventSpec['agentSlot'];
@@ -278,13 +278,32 @@ function writeRecords(journal: FixtureJournal, records: Array<Record<string, any
   journal.events = records.slice(1);
 }
 
+/** Header, every event record and the terminal manifest together — `validateTrajectoryRoot`
+ *  refuses any subset (`manifest.ts:860`, `:881`). */
+export function setModelIdentity(journal: FixtureJournal, hash: string): void {
+  const records = readRecords(journal);
+  for (const record of records) record.model_execution_identity_hash = hash;
+  writeRecords(journal, records);
+  const terminal = JSON.parse(fs.readFileSync(journal.terminalPath, 'utf8'));
+  terminal.model_execution_identity_hash = hash;
+  fs.writeFileSync(journal.terminalPath, `${JSON.stringify(terminal)}\n`);
+}
+
 export function driftModelIdentity(child: FixtureJournal): void {
-  const records = readRecords(child);
-  for (const record of records) record.model_execution_identity_hash = '9'.repeat(64);
-  writeRecords(child, records);
-  const terminal = JSON.parse(fs.readFileSync(child.terminalPath, 'utf8'));
-  terminal.model_execution_identity_hash = '9'.repeat(64);
-  fs.writeFileSync(child.terminalPath, `${JSON.stringify(terminal)}\n`);
+  setModelIdentity(child, '9'.repeat(64));
+}
+
+export function setTerminalField(
+  journal: FixtureJournal, field: string, value: unknown,
+): void {
+  const terminal = JSON.parse(fs.readFileSync(journal.terminalPath, 'utf8'));
+  terminal[field] = value;
+  fs.writeFileSync(journal.terminalPath, `${JSON.stringify(terminal)}\n`);
+}
+
+export function corruptJournalBytes(journal: FixtureJournal): void {
+  const text = fs.readFileSync(journal.journalPath, 'utf8');
+  fs.writeFileSync(journal.journalPath, text.replace(/\n$/, '\nnot-json\n'));
 }
 
 export function setThreadResultContent(
