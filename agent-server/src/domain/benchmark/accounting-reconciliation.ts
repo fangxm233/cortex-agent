@@ -161,14 +161,36 @@ interface Comparison<T> {
   readonly check: AccountingCheck | null;
 }
 
+/**
+ * `journal.requests` is deliberately absent. An operand is one side of a comparison, and the
+ * journal has no request counter to be absent: `MetricAccumulator` (`trajectory-merge.ts`) carries
+ * only prompt/completion/cached/cost/steps, and the journal's one-per-turn `cost_record` counts a
+ * different event from the proxy's one-per-HTTP-call `request_count`. Dividing one by the other is
+ * a guess, so the count is permanently `journal_underivable` rather than merely missing. While it
+ * was listed here it made `reconciled` unavailable on every trial, which fails the accounting
+ * predicate forever for a reason that is not an accounting discrepancy.
+ *
+ * Compensating control, because this drops the journal-vs-proxy request cross-check: a runaway
+ * request count is still bounded proxy-side by the trial cost budget. Every admitted request
+ * reserves `max_request_cost_usd` (`proxy/server.py:89-90`) and admission is refused with
+ * `429 budget_exhausted` once the remaining budget falls below one reservation
+ * (`proxy/server.py:65-67`), capping admitted requests at
+ * `floor(max_cost_usd / max_request_cost_usd)`. Host-side, the arm's `max_provider_requests` is
+ * projected to `max_steps` (`launcher/arm_resolution.py:436`) and bounds agent-process admissions
+ * (`benchmark-local-thread-orchestrator.ts:544,585`). Note it is NOT a proxy-side request ceiling:
+ * `ProxyBudget` (`proxy/models.py:15-19`) has no request-count field and the proxy's own
+ * `request_count` is only ever reported, never compared. `proxy.requests` stays an operand and
+ * stays exported, so the proxy-side count is still recorded and audited.
+ */
 const OPERAND_PATHS = [
-  'proxy.requests', 'proxy.cost_usd', 'proxy.lease_echo',
-  'journal.requests', 'journal.cost_usd',
+  'proxy.requests', 'proxy.cost_usd', 'proxy.lease_echo', 'journal.cost_usd',
 ] as const;
 
 function unavailableOperands(proxy: ProxyAccounting, journal: JournalAccounting): string[] {
+  // Positionally coupled with OPERAND_PATHS: an entry added here without one there shifts every
+  // later index onto the wrong name.
   const slots: Tagged<unknown>[] = [
-    proxy.requests, proxy.cost_usd, proxy.lease_echo, journal.requests, journal.cost_usd,
+    proxy.requests, proxy.cost_usd, proxy.lease_echo, journal.cost_usd,
   ];
   return OPERAND_PATHS.filter((_path, index) => slots[index].status === 'unavailable');
 }
@@ -217,9 +239,13 @@ function reconciledFlag(
   missing: readonly string[], comparisons: readonly Comparison<unknown>[],
 ): Tagged<boolean> {
   if (missing.length > 0) return { status: 'unavailable', reason: 'operand_unavailable' };
+  // A null check was never constructed, which is not the same as a check that ran and failed. Only
+  // the requests axis can reach here unconstructed: every operand of the cost comparison is in
+  // OPERAND_PATHS, so an unavailable one leaves through the branch above. Reading null as a failure
+  // would restore the every-trial red this operand's removal exists to fix.
   return {
     status: 'available',
-    value: comparisons.every(comparison => comparison.check?.passed === true),
+    value: comparisons.every(comparison => comparison.check === null || comparison.check.passed),
   };
 }
 
