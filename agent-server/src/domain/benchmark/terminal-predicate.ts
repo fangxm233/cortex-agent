@@ -85,13 +85,22 @@ export interface AttemptJournal {
   readonly events: readonly NormalizedEvent[];
 }
 
-/** What the PUBLISHED ATIF document says about itself. `null` when F8 published none. */
+/** What the MERGED ATIF document says about itself. `null` when the merge produced none. */
 export interface PublishedAtifFacts {
   /** Nesting depth of `subagent_trajectories`; 0 when the root has no children. */
   readonly subagentLevels: number;
-  /** `atif.ts:366` — `'tool_result'` when the links were derived from the parent's own tool
-   *  results, `'explicit'` when the caller supplied an independent link map. */
+  /** `atif.ts:366` — `'explicit'` iff F8 supplied §9.3 M1's link map; `'tool_result'` means the
+   *  merge fell back to parsing model-produced tool text, which M1 forbids in-trial. */
   readonly linkSource: string;
+  /** §9.6 A2's journal side, as the SHIPPED accumulator computed it. There is no second producer:
+   *  when the accumulator refused, this whole record is absent along with the tree. */
+  readonly finalMetrics: {
+    readonly total_prompt_tokens: number;
+    readonly total_completion_tokens: number;
+    readonly total_cached_tokens: number;
+    readonly total_cost_usd: number;
+    readonly total_steps: number;
+  };
 }
 
 export interface TerminalCheckInput {
@@ -143,36 +152,34 @@ function evaluateD2(input: TerminalCheckInput): EvaluatedChecks[string] {
 }
 
 /**
- * §9.4 C7 as (17.5.8) restates it: "one trajectory level AND a complete native-subagent census",
- * over C7's own literal text — "exactly one `subagent_trajectories` level and its link source is
- * `explicit`". Three conjuncts, and they do NOT all resolve the same way:
+ * §9.4 C7's own literal text (`design:2778`) — "exactly one `subagent_trajectories` level and its
+ * link source is `explicit`" — plus, as (17.5.8) restates it, a complete native-subagent census.
+ * ALL THREE conjuncts are evaluated separately so a report names the one that failed.
  *
- * - census and level count are decidable here and FAIL the row when unmet;
- * - `linkSource === 'explicit'` is decidable but is a property of how F8 was CALLED, not of the
- *   trial. This pin has no link map independent of the parent's own tool results, so the merge
- *   derives them and reports `tool_result` (`trajectory-merge.ts:635,887`). Supplying those same
- *   derived links back as `subagentLinks` would relabel them `explicit` while proving nothing —
- *   circular, and precisely the self-attestation this gate exists to refuse.
- *
- * So an unmet link-source conjunct makes the row UNAVAILABLE, never `pass` (a lie about a conjunct
- * nobody satisfied) and never `fail` (which would refuse every coder-review trial for a gap Gate 6
- * owns). The measured value is carried in the detail so the shortfall is legible.
+ * The link source is decidable HERE and is decided. It was previously left `unavailable` on the
+ * ground that no link map existed independent of the parent's own tool results, so asserting
+ * `explicit` off those same results would be circular. That ground is gone: G4-PB8 (`design:8368`)
+ * rules that F8 passes the DAG's OWN link map through `MergeTrajectoryOptions.subagentLinks`,
+ * "which yields `linkSource: 'explicit'` — the value §9.4 C7 and M-16 both assert", and §9.3 M1
+ * (`design:2715`) makes that map mandatory in-trial with `collectThreadLinks` "not consulted". A
+ * published `tool_result` source is therefore not an undecided conjunct; it is the merge having
+ * fallen back to parsing model-produced tool text, which is exactly what M1 removes. The row FAILS
+ * on it, and the measured value is carried in the detail so the shortfall stays legible.
  */
 function evaluateC7(input: TerminalCheckInput): EvaluatedChecks[string] {
   const unmet = censusFailures(input.attempts);
   if (input.atif === null) unmet.push('no ATIF trajectory was published');
-  else if (input.atif.subagentLevels !== 1) {
-    unmet.push(`the ATIF tree has ${input.atif.subagentLevels} subagent_trajectories levels, not one`);
+  else {
+    if (input.atif.subagentLevels !== 1) {
+      unmet.push(`the ATIF tree has ${input.atif.subagentLevels} subagent_trajectories levels, not one`);
+    }
+    if (input.atif.linkSource !== 'explicit') {
+      unmet.push(`the link source is ${input.atif.linkSource}, not explicit (§9.3 M1)`);
+    }
   }
-  if (unmet.length > 0) return { result: 'fail', detail: unmet.join('; ') };
-  if (input.atif!.linkSource !== 'explicit') {
-    return {
-      result: 'unavailable',
-      detail: `census complete and one subagent level, but the link source is `
-        + `${input.atif!.linkSource}, not explicit`,
-    };
-  }
-  return { result: 'pass', detail: null };
+  return unmet.length === 0
+    ? { result: 'pass', detail: null }
+    : { result: 'fail', detail: unmet.join('; ') };
 }
 
 /**

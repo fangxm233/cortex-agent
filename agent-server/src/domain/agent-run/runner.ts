@@ -41,6 +41,7 @@ import {
   type AttemptJournal, type PublishedAtifFacts,
 } from '../benchmark/terminal-predicate.js';
 import { mergeTrajectory, TrajectoryMergeError } from './trajectory-merge.js';
+import type { ThreadLink } from './atif.js';
 import {
   PROXY_EXPORT_SCHEMA_VERSION, journalCostFromNumber, reconcileAccounting,
   type AccountingRecord, type JournalTotals, type ProxyExport, type Tagged,
@@ -808,6 +809,10 @@ function compositeApplicability(
 }
 
 const ATIF_TRAJECTORY_FILE = 'trajectory.json';
+/** Inside the trajectory root so the commit is a same-filesystem `link`, and NOT a `.started.json`,
+ *  so neither `observedLifecycleStems` nor the merge's own scan (`trajectory-merge.ts:182`) can
+ *  mistake it for a lifecycle pair. */
+const STAGED_ATIF_FILE = 'trajectory.json.staging';
 
 function observedLifecycleStems(trajectoryRoot: string): string[] {
   return fs.readdirSync(trajectoryRoot)
@@ -953,6 +958,81 @@ interface AttemptGraph {
   readonly nodes: readonly AttemptRecord[];
   readonly edges: readonly AttemptEdge[];
   readonly journals: readonly AttemptJournal[];
+  /** §9.3 M1's link map, or `null` when it is not derivable — never a partial one. */
+  readonly subagentLinks: readonly ThreadLink[] | null;
+}
+
+/**
+ * Both live names of the ONE tool that starts a pipeline thread, restated from
+ * `trajectory-merge.ts:283-285` because that module is frozen at this pin and exports no predicate.
+ *
+ * A restated pair can drift, and here the drift is FAIL-CLOSED rather than silent: the merge
+ * indexes the parent's calls with its own copy and `explicitLinksInCallOrder`
+ * (`trajectory-merge.ts:364-384`) refuses `Explicit link map is incomplete` unless the supplied map
+ * covers EVERY call it found. A copy that missed an alias therefore produces a hard merge refusal,
+ * not a mis-pairing.
+ */
+const THREAD_RUN_TOOL_NAMES = new Set([
+  'thread_run', 'mcp__cortex-benchmark-thread__thread_run',
+]);
+
+function isThreadRunCall(
+  event: NormalizedEvent,
+): event is Extract<NormalizedEvent, { type: 'tool_use' }> {
+  return event.type === 'tool_use' && THREAD_RUN_TOOL_NAMES.has(event.name);
+}
+
+function edgeAttemptId(endpoint: AttemptEdge['to']): string | null {
+  return endpoint.ref === 'attempt' ? endpoint.id : null;
+}
+
+/**
+ * §9.3 M1 / G4-PB8: the parent→child link map comes FROM THE DAG, not from the model-visible tool
+ * text `collectThreadLinks` parses. Supplying it is what makes the published tree's
+ * `subagent_link_source` read `explicit`, which is §9.4 C7's third conjunct.
+ *
+ * Derivation, per attempt: its own `thread_run` calls in CALL ORDER, zipped against the attempts it
+ * spawned in ATTEMPT-ORDINAL order — so the k-th call is paired with the k-th thread to start. The
+ * ordinal is the only ordering here that means anything, and it is TOTAL: G4-AI5 orders by
+ * `started_at` and `assignAttemptOrdinals` breaks a tie on `attempt_id`
+ * (`attempt-record.ts:314-319`). `edges` is built by walking `observedLifecycleStems`, a bare
+ * unsorted `readdirSync`, so zipping edges in their own order would make the published map depend
+ * on directory order and mis-pair IN SILENCE once one attempt spawns two threads — `nodeLinks`
+ * (`trajectory-merge.ts:562-575`) checks that a link names a child of its caller, which is
+ * MEMBERSHIP, not identity.
+ *
+ * Nothing here reads a tool result. The zip is well-defined only when the two lists have the same
+ * length and every child names a thread and carries an ordinal; otherwise the WHOLE map is `null`,
+ * never a partial one — `explicitLinksInCallOrder` requires a link for every call a fragment made,
+ * so a partial map is a hard merge refusal, and guessing which call started which thread is what
+ * M1 forbids. A trial whose counts disagree (a `thread_run` the §5.4 E2 limit refused) keeps a
+ * derivable trajectory and simply fails C7's link-source conjunct, which is the honest outcome.
+ */
+export function deriveSubagentLinks(
+  nodes: readonly AttemptRecord[],
+  edges: readonly AttemptEdge[],
+  journals: readonly AttemptJournal[],
+): ThreadLink[] | null {
+  const threadIdOf = new Map(nodes.map(node => [node.attempt_id, node.thread_id]));
+  const ordinalOf = new Map(nodes.map(node => [node.attempt_id, node.attempt_ordinal]));
+  const links: ThreadLink[] = [];
+  for (const journal of journals) {
+    const calls = journal.events.filter(isThreadRunCall);
+    const children = edges
+      .filter(edge => edge.kind === 'spawn'
+        && edge.from.ref === 'attempt' && edge.from.id === journal.attempt_id)
+      .map(edge => edgeAttemptId(edge.to));
+    if (calls.length !== children.length) return null;
+    if (children.some(id => id === null || ordinalOf.get(id) === undefined)) return null;
+    const ordered = [...children as string[]]
+      .sort((left, right) => ordinalOf.get(left)! - ordinalOf.get(right)!)
+      .map(attemptId => threadIdOf.get(attemptId));
+    if (ordered.some(threadId => typeof threadId !== 'string')) return null;
+    calls.forEach((call, index) => {
+      links.push({ callId: call.toolUseId, threadId: ordered[index] as string });
+    });
+  }
+  return links;
 }
 
 /**
@@ -991,21 +1071,20 @@ function attemptGraph(
     task_id: entry.record.task_id,
     started_at: entry.record.started_at,
   })));
-  return {
-    nodes: unordered.map(entry => ({
-      ...entry.record,
-      attempt_ordinal: ordinals.get(entry.record.attempt_id)!,
-    })),
-    edges: built.map((entry): AttemptEdge => ({
-      kind: 'spawn',
-      from: { ref: 'attempt', id: parent.attempt_id },
-      to: { ref: 'attempt', id: entry.record.attempt_id },
-    })),
-    journals: unordered.map(entry => ({
-      attempt_id: entry.record.attempt_id,
-      events: entry.journal.events,
-    })),
-  };
+  const nodes = unordered.map(entry => ({
+    ...entry.record,
+    attempt_ordinal: ordinals.get(entry.record.attempt_id)!,
+  }));
+  const edges = built.map((entry): AttemptEdge => ({
+    kind: 'spawn',
+    from: { ref: 'attempt', id: parent.attempt_id },
+    to: { ref: 'attempt', id: entry.record.attempt_id },
+  }));
+  const journals = unordered.map(entry => ({
+    attempt_id: entry.record.attempt_id,
+    events: entry.journal.events,
+  }));
+  return { nodes, edges, journals, subagentLinks: deriveSubagentLinks(nodes, edges, journals) };
 }
 
 /** Nesting depth of `subagent_trajectories` in the PUBLISHED ATIF; 0 when the root has none. */
@@ -1017,39 +1096,104 @@ function atifSubagentLevels(trajectory: Record<string, unknown>): number {
   ));
 }
 
+function atifPaths(run: PreparedRun): { staged: string; published: string } {
+  return {
+    staged: path.join(run.options.trajectoryRoot, STAGED_ATIF_FILE),
+    published: path.join(run.options.trajectoryRoot, ATIF_TRAJECTORY_FILE),
+  };
+}
+
 /**
  * F8's ATIF half, IN-PROCESS (G4-PB5: spawning a Node child here would create a descendant AFTER F2
  * proved quiescence and falsify the very evidence §9.4 G2 publishes). Before this the merge had no
  * production writer at all — its only executor was a CLI nothing dispatches (§17 17.4.2).
  *
- * Published BEFORE the composite manifest because §9.4 C7 is an assertion ABOUT the ATIF tree, so
- * the tree must exist before the checklist that reads it, and because §9.5's grader-admission rule
- * keys on the composite manifest — which therefore has to be written last.
+ * Merged to a STAGING path, never straight to `trajectory.json`. §9.5 F8 (`design:2815`) publishes
+ * the composite manifest and the merged ATIF **atomically**, and F8 publishes a PAIR: the checklist
+ * that decides whether the trial is gradable at all reads this tree (§9.4 C7), so the tree must
+ * exist before the decision — and the decision can still refuse. Merging straight to the final path
+ * would leave a complete, collectable interchange document behind for a trial that published no
+ * manifest, and, because the merge's own `output_path_exists` is a HARD failure
+ * (`trajectory-merge.ts:648-653`), would turn any second attempt in the same artifacts root into
+ * that refusal instead of its real outcome. Staging keeps both halves all-or-nothing.
  *
  * A merge REFUSAL is recorded, not thrown, and the distinction is load-bearing. §9.5's instrument
  * for "this trial is not gradable" is the §9.4 checklist, NOT the exit code, which §5.2 gives to
  * the terminal classification. Throwing here would relabel a `completed` run whose backend simply
  * reported no cost as `protocol_violation`, destroying the terminal truth F6 published. The refusal
- * instead leaves its typed reason on stderr and returns `null`, which is decisive for C7.
+ * instead leaves its typed reason on stderr and returns `null`, which is decisive for C7 and for
+ * §9.6 A2's totals.
  */
-function publishAtifTrajectory(
-  run: PreparedRun, dag: CompositeManifest, state: unknown, io: AgentRunIo,
+function stageAtifTrajectory(
+  run: PreparedRun,
+  dag: CompositeManifest,
+  links: readonly ThreadLink[] | null,
+  state: unknown,
+  io: AgentRunIo,
 ): PublishedAtifFacts | null {
   if (state !== 'completed') return null;
-  const outputPath = path.join(run.options.trajectoryRoot, ATIF_TRAJECTORY_FILE);
+  const outputPath = atifPaths(run).staged;
   try {
-    mergeTrajectory({ trajectoryRoot: run.options.trajectoryRoot, outputPath, attemptDag: dag });
+    mergeTrajectory({
+      trajectoryRoot: run.options.trajectoryRoot,
+      outputPath,
+      attemptDag: dag,
+      // §9.3 M1: the in-trial link map is the DAG's, so `collectThreadLinks` is not consulted.
+      ...(links && links.length > 0 ? { subagentLinks: [...links] } : {}),
+    });
   } catch (error) {
     if (!(error instanceof TrajectoryMergeError)) throw error;
     io.stderr.write(`${JSON.stringify({ reason: error.reason, detail: error.message })}\n`);
     return null;
   }
-  const published = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as Record<string, unknown>;
-  const extra = (published.extra ?? {}) as Record<string, unknown>;
+  const merged = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as Record<string, unknown>;
+  const extra = (merged.extra ?? {}) as Record<string, unknown>;
   return {
-    subagentLevels: atifSubagentLevels(published),
+    subagentLevels: atifSubagentLevels(merged),
     linkSource: String(extra.subagent_link_source),
+    finalMetrics: merged.final_metrics as PublishedAtifFacts['finalMetrics'],
   };
+}
+
+/**
+ * The staged tree becomes the published one only once nothing can still refuse the trial.
+ *
+ * `link` and not `rename`: staging moved the merge's own `assertOutputPrecondition` onto the
+ * staging path, so this commit is the ONLY thing still guarding the final one, and §9.3 M9
+ * (`design:2723`) keeps the shipped publication verbatim — a pre-existing output is
+ * `output_path_exists`. `rename(2)` replaces its destination in silence; `link(2)` raises EEXIST.
+ * Reported through the SHIPPED reason `publishComposite` already raises for its own half
+ * (`composite-manifest.ts:706,722`) — no new vocabulary.
+ */
+function commitStagedAtif(run: PreparedRun): void {
+  const paths = atifPaths(run);
+  try {
+    fs.linkSync(paths.staged, paths.published);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
+    throw new CompositeManifestError('output_path_exists', paths.published);
+  }
+  fs.rmSync(paths.staged, { force: true });
+}
+
+/**
+ * Exactly one of the two names can hold the tree: `commitStagedAtif` links then unlinks, so
+ * `committed` selects the survivor.
+ *
+ * A removal that fails for anything other than `ENOENT` (which `force` already suppresses) leaves
+ * the orphan this whole staging dance exists to prevent, so it is REPORTED rather than swallowed —
+ * an unreported orphan is strictly worse than a reported one, because the next run in this
+ * artifacts root will fail `output_path_exists` with no record of why. Reported the way the lease
+ * echo reports its own non-fatal plumbing fault (`:1290`): a plain diagnostic line, deliberately
+ * NOT a typed `reason` record, because no §8.7 code covers it and inventing one is forbidden.
+ */
+function discardAtif(run: PreparedRun, committed: boolean, io: AgentRunIo): void {
+  const target = committed ? atifPaths(run).published : atifPaths(run).staged;
+  try {
+    fs.rmSync(target, { force: true });
+  } catch (error) {
+    io.stderr.write(`atif discard failed: ${target}: ${(error as Error)?.message ?? String(error)}\n`);
+  }
 }
 
 /** The parent process's own attempt — one fragment, one journal, one lifecycle pair (§17 17.3.1). */
@@ -1137,23 +1281,44 @@ function taggedCount(value: number | null): Tagged<number> {
  * The record this returns is placed VERBATIM and no arithmetic is performed on it (G4-CM23).
  */
 /**
- * §9.6 A2 sums the journal side RECURSIVELY over the DAG, and A5 forbids treating a missing counter
- * as zero — so ONE underivable operand makes the TOTAL underivable rather than silently shrinking
- * it. `null` is not skipped; it propagates.
+ * §9.6 A2 (`design:2840`) names ONE producer for the journal side: the totals are "summed
+ * recursively over the DAG using the SHIPPED ACCUMULATOR, which refuses to guess", and the row is
+ * marked `shipped`, not NEW. That accumulator is the merge's `addPlanMetrics`
+ * (`trajectory-merge.ts:853`) and its answer is the merged tree's `final_metrics`. Re-summing the
+ * terminal manifests here would put a SECOND derivation of the same quantity in the same process,
+ * never compared against the first, and then label it `source: 'trajectory_merge'` — a claim about
+ * provenance the merge did not make.
+ *
+ * A2 also fixes the MAPPING, because it names the accumulator's four operands: `prompt_tokens`,
+ * `tokens_out`, `cached_tokens`, `cost_usd`. They land on §9.2's `tokens.input`, `tokens.output`,
+ * `tokens.cached` and `cost_usd` respectively.
+ *
+ * When the accumulator REFUSED there is no journal side at all: every figure is `unavailable`,
+ * never zero (§9.6 A5) and never a substitute sum. That is the accumulator's own semantics rather
+ * than a weakening — `assertMetricsDerivable` refuses the whole aggregate the moment any one
+ * operand is missing, so a per-field fallback would report figures it had just been told nobody
+ * could derive.
  */
-function summedCount(values: readonly (number | null)[]): number | null {
-  let total = 0;
-  for (const value of values) {
-    if (value === null) return null;
-    total += value;
-  }
-  return total;
+function journalTotalsFrom(atif: PublishedAtifFacts | null): Pick<
+  JournalTotals, 'cost_usd' | 'steps' | 'tokens'
+> {
+  const metrics = atif?.finalMetrics ?? null;
+  return {
+    cost_usd: journalCostFromNumber(metrics?.total_cost_usd ?? null),
+    steps: taggedCount(metrics?.total_steps ?? null),
+    tokens: {
+      input: taggedCount(metrics?.total_prompt_tokens ?? null),
+      output: taggedCount(metrics?.total_completion_tokens ?? null),
+      cached: taggedCount(metrics?.total_cached_tokens ?? null),
+    },
+  };
 }
 
 function attemptAccounting(
   policy: ResolvedTrialPolicy,
   nodes: readonly AttemptRecord[],
   parentAttemptId: string,
+  atif: PublishedAtifFacts | null,
 ): AccountingRecord {
   const unreadable = { status: 'unavailable', reason: 'counter_unreadable' } as const;
   const proxy: ProxyExport = {
@@ -1170,13 +1335,7 @@ function attemptAccounting(
   };
   const journal: JournalTotals = {
     requests: { status: 'unavailable', reason: 'journal_underivable' },
-    cost_usd: journalCostFromNumber(summedCount(nodes.map(node => node.cost_usd))),
-    steps: taggedCount(summedCount(nodes.map(node => node.steps))),
-    tokens: {
-      input: taggedCount(summedCount(nodes.map(node => node.tokens.input))),
-      output: taggedCount(summedCount(nodes.map(node => node.tokens.output))),
-      cached: taggedCount(summedCount(nodes.map(node => node.tokens.cache_read))),
-    },
+    ...journalTotalsFrom(atif),
     source: 'trajectory_merge',
     // A4's named set: the roles the attempt DAG DID account for, so an excess can be reported
     // against it rather than absorbed.
@@ -1207,6 +1366,7 @@ function publishCompositeManifest(
   const applicability = compositeApplicability(run, terminal);
   if (!applicability.applicable) return;
   const { policy } = applicability;
+  let committedAtif = false;
   try {
     const mode = policy.arm.orchestration?.mode;
     if (!mode) {
@@ -1227,16 +1387,29 @@ function publishCompositeManifest(
       nodes: graph.nodes,
       edges: graph.edges,
       roots: { parent_attempt_id: parent.attempt_id, root_task_id: null },
-      accounting: attemptAccounting(policy, graph.nodes, parent.attempt_id),
       mode: mode as OrchestrationModeName,
     };
     // Built twice from the same pure inputs, published once. The first build exists only to give
     // the merge G4-CM12's canonical node order — re-deriving an order inside the merge would make
     // the published tree depend on the merge instead of on the document it walks — and §9.4 C7
-    // cannot be evaluated until the tree that build produces has been published.
-    const atif = publishAtifTrajectory(run, buildCompositeManifest(shape), terminal!.state, io);
+    // cannot be evaluated until the tree that build produces has been merged.
+    //
+    // Its `accounting` is a value the merge never reads: `AttemptDag`
+    // (`trajectory-merge.ts:71-78`) declares only `nodes`, `edges`, `roots` and `identity`. It
+    // cannot be the real one, because §9.6 A2's journal side IS the merge's own output and
+    // therefore cannot exist before the merge runs.
+    const atif = stageAtifTrajectory(
+      run,
+      buildCompositeManifest({
+        ...shape, accounting: attemptAccounting(policy, graph.nodes, parent.attempt_id, null),
+      }),
+      graph.subagentLinks,
+      terminal!.state,
+      io,
+    );
     const manifest = buildCompositeManifest({
       ...shape,
+      accounting: attemptAccounting(policy, graph.nodes, parent.attempt_id, atif),
       evaluatedChecks: evaluateTerminalChecks({
         mode: shape.mode,
         terminalState: terminal!.state,
@@ -1262,8 +1435,19 @@ function publishCompositeManifest(
     }
     // §9.5's grader-admission rule: an EVALUATED §9.4 row that failed rides the shipped code 41.
     assertTerminalPredicate(manifest.predicate);
+    // Nothing can refuse the trial past this line, so the PAIR is published: the tree first, then
+    // the manifest, which is the document §9.5's admission rule keys on and therefore goes last.
+    if (atif !== null) {
+      commitStagedAtif(run);
+      committedAtif = true;
+    }
     publishComposite(manifest, path.join(run.options.trajectoryRoot, COMPOSITE_MANIFEST_FILE));
   } catch (error) {
+    // §9.5 F8: the publication is all-or-nothing. A refused trial leaves NO tree behind — neither
+    // the staged half nor, if the manifest write itself failed, the committed one. An orphaned
+    // `trajectory.json` is a collectable interchange document for a trial that was never admitted,
+    // and it turns the merge's `output_path_exists` into the reason a re-run reports.
+    discardAtif(run, committedAtif, io);
     if (error instanceof CompositeManifestError || error instanceof TerminalPredicateError) {
       io.stderr.write(`${JSON.stringify(error.record())}\n`);
     }

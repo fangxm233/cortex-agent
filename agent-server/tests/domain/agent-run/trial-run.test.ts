@@ -17,7 +17,9 @@ import { afterEach, beforeAll, beforeEach, it, vi } from 'vitest';
 import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
 import { PINNED_RUNTIME_PATH } from '../../../src/domain/agent-run/pinned-node-process.js';
 import { loadAgentRunConfigWithPolicy } from '../../../src/domain/agent-run/run-config.js';
-import { runOneShotAgent, type AgentRunIo } from '../../../src/domain/agent-run/runner.js';
+import {
+  deriveSubagentLinks, runOneShotAgent, type AgentRunIo,
+} from '../../../src/domain/agent-run/runner.js';
 import type { AgentRunCliOptions } from '../../../src/domain/agent-run/agent-run-cli.js';
 import type { ResolvedTrialPolicy } from '../../../src/domain/benchmark/resolved-policy.js';
 import { profileRepo } from '../../../src/store/profile-repo.js';
@@ -27,6 +29,7 @@ import {
 } from '../../../src/domain/benchmark/composite-manifest.js';
 import {
   ATTEMPT_EDGE_KINDS, ATTEMPT_RECORD_KEYS, mintAttemptId,
+  type AttemptEdge, type AttemptRecord,
 } from '../../../src/domain/benchmark/attempt-record.js';
 import {
   writeStartedMarker, writeTerminalManifest,
@@ -81,6 +84,12 @@ interface BackendBehaviour {
    * correctly refuses with `aggregate_metrics_underivable` and F8 publishes no tree.
    */
   accounted?: boolean;
+  /**
+   * Emit the `thread_run` tool call — and its successful result — that a parent which admitted a
+   * pipeline thread really makes. §9.3 M1's link map is keyed on that call id, so a seeded child
+   * with no call in the parent's journal is a shape production cannot produce.
+   */
+  threadRunCall?: { id: string; threadId: string };
 }
 
 interface Fixture {
@@ -123,6 +132,10 @@ ${behaviour.reportUsage || behaviour.accounted
     : ''}
 ${behaviour.nativeSubagentCall
     ? `  console.log(JSON.stringify({ type: 'assistant', message: { id: 'a0', model: 'claude-reported-trial', content: [{ type: 'tool_use', id: ${JSON.stringify(behaviour.nativeSubagentCall.id)}, name: ${JSON.stringify(behaviour.nativeSubagentCall.name)}, input: {} }] } }));`
+    : ''}
+${behaviour.threadRunCall
+    ? `  console.log(JSON.stringify({ type: 'assistant', message: { id: 'a2', model: 'claude-reported-trial', content: [{ type: 'tool_use', id: ${JSON.stringify(behaviour.threadRunCall.id)}, name: 'thread_run', input: { action: 'start' } }] } }));
+  console.log(JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: ${JSON.stringify(behaviour.threadRunCall.id)}, is_error: false, content: ${JSON.stringify(JSON.stringify({ thread_id: behaviour.threadRunCall.threadId, state: 'completed' }))} }] } }));`
     : ''}
   console.log(JSON.stringify({ type: 'assistant', message: { id: 'a1', model: 'claude-reported-trial', content: [{ type: 'text', text: 'trial reply' }] } }));
   console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: request.session_id, result: 'trial reply', num_turns: 1${behaviour.accounted ? ", total_cost_usd: 0.0025, usage: { input_tokens: 1000, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }" : ''} }));
@@ -804,6 +817,9 @@ it('publishes the merged ATIF trajectory from inside runOneShotAgent (T18)', asy
   assert.throws(() => mergeTrajectory({
     trajectoryRoot: built.options.trajectoryRoot, outputPath: published,
   }), (error: unknown) => (error as TrajectoryMergeError).reason === 'output_path_exists');
+
+  // ...and F8 committed its staged half rather than leaving both names occupied.
+  assert.equal(fs.existsSync(`${published}.staging`), false);
 }, 60_000);
 
 // --- T19: the §9.4 census is LOAD-BEARING, and its failure rides the shipped code 41 ---
@@ -883,11 +899,17 @@ function writeChildAttempt(built: Fixture, threadId: string, role: string): stri
     role_tool_surface_hash: identity.roleToolSurfaceHash,
     bundle_manifest_hash: identity.bundleManifestHash,
   };
+  // A child that READ CACHE, which is what a real second turn does. The numbers follow the shipped
+  // adapter's own convention (`adapter.ts:140-147`): `prompt_tokens` = input + cacheCreation +
+  // cacheRead, `cached_tokens` = cacheRead, `tokens_in` = `prompt_tokens`. `cached_tokens` is
+  // load-bearing: the runner's OWN terminal manifest carries no `cache_read` member at all
+  // (`runner.ts:719-722`), so a summation over terminal manifests can never derive a cached total,
+  // while the shipped accumulator can. That asymmetry is what makes the two producers distinguishable.
   const events = [
     { type: 'assistant_text', text: 'child works' },
     {
       type: 'cost_record', provider: 'anthropic', model: 'claude-reported-trial',
-      tokens_in: 10, tokens_out: 2, prompt_tokens: 10, cached_tokens: 0, cost_usd: 0.001,
+      tokens_in: 25, tokens_out: 2, prompt_tokens: 25, cached_tokens: 15, cost_usd: 0.001,
     },
     { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.001 },
   ];
@@ -922,7 +944,7 @@ function writeChildAttempt(built: Fixture, threadId: string, role: string): stri
     // §9.4 G2: the child is quiescent with no surviving descendants.
     supervisor: { quiescent: true, descendants: 0 },
     steps: 1, costUsd: 0.001,
-    tokens: { input: 10, output: 2, cache_read: 0, cache_creation: 0 },
+    tokens: { input: 25, output: 2, cache_read: 15, cache_creation: 0 },
     ...identity,
     terminalReason: 'ok',
   });
@@ -930,7 +952,10 @@ function writeChildAttempt(built: Fixture, threadId: string, role: string): stri
 }
 
 it('emits one AttemptRecord per attempt and a spawn edge between them (T20)', async () => {
-  const built = fixture({ accounted: true }, undefined, 'coder-review');
+  const built = fixture(
+    { accounted: true, threadRunCall: { id: 'toolu_thread_1', threadId: 'c1' } },
+    undefined, 'coder-review',
+  );
   const childId = writeChildAttempt(built, 'c1', 'benchmark-coder');
 
   const outcome = await runTrial(built);
@@ -981,4 +1006,303 @@ it('emits one AttemptRecord per attempt and a spawn edge between them (T20)', as
       .filter(name => name.endsWith('.started.json'))
       .map(name => name.slice(0, -'.started.json'.length)),
   }), []);
+
+  // --- §9.4 C7, all THREE conjuncts decided (B2) ---
+  //
+  // The link map was DERIVED FROM THE DAG and handed to the merge through the shipped
+  // `MergeTrajectoryOptions.subagentLinks` seam (G4-PB8, `design:8368`), so the published tree
+  // reports `explicit` — the value C7 (`design:2778`) asserts and §9.3 M1 (`design:2715`) makes
+  // mandatory in-trial. Before this the argument was never passed, the merge fell back to parsing
+  // model-produced tool text, and the conjunct was never decided at all.
+  const trajectory = JSON.parse(fs.readFileSync(
+    path.join(built.options.trajectoryRoot, 'trajectory.json'), 'utf8',
+  ));
+  assert.equal(trajectory.extra.subagent_link_source, 'explicit');
+  assert.equal(trajectory.subagent_trajectories.length, 1);
+  const c7 = manifest.predicate.checks.find((check: any) => check.check_id === 'C7');
+  assert.equal(c7.result, 'pass', c7.detail);
+  assert.equal(c7.detail, null);
+
+  // --- §9.5 F8's publication is all-or-nothing, in the SUCCESS direction (B1) ---
+  //
+  // Exactly one tree, and no staging residue: the staged half is committed by `link(2)` and its
+  // staging name removed, so a re-run in the same artifacts root meets the guard and not a leftover.
+  assert.equal(
+    fs.existsSync(path.join(built.options.trajectoryRoot, 'trajectory.json.staging')), false,
+    'the staged ATIF was left behind next to the published one',
+  );
+
+  // --- §9.6 A2: ONE producer for the journal side (M1) ---
+  //
+  // The journal totals ARE the shipped accumulator's own answer, read back off the two documents F8
+  // published rather than re-summed here. A2 names the accumulator's four operands, which fixes the
+  // mapping: `prompt_tokens → tokens.input`, `tokens_out → tokens.output`,
+  // `cached_tokens → tokens.cached`, `cost_usd → cost_usd`.
+  const metrics = trajectory.final_metrics;
+  const journal = manifest.accounting.journal;
+  assert.equal(journal.source, 'trajectory_merge');
+  assert.equal(Number(journal.cost_usd.value), metrics.total_cost_usd);
+  assert.deepEqual(journal.steps, { status: 'available', value: metrics.total_steps });
+  assert.deepEqual(journal.tokens.input,
+    { status: 'available', value: metrics.total_prompt_tokens });
+  assert.deepEqual(journal.tokens.output,
+    { status: 'available', value: metrics.total_completion_tokens });
+  // The discriminating figure. `cache_read` is not a member of the runner's terminal manifest at
+  // all (`runner.ts:719-722`), so the DELETED second summation could only ever report `cached` as
+  // unavailable; the accumulator derives it from the child's `cost_record`. A restored second
+  // producer fails HERE, on a non-zero number.
+  assert.deepEqual(journal.tokens.cached, { status: 'available', value: 15 });
+  assert.equal(metrics.total_cached_tokens, 15);
+  assert.equal(metrics.total_steps, 2);
 }, 60_000);
+
+// --- T21: §9.6 A2/A5 — the journal side is the accumulator's, and it REFUSES rather than guess ---
+//
+// MGR-F1 and M1 meet here. §9.6 A2 (`design:2840`) names ONE producer for the journal side — "the
+// shipped accumulator, which refuses to guess" — and marks the row `shipped`. When that accumulator
+// refuses, EVERY journal figure is unavailable. It is not replaced by a second summation over the
+// terminal manifests, and no operand is silently skipped: a sum that skipped the missing ones would
+// publish a total meaning "the trial spent nothing" where the truth is "nobody knows what it spent".
+//
+// `steps` is the conjunct that separates the two producers in this direction. The terminal manifest
+// carries `steps: 1` (T14 asserts it), so a summation over terminal manifests reports `available 1`
+// here while the accumulator — which refused wholesale — has nothing to report.
+
+it('publishes an UNAVAILABLE journal side when the accumulator refused (T21, §9.6 A2/A5)', async () => {
+  // Reachability is structural, not contrived: this backend reports no cost and no usage, so the
+  // adapter emits no `cost_record`, and `fragmentCostMetrics` refuses `aggregate_metrics_underivable`.
+  const built = fixture();
+  const outcome = await runTrial(built);
+  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
+
+  // The merge really did refuse, and said so with its own shipped reason.
+  const refusal = outcome.stderr.split('\n').filter(Boolean)
+    .flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } })
+    .find(record => record?.reason === 'aggregate_metrics_underivable');
+  assert.ok(refusal, `the accumulator did not refuse:\n${outcome.stderr}`);
+
+  // A refusal to derive the trajectory is NOT a refusal of the trial: §9.4 D2 does not read the
+  // tree, so the manifest is still published and the terminal truth F6 wrote is preserved.
+  const manifest = JSON.parse(fs.readFileSync(
+    path.join(built.options.trajectoryRoot, 'composite-manifest.json'), 'utf8',
+  ));
+  assert.equal(manifest.predicate.checks.find((c: any) => c.check_id === 'D2').result, 'pass');
+  assert.equal(terminalManifest(built).steps, 1);
+
+  const unavailable = { status: 'unavailable', reason: 'journal_underivable' };
+  const journal = manifest.accounting.journal;
+  assert.deepEqual(journal.requests, unavailable);
+  assert.deepEqual(journal.cost_usd, unavailable);
+  assert.deepEqual(journal.steps, unavailable);
+  assert.deepEqual(journal.tokens,
+    { input: unavailable, output: unavailable, cached: unavailable });
+
+  // ...and nothing was published or left staged for a tree that does not exist.
+  for (const name of ['trajectory.json', 'trajectory.json.staging']) {
+    assert.equal(
+      fs.existsSync(path.join(built.options.trajectoryRoot, name)), false, `${name} exists`,
+    );
+  }
+}, 60_000);
+
+// --- T22: G4-CM10 — an underivable non-nullable field REFUSES; it does not get a placeholder ---
+//
+// MGR-F3. A `direct` arm's child-template whitelist is EMPTY (`capabilities.ts:36,61`), so a thread
+// attempt under one has no §9.1 field 12 the frozen policy can supply. G4-CM10 rules that case a
+// `composite_manifest_invalid` refusal rather than a guess, and the refusal was pinned by nothing.
+//
+// This is the EMPTY-WHITELIST witness rather than the manager-mode one: it drives a real arm over a
+// real seeded lifecycle pair through `runOneShotAgent` and observes the production refusal itself,
+// where a manager-mode test could only pin the absence of a shipped template.
+
+it('refuses a thread attempt whose §9.1 template is underivable (T22, G4-CM10)', async () => {
+  const built = fixture();
+  // Measured off the compiled policy, not assumed: `direct` derives NO child template.
+  assert.deepEqual(built.policy.child_template_whitelist, []);
+  // A `direct` arm compiles exactly one role, so the seeded pair enters under it. Inventing a
+  // `benchmark-coder` identity here would make the fixture the authority on identity instead of
+  // the frozen policy, and the merge's role-indexed M4 check would refuse it on those grounds
+  // rather than on the one this test is about.
+  writeChildAttempt(built, 'b1', 'parent');
+
+  const outcome = await runTrial(built);
+  const refusal = outcome.stderr.split('\n').filter(Boolean)
+    .flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } })
+    .find(record => record?.reason === 'composite_manifest_invalid');
+  assert.ok(refusal, `no typed refusal on stderr:\n${outcome.stderr}`);
+  assert.equal(refusal.code, 40);
+  assert.equal(refusal.code,
+    BENCHMARK_FAILURES.find(f => f.reason === 'composite_manifest_invalid')!.code);
+  // The refusal came from the DAG BUILDER, not from the structural validator: a document that got
+  // as far as validation would carry named violations. A placeholder template produces exactly that
+  // instead, which is how this assertion separates the two.
+  assert.deepEqual(refusal.violations, []);
+  // The message names the field and the cardinality that made it underivable, so the report is
+  // actionable rather than merely typed.
+  assert.match(outcome.stderr, /thread attempt template underivable: 0 whitelisted child templates/);
+  assert.equal(outcome.exitCode, 1);
+
+  // And it refused BEFORE F8 wrote anything at all.
+  for (const name of ['composite-manifest.json', 'trajectory.json', 'trajectory.json.staging']) {
+    assert.equal(
+      fs.existsSync(path.join(built.options.trajectoryRoot, name)), false, `${name} exists`,
+    );
+  }
+}, 60_000);
+
+// --- T23: §9.5 F8's publication is ATOMIC — the refusal direction, and the two traps ---
+//
+// F8 publishes a PAIR (`design:2815`) and the step table forbids reordering. The composite manifest
+// is written last because §9.5's grader-admission rule keys on it, and the checklist that decides
+// admission reads the ATIF tree — so the tree must exist before the decision, and the decision can
+// still refuse. A tree merged straight to its final path therefore survives a refused trial as a
+// complete, collectable interchange document for a trial that published no manifest; and because
+// the merge's `output_path_exists` is a HARD failure (`trajectory-merge.ts:648-653`), that residue
+// turns any second attempt in the same artifacts root into that refusal instead of its real outcome.
+
+it('a refused trial leaves NO trajectory.json and no staging residue (T23a)', async () => {
+  // The parent admitted a pipeline thread but its journal carries no `thread_run` call, so the
+  // link map is UNDERIVABLE and F8 passes none. The merge then falls back to the model-visible
+  // tool text §9.3 M1 forbids in-trial and reports `tool_result`, which fails C7's link-source
+  // conjunct. The merge itself SUCCEEDS — so a tree really was produced and really had to be
+  // discarded, which is what makes this a witness for atomicity rather than a vacuous absence.
+  const built = fixture({ accounted: true }, undefined, 'coder-review');
+  writeChildAttempt(built, 'c1', 'benchmark-coder');
+  const outcome = await runTrial(built);
+
+  const refusal = outcome.stderr.split('\n').filter(Boolean)
+    .flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } })
+    .find(record => record?.reason === 'terminal_predicate_unmet');
+  assert.ok(refusal, `no code-41 refusal on stderr:\n${outcome.stderr}`);
+  assert.equal(refusal.code, 41);
+  assert.deepEqual(refusal.unmet, ['C7']);
+  assert.match(refusal.checks[0].detail, /link source is tool_result, not explicit/);
+  assert.equal(outcome.exitCode, 1);
+
+  for (const name of ['composite-manifest.json', 'trajectory.json', 'trajectory.json.staging']) {
+    assert.equal(
+      fs.existsSync(path.join(built.options.trajectoryRoot, name)), false, `${name} was left behind`,
+    );
+  }
+}, 60_000);
+
+it('refuses a pre-existing trajectory.json instead of replacing it (T23b, §9.3 M9)', async () => {
+  // Staging moved the merge's own `assertOutputPrecondition` onto the STAGING path, so the commit
+  // is the only thing still guarding the final one. `rename(2)` replaces its destination in
+  // silence; `link(2)` raises EEXIST. Without this, B1's fix quietly reintroduces the fail-open
+  // §9.5 F8 and §9.3 M9 ("keep verbatim") exist to remove.
+  const built = fixture({ accounted: true });
+  const published = path.join(built.options.trajectoryRoot, 'trajectory.json');
+  const prior = '{"prior":"trial"}\n';
+  fs.writeFileSync(published, prior);
+
+  const outcome = await runTrial(built);
+  assert.notEqual(outcome.exitCode, 0, 'a pre-existing ATIF was accepted');
+  // The prior document survives BYTE-FOR-BYTE: F8's failure is hard, not best-effort.
+  assert.equal(fs.readFileSync(published, 'utf8'), prior);
+  // Reported through the SHIPPED merge reason — this allocates no new vocabulary.
+  const refusal = outcome.stderr.split('\n').filter(Boolean)
+    .flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } })
+    .find(record => record?.reason === 'output_path_exists');
+  assert.ok(refusal, `no output_path_exists refusal on stderr:\n${outcome.stderr}`);
+  // And the staged half is discarded, so nothing half-published survives either.
+  assert.equal(fs.existsSync(`${published}.staging`), false);
+  assert.equal(
+    fs.existsSync(path.join(built.options.trajectoryRoot, 'composite-manifest.json')), false,
+  );
+}, 60_000);
+
+it('REPORTS a discard it could not complete, rather than orphaning silently (T23c)', async () => {
+  // The whole point of the discard is that no tree outlives a refused trial. A discard that fails
+  // and says nothing leaves exactly the orphan B1 exists to prevent — and leaves it invisible.
+  //
+  // The obstruction is a real filesystem state, not a stub: something else occupies the staging
+  // name as a non-empty directory. The merge refuses `output_path_exists` on it, C7 then fails
+  // because no tree was published, and the discard cannot remove a directory (`rmSync`'s `force`
+  // suppresses ENOENT only).
+  const built = fixture({ accounted: true }, undefined, 'coder-review');
+  writeChildAttempt(built, 'c1', 'benchmark-coder');
+  const staging = path.join(built.options.trajectoryRoot, 'trajectory.json.staging');
+  fs.mkdirSync(staging);
+  fs.writeFileSync(path.join(staging, 'occupant'), 'not a trajectory\n');
+
+  const outcome = await runTrial(built);
+  assert.notEqual(outcome.exitCode, 0);
+  assert.match(outcome.stderr, /atif discard failed/);
+  assert.ok(outcome.stderr.includes(staging), `the report does not name the path:\n${outcome.stderr}`);
+  // The obstruction is untouched — the run reported it instead of escalating to a recursive delete.
+  assert.equal(fs.readFileSync(path.join(staging, 'occupant'), 'utf8'), 'not a trajectory\n');
+}, 60_000);
+
+// --- T24: §9.3 M1's link map is DERIVED FROM THE DAG, on a TOTAL order ---
+//
+// `deriveSubagentLinks` is the production function `attemptGraph` calls; T20 proves it is wired and
+// what it produces end to end, and this proves what it computes. Pure inputs, pure output.
+
+it('derives the subagent link map from the DAG in attempt-ordinal order (T24, §9.3 M1)', () => {
+  const nodes = [
+    { attempt_id: 'run-r1', thread_id: null, attempt_ordinal: 1 },
+    { attempt_id: 'thread-a', thread_id: 'a', attempt_ordinal: 2 },
+    { attempt_id: 'thread-b', thread_id: 'b', attempt_ordinal: 3 },
+  ] as never as AttemptRecord[];
+  const edges = [
+    { kind: 'spawn', from: { ref: 'attempt', id: 'run-r1' }, to: { ref: 'attempt', id: 'thread-a' } },
+    { kind: 'spawn', from: { ref: 'attempt', id: 'run-r1' }, to: { ref: 'attempt', id: 'thread-b' } },
+  ] as never as AttemptEdge[];
+  const call = (id: string, name = 'thread_run') => (
+    { type: 'tool_use', name, toolUseId: id, input: {} } as never
+  );
+  const parentCalls = [call('call-1'), call('call-2')];
+  const journals = (parent: never[]) => ([
+    { attempt_id: 'run-r1', events: parent },
+    { attempt_id: 'thread-a', events: [] },
+    { attempt_id: 'thread-b', events: [] },
+  ]);
+  const paired = [{ callId: 'call-1', threadId: 'a' }, { callId: 'call-2', threadId: 'b' }];
+
+  assert.deepEqual(deriveSubagentLinks(nodes, edges, journals(parentCalls)), paired);
+
+  // THE REVERSED-EDGE CASE. `edges` is built by walking `observedLifecycleStems`, a bare unsorted
+  // `readdirSync`, so its order is a directory-listing artefact. Pairing must follow G4-AI5's
+  // `attempt_ordinal` (`started_at`, made total by `assignAttemptOrdinals`'s `attempt_id`
+  // tie-break), so the SAME DAG with its edges reversed derives the SAME map. Zipping edges in
+  // their own order returns `call-1 → b` — a silent mis-pair no merge check can catch, because
+  // `nodeLinks` (`trajectory-merge.ts:562-575`) tests MEMBERSHIP in the child set, not identity.
+  assert.deepEqual(deriveSubagentLinks(nodes, [edges[1], edges[0]], journals(parentCalls)), paired);
+
+  // Both live names of the one tool. The merge indexes calls by both (`trajectory-merge.ts:283`),
+  // and a map that missed the alias would be short by one link.
+  assert.deepEqual(
+    deriveSubagentLinks(nodes, edges, journals(
+      [call('call-1'), call('call-2', 'mcp__cortex-benchmark-thread__thread_run')] as never[],
+    )),
+    paired,
+  );
+
+  // A trial with no thread at all derives an EMPTY map, not a null one: nothing was underivable.
+  assert.deepEqual(deriveSubagentLinks(
+    nodes.slice(0, 1), [], [{ attempt_id: 'run-r1', events: [] }],
+  ), []);
+
+  // Counts that disagree — a `thread_run` the §5.4 E2 call limit refused — are UNDERIVABLE, and the
+  // WHOLE map is null rather than partial. `explicitLinksInCallOrder` requires a link for every
+  // call a fragment made (`trajectory-merge.ts:375-377`), so a partial map is a hard merge refusal,
+  // and guessing which call started which thread is exactly what §9.3 M1 forbids.
+  assert.equal(
+    deriveSubagentLinks(nodes, edges, journals([...parentCalls, call('call-3')] as never[])), null,
+  );
+  assert.equal(deriveSubagentLinks(nodes, edges, journals([call('call-1')] as never[])), null);
+
+  // A child attempt with no `thread_id` names no thread, so the map is underivable rather than
+  // carrying a link to nothing.
+  const anonymous = [
+    nodes[0], { ...nodes[1], thread_id: null }, nodes[2],
+  ] as never as AttemptRecord[];
+  assert.equal(deriveSubagentLinks(anonymous, edges, journals(parentCalls)), null);
+
+  // A child the manifest never declared has no ordinal, so no total order exists over the children
+  // and the pairing is underivable. Never sorted as if it came first.
+  assert.equal(
+    deriveSubagentLinks(nodes.slice(0, 2), edges, journals(parentCalls)), null,
+  );
+});

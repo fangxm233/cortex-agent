@@ -55,7 +55,16 @@ function input(overrides: Partial<TerminalCheckInput> = {}): TerminalCheckInput 
   };
 }
 
-const EXPLICIT_ONE_LEVEL: PublishedAtifFacts = { subagentLevels: 1, linkSource: 'explicit' };
+/** §9.6 A2's four operands as the shipped accumulator reports them; no row below reads them, which
+ *  is the point — the checklist decides §9.4, the accounting decides §9.6. */
+const METRICS: PublishedAtifFacts['finalMetrics'] = {
+  total_prompt_tokens: 1010, total_completion_tokens: 22, total_cached_tokens: 15,
+  total_cost_usd: 0.0035, total_steps: 2,
+};
+
+const EXPLICIT_ONE_LEVEL: PublishedAtifFacts = {
+  subagentLevels: 1, linkSource: 'explicit', finalMetrics: METRICS,
+};
 
 // ── the census predicate itself (G4-SA12) ───────────────────────────────────────────────────
 
@@ -138,7 +147,7 @@ it('C7 — an unattested call FAILS even with a perfect tree', () => {
 it('C7 — the wrong number of subagent levels FAILS', () => {
   const checks = evaluateTerminalChecks(input({
     mode: 'coder-review', nodes: TWO_NODES,
-    atif: { subagentLevels: 2, linkSource: 'explicit' },
+    atif: { ...EXPLICIT_ONE_LEVEL, subagentLevels: 2 },
   }));
   assert.equal(checks.C7.result, 'fail');
   assert.match(checks.C7.detail!, /2 subagent_trajectories levels/);
@@ -151,16 +160,31 @@ it('C7 — no published ATIF at all FAILS', () => {
   assert.equal(checks.C7.result, 'fail');
 });
 
-it('C7 — a DERIVED link source is UNAVAILABLE, never pass and never fail', () => {
-  // The conjunct is decidably not-`explicit`, but the shortfall belongs to the pin that had no
-  // independent link map, not to the trial. Recording `pass` would be a lie; `fail` would refuse
-  // every coder-review trial for a gap Gate 6 owns.
+it('C7 — a DERIVED link source FAILS the row (§9.3 M1)', () => {
+  // This row previously read `unavailable`, on the ground that F7 had no link map independent of
+  // the parent's own tool results and asserting `explicit` off those results would be circular.
+  // That ground is gone: G4-PB8 (`design:8368`) rules that F8 passes the DAG's own link map through
+  // `MergeTrajectoryOptions.subagentLinks`, and §9.3 M1 (`design:2715`) makes that map MANDATORY
+  // in-trial with `collectThreadLinks` not consulted. A published `tool_result` source therefore
+  // means the merge fell back to parsing model-produced text — the defect M1 removes, not an
+  // undecided conjunct.
   const checks = evaluateTerminalChecks(input({
     mode: 'coder-review', nodes: TWO_NODES,
-    atif: { subagentLevels: 1, linkSource: 'tool_result' },
+    atif: { ...EXPLICIT_ONE_LEVEL, linkSource: 'tool_result' },
   }));
-  assert.equal(checks.C7.result, 'unavailable');
-  assert.match(checks.C7.detail!, /tool_result/);
+  assert.equal(checks.C7.result, 'fail');
+  assert.match(checks.C7.detail!, /tool_result, not explicit/);
+});
+
+it('C7 — the level and link-source conjuncts are reported SEPARATELY', () => {
+  // One mutant that collapsed the two into a single check would still pass the two tests above.
+  const checks = evaluateTerminalChecks(input({
+    mode: 'coder-review', nodes: TWO_NODES,
+    atif: { ...EXPLICIT_ONE_LEVEL, subagentLevels: 0, linkSource: 'tool_result' },
+  }));
+  assert.equal(checks.C7.result, 'fail');
+  assert.match(checks.C7.detail!, /0 subagent_trajectories levels/);
+  assert.match(checks.C7.detail!, /tool_result, not explicit/);
 });
 
 // ── the success-checklist guard ─────────────────────────────────────────────────────────────
