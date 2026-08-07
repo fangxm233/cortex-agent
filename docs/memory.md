@@ -29,7 +29,7 @@ context/
         ├── STATUS.md            # Present-tense state register (overwriting, max 80 lines / 6KB)
         ├── ISSUES.md            # Execution friction (append-only, resolved items deleted, max 80 lines / 6KB)
         ├── TASKS.yaml           # Structured task queue (machine-readable YAML)
-        ├── tasks-archive.md     # Auto-archived completed tasks (by the task-archive scheduler job)
+        ├── tasks-archive.md     # Completed tasks archived by the built-in archiver
         ├── experiments/
         │   ├── index.md         # Auto-generated — do not edit manually
         │   └── EXP-NNN.md       # One file per experiment, YAML frontmatter
@@ -219,7 +219,7 @@ The acid test for Dense Context quality: if you start a fresh session with only 
 
 ## Memory Index Regeneration Job
 
-The `memory-index-regen` programmatic scheduler job (registered via `job-registry.ts` and typically triggered by a schedule with `dispatchType: "memory-index-regen"`) rebuilds all index files from YAML frontmatter. It:
+The built-in memory-index regeneration job rebuilds all index files from YAML frontmatter. `memoryIndexRegenEnabled` and `memoryIndexRegenIntervalMs` in `config/settings.json` control it. The job:
 
 1. Scans all projects under `context/projects/`
 2. Reads frontmatter from every `EXP-*.md`, `K-*.md`, and `PAT-*.md`

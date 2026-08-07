@@ -8,11 +8,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { CONFIG_DIR } from '../../src/core/paths.js';
-import { SETTINGS_SPEC } from '../../src/core/settings-spec.js';
+import { SETTINGS_SPEC, type SettingSpecEntry } from '../../src/core/settings-spec.js';
 import {
   getSettings,
   getSettingsSnapshot,
   onSettingsChange,
+  resolveSettingsSnapshot,
   updateSettings,
 } from '../../src/core/settings.js';
 
@@ -102,6 +103,12 @@ const expectedKeys = [
   'threadMaxDepth',
   'taskArtifactTemplates',
   'taskDispatchMaxConcurrent',
+  'taskDispatchEnabled',
+  'taskDispatchIntervalMs',
+  'taskArchiveEnabled',
+  'taskArchiveIntervalMs',
+  'memoryIndexRegenEnabled',
+  'memoryIndexRegenIntervalMs',
   'uiCorsOrigins',
   'adminChannel',
   'feishuAdminChannel',
@@ -127,16 +134,24 @@ const expectedDefaults = {
   threadMaxDepth: 5,
   taskArtifactTemplates: ['manager'],
   taskDispatchMaxConcurrent: null,
+  taskDispatchEnabled: true,
+  taskDispatchIntervalMs: 30_000,
+  taskArchiveEnabled: true,
+  taskArchiveIntervalMs: 6 * 60 * 60 * 1000,
+  memoryIndexRegenEnabled: true,
+  memoryIndexRegenIntervalMs: 24 * 60 * 60 * 1000,
   uiCorsOrigins: [],
   adminChannel: null,
   feishuAdminChannel: null,
 };
 
 describe.sequential('core settings', () => {
-  test('SETTINGS_SPEC declares all 22 keys with exact env mapping, type, default, and parser metadata', () => {
+  test('SETTINGS_SPEC declares all runtime keys with exact env mapping, type, and defaults', () => {
     assert.deepEqual(Object.keys(SETTINGS_SPEC), expectedKeys);
     assert.deepEqual(
-      Object.fromEntries(Object.entries(SETTINGS_SPEC).map(([key, entry]) => [key, entry.envVar])),
+      Object.fromEntries(Object.entries(SETTINGS_SPEC).map(([key, entry]) => [
+        key, (entry as SettingSpecEntry<unknown>).envVar,
+      ])),
       {
         turnNotify: 'CORTEX_TURN_NOTIFY',
         turnNotifyThresholdS: 'CORTEX_TURN_NOTIFY_THRESHOLD_S',
@@ -157,6 +172,12 @@ describe.sequential('core settings', () => {
         threadMaxDepth: 'CORTEX_THREAD_MAX_DEPTH',
         taskArtifactTemplates: 'CORTEX_TASK_ARTIFACT_TEMPLATES',
         taskDispatchMaxConcurrent: 'TASK_DISPATCH_MAX_CONCURRENT',
+        taskDispatchEnabled: undefined,
+        taskDispatchIntervalMs: undefined,
+        taskArchiveEnabled: undefined,
+        taskArchiveIntervalMs: undefined,
+        memoryIndexRegenEnabled: undefined,
+        memoryIndexRegenIntervalMs: undefined,
         uiCorsOrigins: 'CORTEX_UI_CORS_ORIGINS',
         adminChannel: ['SLACK_ADMIN_CHANNEL', 'CORTEX_ADMIN_CHANNEL'],
         feishuAdminChannel: 'FEISHU_ADMIN_CHANNEL',
@@ -166,13 +187,14 @@ describe.sequential('core settings', () => {
       Object.fromEntries(Object.entries(SETTINGS_SPEC).map(([key, entry]) => [key, entry.default])),
       expectedDefaults,
     );
-    for (const entry of Object.values(SETTINGS_SPEC)) {
+    for (const rawEntry of Object.values(SETTINGS_SPEC)) {
+      const entry = rawEntry as SettingSpecEntry<unknown>;
       assert.equal(typeof entry.type, 'string');
-      assert.equal(typeof entry.legacyParse, 'function');
+      if (entry.envVar !== undefined) assert.equal(typeof entry.legacyParse, 'function');
     }
   });
 
-  test('all legacy parsers preserve their distinct historical semantics', () => {
+  test('all declared legacy parsers preserve their distinct historical semantics', () => {
     const cases: Array<[keyof typeof SETTINGS_SPEC, string, unknown]> = [
       ['turnNotify', ' OFF ', false],
       ['turnNotify', '', true],
@@ -229,7 +251,8 @@ describe.sequential('core settings', () => {
     ];
 
     for (const [key, raw, expected] of cases) {
-      assert.deepEqual(SETTINGS_SPEC[key].legacyParse(raw), expected, `${key}(${JSON.stringify(raw)})`);
+      const parser = (SETTINGS_SPEC[key] as SettingSpecEntry<unknown>).legacyParse!;
+      assert.deepEqual(parser(raw), expected, `${key}(${JSON.stringify(raw)})`);
     }
   });
 
@@ -344,6 +367,14 @@ describe.sequential('core settings', () => {
     await fs.writeFile(path.join(CONFIG_DIR, 'settings-unrelated.json'), '{"turnNotify":false}');
     await new Promise((resolve) => setTimeout(resolve, 350));
     assert.deepEqual(batches, []);
+  });
+
+  test('built-in job intervals enforce integer Node timer bounds', () => {
+    const valid = { taskDispatchIntervalMs: 1_000, memoryIndexRegenIntervalMs: 2_147_483_647 };
+    assert.doesNotThrow(() => resolveSettingsSnapshot(valid));
+    for (const value of [999, 1_000.5, 2_147_483_648]) {
+      assert.throws(() => resolveSettingsSnapshot({ taskArchiveIntervalMs: value }));
+    }
   });
 
   test('malformed JSON and type mismatches log errors and retain the last valid snapshot', async (t) => {

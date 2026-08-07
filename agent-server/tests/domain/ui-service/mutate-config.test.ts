@@ -70,6 +70,8 @@ test('configSetInput accepts partial settings and rejects unknown or wrongly typ
   const value = {
     turnNotify: false,
     taskDispatchMaxConcurrent: null,
+    taskDispatchEnabled: true,
+    taskDispatchIntervalMs: 30_000,
     uiCorsOrigins: ['https://ui.example'],
   };
   const parsed = configSetInput.parse({ section: 'settings', value });
@@ -79,6 +81,17 @@ test('configSetInput accepts partial settings and rejects unknown or wrongly typ
   assert.throws(() => configSetInput.parse({ section: 'settings', value: { turnNotify: 'false' } }));
   assert.throws(() => configSetInput.parse({ section: 'settings', value: { turnNotify: undefined } }));
   assert.throws(() => configSetInput.parse({ section: 'settings', value: { uiCorsOrigins: [42] } }));
+});
+
+test('configSetInput rejects built-in job intervals outside safe timer bounds', () => {
+  assert.doesNotThrow(() => configSetInput.parse({
+    section: 'settings', value: { taskArchiveIntervalMs: 1_000 },
+  }));
+  for (const value of [999, 1_000.5, 2_147_483_648]) {
+    assert.throws(() => configSetInput.parse({
+      section: 'settings', value: { memoryIndexRegenIntervalMs: value },
+    }));
+  }
 });
 
 test('configSetInput rejects illegal values / shapes', () => {
@@ -118,12 +131,18 @@ test('handleConfigSet rejects unknown and wrongly typed settings with invalid-ar
     makeMinimalDeps(),
     { section: 'settings', value: { turnNotify: undefined } } as any,
   );
+  const unsafeInterval = await handleConfigSet(
+    makeMinimalDeps(),
+    { section: 'settings', value: { taskDispatchIntervalMs: 999 } } as any,
+  );
   assert.equal(unknown.ok, false);
   assert.equal(wrongType.ok, false);
   assert.equal(explicitUndefined.ok, false);
+  assert.equal(unsafeInterval.ok, false);
   if (!unknown.ok) assert.equal(unknown.code, 'invalid-args');
   if (!wrongType.ok) assert.equal(wrongType.code, 'invalid-args');
   if (!explicitUndefined.ok) assert.equal(explicitUndefined.code, 'invalid-args');
+  if (!unsafeInterval.ok) assert.equal(unsafeInterval.code, 'invalid-args');
 });
 
 // ── facade + app-router wiring ──────────────────────────────────────

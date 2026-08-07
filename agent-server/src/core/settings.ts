@@ -58,10 +58,12 @@ export function validateSettingsOverrides(value: unknown): asserts value is Reco
   }
   for (const key of SETTING_KEYS) {
     if (!Object.hasOwn(value, key)) continue;
-    const entry = SETTINGS_SPEC[key];
+    const entry = SETTINGS_SPEC[key] as SettingSpecEntry<Settings[SettingKey]>;
     if (!typeValidators[entry.type](value[key])) {
       throw new TypeError(`settings.json key "${key}" must have type ${entry.type}`);
     }
+    const validationError = entry.validate?.(value[key] as never);
+    if (validationError) throw new TypeError(`settings.json key "${key}" ${validationError}`);
   }
 }
 
@@ -74,6 +76,10 @@ function readOverrides(): Record<string, unknown> {
     if (error?.code === 'ENOENT') return {};
     throw error;
   }
+}
+
+export function assertSettingsFileValid(): void {
+  readOverrides();
 }
 
 function logEnvFallback(key: SettingKey, envVar: string): void {
@@ -92,12 +98,14 @@ function resolveSettingEntry<K extends SettingKey>(
   if (Object.hasOwn(overrides, key)) {
     return { key, value: overrides[key] as Settings[K], source: 'file' };
   }
-  const envVars = typeof entry.envVar === 'string' ? [entry.envVar] : entry.envVar;
+  const envVars = entry.envVar === undefined
+    ? []
+    : typeof entry.envVar === 'string' ? [entry.envVar] : entry.envVar;
   for (const envVar of envVars) {
     const raw = env[envVar];
     if (raw === undefined || (TRUTHY_ENV_KEYS.has(key) && raw.length === 0)) continue;
     if (warnOnEnv) logEnvFallback(key, envVar);
-    return { key, value: entry.legacyParse(raw), source: 'env' };
+    return { key, value: entry.legacyParse!(raw), source: 'env' };
   }
   return { key, value: entry.default, source: 'default' };
 }

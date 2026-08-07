@@ -1,10 +1,10 @@
-// input:  task store, dispatch generation, thread runner, reconciler
-// output: fenced dispatch threads, hooks, followups, and quarantine
-// pos:    Starts dispatch threads for claimed tasks
+// input:  task store, execution capacity, thread runner, reconciler
+// output: reserved dispatch cycles, fenced threads, and quarantine
+// pos:    Runs the built-in automatic task dispatcher
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as os from 'node:os';
-import { register, ctx } from '../job-registry.js';
+import { ctx } from '../job-registry.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
@@ -14,8 +14,7 @@ import * as executionRegistry from '../../executions/registry.js';
 const log = createLogger('task-dispatch');
 import * as pendingTaskTracker from '../../tasks/pending-tracker.js';
 import { sessionStore } from '@store/session-registry-repo.js';
-import { getActiveProfile, getActiveBackend } from '../../agents/index.js';
-import { selectAndClaimTask, computeNextInterval, updateScheduleInterval } from '../../tasks/dispatcher.js';
+import { selectAndClaimTask } from '../../tasks/dispatcher.js';
 import { taskMutator } from '../../tasks/mutator.js';
 import { createThread, detectSplitFromControl, clearPendingControl } from '../../threads/index.js';
 import { runThread as runThreadExec } from '../../threads/runner.js';
@@ -37,38 +36,54 @@ function sanitizeBlockReason(s: string): string {
 
 // --- Guards ---
 
-// Null keeps the automatic all-but-two-cores policy, floored at four.
+interface DispatchCycle { taskId: string | null; threadId: string | null }
+const activeDispatchCycles = new Set<DispatchCycle>();
+
 function resolveMaxConcurrent(): number {
   const configured = getSettings().taskDispatchMaxConcurrent;
   if (configured !== null) return configured;
   return Math.max(4, os.cpus().length - 2);
 }
 
-function passDispatchGuards(): boolean {
+function countExternalDispatches(): number {
+  const cycles = [...activeDispatchCycles];
+  const localTaskIds = new Set(cycles.map((cycle) => cycle.taskId).filter(Boolean));
+  const localThreadIds = new Set(cycles.map((cycle) => cycle.threadId).filter(Boolean));
+  return executionRegistry.getRunningExecutions().filter((record) => {
+    if (record.kind !== 'dispatch') return false;
+    if (record.thread?.threadId && localThreadIds.has(record.thread.threadId)) return false;
+    const taskId = record.dispatch?.taskId;
+    return !taskId || !localTaskIds.has(taskId);
+  }).length;
+}
+
+function reserveDispatchCycle(): DispatchCycle | null {
   const maxConcurrent = resolveMaxConcurrent();
-  const runningExecutions = executionRegistry.getRunningExecutions();
-  const runningDispatches = runningExecutions.filter(r => r.kind === 'dispatch').length;
-  if (runningDispatches >= maxConcurrent) {
-    log.info(`Skipping — at concurrency limit (${runningDispatches}/${maxConcurrent})`);
-    return false;
+  const activeCount = activeDispatchCycles.size + countExternalDispatches();
+  if (activeCount >= maxConcurrent) {
+    log.info(`Skipping — at concurrency limit (${activeCount}/${maxConcurrent})`);
+    return null;
   }
+  const cycle = { taskId: null, threadId: null };
+  activeDispatchCycles.add(cycle);
+  return cycle;
+}
+
+export function taskDispatchRunner({ channel, profileName }: { channel: string; profileName: string }): boolean {
+  const cycle = reserveDispatchCycle();
+  if (!cycle) return false;
+  const bus = ctx.bus!;
+  bus.publish({ type: 'llm.active-count-delta', delta: 1 });
+  void runDispatchAsync({ channel, profileName, cycle }).finally(() => {
+    activeDispatchCycles.delete(cycle);
+    bus.publish({ type: 'llm.active-count-delta', delta: -1 });
+  });
   return true;
 }
 
-// --- Public entry point (non-async fire-and-forget) ---
-
-export function taskDispatchRunner({ channel, scheduleTaskId, profileName }: { channel: string; scheduleTaskId: string; profileName: string }): void {
-  if (!passDispatchGuards()) return;
-
-  ctx.bus!.publish({ type: 'llm.active-count-delta', delta: 1 });
-  runDispatchAsync({ channel, scheduleTaskId, profileName }).finally(() => {
-    ctx.bus!.publish({ type: 'llm.active-count-delta', delta: -1 });
-  });
-}
-
-// --- Async implementation ---
-
-async function runDispatchAsync({ channel, scheduleTaskId, profileName }: { channel: string; scheduleTaskId: string; profileName: string }): Promise<void> {
+async function runDispatchAsync({ channel, profileName, cycle }: {
+  channel: string; profileName: string; cycle: DispatchCycle;
+}): Promise<void> {
   const startTime = Date.now();
   let selectedTask: Record<string, any> | null = null;
   let outcome: { success: boolean; skipped: boolean; note: string } = { success: false, skipped: false, note: '' };
@@ -77,14 +92,14 @@ async function runDispatchAsync({ channel, scheduleTaskId, profileName }: { chan
     // Step 1: Dry run — check there is a dispatchable task without claiming.
     // Rate-limit eligibility is decided per-task inside selection, against each task's
     // TEMPLATE profiles (profileName only resolves __active__ slots) — see dispatcher.ts.
-    const preview = await selectAndClaimTask({ scheduleTaskId, dryRun: true, profileName });
+    const preview = await selectAndClaimTask({ dryRun: true, profileName });
     if (!preview) {
       outcome = { success: false, skipped: true, note: 'No dispatchable tasks available' };
       return;
     }
 
     // Step 2: Real claim + execute
-    const selected = await selectAndClaimTask({ scheduleTaskId, profileName });
+    const selected = await selectAndClaimTask({ profileName });
     if (!selected) {
       outcome = { success: false, skipped: true, note: 'No dispatchable tasks available' };
       return;
@@ -93,21 +108,20 @@ async function runDispatchAsync({ channel, scheduleTaskId, profileName }: { chan
       ...selected.task,
       dispatch_generation: selected.dispatchGeneration ?? null,
     };
+    cycle.taskId = selectedTask.id;
     ctx.bus!.publish({ type: 'task.claimed', taskId: selectedTask.id, by: 'task-dispatcher' });
     ctx.bus!.publish({ type: 'task.dispatched', taskId: selectedTask.id, machine: 'local' });
-    outcome = await executeDispatchTask({ selected, selectedTask: selectedTask!, channel, scheduleTaskId, profileName, startTime });
+    outcome = await executeDispatchTask({ selected, selectedTask: selectedTask!, channel, profileName, startTime, cycle });
   } catch (error) {
     outcome = await handleDispatchError(error as Error, selectedTask, channel);
   } finally {
-    if (ctx.schedulerRef) {
-      try { await updateScheduleInterval(ctx.schedulerRef, scheduleTaskId, computeNextInterval(outcome)); } catch {}
-    }
     log.info(`Cycle complete: ${outcome.note}`);
   }
 }
 
-async function executeDispatchTask({ selected, selectedTask, channel, scheduleTaskId, profileName, startTime }: {
-  selected: Record<string, any>; selectedTask: Record<string, any>; channel: string; scheduleTaskId: string; profileName: string; startTime: number;
+async function executeDispatchTask({ selected, selectedTask, channel, profileName, startTime, cycle }: {
+  selected: Record<string, any>; selectedTask: Record<string, any>; channel: string;
+  profileName: string; startTime: number; cycle: DispatchCycle;
 }): Promise<{ success: boolean; skipped: boolean; note: string }> {
   const adapter = ctx.adapter!;
   const ownership = { generation: selected.dispatchGeneration ?? null };
@@ -131,13 +145,14 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
     platformThreadId: statusMsg?.messageId ?? null,
     projectId: selectedTask.project,
     metadata: {
-      scheduleTaskId, trigger: 'task-dispatch', profileOverride: effectiveProfile,
+      trigger: 'task-dispatch', profileOverride: effectiveProfile,
       taskId: selectedTask.id ?? null, taskProject: selectedTask.project ?? null,
       dispatchGeneration: selected.dispatchGeneration ?? null,
       taskText: selectedTask.text ?? null,
       resumeDest: 'project-report',
     },
   });
+  cycle.threadId = thread.id;
 
   const icb = ctx.buildInteractiveCallbacks?.(channel, null);
   void emitCortexEvent('cortex:dispatch.started', {
@@ -341,8 +356,6 @@ export async function cancelDispatchedTask({ taskId, channel }: { taskId: string
   }
 }
 
-// Self-register
-register('task-dispatch', async (payload: unknown) => {
-  const p = payload as { channel: string; scheduleTaskId: string; profileName: string };
-  taskDispatchRunner(p);
-});
+export function _testResetDispatchCycles(): void {
+  activeDispatchCycles.clear();
+}

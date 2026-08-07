@@ -12,7 +12,6 @@ const deps = vi.hoisted(() => ({
   getRunningExecutions: vi.fn(),
   cpus: vi.fn(),
   selectAndClaimTask: vi.fn(),
-  updateScheduleInterval: vi.fn(),
   generateSessionName: vi.fn(),
   createThread: vi.fn(),
   runThread: vi.fn(),
@@ -56,8 +55,6 @@ vi.mock('../src/domain/executions/registry.js', () => ({
 
 vi.mock('../src/domain/tasks/dispatcher.js', () => ({
   selectAndClaimTask: deps.selectAndClaimTask,
-  computeNextInterval: vi.fn(() => 60_000),
-  updateScheduleInterval: deps.updateScheduleInterval,
 }));
 
 vi.mock('@store/session-registry-repo.js', () => ({
@@ -93,7 +90,7 @@ vi.mock('../src/domain/tasks/mutator.js', () => ({
 }));
 
 import { ctx } from '../src/domain/scheduling/job-registry.js';
-import { taskDispatchRunner } from '../src/domain/scheduling/jobs/task-dispatch.js';
+import { _testResetDispatchCycles, taskDispatchRunner } from '../src/domain/scheduling/jobs/task-dispatch.js';
 
 const OWNERSHIP = { ownership: { generation: 'generation-b' } };
 
@@ -129,7 +126,7 @@ function completedCycleCount(): number {
 
 async function runDispatchCycle(): Promise<void> {
   const completedBefore = completedCycleCount();
-  taskDispatchRunner({ channel: 'atlas', scheduleTaskId: 'schedule-1', profileName: 'execute' });
+  taskDispatchRunner({ channel: 'atlas', profileName: 'execute' });
   await waitFor(() => completedCycleCount() === completedBefore + 1);
 }
 
@@ -187,13 +184,14 @@ afterEach(() => {
   ctx.bus = null;
   ctx.buildInteractiveCallbacks = null;
   ctx.onThreadSuspended = null;
+  _testResetDispatchCycles();
 });
 
 test('runtime concurrency-limit flip affects the next dispatch guard evaluation', async () => {
   deps.getRunningExecutions.mockReturnValue([{ kind: 'dispatch' }]);
   deps.settings.taskDispatchMaxConcurrent = 1;
 
-  taskDispatchRunner({ channel: 'atlas', scheduleTaskId: 'schedule-1', profileName: 'execute' });
+  taskDispatchRunner({ channel: 'atlas', profileName: 'execute' });
   await new Promise((resolve) => setTimeout(resolve, 10));
   if (deps.selectAndClaimTask.mock.calls.length > 0) await waitFor(() => completedCycleCount() === 1);
   assert.equal(deps.selectAndClaimTask.mock.calls.length, 0, 'the initial limit blocks dispatch');
@@ -201,6 +199,48 @@ test('runtime concurrency-limit flip affects the next dispatch guard evaluation'
   deps.settings.taskDispatchMaxConcurrent = 2;
   await runDispatchCycle();
   assert.equal(deps.runThread.mock.calls.length, 1, 'the next evaluation uses the higher live limit');
+});
+
+test('pre-registration reservations enforce the concurrency limit atomically', async () => {
+  deps.settings.taskDispatchMaxConcurrent = 1;
+  let releasePreview!: (value: null) => void;
+  deps.selectAndClaimTask.mockReturnValueOnce(new Promise((resolve) => { releasePreview = resolve; }));
+
+  taskDispatchRunner({ channel: 'atlas', profileName: 'execute' });
+  assert.equal(deps.selectAndClaimTask.mock.calls.length, 1);
+
+  taskDispatchRunner({ channel: 'atlas', profileName: 'execute' });
+  assert.equal(deps.selectAndClaimTask.mock.calls.length, 1, 'second cycle is rejected before task selection');
+
+  releasePreview(null);
+  await waitFor(() => completedCycleCount() === 1);
+  deps.selectAndClaimTask.mockResolvedValue(selected);
+  await runDispatchCycle();
+  assert.equal(deps.runThread.mock.calls.length, 1, 'capacity is released after the first cycle settles');
+});
+
+test('a registered local execution does not double-count its reserved dispatch cycle', async () => {
+  deps.settings.taskDispatchMaxConcurrent = 2;
+  let releaseFirst!: (value: any) => void;
+  deps.runThread.mockReturnValueOnce(new Promise((resolve) => { releaseFirst = resolve; }))
+    .mockResolvedValue({
+      thread: { status: 'waiting', metadata: { waitingOn: [], waitingOnTasks: [] } },
+      lastAgentResult: null,
+    });
+
+  taskDispatchRunner({ channel: 'atlas', profileName: 'execute' });
+  await waitFor(() => deps.runThread.mock.calls.length === 1);
+  deps.getRunningExecutions.mockReturnValue([{
+    kind: 'dispatch', thread: { threadId: 'thread-1' }, dispatch: null,
+  }]);
+
+  taskDispatchRunner({ channel: 'atlas', profileName: 'execute' });
+  await waitFor(() => deps.runThread.mock.calls.length === 2);
+  releaseFirst({
+    thread: { status: 'waiting', metadata: { waitingOn: [], waitingOnTasks: [] } },
+    lastAgentResult: null,
+  });
+  await waitFor(() => completedCycleCount() === 2);
 });
 
 test.each([
@@ -212,7 +252,7 @@ test.each([
     Array.from({ length: automaticLimit }, () => ({ kind: 'dispatch' })),
   );
 
-  taskDispatchRunner({ channel: 'atlas', scheduleTaskId: 'schedule-1', profileName: 'execute' });
+  taskDispatchRunner({ channel: 'atlas', profileName: 'execute' });
   assert.equal(deps.selectAndClaimTask.mock.calls.length, 0, 'the exact automatic limit blocks dispatch');
 
   deps.getRunningExecutions.mockReturnValue(
@@ -233,7 +273,7 @@ test('claimed dispatch emits cortex:dispatch.started immediately before thread e
     };
   });
 
-  taskDispatchRunner({ channel: 'atlas', scheduleTaskId: 'schedule-1', profileName: 'execute' });
+  taskDispatchRunner({ channel: 'atlas', profileName: 'execute' });
   await waitFor(() => deps.runThread.mock.calls.length === 1);
 
   assert.deepEqual(deps.emitCortexEvent.mock.calls, [[
@@ -262,6 +302,7 @@ test('dispatch persists generation on the thread and terminal event', async () =
 
   const createOptions = deps.createThread.mock.calls[0][1];
   assert.equal(createOptions.metadata.dispatchGeneration, 'generation-b');
+  assert.equal(createOptions.metadata.scheduleTaskId, undefined, 'built-in dispatch is not a schedule');
   assert.deepEqual(deps.processSplitOutcome.mock.calls[0][0].ownership, {
     generation: 'generation-b',
   });
@@ -276,7 +317,7 @@ test('dispatch persists generation on the thread and terminal event', async () =
 test('a rejected dispatch hook does not prevent the claimed thread from running', async () => {
   deps.emitCortexEvent.mockRejectedValueOnce(new Error('hook failed'));
 
-  taskDispatchRunner({ channel: 'atlas', scheduleTaskId: 'schedule-1', profileName: 'execute' });
+  taskDispatchRunner({ channel: 'atlas', profileName: 'execute' });
   await waitFor(() => deps.runThread.mock.calls.length === 1);
   await waitFor(() => (ctx.bus!.publish as any).mock.calls.some(([event]) => event.type === 'llm.active-count-delta' && event.delta === -1));
 

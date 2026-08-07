@@ -1,5 +1,5 @@
 // input:  task store, execution registry, templates, rate limits
-// output: generation-owned claims, dispatch filters, interval helpers
+// output: generation-owned claims and globally deduplicated dispatch filters
 // pos:    Selects and claims the next dispatchable task
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { randomUUID } from 'node:crypto';
@@ -47,11 +47,6 @@ interface SelectAndClaimResult {
   prompt: string;
   template: string | null;
   dispatchGeneration: string | null;
-}
-
-interface DispatchOutcome {
-  success: boolean;
-  skipped: boolean;
 }
 
 interface FilterDeps {
@@ -157,9 +152,8 @@ function selectTask(tasks: any[] | null): any | null {
 
 // --- Duplicate detection (execution registry only, no pending tracker) ---
 
-function findActiveDispatchMatch(task: any, scheduleTaskId: string): DispatchMatch | null {
+function findActiveDispatchMatch(task: any, _scheduleTaskId?: string): DispatchMatch | null {
   const executionMatch = executionRegistry.findRunningDispatchMatch({
-    scheduleTaskId,
     taskHash: task.id,
     project: task.project,
     taskText: task.text,
@@ -278,27 +272,12 @@ async function filterDispatchableTasks(tasks: any[] | null, scheduleTaskId: stri
   return eligible;
 }
 
-// --- Interval computation ---
-
-function computeNextInterval(outcome: DispatchOutcome): number {
-  if (!outcome.success && !outcome.skipped) return 2 * 60 * 1000;
-  return 30 * 1000;
-}
-
 function hasRunningExecutionForSchedule(records: Pick<ExecutionRecord, 'status' | 'kind' | 'scheduleTaskId'>[], scheduleTaskId: string): boolean {
   return records.some((record) =>
     record.status === 'running' &&
     record.kind === 'scheduled' &&
     record.scheduleTaskId === scheduleTaskId
   );
-}
-
-async function updateScheduleInterval(scheduler: any, scheduleTaskId: string, newIntervalMs: number): Promise<void> {
-  if (!scheduleTaskId) return;
-  const task = await scheduler.get(scheduleTaskId);
-  if (!task || task.type !== 'interval') return;
-  if (task.intervalMs === newIntervalMs) return;
-  await scheduler.setInterval(scheduleTaskId, newIntervalMs);
 }
 
 // --- Dispatch prompt assembly ---
@@ -375,7 +354,7 @@ function buildDispatchPrompt(task: any): string {
 
 // --- Main entry point: select and claim a task for local execution ---
 
-async function selectAndClaimTask({ scheduleTaskId, dryRun = false, profileName = null }: { scheduleTaskId: string; dryRun?: boolean; profileName?: string | null }): Promise<SelectAndClaimResult | null> {
+async function selectAndClaimTask({ scheduleTaskId = 'builtin', dryRun = false, profileName = null }: { scheduleTaskId?: string; dryRun?: boolean; profileName?: string | null }): Promise<SelectAndClaimResult | null> {
   log.info('Starting task selection cycle');
 
   // Get actionable tasks + GPU busy machines
@@ -439,8 +418,6 @@ async function selectAndClaimTask({ scheduleTaskId, dryRun = false, profileName 
 export {
   selectAndClaimTask,
   hasRunningExecutionForSchedule,
-  computeNextInterval,
-  updateScheduleInterval,
   isValidDispatchPrompt,
   isTemplateRateLimited,
   // For testing

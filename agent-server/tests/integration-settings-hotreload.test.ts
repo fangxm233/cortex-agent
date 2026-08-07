@@ -79,6 +79,7 @@ const migratedSettings = {
   threadMaxDepth: 7,
   taskArtifactTemplates: ['manager', 'coder-review'],
   taskDispatchMaxConcurrent: 1,
+  taskDispatchEnabled: false,
   uiCorsOrigins: [OLD_ORIGIN],
   adminChannel: OLD_ADMIN,
   feishuAdminChannel: 'oc_admin_old',
@@ -307,7 +308,7 @@ function observerHandlers(registryUrl: string, dispatchUrl: string): string {
     .registerDispatchExecution({ taskId: 'integration-remote', machine: 'remote-fixture',
       channel: 'integration', project: 'general', taskText: 'integration fixture' }),
   'integration-run-dispatch': async () => (await import(${JSON.stringify(dispatchUrl)}))
-    .taskDispatchRunner({ channel: 'general', scheduleTaskId: 'seed0001', profileName: 'plan' }),
+    .taskDispatchRunner({ channel: 'general', profileName: 'plan' }),
 };`;
 }
 
@@ -336,14 +337,6 @@ function observerSource(evidenceFile: string): string {
   ].join('\n');
 }
 
-function pauseDispatchSchedule(schedulesFile: string): void {
-  const data = JSON.parse(readFileSync(schedulesFile, 'utf8'));
-  const dispatch = data.tasks.find((task: any) => task.dispatchType === 'task-dispatch');
-  assert.ok(dispatch, 'initialized schedules must contain task-dispatch');
-  data.tasks = [{ ...dispatch, isPaused: true, pausedAt: Date.now(), pausedBy: 'user', nextRun: null }];
-  writeFileSync(schedulesFile, `${JSON.stringify(data, null, 2)}\n`);
-}
-
 function populateScenario(home: string): ScenarioPaths {
   const envFile = path.join(home, 'config', '.env');
   const originalEnv = [
@@ -356,7 +349,8 @@ function populateScenario(home: string): ScenarioPaths {
   ].join('\n');
   writeFileSync(envFile, originalEnv);
   const schedulesFile = path.join(home, 'data', 'schedules.json');
-  pauseDispatchSchedule(schedulesFile);
+  const settingsFile = path.join(home, 'config', 'settings.json');
+  writeFileSync(settingsFile, JSON.stringify({ taskDispatchEnabled: false }));
   const binDir = path.join(home, 'test-bin');
   mkdirSync(binDir, { recursive: true });
   const fakeClaude = path.join(binDir, 'claude');
@@ -365,7 +359,7 @@ function populateScenario(home: string): ScenarioPaths {
   const evidenceFile = path.join(home, 'observer.jsonl');
   const observerFile = path.join(home, 'observer.mjs');
   writeFileSync(observerFile, observerSource(evidenceFile));
-  return { home, envFile, settingsFile: path.join(home, 'config', 'settings.json'), schedulesFile,
+  return { home, envFile, settingsFile, schedulesFile,
     evidenceFile, observerFile, binDir, originalEnv };
 }
 

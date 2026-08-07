@@ -105,6 +105,10 @@ function computeTaskTiming(type: string, task: ScheduleTask): { nextRun?: number
   return {};
 }
 
+const BUILTIN_JOB_DISPATCH_TYPES = new Set([
+  'task-dispatch', 'task-archive', 'memory-index-regen',
+]);
+
 function validateTaskPatch(task: ScheduleTask, patch: Record<string, any>): void {
   const commonFields = new Set(['message', 'projectId', 'profile', 'dispatchType', 'preCheck']);
   const typeFields: Record<string, Set<string>> = {
@@ -116,6 +120,9 @@ function validateTaskPatch(task: ScheduleTask, patch: Record<string, any>): void
   const allowed = new Set([...commonFields, ...typeFields[task.type]]);
   const invalid = Object.keys(patch).filter(key => !allowed.has(key));
   if (invalid.length) throw new Error(`invalid fields for ${task.type}: ${invalid.join(', ')}`);
+  if ('dispatchType' in patch && BUILTIN_JOB_DISPATCH_TYPES.has(patch.dispatchType)) {
+    throw new Error(`built-in job dispatch type cannot be scheduled: ${patch.dispatchType}`);
+  }
   if ('intervalMs' in patch && (!Number.isFinite(patch.intervalMs) || patch.intervalMs <= 0)) {
     throw new Error('intervalMs must be a positive number');
   }
@@ -556,11 +563,13 @@ class Scheduler {
           scheduleTaskId: task.id,
           profileName,
         });
-      } else if (task.dispatchType && this.programmaticHandlers[task.dispatchType]) {
-        await this.programmaticHandlers[task.dispatchType]({
-          channel: resolvedChannel,
-          scheduleTaskId: task.id,
-        });
+      } else if (task.dispatchType) {
+        const handler = this.programmaticHandlers[task.dispatchType];
+        if (!handler) {
+          log.warn(`Skipping task ${task.id}: unregistered dispatch type "${task.dispatchType}"`);
+          return;
+        }
+        await handler({ channel: resolvedChannel, scheduleTaskId: task.id });
       } else {
         await this.runner({
           message: `[Scheduled Task] ${task.message}`,

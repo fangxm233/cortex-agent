@@ -675,6 +675,16 @@ export const en = {
   stAdvDisableUserDesc: 'direct turns inject by default; thread steps never do',
   stAdvDisableUpdateTitle: 'Disable auto-update check',
   stAdvDisableUpdateDesc: 'update check is on by default',
+  stBuiltinJobsTitle: 'Built-in jobs',
+  stBuiltinTaskDispatchTitle: 'Task dispatcher',
+  stBuiltinTaskDispatchDesc: 'selects and launches actionable project tasks',
+  stBuiltinTaskArchiveTitle: 'Completed-task archive',
+  stBuiltinTaskArchiveDesc: 'archives tasks completed more than three days ago',
+  stBuiltinMemoryRegenTitle: 'Memory index rebuild',
+  stBuiltinMemoryRegenDesc: 'regenerates experiment, knowledge, and pattern indexes',
+  stBuiltinInterval: 'Every',
+  stBuiltinSave: 'Save',
+  stBuiltinInvalidInterval: 'Enter a duration within the safe Node timer range',
 
   // ── Group K: secondary views i18n ──
   npProjectName: 'PROJECT NAME',
@@ -1545,6 +1555,16 @@ export const zh: Record<keyof Vocab, string> = {
   stAdvDisableUserDesc: '直接对话默认注入；线程步骤始终不注入',
   stAdvDisableUpdateTitle: '禁用自动更新检查',
   stAdvDisableUpdateDesc: '更新检查默认开启',
+  stBuiltinJobsTitle: '内置任务',
+  stBuiltinTaskDispatchTitle: '任务派发器',
+  stBuiltinTaskDispatchDesc: '选择并启动可执行的项目任务',
+  stBuiltinTaskArchiveTitle: '已完成任务归档',
+  stBuiltinTaskArchiveDesc: '归档完成超过三天的任务',
+  stBuiltinMemoryRegenTitle: '记忆索引重建',
+  stBuiltinMemoryRegenDesc: '重新生成实验、知识与模式索引',
+  stBuiltinInterval: '间隔',
+  stBuiltinSave: '保存',
+  stBuiltinInvalidInterval: '请输入 Node 计时器安全范围内的时长',
 
   // ── Group K: secondary views i18n ──
   npProjectName: '项目名称',

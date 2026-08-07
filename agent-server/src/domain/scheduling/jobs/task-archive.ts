@@ -1,22 +1,21 @@
-// input:  task-archiver + PlatformAdapter
-// output: task-archive job runner — registers as 'task-archive'
-// pos:    periodic completed task archiving (non-LLM programmatic work)
+// input:  task archiver, PlatformAdapter, system notice delivery
+// output: runTaskArchiveJob built-in maintenance runner
+// pos:    Archives completed tasks and reports maintenance results
 
-import { register, ctx } from '../job-registry.js';
 import { Icons } from '../../../core/icons.js';
+import { emitSystemNotice } from '../../system/system-notice.js';
 import { runTaskArchiver } from '../../tasks/archiver.js';
+import type { PlatformAdapter } from '../../../platform/index.js';
 
-// Self-register
-register('task-archive', async (payload: unknown) => {
-  const { channel } = payload as { channel: string; scheduleTaskId: string };
+export async function runTaskArchiveJob(adapter: PlatformAdapter): Promise<void> {
   const results = await runTaskArchiver();
-  const adapter = ctx.adapter!;
   if (results.archived.length > 0) {
-    const summary = results.archived.map((r: { project: string; ids: string[] }) => `*${r.project}*: archived ${r.ids.length} tasks`).join('\n');
-    await adapter.postMessage({ type: 'interactive-reply', conduit: channel }, { text: `${Icons.folder} Task auto-archive:\n${summary}` });
+    const summary = results.archived
+      .map((result) => `*${result.project}*: archived ${result.ids.length} tasks`).join('\n');
+    await emitSystemNotice(adapter, { text: `${Icons.folder} Task auto-archive:\n${summary}` });
   }
   if (results.errors.length > 0) {
-    const errSummary = results.errors.join('\n');
-    await adapter.postMessage({ type: 'interactive-reply', conduit: channel }, { text: `${Icons.warning} Task archiver errors:\n${errSummary}` });
+    const errors = results.errors.join('\n');
+    await emitSystemNotice(adapter, { text: `${Icons.warning} Task archiver errors:\n${errors}` });
   }
-});
+}

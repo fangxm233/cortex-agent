@@ -5,6 +5,9 @@ Covers schedule storage and firing, the job dispatch table, and user-facing sche
 
 | filename | role | function |
 |---|---|---|
+| builtin-job-controller.ts | core | Runs settings-backed periodic job timers |
+| builtin-job-migration.ts | startup | Migrates legacy programmatic schedules |
+| builtin-jobs.ts | entry | Composes daemon-owned infrastructure jobs |
 | job-registry.ts | core | Registers job runners and dispatches by key |
 | runner.ts | entry | Wires scheduled jobs and creates the scheduler |
 | schedule-cli.ts | cli | Manages schedules from the terminal |

@@ -1,7 +1,7 @@
 # Cortex 调度系统 {#cortex-scheduling-system}
 
 
-调度系统让你设置周期性或一次性的智能体调用。调度可以触发基于 LLM 的对话、程序化作业（任务分发、内存索引重建、任务归档）或自定义作业处理程序。调度持久化到磁盘，在重启后存活，并在外部更改时热重载。
+调度系统让你设置周期性或一次性的智能体调用。调度持久化到磁盘，在重启后存活，并在外部更改时热重载。任务派发、任务归档和记忆索引重建等 daemon 基础设施循环由下文的内置任务控制器运行，不保存为调度记录。
 
 ## 调度类型 {#schedule-types}
 
@@ -26,26 +26,15 @@
     {
       "id": "d6f1bb1e",
       "type": "interval",
-      "message": "检查新任务并在可用时分发",
-      "channel": "C07ABCDEF",
+      "message": "检查活跃项目并报告阻塞项",
+      "projectId": "general",
       "profile": "claude-haiku",
-      "intervalMs": 30000,
+      "intervalMs": 3600000,
       "createdAt": 1747680000000,
-      "nextRun": 1747680030000,
+      "nextRun": 1747683600000,
       "lastRun": 1747680000000,
-      "dispatchType": "task-dispatch",
       "target": { "kind": "fresh" },
-      "fallback": "fresh",
-      "preCheck": "test -f ~/.cortex/data/schedules.json"
-    },
-    {
-      "id": "e4c91a03",
-      "type": "interval",
-      "message": "归档超过 3 天的已完成任务",
-      "channel": "C07ABCDEF",
-      "profile": "claude-haiku",
-      "intervalMs": 21600000,
-      "dispatchType": "task-archive"
+      "fallback": "fresh"
     }
   ]
 }
@@ -58,7 +47,7 @@
 | `id` | 8 字符十六进制标识符（自动生成） |
 | `type` | `interval`、`daily`、`weekly` 或 `once` |
 | `message` | 调度触发时发送的提示（触发时自动添加 `[Scheduled Task]` 前缀） |
-| `channel` | 任务到达的 Slack 频道 ID |
+| `projectId` | 调度关联的项目及其回退目标 |
 | `profile` | 智能体配置名称（默认为活动配置） |
 | `intervalMs` | 对于 `interval` 类型：触发之间的毫秒数 |
 | `time` | 对于 `daily`/`weekly` 类型：`HH:MM` 24 小时时间 |
@@ -71,23 +60,16 @@
 | `isPaused` | 调度当前是否暂停 |
 | `pausedAt` | 暂停时的纪元毫秒数 |
 | `pausedBy` | `"user"` 或 `"rate-limit"`——谁暂停了它 |
-| `dispatchType` | `"task-dispatch"`、`"memory-index-regen"`、`"task-archive"` 或不存在（默认 LLM 调用） |
+| `dispatchType` | 保留的内部处理器键；普通用户调度不填写 |
 | `preCheck` | 可选的 shell 命令；非零退出 → 跳过此次触发 |
 | `target` | 触发的任务应到达哪里（见下方目标解析） |
 | `fallback` | 如果目标不可用怎么办：`"fresh"`（默认）、`"skip"` 或 `"wait"` |
 
-## 分发类型 {#dispatch-types}
+## 内置周期任务 {#built-in-periodic-jobs}
 
-`dispatchType` 字段控制调度触发时发生什么：
+任务派发、已完成任务归档和记忆索引重建是 daemon 内置任务。它们不会出现在 `schedules.json`、`!schedule list`、调度 CLI 或 Web 调度列表中。开关与间隔可在 **设置 → 高级 → 内置任务** 中配置，也可使用 `config/settings.json` 中的三组键：`taskDispatchEnabled` / `taskDispatchIntervalMs`、`taskArchiveEnabled` / `taskArchiveIntervalMs`、`memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs`。
 
-| 分发类型 | 行为 |
-|---------------|----------|
-| _(不存在)_ | 默认 LLM 路径：将消息发送给智能体进行对话 |
-| `task-dispatch` | 运行任务分发管道：从 TASKS.yaml 中选择、认领和分发任务 |
-| `memory-index-regen` | 重建所有实验/知识/模式索引文件 |
-| `task-archive` | 归档超过 3 天的已完成任务 |
-
-前两种类型（`task-dispatch` 和程序化处理程序）通过注册的作业运行器执行。默认（无 `dispatchType`）将消息以 `[Scheduled Task]` 前缀发送到 LLM 运行器。
+启用的任务会在 daemon 启动时执行一次。设置热更新生效：禁用会清除下一次计时器，启用会立即执行，修改间隔会重排下一次空闲运行。默认值和取值范围见 [configuration.md](./configuration.md#configsettingsjson)。
 
 ## 目标解析 {#target-resolution}
 
@@ -238,18 +220,9 @@
 | `!schedule pause <id>` | 暂停调度 |
 | `!schedule resume <id>` | 恢复暂停的调度 |
 
-## 作业注册表 {#job-registry}
+## 执行路由 {#execution-routing}
 
-调度系统使用作业注册表模式（`job-registry.ts`）进行程序化分发。作业运行器在模块导入时自注册：
-
-```
-register('scheduled-task', llmRunner);
-register('task-dispatch', taskDispatchRunner);
-register('memory-index-regen', memoryIndexRegenRunner);
-register('task-archive', taskArchiveRunner);
-```
-
-这允许通过创建在导入时调用 `register()` 的新作业模块来添加新作业类型——无需更改调度器核心。
+普通调度记录使用 `scheduled-task` runner，把带有 `[Scheduled Task]` 前缀的消息发送给 agent。少量随产品提供的调度可使用保留的内部处理器键；未注册的 `dispatchType` 会被跳过，不会被解释成 agent prompt。daemon 周期基础设施由 `builtin-jobs.ts` 运行，不经过调度持久化。
 
 ## 速率限制集成 {#rate-limit-integration}
 

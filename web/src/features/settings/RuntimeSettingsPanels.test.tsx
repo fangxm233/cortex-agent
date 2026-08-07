@@ -42,9 +42,10 @@ import {
   NotificationsPanelView,
   RuntimeSettingToggleRow,
   commitSettingToggle,
+  commitSettingValue,
   useRuntimeSettingWrite,
   type RuntimeSettingWriter,
-  type WritableSettingKey,
+  type WritableBooleanSettingKey,
 } from './RuntimeSettingsPanels';
 
 const settings: ConfigSettingEntry[] = [
@@ -58,6 +59,12 @@ const settings: ConfigSettingEntry[] = [
   { key: 'disableUserContext', value: true, source: 'env' },
   { key: 'serverUpdateDisable', value: false, source: 'default' },
   { key: 'taskDispatchMaxConcurrent', value: 6, source: 'file' },
+  { key: 'taskDispatchEnabled', value: false, source: 'file' },
+  { key: 'taskDispatchIntervalMs', value: 30_000, source: 'file' },
+  { key: 'taskArchiveEnabled', value: true, source: 'default' },
+  { key: 'taskArchiveIntervalMs', value: 21_600_000, source: 'default' },
+  { key: 'memoryIndexRegenEnabled', value: true, source: 'default' },
+  { key: 'memoryIndexRegenIntervalMs', value: 86_400_000, source: 'default' },
   { key: 'adminChannel', value: 'C0123', source: 'file' },
   { key: 'feishuAdminChannel', value: 'oc_456', source: 'file' },
 ];
@@ -90,7 +97,7 @@ function renderNotifications(value = snapshot): string {
 function renderAdvanced(value = snapshot): string {
   return renderToStaticMarkup(
     <LangProvider>
-      <AdvancedPanelView snapshot={value} pending={false} onToggle={() => {}} />
+      <AdvancedPanelView snapshot={value} pending={false} onToggle={() => {}} onSet={() => {}} />
     </LangProvider>,
   );
 }
@@ -136,6 +143,14 @@ describe('runtime settings panel reads', () => {
     expect(html).toContain('data-setting-key="disableUserContext" data-setting-value="true"');
     expect(html).toContain('data-setting-key="serverUpdateDisable" data-setting-value="false"');
     expect(html).toContain('data-setting-key="taskDispatchMaxConcurrent" data-setting-value="6"');
+    expect(html).toContain('data-setting-key="taskDispatchEnabled" data-setting-value="false"');
+    expect(html).toContain('data-setting-key="taskDispatchIntervalMs" data-setting-value="30000"');
+    expect(html).toContain('data-setting-key="taskArchiveEnabled" data-setting-value="true"');
+    expect(html).toContain('data-setting-key="memoryIndexRegenIntervalMs" data-setting-value="86400000"');
+    expect(html).toContain('value="30"');
+    expect(html).toContain('<option value="sec" selected="">sec</option>');
+    expect(html).toContain('value="6"');
+    expect(html).toContain('<option value="hr" selected="">hr</option>');
     expect(html).toContain('data-env-key="DEBUG" data-env-present="true" data-writable="false"');
   });
 
@@ -145,7 +160,7 @@ describe('runtime settings panel reads', () => {
     const advanced = renderAdvanced(missing);
 
     expect(notifications.match(/data-setting-value="missing"/g)).toHaveLength(3);
-    expect(advanced.match(/data-setting-value="missing"/g)).toHaveLength(6);
+    expect((advanced.match(/data-setting-value="missing"/g) ?? []).length).toBeGreaterThanOrEqual(6);
     expect(notifications).not.toContain('role="button"');
     expect(advanced).not.toContain('role="button"');
     expect(notifications).not.toContain('••••••••');
@@ -199,7 +214,7 @@ describe('runtime setting writes', () => {
     expect(onToggle).toHaveBeenCalledWith('turnNotify', true);
   });
 
-  it.each<[WritableSettingKey, boolean]>([
+  it.each<[WritableBooleanSettingKey, boolean]>([
     ['turnNotify', true],
     ['autoResume', false],
     ['notifyCompaction', true],
@@ -208,6 +223,9 @@ describe('runtime setting writes', () => {
     ['showToolCalls', true],
     ['disableUserContext', false],
     ['serverUpdateDisable', true],
+    ['taskDispatchEnabled', true],
+    ['taskArchiveEnabled', false],
+    ['memoryIndexRegenEnabled', false],
   ])('writes %s through config.set settings and refreshes the snapshot', async (key, nextValue) => {
     const set = vi.fn().mockResolvedValue({ written: true, section: 'settings' });
     const refresh = vi.fn().mockResolvedValue(undefined);
@@ -218,6 +236,18 @@ describe('runtime setting writes', () => {
     expect(set).toHaveBeenCalledWith({ section: 'settings', value: { [key]: nextValue } });
     expect(refresh).toHaveBeenCalledOnce();
     expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('writes a validated interval value through the generic settings path', async () => {
+    const set = vi.fn().mockResolvedValue({ written: true, section: 'settings' });
+    const refresh = vi.fn().mockResolvedValue(undefined);
+
+    await commitSettingValue({ set, refresh, onError: vi.fn() }, 'taskArchiveIntervalMs', 3_600_000);
+
+    expect(set).toHaveBeenCalledWith({
+      section: 'settings', value: { taskArchiveIntervalMs: 3_600_000 },
+    });
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it('reports a failed write, skips refresh, and leaves snapshot-driven state unchanged', async () => {

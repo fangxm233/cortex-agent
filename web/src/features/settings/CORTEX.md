@@ -16,8 +16,8 @@ own their mutations.
 | custom-provider-vm.ts | vm | Validates custom provider drafts and builds mutation args |
 | custom-provider-vm.test.ts | test | Unit tests for the custom provider view model |
 | AuthLoginEntry.test.tsx | test | Tests settings shell copy and account login handoff |
-| RuntimeSettingsPanels.tsx | view | Reads and writes runtime settings toggles |
-| RuntimeSettingsPanels.test.tsx | test | Tests toggle rows and production write adapter |
+| RuntimeSettingsPanels.tsx | view | Edits runtime switches and built-in job intervals |
+| RuntimeSettingsPanels.test.tsx | test | Tests runtime rows and production write adapter |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |
 | BudgetPanel.tsx | view | Writes global and per-project daily/monthly spend limits |
 | budget-vm.ts | vm | Resolves budget scope and builds chips, payload and spend bar |
@@ -34,7 +34,7 @@ own their mutations.
 | TemplatesPanel.test.tsx | test | Tests detail-pane tabs, guards and save gating |
 | templates-panel-vm.ts | vm | Filters, parses editor JSON and builds template mutation args |
 | templates-panel-vm.test.ts | test | Unit tests for the templates panel view model |
-| platform-env.ts | vm | Defines env indexes and writable runtime flags |
-| platform-env.test.ts | test | Tests env redaction and settings indexing |
+| platform-env.ts | vm | Defines env indexes, settings, and durations |
+| platform-env.test.ts | test | Tests env redaction, settings, and durations |
 | settings-nav.ts | vm | Lists settings sections and descriptions |
 | settings-ui.tsx | view | Shared card, row, field, button, toggle and radio primitives |

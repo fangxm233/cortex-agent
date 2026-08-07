@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { _testSetRegistry } from '../src/domain/tasks/dispatch-utils.js';
-import { updateScheduleInterval, hasRunningExecutionForSchedule, findActiveDispatchMatch, filterDispatchableTasks, filterLockedProjects, isValidDispatchPrompt, isTemplateRateLimited } from '../src/domain/tasks/dispatcher.js';
+import { hasRunningExecutionForSchedule, findActiveDispatchMatch, filterDispatchableTasks, filterLockedProjects, isValidDispatchPrompt, isTemplateRateLimited } from '../src/domain/tasks/dispatcher.js';
 
 import { loadConfig, mergeThreadTemplates } from '../src/domain/threads/template-loader.js';
 import { PROJECTS_DIR, CONFIG_DIR } from '../src/core/paths.js';
@@ -26,26 +26,6 @@ beforeAll(() => {
     path.resolve(process.cwd(), 'defaults/config/thread-templates'),
     path.join(CONFIG_DIR, 'thread-templates'),
   );
-});
-
-test('updateScheduleInterval routes interval changes through scheduler API', async () => {
-  const calls = [];
-  const scheduler = {
-    async get(id) {
-      calls.push(['get', id]);
-      return { id, type: 'interval', intervalMs: 30000 };
-    },
-    async setInterval(id, intervalMs) {
-      calls.push(['setInterval', id, intervalMs]);
-    },
-  };
-
-  await updateScheduleInterval(scheduler, 'sched1', 300000);
-
-  assert.deepEqual(calls, [
-    ['get', 'sched1'],
-    ['setInterval', 'sched1', 300000],
-  ]);
 });
 
 test('hasRunningExecutionForSchedule matches running scheduled executions by schedule id', () => {

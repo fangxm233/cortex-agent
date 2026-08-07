@@ -14,6 +14,9 @@ import {
   ENV_MASK,
   SLACK_KEYS,
   FEISHU_KEYS,
+  BUILTIN_JOB_SETTINGS,
+  durationDraftFromMs,
+  durationDraftToMs,
 } from './platform-env';
 
 const env: ConfigEnvEntry[] = [
@@ -69,6 +72,23 @@ describe('platform-env', () => {
     expect(getSetting(idx, 'adminChannel')).toEqual(settings[2]);
     expect(getSetting(idx, 'taskDispatchMaxConcurrent')).toEqual(settings[3]);
     expect(getSetting(idx, 'notifyCompaction')).toBeUndefined();
+  });
+
+  it('converts built-in job intervals using exact safe units and timer bounds', () => {
+    expect(durationDraftFromMs(30_000)).toEqual({ value: 30, unit: 'sec' });
+    expect(durationDraftFromMs(21_600_000)).toEqual({ value: 6, unit: 'hr' });
+    expect(durationDraftToMs(2, 'min')).toBe(120_000);
+    expect(durationDraftToMs(0.5, 'sec')).toBeNull();
+    expect(durationDraftToMs(1, 'sec')).toBe(1_000);
+    expect(durationDraftToMs(596.6, 'hr')).toBeNull();
+  });
+
+  it('declares all built-in jobs as enabled-plus-interval setting pairs', () => {
+    expect(BUILTIN_JOB_SETTINGS.map((job) => [job.enabled, job.interval])).toEqual([
+      ['taskDispatchEnabled', 'taskDispatchIntervalMs'],
+      ['taskArchiveEnabled', 'taskArchiveIntervalMs'],
+      ['memoryIndexRegenEnabled', 'memoryIndexRegenIntervalMs'],
+    ]);
   });
 
   it('does not list migrated admin channels as .env credential rows', () => {

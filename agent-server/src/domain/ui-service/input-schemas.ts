@@ -340,8 +340,18 @@ type SettingsShape = {
     (typeof settingTypeSchemas)[(typeof SETTINGS_SPEC)[K]['type']];
 };
 
+function settingSchema(spec: (typeof SETTINGS_SPEC)[keyof typeof SETTINGS_SPEC]): z.ZodTypeAny {
+  const base = settingTypeSchemas[spec.type];
+  if (!('validate' in spec) || typeof spec.validate !== 'function') return base;
+  return base.superRefine((value, ctx) => {
+    const message = spec.validate(value as never);
+    if (!message) return;
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+  });
+}
+
 const settingsShape = Object.fromEntries(
-  Object.entries(SETTINGS_SPEC).map(([key, spec]) => [key, settingTypeSchemas[spec.type]]),
+  Object.entries(SETTINGS_SPEC).map(([key, spec]) => [key, settingSchema(spec)]),
 ) as unknown as SettingsShape;
 
 function rejectUndefinedSettings(value: Record<string, unknown>, ctx: z.RefinementCtx): void {

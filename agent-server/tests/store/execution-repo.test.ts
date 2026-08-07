@@ -281,6 +281,21 @@ test('lifecycle — getExecutionByTaskId prefers non-terminal over terminal', as
 
 // ── Group 5: Dispatch registration with existing running ──
 
+test('dispatch duplicate lookup can match task identity across schedule sources', () => {
+  const repo = createRepo();
+  repo.registerDispatchExecution({
+    taskId: 'task-upgrade', machine: 'lab', channel: 'C1', project: 'proj',
+    taskText: 'same task', taskHash: 'hash-upgrade', scheduleTaskId: 'legacy-schedule-id',
+  });
+
+  const match = repo.findRunningDispatchMatch({
+    taskHash: 'hash-upgrade', project: 'proj', taskText: 'same task',
+  });
+
+  assert.equal(match?.dispatch?.taskId, 'task-upgrade');
+  assert.equal(match?.scheduleTaskId, 'legacy-schedule-id');
+});
+
 test('dispatch — registerDispatchExecution updates existing running record', async () => {
   const repo = createRepo();
 

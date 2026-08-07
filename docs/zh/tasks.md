@@ -170,7 +170,7 @@ open ──claim──→ in-progress ──complete──→ done
 
 ### 触发 {#trigger}
 
-一个 `task-dispatch` 调度器作业周期性触发（通常每 30 秒）。它驱动完整的分发循环。
+内置任务派发器会周期性检查任务队列（默认每 30 秒）。该循环由 `config/settings.json` 中的 `taskDispatchEnabled` 和 `taskDispatchIntervalMs` 控制。
 
 ### 分发流程 {#dispatch-flow}
 
@@ -196,7 +196,7 @@ open ──claim──→ in-progress ──complete──→ done
 
 ## Cortex-Run 看门狗（DR-0011） {#cortex-run-watchdog-dr-0011}
 
-`cortex-run` 系统处理远程机器上的长时间运行任务执行。完整的 `cortex-run` CLI 参考参见 [cli-reference.md](./cli-reference.md)，任务调度器如何驱动此管道参见 [scheduling.md](./scheduling.md)。
+`cortex-run` 系统处理远程机器上的长时间运行任务执行。完整的 `cortex-run` CLI 参考参见 [cli-reference.md](./cli-reference.md)，内置任务派发器的配置见 [scheduling.md](./scheduling.md)。
 
 - **服务器端**：`cortex-run` CLI 通过 `sendCommand` 转发到远程客户端
 - **客户端端**：`cortex-run-watcher.ts` 将用户命令作为分离的子进程生成，用两层停滞检测（输出字节停滞和进度行停滞）监控它，通过 `nvidia-smi` 自动选择 GPU，写入状态/输出/结果文件，并在完成时发送 `task-callback` WebSocket 消息
@@ -212,7 +212,7 @@ cortex-client（到服务器的 WebSocket 连接）
 
 ## 任务归档 {#task-archive}
 
-已完成的任务在 3 天后自动归档（`ARCHIVE_AGE_DAYS = 3`）。归档由 `task-archive` 调度器作业驱动（通常每 6 小时）。
+已完成的任务在 3 天后自动归档（`ARCHIVE_AGE_DAYS = 3`）。内置归档器默认每 6 小时运行一次，由 `config/settings.json` 中的 `taskArchiveEnabled` 和 `taskArchiveIntervalMs` 控制。
 
 **归档流程：**
 
@@ -359,4 +359,4 @@ manager 通过 `cortex-task verdict` 命令把裁决写入账本——它是账�
 
 ## 任务分发并发 {#task-dispatch-concurrency}
 
-任务分发器强制执行最多 4 个并发分发执行以防止资源耗尽。这在每次分发尝试前检查。
+任务派发器会在每次派发尝试前检查容量。`taskDispatchMaxConcurrent` 可设置显式上限；默认值 `null` 使用 `max(4, os.cpus().length - 2)`。从任务选择到 execution 注册之间由 reservation 占位，因此快速计时器触发也不会超过上限。
