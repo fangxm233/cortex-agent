@@ -1,5 +1,5 @@
 // input:  mocked fs watcher, isolated settings file
-// output: watcher ordering, reset, and null-filename tests
+// output: ordering, reset, polling fallback and content tests
 // pos:    Settings watcher edge-case regressions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -14,6 +14,7 @@ const watchState = vi.hoisted(() => ({
   onWatch: null as (() => void) | null,
   closeCount: 0,
   watchCount: 0,
+  throwOnWatch: false,
 }));
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -22,6 +23,7 @@ vi.mock('node:fs', async (importOriginal) => {
     ...actual,
     watch: vi.fn((_target, callback) => {
       watchState.watchCount++;
+      if (watchState.throwOnWatch) throw new Error('watch unavailable');
       watchState.callback = callback as typeof watchState.callback;
       watchState.onWatch?.();
       const watcher: any = {
@@ -83,5 +85,46 @@ describe.sequential('settings watcher ordering', () => {
     assert.equal(watchState.closeCount, closeCount + 1, 'the active watcher is closed');
     assert.equal(getSettings().turnNotify, target, 'the next read rebuilds the cached snapshot');
     assert.equal(watchState.watchCount, watchCount + 1, 'exactly one replacement watcher starts');
+  });
+
+  test('polls settings.json when watcher creation fails', async () => {
+    resetSettingsForTests();
+    watchState.throwOnWatch = true;
+    vi.useFakeTimers();
+    try {
+      const current = getSettings().turnNotify;
+      const target = !current;
+      await fs.writeFile(SETTINGS_FILE, JSON.stringify({ turnNotify: target }));
+
+      await vi.advanceTimersByTimeAsync(5_300);
+
+      assert.equal(getSettings().turnNotify, target);
+    } finally {
+      resetSettingsForTests();
+      watchState.throwOnWatch = false;
+      vi.useRealTimers();
+    }
+  });
+
+  test('polling detects same-size content changes with a preserved mtime', async () => {
+    const fixedTime = new Date('2024-01-01T00:00:00.000Z');
+    await fs.writeFile(SETTINGS_FILE, JSON.stringify({ adminChannel: 'alpha' }));
+    await fs.utimes(SETTINGS_FILE, fixedTime, fixedTime);
+    resetSettingsForTests();
+    watchState.throwOnWatch = true;
+    vi.useFakeTimers();
+    try {
+      assert.equal(getSettings().adminChannel, 'alpha');
+      await fs.writeFile(SETTINGS_FILE, JSON.stringify({ adminChannel: 'bravo' }));
+      await fs.utimes(SETTINGS_FILE, fixedTime, fixedTime);
+
+      await vi.advanceTimersByTimeAsync(5_300);
+
+      assert.equal(getSettings().adminChannel, 'bravo');
+    } finally {
+      resetSettingsForTests();
+      watchState.throwOnWatch = false;
+      vi.useRealTimers();
+    }
   });
 });

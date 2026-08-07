@@ -10,6 +10,7 @@ expansion, step lifecycle, provider-outage recovery, and transcripts.
 | shell-template.test.ts | test | Covers shell binding expansion and errors |
 | template-merge.test.ts | test | Covers merging defaults into user config |
 | thread-config-dir.test.ts | test | Covers config directory load and migration |
+| thread-config-watcher-fallback.test.ts | test | Covers polling and watcher registration races |
 | thread-live-step-ids.test.ts | test | Covers step session ids and thread events |
 | thread-provider-outage.test.ts | test | Covers outage backoff, cap and session reuse |
 | thread-rate-limit-resume.test.ts | test | Covers provider-attributed pause and resume |

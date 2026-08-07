@@ -1,6 +1,6 @@
-// input:  orch/orchestrator, domain/threads, store/thread-repo
-// output: registerMessageHandler(app, deps) — thin wrapper that delegates routing to orchestrator
-// pos:    Slack message event entry point; two-branch decision tree handled by orch/orchestrator ([S8-B] old paths deleted)
+// input:  platform messages, command dispatcher, thread store
+// output: registerMessageHandler with normalized command routing
+// pos:    Shared Slack and Feishu message router
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { PlatformAdapter, IncomingMessage, MessageEditContext } from '@platform/index.js';
 import { normalizeSkillCommandPrefix } from '@domain/memory/skill-scanner.js';
@@ -18,51 +18,62 @@ export interface MessageHandlerDeps {
 }
 
 const THREAD_RESERVED_SUBCOMMANDS = new Set(['cancel', 'list', 'agents', 'templates']);
+const COMMAND_MENTION_TOKEN = /(^|\s+)(?:<@[^>\s]+>|@[^\s@]+)(?=\s|$)/g;
 
 export function registerMessageHandler(adapter: PlatformAdapter, deps: MessageHandlerDeps): void {
-  const { dispatchCommand, handleMessageEdit } = deps;
-
   adapter.onMessageEdit(async (ctx) => {
-    handleMessageEdit(ctx, adapter);
+    deps.handleMessageEdit(ctx, adapter);
   });
+  adapter.onMessage((ctx) => routeIncomingMessage(ctx.message, adapter, deps.dispatchCommand));
+}
 
-  adapter.onMessage(async (ctx) => {
-    const message = ctx.message;
-    log.info('Message event:', JSON.stringify({ kind: message.kind, isBot: message.isBot, text: message.text?.substring(0, 50), files: message.files?.length, threadId: message.ref.threadId }));
+async function routeIncomingMessage(
+  message: IncomingMessage,
+  adapter: PlatformAdapter,
+  dispatchCommand: MessageHandlerDeps['dispatchCommand'],
+): Promise<void> {
+  log.info('Message event:', JSON.stringify({ kind: message.kind, isBot: message.isBot, text: message.text?.substring(0, 50), files: message.files?.length, threadId: message.ref.threadId }));
+  if (!shouldRouteIncomingMessage(message)) return;
 
-    if (routeBotMessage(message)) { /* stripped BRANCH_CALLBACK prefix, continue */ }
-    else if (message.isBot) return;
+  const hasFiles = (message.files?.length || 0) > 0;
+  const userMessage = message.text;
+  const forwardedContent = extractForwardedContent(message);
+  if (!userMessage && !hasFiles && !forwardedContent) return;
 
-    if (message.kind === 'system') return;
+  const channel = message.ref.conduit;
+  const threadAnchorId = message.ref.threadId || null;
+  const commandMessage = normalizeCommandMentions(userMessage?.trim());
+  if (shouldSkipForCommandDispatch(commandMessage, dispatchCommand, channel, adapter, threadAnchorId)) return;
 
-    const hasFiles = (message.files?.length || 0) > 0;
-    const userMessage = message.text;
-    const trimmedMessage = userMessage?.trim();
-    const forwardedContent = extractForwardedContent(message);
-    if (!userMessage && !hasFiles && !forwardedContent) return;
-
-    const threadAnchorId = message.ref.threadId || null;
-
-    if (shouldSkipForCommandDispatch(trimmedMessage, dispatchCommand, message.ref.conduit, adapter, threadAnchorId)) return;
-
-    const channel = message.ref.conduit;
-
-    let agentMessage = normalizeSkillCommandPrefix(userMessage || '');
-    if (forwardedContent) {
-      agentMessage = `[Forwarded message]\n${forwardedContent}\n[End forwarded message]\n\n${agentMessage || 'The user forwarded the above message to you.'}`;
-    }
-
-    const threadAddMatch = trimmedMessage?.match(/^!thread\s+add\s+(\S+)(?:\s+([\s\S]+))?$/) ?? null;
-    const threadStartMatch = trimmedMessage?.match(/^!thread\s+(\S+)\s+([\s\S]+)/) ?? null;
-    const existingThread = threadAnchorId ? threadStore.findByPlatformThread(channel, threadAnchorId) : null;
-    const isActiveThread = !!(existingThread && (existingThread.status === 'running' || existingThread.status === 'waiting'));
-
-    await orchestrator.handleMessage({
-      message, channel, adapter, threadAnchorId, hasFiles,
-      userMessage: userMessage || '', agentMessage,
-      threadAddMatch, threadStartMatch, existingThread, isActiveThread,
-    });
+  const agentMessage = buildAgentMessage(userMessage || '', forwardedContent);
+  const threadRouting = buildThreadRouting(commandMessage, channel, threadAnchorId);
+  await orchestrator.handleMessage({
+    message, channel, adapter, threadAnchorId, hasFiles,
+    userMessage: userMessage || '', agentMessage, ...threadRouting,
   });
+}
+
+function shouldRouteIncomingMessage(message: IncomingMessage): boolean {
+  if (!routeBotMessage(message) && message.isBot) return false;
+  return message.kind !== 'system';
+}
+
+function buildAgentMessage(
+  userMessage: string,
+  forwardedContent: ReturnType<typeof extractForwardedContent>,
+): string {
+  const agentMessage = normalizeSkillCommandPrefix(userMessage);
+  if (!forwardedContent) return agentMessage;
+  const fallback = agentMessage || 'The user forwarded the above message to you.';
+  return `[Forwarded message]\n${forwardedContent}\n[End forwarded message]\n\n${fallback}`;
+}
+
+function buildThreadRouting(commandMessage: string | undefined, channel: string, threadAnchorId: string | null) {
+  const threadAddMatch = commandMessage?.match(/^!thread\s+add\s+(\S+)(?:\s+([\s\S]+))?$/) ?? null;
+  const threadStartMatch = commandMessage?.match(/^!thread\s+(\S+)\s+([\s\S]+)/) ?? null;
+  const existingThread = threadAnchorId ? threadStore.findByPlatformThread(channel, threadAnchorId) : null;
+  const isActiveThread = !!(existingThread && (existingThread.status === 'running' || existingThread.status === 'waiting'));
+  return { threadAddMatch, threadStartMatch, existingThread, isActiveThread };
 }
 
 // --- Bot message filter ---
@@ -78,6 +89,12 @@ function routeBotMessage(message: IncomingMessage): boolean {
 }
 
 // --- Command dispatch check ---
+
+function normalizeCommandMentions(message: string | undefined): string | undefined {
+  if (!message) return message;
+  const withoutMentions = message.replace(COMMAND_MENTION_TOKEN, '').trim();
+  return withoutMentions.startsWith('!') ? withoutMentions : message;
+}
 
 function shouldSkipForCommandDispatch(trimmedMessage: string | undefined, dispatchCommand: MessageHandlerDeps['dispatchCommand'], channel: string, adapter: PlatformAdapter, threadAnchorId: string | null): boolean {
   const threadAddMatch = trimmedMessage?.match(/^!thread\s+add\s+(\S+)(?:\s+([\s\S]+))?$/);

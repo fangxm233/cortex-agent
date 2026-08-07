@@ -308,9 +308,12 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 
 ## 热重载行为 {#hot-reload-behavior}
 
+`config/` 下通过文件监视器热更新的配置，在监视器无法启动或运行期报错时，会自动切换为每 5 秒一次的文件系统快照轮询。每个加载器在轮询模式下沿用其处理文件事件时的校验和失败行为。
+
 - **`config/settings.json`** — 通过文件监视器监视，去抖 300 毫秒。新值在下一个使用点生效，无需重启；文件损坏时保留上一份设置。唯一的例外是运行中把 `waitingSweepMs` 改成 `0`，需重启才能恢复。参见 [config/settings.json](#configsettingsjson)。
 - **`schedules.json`** — 通过文件监视器监视。更改在几秒钟内生效，无需重启。完整调度系统参见 [scheduling.md](./scheduling.md)。
-- **`profiles.json`** — 每次生成智能体时重新读取。更改配置无需重启。
+- **`profiles.json`** — 缓存在内存中并监视可解析的 JSON 变更。更新会在下一个智能体生成前刷新缓存；JSON 语法损坏时保留上一份配置。
+- **`machines.json`** — 监视并在有效变更后重新加载。条目无效时保留上一份机器注册表。
 - **`thread-templates/`** — 每个实体子目录（`agents/`、`templates/`、`shells/`）都被监视。变更去抖（300ms）后整体重载配置，无需重启；旧的单文件 `thread-templates.json` 在迁移前以同样方式被监视。参见 [threads.md](./threads.md)。
 - **`.env`** — 需要守护进程重启才能生效（启动时通过 dotenv 加载一次）。过去放在这里的行为设置已迁到 `config/settings.json`，后者不需要重启。
 - **钩子声明（`config/hooks/*.json`）** — 注册表在每次智能体生成时重新读取，因此新增的 `agent:*` / `cc:*` / `pi:*` 条目对下一个启动的智能体生效。`cortex:*` 条目在服务器启动时被快照，需重启才生效。参见 [hooks.md](./hooks.md)。

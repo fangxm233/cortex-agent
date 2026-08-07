@@ -1,6 +1,6 @@
-// input:  authoritative provider/window throttle snapshot, epoch time, UI language
-// output: active provider countdowns and pending-work detail rows
-// pos:    Pure rate-limit presentation model shared by desktop and mobile
+// input:  provider throttle snapshot, epoch time, UI language
+// output: compact labels, countdowns, and provider detail rows
+// pos:    Shared desktop/mobile rate-limit presentation model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { SystemRateLimitStatus } from '@cortex-agent/ui-contract';
@@ -87,8 +87,7 @@ function buildProvider(
 }
 
 function singleProviderLabel(provider: RateLimitProviderView): string {
-  const types = [...new Set(provider.windows.map((window) => window.typeLabel))].join('+');
-  return `${provider.displayName} · ${types} · ${provider.recoveryCountdown}`;
+  return `${provider.displayName} · ${provider.recoveryCountdown}`;
 }
 
 function aggregateLabel(count: number, countdown: string, lang: Lang): string {

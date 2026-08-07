@@ -55,6 +55,7 @@ import {
 import * as path from 'path';
 import { createLogger } from '@core/log.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
+import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
 import { isMainModule, moduleDir, DATA_DIR, CONFIG_DIR, STORE_DIR } from '@core/utils.js';
 import { tryAcquireSingletonLock, releaseSingletonLock as releaseLock } from '@core/singleton-lock.js';
 
@@ -91,7 +92,6 @@ const BUILD_DEBOUNCE_MS = 2500;   // src/*.ts — slower, build takes seconds an
 const BACKOFF_INITIAL = 1000;
 const BACKOFF_MAX = 30_000;
 const HEALTHY_THRESHOLD = 10_000; // if alive > 10s, reset backoff
-const WATCH_FALLBACK_MS = 5000;
 
 // Src-watch filter: paths under SRC_WATCH_PATH that should NOT trigger a rebuild.
 const SRC_IGNORE_PREFIXES = ['tests/', 'tmp/', 'node_modules/', 'dist/', 'vendor/'];
@@ -286,78 +286,10 @@ async function restart(reason) {
 
 // --- File Watching ---
 
-export interface WatchMonitor {
-  close(): void;
-}
-
-export interface ResilientWatchOptions {
-  label: string;
-  startWatching: () => FSWatcher[];
-  poll?: () => void;
-  warn?: (message: string) => void;
-}
-
-function formatWatchError(error: unknown): string {
-  if (!(error instanceof Error)) return String(error);
-  const code = (error as NodeJS.ErrnoException).code;
-  return code ? `${code}: ${error.message}` : error.message;
-}
-
 function closeWatchers(watchers: FSWatcher[]): void {
   for (const watcher of watchers.splice(0)) {
     try { watcher.close(); } catch {}
   }
-}
-
-interface WatchMonitorState {
-  watchers: FSWatcher[];
-  pollTimer: ReturnType<typeof setInterval> | null;
-  failed: boolean;
-  closed: boolean;
-}
-
-function pollSafely(options: ResilientWatchOptions, warn: (message: string) => void): void {
-  try { options.poll?.(); } catch (error) {
-    warn(`${options.label} polling failed (${formatWatchError(error)})`);
-  }
-}
-
-function failWatchMonitor(
-  state: WatchMonitorState,
-  options: ResilientWatchOptions,
-  warn: (message: string) => void,
-  error: unknown,
-): void {
-  if (state.failed || state.closed) return;
-  state.failed = true;
-  closeWatchers(state.watchers);
-  const detail = formatWatchError(error);
-  if (!options.poll) {
-    warn(`${options.label} watcher failed (${detail}); watcher disabled`);
-    return;
-  }
-  warn(`${options.label} watcher failed (${detail}); polling every ${WATCH_FALLBACK_MS}ms`);
-  state.pollTimer = setInterval(() => pollSafely(options, warn), WATCH_FALLBACK_MS);
-}
-
-function closeWatchMonitor(state: WatchMonitorState): void {
-  state.closed = true;
-  closeWatchers(state.watchers);
-  if (state.pollTimer) clearInterval(state.pollTimer);
-  state.pollTimer = null;
-}
-
-export function createResilientWatchMonitor(options: ResilientWatchOptions): WatchMonitor {
-  const state: WatchMonitorState = { watchers: [], pollTimer: null, failed: false, closed: false };
-  const warn = options.warn ?? (message => log.warn(message));
-  const fallBack = (error: unknown) => failWatchMonitor(state, options, warn, error);
-  try {
-    state.watchers = options.startWatching();
-    for (const watcher of state.watchers) watcher.on('error', fallBack);
-  } catch (error) {
-    fallBack(error);
-  }
-  return { close: () => closeWatchMonitor(state) };
 }
 
 /** Recursively watch each directory on Windows, closing partial setup on failure. */
@@ -403,6 +335,7 @@ function setupSourceMonitor(): WatchMonitor | null {
   }
   return createResilientWatchMonitor({
     label: `Source ${SRC_WATCH_PATH}`,
+    warn: (message) => log.warn(message),
     startWatching: () => {
       if (process.platform === 'win32') {
         const watchers = watchTree(SRC_WATCH_PATH, (_event, filename) => handleSourceChange(filename));
@@ -431,6 +364,7 @@ function setupRestartTriggerMonitor(): WatchMonitor {
   const triggerName = path.basename(RESTART_TRIGGER);
   return createResilientWatchMonitor({
     label: `Restart trigger ${RESTART_TRIGGER}`,
+    warn: (message) => log.warn(message),
     startWatching: () => {
       const watcher = watch(triggerDir, (_event, filename) => {
         if (filename && String(filename) === triggerName) consumeRestartTrigger();
@@ -478,6 +412,7 @@ function setupEnvMonitor(): WatchMonitor | null {
     label: `Environment file ${ENV_FILE}`,
     startWatching: () => startEnvWatcher(envDir, envName, handleChange),
     poll,
+    warn: (message) => log.warn(message),
   });
 }
 

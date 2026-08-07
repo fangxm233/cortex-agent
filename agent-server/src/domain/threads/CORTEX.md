@@ -8,7 +8,7 @@ Consumed by the orchestration and UI layers through the index barrel.
 | index.ts | entry | re-exports the core thread modules |
 | utils.ts | util | thread id, target, and stage name helpers |
 | artifact-io.ts | io | reads thread artifacts and modified file paths |
-| template-loader.ts | config | loads and hot-reloads thread template config |
+| template-loader.ts | config | reloads thread config with polling fallback |
 | template-resolver.ts | config | expands vars and blocks in prompt templates |
 | shell-templates.ts | config | turns a shell binding into a full template |
 | template-validate.ts | config | reports what is broken in a template, agent or shell |

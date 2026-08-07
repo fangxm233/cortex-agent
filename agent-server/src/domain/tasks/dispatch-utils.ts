@@ -1,14 +1,15 @@
-// input:  machine config, task generation ownership
+// input:  machine config, resilient watch, task ownership
 // output: device registry, task IDs, dispatch outcome helpers
 // pos:    Shared task dispatch utilities
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as crypto from 'crypto';
-import { readFileSync, watch, existsSync, type FSWatcher } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';
 import { CONFIG_DIR } from '@core/utils.js';
 import type { TaskGenerationExpectation } from '@core/task-parser.js';
 import { createLogger } from '@core/log.js';
+import { createFileWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
 import { Icons } from '../../core/icons.js';
 
 const log = createLogger('machine-registry');
@@ -47,7 +48,7 @@ const MACHINES_FILE = path.join(CONFIG_DIR, 'machines.json');
 
 let _registry: MachineRegistry = {};
 let _loaded = false;
-let _watcher: FSWatcher | null = null;
+let _watchMonitor: WatchMonitor | null = null;
 let _reloadTimer: ReturnType<typeof setTimeout> | null = null;
 
 // --- Admin notification (hot-reload → Slack) ---
@@ -115,46 +116,34 @@ function getLocalMachine(): string {
 
 /**
  * Start watching machines.json for changes. Reloads on file edit.
- * Handles atomic file replacement (rename event) by re-creating the watcher.
+ * Watches the parent directory so atomic file replacement keeps monitoring active.
  */
-function startMachineRegistryWatcher(): void {
-  if (!existsSync(MACHINES_FILE)) return;
+function scheduleMachineReload(): void {
+  if (_reloadTimer) clearTimeout(_reloadTimer);
+  _reloadTimer = setTimeout(() => {
+    _reloadTimer = null;
+    loadMachinesFromFile(false);
+  }, 300);
+}
 
-  const setup = () => {
-    try {
-      if (_watcher) _watcher.close();
-      _watcher = watch(MACHINES_FILE, (eventType) => {
-        if (eventType === 'rename') {
-          // File was atomically replaced — inode changed, watcher is dead.
-          // Re-create after a short delay to let the new file settle.
-          setTimeout(() => setup(), 100);
-          return; // setup() will handle the reload after the new watcher fires
-        }
-        if (_reloadTimer) clearTimeout(_reloadTimer);
-        _reloadTimer = setTimeout(() => {
-          _reloadTimer = null;
-          loadMachinesFromFile(false); // hot-reload: don't crash on error
-        }, 300);
-      });
-    } catch (e) {
-      log.error(`Failed to watch machines.json: ${(e as Error).message}`);
-    }
-  };
-  setup();
+function startMachineRegistryWatcher(): void {
+  _watchMonitor?.close();
+  _watchMonitor = createFileWatchMonitor({
+    label: 'machines.json',
+    filePath: MACHINES_FILE,
+    onChange: scheduleMachineReload,
+    warn: (message) => log.error(message),
+  });
 }
 
 /**
  * Stop watching machines.json (for tests / graceful shutdown).
  */
 function stopMachineRegistryWatcher(): void {
-  if (_watcher) {
-    _watcher.close();
-    _watcher = null;
-  }
-  if (_reloadTimer) {
-    clearTimeout(_reloadTimer);
-    _reloadTimer = null;
-  }
+  _watchMonitor?.close();
+  _watchMonitor = null;
+  if (_reloadTimer) clearTimeout(_reloadTimer);
+  _reloadTimer = null;
 }
 
 // --- Auto-load at import time (equivalent to the old hardcoded constant) ---

@@ -9,7 +9,7 @@ Also tracks dispatched runs, records acceptance verdicts, and recovers claims or
 | archiver.ts | core | Archives completed tasks under mutation lock |
 | claim-recovery.ts | core | Generation-fences orphaned dispatch claim recovery |
 | dispatcher.ts | core | Selects and claims tasks with fresh generations |
-| dispatch-utils.ts | util | Device registry, task IDs and owned split outcomes |
+| dispatch-utils.ts | util | Reloads devices and provides task dispatch helpers |
 | lint.ts | util | checks task files for cycles and errors |
 | mutator.ts | core | Serializes generation-aware mutations and events |
 | parser.ts | adapter | re-exports the task file parser |

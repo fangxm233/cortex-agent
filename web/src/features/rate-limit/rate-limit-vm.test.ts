@@ -1,6 +1,6 @@
-// input:  provider/window rate-limit snapshots, language, and current time
-// output: countdown, waiting-count, expiry, and order assertions
-// pos:    Pure view-model regression tests for active-only rate-limit status
+// input:  provider throttle snapshots, language, current time
+// output: compact-label, countdown, expiry, and order assertions
+// pos:    Regression tests for the shared rate-limit view model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
@@ -23,7 +23,7 @@ describe('buildRateLimitView', () => {
     }, NOW, 'en')).toBeNull();
   });
 
-  it('renders one provider with its active window and full-recovery countdown', () => {
+  it('keeps the compact label window-free while retaining window detail', () => {
     const vm = buildRateLimitView({
       providers: [{
         provider: 'anthropic', displayName: 'Anthropic', waitingSessions: 1, waitingThreads: 2,
@@ -31,7 +31,7 @@ describe('buildRateLimitView', () => {
       }],
     }, NOW, 'en');
 
-    expect(vm?.label).toBe('Anthropic · 7d · 14h 43m');
+    expect(vm?.label).toBe('Anthropic · 14h 43m');
     expect(vm?.providers[0].windows[0]).toMatchObject({ typeLabel: '7d', countdown: '14h 43m' });
     expect(vm?.providers[0].waitingLabel).toBe('1 session · 2 threads waiting');
   });

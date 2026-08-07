@@ -420,6 +420,11 @@ so newly shipped entities reach existing installs without touching your edits.
 
 ## Hot-reload behavior
 
+Watcher-backed files under `config/` automatically switch to filesystem
+snapshot polling every 5 seconds if the watcher cannot start or reports a
+runtime error. Each loader keeps the same validation and failure behavior in
+polling mode as it uses with filesystem events.
+
 - **`config/settings.json`** — watched via file watcher, debounced 300 ms. New
   values apply at the next point of use without a restart; a broken file keeps
   the previous settings. `waitingSweepMs` set to `0` at runtime is the one
@@ -428,8 +433,11 @@ so newly shipped entities reach existing installs without touching your edits.
 - **`schedules.json`** — watched via file watcher. Changes are picked up
   within seconds without restart. See [scheduling.md](./scheduling.md)
   for the full scheduling system.
-- **`profiles.json`** — read fresh on every agent spawn. No restart needed
-  to change profiles.
+- **`profiles.json`** — cached and watched for parseable JSON changes. An
+  update refreshes the cache before the next agent spawn; malformed JSON keeps
+  the previous profiles.
+- **`machines.json`** — watched and reloaded after valid changes. Invalid
+  entries keep the previous machine registry.
 - **`thread-templates/`** — each entity subdirectory (`agents/`, `templates/`,
   `shells/`) is watched. Changes are debounced (300ms) and the whole config is
   reloaded without a restart; a legacy single `thread-templates.json` is watched
