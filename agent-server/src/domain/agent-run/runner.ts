@@ -1164,8 +1164,14 @@ function stageAtifTrajectory(
  * `output_path_exists`. `rename(2)` replaces its destination in silence; `link(2)` raises EEXIST.
  * Reported through the SHIPPED reason `publishComposite` already raises for its own half
  * (`composite-manifest.ts:706,722`) — no new vocabulary.
+ *
+ * `owned` gains the FINAL path the instant the link lands, before anything that can still throw.
+ * A flag the CALLER sets after this function returns would be false whenever the cleanup below
+ * failed, and the discard would then sweep the staging name while the PUBLISHED tree survived a
+ * refused trial — the exact orphan this staging exists to remove, reintroduced by the bookkeeping
+ * rather than by the publication.
  */
-function commitStagedAtif(run: PreparedRun): void {
+function commitStagedAtif(run: PreparedRun, owned: string[]): void {
   const paths = atifPaths(run);
   try {
     fs.linkSync(paths.staged, paths.published);
@@ -1173,26 +1179,33 @@ function commitStagedAtif(run: PreparedRun): void {
     if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
     throw new CompositeManifestError('output_path_exists', paths.published);
   }
+  owned.push(paths.published);
   fs.rmSync(paths.staged, { force: true });
 }
 
 /**
- * Exactly one of the two names can hold the tree: `commitStagedAtif` links then unlinks, so
- * `committed` selects the survivor.
+ * Sweeps every path F8 took responsibility for, and NOTHING else. `owned` is the whole record:
+ * the staging name unconditionally, because no other writer in the system produces it (G4-PB6
+ * keeps exactly one production writer), and `trajectory.json` only once the link that published it
+ * returned — which is why a trial refused BEFORE the commit leaves a pre-existing `trajectory.json`
+ * untouched instead of destroying an artifact this run did not create.
  *
  * A removal that fails for anything other than `ENOENT` (which `force` already suppresses) leaves
  * the orphan this whole staging dance exists to prevent, so it is REPORTED rather than swallowed —
  * an unreported orphan is strictly worse than a reported one, because the next run in this
  * artifacts root will fail `output_path_exists` with no record of why. Reported the way the lease
- * echo reports its own non-fatal plumbing fault (`:1290`): a plain diagnostic line, deliberately
- * NOT a typed `reason` record, because no §8.7 code covers it and inventing one is forbidden.
+ * echo reports its own non-fatal plumbing fault: a plain diagnostic line, deliberately NOT a typed
+ * `reason` record, because no §8.7 code covers it and inventing one is forbidden.
  */
-function discardAtif(run: PreparedRun, committed: boolean, io: AgentRunIo): void {
-  const target = committed ? atifPaths(run).published : atifPaths(run).staged;
-  try {
-    fs.rmSync(target, { force: true });
-  } catch (error) {
-    io.stderr.write(`atif discard failed: ${target}: ${(error as Error)?.message ?? String(error)}\n`);
+function discardAtif(owned: readonly string[], io: AgentRunIo): void {
+  for (const target of owned) {
+    try {
+      fs.rmSync(target, { force: true });
+    } catch (error) {
+      io.stderr.write(
+        `atif discard failed: ${target}: ${(error as Error)?.message ?? String(error)}\n`,
+      );
+    }
   }
 }
 
@@ -1366,7 +1379,9 @@ function publishCompositeManifest(
   const applicability = compositeApplicability(run, terminal);
   if (!applicability.applicable) return;
   const { policy } = applicability;
-  let committedAtif = false;
+  // Seeded with the staging name because F8 owns that name whether or not this run created a file
+  // under it; `trajectory.json` joins the list only when the commit publishes it.
+  const owned: string[] = [atifPaths(run).staged];
   try {
     const mode = policy.arm.orchestration?.mode;
     if (!mode) {
@@ -1437,17 +1452,14 @@ function publishCompositeManifest(
     assertTerminalPredicate(manifest.predicate);
     // Nothing can refuse the trial past this line, so the PAIR is published: the tree first, then
     // the manifest, which is the document §9.5's admission rule keys on and therefore goes last.
-    if (atif !== null) {
-      commitStagedAtif(run);
-      committedAtif = true;
-    }
+    if (atif !== null) commitStagedAtif(run, owned);
     publishComposite(manifest, path.join(run.options.trajectoryRoot, COMPOSITE_MANIFEST_FILE));
   } catch (error) {
     // §9.5 F8: the publication is all-or-nothing. A refused trial leaves NO tree behind — neither
     // the staged half nor, if the manifest write itself failed, the committed one. An orphaned
     // `trajectory.json` is a collectable interchange document for a trial that was never admitted,
     // and it turns the merge's `output_path_exists` into the reason a re-run reports.
-    discardAtif(run, committedAtif, io);
+    discardAtif(owned, io);
     if (error instanceof CompositeManifestError || error instanceof TerminalPredicateError) {
       io.stderr.write(`${JSON.stringify(error.record())}\n`);
     }

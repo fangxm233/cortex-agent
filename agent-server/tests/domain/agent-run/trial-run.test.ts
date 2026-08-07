@@ -1212,6 +1212,41 @@ it('refuses a pre-existing trajectory.json instead of replacing it (T23b, §9.3 
   );
 }, 60_000);
 
+it('discards a tree it had ALREADY committed when the manifest half then refuses (T23d)', async () => {
+  // The other side of atomicity, and the one that decides which path a discard must sweep. Here the
+  // ATIF commit SUCCEEDS and the refusal arrives afterwards, from `publishComposite` meeting a
+  // `composite-manifest.json` that already exists — a re-run in a dirty artifacts root, which is
+  // exactly the situation §9.5 F8's hard `output_path_exists` exists to catch.
+  //
+  // What F8 published must therefore be swept, and what it did NOT publish must not be: the prior
+  // manifest survives byte-for-byte. Tracking the commit by a flag the CALLER sets after
+  // `commitStagedAtif` returns gets this wrong the moment that function throws past its own link,
+  // so the published path is recorded the instant the link lands instead.
+  const built = fixture({ accounted: true });
+  const manifestPath = path.join(built.options.trajectoryRoot, 'composite-manifest.json');
+  const prior = '{"prior":"manifest"}\n';
+  fs.writeFileSync(manifestPath, prior);
+
+  const outcome = await runTrial(built);
+  assert.notEqual(outcome.exitCode, 0);
+  const refusal = outcome.stderr.split('\n').filter(Boolean)
+    .flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } })
+    .find(record => record?.reason === 'output_path_exists');
+  assert.ok(refusal, `no output_path_exists refusal on stderr:\n${outcome.stderr}`);
+
+  // The tree F8 committed is gone, and so is its staging name...
+  for (const name of ['trajectory.json', 'trajectory.json.staging']) {
+    assert.equal(
+      fs.existsSync(path.join(built.options.trajectoryRoot, name)), false,
+      `${name} outlived the trial that published it`,
+    );
+  }
+  // ...while the document F8 did NOT write is untouched.
+  assert.equal(fs.readFileSync(manifestPath, 'utf8'), prior);
+  // And nothing was reported as an unswept orphan, because nothing was left behind.
+  assert.equal(/atif discard failed/.test(outcome.stderr), false, outcome.stderr);
+}, 60_000);
+
 it('REPORTS a discard it could not complete, rather than orphaning silently (T23c)', async () => {
   // The whole point of the discard is that no tree outlives a refused trial. A discard that fails
   // and says nothing leaves exactly the orphan B1 exists to prevent — and leaves it invisible.
