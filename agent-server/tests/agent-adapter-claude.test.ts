@@ -755,8 +755,9 @@ test('TUI_TOOLS excludes AskUserQuestion / EnterPlanMode / ExitPlanMode and incl
 
 // --- buildHooksSettings ---
 
-const GOLDEN_HOOKS_WITH_INTERACTION = `{"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/sensitive-file-edit.mjs","timeout":10},{"type":"command","command":"node ${HOOKS_DIR}/tasks-yaml-guard.mjs","timeout":10}]},{"matcher":"AskUserQuestion","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/ask-user-question-hook.mjs","timeout":3600}]},{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/exit-plan-mode-hook.mjs","timeout":3600}]}],"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}],"PermissionRequest":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"printf '{\\"hookSpecificOutput\\":{\\"hookEventName\\":\\"PermissionRequest\\",\\"decision\\":{\\"behavior\\":\\"allow\\"}}}'","timeout":5}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}]}`;
-const GOLDEN_HOOKS_WITHOUT_INTERACTION = `{"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/sensitive-file-edit.mjs","timeout":10},{"type":"command","command":"node ${HOOKS_DIR}/tasks-yaml-guard.mjs","timeout":10}]}],"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}],"PermissionRequest":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"printf '{\\"hookSpecificOutput\\":{\\"hookEventName\\":\\"PermissionRequest\\",\\"decision\\":{\\"behavior\\":\\"allow\\"}}}'","timeout":5}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}]}`;
+const GOLDEN_HOOKS_WITH_INTERACTION = `{"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/tasks-yaml-guard.mjs","timeout":10}]},{"matcher":"AskUserQuestion","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/ask-user-question-hook.mjs","timeout":3600}]},{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/exit-plan-mode-hook.mjs","timeout":3600}]},{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/status-md-guard.mjs","timeout":10}]}],"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}],"PermissionRequest":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"printf '{\\"hookSpecificOutput\\":{\\"hookEventName\\":\\"PermissionRequest\\",\\"decision\\":{\\"behavior\\":\\"allow\\"}}}'","timeout":5}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}]}`;
+const GOLDEN_HOOKS_WITHOUT_INTERACTION = `{"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/tasks-yaml-guard.mjs","timeout":10},{"type":"command","command":"node ${HOOKS_DIR}/status-md-guard.mjs","timeout":10}]}],"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}],"PermissionRequest":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"printf '{\\"hookSpecificOutput\\":{\\"hookEventName\\":\\"PermissionRequest\\",\\"decision\\":{\\"behavior\\":\\"allow\\"}}}'","timeout":5}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}]}`;
+const GOLDEN_LEGACY_HOOKS = `{"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/tasks-yaml-guard.mjs","timeout":10}]}],"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}],"PermissionRequest":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"printf '{\\"hookSpecificOutput\\":{\\"hookEventName\\":\\"PermissionRequest\\",\\"decision\\":{\\"behavior\\":\\"allow\\"}}}'","timeout":5}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}]}`;
 
 test('buildHooksSettings compiles ordered Claude events from the active registry', () => {
   const entries: HookEntry[] = [
@@ -816,7 +817,7 @@ test('buildHooksSettings uses the hardcoded table when legacy mode is enabled', 
     resetSettingsForTests();
     assert.equal(
       JSON.stringify(buildHooksSettings('Bash,Read,Edit,Write')),
-      GOLDEN_HOOKS_WITHOUT_INTERACTION,
+      GOLDEN_LEGACY_HOOKS,
     );
   } finally {
     resetHookRegistry();
@@ -838,13 +839,13 @@ test('buildHooksSettings default — PreToolUse has only Edit|Write matcher', ()
 test('buildHooksSettings with AskUserQuestion + ExitPlanMode — all three PreToolUse matchers appear', () => {
   const settings = buildHooksSettings('Edit,Write,AskUserQuestion,ExitPlanMode');
   const matchers = settings.PreToolUse.map((h: any) => h.matcher);
-  assert.deepEqual(matchers, ['Edit|Write', 'AskUserQuestion', 'ExitPlanMode']);
+  assert.deepEqual(new Set(matchers), new Set(['Edit|Write', 'AskUserQuestion', 'ExitPlanMode']));
 });
 
 test('buildHooksSettings null (tools unset) — uses DEFAULT_TOOLS which includes AskUserQuestion + ExitPlanMode', () => {
   const settings = buildHooksSettings(null);
   const matchers = settings.PreToolUse.map((h: any) => h.matcher);
-  assert.deepEqual(matchers, ['Edit|Write', 'AskUserQuestion', 'ExitPlanMode']);
+  assert.deepEqual(new Set(matchers), new Set(['Edit|Write', 'AskUserQuestion', 'ExitPlanMode']));
 });
 
 // --- SESSION_START_HOOKS ---

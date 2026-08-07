@@ -38,12 +38,12 @@
 
 ```json
 {
-  "id": "sensitive-file-edit",
+  "id": "tasks-yaml-guard",
   "event": "agent:pre-tool",
   "matcher": "Edit|Write",
-  "run": { "script": "sensitive-file-edit.mjs", "timeout": 10 },
+  "run": { "script": "tasks-yaml-guard.mjs", "timeout": 10 },
   "enabled": true,
-  "version": "2026.7.29"
+  "version": "2026.7.29-2"
 }
 ```
 
@@ -130,7 +130,6 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
 {
   "PreToolUse": [
     { "matcher": "Edit|Write", "hooks": [
-        { "type": "command", "command": "node $CORTEX_HOME/hooks/sensitive-file-edit.mjs", "timeout": 10 },
         { "type": "command", "command": "node $CORTEX_HOME/hooks/tasks-yaml-guard.mjs", "timeout": 10 }
     ]},
     { "matcher": "AskUserQuestion", "hooks": [ ... ] }
@@ -223,7 +222,6 @@ bus 如何处理 stdout 取决于 `result`：
 
 | 脚本 | 使用方 | 用途 |
 |---|---|---|
-| `sensitive-file-edit.mjs` | `agent:pre-tool`，`Edit\|Write` | 直接完成写入，使受保护的智能体配置路径仍可编辑，随后拒绝内置工具以免重复执行 |
 | `tasks-yaml-guard.mjs` | `agent:pre-tool`，`Edit\|Write` | 当前进程不持有项目锁时，拒绝对 `TASKS.yaml` 的编辑 |
 | `ask-user-question-hook.mjs` | `agent:pre-tool`，`AskUserQuestion` | 把问题转发给 hook-bridge 并阻塞直到用户回答 |
 | `exit-plan-mode-hook.mjs` | `agent:pre-tool`，`ExitPlanMode` | 把计划转发给 hook-bridge 并阻塞直到批准或拒绝 |
@@ -295,8 +293,8 @@ cortex-hook ask --question "磁盘即将写满——清理旧 checkpoint？" \
 cortex-hook list
 cortex-hook show --id task-status-check
 cortex-hook disable --id rules-loader --dry-run
-cortex-hook test --id sensitive-file-edit --payload payload.json
-cat payload.json | cortex-hook test --id sensitive-file-edit --payload -
+cortex-hook test --id tasks-yaml-guard --payload payload.json
+cat payload.json | cortex-hook test --id tasks-yaml-guard --payload -
 ```
 
 `enable` 与 `disable` 会报告 `changed`，让你区分真实的状态变化和空操作；`--dry-run` 不写文件，改为附加一个 `would_set` 块。禁用一个 managed 钩子会返回警告：之后如果同步部署了该条目的更新版本，会把它恢复为发布时的 `enabled` 状态。模板作用域的钩子是只读的——`enable` 与 `disable` 会拒绝它们，并列出你可以操作的注册表 id。

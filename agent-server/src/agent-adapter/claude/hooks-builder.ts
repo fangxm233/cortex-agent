@@ -36,7 +36,6 @@ function nodeHook(script: string, timeout?: number): ClaudeCommandHook {
 export function buildPreToolUseHooks(toolsList: string[]) {
   const hooks: ClaudeMatcherGroup[] = [
     { matcher: 'Edit|Write', hooks: [
-      nodeHook('sensitive-file-edit.mjs', 10),
       nodeHook('tasks-yaml-guard.mjs', 10),
     ]},
   ];

@@ -217,7 +217,7 @@ MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信�
 
 3. **绕过权限** — Claude Code 以 `--dangerously-skip-permissions --permission-mode bypassPermissions` 生成，意味着它不会对每个 MCP 工具调用提示。访问控制在 MCP 工具实现级别和通过 PreToolUse 钩子系统进行。
 
-4. **PreToolUse 守卫** — `tasks-yaml-guard.mjs` 钩子拦截对 `TASKS.yaml` 文件的 Edit/Write 操作（包括远程编辑）并检查项目锁。`sensitive-file-edit.mjs` 钩子处理 `.claude/` 路径保护。
+4. **PreToolUse 守卫** — `tasks-yaml-guard.mjs` 钩子拦截对 `TASKS.yaml` 文件的 Edit/Write 操作（包括远程编辑）并检查项目锁。
 
 5. **网络边界** — 与远程机器通信的 MCP 工具通过 client-manager 的 WebSocket 层。`machines.json` 注册表控制哪些设备是已知的。只有具有活跃 WebSocket 连接的设备才能接收命令。
 

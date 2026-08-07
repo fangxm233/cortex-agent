@@ -4,7 +4,6 @@ Managed declarative hooks shipped into the user hook registry.
 
 | filename | role | function |
 |---|---|---|
-| 01-sensitive-file-edit.json | guard | Protects sensitive file edits |
 | 02-tasks-yaml-guard.json | guard | Protects task files on Claude and PI |
 | 03-ask-user-question-hook.json | bridge | Routes Claude questions with a blocking webhook |
 | 04-exit-plan-mode-hook.json | bridge | Routes Claude plan approval with a blocking webhook |

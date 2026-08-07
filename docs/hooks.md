@@ -68,12 +68,12 @@ test run. Change hooks from a desktop session.
 
 ```json
 {
-  "id": "sensitive-file-edit",
+  "id": "tasks-yaml-guard",
   "event": "agent:pre-tool",
   "matcher": "Edit|Write",
-  "run": { "script": "sensitive-file-edit.mjs", "timeout": 10 },
+  "run": { "script": "tasks-yaml-guard.mjs", "timeout": 10 },
   "enabled": true,
-  "version": "2026.7.29"
+  "version": "2026.7.29-2"
 }
 ```
 
@@ -199,7 +199,6 @@ matcher group:
 {
   "PreToolUse": [
     { "matcher": "Edit|Write", "hooks": [
-        { "type": "command", "command": "node $CORTEX_HOME/hooks/sensitive-file-edit.mjs", "timeout": 10 },
         { "type": "command", "command": "node $CORTEX_HOME/hooks/tasks-yaml-guard.mjs", "timeout": 10 }
     ]},
     { "matcher": "AskUserQuestion", "hooks": [ ... ] }
@@ -357,7 +356,6 @@ plain text) to stdout. The scripts shipped with Cortex are:
 
 | Script | Used by | Purpose |
 |---|---|---|
-| `sensitive-file-edit.mjs` | `agent:pre-tool`, `Edit\|Write` | Performs the write directly so agent-config paths under protection can still be edited, then denies the built-in tool so it doesn't run twice |
 | `tasks-yaml-guard.mjs` | `agent:pre-tool`, `Edit\|Write` | Denies edits to `TASKS.yaml` unless the current process holds the project lock |
 | `ask-user-question-hook.mjs` | `agent:pre-tool`, `AskUserQuestion` | Forwards the question to the hook-bridge and blocks until the user answers |
 | `exit-plan-mode-hook.mjs` | `agent:pre-tool`, `ExitPlanMode` | Forwards the plan to the hook-bridge and blocks until it is approved or rejected |
@@ -456,8 +454,8 @@ JSON.
 cortex-hook list
 cortex-hook show --id task-status-check
 cortex-hook disable --id rules-loader --dry-run
-cortex-hook test --id sensitive-file-edit --payload payload.json
-cat payload.json | cortex-hook test --id sensitive-file-edit --payload -
+cortex-hook test --id tasks-yaml-guard --payload payload.json
+cat payload.json | cortex-hook test --id tasks-yaml-guard --payload -
 ```
 
 `enable` and `disable` report `changed` so you can tell a real state change from

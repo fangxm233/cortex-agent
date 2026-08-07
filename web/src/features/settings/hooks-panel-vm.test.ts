@@ -268,20 +268,20 @@ describe('hooks-panel-vm / matcher', () => {
 describe('hooks-panel-vm / form state', () => {
   it('hydrates the form from a script-based declaration', () => {
     const form = formStateFromDetail(hook({
-      id: 'sensitive-file-edit',
+      id: 'tasks-yaml-guard',
       event: 'agent:pre-tool',
       matcher: 'Edit|Write',
-      run: { script: 'sensitive-file-edit.mjs', command: null, timeoutSec: 10 },
+      run: { script: 'tasks-yaml-guard.mjs', command: null, timeoutSec: 10 },
       scope: { backends: ['claude'], requiresTool: 'Edit' },
       enabled: false,
     }));
     expect(form).toEqual({
-      id: 'sensitive-file-edit',
+      id: 'tasks-yaml-guard',
       event: 'agent:pre-tool',
       matcher: 'Edit|Write',
       filters: [],
       runKind: 'script',
-      script: 'sensitive-file-edit.mjs',
+      script: 'tasks-yaml-guard.mjs',
       command: '',
       timeoutSec: '10',
       backends: ['claude'],

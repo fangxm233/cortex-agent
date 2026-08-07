@@ -297,10 +297,6 @@ const INTERACTION_VERSION = '2026.7.29-2';
 const INTERACTION_TTL_MIN = TTL_MS / 60_000;
 const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
   {
-    filename: '01-sensitive-file-edit.json',
-    entry: { id: 'sensitive-file-edit', event: 'agent:pre-tool', matcher: 'Edit|Write', run: { script: 'sensitive-file-edit.mjs', timeout: 10 }, enabled: true, version: VERSION },
-  },
-  {
     filename: '02-tasks-yaml-guard.json',
     entry: { id: 'tasks-yaml-guard', event: 'agent:pre-tool', matcher: 'Edit|Write', run: { script: 'tasks-yaml-guard.mjs', timeout: 10 }, enabled: true, version: TASKS_GUARD_VERSION },
   },
@@ -343,6 +339,10 @@ const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
   {
     filename: '12-session-new-hook.json',
     entry: { id: 'session-new-hook', event: 'cortex:session.new', run: { script: 'new-session-hook.mjs', timeout: 60 }, result: 'stdout-as-prompt', enabled: true, version: VERSION },
+  },
+  {
+    filename: '13-status-md-guard.json',
+    entry: { id: 'status-md-guard', event: 'agent:pre-tool', matcher: 'Edit|Write', run: { script: 'status-md-guard.mjs', timeout: 10 }, enabled: true, version: '2026.8.2' },
   },
 ];
 

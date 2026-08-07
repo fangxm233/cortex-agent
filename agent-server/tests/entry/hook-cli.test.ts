@@ -89,7 +89,7 @@ test('root and subcommand help use copyable cortex-hook examples', async (t) => 
   const root = await runHookCli(['--help'], fixture.options);
   assert.equal(root.exitCode, 0);
   assert.match(root.stdout, /Usage: cortex-hook <command> \[options\]/);
-  assert.match(root.stdout, /cortex-hook test --id sensitive-file-edit --payload payload\.json/);
+  assert.match(root.stdout, /cortex-hook test --id tasks-yaml-guard --payload payload\.json/);
   for (const command of ['list', 'show', 'enable', 'disable', 'test', 'ask']) {
     const result = await runHookCli([command, '-h'], fixture.options);
     assert.equal(result.exitCode, 0);

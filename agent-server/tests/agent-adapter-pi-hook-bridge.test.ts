@@ -123,35 +123,6 @@ test('handlePreToolUse: write to non-.claude/ path → returns undefined (no blo
 });
 
 // ---------------------------------------------------------------------------
-// Test 4: handlePreToolUse — .claude/ path → deny → {block:true}
-// ---------------------------------------------------------------------------
-
-test('handlePreToolUse: edit to .claude/ path → ENOENT → deny → {block:true, reason}', () => {
-  // sensitive-file-edit.mjs intercepts .claude/ paths.
-  // With a non-existent file + old_string provided, readFileSync throws ENOENT → deny.
-  const ctx = makeCtx();
-  // Use cwd-relative .claude/ path: hook resolves relative to process.cwd() fallback.
-  // Inject cwd into the payload via input — hook reads input.cwd || process.cwd().
-  // We pass a non-existent file path so readFileSync throws.
-  const event = {
-    toolName: 'edit',
-    toolCallId: 'tc-003',
-    input: {
-      path: path.join(REPO_ROOT, '.claude', 'hook-bridge-nonexistent-test-file.json'),
-      old_string: 'old',
-      new_string: 'new',
-    },
-  };
-  const result = handlePreToolUse(event, ctx);
-  assert.ok(result, 'expected a block result');
-  assert.ok(
-    typeof result === 'object' && 'block' in result && result.block === true,
-    `expected block:true, got ${JSON.stringify(result)}`,
-  );
-  assert.ok(typeof (result as { reason?: string }).reason === 'string');
-});
-
-// ---------------------------------------------------------------------------
 // Test 5: handlePostToolUse — integration: session-activity-tracker logs read_file
 // ---------------------------------------------------------------------------
 

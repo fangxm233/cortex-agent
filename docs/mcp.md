@@ -296,8 +296,7 @@ internals and remote machines. Cortex applies the following controls:
 
 4. **PreToolUse guards** — the `tasks-yaml-guard.mjs` hook intercepts
    Edit/Write operations on `TASKS.yaml` files (including remote edits) and
-   checks project locks. The `sensitive-file-edit.mjs` hook handles
-   `.claude/` path protection.
+   checks project locks.
 
 5. **Network boundary** — MCP tools that talk to remote machines go through
    the client-manager's WebSocket layer. The `machines.json` registry
