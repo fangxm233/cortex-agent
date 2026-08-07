@@ -31,8 +31,8 @@ import {
   resolveTemplateAgents as daemonResolveTemplateAgents,
   FILE_REF_PREFIX,
 } from '../threads/index.js';
+import { createLocalThreadRuntimeDeps } from '../threads/local-runtime-defaults.js';
 import {
-  createLocalThreadRuntimeDeps,
   getLocalThreadRuntimeDeps,
   scopedLocalThreadService,
   withLocalThreadRuntimeDeps,

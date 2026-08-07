@@ -18,7 +18,8 @@ Consumed by the orchestration and UI layers through the index barrel.
 | pending-user-inputs.ts | state | gates asynchronous buffered-input preparation |
 | state-machine.ts | state | Drives lifecycle with scoped events and task artifacts |
 | runner.ts | runtime | Runs scoped steps after buffered inputs are ready |
-| local-runtime-deps.ts | runtime | Injects daemon-free stores, operations and ledgers |
+| local-runtime-deps.ts | runtime | Declares the injected port bundle and fails closed off-scope |
+| local-runtime-defaults.ts | runtime | Builds the daemon-side defaults for that bundle |
 | local-runtime-scope.ts | runtime | Propagates local event policy across async callbacks |
 | hook-runner.ts | hook | Adapts lifecycle hooks to HookBus and hook agents |
 | thread-transcript.ts | record | records each step's conversation to history |
