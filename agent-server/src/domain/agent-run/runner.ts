@@ -29,10 +29,18 @@ import { publishLeaseEcho } from '../benchmark/lease-echo.js';
 import {
   PolicyCompilationError, reportBenchmarkFailure, type ResolvedTrialPolicy,
 } from '../benchmark/resolved-policy.js';
-import { mintAttemptId, type AttemptRecord } from '../benchmark/attempt-record.js';
+import {
+  assignAttemptOrdinals, mintAttemptId, type AttemptEdge, type AttemptRecord,
+} from '../benchmark/attempt-record.js';
 import {
   CompositeManifestError, buildCompositeManifest, publishComposite, validateCompositeManifest,
+  type CompositeManifest, type OrchestrationModeName,
 } from '../benchmark/composite-manifest.js';
+import {
+  assertTerminalPredicate, evaluateTerminalChecks, TerminalPredicateError,
+  type AttemptJournal, type PublishedAtifFacts,
+} from '../benchmark/terminal-predicate.js';
+import { mergeTrajectory, TrajectoryMergeError } from './trajectory-merge.js';
 import {
   PROXY_EXPORT_SCHEMA_VERSION, journalCostFromNumber, reconcileAccounting,
   type AccountingRecord, type JournalTotals, type ProxyExport, type Tagged,
@@ -799,10 +807,249 @@ function compositeApplicability(
   return { applicable: true, policy: run.policy };
 }
 
+const ATIF_TRAJECTORY_FILE = 'trajectory.json';
+
 function observedLifecycleStems(trajectoryRoot: string): string[] {
   return fs.readdirSync(trajectoryRoot)
     .filter(name => name.endsWith('.started.json'))
     .map(name => name.slice(0, -'.started.json'.length));
+}
+
+/**
+ * `lifecycleStem` (`manifest.ts:269-273`) and `mintAttemptId` (`attempt-record.ts:259-265`) are the
+ * SAME expression, so the observed stems already ARE the attempt-id set §9.2 invariant 4's
+ * biconditional quantifies over. `thread-` is the only other prefix either function can emit.
+ */
+function threadIdFromStem(stem: string): string | null {
+  return stem.startsWith('thread-') ? stem.slice('thread-'.length) : null;
+}
+
+interface AttemptJournalScan {
+  readonly agentSlot: string;
+  readonly events: readonly NormalizedEvent[];
+  readonly reportedModel: string | null;
+}
+
+/**
+ * One pass over an attempt's journal, which is the only file carrying its ENTRY role. The journal
+ * path is taken from the attempt's own terminal manifest, whose linkage F6 already validated
+ * against these bytes — never re-derived from the stem.
+ */
+function scanAttemptJournal(trajectoryRoot: string, journalPath: string): AttemptJournalScan {
+  const text = fs.readFileSync(path.join(trajectoryRoot, journalPath), 'utf8');
+  const lines = text.split('\n').filter(line => line.length > 0);
+  if (lines.length === 0) {
+    throw new CompositeManifestError('composite_manifest_invalid', `empty journal ${journalPath}`);
+  }
+  const header = JSON.parse(lines[0]) as Record<string, unknown>;
+  const records = lines.slice(1).map(line => JSON.parse(line) as Record<string, unknown>);
+  const reported = records
+    .map(record => record.reported_model)
+    .filter((value): value is string => typeof value === 'string');
+  return {
+    agentSlot: header.agent_slot as string,
+    events: records.map(record => record.event as NormalizedEvent),
+    // Never defaulted to `requested_model`: that is synthesized data labelled native (§9.6 A5).
+    reportedModel: reported.at(-1) ?? null,
+  };
+}
+
+/**
+ * §9.1 field 12 is non-nullable for a thread attempt (the G4-N14 biconditional refuses a thread
+ * attempt that lost it), and G4-CM10 rules that an underivable non-nullable field is
+ * `composite_manifest_invalid` rather than a placeholder.
+ *
+ * Its §9.1 source `ThreadRecord.templateName` is unreachable from here: the orchestrator runs under
+ * the PINNED trial `CORTEX_HOME`, so its `threads.json` is not the one this process is bound to.
+ * The authority parent and thread DO share is the frozen policy, and for `coder-review` its
+ * child-template whitelist is a singleton derived from the arm's declared variant while §9.4 C2
+ * admits exactly one thread — so the singleton IS the admitted thread's template. Any other
+ * cardinality is underivable, and underivable is a refusal, not a guess.
+ */
+function threadAttemptTemplate(policy: ResolvedTrialPolicy): string {
+  const whitelist = policy.child_template_whitelist;
+  if (whitelist.length !== 1) {
+    throw new CompositeManifestError(
+      'composite_manifest_invalid',
+      `thread attempt template underivable: ${whitelist.length} whitelisted child templates`,
+    );
+  }
+  return whitelist[0];
+}
+
+/**
+ * A child thread's attempt record, built from the evidence F6 published: its terminal manifest, its
+ * journal and the frozen policy. Nothing here is minted.
+ */
+function threadAttemptRecord(
+  run: PreparedRun,
+  policy: ResolvedTrialPolicy,
+  stem: string,
+  threadId: string,
+): { record: Omit<AttemptRecord, 'attempt_ordinal'>; journal: AttemptJournalScan } {
+  const terminalRelative = `${stem}.terminal.json`;
+  const terminalBytes = fs.readFileSync(path.join(run.options.trajectoryRoot, terminalRelative));
+  const terminal = JSON.parse(terminalBytes.toString('utf8')) as Record<string, unknown>;
+  const journal = scanAttemptJournal(run.options.trajectoryRoot, terminal.journal_path as string);
+  const tokens = (terminal.tokens ?? {}) as Record<string, number | null | undefined>;
+  return {
+    journal,
+    record: {
+      trial_id: policy.trial_id,
+      root_run_id: run.rootRunId,
+      // G4-CM11: a taskless mode RE-USES `trial_id`; §1.3 rule 7 forces `max_tasks = 0` for every
+      // mode but `manager`, so a thread of a `coder-review` trial carries the same re-used id.
+      task_id: policy.trial_id,
+      parent_task_id: null,
+      dispatch_generation: null,
+      attempt_id: stem,
+      thread_id: threadId,
+      // G4-N16: no benchmark writer produces `metadata.parentThreadId`.
+      parent_thread_id: null,
+      // Every lifecycle pair under this root is a DIRECT child of the parent process, so the thread
+      // IS its own root thread — the depth-1 case in which G4-N15's `?? t.id` is correct.
+      root_thread_id: threadId,
+      task_ancestry: [policy.trial_id],
+      template: threadAttemptTemplate(policy),
+      // G4-AI8: verbatim the journal header's `agent_slot`, the fragment's ENTRY role.
+      role: journal.agentSlot as AttemptRecord['role'],
+      stage: null,
+      backend: policy.model_execution.backend,
+      provider: runProvider(run),
+      requested_model: runRequestedModel(run),
+      reported_model: journal.reportedModel,
+      model_execution_identity_hash: terminal.model_execution_identity_hash as string,
+      role_tool_surface_hash: terminal.role_tool_surface_hash as string,
+      bundle_manifest_hash: terminal.bundle_manifest_hash as string,
+      terminal_state: terminal.state as AttemptRecord['terminal_state'],
+      terminal_reason: terminal.terminal_reason as AttemptRecord['terminal_reason'],
+      // §9.4 C8: a standalone pipeline thread has no ledger, so no verdict has been recorded.
+      disposition: 'none',
+      superseded_by: null,
+      artifact_path: null,
+      artifact_sha256: null,
+      journal_path: terminal.journal_path as string,
+      journal_sha256: terminal.journal_sha256 as string,
+      event_count: terminal.event_count as number,
+      terminal_manifest_path: terminalRelative,
+      terminal_manifest_sha256: createHash('sha256').update(terminalBytes).digest('hex'),
+      edges: [],
+      started_at: terminal.started_at as string,
+      ended_at: terminal.ended_at as string,
+      steps: (terminal.steps ?? null) as number | null,
+      cost_usd: (terminal.cost_usd ?? null) as number | null,
+      tokens: {
+        input: tokens.input ?? null,
+        output: tokens.output ?? null,
+        cache_read: tokens.cache_read ?? null,
+        cache_creation: tokens.cache_creation ?? null,
+      },
+      provider_requests: null,
+    },
+  };
+}
+
+interface AttemptGraph {
+  readonly nodes: readonly AttemptRecord[];
+  readonly edges: readonly AttemptEdge[];
+  readonly journals: readonly AttemptJournal[];
+}
+
+/**
+ * §9.2's node and edge sets, DERIVED from the lifecycle pairs F6 published rather than from a
+ * hard-coded shape. A `direct` trial has exactly one pair and therefore exactly one node and zero
+ * edges (§9.4 D2) — the same code path, not a special case.
+ *
+ * The edge is `spawn` (§9.2 ordinal 1, attempt → attempt): the parent process admitted the thread.
+ * `decompose`/`dispatch` are the manager mode's task-mediated pair and no task exists here.
+ */
+function attemptGraph(
+  run: PreparedRun,
+  policy: ResolvedTrialPolicy,
+  parent: Omit<AttemptRecord, 'attempt_ordinal'>,
+  parentJournal: AttemptJournalScan,
+): AttemptGraph {
+  const built = observedLifecycleStems(run.options.trajectoryRoot)
+    .filter(stem => stem !== parent.attempt_id)
+    .map(stem => {
+      const threadId = threadIdFromStem(stem);
+      if (threadId === null) {
+        throw new CompositeManifestError(
+          'composite_manifest_invalid', `lifecycle stem ${stem} names no attempt`,
+        );
+      }
+      return threadAttemptRecord(run, policy, stem, threadId);
+    });
+  const unordered = [{ record: parent, journal: parentJournal }, ...built]
+    .sort((left, right) => (
+      left.record.attempt_id < right.record.attempt_id ? -1
+        : left.record.attempt_id > right.record.attempt_id ? 1 : 0
+    ));
+  // G4-AI4/AI5: 1-based, scoped to `task_id`, ordered by `started_at` — derived, never assumed.
+  const ordinals = assignAttemptOrdinals(unordered.map(entry => ({
+    attempt_id: entry.record.attempt_id,
+    task_id: entry.record.task_id,
+    started_at: entry.record.started_at,
+  })));
+  return {
+    nodes: unordered.map(entry => ({
+      ...entry.record,
+      attempt_ordinal: ordinals.get(entry.record.attempt_id)!,
+    })),
+    edges: built.map((entry): AttemptEdge => ({
+      kind: 'spawn',
+      from: { ref: 'attempt', id: parent.attempt_id },
+      to: { ref: 'attempt', id: entry.record.attempt_id },
+    })),
+    journals: unordered.map(entry => ({
+      attempt_id: entry.record.attempt_id,
+      events: entry.journal.events,
+    })),
+  };
+}
+
+/** Nesting depth of `subagent_trajectories` in the PUBLISHED ATIF; 0 when the root has none. */
+function atifSubagentLevels(trajectory: Record<string, unknown>): number {
+  const children = trajectory.subagent_trajectories;
+  if (!Array.isArray(children) || children.length === 0) return 0;
+  return 1 + Math.max(...children.map(
+    child => atifSubagentLevels(child as Record<string, unknown>),
+  ));
+}
+
+/**
+ * F8's ATIF half, IN-PROCESS (G4-PB5: spawning a Node child here would create a descendant AFTER F2
+ * proved quiescence and falsify the very evidence §9.4 G2 publishes). Before this the merge had no
+ * production writer at all — its only executor was a CLI nothing dispatches (§17 17.4.2).
+ *
+ * Published BEFORE the composite manifest because §9.4 C7 is an assertion ABOUT the ATIF tree, so
+ * the tree must exist before the checklist that reads it, and because §9.5's grader-admission rule
+ * keys on the composite manifest — which therefore has to be written last.
+ *
+ * A merge REFUSAL is recorded, not thrown, and the distinction is load-bearing. §9.5's instrument
+ * for "this trial is not gradable" is the §9.4 checklist, NOT the exit code, which §5.2 gives to
+ * the terminal classification. Throwing here would relabel a `completed` run whose backend simply
+ * reported no cost as `protocol_violation`, destroying the terminal truth F6 published. The refusal
+ * instead leaves its typed reason on stderr and returns `null`, which is decisive for C7.
+ */
+function publishAtifTrajectory(
+  run: PreparedRun, dag: CompositeManifest, state: unknown, io: AgentRunIo,
+): PublishedAtifFacts | null {
+  if (state !== 'completed') return null;
+  const outputPath = path.join(run.options.trajectoryRoot, ATIF_TRAJECTORY_FILE);
+  try {
+    mergeTrajectory({ trajectoryRoot: run.options.trajectoryRoot, outputPath, attemptDag: dag });
+  } catch (error) {
+    if (!(error instanceof TrajectoryMergeError)) throw error;
+    io.stderr.write(`${JSON.stringify({ reason: error.reason, detail: error.message })}\n`);
+    return null;
+  }
+  const published = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as Record<string, unknown>;
+  const extra = (published.extra ?? {}) as Record<string, unknown>;
+  return {
+    subagentLevels: atifSubagentLevels(published),
+    linkSource: String(extra.subagent_link_source),
+  };
 }
 
 /** The parent process's own attempt — one fragment, one journal, one lifecycle pair (§17 17.3.1). */
@@ -811,7 +1058,7 @@ function parentAttemptRecord(
   policy: ResolvedTrialPolicy,
   terminal: Record<string, unknown>,
   stats: RunStats,
-): AttemptRecord {
+): Omit<AttemptRecord, 'attempt_ordinal'> {
   const attemptId = mintAttemptId(run.rootRunId, null);
   const terminalRelative = `${attemptId}.terminal.json`;
   const tokens = (terminal.tokens ?? {}) as Record<string, number | null | undefined>;
@@ -824,8 +1071,6 @@ function parentAttemptRecord(
     parent_task_id: null,
     dispatch_generation: null,
     attempt_id: attemptId,
-    // G4-AI4: base 1, scoped to task_id. The parent of a taskless trial is ordinal 1.
-    attempt_ordinal: 1,
     thread_id: null,
     parent_thread_id: null,
     root_thread_id: null,
@@ -891,12 +1136,30 @@ function taggedCount(value: number | null): Tagged<number> {
  *
  * The record this returns is placed VERBATIM and no arithmetic is performed on it (G4-CM23).
  */
-function attemptAccounting(policy: ResolvedTrialPolicy, node: AttemptRecord): AccountingRecord {
+/**
+ * §9.6 A2 sums the journal side RECURSIVELY over the DAG, and A5 forbids treating a missing counter
+ * as zero — so ONE underivable operand makes the TOTAL underivable rather than silently shrinking
+ * it. `null` is not skipped; it propagates.
+ */
+function summedCount(values: readonly (number | null)[]): number | null {
+  let total = 0;
+  for (const value of values) {
+    if (value === null) return null;
+    total += value;
+  }
+  return total;
+}
+
+function attemptAccounting(
+  policy: ResolvedTrialPolicy,
+  nodes: readonly AttemptRecord[],
+  parentAttemptId: string,
+): AccountingRecord {
   const unreadable = { status: 'unavailable', reason: 'counter_unreadable' } as const;
   const proxy: ProxyExport = {
     schema_version: PROXY_EXPORT_SCHEMA_VERSION,
     trial_id: policy.trial_id,
-    adapter_id: node.attempt_id,
+    adapter_id: parentAttemptId,
     requests: unreadable,
     cost_usd: unreadable,
     input_tokens: unreadable,
@@ -907,15 +1170,17 @@ function attemptAccounting(policy: ResolvedTrialPolicy, node: AttemptRecord): Ac
   };
   const journal: JournalTotals = {
     requests: { status: 'unavailable', reason: 'journal_underivable' },
-    cost_usd: journalCostFromNumber(node.cost_usd),
-    steps: taggedCount(node.steps),
+    cost_usd: journalCostFromNumber(summedCount(nodes.map(node => node.cost_usd))),
+    steps: taggedCount(summedCount(nodes.map(node => node.steps))),
     tokens: {
-      input: taggedCount(node.tokens.input),
-      output: taggedCount(node.tokens.output),
-      cached: taggedCount(node.tokens.cache_read),
+      input: taggedCount(summedCount(nodes.map(node => node.tokens.input))),
+      output: taggedCount(summedCount(nodes.map(node => node.tokens.output))),
+      cached: taggedCount(summedCount(nodes.map(node => node.tokens.cache_read))),
     },
     source: 'trajectory_merge',
-    roles: [node.role],
+    // A4's named set: the roles the attempt DAG DID account for, so an excess can be reported
+    // against it rather than absorbed.
+    roles: [...new Set(nodes.map(node => node.role))],
   };
   return reconcileAccounting(proxy, journal);
 }
@@ -949,19 +1214,37 @@ function publishCompositeManifest(
         'composite_manifest_invalid', 'the arm declares no orchestration mode',
       );
     }
-    const node = parentAttemptRecord(run, policy, terminal!, stats);
-    const manifest = buildCompositeManifest({
+    const parent = parentAttemptRecord(run, policy, terminal!, stats);
+    const parentJournal = scanAttemptJournal(run.options.trajectoryRoot, parent.journal_path);
+    const graph = attemptGraph(run, policy, parent, parentJournal);
+    const shape = {
       trial_id: policy.trial_id,
       root_run_id: run.rootRunId,
       arm_name: policy.arm.name,
       arm_canonical_sha256: policy.arm_canonical_sha256,
       // Copied from the frozen policy, never recomputed: §1.4 is the only authority on identity.
       identity: policy.identity,
-      nodes: [node],
-      edges: [],
-      roots: { parent_attempt_id: node.attempt_id, root_task_id: null },
-      accounting: attemptAccounting(policy, node),
-      mode,
+      nodes: graph.nodes,
+      edges: graph.edges,
+      roots: { parent_attempt_id: parent.attempt_id, root_task_id: null },
+      accounting: attemptAccounting(policy, graph.nodes, parent.attempt_id),
+      mode: mode as OrchestrationModeName,
+    };
+    // Built twice from the same pure inputs, published once. The first build exists only to give
+    // the merge G4-CM12's canonical node order — re-deriving an order inside the merge would make
+    // the published tree depend on the merge instead of on the document it walks — and §9.4 C7
+    // cannot be evaluated until the tree that build produces has been published.
+    const atif = publishAtifTrajectory(run, buildCompositeManifest(shape), terminal!.state, io);
+    const manifest = buildCompositeManifest({
+      ...shape,
+      evaluatedChecks: evaluateTerminalChecks({
+        mode: shape.mode,
+        terminalState: terminal!.state,
+        nodes: graph.nodes,
+        edges: graph.edges,
+        attempts: graph.journals,
+        atif,
+      }),
     });
     const violations = validateCompositeManifest(manifest, {
       limits: {
@@ -977,9 +1260,11 @@ function publishCompositeManifest(
         violations,
       );
     }
+    // §9.5's grader-admission rule: an EVALUATED §9.4 row that failed rides the shipped code 41.
+    assertTerminalPredicate(manifest.predicate);
     publishComposite(manifest, path.join(run.options.trajectoryRoot, COMPOSITE_MANIFEST_FILE));
   } catch (error) {
-    if (error instanceof CompositeManifestError) {
+    if (error instanceof CompositeManifestError || error instanceof TerminalPredicateError) {
       io.stderr.write(`${JSON.stringify(error.record())}\n`);
     }
     throw error;

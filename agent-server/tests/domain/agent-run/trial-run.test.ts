@@ -28,6 +28,10 @@ import {
 import {
   ATTEMPT_RECORD_KEYS, mintAttemptId,
 } from '../../../src/domain/benchmark/attempt-record.js';
+import { BENCHMARK_FAILURES } from '../../../src/domain/benchmark/resolved-policy.js';
+import {
+  mergeTrajectory, TrajectoryMergeError,
+} from '../../../src/domain/agent-run/trajectory-merge.js';
 
 const installRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const supervisorBinary = path.join(installRoot, 'native/cortex-supervisor/dist/cortex-supervisor');
@@ -61,6 +65,18 @@ interface BackendBehaviour {
   grandchildPidFile?: string;
   /** Report provider usage, so the session's resolved context window becomes observable. */
   reportUsage?: boolean;
+  /**
+   * Emit a NATIVE subagent tool call and no `subagent_activity` attesting it — the OC-11
+   * invisibility case. `name` is `Agent` or `Task`: the CLI declares both for one tool, so a census
+   * keyed on `Agent` alone passes vacuously on the alias (G4-SA12).
+   */
+  nativeSubagentCall?: { id: string; name: string };
+  /**
+   * Report BOTH usage and a turn cost, so the adapter emits a complete `cost_record`. §9.6 A5
+   * forbids the merge from treating a missing counter as zero, so without this the trajectory merge
+   * correctly refuses with `aggregate_metrics_underivable` and F8 publishes no tree.
+   */
+  accounted?: boolean;
 }
 
 interface Fixture {
@@ -98,11 +114,14 @@ ${behaviour.hang
     : `const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
 lines.once('line', (line) => {
   const request = JSON.parse(line);
-${behaviour.reportUsage
-    ? `  console.log(JSON.stringify({ type: 'stream_event', event: { type: 'message_start', message: { model: 'claude-reported-trial', usage: { input_tokens: 1000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } }));`
+${behaviour.reportUsage || behaviour.accounted
+    ? `  console.log(JSON.stringify({ type: 'stream_event', event: { type: 'message_start', message: { model: 'claude-reported-trial', usage: { input_tokens: 1000, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } }));`
+    : ''}
+${behaviour.nativeSubagentCall
+    ? `  console.log(JSON.stringify({ type: 'assistant', message: { id: 'a0', model: 'claude-reported-trial', content: [{ type: 'tool_use', id: ${JSON.stringify(behaviour.nativeSubagentCall.id)}, name: ${JSON.stringify(behaviour.nativeSubagentCall.name)}, input: {} }] } }));`
     : ''}
   console.log(JSON.stringify({ type: 'assistant', message: { id: 'a1', model: 'claude-reported-trial', content: [{ type: 'text', text: 'trial reply' }] } }));
-  console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: request.session_id, result: 'trial reply', num_turns: 1 }));
+  console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: request.session_id, result: 'trial reply', num_turns: 1${behaviour.accounted ? ", total_cost_usd: 0.0025, usage: { input_tokens: 1000, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }" : ''} }));
   lines.close();
 });`}
 `);
@@ -670,9 +689,25 @@ it('publishes a valid composite manifest from inside runOneShotAgent (T16)', asy
   assert.equal(manifest.accounting.trial_id, manifest.trial_id);
 
   // predicate: exhaustive for the mode, and NEVER a pass nobody earned.
+  //
+  // Wave 2 could assert "no row passes" because NO row was evaluated — `publishCompositeManifest`
+  // supplied no `evaluatedChecks` at all, so every §9.4 id published as `unavailable`. That is the
+  // F21 pattern (a check that exists and is never evaluated), not a property worth pinning. D2 is
+  // now genuinely evaluated, so the invariant is restated in the form it was always meant to have:
+  // exactly the rows this pin decides carry a verdict, and every other row is still `unavailable`.
   assert.equal(manifest.predicate.mode, 'direct');
   assert.deepEqual(manifest.predicate.checks.map((c: any) => c.check_id), checkIdsForMode('direct'));
-  assert.equal(manifest.predicate.checks.some((c: any) => c.result === 'pass'), false);
+
+  const byId = new Map<string, any>(manifest.predicate.checks.map((c: any) => [c.check_id, c]));
+  // §9.4 D2 EVALUATED and earned: one node, zero descent edges, complete native-subagent census.
+  assert.equal(byId.get('D2').result, 'pass');
+  assert.equal(byId.get('D2').detail, null);
+  // Every OTHER id is untouched by this pin and must still read `unavailable` — never a pass.
+  for (const check of manifest.predicate.checks) {
+    if (check.check_id === 'D2') continue;
+    assert.equal(check.result, 'unavailable', `${check.check_id} must not claim a verdict`);
+    assert.equal(check.detail, 'not evaluated at this pin');
+  }
 
   // The document the producer emitted passes its own structural validator, in production.
   const stems = fs.readdirSync(built.options.trajectoryRoot)
@@ -708,3 +743,75 @@ it('G4-PB6: trajectory-merge-cli is NOT promoted to a bin, and F8 spawns no CLI 
   assert.equal(/child_process/.test(source), false);
   assert.equal(/\b(?:spawn|spawnSync|exec|execSync|execFile|execFileSync|fork)\s*\(/.test(source), false);
 });
+
+// --- T18: F8 publishes the merged ATIF trajectory ON THE PRODUCTION PATH ---
+//
+// §9.5 F8 publishes "the composite manifest AND the merged recursive ATIF" (design:2815). Before
+// this wave `mergeTrajectory` had ZERO production callers — its only non-test `src/` reference was
+// `trajectory-merge-cli.ts:127`, and T17 above proves that CLI is deliberately not a bin. The
+// trajectory is therefore observed through the file F8 publishes, driven by the real runner.
+
+it('publishes the merged ATIF trajectory from inside runOneShotAgent (T18)', async () => {
+  const built = fixture({ accounted: true });
+  const outcome = await runTrial(built);
+  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
+
+  const published = path.join(built.options.trajectoryRoot, 'trajectory.json');
+  assert.equal(fs.existsSync(published), true, `F8 published no ATIF trajectory: ${outcome.stderr}`);
+  const trajectory = JSON.parse(fs.readFileSync(published, 'utf8'));
+
+  // A real ATIF-v1.7 document about THIS run, not a stub.
+  assert.equal(trajectory.trajectory_id, ROOT_RUN_ID);
+  assert.equal(typeof trajectory.final_metrics, 'object');
+  // §9.4 D2: a direct trial has exactly one attempt, so the tree has no subagent level at all.
+  assert.equal(Object.hasOwn(trajectory, 'subagent_trajectories'), false);
+
+  // F8 is atomic and one-shot: a second publication to the same path is a hard failure, which is
+  // why exactly one writer may exist (T17).
+  assert.throws(() => mergeTrajectory({
+    trajectoryRoot: built.options.trajectoryRoot, outputPath: published,
+  }), (error: unknown) => (error as TrajectoryMergeError).reason === 'output_path_exists');
+}, 60_000);
+
+// --- T19: the §9.4 census is LOAD-BEARING, and its failure rides the shipped code 41 ---
+//
+// The structural shape here is PERFECT — one node, zero edges, a valid manifest. The only thing
+// wrong is that the parent made a native subagent call nothing attests, which is exactly OC-11's
+// invisibility. A census that is not evaluated cannot see it; that is the F21 pattern this test
+// exists to refuse.
+
+it('an UNATTESTED native subagent call fails D2 and raises code 41 (T19)', async () => {
+  const built = fixture({ nativeSubagentCall: { id: 'sub-1', name: 'Task' } });
+  const outcome = await runTrial(built);
+
+  // The refusal leaves its coded reason on stderr as JSON — the class-R invariant.
+  const refusal = outcome.stderr.split('\n').filter(Boolean)
+    .flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } })
+    .find(record => record?.reason === 'terminal_predicate_unmet');
+  assert.ok(refusal, `no code-41 refusal on stderr:\n${outcome.stderr}`);
+
+  // BY INTEGER, never by matching a message string. 41 is the SHIPPED registry entry.
+  assert.equal(refusal.code, 41);
+  assert.equal(refusal.code, BENCHMARK_FAILURES.find(f => f.reason === 'terminal_predicate_unmet')!.code);
+  assert.deepEqual(refusal.unmet, ['D2']);
+  // The failing check names the unattested call, so the report is actionable.
+  assert.match(refusal.checks[0].detail, /sub-1/);
+
+  // Fails CLOSED: an ungradable trial publishes NO composite manifest.
+  assert.equal(
+    fs.existsSync(path.join(built.options.trajectoryRoot, 'composite-manifest.json')), false,
+    'a trial that failed its terminal predicate must not publish a gradable manifest',
+  );
+}, 60_000);
+
+it('the SAME native call ATTESTED by a subagent_activity passes D2 (T19b)', async () => {
+  // The control for T19: identical shape, and the only difference is that the census is complete.
+  // Without this pair, a mutant that made the census always-fail would survive T19.
+  const built = fixture();
+  const outcome = await runTrial(built);
+  assert.equal(outcome.exitCode, 0);
+  const manifest = JSON.parse(fs.readFileSync(
+    path.join(built.options.trajectoryRoot, 'composite-manifest.json'), 'utf8',
+  ));
+  assert.equal(manifest.predicate.checks.find((c: any) => c.check_id === 'D2').result, 'pass');
+}, 60_000);
