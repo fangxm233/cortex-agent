@@ -16,6 +16,7 @@ import {
   type SettingKey,
   type Settings,
 } from './settings.js';
+import type { SettingSpecEntry } from './settings-spec.js';
 
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 const SETTINGS_FILE = path.join(CONFIG_DIR, 'settings.json');
@@ -24,7 +25,8 @@ const MIGRATION_COMMENT = '# Legacy server settings migrated to settings.json; s
 const ENV_ASSIGNMENT_PATTERN = /^[ \t]*(?:export[ \t]+)?([\w.-]+)(?:[ \t]*=[ \t]*?|:[ \t]+?)(?:[ \t]*'(?:\\'|[^'])*'|[ \t]*"(?:\\"|[^"])*"|[ \t]*`(?:\\`|[^`])*`|[^#\r\n]+)?[ \t]*(?:#[^\r\n]*)?(?:\r\n|\n|\r|$)/gm;
 const SETTING_KEYS = Object.keys(SETTINGS_SPEC) as SettingKey[];
 const SPEC_ENV_KEYS = new Set(SETTING_KEYS.flatMap((key) => {
-  const envVar = SETTINGS_SPEC[key].envVar;
+  const envVar = (SETTINGS_SPEC[key] as SettingSpecEntry<Settings[SettingKey]>).envVar;
+  if (envVar === undefined) return [];
   return typeof envVar === 'string' ? [envVar] : [...envVar];
 }));
 const REMOVED_ENV_KEYS = new Set([...SPEC_ENV_KEYS, DEAD_ENV_KEY]);
@@ -79,7 +81,8 @@ function legacyValue(
   parsedEnv: Record<string, string>,
   presentKeys: Set<string>,
 ): MigratedValue {
-  const entry = SETTINGS_SPEC[key];
+  const entry = SETTINGS_SPEC[key] as SettingSpecEntry<Settings[SettingKey]>;
+  if (entry.envVar === undefined || entry.legacyParse === undefined) return { found: false };
   const envVars = typeof entry.envVar === 'string' ? [entry.envVar] : [...entry.envVar];
   let fallback: Settings[SettingKey] | undefined;
   for (const envVar of envVars) {

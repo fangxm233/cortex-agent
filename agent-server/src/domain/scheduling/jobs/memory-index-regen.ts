@@ -1,18 +1,21 @@
-// input:  memory-index-regen + PlatformAdapter
-// output: memory-index-regen job runner — registers as 'memory-index-regen'
-// pos:    periodic memory index regeneration (non-LLM programmatic work)
+// input:  memory index generator, PlatformAdapter, system notices
+// output: runMemoryIndexRegenJob built-in maintenance runner
+// pos:    Rebuilds memory indexes and reports maintenance results
 
-import { register, ctx } from '../job-registry.js';
 import { Icons } from '../../../core/icons.js';
+import { emitSystemNotice } from '../../system/system-notice.js';
 import { regenAll as runMemoryIndexRegen } from '../../memory/index-regen.js';
+import type { PlatformAdapter } from '../../../platform/index.js';
 
-// Self-register
-register('memory-index-regen', async (payload: unknown) => {
-  const { channel } = payload as { channel: string; scheduleTaskId: string };
+export async function runMemoryIndexRegenJob(adapter: PlatformAdapter): Promise<void> {
   try {
     const projects = runMemoryIndexRegen();
-    await ctx.adapter!.postMessage({ type: 'interactive-reply', conduit: channel }, { text: `${Icons.brain} Memory index regen: ${projects.length} projects updated` });
-  } catch (err) {
-    await ctx.adapter!.postMessage({ type: 'interactive-reply', conduit: channel }, { text: `${Icons.warning} Memory index regen error: ${err}` });
+    await emitSystemNotice(adapter, {
+      text: `${Icons.brain} Memory index regen: ${projects.length} projects updated`,
+    });
+  } catch (error) {
+    await emitSystemNotice(adapter, {
+      text: `${Icons.warning} Memory index regen error: ${error}`,
+    });
   }
-});
+}

@@ -1,6 +1,6 @@
 // input:  redacted env entries, runtime settings, vocabulary keys
-// output: indexed config rows and desktop toggle descriptors
-// pos:    Pure source model for environment and runtime settings panels
+// output: indexed config rows, setting descriptors, duration conversion
+// pos:    Pure view model for environment and runtime settings panels
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ConfigEnvEntry, ConfigSettingEntry } from '@cortex-agent/ui-contract';
@@ -68,7 +68,7 @@ export const DAEMON_KEYS = [
   'CORTEX_REPO',
 ];
 
-export const WRITABLE_SETTING_KEYS = [
+export const WRITABLE_BOOLEAN_SETTING_KEYS = [
   'turnNotify',
   'autoResume',
   'notifyCompaction',
@@ -77,11 +77,25 @@ export const WRITABLE_SETTING_KEYS = [
   'showToolCalls',
   'disableUserContext',
   'serverUpdateDisable',
+  'taskDispatchEnabled',
+  'taskArchiveEnabled',
+  'memoryIndexRegenEnabled',
 ] as const;
+export const WRITABLE_INTERVAL_SETTING_KEYS = [
+  'taskDispatchIntervalMs',
+  'taskArchiveIntervalMs',
+  'memoryIndexRegenIntervalMs',
+] as const;
+export const WRITABLE_SETTING_KEYS = [
+  ...WRITABLE_BOOLEAN_SETTING_KEYS,
+  ...WRITABLE_INTERVAL_SETTING_KEYS,
+] as const;
+export type WritableBooleanSettingKey = (typeof WRITABLE_BOOLEAN_SETTING_KEYS)[number];
+export type WritableIntervalSettingKey = (typeof WRITABLE_INTERVAL_SETTING_KEYS)[number];
 export type WritableSettingKey = (typeof WRITABLE_SETTING_KEYS)[number];
 
 export interface SettingToggleDescriptor {
-  setting: WritableSettingKey;
+  setting: WritableBooleanSettingKey;
   titleKey: keyof Vocab;
   descKey: keyof Vocab;
 }
@@ -131,5 +145,45 @@ export const ADVANCED_FLAGS: AdvancedFlag[] = [
     setting: 'serverUpdateDisable',
     titleKey: 'stAdvDisableUpdateTitle',
     descKey: 'stAdvDisableUpdateDesc',
+  },
+];
+
+export type DurationUnit = 'sec' | 'min' | 'hr';
+export interface DurationDraft { value: number; unit: DurationUnit }
+
+const UNIT_MS: Record<DurationUnit, number> = { sec: 1_000, min: 60_000, hr: 3_600_000 };
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
+export function durationDraftFromMs(intervalMs: number): DurationDraft {
+  if (intervalMs % UNIT_MS.hr === 0) return { value: intervalMs / UNIT_MS.hr, unit: 'hr' };
+  if (intervalMs % UNIT_MS.min === 0) return { value: intervalMs / UNIT_MS.min, unit: 'min' };
+  return { value: intervalMs / UNIT_MS.sec, unit: 'sec' };
+}
+
+export function durationDraftToMs(value: number, unit: DurationUnit): number | null {
+  const intervalMs = value * UNIT_MS[unit];
+  if (!Number.isInteger(intervalMs) || intervalMs < UNIT_MS.sec || intervalMs > MAX_TIMER_DELAY_MS) return null;
+  return intervalMs;
+}
+
+export interface BuiltinJobSettingDescriptor {
+  enabled: WritableBooleanSettingKey;
+  interval: WritableIntervalSettingKey;
+  titleKey: keyof Vocab;
+  descKey: keyof Vocab;
+}
+
+export const BUILTIN_JOB_SETTINGS: BuiltinJobSettingDescriptor[] = [
+  {
+    enabled: 'taskDispatchEnabled', interval: 'taskDispatchIntervalMs',
+    titleKey: 'stBuiltinTaskDispatchTitle', descKey: 'stBuiltinTaskDispatchDesc',
+  },
+  {
+    enabled: 'taskArchiveEnabled', interval: 'taskArchiveIntervalMs',
+    titleKey: 'stBuiltinTaskArchiveTitle', descKey: 'stBuiltinTaskArchiveDesc',
+  },
+  {
+    enabled: 'memoryIndexRegenEnabled', interval: 'memoryIndexRegenIntervalMs',
+    titleKey: 'stBuiltinMemoryRegenTitle', descKey: 'stBuiltinMemoryRegenDesc',
   },
 ];

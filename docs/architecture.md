@@ -105,7 +105,7 @@ The thickest layer. Contains 14 subdirectories, each encapsulating a domain conc
 | `tasks/` | Full task system: YAML parsing, dispatch, archiving, pending tracking, lock management, CLI (`cortex-task`), verification |
 | `executions/` | Thin re-export over `store/execution-repo.ts` with lock-release side effect: every terminal transition auto-releases task locks |
 | `costs/` | Cost tracking, gateway management, rate limiting with per-provider awareness |
-| `scheduling/` | Scheduled task engine. `Scheduler` class with hot-reload via `fs.watch`, pre-check gate, before-run guard. 4 job runners: `scheduled-task`, `task-dispatch`, `memory-index-regen`, `task-archive` |
+| `scheduling/` | Persisted schedule engine plus settings-backed built-in job controller. `Scheduler` hot-reloads user schedules; built-in task dispatch, archive, and memory-index jobs own daemon timers |
 | `memory/` | Memory/index management. `memory-index-regen.ts` rebuilds index.md from YAML frontmatter. File watcher for context changes. CORTEX.md scanning and injection |
 | `monitor/` | GPU and disk resource monitoring |
 | `remote/` | Remote device management via WebSocket. SSH-based client deployment, hot-reload via npm update |

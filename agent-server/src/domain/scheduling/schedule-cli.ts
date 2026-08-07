@@ -29,7 +29,6 @@ interface TaskPatch {
   message?: string;
   profile?: string;
   projectId?: string;
-  dispatchType?: string;
   time?: string;
   dayOfWeek?: number;
   runAt?: number;
@@ -63,7 +62,6 @@ function parseUpdateArgs(args: string[]): TaskPatch {
     if (flag === '--message') patch.message = value;
     else if (flag === '--profile') patch.profile = value;
     else if (flag === '--project-id') patch.projectId = value;
-    else if (flag === '--dispatch-type') patch.dispatchType = value;
     else if (flag === '--time') patch.time = value;
     else if (flag === '--day') patch.dayOfWeek = Number.isInteger(Number(value)) ? Number(value) : DAY_MAP[value.toLowerCase()];
     else if (flag === '--run-at') patch.runAt = Number(value);
@@ -93,7 +91,6 @@ function getScheduleHelp(): string {
       { flag: '--message <text>', description: 'Schedule message (for edit)' },
       { flag: '--profile <name>', description: 'Agent profile (for edit)' },
       { flag: '--project-id <id>', description: 'Project id (for edit)' },
-      { flag: '--dispatch-type <type>', description: 'Dispatch type (for edit)' },
       { flag: '--time <HH:MM>', description: 'Time of day (for edit daily/weekly)' },
       { flag: '--day <day>', description: 'Day of week: sun-sat or 0-6 (for edit weekly)' },
       { flag: '--interval <duration>', description: 'Interval: 30m, 4h, 1d (for edit/add)' },

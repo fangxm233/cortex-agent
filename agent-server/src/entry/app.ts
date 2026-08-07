@@ -65,6 +65,8 @@ import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';
 import { reprocessMessage } from '@orch/lifecycle.js';
 import { initScheduledRunner, initAuthExpiryScan, createScheduler, setSchedulerRef, setBus, setInteractiveCallbacksFactory, cancelDispatchedTask } from '@domain/scheduling/runner.js';
+import { startBuiltinJobs, stopBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
+import { migrateBuiltinJobSchedules } from '@domain/scheduling/builtin-job-migration.js';
 import { recoverWaitingThreads, registerTaskTreeSubscribers, reconcileWaitingTasks, startWaitingManagerSweep } from '../orchestration/thread-callback.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { buildInteractiveCallbacks } from '@orch/agent-runner.js';
@@ -166,6 +168,11 @@ if (appLock.acquired) {
   process.exit(1);
 }
 process.on('exit', () => releaseSingletonLock(APP_PID_FILE));
+
+// Cross-file migrations must finish before adapters, ports, and background services
+// become externally visible. Provider-state extraction runs before schedule cleanup.
+await runMigrations();
+await migrateBuiltinJobSchedules();
 
 // --- Crash safety net ---
 // A single failed outbound post while handling an inbound message must never take
@@ -321,6 +328,7 @@ process.on('SIGTERM', async () => {
     pid: process.pid,
     reason: 'SIGTERM',
   }).catch(() => {});
+  await stopBuiltinJobs();
   closeAllSessions(); closeAllAdapters().catch(() => {}); stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
   await _uiHttpServer?.close().catch(() => {});
   stopDiskMonitor();
@@ -342,7 +350,6 @@ process.on('SIGTERM', async () => {
 (async () => {
   cleanupLogs();
   ensureMcpConfig();
-  await runMigrations();
   // Migrate old aistatus config from wrong location (CORTEX_HOME/config) to correct location (~/.aistatus)
   await migrateAistatusConfigLocation(DATA_DIR);
   // Refresh version-stamped hooks in DATA_DIR/hooks from the shipped defaults. init's deployHooks
@@ -736,6 +743,7 @@ process.on('SIGTERM', async () => {
   // Periodic disk-driven backstop: recover any manager left suspended on a child task that is
   // already terminal on disk but whose event/settle delivery was lost to a race (2026-06-29).
   startWaitingManagerSweep();
+  startBuiltinJobs(adapter);
 
   void emitCortexEvent('cortex:server.start', {
     version: CORTEX_VERSION,

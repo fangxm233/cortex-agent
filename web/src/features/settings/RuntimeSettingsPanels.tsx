@@ -3,9 +3,9 @@
 // pos:    Runtime settings read/write surface for desktop settings
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
+import type { ConfigSetArgs, ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -13,21 +13,26 @@ import { PlatformAvatar, PresencePill } from './SettingsPanels';
 import { SCard, SCardHeader, Toggle } from './settings-ui';
 import {
   ADVANCED_FLAGS,
+  BUILTIN_JOB_SETTINGS,
   NOTIFY_SETTINGS,
+  durationDraftFromMs,
+  durationDraftToMs,
   getSetting,
   hasAnyKey,
   indexEnv,
   indexSettings,
+  type BuiltinJobSettingDescriptor,
+  type DurationDraft,
+  type DurationUnit,
   type SettingsIndex,
+  type WritableBooleanSettingKey,
   type WritableSettingKey,
 } from './platform-env';
 
-export type { WritableSettingKey } from './platform-env';
+export type { WritableBooleanSettingKey, WritableSettingKey } from './platform-env';
 
-type SettingsSetArgs = {
-  section: 'settings';
-  value: Partial<Record<WritableSettingKey, boolean>>;
-};
+type SettingsSetArgs = Extract<ConfigSetArgs, { section: 'settings' }>;
+type WritableSettingValue = boolean | number;
 type SettingSource = ConfigSettingEntry['source'];
 
 export interface CommitSettingDeps {
@@ -37,20 +42,30 @@ export interface CommitSettingDeps {
   onPending?: (pending: boolean) => void;
 }
 
-export async function commitSettingToggle(
+export async function commitSettingValue(
   deps: CommitSettingDeps,
   key: WritableSettingKey,
-  nextValue: boolean,
+  nextValue: WritableSettingValue,
 ): Promise<void> {
   deps.onPending?.(true);
   try {
-    await deps.set({ section: 'settings', value: { [key]: nextValue } });
+    await deps.set({
+      section: 'settings', value: { [key]: nextValue } as SettingsSetArgs['value'],
+    });
     await deps.refresh();
   } catch (error) {
     deps.onError(error instanceof Error ? error.message : String(error));
   } finally {
     deps.onPending?.(false);
   }
+}
+
+export function commitSettingToggle(
+  deps: CommitSettingDeps,
+  key: WritableBooleanSettingKey,
+  nextValue: boolean,
+): Promise<void> {
+  return commitSettingValue(deps, key, nextValue);
 }
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -68,10 +83,23 @@ const KEY: CSSProperties = {
   color: 'var(--proto-faint)',
   flex: 'none',
 };
+const DURATION_INPUT: CSSProperties = {
+  width: 54, padding: '4px 6px', border: '1px solid var(--proto-line)', borderRadius: 6,
+  background: 'var(--proto-card)', color: 'var(--proto-ink)', font: `500 10px ${MONO}`,
+};
+const DURATION_SELECT: CSSProperties = {
+  padding: '4px 5px', border: '1px solid var(--proto-line)', borderRadius: 6,
+  background: 'var(--proto-card)', color: 'var(--proto-ink)', font: `500 10px ${MONO}`,
+};
+const DURATION_BUTTON: CSSProperties = {
+  padding: '4px 8px', border: '1px solid var(--proto-line)', borderRadius: 6,
+  background: 'var(--proto-card)', color: 'var(--proto-muted)', font: `500 10px ${MONO}`,
+};
 
 export interface RuntimeSettingWriter {
   pending: boolean;
-  onToggle: (key: WritableSettingKey, nextValue: boolean) => void;
+  onToggle: (key: WritableBooleanSettingKey, nextValue: boolean) => void;
+  onSet: (key: WritableSettingKey, nextValue: WritableSettingValue) => void;
 }
 
 export function useRuntimeSettingWrite(): RuntimeSettingWriter {
@@ -87,26 +115,29 @@ export function useRuntimeSettingWrite(): RuntimeSettingWriter {
     committingRef.current = value;
     setCommitting(value);
   };
-  const onToggle = (key: WritableSettingKey, nextValue: boolean) => {
+  const onSet = (key: WritableSettingKey, nextValue: WritableSettingValue) => {
     if (committingRef.current || mutation.isPending) return;
-    void commitSettingToggle({
-      set: (args) => mutation.mutateAsync(args),
+    void commitSettingValue({
+      set: (args) => mutation.mutateAsync(
+        args as unknown as Parameters<typeof mutation.mutateAsync>[0],
+      ),
       refresh: () => queryClient.invalidateQueries(trpc.config.get.queryFilter({})),
       onError: (message) => toast({ title: `${L.stToastWriteFailed}: ${message}`, tone: 'failed' }),
       onPending: setPending,
     }, key, nextValue);
   };
-  return { pending, onToggle };
+  const onToggle = (key: WritableBooleanSettingKey, nextValue: boolean) => onSet(key, nextValue);
+  return { pending, onToggle, onSet };
 }
 
 export interface RuntimeSettingToggleRowProps {
-  settingKey: WritableSettingKey;
+  settingKey: WritableBooleanSettingKey;
   value: boolean;
   source: SettingSource | null;
   title: string;
   desc: string;
   pending: boolean;
-  onToggle: (key: WritableSettingKey, nextValue: boolean) => void;
+  onToggle: (key: WritableBooleanSettingKey, nextValue: boolean) => void;
 }
 
 export function RuntimeSettingToggleRow(props: RuntimeSettingToggleRowProps) {
@@ -325,6 +356,102 @@ function ConcurrencyRow({ settings }: { settings: SettingsIndex }) {
   );
 }
 
+function DurationFields(props: {
+  draft: DurationDraft;
+  canSave: boolean;
+  invalid: boolean;
+  onDraft: (draft: DurationDraft) => void;
+  onSave: () => void;
+}) {
+  const L = useVocab();
+  return (
+    <>
+      <span style={KEY}>{L.stBuiltinInterval}</span>
+      <input type="number" min={1} value={props.draft.value} style={DURATION_INPUT}
+        onChange={(event) => props.onDraft({ ...props.draft, value: Number(event.target.value) })} />
+      <select value={props.draft.unit} style={DURATION_SELECT}
+        onChange={(event) => props.onDraft({ ...props.draft, unit: event.target.value as DurationUnit })}>
+        <option value="sec">sec</option><option value="min">min</option><option value="hr">hr</option>
+      </select>
+      <button type="button" disabled={!props.canSave} style={DURATION_BUTTON}
+        title={props.invalid ? L.stBuiltinInvalidInterval : undefined} onClick={props.onSave}>
+        {L.stBuiltinSave}
+      </button>
+    </>
+  );
+}
+
+function DurationControl(props: {
+  descriptor: BuiltinJobSettingDescriptor;
+  entry: ConfigSettingEntry | undefined;
+  pending: boolean;
+  onSet: RuntimeSettingWriter['onSet'];
+}) {
+  const currentMs = typeof props.entry?.value === 'number' ? props.entry.value : null;
+  const [draft, setDraft] = useState<DurationDraft>(() => (
+    currentMs === null ? { value: 0, unit: 'sec' } : durationDraftFromMs(currentMs)
+  ));
+  useEffect(() => {
+    if (currentMs !== null) setDraft(durationDraftFromMs(currentMs));
+  }, [currentMs]);
+  const nextMs = durationDraftToMs(draft.value, draft.unit);
+  const save = () => { if (nextMs !== null) props.onSet(props.descriptor.interval, nextMs); };
+  const canSave = currentMs !== null && nextMs !== null && nextMs !== currentMs && !props.pending;
+  return (
+    <div data-setting-key={props.descriptor.interval}
+      data-setting-value={currentMs === null ? 'missing' : String(currentMs)}
+      style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      <DurationFields draft={draft} canSave={canSave} invalid={nextMs === null}
+        onDraft={setDraft} onSave={save} />
+    </div>
+  );
+}
+
+function BuiltinJobRow(props: {
+  descriptor: BuiltinJobSettingDescriptor;
+  settings: SettingsIndex;
+  pending: boolean;
+  onToggle: RuntimeSettingToggleRowProps['onToggle'];
+  onSet: RuntimeSettingWriter['onSet'];
+}) {
+  const L = useVocab();
+  const enabledEntry = getSetting(props.settings, props.descriptor.enabled);
+  const intervalEntry = getSetting(props.settings, props.descriptor.interval);
+  const enabled = typeof enabledEntry?.value === 'boolean' ? enabledEntry.value : false;
+  const onClick = enabledEntry && !props.pending
+    ? () => props.onToggle(props.descriptor.enabled, !enabled) : undefined;
+  return (
+    <div data-setting-key={props.descriptor.enabled}
+      data-setting-value={enabledEntry ? String(enabled) : 'missing'} style={ROW}>
+      <Toggle on={enabled} onClick={onClick} inert={!onClick} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={TITLE}>{L[props.descriptor.titleKey]}</div>
+        <div style={DESC}>{L[props.descriptor.descKey]}</div>
+      </div>
+      <DurationControl descriptor={props.descriptor} entry={intervalEntry}
+        pending={props.pending} onSet={props.onSet} />
+    </div>
+  );
+}
+
+function BuiltinJobsCard(props: {
+  settings: SettingsIndex;
+  pending: boolean;
+  onToggle: RuntimeSettingToggleRowProps['onToggle'];
+  onSet: RuntimeSettingWriter['onSet'];
+}) {
+  const L = useVocab();
+  return (
+    <SCard style={{ marginTop: 12, maxWidth: 760 }}>
+      <SCardHeader title={L.stBuiltinJobsTitle} />
+      {BUILTIN_JOB_SETTINGS.map((descriptor) => (
+        <BuiltinJobRow key={descriptor.enabled} descriptor={descriptor} settings={props.settings}
+          pending={props.pending} onToggle={props.onToggle} onSet={props.onSet} />
+      ))}
+    </SCard>
+  );
+}
+
 function GpuMockRow({ snapshot }: { snapshot: ConfigSnapshot }) {
   const L = useVocab();
   const present = indexEnv(snapshot.env).CORTEX_GPU_MONITOR_MOCK?.present === true;
@@ -347,22 +474,28 @@ export function AdvancedPanelView({
   snapshot,
   pending,
   onToggle,
+  onSet,
 }: {
   snapshot: ConfigSnapshot;
   pending: boolean;
   onToggle: RuntimeSettingToggleRowProps['onToggle'];
+  onSet: RuntimeSettingWriter['onSet'];
 }) {
   const settings = indexSettings(snapshot.settings);
   return (
-    <SCard style={{ marginTop: 12, maxWidth: 760 }}>
-      <AdvancedToggleList snapshot={snapshot} settings={settings} pending={pending} onToggle={onToggle} />
-      <ConcurrencyRow settings={settings} />
-      <GpuMockRow snapshot={snapshot} />
-    </SCard>
+    <>
+      <SCard style={{ marginTop: 12, maxWidth: 760 }}>
+        <AdvancedToggleList snapshot={snapshot} settings={settings} pending={pending} onToggle={onToggle} />
+        <ConcurrencyRow settings={settings} />
+        <GpuMockRow snapshot={snapshot} />
+      </SCard>
+      <BuiltinJobsCard settings={settings} pending={pending} onToggle={onToggle} onSet={onSet} />
+    </>
   );
 }
 
 export function AdvancedPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
   const write = useRuntimeSettingWrite();
-  return <AdvancedPanelView snapshot={snapshot} pending={write.pending} onToggle={write.onToggle} />;
+  return <AdvancedPanelView snapshot={snapshot} pending={write.pending}
+    onToggle={write.onToggle} onSet={write.onSet} />;
 }

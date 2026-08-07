@@ -1,6 +1,6 @@
 # Cortex Scheduling System
 
-The scheduling system lets you set up recurring or one-time agent invocations. Schedules can trigger LLM-based conversations, programmatic jobs (task dispatch, memory index rebuild, task archiving), or custom job handlers. Schedules persist to disk, survive restarts, and hot-reload when changed externally.
+The scheduling system lets you set up recurring or one-time agent invocations. Schedules persist to disk, survive restarts, and hot-reload when changed externally. Daemon infrastructure loops such as task dispatch, task archiving, and memory-index rebuild use the built-in job controller described below rather than schedule records.
 
 ## Schedule Types
 
@@ -25,26 +25,15 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
     {
       "id": "d6f1bb1e",
       "type": "interval",
-      "message": "Check for new tasks and dispatch if available",
-      "channel": "C07ABCDEF",
+      "message": "Check the active projects and report blockers",
+      "projectId": "general",
       "profile": "claude-haiku",
-      "intervalMs": 30000,
+      "intervalMs": 3600000,
       "createdAt": 1747680000000,
-      "nextRun": 1747680030000,
+      "nextRun": 1747683600000,
       "lastRun": 1747680000000,
-      "dispatchType": "task-dispatch",
       "target": { "kind": "fresh" },
-      "fallback": "fresh",
-      "preCheck": "test -f ~/.cortex/data/schedules.json"
-    },
-    {
-      "id": "e4c91a03",
-      "type": "interval",
-      "message": "Archive completed tasks older than 3 days",
-      "channel": "C07ABCDEF",
-      "profile": "claude-haiku",
-      "intervalMs": 21600000,
-      "dispatchType": "task-archive"
+      "fallback": "fresh"
     }
   ]
 }
@@ -57,7 +46,7 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
 | `id` | 8-character hex identifier (auto-generated) |
 | `type` | `interval`, `daily`, `weekly`, or `once` |
 | `message` | The prompt to send when the schedule fires (a `[Scheduled Task]` prefix is added automatically at fire time) |
-| `channel` | Slack channel ID where the task lands |
+| `projectId` | Project associated with the schedule and its fallback destination |
 | `profile` | Agent profile name (defaults to the active profile) |
 | `intervalMs` | For `interval` type: milliseconds between fires |
 | `time` | For `daily`/`weekly` types: `HH:MM` 24-hour time |
@@ -70,23 +59,16 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
 | `isPaused` | Whether the schedule is currently paused |
 | `pausedAt` | Epoch ms when paused |
 | `pausedBy` | `"user"` or `"rate-limit"` — who paused it |
-| `dispatchType` | `"task-dispatch"`, `"memory-index-regen"`, `"task-archive"`, or absent (default LLM invocation) |
+| `dispatchType` | Reserved internal handler key; ordinary user schedules omit it |
 | `preCheck` | Optional shell command; non-zero exit → skip this fire |
 | `target` | Where the fired task should land (see Target Resolution below) |
 | `fallback` | What to do if target is unavailable: `"fresh"` (default), `"skip"`, or `"wait"` |
 
-## Dispatch Types
+## Built-in periodic jobs
 
-The `dispatchType` field controls what happens when a schedule fires:
+Task dispatch, completed-task archival, and memory-index rebuild are daemon-owned jobs. They do not appear in `schedules.json`, `!schedule list`, the schedule CLI, or the Web schedule list. Their switches and intervals are configured under **Settings → Advanced → Built-in jobs** or with these `config/settings.json` pairs: `taskDispatchEnabled` / `taskDispatchIntervalMs`, `taskArchiveEnabled` / `taskArchiveIntervalMs`, and `memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs`.
 
-| Dispatch Type | Behavior |
-|---------------|----------|
-| _(absent)_ | Default LLM path: sends the message to an agent for conversation |
-| `task-dispatch` | Runs the task dispatch pipeline: selects, claims, and dispatches a task from TASKS.yaml |
-| `memory-index-regen` | Rebuilds all experiment/knowledge/pattern index files |
-| `task-archive` | Archives completed tasks older than 3 days |
-
-The first two types (`task-dispatch` and programmatic handlers) go through a registered job runner. The default (no `dispatchType`) sends the message to the LLM runner with a `[Scheduled Task]` prefix.
+Enabled jobs run once when the daemon starts. Settings edits hot-reload: disabling a job clears its next timer, enabling it runs immediately, and changing an interval reschedules the next idle run. See [configuration.md](./configuration.md#configsettingsjson) for defaults and bounds.
 
 ## Target Resolution
 
@@ -238,18 +220,9 @@ For the underlying CLI tools, see [cli-reference.md](./cli-reference.md).
 | `!schedule pause <id>` | Pause a schedule |
 | `!schedule resume <id>` | Resume a paused schedule |
 
-## Job Registry
+## Execution routing
 
-The scheduling system uses a job registry pattern (`job-registry.ts`) for programmatic dispatch. Job runners self-register at module import time:
-
-```
-register('scheduled-task', llmRunner);
-register('task-dispatch', taskDispatchRunner);
-register('memory-index-regen', memoryIndexRegenRunner);
-register('task-archive', taskArchiveRunner);
-```
-
-This allows new job types to be added by creating a new job module that calls `register()` at import time — no changes needed to the scheduler core.
+Ordinary schedule records use the `scheduled-task` runner and send their message to an agent with the `[Scheduled Task]` prefix. A small set of shipped schedules may use reserved internal handler keys, but unregistered `dispatchType` values are skipped rather than interpreted as agent prompts. Daemon-owned periodic infrastructure uses `builtin-jobs.ts` and is not routed through schedule persistence.
 
 ## Rate-Limit Integration
 

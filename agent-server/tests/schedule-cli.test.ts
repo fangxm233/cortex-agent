@@ -144,6 +144,32 @@ test('scheduler run resolves legacy null profile tasks to default profile', with
   assert.equal(calls[0].profileName, getDefaultProfileName());
 }));
 
+test('scheduler skips an unregistered dispatch type instead of falling through to the LLM runner', withTempSchedules(async ({ scheduler }) => {
+  const calls = [];
+  scheduler.runner = async (payload) => { calls.push(payload); };
+
+  await scheduler._runTask({
+    id: 'retired-job',
+    type: 'interval',
+    intervalMs: 60_000,
+    message: 'retired programmatic job',
+    dispatchType: 'task-archive',
+    projectId: 'general',
+    profile: 'plan',
+    createdAt: 1,
+  });
+
+  assert.equal(calls.length, 0);
+}));
+
+test('schedule updates reject built-in job dispatch types', withTempSchedules(async ({ scheduler }) => {
+  await assert.rejects(
+    () => scheduler.update('int1', { dispatchType: 'task-dispatch' }),
+    /built-in job.*task-dispatch/i,
+  );
+  assert.equal((await scheduler.get('int1')).dispatchType, undefined);
+}));
+
 test('scheduler run emits cortex:schedule.fired with matcher payload keys', withTempSchedules(async ({ scheduler }) => {
   const calls = [];
   scheduler.runner = async (payload) => { calls.push(payload); };

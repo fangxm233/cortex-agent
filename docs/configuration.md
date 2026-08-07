@@ -241,8 +241,8 @@ environment variables and needed a daemon restart to change. Editing this file
 takes effect without a restart.
 
 It is a flat JSON object that stores **only the keys you explicitly override**.
-Any key you leave out falls back to its legacy environment variable, and then to
-the built-in default. The file itself is optional — a fresh install has none and
+Any key you leave out falls back to its legacy environment variable when one
+exists, and then to the built-in default. The file itself is optional — a fresh install has none and
 runs entirely on defaults. It is created the first time something writes it: the
 startup migration below, admin-channel auto-detection, or the Web workbench
 settings panels.
@@ -283,6 +283,12 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `threadMaxDepth` | number | `5` | Maximum nesting depth for spawning nested threads; a spawn at or beyond this depth is rejected | `CORTEX_THREAD_MAX_DEPTH` |
 | `taskArtifactTemplates` | string[] | `["manager"]` | Templates whose dispatch threads keep their artifact on the task node instead of the temporary workspace | `CORTEX_TASK_ARTIFACT_TEMPLATES` (comma-separated) |
 | `taskDispatchMaxConcurrent` | number \| null | `null` | Max number of task-dispatch threads allowed to run concurrently. A number set here is used as-is (use a positive value); `null` keeps the automatic policy `max(4, os.cpus().length - 2)` — all-but-2 cores, floored at 4 | `TASK_DISPATCH_MAX_CONCURRENT` |
+| `taskDispatchEnabled` | boolean | `true` | Run the built-in task dispatcher. Switching from `false` to `true` triggers an immediate dispatch check | — |
+| `taskDispatchIntervalMs` | number | `30000` | Interval between built-in dispatch checks, in integer milliseconds | — |
+| `taskArchiveEnabled` | boolean | `true` | Run the built-in completed-task archiver. Switching from `false` to `true` runs it immediately | — |
+| `taskArchiveIntervalMs` | number | `21600000` | Interval between completed-task archive runs, in integer milliseconds | — |
+| `memoryIndexRegenEnabled` | boolean | `true` | Run the built-in experiment/knowledge/pattern index rebuild. Switching from `false` to `true` runs it immediately | — |
+| `memoryIndexRegenIntervalMs` | number | `86400000` | Interval between memory-index rebuilds, in integer milliseconds | — |
 | `uiCorsOrigins` | string[] | `[]` | Origins that receive CORS headers from the Web UI HTTP host. See [desktop-app.md](./desktop-app.md) | `CORTEX_UI_CORS_ORIGINS` (comma-separated) |
 | `adminChannel` | string \| null | `null` | Slack channel for system notices (startup, rate-limit, disk alerts). The first DM to the bot is auto-detected and persisted here | `SLACK_ADMIN_CHANNEL`, then `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | Feishu admin `chat_id` (`oc_...`) for the same notices. Independent of `adminChannel` — Slack channel ids are not usable on Feishu | `FEISHU_ADMIN_CHANNEL` |
@@ -290,7 +296,12 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`) and **Settings → Advanced**
 (`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
-`serverUpdateDisable`). Every other key is edited by hand in the file.
+`serverUpdateDisable`, and the built-in job switches and intervals). Every other key is edited by hand in the file.
+
+Built-in job intervals must be integer milliseconds from `1000` through
+`2147483647`, the safe range for Node timers. Enabled jobs run once at daemon
+startup. Archive and memory-index runs never overlap; a changed interval takes
+effect after an active run finishes.
 
 ### Hot reload
 
@@ -303,6 +314,8 @@ daemon restart**. Two consequences worth knowing:
   is resolved per request; `adminChannel` and `feishuAdminChannel` are pushed
   into the running platform adapter as soon as they change. `diskMonitor=false`
   stops its timer, while restoring `true` starts the timer and checks immediately.
+  Each built-in job switch likewise cancels or starts its timer immediately, and
+  interval edits reschedule its next idle run.
 - A broken file never takes the server down. Invalid JSON or a type mismatch
   leaves the previous settings in place and logs the error; fix the file and the
   next write reloads it.
@@ -316,8 +329,8 @@ loop never starts.)
 
 ### Legacy environment variables and deprecation
 
-Every key keeps its old environment variable as a fallback, parsed exactly as it
-was before the move — `CORTEX_EVENT_LOG=off`, `CORTEX_TURN_NOTIFY=0`/`false`/`off`/`no`,
+Keys with a legacy environment variable in the table keep it as a fallback,
+parsed with its established semantics — `CORTEX_EVENT_LOG=off`, `CORTEX_TURN_NOTIFY=0`/`false`/`off`/`no`,
 `CORTEX_NOTIFY_COMPACTION=1`, comma-separated lists for the two `string[]` keys,
 and so on. Precedence is always: key in `settings.json` → legacy variable →
 built-in default. For `adminChannel` the original chain is preserved:

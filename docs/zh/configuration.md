@@ -200,7 +200,7 @@ $CORTEX_HOME/
 
 位于 `$CORTEX_HOME/config/settings.json`。该文件保存服务器的**运行时行为设置**：这些开关与上限过去是环境变量，改动必须重启守护进程才生效。现在改这个文件无需重启。
 
-它是一个扁平 JSON 对象，**只存放你显式覆盖的键**。没写的键回退到该设置的旧环境变量，再回退到内置默认值。文件本身是可选的——全新安装没有这个文件，完全按默认值运行；它会在第一次被写入时创建：下文的启动迁移、admin channel 自动探测，或 Web 工作台的设置面板。
+它是一个扁平 JSON 对象，**只存放你显式覆盖的键**。没写的键在存在旧环境变量时先回退到该变量，再回退到内置默认值。文件本身是可选的——全新安装没有这个文件，完全按默认值运行；它会在第一次被写入时创建：下文的启动迁移、admin channel 自动探测，或 Web 工作台的设置面板。
 
 ```json
 {
@@ -235,24 +235,32 @@ $CORTEX_HOME/
 | `threadMaxDepth` | number | `5` | 嵌套线程生成的最大深度；达到或超过该深度的 spawn 会被拒绝 | `CORTEX_THREAD_MAX_DEPTH` |
 | `taskArtifactTemplates` | string[] | `["manager"]` | 哪些模板的派发线程把 artifact 挂在任务节点上，而不是临时工作区 | `CORTEX_TASK_ARTIFACT_TEMPLATES`（逗号分隔） |
 | `taskDispatchMaxConcurrent` | number \| null | `null` | 允许并发运行的任务派发线程数上限。这里写的数值直接使用（请填正数）；`null` 保持自动策略 `max(4, os.cpus().length - 2)`——按「核数减 2」伸缩，并以 4 为下限保底 | `TASK_DISPATCH_MAX_CONCURRENT` |
+| `taskDispatchEnabled` | boolean | `true` | 运行内置任务派发器；从 `false` 切换为 `true` 时立即检查一次任务队列 | — |
+| `taskDispatchIntervalMs` | number | `30000` | 内置任务派发检查的间隔，单位为整数毫秒 | — |
+| `taskArchiveEnabled` | boolean | `true` | 运行内置已完成任务归档器；从 `false` 切换为 `true` 时立即执行一次 | — |
+| `taskArchiveIntervalMs` | number | `21600000` | 已完成任务归档的执行间隔，单位为整数毫秒 | — |
+| `memoryIndexRegenEnabled` | boolean | `true` | 运行内置实验、知识和模式索引重建；从 `false` 切换为 `true` 时立即执行一次 | — |
+| `memoryIndexRegenIntervalMs` | number | `86400000` | 记忆索引重建的执行间隔，单位为整数毫秒 | — |
 | `uiCorsOrigins` | string[] | `[]` | Web UI HTTP 宿主为哪些 origin 返回 CORS header。参见 [desktop-app.md](./desktop-app.md) | `CORTEX_UI_CORS_ORIGINS`（逗号分隔） |
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | 同类通知的飞书 admin `chat_id`（`oc_...`）。与 `adminChannel` 相互独立——Slack 的频道 id 在飞书上不可用 | `FEISHU_ADMIN_CHANNEL` |
 
-Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）与**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`）。其余键都靠手工编辑该文件。
+Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）与**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`，以及内置任务的开关和间隔）。其余键都靠手工编辑该文件。
+
+内置任务间隔必须是 `1000` 到 `2147483647` 之间的整数毫秒，这是 Node timer 的安全范围。启用的任务会在 daemon 启动时执行一次。任务归档和记忆索引重建不会重叠运行；运行期间修改间隔会在本轮结束后生效。
 
 ### 热更新 {#hot-reload}
 
 config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读取文件，之后一律使用新值——**无需重启守护进程**。有两点值得注意：
 
-- 每个设置在各自的使用点生效：下一个回合、下一次 agent 生成、下一轮派发，或下一个 HTTP 请求。`uiCorsOrigins` 在每个请求时解析；`adminChannel` 与 `feishuAdminChannel` 一变更就推送给正在运行的平台适配器。`diskMonitor=false` 会停止计时器，恢复为 `true` 时会重新启动并立即检查。
+- 每个设置在各自的使用点生效：下一个回合、下一次 agent 生成、下一轮派发，或下一个 HTTP 请求。`uiCorsOrigins` 在每个请求时解析；`adminChannel` 与 `feishuAdminChannel` 一变更就推送给正在运行的平台适配器。`diskMonitor=false` 会停止计时器，恢复为 `true` 时会重新启动并立即检查。每个内置任务开关也会立即停止或启动对应计时器，间隔修改会重排下一次空闲运行。
 - 坏文件不会打挂服务器。JSON 非法或类型不符时保留上一份设置并记录错误日志；修好文件后，下一次写入即被重新加载。
 
 **例外——`waitingSweepMs`。** 等待中 manager 的扫描循环在每轮结束后按当前值自我重排，因此调大或调小间隔会从下一轮开始生效。但在运行中把它改成 `0` 会让循环彻底停下：没有任何东西会重排它，之后再改回正数也**不会**把它重新拉起，只有重启守护进程才行。（启动时值为 `0` 则该循环从不启动。）
 
 ### 旧环境变量与弃用提示 {#legacy-environment-variables-and-deprecation}
 
-每个键都保留其旧环境变量作为回退，且解析语义与迁移前完全一致——`CORTEX_EVENT_LOG=off`、`CORTEX_TURN_NOTIFY=0`/`false`/`off`/`no`、`CORTEX_NOTIFY_COMPACTION=1`，两个 `string[]` 键用逗号分隔的列表，等等。优先级始终是：`settings.json` 中的键 → 旧环境变量 → 内置默认值。`adminChannel` 保留原有的优先级链：先看 `SLACK_ADMIN_CHANNEL`，再看 `CORTEX_ADMIN_CHANNEL`。
+表中列出旧环境变量的键会保留该变量作为回退，并按既定语义解析——`CORTEX_EVENT_LOG=off`、`CORTEX_TURN_NOTIFY=0`/`false`/`off`/`no`、`CORTEX_NOTIFY_COMPACTION=1`，两个 `string[]` 键用逗号分隔的列表，等等。优先级始终是：`settings.json` 中的键 → 旧环境变量 → 内置默认值。`adminChannel` 的优先级链是先看 `SLACK_ADMIN_CHANNEL`，再看 `CORTEX_ADMIN_CHANNEL`。
 
 当某个旧环境变量第一次实际供值时，守护进程会记录一条弃用警告，指明该变量和它喂给的设置项（`Deprecated env <VAR> supplies settings.<key>; move it to settings.json`）。这层回退只为迁移期的兼容而存在——新的配置应写进 `settings.json`。
 

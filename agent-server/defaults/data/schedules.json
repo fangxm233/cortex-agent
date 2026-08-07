@@ -1,42 +1,6 @@
 {
   "tasks": [
     {
-      "id": "seed0001",
-      "type": "interval",
-      "intervalMs": 30000,
-      "dispatchType": "task-dispatch",
-      "message": "Programmatic task dispatch: select the highest-priority actionable task from TASKS.yaml and dispatch it to the appropriate machine/branch base agent.",
-      "channel": "__ADMIN_CHANNEL__",
-      "profile": null,
-      "target": { "kind": "fresh" },
-      "isPaused": false,
-      "createdAt": 0
-    },
-    {
-      "id": "seed0002",
-      "type": "interval",
-      "intervalMs": 21600000,
-      "dispatchType": "task-archive",
-      "message": "Programmatic task auto-archive: scan all TASKS.yaml, archive completed tasks older than 3 days to tasks-archive.md",
-      "channel": "__ADMIN_CHANNEL__",
-      "profile": null,
-      "target": { "kind": "fresh" },
-      "isPaused": false,
-      "createdAt": 0
-    },
-    {
-      "id": "seed0003",
-      "type": "interval",
-      "intervalMs": 86400000,
-      "dispatchType": "memory-index-regen",
-      "message": "Programmatic memory index regen: rebuild experiments/knowledge/patterns index.md from frontmatter + update ref counts from access-log",
-      "channel": "__ADMIN_CHANNEL__",
-      "profile": null,
-      "target": { "kind": "fresh" },
-      "isPaused": false,
-      "createdAt": 0
-    },
-    {
       "id": "seed0004",
       "type": "interval",
       "intervalMs": 86400000,

@@ -214,12 +214,12 @@ describe('R-A5-2 — an absent operand is neither a match nor a mismatch', () =>
   it('raises the operand check rather than a comparison check', () => {
     const record = reconcileAccounting(
       proxyGolden('proxy-export-echoed.json'),
-      journal({ requests: { status: 'unavailable', reason: 'journal_underivable' } }),
+      journal({ cost_usd: { status: 'unavailable', reason: 'journal_underivable' } }),
     );
 
     expect(failedChecks(record).map(check => check.check_id))
       .toEqual(['accounting_operand_unavailable']);
-    expect(record.deltas.requests).toEqual({
+    expect(record.deltas.cost_usd).toEqual({
       status: 'unavailable', reason: 'operand_unavailable',
     });
   });
@@ -234,6 +234,101 @@ describe('R-A5-2 — an absent operand is neither a match nor a mismatch', () =>
 
     expect(failedChecks(record).map(check => check.failure_code)).toEqual([terminal?.code]);
     expect(BENCHMARK_FAILURES.filter(f => f.code > 44)).toEqual([]);
+  });
+});
+
+/**
+ * The journal has no request counter to be absent, so `journal.requests` is permanently
+ * `journal_underivable`. While it was an operand, every trial reconciled `unavailable`.
+ */
+describe('the requests axis is not an operand of reconciled', () => {
+  const underivable = {
+    requests: { status: 'unavailable', reason: 'journal_underivable' },
+  } as const;
+
+  it('reconciles a well-formed trial whose journal request count is underivable', () => {
+    const record = reconcileAccounting(
+      proxyGolden('proxy-export-echoed.json'), journal(underivable),
+    );
+
+    expect(record.reconciled).toEqual({ status: 'available', value: true });
+    expect(failedChecks(record)).toEqual([]);
+    expect(checkIds(record)).not.toContain('accounting_operand_unavailable');
+  });
+
+  it('names no missing operand for the requests axis', () => {
+    const record = reconcileAccounting(
+      proxyGolden('proxy-export-echoed.json'), journal(underivable),
+    );
+
+    expect(JSON.stringify(record.checks)).not.toContain('journal.requests');
+  });
+
+  // The delta and the mismatch check id are retained, not removed: a reader must be able to see
+  // that the axis went unevaluated rather than infer it from an absence.
+  it('keeps the requests delta unavailable and constructs no mismatch check', () => {
+    const record = reconcileAccounting(
+      proxyGolden('proxy-export-echoed.json'), journal(underivable),
+    );
+
+    expect(record.deltas.requests).toEqual({
+      status: 'unavailable', reason: 'operand_unavailable',
+    });
+    expect(checkIds(record)).not.toContain('accounting_requests_mismatch');
+  });
+
+  it('lists no unaccounted role when the journal side cannot be counted', () => {
+    const record = reconcileAccounting(
+      proxyGolden('proxy-export-echoed.json'), journal(underivable),
+    );
+
+    expect(record.unaccounted_roles).toEqual([]);
+  });
+});
+
+/**
+ * `OPERAND_PATHS` and the slots array it filters are positionally coupled, so an edit to one and
+ * not the other shifts every later index silently. Each operand is knocked out alone and must be
+ * named by its own path — a shift renames the reported operand and fails here.
+ */
+describe('the operand list and its slots stay positionally aligned', () => {
+  const unreadable = { status: 'unavailable', reason: 'counter_unreadable' } as const;
+
+  const cases: [string, () => ReturnType<typeof reconcileAccounting>][] = [
+    ['proxy.requests', () => reconcileAccounting(
+      { ...proxyGolden('proxy-export-echoed.json'), requests: unreadable }, journal(),
+    )],
+    ['proxy.cost_usd', () => reconcileAccounting(
+      { ...proxyGolden('proxy-export-echoed.json'), cost_usd: unreadable }, journal(),
+    )],
+    ['proxy.lease_echo', () => reconcileAccounting(
+      { ...proxyGolden('proxy-export-echoed.json'), lease_echo: unreadable }, journal(),
+    )],
+    ['journal.cost_usd', () => reconcileAccounting(
+      proxyGolden('proxy-export-echoed.json'), journal({ cost_usd: unreadable }),
+    )],
+  ];
+
+  for (const [path, build] of cases) {
+    it(`names exactly ${path} when only that operand is unavailable`, () => {
+      const record = build();
+
+      const operand = failedChecks(record)
+        .find(entry => entry.check_id === 'accounting_operand_unavailable');
+      expect(operand?.detail).toBe(path);
+    });
+  }
+
+  it('fails closed on every proxy operand, each still reaching reconciled unavailable', () => {
+    for (const [path, build] of cases) {
+      const record = build();
+
+      expect(record.reconciled, path).toEqual({
+        status: 'unavailable', reason: 'operand_unavailable',
+      });
+      expect(failedChecks(record).map(check => check.check_id), path)
+        .toContain('accounting_operand_unavailable');
+    }
   });
 });
 

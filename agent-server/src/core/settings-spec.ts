@@ -1,5 +1,5 @@
 // input:  raw legacy environment values
-// output: settings types and pure SETTINGS_SPEC registry
+// output: settings types, defaults, parsers, and value validators
 // pos:    Browser-safe runtime settings contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -23,6 +23,12 @@ export interface Settings {
   threadMaxDepth: number;
   taskArtifactTemplates: string[];
   taskDispatchMaxConcurrent: number | null;
+  taskDispatchEnabled: boolean;
+  taskDispatchIntervalMs: number;
+  taskArchiveEnabled: boolean;
+  taskArchiveIntervalMs: number;
+  memoryIndexRegenEnabled: boolean;
+  memoryIndexRegenIntervalMs: number;
   uiCorsOrigins: string[];
   adminChannel: string | null;
   feishuAdminChannel: string | null;
@@ -40,13 +46,23 @@ export type SettingType = 'boolean' | 'number' | 'number|null' | 'string[]' | 's
 type EnvVar = string | readonly string[];
 
 export interface SettingSpecEntry<T> {
-  envVar: EnvVar;
+  envVar?: EnvVar;
   type: SettingType;
   default: T;
-  legacyParse: (raw: string) => T;
+  legacyParse?: (raw: string) => T;
+  validate?: (value: T) => string | null;
 }
 
 type SettingsSpec = { [K in SettingKey]: SettingSpecEntry<Settings[K]> };
+
+export const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
+function validateJobInterval(value: number): string | null {
+  if (!Number.isInteger(value)) return 'must be an integer number of milliseconds';
+  if (value < 1_000) return 'must be at least 1000 milliseconds';
+  if (value > MAX_TIMER_DELAY_MS) return `must be at most ${MAX_TIMER_DELAY_MS} milliseconds`;
+  return null;
+}
 
 export const SETTINGS_SPEC = {
   turnNotify: {
@@ -174,6 +190,33 @@ export const SETTINGS_SPEC = {
       const value = Number.parseInt(raw, 10);
       return raw.trim() && Number.isFinite(value) && value > 0 ? value : null;
     },
+  },
+  taskDispatchEnabled: {
+    type: 'boolean',
+    default: true,
+  },
+  taskDispatchIntervalMs: {
+    type: 'number',
+    default: 30_000,
+    validate: validateJobInterval,
+  },
+  taskArchiveEnabled: {
+    type: 'boolean',
+    default: true,
+  },
+  taskArchiveIntervalMs: {
+    type: 'number',
+    default: 6 * 60 * 60 * 1000,
+    validate: validateJobInterval,
+  },
+  memoryIndexRegenEnabled: {
+    type: 'boolean',
+    default: true,
+  },
+  memoryIndexRegenIntervalMs: {
+    type: 'number',
+    default: 24 * 60 * 60 * 1000,
+    validate: validateJobInterval,
   },
   uiCorsOrigins: {
     envVar: 'CORTEX_UI_CORS_ORIGINS',

@@ -169,7 +169,7 @@ The dispatch pipeline is how tasks get executed automatically.
 
 ### Trigger
 
-A `task-dispatch` scheduler job fires periodically (typically every 30 seconds). It drives the full dispatch loop.
+The built-in task dispatcher checks periodically (every 30 seconds by default). `taskDispatchEnabled` and `taskDispatchIntervalMs` in `config/settings.json` control the loop.
 
 ### Dispatch Flow
 
@@ -197,8 +197,8 @@ When a task is dispatched to a remote machine for long-running execution (via `c
 
 The `cortex-run` system handles long-running task execution on remote machines.
 See [cli-reference.md](./cli-reference.md) for the full `cortex-run` CLI
-reference, and [scheduling.md](./scheduling.md) for how the task-dispatch
-scheduler drives this pipeline.
+reference, and [scheduling.md](./scheduling.md) for how the built-in task
+dispatcher is configured.
 
 - **Server side**: `cortex-run` CLI forwards to the remote client via `sendCommand`
 - **Client side**: `cortex-run-watcher.ts` spawns the user command as a detached child process, monitors it with two-layer stall detection (output byte stall and progress line stall), auto-picks GPU via `nvidia-smi`, writes state/output/result files, and sends a `task-callback` WebSocket message on completion
@@ -214,7 +214,7 @@ cortex-client (WebSocket connection to server)
 
 ## Task Archive
 
-Completed tasks are automatically archived after 3 days (`ARCHIVE_AGE_DAYS = 3`). The archive is driven by a `task-archive` scheduler job (typically every 6 hours).
+Completed tasks are automatically archived after 3 days (`ARCHIVE_AGE_DAYS = 3`). The built-in archiver runs every 6 hours by default and is controlled by `taskArchiveEnabled` and `taskArchiveIntervalMs` in `config/settings.json`.
 
 **Archive process:**
 
@@ -363,4 +363,4 @@ The manager writes verdicts into the ledger through the `cortex-task verdict` co
 
 ## Task Dispatch Concurrency
 
-The task dispatcher enforces a maximum of 4 concurrent dispatch executions to prevent resource exhaustion. This is checked before each dispatch attempt.
+The task dispatcher checks capacity before every dispatch attempt. `taskDispatchMaxConcurrent` sets an explicit limit; its default `null` uses `max(4, os.cpus().length - 2)`. A reservation covers the interval between task selection and execution registration, so rapid timer ticks cannot exceed the limit.

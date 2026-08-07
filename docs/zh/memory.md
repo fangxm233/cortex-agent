@@ -30,7 +30,7 @@ context/
         ├── STATUS.md            # 现在时状态寄存器（覆盖式，最多 80 行 / 6KB）
         ├── ISSUES.md            # 执行摩擦（仅追加，已解决项删除，最多 80 行 / 6KB）
         ├── TASKS.yaml           # 结构化任务队列（机器可读 YAML）
-        ├── tasks-archive.md     # 自动归档的已完成任务（由 task-archive 调度作业处理）
+        ├── tasks-archive.md     # 由内置归档器处理的已完成任务
         ├── experiments/
         │   ├── index.md         # 自动生成——请勿手动编辑
         │   └── EXP-NNN.md       # 每实验一个文件，YAML frontmatter
@@ -220,7 +220,7 @@ Dense Context 质量的酸性测试：如果你启动一个仅对仓库有读取
 
 ## 内存索引重建作业 {#memory-index-regeneration-job}
 
-`memory-index-regen` 程序化调度器作业（通过 `job-registry.ts` 注册，通常由 `dispatchType: "memory-index-regen"` 的调度触发）从 YAML frontmatter 重建所有索引文件。它：
+内置记忆索引重建任务会从 YAML frontmatter 重建所有索引文件，由 `config/settings.json` 中的 `memoryIndexRegenEnabled` 和 `memoryIndexRegenIntervalMs` 控制。该任务会：
 
 1. 扫描 `context/projects/` 下的所有项目
 2. 从每个 `EXP-*.md`、`K-*.md` 和 `PAT-*.md` 读取 frontmatter
