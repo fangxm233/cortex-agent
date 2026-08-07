@@ -6,6 +6,7 @@ import {
   failClosedRuntimeDeps, getLocalThreadRuntimeDeps, scopedLocalThreadService,
   withLocalThreadRuntimeDeps,
 } from '../../../src/domain/threads/local-runtime-deps.js';
+import type { LocalThreadRuntimeDeps } from '../../../src/domain/threads/local-runtime-deps.js';
 import { createLocalThreadRuntimeDeps } from '../../../src/domain/threads/local-runtime-defaults.js';
 import { runThread } from '../../../src/domain/threads/runner.js';
 import { RunningExecutions } from '../../../src/core/running-executions.js';
@@ -36,6 +37,42 @@ describe('I3 fail-closed port scope (§7.1, §7.4 code 32)', () => {
       expect(deps.portScope).toBeUndefined();
       const escaped = await escapeScope(deps);
       expect(escaped).toBeNull();
+    });
+  });
+
+  /** §18 G5-D8(iii): the split of the daemon defaults out of the interface module is MECHANICAL.
+   *  These pin the bundle `createLocalThreadRuntimeDeps` still returns, so a field silently lost
+   *  or a default silently changed by the move fails here rather than at a benchmark trial. */
+  describe('the mechanical split preserves the daemon bundle exactly', () => {
+    it('returns the same fifteen fields it did before the move', () => {
+      expect(Object.keys(daemonBundle()).sort()).toEqual([
+        'cancelThread', 'createThread', 'emitLifecycleHooks', 'eventBus', 'executionLedger',
+        'executionStore', 'getTemplate', 'liveExecutions', 'loadTemplates', 'resolveProfile',
+        'resolveTemplateAgents', 'runAgent', 'runThread', 'sessionStore', 'threadStore',
+      ]);
+    });
+
+    it('defaults eventBus to null, so P16 is unbound until a trial binds it (§7.2)', () => {
+      expect(daemonBundle().eventBus).toBeNull();
+    });
+
+    it('lets an override win over every default', () => {
+      const resolveProfile = (() => {
+        throw new Error('sentinel resolveProfile');
+      }) as unknown as LocalThreadRuntimeDeps['resolveProfile'];
+      const emitLifecycleHooks = (async () => {
+        throw new Error('sentinel emitLifecycleHooks');
+      }) as LocalThreadRuntimeDeps['emitLifecycleHooks'];
+      const deps = createLocalThreadRuntimeDeps(runThread, { resolveProfile, emitLifecycleHooks });
+      expect(deps.resolveProfile).toBe(resolveProfile);
+      expect(deps.emitLifecycleHooks).toBe(emitLifecycleHooks);
+    });
+
+    it('derives the execution ledger from an overridden store and live set', () => {
+      const liveExecutions = new RunningExecutions();
+      const deps = createLocalThreadRuntimeDeps(runThread, { liveExecutions });
+      expect(deps.liveExecutions).toBe(liveExecutions);
+      expect(typeof deps.executionLedger.teardownExecution).toBe('function');
     });
   });
 
