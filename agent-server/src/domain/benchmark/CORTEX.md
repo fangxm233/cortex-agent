@@ -15,7 +15,9 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | policy-compiler.ts | 核心 | 有序解析资产并编译冻结策略 |
 | proposal-seal.ts | 核心 | 持有提案存储与封存判定：S1-S4 合取、V1-V3 失效、失败即关闭的读取与两类边投影 |
 | resolved-policy.ts | 类型 | 定义策略值与 1–44 失败分类 |
+| settings-snapshot.ts | 类型 | 编译期一次性冻结设置记录，缺键即抛，无磁盘读取与热重载 |
 | terminal-predicate.ts | 核心 | 评估 §9.4 每模式清单（D2/C7 三合取，含链接来源与原生子代理普查），失败即抛出 41 号拒绝 |
+| trial-clock.ts | 类型 | 零依赖确定性时钟：墙钟、单调纳秒、截止余量与可取消 sleep |
 | trial-adapter-factory.ts | 核心 | 仅从冻结策略构造每次试验的适配器 |
 | trial-thread-adapter.ts | 核心 | 为线程每一步构造并关闭一个试验适配器 |
 | variant-proposal.ts | 核心 | 由流水线线程自身的记录判定提案，只决定不执行 |
