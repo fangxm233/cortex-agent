@@ -32,6 +32,13 @@ import {
 import {
   ATTEMPT_EDGE_KINDS, EDGE_ENDPOINT_LEGALITY,
 } from '../../../src/domain/benchmark/attempt-record.js';
+import {
+  buildCompositeManifest, validateCompositeManifest,
+} from '../../../src/domain/benchmark/composite-manifest.js';
+import {
+  reconcileAccounting, type AccountingRecord,
+} from '../../../src/domain/benchmark/accounting-reconciliation.js';
+import { sampleAttempt } from './attempt-record.test.js';
 import { VERDICT_BY_VARIANT } from '../../../src/domain/benchmark/variant-proposal.js';
 import { BENCHMARK_FAILURES } from '../../../src/domain/benchmark/resolved-policy.js';
 import {
@@ -148,6 +155,34 @@ function storeReadable(): boolean {
     assert.equal(error instanceof ProposalSealError && error.code === 42, true);
     return false;
   }
+}
+
+/** Gate 8's record, only ever placed verbatim — the composition test needs a well-formed one. */
+function compositionAccounting(): AccountingRecord {
+  return reconcileAccounting(
+    {
+      schema_version: 'cortex-bench-proxy-export/1', trial_id: 'trial-1', adapter_id: 'run-r1',
+      requests: { status: 'unavailable', reason: 'counter_unreadable' },
+      cost_usd: { status: 'unavailable', reason: 'counter_unreadable' },
+      input_tokens: { status: 'unavailable', reason: 'counter_unreadable' },
+      output_tokens: { status: 'unavailable', reason: 'counter_unreadable' },
+      audit_log: { status: 'unavailable', reason: 'counter_unreadable' },
+      lease_echo: { status: 'unavailable', reason: 'counter_unreadable' },
+      source: 'proxy_export',
+    },
+    {
+      requests: { status: 'unavailable', reason: 'journal_underivable' },
+      cost_usd: { status: 'available', value: '0.000000' },
+      steps: { status: 'available', value: 1 },
+      tokens: {
+        input: { status: 'available', value: 0 },
+        output: { status: 'available', value: 0 },
+        cached: { status: 'available', value: 0 },
+      },
+      source: 'trajectory_merge',
+      roles: ['parent'],
+    },
+  );
 }
 
 function seedProposal(attemptId = 'attempt-1', note: string | null = 'note'): void {
@@ -630,12 +665,14 @@ it('G4-SM6 — a `proposal` edge for every row and a `seal` edge for every seale
   assert.deepEqual(edges[0], {
     kind: 'proposal',
     from: { ref: 'attempt', id: 'attempt-1' },
-    to: { ref: 'proposal', id: 'proposal-attempt-1' },
+    // G4-CM13: RE-USED, not minted — both refs carry the owning attempt's own `attempt_id`, which
+    // is the only form the frozen resolver (`composite-manifest.ts:486-487`) can resolve.
+    to: { ref: 'proposal', id: 'attempt-1' },
   });
   assert.deepEqual(edges[2], {
     kind: 'seal',
-    from: { ref: 'proposal', id: 'proposal-attempt-2' },
-    to: { ref: 'outcome', id: 'outcome-attempt-2' },
+    from: { ref: 'proposal', id: 'attempt-2' },
+    to: { ref: 'outcome', id: 'attempt-2' },
   });
   // The union is CONSUMED, never extended: both kinds are already members, and there are 13.
   assert.equal(ATTEMPT_EDGE_KINDS.length, 13);
@@ -735,4 +772,40 @@ it('M-12 — `no outstanding proposal` is assertable: every row is sealed or inv
   assert.deepEqual(outstandingProposals(project, TASK), []);
   const rows = readProposalStore(project, TASK).proposals;
   assert.equal(rows.every(r => r.state === 'sealed' || r.state === 'invalidated'), true);
+});
+
+// ── G4-CM13/CM14 — the projection must COMPOSE, not merely have the right shape ──────────────
+//
+// The shape test above asserts each edge against ids the test itself wrote down, so it passes for
+// ANY id expression — including one no consumer can resolve. This test drives the REAL consumer:
+// it builds a manifest whose nodes carry the rows' attempt_ids and runs the shipped
+// `validateCompositeManifest`. G4-CM13 rules proposal/outcome identifiers are RE-USED, not minted,
+// and G4-CM14 requires every endpoint to resolve to some `nodes[i].attempt_id`.
+
+it('G4-CM14 — every projected edge RESOLVES against the real validator (zero unresolved)', () => {
+  seedProposal('run-r1');
+  sealed('run-r1');
+  const edges = proposalStoreEdges(readProposalStore(project, TASK).proposals);
+  assert.deepEqual(edges.map(e => e.kind), ['proposal', 'seal']);
+
+  const manifest = buildCompositeManifest({
+    trial_id: 'trial-1', root_run_id: 'r1', arm_name: 'arm-a', arm_canonical_sha256: 'b'.repeat(64),
+    identity: {
+      model_execution_identity_hash: { parent: 'b'.repeat(64) },
+      role_tool_surface_hash: { parent: 'b'.repeat(64) },
+      bundle_manifest_hash: 'b'.repeat(64),
+    },
+    nodes: [sampleAttempt({ attempt_id: 'run-r1', task_id: 'trial-1', task_ancestry: ['trial-1'] })],
+    edges,
+    roots: { parent_attempt_id: 'run-r1', root_task_id: null },
+    accounting: compositionAccounting(),
+    mode: 'direct',
+  });
+  const codes = validateCompositeManifest(manifest, {
+    limits: { max_task_depth: 0, max_tasks: 0 },
+    lifecycleStems: ['run-r1'],
+  }).map(violation => violation.code);
+
+  // BY CODE, never by message. This is the assertion the shape test could not make.
+  assert.deepEqual(codes.filter(code => code === 'edge_endpoint_unresolved'), []);
 });

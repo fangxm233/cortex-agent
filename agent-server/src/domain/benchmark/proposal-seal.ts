@@ -494,15 +494,15 @@ export function proposalStoreEdges(rows: readonly ProposalRow[]): readonly Attem
     edges.push({
       kind: 'proposal',
       from: { ref: 'attempt', id: row.attempt_id },
-      to: { ref: 'proposal', id: `proposal-${row.attempt_id}` },
+      to: { ref: 'proposal', id: row.attempt_id },
     });
   }
   for (const row of rows) {
     if (row.state !== 'sealed') continue;
     edges.push({
       kind: 'seal',
-      from: { ref: 'proposal', id: `proposal-${row.attempt_id}` },
-      to: { ref: 'outcome', id: `outcome-${row.attempt_id}` },
+      from: { ref: 'proposal', id: row.attempt_id },
+      to: { ref: 'outcome', id: row.attempt_id },
     });
   }
   return Object.freeze(edges);
