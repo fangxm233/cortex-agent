@@ -539,9 +539,24 @@ export function validateCompositeManifest(
   }
 
   // ---- §9.2 invariant 3: policy bounds ------------------------------------------------------
+  // `max_task_depth` bounds TASK depth. Of the three depth kinds only `decompose` (manager attempt
+  // → child task) and `dispatch` (child task → child attempt) are task-denominated; `spawn` is
+  // attempt → child THREAD attempt (`design:2680`). §1.3 rule 7 forces `max_task_depth = 0` for
+  // every non-manager mode, i.e. exactly where there is no task table at all, so counting a THREAD
+  // edge against a TASK bound there is a category error: it made §9.4 C4's up-to-four-attempt
+  // `audit-retry` trial unpublishable, and with invariant 4's biconditional already forcing the
+  // child's on-disk lifecycle pair to BE a node, no member of the closed edge union could connect
+  // it — descent edges tripped this bound, everything else left the DAG unrooted.
+  //
+  // The taskless carve-out is the one three lines below, applied to the depth conjunct for the same
+  // reason: `roots.root_task_id === null` is the only place the taskless shape is visible
+  // (`design:8046`). A taskless trial is bounded by `max_thread_starts` (0 or 1, `arm-schema.ts`)
+  // and §9.4 C2's single admitted start, not by this limit. The depth WALK is deliberately
+  // unchanged: `depths` also orders nodes under G4-CM12, so narrowing it would move node order too.
+  const taskless = manifest.roots?.root_task_id === null;
   for (const node of nodes) {
     const depth = depths.get(node.attempt_id);
-    if (depth !== undefined && depth > context.limits.max_task_depth) {
+    if (!taskless && depth !== undefined && depth > context.limits.max_task_depth) {
       add('task_depth_exceeded', `${node.attempt_id} at depth ${depth}`);
     }
   }

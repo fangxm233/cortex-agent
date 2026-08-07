@@ -436,6 +436,52 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
       .toContain('task_count_exceeded');
   });
 
+  // `max_task_depth` bounds TASK depth, and `spawn` is a THREAD edge (`design:2680`). §1.3 rule 7
+  // forces `max_task_depth = 0` for every non-manager mode — exactly where there is no task table —
+  // so before the taskless carve-out a `coder-review` trial with its one §9.4 C2 thread could not
+  // publish at all: a descent edge tripped this bound and every other edge kind left the child
+  // unrooted, while invariant 4's biconditional forced the child to be a node regardless.
+  it('a TASKLESS spawn does not count against max_task_depth', () => {
+    const parent = sampleAttempt({
+      attempt_id: 'run-r1', task_id: 'trial-1', task_ancestry: ['trial-1'], thread_id: null,
+    });
+    const child = sampleAttempt({
+      attempt_id: 'thread-c1', task_id: 'trial-1', task_ancestry: ['trial-1'], thread_id: 'c1',
+      root_thread_id: 'c1', template: 'benchmark-coder-review',
+      journal_path: 'thread-c1.journal.ndjson', terminal_manifest_path: 'thread-c1.terminal.json',
+    });
+    const manifest = buildCompositeManifest({
+      trial_id: 'trial-1', root_run_id: 'r1', arm_name: 'arm-a', arm_canonical_sha256: SHA,
+      identity: IDENTITY,
+      nodes: [parent, child],
+      edges: [
+        { kind: 'spawn', from: { ref: 'attempt', id: 'run-r1' }, to: { ref: 'attempt', id: 'thread-c1' } },
+      ],
+      // The taskless shape, visible in exactly one place (17.1.6).
+      roots: { parent_attempt_id: 'run-r1', root_task_id: null },
+      accounting: accountingRecord(), mode: 'coder-review',
+    });
+
+    expect(validateCompositeManifest(manifest, {
+      limits: { max_task_depth: 0, max_tasks: 0 },
+      lifecycleStems: ['run-r1', 'thread-c1'],
+    })).toEqual([]);
+  });
+
+  // The other direction, and it is the one that proves a check was ADJUDICATED rather than DELETED:
+  // where a task table DOES exist, the bound still bites.
+  it('a TASK-BEARING manifest still refuses depth past the bound, under code 40', () => {
+    const violations = validateCompositeManifest(managerManifest(), {
+      ...managerContext, limits: { max_task_depth: 1, max_tasks: 8 },
+    });
+    const depth = violations.filter(violation => violation.code === 'task_depth_exceeded');
+    expect(depth.length).toBeGreaterThan(0);
+    // BY CODE: the refusal rides the SHIPPED 40, never a newly allocated one.
+    const shipped = BENCHMARK_FAILURES.find(f => f.reason === 'composite_manifest_invalid')!;
+    expect(shipped.code).toBe(40);
+    for (const violation of depth) expect(violation.failure_code).toBe(40);
+  });
+
   // ---- §9.2 invariant 4 (biconditional; rides code 39) ------------------------------------
   it('attempt_missing_lifecycle_pair — a node with no pair', () => {
     const codes = codesOf(managerManifest(), { ...managerContext, lifecycleStems: ['run-r1'] });
