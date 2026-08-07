@@ -6,6 +6,9 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 |---|---|---|
 | accounting-reconciliation.test.ts | 测试 | 验证标记联合、纯度、容差与未记账角色 |
 | attempt-record.test.ts | 测试 | 验证 39 成员齐备、13 类封闭边、标识铸造与线程标识双条件 |
+| composite-runtime-ports.test.ts | 测试 | 验证 23 端口齐备、六个仅声明端口的接线与 31 号未绑定拒绝 |
+| isolation-literals.test.ts | 测试 | X12 权威载体：Gate 5 各模块不得出现 webhook 字面量 |
+| isolation-rules.test.ts | 测试 | 验证十三条规则形状、已交付层规则未变，并钉住每条计数 |
 | composite-manifest.test.ts | 测试 | 双向验证规范形式、账目原样放置与每条命名码的拒绝 |
 | guard-lease-state.test.ts | 测试 | 验证守卫表按角色类编译、选择器每步取自实时租约 |
 | lease-echo.test.ts | 测试 | 验证回声文档、控制路由投递与拒绝传播 |

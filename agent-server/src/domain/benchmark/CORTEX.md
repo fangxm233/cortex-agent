@@ -8,6 +8,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | arm-schema.ts | 类型 | 校验 v2 arm 与版本化 phase-A 输入 |
 | attempt-record.ts | 类型 | 定义 39 成员尝试记录、13 类边与尝试标识铸造 |
 | capabilities.ts | 策略 | 派生封闭模板与能力白名单 |
+| composite-runtime-ports.ts | 类型 | 冻结 §7.2 全部 23 个端口，未绑定端口抛 31 号，六个仅声明端口接线到已交付实现 |
 | composite-manifest.ts | 核心 | 编码复合清单规范形式并按命名码校验 DAG 不变量 |
 | decimal-text.ts | 工具 | 以整数单位做精确十进制解析与比较 |
 | lease-echo.ts | 核心 | 用容器时钟组成并投递凭据租约回声 |
