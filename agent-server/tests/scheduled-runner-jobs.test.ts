@@ -76,6 +76,44 @@ test('finalizeThreadSuccess registers under the LAST step track id with backend 
   assert.equal(await sessionStore.getById('backend-uuid-1'), null, 'no ghost record under the backend id');
 });
 
+// onEnd hooks (targetAgent mode, e.g. post-task-hook's compound/commit step) inject an EXTRA step
+// after the main agent: it records sessionName=null, runs under the backend resume id, and never
+// writes a conversation-history transcript. Registering the run under that step's id yields a
+// ghost session — the UI opens the run and renders an EMPTY chat while the real transcript sits
+// under the main step's track id. Real agent steps always carry a sessionName (minted at step
+// start), so registration must key on the last REAL step, not the last recorded step.
+
+test('finalizeThreadSuccess skips hook-injected steps when picking the run track id', async () => {
+  await finalizeThreadSuccess(stubAdapter, 'proj-d', null, {
+    startTime: Date.now(),
+    sessionName: 'cortex-fin-04',
+    result: { sessionId: 'backend-uuid-4' } as any,
+    threadResult: {
+      thread: {
+        steps: [
+          { agentSlotId: 'scheduler-main', sessionId: 'track-main', sessionName: 'cortex-real' },
+          // targetAgent-mode hook step: sessionName null, sessionId = backend resume id
+          { agentSlotId: 'scheduler-main', sessionId: 'backend-uuid-4', sessionName: null },
+          // legacy insertAgent-mode hook step (defensive exclusion)
+          { agentSlotId: 'hook:end', sessionId: 'hook-backend-id', sessionName: 'cortex-hook' },
+        ],
+      },
+      totalCostUsd: 0.1, totalNumTurns: 3,
+    },
+    project: 'proj-d', trigger: 'scheduled', label: 'scan arxiv',
+    sessionKind: 'scheduled', sessionOrigin: 'scheduled', statusPrefix: 'Done',
+    scheduleId: 'sched-43',
+  });
+
+  const rec = await sessionStore.getById('track-main');
+  assert.ok(rec, 'session registered under the last REAL agent step track id');
+  assert.equal(rec!.name, 'cortex-fin-04');
+  assert.equal(rec!.scheduleId, 'sched-43');
+  assert.equal(rec!.backendSessionId, 'backend-uuid-4', 'backend id kept as the resume target');
+  assert.equal(await sessionStore.getById('backend-uuid-4'), null, 'no ghost record under the hook step id');
+  assert.equal(await sessionStore.getById('hook-backend-id'), null, 'no ghost record under a hook: slot id');
+});
+
 test('finalizeThreadSuccess falls back to result.sessionId when the thread has no steps', async () => {
   await finalizeThreadSuccess(stubAdapter, 'proj-b', null, {
     startTime: Date.now(),

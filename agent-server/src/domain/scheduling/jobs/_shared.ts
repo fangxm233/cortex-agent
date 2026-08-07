@@ -41,13 +41,21 @@ export async function finalizeThreadSuccess(adapter: PlatformAdapter, channel: s
 }): Promise<void> {
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
   if (result?.sessionId) {
-    // Register under the thread's last-step TRACK id: the conversation transcript and the
+    // Register under the last REAL agent step's TRACK id: the conversation transcript and the
     // session.message stream are keyed by it (threads/runner.ts step recorder), so registering
-    // the backend id instead yields a session with no transcript. The step registration for the
-    // same track id (origin 'thread') is intentionally overwritten — one record per run. The
-    // backend id is kept as backendSessionId, the resume target if the user replies to the run.
+    // the backend id instead yields a session with no transcript. Hook-injected steps (onEnd
+    // hooks in targetAgent mode, e.g. post-task-hook's compound/commit step) record
+    // sessionName=null and run under the backend resume id — they write no transcript, so they
+    // must not supply the registration key (a ghost id renders an empty chat in the UI). Real
+    // agent steps always carry a sessionName minted at step start; `hook:` slots are excluded
+    // defensively for the legacy insertAgent mode. The step registration for the same track id
+    // (origin 'thread') is intentionally overwritten — one record per run. The backend id is
+    // kept as backendSessionId, the resume target if the user replies to the run.
     const steps: any[] = threadResult.thread?.steps ?? [];
-    const trackSessionId = steps.length > 0 ? steps[steps.length - 1]?.sessionId : null;
+    const realStep = [...steps]
+      .reverse()
+      .find((s) => s?.sessionName && !String(s?.agentSlotId ?? '').startsWith('hook:'));
+    const trackSessionId = realStep?.sessionId ?? steps[steps.length - 1]?.sessionId ?? null;
     await sessionStore.registerSession(sessionName, {
       sessionId: trackSessionId || result.sessionId, channel,
       backend: getActiveBackend(), kind: sessionKind,
