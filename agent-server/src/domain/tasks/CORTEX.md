@@ -11,7 +11,7 @@ Also tracks dispatched runs, records acceptance verdicts, and recovers claims or
 | dispatcher.ts | core | Selects and claims tasks with fresh generations |
 | dispatch-utils.ts | util | Reloads devices and provides task dispatch helpers |
 | lint.ts | util | checks task files for cycles and errors |
-| mutator.ts | core | Serializes generation-aware mutations and events; preserves the daemon wrapper verbatim, plus the additive §19.12.7 trial factory `createTrialCapabilityAwareTaskMutator` binding the shipped lifecycle functions into the benchmark P3 |
+| mutator.ts | core | Serializes mutations and the trial P3 factory |
 | parser.ts | adapter | re-exports the task file parser |
 | pending-tracker.ts | core | Tracks dispatched tasks, status and generation |
 | store.ts | adapter | re-exports the task store and git lock |
