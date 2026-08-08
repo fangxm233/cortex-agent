@@ -122,6 +122,8 @@ export interface CapabilityAwareTaskMutatorDeps {
   };
   /** C5 — the authoritative row for a task id (the P2 repository read surface). */
   readonly getTask: (taskId: string) => TrialTaskRow | null;
+  /** P2 — the authoritative actionable set, rechecked by the direct P3 claim leg. */
+  readonly getActionable: () => readonly TrialTaskRow[];
   /** P2 — reload the authoritative repository view after a successful lifecycle write. */
   readonly refresh: () => void;
   /** P4 — assert the trial lock; `null` means the trial owner holds it. */
@@ -275,6 +277,9 @@ export function createCapabilityAwareTaskMutator(
       if (row === null) return staleRefusal('task row missing');
       if (row.claimed_by !== null || row.dispatch_generation !== null) {
         return staleRefusal('target is already claimed');
+      }
+      if (!deps.getActionable().some(task => task.id === capability.task_id)) {
+        return lifecycleFailure('target is not actionable', 'claim refused');
       }
       const result = deps.claimTask(
         row.text, deps.project, capability.attempt_id, taskId, capability.dispatch_generation,

@@ -743,6 +743,37 @@ describe('R2-T10 — claim refusals precede any mint; post-registration failure 
       c.cleanup();
     }
   });
+
+  it('P3 rechecks target actionability after registration and before the lifecycle write', () => {
+    const c = buildComposition({
+      extraTasks: [taskRow({
+        id: 'pppp', project: '_placeholder_', text: 'paused target', parent: 'aaaa', paused: true,
+      })],
+    });
+    try {
+      const target = mintActorCapability({
+        trial_id: c.trialId,
+        task_id: 'pppp',
+        dispatch_generation: 'fresh-target-generation',
+        attempt_id: 'paused-target-attempt',
+        role: 'coder',
+        ancestry: ['root', 'aaaa'],
+        capability_whitelist: managerWhitelist(),
+        allowed_actions: ['artifact.write', 'task.read'],
+        issued_at_epoch_ms: 7_000,
+      });
+      c.registry.register(target);
+
+      const result = c.mutator.claim(target, 'pppp');
+      expect(result.success).toBe(false);
+      expect(result).not.toHaveProperty('code');
+      const row = taskById(c, 'pppp')!;
+      expect(row.claimed_by).toBeNull();
+      expect(row.dispatch_generation).toBeNull();
+    } finally {
+      c.cleanup();
+    }
+  });
 });
 
 describe('R2-T11 — unclaim is coordinator-internal self-release, gated by AttemptReleaseAuthority', () => {

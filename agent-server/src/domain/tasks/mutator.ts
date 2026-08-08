@@ -373,7 +373,7 @@ import type { ProposalInput, ProposalRow } from '../benchmark/proposal-seal.js';
  *  supplies these real objects (§19.12.7); the factory adapts them to the structural P3 deps. */
 export interface TrialCapabilityAwareTaskMutatorInput {
   /** §7.2 P2 — the authoritative trial task rows. */
-  readonly repository: Pick<TrialTaskRepository, 'getById' | 'refresh'>;
+  readonly repository: Pick<TrialTaskRepository, 'getById' | 'getActionable' | 'refresh'>;
   /** §7.2 P4 — the trial-owned lock port. */
   readonly locks: TrialTaskLocks;
   /** §8.2 — the exact actor capability registry (S-B). */
@@ -398,6 +398,7 @@ export function createTrialCapabilityAwareTaskMutator(
   return createCapabilityAwareTaskMutator({
     registry: input.registry,
     getTask: taskId => input.repository.getById(taskId),
+    getActionable: () => input.repository.getActionable(),
     refresh: () => input.repository.refresh(),
     assertLock: (project, owner) => input.locks.assertHeld(project, owner),
     claimTask: lifecycleClaimTask,
