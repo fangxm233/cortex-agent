@@ -350,3 +350,64 @@ export class TaskMutator {
 }
 
 export const taskMutator = new TaskMutator();
+
+// ── §19.12.7 the trial capability-aware mutator factory (additive, shipped → benchmark) ────────
+// The import direction is shipped → benchmark: this module imports the structural P3 factory
+// (`benchmark/trial-task-mutator.ts`), never the reverse, so the live X4/X9 rules stay at zero —
+// the benchmark P3 module itself imports only Node builtins and `./capabilities.js`. The factory
+// binds the SAME shipped lifecycle functions this class already imports (claimTask, unclaimTask,
+// decomposeTask, editTask) plus the P2 read/refresh surface, the P4 lock port, the exact
+// registry, the shipped proposal store entry and the coordinator's release authority, and returns
+// the frozen §7.2 `CapabilityAwareTaskMutator` a coordinator binds into `CompositeRuntimePorts`.
+// The daemon wrapper above (class, singleton, all method bodies and all sixteen commitAndPush
+// sites) is byte-unchanged.
+
+import type { CapabilityAwareTaskMutator, TrialTaskLocks, TrialTaskRepository } from '../benchmark/composite-runtime-ports.js';
+import type { ActorCapabilityRegistry } from '../benchmark/actor-capability-scope.js';
+import {
+  createCapabilityAwareTaskMutator, type AttemptReleaseAuthority,
+} from '../benchmark/trial-task-mutator.js';
+import type { ProposalInput, ProposalRow } from '../benchmark/proposal-seal.js';
+
+/** The EXHAUSTIVE production input of `createTrialCapabilityAwareTaskMutator`. Gate 6's bootstrap
+ *  supplies these real objects (§19.12.7); the factory adapts them to the structural P3 deps. */
+export interface TrialCapabilityAwareTaskMutatorInput {
+  /** §7.2 P2 — the authoritative trial task rows. */
+  readonly repository: Pick<TrialTaskRepository, 'getById' | 'refresh'>;
+  /** §7.2 P4 — the trial-owned lock port. */
+  readonly locks: TrialTaskLocks;
+  /** §8.2 — the exact actor capability registry (S-B). */
+  readonly registry: ActorCapabilityRegistry;
+  readonly trialId: string;
+  /** The trial project as the lifecycle functions and the proposal store see it. */
+  readonly project: string;
+  /** The owner the trial lock is held under (the broker asserts the same owner). */
+  readonly lockOwner: string;
+  /** Gate 4's shipped proposal store entry (`proposal-seal.ts`). */
+  readonly recordProposal: (project: string, input: ProposalInput) => ProposalRow;
+  /** The coordinator attempt-finalisation/recovery release authority (Gate 6 supplies it). */
+  readonly attemptReleaseAuthority: AttemptReleaseAuthority;
+}
+
+/** §19.12.7 — the production P3 factory. Tests and Gate 6 drive exactly this factory (plus
+ *  `createDispatcherOwnedClaimTarget` and `createBenchmarkTaskBroker`) with real P2/P4/registry/
+ *  proposal-store objects; there is no alternate test constructor. */
+export function createTrialCapabilityAwareTaskMutator(
+  input: TrialCapabilityAwareTaskMutatorInput,
+): CapabilityAwareTaskMutator {
+  return createCapabilityAwareTaskMutator({
+    registry: input.registry,
+    getTask: taskId => input.repository.getById(taskId),
+    refresh: () => input.repository.refresh(),
+    assertLock: (project, owner) => input.locks.assertHeld(project, owner),
+    claimTask: lifecycleClaimTask,
+    unclaimTask: lifecycleUnclaimTask,
+    decomposeTask: lifecycleDecomposeTask,
+    editTask: lifecycleEditTask,
+    recordProposal: input.recordProposal,
+    attemptReleaseAuthority: input.attemptReleaseAuthority,
+    trialId: input.trialId,
+    project: input.project,
+    lockOwner: input.lockOwner,
+  });
+}

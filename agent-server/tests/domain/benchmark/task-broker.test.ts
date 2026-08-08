@@ -13,6 +13,7 @@ import {
   BENCHMARK_BROKER_ACTIONS, capabilityWhitelistForArm, mintActorCapability,
   type ActorCapability, type BenchmarkBrokerCapability,
 } from '../../../src/domain/benchmark/capabilities.js';
+import { isActionable } from '../../../src/core/task-parser.js';
 import {
   createActorCapabilityRegistry, type ActorCapabilityRegistry,
 } from '../../../src/domain/benchmark/actor-capability-scope.js';
@@ -61,6 +62,7 @@ interface Harness {
   capability: ActorCapability;
   capabilities: ActorCapabilityRegistry;
   touches: string[];
+  claimTargetCalls: { requester: string; targetId: string }[];
   tasks: Map<string, Task>;
   trialRoot: string;
   call(
@@ -84,12 +86,15 @@ interface HarnessOptions {
   ancestry?: string[];
   taskId?: string;
   mutationResult?: { success: boolean; code?: number };
+  proposalRefusal?: { success: false; message: string; code: 33 | 34 };
   proposalError?: { reason: 'proposal_invalidated' | 'ledger_unreadable'; code: 37 | 42 };
+  proposalThrow?: Error;
   qaAnswerResult?: { success: boolean };
 }
 
 function harness(options: HarnessOptions = {}): Harness {
   const touches: string[] = [];
+  const claimTargetCalls: { requester: string; targetId: string }[] = [];
   const trialRoot = mkdtempSync(path.join(tmpdir(), 'f228-trial-'));
   mkdirSync(path.join(trialRoot, 'manager', 'aaaa'), { recursive: true });
 
@@ -101,6 +106,9 @@ function harness(options: HarnessOptions = {}): Harness {
     })],
     ['dddd', taskRow({ id: 'dddd', parent: 'aaaa' })],
     ['cccc', taskRow({ id: 'cccc', parent: 'root' })],
+    // §19.12.2 step 2 targets: a done (non-actionable) and an already-claimed descendant.
+    ['e1', taskRow({ id: 'e1', parent: 'aaaa', status: 'done' })],
+    ['f1', taskRow({ id: 'f1', parent: 'aaaa', claimed_by: 'someone', dispatch_generation: 'g-f1' })],
   ]);
 
   function mutation(touch: string): { success: boolean; code?: number } {
@@ -115,20 +123,26 @@ function harness(options: HarnessOptions = {}): Harness {
       list: (filter: { parent?: string }) => [...tasks.values()].filter(
         task => (filter.parent === undefined ? true : task.parent === filter.parent),
       ),
+      // §19.12.2 step 2: the target must exist in the shipped actionable set.
+      getActionable: () => [...tasks.values()].filter(task => isActionable(task)),
     },
     taskMutator: {
-      claim: (_capability: ActorCapability, id: string) => mutation(`mutator.claim:${id}`),
-      unclaim: (_capability: ActorCapability, id: string) => mutation(`mutator.unclaim:${id}`),
+      // §19.12.1: claim is REMOVED from the narrowed broker view — the model-facing claim
+      // routes through the injected claimTarget callback, never through P3.claim directly.
       add: (_capability: ActorCapability) => mutation('mutator.add'),
       decompose: (_capability: ActorCapability) => mutation('mutator.decompose'),
       edit: (_capability: ActorCapability) => mutation('mutator.edit'),
       proposeComplete: (_capability: ActorCapability, id: string) => {
+        if (options.proposalThrow) throw options.proposalThrow;
         if (options.proposalError) throw Object.assign(new Error('proposal failed'), options.proposalError);
+        if (options.proposalRefusal) return options.proposalRefusal;
         touches.push(`mutator.proposeComplete:${id}`);
         return { state: 'proposed' };
       },
       proposeBlock: (_capability: ActorCapability, id: string) => {
+        if (options.proposalThrow) throw options.proposalThrow;
         if (options.proposalError) throw Object.assign(new Error('proposal failed'), options.proposalError);
+        if (options.proposalRefusal) return options.proposalRefusal;
         touches.push(`mutator.proposeBlock:${id}`);
         return { state: 'proposed' };
       },
@@ -195,6 +209,11 @@ function harness(options: HarnessOptions = {}): Harness {
 
   const broker = createBenchmarkTaskBroker({
     policy, ports, capabilities, project: PROJECT, trialArtifactRoot: trialRoot,
+    // §19.12.2: the model-facing claim routes through the injected dispatcher-owned callback.
+    claimTarget: (requester: ActorCapability, id: string) => {
+      claimTargetCalls.push({ requester: requester.task_id, targetId: id });
+      return mutation(`claimTarget:${id}`);
+    },
   });
 
   return {
@@ -202,6 +221,7 @@ function harness(options: HarnessOptions = {}): Harness {
     capability,
     capabilities,
     touches,
+    claimTargetCalls,
     tasks,
     trialRoot,
     call: (action, payload = {}) => capabilities.runInScope(
@@ -283,7 +303,9 @@ describe('§8.3 the authorization matrix is a closed table of exactly ten action
     expect(BROKER_ACTION_TABLE['task.propose_complete'].guards).toEqual(
       expect.arrayContaining(['target_self', 'generation_current', 'ledger_readable']),
     );
-    expect(BROKER_ACTION_TABLE['task.claim'].guards).toEqual(['in_branch']);
+    expect(BROKER_ACTION_TABLE['task.claim'].guards).toEqual(
+      ['generation_current', 'in_branch', 'claimable_target'],
+    );
     expect(BROKER_ACTION_TABLE['dependency.declare'].guards).toEqual(
       ['in_branch_endpoints', 'acyclic'],
     );
@@ -322,7 +344,7 @@ describe('§8.3 the authorization matrix is a closed table of exactly ten action
     expect(decompose.ok).toBe(true);
     expect(h.touches).toContain('mutator.decompose');
 
-    const claim = await h.call('task.claim', { task_id: 'aaaa' });
+    const claim = await h.call('task.claim', { task_id: 'dddd' });
     expect(claim.ok).toBe(true);
 
     const propose = await h.call('task.propose_complete', { note: 'done' });
@@ -411,7 +433,7 @@ describe('§8.4 R1 stale_generation → code 34', () => {
 
   it('propagates P3 stale_generation instead of reporting a mutation that did not happen', async () => {
     const h = harness({ mutationResult: { success: false, code: 34 } });
-    const result = refusal(await h.call('task.claim', { task_id: 'aaaa' }));
+    const result = refusal(await h.call('task.claim', { task_id: 'dddd' }));
     expect([result.code, result.reason]).toEqual([34, 'stale_generation']);
     expect(h.touches).toEqual([]);
   });
@@ -430,7 +452,7 @@ describe('§8.4 R2 cross_branch_mutation → code 35', () => {
     const h = harness();
     const result = await h.call('task.claim', { task_id: 'dddd' }); // child of aaaa
     expect(result.ok).toBe(true);
-    expect(h.touches).toEqual(['mutator.claim:dddd']);
+    expect(h.touches).toEqual(['claimTarget:dddd']);
   });
 });
 
@@ -577,7 +599,7 @@ describe('§8.4 R8 capability_denied → code 33', () => {
 
 describe('§8.4 R9 budget_exceeded → NO CODE (§18 G5-N4 interim rule)', () => {
   it('refuses a create that would push the trial past max_tasks, code KEY absent', async () => {
-    const h = harness({ maxTasks: 5 }); // 5 tasks already in the table
+    const h = harness({ maxTasks: 7 }); // 7 tasks already in the table
     const result = refusal(await h.call('task.create', { text: 'x' }));
     expect(result.reason).toBe('budget_exceeded');
     expect(result).not.toHaveProperty('code');
@@ -593,7 +615,7 @@ describe('§8.4 R9 budget_exceeded → NO CODE (§18 G5-N4 interim rule)', () =>
   });
 
   it('counts every child in a decompose against max_tasks, not the request as one task', async () => {
-    const h = harness({ maxTasks: 6 }); // 5 existing rows; two children would make 7
+    const h = harness({ maxTasks: 8 }); // 7 existing rows; two children would make 9
     const result = refusal(await h.call('task.decompose', {
       subtasks: [{ text: 'first' }, { text: 'second' }],
     }));
@@ -602,7 +624,7 @@ describe('§8.4 R9 budget_exceeded → NO CODE (§18 G5-N4 interim rule)', () =>
   });
 
   it('admits a create inside both bounds, so the rules discriminate', async () => {
-    const h = harness({ maxTasks: 6, maxTaskDepth: 3 });
+    const h = harness({ maxTasks: 9, maxTaskDepth: 3 });
     const result = await h.call('task.create', { text: 'x' });
     expect(result.ok).toBe(true);
   });
@@ -745,7 +767,7 @@ describe('§8.5 the model-visible projection', () => {
       await h.call('task.read', {}),
       await h.call('task.create', { text: 'x' }),
       await h.call('task.decompose', { subtasks: [{ text: 'x' }] }),
-      await h.call('task.claim', { task_id: 'aaaa' }),
+      await h.call('task.claim', { task_id: 'dddd' }),
       await h.call('task.propose_complete', { note: 'n' }),
       await h.call('task.propose_block', { reason: 'r' }),
       await h.call('artifact.write', { content: 'c' }),
@@ -795,6 +817,126 @@ describe('§8.5 the model-visible projection', () => {
     await expect(h.call('task.claim', {
       task_id: String(seenTask!.id), dispatch_generation: 'echoed',
     })).rejects.toThrow(BrokerArgumentsError);
+    expect(h.touches).toEqual([]);
+  });
+});
+
+describe('§19.12.2 — task.claim is a two-leg broker transaction through the injected claimTarget', () => {
+  it('routes the claim through claimTarget(requester, targetId) and never through taskMutator.claim', async () => {
+    const h = harness({ allowedActions: [...BENCHMARK_BROKER_ACTIONS] });
+    const result = await h.call('task.claim', { task_id: 'dddd' });
+    expect(result.ok).toBe(true);
+    expect((result as { result: Record<string, unknown> }).result).toEqual({ claimed: 'dddd' });
+    expect(h.claimTargetCalls).toEqual([{ requester: 'aaaa', targetId: 'dddd' }]);
+    expect(h.touches).toEqual(['claimTarget:dddd']);
+    // No generation or attempt ever enters the callback arguments (G5-W4.5).
+    expect(JSON.stringify(h.claimTargetCalls)).not.toContain('generation');
+    expect(JSON.stringify(h.claimTargetCalls)).not.toContain('attempt');
+  });
+
+  it('checks requester generation/attempt currency on the requester row BEFORE any claimTarget call', async () => {
+    const h = harness({ generation: 'gen-0', taskGeneration: GEN_1 }); // stale requester
+    const result = refusal(await h.call('task.claim', { task_id: 'dddd' }));
+    expect([result.code, result.reason]).toEqual([34, 'stale_generation']);
+    expect(h.claimTargetCalls).toEqual([]);
+    expect(h.touches).toEqual([]);
+  });
+
+  it('refuses self, non-actionable and already-claimed targets before any claimTarget call', async () => {
+    const h = harness();
+    await expect(h.call('task.claim', { task_id: 'aaaa' })).rejects.toThrow(BrokerArgumentsError); // self
+    await expect(h.call('task.claim', { task_id: 'e1' })).rejects.toThrow(BrokerArgumentsError); // done
+    await expect(h.call('task.claim', { task_id: 'f1' })).rejects.toThrow(BrokerArgumentsError); // claimed
+    expect(h.claimTargetCalls).toEqual([]);
+    expect(h.touches).toEqual([]);
+  });
+
+  it('refuses ancestor (R3) and cross-branch (R2) targets before any claimTarget call', async () => {
+    const h = harness();
+    const ancestor = refusal(await h.call('task.claim', { task_id: 'bbbb' }));
+    expect([ancestor.code, ancestor.reason]).toEqual([35, 'parent_completion_by_child']);
+    const cross = refusal(await h.call('task.claim', { task_id: 'cccc' }));
+    expect([cross.code, cross.reason]).toEqual([35, 'cross_branch_mutation']);
+    expect(h.claimTargetCalls).toEqual([]);
+    expect(h.touches).toEqual([]);
+  });
+
+  it('translates a claimTarget refusal 33/34 through R8/R1 like any other P3 mutation', async () => {
+    const h = harness({ mutationResult: { success: false, code: 33 } });
+    const denied = refusal(await h.call('task.claim', { task_id: 'dddd' }));
+    expect([denied.code, denied.reason]).toEqual([33, 'capability_denied']);
+    const h34 = harness({ mutationResult: { success: false, code: 34 } });
+    const stale = refusal(await h34.call('task.claim', { task_id: 'dddd' }));
+    expect([stale.code, stale.reason]).toEqual([34, 'stale_generation']);
+    expect(h34.touches).toEqual([]);
+  });
+});
+
+describe('§19.12.1/§19.12.6 — the proposal union narrows by literal success:false', () => {
+  it('a MutationRefusal 33 narrows to an R8 capability_denied refusal before any store access', async () => {
+    const h = harness({
+      allowedActions: ['task.propose_complete'],
+      proposalRefusal: { success: false, message: 'not allowed', code: 33 },
+    });
+    const result = refusal(await h.call('task.propose_complete', { note: 'n' }));
+    expect([result.code, result.reason]).toEqual([33, 'capability_denied']);
+    expect(h.touches).toEqual([]); // the store was never touched
+  });
+
+  it('a MutationRefusal 34 narrows to an R1 stale_generation refusal before any store access', async () => {
+    const h = harness({
+      allowedActions: ['task.propose_block'],
+      proposalRefusal: { success: false, message: 'stale', code: 34 },
+    });
+    const result = refusal(await h.call('task.propose_block', { reason: 'r' }));
+    expect([result.code, result.reason]).toEqual([34, 'stale_generation']);
+    expect(h.touches).toEqual([]);
+  });
+
+  it('a valid proposal keeps the bare proposal_recorded ack — no row fields reach the model', async () => {
+    const h = harness({ allowedActions: ['task.propose_complete'] });
+    const result = await h.call('task.propose_complete', { note: 'done' });
+    expect(result.ok).toBe(true);
+    expect((result as { result: Record<string, unknown> }).result).toEqual({ proposal_recorded: true });
+    expect(JSON.stringify(result)).not.toContain('state');
+    expect(JSON.stringify(result)).not.toContain('intent');
+  });
+
+  it('proposal refusal codes 33/34 are returned by value, never thrown', async () => {
+    const h = harness({
+      allowedActions: ['task.propose_complete'],
+      proposalRefusal: { success: false, message: 'stale', code: 34 },
+    });
+    const result = await h.call('task.propose_complete', { note: 'n' });
+    expect(result.ok).toBe(false);
+    expect(result).not.toBeInstanceOf(Error);
+  });
+});
+
+describe('§19.12.5 — unclaim has no broker action, tool or CLI name', () => {
+  it('the ten-row matrix carries no task.unclaim row and the tool map no task_unclaim name', () => {
+    expect(BROKER_ACTION_TABLE).not.toHaveProperty('task.unclaim');
+    expect(BROKER_TOOL_NAMES).not.toHaveProperty('task.unclaim');
+    expect(Object.values(BROKER_TOOL_NAMES)).not.toContain('task_unclaim');
+    expect(BENCHMARK_BROKER_ACTIONS).not.toContain('task.unclaim');
+  });
+});
+
+describe('§19.12.6 — typedPortFailure matches the public reason, never detail', () => {
+  it('a store failure carries reason ledger_unreadable + code 42 to the refusal frame', async () => {
+    const h = harness({
+      allowedActions: ['task.propose_complete'],
+      proposalError: { reason: 'ledger_unreadable', code: 42 },
+    });
+    const result = refusal(await h.call('task.propose_complete', { note: 'n' }));
+    expect([result.code, result.reason]).toEqual([42, 'ledger_unreadable']);
+    expect(h.touches).toEqual([]);
+  });
+
+  it('an unknown port error is rethrown, never swallowed or mistranslated', async () => {
+    const unknown = new Error('mystery failure');
+    const h = harness({ allowedActions: ['task.propose_complete'], proposalThrow: unknown });
+    await expect(h.call('task.propose_complete', { note: 'n' })).rejects.toBe(unknown);
     expect(h.touches).toEqual([]);
   });
 });

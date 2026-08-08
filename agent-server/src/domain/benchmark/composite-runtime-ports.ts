@@ -45,6 +45,7 @@ import type {
 } from './composite-manifest.js';
 import type { ActorCapability } from './capabilities.js';
 import type { ProposalRow, SealedOutcome } from './proposal-seal.js';
+import type { MutationRefusal, ProposalMutationResult } from './trial-task-mutator.js';
 import { PolicyCompilationError, type ResolvedTrialPolicy } from './resolved-policy.js';
 import type { SettingsSnapshot } from './settings-snapshot.js';
 import { createTrialAcceptanceLedger } from './trial-acceptance-ledger.js';
@@ -94,7 +95,10 @@ export interface TaskMutationRequest {
 /** §8.6: sealing is the coordinator's, so this port has **no** `complete` and no `block`. The
  *  shipped `TaskMutator.complete`/`block` publish `task.completed`/`task.blocked` on the bus and
  *  emit an ambient hook event in the same call — they *are* today's seal-free callback trigger,
- *  and they are replaced rather than lifted. */
+ *  and they are replaced rather than lifted. §19.12.1: the two proposal methods return
+ *  `ProposalMutationResult` — the exact `ProposalRow` from `recordProposal`, or a by-value
+ *  `MutationRefusal` (literal `success:false`, code 33|34) — never a Promise and never a thrown
+ *  code. */
 export interface CapabilityAwareTaskMutator {
   claim(capability: ActorCapability, taskId: string): BrokerResult;
   unclaim(capability: ActorCapability, taskId: string): BrokerResult;
@@ -103,11 +107,21 @@ export interface CapabilityAwareTaskMutator {
   edit(capability: ActorCapability, request: TaskMutationRequest): BrokerResult;
   proposeComplete(
     capability: ActorCapability, taskId: string, note: string,
-  ): ProposalRow;
+  ): ProposalMutationResult;
   proposeBlock(
     capability: ActorCapability, taskId: string, reason: string,
-  ): ProposalRow;
+  ): ProposalMutationResult;
 }
+
+/** §19.12.1 — the two named result types of the corrected P3 contract, declared structurally in
+ *  `trial-task-mutator.ts` and re-exported here so the frozen port and the broker share one name. */
+export type { MutationRefusal, ProposalMutationResult } from './trial-task-mutator.js';
+
+// §19.12.1 — the wiring-point pin: the structural ProposalRow of ProposalMutationResult must
+// accept the shipped ten-field row (`proposal-seal.ts:125-153`). Compiles only while the shapes
+// agree; a field added to the shipped row without a structural counterpart stops the build.
+const _proposalRowPinsToShippedRow: (row: ProposalRow) => ProposalMutationResult = row => row;
+void _proposalRowPinsToShippedRow;
 
 // --- P4 -----------------------------------------------------------------------------------------
 

@@ -16,11 +16,15 @@ import { profileRepo, PROFILES_FILE } from '../../../src/store/profile-repo.js';
 import * as throttle from '../../../src/domain/costs/rate-limit-throttle.js';
 import { MockAdapter } from '../../../src/platform/testing.js';
 import {
-  createTrialTaskDispatcher, filterTrialDispatchable,
+  createTrialTaskDispatcher, filterTrialDispatchable, mintTrialDispatchGeneration,
+  createDispatcherOwnedClaimTarget,
+  type TargetAttemptFields,
   type TrialTaskDispatcherDeps, type TrialThreadTemplate,
 } from '../../../src/domain/benchmark/trial-task-dispatcher.js';
 import { createDispatcherPort } from '../../../src/domain/benchmark/composite-runtime-ports.js';
 import { createTrialClock } from '../../../src/domain/benchmark/trial-clock.js';
+import { createActorCapabilityRegistry, type ActorCapabilityRegistry } from '../../../src/domain/benchmark/actor-capability-scope.js';
+import { mintActorCapability, type ActorCapability, type BenchmarkBrokerCapability } from '../../../src/domain/benchmark/capabilities.js';
 import type { Task } from '../../../src/core/task-parser.js';
 
 // --- fixtures ----------------------------------------------------------------
@@ -416,5 +420,125 @@ describe('createDispatcherPort — P9 wired into CompositeRuntimePorts (§7.2)',
     expect(selection).not.toBeNull();
     expect(selection!.task.id).toBe('a1');
     expect(port.buildDispatchPrompt(selection!.task)).toBe(selection!.prompt);
+  });
+});
+
+// --- §19.12.2/§19.12.7 the sole generation mint and the dispatcher-owned claim callback ---------
+
+describe('mintTrialDispatchGeneration — the sole P9 generation mint (§19.12.2)', () => {
+  it('is exported and returns a fresh randomUUID per call', () => {
+    const first = mintTrialDispatchGeneration();
+    const second = mintTrialDispatchGeneration();
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(second).not.toBe(first);
+  });
+
+  it('ordinary selection still mints through the shared mint and claims with it', () => {
+    const f = fixture();
+    f.addTemplate('benchmark-coder-review', makeTemplate('benchmark-coder-review'));
+    f.setTasks([makeTask({ id: 'a1', project: 'trial', text: 'shared mint' })]);
+    const selection = createTrialTaskDispatcher(f.deps).selectAndClaim({ trial: 'trial-1' });
+    expect(selection!.dispatchGeneration).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(f.claims[0].generation).toBe(selection!.dispatchGeneration);
+  });
+});
+
+describe('createDispatcherOwnedClaimTarget — the production claim callback factory (§19.12.2/§19.12.7)', () => {
+  interface CallbackFixture {
+    registry: ActorCapabilityRegistry;
+    claimCalls: { capability: ActorCapability; taskId: string }[];
+    authority: { fields: TargetAttemptFields | null };
+    callback: (requester: ActorCapability, targetId: string) => { success: boolean; message?: string; code?: number };
+    requester: ActorCapability;
+  }
+
+  function callbackFixture(overrides: {
+    claimResult?: { success: boolean; message?: string; code?: number };
+    authorityFields?: TargetAttemptFields;
+  } = {}): CallbackFixture {
+    const registry = createActorCapabilityRegistry('trial-cb');
+    const whitelist: BenchmarkBrokerCapability[] = ['artifact.write', 'task.read', 'task.claim'];
+    const requester = mintActorCapability({
+      trial_id: 'trial-cb',
+      task_id: 'aaaa',
+      dispatch_generation: 'requester-gen',
+      attempt_id: 'requester-attempt',
+      role: 'manager',
+      ancestry: ['root'],
+      capability_whitelist: whitelist,
+      issued_at_epoch_ms: 1_000,
+    });
+    registry.register(requester);
+    const claimCalls: { capability: ActorCapability; taskId: string }[] = [];
+    const authority = {
+      fields: overrides.authorityFields ?? {
+        attempt_id: 'target-attempt',
+        role: 'coder' as const,
+        ancestry: ['root', 'aaaa'],
+        allowed_actions: ['artifact.write', 'task.read'] as BenchmarkBrokerCapability[],
+        issued_at_epoch_ms: 2_000,
+      },
+    };
+    const callback = createDispatcherOwnedClaimTarget({
+      registry,
+      claim: (capability, taskId) => {
+        claimCalls.push({ capability, taskId });
+        return overrides.claimResult ?? { success: true, message: 'claimed' };
+      },
+      capability_whitelist: whitelist,
+      targetAttemptAuthority: {
+        current: () => {
+          if (authority.fields === null) throw new Error('authority unset');
+          return authority.fields;
+        },
+      },
+    });
+    return { registry, claimCalls, authority, callback, requester };
+  }
+
+  it('mints and registers ONE production target capability and calls P3 claim with it', () => {
+    const fx = callbackFixture();
+    const result = fx.callback(fx.requester, 'dddd');
+    expect(result.success).toBe(true);
+
+    expect(fx.claimCalls).toHaveLength(1);
+    const target = fx.claimCalls[0].capability;
+    expect(fx.claimCalls[0].taskId).toBe('dddd');
+    expect(target.task_id).toBe('dddd');
+    expect(target.trial_id).toBe('trial-cb'); // requester.trial_id, never a second trial
+    expect(target.attempt_id).toBe('target-attempt');
+    expect(target.role).toBe('coder');
+    expect(target.ancestry).toEqual(['root', 'aaaa']);
+    expect([...target.allowed_actions]).toEqual(['artifact.write', 'task.read']);
+    expect(target.issued_at_epoch_ms).toBe(2_000);
+    // The fresh P9 mint, never the requester's generation.
+    expect(target.dispatch_generation).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(target.dispatch_generation).not.toBe(fx.requester.dispatch_generation);
+
+    expect(fx.registry.liveCount()).toBe(2); // requester + exactly one target capability
+    expect(fx.registry.currentAttempt('dddd')).toEqual({
+      dispatch_generation: target.dispatch_generation,
+      attempt_id: 'target-attempt',
+    });
+  });
+
+  it('on a P3 refusal, invalidates the target token and returns the failure unchanged', () => {
+    const fx = callbackFixture({ claimResult: { success: false, message: 'stale', code: 34 } });
+    const result = fx.callback(fx.requester, 'dddd');
+    expect(result).toEqual({ success: false, message: 'stale', code: 34 });
+
+    expect(fx.registry.liveCount()).toBe(1); // the target token was invalidated
+    const target = fx.claimCalls[0].capability;
+    expect(fx.registry.isLive(target.token_id)).toBe(false);
+    expect(fx.registry.isRegistered(target)).toBe(false);
+    // The requester token is untouched.
+    expect(fx.registry.isLive(fx.requester.token_id)).toBe(true);
+  });
+
+  it('never reports success on a refused claim', () => {
+    const fx = callbackFixture({ claimResult: { success: false, message: 'denied', code: 33 } });
+    const result = fx.callback(fx.requester, 'dddd');
+    expect(result.success).toBe(false);
+    expect(result.code).toBe(33);
   });
 });

@@ -5,6 +5,10 @@
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import type { Task } from '../../core/task-parser.js';
+import {
+  mintActorCapability,
+  type ActorCapability, type BenchmarkBrokerCapability, type RoleSlot,
+} from './capabilities.js';
 
 const log = createLogger('trial-task-dispatch');
 
@@ -59,6 +63,81 @@ export interface TrialTaskDispatcherDeps {
   sleep(ms: number, signal?: AbortSignal): Promise<void>;
 }
 
+/** §19.12.2 step 4 — the SOLE dispatch-generation mint. Both ordinary selection and the
+ *  requested-target claim call it; no other code path mints a generation, and P3 receives no
+ *  random generator. Verbatim in expression and semantics from the shipped mint. */
+export function mintTrialDispatchGeneration(): string {
+  const dispatchGeneration = randomUUID();
+  return dispatchGeneration;
+}
+
+/** §19.12.2 step 5 — the five target-attempt fields the Gate-6 target-attempt authority returns
+ *  for a requested claim. Exactly these five; no generation, token or ticket field exists here. */
+export interface TargetAttemptFields {
+  readonly attempt_id: string;
+  readonly role: RoleSlot;
+  readonly ancestry: readonly string[];
+  readonly allowed_actions: readonly BenchmarkBrokerCapability[];
+  readonly issued_at_epoch_ms: number;
+}
+
+export interface TargetAttemptAuthority {
+  current(requester: ActorCapability, targetId: string): TargetAttemptFields;
+}
+
+/** §19.12.2 — the EXHAUSTIVE input of the dispatcher-owned claim callback factory: the registry,
+ *  the P3 claim method, the frozen capability whitelist and the target-attempt authority. It
+ *  receives no random function and no caller-supplied generation. */
+export interface DispatcherOwnedClaimTargetInput {
+  readonly registry: {
+    register(capability: ActorCapability): string;
+    invalidateToken(tokenId: string): void;
+  };
+  /** P3 `claim` — invoked with the fresh TARGET capability, never the requester. */
+  readonly claim: (
+    capability: ActorCapability, taskId: string,
+  ) => { success: boolean; message?: string; code?: number };
+  /** §2.4's frozen action set for the arm. */
+  readonly capability_whitelist: readonly BenchmarkBrokerCapability[];
+  readonly targetAttemptAuthority: TargetAttemptAuthority;
+}
+
+/** §19.12.2 steps 3–8 — the second leg of `task.claim`. The broker proves the requester and the
+ *  target, then calls this callback: it mints a FRESH generation through the sole P9 mint, mints
+ *  and registers ONE target ActorCapability (trial_id = requester.trial_id), invokes
+ *  `P3.claim(targetCapability, targetId)`, and — on a refusal — invalidates the target token
+ *  before returning the failure, so no task claim is ever reported as success. Gate 6 passes the
+ *  resulting callback as `BrokerConstruction.claimTarget`. */
+export function createDispatcherOwnedClaimTarget(
+  input: DispatcherOwnedClaimTargetInput,
+): (requester: ActorCapability, targetId: string) => { success: boolean; message?: string; code?: number } {
+  const { registry, claim, capability_whitelist, targetAttemptAuthority } = input;
+  return (requester, targetId) => {
+    // Step 4 — the fresh generation comes from the sole P9 mint, never from the requester.
+    const dispatchGeneration = mintTrialDispatchGeneration();
+    // Step 5 — the target-attempt authority supplies the five attempt fields.
+    const target = targetAttemptAuthority.current(requester, targetId);
+    const capability = mintActorCapability({
+      trial_id: requester.trial_id,
+      task_id: targetId,
+      dispatch_generation: dispatchGeneration,
+      attempt_id: target.attempt_id,
+      role: target.role,
+      ancestry: target.ancestry,
+      capability_whitelist,
+      allowed_actions: target.allowed_actions,
+      issued_at_epoch_ms: target.issued_at_epoch_ms,
+    });
+    // Step 5 — register the exact returned object through the sole production registry.
+    registry.register(capability);
+    // Step 6 — P3 sees only the fresh target capability.
+    const result = claim(capability, targetId);
+    // Step 8 — a refused claim invalidates the target token before the failure is returned.
+    if (!result.success) registry.invalidateToken(capability.token_id);
+    return result;
+  };
+}
+
 /** §7.2 P9. The in-trial dispatcher behind the frozen `AwaitableTaskDispatcher` interface. */
 export interface TrialTaskDispatcher {
   selectAndClaim(input: { trial: string }): TrialDispatchSelection | null;
@@ -92,8 +171,8 @@ function selectAndClaimOnce(deps: TrialTaskDispatcherDeps): TrialDispatchSelecti
     return null;
   }
 
-  // The generation fence, minted per claim. Verbatim in expression and semantics.
-  const dispatchGeneration = randomUUID();
+  // The generation fence, minted per claim through the sole P9 mint.
+  const dispatchGeneration = mintTrialDispatchGeneration();
   const claim = deps.claim(selected.id, dispatchGeneration);
   if (!claim.success) {
     log.warn(`Claim refused for [${selected.project}] ${selected.id}: ${claim.message ?? 'unknown'}`);

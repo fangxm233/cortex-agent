@@ -108,6 +108,15 @@ export interface BrokerSuccess {
 
 export type BrokerCallResult = BrokerSuccess | BrokerRefusal;
 
+/** §19.12.2 — the structural `BrokerResult` of the frozen §7.2 P3 port, declared here because the
+ *  interface module cannot be imported (its closure is a platform reach, §18 G5-R2). The
+ *  claimTarget callback returns it; the frozen bundle's `CapabilityAwareTaskMutator` satisfies it. */
+export interface BrokerResult {
+  success: boolean;
+  message?: string;
+  code?: number;
+}
+
 function refusalFor(
   action: BenchmarkBrokerCapability, reason: BrokerRefusalReason, code?: number,
 ): BrokerRefusal {
@@ -134,14 +143,21 @@ function succeed(
 }
 
 /** P3's frozen error modes are code 33 capability miss and code 34 generation miss. A false result
- *  is already a no-mutation refusal; never turn it into a success acknowledgement. */
+ *  is already a no-mutation refusal; never turn it into a success acknowledgement. An ordinary
+ *  lifecycle/input/lock failure has NO invented code (§19.12.4) and is surfaced as a
+ *  `BrokerArgumentsError` — never translated to 33/34 and never treated as success. */
 function mutationRefusal(
   action: BenchmarkBrokerCapability,
-  result: { readonly success: boolean; readonly code?: number },
+  result: { readonly success: boolean; readonly code?: number; readonly message?: string },
 ): BrokerRefusal | null {
   if (result.success) return null;
   if (result.code === 33) return refuse(action, 'R8');
   if (result.code === 34) return refuse(action, 'R1');
+  if (result.code === undefined) {
+    throw new BrokerArgumentsError(
+      action, `P3 returned an ordinary no-code failure: ${result.message ?? 'unknown'}`,
+    );
+  }
   throw new TypeError(`P3 returned an unsupported failure code: ${String(result.code)}`);
 }
 
@@ -183,7 +199,7 @@ const PROFILE_SHAPED_ARGUMENT_KEYS: readonly string[] = ['profile', 'profile_nam
 export type BrokerGuardId =
   | 'read_scope' | 'in_branch' | 'in_branch_endpoints' | 'acyclic' | 'target_self'
   | 'generation_current' | 'ledger_readable' | 'lock_held' | 'template_whitelisted'
-  | 'task_budget' | 'depth_budget' | 'trial_path' | 'qa_whitelisted';
+  | 'task_budget' | 'depth_budget' | 'trial_path' | 'qa_whitelisted' | 'claimable_target';
 
 export interface BrokerActionSpec {
   readonly action: BenchmarkBrokerCapability;
@@ -227,7 +243,13 @@ export const BROKER_ACTION_TABLE: Readonly<Record<BenchmarkBrokerCapability, Bro
       'task.decompose', ['subtasks'],
       ['lock_held', 'generation_current', 'template_whitelisted', 'task_budget', 'depth_budget'],
     ),
-    'task.claim': row('task.claim', ['task_id'], ['in_branch']),
+    'task.claim': row(
+      'task.claim', ['task_id'],
+      // §19.12.2: requester currency first, then R3/R2 branch refusals, then the strict
+      // actionable-unclaimed-descendant proof — self, non-actionable and already-claimed
+      // targets are BrokerArgumentsError before any mint or port call.
+      ['generation_current', 'in_branch', 'claimable_target'],
+    ),
     'task.propose_complete': row(
       'task.propose_complete', ['note'],
       ['target_self', 'generation_current', 'ledger_readable'],
@@ -298,18 +320,33 @@ export interface BrokerMutationRequest {
   fields: Readonly<Record<string, unknown>>;
 }
 
+/** §19.12.1 — the by-value refusal member of the proposal union, declared structurally (the
+ *  real type lives in `trial-task-mutator.ts`; importing it here would be a new edge for the
+ *  reachability rules to audit, and the structural shape is what the broker discriminates on). */
+export interface BrokerMutationRefusal {
+  readonly success: false;
+  readonly message: string;
+  readonly code: 33 | 34;
+}
+
+/** The proposal port's corrected return: the exact `ProposalRow` or a by-value refusal. The row
+ *  member is a structural stand-in (the broker only discriminates and discards it); the frozen
+ *  `ProposalRow` satisfies it, which the compile-time pin in `task-broker.test.ts` proves. */
+export type BrokerProposalResult = { readonly state: string } | BrokerMutationRefusal;
+
 /** The narrowed, structural view of the frozen §7.2 ports this broker calls. The frozen bundle must
  *  satisfy it (pinned by test), and it references the S-B `ActorCapability` for every `cap`
- *  parameter, exactly as the frozen declarations do after the token wiring. */
+ *  parameter, exactly as the frozen declarations do after the token wiring. `claim` is REMOVED
+ *  from this view (§19.12.1): the model-facing claim routes through the injected
+ *  `BrokerConstruction.claimTarget` callback, never through `taskMutator.claim`. */
 export interface BrokerPorts {
   readonly taskRepository: {
     getById(taskId: string): Task | null;
     list(filter: { project?: string; status?: string; parent?: string }): Task[];
+    /** §19.12.2 step 2 — the claim target must exist in the shipped actionable set. */
+    getActionable(): Task[];
   };
   readonly taskMutator: {
-    claim(
-      capability: ActorCapability, taskId: string,
-    ): { success: boolean; code?: number };
     add(
       capability: ActorCapability, request: BrokerMutationRequest,
     ): { success: boolean; code?: number };
@@ -319,14 +356,16 @@ export interface BrokerPorts {
     edit(
       capability: ActorCapability, request: BrokerMutationRequest,
     ): { success: boolean; code?: number };
-    /** Routes into Gate 4's shipped `proposal-seal.ts` through P3, per §7.2 P3 / (17.2.1), which
-     *  is the next child's coupling — never re-implemented here. */
+    /** §19.12.1/§19.12.6 — routes into Gate 4's shipped `proposal-seal.ts` through P3, returning
+     *  the exact `recordProposal` row or a by-value `MutationRefusal` (33|34). The broker narrows
+     *  the union by the literal `success:false` member; `ProposalSealError` (37/42) stays thrown
+     *  and flows through `typedPortFailure`. */
     proposeComplete(
       capability: ActorCapability, taskId: string, note: string,
-    ): { readonly state: string };
+    ): BrokerProposalResult;
     proposeBlock(
       capability: ActorCapability, taskId: string, reason: string,
-    ): { readonly state: string };
+    ): BrokerProposalResult;
   };
   readonly taskLocks: {
     assertHeld(project: string, owner: string): string | null;
@@ -357,6 +396,14 @@ export interface BrokerConstruction {
   readonly project: string;
   /** §7.2 P5's repointed root. R5 resolve-then-contains every path against it. */
   readonly trialArtifactRoot: string;
+  /** §19.12.2 — the dispatcher-owned two-leg claim callback. The broker proves the requester
+   *  (currency on the requester row) and the target (strict actionable unclaimed descendant) and
+   *  then calls this callback; it is separate from `BrokerPorts.taskMutator` so requester
+   *  authority can never be confused with target authority. Constructed by
+   *  `createDispatcherOwnedClaimTarget` in `trial-task-dispatcher.ts`. */
+  readonly claimTarget: (
+    requester: ActorCapability, targetId: string,
+  ) => BrokerResult;
 }
 
 export interface BenchmarkTaskBroker {
@@ -379,7 +426,7 @@ export interface BenchmarkTaskBroker {
 // ── the fence ───────────────────────────────────────────────────────────────
 
 export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkTaskBroker {
-  const { policy, ports, capabilities, project, trialArtifactRoot } = input;
+  const { policy, ports, capabilities, project, trialArtifactRoot, claimTarget: constructionClaimTarget } = input;
   const templateWhitelist = new Set(policy.child_template_whitelist);
 
   function descendantsOf(taskId: string): Set<string> {
@@ -433,6 +480,31 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
       for (const endpoint of endpoints) {
         const rejection = branchRejection(capability, endpoint);
         if (rejection !== null) return rejection;
+      }
+      return null;
+    },
+
+    // §19.12.2 step 2 — the claim target proof, AFTER the requester's generation_current and the
+    // R3/R2 branch refusals: the target must be a STRICT descendant (self is refused), must exist
+    // in the shipped actionable set, and must be unclaimed (claimed_by and generation both null).
+    // These three failures are BrokerArgumentsError — the class is made unexpressible rather
+    // than policed — and they fire before any mint or port call, so no capability is ever minted
+    // for a target that cannot be claimed.
+    claimable_target: ({ capability, payload }) => {
+      const target = String(payload.task_id);
+      if (target === capability.task_id) {
+        throw new BrokerArgumentsError(
+          'task.claim', 'claiming the capability\'s own task is not a strict descendant claim',
+        );
+      }
+      const row = ports.taskRepository.getActionable().find(task => task.id === target);
+      if (row === undefined) {
+        throw new BrokerArgumentsError(
+          'task.claim', `target ${target} is not an actionable trial task`,
+        );
+      }
+      if (row.claimed_by !== null || row.dispatch_generation !== null) {
+        throw new BrokerArgumentsError('task.claim', `target ${target} is already claimed`);
       }
       return null;
     },
@@ -603,18 +675,25 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
         return rejected ?? succeed(action, { decomposed: true });
       }
       case 'task.claim': {
+        // §19.12.2: the model-facing claim calls the injected dispatcher-owned callback, never
+        // P3.claim directly — the callback mints/registers the target capability and P3 claims
+        // with it, so requester authority is never reused as target authority.
         const target = String(payload.task_id);
-        const rejected = mutationRefusal(action, ports.taskMutator.claim(capability, target));
+        const rejected = mutationRefusal(action, constructionClaimTarget(capability, target));
         return rejected ?? succeed(action, { claimed: target });
       }
-      case 'task.propose_complete':
-        ports.taskMutator.proposeComplete(capability, capability.task_id, String(payload.note));
-        // §8.6: the model does not get to see its own proposal as a result — the row carries the
-        // generation and the attempt (G5-W4.5), so only the bare ack is returned.
-        return succeed(action, { proposal_recorded: true });
-      case 'task.propose_block':
-        ports.taskMutator.proposeBlock(capability, capability.task_id, String(payload.reason));
-        return succeed(action, { proposal_recorded: true });
+      case 'task.propose_complete': {
+        const result = ports.taskMutator.proposeComplete(
+          capability, capability.task_id, String(payload.note),
+        );
+        return proposalRefusal(action, result) ?? succeed(action, { proposal_recorded: true });
+      }
+      case 'task.propose_block': {
+        const result = ports.taskMutator.proposeBlock(
+          capability, capability.task_id, String(payload.reason),
+        );
+        return proposalRefusal(action, result) ?? succeed(action, { proposal_recorded: true });
+      }
       case 'artifact.write':
         ports.taskArtifacts.write(capability, String(payload.content));
         return succeed(action, { written: true });
@@ -688,6 +767,23 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
+
+/** §19.12.1/§19.12.6 — narrows the proposal union by the literal `success:false` member. An
+ *  exact `ProposalRow` has no success field and is the success case (the bare ack is returned).
+ *  A refusal is translated by value: 33 through R8, 34 through R1. Codes 33/34 are never thrown
+ *  and a proposal refusal never reaches the store. */
+function proposalRefusal(
+  action: BenchmarkBrokerCapability,
+  result: BrokerProposalResult,
+): BrokerRefusal | null {
+  if (!('success' in result)) return null;
+  if (result.success === false) {
+    if (result.code === 33) return refuse(action, 'R8');
+    if (result.code === 34) return refuse(action, 'R1');
+    throw new TypeError(`P3 returned an unsupported proposal refusal code: ${String(result.code)}`);
+  }
+  throw new TypeError('P3 proposal result carries success:true — not a ProposalRow');
+}
 
 function typedPortFailure(
   error: unknown,

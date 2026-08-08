@@ -148,3 +148,64 @@ describe('CompositeRuntimePorts (§7.2)', () => {
     });
   });
 });
+
+// --- §19.12 corrected P3 wiring: the proposal union and the claim callback ----------------------
+
+import type { ProposalRow } from '../../../src/domain/benchmark/proposal-seal.js';
+import type { ActorCapability } from '../../../src/domain/benchmark/capabilities.js';
+import { createDispatcherOwnedClaimTarget } from '../../../src/domain/benchmark/trial-task-dispatcher.js';
+import { createTrialCapabilityAwareTaskMutator } from '../../../src/domain/tasks/mutator.js';
+import {
+  type MutationRefusal, type ProposalMutationResult,
+} from '../../../src/domain/benchmark/composite-runtime-ports.js';
+
+describe('§19.12.1 — the corrected proposal union and the P3 wiring point', () => {
+  it('the P3 port\'s proposal methods return ProposalMutationResult, re-exported from the structural module', () => {
+    type ProposalReturn = ReturnType<CompositeRuntimePorts['taskMutator']['proposeComplete']>;
+    const same: Exact<ProposalReturn, ProposalMutationResult> = true;
+    expect(same).toBe(true);
+    type RefusalReturn = ReturnType<CompositeRuntimePorts['taskMutator']['proposeBlock']>;
+    const refusalSame: Exact<RefusalReturn, ProposalMutationResult> = true;
+    expect(refusalSame).toBe(true);
+  });
+
+  it('the structural ProposalRow pins to the shipped ten-field row at the wiring point', () => {
+    // Compiles only while the shipped ten-field ProposalRow is assignable to the structural
+    // ProposalMutationResult the port returns — the pin §19.12.1 names.
+    const pin: (row: ProposalRow) => ProposalMutationResult = row => row;
+    expect(typeof pin).toBe('function');
+  });
+
+  it('MutationRefusal is the literal success:false union member with code 33|34', () => {
+    type Refusal = MutationRefusal;
+    const refusal: Refusal = { success: false, message: 'denied', code: 33 };
+    expect(refusal.success).toBe(false);
+    // A non-literal success is not assignable to the refusal member (compile-time).
+    const code34: Refusal = { success: false, message: 'stale', code: 34 };
+    expect(code34.code).toBe(34);
+  });
+
+  it('the P3 claim method stays on the frozen port and returns BrokerResult synchronously', () => {
+    type ClaimReturn = ReturnType<CompositeRuntimePorts['taskMutator']['claim']>;
+    const claim: ClaimReturn = { success: true, message: 'claimed' };
+    expect(claim.success).toBe(true);
+  });
+});
+
+describe('§19.12.2/§19.12.7 — the dispatcher-owned claim callback satisfies the broker contract', () => {
+  it('createDispatcherOwnedClaimTarget\'s output is assignable to BrokerConstruction.claimTarget', () => {
+    // The callback is a VALUE injected into task-broker.ts; this pin compiles only while the
+    // production factory's output satisfies the broker's structural claimTarget shape.
+    const pin = (callback: ReturnType<typeof createDispatcherOwnedClaimTarget>) =>
+      (requester: ActorCapability, targetId: string) => callback(requester, targetId);
+    expect(typeof pin).toBe('function');
+  });
+});
+
+describe('§19.12.7 — the production mutator factory satisfies the frozen port and the broker view', () => {
+  it('createTrialCapabilityAwareTaskMutator\'s output satisfies CompositeRuntimePorts.taskMutator', () => {
+    const pin = (mutator: ReturnType<typeof createTrialCapabilityAwareTaskMutator>) =>
+      mutator as CompositeRuntimePorts['taskMutator'];
+    expect(typeof pin).toBe('function');
+  });
+});
