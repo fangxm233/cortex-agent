@@ -4,31 +4,31 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 
 | filename | role | function |
 |---|---|---|
-| accounting-reconciliation.test.ts | 测试 | 验证标记联合、纯度、容差、未记账角色与操作数对齐 |
-| actor-capability.test.ts | 测试 | 验证令牌铸造、永久失效、顺序和作用域边界 |
-| attempt-record.test.ts | 测试 | 验证 39 成员齐备、13 类封闭边、标识铸造与线程标识双条件 |
-| composite-runtime-ports.test.ts | 测试 | 验证 23 端口齐备、仅声明端口接线与未绑定拒绝 |
-| isolation-literals.test.ts | 测试 | X12 权威载体：Gate 5 各模块不得出现 webhook 字面量 |
-| isolation-rules.test.ts | 测试 | 验证十三条规则形状、已交付层规则未变，并钉住每条计数 |
-| composite-manifest.test.ts | 测试 | 双向验证规范形式、账目原样放置与每条命名码的拒绝 |
-| guard-lease-state.test.ts | 测试 | 验证守卫表按角色类编译、选择器每步取自实时租约 |
-| lease-echo.test.ts | 测试 | 验证回声文档、控制路由投递与拒绝传播 |
-| settings-snapshot.test.ts | 测试 | 验证冻结记录、缺键抛出、一次性捕获与无重载 |
-| task-broker-arguments.test.ts | 测试 | 验证十个入口的严格参数模式与码点边界 |
-| task-broker.test.ts | 测试 | 验证十动作守卫、类型化拒绝和投影隔离 |
-| trial-acceptance-ledger.test.ts | 测试 | 验证严格台账形状、旧格式例外和生产能力接线 |
-| trial-task-mutator.test.ts | 测试 | 验证生产链上的能力围栏与提案契约 |
-| port-scope-fence.test.ts | 测试 | 验证 I3 出域即抛 32 号、守护进程回退不变、围栏随试验起落 |
-| trial-task-ports.test.ts | 测试 | 验证 git 截断、P4 接线、realpath 约束及守护进程回归 |
-| policy-backed-runtime-deps.test.ts | 测试 | 验证冻结解析与运行时拒绝 |
-| policy-compiler.test.ts | 测试 | 验证 arm 编译、分发、调用一致性与投影 |
-| proposal-seal.test.ts | 测试 | 验证四状态、S1-S4 合取的 16 组子集、V1-V4、十字段行、42 号失败即关闭与回调规则，以及两类边经真实校验器解析为零未决端点 |
-| terminal-predicate.test.ts | 测试 | 验证 D2/C7 各合取分别求值、Agent/Task 普查不可空过、非 explicit 链接来源即 fail（§9.3 M1）、41 号按整数断言 |
-| trial-task-dispatcher.test.ts | 测试 | 验证试验内调度、代次铸币与回调工厂 |
-| trial-clock.test.ts | 测试 | 验证注入时源、D5 截止边界、单调起点与 sleep 取消 |
-| trial-adapter-factory.test.ts | 测试 | 验证试验适配器构造、守卫传输、MCP 预算与环境隔离 |
-| trial-adapter-pi.test.ts | 测试 | 验证 PI 试验构造、环境无关性与严格 MCP 组合 |
-| trial-thread-adapter.test.ts | 测试 | 验证每步适配器取用哪些字段、逐一比对分叉两侧 |
-| trial-thread-policy-fixture.ts | 夹具 | 按变体为线程各槽位编译 coder-review 试验策略 |
-| variant-proposal.test.ts | 测试 | 验证封闭判定表、完成守卫与五类阻塞理由 |
-| workspace-lease.test.ts | 测试 | 验证租约状态、放置表、快照与步边界结算 |
+| accounting-reconciliation.test.ts | 测试 | Tests benchmark usage accounting |
+| actor-capability.test.ts | 测试 | Tests actor capability lifecycle |
+| attempt-record.test.ts | 测试 | Tests benchmark attempt records |
+| composite-runtime-ports.test.ts | 测试 | Tests composite runtime ports |
+| isolation-literals.test.ts | 测试 | Tests prohibited transport literals |
+| isolation-rules.test.ts | 测试 | Tests benchmark dependency isolation |
+| composite-manifest.test.ts | 测试 | Tests composite trial manifests |
+| guard-lease-state.test.ts | 测试 | Tests guard lease decisions |
+| lease-echo.test.ts | 测试 | Tests workspace lease delivery |
+| settings-snapshot.test.ts | 测试 | Tests immutable trial settings |
+| task-broker-arguments.test.ts | 测试 | Tests broker argument validation |
+| task-broker.test.ts | 测试 | Tests benchmark task authorization |
+| trial-acceptance-ledger.test.ts | 测试 | Tests trial acceptance verdicts |
+| trial-task-mutator.test.ts | 测试 | Tests capability-fenced task mutations |
+| port-scope-fence.test.ts | 测试 | Tests fail-closed runtime scope |
+| trial-task-ports.test.ts | 测试 | Tests trial task state ports |
+| policy-backed-runtime-deps.test.ts | 测试 | Tests frozen runtime dependency lookup |
+| policy-compiler.test.ts | 测试 | Tests benchmark policy compilation |
+| proposal-seal.test.ts | 测试 | Tests proposal storage and sealing |
+| terminal-predicate.test.ts | 测试 | Tests trial terminal evaluation |
+| trial-task-dispatcher.test.ts | 测试 | Tests trial task dispatch |
+| trial-clock.test.ts | 测试 | Tests deterministic trial time |
+| trial-adapter-factory.test.ts | 测试 | Tests trial adapter construction |
+| trial-adapter-pi.test.ts | 测试 | Tests PI trial adapter construction |
+| trial-thread-adapter.test.ts | 测试 | Tests trial thread adapter steps |
+| trial-thread-policy-fixture.ts | 夹具 | Provides trial thread policy fixtures |
+| variant-proposal.test.ts | 测试 | Tests variant proposal classification |
+| workspace-lease.test.ts | 测试 | Tests workspace lease state |

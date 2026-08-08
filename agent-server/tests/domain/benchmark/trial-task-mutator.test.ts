@@ -3,12 +3,10 @@
 // pos:    Gate-5 P3 contract, proven via real factories
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-
 import { PROJECTS_DIR } from '../../../src/core/paths.js';
 import { serializeTasksFileWithLock, type Task } from '../../../src/core/task-parser.js';
 import { TaskRepo } from '../../../src/store/task-repo.js';
@@ -247,10 +245,10 @@ function buildComposition(options: CompositionOptions = {}): Composition {
 }
 
 /** Builds the composition, runs the body and always cleans up after it settles. */
-async function runWith(options: CompositionOptions | undefined, body: (c: Composition) => void | Promise<void>): Promise<void> {
+async function runWith<T>(options: CompositionOptions | undefined, body: (c: Composition) => T | Promise<T>): Promise<T> {
   const c = buildComposition(options);
   try {
-    await body(c);
+    return await body(c);
   } finally {
     c.cleanup();
   }
@@ -459,7 +457,6 @@ describe('R2-T8e — pre-claimed target refusal', () => {
     expect(c.registry.liveCount()).toBe(liveBefore);
     expect(c.registry.isLive(c.requester.token_id)).toBe(true);
   }));
-
 });
 describe('R2-T9a — claim is two-leg: requester currency precedes any mint', () => {
   it('requires requester generation/attempt currency on the REQUESTER row before any mint', () => runWith({ requesterGeneration: 'stale-gen' }, async c => {
@@ -469,7 +466,6 @@ describe('R2-T9a — claim is two-leg: requester currency precedes any mint', ()
     expect(c.registry.liveCount()).toBe(before); // no mint happened
     expect(taskById(c, 'dddd')!.claimed_by).toBeNull();
   }));
-
   it('requires the requester attempt to be the registry current attempt (D-9)', () => runWith(undefined, async c => {
     newerAttempt(c, 'attempt-2');
     const before = c.registry.liveCount();
@@ -746,7 +742,6 @@ describe('R2-T16 — proposed leaves authoritative state unchanged and emits no 
     expect(row.claimed_by).toBe('req-agent');
     expect(row.dispatch_generation).toBe(REQ_GEN);
   }));
-
   it('proposeComplete never routes into a completion lifecycle', () => runWith(undefined, c => {
     c.mutator.proposeComplete(c.requester, 'aaaa', 'n');
     const row = taskById(c, 'aaaa')!;
@@ -761,39 +756,45 @@ describe('R2-T17a — results are plain objects, never unawaited Promises', () =
     expect(typeof (result as { then?: unknown }).then).not.toBe('function');
     expect(result.success).toBe(true);
   }));
-
   it('the direct add result is a plain object, not a Promise', () => runWith(undefined, c => {
     acquireTrialLock(c);
-    const result = c.mutator.add(c.requester, {
-      project: c.project, fields: { text: 'sync child' },
-    });
+    const result = c.mutator.add(c.requester, { project: c.project, fields: { text: 'sync child' } });
     expect(result).not.toBeInstanceOf(Promise);
     expect(result.success).toBe(true);
     expect(taskById(c, 'aaaa')!.depends_on).toHaveLength(1);
   }));
 });
+function t17Calls(c: Composition): (() => Promise<BrokerCallResult>)[] {
+  return [
+    ...Array.from({ length: 4 }, (_, i) => () => c.call('task.create', { text: `concurrent-${i}` })),
+    () => c.broker.proposeComplete(c.requester, 'aaaa', 'concurrent proposal'), () => c.broker.proposeBlock(c.requester, 'aaaa', 'concurrent block'),
+    () => c.call('dependency.declare', { task_id: 'bbbb', depends_on: ['dddd'] }),
+  ];
+}
+function t17Snapshot(c: Composition) {
+  const rows = c.readTasks();
+  const children = rows.filter(task => /^concurrent-\d$/.test(task.text));
+  const textById = new Map(rows.map(task => [task.id, task.text]));
+  const stored: { proposals: { intent: string; note: string | null; state: string }[] } = JSON.parse(fs.readFileSync(proposalStorePath(c.project, 'aaaa'), 'utf8'));
+  return {
+    children: children.map(task => `${task.text}:${task.parent}`).sort(), parentDependencies: taskById(c, 'aaaa')!.depends_on.map(id => textById.get(id) ?? id).sort(),
+    editDependencies: [...taskById(c, 'bbbb')!.depends_on].sort(),
+    proposals: stored.proposals.map(({ intent, note, state }) => ({ intent, note, state })),
+  };
+}
+async function runT17(c: Composition, parallel: boolean): Promise<ReturnType<typeof t17Snapshot>> {
+  acquireTrialLock(c);
+  const calls = t17Calls(c);
+  const results = parallel ? await Promise.all(calls.map(call => call())) : [];
+  if (!parallel) for (const call of calls) results.push(await call());
+  expect(results.every(result => result.ok)).toBe(true);
+  return t17Snapshot(c);
+}
 describe('R2-T17b — concurrent production-factory calls equal a serial order', () => {
-  it('concurrent broker calls leave exactly the serial final state with no lost mutation', () => runWith(undefined, async c => {
-    acquireTrialLock(c);
-    const calls = [
-      ...Array.from({ length: 4 }, (_, i) => c.call('task.create', { text: `concurrent-${i}` })),
-      c.call('task.propose_complete', { note: 'concurrent proposal' }), c.call('task.propose_block', { reason: 'concurrent block' }),
-      c.call('dependency.declare', { task_id: 'bbbb', depends_on: ['dddd'] }),
-    ];
-    const results = await Promise.all(calls);
-    for (const result of results) {
-      expect(result).not.toBeInstanceOf(Promise);
-      expect(typeof (result as { then?: unknown }).then).not.toBe('function');
-      expect(result.ok).toBe(true);
-    }
-    const rows = c.readTasks();
-    const children = rows.filter(task => /^concurrent-\d$/.test(task.text));
-    expect(children).toHaveLength(4);
-    for (const child of children) expect(child.parent).toBe('aaaa');
-    expect(taskById(c, 'aaaa')!.depends_on.sort()).toEqual(children.map(child => child.id).sort());
-    expect(taskById(c, 'bbbb')!.depends_on).toContain('dddd');
-    const stored = JSON.parse(fs.readFileSync(proposalStorePath(c.project, 'aaaa'), 'utf8'));
-    expect(stored.proposals).toHaveLength(1);
-  }));
+  it('concurrent broker calls leave exactly the serial final state with no lost mutation', async () => {
+    const concurrent = await runWith(undefined, c => runT17(c, true));
+    const serial = await runWith(undefined, c => runT17(c, false));
+    expect(concurrent).toEqual(serial);
+  });
 });
 

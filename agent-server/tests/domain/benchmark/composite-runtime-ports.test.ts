@@ -249,7 +249,9 @@ describe('§8.4 the rejection table itself (moved from task-broker.test.ts)', ()
     expect(BROKER_REJECTIONS.R9).not.toHaveProperty('code');
     expect(BROKER_REJECTIONS.R10).not.toHaveProperty('code');
   });
+});
 
+describe('§8.4 rejection codes remain within the frozen registry', () => {
   it('M18 — mints NO new failure code: every code it uses is already in the 1–44 registry', () => {
     const registryCodes = new Set(BENCHMARK_FAILURES.map(failure => failure.code));
     expect(Math.max(...registryCodes)).toBe(44);

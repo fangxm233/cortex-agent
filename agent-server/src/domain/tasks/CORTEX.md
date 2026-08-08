@@ -5,15 +5,15 @@ Also tracks dispatched runs, records acceptance verdicts, and recovers claims or
 
 | filename | role | function |
 |---|---|---|
-| acceptance-ledger.ts | core | records child result deliveries and verdicts |
-| archiver.ts | core | Archives completed tasks under mutation lock |
-| claim-recovery.ts | core | Generation-fences orphaned dispatch claim recovery |
-| dispatcher.ts | core | Selects and claims tasks with fresh generations |
-| dispatch-utils.ts | util | Reloads devices and provides task dispatch helpers |
-| lint.ts | util | checks task files for cycles and errors |
-| mutator.ts | core | Serializes mutations and the trial P3 factory |
-| parser.ts | adapter | re-exports the task file parser |
-| pending-tracker.ts | core | Tracks dispatched tasks, status and generation |
-| store.ts | adapter | re-exports the task store and git lock |
-| recommendation/ | subdir | extracts implied tasks from project notes |
-| system/ | subdir | task CLI, state machine and file locking |
+| acceptance-ledger.ts | core | Records child delivery verdicts |
+| archiver.ts | core | Archives completed tasks |
+| claim-recovery.ts | core | Recovers orphaned task claims |
+| dispatcher.ts | core | Selects tasks for agents |
+| dispatch-utils.ts | util | Provides task dispatch helpers |
+| lint.ts | util | Checks task graph validity |
+| mutator.ts | core | Applies task mutations |
+| parser.ts | adapter | Exports the task parser |
+| pending-tracker.ts | core | Tracks dispatched task state |
+| store.ts | adapter | Exports task persistence |
+| recommendation/ | subdir | Extracts task recommendations |
+| system/ | subdir | Provides task lifecycle operations |
