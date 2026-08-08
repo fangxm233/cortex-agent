@@ -1,5 +1,5 @@
 // input:  config/auth queries, settings panels, LoginFlow, Radix
-// output: settings overlay with non-stacked account login handoff
+// output: settings overlay with bounded editors and login handoff
 // pos:    Desktop settings overlay shell and data bindings
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -220,15 +220,15 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
           style={{
             flex: 1,
             minWidth: 0,
-            overflow: 'auto',
+            minHeight: 0,
+            overflow: section === 'hooks' || section === 'templates' ? 'hidden' : 'auto',
             padding: '16px 22px',
             background: 'var(--proto-alt)',
-            display: section === 'hooks' ? 'flex' : undefined,
-            flexDirection: section === 'hooks' ? 'column' : undefined,
+            display: section === 'hooks' || section === 'templates' ? 'flex' : undefined,
+            flexDirection: section === 'hooks' || section === 'templates' ? 'column' : undefined,
           }}
         >
           <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)' }}>{meta.title}</div>
-          <div style={{ fontSize: 11, color: 'var(--proto-muted-2)', marginTop: 2 }}>{meta.sub}</div>
           {section === 'appearance' ? (
             // Device-local theme — no config.get dependency, so it renders even if config fails to load.
             <AppearancePanel />

@@ -1,10 +1,6 @@
-// input:  threadTemplates.get / .detail data and the threadTemplates.* mutations
-// output: master-detail thread-template editor with validation, references and guards
-// pos:    Settings view for config/thread-templates/. Replaces the read-only list that carried an
-//         inert "Open editor" affordance. The body editor is a plain mono textarea: `web/` has no
-//         code-editor dependency, and pulling in CodeMirror to ship a first editor is not a trade
-//         worth making. Client-side we only check that the text parses — everything else round-trips
-//         to threadTemplates.validate so there is exactly one validator.
+// input:  threadTemplates APIs, editor VM, shared settings primitives
+// output: bounded master-detail editor with validation and write guards
+// pos:    Settings view for thread-template configuration
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
@@ -238,7 +234,9 @@ function TemplateList({
   const L = useVocab();
   const counts = countByFilter(entries, search);
   return (
-    <SCard style={{ width: LIST_WIDTH, flex: 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <SCard
+      style={{ width: LIST_WIDTH, flex: 'none', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+    >
       <div style={{ padding: '9px 10px 7px', borderBottom: '1px solid var(--proto-line-2)', flex: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
           <span style={{ fontSize: 11.5, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.ttEditorTitle}</span>
@@ -359,7 +357,9 @@ export function TemplateDetailPane(props: TemplateDetailPaneProps) {
 
   if (!kind) {
     return (
-      <SCard style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <SCard
+        style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
         <span data-template-detail-empty="" style={{ fontSize: 11, color: 'var(--proto-faint)' }}>
           {L.ttSelectPrompt}
         </span>
@@ -389,7 +389,7 @@ export function TemplateDetailPane(props: TemplateDetailPaneProps) {
   return (
     <SCard
       data-template-detail={`${kind}:${name}`}
-      style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+      style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
     >
       <div style={{ padding: '10px 14px 0', flex: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>

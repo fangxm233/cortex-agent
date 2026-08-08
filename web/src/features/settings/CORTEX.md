@@ -7,7 +7,7 @@ own their mutations.
 | filename | role | function |
 |---|---|---|
 | SettingsProvider.tsx | provider | Provides global open and close for the modal |
-| SettingsModal.tsx | view | Dialog with nav and non-stacked account login handoff |
+| SettingsModal.tsx | view | Bounds editor panels and hands off account login |
 | SettingsPanels.tsx | view | Renders non-runtime platform and config sections |
 | AccountsPanel.tsx | view | Filters providers and manages account login/logout |
 | AccountsPanel.test.tsx | test | Tests desktop account state and action visibility |
@@ -15,7 +15,7 @@ own their mutations.
 | CustomProvidersCard.test.tsx | test | Tests custom provider rows, save payload and delete guard |
 | custom-provider-vm.ts | vm | Validates custom provider drafts and builds mutation args |
 | custom-provider-vm.test.ts | test | Unit tests for the custom provider view model |
-| AuthLoginEntry.test.tsx | test | Tests settings shell copy and account login handoff |
+| AuthLoginEntry.test.tsx | test | Tests settings layout, copy and login handoff |
 | RuntimeSettingsPanels.tsx | view | Edits runtime switches and built-in job intervals |
 | RuntimeSettingsPanels.test.tsx | test | Tests runtime rows and production write adapter |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |
@@ -30,7 +30,7 @@ own their mutations.
 | HooksPanel.test.tsx | test | Tests hook layout, gating and the test runner |
 | hooks-panel-vm.ts | vm | Filters, groups, validates and builds hook mutation args |
 | hooks-panel-vm.test.ts | test | Unit tests for the hooks panel view model |
-| TemplatesPanel.tsx | view | Thread-template editor with validation, references and write guards |
+| TemplatesPanel.tsx | view | Edits templates with independent pane scrolling |
 | TemplatesPanel.test.tsx | test | Tests detail-pane tabs, guards and save gating |
 | templates-panel-vm.ts | vm | Filters, parses editor JSON and builds template mutation args |
 | templates-panel-vm.test.ts | test | Unit tests for the templates panel view model |

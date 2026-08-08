@@ -1,12 +1,17 @@
-// input:  desktop Settings/LoginFlow providers and auth fixtures
-// output: Settings source-copy and non-stacked login regressions
-// pos:    Verifies Settings shell copy and shared LoginFlow handoff
+// input:  desktop Settings/LoginFlow providers and template fixtures
+// output: Settings layout/source-copy and non-stacked login regressions
+// pos:    Verifies Settings shell layout and shared LoginFlow handoff
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useState } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import type { AuthStatusSnapshot, ConfigSnapshot } from '@cortex-agent/ui-contract';
+import type {
+  AuthStatusSnapshot,
+  ConfigSnapshot,
+  ThreadTemplateDetail,
+  ThreadTemplateEntry,
+} from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { ThemeProvider } from '@/theme';
 import { PlatformPanel } from './SettingsPanels';
@@ -38,7 +43,13 @@ vi.mock('@/lib/trpc', () => {
   return { useTRPC: () => ({
     config: { get: query('config.get'), set: mutation('config.set') },
     cost: { summary: query('cost.summary') },
-    threadTemplates: { get: query('threadTemplates.get') },
+    threadTemplates: {
+      get: query('threadTemplates.get'),
+      detail: query('threadTemplates.detail'),
+      validate: mutation('threadTemplates.validate'),
+      save: mutation('threadTemplates.save'),
+      remove: mutation('threadTemplates.remove'),
+    },
     approvals: { request: mutation('approvals.request') },
     profiles: {
       create: mutation('profiles.create'),
@@ -61,10 +72,12 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
     data: options.__kind === 'config.get'
       ? snapshot
       : options.__kind === 'threadTemplates.get'
-        ? []
-        : options.__kind === 'auth.status'
-          ? authStatus
-          : options.__kind === 'auth.customProviders' ? [] : undefined,
+        ? templateEntries
+        : options.__kind === 'threadTemplates.detail'
+          ? templateDetail
+          : options.__kind === 'auth.status'
+            ? authStatus
+            : options.__kind === 'auth.customProviders' ? [] : undefined,
     isLoading: false,
     isError: false,
     error: null,
@@ -96,6 +109,28 @@ const authStatus: AuthStatusSnapshot = {
   piRuntime: { available: true, version: 'test', entry: null, error: null },
 };
 
+const templateEntries: ThreadTemplateEntry[] = [{
+  kind: 'template',
+  name: 'coder-review',
+  description: 'coder → reviewer',
+  body: { name: 'coder-review', maxTotalSteps: 4 },
+  valid: true,
+  errorCount: 0,
+  origin: 'custom',
+}];
+
+const templateDetail: ThreadTemplateDetail = {
+  ...templateEntries[0],
+  filePath: '/tmp/coder-review.json',
+  sha256: 'a'.repeat(64),
+  errors: [],
+  warnings: [],
+  usedByTemplates: [],
+  runningThreads: 0,
+  referencingTasks: 0,
+  expanded: null,
+};
+
 function SettingsHarness() {
   const [open, setOpen] = useState(true);
   return (
@@ -123,6 +158,29 @@ describe('desktop authentication settings entry', () => {
 
     act(() => { renderer.root.findByProps({ 'data-settings-nav': 'profiles' }).props.onClick(); });
     expect(renderedText(renderer.root)).not.toContain('Per-profile fallback is not in the config.get contract');
+  });
+
+  it('bounds template cards while their two content regions scroll independently', () => {
+    const renderer = create(<SettingsHarness />);
+    expect(renderedText(renderer.root)).not.toContain('Language & theme — interface language');
+    act(() => { renderer.root.findByProps({ 'data-settings-nav': 'templates' }).props.onClick(); });
+
+    const content = renderer.root.find(node => node.props.style?.padding === '16px 22px');
+    expect(content.props.style).toMatchObject({ display: 'flex', flexDirection: 'column', overflow: 'hidden' });
+    expect(renderedText(renderer.root)).not.toContain('config/thread-templates/ — validated on save');
+
+    const panel = renderer.root.findByProps({ 'data-settings-panel': 'templates' });
+    const cards = panel.findAll(node => (
+      node.type === 'div' && node.props.style?.border === '1px solid var(--proto-line)'
+    ));
+    expect(cards).toHaveLength(2);
+    expect(cards.every(card => card.props.style.minHeight === 0)).toBe(true);
+    expect(panel.findAll(node => node.props.style?.overflow === 'auto')).toHaveLength(2);
+
+    const detailCard = cards.find(card => card.props.style.minWidth === 0)!;
+    const detailScroller = detailCard.find(node => node.props.style?.overflow === 'auto');
+    expect(detailScroller.findAllByProps({ 'data-action': 'save' })).toHaveLength(0);
+    expect(detailCard.findAll(node => node.type === 'span' && node.props['data-action'] === 'save')).toHaveLength(1);
   });
 
   it('moves authentication controls out of Platform into a dedicated Accounts section', () => {
