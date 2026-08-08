@@ -1057,7 +1057,19 @@ describe('R2-T16 — proposed leaves authoritative state unchanged and emits no 
 });
 
 describe('R2-T17 — concurrent production-factory calls equal a serial order; results are never Promise-shaped', () => {
-  it('P3 methods are synchronous: the direct result is a plain object, not a Promise', () => {
+  it('the direct claim result is a plain object, not an unawaited Promise', () => {
+    const c = buildComposition();
+    try {
+      const result = c.claimTarget(c.requester, 'dddd');
+      expect(result).not.toBeInstanceOf(Promise);
+      expect(typeof (result as { then?: unknown }).then).not.toBe('function');
+      expect(result.success).toBe(true);
+    } finally {
+      c.cleanup();
+    }
+  });
+
+  it('the direct add result is a plain object, not a Promise', () => {
     const c = buildComposition();
     try {
       acquireTrialLock(c);
