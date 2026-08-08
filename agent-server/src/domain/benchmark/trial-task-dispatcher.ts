@@ -156,7 +156,12 @@ async function awaitNextDispatchable(
   while (!signal.aborted) {
     const selection = selectAndClaimOnce(deps);
     if (selection) return selection;
-    await deps.sleep(pollIntervalMs, signal);
+    try {
+      await deps.sleep(pollIntervalMs, signal);
+    } catch (error) {
+      if (signal.aborted) return null;
+      throw error;
+    }
   }
   return null;
 }

@@ -20,6 +20,7 @@ import {
   type TrialTaskDispatcherDeps, type TrialThreadTemplate,
 } from '../../../src/domain/benchmark/trial-task-dispatcher.js';
 import { createDispatcherPort } from '../../../src/domain/benchmark/composite-runtime-ports.js';
+import { createTrialClock } from '../../../src/domain/benchmark/trial-clock.js';
 import type { Task } from '../../../src/core/task-parser.js';
 
 // --- fixtures ----------------------------------------------------------------
@@ -339,6 +340,26 @@ describe('AwaitableTaskDispatcher.awaitNextDispatchable (§7.2 P9)', () => {
 
     expect(selection).toBeNull();
     expect(sleepCalls).toBe(1);
+  });
+
+  it('resolves null when the real deterministic-clock sleep rejects on abort', async () => {
+    const controller = new AbortController();
+    const clock = createTrialClock({ deadlineEpochMs: Date.now() + 60_000 });
+    const { deps } = fixture({ pollIntervalMs: 60_000, sleep: clock.sleep });
+
+    const pending = createTrialTaskDispatcher(deps).awaitNextDispatchable(controller.signal);
+    controller.abort(new Error('deadline'));
+
+    await expect(pending).resolves.toBeNull();
+  });
+
+  it('propagates sleep failures that are not caused by abort', async () => {
+    const failure = new Error('clock failed');
+    const { deps } = fixture({ sleep: async () => { throw failure; } });
+
+    await expect(
+      createTrialTaskDispatcher(deps).awaitNextDispatchable(new AbortController().signal),
+    ).rejects.toBe(failure);
   });
 });
 
