@@ -19,6 +19,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | policy-compiler.test.ts | 测试 | 验证 arm 编译、分发、调用一致性与投影 |
 | proposal-seal.test.ts | 测试 | 验证四状态、S1-S4 合取的 16 组子集、V1-V4、十字段行、42 号失败即关闭与回调规则，以及两类边经真实校验器解析为零未决端点 |
 | terminal-predicate.test.ts | 测试 | 验证 D2/C7 各合取分别求值、Agent/Task 普查不可空过、非 explicit 链接来源即 fail（§9.3 M1）、41 号按整数断言 |
+| trial-task-dispatcher.test.ts | 测试 | 验证 P9 试验调度：选任务/铸造代次/提示，主机锁、GPU、限流缺失与接线 |
 | trial-clock.test.ts | 测试 | 验证注入时源、D5 截止边界、单调起点与 sleep 取消 |
 | trial-adapter-factory.test.ts | 测试 | 验证试验适配器构造、守卫传输、MCP 预算与环境隔离 |
 | trial-adapter-pi.test.ts | 测试 | 验证 PI 试验构造、环境无关性与严格 MCP 组合 |

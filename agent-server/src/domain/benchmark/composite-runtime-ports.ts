@@ -43,6 +43,10 @@ import { PolicyCompilationError, type ResolvedTrialPolicy } from './resolved-pol
 import type { SettingsSnapshot } from './settings-snapshot.js';
 import type { DeterministicClock } from './trial-clock.js';
 import type { LeaseState, WorkspaceLease } from './workspace-lease.js';
+import {
+  createTrialTaskDispatcher,
+  type TrialTaskDispatcherDeps,
+} from './trial-task-dispatcher.js';
 
 /** The broker's own refusal shape. Every mutator method returns it rather than throwing — the
  *  shipped convention at `mutator.ts:128,143,158`. `code` is a §8.7 code; §18 G5-N4's interim rule
@@ -351,6 +355,18 @@ export interface CompositeManifestWriter {
   validate(root: CompositeManifestContext): {
     ok: boolean; problems: readonly CompositeManifestViolation[];
   };
+}
+
+// --- P9 wiring ---------------------------------------------------------------------------------
+
+/** P9 wiring (Gate-5 port P9, §7.2): the in-trial dispatcher behind the frozen
+ *  `AwaitableTaskDispatcher` interface. The deps are the broker-bound sources the coordinator
+ *  supplies once at construction (§4.2 N-1); the `claim` closure carries the actor capability by
+ *  scope (G5-W4) — the capability never appears in an argument. The single cast adapts the
+ *  structural `TrialThreadTemplate` stand-in (the frozen `ThreadTemplate` is assignable to it);
+ *  none of the 23 declarations above is touched. */
+export function createDispatcherPort(deps: TrialTaskDispatcherDeps): AwaitableTaskDispatcher {
+  return createTrialTaskDispatcher(deps) as AwaitableTaskDispatcher;
 }
 
 // --- the bundle ---------------------------------------------------------------------------------
