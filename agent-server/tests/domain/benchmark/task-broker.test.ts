@@ -6,7 +6,6 @@
 import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import { BENCHMARK_BROKER_ACTIONS, capabilityWhitelistForArm, mintActorCapability, type ActorCapability, type BenchmarkBrokerCapability } from '../../../src/domain/benchmark/capabilities.js';
@@ -16,11 +15,9 @@ import { BROKER_ACTION_TABLE, BROKER_REJECTIONS, BROKER_TOOL_NAMES, BrokerArgume
 import { BENCHMARK_FAILURES, type ResolvedTrialPolicy } from '../../../src/domain/benchmark/resolved-policy.js';
 import type { ArmDefinition } from '../../../src/domain/benchmark/arm-schema.js';
 import type { Task } from '../../../src/core/task-parser.js';
-
 const PROJECT = 'trial';
 const TRIAL_ID = 'trial-1';
 const GEN_1 = 'gen-1';
-
 const SAMPLE_TASK = {
   id: 'aaaa', text: 't', why: 'w', done_when: 'd', priority: 'medium', status: 'open',
   template: 'benchmark-coder-review', plan: '', project: PROJECT, parent: null,
@@ -36,7 +33,6 @@ function armFor(mode: 'manager' | 'coder-review', askManager: boolean): ArmDefin
     orchestration: mode === 'manager' ? { mode, ask_manager: askManager } : { mode, ask_manager: false, coder_review_variant: 'audit-retry' },
   } as unknown as ArmDefinition;
 }
-
 function taskRow(overrides: Partial<Task> & Pick<Task, 'id'>): Task {
   return {
     text: 'do', why: 'because', done_when: 'done', priority: 'medium', status: 'open',
@@ -48,7 +44,6 @@ function taskRow(overrides: Partial<Task> & Pick<Task, 'id'>): Task {
     ...overrides,
   } as Task;
 }
-
 interface Harness {
   broker: ReturnType<typeof createBenchmarkTaskBroker>;
   capability: ActorCapability;
@@ -59,7 +54,6 @@ interface Harness {
   trialRoot: string;
   call(action: BenchmarkBrokerCapability, payload?: Record<string, unknown>): Promise<BrokerCallResult>;
 }
-
 interface HarnessOptions {
   allowedActions?: BenchmarkBrokerCapability[]; askManager?: boolean; policyAskManager?: boolean;
   policyTrialId?: string; lockHolder?: string | null; ledgerThrows?: boolean; artifactPathOverride?: string;
@@ -70,7 +64,6 @@ interface HarnessOptions {
   proposalError?: { reason: 'proposal_invalidated' | 'ledger_unreadable'; code: 37 | 42 };
   proposalThrow?: Error; qaAnswerResult?: { success: boolean };
 }
-
 function harness(options: HarnessOptions = {}): Harness {
   const touches: string[] = [];
   const claimTargetCalls: { requester: string; targetId: string }[] = [];
@@ -93,7 +86,6 @@ function harness(options: HarnessOptions = {}): Harness {
   return { broker, capability, capabilities, touches, claimTargetCalls, tasks, trialRoot,
     call: (action, payload = {}) => capabilities.runInScope(capability, () => broker.call(action, payload)) };
 }
-
 function harnessTasks(options: HarnessOptions): Map<string, Task> {
   return new Map<string, Task>([
     ['root', taskRow({ id: 'root' })],
@@ -106,55 +98,67 @@ function harnessTasks(options: HarnessOptions): Map<string, Task> {
     ['f1', taskRow({ id: 'f1', parent: 'aaaa', claimed_by: 'someone', dispatch_generation: 'g-f1' })],
   ]);
 }
-
 function harnessMutation(options: HarnessOptions, touches: string[], touch: string): { success: boolean; code?: number } {
   const result = options.mutationResult ?? { success: true };
   if (result.success) touches.push(touch);
   return result;
 }
-
 function harnessPorts(options: HarnessOptions, touches: string[], trialRoot: string): BrokerPorts {
   return {
-    taskRepository: {
-      getById: (id: string) => harnessTasks(options).get(id) ?? null,
-      list: (filter: { parent?: string }) => [...harnessTasks(options).values()].filter(task => (filter.parent === undefined ? true : task.parent === filter.parent)),
-      // §19.12.2 step 2: the target must exist in the shipped actionable set.
-      getActionable: () => [...harnessTasks(options).values()].filter(task => isActionable(task)),
-    },
-    taskMutator: {
-      // §19.12.1: claim is REMOVED from the narrowed broker view — the model-facing claim
-      // routes through the injected claimTarget callback, never through P3.claim directly.
-      add: (_capability: ActorCapability) => harnessMutation(options, touches, 'mutator.add'),
-      decompose: (_capability: ActorCapability) => harnessMutation(options, touches, 'mutator.decompose'),
-      edit: (_capability: ActorCapability) => harnessMutation(options, touches, 'mutator.edit'),
-      proposeComplete: (_capability: ActorCapability, id: string) => proposalResult(options, touches, 'mutator.proposeComplete', id),
-      proposeBlock: (_capability: ActorCapability, id: string) => proposalResult(options, touches, 'mutator.proposeBlock', id),
-    },
+    taskRepository: harnessTaskRepo(options),
+    taskMutator: harnessTaskMutator(options, touches),
     taskLocks: { assertHeld: () => (options.lockHolder === undefined ? null : options.lockHolder) },
-    taskArtifacts: {
-      artifactPath: (_project: string, id: string) => options.artifactPathOverride ?? path.join(trialRoot, 'manager', id, 'artifact.md'),
-      write: (_capability: ActorCapability) => { touches.push('artifacts.write'); },
-    },
-    acceptanceLedger: {
-      pending: () => {
-        if (options.ledgerThrows) throw new Error('ENOENT: ledger gone');
-        return [];
-      },
-    },
-    managerQa: {
-      ask: (_capability: ActorCapability) => { touches.push('qa.ask'); return { questionId: 'q1' }; },
-      answer: (_capability: ActorCapability) => {
-        const result = options.qaAnswerResult ?? { success: true };
-        if (result.success) touches.push('qa.answer');
-        return result;
-      },
-    },
-    parentQuestions: {
-      record: (_capability: ActorCapability) => { touches.push('parentQuestions.record'); return { questionId: 'pq1' }; },
-    },
+    taskArtifacts: harnessArtifacts(options, touches, trialRoot),
+    acceptanceLedger: harnessLedger(options),
+    managerQa: harnessManagerQa(options, touches),
+    parentQuestions: { record: (_capability: ActorCapability) => { touches.push('parentQuestions.record'); return { questionId: 'pq1' }; } },
   } as unknown as BrokerPorts;
 }
-
+function harnessTaskRepo(options: HarnessOptions) {
+  const tasks = harnessTasks(options);
+  return {
+    getById: (id: string) => tasks.get(id) ?? null,
+    list: (filter: { parent?: string }) => [...tasks.values()].filter(task => (filter.parent === undefined ? true : task.parent === filter.parent)),
+    // §19.12.2 step 2: the claim target must exist in the shipped actionable set.
+    getActionable: () => [...tasks.values()].filter(task => isActionable(task)),
+  };
+}
+function harnessTaskMutator(options: HarnessOptions, touches: string[]) {
+  // §19.12.1: claim is REMOVED from the narrowed broker view — the model-facing claim routes
+  // through the injected claimTarget callback, never through P3.claim directly.
+  return {
+    add: (_capability: ActorCapability) => harnessMutation(options, touches, 'mutator.add'),
+    decompose: (_capability: ActorCapability) => harnessMutation(options, touches, 'mutator.decompose'),
+    edit: (_capability: ActorCapability) => harnessMutation(options, touches, 'mutator.edit'),
+    proposeComplete: (_capability: ActorCapability, id: string) => proposalResult(options, touches, 'mutator.proposeComplete', id),
+    proposeBlock: (_capability: ActorCapability, id: string) => proposalResult(options, touches, 'mutator.proposeBlock', id),
+  };
+}
+function harnessArtifacts(options: HarnessOptions, touches: string[], trialRoot: string) {
+  return {
+    artifactPath: (_project: string, id: string) => options.artifactPathOverride ?? path.join(trialRoot, 'manager', id, 'artifact.md'),
+    write: (_capability: ActorCapability) => { touches.push('artifacts.write'); },
+  };
+}
+function harnessLedger(options: HarnessOptions) {
+  return {
+    pending: () => {
+      if (options.ledgerThrows) throw new Error('ENOENT: ledger gone');
+      return [];
+    },
+  };
+}
+function harnessManagerQa(options: HarnessOptions, touches: string[]) {
+  return {
+    ask: (_capability: ActorCapability) => { touches.push('qa.ask'); return { questionId: 'q1' }; },
+    answer: (_capability: ActorCapability) => qaAnswer(options, touches),
+  };
+}
+function qaAnswer(options: HarnessOptions, touches: string[]): { success: boolean } {
+  const result = options.qaAnswerResult ?? { success: true };
+  if (result.success) touches.push('qa.answer');
+  return result;
+}
 function proposalResult(options: HarnessOptions, touches: string[], touch: string, id: string): { state: string } | { success: false; message: string; code: 33 | 34 } {
   if (options.proposalThrow) throw options.proposalThrow;
   if (options.proposalError) throw Object.assign(new Error('proposal failed'), options.proposalError);
@@ -162,31 +166,30 @@ function proposalResult(options: HarnessOptions, touches: string[], touch: strin
   touches.push(`${touch}:${id}`);
   return { state: 'proposed' };
 }
-
 function harnessPolicy(options: HarnessOptions): ResolvedTrialPolicy {
   return {
     trial_id: options.policyTrialId ?? TRIAL_ID,
     child_template_whitelist: ['benchmark-coder-review', 'benchmark-manager'],
-    capability_whitelist: capabilityWhitelistForArm(
-      armFor('manager', options.policyAskManager ?? options.askManager ?? true),
-    ),
-    limits: { max_tasks: options.maxTasks ?? 20, max_task_depth: options.maxTaskDepth ?? 4 },
+    capability_whitelist: capabilityWhitelistForArm(armFor('manager', policyAskManager(options))),
+    limits: policyLimits(options),
   } as unknown as ResolvedTrialPolicy;
 }
+function policyAskManager(options: HarnessOptions): boolean { return options.policyAskManager ?? options.askManager ?? true; }
+function policyLimits(options: HarnessOptions): { max_tasks: number; max_task_depth: number } { return { max_tasks: options.maxTasks ?? 20, max_task_depth: options.maxTaskDepth ?? 4 }; }
 
 function harnessCapability(
   options: HarnessOptions, whitelist: BenchmarkBrokerCapability[], capabilities: ActorCapabilityRegistry,
 ): ActorCapability {
-  const taskId = options.taskId ?? 'aaaa';
   const capability = mintActorCapability({
-    trial_id: TRIAL_ID, task_id: taskId, dispatch_generation: options.generation ?? GEN_1,
-    attempt_id: options.attemptId ?? 'attempt-1', role: 'manager',
-    ancestry: options.ancestry ?? (taskId === 'root' ? [] : ['root', 'bbbb']),
+    trial_id: TRIAL_ID, task_id: options.taskId ?? 'aaaa', dispatch_generation: options.generation ?? GEN_1,
+    attempt_id: options.attemptId ?? 'attempt-1', role: 'manager', ancestry: harnessAncestry(options),
     capability_whitelist: whitelist, allowed_actions: options.allowedActions, issued_at_epoch_ms: 1_000,
   });
   capabilities.register(capability);
   return capability;
 }
+
+function harnessAncestry(options: HarnessOptions): string[] { const taskId = options.taskId ?? 'aaaa'; return options.ancestry ?? (taskId === 'root' ? [] : ['root', 'bbbb']); }
 
 function refusal(result: BrokerCallResult): BrokerRefusal {
   expect(result.ok).toBe(false);

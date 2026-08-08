@@ -27,7 +27,6 @@ import { createTrialCapabilityAwareTaskMutator } from '../../../src/domain/tasks
 // The production chain is exactly createTrialCapabilityAwareTaskMutator ->
 // createDispatcherOwnedClaimTarget -> createBenchmarkTaskBroker over real P2 files/delegate,
 // P4 table/scope, production mint + exact registry and the shipped proposal store.
-
 const TRIAL_ID = 'trial-749f';
 const REQ_GEN = 'req-gen';
 const REQ_ATTEMPT = 'req-attempt';
@@ -140,18 +139,24 @@ function openContext(options: CompositionOptions): BuildContext {
 function mintRequester(ctx: BuildContext, options: CompositionOptions): ActorCapability {
   const requesterTaskId = options.requesterTaskId ?? 'aaaa';
   const requester = mintActorCapability({
-    trial_id: ctx.trialId,
-    task_id: requesterTaskId,
+    trial_id: ctx.trialId, task_id: requesterTaskId,
     dispatch_generation: options.requesterGeneration ?? REQ_GEN,
     attempt_id: options.requesterAttempt ?? REQ_ATTEMPT,
-    role: options.requesterRole ?? 'manager',
-    ancestry: options.requesterAncestry ?? (requesterTaskId === 'root' ? [] : ['root']),
+    role: requesterRole(options),
+    ancestry: requesterAncestry(requesterTaskId, options),
     capability_whitelist: ctx.whitelist,
-    allowed_actions: options.requesterActions === undefined ? ctx.whitelist : options.requesterActions,
+    allowed_actions: requesterActions(options, ctx.whitelist),
     issued_at_epoch_ms: 1_000,
   });
   ctx.registry.register(requester);
   return requester;
+}
+
+function requesterRole(options: CompositionOptions): ActorCapability['role'] { return options.requesterRole ?? 'manager'; }
+function requesterAncestry(requesterTaskId: string, options: CompositionOptions): readonly string[] { return options.requesterAncestry ?? (requesterTaskId === 'root' ? [] : ['root']); }
+
+function requesterActions(options: CompositionOptions, whitelist: BenchmarkBrokerCapability[]): readonly BenchmarkBrokerCapability[] {
+  return options.requesterActions === undefined ? whitelist : options.requesterActions;
 }
 
 function buildMutator(
@@ -260,11 +265,9 @@ function refusalOf(result: BrokerCallResult): BrokerRefusal {
   expect(result.ok).toBe(false);
   return result as BrokerRefusal;
 }
-
 function taskById(c: Composition, id: string): Task | undefined {
   return c.readTasks().find(task => task.id === id);
 }
-
 function seedFilesSnapshot(c: Composition): { tasks: string; proposals: boolean; lock: { locked: boolean; owner?: string } } {
   return { tasks: fs.readFileSync(c.tasksPath, 'utf8'), proposals: fs.existsSync(proposalStorePath(c.project, 'aaaa')), lock: c.table.isProjectLocked(c.project) };
 }
@@ -272,7 +275,7 @@ function seedFilesSnapshot(c: Composition): { tasks: string; proposals: boolean;
 function expectZeroSideEffects(c: Composition, before: { tasks: string; proposals: boolean; lock: { locked: boolean; owner?: string } }): void {
   expect(fs.readFileSync(c.tasksPath, 'utf8')).toBe(before.tasks);
   expect(fs.existsSync(proposalStorePath(c.project, 'aaaa'))).toBe(before.proposals);
-  // The lock table is unchanged — a refusal neither acquires nor releases a lock.
+  // A refusal neither acquires nor releases a lock.
   expect(c.table.isProjectLocked(c.project)).toEqual(before.lock);
 }
 
@@ -292,7 +295,6 @@ function newerAttempt(c: Composition, attemptId: string): void {
     role: 'manager', ancestry: ['root'], capability_whitelist: managerWhitelist(), issued_at_epoch_ms: 5_000,
   }));
 }
-
 type Invoke = (c: Composition, capability: ActorCapability) => unknown;
 const INVOKE_TABLE: Record<string, Invoke> = {
   claim: (c, capability) => c.mutator.claim(capability, 'aaaa'),
@@ -314,7 +316,6 @@ function unknownMethod(method: string): never {
 }
 
 const methods = ['claim', 'unclaim', 'add', 'decompose', 'edit', 'proposeComplete', 'proposeBlock'];
-
 describe('R2-T1/T2 — claim and unclaim through the real production chain', () => {
   it('R2-T1 claim: two-leg claim through the broker claims the strict descendant with the target attempt', () => runWith(undefined, async c => {
     const result = await c.claimThroughBroker('dddd');
@@ -329,7 +330,7 @@ describe('R2-T1/T2 — claim and unclaim through the real production chain', () 
   }));
 
   it('R2-T2 unclaim: exact registered self-release succeeds only under the release authority mark', () => runWith(undefined, c => {
-    // The coordinator's attempt-finalisation/recovery transition marks the attempt, then unclaims.
+    // The coordinator's finalisation/recovery transition marks the attempt, then unclaims.
     c.releasing.add(REQ_ATTEMPT);
     const result = c.mutator.unclaim(c.requester, 'aaaa');
     expect(result.success).toBe(true);
@@ -598,8 +599,8 @@ describe('R2-T11b — stale self and the cleared release mark', () => {
   it('after the release transition clears its mark, the same call is 33 again', () => runWith(undefined, c => {
     c.releasing.add(REQ_ATTEMPT);
     expect(c.mutator.unclaim(c.requester, 'aaaa').success).toBe(true);
-    // The mark is cleared while the exact token is STILL live: only the release authority can
-    // gate the second call now (C1/C2/C3 and the self-target check all still pass).
+    // The mark is cleared while the exact token is STILL live — only the release authority
+    // can gate the second call now (C1/C2/C3 and the self-target check still pass).
     c.releasing.delete(REQ_ATTEMPT);
     const before = seedFilesSnapshot(c);
     const after = c.mutator.unclaim(c.requester, 'aaaa');
@@ -642,8 +643,7 @@ describe('R2-T12b — contended trial lock fails fast', () => {
     const started = Date.now();
     const result = await c.call('task.create', { text: 'contended' });
     expect(result.ok).toBe(false);
-    const refusal = refusalOf(result);
-    expect(refusal.reason).toBe('lock_not_held');
+    expect(refusalOf(result).reason).toBe('lock_not_held');
     expect(Date.now() - started).toBeLessThan(5_000);
     expect(taskById(c, 'aaaa')!.depends_on).toEqual([]);
   }));

@@ -96,8 +96,6 @@ export interface BrokerSuccess {
   readonly result: Readonly<Record<string, unknown>>;
 }
 export type BrokerCallResult = BrokerSuccess | BrokerRefusal;
-/** §19.12.2 — the structural `BrokerResult` of the frozen §7.2 P3 port, declared here because the
- *  interface module cannot be imported (its closure is a platform reach, §18 G5-R2). */
 export interface BrokerResult {
   success: boolean;
   message?: string;
@@ -356,8 +354,8 @@ interface GuardContext {
 
 type Guard = (ctx: BrokerContext, context: GuardContext) => BrokerRejectionId | null;
 
-// §8.4 R2/R3 in one decision, in order: ancestry is the UPWARD case R3 names; anything else
-// that is neither self nor a descendant falls to R2.
+// §8.4 R2/R3 in one decision: ancestry is the UPWARD case R3; anything else that is neither
+// self nor a descendant falls to R2.
 function branchRejection(ctx: BrokerContext, capability: ActorCapability, targetId: string): BrokerRejectionId | null {
   if (targetId === capability.task_id) return null;
   if (capability.ancestry.includes(targetId)) return 'R3';
@@ -380,8 +378,11 @@ function addChildren(ctx: BrokerContext, found: Set<string>, frontier: string[])
 function guardReadScope(ctx: BrokerContext, { capability, payload }: GuardContext): BrokerRejectionId | null {
   const target = payload.task_id;
   if (typeof target !== 'string') return null;
-  if (target === capability.task_id || capability.ancestry.includes(target)) return null;
+  if (isSelfOrAncestor(capability, target)) return null;
   return descendantsOf(ctx, capability.task_id).has(target) ? null : 'R2';
+}
+function isSelfOrAncestor(capability: ActorCapability, targetId: string): boolean {
+  return targetId === capability.task_id || capability.ancestry.includes(targetId);
 }
 function guardInBranch(ctx: BrokerContext, { capability, payload }: GuardContext): BrokerRejectionId | null {
   return branchRejection(ctx, capability, String(payload.task_id));
@@ -419,8 +420,7 @@ function guardGenerationCurrent(ctx: BrokerContext, { capability }: GuardContext
   const task = ctx.ports.taskRepository.getById(capability.task_id);
   if (task === null) return 'R2';
   if (task.dispatch_generation !== capability.dispatch_generation) return 'R1';
-  // D-9: the same generation can carry more than one attempt, so the registry attempt must
-  // match too — the generation match alone is not the fence §8.4 R1 asks for.
+  // D-9: the same generation can carry more than one attempt, so the registry attempt must match.
   const current = ctx.capabilities.currentAttempt(capability.task_id);
   return attemptIsCurrent(current, capability) ? null : 'R1';
 }
@@ -429,8 +429,7 @@ function guardLedgerReadable(ctx: BrokerContext, { capability }: GuardContext): 
     ctx.ports.acceptanceLedger.pending(ctx.project, capability.task_id);
     return null;
   } catch {
-    // D-11 inverts the shipped fail-open at `acceptance-ledger.ts:38-48`.
-    return 'R11';
+    return 'R11'; // D-11 inverts the shipped fail-open at `acceptance-ledger.ts:38-48`
   }
 }
 function guardLockHeld(ctx: BrokerContext, { capability }: GuardContext): BrokerRejectionId | null {
@@ -506,15 +505,13 @@ const guards: Readonly<Record<BrokerGuardId, Guard>> = Object.freeze({
   claimable_target: guardClaimableTarget,
 });
 
-// R12 (live token of this trial) plus the G5-W4.4 capability-shaped key scan — a guard order is
-// a security property.
+// R12 (live token of this trial) plus the G5-W4.4 capability-shaped key scan.
 function authenticateCapability(ctx: BrokerContext, context: GuardContext): BrokerRefusal | null {
   const { capability, action, payload } = context;
   if (!ctx.capabilities.isRegistered(capability) || capability.trial_id !== ctx.policy.trial_id) {
     return refuse(action, 'R12');
   }
-  // The scan descends into the one declared container of objects (`subtasks`), so a capability
-  // field cannot be smuggled one level down.
+  // The scan descends into `subtasks`, so a capability field cannot be smuggled one level down.
   for (const key of capabilityShapedKeys(payload)) {
     throw new BrokerArgumentsError(action, `capability-shaped argument key: ${key}`);
   }
@@ -538,13 +535,15 @@ function checkMembershipAndProfile(context: GuardContext): BrokerRefusal | null 
   return null;
 }
 
-// The schema is `.strict()` (G5-W4.4): an undeclared key is a schema rejection; then the row's
-// guard list runs in fixed order.
-function checkSchemaAndGuards(ctx: BrokerContext, context: GuardContext, spec: BrokerActionSpec): BrokerRefusal | null {
+function checkSchemaKeys(context: GuardContext, spec: BrokerActionSpec): void {
   for (const key of Object.keys(context.payload)) {
     if (!spec.argumentKeys.includes(key)) throw new BrokerArgumentsError(context.action, `undeclared argument key: ${key}`);
   }
   assertBrokerArguments(context.action, context.payload);
+}
+
+// The row's guard list runs in fixed order after the schema check.
+function runGuards(ctx: BrokerContext, context: GuardContext, spec: BrokerActionSpec): BrokerRefusal | null {
   for (const guard of spec.guards) {
     const rejection = guards[guard](ctx, context);
     if (rejection !== null) return refuse(context.action, rejection);
@@ -557,11 +556,11 @@ function authorize(ctx: BrokerContext, context: GuardContext): BrokerRefusal | n
   const spec = actionSpecOf(context);
   const denied = checkMembershipAndProfile(context);
   if (denied) return denied;
-  return checkSchemaAndGuards(ctx, context, spec);
+  checkSchemaKeys(context, spec);
+  return runGuards(ctx, context, spec);
 }
 
-// --- §19.12.2 two-leg claim and the ten execution handlers ------------------
-
+// --- the ten execution handlers -----------------------------------------------
 type Executor = (ctx: BrokerContext, capability: ActorCapability, payload: Readonly<Record<string, unknown>>) => BrokerCallResult;
 
 /** Shared refusal→ack plumbing for the lifecycle-mutating actions. */
@@ -583,7 +582,6 @@ const executeCreate: Executor = (ctx, capability, payload) => mutationAck(
   ctx, 'task.create', () => ctx.ports.taskMutator.add(capability, {
     project: ctx.project, fields: { ...payload, parent: capability.task_id },
   }), { created: true });
-
 // §8.3: `keepParent` is forced true in-trial; the destructive variant would replace the parent
 // row and destroy the join node §9.4 M2 depends on.
 const executeDecompose: Executor = (ctx, capability, payload) => mutationAck(
@@ -591,7 +589,6 @@ const executeDecompose: Executor = (ctx, capability, payload) => mutationAck(
     project: ctx.project, taskId: capability.task_id,
     fields: { subtasks: payload.subtasks, keepParent: true },
   }), { decomposed: true });
-
 // §19.12.2: the model-facing claim calls the injected dispatcher-owned callback, never P3.claim
 // directly — requester authority is never reused as target authority.
 const executeClaim: Executor = (ctx, capability, payload) => mutationAck(
@@ -613,7 +610,6 @@ const executeDeclare: Executor = (ctx, capability, payload) => mutationAck(
     project: ctx.project, taskId: String(payload.task_id),
     fields: { addDependsOn: asStringArray(payload.depends_on) },
   }), { declared: true });
-
 // §8.3 / §6.7: a root manager's target is the direct parent, never ask_manager.
 const executeAsk: Executor = (ctx, capability, payload) => {
   const question = String(payload.question);
@@ -653,8 +649,7 @@ function readableSet(ctx: BrokerContext, capability: ActorCapability): Task[] {
 }
 function run(ctx: BrokerContext, context: GuardContext): BrokerCallResult {
   const refusal = authorize(ctx, context);
-  // §8.4: a rejection is RETURNED, never a silent skip, and does not touch the tree — no port
-  // has been called by this point.
+  // §8.4: a rejection is RETURNED, never a silent skip, and touches no port.
   if (refusal) return refusal;
   try {
     return execute(ctx, context.capability, context.action, context.payload);
@@ -748,14 +743,19 @@ function objectCapabilityKeys(subtask: Record<string, unknown>): string[] {
  *  declared container of objects. A capability field smuggled one level down is refused the same
  *  way. */
 function capabilityShapedKeys(payload: Readonly<Record<string, unknown>>): string[] {
-  const found: string[] = [];
-  for (const key of CAPABILITY_SHAPED_ARGUMENT_KEYS) {
-    if (Object.hasOwn(payload, key)) found.push(key);
-  }
+  const found = topLevelCapabilityKeys(payload);
   if (Array.isArray(payload.subtasks)) {
     for (const subtask of payload.subtasks) {
       if (isObject(subtask)) found.push(...objectCapabilityKeys(subtask));
     }
+  }
+  return found;
+}
+
+function topLevelCapabilityKeys(payload: Readonly<Record<string, unknown>>): string[] {
+  const found: string[] = [];
+  for (const key of CAPABILITY_SHAPED_ARGUMENT_KEYS) {
+    if (Object.hasOwn(payload, key)) found.push(key);
   }
   return found;
 }
