@@ -1,26 +1,23 @@
-// input:  a broker action, untrusted arguments, and the ambient capability
-// output: the authorised effect, or a typed refusal that does not touch the tree
-// pos:    §8.3's authorization matrix, §8.4's twelve rejections and §8.5's projection split
+// input:  broker action, arguments, ambient capability
+// output: authorised effect or typed refusal, no tree touch
+// pos:    §8.3 matrix, §8.4 rejections, §8.5 split
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 //
 // THE FENCE, not a convention. §8.3's matrix is exhaustive and says so — "an action absent from
-// this table does not exist" (`design:2409-2410`) — so the table below is the whole surface: there
-// is no `task.complete`, no `task.block` and no `task.uncomplete`, because sealing is the
-// coordinator's act (§8.6). Each row carries its GUARD list, not merely its membership.
+// this table does not exist" (`design:2409-2410`) — so the table below is the whole surface: no
+// `task.complete`, no `task.block` and no `task.uncomplete`, because sealing is the coordinator's
+// act (§8.6). Each row carries its GUARD list, not merely its membership.
 //
-// Import discipline, the reason this module does not import `composite-runtime-ports.ts` or
-// `proposal-seal.ts`: a dependency-cruiser reachability rule cannot exempt type-only edges
-// (§18 G5-R2), and both modules reach `@platform/index.js` through `core/types/thread-types.ts:476`.
-// Importing either — even for a type — would make this module an eighth §7.3 X2 seed and raise
-// that rule's pinned count. The port shapes it consumes are therefore declared STRUCTURALLY below;
-// `task-broker.test.ts` pins them to the frozen §7.2 declarations with a compile-time assignability
-// check, which lives in the test tree and so is not a `src` edge.
+// Import discipline: this module does not import `composite-runtime-ports.ts` or `proposal-seal.ts`
+// because a reachability rule cannot exempt type-only edges (§18 G5-R2) and both reach
+// `@platform/index.js` through `core/types/thread-types.ts:476`. The port shapes it consumes are
+// declared STRUCTURALLY below; `task-broker.test.ts` pins them with a compile-time assignability
+// check in the test tree, which is not a `src` edge.
 //
 // What is NOT here: the proposal → seal machine (Gate 4's `proposal-seal.ts`, reached through the
-// P3 port per §7.2 P3 / (17.2.1), never re-implemented), `CapabilityAwareTaskMutator` itself (the
-// next child's), §8.6's seal and publication sites (Gate 6's), and the MCP registration surface
-// and P15 transport (§18 (18.4); wave 3 and Gate 6). §8.5 is therefore proven against this
-// module's own call surface, which is stated rather than papered over.
+// P3 port, never re-implemented), `CapabilityAwareTaskMutator` itself, §8.6's seal and
+// publication sites (Gate 6's), and the MCP registration surface and P15 transport (wave 3/Gate 6).
+// §8.5 is therefore proven against this module's own call surface, stated rather than papered over.
 
 import { realpathSync } from 'node:fs';
 import * as path from 'node:path';
@@ -43,12 +40,9 @@ export { BrokerArgumentsError };
 /**
  * §18 G5-W8's closed R1…R12 → code map (`design:9103-9116`). Nothing here is minted.
  *
- * R6, R9 and R10 carry NO `code` key at all. §18's finding G5-N4 records that those three
- * rejections have no failure code anywhere in the contract and sets the interim rule binding on
- * Gate 5: return the refusal with `reason` set to the §8.4 name and OMIT `code`, rather than reuse
- * a code for a different condition — which §2.6 names explicitly as a defect (`design:442`). In
- * particular R6 does NOT borrow compile-time code 20: 20 is Class **P** ("nothing started"), and a
- * runtime broker refusal is Class R. The §2.6 registry stays a contiguous 1–44.
+ * R6, R9 and R10 carry NO `code` key (§18 G5-N4's interim rule: omit `code` rather than reuse a
+ * code for a different condition, which §2.6 names as a defect). R6 does NOT borrow compile-time
+ * code 20: 20 is Class P, and a runtime broker refusal is Class R. The registry stays 1–44.
  */
 export type BrokerRejectionId =
   | 'R1' | 'R2' | 'R3' | 'R4' | 'R5' | 'R6' | 'R7' | 'R8' | 'R9' | 'R10' | 'R11' | 'R12';
@@ -58,17 +52,14 @@ export type BrokerRejectionReason =
   | 'proposal_target_not_self' | 'out_of_trial_path' | 'template_not_whitelisted'
   | 'profile_not_whitelisted' | 'capability_denied' | 'budget_exceeded' | 'lock_not_held'
   | 'ledger_unreadable' | 'token_invalid';
-
 /** Typed failures returned by a broker action in addition to §8.4's closed R1–R12 table. */
 export type BrokerRefusalReason =
   | BrokerRejectionReason | 'proposal_invalidated' | 'answer_stale';
-
 export interface BrokerRejectionSpec {
   readonly reason: BrokerRejectionReason;
   /** ABSENT — not `undefined` — for R6, R9 and R10 (§18 G5-N4). */
   readonly code?: number;
 }
-
 export const BROKER_REJECTIONS: Readonly<Record<BrokerRejectionId, BrokerRejectionSpec>>
   = Object.freeze({
   R1: Object.freeze({ reason: 'stale_generation', code: 34 }),
@@ -86,10 +77,9 @@ export const BROKER_REJECTIONS: Readonly<Record<BrokerRejectionId, BrokerRejecti
 });
 
 /**
- * §18 G5-W7's frame, minus `seq`: `seq` belongs to leg 2's newline-delimited framing
- * (G5-W6.2/6.3), and the transport is not Gate 5's. There is deliberately NO message field —
- * §2.6's P-iii/R-iii require a machine-readable reason, and a refusal that carries prose invites a
- * consumer to parse it. `status` is §5.2's `rejected`: NON-terminal for the tree.
+ * §18 G5-W7's frame, minus `seq` (leg 2's framing, not Gate 5's). Deliberately NO message field —
+ * §2.6's P-iii/R-iii require a machine-readable reason. `status` is §5.2's `rejected`:
+ * NON-terminal for the tree.
  */
 export interface BrokerRefusal {
   readonly ok: false;
@@ -105,12 +95,9 @@ export interface BrokerSuccess {
   readonly action: BenchmarkBrokerCapability;
   readonly result: Readonly<Record<string, unknown>>;
 }
-
 export type BrokerCallResult = BrokerSuccess | BrokerRefusal;
-
 /** §19.12.2 — the structural `BrokerResult` of the frozen §7.2 P3 port, declared here because the
- *  interface module cannot be imported (its closure is a platform reach, §18 G5-R2). The
- *  claimTarget callback returns it; the frozen bundle's `CapabilityAwareTaskMutator` satisfies it. */
+ *  interface module cannot be imported (its closure is a platform reach, §18 G5-R2). */
 export interface BrokerResult {
   success: boolean;
   message?: string;
@@ -128,45 +115,40 @@ function refusalFor(
   };
   return Object.freeze(code === undefined ? refusal : { ...refusal, code });
 }
-
 function refuse(action: BenchmarkBrokerCapability, id: BrokerRejectionId): BrokerRefusal {
   const rejection = BROKER_REJECTIONS[id];
   // The `code` KEY is absent, not undefined, for R6/R9/R10 — an omitted code and a null code are
   // different claims, and G5-N4's interim rule is the former.
   return refusalFor(action, rejection.reason, rejection.code);
 }
-
-function succeed(
-  action: BenchmarkBrokerCapability, result: Readonly<Record<string, unknown>>,
-): BrokerSuccess {
+function succeed(action: BenchmarkBrokerCapability, result: Readonly<Record<string, unknown>>): BrokerSuccess {
   return Object.freeze({ ok: true as const, status: 'completed' as const, action, result });
 }
+/** P3's frozen error modes are 33 capability miss and 34 generation miss; an ordinary no-code
+ *  lifecycle failure is surfaced as `BrokerArgumentsError`, never translated and never success. */
+const LIFECYCLE_CODE_REJECTIONS: Readonly<Record<number, BrokerRejectionId>> = Object.freeze({
+  33: 'R8',
+  34: 'R1',
+});
 
-/** P3's frozen error modes are code 33 capability miss and code 34 generation miss. A false result
- *  is already a no-mutation refusal; never turn it into a success acknowledgement. An ordinary
- *  lifecycle/input/lock failure has NO invented code (§19.12.4) and is surfaced as a
- *  `BrokerArgumentsError` — never translated to 33/34 and never treated as success. */
-function mutationRefusal(
-  action: BenchmarkBrokerCapability,
-  result: { readonly success: boolean; readonly code?: number; readonly message?: string },
-): BrokerRefusal | null {
-  if (result.success) return null;
-  if (result.code === 33) return refuse(action, 'R8');
-  if (result.code === 34) return refuse(action, 'R1');
-  if (result.code === undefined) {
-    throw new BrokerArgumentsError(
-      action, `P3 returned an ordinary no-code failure: ${result.message ?? 'unknown'}`,
-    );
-  }
-  throw new TypeError(`P3 returned an unsupported failure code: ${String(result.code)}`);
+function noCodeFailure(action: BenchmarkBrokerCapability, result: { readonly message?: string }): BrokerArgumentsError {
+  return new BrokerArgumentsError(
+    action, `P3 returned an ordinary no-code failure: ${result.message ?? 'unknown'}`,
+  );
 }
-
+function throwUnsupportedCode(code: number): never {
+  throw new TypeError(`P3 returned an unsupported failure code: ${String(code)}`);
+}
+function mutationRefusal(action: BenchmarkBrokerCapability, result: { readonly success: boolean; readonly code?: number; readonly message?: string }): BrokerRefusal | null {
+  if (result.success) return null;
+  if (result.code === undefined) throw noCodeFailure(action, result);
+  const rejection = LIFECYCLE_CODE_REJECTIONS[result.code];
+  return rejection === undefined ? throwUnsupportedCode(result.code) : refuse(action, rejection);
+}
 // ── §18 (18.3) G5-W5 the ten entry points ───────────────────────────────────
-
 /**
- * G5-W5's tool-name column, exhaustive: these ten names are the entire model-facing broker surface.
- * The mapping is total and mechanical — the action name with `.` replaced by `_` — except the two
- * `qa.*` actions, whose names §6.7 already fixed to the shipped `ask_manager` / `answer_subtask`.
+ * G5-W5's tool-name column, exhaustive: the action name with `.` replaced by `_`, except the two
+ * `qa.*` actions whose names §6.7 already fixed to the shipped `ask_manager` / `answer_subtask`.
  */
 export const BROKER_TOOL_NAMES: Readonly<Record<BenchmarkBrokerCapability, string>> = Object.freeze({
   'task.read': 'task_read',
@@ -183,24 +165,19 @@ export const BROKER_TOOL_NAMES: Readonly<Record<BenchmarkBrokerCapability, strin
 
 /**
  * G5-W4.4's schema exclusion, as data. A model that supplies one of these is NAMING a capability
- * rather than using one, which §18's rule forbids outright; G5-W4.4 classifies the call as a
- * schema rejection, so the broker refuses it as `BrokerArgumentsError`. `task_id` is deliberately
- * NOT a member: it is a legitimate TARGET argument on three actions, and what G5-W4.4 excludes is
- * `task_id`-of-self, which no schema declares.
+ * rather than using one; the broker refuses it as `BrokerArgumentsError`. `task_id` is NOT a
+ * member: it is a legitimate TARGET argument, and what G5-W4.4 excludes is `task_id`-of-self.
  */
 export const CAPABILITY_SHAPED_ARGUMENT_KEYS = Object.freeze([
   'token_id', 'trial_id', 'dispatch_generation', 'attempt_id', 'role', 'ancestry',
   'allowed_actions', 'issued_at_epoch_ms',
 ] as const);
-
 /** §2.7 forbids runtime profile re-resolution; §8.4 R7 is the refusal when an actor names one. */
 const PROFILE_SHAPED_ARGUMENT_KEYS: readonly string[] = ['profile', 'profile_name'];
-
 export type BrokerGuardId =
   | 'read_scope' | 'in_branch' | 'in_branch_endpoints' | 'acyclic' | 'target_self'
   | 'generation_current' | 'ledger_readable' | 'lock_held' | 'template_whitelisted'
   | 'task_budget' | 'depth_budget' | 'trial_path' | 'qa_whitelisted' | 'claimable_target';
-
 export interface BrokerActionSpec {
   readonly action: BenchmarkBrokerCapability;
   readonly tool: string;
@@ -210,11 +187,7 @@ export interface BrokerActionSpec {
   readonly guards: readonly BrokerGuardId[];
 }
 
-function row(
-  action: BenchmarkBrokerCapability,
-  argumentKeys: readonly string[],
-  guards: readonly BrokerGuardId[],
-): BrokerActionSpec {
+function row(action: BenchmarkBrokerCapability, argumentKeys: readonly string[], guards: readonly BrokerGuardId[]): BrokerActionSpec {
   return Object.freeze({
     action,
     tool: BROKER_TOOL_NAMES[action],
@@ -224,54 +197,29 @@ function row(
 }
 
 /**
- * §8.3's matrix. Exactly ten rows, and the absence of a field is how a whole rejection class is
- * made UNEXPRESSIBLE rather than policed: `task.create` has no `parent` (§8.3 fixes it to
- * `cap.task_id`), `task.decompose` no `keep_parent` (forced `true`, so the destructive variant that
- * would destroy §9.4 M2's join node is unreachable), `task.claim` no `generation` (only the
- * dispatcher mints one), the two proposals no `task_id` (R4's class removed from the model-facing
- * surface, not policed), and `artifact.write` no `path` (fixed to `manager/<cap.task_id>/artifact.md`).
+ * §8.3's matrix. Exactly ten rows; the absence of a field makes a whole rejection class
+ * UNEXPRESSIBLE rather than policed: no `parent`, `keep_parent`, `generation`, proposal
+ * `task_id`, or `path` (all fixed by §8.3/§8.4/§18 G5-W4.4).
  */
 export const BROKER_ACTION_TABLE: Readonly<Record<BenchmarkBrokerCapability, BrokerActionSpec>> =
   Object.freeze({
     'task.read': row('task.read', ['task_id'], ['read_scope']),
-    'task.create': row(
-      'task.create',
-      ['text', 'why', 'done_when', 'template', 'priority', 'plan', 'depends_on'],
-      ['lock_held', 'template_whitelisted', 'task_budget', 'depth_budget'],
-    ),
-    'task.decompose': row(
-      'task.decompose', ['subtasks'],
-      ['lock_held', 'generation_current', 'template_whitelisted', 'task_budget', 'depth_budget'],
-    ),
-    'task.claim': row(
-      'task.claim', ['task_id'],
-      // §19.12.2: requester currency first, then R3/R2 branch refusals, then the strict
-      // actionable-unclaimed-descendant proof — self, non-actionable and already-claimed
-      // targets are BrokerArgumentsError before any mint or port call.
-      ['generation_current', 'in_branch', 'claimable_target'],
-    ),
-    'task.propose_complete': row(
-      'task.propose_complete', ['note'],
-      ['target_self', 'generation_current', 'ledger_readable'],
-    ),
-    'task.propose_block': row(
-      'task.propose_block', ['reason'], ['target_self', 'generation_current'],
-    ),
+    // §19.12.2 claim guards: requester currency first, then R3/R2 branch refusals, then the
+    // strict actionable-unclaimed-descendant proof (BrokerArgumentsError before any mint).
+    'task.create': row('task.create', ['text', 'why', 'done_when', 'template', 'priority', 'plan', 'depends_on'], ['lock_held', 'template_whitelisted', 'task_budget', 'depth_budget']),
+    'task.decompose': row('task.decompose', ['subtasks'], ['lock_held', 'generation_current', 'template_whitelisted', 'task_budget', 'depth_budget']),
+    'task.claim': row('task.claim', ['task_id'], ['generation_current', 'in_branch', 'claimable_target']),
+    'task.propose_complete': row('task.propose_complete', ['note'], ['target_self', 'generation_current', 'ledger_readable']),
+    'task.propose_block': row('task.propose_block', ['reason'], ['target_self', 'generation_current']),
     'artifact.write': row('artifact.write', ['content'], ['trial_path']),
-    'dependency.declare': row(
-      'dependency.declare', ['task_id', 'depends_on'], ['in_branch_endpoints', 'acyclic'],
-    ),
+    'dependency.declare': row('dependency.declare', ['task_id', 'depends_on'], ['in_branch_endpoints', 'acyclic']),
     'qa.ask': row('qa.ask', ['question'], ['qa_whitelisted']),
     'qa.answer': row('qa.answer', ['question_id', 'answer'], ['qa_whitelisted']),
   });
-
 // ── §8.5 the model-visible projection ───────────────────────────────────────
-
 /**
- * EXHAUSTIVE, and proved so: `MODEL_VISIBLE_TASK_FIELDS ∪ PROJECTION_WITHHELD_TASK_FIELDS` is
- * exactly `keyof Task`, checked at compile time below and again by test against a real row. A field
- * added to `Task` lands in neither list and stops the build, so the projection cannot silently
- * start carrying something new.
+ * EXHAUSTIVE: the union of the two lists is exactly `keyof Task`, checked at compile time below
+ * and again by test; a field added to `Task` lands in neither list and stops the build.
  */
 export const MODEL_VISIBLE_TASK_FIELDS = Object.freeze([
   'id', 'text', 'why', 'done_when', 'priority', 'status', 'template', 'plan', 'project',
@@ -280,27 +228,18 @@ export const MODEL_VISIBLE_TASK_FIELDS = Object.freeze([
 ] as const satisfies readonly (keyof Task)[]);
 
 /**
- * §8.5's "claims / generations … not projected at all" (`design:2460`) plus the host-side
- * provenance fields, which are fencing data in exactly the sense §8.5's Q&A row means: "the model
- * sees the question, never the record's fencing fields".
- *
- * `dispatch_generation` is the load-bearing member. A generation is never shown to a model, so it
- * cannot be echoed back into a mutation — and G5-W4.5 makes that STRUCTURAL rather than a review
- * convention, because no argument of any of the ten accepts one either.
+ * §8.5's "claims / generations … not projected at all" plus the host-side provenance fields —
+ * fencing data the model never sees, so a generation cannot be echoed back into a mutation
+ * (G5-W4.5 makes that STRUCTURAL: no argument of any of the ten accepts one either).
  */
 export const PROJECTION_WITHHELD_TASK_FIELDS = Object.freeze([
   'dispatch_generation', 'claimed_by', 'claimed_at',
   'origin_session_id', 'origin_channel', 'origin_thread_id',
 ] as const satisfies readonly (keyof Task)[]);
 
-type ProjectionPartitionGap = Exclude<
-  keyof Task,
-  typeof MODEL_VISIBLE_TASK_FIELDS[number] | typeof PROJECTION_WITHHELD_TASK_FIELDS[number]
->;
+type ProjectionPartitionGap = Exclude<keyof Task, typeof MODEL_VISIBLE_TASK_FIELDS[number] | typeof PROJECTION_WITHHELD_TASK_FIELDS[number]>;
 export type ProjectionIsExhaustive = ProjectionPartitionGap extends never ? true : never;
-
 export type ModelVisibleTask = Pick<Task, typeof MODEL_VISIBLE_TASK_FIELDS[number]>;
-
 /** The disposable projection of §8.5: regenerated from broker state, never parsed back. */
 export function projectTaskForModel(task: Task): ModelVisibleTask {
   const projected: Partial<Record<keyof Task, unknown>> = {};
@@ -311,61 +250,42 @@ export function projectTaskForModel(task: Task): ModelVisibleTask {
   }
   return Object.freeze(projected) as ModelVisibleTask;
 }
-
 // ── the ports this module consumes, declared structurally (see the header) ──
-
 export interface BrokerMutationRequest {
   project: string;
   taskId?: string;
   fields: Readonly<Record<string, unknown>>;
 }
 
-/** §19.12.1 — the by-value refusal member of the proposal union, declared structurally (the
- *  real type lives in `trial-task-mutator.ts`; importing it here would be a new edge for the
- *  reachability rules to audit, and the structural shape is what the broker discriminates on). */
+/** §19.12.1 — the by-value refusal member of the proposal union, declared structurally (the real
+ *  type lives in `trial-task-mutator.ts`; importing it here would be a new reachability edge). */
 export interface BrokerMutationRefusal {
   readonly success: false;
   readonly message: string;
   readonly code: 33 | 34;
 }
-
-/** The proposal port's corrected return: the exact `ProposalRow` or a by-value refusal. The row
- *  member is a structural stand-in (the broker only discriminates and discards it); the frozen
- *  `ProposalRow` satisfies it, which the compile-time pin in `task-broker.test.ts` proves. */
+/** The proposal port's corrected return: the exact `ProposalRow` or a by-value refusal; the row
+ *  member is a structural stand-in the broker only discriminates and discards. */
 export type BrokerProposalResult = { readonly state: string } | BrokerMutationRefusal;
-
-/** The narrowed, structural view of the frozen §7.2 ports this broker calls. The frozen bundle must
- *  satisfy it (pinned by test), and it references the S-B `ActorCapability` for every `cap`
- *  parameter, exactly as the frozen declarations do after the token wiring. `claim` is REMOVED
- *  from this view (§19.12.1): the model-facing claim routes through the injected
- *  `BrokerConstruction.claimTarget` callback, never through `taskMutator.claim`. */
+/** The narrowed, structural view of the frozen §7.2 ports this broker calls (the frozen bundle
+ *  must satisfy it, pinned by test). `claim` is REMOVED from this view (§19.12.1): the
+ *  model-facing claim routes through the injected `claimTarget` callback, never P3.claim. */
 export interface BrokerPorts {
   readonly taskRepository: {
     getById(taskId: string): Task | null;
     list(filter: { project?: string; status?: string; parent?: string }): Task[];
-    /** §19.12.2 step 2 — the claim target must exist in the shipped actionable set. */
-    getActionable(): Task[];
+    getActionable(): Task[]; // §19.12.2 step 2 — the claim target must exist in this set
   };
   readonly taskMutator: {
-    add(
-      capability: ActorCapability, request: BrokerMutationRequest,
-    ): { success: boolean; code?: number };
-    decompose(
-      capability: ActorCapability, request: BrokerMutationRequest,
-    ): { success: boolean; code?: number };
-    edit(
-      capability: ActorCapability, request: BrokerMutationRequest,
-    ): { success: boolean; code?: number };
+    add(capability: ActorCapability, request: BrokerMutationRequest): { success: boolean; code?: number };
+    decompose(capability: ActorCapability, request: BrokerMutationRequest): { success: boolean; code?: number };
+    edit(capability: ActorCapability, request: BrokerMutationRequest): { success: boolean; code?: number };
     /** §19.12.1/§19.12.6 — routes into Gate 4's shipped `proposal-seal.ts` through P3, returning
-     *  the exact `recordProposal` row or a by-value `MutationRefusal` (33|34). The broker narrows
-     *  the union by the literal `success:false` member; `ProposalSealError` (37/42) stays thrown
-     *  and flows through `typedPortFailure`. */
-    proposeComplete(
-      capability: ActorCapability, taskId: string, note: string,
-    ): BrokerProposalResult;
-    proposeBlock(
-      capability: ActorCapability, taskId: string, reason: string,
-    ): BrokerProposalResult;
+     *  the exact `recordProposal` row or a by-value `MutationRefusal` (33|34); the broker narrows
+     *  the union by the literal `success:false` member, and `ProposalSealError` (37/42) stays
+     *  thrown, flowing through `typedPortFailure`. */
+    proposeComplete(capability: ActorCapability, taskId: string, note: string): BrokerProposalResult;
+    proposeBlock(capability: ActorCapability, taskId: string, reason: string): BrokerProposalResult;
   };
   readonly taskLocks: {
     assertHeld(project: string, owner: string): string | null;
@@ -379,9 +299,7 @@ export interface BrokerPorts {
   };
   readonly managerQa: {
     ask(capability: ActorCapability, question: string): { questionId: string };
-    answer(
-      capability: ActorCapability, questionId: string, answer: string,
-    ): { success: boolean };
+    answer(capability: ActorCapability, questionId: string, answer: string): { success: boolean };
   };
   readonly parentQuestions: {
     record(capability: ActorCapability, question: string): { questionId: string };
@@ -396,14 +314,10 @@ export interface BrokerConstruction {
   readonly project: string;
   /** §7.2 P5's repointed root. R5 resolve-then-contains every path against it. */
   readonly trialArtifactRoot: string;
-  /** §19.12.2 — the dispatcher-owned two-leg claim callback. The broker proves the requester
-   *  (currency on the requester row) and the target (strict actionable unclaimed descendant) and
-   *  then calls this callback; it is separate from `BrokerPorts.taskMutator` so requester
-   *  authority can never be confused with target authority. Constructed by
-   *  `createDispatcherOwnedClaimTarget` in `trial-task-dispatcher.ts`. */
-  readonly claimTarget: (
-    requester: ActorCapability, targetId: string,
-  ) => BrokerResult;
+  /** §19.12.2 — the dispatcher-owned two-leg claim callback, separate from `BrokerPorts.taskMutator`
+   *  so requester authority is never confused with target authority (constructed by
+   *  `createDispatcherOwnedClaimTarget` in `trial-task-dispatcher.ts`). */
+  readonly claimTarget: (requester: ActorCapability, targetId: string) => BrokerResult;
 }
 
 export interface BenchmarkTaskBroker {
@@ -413,383 +327,388 @@ export interface BenchmarkTaskBroker {
     action: BenchmarkBrokerCapability, payload: Readonly<Record<string, unknown>>,
   ): Promise<BrokerCallResult>;
   /** §7.2 P3's coordinator-internal signature, where the target IS named and R4 therefore stays
-   *  live. G5-W3: §8.3's "Broker method" column names coordinator-internal methods, not
-   *  model-facing entry points. */
-  proposeComplete(
-    capability: ActorCapability, taskId: string, note: string,
-  ): Promise<BrokerCallResult>;
-  proposeBlock(
-    capability: ActorCapability, taskId: string, reason: string,
-  ): Promise<BrokerCallResult>;
+   *  live. G5-W3: §8.3's "Broker method" column names coordinator-internal methods. */
+  proposeComplete(capability: ActorCapability, taskId: string, note: string): Promise<BrokerCallResult>;
+  proposeBlock(capability: ActorCapability, taskId: string, reason: string): Promise<BrokerCallResult>;
 }
 
 // ── the fence ───────────────────────────────────────────────────────────────
 
-export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkTaskBroker {
-  const { policy, ports, capabilities, project, trialArtifactRoot, claimTarget: constructionClaimTarget } = input;
-  const templateWhitelist = new Set(policy.child_template_whitelist);
+/** The construction state of one broker instance, built once by `createBenchmarkTaskBroker` and
+ *  passed to every guard/handler below. */
+interface BrokerContext {
+  readonly policy: ResolvedTrialPolicy;
+  readonly ports: BrokerPorts;
+  readonly capabilities: ActorCapabilityRegistry;
+  readonly project: string;
+  readonly trialArtifactRoot: string;
+  readonly claimTarget: (requester: ActorCapability, targetId: string) => BrokerResult;
+  readonly templateWhitelist: Set<string>;
+}
+interface GuardContext {
+  readonly capability: ActorCapability;
+  readonly action: BenchmarkBrokerCapability;
+  readonly payload: Readonly<Record<string, unknown>>;
+  /** Leg 1's explicitly named target (§7.2 P3's `proposeComplete(cap, taskId, note)`). `null` on
+   *  the model-facing surface, whose schemas declare no `task_id` for the two proposals. */
+  readonly target: string | null;
+}
 
-  function descendantsOf(taskId: string): Set<string> {
-    const found = new Set<string>();
-    const frontier = [taskId];
-    while (frontier.length > 0) {
-      for (const child of ports.taskRepository.list({ parent: frontier.pop()! })) {
-        if (found.has(child.id)) continue;
-        found.add(child.id);
-        frontier.push(child.id);
-      }
-    }
-    return found;
+type Guard = (ctx: BrokerContext, context: GuardContext) => BrokerRejectionId | null;
+
+// §8.4 R2/R3 in one decision, in order: ancestry is the UPWARD case R3 names; anything else
+// that is neither self nor a descendant falls to R2.
+function branchRejection(ctx: BrokerContext, capability: ActorCapability, targetId: string): BrokerRejectionId | null {
+  if (targetId === capability.task_id) return null;
+  if (capability.ancestry.includes(targetId)) return 'R3';
+  return descendantsOf(ctx, capability.task_id).has(targetId) ? null : 'R2';
+}
+function descendantsOf(ctx: BrokerContext, taskId: string): Set<string> {
+  const found = new Set<string>();
+  const frontier = [taskId];
+  while (frontier.length > 0) addChildren(ctx, found, frontier);
+  return found;
+}
+function addChildren(ctx: BrokerContext, found: Set<string>, frontier: string[]): void {
+  const id = frontier.pop()!;
+  for (const child of ctx.ports.taskRepository.list({ parent: id })) {
+    if (found.has(child.id)) continue;
+    found.add(child.id);
+    frontier.push(child.id);
   }
-
-  /** §8.4 R2/R3 in one decision, because their order matters: a target in `cap.ancestry` is the
-   *  UPWARD case R3 names specifically, and only a target that is neither self nor a descendant nor
-   *  an ancestor falls through to R2's general cross-branch case. */
-  function branchRejection(
-    capability: ActorCapability, targetId: string,
-  ): BrokerRejectionId | null {
-    if (targetId === capability.task_id) return null;
-    if (capability.ancestry.includes(targetId)) return 'R3';
-    return descendantsOf(capability.task_id).has(targetId) ? null : 'R2';
+}
+function guardReadScope(ctx: BrokerContext, { capability, payload }: GuardContext): BrokerRejectionId | null {
+  const target = payload.task_id;
+  if (typeof target !== 'string') return null;
+  if (target === capability.task_id || capability.ancestry.includes(target)) return null;
+  return descendantsOf(ctx, capability.task_id).has(target) ? null : 'R2';
+}
+function guardInBranch(ctx: BrokerContext, { capability, payload }: GuardContext): BrokerRejectionId | null {
+  return branchRejection(ctx, capability, String(payload.task_id));
+}
+function guardInBranchEndpoints(ctx: BrokerContext, { capability, payload }: GuardContext): BrokerRejectionId | null {
+  const endpoints = [String(payload.task_id), ...asStringArray(payload.depends_on)];
+  for (const endpoint of endpoints) {
+    const rejection = branchRejection(ctx, capability, endpoint);
+    if (rejection !== null) return rejection;
   }
-
-  interface GuardContext {
-    readonly capability: ActorCapability;
-    readonly action: BenchmarkBrokerCapability;
-    readonly payload: Readonly<Record<string, unknown>>;
-    /** Leg 1's explicitly named target (§7.2 P3's `proposeComplete(cap, taskId, note)`). `null` on
-     *  the model-facing surface, whose schemas declare no `task_id` for the two proposals — which
-     *  is how §8.4 R4's class is REMOVED there rather than policed. */
-    readonly target: string | null;
+  return null;
+}
+function guardAcyclic(ctx: BrokerContext, { payload }: GuardContext): BrokerRejectionId | null {
+  const from = String(payload.task_id);
+  const edges = new Map<string, string[]>();
+  for (const task of ctx.ports.taskRepository.list({})) edges.set(task.id, [...task.depends_on]);
+  edges.set(from, [...(edges.get(from) ?? []), ...asStringArray(payload.depends_on)]);
+  if (introducesCycle(edges, from)) {
+    // No R1–R12 member exists for a cyclic declare, and none may be minted (§18 G5-N4) — this
+    // is a mutation-validity refusal of the same class as a schema rejection.
+    throw new BrokerArgumentsError(
+      'dependency.declare', 'the resulting dependency graph would contain a cycle',
+    );
   }
-
-  type Guard = (context: GuardContext) => BrokerRejectionId | null;
-
-  const guardTable: Record<BrokerGuardId, Guard> = {
-    read_scope: ({ capability, payload }) => {
-      const target = payload.task_id;
-      if (typeof target !== 'string') return null;
-      if (target === capability.task_id || capability.ancestry.includes(target)) return null;
-      return descendantsOf(capability.task_id).has(target) ? null : 'R2';
-    },
-
-    in_branch: ({ capability, payload }) => branchRejection(capability, String(payload.task_id)),
-
-    in_branch_endpoints: ({ capability, payload }) => {
-      const endpoints = [String(payload.task_id), ...asStringArray(payload.depends_on)];
-      for (const endpoint of endpoints) {
-        const rejection = branchRejection(capability, endpoint);
-        if (rejection !== null) return rejection;
-      }
-      return null;
-    },
-
-    // §19.12.2 step 2 — the claim target proof, AFTER the requester's generation_current and the
-    // R3/R2 branch refusals: the target must be a STRICT descendant (self is refused), must exist
-    // in the shipped actionable set, and must be unclaimed (claimed_by and generation both null).
-    // These three failures are BrokerArgumentsError — the class is made unexpressible rather
-    // than policed — and they fire before any mint or port call, so no capability is ever minted
-    // for a target that cannot be claimed.
-    claimable_target: ({ capability, payload }) => {
-      const target = String(payload.task_id);
-      if (target === capability.task_id) {
-        throw new BrokerArgumentsError(
-          'task.claim', 'claiming the capability\'s own task is not a strict descendant claim',
-        );
-      }
-      const row = ports.taskRepository.getActionable().find(task => task.id === target);
-      if (row === undefined) {
-        throw new BrokerArgumentsError(
-          'task.claim', `target ${target} is not an actionable trial task`,
-        );
-      }
-      if (row.claimed_by !== null || row.dispatch_generation !== null) {
-        throw new BrokerArgumentsError('task.claim', `target ${target} is already claimed`);
-      }
-      return null;
-    },
-
-    acyclic: ({ payload }) => {
-      const from = String(payload.task_id);
-      const edges = new Map<string, string[]>();
-      for (const task of ports.taskRepository.list({})) edges.set(task.id, [...task.depends_on]);
-      edges.set(from, [...(edges.get(from) ?? []), ...asStringArray(payload.depends_on)]);
-      if (introducesCycle(edges, from)) {
-        // §8.3's guard column requires the resulting graph to stay acyclic, but the closed R1–R12
-        // map has no member for a cyclic declare — so this is a mutation-validity refusal of the
-        // same class as a schema rejection, not an R-refusal (no code exists, and none may be
-        // minted, §18 G5-N4; reusing R2's code for it would be the §2.6 defect).
-        throw new BrokerArgumentsError(
-          'dependency.declare', 'the resulting dependency graph would contain a cycle',
-        );
-      }
-      return null;
-    },
-
-    target_self: ({ capability, target }) => {
-      if (target === null || target === capability.task_id) return null;
-      return capability.ancestry.includes(target) ? 'R3' : 'R4';
-    },
-
-    generation_current: ({ capability }) => {
-      const task = ports.taskRepository.getById(capability.task_id);
-      if (task === null) return 'R2';
-      if (task.dispatch_generation !== capability.dispatch_generation) return 'R1';
-      // D-9: the same generation can carry more than one attempt (rework re-entry, manager
-      // rotation), so the generation match alone is not the fence §8.4 R1 asks for. The task's
-      // current attempt is the coordinator-side record the registry keeps at registration.
-      const current = capabilities.currentAttempt(capability.task_id);
-      if (current === null
-        || current.dispatch_generation !== capability.dispatch_generation
-        || current.attempt_id !== capability.attempt_id) return 'R1';
-      return null;
-    },
-
-    ledger_readable: ({ capability }) => {
-      try {
-        ports.acceptanceLedger.pending(project, capability.task_id);
-        return null;
-      } catch {
-        // D-11 inverts the shipped fail-open at `acceptance-ledger.ts:38-48`: an unreadable ledger
-        // reads as "nothing pending", which would admit a proposal §9.4 M-4 must fence.
-        return 'R11';
-      }
-    },
-
-    lock_held: ({ capability }) => (
-      // One project, one lock, held by the trial: every actor of the trial asserts the same owner.
-      ports.taskLocks.assertHeld(project, capability.trial_id) === null ? null : 'R10'
-    ),
-
-    template_whitelisted: ({ payload }) => {
-      for (const template of requestedTemplates(payload)) {
-        if (!templateWhitelist.has(template)) return 'R6';
-      }
-      return null;
-    },
-
-    task_budget: ({ action, payload }) => {
-      const added = action === 'task.decompose' && Array.isArray(payload.subtasks)
-        ? payload.subtasks.length : 1;
-      return ports.taskRepository.list({}).length + added > policy.limits.max_tasks
-        ? 'R9' : null;
-    },
-
-    // §8.3: `depth(cap) < max_task_depth`. The actor's depth is the length of its ancestry; a
-    // child it creates would sit one level deeper.
-    depth_budget: ({ capability }) => (
-      capability.ancestry.length >= policy.limits.max_task_depth ? 'R9' : null
-    ),
-
-    trial_path: ({ capability }) => {
-      const target = ports.taskArtifacts.artifactPath(project, capability.task_id);
-      return containedIn(resolveRealPath(trialArtifactRoot), resolveRealPath(target))
-        ? null : 'R5';
-    },
-
-    // §2.4: Q&A disabled means the capabilities are ABSENT, not refused. This re-checks the frozen
-    // policy as well as the token, so a token whose allowed_actions somehow exceeded the arm's
-    // whitelist is still refused.
-    qa_whitelisted: ({ capability, action }) => (
-      policy.capability_whitelist.includes(action) && capability.allowed_actions.has(action)
-        ? null : 'R8'
-    ),
-  };
-
-  const guards: Readonly<Record<BrokerGuardId, Guard>> = Object.freeze(guardTable);
-
-  /**
-   * The authorisation order, fixed and documented because a guard order is a security property:
-   * a caller must never learn from a refusal something the earlier fence would have denied, and
-   * a forged-authority attempt is refused before anything else.
-   */
-  function authorize(context: GuardContext): BrokerRefusal | null {
-    const { capability, action, payload } = context;
-    // R12 — the token must be live and belong to THIS trial. §8.2's lifetime rule is immediate, so
-    // a capability invalidated between registration and call fails here rather than at the next one.
-    if (!capabilities.isRegistered(capability) || capability.trial_id !== policy.trial_id) {
-      return refuse(action, 'R12');
-    }
-    // G5-W4.4 — naming a capability instead of using one is a schema rejection, and the broker
-    // re-enforces the exclusion so the property is structural rather than a review convention.
-    // The scan descends into the one declared container of objects (`subtasks`), so a capability
-    // field cannot be smuggled one level down.
-    for (const key of capabilityShapedKeys(payload)) {
-      throw new BrokerArgumentsError(action, `capability-shaped argument key: ${key}`);
-    }
-    // An action absent from §8.3's table does not exist (G5-W6.2: the action must be a member of
-    // the closed union); a non-member is a protocol error, not an R-refusal.
-    const spec = Object.hasOwn(BROKER_ACTION_TABLE, action)
-      ? BROKER_ACTION_TABLE[action] : undefined;
-    if (spec === undefined) {
-      throw new BrokerArgumentsError(action, 'action is not a member of §8.3\'s table');
-    }
-    // R8 — the requested action is not in the capability's allowed set.
-    if (!capability.allowed_actions.has(action)) {
-      return refuse(action, 'R8');
-    }
-    // R7 — §2.7 admits no runtime profile re-resolution by any actor; a profile-naming key is the
-    // broker surface's only place R7 can fire.
-    for (const key of PROFILE_SHAPED_ARGUMENT_KEYS) {
-      if (Object.hasOwn(payload, key)) return refuse(action, 'R7');
-    }
-    // The schema is `.strict()` (G5-W4.4): an undeclared key is a schema rejection.
-    for (const key of Object.keys(payload)) {
-      if (!spec.argumentKeys.includes(key)) {
-        throw new BrokerArgumentsError(action, `undeclared argument key: ${key}`);
-      }
-    }
-    assertBrokerArguments(action, payload);
-    for (const guard of spec.guards) {
-      const rejection = guards[guard](context);
-      if (rejection !== null) return refuse(action, rejection);
-    }
+  return null;
+}
+function guardTargetSelf(ctx: BrokerContext, { capability, target }: GuardContext): BrokerRejectionId | null {
+  if (target === null || target === capability.task_id) return null;
+  return capability.ancestry.includes(target) ? 'R3' : 'R4';
+}
+function attemptIsCurrent(current: { readonly dispatch_generation: string; readonly attempt_id: string } | null, capability: ActorCapability): boolean {
+  return current !== null && current.dispatch_generation === capability.dispatch_generation && current.attempt_id === capability.attempt_id;
+}
+function guardGenerationCurrent(ctx: BrokerContext, { capability }: GuardContext): BrokerRejectionId | null {
+  const task = ctx.ports.taskRepository.getById(capability.task_id);
+  if (task === null) return 'R2';
+  if (task.dispatch_generation !== capability.dispatch_generation) return 'R1';
+  // D-9: the same generation can carry more than one attempt, so the registry attempt must
+  // match too — the generation match alone is not the fence §8.4 R1 asks for.
+  const current = ctx.capabilities.currentAttempt(capability.task_id);
+  return attemptIsCurrent(current, capability) ? null : 'R1';
+}
+function guardLedgerReadable(ctx: BrokerContext, { capability }: GuardContext): BrokerRejectionId | null {
+  try {
+    ctx.ports.acceptanceLedger.pending(ctx.project, capability.task_id);
     return null;
+  } catch {
+    // D-11 inverts the shipped fail-open at `acceptance-ledger.ts:38-48`.
+    return 'R11';
   }
-
-  function execute(
-    capability: ActorCapability,
-    action: BenchmarkBrokerCapability,
-    payload: Readonly<Record<string, unknown>>,
-  ): BrokerCallResult {
-    switch (action) {
-      case 'task.read': {
-        const target = payload.task_id;
-        const rows = typeof target === 'string'
-          ? [ports.taskRepository.getById(target)].filter((task): task is Task => task !== null)
-          : readableSet(capability);
-        return succeed(action, { tasks: rows.map(projectTaskForModel) });
-      }
-      case 'task.create': {
-        const rejected = mutationRefusal(action, ports.taskMutator.add(capability, {
-          project, fields: { ...payload, parent: capability.task_id },
-        }));
-        return rejected ?? succeed(action, { created: true });
-      }
-      case 'task.decompose': {
-        const rejected = mutationRefusal(action, ports.taskMutator.decompose(capability, {
-          project,
-          taskId: capability.task_id,
-          // §8.3: `keepParent` is forced true in-trial; the destructive variant would replace the
-          // parent row and destroy the join node §9.4 M2 depends on.
-          fields: { subtasks: payload.subtasks, keepParent: true },
-        }));
-        return rejected ?? succeed(action, { decomposed: true });
-      }
-      case 'task.claim': {
-        // §19.12.2: the model-facing claim calls the injected dispatcher-owned callback, never
-        // P3.claim directly — the callback mints/registers the target capability and P3 claims
-        // with it, so requester authority is never reused as target authority.
-        const target = String(payload.task_id);
-        const rejected = mutationRefusal(action, constructionClaimTarget(capability, target));
-        return rejected ?? succeed(action, { claimed: target });
-      }
-      case 'task.propose_complete': {
-        const result = ports.taskMutator.proposeComplete(
-          capability, capability.task_id, String(payload.note),
-        );
-        return proposalRefusal(action, result) ?? succeed(action, { proposal_recorded: true });
-      }
-      case 'task.propose_block': {
-        const result = ports.taskMutator.proposeBlock(
-          capability, capability.task_id, String(payload.reason),
-        );
-        return proposalRefusal(action, result) ?? succeed(action, { proposal_recorded: true });
-      }
-      case 'artifact.write':
-        ports.taskArtifacts.write(capability, String(payload.content));
-        return succeed(action, { written: true });
-      case 'dependency.declare': {
-        const rejected = mutationRefusal(action, ports.taskMutator.edit(capability, {
-          project,
-          taskId: String(payload.task_id),
-          fields: { addDependsOn: asStringArray(payload.depends_on) },
-        }));
-        return rejected ?? succeed(action, { declared: true });
-      }
-      case 'qa.ask': {
-        const question = String(payload.question);
-        // §8.3 / §6.7: a root manager's target is the direct parent, never ask_manager.
-        const asked = capability.role === 'manager' && capability.ancestry.length === 0
-          ? ports.parentQuestions.record(capability, question)
-          : ports.managerQa.ask(capability, question);
-        return succeed(action, { question_id: asked.questionId });
-      }
-      case 'qa.answer': {
-        const result = ports.managerQa.answer(
-          capability, String(payload.question_id), String(payload.answer),
-        );
-        return result.success
-          ? succeed(action, { answered: true })
-          : refusalFor(action, 'answer_stale');
-      }
-    }
+}
+function guardLockHeld(ctx: BrokerContext, { capability }: GuardContext): BrokerRejectionId | null {
+  // One project, one lock, held by the trial: every actor asserts the same owner.
+  return ctx.ports.taskLocks.assertHeld(ctx.project, capability.trial_id) === null ? null : 'R10';
+}
+function guardTemplateWhitelisted(ctx: BrokerContext, { payload }: GuardContext): BrokerRejectionId | null {
+  for (const template of requestedTemplates(payload)) {
+    if (!ctx.templateWhitelist.has(template)) return 'R6';
   }
-
-  function readableSet(capability: ActorCapability): Task[] {
-    const ids = new Set([
-      capability.task_id, ...capability.ancestry, ...descendantsOf(capability.task_id),
-    ]);
-    return [...ids]
-      .map(id => ports.taskRepository.getById(id))
-      .filter((task): task is Task => task !== null);
+  return null;
+}
+function guardTaskBudget(ctx: BrokerContext, { action, payload }: GuardContext): BrokerRejectionId | null {
+  const added = action === 'task.decompose' && Array.isArray(payload.subtasks)
+    ? payload.subtasks.length : 1;
+  return ctx.ports.taskRepository.list({}).length + added > ctx.policy.limits.max_tasks
+    ? 'R9' : null;
+}
+// §8.3: `depth(cap) < max_task_depth`; a child would sit one level deeper than the ancestry.
+function guardDepthBudget(ctx: BrokerContext, { capability }: GuardContext): BrokerRejectionId | null {
+  return capability.ancestry.length >= ctx.policy.limits.max_task_depth ? 'R9' : null;
+}
+function guardTrialPath(ctx: BrokerContext, { capability }: GuardContext): BrokerRejectionId | null {
+  const target = ctx.ports.taskArtifacts.artifactPath(ctx.project, capability.task_id);
+  return containedIn(resolveRealPath(ctx.trialArtifactRoot), resolveRealPath(target)) ? null : 'R5';
+}
+// §2.4: Q&A disabled means the capabilities are ABSENT, not refused — the frozen policy is
+// re-checked beside the token so a widened token is still refused.
+function guardQaWhitelisted(ctx: BrokerContext, { capability, action }: GuardContext): BrokerRejectionId | null {
+  return ctx.policy.capability_whitelist.includes(action) && capability.allowed_actions.has(action)
+    ? null : 'R8';
+}
+function findActionable(ctx: BrokerContext, target: string): Task | undefined {
+  return ctx.ports.taskRepository.getActionable().find(task => task.id === target);
+}
+function isUnclaimedRow(row: Task): boolean {
+  return row.claimed_by === null && row.dispatch_generation === null;
+}
+// §19.12.2 step 2 — the claim target proof, AFTER the requester's generation_current and the
+// R3/R2 branch refusals: a STRICT descendant (self refused), present in the shipped actionable
+// set and unclaimed. These three failures are BrokerArgumentsError, made unexpressible rather
+// than policed, and fire before any mint or port call.
+function guardClaimableTarget(ctx: BrokerContext, { capability, payload }: GuardContext): BrokerRejectionId | null {
+  const target = String(payload.task_id);
+  if (target === capability.task_id) {
+    throw new BrokerArgumentsError(
+      'task.claim', 'claiming the capability\'s own task is not a strict descendant claim',
+    );
   }
-
-  function run(context: GuardContext): BrokerCallResult {
-    const refusal = authorize(context);
-    // §8.4: a rejection is a typed refusal RETURNED to the caller, never a silent skip, and it does
-    // not touch the tree — which is why no port has been called by this point.
-    if (refusal) return refusal;
-    try {
-      return execute(context.capability, context.action, context.payload);
-    } catch (error) {
-      const typed = typedPortFailure(error);
-      if (typed) return refusalFor(context.action, typed.reason, typed.code);
-      throw error;
-    }
+  const row = findActionable(ctx, target);
+  if (row === undefined) {
+    throw new BrokerArgumentsError('task.claim', `target ${target} is not an actionable trial task`);
   }
+  if (!isUnclaimedRow(row)) {
+    throw new BrokerArgumentsError('task.claim', `target ${target} is already claimed`);
+  }
+  return null;
+}
+const guards: Readonly<Record<BrokerGuardId, Guard>> = Object.freeze({
+  read_scope: guardReadScope,
+  in_branch: guardInBranch,
+  in_branch_endpoints: guardInBranchEndpoints,
+  acyclic: guardAcyclic,
+  target_self: guardTargetSelf,
+  generation_current: guardGenerationCurrent,
+  ledger_readable: guardLedgerReadable,
+  lock_held: guardLockHeld,
+  template_whitelisted: guardTemplateWhitelisted,
+  task_budget: guardTaskBudget,
+  depth_budget: guardDepthBudget,
+  trial_path: guardTrialPath,
+  qa_whitelisted: guardQaWhitelisted,
+  claimable_target: guardClaimableTarget,
+});
 
+// R12 (live token of this trial) plus the G5-W4.4 capability-shaped key scan — a guard order is
+// a security property.
+function authenticateCapability(ctx: BrokerContext, context: GuardContext): BrokerRefusal | null {
+  const { capability, action, payload } = context;
+  if (!ctx.capabilities.isRegistered(capability) || capability.trial_id !== ctx.policy.trial_id) {
+    return refuse(action, 'R12');
+  }
+  // The scan descends into the one declared container of objects (`subtasks`), so a capability
+  // field cannot be smuggled one level down.
+  for (const key of capabilityShapedKeys(payload)) {
+    throw new BrokerArgumentsError(action, `capability-shaped argument key: ${key}`);
+  }
+  return null;
+}
+
+// An action absent from §8.3's table does not exist (G5-W6.2); a non-member is a protocol error.
+function actionSpecOf(context: GuardContext): BrokerActionSpec {
+  const spec = Object.hasOwn(BROKER_ACTION_TABLE, context.action) ? BROKER_ACTION_TABLE[context.action] : undefined;
+  if (spec === undefined) throw new BrokerArgumentsError(context.action, 'action is not a member of §8.3\'s table');
+  return spec;
+}
+
+// R8 (action not in the allowed set) then R7 (§2.7 admits no runtime profile re-resolution).
+function checkMembershipAndProfile(context: GuardContext): BrokerRefusal | null {
+  const { capability, action, payload } = context;
+  if (!capability.allowed_actions.has(action)) return refuse(action, 'R8');
+  for (const key of PROFILE_SHAPED_ARGUMENT_KEYS) {
+    if (Object.hasOwn(payload, key)) return refuse(action, 'R7');
+  }
+  return null;
+}
+
+// The schema is `.strict()` (G5-W4.4): an undeclared key is a schema rejection; then the row's
+// guard list runs in fixed order.
+function checkSchemaAndGuards(ctx: BrokerContext, context: GuardContext, spec: BrokerActionSpec): BrokerRefusal | null {
+  for (const key of Object.keys(context.payload)) {
+    if (!spec.argumentKeys.includes(key)) throw new BrokerArgumentsError(context.action, `undeclared argument key: ${key}`);
+  }
+  assertBrokerArguments(context.action, context.payload);
+  for (const guard of spec.guards) {
+    const rejection = guards[guard](ctx, context);
+    if (rejection !== null) return refuse(context.action, rejection);
+  }
+  return null;
+}
+function authorize(ctx: BrokerContext, context: GuardContext): BrokerRefusal | null {
+  const refused = authenticateCapability(ctx, context);
+  if (refused) return refused;
+  const spec = actionSpecOf(context);
+  const denied = checkMembershipAndProfile(context);
+  if (denied) return denied;
+  return checkSchemaAndGuards(ctx, context, spec);
+}
+
+// --- §19.12.2 two-leg claim and the ten execution handlers ------------------
+
+type Executor = (ctx: BrokerContext, capability: ActorCapability, payload: Readonly<Record<string, unknown>>) => BrokerCallResult;
+
+/** Shared refusal→ack plumbing for the lifecycle-mutating actions. */
+function mutationAck(ctx: BrokerContext, action: BenchmarkBrokerCapability, run: () => { success: boolean; code?: number; message?: string }, ok: Record<string, unknown>): BrokerCallResult {
+  const rejected = mutationRefusal(action, run());
+  return rejected ?? succeed(action, ok);
+}
+function proposalAck(action: BenchmarkBrokerCapability, result: BrokerProposalResult): BrokerCallResult {
+  return proposalRefusal(action, result) ?? succeed(action, { proposal_recorded: true });
+}
+function executeRead(ctx: BrokerContext, capability: ActorCapability, payload: Readonly<Record<string, unknown>>): BrokerCallResult {
+  const target = payload.task_id;
+  const rows = typeof target === 'string'
+    ? [ctx.ports.taskRepository.getById(target)].filter((task): task is Task => task !== null)
+    : readableSet(ctx, capability);
+  return succeed('task.read', { tasks: rows.map(projectTaskForModel) });
+}
+const executeCreate: Executor = (ctx, capability, payload) => mutationAck(
+  ctx, 'task.create', () => ctx.ports.taskMutator.add(capability, {
+    project: ctx.project, fields: { ...payload, parent: capability.task_id },
+  }), { created: true });
+
+// §8.3: `keepParent` is forced true in-trial; the destructive variant would replace the parent
+// row and destroy the join node §9.4 M2 depends on.
+const executeDecompose: Executor = (ctx, capability, payload) => mutationAck(
+  ctx, 'task.decompose', () => ctx.ports.taskMutator.decompose(capability, {
+    project: ctx.project, taskId: capability.task_id,
+    fields: { subtasks: payload.subtasks, keepParent: true },
+  }), { decomposed: true });
+
+// §19.12.2: the model-facing claim calls the injected dispatcher-owned callback, never P3.claim
+// directly — requester authority is never reused as target authority.
+const executeClaim: Executor = (ctx, capability, payload) => mutationAck(
+  ctx, 'task.claim', () => ctx.claimTarget(capability, String(payload.task_id)),
+  { claimed: String(payload.task_id) });
+
+const executeProposeComplete: Executor = (ctx, capability, payload) => proposalAck(
+  'task.propose_complete', ctx.ports.taskMutator.proposeComplete(capability, capability.task_id, String(payload.note)));
+
+const executeProposeBlock: Executor = (ctx, capability, payload) => proposalAck(
+  'task.propose_block', ctx.ports.taskMutator.proposeBlock(capability, capability.task_id, String(payload.reason)));
+
+const executeArtifactWrite: Executor = (ctx, capability, payload) => {
+  ctx.ports.taskArtifacts.write(capability, String(payload.content));
+  return succeed('artifact.write', { written: true });
+};
+const executeDeclare: Executor = (ctx, capability, payload) => mutationAck(
+  ctx, 'dependency.declare', () => ctx.ports.taskMutator.edit(capability, {
+    project: ctx.project, taskId: String(payload.task_id),
+    fields: { addDependsOn: asStringArray(payload.depends_on) },
+  }), { declared: true });
+
+// §8.3 / §6.7: a root manager's target is the direct parent, never ask_manager.
+const executeAsk: Executor = (ctx, capability, payload) => {
+  const question = String(payload.question);
+  const asked = capability.role === 'manager' && capability.ancestry.length === 0 ? ctx.ports.parentQuestions.record(capability, question) : ctx.ports.managerQa.ask(capability, question);
+  return succeed('qa.ask', { question_id: asked.questionId });
+};
+const executeAnswer: Executor = (ctx, capability, payload) => {
+  const result = ctx.ports.managerQa.answer(
+    capability, String(payload.question_id), String(payload.answer),
+  );
+  return result.success
+    ? succeed('qa.answer', { answered: true })
+    : refusalFor('qa.answer', 'answer_stale');
+};
+const executeTable: Record<BenchmarkBrokerCapability, Executor> = {
+  'task.read': executeRead,
+  'task.create': executeCreate,
+  'task.decompose': executeDecompose,
+  'task.claim': executeClaim,
+  'task.propose_complete': executeProposeComplete,
+  'task.propose_block': executeProposeBlock,
+  'artifact.write': executeArtifactWrite,
+  'dependency.declare': executeDeclare,
+  'qa.ask': executeAsk,
+  'qa.answer': executeAnswer,
+};
+function execute(ctx: BrokerContext, capability: ActorCapability, action: BenchmarkBrokerCapability, payload: Readonly<Record<string, unknown>>): BrokerCallResult {
+  return executeTable[action](ctx, capability, payload);
+}
+function readableSet(ctx: BrokerContext, capability: ActorCapability): Task[] {
+  const ids = new Set([
+    capability.task_id, ...capability.ancestry, ...descendantsOf(ctx, capability.task_id),
+  ]);
+  return [...ids]
+    .map(id => ctx.ports.taskRepository.getById(id))
+    .filter((task): task is Task => task !== null);
+}
+function run(ctx: BrokerContext, context: GuardContext): BrokerCallResult {
+  const refusal = authorize(ctx, context);
+  // §8.4: a rejection is RETURNED, never a silent skip, and does not touch the tree — no port
+  // has been called by this point.
+  if (refusal) return refusal;
+  try {
+    return execute(ctx, context.capability, context.action, context.payload);
+  } catch (error) {
+    const typed = typedPortFailure(error);
+    if (typed) return refusalFor(context.action, typed.reason, typed.code);
+    throw error;
+  }
+}
+export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkTaskBroker {
+  const ctx: BrokerContext = {
+    policy: input.policy,
+    ports: input.ports,
+    capabilities: input.capabilities,
+    project: input.project,
+    trialArtifactRoot: input.trialArtifactRoot,
+    claimTarget: input.claimTarget,
+    templateWhitelist: new Set(input.policy.child_template_whitelist),
+  };
   return {
+    /** The whole model-facing surface. The capability is AMBIENT (§18 G5-W4), never a parameter. */
     async call(action, payload) {
-      return run({
-        capability: requireAmbientCapability(capabilities), action, payload, target: null,
-      });
+      return run(ctx, { capability: requireAmbientCapability(ctx.capabilities), action, payload, target: null });
     },
+    /** §7.2 P3's coordinator-internal signature, where the target IS named and R4 stays live. */
     async proposeComplete(capability, taskId, note) {
-      return run({
-        capability, action: 'task.propose_complete', payload: { note }, target: taskId,
-      });
+      return run(ctx, { capability, action: 'task.propose_complete', payload: { note }, target: taskId });
     },
     async proposeBlock(capability, taskId, reason) {
-      return run({
-        capability, action: 'task.propose_block', payload: { reason }, target: taskId,
-      });
+      return run(ctx, { capability, action: 'task.propose_block', payload: { reason }, target: taskId });
     },
   };
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
-/** §19.12.1/§19.12.6 — narrows the proposal union by the literal `success:false` member. An
- *  exact `ProposalRow` has no success field and is the success case (the bare ack is returned).
- *  A refusal is translated by value: 33 through R8, 34 through R1. Codes 33/34 are never thrown
- *  and a proposal refusal never reaches the store. */
-function proposalRefusal(
-  action: BenchmarkBrokerCapability,
-  result: BrokerProposalResult,
-): BrokerRefusal | null {
+/** §19.12.1/§19.12.6 — narrows the proposal union by the literal `success:false` member: an exact
+ *  `ProposalRow` has no success field (the bare ack is returned); a refusal is translated by
+ *  value, 33 through R8 and 34 through R1, never thrown, never reaching the store. */
+function proposalRefusal(action: BenchmarkBrokerCapability, result: BrokerProposalResult): BrokerRefusal | null {
   if (!('success' in result)) return null;
-  if (result.success === false) {
-    if (result.code === 33) return refuse(action, 'R8');
-    if (result.code === 34) return refuse(action, 'R1');
-    throw new TypeError(`P3 returned an unsupported proposal refusal code: ${String(result.code)}`);
+  if (result.success) {
+    throw new TypeError('P3 proposal result carries success:true — not a ProposalRow');
   }
-  throw new TypeError('P3 proposal result carries success:true — not a ProposalRow');
+  return refusalForProposalCode(action, result.code);
 }
 
-function typedPortFailure(
-  error: unknown,
-): { reason: 'proposal_invalidated' | 'ledger_unreadable'; code: 37 | 42 } | null {
+function refusalForProposalCode(action: BenchmarkBrokerCapability, code: number | undefined): BrokerRefusal {
+  if (code === 33) return refuse(action, 'R8');
+  if (code === 34) return refuse(action, 'R1');
+  throw new TypeError(`P3 returned an unsupported proposal refusal code: ${String(code)}`);
+}
+
+function typedPortFailure(error: unknown): { reason: 'proposal_invalidated' | 'ledger_unreadable'; code: 37 | 42 } | null {
   if (typeof error !== 'object' || error === null) return null;
   const { reason, code } = error as { reason?: unknown; code?: unknown };
   if (reason === 'proposal_invalidated' && code === 37) return { reason, code };
@@ -813,6 +732,18 @@ function requestedTemplates(payload: Readonly<Record<string, unknown>>): string[
   return templates;
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function objectCapabilityKeys(subtask: Record<string, unknown>): string[] {
+  const found: string[] = [];
+  for (const key of CAPABILITY_SHAPED_ARGUMENT_KEYS) {
+    if (Object.hasOwn(subtask, key)) found.push(`subtasks[].${key}`);
+  }
+  return found;
+}
+
 /** The capability-shaped keys present in the payload, including inside `subtasks` items — the one
  *  declared container of objects. A capability field smuggled one level down is refused the same
  *  way. */
@@ -823,10 +754,7 @@ function capabilityShapedKeys(payload: Readonly<Record<string, unknown>>): strin
   }
   if (Array.isArray(payload.subtasks)) {
     for (const subtask of payload.subtasks) {
-      if (typeof subtask !== 'object' || subtask === null) continue;
-      for (const key of CAPABILITY_SHAPED_ARGUMENT_KEYS) {
-        if (Object.hasOwn(subtask, key)) found.push(`subtasks[].${key}`);
-      }
+      if (isObject(subtask)) found.push(...objectCapabilityKeys(subtask));
     }
   }
   return found;
@@ -846,10 +774,9 @@ function introducesCycle(edges: Map<string, string[]>, from: string): boolean {
 }
 
 /**
- * §8.4 R5's resolve-then-contain, the discipline `confinedJournalPath` already uses
- * (`trajectory-merge.ts:150` at §18's pin). `realpath` is applied to the deepest ancestor that
- * exists, so a path whose leaf has not been created yet is still resolved through every symlink on
- * the way — resolving only the string would let a symlinked directory escape the root.
+ * §8.4 R5's resolve-then-contain (the discipline `confinedJournalPath` already uses): `realpath`
+ * is applied to the deepest ancestor that exists, so an uncreated leaf is still resolved through
+ * every symlink — resolving only the string would let a symlinked directory escape the root.
  */
 function resolveRealPath(target: string): string {
   const resolved = path.resolve(target);
