@@ -439,6 +439,7 @@ describe('R2-T8d — stale actor subject is 34, zero side effect', () => {
     // test marks the stale attempt so the refusal lands on C5 (34), not C4.
     if (method === 'unclaim') c.releasing.add('stale-attempt');
     expect(invoke(c, method, stale)).toEqual({ success: false, message: expect.any(String), code: 34 });
+    if (method === 'proposeComplete') expect(c.mutator.proposeComplete(stale, 'dddd', 'n')).toEqual({ success: false, message: expect.any(String), code: 34 });
     expectZeroSideEffects(c, before);
     // A newer registered attempt makes the original capability's attempt stale (D-9).
     newerAttempt(c, 'attempt-2');

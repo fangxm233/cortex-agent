@@ -297,14 +297,15 @@ function writeFence(deps: CapabilityAwareTaskMutatorDeps, capability: ActorCapab
   return lockError === null ? null : lifecycleFailure(lockError, 'project lock not held (R10)');
 }
 
-/** C1–C3, self-target (R4) and action membership (R8) for the two proposal methods. */
-function subjectAuthority(
-  capability: ActorCapability, action: BenchmarkBrokerCapability, taskId: string,
-): MutationRefusal | null {
-  if (taskId !== capability.task_id) {
-    return authorityRefusal('proposal target is not the capability\'s own task (R4)');
-  }
-  return methodAuthority(capability, action);
+/** The proposal's named target is checked after the ordered C1–C5 fence. */
+function proposalTarget(capability: ActorCapability, taskId: string): MutationRefusal | null {
+  return taskId === capability.task_id
+    ? null
+    : authorityRefusal('proposal target is not the capability\'s own task (R4)');
+}
+
+function proposalAction(intent: 'complete' | 'block'): BenchmarkBrokerCapability {
+  return intent === 'complete' ? 'task.propose_complete' : 'task.propose_block';
 }
 
 /** §19.12.6 — the proposal fence: refusals precede the store call and leave the proposal file
@@ -317,12 +318,11 @@ function proposalFence(
 ): MutationRefusal | null {
   const subject = subjectFence(deps, capability);
   if (subject) return subject;
-  const action: BenchmarkBrokerCapability = intent === 'complete'
-    ? 'task.propose_complete'
-    : 'task.propose_block';
-  const denied = subjectAuthority(capability, action, taskId);
+  const denied = methodAuthority(capability, proposalAction(intent));
   if (denied) return denied;
-  return staleSelf(deps, capability);
+  const stale = staleSelf(deps, capability);
+  if (stale) return stale;
+  return proposalTarget(capability, taskId);
 }
 
 /** §19.12.6 — records the intent through the shipped store entry exactly once and returns the
