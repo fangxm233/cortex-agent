@@ -19,6 +19,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | proposal-seal.ts | 核心 | 持有提案存储与封存判定：S1-S4 合取、V1-V3 失效、失败即关闭的读取与两类边投影 |
 | resolved-policy.ts | 类型 | 定义策略值与 1–44 失败分类 |
 | settings-snapshot.ts | 类型 | 编译期一次性冻结设置记录，缺键即抛，无磁盘读取与热重载 |
+| task-broker-arguments.ts | 核心 | 严格校验十个代理入口的 G5-W5 参数模式 |
 | task-broker.ts | 核心 | §8.3 十动作矩阵与守卫、R1-R12 拒绝、§8.5 模型可见投影；结构化端口，无 X2 新种子 |
 | terminal-predicate.ts | 核心 | 评估 §9.4 每模式清单（D2/C7 三合取，含链接来源与原生子代理普查），失败即抛出 41 号拒绝 |
 | trial-task-dispatcher.ts | 核心 | 试验内调度：P9 选任务/铸造代次/组装提示，无主机锁、GPU 与限流耦合 |

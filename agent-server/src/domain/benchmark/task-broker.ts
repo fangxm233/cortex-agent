@@ -1,4 +1,4 @@
-// input:  a broker action, its validated arguments, and the capability ambient to the call
+// input:  a broker action, untrusted arguments, and the ambient capability
 // output: the authorised effect, or a typed refusal that does not touch the tree
 // pos:    §8.3's authorization matrix, §8.4's twelve rejections and §8.5's projection split
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -31,7 +31,12 @@ import {
   type ActorCapability, type BenchmarkBrokerCapability,
 } from './capabilities.js';
 import { requireAmbientCapability, type ActorCapabilityRegistry } from './actor-capability-scope.js';
+import {
+  assertBrokerArguments, BrokerArgumentsError,
+} from './task-broker-arguments.js';
 import type { ResolvedTrialPolicy } from './resolved-policy.js';
+
+export { BrokerArgumentsError };
 
 // ── §18 (18.5) G5-W7/W8 the typed refusal ───────────────────────────────────
 
@@ -120,18 +125,16 @@ function succeed(
   return Object.freeze({ ok: true as const, status: 'completed' as const, action, result });
 }
 
-/**
- * A schema or protocol violation at the broker surface — the in-broker form of §18 G5-W4.4's
- * ".strict() schema rejection at the MCP boundary, before the broker is reached". This class is
- * NOT an R1–R12 refusal: the closed map has no member for a schema violation, and returning an
- * R-refusal for one would reuse a code for a different condition (§2.6 defect) or mint one (G5-N4
- * forbids). The MCP layer (wave 3) converts this class into the protocol `isError` response.
- */
-export class BrokerArgumentsError extends Error {
-  constructor(readonly action: string, detail: string) {
-    super(`${action}: ${detail}`);
-    this.name = 'BrokerArgumentsError';
-  }
+/** P3's frozen error modes are code 33 capability miss and code 34 generation miss. A false result
+ *  is already a no-mutation refusal; never turn it into a success acknowledgement. */
+function mutationRefusal(
+  action: BenchmarkBrokerCapability,
+  result: { readonly success: boolean; readonly code?: number },
+): BrokerRefusal | null {
+  if (result.success) return null;
+  if (result.code === 33) return refuse(action, 'R8');
+  if (result.code === 34) return refuse(action, 'R1');
+  throw new TypeError(`P3 returned an unsupported failure code: ${String(result.code)}`);
 }
 
 // ── §18 (18.3) G5-W5 the ten entry points ───────────────────────────────────
@@ -292,10 +295,18 @@ export interface BrokerPorts {
     list(filter: { project?: string; status?: string; parent?: string }): Task[];
   };
   readonly taskMutator: {
-    claim(capability: ActorCapability, taskId: string): { success: boolean };
-    add(capability: ActorCapability, request: BrokerMutationRequest): { success: boolean };
-    decompose(capability: ActorCapability, request: BrokerMutationRequest): { success: boolean };
-    edit(capability: ActorCapability, request: BrokerMutationRequest): { success: boolean };
+    claim(
+      capability: ActorCapability, taskId: string,
+    ): { success: boolean; code?: number };
+    add(
+      capability: ActorCapability, request: BrokerMutationRequest,
+    ): { success: boolean; code?: number };
+    decompose(
+      capability: ActorCapability, request: BrokerMutationRequest,
+    ): { success: boolean; code?: number };
+    edit(
+      capability: ActorCapability, request: BrokerMutationRequest,
+    ): { success: boolean; code?: number };
     /** Routes into Gate 4's shipped `proposal-seal.ts` through P3, per §7.2 P3 / (17.2.1), which
      *  is the next child's coupling — never re-implemented here. */
     proposeComplete(
@@ -320,6 +331,9 @@ export interface BrokerPorts {
     answer(
       capability: ActorCapability, questionId: string, answer: string,
     ): { success: boolean };
+  };
+  readonly parentQuestions: {
+    record(capability: ActorCapability, question: string): { questionId: string };
   };
 }
 
@@ -467,9 +481,12 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
       return null;
     },
 
-    task_budget: () => (
-      ports.taskRepository.list({}).length + 1 > policy.limits.max_tasks ? 'R9' : null
-    ),
+    task_budget: ({ action, payload }) => {
+      const added = action === 'task.decompose' && Array.isArray(payload.subtasks)
+        ? payload.subtasks.length : 1;
+      return ports.taskRepository.list({}).length + added > policy.limits.max_tasks
+        ? 'R9' : null;
+    },
 
     // §8.3: `depth(cap) < max_task_depth`. The actor's depth is the length of its ancestry; a
     // child it creates would sit one level deeper.
@@ -535,6 +552,7 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
         throw new BrokerArgumentsError(action, `undeclared argument key: ${key}`);
       }
     }
+    assertBrokerArguments(action, payload);
     for (const guard of spec.guards) {
       const rejection = guards[guard](context);
       if (rejection !== null) return refuse(action, rejection);
@@ -546,7 +564,7 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
     capability: ActorCapability,
     action: BenchmarkBrokerCapability,
     payload: Readonly<Record<string, unknown>>,
-  ): BrokerSuccess {
+  ): BrokerCallResult {
     switch (action) {
       case 'task.read': {
         const target = payload.task_id;
@@ -555,23 +573,27 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
           : readableSet(capability);
         return succeed(action, { tasks: rows.map(projectTaskForModel) });
       }
-      case 'task.create':
-        ports.taskMutator.add(capability, {
+      case 'task.create': {
+        const rejected = mutationRefusal(action, ports.taskMutator.add(capability, {
           project, fields: { ...payload, parent: capability.task_id },
-        });
-        return succeed(action, { created: true });
-      case 'task.decompose':
-        ports.taskMutator.decompose(capability, {
+        }));
+        return rejected ?? succeed(action, { created: true });
+      }
+      case 'task.decompose': {
+        const rejected = mutationRefusal(action, ports.taskMutator.decompose(capability, {
           project,
           taskId: capability.task_id,
           // §8.3: `keepParent` is forced true in-trial; the destructive variant would replace the
           // parent row and destroy the join node §9.4 M2 depends on.
           fields: { subtasks: payload.subtasks, keepParent: true },
-        });
-        return succeed(action, { decomposed: true });
-      case 'task.claim':
-        ports.taskMutator.claim(capability, String(payload.task_id));
-        return succeed(action, { claimed: String(payload.task_id) });
+        }));
+        return rejected ?? succeed(action, { decomposed: true });
+      }
+      case 'task.claim': {
+        const target = String(payload.task_id);
+        const rejected = mutationRefusal(action, ports.taskMutator.claim(capability, target));
+        return rejected ?? succeed(action, { claimed: target });
+      }
       case 'task.propose_complete':
         ports.taskMutator.proposeComplete(capability, capability.task_id, String(payload.note));
         // §8.6: the model does not get to see its own proposal as a result — the row carries the
@@ -583,17 +605,22 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
       case 'artifact.write':
         ports.taskArtifacts.write(capability, String(payload.content));
         return succeed(action, { written: true });
-      case 'dependency.declare':
-        ports.taskMutator.edit(capability, {
+      case 'dependency.declare': {
+        const rejected = mutationRefusal(action, ports.taskMutator.edit(capability, {
           project,
           taskId: String(payload.task_id),
           fields: { addDependsOn: asStringArray(payload.depends_on) },
-        });
-        return succeed(action, { declared: true });
-      case 'qa.ask':
-        return succeed(action, {
-          question_id: ports.managerQa.ask(capability, String(payload.question)).questionId,
-        });
+        }));
+        return rejected ?? succeed(action, { declared: true });
+      }
+      case 'qa.ask': {
+        const question = String(payload.question);
+        // §8.3 / §6.7: a root manager's target is the direct parent, never ask_manager.
+        const asked = capability.role === 'manager' && capability.ancestry.length === 0
+          ? ports.parentQuestions.record(capability, question)
+          : ports.managerQa.ask(capability, question);
+        return succeed(action, { question_id: asked.questionId });
+      }
       case 'qa.answer':
         ports.managerQa.answer(
           capability, String(payload.question_id), String(payload.answer),

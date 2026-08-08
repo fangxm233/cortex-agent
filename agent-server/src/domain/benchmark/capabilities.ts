@@ -169,18 +169,50 @@ export interface ActorCapabilityMintRequest {
   readonly issued_at_epoch_ms: number;
 }
 
+const coordinatorMintedCapabilities = new WeakSet<object>();
+
+/** A ReadonlySet wrapper with no mutable Set internal slot. `Object.freeze(new Set())` is not
+ *  sufficient: `Set.prototype.add.call(frozenSet, value)` still mutates that frozen Set. */
+class SealedActionSet implements ReadonlySet<BenchmarkBrokerCapability> {
+  readonly #values: Set<BenchmarkBrokerCapability>;
+
+  constructor(values: readonly BenchmarkBrokerCapability[]) {
+    this.#values = new Set(values);
+    Object.freeze(this);
+  }
+
+  get size(): number { return this.#values.size; }
+  get [Symbol.toStringTag](): string { return 'Set'; }
+  has(value: BenchmarkBrokerCapability): boolean { return this.#values.has(value); }
+  entries(): SetIterator<[BenchmarkBrokerCapability, BenchmarkBrokerCapability]> {
+    return this.#values.entries();
+  }
+  keys(): SetIterator<BenchmarkBrokerCapability> { return this.#values.keys(); }
+  values(): SetIterator<BenchmarkBrokerCapability> { return this.#values.values(); }
+  [Symbol.iterator](): SetIterator<BenchmarkBrokerCapability> { return this.#values.values(); }
+  forEach(
+    callbackfn: (
+      value: BenchmarkBrokerCapability,
+      value2: BenchmarkBrokerCapability,
+      set: ReadonlySet<BenchmarkBrokerCapability>,
+    ) => void,
+    thisArg?: unknown,
+  ): void {
+    for (const value of this.#values) callbackfn.call(thisArg, value, value, this);
+  }
+}
+
 /** A set no holder can widen in place: a token that could grow its own `allowed_actions` after
  *  minting would make the §8.3 membership test decorative. */
 function sealedActionSet(
   values: readonly BenchmarkBrokerCapability[],
 ): ReadonlySet<BenchmarkBrokerCapability> {
-  const set = new Set(values);
-  const deny = (): never => {
-    throw new ActorCapabilityMintError('an ActorCapability\'s allowed_actions is immutable');
-  };
-  return Object.freeze(Object.assign(set, {
-    add: deny, delete: deny, clear: deny,
-  })) as unknown as ReadonlySet<BenchmarkBrokerCapability>;
+  return new SealedActionSet(values);
+}
+
+/** Registration accepts only objects produced by the production coordinator-side mint. */
+export function isCoordinatorMintedActorCapability(value: unknown): value is ActorCapability {
+  return typeof value === 'object' && value !== null && coordinatorMintedCapabilities.has(value);
 }
 
 /**
@@ -204,7 +236,7 @@ export function mintActorCapability(request: ActorCapabilityMintRequest): ActorC
       );
     }
   }
-  return Object.freeze({
+  const capability: ActorCapability = Object.freeze({
     token_id: randomUUID(),
     trial_id: request.trial_id,
     task_id: request.task_id,
@@ -215,4 +247,6 @@ export function mintActorCapability(request: ActorCapabilityMintRequest): ActorC
     allowed_actions: sealedActionSet(granted),
     issued_at_epoch_ms: request.issued_at_epoch_ms,
   });
+  coordinatorMintedCapabilities.add(capability);
+  return capability;
 }

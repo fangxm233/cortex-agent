@@ -20,7 +20,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 
-import { ActorCapabilityMintError, type ActorCapability } from './capabilities.js';
+import {
+  ActorCapabilityMintError, isCoordinatorMintedActorCapability, type ActorCapability,
+} from './capabilities.js';
 import { PolicyCompilationError } from './resolved-policy.js';
 
 /** One store per process, the shape `local-runtime-scope.ts` already uses. The capability itself is
@@ -71,9 +73,19 @@ export function createActorCapabilityRegistry(trialId: string): ActorCapabilityR
 
   return {
     register(capability) {
+      if (!isCoordinatorMintedActorCapability(capability)) {
+        throw new ActorCapabilityMintError(
+          'ActorCapability registration requires the production coordinator-side mint (§8.2)',
+        );
+      }
       if (capability.trial_id !== trialId) {
         throw new ActorCapabilityMintError(
           `a coordinator serves exactly one trial (§1.4): ${capability.trial_id} ≠ ${trialId}`,
+        );
+      }
+      if (byToken.has(capability.token_id)) {
+        throw new ActorCapabilityMintError(
+          'an ActorCapability is bound to exactly one control channel (G5-W4.2)',
         );
       }
       const handle = randomUUID();
@@ -118,9 +130,9 @@ export function createActorCapabilityRegistry(trialId: string): ActorCapabilityR
     },
 
     async runInScope(capability, action) {
-      if (!byToken.has(capability.token_id)) {
+      if (byToken.get(capability.token_id) !== capability) {
         throw new PolicyCompilationError(
-          'sidecar_unauthenticated', 'capability is not in the live token set (§8.2)',
+          'sidecar_unauthenticated', 'capability is not the registered live token (§8.2)',
           { trial_id: trialId, task_id: capability.task_id },
         );
       }

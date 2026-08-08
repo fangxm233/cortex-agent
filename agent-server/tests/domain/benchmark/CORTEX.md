@@ -14,6 +14,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | guard-lease-state.test.ts | 测试 | 验证守卫表按角色类编译、选择器每步取自实时租约 |
 | lease-echo.test.ts | 测试 | 验证回声文档、控制路由投递与拒绝传播 |
 | settings-snapshot.test.ts | 测试 | 验证冻结记录、缺键抛出、一次性捕获与无重载 |
+| task-broker-arguments.test.ts | 测试 | 验证十个入口的严格参数模式与码点边界 |
 | task-broker.test.ts | 测试 | 验证十动作封闭表、每个守卫、R1-R12 按码拒绝且不触树、投影分割 |
 | port-scope-fence.test.ts | 测试 | 验证 I3 出域即抛 32 号、守护进程回退不变、围栏随试验起落 |
 | trial-task-ports.test.ts | 测试 | 验证 git 截断、P4 接线、realpath 约束及守护进程回归 |

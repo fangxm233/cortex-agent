@@ -112,9 +112,11 @@ describe('§8.2 the ActorCapability token, in the shipped capabilities.ts', () =
       delete(value: BenchmarkBrokerCapability): unknown;
       clear(): unknown;
     };
-    expect(() => set.add('qa.ask')).toThrow(ActorCapabilityMintError);
-    expect(() => set.delete('qa.ask')).toThrow(ActorCapabilityMintError);
-    expect(() => set.clear()).toThrow(ActorCapabilityMintError);
+    expect(() => set.add('qa.ask')).toThrow();
+    expect(() => set.delete('qa.ask')).toThrow();
+    expect(() => set.clear()).toThrow();
+    expect(() => Set.prototype.add.call(set, 'task.complete')).toThrow(TypeError);
+    expect([...set]).not.toContain('task.complete');
   });
 });
 
@@ -123,13 +125,22 @@ describe('§18 G5-W4 the ambient resolution seam', () => {
     return createActorCapabilityRegistry(TRIAL_ID);
   }
 
-  it('register binds a channel handle to the capability; resolveChannel returns it', () => {
+  it('register binds exactly one channel handle to a coordinator-minted capability', () => {
     const table = registry();
     const capability = mintActorCapability(mintRequest());
     const handle = table.register(capability);
     expect(handle).toMatch(/^[0-9a-f-]{36}$/);
     expect(table.resolveChannel(handle)).toBe(capability);
     expect(table.isLive(capability.token_id)).toBe(true);
+    expect(() => table.register(capability)).toThrow(ActorCapabilityMintError);
+  });
+
+  it('register refuses a structurally forged token that did not come from the production mint', () => {
+    const table = registry();
+    const minted = mintActorCapability(mintRequest());
+    const forged = Object.freeze({ ...minted, token_id: 'forged-token' });
+    expect(() => table.register(forged)).toThrow(ActorCapabilityMintError);
+    expect(table.liveCount()).toBe(0);
   });
 
   it('a coordinator serves exactly one trial: registering a wrong-trial token is a mint error', () => {
@@ -207,6 +218,20 @@ describe('§18 G5-W4 the ambient resolution seam', () => {
     await expect(table.runInScope(capability, async () => 1)).rejects.toThrow(
       PolicyCompilationError,
     );
+  });
+
+  it('runInScope resolves the registered token object, never a forged clone with the same token_id', async () => {
+    const table = registry();
+    const capability = mintActorCapability(mintRequest({ allowed_actions: ['task.read'] }));
+    table.register(capability);
+    const widenedClone = Object.freeze({
+      ...capability,
+      allowed_actions: new Set<BenchmarkBrokerCapability>(['task.read', 'task.create']),
+    });
+    await expect(table.runInScope(widenedClone, async () => 1)).rejects.toThrow(
+      PolicyCompilationError,
+    );
+    expect(table.currentCapability()).toBeNull();
   });
 
   it('I3 fail-closed: requireAmbientCapability outside any scope throws port_scope_escaped (32)', () => {

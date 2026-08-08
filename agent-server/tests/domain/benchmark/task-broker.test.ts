@@ -100,6 +100,8 @@ interface HarnessOptions {
   taskGeneration?: string;
   attemptId?: string;
   ancestry?: string[];
+  taskId?: string;
+  mutationResult?: { success: boolean; code?: number };
 }
 
 function harness(options: HarnessOptions = {}): Harness {
@@ -119,6 +121,12 @@ function harness(options: HarnessOptions = {}): Harness {
     ['cccc', taskRow({ id: 'cccc', parent: 'root' })],
   ]);
 
+  function mutation(touch: string): { success: boolean; code?: number } {
+    const result = options.mutationResult ?? { success: true };
+    if (result.success) touches.push(touch);
+    return result;
+  }
+
   const ports = {
     taskRepository: {
       getById: (id: string) => tasks.get(id) ?? null,
@@ -127,34 +135,13 @@ function harness(options: HarnessOptions = {}): Harness {
       ),
     },
     taskMutator: {
-      claim: (_capability: ActorCapability, id: string) => {
-        touches.push(`mutator.claim:${id}`);
-        return { success: true };
-      },
-      unclaim: (_capability: ActorCapability, id: string) => {
-        touches.push(`mutator.unclaim:${id}`);
-        return { success: true };
-      },
-      add: (_capability: ActorCapability) => {
-        touches.push('mutator.add');
-        return { success: true };
-      },
-      decompose: (_capability: ActorCapability) => {
-        touches.push('mutator.decompose');
-        return { success: true };
-      },
-      edit: (_capability: ActorCapability) => {
-        touches.push('mutator.edit');
-        return { success: true };
-      },
-      proposeComplete: (_capability: ActorCapability, id: string) => {
-        touches.push(`mutator.proposeComplete:${id}`);
-        return { state: 'proposed' };
-      },
-      proposeBlock: (_capability: ActorCapability, id: string) => {
-        touches.push(`mutator.proposeBlock:${id}`);
-        return { state: 'proposed' };
-      },
+      claim: (_capability: ActorCapability, id: string) => mutation(`mutator.claim:${id}`),
+      unclaim: (_capability: ActorCapability, id: string) => mutation(`mutator.unclaim:${id}`),
+      add: (_capability: ActorCapability) => mutation('mutator.add'),
+      decompose: (_capability: ActorCapability) => mutation('mutator.decompose'),
+      edit: (_capability: ActorCapability) => mutation('mutator.edit'),
+      proposeComplete: (_capability: ActorCapability, id: string) => { touches.push(`mutator.proposeComplete:${id}`); return { state: 'proposed' }; },
+      proposeBlock: (_capability: ActorCapability, id: string) => { touches.push(`mutator.proposeBlock:${id}`); return { state: 'proposed' }; },
     },
     taskLocks: {
       assertHeld: () => (options.lockHolder === undefined ? null : options.lockHolder),
@@ -175,13 +162,14 @@ function harness(options: HarnessOptions = {}): Harness {
     },
     managerQa: {
       ask: (_capability: ActorCapability) => {
-        touches.push('qa.ask');
-        return { questionId: 'q1' };
+        touches.push('qa.ask'); return { questionId: 'q1' };
       },
       answer: (_capability: ActorCapability) => {
-        touches.push('qa.answer');
-        return { success: true };
+        touches.push('qa.answer'); return { success: true };
       },
+    },
+    parentQuestions: {
+      record: (_capability: ActorCapability) => { touches.push('parentQuestions.record'); return { questionId: 'pq1' }; },
     },
   } as unknown as BrokerPorts;
 
@@ -199,13 +187,14 @@ function harness(options: HarnessOptions = {}): Harness {
   } as unknown as ResolvedTrialPolicy;
 
   const capabilities: ActorCapabilityRegistry = createActorCapabilityRegistry(TRIAL_ID);
+  const taskId = options.taskId ?? 'aaaa';
   const capability = mintActorCapability({
     trial_id: TRIAL_ID,
-    task_id: 'aaaa',
+    task_id: taskId,
     dispatch_generation: options.generation ?? GEN_1,
     attempt_id: options.attemptId ?? 'attempt-1',
     role: 'manager',
-    ancestry: options.ancestry ?? ['root', 'bbbb'],
+    ancestry: options.ancestry ?? (taskId === 'root' ? [] : ['root', 'bbbb']),
     capability_whitelist: whitelist,
     allowed_actions: options.allowedActions,
     issued_at_epoch_ms: 1_000,
@@ -364,6 +353,17 @@ describe('§8.3 the authorization matrix is a closed table of exactly ten action
     const answer = await h.call('qa.answer', { question_id: 'q1', answer: 'yes' });
     expect(answer.ok).toBe(true);
   });
+
+  it('routes a root manager qa.ask to the direct-parent bridge, never ask_manager', async () => {
+    const h = harness({ taskId: 'root', allowedActions: ['qa.ask'] });
+    expect((await h.call('qa.ask', { question: 'root question' })).ok).toBe(true);
+    expect(h.touches).toEqual(['parentQuestions.record']);
+  });
+  it('runs the strict G5-W5 schema before any action guard or port effect', async () => {
+    const h = harness({ allowedActions: [...BENCHMARK_BROKER_ACTIONS] });
+    await expect(h.call('task.create', {})).rejects.toThrow(BrokerArgumentsError);
+    expect(h.touches).toEqual([]);
+  });
 });
 
 // ── (C) R1-R12, one describe per rejection ──────────────────────────────────
@@ -405,6 +405,13 @@ describe('§8.4 R1 stale_generation → code 34', () => {
     const h = harness({ generation: 'gen-0', taskGeneration: GEN_1 });
     const result = refusal(await h.call('task.decompose', { subtasks: [{ text: 'child' }] }));
     expect(result.code).toBe(34);
+    expect(h.touches).toEqual([]);
+  });
+
+  it('propagates P3 stale_generation instead of reporting a mutation that did not happen', async () => {
+    const h = harness({ mutationResult: { success: false, code: 34 } });
+    const result = refusal(await h.call('task.claim', { task_id: 'aaaa' }));
+    expect([result.code, result.reason]).toEqual([34, 'stale_generation']);
     expect(h.touches).toEqual([]);
   });
 });
@@ -558,6 +565,13 @@ describe('§8.4 R8 capability_denied → code 33', () => {
     expect(answer.code).toBe(33);
     expect(h.touches).toEqual([]);
   });
+
+  it('propagates P3 capability_denied instead of reporting a mutation that did not happen', async () => {
+    const h = harness({ mutationResult: { success: false, code: 33 } });
+    const result = refusal(await h.call('task.create', { text: 'x' }));
+    expect([result.code, result.reason]).toEqual([33, 'capability_denied']);
+    expect(h.touches).toEqual([]);
+  });
 });
 
 describe('§8.4 R9 budget_exceeded → NO CODE (§18 G5-N4 interim rule)', () => {
@@ -574,6 +588,15 @@ describe('§8.4 R9 budget_exceeded → NO CODE (§18 G5-N4 interim rule)', () =>
     const result = refusal(await h.call('task.create', { text: 'x' }));
     expect(result.reason).toBe('budget_exceeded');
     expect(result).not.toHaveProperty('code');
+    expect(h.touches).toEqual([]);
+  });
+
+  it('counts every child in a decompose against max_tasks, not the request as one task', async () => {
+    const h = harness({ maxTasks: 6 }); // 5 existing rows; two children would make 7
+    const result = refusal(await h.call('task.decompose', {
+      subtasks: [{ text: 'first' }, { text: 'second' }],
+    }));
+    expect([result.reason, 'code' in result]).toEqual(['budget_exceeded', false]);
     expect(h.touches).toEqual([]);
   });
 
