@@ -1,5 +1,5 @@
-// input:  project data, grouped threads, notes drawer state
-// output: desktop right pane switching between work tabs and notes
+// input:  project data, cost summary, threads, notes state
+// output: desktop right pane with scoped budget and work tabs
 // pos:    Workbench right-side pane host
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -10,7 +10,7 @@ import { TasksPanel } from '@/features/tasks/TasksPanel';
 import { actionableOpenCount } from '@/features/tasks/group-tasks';
 import { RightThreadCard } from './RightThreadCard';
 import { RightMachinesTab } from './RightMachinesTab';
-import { formatCost, onlineMachineCount } from './right-panel-vm';
+import { onlineMachineCount, rightPanelBudget } from './right-panel-vm';
 import { groupThreads, type ThreadGroup } from './scope';
 import { useRecentNow } from './useRecentNow';
 import { useThreadsLiveSync } from './useThreadsLiveSync';
@@ -22,9 +22,8 @@ import { useNotes } from '@/features/notes/NotesProvider';
 // RIGHT PANEL — 1:1 from prototype.dc.html L1091–1276 (Stage-R RB sibling C, task 1e96). Exact inline
 // styles / px / hex / font / weight / EN copy reproduced verbatim; real tRPC data (cost.summary /
 // threads.list / threads.get / tasks.list) substituted into the design's structure. Replaces the
-// f528 STUB behind the SAME export signature. Data gaps rendered structurally + flagged (see the
-// completion note): Machines tab real (task 2a13); Pause has no mutate op (non-functional);
-// the budget denominator has no scope (CostSummary carries `today` only — Stage 7 config surface).
+// f528 STUB behind the SAME export signature. Machines and the project-scoped daily budget use
+// their live query data; Pause still has no mutate op and remains non-functional.
 
 type Tab = 'threads' | 'tasks' | 'machines';
 
@@ -133,10 +132,7 @@ function RightWorkPanel(): JSX.Element {
   // Machines tab badge = ONLINE machines, not the total in the registry (task: show online count).
   const machineCount = onlineMachineCount(machinesQuery.data);
 
-  const todayCost = costQuery.data?.today;
-  // GAP-B: no budget scope in the contract (CostSummary has `today`, no limit). Denominator + bar
-  // fill have no real source → rendered as unknown ("—", empty bar). Today is real.
-  const todayLabel = typeof todayCost === 'number' ? formatCost(todayCost) : '—';
+  const budget = rightPanelBudget(costQuery.data?.today, costQuery.data?.dailyBudget);
 
   return (
     <div
@@ -190,10 +186,10 @@ function RightWorkPanel(): JSX.Element {
       >
         <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.today}</span>
         <div style={{ flex: 1, height: 4, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden' }}>
-          <div style={{ width: '0%', height: '100%', borderRadius: 999, background: 'var(--proto-accent)' }} />
+          <div style={{ width: `${budget.percent}%`, height: '100%', borderRadius: 999, background: 'var(--proto-accent)' }} />
         </div>
         <span style={{ font: "500 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>
-          {todayLabel} / —
+          {budget.todayLabel} / {budget.limitLabel}
         </span>
       </div>
 

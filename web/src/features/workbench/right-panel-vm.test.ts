@@ -1,6 +1,6 @@
 // input:  right-panel view models and DTO fixtures
-// output: task-linked thread metadata and status regressions
-// pos:    Verifies thread, activity, and machine view models
+// output: task-linked thread metadata, budget, and status regressions
+// pos:    Verifies right-panel activity, budget, and machine models
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
@@ -26,6 +26,7 @@ import {
   onlineMachineCount,
   cortexRunLabel,
   subtaskActivity,
+  rightPanelBudget,
 } from './right-panel-vm';
 
 function step(partial: Partial<ThreadStepDetail>): ThreadStepDetail {
@@ -161,6 +162,30 @@ describe('formatCost / formatDurationS', () => {
     expect(formatDurationS(207)).toBe('3m 27s');
     expect(formatDurationS(2340)).toBe('39m');
     expect(formatDurationS(45.6)).toBe('46s');
+  });
+});
+
+describe('rightPanelBudget', () => {
+  it('shows the real daily limit and spend progress', () => {
+    expect(rightPanelBudget(4.21, 10)).toEqual({
+      todayLabel: '$4.21',
+      limitLabel: '$10.00',
+      percent: 42.1,
+    });
+  });
+
+  it('caps overspend and leaves unavailable limits empty', () => {
+    expect(rightPanelBudget(15, 10).percent).toBe(100);
+    expect(rightPanelBudget(4.21, 0)).toEqual({
+      todayLabel: '$4.21',
+      limitLabel: '—',
+      percent: 0,
+    });
+    expect(rightPanelBudget(undefined, undefined)).toEqual({
+      todayLabel: '—',
+      limitLabel: '—',
+      percent: 0,
+    });
   });
 });
 

@@ -76,9 +76,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | SessionIdModal.tsx | view | Shows session identifiers with copy actions |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
 | session-id.test.ts | test | Unit tests for identifier rows |
-| RightPanel.tsx | view | Hosts work tabs with grouped threads or notes |
-| right-panel-vm.ts | vm | Formats task-linked thread and machine metadata |
-| right-panel-vm.test.ts | test | Tests task-linked thread and machine metadata |
+| RightPanel.tsx | view | Hosts scoped budget, work tabs, or notes |
+| right-panel-vm.ts | vm | Formats budget, thread and machine metadata |
+| right-panel-vm.test.ts | test | Tests budget, thread and machine view models |
 | RightThreadCard.tsx | view | Opens run, task and thread details from activity rows |
 | RightThreadCard.test.tsx | test | Tests waiting-task click delegation |
 | RightThreadCard.layout.test.tsx | test | Browser-checks long subtask row containment |

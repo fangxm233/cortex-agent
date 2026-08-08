@@ -1,6 +1,6 @@
 // input:  ui-contract DTOs, nested-thread helpers
-// output: task-linked metadata and right-panel status view models
-// pos:    Pure view-model helpers for the workbench right panel
+// output: budget, task-linked, and status view models
+// pos:    Pure view models for the workbench right panel
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type {
@@ -52,6 +52,25 @@ export function stepDotKind(step: ThreadStepDetail): StepDotKind {
 /** 2-decimal dollar amount, e.g. "$2.10" (prototype money()). */
 export function formatCost(v: number): string {
   return '$' + v.toFixed(2);
+}
+
+export interface RightPanelBudget {
+  todayLabel: string;
+  limitLabel: string;
+  percent: number;
+}
+
+/** Project-scoped daily spend, limit, and clamped progress for the right-panel budget bar. */
+export function rightPanelBudget(
+  today: number | undefined,
+  dailyLimit: number | undefined,
+): RightPanelBudget {
+  const todayLabel = typeof today === 'number' ? formatCost(today) : '—';
+  if (dailyLimit == null || dailyLimit <= 0) {
+    return { todayLabel, limitLabel: '—', percent: 0 };
+  }
+  const percent = Math.max(0, Math.min(100, ((today ?? 0) / dailyLimit) * 100));
+  return { todayLabel, limitLabel: formatCost(dailyLimit), percent };
 }
 
 /** Compact clock: "45s" / "1m" / "3m 27s" / "39m", rounding fractional seconds. */
