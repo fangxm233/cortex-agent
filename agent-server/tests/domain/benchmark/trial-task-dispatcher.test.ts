@@ -454,6 +454,7 @@ describe('createDispatcherOwnedClaimTarget — the production claim callback fac
 
   function callbackFixture(overrides: {
     claimResult?: { success: boolean; message?: string; code?: number };
+    claimError?: Error;
     authorityFields?: TargetAttemptFields;
   } = {}): CallbackFixture {
     const registry = createActorCapabilityRegistry('trial-cb');
@@ -483,6 +484,7 @@ describe('createDispatcherOwnedClaimTarget — the production claim callback fac
       registry,
       claim: (capability, taskId) => {
         claimCalls.push({ capability, taskId });
+        if (overrides.claimError) throw overrides.claimError;
         return overrides.claimResult ?? { success: true, message: 'claimed' };
       },
       capability_whitelist: whitelist,
@@ -540,5 +542,16 @@ describe('createDispatcherOwnedClaimTarget — the production claim callback fac
     const result = fx.callback(fx.requester, 'dddd');
     expect(result.success).toBe(false);
     expect(result.code).toBe(33);
+  });
+
+  it('invalidates the registered target token when P3 claim throws', () => {
+    const failure = new Error('claim storage failed');
+    const fx = callbackFixture({ claimError: failure });
+
+    expect(() => fx.callback(fx.requester, 'dddd')).toThrow(failure);
+    const target = fx.claimCalls[0].capability;
+    expect(fx.registry.isRegistered(target)).toBe(false);
+    expect(fx.registry.isLive(target.token_id)).toBe(false);
+    expect(fx.registry.isLive(fx.requester.token_id)).toBe(true);
   });
 });

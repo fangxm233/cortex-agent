@@ -131,7 +131,13 @@ export function createDispatcherOwnedClaimTarget(
     // Step 5 — register the exact returned object through the sole production registry.
     registry.register(capability);
     // Step 6 — P3 sees only the fresh target capability.
-    const result = claim(capability, targetId);
+    let result: ReturnType<typeof claim>;
+    try {
+      result = claim(capability, targetId);
+    } catch (error) {
+      registry.invalidateToken(capability.token_id);
+      throw error;
+    }
     // Step 8 — a refused claim invalidates the target token before the failure is returned.
     if (!result.success) registry.invalidateToken(capability.token_id);
     return result;
