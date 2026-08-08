@@ -555,3 +555,32 @@ describe('createDispatcherOwnedClaimTarget — the production claim callback fac
     expect(fx.registry.isLive(fx.requester.token_id)).toBe(true);
   });
 });
+
+describe('R2-T18 — the dispatcher source pins (moved from trial-task-mutator.test.ts)', () => {
+  it('the dispatcher carries the sole generation mint and both consumers use it', () => {
+    const source = fs.readFileSync(
+      path.join(path.dirname(new URL(import.meta.url).pathname),
+        '../../../src/domain/benchmark/trial-task-dispatcher.ts'),
+      'utf8',
+    );
+    const literals = source.match(/const dispatchGeneration = randomUUID\(\);/g) ?? [];
+    expect(literals).toHaveLength(1);
+    expect(source).toContain('export function mintTrialDispatchGeneration()');
+    expect(source.match(/mintTrialDispatchGeneration\(\)/g)?.length).toBeGreaterThanOrEqual(2);
+    const first = mintTrialDispatchGeneration();
+    const second = mintTrialDispatchGeneration();
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(second).not.toBe(first);
+  });
+
+  it('the claim callback mints and registers exactly one target capability through the production mint', () => {
+    const source = fs.readFileSync(
+      path.join(path.dirname(new URL(import.meta.url).pathname),
+        '../../../src/domain/benchmark/trial-task-dispatcher.ts'),
+      'utf8',
+    );
+    expect(source.match(/mintActorCapability\(/g)).toHaveLength(1);
+    expect(source.match(/\.register\(/g)).toHaveLength(1);
+    expect(source.match(/invalidateToken\(/g)?.length ?? 0).toBeGreaterThanOrEqual(1);
+  });
+});

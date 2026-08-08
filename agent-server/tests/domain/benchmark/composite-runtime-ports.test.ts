@@ -209,3 +209,49 @@ describe('§19.12.7 — the production mutator factory satisfies the frozen port
     expect(typeof pin).toBe('function');
   });
 });
+
+// --- R2-T18 source pins (moved from trial-task-mutator.test.ts) --------------
+
+import * as crypto from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { BENCHMARK_BROKER_ACTIONS } from '../../../src/domain/benchmark/capabilities.js';
+
+function readBenchmarkSource(name: string): string {
+  return fs.readFileSync(
+    path.join(path.dirname(new URL(import.meta.url).pathname), `../../../src/domain/benchmark/${name}`),
+    'utf8',
+  );
+}
+
+describe('R2-T18 — pins: proposal-seal hash, P3 import fence, no unclaim surface', () => {
+  it('proposal-seal.ts is byte-identical to the accepted pin md5', () => {
+    const hash = crypto.createHash('md5').update(readBenchmarkSource('proposal-seal.ts')).digest('hex');
+    expect(hash).toBe('b7527c95219c54f9bb98ece7a4f284d8');
+  });
+
+  it('the P3 module imports only Node builtins and ./capabilities.js', () => {
+    const imports = [...readBenchmarkSource('trial-task-mutator.ts').matchAll(/^import .* from '([^']+)'/gm)]
+      .map(match => match[1]);
+    for (const specifier of imports) {
+      const isBuiltin = /^node:/.test(specifier) || specifier === 'node:crypto';
+      const isCapabilities = specifier === './capabilities.js';
+      expect(isBuiltin || isCapabilities, `import ${specifier}`).toBe(true);
+    }
+  });
+
+  it('the broker surface carries no task.unclaim action, tool or CLI name', () => {
+    const brokerSource = readBenchmarkSource('task-broker.ts');
+    expect(brokerSource).not.toContain("'task.unclaim'");
+    expect(brokerSource).not.toContain('task_unclaim');
+    expect(BENCHMARK_BROKER_ACTIONS).not.toContain('task.unclaim');
+  });
+
+  it('P3 source carries no event, hook or bus surface (the zero-emission half of the fence)', () => {
+    const source = readBenchmarkSource('trial-task-mutator.ts');
+    expect(source).not.toContain('hook-bus');
+    expect(source).not.toContain('emitCortexEvent');
+    expect(source).not.toContain('event-bus');
+    expect(source).not.toContain('publish');
+  });
+});

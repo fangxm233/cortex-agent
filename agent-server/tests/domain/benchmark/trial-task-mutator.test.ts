@@ -4,7 +4,6 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 
-import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -13,18 +12,9 @@ import { describe, expect, it } from 'vitest';
 import { PROJECTS_DIR } from '../../../src/core/paths.js';
 import { serializeTasksFileWithLock, type Task } from '../../../src/core/task-parser.js';
 import { TaskRepo } from '../../../src/store/task-repo.js';
-import {
-  BENCHMARK_BROKER_ACTIONS, capabilityWhitelistForArm, mintActorCapability,
-  type ActorCapability, type BenchmarkBrokerCapability,
-} from '../../../src/domain/benchmark/capabilities.js';
-import {
-  createActorCapabilityRegistry, type ActorCapabilityRegistry,
-} from '../../../src/domain/benchmark/actor-capability-scope.js';
-import {
-  createTaskArtifactProjection, createTrialTaskLockTable, createTrialTaskLocks,
-  createTrialTaskRepository, withTrialTaskLockScope,
-  type TrialTaskLockTable, type TrialTaskRepository,
-} from '../../../src/domain/benchmark/trial-task-ports.js';
+import { capabilityWhitelistForArm, mintActorCapability, type ActorCapability, type BenchmarkBrokerCapability } from '../../../src/domain/benchmark/capabilities.js';
+import { createActorCapabilityRegistry, type ActorCapabilityRegistry } from '../../../src/domain/benchmark/actor-capability-scope.js';
+import { createTaskArtifactProjection, createTrialTaskLockTable, createTrialTaskLocks, createTrialTaskRepository, withTrialTaskLockScope, type TrialTaskLockTable, type TrialTaskRepository } from '../../../src/domain/benchmark/trial-task-ports.js';
 import { createAcceptanceLedgerPort } from '../../../src/domain/benchmark/composite-runtime-ports.js';
 import { createTrialClock } from '../../../src/domain/benchmark/trial-clock.js';
 import { recordProposal, proposalStorePath } from '../../../src/domain/benchmark/proposal-seal.js';
@@ -34,11 +24,9 @@ import type { ResolvedTrialPolicy } from '../../../src/domain/benchmark/resolved
 import type { ArmDefinition } from '../../../src/domain/benchmark/arm-schema.js';
 import { createTrialCapabilityAwareTaskMutator } from '../../../src/domain/tasks/mutator.js';
 
-// The production chain under test is exactly createTrialCapabilityAwareTaskMutator ->
+// The production chain is exactly createTrialCapabilityAwareTaskMutator ->
 // createDispatcherOwnedClaimTarget -> createBenchmarkTaskBroker over real P2 files/delegate,
-// P4 table/scope, production mint + exact registry, the shipped proposal store and declared
-// target-attempt / release state ports. No subclass, alternate factory, module mock, test
-// mint or structural-clone authority exists in this file.
+// P4 table/scope, production mint + exact registry and the shipped proposal store.
 
 const TRIAL_ID = 'trial-749f';
 const REQ_GEN = 'req-gen';
@@ -48,9 +36,7 @@ const TARGET_ATTEMPT = 'target-attempt-1';
 function armFor(mode: 'manager' | 'coder-review', askManager: boolean): ArmDefinition {
   return {
     kind: 'cortex',
-    orchestration: mode === 'manager'
-      ? { mode, ask_manager: askManager }
-      : { mode, ask_manager: false, coder_review_variant: 'audit-retry' },
+    orchestration: mode === 'manager' ? { mode, ask_manager: askManager } : { mode, ask_manager: false, coder_review_variant: 'audit-retry' },
   } as ArmDefinition;
 }
 
@@ -84,72 +70,43 @@ interface TargetAuthorityState {
 }
 
 interface Composition {
-  trialId: string;
-  project: string;
-  tasksPath: string;
-  store: TaskRepo;
-  repo: TrialTaskRepository & { commitAndPush(message: string): void };
-  table: TrialTaskLockTable;
-  locks: ReturnType<typeof createTrialTaskLocks>;
-  registry: ActorCapabilityRegistry;
-  requester: ActorCapability;
+  trialId: string; project: string; tasksPath: string;
+  store: TaskRepo; repo: TrialTaskRepository & { commitAndPush(message: string): void };
+  table: TrialTaskLockTable; locks: ReturnType<typeof createTrialTaskLocks>;
+  registry: ActorCapabilityRegistry; requester: ActorCapability;
   mutator: ReturnType<typeof createTrialCapabilityAwareTaskMutator>;
   claimTarget: ReturnType<typeof createDispatcherOwnedClaimTarget>;
   broker: ReturnType<typeof createBenchmarkTaskBroker>;
-  trialRoot: string;
-  targetAuthority: TargetAuthorityState;
-  releasing: Set<string>;
-  recordedRows: unknown[];
+  trialRoot: string; targetAuthority: TargetAuthorityState;
+  releasing: Set<string>; recordedRows: unknown[];
   call(action: BenchmarkBrokerCapability, payload?: Record<string, unknown>): Promise<BrokerCallResult>;
   claimThroughBroker(taskId: string): Promise<BrokerCallResult>;
-  readTasks(): Task[];
-  cleanup(): void;
+  readTasks(): Task[]; cleanup(): void;
 }
 
 interface CompositionOptions {
-  requesterTaskId?: string;
-  requesterGeneration?: string;
-  requesterAttempt?: string;
-  requesterActions?: readonly BenchmarkBrokerCapability[];
-  requesterRole?: ActorCapability['role'];
-  requesterAncestry?: readonly string[];
-  extraTasks?: Task[];
-  releaseAttempt?: string;
+  requesterTaskId?: string; requesterGeneration?: string; requesterAttempt?: string;
+  requesterActions?: readonly BenchmarkBrokerCapability[]; requesterRole?: ActorCapability['role'];
+  requesterAncestry?: readonly string[]; extraTasks?: Task[]; releaseAttempt?: string;
 }
 
 interface BuildContext {
-  trialId: string;
-  project: string;
-  tasksPath: string;
-  store: TaskRepo;
-  repo: TrialTaskRepository & { commitAndPush(message: string): void };
-  table: TrialTaskLockTable;
-  locks: ReturnType<typeof createTrialTaskLocks>;
-  registry: ActorCapabilityRegistry;
-  whitelist: BenchmarkBrokerCapability[];
-  lockOwner: string;
-  trialRoot: string;
-  targetAuthority: TargetAuthorityState;
+  trialId: string; project: string; tasksPath: string;
+  store: TaskRepo; repo: TrialTaskRepository & { commitAndPush(message: string): void };
+  table: TrialTaskLockTable; locks: ReturnType<typeof createTrialTaskLocks>;
+  registry: ActorCapabilityRegistry; whitelist: BenchmarkBrokerCapability[];
+  lockOwner: string; trialRoot: string; targetAuthority: TargetAuthorityState;
 }
 
 function baseRows(project: string, options: CompositionOptions): Task[] {
   return [
     taskRow({ id: 'root', project, text: 'root' }),
-    taskRow({
-      id: 'aaaa', project, text: 'requester task', parent: 'root',
-      claimed_by: 'req-agent', dispatch_generation: REQ_GEN,
-    }),
+    taskRow({ id: 'aaaa', project, text: 'requester task', parent: 'root', claimed_by: 'req-agent', dispatch_generation: REQ_GEN }),
     taskRow({ id: 'dddd', project, text: 'claim target', parent: 'aaaa' }),
-    taskRow({
-      id: 'bbbb', project, text: 'edit target', parent: 'aaaa',
-      dispatch_generation: 'other-gen',
-    }),
+    taskRow({ id: 'bbbb', project, text: 'edit target', parent: 'aaaa', dispatch_generation: 'other-gen' }),
     taskRow({ id: 'cccc', project, text: 'sibling', parent: 'root' }),
     taskRow({ id: 'xxxx', project, text: 'done child', parent: 'aaaa', status: 'done' }),
-    taskRow({
-      id: 'ff1', project, text: 'already claimed child', parent: 'aaaa',
-      claimed_by: 'someone-else', dispatch_generation: 'g-ff',
-    }),
+    taskRow({ id: 'ff1', project, text: 'already claimed child', parent: 'aaaa', claimed_by: 'someone-else', dispatch_generation: 'g-ff' }),
     ...(options.extraTasks ?? []),
   ];
 }
@@ -169,11 +126,8 @@ function openContext(options: CompositionOptions): BuildContext {
   const trialRoot = fs.mkdtempSync(path.join(os.tmpdir(), 't749f-root-'));
   const targetAuthority: TargetAuthorityState = {
     fields: {
-      attempt_id: TARGET_ATTEMPT,
-      role: 'coder',
-      ancestry: ['root', 'aaaa'],
-      allowed_actions: ['artifact.write', 'task.read'],
-      issued_at_epoch_ms: 2_000,
+      attempt_id: TARGET_ATTEMPT, role: 'coder', ancestry: ['root', 'aaaa'],
+      allowed_actions: ['artifact.write', 'task.read'], issued_at_epoch_ms: 2_000,
     },
   };
   return {
@@ -211,11 +165,7 @@ function buildMutator(
     project: ctx.project,
     lockOwner: ctx.lockOwner,
     // The shipped proposal store entry, wrapped only to observe the exact returned reference.
-    recordProposal: (p, input) => {
-      const row = recordProposal(p, input);
-      recordedRows.push(row);
-      return row;
-    },
+    recordProposal: (p, input) => { const row = recordProposal(p, input); recordedRows.push(row); return row; },
     attemptReleaseAuthority: {
       isCurrentRelease: capability => releasing.has(capability.attempt_id),
     },
@@ -230,22 +180,19 @@ function buildClaimTarget(
     claim: (capability, taskId) => mutator.claim(capability, taskId),
     capability_whitelist: ctx.whitelist,
     targetAttemptAuthority: {
-      current: () => {
-        if (ctx.targetAuthority.fields === null) throw new Error('target authority unset');
-        return ctx.targetAuthority.fields;
-      },
+      current: () => { const fields = ctx.targetAuthority.fields; if (fields === null) throw new Error('target authority unset'); return fields; },
     },
   });
 }
+
+const UNUSED_PORT = (): never => { throw new Error('port not exercised in this suite'); };
 
 function buildBroker(
   ctx: BuildContext,
   mutator: ReturnType<typeof createTrialCapabilityAwareTaskMutator>,
   claimTarget: ReturnType<typeof createDispatcherOwnedClaimTarget>,
 ): ReturnType<typeof createBenchmarkTaskBroker> {
-  const artifacts = createTaskArtifactProjection({
-    root: ctx.trialRoot, project: ctx.project, resolveTaskId: capability => capability.task_id,
-  });
+  const artifacts = createTaskArtifactProjection({ root: ctx.trialRoot, project: ctx.project, resolveTaskId: capability => capability.task_id });
   const ledger = createAcceptanceLedgerPort(ctx.project, 'aaaa');
   const policy = {
     trial_id: ctx.trialId,
@@ -261,13 +208,8 @@ function buildBroker(
       taskLocks: ctx.locks,
       taskArtifacts: artifacts,
       acceptanceLedger: ledger,
-      managerQa: {
-        ask: () => { throw new Error('qa.ask not exercised in this suite'); },
-        answer: () => { throw new Error('qa.answer not exercised in this suite'); },
-      },
-      parentQuestions: {
-        record: () => { throw new Error('parentQuestions not exercised in this suite'); },
-      },
+      managerQa: { ask: UNUSED_PORT, answer: UNUSED_PORT },
+      parentQuestions: { record: UNUSED_PORT },
     },
     capabilities: ctx.registry,
     project: ctx.project,
@@ -288,18 +230,10 @@ function buildComposition(options: CompositionOptions = {}): Composition {
     trialId: ctx.trialId, project: ctx.project, tasksPath: ctx.tasksPath,
     store: ctx.store, repo: ctx.repo, table: ctx.table, locks: ctx.locks,
     registry: ctx.registry, requester, mutator, claimTarget, broker,
-    trialRoot: ctx.trialRoot, targetAuthority: ctx.targetAuthority,
-    releasing, recordedRows,
-    call: (action, payload = {}) => ctx.registry.runInScope(
-      requester, () => withTrialTaskLockScope(ctx.table, () => broker.call(action, payload)),
-    ),
-    claimThroughBroker: taskId => ctx.registry.runInScope(
-      requester, () => withTrialTaskLockScope(ctx.table, () => broker.call('task.claim', { task_id: taskId })),
-    ),
-    readTasks: () => {
-      ctx.store.refresh();
-      return ctx.repo.list({});
-    },
+    trialRoot: ctx.trialRoot, targetAuthority: ctx.targetAuthority, releasing, recordedRows,
+    call: (action, payload = {}) => ctx.registry.runInScope(requester, () => withTrialTaskLockScope(ctx.table, () => broker.call(action, payload))),
+    claimThroughBroker: taskId => ctx.registry.runInScope(requester, () => withTrialTaskLockScope(ctx.table, () => broker.call('task.claim', { task_id: taskId }))),
+    readTasks: () => { ctx.store.refresh(); return ctx.repo.list({}); },
     cleanup: () => {
       try { fs.rmSync(path.join(PROJECTS_DIR, ctx.project), { recursive: true, force: true }); } catch {}
       try { fs.rmSync(ctx.trialRoot, { recursive: true, force: true }); } catch {}
@@ -308,9 +242,7 @@ function buildComposition(options: CompositionOptions = {}): Composition {
 }
 
 /** Builds the composition, runs the body and always cleans up after it settles. */
-async function runWith(
-  options: CompositionOptions | undefined, body: (c: Composition) => void | Promise<void>,
-): Promise<void> {
+async function runWith(options: CompositionOptions | undefined, body: (c: Composition) => void | Promise<void>): Promise<void> {
   const c = buildComposition(options);
   try {
     await body(c);
@@ -329,20 +261,12 @@ function refusalOf(result: BrokerCallResult): BrokerRefusal {
   return result as BrokerRefusal;
 }
 
-function readTaskRows(c: Composition): Task[] {
-  return c.readTasks();
-}
-
 function taskById(c: Composition, id: string): Task | undefined {
-  return readTaskRows(c).find(task => task.id === id);
+  return c.readTasks().find(task => task.id === id);
 }
 
 function seedFilesSnapshot(c: Composition): { tasks: string; proposals: boolean; lock: { locked: boolean; owner?: string } } {
-  return {
-    tasks: fs.readFileSync(c.tasksPath, 'utf8'),
-    proposals: fs.existsSync(proposalStorePath(c.project, 'aaaa')),
-    lock: c.table.isProjectLocked(c.project),
-  };
+  return { tasks: fs.readFileSync(c.tasksPath, 'utf8'), proposals: fs.existsSync(proposalStorePath(c.project, 'aaaa')), lock: c.table.isProjectLocked(c.project) };
 }
 
 function expectZeroSideEffects(c: Composition, before: { tasks: string; proposals: boolean; lock: { locked: boolean; owner?: string } }): void {
@@ -354,15 +278,9 @@ function expectZeroSideEffects(c: Composition, before: { tasks: string; proposal
 
 function staleCapabilityFor(c: Composition, overrides: Partial<Parameters<typeof mintActorCapability>[0]> = {}): ActorCapability {
   const capability = mintActorCapability({
-    trial_id: c.trialId,
-    task_id: 'aaaa',
-    dispatch_generation: 'stale-gen',
-    attempt_id: 'stale-attempt',
-    role: 'manager',
-    ancestry: ['root'],
-    capability_whitelist: managerWhitelist(),
-    issued_at_epoch_ms: 3_000,
-    ...overrides,
+    trial_id: c.trialId, task_id: 'aaaa', dispatch_generation: 'stale-gen',
+    attempt_id: 'stale-attempt', role: 'manager', ancestry: ['root'],
+    capability_whitelist: managerWhitelist(), issued_at_epoch_ms: 3_000, ...overrides,
   });
   c.registry.register(capability);
   return capability;
@@ -370,22 +288,9 @@ function staleCapabilityFor(c: Composition, overrides: Partial<Parameters<typeof
 
 function newerAttempt(c: Composition, attemptId: string): void {
   c.registry.register(mintActorCapability({
-    trial_id: c.trialId,
-    task_id: 'aaaa',
-    dispatch_generation: REQ_GEN,
-    attempt_id: attemptId,
-    role: 'manager',
-    ancestry: ['root'],
-    capability_whitelist: managerWhitelist(),
-    issued_at_epoch_ms: 5_000,
+    trial_id: c.trialId, task_id: 'aaaa', dispatch_generation: REQ_GEN, attempt_id: attemptId,
+    role: 'manager', ancestry: ['root'], capability_whitelist: managerWhitelist(), issued_at_epoch_ms: 5_000,
   }));
-}
-
-function readSource(name: string): string {
-  return fs.readFileSync(
-    path.join(path.dirname(new URL(import.meta.url).pathname), `../../../src/domain/benchmark/${name}`),
-    'utf8',
-  );
 }
 
 type Invoke = (c: Composition, capability: ActorCapability) => unknown;
@@ -393,12 +298,8 @@ const INVOKE_TABLE: Record<string, Invoke> = {
   claim: (c, capability) => c.mutator.claim(capability, 'aaaa'),
   unclaim: (c, capability) => c.mutator.unclaim(capability, 'aaaa'),
   add: (c, capability) => c.mutator.add(capability, { project: c.project, fields: { text: 'x' } }),
-  decompose: (c, capability) => c.mutator.decompose(capability, {
-    project: c.project, fields: { subtasks: [{ text: 'c' }] },
-  }),
-  edit: (c, capability) => c.mutator.edit(capability, {
-    project: c.project, taskId: 'bbbb', fields: { addDependsOn: ['dddd'] },
-  }),
+  decompose: (c, capability) => c.mutator.decompose(capability, { project: c.project, fields: { subtasks: [{ text: 'c' }] } }),
+  edit: (c, capability) => c.mutator.edit(capability, { project: c.project, taskId: 'bbbb', fields: { addDependsOn: ['dddd'] } }),
   proposeComplete: (c, capability) => c.mutator.proposeComplete(capability, 'aaaa', 'n'),
   proposeBlock: (c, capability) => c.mutator.proposeBlock(capability, 'aaaa', 'r'),
 };
@@ -413,7 +314,6 @@ function unknownMethod(method: string): never {
 }
 
 const methods = ['claim', 'unclaim', 'add', 'decompose', 'edit', 'proposeComplete', 'proposeBlock'];
-const WRITE_METHODS = ['add', 'decompose', 'edit', 'proposeComplete', 'proposeBlock'];
 
 describe('R2-T1/T2 — claim and unclaim through the real production chain', () => {
   it('R2-T1 claim: two-leg claim through the broker claims the strict descendant with the target attempt', () => runWith(undefined, async c => {
@@ -424,16 +324,12 @@ describe('R2-T1/T2 — claim and unclaim through the real production chain', () 
     expect(row.claimed_by).toBe(TARGET_ATTEMPT); // P3 writes attempt_id, never token_id
     expect(row.dispatch_generation).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     expect(row.dispatch_generation).not.toBe(REQ_GEN); // requester generation never copied
-    expect(c.registry.currentAttempt('dddd')).toEqual({
-      dispatch_generation: row.dispatch_generation,
-      attempt_id: TARGET_ATTEMPT,
-    });
+    expect(c.registry.currentAttempt('dddd')).toEqual({ dispatch_generation: row.dispatch_generation, attempt_id: TARGET_ATTEMPT });
     expect(c.registry.liveCount()).toBe(2); // requester + exactly one target capability
   }));
 
   it('R2-T2 unclaim: exact registered self-release succeeds only under the release authority mark', () => runWith(undefined, c => {
-    // The requester task is claimed with the requester's generation; the coordinator's
-    // attempt-finalisation/recovery transition marks the attempt, then unclaims.
+    // The coordinator's attempt-finalisation/recovery transition marks the attempt, then unclaims.
     c.releasing.add(REQ_ATTEMPT);
     const result = c.mutator.unclaim(c.requester, 'aaaa');
     expect(result.success).toBe(true);
@@ -446,15 +342,13 @@ describe('R2-T1/T2 — claim and unclaim through the real production chain', () 
     expect(c.registry.isLive(c.requester.token_id)).toBe(false);
   }));
 });
-
 describe('R2-T3/T4 — add and decompose keep-parent spawn semantics', () => {
   it('R2-T3 add: one-child keep-parent spawn under cap.task_id', () => runWith(undefined, async c => {
     acquireTrialLock(c);
     const result = await c.call('task.create', { text: 'new child task', template: 'benchmark-coder-review' });
     expect(result.ok).toBe(true);
-    const rows = readTaskRows(c);
-    const child = rows.find(task => task.id !== 'aaaa' && task.parent === 'aaaa'
-      && !['dddd', 'bbbb', 'xxxx', 'ff1'].includes(task.id))!;
+    const rows = c.readTasks();
+    const child = rows.find(task => task.id !== 'aaaa' && task.parent === 'aaaa' && !['dddd', 'bbbb', 'xxxx', 'ff1'].includes(task.id))!;
     expect(child).toBeDefined();
     expect(child.text).toBe('new child task');
     expect(child.parent).toBe('aaaa');
@@ -467,7 +361,7 @@ describe('R2-T3/T4 — add and decompose keep-parent spawn semantics', () => {
       subtasks: [{ text: 'first child' }, { text: 'second child' }],
     });
     expect(result.ok).toBe(true);
-    const rows = readTaskRows(c);
+    const rows = c.readTasks();
     const children = rows.filter(task => ['first child', 'second child'].includes(task.text));
     expect(children).toHaveLength(2);
     for (const child of children) expect(child.parent).toBe('aaaa');
@@ -477,7 +371,6 @@ describe('R2-T3/T4 — add and decompose keep-parent spawn semantics', () => {
     for (const child of children) expect(parent.depends_on).toContain(child.id);
   }));
 });
-
 describe('R2-T5/T6/T7 — edit, proposeComplete and proposeBlock', () => {
   it('R2-T5 edit: dependency.declare on a named descendant, R1 held on cap.task_id', () => runWith(undefined, async c => {
     acquireTrialLock(c);
@@ -495,9 +388,7 @@ describe('R2-T5/T6/T7 — edit, proposeComplete and proposeBlock', () => {
     const stored = JSON.parse(fs.readFileSync(proposalStorePath(c.project, 'aaaa'), 'utf8'));
     expect(stored.proposals).toHaveLength(1);
     expect(stored.proposals[0]).toEqual(result);
-    expect(stored.proposals[0].intent).toBe('complete');
-    expect(stored.proposals[0].note).toBe('the note');
-    expect(stored.proposals[0].state).toBe('proposed');
+    expect(stored.proposals[0]).toMatchObject({ intent: 'complete', note: 'the note', state: 'proposed' });
   }));
 
   it('R2-T7 proposeBlock: same store contract with intent block and opaque reason', () => runWith(undefined, c => {
@@ -505,12 +396,9 @@ describe('R2-T5/T6/T7 — edit, proposeComplete and proposeBlock', () => {
     expect(c.recordedRows).toHaveLength(1);
     expect(c.recordedRows[0]).toBe(result);
     const stored = JSON.parse(fs.readFileSync(proposalStorePath(c.project, 'aaaa'), 'utf8'));
-    expect(stored.proposals[0].intent).toBe('block');
-    expect(stored.proposals[0].note).toBe('block reason');
-    expect(stored.proposals[0].state).toBe('proposed');
+    expect(stored.proposals[0]).toMatchObject({ intent: 'block', note: 'block reason', state: 'proposed' });
   }));
 });
-
 describe('R2-T8a — non-exact and non-minted objects are 33, zero side effect', () => {
   it.each(methods)('%s: non-exact and non-minted objects return 33 by value, never thrown, zero side effect', (method) => runWith(undefined, c => {
     const before = seedFilesSnapshot(c);
@@ -518,40 +406,30 @@ describe('R2-T8a — non-exact and non-minted objects are 33, zero side effect',
     const tokenIdClone = Object.freeze({ ...c.requester });
     expect(invoke(c, method, tokenIdClone)).toEqual({ success: false, message: expect.any(String), code: 33 });
     expectZeroSideEffects(c, before);
-    // A forged non-minted object with a foreign token id.
     const forged = Object.freeze({ ...c.requester, token_id: 'forged-token' });
     expect(invoke(c, method, forged)).toEqual({ success: false, message: expect.any(String), code: 33 });
     expectZeroSideEffects(c, before);
   }));
 });
-
 describe('R2-T8b — a foreign-trial capability is 33 and never registers', () => {
   it.each(methods)('%s: a capability minted for another trial returns 33 and never registers', (method) => runWith(undefined, c => {
     const before = seedFilesSnapshot(c);
     const foreign = mintActorCapability({
-      trial_id: 'other-trial',
-      task_id: 'aaaa',
-      dispatch_generation: REQ_GEN,
-      attempt_id: REQ_ATTEMPT,
-      role: 'manager',
-      ancestry: ['root'],
-      capability_whitelist: managerWhitelist(),
-      issued_at_epoch_ms: 4_000,
+      trial_id: 'other-trial', task_id: 'aaaa', dispatch_generation: REQ_GEN, attempt_id: REQ_ATTEMPT,
+      role: 'manager', ancestry: ['root'], capability_whitelist: managerWhitelist(), issued_at_epoch_ms: 4_000,
     });
     expect(() => c.registry.register(foreign)).toThrow();
     expect(invoke(c, method, foreign)).toEqual({ success: false, message: expect.any(String), code: 33 });
     expectZeroSideEffects(c, before);
   }));
 });
-
 describe('R2-T8c — action outside allowed_actions is 33 (R8)', () => {
-  it.each(WRITE_METHODS)('%s: action outside allowed_actions returns 33 (R8), zero side effect', (method) => runWith({ requesterActions: ['task.read', 'artifact.write'] }, c => {
+  it.each(['add', 'decompose', 'edit', 'proposeComplete', 'proposeBlock'])('%s: action outside allowed_actions returns 33 (R8), zero side effect', (method) => runWith({ requesterActions: ['task.read', 'artifact.write'] }, c => {
     const before = seedFilesSnapshot(c);
     expect(invoke(c, method, c.requester)).toEqual({ success: false, message: expect.any(String), code: 33 });
     expectZeroSideEffects(c, before);
   }));
 });
-
 describe('R2-T8d — stale actor subject is 34, zero side effect', () => {
   it.each(methods)('%s: stale actor subject (generation or registry attempt) returns 34, zero side effect', (method) => runWith(undefined, c => {
     const before = seedFilesSnapshot(c);
@@ -563,17 +441,13 @@ describe('R2-T8d — stale actor subject is 34, zero side effect', () => {
     expectZeroSideEffects(c, before);
     // A newer registered attempt makes the original capability's attempt stale (D-9).
     newerAttempt(c, 'attempt-2');
-    if (method === 'unclaim') {
-      c.releasing.delete('stale-attempt');
-      c.releasing.add(REQ_ATTEMPT);
-    }
+    if (method === 'unclaim') { c.releasing.delete('stale-attempt'); c.releasing.add(REQ_ATTEMPT); }
     const before2 = seedFilesSnapshot(c);
     expect(invoke(c, method, c.requester)).toEqual({ success: false, message: expect.any(String), code: 34 });
     expectZeroSideEffects(c, before2);
   }));
 });
-
-describe('R2-T8e — pre-claimed target and the zero-emission source pin', () => {
+describe('R2-T8e — pre-claimed target refusal', () => {
   it('claim: a pre-claim row that is already claimed returns 34 and invalidates no live token', () => runWith(undefined, async c => {
     const first = await c.claimThroughBroker('dddd');
     expect(first.ok).toBe(true);
@@ -584,15 +458,7 @@ describe('R2-T8e — pre-claimed target and the zero-emission source pin', () =>
     expect(c.registry.isLive(c.requester.token_id)).toBe(true);
   }));
 
-  it('P3 source carries no event, hook or bus surface (the zero-emission half of the fence)', () => {
-    const source = readSource('trial-task-mutator.ts');
-    expect(source).not.toContain('hook-bus');
-    expect(source).not.toContain('emitCortexEvent');
-    expect(source).not.toContain('event-bus');
-    expect(source).not.toContain('publish');
-  });
 });
-
 describe('R2-T9a — claim is two-leg: requester currency precedes any mint', () => {
   it('requires requester generation/attempt currency on the REQUESTER row before any mint', () => runWith({ requesterGeneration: 'stale-gen' }, async c => {
     const before = c.registry.liveCount();
@@ -610,13 +476,11 @@ describe('R2-T9a — claim is two-leg: requester currency precedes any mint', ()
     expect(c.registry.liveCount()).toBe(before);
   }));
 });
-
 describe('R2-T9b — strict actionable unclaimed descendant, fresh unequal generation', () => {
   it('proves the target is a strict actionable unclaimed descendant of the requester task', () => runWith(undefined, async c => {
-    // cccc is a sibling of the requester's task — cross-branch, R2.
+    // cccc is a sibling (cross-branch R2); bbbb is a descendant but already carries a generation.
     const cross = refusalOf(await c.claimThroughBroker('cccc'));
     expect([cross.code, cross.reason]).toEqual([35, 'cross_branch_mutation']);
-    // bbbb is a descendant but carries a dispatch_generation — the unclaimed check refuses it.
     await expect(c.claimThroughBroker('bbbb')).rejects.toThrow(BrokerArgumentsError);
     expect(taskById(c, 'bbbb')!.claimed_by).toBeNull(); // nothing was written
   }));
@@ -626,31 +490,21 @@ describe('R2-T9b — strict actionable unclaimed descendant, fresh unequal gener
     expect(result.ok).toBe(true);
     const row = taskById(c, 'dddd')!;
     expect(row.dispatch_generation).not.toBe(REQ_GEN);
-    // The registry attempt for the target equals the written generation (one mint, one register).
-    expect(c.registry.currentAttempt('dddd')).toEqual({
-      dispatch_generation: row.dispatch_generation,
-      attempt_id: TARGET_ATTEMPT,
-    });
+    expect(c.registry.currentAttempt('dddd')).toEqual({ dispatch_generation: row.dispatch_generation, attempt_id: TARGET_ATTEMPT }); // one mint, one register
   }));
 
   it('no argument, response or projection carries dispatch_generation or attempt_id', () => runWith(undefined, async c => {
     const result = await c.claimThroughBroker('dddd');
     expect(result.ok).toBe(true);
     const json = JSON.stringify(result);
-    expect(json).not.toContain('dispatch_generation');
-    expect(json).not.toContain('attempt_id');
-    expect(json).not.toContain(TARGET_ATTEMPT);
+    for (const needle of ['dispatch_generation', 'attempt_id', TARGET_ATTEMPT]) expect(json).not.toContain(needle);
     // The model-facing read projection of the claimed row carries no generation either.
     const read = await c.call('task.read', { task_id: 'dddd' });
     expect(read.ok).toBe(true);
-    const tasks = (read as { result: Readonly<Record<string, unknown>> }).result.tasks as Record<string, unknown>[];
-    const projected = tasks[0];
-    expect(projected).not.toHaveProperty('dispatch_generation');
-    expect(projected).not.toHaveProperty('attempt_id');
-    expect(projected).not.toHaveProperty('claimed_by');
+    const projected = ((read as { result: Readonly<Record<string, unknown>> }).result.tasks as Record<string, unknown>[])[0];
+    for (const key of ['dispatch_generation', 'attempt_id', 'claimed_by']) expect(projected).not.toHaveProperty(key);
   }));
 });
-
 describe('R2-T10a — claim refusals precede any mint', () => {
   it('self, non-actionable and already-claimed targets are BrokerArgumentsError before any mint', () => runWith(undefined, async c => {
     const before = c.registry.liveCount();
@@ -670,7 +524,6 @@ describe('R2-T10a — claim refusals precede any mint', () => {
     expect(c.registry.liveCount()).toBe(before);
   }));
 });
-
 describe('R2-T10b — post-registration failure invalidates the target token', () => {
   it('a failed post-registration claim invalidates the target token and never reports success', () => runWith(undefined, async c => {
     const first = await c.claimThroughBroker('dddd');
@@ -687,7 +540,6 @@ describe('R2-T10b — post-registration failure invalidates the target token', (
     expect(taskById(c, 'dddd')!.claimed_by).toBe(TARGET_ATTEMPT);
   }));
 });
-
 describe('R2-T10c — direct P3 recheck of target actionability', () => {
   it('P3 rechecks target actionability after registration and before the lifecycle write', () => runWith({
     extraTasks: [taskRow({
@@ -695,15 +547,8 @@ describe('R2-T10c — direct P3 recheck of target actionability', () => {
     })],
   }, c => {
     const target = mintActorCapability({
-      trial_id: c.trialId,
-      task_id: 'pppp',
-      dispatch_generation: 'fresh-target-generation',
-      attempt_id: 'paused-target-attempt',
-      role: 'coder',
-      ancestry: ['root', 'aaaa'],
-      capability_whitelist: managerWhitelist(),
-      allowed_actions: ['artifact.write', 'task.read'],
-      issued_at_epoch_ms: 7_000,
+      trial_id: c.trialId, task_id: 'pppp', dispatch_generation: 'fresh-target-generation', attempt_id: 'paused-target-attempt',
+      role: 'coder', ancestry: ['root', 'aaaa'], capability_whitelist: managerWhitelist(), allowed_actions: ['artifact.write', 'task.read'], issued_at_epoch_ms: 7_000,
     });
     c.registry.register(target);
     const result = c.mutator.claim(target, 'pppp');
@@ -714,7 +559,6 @@ describe('R2-T10c — direct P3 recheck of target actionability', () => {
     expect(row.dispatch_generation).toBeNull();
   }));
 });
-
 describe('R2-T11a — unclaim is coordinator-internal self-release under the authority mark', () => {
   const ROLE_SLOTS = ['parent', 'manager', 'coder', 'reviewer', 'verifier'] as const;
 
@@ -742,7 +586,6 @@ describe('R2-T11a — unclaim is coordinator-internal self-release under the aut
     expect(taskById(c, 'aaaa')!.claimed_by).toBe('req-agent');
   }));
 });
-
 describe('R2-T11b — stale self and the cleared release mark', () => {
   it('stale self row or stale registry attempt is 34 with zero side effect', () => runWith(undefined, c => {
     const before = seedFilesSnapshot(c);
@@ -767,13 +610,12 @@ describe('R2-T11b — stale self and the cleared release mark', () => {
     expect(c.registry.isLive(c.requester.token_id)).toBe(false);
   }));
 });
-
 describe('R2-T12a — add/decompose reuse the shipped one-child keep-parent spawn', () => {
   it('add never calls top-level addTask: the child hangs under cap.task_id and the parent joins on it', () => runWith(undefined, async c => {
     acquireTrialLock(c);
     const result = await c.call('task.create', { text: 'spawned child' });
     expect(result.ok).toBe(true);
-    const rows = readTaskRows(c);
+    const rows = c.readTasks();
     const child = rows.find(task => task.text === 'spawned child')!;
     expect(child.parent).toBe('aaaa'); // top-level addTask would set parent null
     expect(child.origin_thread_id).toBeNull();
@@ -786,7 +628,7 @@ describe('R2-T12a — add/decompose reuse the shipped one-child keep-parent spaw
       subtasks: [{ text: 'child-a' }, { text: 'child-b' }],
     });
     expect(result.ok).toBe(true);
-    const rows = readTaskRows(c);
+    const rows = c.readTasks();
     const parent = rows.find(task => task.id === 'aaaa')!;
     expect(parent.text).toBe('requester task'); // row not replaced by the destructive variant
     const children = rows.filter(task => ['child-a', 'child-b'].includes(task.text));
@@ -794,7 +636,6 @@ describe('R2-T12a — add/decompose reuse the shipped one-child keep-parent spaw
     expect(parent.depends_on.sort()).toEqual(children.map(child => child.id).sort());
   }));
 });
-
 describe('R2-T12b — contended trial lock fails fast', () => {
   it('a contended trial lock fails fast with a no-code failure — no system-lock spin', () => runWith(undefined, async c => {
     expect(c.table.acquire(c.project, 'other-owner').acquired).toBe(true);
@@ -807,7 +648,6 @@ describe('R2-T12b — contended trial lock fails fast', () => {
     expect(taskById(c, 'aaaa')!.depends_on).toEqual([]);
   }));
 });
-
 describe('R2-T13a — edit proves R1 against cap.task_id', () => {
   it('a stale requester generation refuses 34 even when the named target is current', () => runWith({ requesterGeneration: 'stale-gen' }, async c => {
     acquireTrialLock(c);
@@ -828,7 +668,6 @@ describe('R2-T13a — edit proves R1 against cap.task_id', () => {
     expect(taskById(c, 'bbbb')!.depends_on).toContain('dddd');
   }));
 });
-
 describe('R2-T13b — the target guards inspect the named descendant', () => {
   it('the target guards (branch, acyclic, lock) inspect the named descendant', () => runWith(undefined, async c => {
     acquireTrialLock(c);
@@ -837,8 +676,7 @@ describe('R2-T13b — the target guards inspect the named descendant', () => {
       task_id: 'bbbb', depends_on: ['cccc'],
     }));
     expect([cross.code, cross.reason]).toEqual([35, 'cross_branch_mutation']);
-    // dddd→bbbb is acyclic; the follow-up bbbb→dddd would close a cycle and is refused as a
-    // mutation-validity BrokerArgumentsError (no code exists for a cyclic declare, G5-N4).
+    // bbbb→dddd would close a cycle — a mutation-validity BrokerArgumentsError (G5-N4).
     const first = await c.call('dependency.declare', { task_id: 'dddd', depends_on: ['bbbb'] });
     expect(first.ok).toBe(true);
     await expect(c.call('dependency.declare', {
@@ -846,7 +684,6 @@ describe('R2-T13b — the target guards inspect the named descendant', () => {
     })).rejects.toThrow(BrokerArgumentsError);
   }));
 });
-
 describe('R2-T14 — proposals return the exact recordProposal object; refusals precede store access', () => {
   it('valid proposals write and read back the real file exactly once per call', () => runWith(undefined, c => {
     const first = c.mutator.proposeComplete(c.requester, 'aaaa', 'note');
@@ -870,7 +707,6 @@ describe('R2-T14 — proposals return the exact recordProposal object; refusals 
     expectZeroSideEffects(c, before);
   }));
 });
-
 describe('R2-T15 — forced proposal-store read error: detail, public reason and code 42', () => {
   it('ProposalSealError carries detail store_unreadable, reason ledger_unreadable, code 42', () => runWith(undefined, c => {
     const target = proposalStorePath(c.project, 'aaaa');
@@ -897,7 +733,6 @@ describe('R2-T15 — forced proposal-store read error: detail, public reason and
     expect([result.code, result.reason]).toEqual([42, 'ledger_unreadable']);
   }));
 });
-
 describe('R2-T16 — proposed leaves authoritative state unchanged and emits no in-trial event', () => {
   it('task status, claim and dependencies are byte-identical after a proposal', () => runWith(undefined, async c => {
     const before = fs.readFileSync(c.tasksPath, 'utf8');
@@ -918,7 +753,6 @@ describe('R2-T16 — proposed leaves authoritative state unchanged and emits no 
     expect(row.completed_at).toBeNull();
   }));
 });
-
 describe('R2-T17a — results are plain objects, never unawaited Promises', () => {
   it('the direct claim result is a plain object, not an unawaited Promise', () => runWith(undefined, c => {
     const result = c.claimTarget(c.requester, 'dddd');
@@ -937,14 +771,12 @@ describe('R2-T17a — results are plain objects, never unawaited Promises', () =
     expect(taskById(c, 'aaaa')!.depends_on).toHaveLength(1);
   }));
 });
-
 describe('R2-T17b — concurrent production-factory calls equal a serial order', () => {
   it('concurrent broker calls leave exactly the serial final state with no lost mutation', () => runWith(undefined, async c => {
     acquireTrialLock(c);
     const calls = [
       ...Array.from({ length: 4 }, (_, i) => c.call('task.create', { text: `concurrent-${i}` })),
-      c.call('task.propose_complete', { note: 'concurrent proposal' }),
-      c.call('task.propose_block', { reason: 'concurrent block' }),
+      c.call('task.propose_complete', { note: 'concurrent proposal' }), c.call('task.propose_block', { reason: 'concurrent block' }),
       c.call('dependency.declare', { task_id: 'bbbb', depends_on: ['dddd'] }),
     ];
     const results = await Promise.all(calls);
@@ -953,7 +785,7 @@ describe('R2-T17b — concurrent production-factory calls equal a serial order',
       expect(typeof (result as { then?: unknown }).then).not.toBe('function');
       expect(result.ok).toBe(true);
     }
-    const rows = readTaskRows(c);
+    const rows = c.readTasks();
     const children = rows.filter(task => /^concurrent-\d$/.test(task.text));
     expect(children).toHaveLength(4);
     for (const child of children) expect(child.parent).toBe('aaaa');
@@ -964,30 +796,3 @@ describe('R2-T17b — concurrent production-factory calls equal a serial order',
   }));
 });
 
-describe('R2-T18 — pins: proposal-seal hash, P3 import fence, no unclaim surface', () => {
-  it('proposal-seal.ts is byte-identical to the accepted pin md5', () => {
-    const bytes = fs.readFileSync(
-      path.join(path.dirname(new URL(import.meta.url).pathname),
-        '../../../src/domain/benchmark/proposal-seal.ts'),
-    );
-    const hash = crypto.createHash('md5').update(bytes).digest('hex');
-    expect(hash).toBe('b7527c95219c54f9bb98ece7a4f284d8');
-  });
-
-  it('the P3 module imports only Node builtins and ./capabilities.js', () => {
-    const imports = [...readSource('trial-task-mutator.ts').matchAll(/^import .* from '([^']+)'/gm)]
-      .map(match => match[1]);
-    for (const specifier of imports) {
-      const isBuiltin = /^node:/.test(specifier) || specifier === 'node:crypto';
-      const isCapabilities = specifier === './capabilities.js';
-      expect(isBuiltin || isCapabilities, `import ${specifier}`).toBe(true);
-    }
-  });
-
-  it('the broker surface carries no task.unclaim action, tool or CLI name', () => {
-    const brokerSource = readSource('task-broker.ts');
-    expect(brokerSource).not.toContain("'task.unclaim'");
-    expect(brokerSource).not.toContain('task_unclaim');
-    expect(BENCHMARK_BROKER_ACTIONS).not.toContain('task.unclaim');
-  });
-});
