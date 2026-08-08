@@ -1,6 +1,6 @@
-// input:  P9 implementation, host task-lock / gpu / rate-limit modules (contrast only)
-// output: behavioral proof of the in-trial dispatcher + the composite-runtime-ports wire
-// pos:    Gate-5 port P9 — the in-trial dispatch path and its host-coupling absence
+// input:  P9 dispatcher and its host-coupling contrasts
+// output: in-trial dispatch behavior and the wire
+// pos:    Gate-5 P9, in-trial dispatch path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import * as fs from 'node:fs';
