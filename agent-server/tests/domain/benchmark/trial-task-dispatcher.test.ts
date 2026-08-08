@@ -142,6 +142,31 @@ describe('filterTrialDispatchable (P9 eligibility)', () => {
   });
 });
 
+// --- dispatch prompt ---------------------------------------------------------------------------
+
+describe('AwaitableTaskDispatcher.buildDispatchPrompt (§7.2 P9)', () => {
+  it('preserves every shipped prompt section and optional task field', () => {
+    const task = makeTask({
+      id: 'a1', project: 'trial-project', text: 'the task',
+      why: 'the reason', done_when: 'the condition', plan: 'plans/task.md',
+    });
+    const prompt = createTrialTaskDispatcher(fixture().deps).buildDispatchPrompt(task);
+
+    expect(prompt.match(/^## .+$/gm)).toEqual([
+      '## Task',
+      '## Workspace Isolation (concurrent-safe)',
+      '## If This Task Is Mis-Scoped (thread_abort)',
+      '## If The Planning Intent Is Unclear (ask_manager)',
+      '## When Done',
+    ]);
+    expect(prompt).toContain('**Why:** the reason');
+    expect(prompt).toContain('**Done when:** the condition');
+    expect(prompt).toContain('**Plan (MUST read):** plans/task.md');
+    expect(prompt).toContain('cortex-run --name NAME --task-project trial-project --task-id a1 -- COMMAND');
+    expect(prompt).toContain('cortex-task complete --project trial-project --task-id a1');
+  });
+});
+
 // --- selectAndClaim ---------------------------------------------------------------------------
 
 describe('AwaitableTaskDispatcher.selectAndClaim (§7.2 P9)', () => {
