@@ -492,5 +492,7 @@ export {
   createTrialTaskLockTable,
   createTrialTaskLocks,
   createTrialTaskRepository,
+  withTrialTaskArtifactScope,
+  withTrialTaskLockScope,
 } from './trial-task-ports.js';
 export type { TrialArtifactProjectionOptions, TrialTaskRepositoryDelegate } from './trial-task-ports.js';

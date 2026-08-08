@@ -38,7 +38,6 @@ import {
   isProjectLocked,
   readLock,
   releaseLock,
-  withTrialTaskLockScope,
   writeLock,
   TrialLockContendedError,
 } from '../../../src/domain/tasks/system/task-lock.js';
@@ -50,12 +49,15 @@ import {
 } from '../../../src/domain/benchmark/trial-task-ports.js';
 import { createTrialClock } from '../../../src/domain/benchmark/trial-clock.js';
 import { PolicyCompilationError } from '../../../src/domain/benchmark/resolved-policy.js';
+import { recordProposal } from '../../../src/domain/benchmark/proposal-seal.js';
 // The wiring half of done-when (1): the factories must be reachable through the frozen ports
 // module, which is the production interface a coordinator builds from (§4.2 N-1).
 import {
   createTaskArtifactProjection as wiredArtifacts,
   createTrialTaskLocks as wiredLocks,
   createTrialTaskRepository as wiredRepository,
+  withTrialTaskArtifactScope,
+  withTrialTaskLockScope,
 } from '../../../src/domain/benchmark/composite-runtime-ports.js';
 
 beforeEach(() => {
@@ -400,6 +402,25 @@ it('P5: artifact paths and writes resolve under the trial root, never the host P
   }
 });
 
+it('P5: the shipped proposal-seal helper resolves under the trial root, never host PROJECTS_DIR', () => {
+  const { root, cleanup } = trialRoot();
+  const project = 'bench-proposal-scope';
+  const taskId = 'ab12';
+  const hostPath = path.join(PROJECTS_DIR, project, 'manager', taskId, 'proposals.json');
+  try {
+    withTrialTaskArtifactScope(root, () => recordProposal(project, {
+      key: { task_id: taskId, dispatch_generation: 'generation', attempt_id: 'attempt' },
+      intent: 'complete',
+      note: null,
+    }));
+
+    assert.ok(fs.existsSync(path.join(root, project, 'manager', taskId, 'proposals.json')));
+    assert.ok(!fs.existsSync(hostPath));
+  } finally {
+    cleanup();
+  }
+});
+
 it('P5: a write escaping the trial root is out_of_trial_path (code 36), never a write', () => {
   const { root, cleanup } = trialRoot();
   try {
@@ -414,6 +435,49 @@ it('P5: a write escaping the trial root is out_of_trial_path (code 36), never a 
     assert.throws(() => artifacts.read('artifact.write'), isCode36);
     // Nothing was created outside the trial root.
     assert.ok(!fs.existsSync(path.join(path.dirname(root), 'escape')));
+  } finally {
+    cleanup();
+  }
+});
+
+it('P5: realpath containment rejects an in-root symlink before writing outside the trial root', () => {
+  const { root, cleanup } = trialRoot();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'host-root-sim-'));
+  try {
+    const managerDir = path.join(root, 'p', 'manager');
+    fs.mkdirSync(managerDir, { recursive: true });
+    fs.symlinkSync(outside, path.join(managerDir, 'task'));
+    const artifacts = createTaskArtifactProjection({
+      root, project: 'p', resolveTaskId: () => 'task',
+    });
+    const isCode36 = (e: unknown): boolean =>
+      e instanceof PolicyCompilationError && e.code === 36;
+
+    assert.throws(() => artifacts.write('artifact.write', 'escaped'), isCode36);
+    assert.ok(!fs.existsSync(path.join(outside, 'artifact.md')));
+  } finally {
+    cleanup();
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+it('P5: write resolves the broker actor binding exactly once before containment', () => {
+  const { root, cleanup } = trialRoot();
+  try {
+    let resolutions = 0;
+    const artifacts = createTaskArtifactProjection({
+      root,
+      project: 'p',
+      resolveTaskId: () => (++resolutions === 1 ? 'task' : 'different-task'),
+    });
+
+    artifacts.write('artifact.write', 'one binding');
+    assert.equal(resolutions, 1);
+    assert.equal(
+      fs.readFileSync(path.join(root, 'p', 'manager', 'task', 'artifact.md'), 'utf8'),
+      'one binding',
+    );
+    assert.ok(!fs.existsSync(path.join(root, 'p', 'manager', 'different-task')));
   } finally {
     cleanup();
   }

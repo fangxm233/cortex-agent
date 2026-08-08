@@ -12,15 +12,17 @@
 // template-validate → threads/utils` chain (a live X4 reach) — or `composite-runtime-ports.ts`
 // itself: its closure reaches `src/platform/`, so importing it even for a type would make this
 // module a new platform-reaching seed and raise the pinned X2 count (a rejection). The §7.2 port
-// shapes are therefore declared structurally below, exactly as the lock-table contract is
-// declared here and in `task-lock.ts`; the port test pins every shape to the frozen declarations
-// by compile-time assignment.
+// shapes are therefore declared structurally below; `task-lock.ts` re-exports the lock-table type,
+// and the port test pins every shape to the frozen declarations by compile-time assignment.
 
-import { readFileSync, writeFileSync } from 'fs';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import type { Task } from '../../core/task-parser.js';
 import type { LockState } from '../../core/task-parser.js';
-import { managerNodeDir, taskArtifactPath, ensureTaskArtifact } from '../../core/task-node.js';
+import {
+  ensureTaskArtifact, managerNodeDir, taskArtifactPath, withTaskNodeProjectsRoot,
+} from '../../core/task-node.js';
 import { PolicyCompilationError } from './resolved-policy.js';
 import type { DeterministicClock } from './trial-clock.js';
 import type { BenchmarkBrokerCapability } from './capabilities.js';
@@ -112,9 +114,9 @@ export function createTrialTaskRepository(
 
 // --- P4 — TrialTaskLocks and the trial-owned lock table --------------------------------------
 
-/** §7.2 P4 — the trial's own lock table contract. Declared structurally here (the mirror lives in
- *  `domain/tasks/system/task-lock.ts`, whose closure is an X4 target and cannot be imported); the
- *  port test pins the two shapes by compile-time assignment. The table is in-memory (the broker's
+/** §7.2 P4 — the trial's own lock table contract. Declared here and type-re-exported by
+ *  `domain/tasks/system/task-lock.ts`, whose closure cannot be imported by benchmark modules; the
+ *  port test pins the shape by compile-time assignment. The table is in-memory (the broker's
  *  authoritative task state is in-memory), keyed by project, and time-sourced from the trial
  *  clock: the TTL is the remaining trial time at acquire, never the shipped fixed 20 minutes. A
  *  TTL-expired lock reads as free, mirroring `task-lock.ts:87-96,169-174`. */
@@ -131,6 +133,19 @@ export interface TrialTaskLockTable {
   isProjectLocked(
     project: string, now?: string,
   ): { locked: boolean; owner?: string; expiresAt?: string };
+}
+
+const trialLockScope = new AsyncLocalStorage<TrialTaskLockTable>();
+
+/** Production P4 scope runner, exported through `composite-runtime-ports.ts` so the coordinator
+ *  installs the same table that the shipped task-lock functions consume. */
+export function withTrialTaskLockScope<T>(table: TrialTaskLockTable, action: () => T): T {
+  return trialLockScope.run(table, action);
+}
+
+/** Used only by the shipped task-lock extraction target to resolve the active trial table. */
+export function getTrialTaskLockTable(): TrialTaskLockTable | null {
+  return trialLockScope.getStore() ?? null;
 }
 
 /** §7.2 P4 — the trial's own lock table. In-memory, keyed by project, time-sourced from the
@@ -233,55 +248,65 @@ export interface TrialArtifactProjectionOptions {
   readonly resolveTaskId?: (capability: BenchmarkBrokerCapability) => string;
 }
 
-/** §7.2 P5 — the artifact projection. The root is repointed at the trial root per call, and
- *  every disk-touching operation runs the §8.4 R5 resolve-then-contain check: a path that
- *  resolves outside the trial root is `out_of_trial_path` (§8.7 code 36) BEFORE any mkdir or
- *  write. This is what makes §7.3 X10's ambient-home property real at runtime (design §18
- *  G5-R4): the direct-edge lint cannot see a one-hop helper reach, the re-pointed root can. */
+/** Production P5 scope for unchanged helper callers such as `proposal-seal.ts`. */
+export function withTrialTaskArtifactScope<T>(root: string, action: () => T): T {
+  return withTaskNodeProjectsRoot(path.resolve(root), action);
+}
+
+function isWithin(root: string, candidate: string): boolean {
+  return candidate === root || candidate.startsWith(root + path.sep);
+}
+
+function outOfTrialPath(target: string, root: string): never {
+  throw new PolicyCompilationError('out_of_trial_path', target, { root });
+}
+
+function confinedArtifactPath(root: string, realRoot: string, target: string): string {
+  const resolved = path.resolve(target);
+  if (!isWithin(root, resolved)) return outOfTrialPath(target, root);
+  let existing = resolved;
+  while (!existsSync(existing)) existing = path.dirname(existing);
+  const realExisting = realpathSync(existing);
+  const realTarget = path.resolve(realExisting, path.relative(existing, resolved));
+  if (!isWithin(realRoot, realTarget)) return outOfTrialPath(target, realRoot);
+  return resolved;
+}
+
+function taskIdFor(
+  resolveTaskId: TrialArtifactProjectionOptions['resolveTaskId'],
+  capability: BenchmarkBrokerCapability,
+): string {
+  if (resolveTaskId) return resolveTaskId(capability);
+  throw new PolicyCompilationError('runtime_port_unbound', 'taskArtifacts:resolveTaskId', {
+    port: 'P5',
+  });
+}
+
+/** §7.2 P5 — root re-pointing plus §8.4 R5 lexical and realpath containment before I/O. */
 export function createTaskArtifactProjection(
   options: TrialArtifactProjectionOptions,
 ): TaskArtifactProjection {
   const root = path.resolve(options.root);
+  const realRoot = realpathSync(root);
   const { project, resolveTaskId } = options;
-
-  function taskIdFor(capability: BenchmarkBrokerCapability): string {
-    if (resolveTaskId) return resolveTaskId(capability);
-    throw new PolicyCompilationError('runtime_port_unbound', 'taskArtifacts:resolveTaskId', {
-      port: 'P5',
-    });
-  }
-
-  function contained(target: string): string {
-    const resolved = path.resolve(target);
-    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
-      throw new PolicyCompilationError('out_of_trial_path', target, { root });
-    }
-    return resolved;
-  }
+  const targetFor = (p: string, taskId: string): string =>
+    confinedArtifactPath(root, realRoot, taskArtifactPath(p, taskId, root));
 
   return {
-    nodeDir(p, taskId) {
-      return managerNodeDir(p, taskId, root);
-    },
-    artifactPath(p, taskId) {
-      return taskArtifactPath(p, taskId, root);
-    },
+    nodeDir: (p, taskId) => managerNodeDir(p, taskId, root),
+    artifactPath: (p, taskId) => taskArtifactPath(p, taskId, root),
     ensure(p, taskId) {
-      // Containment is checked on the pure path BEFORE the mkdir, so an escaping task id can
-      // never create a directory outside the trial root.
-      const target = contained(taskArtifactPath(p, taskId, root));
+      const target = targetFor(p, taskId);
       ensureTaskArtifact(p, taskId, root);
       return target;
     },
     read(capability) {
-      return readFileSync(
-        contained(taskArtifactPath(project, taskIdFor(capability), root)),
-        'utf8',
-      );
+      return readFileSync(targetFor(project, taskIdFor(resolveTaskId, capability)), 'utf8');
     },
     write(capability, content) {
-      const target = contained(taskArtifactPath(project, taskIdFor(capability), root));
-      ensureTaskArtifact(project, taskIdFor(capability), root);
+      const taskId = taskIdFor(resolveTaskId, capability);
+      const target = targetFor(project, taskId);
+      ensureTaskArtifact(project, taskId, root);
       writeFileSync(target, content);
     },
   };

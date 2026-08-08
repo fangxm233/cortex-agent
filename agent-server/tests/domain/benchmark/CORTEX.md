@@ -14,7 +14,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | lease-echo.test.ts | 测试 | 验证回声文档、控制路由投递与拒绝传播 |
 | settings-snapshot.test.ts | 测试 | 验证冻结记录、缺键抛出、一次性捕获与无重载 |
 | port-scope-fence.test.ts | 测试 | 验证 I3 出域即抛 32 号、守护进程回退不变、围栏随试验起落 |
-| trial-task-ports.test.ts | 测试 | 验证 P2 git 截断按子进程观察（非标志）、P4 试验锁归属与旋转界、P5 试验根投影与 36 号，以及三个守护进程回归钉 |
+| trial-task-ports.test.ts | 测试 | 验证 git 截断、P4 接线、realpath 约束及守护进程回归 |
 | policy-backed-runtime-deps.test.ts | 测试 | 验证冻结解析与运行时拒绝 |
 | policy-compiler.test.ts | 测试 | 验证 arm 编译、分发、调用一致性与投影 |
 | proposal-seal.test.ts | 测试 | 验证四状态、S1-S4 合取的 16 组子集、V1-V4、十字段行、42 号失败即关闭与回调规则，以及两类边经真实校验器解析为零未决端点 |

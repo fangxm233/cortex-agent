@@ -8,8 +8,8 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | arm-schema.ts | 类型 | 校验 v2 arm 与版本化 phase-A 输入 |
 | attempt-record.ts | 类型 | 定义 39 成员尝试记录、13 类边与尝试标识铸造 |
 | capabilities.ts | 策略 | 派生封闭模板与能力白名单 |
-| composite-runtime-ports.ts | 类型 | 冻结 §7.2 全部 23 个端口，未绑定端口抛 31 号，六个仅声明端口接线到已交付实现，P2/P4/P5 工厂接线到 trial-task-ports |
-| trial-task-ports.ts | 核心 | P2/P4/P5 端口实现：git 侧按构造截断的试验任务仓库、试验自有锁表与 TrialTaskLocks、试验根工件投影（resolve-then-contain 抛 36 号） |
+| composite-runtime-ports.ts | 类型 | 冻结 23 个端口并接线 P2/P4/P5 工厂与试验作用域 |
+| trial-task-ports.ts | 核心 | 实现 git 截断、试验锁作用域和 realpath 约束的工件投影 |
 | composite-manifest.ts | 核心 | 编码复合清单规范形式并按命名码校验 DAG 不变量 |
 | decimal-text.ts | 工具 | 以整数单位做精确十进制解析与比较 |
 | lease-echo.ts | 核心 | 用容器时钟组成并投递凭据租约回声 |
