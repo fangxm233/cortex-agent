@@ -31,6 +31,7 @@ import { PROJECTS_DIR } from '../../../src/core/paths.js';
 import { managerNodeDir, taskArtifactPath, ensureTaskArtifact } from '../../../src/core/task-node.js';
 import { TaskRepo } from '../../../src/store/task-repo.js';
 import { TaskMutator } from '../../../src/domain/tasks/mutator.js';
+import { mintActorCapability } from '../../../src/domain/benchmark/capabilities.js';
 import {
   acquireLock,
   assertLockHeld,
@@ -88,6 +89,20 @@ function SEED_TASKS_YAML(taskId: string) {
 const P = '_test_trial_ports_';
 let testCounter = 0;
 function nextProject(): string { return `${P}${++testCounter}`; }
+
+/** A production-minted §8.2 token (the sole ActorCapability source, capabilities.ts). The P5 port
+ *  performs no authorization — §8.3's broker matrix does — so the token is passed as the actor
+ *  binding the coordinator would resolve (G5-W4.3). */
+const CAP = mintActorCapability({
+  trial_id: 'trial-ports',
+  task_id: 'ab12',
+  dispatch_generation: 'gen-1',
+  attempt_id: 'attempt-1',
+  role: 'coder',
+  ancestry: ['root'],
+  capability_whitelist: ['artifact.write', 'task.read'],
+  issued_at_epoch_ms: 0,
+});
 
 function makeFixtureRepo(): {
   cleanup: () => void;
@@ -381,10 +396,10 @@ it('P5: artifact paths and writes resolve under the trial root, never the host P
       path.join(root, project, 'manager', taskId, 'artifact.md'),
     );
 
-    artifacts.write('artifact.write', '# checkpoint');
+    artifacts.write(CAP, '# checkpoint');
     const p = artifacts.artifactPath(project, taskId);
     assert.equal(fs.readFileSync(p, 'utf8'), '# checkpoint');
-    assert.equal(artifacts.read('artifact.write'), '# checkpoint');
+    assert.equal(artifacts.read(CAP), '# checkpoint');
 
     // The write cannot land under the host PROJECTS_DIR.
     const hostRoot = path.resolve(PROJECTS_DIR);
@@ -431,8 +446,8 @@ it('P5: a write escaping the trial root is out_of_trial_path (code 36), never a 
       e instanceof PolicyCompilationError && e.code === 36;
     // Direct taskId escape (ensure's own argument) and resolver-mediated escape (read/write).
     assert.throws(() => artifacts.ensure('p', '../../../escape'), isCode36);
-    assert.throws(() => artifacts.write('artifact.write', 'x'), isCode36);
-    assert.throws(() => artifacts.read('artifact.write'), isCode36);
+    assert.throws(() => artifacts.write(CAP, 'x'), isCode36);
+    assert.throws(() => artifacts.read(CAP), isCode36);
     // Nothing was created outside the trial root.
     assert.ok(!fs.existsSync(path.join(path.dirname(root), 'escape')));
   } finally {
@@ -453,7 +468,7 @@ it('P5: realpath containment rejects an in-root symlink before writing outside t
     const isCode36 = (e: unknown): boolean =>
       e instanceof PolicyCompilationError && e.code === 36;
 
-    assert.throws(() => artifacts.write('artifact.write', 'escaped'), isCode36);
+    assert.throws(() => artifacts.write(CAP, 'escaped'), isCode36);
     assert.ok(!fs.existsSync(path.join(outside, 'artifact.md')));
   } finally {
     cleanup();
@@ -471,7 +486,7 @@ it('P5: write resolves the broker actor binding exactly once before containment'
       resolveTaskId: () => (++resolutions === 1 ? 'task' : 'different-task'),
     });
 
-    artifacts.write('artifact.write', 'one binding');
+    artifacts.write(CAP, 'one binding');
     assert.equal(resolutions, 1);
     assert.equal(
       fs.readFileSync(path.join(root, 'p', 'manager', 'task', 'artifact.md'), 'utf8'),
@@ -488,7 +503,7 @@ it('P5: read/write without the broker actor binding fail closed (runtime_port_un
   try {
     const artifacts = createTaskArtifactProjection({ root, project: 'p' });
     assert.throws(
-      () => artifacts.write('artifact.write', 'x'),
+      () => artifacts.write(CAP, 'x'),
       (e: unknown) => e instanceof PolicyCompilationError && e.reason === 'runtime_port_unbound',
     );
   } finally {

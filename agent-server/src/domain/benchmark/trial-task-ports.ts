@@ -25,7 +25,7 @@ import {
 } from '../../core/task-node.js';
 import { PolicyCompilationError } from './resolved-policy.js';
 import type { DeterministicClock } from './trial-clock.js';
-import type { BenchmarkBrokerCapability } from './capabilities.js';
+import type { ActorCapability } from './capabilities.js';
 
 // --- the §7.2 port shapes, declared structurally (see the discipline note above) -------------
 
@@ -67,8 +67,8 @@ export interface TaskArtifactProjection {
   artifactPath(project: string, taskId: string): string;
   /** Must never truncate an existing artifact: rotation and rehydration depend on it. */
   ensure(project: string, taskId: string): string;
-  read(capability: BenchmarkBrokerCapability): string;
-  write(capability: BenchmarkBrokerCapability, content: string): void;
+  read(capability: ActorCapability): string;
+  write(capability: ActorCapability, content: string): void;
 }
 
 // --- P2 — TrialTaskRepository ---------------------------------------------------------------
@@ -245,7 +245,7 @@ export interface TrialArtifactProjectionOptions {
   /** §8.3 fixes `artifact.write`'s target to `manager/<cap.task_id>/artifact.md`; the actor's
    *  task id is resolved from the trial's actor binding (G5-W4.3), which the broker supplies.
    *  Absent a binding, read/write fail closed with `runtime_port_unbound` rather than guess. */
-  readonly resolveTaskId?: (capability: BenchmarkBrokerCapability) => string;
+  readonly resolveTaskId?: (capability: ActorCapability) => string;
 }
 
 /** Production P5 scope for unchanged helper callers such as `proposal-seal.ts`. */
@@ -274,7 +274,7 @@ function confinedArtifactPath(root: string, realRoot: string, target: string): s
 
 function taskIdFor(
   resolveTaskId: TrialArtifactProjectionOptions['resolveTaskId'],
-  capability: BenchmarkBrokerCapability,
+  capability: ActorCapability,
 ): string {
   if (resolveTaskId) return resolveTaskId(capability);
   throw new PolicyCompilationError('runtime_port_unbound', 'taskArtifacts:resolveTaskId', {
