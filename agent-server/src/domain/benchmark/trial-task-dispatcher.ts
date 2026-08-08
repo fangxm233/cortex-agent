@@ -1,4 +1,4 @@
-// input:  broker task source, whitelist, P8 template resolver
+// input:  broker task source, frozen whitelist, resolver
 // output: P9 dispatcher: select/claim, prompt, await
 // pos:    the in-trial dispatch path (P9)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<

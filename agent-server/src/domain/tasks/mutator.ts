@@ -1,5 +1,5 @@
-// input:  task repo, lifecycle ownership, project locks, EventBus
-// output: serialized owned mutations and generation-aware events
+// input:  task repo, lifecycle ownership, locks, EventBus
+// output: serialized mutations, generation-aware events
 // pos:    Serializes task mutations across processes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
