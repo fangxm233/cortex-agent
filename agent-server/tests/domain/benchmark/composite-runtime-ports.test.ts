@@ -1,3 +1,7 @@
+// input:  the frozen 23-port bundle and its wiring
+// output: port-bound/assignability pins, P3 wiring
+// pos:    the CompositeRuntimePorts contract tests
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -168,7 +172,6 @@ describe('§19.12.1 — the corrected proposal union and the P3 wiring point', (
     const refusalSame: Exact<RefusalReturn, ProposalMutationResult> = true;
     expect(refusalSame).toBe(true);
   });
-
   it('the structural ProposalRow pins to the shipped ten-field row at the wiring point', () => {
     // Compiles only while the shipped ten-field ProposalRow is assignable to the structural
     // ProposalMutationResult the port returns — the pin §19.12.1 names.
@@ -184,7 +187,6 @@ describe('§19.12.1 — the corrected proposal union and the P3 wiring point', (
     const code34: Refusal = { success: false, message: 'stale', code: 34 };
     expect(code34.code).toBe(34);
   });
-
   it('the P3 claim method stays on the frozen port and returns BrokerResult synchronously', () => {
     type ClaimReturn = ReturnType<CompositeRuntimePorts['taskMutator']['claim']>;
     const claim: ClaimReturn = { success: true, message: 'claimed' };
@@ -210,6 +212,53 @@ describe('§19.12.7 — the production mutator factory satisfies the frozen port
   });
 });
 
+// --- Broker contract pins (moved from task-broker.test.ts) --------------------
+
+import { BROKER_ACTION_TABLE, BROKER_REJECTIONS, BROKER_TOOL_NAMES, type BrokerPorts } from '../../../src/domain/benchmark/task-broker.js';
+
+// Compile-time pin: the frozen 23-port bundle must satisfy the broker's structural port subset.
+const PORTS_ARE_A_SUBSET_OF_THE_FROZEN_BUNDLE: (ports: CompositeRuntimePorts) => BrokerPorts = ports => ports;
+
+describe('§8.3/§19.12.5 — surface pins moved from task-broker.test.ts', () => {
+  it('consumes the frozen §7.2 ports, not a competing abstraction', () => {
+    expect(PORTS_ARE_A_SUBSET_OF_THE_FROZEN_BUNDLE).toBeTypeOf('function');
+  });
+
+  it('the ten-row matrix carries no task.unclaim row and the tool map no task_unclaim name', () => {
+    expect(BROKER_ACTION_TABLE).not.toHaveProperty('task.unclaim');
+    expect(BROKER_TOOL_NAMES).not.toHaveProperty('task.unclaim');
+    expect(Object.values(BROKER_TOOL_NAMES)).not.toContain('task_unclaim');
+  });
+});
+
+describe('§8.4 the rejection table itself (moved from task-broker.test.ts)', () => {
+  it('is the closed R1…R12 → code map of §18 G5-W8, with three codes deliberately absent', () => {
+    expect(BROKER_REJECTIONS.R1).toEqual({ reason: 'stale_generation', code: 34 });
+    expect(BROKER_REJECTIONS.R2).toEqual({ reason: 'cross_branch_mutation', code: 35 });
+    expect(BROKER_REJECTIONS.R3).toEqual({ reason: 'parent_completion_by_child', code: 35 });
+    expect(BROKER_REJECTIONS.R4).toEqual({ reason: 'proposal_target_not_self', code: 35 });
+    expect(BROKER_REJECTIONS.R5).toEqual({ reason: 'out_of_trial_path', code: 36 });
+    expect(BROKER_REJECTIONS.R6).toEqual({ reason: 'template_not_whitelisted' });
+    expect(BROKER_REJECTIONS.R7).toEqual({ reason: 'profile_not_whitelisted', code: 23 });
+    expect(BROKER_REJECTIONS.R8).toEqual({ reason: 'capability_denied', code: 33 });
+    expect(BROKER_REJECTIONS.R9).toEqual({ reason: 'budget_exceeded' });
+    expect(BROKER_REJECTIONS.R10).toEqual({ reason: 'lock_not_held' });
+    expect(BROKER_REJECTIONS.R11).toEqual({ reason: 'ledger_unreadable', code: 42 });
+    expect(BROKER_REJECTIONS.R12).toEqual({ reason: 'token_invalid', code: 27 });
+    expect(BROKER_REJECTIONS.R6).not.toHaveProperty('code');
+    expect(BROKER_REJECTIONS.R9).not.toHaveProperty('code');
+    expect(BROKER_REJECTIONS.R10).not.toHaveProperty('code');
+  });
+
+  it('M18 — mints NO new failure code: every code it uses is already in the 1–44 registry', () => {
+    const registryCodes = new Set(BENCHMARK_FAILURES.map(failure => failure.code));
+    expect(Math.max(...registryCodes)).toBe(44);
+    for (const spec of Object.values(BROKER_REJECTIONS)) {
+      if ('code' in spec) expect(registryCodes.has(spec.code!), spec.reason).toBe(true);
+    }
+  });
+});
+
 // --- R2-T18 source pins (moved from trial-task-mutator.test.ts) --------------
 
 import * as crypto from 'node:crypto';
@@ -229,7 +278,6 @@ describe('R2-T18 — pins: proposal-seal hash, P3 import fence, no unclaim surfa
     const hash = crypto.createHash('md5').update(readBenchmarkSource('proposal-seal.ts')).digest('hex');
     expect(hash).toBe('b7527c95219c54f9bb98ece7a4f284d8');
   });
-
   it('the P3 module imports only Node builtins and ./capabilities.js', () => {
     const imports = [...readBenchmarkSource('trial-task-mutator.ts').matchAll(/^import .* from '([^']+)'/gm)]
       .map(match => match[1]);
@@ -239,14 +287,12 @@ describe('R2-T18 — pins: proposal-seal hash, P3 import fence, no unclaim surfa
       expect(isBuiltin || isCapabilities, `import ${specifier}`).toBe(true);
     }
   });
-
   it('the broker surface carries no task.unclaim action, tool or CLI name', () => {
     const brokerSource = readBenchmarkSource('task-broker.ts');
     expect(brokerSource).not.toContain("'task.unclaim'");
     expect(brokerSource).not.toContain('task_unclaim');
     expect(BENCHMARK_BROKER_ACTIONS).not.toContain('task.unclaim');
   });
-
   it('P3 source carries no event, hook or bus surface (the zero-emission half of the fence)', () => {
     const source = readBenchmarkSource('trial-task-mutator.ts');
     expect(source).not.toContain('hook-bus');
