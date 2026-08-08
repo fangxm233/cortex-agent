@@ -1,6 +1,6 @@
-// input:  broker task source, frozen child-template whitelist, P8 template resolver
-// output: P9 AwaitableTaskDispatcher — in-trial select/claim, dispatch prompt, await
-// pos:    the trial dispatch path; the daemon dispatcher (tasks/) keeps its own
+// input:  broker task source, whitelist, P8 template resolver
+// output: P9 dispatcher: select/claim, prompt, await
+// pos:    the in-trial dispatch path (P9)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
@@ -112,36 +112,48 @@ export function createDispatcherOwnedClaimTarget(
   input: DispatcherOwnedClaimTargetInput,
 ): (requester: ActorCapability, targetId: string) => { success: boolean; message?: string; code?: number } {
   const { registry, claim, capability_whitelist, targetAttemptAuthority } = input;
-  return (requester, targetId) => {
-    // Step 4 — the fresh generation comes from the sole P9 mint, never from the requester.
-    const dispatchGeneration = mintTrialDispatchGeneration();
-    // Step 5 — the target-attempt authority supplies the five attempt fields.
-    const target = targetAttemptAuthority.current(requester, targetId);
-    const capability = mintActorCapability({
-      trial_id: requester.trial_id,
-      task_id: targetId,
-      dispatch_generation: dispatchGeneration,
-      attempt_id: target.attempt_id,
-      role: target.role,
-      ancestry: target.ancestry,
-      capability_whitelist,
-      allowed_actions: target.allowed_actions,
-      issued_at_epoch_ms: target.issued_at_epoch_ms,
-    });
-    // Step 5 — register the exact returned object through the sole production registry.
-    registry.register(capability);
-    // Step 6 — P3 sees only the fresh target capability.
-    let result: ReturnType<typeof claim>;
-    try {
-      result = claim(capability, targetId);
-    } catch (error) {
-      registry.invalidateToken(capability.token_id);
-      throw error;
-    }
-    // Step 8 — a refused claim invalidates the target token before the failure is returned.
-    if (!result.success) registry.invalidateToken(capability.token_id);
-    return result;
-  };
+  return (requester, targetId) => claimForTarget(
+    { registry, claim, capability_whitelist, targetAttemptAuthority }, requester, targetId,
+  );
+}
+
+function claimForTarget(
+  input: DispatcherOwnedClaimTargetInput, requester: ActorCapability, targetId: string,
+): { success: boolean; message?: string; code?: number } {
+  // Step 4 — the fresh generation comes from the sole P9 mint, never from the requester.
+  const dispatchGeneration = mintTrialDispatchGeneration();
+  // Step 5 — the target-attempt authority supplies the five attempt fields; the exact returned
+  // object is registered through the sole production registry.
+  const target = input.targetAttemptAuthority.current(requester, targetId);
+  const capability = mintActorCapability({
+    trial_id: requester.trial_id,
+    task_id: targetId,
+    dispatch_generation: dispatchGeneration,
+    attempt_id: target.attempt_id,
+    role: target.role,
+    ancestry: target.ancestry,
+    capability_whitelist: input.capability_whitelist,
+    allowed_actions: target.allowed_actions,
+    issued_at_epoch_ms: target.issued_at_epoch_ms,
+  });
+  input.registry.register(capability);
+  // Step 6 — P3 sees only the fresh target capability; step 8 invalidates the target token on
+  // refusal or throw before the failure surfaces.
+  return claimWithInvalidation(input, capability, targetId);
+}
+
+function claimWithInvalidation(
+  input: DispatcherOwnedClaimTargetInput, capability: ActorCapability, targetId: string,
+): { success: boolean; message?: string; code?: number } {
+  let result: ReturnType<DispatcherOwnedClaimTargetInput['claim']>;
+  try {
+    result = input.claim(capability, targetId);
+  } catch (error) {
+    input.registry.invalidateToken(capability.token_id);
+    throw error;
+  }
+  if (!result.success) input.registry.invalidateToken(capability.token_id);
+  return result;
 }
 
 /** §7.2 P9. The in-trial dispatcher behind the frozen `AwaitableTaskDispatcher` interface. */
@@ -167,24 +179,19 @@ export function createTrialTaskDispatcher(deps: TrialTaskDispatcherDeps): TrialT
 // --- selection ----------------------------------------------------------------------------------
 
 function selectAndClaimOnce(deps: TrialTaskDispatcherDeps): TrialDispatchSelection | null {
-  const eligible = filterTrialDispatchable(
-    deps.getActionable(), deps.childTemplateWhitelist, deps.getTemplate,
-  );
-  const selected = eligible[0] ?? null;
-  if (!selected) return null;
+  const selected = pickEligible(deps);
+  if (selected === null) return null;
   if (!isValidDispatchPrompt(selected.text)) {
     log.warn(`Guard dropped task with null/empty text: [${selected.project}] ${selected.id}`);
     return null;
   }
-
   // The generation fence, minted per claim through the sole P9 mint.
   const dispatchGeneration = mintTrialDispatchGeneration();
   const claim = deps.claim(selected.id, dispatchGeneration);
   if (!claim.success) {
-    log.warn(`Claim refused for [${selected.project}] ${selected.id}: ${claim.message ?? 'unknown'}`);
+    warnClaimRefused(selected, claim);
     return null;
   }
-
   log.info(`Selected: [${selected.project}] ${selected.text}`);
   return {
     task: selected,
@@ -192,6 +199,19 @@ function selectAndClaimOnce(deps: TrialTaskDispatcherDeps): TrialDispatchSelecti
     template: deps.getTemplate(selected.template)!,
     dispatchGeneration,
   };
+}
+
+function pickEligible(deps: TrialTaskDispatcherDeps): Task | null {
+  const eligible = filterTrialDispatchable(
+    deps.getActionable(), deps.childTemplateWhitelist, deps.getTemplate,
+  );
+  return eligible[0] ?? null;
+}
+
+function warnClaimRefused(
+  task: Task, claim: { success: boolean; message?: string },
+): void {
+  log.warn(`Claim refused for [${task.project}] ${task.id}: ${claim.message ?? 'unknown'}`);
 }
 
 /** What the in-trial path does INSTEAD of the three removed host couplings: no locked-project
