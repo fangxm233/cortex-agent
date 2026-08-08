@@ -52,7 +52,7 @@ function armFor(mode: 'manager' | 'coder-review', askManager: boolean): ArmDefin
     orchestration: mode === 'manager'
       ? { mode, ask_manager: askManager }
       : { mode, ask_manager: false, coder_review_variant: 'audit-retry' },
-  } as unknown as ArmDefinition;
+  } as ArmDefinition;
 }
 
 function managerWhitelist(): BenchmarkBrokerCapability[] {
@@ -221,7 +221,7 @@ function buildComposition(options: CompositionOptions = {}): Composition {
     child_template_whitelist: ['benchmark-coder-review'],
     capability_whitelist: whitelist,
     limits: { max_tasks: 20, max_task_depth: 4 },
-  } as unknown as ResolvedTrialPolicy;
+  } as ResolvedTrialPolicy;
 
   const broker = createBenchmarkTaskBroker({
     policy,
@@ -299,14 +299,14 @@ function taskById(c: Composition, id: string): Task | undefined {
 
 function seedFilesSnapshot(c: Composition): { tasks: string; proposals: boolean; lock: { locked: boolean; owner?: string } } {
   return {
-    tasks: fs.existsSync(c.tasksPath) ? fs.readFileSync(c.tasksPath, 'utf8') : null as unknown as string,
+    tasks: fs.readFileSync(c.tasksPath, 'utf8'),
     proposals: fs.existsSync(proposalStorePath(c.project, 'aaaa')),
     lock: c.table.isProjectLocked(c.project),
   };
 }
 
 function expectZeroSideEffects(c: Composition, before: { tasks: string; proposals: boolean; lock: { locked: boolean; owner?: string } }): void {
-  const afterTasks = fs.existsSync(c.tasksPath) ? fs.readFileSync(c.tasksPath, 'utf8') : null as unknown as string;
+  const afterTasks = fs.readFileSync(c.tasksPath, 'utf8');
   expect(afterTasks).toBe(before.tasks);
   expect(fs.existsSync(proposalStorePath(c.project, 'aaaa'))).toBe(before.proposals);
   // The lock table is unchanged — a refusal neither acquires nor releases a lock.
