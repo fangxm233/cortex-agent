@@ -11,7 +11,7 @@ Owns TASKS.yaml editing primitives, status transitions, locking, and remote run 
 | task-file-input.ts | adapter | parses structured add and spawn task input |
 | task-id-utils.ts | util | Assigns task IDs under mutation locks |
 | task-lifecycle-edit.ts | core | Locks and atomically edits TASKS.yaml records |
-| task-lock.ts | core | Acquires and releases logical project locks |
+| task-lock.ts | core | Routes trial operations to the P4-scoped lock table |
 | task-mutations.ts | core | Creates tasks and fences owned decomposition |
 | task-process.ts | core | Stops task processes with owned unclaim |
 | task-state.ts | core | Applies owned pending and task state transitions |

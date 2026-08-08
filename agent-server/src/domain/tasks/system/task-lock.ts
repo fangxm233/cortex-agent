@@ -1,5 +1,6 @@
-// input:  TASKS.yaml lock metadata and cross-process mutation lock
-// output: atomic project lock acquire/release operations
+// input:  TASKS.yaml lock metadata, cross-process mutation lock, and the trial lock scope
+// output: atomic project lock acquire/release operations; in-trial they operate on the trial's
+//         own lock table (§7.2 P4) instead of the host TASKS.yaml lock metadata
 // pos:    Serializes logical lock metadata with all other task-file writers
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -10,9 +11,35 @@ import { PROJECTS_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { parseTasksFileWithLock, serializeTasksFileWithLock } from '@core/task-parser.js';
 import type { LockState } from '@core/task-parser.js';
+import { getTrialTaskLockTable } from '../../benchmark/trial-task-ports.js';
+export type { TrialTaskLockTable } from '../../benchmark/trial-task-ports.js';
 import { withTaskFileMutationLock } from './task-lifecycle-edit.js';
 
 const log = createLogger('task-lock');
+
+// ── Trial lock scope (§7.2 P4) ───────────────────────────────────────────────
+//
+// The trial owns its locks: in-trial, every lock operation must hit the trial's own table and
+// must neither see nor write the host TASKS.yaml lock metadata — a host lock held by a real
+// user's task may not block a trial, and a trial lock may not block the host. The table is
+// created and scope-installed through the P4 production surface
+// (`domain/benchmark/composite-runtime-ports.ts`), exactly as `withLocalThreadRuntimeScope`
+// installs runtime deps (§7.1 I2). When no table is installed, every function below is byte-identical
+// to the shipped daemon behaviour.
+
+/** §7.2 P4: the in-trial system-lock spin (`mutator.ts:84-90`) is bounded to zero retries — the
+ *  coordinator is single-writer, so a contended in-trial acquire is a coordination violation and
+ *  raises instead of feeding `while (!acquireLock(...))`. No failure code is allocated for this
+ *  (done_when 6; G5-N4's interim rule omits `code` rather than reusing one for a different
+ *  condition); the broker layer maps it to a typed refusal. */
+export class TrialLockContendedError extends Error {
+  readonly reason = 'trial_lock_contended';
+
+  constructor(readonly project: string, readonly holder: string) {
+    super(`trial_lock_contended: ${project} held by ${holder}`);
+    this.name = 'TrialLockContendedError';
+  }
+}
 
 // ── Atomic write ──
 
@@ -47,6 +74,8 @@ export function getOwnerIdentity(): string {
 }
 
 export function readLock(project: string): LockState | null {
+  const table = getTrialTaskLockTable();
+  if (table) return table.read(project);
   const filePath = tasksYamlPath(project);
   if (!fs.existsSync(filePath)) return null;
   try {
@@ -129,22 +158,42 @@ function releaseLockUnlocked(
 }
 
 export function writeLock(project: string, lock: LockState | null): void {
+  const table = getTrialTaskLockTable();
+  if (table) {
+    table.write(project, lock);
+    return;
+  }
   withTaskFileMutationLock(project, () => writeLockUnlocked(project, lock));
 }
 
 export function acquireLock(
   project: string, opts: { owner: string; force?: boolean; note?: string },
 ): { acquired: boolean; lock?: LockState; message?: string } {
+  const table = getTrialTaskLockTable();
+  if (table) {
+    const result = table.acquire(project, opts.owner);
+    if (!result.acquired) {
+      // In-trial the lock is the trial's own and the coordinator is single-writer: a contended
+      // acquire is a coordination violation and raises rather than returning `acquired: false`
+      // into the unbounded spin at `mutator.ts:84-90`. `force`/`note` have no in-trial meaning.
+      throw new TrialLockContendedError(project, result.lock?.owner ?? 'unknown');
+    }
+    return result;
+  }
   return withTaskFileMutationLock(project, () => acquireLockUnlocked(project, opts));
 }
 
 export function releaseLock(
   project: string, owner: string, opts?: { force?: boolean },
 ): { released: boolean; message?: string } {
+  const table = getTrialTaskLockTable();
+  if (table) return table.release(project, owner, opts);
   return withTaskFileMutationLock(project, () => releaseLockUnlocked(project, owner, opts));
 }
 
 export function assertLockHeld(project: string, owner: string): string | null {
+  const table = getTrialTaskLockTable();
+  if (table) return table.assertHeld(project, owner);
   const current = readLock(project);
   if (!current) {
     return 'No lock held';
@@ -163,6 +212,8 @@ export function isProjectLocked(
   project: string,
   now?: string,
 ): { locked: boolean; owner?: string; expiresAt?: string } {
+  const table = getTrialTaskLockTable();
+  if (table) return table.isProjectLocked(project, now);
   const current = readLock(project);
   if (!current) {
     return { locked: false };

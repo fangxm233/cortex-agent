@@ -17,7 +17,7 @@ import { it } from 'vitest';
 
 import { DEFAULTS_DIR } from '../../../src/core/paths.js';
 import { childTemplateWhitelistForArm } from '../../../src/domain/benchmark/capabilities.js';
-import { createLocalThreadRuntimeDeps } from '../../../src/domain/threads/local-runtime-deps.js';
+import { createLocalThreadRuntimeDeps } from '../../../src/domain/threads/local-runtime-defaults.js';
 import { executeLifecycleHooks } from '../../../src/domain/threads/hook-runner.js';
 import { runThread } from '../../../src/domain/threads/runner.js';
 
