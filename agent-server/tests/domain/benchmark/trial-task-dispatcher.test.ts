@@ -443,61 +443,77 @@ describe('mintTrialDispatchGeneration — the sole P9 generation mint (§19.12.2
   });
 });
 
-describe('createDispatcherOwnedClaimTarget — the production claim callback factory (§19.12.2/§19.12.7)', () => {
-  interface CallbackFixture {
-    registry: ActorCapabilityRegistry;
-    claimCalls: { capability: ActorCapability; taskId: string }[];
-    authority: { fields: TargetAttemptFields | null };
-    callback: (requester: ActorCapability, targetId: string) => { success: boolean; message?: string; code?: number };
-    requester: ActorCapability;
-  }
+interface CallbackFixture {
+  registry: ActorCapabilityRegistry;
+  claimCalls: { capability: ActorCapability; taskId: string }[];
+  authority: { fields: TargetAttemptFields | null };
+  callback: (requester: ActorCapability, targetId: string) => { success: boolean; message?: string; code?: number };
+  requester: ActorCapability;
+}
 
-  function callbackFixture(overrides: {
-    claimResult?: { success: boolean; message?: string; code?: number };
-    claimError?: Error;
-    authorityFields?: TargetAttemptFields;
-  } = {}): CallbackFixture {
-    const registry = createActorCapabilityRegistry('trial-cb');
-    const whitelist: BenchmarkBrokerCapability[] = ['artifact.write', 'task.read', 'task.claim'];
-    const requester = mintActorCapability({
-      trial_id: 'trial-cb',
-      task_id: 'aaaa',
-      dispatch_generation: 'requester-gen',
-      attempt_id: 'requester-attempt',
-      role: 'manager',
-      ancestry: ['root'],
-      capability_whitelist: whitelist,
-      issued_at_epoch_ms: 1_000,
-    });
-    registry.register(requester);
-    const claimCalls: { capability: ActorCapability; taskId: string }[] = [];
-    const authority = {
-      fields: overrides.authorityFields ?? {
-        attempt_id: 'target-attempt',
-        role: 'coder' as const,
-        ancestry: ['root', 'aaaa'],
-        allowed_actions: ['artifact.write', 'task.read'] as BenchmarkBrokerCapability[],
-        issued_at_epoch_ms: 2_000,
-      },
-    };
-    const callback = createDispatcherOwnedClaimTarget({
-      registry,
-      claim: (capability, taskId) => {
-        claimCalls.push({ capability, taskId });
-        if (overrides.claimError) throw overrides.claimError;
-        return overrides.claimResult ?? { success: true, message: 'claimed' };
-      },
-      capability_whitelist: whitelist,
-      targetAttemptAuthority: {
-        current: () => {
-          if (authority.fields === null) throw new Error('authority unset');
-          return authority.fields;
-        },
-      },
-    });
-    return { registry, claimCalls, authority, callback, requester };
-  }
+type CallbackOverrides = {
+  claimResult?: { success: boolean; message?: string; code?: number };
+  claimError?: Error;
+  authorityFields?: TargetAttemptFields;
+};
 
+function callbackFixture(overrides: CallbackOverrides = {}): CallbackFixture {
+  const registry = createActorCapabilityRegistry('trial-cb');
+  const whitelist: BenchmarkBrokerCapability[] = ['artifact.write', 'task.read', 'task.claim'];
+  const requester = cbRequester(registry, whitelist);
+  const claimCalls: { capability: ActorCapability; taskId: string }[] = [];
+  const authority = { fields: overrides.authorityFields ?? cbAuthorityFields() };
+  const callback = createDispatcherOwnedClaimTarget({
+    registry,
+    claim: (capability, taskId) => cbClaim(claimCalls, overrides, capability, taskId),
+    capability_whitelist: whitelist,
+    targetAttemptAuthority: { current: () => cbCurrent(authority) },
+  });
+  return { registry, claimCalls, authority, callback, requester };
+}
+
+function cbRequester(registry: ActorCapabilityRegistry, whitelist: BenchmarkBrokerCapability[]): ActorCapability {
+  const requester = mintActorCapability({
+    trial_id: 'trial-cb',
+    task_id: 'aaaa',
+    dispatch_generation: 'requester-gen',
+    attempt_id: 'requester-attempt',
+    role: 'manager',
+    ancestry: ['root'],
+    capability_whitelist: whitelist,
+    issued_at_epoch_ms: 1_000,
+  });
+  registry.register(requester);
+  return requester;
+}
+
+function cbAuthorityFields(): TargetAttemptFields {
+  return {
+    attempt_id: 'target-attempt',
+    role: 'coder' as const,
+    ancestry: ['root', 'aaaa'],
+    allowed_actions: ['artifact.write', 'task.read'] as BenchmarkBrokerCapability[],
+    issued_at_epoch_ms: 2_000,
+  };
+}
+
+function cbClaim(
+  claimCalls: { capability: ActorCapability; taskId: string }[],
+  overrides: CallbackOverrides,
+  capability: ActorCapability,
+  taskId: string,
+): { success: boolean; message?: string; code?: number } {
+  claimCalls.push({ capability, taskId });
+  if (overrides.claimError) throw overrides.claimError;
+  return overrides.claimResult ?? { success: true, message: 'claimed' };
+}
+
+function cbCurrent(authority: { fields: TargetAttemptFields | null }): TargetAttemptFields {
+  if (authority.fields === null) throw new Error('authority unset');
+  return authority.fields;
+}
+
+describe('createDispatcherOwnedClaimTarget — production mint/register and P3 claim (§19.12.2)', () => {
   it('mints and registers ONE production target capability and calls P3 claim with it', () => {
     const fx = callbackFixture();
     const result = fx.callback(fx.requester, 'dddd');
@@ -524,6 +540,9 @@ describe('createDispatcherOwnedClaimTarget — the production claim callback fac
     });
   });
 
+});
+
+describe('createDispatcherOwnedClaimTarget — refusal invalidation (§19.12.2)', () => {
   it('on a P3 refusal, invalidates the target token and returns the failure unchanged', () => {
     const fx = callbackFixture({ claimResult: { success: false, message: 'stale', code: 34 } });
     const result = fx.callback(fx.requester, 'dddd');
@@ -536,7 +555,9 @@ describe('createDispatcherOwnedClaimTarget — the production claim callback fac
     // The requester token is untouched.
     expect(fx.registry.isLive(fx.requester.token_id)).toBe(true);
   });
+});
 
+describe('createDispatcherOwnedClaimTarget — refusal and throw invalidation (§19.12.2)', () => {
   it('never reports success on a refused claim', () => {
     const fx = callbackFixture({ claimResult: { success: false, message: 'denied', code: 33 } });
     const result = fx.callback(fx.requester, 'dddd');
