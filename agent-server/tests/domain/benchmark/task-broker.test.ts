@@ -735,10 +735,18 @@ describe('§8.5 the model-visible projection', () => {
         ? { text: 'x', dispatch_generation: GEN_1 }
         : action === 'task.read'
           ? { task_id: 'aaaa', attempt_id: 'attempt-1' }
-          : { token_id: 'forged' };
+          : action === 'task.decompose'
+            ? { subtasks: [{ text: 'x', token_id: 'forged' }] }
+            : { token_id: 'forged' };
       await expect(h.call(action, payload)).rejects.toThrow(BrokerArgumentsError);
       expect(h.touches).toEqual([]);
     }
+    // The nested scan is the load-bearing half: a capability field smuggled inside a `subtasks`
+    // item is refused the same way, even though the top-level key set is clean.
+    await expect(h.call('task.decompose', {
+      subtasks: [{ text: 'x', attempt_id: 'attempt-1' }],
+    })).rejects.toThrow(BrokerArgumentsError);
+    expect(h.touches).toEqual([]);
   });
 
   it('a mutation attempted from projection-visible data ALONE is rejected', async () => {
