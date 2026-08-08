@@ -596,9 +596,9 @@ describe('R2-T11b — stale self and the cleared release mark', () => {
   it('after the release transition clears its mark, the same call is 33 again', () => runWith(undefined, c => {
     c.releasing.add(REQ_ATTEMPT);
     expect(c.mutator.unclaim(c.requester, 'aaaa').success).toBe(true);
-    // The mark is cleared while the exact token is STILL live — only the release authority
-    // can gate the second call now (C1/C2/C3 and the self-target check still pass).
+    // Clear the mark while C1/C2/C3 and the self-target check still pass.
     c.releasing.delete(REQ_ATTEMPT);
+    expect(c.registry.isRegistered(c.requester)).toBe(true);
     const before = seedFilesSnapshot(c);
     const after = c.mutator.unclaim(c.requester, 'aaaa');
     expect(after).toEqual({ success: false, message: expect.any(String), code: 33 });
