@@ -479,3 +479,18 @@ function portIdOf(field: keyof CompositeRuntimePorts): CompositePortId {
   }
   throw new TypeError(`Not a §7.2 port field: ${String(field)}`);
 }
+
+// --- P2/P4/P5 wiring (Gate 5) ----------------------------------------------------------------
+// The three ports whose extraction this gate lands are implemented in `trial-task-ports.ts`;
+// the coordinator builds each once at start (§4.2 N-1) through these factories, so the frozen
+// interface module is also the single reachable construction surface for its own ports. The
+// implementation module imports no §7.3 X4/X9/X10 target and no module that reaches one — the
+// port shapes are declared there structurally and pinned to the declarations here by the port
+// test — and the isolation-rules test pins the rule counts.
+export {
+  createTaskArtifactProjection,
+  createTrialTaskLockTable,
+  createTrialTaskLocks,
+  createTrialTaskRepository,
+} from './trial-task-ports.js';
+export type { TrialArtifactProjectionOptions, TrialTaskRepositoryDelegate } from './trial-task-ports.js';
