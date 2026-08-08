@@ -835,11 +835,16 @@ describe('R2-T11 — unclaim is coordinator-internal self-release, gated by Atte
     try {
       c.releasing.add(REQ_ATTEMPT);
       expect(c.mutator.unclaim(c.requester, 'aaaa').success).toBe(true);
-      // Production order: clear the mark, then invalidate the token.
+      // The mark is cleared while the exact token is STILL live: only the release authority can
+      // gate the second call now (C1/C2/C3 and the self-target check all still pass).
       c.releasing.delete(REQ_ATTEMPT);
-      c.registry.invalidateToken(c.requester.token_id);
+      const before = seedFilesSnapshot(c);
       const after = c.mutator.unclaim(c.requester, 'aaaa');
       expect(after).toEqual({ success: false, message: expect.any(String), code: 33 });
+      expectZeroSideEffects(c, before);
+      // Production order: only now invalidate the token.
+      c.registry.invalidateToken(c.requester.token_id);
+      expect(c.registry.isLive(c.requester.token_id)).toBe(false);
     } finally {
       c.cleanup();
     }
