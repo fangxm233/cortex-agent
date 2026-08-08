@@ -139,10 +139,11 @@ export interface TaskArtifactProjection {
 // --- P6 -----------------------------------------------------------------------------------------
 
 export type AcceptanceVerdict = 'accepted' | 'rejected' | 'pending' | 'superseded';
+export type AcceptanceDeliveryKind = 'completed' | 'blocked';
 
 export interface AcceptanceLedgerEntry {
   childId: string;
-  kind: string;
+  kind: AcceptanceDeliveryKind;
   verdict: AcceptanceVerdict;
   note?: string | null;
   reworkRound: number;
@@ -163,7 +164,7 @@ export interface TrialAcceptanceLedger {
   /** `false` for an already-accepted child; re-opens a `rejected` entry to `pending` preserving
    *  its `rework_round` (§9.4 M-3). */
   recordDelivered(
-    capability: ActorCapability, childId: string, kind: string,
+    capability: ActorCapability, childId: string, kind: AcceptanceDeliveryKind,
   ): boolean;
   recordVerdict(
     capability: ActorCapability, childId: string,

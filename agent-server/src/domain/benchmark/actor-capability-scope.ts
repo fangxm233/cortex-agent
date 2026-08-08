@@ -45,6 +45,8 @@ export interface ActorCapabilityRegistry {
    *  invalidated channel, which §18 G5-W6.7 makes `sidecar_unauthenticated` (code 27). */
   resolveChannel(handle: string): ActorCapability | null;
   isLive(tokenId: string): boolean;
+  /** Exact-object check for coordinator-internal leg-1 calls; a token-id clone is never authority. */
+  isRegistered(capability: ActorCapability): boolean;
   liveCount(): number;
   /** The current attempt of a task, as last registered — `null` for a task that never had one. */
   currentAttempt(taskId: string): CurrentAttempt | null;
@@ -63,12 +65,20 @@ export function createActorCapabilityRegistry(trialId: string): ActorCapabilityR
   const byToken = new Map<string, ActorCapability>();
   const byChannel = new Map<string, string>();
   const currentAttempts = new Map<string, CurrentAttempt>();
+  const currentIssuedAt = new Map<string, number>();
+  const invalidatedTokens = new Set<string>();
+  let finalized = false;
 
   function dropToken(tokenId: string): void {
+    invalidatedTokens.add(tokenId);
     byToken.delete(tokenId);
     for (const [handle, bound] of byChannel) {
       if (bound === tokenId) byChannel.delete(handle);
     }
+  }
+
+  function isRegistered(capability: ActorCapability): boolean {
+    return byToken.get(capability.token_id) === capability;
   }
 
   return {
@@ -77,6 +87,9 @@ export function createActorCapabilityRegistry(trialId: string): ActorCapabilityR
         throw new ActorCapabilityMintError(
           'ActorCapability registration requires the production coordinator-side mint (§8.2)',
         );
+      }
+      if (finalized || invalidatedTokens.has(capability.token_id)) {
+        throw new ActorCapabilityMintError('an invalidated ActorCapability cannot become live again');
       }
       if (capability.trial_id !== trialId) {
         throw new ActorCapabilityMintError(
@@ -88,9 +101,14 @@ export function createActorCapabilityRegistry(trialId: string): ActorCapabilityR
           'an ActorCapability is bound to exactly one control channel (G5-W4.2)',
         );
       }
+      const issuedAt = currentIssuedAt.get(capability.task_id);
+      if (issuedAt !== undefined && capability.issued_at_epoch_ms < issuedAt) {
+        throw new ActorCapabilityMintError('an older mint cannot replace the current task attempt');
+      }
       const handle = randomUUID();
       byToken.set(capability.token_id, capability);
       byChannel.set(handle, capability.token_id);
+      currentIssuedAt.set(capability.task_id, capability.issued_at_epoch_ms);
       currentAttempts.set(capability.task_id, {
         dispatch_generation: capability.dispatch_generation,
         attempt_id: capability.attempt_id,
@@ -105,6 +123,7 @@ export function createActorCapabilityRegistry(trialId: string): ActorCapabilityR
     },
 
     isLive: tokenId => byToken.has(tokenId),
+    isRegistered,
     liveCount: () => byToken.size,
     currentAttempt: taskId => currentAttempts.get(taskId) ?? null,
     invalidateToken: dropToken,
@@ -124,13 +143,16 @@ export function createActorCapabilityRegistry(trialId: string): ActorCapabilityR
     },
 
     invalidateTrial() {
+      finalized = true;
+      for (const tokenId of byToken.keys()) invalidatedTokens.add(tokenId);
       byToken.clear();
       byChannel.clear();
       currentAttempts.clear();
+      currentIssuedAt.clear();
     },
 
     async runInScope(capability, action) {
-      if (byToken.get(capability.token_id) !== capability) {
+      if (!isRegistered(capability)) {
         throw new PolicyCompilationError(
           'sidecar_unauthenticated', 'capability is not the registered live token (§8.2)',
           { trial_id: trialId, task_id: capability.task_id },

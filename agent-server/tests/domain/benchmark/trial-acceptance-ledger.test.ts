@@ -25,6 +25,9 @@ import { BENCHMARK_FAILURES } from '../../../src/domain/benchmark/resolved-polic
 import {
   mintActorCapability, type ActorCapability,
 } from '../../../src/domain/benchmark/capabilities.js';
+import {
+  createActorCapabilityRegistry, requireAmbientCapability,
+} from '../../../src/domain/benchmark/actor-capability-scope.js';
 import { createLocalThreadRuntimeDeps } from '../../../src/domain/threads/local-runtime-defaults.js';
 import { failClosedRuntimeDeps } from '../../../src/domain/threads/local-runtime-deps.js';
 import { runThread } from '../../../src/domain/threads/runner.js';
@@ -84,9 +87,9 @@ function writeOldFormatLedger(children: Record<string, OldWireEntry>): void {
   writeRawLedger(JSON.stringify({ parent: PARENT, project, children }, null, 2));
 }
 
-function oldEntry(verdict: string, reworkRound = 0): OldWireEntry {
+function oldEntry(verdict: string, reworkRound = 0, child = CHILD): OldWireEntry {
   return {
-    child: CHILD,
+    child,
     kind: 'completed',
     delivered_at: '2026-08-06T00:00:00.000Z',
     verdict,
@@ -157,8 +160,21 @@ describe('§7.2 P6 — read fails CLOSED (D-11)', () => {
         children: { [CHILD]: { ...validEntry, verdict_at: 42 } } }),
       JSON.stringify({ parent: PARENT, project,
         children: { [CHILD]: { ...validEntry, verdict_note: 42 } } }),
+      JSON.stringify({ parent: 'wrong-parent', project, children: { [CHILD]: validEntry } }),
+      JSON.stringify({ parent: PARENT, project: 'wrong-project', children: { [CHILD]: validEntry } }),
+      JSON.stringify({ parent: PARENT, project, children: { [CHILD]: validEntry }, extra: true }),
+      JSON.stringify({ parent: PARENT, project,
+        children: { [CHILD]: { ...validEntry, kind: 'unknown' } } }),
+      JSON.stringify({ parent: PARENT, project,
+        children: { [CHILD]: { ...validEntry, child: 'wrong-child' } } }),
+      JSON.stringify({ parent: PARENT, project,
+        children: { [CHILD]: { ...validEntry, rework_round: -1 } } }),
+      JSON.stringify({ parent: PARENT, project,
+        children: { [CHILD]: { ...validEntry, rework_round: 1.5 } } }),
       JSON.stringify({ parent: PARENT, project,
         children: { [CHILD]: { ...validEntry, superseded_by: 42 } } }),
+      JSON.stringify({ parent: PARENT, project,
+        children: { [CHILD]: { ...validEntry, extra: true } } }),
     ];
     for (const body of corruptBodies) {
       writeRawLedger(body);
@@ -283,9 +299,9 @@ describe('D-10 — recordSuperseded is the production writer', () => {
 describe('backward compatibility — ledgers written before superseded_by existed', () => {
   it('an old-format ledger reads with replacementId undefined for every old verdict', () => {
     writeOldFormatLedger({
-      pend: oldEntry('pending'),
-      acc: oldEntry('accepted'),
-      rej: oldEntry('rejected', 2),
+      pend: oldEntry('pending', 0, 'pend'),
+      acc: oldEntry('accepted', 0, 'acc'),
+      rej: oldEntry('rejected', 2, 'rej'),
     });
     const view = newPort().read(project, PARENT);
     assert.equal(view.entries.length, 3);
@@ -351,18 +367,24 @@ describe('the write path fails closed too (R11: "cannot be read or written")', (
 });
 
 describe('production composition — the port rides the bundle a coordinator builds', () => {
-  it('the wired factory serves the acceptanceLedger port on the production bundle', () => {
+  it('the wired factory consumes the production-minted capability resolved from its live scope', async () => {
     const daemonBundle = createLocalThreadRuntimeDeps(runThread);
     const bundle = failClosedRuntimeDeps({
       ...daemonBundle,
       acceptanceLedger: createAcceptanceLedgerPort(project, PARENT),
     });
-    const port = bundle.acceptanceLedger;
-    assert.equal(typeof port.recordSuperseded, 'function');
-    port.recordDelivered(CAP, CHILD, 'completed');
-    port.recordSuperseded(CAP, CHILD, 'c002');
-    assert.equal(port.read(project, PARENT).entries[0]!.verdict, 'superseded');
-    assert.equal(port.pending(project, PARENT).length, 0);
+    const registry = createActorCapabilityRegistry(CAP.trial_id);
+    registry.register(CAP);
+    await registry.runInScope(CAP, async () => {
+      const resolved = requireAmbientCapability(registry);
+      assert.equal(resolved, CAP);
+      const port = bundle.acceptanceLedger;
+      assert.equal(typeof port.recordSuperseded, 'function');
+      port.recordDelivered(resolved, CHILD, 'completed');
+      port.recordSuperseded(resolved, CHILD, 'c002');
+      assert.equal(port.read(project, PARENT).entries[0]!.verdict, 'superseded');
+      assert.equal(port.pending(project, PARENT).length, 0);
+    });
     // the bundle's port writes the same file the product path reads
     assert.equal(productReadLedger(project, PARENT).children[CHILD]!.superseded_by, 'c002');
   });

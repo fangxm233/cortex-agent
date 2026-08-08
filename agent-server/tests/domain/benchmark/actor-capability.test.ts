@@ -173,6 +173,34 @@ describe('§18 G5-W4 the ambient resolution seam', () => {
     expect(table.liveCount()).toBe(0);
   });
 
+  it('invalidation is permanent: a dead token and a finalized trial cannot be registered again', () => {
+    const table = registry();
+    const capability = mintActorCapability(mintRequest());
+    table.register(capability);
+    table.invalidateToken(capability.token_id);
+    expect(() => table.register(capability)).toThrow(ActorCapabilityMintError);
+
+    table.invalidateTrial();
+    const postFinalization = mintActorCapability(mintRequest({ attempt_id: 'attempt-final' }));
+    expect(() => table.register(postFinalization)).toThrow(ActorCapabilityMintError);
+    expect(table.liveCount()).toBe(0);
+  });
+
+  it('an older mint cannot race a newer registration and roll the current attempt backward', () => {
+    const table = registry();
+    const newer = mintActorCapability(mintRequest({
+      attempt_id: 'attempt-new', issued_at_epoch_ms: 2_000,
+    }));
+    const older = mintActorCapability(mintRequest({
+      attempt_id: 'attempt-old', issued_at_epoch_ms: 1_000,
+    }));
+    table.register(newer);
+    expect(() => table.register(older)).toThrow(ActorCapabilityMintError);
+    expect(table.currentAttempt('aaaa')).toEqual({
+      dispatch_generation: 'gen-1', attempt_id: 'attempt-new',
+    });
+  });
+
   it('invalidateSupersededGeneration drops tokens of superseded generations, keeps the current one', () => {
     const table = registry();
     const oldCap = mintActorCapability(mintRequest({ dispatch_generation: 'gen-0' }));

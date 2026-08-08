@@ -28,9 +28,11 @@ import type { ActorCapability } from './capabilities.js';
 export type AcceptanceVerdict = 'accepted' | 'rejected' | 'pending' | 'superseded';
 
 /** The port's entry view — the frozen `AcceptanceLedgerEntry`, structurally identical. */
+export type AcceptanceDeliveryKind = 'completed' | 'blocked';
+
 export interface AcceptanceLedgerEntry {
   childId: string;
-  kind: string;
+  kind: AcceptanceDeliveryKind;
   verdict: AcceptanceVerdict;
   note?: string | null;
   reworkRound: number;
@@ -46,7 +48,7 @@ export interface AcceptanceLedgerView {
 export interface TrialAcceptanceLedger {
   read(project: string, taskId: string): AcceptanceLedgerView;
   recordDelivered(
-    capability: ActorCapability, childId: string, kind: string,
+    capability: ActorCapability, childId: string, kind: AcceptanceDeliveryKind,
   ): boolean;
   recordVerdict(
     capability: ActorCapability, childId: string,
@@ -77,7 +79,7 @@ export class LedgerError extends PolicyCompilationError {
  *  `replacementId` as `undefined` rather than failing the read. */
 interface WireEntry {
   child: string;
-  kind: string;
+  kind: AcceptanceDeliveryKind;
   delivered_at: string;
   verdict: AcceptanceVerdict;
   verdict_at: string | null;
@@ -87,6 +89,12 @@ interface WireEntry {
 }
 
 const VERDICTS: ReadonlySet<string> = new Set(['pending', 'accepted', 'rejected', 'superseded']);
+const DELIVERY_KINDS: ReadonlySet<string> = new Set(['completed', 'blocked']);
+const WIRE_ENTRY_KEYS = new Set([
+  'child', 'kind', 'delivered_at', 'verdict', 'verdict_at', 'verdict_note',
+  'rework_round', 'superseded_by',
+]);
+const REQUIRED_WIRE_ENTRY_KEYS = [...WIRE_ENTRY_KEYS].filter(key => key !== 'superseded_by');
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -100,20 +108,27 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
 }
 
+function hasExactKeys(value: Record<string, unknown>, allowed: ReadonlySet<string>): boolean {
+  return Object.keys(value).every(key => allowed.has(key));
+}
+
 function isWireEntry(value: unknown): value is WireEntry {
-  if (!isRecord(value)) return false;
+  if (!isRecord(value) || !hasExactKeys(value, WIRE_ENTRY_KEYS)) return false;
+  if (!REQUIRED_WIRE_ENTRY_KEYS.every(key => Object.hasOwn(value, key))) return false;
   return typeof value.child === 'string'
-    && typeof value.kind === 'string'
+    && typeof value.kind === 'string' && DELIVERY_KINDS.has(value.kind)
     && typeof value.delivered_at === 'string'
     && isVerdict(value.verdict)
     && isNullableString(value.verdict_at)
     && isNullableString(value.verdict_note)
-    && typeof value.rework_round === 'number'
+    && Number.isInteger(value.rework_round) && (value.rework_round as number) >= 0
     && (value.superseded_by === undefined || isNullableString(value.superseded_by));
 }
 
 function parseWireEntry(target: string, childId: string, value: unknown): WireEntry {
-  if (!isWireEntry(value)) throw new LedgerError(`${target}: entry ${childId} is malformed`);
+  if (!isWireEntry(value) || value.child !== childId) {
+    throw new LedgerError(`${target}: entry ${childId} is malformed`);
+  }
   return {
     child: value.child,
     kind: value.kind,
@@ -147,10 +162,12 @@ function readLedgerFile(project: string, taskId: string): Record<string, WireEnt
   } catch (error) {
     throw new LedgerError(`${target}: ${(error as Error).message}`);
   }
-  if (!isRecord(parsed) || !isRecord(parsed.children)) {
+  const topLevelKeys = new Set(['parent', 'project', 'children']);
+  if (!isRecord(parsed) || !hasExactKeys(parsed, topLevelKeys)
+    || parsed.parent !== taskId || parsed.project !== project || !isRecord(parsed.children)) {
     throw new LedgerError(`${target}: not a ledger record`);
   }
-  const children: Record<string, WireEntry> = {};
+  const children: Record<string, WireEntry> = Object.create(null) as Record<string, WireEntry>;
   for (const [childId, value] of Object.entries(parsed.children)) {
     children[childId] = parseWireEntry(target, childId, value);
   }
@@ -205,7 +222,7 @@ class TrialAcceptanceLedgerImpl implements TrialAcceptanceLedger {
   }
 
   recordDelivered(
-    _capability: ActorCapability, childId: string, kind: string,
+    _capability: ActorCapability, childId: string, kind: AcceptanceDeliveryKind,
   ): boolean {
     const children = readLedgerFile(this.project, this.taskId);
     const existing = children[childId];

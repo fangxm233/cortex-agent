@@ -27,24 +27,9 @@ import type { CompositeRuntimePorts } from '../../../src/domain/benchmark/compos
 import type { ArmDefinition } from '../../../src/domain/benchmark/arm-schema.js';
 import type { Task } from '../../../src/core/task-parser.js';
 
-/**
- * `task-broker.ts` declares its port needs STRUCTURALLY rather than importing the §7.2 bundle,
- * because `composite-runtime-ports.ts` reaches `@platform/index.js` through
- * `core/types/thread-types.ts:476` and a reachability rule cannot exempt type-only edges
- * (§18 G5-R2) — importing it would make the broker an eighth X2 seed and raise a pinned count.
- * This assertion is the link that keeps the structural declaration from drifting into a competing
- * abstraction: the frozen 23-port bundle must satisfy it. It lives in the test tree, which
- * depcruise does not cruise, so it costs no `src` edge.
- */
+// Compile-time pin: the frozen 23-port bundle must satisfy the broker's structural port subset.
 const PORTS_ARE_A_SUBSET_OF_THE_FROZEN_BUNDLE: (ports: CompositeRuntimePorts) => BrokerPorts =
   ports => ports;
-
-/**
- * Discipline held throughout: every refusal is asserted by its §8.7 CODE (or, for R6/R9/R10, by
- * `reason` with the `code` KEY ABSENT, per §18 G5-N4's interim rule), never by a message substring;
- * and every refusal is additionally asserted to have touched NOTHING — the `touches` log is the
- * no-side-effect half of §8.4's "a rejection does not touch the tree" (`design:2433-2434`).
- */
 
 const PROJECT = 'trial';
 const TRIAL_ID = 'trial-1';
@@ -86,8 +71,6 @@ interface Harness {
 interface HarnessOptions {
   allowedActions?: BenchmarkBrokerCapability[];
   askManager?: boolean;
-  /** The policy's frozen whitelist may diverge from the mint whitelist only by construction error;
-   *  the option exists to drive the qa_whitelisted guard's policy re-check. */
   policyAskManager?: boolean;
   policyTrialId?: string;
   lockHolder?: string | null;
@@ -95,13 +78,14 @@ interface HarnessOptions {
   artifactPathOverride?: string;
   maxTasks?: number;
   maxTaskDepth?: number;
-  /** The token's generation; the task row's generation is `taskGeneration`. */
   generation?: string;
   taskGeneration?: string;
   attemptId?: string;
   ancestry?: string[];
   taskId?: string;
   mutationResult?: { success: boolean; code?: number };
+  proposalError?: { reason: 'proposal_invalidated' | 'ledger_unreadable'; code: 37 | 42 };
+  qaAnswerResult?: { success: boolean };
 }
 
 function harness(options: HarnessOptions = {}): Harness {
@@ -109,8 +93,6 @@ function harness(options: HarnessOptions = {}): Harness {
   const trialRoot = mkdtempSync(path.join(tmpdir(), 'f228-trial-'));
   mkdirSync(path.join(trialRoot, 'manager', 'aaaa'), { recursive: true });
 
-  // aaaa is the actor's own task; bbbb is its parent (ancestry); cccc is a sibling out of branch;
-  // dddd is a child of aaaa (in branch); root is the trial root task.
   const tasks = new Map<string, Task>([
     ['root', taskRow({ id: 'root' })],
     ['bbbb', taskRow({ id: 'bbbb', parent: 'root' })],
@@ -140,8 +122,16 @@ function harness(options: HarnessOptions = {}): Harness {
       add: (_capability: ActorCapability) => mutation('mutator.add'),
       decompose: (_capability: ActorCapability) => mutation('mutator.decompose'),
       edit: (_capability: ActorCapability) => mutation('mutator.edit'),
-      proposeComplete: (_capability: ActorCapability, id: string) => { touches.push(`mutator.proposeComplete:${id}`); return { state: 'proposed' }; },
-      proposeBlock: (_capability: ActorCapability, id: string) => { touches.push(`mutator.proposeBlock:${id}`); return { state: 'proposed' }; },
+      proposeComplete: (_capability: ActorCapability, id: string) => {
+        if (options.proposalError) throw Object.assign(new Error('proposal failed'), options.proposalError);
+        touches.push(`mutator.proposeComplete:${id}`);
+        return { state: 'proposed' };
+      },
+      proposeBlock: (_capability: ActorCapability, id: string) => {
+        if (options.proposalError) throw Object.assign(new Error('proposal failed'), options.proposalError);
+        touches.push(`mutator.proposeBlock:${id}`);
+        return { state: 'proposed' };
+      },
     },
     taskLocks: {
       assertHeld: () => (options.lockHolder === undefined ? null : options.lockHolder),
@@ -165,7 +155,9 @@ function harness(options: HarnessOptions = {}): Harness {
         touches.push('qa.ask'); return { questionId: 'q1' };
       },
       answer: (_capability: ActorCapability) => {
-        touches.push('qa.answer'); return { success: true };
+        const result = options.qaAnswerResult ?? { success: true };
+        if (result.success) touches.push('qa.answer');
+        return result;
       },
     },
     parentQuestions: {
@@ -223,8 +215,6 @@ function refusal(result: BrokerCallResult): BrokerRefusal {
   expect(result.status).toBe('rejected');
   return result as BrokerRefusal;
 }
-
-// ── (B) §8.3 the matrix ─────────────────────────────────────────────────────
 
 describe('§8.3 the authorization matrix is a closed table of exactly ten actions', () => {
   it('consumes the frozen §7.2 ports, not a competing abstraction', () => {
@@ -359,14 +349,27 @@ describe('§8.3 the authorization matrix is a closed table of exactly ten action
     expect((await h.call('qa.ask', { question: 'root question' })).ok).toBe(true);
     expect(h.touches).toEqual(['parentQuestions.record']);
   });
+  it('returns answer_stale when the P13 acceptance predicate refuses qa.answer', async () => {
+    const h = harness({ allowedActions: ['qa.answer'], qaAnswerResult: { success: false } });
+    const result = refusal(await h.call('qa.answer', { question_id: 'missing', answer: 'no' }));
+    expect(result.reason).toBe('answer_stale');
+    expect(result).not.toHaveProperty('code');
+    expect(h.touches).toEqual([]);
+  });
+  it('translates typed proposal-port failures into refusal frames instead of rejecting the call', async () => {
+    const h = harness({ allowedActions: ['task.propose_complete'],
+      proposalError: { reason: 'proposal_invalidated', code: 37 } });
+    const result = refusal(await h.call('task.propose_complete', { note: 'stale proposal' }));
+    expect(result.reason).toBe('proposal_invalidated');
+    expect(result.code).toBe(37);
+    expect(h.touches).toEqual([]);
+  });
   it('runs the strict G5-W5 schema before any action guard or port effect', async () => {
     const h = harness({ allowedActions: [...BENCHMARK_BROKER_ACTIONS] });
     await expect(h.call('task.create', {})).rejects.toThrow(BrokerArgumentsError);
     expect(h.touches).toEqual([]);
   });
 });
-
-// ── (C) R1-R12, one describe per rejection ──────────────────────────────────
 
 describe('§8.4 R1 stale_generation → code 34', () => {
   it('refuses when cap.dispatch_generation ≠ the task\'s, and touches nothing', async () => {
@@ -379,8 +382,6 @@ describe('§8.4 R1 stale_generation → code 34', () => {
 
   it('M3 — also refuses when the attempt is not the task\'s current attempt (D-9)', async () => {
     const h = harness({ attemptId: 'attempt-1' });
-    // A newer attempt of the SAME generation supersedes: the registry's current attempt moves to
-    // attempt-2 while attempt-1's token is still live — the R1 window §8.2's lifetime rule names.
     const newer = mintActorCapability({
       trial_id: TRIAL_ID,
       task_id: 'aaaa',
@@ -451,14 +452,21 @@ describe('§8.4 R3 parent_completion_by_child → code 35', () => {
     expect(result.reason).toBe('parent_completion_by_child');
     expect(h.touches).toEqual([]);
   });
+  it('refuses a proposal that targets an ancestor as R3, before the generic R4', async () => {
+    const h = harness();
+    const result = refusal(await h.broker.proposeComplete(h.capability, 'bbbb', 'done'));
+    expect(result.code).toBe(35);
+    expect(result.reason).toBe('parent_completion_by_child');
+    expect(h.touches).toEqual([]);
+  });
 });
 
 describe('§8.4 R4 proposal_target_not_self → code 35', () => {
-  it('refuses a proposal naming a task other than cap.task_id, on the leg-1 signature', async () => {
+  it('refuses a proposal naming a non-self, non-ancestor task on the leg-1 signature', async () => {
     const h = harness();
     const result = refusal(
       await h.capabilities.runInScope(h.capability, () =>
-        h.broker.proposeComplete(h.capability, 'bbbb', 'done')),
+        h.broker.proposeComplete(h.capability, 'cccc', 'done')),
     );
     expect(result.code).toBe(35);
     expect(result.reason).toBe('proposal_target_not_self');
@@ -476,9 +484,6 @@ describe('§8.4 R4 proposal_target_not_self → code 35', () => {
 describe('§8.4 R5 out_of_trial_path → code 36', () => {
   it('refuses an artifact path that resolves — after realpath — outside the trial root', async () => {
     const h = harness();
-    // The artifact path itself is fixed; a symlinked directory inside the trial root that points
-    // outside is what resolve-then-contain must catch (the confinedJournalPath discipline). The
-    // symlink target must exist for realpath to resolve through it.
     const outside = path.join(h.trialRoot, '..', 'f228-outside.md');
     mkdirSync(path.dirname(outside), { recursive: true });
     writeFileSync(outside, 'outside');
@@ -513,7 +518,6 @@ describe('§8.4 R6 template_not_whitelisted → NO CODE (§18 G5-N4 interim rule
     const spec = BROKER_REJECTIONS.R6;
     expect(code20.reason).toBe('template_not_whitelisted');
     expect(spec).not.toHaveProperty('code');
-    // Class P: "nothing started". A broker refusal is Class R — reusing 20 is the §2.6 defect.
     expect(code20.failureClass).toBe('P');
   });
 
@@ -554,9 +558,6 @@ describe('§8.4 R8 capability_denied → code 33', () => {
   });
 
   it('every qa.* call is denied when ask_manager=false leaves them out of the whitelist', async () => {
-    // The mint enforces allowed ⊆ whitelist, so the only way a token carries qa.* against a policy
-    // that forbids it is a construction error — the guard re-checks the frozen policy (§2.4:
-    // absent, not refused). Drive it with a policy whose whitelist dropped qa.*.
     const h = harness({ askManager: true, policyAskManager: false });
     const ask = refusal(await h.call('qa.ask', { question: 'q' }));
     expect(ask.code).toBe(33);
@@ -634,11 +635,19 @@ describe('§8.4 R11 ledger_unreadable → code 42', () => {
 });
 
 describe('§8.4 R12 token_invalid → code 27', () => {
+  it('refuses a forged clone on the coordinator-internal proposal surface', async () => {
+    const h = harness({ allowedActions: ['task.read'] });
+    const widenedClone = Object.freeze({
+      ...h.capability,
+      allowed_actions: new Set<BenchmarkBrokerCapability>(['task.read', 'task.propose_complete']),
+    });
+    const result = refusal(await h.broker.proposeComplete(widenedClone, 'aaaa', 'forged'));
+    expect(result.code).toBe(27);
+    expect(result.reason).toBe('token_invalid');
+    expect(h.touches).toEqual([]);
+  });
   it('refuses a capability invalidated between registration and call (§8.2 lifetime)', async () => {
     const h = harness();
-    // Invalidate INSIDE the scope: runInScope admits a live token, so a call made after the
-    // invalidation must fail at the broker's own R12 — invalidation is not deferred to the next
-    // call.
     const result = refusal(await h.capabilities.runInScope(h.capability, async () => {
       h.capabilities.invalidateToken(h.capability.token_id);
       return h.broker.call('task.read', {});
@@ -649,9 +658,6 @@ describe('§8.4 R12 token_invalid → code 27', () => {
   });
 
   it('refuses a capability minted for another trial', async () => {
-    // register() refuses a wrong-trial token (one trial per coordinator, §1.4), so the broker's
-    // own trial check is the second line — drive it by constructing the broker against a policy
-    // whose trial_id differs from the registry's, a construction error the check must contain.
     const h = harness({ policyTrialId: 'other-trial' });
     const result = refusal(await h.call('task.read', {}));
     expect(result.code).toBe(27);
@@ -688,11 +694,8 @@ describe('§8.4 the rejection table itself', () => {
   });
 });
 
-// ── (D) §8.5 the projection split ───────────────────────────────────────────
-
 describe('§8.5 the model-visible projection', () => {
   it('carries an EXHAUSTIVE field list that partitions keyof Task exactly', () => {
-    // Compile-time exhaustiveness (`ProjectionIsExhaustive`) plus the runtime partition check.
     const union = new Set([...MODEL_VISIBLE_TASK_FIELDS, ...PROJECTION_WITHHELD_TASK_FIELDS]);
     const sample: Task = {
       id: 'aaaa', text: 't', why: 'w', done_when: 'd', priority: 'medium', status: 'open',
@@ -707,6 +710,14 @@ describe('§8.5 the model-visible projection', () => {
     expect(PROJECTION_WITHHELD_TASK_FIELDS).toHaveLength(6);
   });
 
+  it('returns a detached projection whose arrays cannot mutate authoritative task state', () => {
+    const authoritative = taskRow({ id: 'aaaa', depends_on: ['dddd'] });
+    const projected = projectTaskForModel(authoritative);
+    expect(projected.depends_on).not.toBe(authoritative.depends_on);
+    expect(Object.isFrozen(projected.depends_on)).toBe(true);
+    expect(() => (projected.depends_on as string[]).push('cccc')).toThrow(TypeError);
+    expect(authoritative.depends_on).toEqual(['dddd']);
+  });
   it('DROPS the claim and generation fields — §8.5\'s "not projected at all"', () => {
     const projected = projectTaskForModel({
       id: 'aaaa', text: 't', why: 'w', done_when: 'd', priority: 'medium', status: 'open',
@@ -764,8 +775,6 @@ describe('§8.5 the model-visible projection', () => {
       await expect(h.call(action, payload)).rejects.toThrow(BrokerArgumentsError);
       expect(h.touches).toEqual([]);
     }
-    // The nested scan is the load-bearing half: a capability field smuggled inside a `subtasks`
-    // item is refused the same way, even though the top-level key set is clean.
     await expect(h.call('task.decompose', {
       subtasks: [{ text: 'x', attempt_id: 'attempt-1' }],
     })).rejects.toThrow(BrokerArgumentsError);
@@ -773,9 +782,6 @@ describe('§8.5 the model-visible projection', () => {
   });
 
   it('a mutation attempted from projection-visible data ALONE is rejected', async () => {
-    // The projection the model can see (what task_read returns) carries no generation, no attempt,
-    // no token — so a mutation built from ONLY projection fields has nothing to fence itself
-    // with. Outside the coordinator's scope the broker refuses before any guard: I3 fail-closed.
     const h = harness({ allowedActions: ['task.read', 'task.claim'] });
     const readOk = await h.call('task.read', {});
     expect(readOk.ok).toBe(true);
@@ -783,12 +789,9 @@ describe('§8.5 the model-visible projection', () => {
     const seenTask = projected.find(row => row.id === 'dddd');
     expect(seenTask).toBeDefined();
     expect(seenTask).not.toHaveProperty('dispatch_generation');
-    // The scope is empty: requireAmbientCapability must throw port_scope_escaped (32), never fall
-    // back to an ambient default — the projection data grants nothing.
     await expect(
       h.broker.call('task.claim', { task_id: String(seenTask!.id) }),
     ).rejects.toThrow();
-    // And echoing projection fields back AS a capability is a schema rejection, never honoured.
     await expect(h.call('task.claim', {
       task_id: String(seenTask!.id), dispatch_generation: 'echoed',
     })).rejects.toThrow(BrokerArgumentsError);

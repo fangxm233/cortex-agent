@@ -59,6 +59,10 @@ export type BrokerRejectionReason =
   | 'profile_not_whitelisted' | 'capability_denied' | 'budget_exceeded' | 'lock_not_held'
   | 'ledger_unreadable' | 'token_invalid';
 
+/** Typed failures returned by a broker action in addition to §8.4's closed R1–R12 table. */
+export type BrokerRefusalReason =
+  | BrokerRejectionReason | 'proposal_invalidated' | 'answer_stale';
+
 export interface BrokerRejectionSpec {
   readonly reason: BrokerRejectionReason;
   /** ABSENT — not `undefined` — for R6, R9 and R10 (§18 G5-N4). */
@@ -91,7 +95,7 @@ export interface BrokerRefusal {
   readonly ok: false;
   readonly status: 'rejected';
   readonly action: BenchmarkBrokerCapability;
-  readonly reason: BrokerRejectionReason;
+  readonly reason: BrokerRefusalReason;
   readonly code?: number;
 }
 
@@ -104,19 +108,23 @@ export interface BrokerSuccess {
 
 export type BrokerCallResult = BrokerSuccess | BrokerRefusal;
 
-function refuse(action: BenchmarkBrokerCapability, id: BrokerRejectionId): BrokerRefusal {
-  const rejection = BROKER_REJECTIONS[id];
+function refusalFor(
+  action: BenchmarkBrokerCapability, reason: BrokerRefusalReason, code?: number,
+): BrokerRefusal {
   const refusal = {
     ok: false as const,
     status: 'rejected' as const,
     action,
-    reason: rejection.reason,
+    reason,
   };
+  return Object.freeze(code === undefined ? refusal : { ...refusal, code });
+}
+
+function refuse(action: BenchmarkBrokerCapability, id: BrokerRejectionId): BrokerRefusal {
+  const rejection = BROKER_REJECTIONS[id];
   // The `code` KEY is absent, not undefined, for R6/R9/R10 — an omitted code and a null code are
   // different claims, and G5-N4's interim rule is the former.
-  return Object.freeze(
-    rejection.code === undefined ? refusal : { ...refusal, code: rejection.code },
-  );
+  return refusalFor(action, rejection.reason, rejection.code);
 }
 
 function succeed(
@@ -274,7 +282,11 @@ export type ModelVisibleTask = Pick<Task, typeof MODEL_VISIBLE_TASK_FIELDS[numbe
 /** The disposable projection of §8.5: regenerated from broker state, never parsed back. */
 export function projectTaskForModel(task: Task): ModelVisibleTask {
   const projected: Partial<Record<keyof Task, unknown>> = {};
-  for (const field of MODEL_VISIBLE_TASK_FIELDS) projected[field] = task[field];
+  for (const field of MODEL_VISIBLE_TASK_FIELDS) {
+    projected[field] = field === 'depends_on'
+      ? Object.freeze([...task.depends_on])
+      : task[field];
+  }
   return Object.freeze(projected) as ModelVisibleTask;
 }
 
@@ -442,9 +454,10 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
       return null;
     },
 
-    target_self: ({ capability, target }) => (
-      target !== null && target !== capability.task_id ? 'R4' : null
-    ),
+    target_self: ({ capability, target }) => {
+      if (target === null || target === capability.task_id) return null;
+      return capability.ancestry.includes(target) ? 'R3' : 'R4';
+    },
 
     generation_current: ({ capability }) => {
       const task = ports.taskRepository.getById(capability.task_id);
@@ -520,7 +533,7 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
     const { capability, action, payload } = context;
     // R12 — the token must be live and belong to THIS trial. §8.2's lifetime rule is immediate, so
     // a capability invalidated between registration and call fails here rather than at the next one.
-    if (!capabilities.isLive(capability.token_id) || capability.trial_id !== policy.trial_id) {
+    if (!capabilities.isRegistered(capability) || capability.trial_id !== policy.trial_id) {
       return refuse(action, 'R12');
     }
     // G5-W4.4 — naming a capability instead of using one is a schema rejection, and the broker
@@ -621,11 +634,14 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
           : ports.managerQa.ask(capability, question);
         return succeed(action, { question_id: asked.questionId });
       }
-      case 'qa.answer':
-        ports.managerQa.answer(
+      case 'qa.answer': {
+        const result = ports.managerQa.answer(
           capability, String(payload.question_id), String(payload.answer),
         );
-        return succeed(action, { answered: true });
+        return result.success
+          ? succeed(action, { answered: true })
+          : refusalFor(action, 'answer_stale');
+      }
     }
   }
 
@@ -642,7 +658,14 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
     const refusal = authorize(context);
     // §8.4: a rejection is a typed refusal RETURNED to the caller, never a silent skip, and it does
     // not touch the tree — which is why no port has been called by this point.
-    return refusal ?? execute(context.capability, context.action, context.payload);
+    if (refusal) return refusal;
+    try {
+      return execute(context.capability, context.action, context.payload);
+    } catch (error) {
+      const typed = typedPortFailure(error);
+      if (typed) return refusalFor(context.action, typed.reason, typed.code);
+      throw error;
+    }
   }
 
   return {
@@ -665,6 +688,16 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
+
+function typedPortFailure(
+  error: unknown,
+): { reason: 'proposal_invalidated' | 'ledger_unreadable'; code: 37 | 42 } | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const { reason, code } = error as { reason?: unknown; code?: unknown };
+  if (reason === 'proposal_invalidated' && code === 37) return { reason, code };
+  if (reason === 'ledger_unreadable' && code === 42) return { reason, code };
+  return null;
+}
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String) : [];
