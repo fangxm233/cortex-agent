@@ -150,6 +150,20 @@ describe('AwaitableTaskDispatcher.selectAndClaim (§7.2 P9)', () => {
     expect(createTrialTaskDispatcher(deps).selectAndClaim({ trial: 'trial-1' })).toBeNull();
   });
 
+  it.each([null, '', ' \t', 'null', 'undefined'])(
+    'rejects the shipped invalid-prompt case %j without claiming it',
+    (text) => {
+      const f = fixture();
+      f.addTemplate('benchmark-coder-review', makeTemplate('benchmark-coder-review'));
+      f.setTasks([makeTask({
+        id: 'a1', project: 'trial', text: text as unknown as string,
+      })]);
+
+      expect(createTrialTaskDispatcher(f.deps).selectAndClaim({ trial: 'trial-1' })).toBeNull();
+      expect(f.claims).toEqual([]);
+    },
+  );
+
   it('selects the first eligible task and returns prompt, template and generation', () => {
     const f = fixture();
     const selected = makeTask({ id: 'b2', project: 'trial', text: 'the task' });

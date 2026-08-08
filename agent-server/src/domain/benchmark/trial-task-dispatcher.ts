@@ -87,6 +87,10 @@ function selectAndClaimOnce(deps: TrialTaskDispatcherDeps): TrialDispatchSelecti
   );
   const selected = eligible[0] ?? null;
   if (!selected) return null;
+  if (!isValidDispatchPrompt(selected.text)) {
+    log.warn(`Guard dropped task with null/empty text: [${selected.project}] ${selected.id}`);
+    return null;
+  }
 
   // The generation fence, minted per claim. Verbatim in expression and semantics.
   const dispatchGeneration = randomUUID();
@@ -112,6 +116,13 @@ function selectAndClaimOnce(deps: TrialTaskDispatcherDeps): TrialDispatchSelecti
  *  profile rate limit (a rate-limited trial fails, it does not park — §7.2 P11). The remaining
  *  eligibility is: template present, template in the frozen whitelist (R6), resolvable by the
  *  frozen resolver. */
+function isValidDispatchPrompt(value: unknown): boolean {
+  if (!value || typeof value === 'object') return false;
+  const text = typeof value === 'string' ? value : String(value);
+  if (!text.trim()) return false;
+  return text !== 'null' && text !== 'undefined';
+}
+
 export function filterTrialDispatchable(
   tasks: readonly Task[],
   whitelist: readonly string[],
