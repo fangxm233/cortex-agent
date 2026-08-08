@@ -539,7 +539,9 @@ export function createBenchmarkTaskBroker(input: BrokerConstruction): BenchmarkT
       // rotation), so the generation match alone is not the fence §8.4 R1 asks for. The task's
       // current attempt is the coordinator-side record the registry keeps at registration.
       const current = capabilities.currentAttempt(capability.task_id);
-      if (current === null || current.attempt_id !== capability.attempt_id) return 'R1';
+      if (current === null
+        || current.dispatch_generation !== capability.dispatch_generation
+        || current.attempt_id !== capability.attempt_id) return 'R1';
       return null;
     },
 

@@ -842,6 +842,26 @@ describe('§19.12.2 — task.claim is a two-leg broker transaction through the i
     expect(h.touches).toEqual([]);
   });
 
+  it('checks the requester registry generation even when the attempt id is reused', async () => {
+    const h = harness({ allowedActions: ['task.claim'] });
+    const superseding = mintActorCapability({
+      trial_id: TRIAL_ID,
+      task_id: h.capability.task_id,
+      dispatch_generation: 'gen-2',
+      attempt_id: h.capability.attempt_id,
+      role: h.capability.role,
+      ancestry: h.capability.ancestry,
+      capability_whitelist: ['task.claim'],
+      issued_at_epoch_ms: 2_000,
+    });
+    h.capabilities.register(superseding);
+
+    const result = refusal(await h.call('task.claim', { task_id: 'dddd' }));
+    expect([result.code, result.reason]).toEqual([34, 'stale_generation']);
+    expect(h.claimTargetCalls).toEqual([]);
+    expect(h.touches).toEqual([]);
+  });
+
   it('refuses self, non-actionable and already-claimed targets before any claimTarget call', async () => {
     const h = harness();
     await expect(h.call('task.claim', { task_id: 'aaaa' })).rejects.toThrow(BrokerArgumentsError); // self
