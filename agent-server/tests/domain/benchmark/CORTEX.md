@@ -5,6 +5,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | filename | role | function |
 |---|---|---|
 | accounting-reconciliation.test.ts | 测试 | 验证标记联合、纯度、容差、未记账角色与操作数对齐 |
+| actor-capability.test.ts | 测试 | 验证 §8.2 令牌形状、铸币不变量、注册表生命周期与 I3 出域即抛 |
 | attempt-record.test.ts | 测试 | 验证 39 成员齐备、13 类封闭边、标识铸造与线程标识双条件 |
 | composite-runtime-ports.test.ts | 测试 | 验证 23 端口齐备、六个仅声明端口的接线与 31 号未绑定拒绝 |
 | isolation-literals.test.ts | 测试 | X12 权威载体：Gate 5 各模块不得出现 webhook 字面量 |
@@ -13,6 +14,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | guard-lease-state.test.ts | 测试 | 验证守卫表按角色类编译、选择器每步取自实时租约 |
 | lease-echo.test.ts | 测试 | 验证回声文档、控制路由投递与拒绝传播 |
 | settings-snapshot.test.ts | 测试 | 验证冻结记录、缺键抛出、一次性捕获与无重载 |
+| task-broker.test.ts | 测试 | 验证十动作封闭表、每个守卫、R1-R12 按码拒绝且不触树、投影分割 |
 | port-scope-fence.test.ts | 测试 | 验证 I3 出域即抛 32 号、守护进程回退不变、围栏随试验起落 |
 | trial-task-ports.test.ts | 测试 | 验证 git 截断、P4 接线、realpath 约束及守护进程回归 |
 | policy-backed-runtime-deps.test.ts | 测试 | 验证冻结解析与运行时拒绝 |

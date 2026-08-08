@@ -14,6 +14,12 @@
 // reaches through a module singleton import; each is extracted behind its interface by its own
 // Gate-5 child, which compiles against the declaration here rather than evolving its own.
 //
+// The `capability` parameter of P3, P5, P6, P12, P13, P14 and P15's actor is §8.2's
+// `ActorCapability` token (`capabilities.ts`) — what §7.2's signatures write as `cap` and what
+// §8.3's matrix passes. This wiring is the broker child's grant ("a §7.2 port declaration must be
+// wired to your token type"); no declaration is added, removed, renamed or re-shaped by it: the
+// 23 ports, their method sets, arities and return types are unchanged.
+//
 // Import discipline: none of the extraction targets may be imported here, not even for a type.
 // `domain/tasks/mutator.ts` reaches the X4 host stores and X9's `commitAndPush`, and a
 // dependency-cruiser reachability rule cannot exempt type-only edges (§18 G5-R2), so a `import
@@ -37,7 +43,7 @@ import type {
 import type {
   CompositeManifest, CompositeManifestContext, CompositeManifestViolation,
 } from './composite-manifest.js';
-import type { BenchmarkBrokerCapability } from './capabilities.js';
+import type { ActorCapability } from './capabilities.js';
 import type { ProposalRow, SealedOutcome } from './proposal-seal.js';
 import { PolicyCompilationError, type ResolvedTrialPolicy } from './resolved-policy.js';
 import type { SettingsSnapshot } from './settings-snapshot.js';
@@ -88,16 +94,16 @@ export interface TaskMutationRequest {
  *  emit an ambient hook event in the same call — they *are* today's seal-free callback trigger,
  *  and they are replaced rather than lifted. */
 export interface CapabilityAwareTaskMutator {
-  claim(capability: BenchmarkBrokerCapability, taskId: string): BrokerResult;
-  unclaim(capability: BenchmarkBrokerCapability, taskId: string): BrokerResult;
-  add(capability: BenchmarkBrokerCapability, request: TaskMutationRequest): BrokerResult;
-  decompose(capability: BenchmarkBrokerCapability, request: TaskMutationRequest): BrokerResult;
-  edit(capability: BenchmarkBrokerCapability, request: TaskMutationRequest): BrokerResult;
+  claim(capability: ActorCapability, taskId: string): BrokerResult;
+  unclaim(capability: ActorCapability, taskId: string): BrokerResult;
+  add(capability: ActorCapability, request: TaskMutationRequest): BrokerResult;
+  decompose(capability: ActorCapability, request: TaskMutationRequest): BrokerResult;
+  edit(capability: ActorCapability, request: TaskMutationRequest): BrokerResult;
   proposeComplete(
-    capability: BenchmarkBrokerCapability, taskId: string, note: string,
+    capability: ActorCapability, taskId: string, note: string,
   ): ProposalRow;
   proposeBlock(
-    capability: BenchmarkBrokerCapability, taskId: string, reason: string,
+    capability: ActorCapability, taskId: string, reason: string,
   ): ProposalRow;
 }
 
@@ -124,8 +130,8 @@ export interface TaskArtifactProjection {
   artifactPath(project: string, taskId: string): string;
   /** Must never truncate an existing artifact: rotation and rehydration depend on it. */
   ensure(project: string, taskId: string): string;
-  read(capability: BenchmarkBrokerCapability): string;
-  write(capability: BenchmarkBrokerCapability, content: string): void;
+  read(capability: ActorCapability): string;
+  write(capability: ActorCapability, content: string): void;
 }
 
 // --- P6 -----------------------------------------------------------------------------------------
@@ -155,14 +161,14 @@ export interface TrialAcceptanceLedger {
   /** `false` for an already-accepted child; re-opens a `rejected` entry to `pending` preserving
    *  its `rework_round` (§9.4 M-3). */
   recordDelivered(
-    capability: BenchmarkBrokerCapability, childId: string, kind: string,
+    capability: ActorCapability, childId: string, kind: string,
   ): boolean;
   recordVerdict(
-    capability: BenchmarkBrokerCapability, childId: string,
+    capability: ActorCapability, childId: string,
     verdict: AcceptanceVerdict, note: string,
   ): void;
   recordSuperseded(
-    capability: BenchmarkBrokerCapability, childId: string, replacementId: string,
+    capability: ActorCapability, childId: string, replacementId: string,
   ): void;
   pending(project: string, taskId: string): AcceptanceLedgerEntry[];
 }
@@ -215,7 +221,7 @@ export interface TaskTreeCoordinatorPort {
    *  (§9.7 code 39), not the shipped degradation to a project-report post. */
   deliver(parentThreadId: string, child: Task, kind: DeliveryKind): Promise<boolean>;
   recordVerdict(
-    capability: BenchmarkBrokerCapability, childId: string, verdict: AcceptanceVerdict,
+    capability: ActorCapability, childId: string, verdict: AcceptanceVerdict,
   ): void;
   reconcile(threadId: string): Promise<void>;
   maybeRotateManager(threadId: string): Promise<boolean>;
@@ -236,10 +242,10 @@ export interface QuestionRecord {
 /** The human-escalation branch of the shipped mailbox is deleted, not ported: the chain ends at
  *  the direct parent. No live manager with Q&A enabled is `qa_no_target`. */
 export interface ManagerQaMailbox {
-  ask(capability: BenchmarkBrokerCapability, question: string): { questionId: string };
+  ask(capability: ActorCapability, question: string): { questionId: string };
   deliverToManager(managerThreadId: string, question: QuestionRecord): Promise<void>;
   answer(
-    capability: BenchmarkBrokerCapability, questionId: string, answer: string,
+    capability: ActorCapability, questionId: string, answer: string,
   ): BrokerResult;
   /** One-shot consume: an unknown or already-consumed id is `answer_stale` (§5.4 E3). */
   poll(questionId: string): { found: boolean; answered: boolean; answer: string | null };
@@ -256,7 +262,7 @@ export interface NeedsParentAnswer {
  *  `agent-server/src/domain/benchmark/parent-question-bridge.ts`, which does not exist at this
  *  commit; nothing here constructs one. */
 export interface ParentQuestionBridge {
-  record(capability: BenchmarkBrokerCapability, question: string): QuestionRecord;
+  record(capability: ActorCapability, question: string): QuestionRecord;
   resolveOuterCall(questionId: string): NeedsParentAnswer;
   /** An acceptance-predicate miss is `rejected` without touching the tree (§5.3, D-7). */
   accept(answer: string): BrokerResult;
@@ -269,7 +275,7 @@ export interface ParentQuestionBridge {
 
 export interface ControlActor {
   trial: string;
-  capability: BenchmarkBrokerCapability;
+  capability: ActorCapability;
 }
 
 /** In-process channel replacing the two shipped webhook proxies verbatim in function. An
