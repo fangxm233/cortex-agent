@@ -1,6 +1,6 @@
-// input:  the ports a trial coordinator constructs once, from the frozen policy
-// output: CompositeRuntimePorts — the frozen 23-port bundle, and its bound-port check
-// pos:    §7.2. The interface every later Gate-5, 6, 7 and 10 module compiles against
+// input:  frozen trial policy and its resolved ports
+// output: CompositeRuntimePorts and its bound-port check
+// pos:    the frozen 23-port bundle interface (§7.2)
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 //
 // The bundle widens `LocalThreadRuntimeDeps` in place (§7.1 I1): `createLocalThreadRuntimeDeps` is
