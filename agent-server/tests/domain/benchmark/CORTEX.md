@@ -16,6 +16,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | settings-snapshot.test.ts | 测试 | 验证冻结记录、缺键抛出、一次性捕获与无重载 |
 | task-broker-arguments.test.ts | 测试 | 验证十个入口的严格参数模式与码点边界 |
 | task-broker.test.ts | 测试 | 验证十动作封闭表、每个守卫、R1-R12 按码拒绝且不触树、投影分割 |
+| trial-acceptance-ledger.test.ts | 测试 | 验证 P6 失败即关闭读取/写入（42 号按标识符断言）、recordSuperseded 写入器、旧格式无 superseded_by 的兼容、生产组合接线与生产铸币 ActorCapability |
 | port-scope-fence.test.ts | 测试 | 验证 I3 出域即抛 32 号、守护进程回退不变、围栏随试验起落 |
 | trial-task-ports.test.ts | 测试 | 验证 git 截断、P4 接线、realpath 约束及守护进程回归 |
 | policy-backed-runtime-deps.test.ts | 测试 | 验证冻结解析与运行时拒绝 |

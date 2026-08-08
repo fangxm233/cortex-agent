@@ -47,6 +47,8 @@ import type { ActorCapability } from './capabilities.js';
 import type { ProposalRow, SealedOutcome } from './proposal-seal.js';
 import { PolicyCompilationError, type ResolvedTrialPolicy } from './resolved-policy.js';
 import type { SettingsSnapshot } from './settings-snapshot.js';
+import { createTrialAcceptanceLedger } from './trial-acceptance-ledger.js';
+import type { TrialAcceptanceLedgerOptions } from './trial-acceptance-ledger.js';
 import type { DeterministicClock } from './trial-clock.js';
 import type { LeaseState, WorkspaceLease } from './workspace-lease.js';
 import {
@@ -373,6 +375,22 @@ export interface CompositeManifestWriter {
  *  none of the 23 declarations above is touched. */
 export function createDispatcherPort(deps: TrialTaskDispatcherDeps): AwaitableTaskDispatcher {
   return createTrialTaskDispatcher(deps) as AwaitableTaskDispatcher;
+}
+
+// --- P6 wiring (this gate's ledger child) -----------------------------------------------------
+
+/** P6 production composition: the binding point between the frozen `acceptanceLedger` declaration
+ *  and its fail-closed implementation. The coordinator builds one ledger port per (project, task
+ *  node) it serves (§7.1 I1) and binds it into the bundle's overrides — reachable from the
+ *  production interface, with no test-only factory supplying composition. The port's capability
+ *  parameters are the sole §8.2 `ActorCapability` (see the P6 declarations above), the same token
+ *  the broker resolves (G5-W4.3). */
+export function createAcceptanceLedgerPort(
+  project: string,
+  taskId: string,
+  options?: TrialAcceptanceLedgerOptions,
+): TrialAcceptanceLedger {
+  return createTrialAcceptanceLedger(project, taskId, options);
 }
 
 // --- the bundle ---------------------------------------------------------------------------------

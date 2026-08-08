@@ -9,7 +9,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | arm-schema.ts | 类型 | 校验 v2 arm 与版本化 phase-A 输入 |
 | attempt-record.ts | 类型 | 定义 39 成员尝试记录、13 类边与尝试标识铸造 |
 | capabilities.ts | 策略 | 派生封闭模板与能力白名单；§8.2 ActorCapability 令牌与铸币（S-B，唯一定义） |
-| composite-runtime-ports.ts | 类型 | 冻结 §7.2 全部 23 个端口，未绑定端口抛 31 号，六个仅声明端口接线到已交付实现；cap 参数已接入 ActorCapability；接线 P2/P4/P5 与 P9 工厂 |
+| composite-runtime-ports.ts | 类型 | 冻结 §7.2 全部 23 个端口，未绑定端口抛 31 号，六个仅声明端口接线到已交付实现；cap 参数已接入 ActorCapability；接线 P2/P4/P5、P6 与 P9 工厂 |
 | trial-task-ports.ts | 核心 | 实现 git 截断、试验锁作用域和 realpath 约束的工件投影 |
 | composite-manifest.ts | 核心 | 编码复合清单规范形式并按命名码校验 DAG 不变量 |
 | decimal-text.ts | 工具 | 以整数单位做精确十进制解析与比较 |
@@ -21,6 +21,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | settings-snapshot.ts | 类型 | 编译期一次性冻结设置记录，缺键即抛，无磁盘读取与热重载 |
 | task-broker-arguments.ts | 核心 | 严格校验十个代理入口的 G5-W5 参数模式 |
 | task-broker.ts | 核心 | §8.3 十动作矩阵与守卫、R1-R12 拒绝、§8.5 模型可见投影；结构化端口，无 X2 新种子 |
+| trial-acceptance-ledger.ts | 核心 | 试验验收台账端口（P6）：失败即关闭的读取与写入（42 号）、D-10 的 recordSuperseded 写入器、旧格式兼容；cap 参数为唯一 ActorCapability；不导入接口模块以守住 X2 计数 |
 | terminal-predicate.ts | 核心 | 评估 §9.4 每模式清单（D2/C7 三合取，含链接来源与原生子代理普查），失败即抛出 41 号拒绝 |
 | trial-task-dispatcher.ts | 核心 | 试验内调度：P9 选任务/铸造代次/组装提示，无主机锁、GPU 与限流耦合 |
 | trial-clock.ts | 类型 | 零依赖确定性时钟：墙钟、单调纳秒、截止余量与可取消 sleep |
