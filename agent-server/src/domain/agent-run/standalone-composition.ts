@@ -368,6 +368,29 @@ function isWithin(root: string, target: string): boolean {
     && relative !== '..' && !path.isAbsolute(relative));
 }
 
+function projectedPhysicalPath(target: string): string {
+  const suffix: string[] = [];
+  let existing = path.resolve(target);
+  while (!fs.existsSync(existing)) {
+    const parent = path.dirname(existing);
+    if (parent === existing) break;
+    suffix.unshift(path.basename(existing));
+    existing = parent;
+  }
+  return path.resolve(fs.realpathSync(existing), ...suffix);
+}
+
+function assertPhysicalRootProjection(options: StandaloneCompositionOptions): void {
+  const trajectoryRoot = path.resolve(options.trajectoryRoot);
+  const trialRoot = path.resolve(options.trialRoot);
+  const sharedRoot = path.dirname(trajectoryRoot);
+  const projections = [sharedRoot, trajectoryRoot, trialRoot];
+  if (path.dirname(trialRoot) !== sharedRoot
+      || projections.some(candidate => projectedPhysicalPath(candidate) !== candidate)) {
+    throw new Error('Standalone state and output roots must share the physical trial root');
+  }
+}
+
 const ALLOWED_FRESH_PROJECTIONS = new Set(['claude-config/settings.json']);
 
 function unexpectedFreshEntry(root: string, current = root): string | null {
@@ -454,6 +477,7 @@ export function createStandaloneAgentRunComposition(
   const { source, profile } = standaloneInputs(options);
   const loaded = loadPolicy(options, profile);
   if (options.requireFresh) assertFreshTrialRoot(options.trialRoot);
+  assertPhysicalRootProjection(options);
   const paths = preparePinnedTrialPaths(options.trialRoot);
   const output = createBenchmarkOutputAdapter(options.trajectoryRoot);
   assertPhysicalRoots(options, paths, output);

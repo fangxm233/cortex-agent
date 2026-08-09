@@ -285,3 +285,53 @@ it('refuses physical state and output roots that escape through symlinks', () =>
     /state and output roots must share the physical trial root/i,
   );
 });
+
+it('rejects a symlinked shared-root ancestor before creating state or output', () => {
+  const input = fixture();
+  const outside = path.join(root, 'outside-container');
+  const escapedRoot = path.join(root, 'agent', 'escaped-root');
+  fs.mkdirSync(outside);
+  fs.symlinkSync(outside, escapedRoot);
+  input.trialRoot = path.join(escapedRoot, 'trial-home');
+  input.trajectoryRoot = path.join(escapedRoot, 'trajectory');
+
+  assert.throws(() => createComposition(input), /physical trial root/i);
+  assert.equal(fs.existsSync(path.join(outside, 'trial-home')), false);
+  assert.equal(fs.existsSync(path.join(outside, 'trajectory')), false);
+});
+
+it('rejects a replaced output root before opening a journal', async () => {
+  const input = fixture();
+  const composition = createComposition(input);
+  const original = path.join(root, 'original-trajectory');
+  const outside = path.join(root, 'outside-output-swap');
+  fs.renameSync(input.trajectoryRoot, original);
+  fs.mkdirSync(outside);
+  fs.symlinkSync(outside, input.trajectoryRoot);
+
+  let journal: ReturnType<typeof openJournal> | null = null;
+  let thrown: unknown = null;
+  try {
+    journal = composition.output.openJournal({
+      path: path.join(input.trajectoryRoot, 'escaped.journal.ndjson'),
+      header: {
+        rootRunId: composition.policy.root_run_id, threadId: null, agentSlot: 'parent',
+        resolvedCwd: input.workspace, canonicalInstructionSha256: '0'.repeat(64),
+        modelVisiblePromptSha256: '0'.repeat(64), systemPromptSha256: '1'.repeat(64),
+        toolManifestSha256: '2'.repeat(64), pluginManifestSha256: '3'.repeat(64),
+        modelExecutionIdentityHash:
+          composition.policy.identity.model_execution_identity_hash.parent,
+        roleToolSurfaceHash: composition.policy.identity.role_tool_surface_hash.parent,
+        bundleManifestHash: composition.policy.identity.bundle_manifest_hash,
+      },
+    });
+  } catch (error) {
+    thrown = error;
+  } finally {
+    await journal?.close();
+  }
+
+  assert.equal(thrown instanceof Error, true);
+  assert.match((thrown as Error).message, /physical trajectory root/i);
+  assert.equal(fs.existsSync(path.join(outside, 'escaped.journal.ndjson')), false);
+});

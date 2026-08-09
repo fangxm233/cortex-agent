@@ -65,16 +65,26 @@ function isWithin(root: string, target: string): boolean {
     && relative !== '..' && !path.isAbsolute(relative));
 }
 
+function assertPhysicalRootStable(root: string): void {
+  let current: string;
+  try { current = fs.realpathSync(root); }
+  catch { throw new Error(`Benchmark physical trajectory root is unavailable: ${root}`); }
+  if (current !== root) {
+    throw new Error(`Benchmark physical trajectory root changed after composition: ${root}`);
+  }
+}
+
 function confined(root: string, target: string, physicalConfinement: boolean): string {
   const resolved = path.resolve(target);
   if (!isWithin(root, resolved)) {
     throw new Error(`Benchmark output path escapes trajectory root: ${target}`);
   }
   if (!physicalConfinement) return resolved;
+  assertPhysicalRootStable(root);
   let existing = resolved;
   while (!fs.existsSync(existing)) existing = path.dirname(existing);
   const physical = path.resolve(fs.realpathSync(existing), path.relative(existing, resolved));
-  if (!isWithin(fs.realpathSync(root), physical)) {
+  if (!isWithin(root, physical)) {
     throw new Error(`Benchmark output path escapes physical trajectory root: ${target}`);
   }
   return resolved;
@@ -93,6 +103,7 @@ export interface BenchmarkOutputAdapter {
 }
 
 function assertTrajectoryRoot(root: string, value: string, physicalConfinement: boolean): void {
+  if (physicalConfinement) assertPhysicalRootStable(root);
   let candidate: string;
   try { candidate = physicalConfinement ? fs.realpathSync(value) : path.resolve(value); }
   catch { throw new Error(`Benchmark lifecycle root is unavailable: ${value}`); }
