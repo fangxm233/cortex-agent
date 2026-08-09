@@ -1,4 +1,4 @@
-// input:  declared trajectory root, journal and lifecycle write requests
+// input:  declared trajectory root, lifecycle mode and write requests
 // output: root-confined benchmark sinks and a delivery-free thread adapter
 // pos:    Output-only persistence boundary for standalone trials
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -37,24 +37,23 @@ function deliveryDisabled(): never {
   throw new Error('Benchmark output adapter has no platform delivery capability');
 }
 
-function outputThreadAdapter(): PlatformAdapter {
+function outputThreadAdapter(rejectDelivery: boolean): PlatformAdapter {
+  const reject = () => { if (rejectDelivery) deliveryDisabled(); };
+  const emptyRef = () => ({ conduit: '', messageId: '' });
   return {
     name: 'benchmark-output-only', capabilities: OUTPUT_CAPABILITIES,
     start: async () => {}, stop: async () => {},
     onMessage: () => {}, onMessageEdit: () => {}, onAction: () => {}, onModalSubmit: () => {},
-    postMessage: async () => deliveryDisabled(),
-    updateMessage: async () => deliveryDisabled(),
-    deleteMessage: async () => deliveryDisabled(),
-    postInteractive: async () => deliveryDisabled(),
-    openModal: async () => deliveryDisabled(),
-    markQueued: async () => deliveryDisabled(),
-    unmarkQueued: async () => deliveryDisabled(),
-    uploadFile: async () => deliveryDisabled(),
-    downloadFile: async () => deliveryDisabled(),
+    postMessage: async () => { reject(); return emptyRef(); },
+    updateMessage: async () => { reject(); }, deleteMessage: async () => { reject(); },
+    postInteractive: async () => { reject(); return emptyRef(); },
+    openModal: async () => { reject(); }, markQueued: async () => { reject(); },
+    unmarkQueued: async () => { reject(); }, uploadFile: async () => { reject(); },
+    downloadFile: async () => { reject(); return { localPath: '', mimetype: '', name: '' }; },
     getPermalink: async () => null,
     openOutputStream: () => OUTPUT_STREAM,
-    bindProjectConduit: async () => deliveryDisabled(),
-    unbindProjectConduit: async () => deliveryDisabled(),
+    bindProjectConduit: async () => { reject(); },
+    unbindProjectConduit: async () => { reject(); },
     getProjectConduits: async () => ({}), resolveInboundProject: async () => null,
     ownsConduit: () => false,
   };
@@ -66,11 +65,12 @@ function isWithin(root: string, target: string): boolean {
     && relative !== '..' && !path.isAbsolute(relative));
 }
 
-function confined(root: string, target: string): string {
+function confined(root: string, target: string, physicalConfinement: boolean): string {
   const resolved = path.resolve(target);
   if (!isWithin(root, resolved)) {
     throw new Error(`Benchmark output path escapes trajectory root: ${target}`);
   }
+  if (!physicalConfinement) return resolved;
   let existing = resolved;
   while (!fs.existsSync(existing)) existing = path.dirname(existing);
   const physical = path.resolve(fs.realpathSync(existing), path.relative(existing, resolved));
@@ -92,32 +92,37 @@ export interface BenchmarkOutputAdapter {
   ): string;
 }
 
-function assertTrajectoryRoot(root: string, value: string): void {
-  let physical: string;
-  try { physical = fs.realpathSync(value); }
+function assertTrajectoryRoot(root: string, value: string, physicalConfinement: boolean): void {
+  let candidate: string;
+  try { candidate = physicalConfinement ? fs.realpathSync(value) : path.resolve(value); }
   catch { throw new Error(`Benchmark lifecycle root is unavailable: ${value}`); }
-  if (physical !== root) {
+  if (candidate !== root) {
     throw new Error(`Benchmark lifecycle root differs from output root: ${value}`);
   }
 }
 
-export function createBenchmarkOutputAdapter(trajectoryRoot: string): BenchmarkOutputAdapter {
+export function createBenchmarkOutputAdapter(
+  trajectoryRoot: string,
+  mode: 'standalone' | 'legacy' = 'standalone',
+): BenchmarkOutputAdapter {
   fs.mkdirSync(trajectoryRoot, { recursive: true });
-  const root = fs.realpathSync(trajectoryRoot);
+  const physicalConfinement = mode === 'standalone';
+  const root = physicalConfinement ? fs.realpathSync(trajectoryRoot) : path.resolve(trajectoryRoot);
   return {
-    kind: 'benchmark-output-only',
-    root,
-    threadAdapter: outputThreadAdapter(),
+    kind: 'benchmark-output-only', root,
+    threadAdapter: outputThreadAdapter(physicalConfinement),
     openJournal(options) {
-      return openJournal({ ...options, path: confined(root, options.path) });
+      return openJournal({
+        ...options, path: confined(root, options.path, physicalConfinement),
+      });
     },
     writeStarted(options) {
-      assertTrajectoryRoot(root, options.trajectoryRoot);
+      assertTrajectoryRoot(root, options.trajectoryRoot, physicalConfinement);
       return writeStartedMarker(options);
     },
     writeTerminal(options, validation) {
-      assertTrajectoryRoot(root, options.trajectoryRoot);
-      confined(root, options.journalPath);
+      assertTrajectoryRoot(root, options.trajectoryRoot, physicalConfinement);
+      confined(root, options.journalPath, physicalConfinement);
       return writeTerminalManifest(options, validation);
     },
   };

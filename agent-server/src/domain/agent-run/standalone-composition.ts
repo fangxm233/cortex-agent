@@ -410,6 +410,26 @@ function assertPhysicalRoots(
   }
 }
 
+function profileIdentityMatches(file: string, profile: ResolvedProfileConfig): boolean {
+  try {
+    const document = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+      profiles?: Record<string, Record<string, unknown>>;
+    };
+    const selected = document.profiles?.[profile.name];
+    return selected?.model === profile.model && selected.backend === profile.backend
+      && selected.provider === profile.provider;
+  } catch {
+    return false;
+  }
+}
+
+function replaceProfileProjection(file: string, content: string): void {
+  const temporary = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+  fs.writeFileSync(temporary, content, { flag: 'wx', mode: 0o600 });
+  try { fs.renameSync(temporary, file); }
+  finally { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
+}
+
 function materializeProfile(paths: PinnedTrialPaths, profile: ResolvedProfileConfig): void {
   const file = path.join(paths.cortexHome, 'config', 'profiles.json');
   const entry = {
@@ -421,7 +441,10 @@ function materializeProfile(paths: PinnedTrialPaths, profile: ResolvedProfileCon
   fs.mkdirSync(path.dirname(file), { recursive: true });
   if (!fs.existsSync(file)) fs.writeFileSync(file, content, { flag: 'wx', mode: 0o600 });
   else if (fs.readFileSync(file, 'utf8') !== content) {
-    throw new Error(`Standalone profile projection differs from frozen policy: ${file}`);
+    if (!profileIdentityMatches(file, profile)) {
+      throw new Error(`Standalone profile projection differs from frozen policy: ${file}`);
+    }
+    replaceProfileProjection(file, content);
   }
 }
 

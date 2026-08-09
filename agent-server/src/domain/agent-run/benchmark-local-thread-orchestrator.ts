@@ -1072,7 +1072,7 @@ export async function runBenchmarkThread(
 ): Promise<BenchmarkThreadResult> {
   refuseLifecycleHookOverride(overrides);
   const deps = createLocalThreadRuntimeDeps(daemonRunThread, overrides);
-  const output = createBenchmarkOutputAdapter(request.trajectoryRoot);
+  const output = createBenchmarkOutputAdapter(request.trajectoryRoot, 'legacy');
   return withLocalThreadRuntimeDeps(
     deps, () => runBenchmarkThreadScoped(request, output, async () => {}),
   );
