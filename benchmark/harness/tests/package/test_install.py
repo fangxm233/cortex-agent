@@ -1,6 +1,6 @@
-# input:  npm pack output, Harbor DockerEnvironment, pinned image, trial seed
-# output: real-bundle install success and corrupt-artifact trial failure
-# pos:    Pytest regression for the real Harbor installation boundary
+# input:  npm artifact, Docker environment, trial seed, opt-in gate
+# output: gated install success and corrupt-artifact trial failure
+# pos:    Opt-in container proof for the Harbor install boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
@@ -21,6 +21,9 @@ from harbor.models.trial.config import ServiceVolumeConfig
 from harbor.models.trial.paths import TrialPaths
 
 from cortex_bench_harness import CortexBenchAgent
+from docker_gate import docker_opt_in
+
+pytestmark = docker_opt_in
 
 IMAGE_DIGEST = "sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818"
 IMAGE_REF = f"debian@{IMAGE_DIGEST}"
