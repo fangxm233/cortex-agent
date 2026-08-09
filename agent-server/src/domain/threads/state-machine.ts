@@ -626,6 +626,15 @@ function resolveWaitSets(thread: ThreadRecord, targets?: WaitTargets): { threads
   };
 }
 
+function rearmTaskDeliveries(
+  metadata: NonNullable<ThreadRecord['metadata']>, taskIds: string[],
+): void {
+  if (!metadata.deliveredChildResults?.length || !taskIds.length) return;
+  const rearmed = new Set(taskIds);
+  metadata.deliveredChildResults = metadata.deliveredChildResults
+    .filter((id) => !rearmed.has(id));
+}
+
 /** Try to suspend the thread until its waited-on children finish. With no targets, infer
  *  live task/thread children; supplying either target list replaces the entire inferred set.
  *  Inside one store mutation, persist both resolved sets and enter waiting when either is non-empty.
@@ -654,6 +663,7 @@ export async function tryEnterWaiting(threadId: string, targets?: WaitTargets): 
     });
     m.waitingOn = liveThreads;
     m.waitingOnTasks = waitSets.tasks;
+    rearmTaskDeliveries(m, waitSets.tasks);
     if (liveThreads.length > 0 || waitSets.tasks.length > 0) {
       t.status = 'waiting';
       entered = true;

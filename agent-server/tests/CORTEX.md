@@ -161,10 +161,10 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | thread-coder-review.e2e.test.ts | e2e | coder-review stages, completion owner and commit policy |
 | thread-contract.test.ts | test | delegation contracts and budget breaker |
 | thread-extra-hooks.test.ts | test | Covers lifecycle isolation and per-call HookBus routing |
-| thread-ledger-dedupe.test.ts | test | child result delivery dedupe across runs |
+| thread-ledger-dedupe.test.ts | test | child dedupe across runs and same-ID reissues |
 | thread-manager.test.ts | test | thread prompt variables and transitions |
 | thread-resume-statusmsg.test.ts | test | Covers persisted thread resume options |
-| thread-resume-task-loop.test.ts | test | Resumed task provenance and live sweep cadence |
+| thread-resume-task-loop.test.ts | test | Resumed task provenance and empty-wait recovery |
 | thread-runner.test.ts | test | thread lifecycle, snapshot buffering and wait control |
 | thread-stages.test.ts | test | stage parsing and step prompt building |
 | thread-statusmsg-seal.test.ts | test | stale suspended status message refresh |

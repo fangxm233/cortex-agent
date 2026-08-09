@@ -677,6 +677,11 @@ export async function closeResumedTaskLoop(
   }
 }
 
+function hasTaskWaitState(thread: ThreadRecord): boolean {
+  const metadata = thread.metadata;
+  return !!metadata?.taskId && Array.isArray(metadata.waitingOnTasks);
+}
+
 /** Periodic disk-driven backstop: reconcile EVERY suspended manager's task children against disk
  *  and resume any whose list has emptied. The two fast paths — the task.completed/task.blocked
  *  event (notifyTaskParentThreads) and closeResumedTaskLoop — can each miss a single delivery to a
@@ -689,7 +694,7 @@ export async function closeResumedTaskLoop(
 export async function sweepWaitingManagers(deps: { resume?: ResumeFn } = {}): Promise<number> {
   let swept = 0;
   for (const t of threadStore.getAll()) {
-    if (t.status !== 'waiting' || !t.metadata?.waitingOnTasks?.length) continue;
+    if (t.status !== 'waiting' || !hasTaskWaitState(t)) continue;
     swept++;
     await reconcileWaitingTasks(t.id, deps).catch((e) => log.error(`sweep reconcile ${t.id}: ${(e as Error).message}`));
   }
@@ -748,7 +753,8 @@ export async function recoverWaitingThreads(deps: { resume?: ResumeFn } = {}): P
   for (const parent of threadStore.getAll()) {
     if (parent.status !== 'waiting') continue;
     const m = parent.metadata;
-    if (!m?.waitingOn?.length && !m?.childThreadIds?.length && !m?.waitingOnTasks?.length) continue; // legacy waiting — not ours
+    const hasThreadWait = !!m?.waitingOn?.length || !!m?.childThreadIds?.length;
+    if (!hasThreadWait && !hasTaskWaitState(parent)) continue; // legacy waiting — not ours
     recovered++;
 
     for (const childId of [...(m.waitingOn ?? [])]) {

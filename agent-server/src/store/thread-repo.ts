@@ -171,11 +171,13 @@ class ThreadRepo {
         // Suspended parents (waiting on child threads, DR-0014) survive restarts —
         // recoverWaitingThreads() re-delivers child results after startup. childThreadIds
         // also qualifies: a parent that delivered its last child result but crashed before
-        // re-entry has an empty waitingOn yet must still be recovered, not failed. Only
-        // in-flight running threads and legacy waiting (no children) are interrupted.
+        // re-entry has empty wait sets yet must still be recovered, not failed. Only
+        // in-flight running threads and legacy waiting (no owned wait state) are interrupted.
+        const hasTaskWaitState = !!record.metadata?.taskId
+          && Array.isArray(record.metadata.waitingOnTasks);
         const isSuspendedParent = record.status === 'waiting'
           && !!(record.metadata?.waitingOn?.length || record.metadata?.childThreadIds?.length
-            || record.metadata?.waitingOnTasks?.length);
+            || hasTaskWaitState);
         if (isSuspendedParent) continue;
         // Rate-limit-paused threads survive restarts: the throttle re-arms its resume timer (or
         // fires immediately if the window already passed) and resume-dispatcher re-enters them.

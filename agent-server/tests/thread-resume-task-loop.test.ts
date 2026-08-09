@@ -10,7 +10,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR } from '../src/core/paths.js';
 import { threadStore } from '../src/store/thread-repo.js';
-import { closeResumedTaskLoop, startWaitingManagerSweep, sweepWaitingManagers } from '../src/orchestration/thread-callback.js';
+import {
+  closeResumedTaskLoop, recoverWaitingThreads,
+  startWaitingManagerSweep, sweepWaitingManagers,
+} from '../src/orchestration/thread-callback.js';
 import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
 
 const liveSettings = vi.hoisted(() => ({ managerRotateSteps: 10, waitingSweepMs: 60_000 }));
@@ -158,6 +161,32 @@ test('sweepWaitingManagers keeps a manager waiting on a still-open child (no spu
 
   assert.deepEqual(threadStore.get(mgr.id)!.metadata!.waitingOnTasks, ['cc31']);
   assert.equal(resumed.length, 0);
+});
+
+test('waiting sweep resumes a task-backed manager whose wait set is already empty', async () => {
+  const proj = `_rt_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + taskYaml('mm32', { status: 'open' }));
+  const mgr = makeWaitingManager(proj, 'mm32', []);
+  const resumed: string[] = [];
+
+  const n = await sweepWaitingManagers({ resume: (id) => resumed.push(id) });
+
+  assert.ok(n >= 1);
+  assert.deepEqual(resumed, [mgr.id]);
+});
+
+test('startup recovery preserves then resumes a task-backed manager with an empty wait set', async () => {
+  const proj = `_rt_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + taskYaml('mm33', { status: 'open' }));
+  const mgr = makeWaitingManager(proj, 'mm33', []);
+  const resumed: string[] = [];
+
+  await threadStore.markRunningAsFailedOnStartup();
+  assert.equal(threadStore.get(mgr.id)!.status, 'waiting');
+  const n = await recoverWaitingThreads({ resume: (id) => resumed.push(id) });
+
+  assert.ok(n >= 1);
+  assert.deepEqual(resumed, [mgr.id]);
 });
 
 test('waiting sweep re-arms with the current interval and runtime zero stops the loop', async () => {

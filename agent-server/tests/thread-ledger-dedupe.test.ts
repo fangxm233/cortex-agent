@@ -1,9 +1,7 @@
-// input:  Node test runner + thread-callback task-children bridge + acceptance-ledger
-// output: cross-incarnation delivery dedupe tests (accepted skips, pending/rejected re-deliver)
-// pos:    Verify DR-0017 W1: task-keyed acceptance ledger governs child-result delivery
-//         across manager thread incarnations (per-thread deliveredChildResults only
-//         dedupes within one incarnation)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  thread callback, wait state machine, acceptance ledger
+// output: task-result dedupe and same-task reissue regressions
+// pos:    Verifies manager child-result delivery epochs
+// >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';
@@ -12,7 +10,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR } from '../src/core/paths.js';
 import { threadStore } from '../src/store/thread-repo.js';
-import { notifyTaskParentThreads } from '../src/orchestration/thread-callback.js';
+import { tryEnterWaiting } from '../src/domain/threads/index.js';
+import {
+  _testResetCallbackState, notifyTaskParentThreads,
+} from '../src/orchestration/thread-callback.js';
 import { readLedger, recordVerdict } from '../src/domain/tasks/acceptance-ledger.js';
 import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
 
@@ -130,6 +131,33 @@ test('same-incarnation duplicate events still dedupe via deliveredChildResults',
 
   assert.equal(threadStore.get(mgr.id)!.metadata!.pendingMessages!.length, 1,
     'duplicate event within one incarnation queues exactly one notice');
+});
+
+test('re-waiting on a reissued child re-delivers its next blocked result and resumes', async () => {
+  const proj = `_ld_p${seq++}`;
+  const taskFile = path.join(PROJECTS_DIR, proj, 'TASKS.yaml');
+  makeProject(proj, 'tasks:\n' + taskYaml('aa06')
+    + taskYaml('bb06', { parent: 'aa06', blocked: 'first-stop' }));
+  const mgr = makeManager(proj, 'aa06', ['bb06']);
+  const resumed: string[] = [];
+
+  await notifyTaskParentThreads('bb06', 'blocked', { resume: (id) => resumed.push(id) });
+  await threadStore.mutate(mgr.id, (t) => {
+    t.status = 'running';
+    t.metadata!.pendingMessages = [];
+  });
+  _testResetCallbackState();
+  fs.writeFileSync(taskFile, 'tasks:\n' + taskYaml('aa06') + taskYaml('bb06', { parent: 'aa06' }));
+
+  assert.equal(await tryEnterWaiting(mgr.id, { onTasks: ['bb06'] }), true);
+  fs.writeFileSync(taskFile, 'tasks:\n' + taskYaml('aa06')
+    + taskYaml('bb06', { parent: 'aa06', blocked: 'second-stop' }));
+  await notifyTaskParentThreads('bb06', 'blocked', { resume: (id) => resumed.push(id) });
+
+  const current = threadStore.get(mgr.id)!;
+  assert.equal(current.metadata!.pendingMessages!.length, 1);
+  assert.match(current.metadata!.pendingMessages![0], /second-stop/);
+  assert.deepEqual(resumed, [mgr.id, mgr.id]);
 });
 
 test('threads without task metadata keep the legacy per-thread dedupe path (no ledger writes)', async () => {
