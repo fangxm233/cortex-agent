@@ -53,6 +53,8 @@ FORBIDDEN_TOOLS = [
 ROLE_TOOL_SURFACE_HASH = re.compile(r"[0-9a-f]{64}\Z")
 ARM_NAMES = {"claude": "cortex-direct", "pi": "cortex-pi-direct"}
 CODER_REVIEW_ARM_NAMES = {"claude": "cortex-coder-review", "pi": "cortex-pi-coder-review"}
+CODER_REVIEW_VARIANTS = ("audit-retry", "reviewer-fix")
+MANAGER_QA_MODES = (False, True)
 # The implementing slot's surface, in each backend's own labels. Restated rather than imported so a
 # change to the composer is a failure here rather than a silently agreeing pair.
 EXPECTED_CODER_TOOLS = {
@@ -220,29 +222,73 @@ def public_agent(tmp_path: Path, backend: str = "claude") -> CortexBenchAgent:
     )
 
 
-def coder_review_seed(backend: str = "claude") -> dict[str, object]:
+def coder_review_seed(
+    backend: str = "claude", variant: str = "audit-retry",
+) -> dict[str, object]:
     """The direct seed with its orchestration mode changed and the capacity that mode needs. Still
     caller-known trial facts only: no role, no template, no policy document."""
     seed = trial_seed(backend)
     arm = dict(seed["arm"])  # type: ignore[arg-type]
-    arm["name"] = CODER_REVIEW_ARM_NAMES[backend]
+    arm["name"] = (
+        CODER_REVIEW_ARM_NAMES[backend] if variant == "audit-retry"
+        else f"{CODER_REVIEW_ARM_NAMES[backend]}-{variant}"
+    )
     arm["orchestration"] = {
-        "mode": "coder-review", "coder_review_variant": "audit-retry", "ask_manager": False,
+        "mode": "coder-review", "coder_review_variant": variant, "ask_manager": False,
     }
     arm["limits"] = {
         **arm["limits"],  # type: ignore[dict-item]
         "max_thread_starts": 1, "max_resident_agent_processes": 3,
     }
     seed["arm"] = arm
-    seed["arm_path"] = f"arm://{CODER_REVIEW_ARM_NAMES[backend]}"
+    seed["arm_path"] = f"arm://{arm['name']}"
     return seed
 
 
-def coder_review_agent(tmp_path: Path, backend: str = "claude") -> CortexBenchAgent:
+def coder_review_agent(
+    tmp_path: Path, backend: str = "claude", variant: str = "audit-retry",
+) -> CortexBenchAgent:
+    seed = coder_review_seed(backend, variant)
     return CortexBenchAgent(
         logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
-        manifest={**manifest(tmp_path, backend), "arm": CODER_REVIEW_ARM_NAMES[backend]},
-        trial_seed=coder_review_seed(backend),
+        manifest={**manifest(tmp_path, backend), "arm": seed["arm"]["name"]},
+        trial_seed=seed,
+    )
+
+
+def manager_seed(backend: str, ask_manager: bool) -> dict[str, object]:
+    seed = trial_seed(backend)
+    arm = dict(seed["arm"])  # type: ignore[arg-type]
+    arm["name"] = f"cortex-{backend}-manager-qa-{'on' if ask_manager else 'off'}"
+    arm["orchestration"] = {"mode": "manager", "ask_manager": ask_manager}
+    arm["limits"] = {
+        **arm["limits"],  # type: ignore[dict-item]
+        "max_thread_starts": 1,
+        "max_parent_questions": 2 if ask_manager else 0,
+        "max_task_depth": 2,
+        "max_tasks": 8,
+        "max_resident_agent_processes": 3,
+    }
+    seed["arm"] = arm
+    seed["arm_path"] = f"arm://{arm['name']}"
+    return seed
+
+
+def matrix_agent(
+    tmp_path: Path, backend: str, mode: str, detail: str | bool | None,
+) -> CortexBenchAgent:
+    if mode == "direct":
+        seed = trial_seed(backend)
+    elif mode == "coder-review":
+        assert isinstance(detail, str)
+        seed = coder_review_seed(backend, detail)
+    else:
+        assert mode == "manager" and isinstance(detail, bool)
+        seed = manager_seed(backend, detail)
+    return CortexBenchAgent(
+        logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
+        manifest={**manifest(tmp_path, backend), "arm": seed["arm"]["name"]},
+        trial_seed=seed,
     )
 
 
@@ -554,6 +600,69 @@ def test_guard_uses_the_exact_public_class_without_stub_trial(tmp_path: Path) ->
     assert type(agent) is CortexBenchAgent
     assert agent.run.__func__ is CortexBenchAgent.run
     assert agent.setup.__func__ is CortexBenchAgent.setup
+
+
+MATRIX_SHAPES = (
+    *((backend, "direct", None) for backend in ("claude", "pi")),
+    *((backend, "coder-review", variant)
+      for backend in ("claude", "pi") for variant in CODER_REVIEW_VARIANTS),
+    *((backend, "manager", ask_manager)
+      for backend in ("claude", "pi") for ask_manager in MANAGER_QA_MODES),
+)
+
+
+def assert_installed_bundle_paths(document: dict[str, object]) -> None:
+    root = str(server_root())
+    for role in document["roles"].values():
+        assert role["system_prompt_path"].startswith(root)
+        assert role["directive_path"].startswith(root)
+        assert all(path.startswith(root) for path in role["plugin_dirs"])
+    assert all(path.startswith(root) for path in document["thread_templates"].values())
+    assert all(path.startswith(root) for path in document["thread_agents"].values())
+
+
+def assert_mode_projection(
+    agent: CortexBenchAgent, document: dict[str, object], mode: str,
+    detail: str | bool | None,
+) -> None:
+    if mode == "coder-review":
+        expected = (
+            "benchmark-coder-review" if detail == "audit-retry"
+            else "benchmark-coder-review-fix"
+        )
+        assert list(document["thread_templates"]) == [expected]
+        assert (agent.logs_dir / "mcp-config-benchmark-thread.json").is_file()
+        assert (agent.logs_dir / "benchmark-thread-policy.json").is_file()
+        return
+    assert document["thread_templates"] == {}
+    assert document["thread_agents"] == {}
+    assert not (agent.logs_dir / "benchmark-thread-policy.json").exists()
+    if mode == "manager":
+        arm = document["arm"]
+        assert arm["orchestration"]["ask_manager"] is detail
+        assert arm["limits"]["max_parent_questions"] == (2 if detail else 0)
+
+
+@pytest.mark.parametrize(("backend", "mode", "detail"), MATRIX_SHAPES)
+def test_exact_production_class_emits_and_executes_every_s1_arm_projection(
+    tmp_path: Path, backend: str, mode: str, detail: str | bool | None,
+) -> None:
+    agent = matrix_agent(tmp_path, backend, mode, detail)
+    environment = RecordingEnvironment(backend, LONG_MCP_CALL_CLI_VERSIONS[backend])
+    assert type(agent) is CortexBenchAgent
+    for method in ("setup", "run", "preview_run_argv", "_compose_arm_resolution"):
+        assert getattr(agent, method).__func__ is getattr(CortexBenchAgent, method)
+
+    asyncio.run(agent.setup(environment))
+    document = json.loads(assert_run_argv(agent, environment).read_text())
+
+    assert document["arm"]["backend"] == backend
+    assert document["arm"]["orchestration"]["mode"] == mode
+    assert document["cli_artifact"] == {
+        "path": backend_cli_path(), "version": LONG_MCP_CALL_CLI_VERSIONS[backend],
+    }
+    assert_installed_bundle_paths(document)
+    assert_mode_projection(agent, document, mode, detail)
 
 
 def vendor_arm() -> dict[str, object]:
