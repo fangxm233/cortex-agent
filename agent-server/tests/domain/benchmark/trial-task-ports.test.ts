@@ -326,8 +326,8 @@ it('P4: an expired trial lock reads as free', () => {
 });
 
 it('P4: the trial table shape satisfies the lock scope\'s table contract (compile-time pin)', () => {
-  // The benchmark module cannot import task-lock.ts (its closure is a live X4 reach), so the
-  // table contract is declared in both modules; this assignment compiles only while the shapes
+  // The benchmark port keeps the host lock implementation out of its construction surface, so
+  // the table contract is structural; this assignment compiles only while the shapes
   // match, and the runtime calls below pin the behaviour.
   const table: import('../../../src/domain/tasks/system/task-lock.js').TrialTaskLockTable =
     createTrialTaskLockTable(trialClock());
@@ -529,9 +529,8 @@ it('P5 (daemon pin): the task-node functions keep the host PROJECTS_DIR root by 
 // ── Wiring — the ports are reachable through the frozen interface module ──
 
 it('P2/P4/P5: the structural port shapes satisfy the frozen §7.2 declarations (compile-time pins)', () => {
-  // trial-task-ports.ts cannot import composite-runtime-ports.ts (its closure is a platform
-  // reach; importing it would raise the pinned X2 count), so the port shapes are declared
-  // structurally there. Each assignment below compiles only while the shapes match.
+  // trial-task-ports.ts keeps its factory surface independent of the broad composite bundle, so
+  // the port shapes are structural. Each assignment below compiles only while the shapes match.
   const repo: import('../../../src/domain/benchmark/composite-runtime-ports.js').TrialTaskRepository =
     createTrialTaskRepository({ getById: () => null, getAll: () => [], getActionable: () => [], refresh: () => {}, runExclusive: async (fn) => fn(), flush: async () => {} });
   assert.equal(typeof repo.list, 'function');

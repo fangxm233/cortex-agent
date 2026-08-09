@@ -20,12 +20,9 @@
 // wired to your token type"); no declaration is added, removed, renamed or re-shaped by it: the
 // 23 ports, their method sets, arities and return types are unchanged.
 //
-// Import discipline: none of the extraction targets may be imported here, not even for a type.
-// `domain/tasks/mutator.ts` reaches the X4 host stores and X9's `commitAndPush`, and a
-// dependency-cruiser reachability rule cannot exempt type-only edges (§18 G5-R2), so a `import
-// type { MutationResult }` from it would turn the live X4 and X9 rules red. Those shapes are
-// therefore declared structurally below; the shipped types are used only where the module that
-// declares them reaches no prohibited target.
+// Host extraction targets are not runtime dependencies of this bundle. Their narrow port shapes
+// are declared structurally below so the standalone wiring can inject trial-owned implementations
+// without constructing host stores or `commitAndPush` behavior.
 
 import type { Task } from '../../core/task-parser.js';
 import type {
@@ -539,9 +536,8 @@ function portIdOf(field: keyof CompositeRuntimePorts): CompositePortId {
 // The three ports whose extraction this gate lands are implemented in `trial-task-ports.ts`;
 // the coordinator builds each once at start (§4.2 N-1) through these factories, so the frozen
 // interface module is also the single reachable construction surface for its own ports. The
-// implementation module imports no §7.3 X4/X9/X10 target and no module that reaches one — the
-// port shapes are declared there structurally and pinned to the declarations here by the port
-// test — and the isolation-rules test pins the rule counts.
+// implementation module composes no host task store, ambient root or git-push target. Its port
+// shapes are declared structurally and pinned to the declarations here by the port test.
 export {
   createTaskArtifactProjection,
   createTrialTaskLockTable,

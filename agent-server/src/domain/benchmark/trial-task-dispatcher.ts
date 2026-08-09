@@ -12,11 +12,9 @@ import {
 
 const log = createLogger('trial-task-dispatch');
 
-/** Structural stand-in for the frozen `ThreadTemplate` (core/types/thread-types.ts). The frozen
- *  `DispatchSelection.template` carries the real type; importing it here would reach
- *  `@platform/index.js` through thread-types.ts:476 and trip the LIVE §7.3 X2 reachability rule
- *  (type-only edges are not exempt, G5-R2). The frozen type IS assignable to this shape, which is
- *  what the single cast in composite-runtime-ports.ts relies on — nothing is re-declared there. */
+/** Narrow structural view of the frozen `ThreadTemplate`. `DispatchSelection.template` carries
+ *  the full type; the dispatcher needs only these fields, and the wiring assignment in
+ *  `composite-runtime-ports.ts` checks compatibility. */
 export interface TrialThreadTemplate {
   name: string;
   description: string;
@@ -216,9 +214,9 @@ function warnClaimRefused(
 
 /** What the in-trial path does INSTEAD of the three removed host couplings: no locked-project
  *  scan (the trial's lock domain is P4 `TrialTaskLocks`, and eligibility reads only the broker
- *  task source), no GPU occupancy preflight (there is no remote device and no gpu-monitor reach
- *  in a trial — §7.3 X6/X7 prove it; gpu-tagged fields are not consulted), and no template-
- *  profile rate limit (a rate-limited trial fails, it does not park — §7.2 P11). The remaining
+ *  task source), no GPU occupancy preflight (the standalone factory constructs no remote or GPU
+ *  port, and gpu-tagged fields are not consulted), and no template-profile rate limit (a
+ *  rate-limited trial fails, it does not park — §7.2 P11). The remaining
  *  eligibility is: template present, template in the frozen whitelist (R6), resolvable by the
  *  frozen resolver. */
 function isValidDispatchPrompt(value: unknown): boolean {

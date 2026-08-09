@@ -6,14 +6,10 @@
 //         touch host state: the git remote, the host lock table and the host artifact root.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
-// Import discipline (§7.3 X4/X9/X10): this module may not import `store/task-repo.ts` (live X4/X9
-// targets), `core/paths.ts` (X10 direct edge), `domain/tasks/system/task-lock.ts` — its closure
-// reaches `store/thread-repo.ts` through the shipped `task-lifecycle-edit → template-loader →
-// template-validate → threads/utils` chain (a live X4 reach) — or `composite-runtime-ports.ts`
-// itself: its closure reaches `src/platform/`, so importing it even for a type would make this
-// module a new platform-reaching seed and raise the pinned X2 count (a rejection). The §7.2 port
-// shapes are therefore declared structurally below; `task-lock.ts` re-exports the lock-table type,
-// and the port test pins every shape to the frozen declarations by compile-time assignment.
+// This factory seam may not import host task stores, ambient roots or the host task-lock runtime.
+// Trial roots arrive explicitly, and host helpers are entered only through trial-scoped wrappers.
+// The §7.2 port shapes stay structural so this narrow factory does not depend on the broad
+// composite bundle; the port test checks compatibility with the frozen declarations.
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'fs';
@@ -73,9 +69,8 @@ export interface TaskArtifactProjection {
 
 // --- P2 — TrialTaskRepository ---------------------------------------------------------------
 
-/** The shipped `TaskRepo` surface the trial repository needs, declared structurally: the store
- *  singleton is an X4/X9 target and cannot be imported (§7.3), and the git side is deliberately
- *  absent — the port severs it by construction and must not even be able to reach it. */
+/** The task-store surface the trial repository needs, declared structurally. The host singleton
+ *  and git side are absent, so the port severs them by construction. */
 export interface TrialTaskRepositoryDelegate {
   getById(taskId: string): Task | null;
   getAll(project?: string): Task[];
