@@ -27,4 +27,4 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | session-store.test.ts | test | Covers session migration and prune references |
 | task-repo.test.ts | test | Covers task store locking, flush and round-trip |
 | thread-repo.test.ts | test | Covers thread cleanup archival to JSONL |
-| version-migrations.test.ts | test | Covers config and text migration primitives |
+| version-migrations.test.ts | test | Covers config, text migrations and version clocks |
