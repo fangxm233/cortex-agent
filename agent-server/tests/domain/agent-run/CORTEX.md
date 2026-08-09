@@ -16,7 +16,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | agent-run-protocol-e2e.test.ts | e2e | proves stdin, cache-inclusive accounting and failures |
 | benchmark-audit-retry.test.ts | test | proves audit-retry's own stage count, placement, convergence rule and proposal |
 | benchmark-identity-of-record.test.ts | test | proves the compiled policy role is the recorded identity and that a diverging template refuses before any spawn |
-| benchmark-local-thread-entry.ts | fixture | runs one orchestrator in a pinned child |
+| benchmark-local-thread-entry.ts | fixture | bootstraps MCP and runs one pinned orchestrator |
 | benchmark-local-thread-orchestrator.test.ts | test | proves bounds, identity and supervisor gating |
 | benchmark-local-thread-process.test.ts | e2e | proves full-run journal and C8 confinement |
 | benchmark-production-wiring.test.ts | test | proves the trial-adapter route is derived from the two request paths and that a divergent parent identity refuses before any spawn |
@@ -28,12 +28,12 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | benchmark-thread-backend-neutral.test.ts | test | proves per-step trial adapters, widened pins and artifact convergence on both backends |
 | benchmark-thread-workspace.test.ts | test | proves per-step placement, writer refusal, discard and append |
 | fake-backend-cli.ts | fixture | answers, hangs on or prices one queued step per invocation in either backend's wire shape, recording its prompts, lifecycle and declared writes through baked-in paths |
-| fake-run-agent-loader.mjs | fixture | redirects thread-runtime agent imports to a fake |
+| fake-run-agent-loader.mjs | fixture | redirects current runtime agent imports to a fake |
 | fake-run-agent-module.mjs | fixture | returns one deterministic no-model result |
 | fake-run-agent-register.mjs | fixture | installs the fake agent loader before import |
 | fake-supervisor.ts | fixture | emits lifecycle and ownership process edges |
 | fake-thread-probe-entry.mjs | fixture | runs one current-runner step and flushes stores |
-| full-benchmark-thread-probe-entry.mjs | fixture | emits complete fake C4 events for C8 tracing |
+| full-benchmark-thread-probe-entry.mjs | fixture | bootstraps MCP and emits fake C4 events for C8 tracing |
 | identity.test.ts | test | verifies deterministic run and guard identity hashes |
 | long-mcp-call-e2e.test.ts | e2e | holds a real MCP call past 60s on both backends |
 | long-mcp-claude-cli.mjs | fixture | answers one turn behind a real MCP client call |

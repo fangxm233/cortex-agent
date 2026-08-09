@@ -1,4 +1,4 @@
-// input:  serialized C9 request, pinned runtime paths, benchmark orchestrator
+// input:  serialized C9 request, pinned paths, startup MCP bootstrap
 // output: process-level result and initialized-store inventory
 // pos:    Fresh-process fixture for benchmark thread orchestration
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -9,12 +9,15 @@ import {
   CONFIG_DIR, DATA_DIR, PROJECTS_DIR, STORE_DIR, WORKSPACE_DIR,
 } from '../../../src/core/paths.js';
 import { runBenchmarkThread } from '../../../src/domain/agent-run/benchmark-local-thread-orchestrator.js';
+import { ensureMcpConfig } from '../../../src/entry/startup-helpers.js';
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';
 import { threadStore } from '../../../src/store/thread-repo.js';
 
 const requestFile = process.argv[2];
 const outputFile = process.argv[3];
 if (!requestFile || !outputFile) throw new Error('request and output paths are required');
+ensureMcpConfig();
+
 function processSocketInodes(): Set<string> {
   const result = new Set<string>();
   for (const file of fs.readdirSync('/proc/self/fd')) {

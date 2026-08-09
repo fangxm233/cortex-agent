@@ -1,4 +1,4 @@
-// input:  compiled local orchestrator, real supervisor, fake agent loader
+// input:  compiled orchestrator, startup MCP bootstrap, supervisor
 // output: four-step identity receipt and committed terminal manifest
 // pos:    Full benchmark-thread target for the C8 syscall probe
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -56,6 +56,10 @@ for (const kind of ['directives', 'systemPrompts']) {
   }
 }
 
+const { ensureMcpConfig } = await import(
+  path.join(agentRoot, 'dist/entry/startup-helpers.js')
+);
+ensureMcpConfig();
 const { runBenchmarkThread } = await import(
   path.join(agentRoot, 'dist/domain/agent-run/benchmark-local-thread-orchestrator.js')
 );
