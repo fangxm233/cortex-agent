@@ -1,0 +1,1511 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/browser-access/">
+      
+      
+        <link rel="prev" href="../desktop-app/">
+      
+      
+        <link rel="next" href="../slack-setup/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/browser-access/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Browser Access - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#browser-access-deployment" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Browser Access
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/browser-access/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-in-core-web-ui-transport" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The in-core Web UI transport
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment-runbook-source-running-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment runbook (source → running server)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deployment runbook (source → running server)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-build-the-spa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Build the SPA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-where-webdist-is-served-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Where web/dist is served from
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-enable-the-web-ui-endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Enable the Web UI endpoint
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-restart-the-daemon-to-apply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Restart the daemon to apply
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-access-via-cloudflare-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browser access via Cloudflare Access
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Browser access via Cloudflare Access">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-create-a-dedicated-ui-hostname-and-tunnel-route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Create a dedicated UI hostname and tunnel route
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-add-a-cloudflare-access-application-account-side-ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Add a Cloudflare Access application (account-side ops)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-configure-the-server-to-verify-access-jwts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Configure the server to verify Access JWTs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-open-the-workbench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Open the workbench
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-path-vs-desktop-bearer-token-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browser path vs desktop bearer-token path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-in-core-web-ui-transport" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The in-core Web UI transport
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment-runbook-source-running-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment runbook (source → running server)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deployment runbook (source → running server)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-build-the-spa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Build the SPA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-where-webdist-is-served-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Where web/dist is served from
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-enable-the-web-ui-endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Enable the Web UI endpoint
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-restart-the-daemon-to-apply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Restart the daemon to apply
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-access-via-cloudflare-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browser access via Cloudflare Access
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Browser access via Cloudflare Access">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-create-a-dedicated-ui-hostname-and-tunnel-route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Create a dedicated UI hostname and tunnel route
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-add-a-cloudflare-access-application-account-side-ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Add a Cloudflare Access application (account-side ops)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-configure-the-server-to-verify-access-jwts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Configure the server to verify Access JWTs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-open-the-workbench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Open the workbench
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-path-vs-desktop-bearer-token-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browser path vs desktop bearer-token path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="browser-access-deployment">Browser Access &amp; Deployment<a class="headerlink" href="#browser-access-deployment" title="Permanent link">&para;</a></h1>
+<p>Cortex ships a browser workbench — the same SPA the <a href="../desktop-app/">desktop app</a> wraps —
+reachable from any browser without installing anything. This page covers <strong>both</strong> the
+deployment runbook (building the SPA and enabling the Web UI endpoint on your server) and
+the browser access path (reaching it through Cloudflare Access edge login).</p>
+<p>There are two independent ways to reach the workbench, and they authenticate differently:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Who</th>
+<th>Authentication</th>
+<th>Holds <code>clientToken</code>?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Browser</strong></td>
+<td>Anyone with a browser</td>
+<td>Cloudflare Access edge login (email / IdP), verified as a JWT by the server</td>
+<td><strong>No</strong> — the browser never sees the token</td>
+</tr>
+<tr>
+<td><strong>Desktop (Tauri)</strong></td>
+<td>The installed desktop app</td>
+<td>Bearer <code>x-cortex-token</code> (the <code>clientToken</code>) stored in the OS keychain</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<p>This page is the browser + deployment reference. For installing the native desktop app, see
+<a href="../desktop-app/">Desktop App</a>.</p>
+<h2 id="the-in-core-web-ui-transport">The in-core Web UI transport<a class="headerlink" href="#the-in-core-web-ui-transport" title="Permanent link">&para;</a></h2>
+<p>The Web UI transport ships <strong>in-core</strong> with <code>@cortex-agent/server</code> and is <strong>loaded on demand</strong>
+behind the <code>CORTEX_UI_HTTP</code> flag. It pulls <code>@trpc/server</code> and <code>jose</code>, but these are
+<strong>runtime-lazy</strong>: the server imports the transport only through a dynamic import that is reached
+solely when the flag is set. When the flag is unset, neither the transport code nor <code>@trpc/server</code>
+/ <code>jose</code> ever enter the runtime module graph, so a Slack- or TUI-only deployment pays zero UI
+weight — while installing and upgrading stay a single <code>npm install -g @cortex-agent/server</code>.</p>
+<p>When enabled, the transport:</p>
+<ul>
+<li>serves the built SPA (<code>web/dist</code>) <strong>same-origin</strong> with the tRPC API — one port, one origin,
+  so the browser loads <code>index.html</code> + assets and calls <code>/trpc</code> with no cross-origin plumbing;</li>
+<li>exposes the tRPC API at <code>/trpc</code> (HTTP batch for queries/mutations, SSE for subscriptions),
+  connected in-process directly to the server's domain services (no proxy, no sidecar);</li>
+<li>gates every <code>/trpc</code> request behind a <strong>dual-path auth</strong> check (see
+  <a href="#authentication">Authentication</a>).</li>
+</ul>
+<p>It runs in the same process as the server, binds to <code>127.0.0.1</code>, and is meant to be exposed
+to the internet only through a tunnel.</p>
+<h2 id="deployment-runbook-source-running-server">Deployment runbook (source → running server)<a class="headerlink" href="#deployment-runbook-source-running-server" title="Permanent link">&para;</a></h2>
+<p>These steps take you from a fresh checkout to a Cortex server serving the browser workbench.</p>
+<h3 id="1-prerequisites">1. Prerequisites<a class="headerlink" href="#1-prerequisites" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Node.js ≥ 20 and <a href="https://pnpm.io">pnpm</a> (this repo is a pnpm workspace).</li>
+<li>A running Cortex server (see <a href="../quickstart/">Quickstart</a>).</li>
+</ul>
+<h3 id="2-build-the-spa">2. Build the SPA<a class="headerlink" href="#2-build-the-spa" title="Permanent link">&para;</a></h3>
+<p>The web SPA is built to <code>web/dist</code>. From the repo root:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pnpm<span class="w"> </span>install<span class="w">            </span><span class="c1"># install workspace dependencies</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pnpm<span class="w"> </span>-r<span class="w"> </span>run<span class="w"> </span>build<span class="w">       </span><span class="c1"># build every workspace package, including web → web/dist</span>
+</code></pre></div>
+<p>To build only the SPA and its dependencies:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pnpm<span class="w"> </span>--filter<span class="w"> </span>@cortex-agent/ui-contract<span class="w"> </span>run<span class="w"> </span>build
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pnpm<span class="w"> </span>--filter<span class="w"> </span>web<span class="w"> </span>run<span class="w"> </span>build<span class="w">      </span><span class="c1"># produces web/dist</span>
+</code></pre></div>
+<p><code>web/dist</code> is a plain static bundle (<code>index.html</code> + hashed assets). When the <code>@cortex-agent/server</code>
+package is published, <code>web/dist</code> is staged into the package (via a <code>prepack</code> step) and shipped in
+its <code>files</code>, so an installed server can serve the SPA with no extra build. From a source checkout
+you build it yourself with the step above.</p>
+<h3 id="3-where-webdist-is-served-from">3. Where <code>web/dist</code> is served from<a class="headerlink" href="#3-where-webdist-is-served-from" title="Permanent link">&para;</a></h3>
+<p>The server resolves the SPA directory in this order:</p>
+<ol>
+<li>an explicit directory you pass to it;</li>
+<li>the <code>CORTEX_UI_SPA_DIR</code> environment variable;</li>
+<li>the package-root <code>web/dist</code> (present in an installed/published package);</li>
+<li>the monorepo's <code>web/dist</code> (when running from a source checkout).</li>
+</ol>
+<p>If you deploy an installed package, option 3 works out of the box. If you deploy from a repo
+checkout, option 4 works with no configuration — build <code>web/dist</code> in place and it is served
+automatically. If you deploy the built SPA to a different location, point <code>CORTEX_UI_SPA_DIR</code> at
+it. If the directory is absent (SPA not built), non-<code>/trpc</code> paths return a 404 placeholder while
+<code>/trpc</code> still works.</p>
+<h3 id="4-enable-the-web-ui-endpoint">4. Enable the Web UI endpoint<a class="headerlink" href="#4-enable-the-web-ui-endpoint" title="Permanent link">&para;</a></h3>
+<p>Add to <code>~/.cortex/config/.env</code> on the server:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">CORTEX_UI_HTTP</span><span class="o">=</span><span class="m">1</span><span class="w">          </span><span class="c1"># opt-in: start the tRPC HTTP + SSE endpoint (required)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">CORTEX_UI_PORT</span><span class="o">=</span><span class="m">3004</span><span class="w">       </span><span class="c1"># optional; defaults to 3004</span>
+</code></pre></div>
+<p><code>CORTEX_UI_HTTP</code> accepts <code>1</code>, <code>true</code>, <code>on</code>, or <code>yes</code>. With it unset, the endpoint — and the
+Web UI transport, along with <code>@trpc/server</code> / <code>jose</code> — never loads.</p>
+<h3 id="5-restart-the-daemon-to-apply">5. Restart the daemon to apply<a class="headerlink" href="#5-restart-the-daemon-to-apply" title="Permanent link">&para;</a></h3>
+<p>The daemon reads the SPA and env at startup, so a new build or env change takes effect on
+restart:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cortex<span class="w"> </span>daemon<span class="w">   </span><span class="c1"># or: systemctl --user restart cortex (if you registered a service)</span>
+</code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title">Restarting is disruptive</p>
+<p>Restarting the daemon interrupts any in-flight agents, threads, and scheduled work.
+Treat it as a deliberate, controlled action — schedule it when the system is idle, and
+if your Cortex instance runs under an approval policy, route the restart through that
+approval step rather than restarting ad hoc.</p>
+</div>
+<p>At this point the server is reachable at <code>http://127.0.0.1:3004</code> <strong>on the server host only</strong>.
+Exposing it to a browser is the next section.</p>
+<h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
+<p>The <code>/trpc</code> auth gate accepts a request if <strong>either</strong> credential is valid, and returns <code>401</code>
+before tRPC runs otherwise:</p>
+<ol>
+<li><strong><code>x-cortex-token</code> header</strong> equal to the server's <code>clientToken</code> — the desktop / machine
+   path. Checked first, with a constant-time comparison. Unchanged from before.</li>
+<li><strong>A valid <code>Cf-Access-Jwt-Assertion</code> header</strong> — the browser path. Cloudflare's edge injects
+   this JWT after it authenticates the user; the server verifies it. <strong>The browser never holds
+   the <code>clientToken</code>.</strong></li>
+</ol>
+<p>The server verifies the Access JWT against your Cloudflare Access team-domain JWKS, checking
+the signature (RS256 / ES256 only), the audience (AUD) tag, the issuer, and expiry. If Access
+is <strong>not</strong> configured on the server, the JWT path is disabled and the gate securely degrades to
+token-only — an unconfigured Access path never admits a request.</p>
+<h2 id="browser-access-via-cloudflare-access">Browser access via Cloudflare Access<a class="headerlink" href="#browser-access-via-cloudflare-access" title="Permanent link">&para;</a></h2>
+<p>The browser path puts a <strong>Cloudflare Access edge login in front of a dedicated UI hostname</strong>,
+so users log in with email / IdP at the edge and the server only ever sees an already-verified
+request.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>browser
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  │  https (Cloudflare Access: email / IdP login at the edge)
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  ▼
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>Cloudflare Tunnel   (cortex-ui.example.com  →  server localhost:3004)
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  │  edge injects  Cf-Access-Jwt-Assertion  on every request
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>  ▼
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>agent-server Web UI transport  (verifies the JWT; the browser never holds clientToken)
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>  ├─ serves web/dist  (same-origin SPA)
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>  └─ serves /trpc     (same-origin real data, in-process)
+</code></pre></div>
+<h3 id="1-create-a-dedicated-ui-hostname-and-tunnel-route">1. Create a dedicated UI hostname and tunnel route<a class="headerlink" href="#1-create-a-dedicated-ui-hostname-and-tunnel-route" title="Permanent link">&para;</a></h3>
+<p>Point a Cloudflare Tunnel route from a <strong>new</strong> public hostname (for example
+<code>cortex-ui.example.com</code>) to the server's loopback endpoint (<code>http://127.0.0.1:3004</code>, or your
+<code>CORTEX_UI_PORT</code>).</p>
+<div class="admonition danger">
+<p class="admonition-title">Use a separate hostname from the cortex-client endpoint</p>
+<p>The hostname your remote <code>cortex-client</code> instances connect to must <strong>not</strong> be placed behind
+Cloudflare Access — Access would block the WebSocket clients. Always give the browser UI its
+<strong>own</strong> hostname and apply Access only to that one.</p>
+</div>
+<h3 id="2-add-a-cloudflare-access-application-account-side-ops">2. Add a Cloudflare Access application (account-side ops)<a class="headerlink" href="#2-add-a-cloudflare-access-application-account-side-ops" title="Permanent link">&para;</a></h3>
+<p>In the Cloudflare Zero Trust dashboard, create a <strong>self-hosted Access application</strong> for the UI
+hostname with a policy that allows your login email (or IdP group). This is an account-level
+operation performed in the Cloudflare dashboard, not in Cortex config. Note the application's
+<strong>AUD tag</strong> — you need it below.</p>
+<h3 id="3-configure-the-server-to-verify-access-jwts">3. Configure the server to verify Access JWTs<a class="headerlink" href="#3-configure-the-server-to-verify-access-jwts" title="Permanent link">&para;</a></h3>
+<p>Add to <code>~/.cortex/config/.env</code> on the server:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">CORTEX_ACCESS_TEAM_DOMAIN</span><span class="o">=</span>your-team<span class="w">      </span><span class="c1"># bare team name, or your-team.cloudflareaccess.com</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">CORTEX_ACCESS_AUD</span><span class="o">=</span>&lt;your-access-app-AUD&gt;<span class="w">  </span><span class="c1"># the Access application&#39;s AUD tag</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># CORTEX_ACCESS_CERTS_URL=...            # optional: override the derived JWKS URL</span>
+</code></pre></div>
+<p>From <code>CORTEX_ACCESS_TEAM_DOMAIN</code> the server derives the issuer
+(<code>https://your-team.cloudflareaccess.com</code>) and the JWKS URL
+(<code>https://your-team.cloudflareaccess.com/cdn-cgi/access/certs</code>). If <strong>either</strong>
+<code>CORTEX_ACCESS_TEAM_DOMAIN</code> or <code>CORTEX_ACCESS_AUD</code> is unset, the browser path stays disabled
+(token-only). Restart the daemon after changing these values.</p>
+<h3 id="4-open-the-workbench">4. Open the workbench<a class="headerlink" href="#4-open-the-workbench" title="Permanent link">&para;</a></h3>
+<p>Navigate to <code>https://cortex-ui.example.com</code>. Cloudflare Access challenges you for email / IdP
+login; after you authenticate, the edge forwards every request with a verified
+<code>Cf-Access-Jwt-Assertion</code>, the server serves the same-origin SPA, and the workbench loads real
+tRPC data — no token, no local install.</p>
+<h2 id="browser-path-vs-desktop-bearer-token-path">Browser path vs desktop bearer-token path<a class="headerlink" href="#browser-path-vs-desktop-bearer-token-path" title="Permanent link">&para;</a></h2>
+<p>Both paths reach the same <code>/trpc</code> API and the same workbench, but they differ in <strong>where</strong> and
+<strong>how</strong> they authenticate:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Browser</th>
+<th>Desktop (Tauri)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hostname</td>
+<td>Dedicated UI hostname <strong>behind</strong> Cloudflare Access</td>
+<td>A hostname <strong>not</strong> behind Access</td>
+</tr>
+<tr>
+<td>Login</td>
+<td>Cloudflare Access edge login (email / IdP)</td>
+<td>Enter <code>serverUrl</code> + <code>clientToken</code> once</td>
+</tr>
+<tr>
+<td>Credential on requests</td>
+<td><code>Cf-Access-Jwt-Assertion</code> (issued by the edge)</td>
+<td><code>x-cortex-token</code> header</td>
+</tr>
+<tr>
+<td>Where auth is checked</td>
+<td>JWT verified by the server</td>
+<td>Token verified by the server</td>
+</tr>
+<tr>
+<td><code>clientToken</code> exposure</td>
+<td><strong>Never touches the browser</strong></td>
+<td>Stored in the OS keychain</td>
+</tr>
+<tr>
+<td>SPA origin</td>
+<td>Same-origin (SPA + <code>/trpc</code> on one host)</td>
+<td>Direct connection to <code>/trpc</code> (CORS-enabled)</td>
+</tr>
+</tbody>
+</table>
+<p>Because the desktop app sends <code>x-cortex-token</code>, it must connect through a hostname that is
+<strong>not</strong> behind Cloudflare Access (Access would block the bearer request at the edge). The
+browser path is the opposite: Access does the login, and the browser gets in <strong>without</strong> ever
+holding the token. Choose the desktop app when you want a native window and are comfortable
+storing the token locally; choose the browser path when you want zero install and IdP-managed
+access.</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<p><strong>Browser gets a Cloudflare login loop or <code>403</code> at the edge</strong></p>
+<p>The Access application policy does not allow your identity. Check the policy on the UI
+hostname's Access application in the Cloudflare Zero Trust dashboard.</p>
+<p><strong>Browser logs in at the edge but the workbench shows <code>401</code> / no data</strong></p>
+<p>The edge authenticated you but the server rejected the JWT. Confirm on the server that
+<code>CORTEX_ACCESS_TEAM_DOMAIN</code> matches your team and <code>CORTEX_ACCESS_AUD</code> matches the Access
+application's AUD tag exactly, and that the daemon was restarted after setting them. With those
+unset, the browser path is disabled and every browser request is <code>401</code>.</p>
+<p><strong>The page loads but <code>/trpc</code> calls <code>404</code></strong></p>
+<p><code>web/dist</code> was not found, so only the API is served. Build the SPA (<code>pnpm --filter web run
+build</code>) or point <code>CORTEX_UI_SPA_DIR</code> at your built bundle, then restart.</p>
+<p><strong>Nothing is reachable at the UI hostname</strong></p>
+<ol>
+<li>Confirm <code>CORTEX_UI_HTTP=1</code> is set and the daemon was restarted after adding it.</li>
+<li>On the server, confirm the endpoint is up: <code>curl http://127.0.0.1:3004/trpc</code> should return a
+   tRPC error (not connection-refused).</li>
+<li>Confirm the Cloudflare Tunnel is running and its route points at the correct port.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

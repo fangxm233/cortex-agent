@@ -1,0 +1,1826 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/cli-reference/">
+      
+      
+        <link rel="prev" href="../configuration/">
+      
+      
+        <link rel="next" href="../backends/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/cli-reference/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>CLI Reference - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cli-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLI Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/cli-reference/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cortex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-task
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-task">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#read-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#approval-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approval commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#blocking-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Blocking commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acceptance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Acceptance commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mutation-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mutation commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lock-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lock commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#maintenance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maintenance commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-lifecycle-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task lifecycle states
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-run
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#launch-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Launch mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancel mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cortex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-task
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-task">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#read-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#approval-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approval commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#blocking-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Blocking commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acceptance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Acceptance commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mutation-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mutation commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lock-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lock commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#maintenance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maintenance commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-lifecycle-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task lifecycle states
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-run
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#launch-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Launch mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancel mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cli-reference">CLI Reference<a class="headerlink" href="#cli-reference" title="Permanent link">&para;</a></h1>
+<p>Cortex ships three binaries, registered in <code>agent-server/package.json</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Binary</th>
+<th>Entry point</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cortex</code></td>
+<td><code>dist/entry/cli.js</code></td>
+<td>Server management and initialization</td>
+</tr>
+<tr>
+<td><code>cortex-task</code></td>
+<td><code>dist/domain/tasks/system/task-cli.js</code></td>
+<td>Task system read and mutation</td>
+</tr>
+<tr>
+<td><code>cortex-run</code></td>
+<td><code>dist/domain/tasks/system/cortex-run.js</code></td>
+<td>Remote command dispatch</td>
+</tr>
+</tbody>
+</table>
+<p>All three accept <code>--help</code> (or <code>-h</code>) to print their usage. The <code>cortex task</code>
+subcommand delegates directly to <code>cortex-task</code>.</p>
+<hr />
+<h2 id="cortex">cortex<a class="headerlink" href="#cortex" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cortex &lt;command&gt; [options]
+</code></pre></div>
+<p>Server lifecycle and initialization CLI.</p>
+<h3 id="commands">Commands<a class="headerlink" href="#commands" title="Permanent link">&para;</a></h3>
+<p><strong><code>cortex init [--home &lt;path&gt;] [--gateway-config-dir &lt;path&gt;] [--force]</code></strong></p>
+<p>Interactive initialization wizard. Creates the <code>CORTEX_HOME</code> directory
+structure, prompts for backends (Claude Code / PI), interaction platform
+(Slack), gateway usage, and system service registration.
+Generates <code>.env</code> with platform tokens, copies default configs, and
+auto-generates <code>mcp-config.json</code> and <code>mode.json</code>.</p>
+<p>Options:
+- <code>--home &lt;path&gt;</code> — set <code>CORTEX_HOME</code> (default: <code>$CORTEX_HOME</code> or <code>~/.cortex/</code>)
+- <code>--gateway-config-dir &lt;path&gt;</code> — gateway config output directory (default: <code>~/.aistatus/</code>)
+- <code>--force</code> — overwrite existing configs (<code>.env</code>, <code>budget.json</code>, <code>mode.json</code>, etc.)</p>
+<p><strong><code>cortex start</code></strong></p>
+<p>Fork <code>dist/entry/app.js</code> as a child process, inherit stdio. This is the
+primary way to run Cortex in the foreground. The child process runs the
+Slack bot, webhook server, and all agent orchestration.</p>
+<p><strong><code>cortex daemon</code></strong></p>
+<p>Fork <code>dist/entry/daemon.js</code> as a child process, inherit stdio. The daemon
+wraps <code>app.js</code> with file watching and auto-restart on crash. Touching
+<code>$STORE_DIR/.restart</code> signals the daemon to drain and respawn <code>app.js</code>.</p>
+<p><strong><code>cortex restart</code></strong></p>
+<p>Signal a running daemon to drain and respawn <code>app.js</code> by touching the
+<code>.restart</code> trigger file at <code>$STORE_DIR/.restart</code>. If no daemon is running,
+this is a no-op beyond creating the file.</p>
+<p><strong><code>cortex task &lt;subcommand&gt; [options]</code></strong></p>
+<p>Delegate to <code>cortex-task</code>. See the <code>cortex-task</code> section below for all
+subcommands.</p>
+<p><strong><code>cortex config</code></strong></p>
+<p>Print resolved paths and initialization status. Shows <code>INSTALL_ROOT</code>,
+all data directories, and whether <code>.env</code>, <code>mcp-config.json</code>, and
+<code>mode.json</code> exist.</p>
+<p><strong><code>cortex doctor [--fix] [--json]</code></strong></p>
+<p>Health-check the whole installation in one pass and report what is wrong.
+The default run is read-only and safe at any time. It inspects four areas:</p>
+<ul>
+<li>Runtime &amp; process — Node version, <code>git</code> on PATH, the configured backend
+  binary (<code>claude</code> / <code>pi</code>), and whether the daemon is running.</li>
+<li>Backend install / login — data directories exist and are writable, <code>.env</code>
+  is present, the WebSocket/webhook auth tokens are set, <code>ANTHROPIC_API_KEY</code>
+  status, and that <code>mode.json</code>, <code>profiles.json</code>, and <code>mcp-config.json</code> are
+  present and valid. It also smoke-tests the installed PI runtime and its
+  <code>login</code> export, then summarizes expired or logged-out in-use providers from
+  the credential-free backend auth snapshot. These two checks warn rather than
+  fail. In API mode, a healthy gateway with no local key is reported as
+  gateway-backed information instead of a false logged-out warning.</li>
+<li>Messaging platform — resolves <code>CORTEX_PLATFORM</code> and validates the
+  credentials for each enabled platform (Slack <code>xoxb-</code>/signing/<code>xapp-</code>,
+  Feishu app id/secret).</li>
+<li>Gateway — <code>~/.aistatus/gateway.yaml</code> presence and a health probe of
+  <code>http://127.0.0.1:9880/status</code>. The probe is reported as a failure only
+  when the gateway is actually in use; otherwise it is skipped.</li>
+</ul>
+<p>Each check prints <code>[OK]</code>, <code>[WARN]</code>, <code>[FAIL]</code>, or <code>[--]</code> (skipped) with a
+short detail and, for problems, a fix hint. The command exits <code>1</code> when any
+check fails, else <code>0</code>.</p>
+<p>Options:
+- <code>--fix</code> — apply safe, idempotent repairs only: create missing data
+  directories, generate missing auth tokens, and rebuild <code>mcp-config.json</code>.
+  It never deletes configuration or overwrites existing credentials. After
+  fixing, diagnostics re-run so the summary reflects the repaired state.
+- <code>--json</code> — emit the full report (sections, checks, counts) as JSON for
+  scripting.</p>
+<p><strong><code>cortex auth status [--json]</code></strong></p>
+<p>Read the normalized Claude Code and PI authentication snapshot. The default
+text output shows a concise status overview, while <code>--json</code> returns the full
+<code>AuthStatusSnapshot</code> for scripting. Both forms omit credential values and
+fragments.</p>
+<p>This subcommand is read-only. Remote login starts from <code>!login</code> in Slack or
+Feishu, or <strong>Settings → Accounts</strong> in the Web UI; mobile users drill in at
+<code>/m/settings/accounts</code>. There is no OAuth or API-key login flag on <code>cortex auth</code>.</p>
+<p>Options:
+- <code>--json</code> — print the complete credential-free status snapshot as JSON
+- <code>--help</code>, <code>-h</code> — show auth command help</p>
+<p>See <a href="../backends/#remote-login">Backends: Remote login</a> for login commands,
+provider capability rules, and expiration handling.</p>
+<p><strong><code>cortex auth provider &lt;list|add|remove&gt; [options]</code></strong></p>
+<p>Manage custom PI providers — self-hosted or proxied endpoints that have no
+login flow of their own. <code>add</code> is an upsert, so re-running it with a changed
+URL or model list edits the stored definition in place.</p>
+<p>Options:
+- <code>--name &lt;name&gt;</code> — provider name; letters, digits, <code>-</code> and <code>_</code> only
+- <code>--api &lt;api&gt;</code> — request protocol: <code>anthropic-messages</code>, <code>openai-completions</code>, <code>openai-responses</code>, or <code>google-generative-ai</code>
+- <code>--url &lt;url&gt;</code> — upstream endpoint, stored in the gateway route
+- <code>--key &lt;key|-&gt;</code> — upstream API key; <code>-</code> reads it from stdin so it never appears in shell history
+- <code>--model &lt;id&gt;</code> — a model id the endpoint serves; repeat for several
+- <code>--dry-run</code> — on <code>remove</code>, report what would be deleted without deleting it
+- <code>--json</code> — print the result as JSON
+- <code>--help</code>, <code>-h</code> — show provider command help</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># define a local endpoint that speaks the Anthropic protocol</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>add<span class="w"> </span>--name<span class="w"> </span>my-vllm<span class="w"> </span>--api<span class="w"> </span>anthropic-messages<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--url<span class="w"> </span>http://127.0.0.1:8100<span class="w"> </span>--model<span class="w"> </span>Model-27B
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># take the key from a secret store instead of the command line</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>pass<span class="w"> </span>show<span class="w"> </span>my-endpoint<span class="w"> </span><span class="p">|</span><span class="w"> </span>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>add<span class="w"> </span>--name<span class="w"> </span>my-proxy<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--api<span class="w"> </span>openai-completions<span class="w"> </span>--url<span class="w"> </span>https://proxy.example.com/v1<span class="w"> </span>--model<span class="w"> </span>small<span class="w"> </span>--key<span class="w"> </span>-
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>list<span class="w"> </span>--json
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>remove<span class="w"> </span>--name<span class="w"> </span>my-vllm<span class="w"> </span>--dry-run
+</code></pre></div>
+<p>See <a href="../backends/#custom-providers">Backends: Custom providers</a> for what the
+two writes contain and how a definition reaches an agent.</p>
+<p><strong><code>cortex setup-gateway [--dry-run] [--output-dir &lt;path&gt;]</code></strong></p>
+<p>Auto-detect Claude Code and PI configurations from their local config
+files, generate <code>~/.aistatus/gateway.yaml</code> (with backup of existing),
+and write <code>$CORTEX_HOME/config/profiles.json</code>. Run this whenever you add
+a new API key or change models.</p>
+<p>Options:
+- <code>--dry-run</code> — print the generated gateway.yaml to stdout without writing
+- <code>--output-dir &lt;path&gt;</code> — write gateway.yaml and profiles.json under <code>&lt;path&gt;</code> instead of defaults</p>
+<h3 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Success</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Error (invalid command, missing config, runtime failure)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cortex-task">cortex-task<a class="headerlink" href="#cortex-task" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>cortex-task &lt;command&gt; [options]
+</code></pre></div>
+<p>Read and mutate TASKS.yaml files across projects. For the full task system
+lifecycle, format reference, and dispatch model, see <a href="../tasks/">tasks.md</a>. Available both as a
+standalone binary and via <code>cortex task &lt;command&gt;</code>.</p>
+<h3 id="read-commands">Read commands<a class="headerlink" href="#read-commands" title="Permanent link">&para;</a></h3>
+<p>These commands do not modify any files. They all support <code>--json</code> for
+machine-readable output.</p>
+<p><strong><code>list [--project &lt;name&gt;] [--status &lt;status&gt;] [--priority &lt;level&gt;] [--text &lt;filter&gt;] [--has-deps] [--no-deps] [--json]</code></strong></p>
+<p>Show actionable tasks (default). Filters by project, status, priority, text
+substring, or dependency presence. Use <code>--all</code> to include completed tasks.</p>
+<p><strong><code>all [options]</code></strong></p>
+<p>Alias for <code>list --all</code>. Shows all tasks including completed ones.</p>
+<p><strong><code>query [--project &lt;name&gt;] [--status &lt;status&gt;] [--priority &lt;level&gt;] [--has-deps] [--no-deps] [--json]</code></strong></p>
+<p>Filter across all tasks (including completed). Same filter options as <code>list</code>
+but always scans the full task set.</p>
+<p><strong><code>show --task-id &lt;id&gt; [--json]</code></strong></p>
+<p>Show detailed information for a single task: text, why, done-when, plan,
+status, dependencies, and dependent tasks.</p>
+<p><strong><code>deps --task-id &lt;id&gt; [--json]</code></strong></p>
+<p>Show the dependency graph for one task: what it depends on and what depends
+on it.</p>
+<p><strong><code>lint [--project &lt;name&gt;] [--json]</code></strong></p>
+<p>Validate task structure: missing IDs, dangling dependencies, cycles, and
+invalid template names.</p>
+<p><strong><code>stats [--json]</code></strong></p>
+<p>Print task supply statistics per project: counts by status and priority.</p>
+<h3 id="state-commands">State commands<a class="headerlink" href="#state-commands" title="Permanent link">&para;</a></h3>
+<p>These commands require <code>--project</code> and either <code>--task-id</code> or <code>--task</code>.</p>
+<p><strong><code>claim --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;) [--agent &lt;name&gt;]</code></strong></p>
+<p>Mark a task as in-progress (claimed). The <code>--agent</code> flag records which agent
+claimed it (default: <code>cortex-local</code>).</p>
+<p><strong><code>unclaim --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>Remove the claimed status from a task, returning it to open.</p>
+<p><strong><code>pause --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>Pause a task (typically an in-progress one). Paused tasks are not dispatched.</p>
+<p><strong><code>resume --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>Resume a paused task.</p>
+<p><strong><code>pending --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>Mark a task as pending (waiting for a <code>cortex-run</code> process to complete).</p>
+<p><strong><code>reopen --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>Restore a stuck <code>pending</code> task back to <code>open</code> so the dispatcher can pick it up
+again. Use this to rescue a task that stayed <code>pending</code> after a lost <code>cortex-run</code>
+callback. It is idempotent on an already-open task and refuses a completed task
+(use <code>uncomplete</code> for those).</p>
+<p><strong><code>complete --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;) [--note &lt;text&gt;] [--skip-verify] [--skip-verify-reason &lt;text&gt;]</code></strong></p>
+<p>Mark a task as complete. Requires a <code>--note</code> describing what was done. By
+default, Cortex validates that the <code>done-when</code> criteria were met. Use
+<code>--skip-verify</code> with <code>--skip-verify-reason</code> to bypass validation.</p>
+<p><strong><code>uncomplete --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>Reverse a completed task, returning it to its previous state.</p>
+<h3 id="approval-commands">Approval commands<a class="headerlink" href="#approval-commands" title="Permanent link">&para;</a></h3>
+<p><strong><code>request-approval --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>Mark a task as needing approval.</p>
+<p><strong><code>approve --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>Approve a task that was waiting for approval.</p>
+<p><strong><code>clear-approval --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>Clear the approval status from a task.</p>
+<h3 id="blocking-commands">Blocking commands<a class="headerlink" href="#blocking-commands" title="Permanent link">&para;</a></h3>
+<p><strong><code>block --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;) --reason &lt;text&gt;</code></strong></p>
+<p>Block a task with a reason. Blocked tasks are not dispatched.</p>
+<p><strong><code>unblock --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>Unblock a previously blocked task.</p>
+<h3 id="acceptance-commands">Acceptance commands<a class="headerlink" href="#acceptance-commands" title="Permanent link">&para;</a></h3>
+<p><strong><code>verdict --project &lt;name&gt; --task-id &lt;parent id&gt; --child &lt;child id&gt; --verdict accepted|rejected [--note &lt;text&gt;]</code></strong></p>
+<p>Record a manager's acceptance verdict for a delivered child task into the
+parent task node's acceptance ledger (DR-0017). Required: <code>--project</code>,
+<code>--task-id</code> (the parent/manager task), <code>--child</code> (the child task id), and
+<code>--verdict</code>, which must be exactly <code>accepted</code> or <code>rejected</code> (any other value is
+an error). <code>--note</code> optionally records why. An <code>accepted</code> child result <strong>never
+re-delivers</strong> to future manager incarnations; a <code>rejected</code> verdict bumps the
+child's <code>rework_round</code> and <strong>re-opens</strong> the child for another verdict when it
+completes again after rework. This command writes a per-node ledger and does
+not require a project lock. For the acceptance-ledger data model, see
+<a href="../tasks/">tasks.md</a>.</p>
+<h3 id="mutation-commands">Mutation commands<a class="headerlink" href="#mutation-commands" title="Permanent link">&para;</a></h3>
+<p>These commands require a project lock (<code>cortex-task lock-acquire</code>) before
+they can run, to prevent concurrent edits to the same TASKS.yaml.</p>
+<p><strong><code>add --project &lt;name&gt; --text &lt;text&gt; [--why &lt;text&gt;] [--done-when &lt;text&gt;] [--plan &lt;path&gt;] [--priority &lt;level&gt;] [--template &lt;name&gt;] [--depends-on &lt;id...&gt;]</code></strong></p>
+<p>Add a new task. Required: <code>--text</code>. Optional: <code>--why</code> (rationale),
+<code>--done-when</code> (success criteria), <code>--plan</code> (reference to design doc),
+<code>--priority</code> (high/medium/low, default: medium), <code>--template</code> (thread
+template name), <code>--depends-on</code> (space-separated hex IDs).</p>
+<p><strong><code>edit --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;) [--text &lt;text&gt;] [--why &lt;text&gt;] [--done-when &lt;text&gt;] [--plan &lt;path&gt;] [--priority &lt;level&gt;] [--depends-on &lt;id...&gt;] [--add-depends-on &lt;id&gt;] [--remove-depends-on &lt;id&gt;] [--clear-depends-on]</code></strong></p>
+<p>Edit task fields. At least one field must be specified. Dependencies can be
+set (replace), appended (<code>--add-depends-on</code>, repeatable), removed
+(<code>--remove-depends-on</code>, repeatable), or cleared (<code>--clear-depends-on</code>).</p>
+<p><strong><code>batch-edit --project &lt;name&gt; --task-ids &lt;ids&gt; [fields...]</code></strong></p>
+<p>Apply the same edit to multiple tasks. <code>--task-ids</code> takes a comma-separated
+list of hex IDs. Same field options as <code>edit</code>.</p>
+<p><strong><code>decompose --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;) --subtasks-file &lt;path&gt; [--dry-run]</code></strong></p>
+<p>Replace a task with subtasks defined in a JSON file. Use <code>-</code> for stdin.
+<code>--dry-run</code> previews without executing.</p>
+<h3 id="lock-commands">Lock commands<a class="headerlink" href="#lock-commands" title="Permanent link">&para;</a></h3>
+<p>The project lock system prevents concurrent edits to TASKS.yaml. Each lock
+has a fixed 20-minute TTL.</p>
+<p><strong><code>lock-acquire --project &lt;name&gt; [--force] [--note &lt;text&gt;] [--json]</code></strong></p>
+<p>Acquire a project lock. Identifies the owner via <code>git config user.email</code> or
+<code>$USER</code>. <code>--force</code> steals the lock from another owner.</p>
+<p><strong><code>lock-release --project &lt;name&gt; [--force] [--json]</code></strong></p>
+<p>Release a project lock. Only the lock owner (or <code>--force</code>) can release.</p>
+<p><strong><code>lock-status [--project &lt;name&gt;] [--json]</code></strong></p>
+<p>Show lock status. Without <code>--project</code>, lists all projects.</p>
+<p><strong><code>lock-force-release --project &lt;name&gt; [--json]</code></strong></p>
+<p>Force-release a project lock regardless of owner.</p>
+<h3 id="maintenance-commands">Maintenance commands<a class="headerlink" href="#maintenance-commands" title="Permanent link">&para;</a></h3>
+<p><strong><code>assign-ids [--project &lt;name&gt;]</code></strong></p>
+<p>Auto-assign 4-character hex IDs to tasks missing one. Requires project lock.</p>
+<p><strong><code>validate</code></strong></p>
+<p>Validate all task IDs across all projects. Checks for duplicate IDs and
+malformed entries. Does not modify files.</p>
+<p><strong><code>stop --task-id &lt;id&gt; [--dry-run]</code></strong></p>
+<p>Kill a dispatched task process. <code>--task-id</code> can be a dispatch ID (e.g.
+<code>dispatch_abc123</code>) or a task hash. <code>--dry-run</code> shows what would be killed
+without executing. The kill is forwarded to the remote client via the
+daemon webhook.</p>
+<h3 id="common-options">Common options<a class="headerlink" href="#common-options" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--project &lt;name&gt;</code></td>
+<td>Project name (required for most write commands)</td>
+</tr>
+<tr>
+<td><code>--task-id &lt;id&gt;</code></td>
+<td>Task hash ID (4-char hex)</td>
+</tr>
+<tr>
+<td><code>--task &lt;text&gt;</code></td>
+<td>Lookup by task text (fuzzy alternative to <code>--task-id</code>)</td>
+</tr>
+<tr>
+<td><code>--base-dir &lt;path&gt;</code></td>
+<td>Cortex root directory (default: <code>~/Cortex</code>)</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>Output as JSON (read commands and lock operations)</td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>Show command help</td>
+</tr>
+</tbody>
+</table>
+<h3 id="task-lifecycle-states">Task lifecycle states<a class="headerlink" href="#task-lifecycle-states" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>open → claimed → done
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  ↓        ↓
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>paused   pending → open (reopen)
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  ↓
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>blocked → open (unblock)
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>approval states: request-approval → approve → clear-approval
+</code></pre></div>
+<p>Both <code>block</code>/<code>unblock</code> and <code>reopen</code> normalize a task's status back to <code>open</code>, so a
+task that failed mid-<code>cortex-run</code> (left as <code>pending</code>) returns to a dispatchable
+state rather than staying invisible to the dispatcher.</p>
+<h3 id="exit-codes_1">Exit codes<a class="headerlink" href="#exit-codes_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Success</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Error (invalid arguments, lock held by another, task not found)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cortex-run">cortex-run<a class="headerlink" href="#cortex-run" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>cortex-run [options] -- COMMAND [ARGS...]
+</code></pre></div>
+<p>Dispatch a command on a remote device via the Cortex daemon. All execution
+is forwarded through <code>sendCommand</code> to a cortex-client; nothing spawns
+locally. The daemon must be running (it serves the webhook on
+<code>127.0.0.1:3001</code>). For scheduling recurring runs, see
+<a href="../scheduling/">scheduling.md</a>. For thread-based execution, see
+<a href="../threads/">threads.md</a>.</p>
+<h3 id="launch-mode">Launch mode<a class="headerlink" href="#launch-mode" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cortex-run [--device &lt;name&gt;] --name &lt;name&gt; [--stall 10m] [--gpu auto]
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>           [--task-project P --task-id ABCD] [--force]
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>           [--env-passthrough VAR1,VAR2,...]
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>           [--log-tail-bytes 5000]
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>           -- COMMAND [ARGS...]
+</code></pre></div>
+<p>Options:
+- <code>--name &lt;name&gt;</code> — required, unique run name (also used as result directory)
+- <code>--device &lt;name&gt;</code> — target device (default: local machine name from <code>machines.json</code>)
+- <code>--stall &lt;duration&gt;</code> — stall timeout, e.g. <code>10m</code>, <code>1h</code> (default: <code>10m</code>)
+- <code>--gpu &lt;slot&gt;</code> — GPU slot: <code>auto</code>, <code>none</code>, or numeric index (default: <code>auto</code>)
+- <code>--force</code> — allow launch even if a same-name run state directory exists
+- <code>--task-project &lt;name&gt;</code> — link this run to a project for task lifecycle tracking
+- <code>--task-id &lt;hash&gt;</code> — 4-char hex task ID (used with <code>--task-project</code>); invalid IDs cause a non-zero exit before dispatch
+- <code>--env-passthrough &lt;list&gt;</code> — comma-separated env var names to forward to the remote
+- <code>--log-tail-bytes &lt;n&gt;</code> — bytes of log tail returned in callback (default: 5000)</p>
+<p>The <code>--</code> separator is required. Everything after it is the command to run
+on the remote device.</p>
+<p>When <code>--task-project</code> and <code>--task-id</code> are provided, <code>cortex-run</code> marks the
+task as pending before dispatch and defers completion/blocking to the
+client callback handler. On success the task is auto-completed; on failure
+it is auto-blocked with log tail context.</p>
+<h3 id="cancel-mode">Cancel mode<a class="headerlink" href="#cancel-mode" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>cortex-run --cancel &lt;name&gt; [--device &lt;name&gt;] [--signal SIGTERM]
+</code></pre></div>
+<p>Options:
+- <code>--cancel &lt;name&gt;</code> — run name to cancel
+- <code>--device &lt;name&gt;</code> — target device (default: local machine name)
+- <code>--signal &lt;sig&gt;</code> — signal to send (default: <code>SIGTERM</code>)</p>
+<h3 id="exit-codes_2">Exit codes<a class="headerlink" href="#exit-codes_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Success (launched or cancelled)</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Fatal error (invalid task-id, device offline, launch/cancel failed)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Usage error (missing required flag, no command after <code>--</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Launch a training script on the local machine</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>cortex-run<span class="w"> </span>--name<span class="w"> </span>train-v2<span class="w"> </span>--gpu<span class="w"> </span>auto<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>train.py<span class="w"> </span>--epochs<span class="w"> </span><span class="m">100</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># Launch with task linkage (auto-completes task on success)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>cortex-run<span class="w"> </span>--name<span class="w"> </span>eval-run<span class="w"> </span>--task-project<span class="w"> </span>my-project<span class="w"> </span>--task-id<span class="w"> </span>a1b2<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>eval.py
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># Launch on a remote device with env passthrough</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>cortex-run<span class="w"> </span>--device<span class="w"> </span>lab<span class="w"> </span>--name<span class="w"> </span>remote-train<span class="w"> </span>--env-passthrough<span class="w"> </span>WANDB_API_KEY,HF_TOKEN<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>train.py
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># Cancel a running job</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>cortex-run<span class="w"> </span>--cancel<span class="w"> </span>train-v2
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># Cancel with a specific signal</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>cortex-run<span class="w"> </span>--cancel<span class="w"> </span>train-v2<span class="w"> </span>--signal<span class="w"> </span>SIGKILL
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

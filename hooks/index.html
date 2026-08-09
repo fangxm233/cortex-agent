@@ -1,0 +1,2179 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/hooks/">
+      
+      
+        <link rel="prev" href="../safety-and-approvals/">
+      
+      
+        <link rel="next" href="../mcp/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/hooks/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Hooks - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#hooks" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Hooks
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/hooks/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-hook-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The hook registry
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The hook registry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entry-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entry schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#managed-and-user-entries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Managed and user entries
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-namespaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event namespaces
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Event namespaces">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-backend-neutral-agent-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        agent:* — backend-neutral agent events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cc-claude-code-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cc:* — Claude Code passthrough
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi-pi-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pi:* — PI passthrough
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-server-side-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex:* — server-side events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#matchers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matchers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling-to-the-agent-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compiling to the agent backends
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compiling to the agent backends">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-server-side-dispatcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The server-side dispatcher
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-template-scoped-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread-template-scoped hooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#session-events-and-prompt-injection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Session events and prompt injection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-hook-bridge-blocking-tool-calls-over-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The hook-bridge: blocking tool calls over HTTP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hook-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hook scripts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#asking-the-user-from-a-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Asking the user from a hook
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-cortex-hook-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The cortex-hook CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a hook
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference tracking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugging-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debugging hooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-hook-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The hook registry
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The hook registry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entry-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entry schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#managed-and-user-entries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Managed and user entries
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-namespaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event namespaces
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Event namespaces">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-backend-neutral-agent-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        agent:* — backend-neutral agent events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cc-claude-code-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cc:* — Claude Code passthrough
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi-pi-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pi:* — PI passthrough
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-server-side-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex:* — server-side events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#matchers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matchers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling-to-the-agent-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compiling to the agent backends
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compiling to the agent backends">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-server-side-dispatcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The server-side dispatcher
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-template-scoped-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread-template-scoped hooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#session-events-and-prompt-injection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Session events and prompt injection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-hook-bridge-blocking-tool-calls-over-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The hook-bridge: blocking tool calls over HTTP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hook-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hook scripts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#asking-the-user-from-a-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Asking the user from a hook
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-cortex-hook-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The cortex-hook CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a hook
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference tracking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugging-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debugging hooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="hooks">Hooks<a class="headerlink" href="#hooks" title="Permanent link">&para;</a></h1>
+<p>A hook is a command Cortex runs when something happens — a tool is about to
+execute, a session starts, a thread ends, a task is completed. Every hook is a
+<strong>declaration</strong>: one JSON file in <code>$CORTEX_HOME/config/hooks/</code> that names an
+event, an optional matcher, and the command to run. The server loads those
+declarations at startup, and each consumer compiles the subset it cares about:
+the Claude Code backend, the PI backend, and the server's own event dispatcher.
+Adding a hook means adding a file, not changing code. For where hooks sit in the
+overall system, see <a href="../architecture/">architecture.md</a>.</p>
+<h2 id="architecture-overview">Architecture overview<a class="headerlink" href="#architecture-overview" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>        $CORTEX_HOME/config/hooks/*.json   — one declaration per file
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                            │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                            │  load + validate (store/hook-registry.ts)
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        ┌───────────────────┼────────────────────────┐
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        ▼                   ▼                        ▼
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a> Claude compiler       PI hook bridge            HookBus
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a> hooks-builder.ts      pi/hook-bridge.ts         core/hook-bus.ts
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a> agent:* + cc:*        agent:* + pi:*            cortex:*
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        │                   │                        │
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        ▼                   ▼                        ▼
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a> --settings JSON at    pi.on(&lt;native event&gt;)    server-side dispatch,
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a> Claude spawn time     at extension load        plus template-scoped
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>                                                thread hooks
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        └───────────────────┴────────────────────────┘
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                            │
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>                            ▼
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>              $CORTEX_HOME/hooks/*.mjs — the scripts themselves
+</code></pre></div>
+<h2 id="the-hook-registry">The hook registry<a class="headerlink" href="#the-hook-registry" title="Permanent link">&para;</a></h2>
+<p>The registry is the directory <code>$CORTEX_HOME/config/hooks/</code>. Every <code>.json</code> file
+in it is one hook declaration. Files are read in sorted filename order, which is
+also the order hooks run in for the same event — the shipped declarations carry
+numeric prefixes (<code>01-…</code>, <code>02-…</code>) so their relative order is explicit.</p>
+<p>Loading is fail-soft and loud. A file that isn't valid JSON, fails schema
+validation, or reuses an <code>id</code> already claimed by an earlier file is skipped with
+<code>[hook-registry] skipped &lt;file&gt;: &lt;reason&gt;</code> on stderr; the rest of the registry
+still mounts. At startup the server logs how much mounted, in the form
+<code>Startup: mounted 12 hooks (1 cc / 2 cortex)</code>. The Web UI settings panel reads
+the same list.</p>
+<p>The desktop <strong>Settings → Hooks</strong> panel is a full view of that registry rather
+than a listing: it groups declarations by event namespace in load order, shows
+where each one actually mounts (<code>claude</code> / <code>pi</code> / <code>server</code>), whether a change
+takes effect on the next agent spawn or only after a server restart, and flags a
+<code>run.script</code> that is missing from the hooks directory. What you may change there
+follows the entry's source. A <strong>user</strong> entry is fully editable and can be created
+or deleted. A <strong>managed</strong> entry offers only the enabled switch, with a standing
+note that the next hook sync restores the shipped value — every other field
+would be overwritten, so the panel does not pretend otherwise. A
+<strong>template-scoped</strong> entry is read-only and points at the thread template that
+owns it. The <code>result</code> choice is constrained to the modes the event can actually
+carry, and <code>version</code> is never writable: an entry created from the UI is always a
+user entry. Each entry can also be run against an editable sample payload, with
+the exit code, stdout and stderr shown inline.</p>
+<p>On mobile the same registry is read-only: the hooks screen shows the grouped
+inventory and the full declaration behind each row, but no editing, creation or
+test run. Change hooks from a desktop session.</p>
+<h3 id="entry-schema">Entry schema<a class="headerlink" href="#entry-schema" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tasks-yaml-guard&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;event&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;agent:pre-tool&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Edit|Write&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;run&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;script&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tasks-yaml-guard.mjs&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026.7.29-2&quot;</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string, required</td>
+<td>Unique across the registry. Used by <code>cortex-hook</code> and in log lines</td>
+</tr>
+<tr>
+<td><code>event</code></td>
+<td>string, required</td>
+<td>One of the <code>agent:*</code> events, or any <code>cc:</code> / <code>pi:</code> / <code>cortex:</code> prefixed name</td>
+</tr>
+<tr>
+<td><code>matcher</code></td>
+<td>string or object</td>
+<td>Regex for <code>agent:*</code> / <code>cc:*</code> / <code>pi:*</code> events; equality filter object for <code>cortex:*</code> events. Omit to match everything</td>
+</tr>
+<tr>
+<td><code>run.script</code></td>
+<td>string</td>
+<td>Script filename, resolved relative to <code>$CORTEX_HOME/hooks/</code>. Absolute paths and <code>..</code> segments are rejected</td>
+</tr>
+<tr>
+<td><code>run.command</code></td>
+<td>string</td>
+<td>A raw shell command instead of a script. Exactly one of <code>script</code> or <code>command</code> must be present</td>
+</tr>
+<tr>
+<td><code>run.timeout</code></td>
+<td>number</td>
+<td>Timeout in <strong>seconds</strong>. Defaults to 30</td>
+</tr>
+<tr>
+<td><code>scope.backends</code></td>
+<td>array</td>
+<td>Narrows which of <code>claude</code> / <code>pi</code> an <code>agent:*</code> hook compiles to</td>
+</tr>
+<tr>
+<td><code>scope.requiresTool</code></td>
+<td>string</td>
+<td>Mounts the hook only when the agent's tool list contains that tool</td>
+</tr>
+<tr>
+<td><code>blocking</code></td>
+<td>object</td>
+<td><code>{ "mode": "webhook", "ttlMin": &lt;positive number&gt; }</code>, validated by the loader for hooks that block on a webhook round trip</td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td>string</td>
+<td><code>hook-result</code>, <code>stdout-as-prompt</code>, or <code>none</code>. Governs how a <code>cortex:*</code> hook's stdout is interpreted</td>
+</tr>
+<tr>
+<td><code>enabled</code></td>
+<td>boolean</td>
+<td><code>false</code> removes the hook from every consumer without deleting the file. Defaults to <code>true</code></td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>string</td>
+<td>CalVer stamp (<code>2026.7.29</code>, optionally <code>-1</code>) marking the entry as managed</td>
+</tr>
+</tbody>
+</table>
+<h3 id="managed-and-user-entries">Managed and user entries<a class="headerlink" href="#managed-and-user-entries" title="Permanent link">&para;</a></h3>
+<p>An entry carrying a valid CalVer <code>version</code> is <strong>managed</strong>: it is shipped with
+Cortex and refreshed from <code>defaults/config/hooks/</code> at startup whenever the
+shipped version is newer than the deployed one. An entry with no <code>version</code> is a
+<strong>user</strong> entry and is never overwritten — that is the guarantee that lets you
+drop your own declarations next to the shipped ones. Hook scripts sync the same
+way, keyed on a <code>@cortex-hook-version</code> comment in the script source.</p>
+<h2 id="event-namespaces">Event namespaces<a class="headerlink" href="#event-namespaces" title="Permanent link">&para;</a></h2>
+<h3 id="agent-backend-neutral-agent-events"><code>agent:*</code> — backend-neutral agent events<a class="headerlink" href="#agent-backend-neutral-agent-events" title="Permanent link">&para;</a></h3>
+<p>These are the events both coding-agent backends genuinely agree on. One
+declaration compiles to Claude Code and to PI at the same time, and the payload
+handed to the script is Claude-shaped in both cases, so a single script serves
+both.</p>
+<table>
+<thead>
+<tr>
+<th><code>agent:*</code> event</th>
+<th>Claude event</th>
+<th>PI event</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent:pre-tool</code></td>
+<td><code>PreToolUse</code></td>
+<td><code>tool_call</code></td>
+</tr>
+<tr>
+<td><code>agent:post-tool</code></td>
+<td><code>PostToolUse</code></td>
+<td><code>tool_result</code></td>
+</tr>
+<tr>
+<td><code>agent:session-start</code></td>
+<td><code>SessionStart</code></td>
+<td><code>before_agent_start</code></td>
+</tr>
+<tr>
+<td><code>agent:session-end</code></td>
+<td>—</td>
+<td><code>session_shutdown</code></td>
+</tr>
+<tr>
+<td><code>agent:pre-compact</code></td>
+<td>—</td>
+<td><code>session_before_compact</code></td>
+</tr>
+<tr>
+<td><code>agent:user-prompt</code></td>
+<td>—</td>
+<td><code>input</code></td>
+</tr>
+<tr>
+<td><code>agent:turn-end</code></td>
+<td>—</td>
+<td><code>turn_end</code></td>
+</tr>
+</tbody>
+</table>
+<p>The Claude compiler emits settings for the first three; the last four reach PI
+only. To hook the corresponding Claude mount points, declare them natively as
+<code>cc:SessionEnd</code>, <code>cc:PreCompact</code>, <code>cc:UserPromptSubmit</code>, or <code>cc:Stop</code>.</p>
+<h3 id="cc-claude-code-passthrough"><code>cc:*</code> — Claude Code passthrough<a class="headerlink" href="#cc-claude-code-passthrough" title="Permanent link">&para;</a></h3>
+<p>Everything after <code>cc:</code> is used verbatim as the Claude settings event name, so
+any Claude Code mount point is reachable without code changes —
+<code>cc:PermissionRequest</code> (which the shipped auto-allow hook uses), <code>cc:SessionEnd</code>,
+<code>cc:PreCompact</code>, <code>cc:UserPromptSubmit</code>, <code>cc:Stop</code>. These declarations mount on
+the Claude backend only.</p>
+<h3 id="pi-pi-passthrough"><code>pi:*</code> — PI passthrough<a class="headerlink" href="#pi-pi-passthrough" title="Permanent link">&para;</a></h3>
+<p>Everything after <code>pi:</code> is registered directly as a PI extension event, so
+PI-only mount points such as <code>pi:session_start</code> or <code>pi:before_provider_headers</code>
+are reachable the same way. These mount on the PI backend only, and the script
+receives the raw PI event object rather than a Claude-shaped payload.</p>
+<h3 id="cortex-server-side-events"><code>cortex:*</code> — server-side events<a class="headerlink" href="#cortex-server-side-events" title="Permanent link">&para;</a></h3>
+<p>These fire inside the agent-server process itself, dispatched by the HookBus.</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Fires when</th>
+<th>Payload fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cortex:server.start</code></td>
+<td>The server finishes wiring and starts serving</td>
+<td><code>version</code>, <code>pid</code></td>
+</tr>
+<tr>
+<td><code>cortex:server.shutdown</code></td>
+<td>The server receives <code>SIGTERM</code></td>
+<td><code>version</code>, <code>pid</code>, <code>reason</code></td>
+</tr>
+<tr>
+<td><code>cortex:thread.start</code></td>
+<td>Before a thread's first agent step</td>
+<td>full thread context (below)</td>
+</tr>
+<tr>
+<td><code>cortex:thread.transition</code></td>
+<td>Between agent steps, after transitions are evaluated</td>
+<td>full thread context</td>
+</tr>
+<tr>
+<td><code>cortex:thread.end</code></td>
+<td>After the thread's main loop finishes</td>
+<td>full thread context</td>
+</tr>
+<tr>
+<td><code>cortex:dispatch.started</code></td>
+<td>A task is dispatched into a thread</td>
+<td><code>taskId</code>, <code>project</code>, <code>source</code>, <code>templateName</code></td>
+</tr>
+<tr>
+<td><code>cortex:schedule.fired</code></td>
+<td>A scheduled task fires</td>
+<td><code>scheduleId</code>, <code>name</code>, <code>project</code></td>
+</tr>
+<tr>
+<td><code>cortex:task.completed</code></td>
+<td>A task is marked complete</td>
+<td><code>taskId</code>, <code>project</code></td>
+</tr>
+<tr>
+<td><code>cortex:task.blocked</code></td>
+<td>A task is blocked</td>
+<td><code>taskId</code>, <code>project</code>, <code>reason</code></td>
+</tr>
+<tr>
+<td><code>cortex:client.connected</code></td>
+<td>A remote device client registers</td>
+<td><code>device</code></td>
+</tr>
+<tr>
+<td><code>cortex:client.disconnected</code></td>
+<td>A remote device client drops</td>
+<td><code>device</code>, <code>reason</code> when known</td>
+</tr>
+<tr>
+<td><code>cortex:session.new</code></td>
+<td>A session is closing via <code>!new</code> or the "New" status button</td>
+<td><code>channel</code>, <code>sessionId</code>, <code>sessionName</code>, <code>executionId</code>, <code>profile</code>, <code>trigger</code> (<code>new</code>), <code>timestampIso</code></td>
+</tr>
+<tr>
+<td><code>cortex:session.messageEnd</code></td>
+<td>An assistant turn completes</td>
+<td>same shape, with <code>trigger</code> set to <code>messageEnd</code></td>
+</tr>
+</tbody>
+</table>
+<p>The thread context carried by the three <code>cortex:thread.*</code> events is:
+<code>threadId</code>, <code>templateName</code>, <code>phase</code>, <code>source</code>, <code>project</code>, <code>projectId</code>, <code>taskId</code>,
+<code>taskProject</code>, <code>currentStepIndex</code>, <code>steps</code>, <code>activeAgent</code>, <code>previousAgent</code>,
+<code>artifactContent</code>, <code>userMessage</code>, <code>totalCostUsd</code>, <code>pendingControlAction</code>.</p>
+<h3 id="matchers">Matchers<a class="headerlink" href="#matchers" title="Permanent link">&para;</a></h3>
+<p>For <code>agent:*</code>, <code>cc:*</code>, and <code>pi:*</code> events the matcher is a regular expression
+tested against the tool name. <code>agent:*</code> and <code>cc:*</code> matchers use Claude's
+PascalCase names (<code>Edit|Write</code>, <code>Read|Grep</code>); on the PI side the bridge maps
+PI's <code>edit</code> / <code>read</code> / <code>web_fetch</code> style names up to those canonical names
+before testing, so one matcher covers both backends. <code>pi:*</code> matchers are tested
+against PI's native tool names as-is. Non-tool events match differently: Claude
+tests a <code>SessionStart</code> matcher against the start reason
+(<code>startup|resume|clear|compact</code>), and the PI bridge applies matchers only to
+tool events, ignoring them on lifecycle events.</p>
+<p>For <code>cortex:*</code> events the matcher is an object of equality filters, and every
+key must be present in the payload with exactly that value. The shipped dispatch
+hook uses <code>{"source": "task-dispatch"}</code> so it only fires for threads started by
+task dispatch, not for every thread that ends.</p>
+<h2 id="compiling-to-the-agent-backends">Compiling to the agent backends<a class="headerlink" href="#compiling-to-the-agent-backends" title="Permanent link">&para;</a></h2>
+<h3 id="claude-code">Claude Code<a class="headerlink" href="#claude-code" title="Permanent link">&para;</a></h3>
+<p>At spawn time, <code>buildHooksSettings()</code> in
+<code>agent-adapter/claude/hooks-builder.ts</code> loads the registry, keeps the entries
+that are enabled, mount on the <code>claude</code> backend, and pass their
+<code>scope.requiresTool</code> check against the agent's tool list, then emits a Claude
+settings object injected through the <code>--settings</code> CLI flag. <code>run.script</code>
+becomes <code>node $CORTEX_HOME/hooks/&lt;script&gt;</code>, <code>run.command</code> is passed through
+verbatim, and <code>run.timeout</code> becomes Claude's per-hook <code>timeout</code> in seconds.
+Consecutive entries on the same event with the same matcher are merged into one
+matcher group:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;PreToolUse&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Edit|Write&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;command&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node $CORTEX_HOME/hooks/tasks-yaml-guard.mjs&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="p">]},</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AskUserQuestion&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nt">&quot;PostToolUse&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="nt">&quot;SessionStart&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">  </span><span class="nt">&quot;PermissionRequest&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="p">}</span>
+</code></pre></div>
+<p>Because the registry is read on every spawn, a new declaration takes effect on
+the next agent that starts. Setting <code>"hooksLegacy": true</code> in
+<a href="../configuration/#configsettingsjson"><code>config/settings.json</code></a> bypasses the
+registry and emits a fixed built-in table instead; the legacy
+<code>CORTEX_HOOKS_LEGACY=1</code> environment variable is still read as a deprecated
+fallback.</p>
+<h3 id="pi">PI<a class="headerlink" href="#pi" title="Permanent link">&para;</a></h3>
+<p><code>agent-adapter/pi/hook-bridge.ts</code> runs as a PI extension. On load it takes the
+registry entries that mount on the <code>pi</code> backend and calls <code>pi.on()</code> once per
+entry, with the native event name from the <code>agent:*</code> mapping table above or the
+literal suffix of a <code>pi:*</code> event.</p>
+<p>For <code>agent:*</code> entries the bridge normalizes PI's shapes into the Claude form the
+hook scripts expect: the tool name is mapped to PascalCase (<code>edit</code> → <code>Edit</code>,
+<code>web_fetch</code> → <code>WebFetch</code>), and <code>input.path</code> is copied to <code>input.file_path</code> for
+the <code>read</code> / <code>write</code> / <code>edit</code> tools. The payload carries <code>hook_event_name</code> (the
+Claude name), <code>session_id</code>, <code>tool_name</code>, <code>tool_input</code>, <code>tool_use_id</code>, and <code>cwd</code>;
+tool-result events add <code>tool_output</code>, <code>tool_response</code>, and <code>is_error</code>.</p>
+<p>Script output is honored natively. On <code>tool_call</code>, a
+<code>hookSpecificOutput.permissionDecision</code> of <code>deny</code> blocks the tool and surfaces
+<code>permissionDecisionReason</code>, and <code>hookSpecificOutput.updatedInput</code> replaces the
+tool input. On <code>tool_result</code>, <code>hookSpecificOutput.additionalContext</code> is appended
+to the tool's content. On <code>before_agent_start</code>, that same field is appended to
+the system prompt. <code>pi:*</code> entries can additionally return <code>{"block": true}</code> on
+<code>pi:tool_call</code>, replace <code>input</code> wholesale, and rewrite <code>headers</code> on
+<code>pi:before_provider_headers</code>.</p>
+<h2 id="the-server-side-dispatcher">The server-side dispatcher<a class="headerlink" href="#the-server-side-dispatcher" title="Permanent link">&para;</a></h2>
+<p><code>core/hook-bus.ts</code> dispatches <code>cortex:*</code> events. The server snapshots the
+registry into the bus at startup, so a newly added <code>cortex:*</code> declaration takes
+effect the next time the server starts.</p>
+<p>When an event is emitted, the bus selects the enabled entries whose <code>event</code>
+matches exactly and whose object matcher is satisfied by the payload, then runs
+them one at a time. Each hook runs as <code>sh -c '&lt;command&gt; "$@"' hook &lt;args&gt;</code> with
+the working directory set to <code>$CORTEX_HOME</code>, the payload delivered as JSON on
+stdin, and stderr captured into the daemon log. <code>run.timeout</code> seconds is the
+process limit — 30 by default, and session events use 60 unless the declaration
+says otherwise.</p>
+<p>What the bus does with stdout depends on <code>result</code>:</p>
+<ul>
+<li><code>hook-result</code> — stdout is parsed as JSON and handed back to the caller. Thread
+  lifecycle hooks use this to request a follow-up agent turn.</li>
+<li><code>stdout-as-prompt</code> — trimmed stdout is used as a prompt. Session events use
+  this to inject a turn.</li>
+<li><code>none</code>, or omitted — output is discarded; the hook is fire-and-forget.</li>
+</ul>
+<p>A hook that times out, exits non-zero, or writes unparseable output is logged
+and skipped. It never fails the surrounding operation.</p>
+<h2 id="thread-template-scoped-hooks">Thread-template-scoped hooks<a class="headerlink" href="#thread-template-scoped-hooks" title="Permanent link">&para;</a></h2>
+<p>Some hooks belong to one thread template rather than to the whole system, so
+templates keep their own hook block in
+<code>$CORTEX_HOME/config/thread-templates/templates/&lt;name&gt;.json</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;example&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">&quot;onEnd&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node $CORTEX_HOME/hooks/post-task-hook.mjs&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;reviewer&quot;</span><span class="p">],</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">      </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">}</span>
+</code></pre></div>
+<p><code>onStart</code>, <code>onTransition</code>, and <code>onEnd</code> correspond to <code>cortex:thread.start</code>,
+<code>cortex:thread.transition</code>, and <code>cortex:thread.end</code>. They are dispatched through
+the same bus as registry hooks, in the same emission, under the synthetic id
+<code>template:&lt;template&gt;:&lt;phase&gt;</code>, and always with <code>hook-result</code> semantics. Two
+details differ from registry entries: <code>timeout</code> here is in <strong>milliseconds</strong>
+(default 30000), and <code>args</code> are passed as positional <code>$1</code>, <code>$2</code> to the command.
+A caller that starts a thread programmatically can supply the same shape as
+extra hooks for that run alone; those appear as <code>extra:&lt;threadId&gt;:&lt;phase&gt;</code>.</p>
+<p>A thread hook controls what happens next by writing JSON to stdout:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;insertAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;profile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;__active__&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Review the thread output and suggest next steps.&quot;</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">}</span>
+</code></pre></div>
+<p><code>insertAgent</code> spawns a temporary agent for the prompt. To route the prompt to an
+agent already in the thread instead, name it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;targetAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;The planner finished. Here is additional context...&quot;</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">}</span>
+</code></pre></div>
+<p><code>targetAgent</code> sends the prompt to that agent's persistent session; an optional
+<code>directive</code> is prepended to the prompt in either mode.</p>
+<h2 id="session-events-and-prompt-injection">Session events and prompt injection<a class="headerlink" href="#session-events-and-prompt-injection" title="Permanent link">&para;</a></h2>
+<p><code>cortex:session.new</code> fires before a session is torn down by <code>!new</code> or the "New"
+status button, and <code>cortex:session.messageEnd</code> fires after each assistant turn.
+Both are declared like any other hook; the shipped <code>session-new-hook</code>
+declaration points at <code>new-session-hook.mjs</code> with <code>result</code> set to
+<code>stdout-as-prompt</code>.</p>
+<p>Beyond the JSON payload on stdin, session hooks receive <code>CORTEX_HOOK_CHANNEL</code>,
+<code>CORTEX_HOOK_SESSION_ID</code>, <code>CORTEX_HOOK_SESSION_NAME</code>, <code>CORTEX_HOOK_TRIGGER</code>, and
+<code>CORTEX_HOOK_EXECUTION_ID</code> in the environment. Non-empty stdout is injected as a
+fresh agent turn — for <code>session.new</code> against the still-alive session on an
+isolated session key that is closed afterwards, so the pre-close turn cannot
+resurrect the old session under the channel; for <code>session.messageEnd</code> on the
+channel itself, so the follow-up continues the live conversation and its output
+threads under the reply that triggered it.</p>
+<h2 id="the-hook-bridge-blocking-tool-calls-over-http">The hook-bridge: blocking tool calls over HTTP<a class="headerlink" href="#the-hook-bridge-blocking-tool-calls-over-http" title="Permanent link">&para;</a></h2>
+<p>Two tool events need a human in the loop, which the agent process cannot do on
+its own. <code>ask-user-question-hook.mjs</code> and <code>exit-plan-mode-hook.mjs</code> POST to the
+server's webhook listener (<code>WEBHOOK_PORT</code>, default 3001) on
+<code>/hook/ask-user-question</code> and <code>/hook/exit-plan-mode</code>, and block on the response.</p>
+<p>On the server, <code>orchestration/routing/hook-bridge.ts</code> registers a pending
+promise with a 30-minute TTL and publishes <code>ask-user.requested</code> or
+<code>plan.submitted</code> on the event bus. The subscribers in
+<code>hook-bridge-subscribers.ts</code> turn those into interactive Slack messages. When
+the user clicks a button or submits the modal, the interaction handler resolves
+the promise, the HTTP response returns to the waiting hook script, and the
+script writes the answer to stdout — which the agent reads as the tool's
+pre-execution result.</p>
+<h2 id="hook-scripts">Hook scripts<a class="headerlink" href="#hook-scripts" title="Permanent link">&para;</a></h2>
+<p>Scripts live in <code>$CORTEX_HOME/hooks/</code> and are ordinary Node.js <code>.mjs</code> files:
+read JSON context from stdin, write JSON (or, for <code>stdout-as-prompt</code> hooks,
+plain text) to stdout. The scripts shipped with Cortex are:</p>
+<table>
+<thead>
+<tr>
+<th>Script</th>
+<th>Used by</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tasks-yaml-guard.mjs</code></td>
+<td><code>agent:pre-tool</code>, <code>Edit\|Write</code></td>
+<td>Denies edits to <code>TASKS.yaml</code> unless the current process holds the project lock</td>
+</tr>
+<tr>
+<td><code>ask-user-question-hook.mjs</code></td>
+<td><code>agent:pre-tool</code>, <code>AskUserQuestion</code></td>
+<td>Forwards the question to the hook-bridge and blocks until the user answers</td>
+</tr>
+<tr>
+<td><code>exit-plan-mode-hook.mjs</code></td>
+<td><code>agent:pre-tool</code>, <code>ExitPlanMode</code></td>
+<td>Forwards the plan to the hook-bridge and blocks until it is approved or rejected</td>
+</tr>
+<tr>
+<td><code>memory-ref-tracker.mjs</code></td>
+<td><code>agent:post-tool</code>, <code>Read\|Grep</code></td>
+<td>Records memory-file accesses to <code>_meta/access-log.jsonl</code></td>
+</tr>
+<tr>
+<td><code>rules-loader.mjs</code></td>
+<td><code>agent:post-tool</code>, <code>Read\|Grep</code></td>
+<td>Injects scoped rules from <code>$CORTEX_HOME/rules/</code> when a matching path is read, once per session per rule</td>
+</tr>
+<tr>
+<td><code>session-activity-tracker.mjs</code></td>
+<td><code>agent:post-tool</code>, <code>Read\|Edit\|Write\|Skill</code></td>
+<td>Appends activity records to <code>logs/session-activity/&lt;session_id&gt;.jsonl</code></td>
+</tr>
+<tr>
+<td><code>cortex-md-injector.mjs</code></td>
+<td><code>agent:post-tool</code> (<code>Read\|Edit</code>) and <code>agent:session-start</code></td>
+<td>Injects the CORTEX.md ancestor chain into agent context, deduplicated per session</td>
+</tr>
+<tr>
+<td><code>task-status-check.mjs</code></td>
+<td><code>cortex:thread.end</code>, <code>{"source": "task-dispatch"}</code></td>
+<td>Checks whether a dispatched task was left in an unresolved state and asks the thread to close it out</td>
+</tr>
+<tr>
+<td><code>new-session-hook.mjs</code></td>
+<td><code>cortex:session.new</code></td>
+<td>Recalls valuable information from the closing session and writes it to the context files</td>
+</tr>
+<tr>
+<td><code>post-task-hook.mjs</code></td>
+<td>Template <code>onEnd</code> hooks</td>
+<td>Prompts the target agent to compound what it learned and commit</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>PermissionRequest</code> auto-allow declaration uses <code>run.command</code> rather than a
+script: a one-line <code>printf</code> that returns an allow decision for <code>Edit|Write</code>.
+Access control for those tools is enforced by the pre-tool guards above.</p>
+<p><code>cortex-hook-api.mjs</code> in the same directory is not a hook entry — it is a helper
+library that hook scripts import (see below).</p>
+<h2 id="asking-the-user-from-a-hook">Asking the user from a hook<a class="headerlink" href="#asking-the-user-from-a-hook" title="Permanent link">&para;</a></h2>
+<p>Any hook can pose an ask-user-question card on the message platform bound to the
+current session — Slack, Feishu, or the Web UI — and block until the user
+answers. The card is the same interactive form the <code>AskUserQuestion</code> tool
+produces, and it accepts an optional severity level (<code>info</code>, <code>warning</code>, or
+<code>error</code>, with <code>warn</code> as an alias) that renders with the Web UI's notice tones
+and an icon prefix on Slack and Feishu. Without a level the card keeps its
+neutral look.</p>
+<p>Node hook scripts import the helper that ships next to them in
+<code>$CORTEX_HOME/hooks/</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">askUser</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;./cortex-hook-api.mjs&#39;</span><span class="p">;</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">answers</span><span class="p">,</span><span class="w"> </span><span class="nx">error</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">askUser</span><span class="p">({</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nx">questions</span><span class="o">:</span><span class="w"> </span><span class="p">[{</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nx">question</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;Disk is almost full — clean old checkpoints?&#39;</span><span class="p">,</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nx">header</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;Disk&#39;</span><span class="p">,</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nx">options</span><span class="o">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;Clean&#39;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;Keep&#39;</span><span class="w"> </span><span class="p">}],</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="p">}],</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="nx">level</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;warning&#39;</span><span class="p">,</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="p">});</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">error</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;timeout&#39;</span><span class="p">)</span><span class="w"> </span><span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mf">0</span><span class="p">);</span><span class="w"> </span><span class="c1">// user did not answer — pick a safe default</span>
+</code></pre></div>
+<p><code>run.command</code> hooks (and anything shell-based) use the CLI instead:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>cortex-hook<span class="w"> </span>ask<span class="w"> </span>--question<span class="w"> </span><span class="s2">&quot;Disk is almost full — clean old checkpoints?&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>--options<span class="w"> </span><span class="s2">&quot;Clean|Keep&quot;</span><span class="w"> </span>--level<span class="w"> </span>warning
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># → { &quot;ok&quot;: true, &quot;answers&quot;: { &quot;Disk is almost full — clean old checkpoints?&quot;: &quot;Clean&quot; } }</span>
+</code></pre></div>
+<p>Both entry points POST to the server's <code>/hook/ask-user-question</code> webhook, so
+they share one routing and blocking contract:</p>
+<ul>
+<li><strong>Routing.</strong> An explicit <code>channel</code> wins. Otherwise the helper and the CLI fall
+  back to the hook environment: <code>CORTEX_HOOK_CHANNEL</code> (session hooks), then
+  <code>SLACK_CHANNEL</code> (agent-side hooks). When only a <code>sessionId</code> is available
+  (<code>CORTEX_HOOK_SESSION_ID</code>, or passed explicitly), the server resolves the
+  session's channel from the session registry. <code>cortex:thread.*</code> payloads carry
+  no channel, so thread hooks must pass <code>channel</code> or <code>sessionId</code> themselves.</li>
+<li><strong>Blocking.</strong> The server holds the request in the hook-bridge with a
+  30-minute TTL. The response is <code>{ answers }</code>, or <code>{ error: "timeout",
+  answers: {} }</code> when the TTL expires. <code>cortex-hook ask</code> exits <code>0</code> on answers,
+  <code>2</code> on timeout, and <code>1</code> on other errors, so a shell hook can branch on <code>$?</code>.
+  A hook that asks must set its <code>run.timeout</code> above the expected wait and
+  declare <code>blocking: { "mode": "webhook", "ttlMin": 30 }</code>, mirroring the
+  shipped <code>ask-user-question-hook</code> declaration.</li>
+<li><strong>Multiple questions.</strong> <code>askUser</code> takes 1–4 question objects;
+  <code>cortex-hook ask --payload &lt;file|-&gt;</code> accepts the same array as JSON, e.g.
+  <code>cat questions.json | cortex-hook ask --payload - --session-id &lt;id&gt;</code>.</li>
+<li><strong>Smoke tests.</strong> <code>--dry-run</code> (CLI) or <code>dryRun: true</code> (helper) journals the
+  event and resolves synthetically without posting a card.</li>
+</ul>
+<p>Agents themselves get the same severity option through the
+<code>cortex_ask_user</code> MCP tool's <code>level</code> parameter.</p>
+<h2 id="the-cortex-hook-cli">The cortex-hook CLI<a class="headerlink" href="#the-cortex-hook-cli" title="Permanent link">&para;</a></h2>
+<p><code>cortex-hook</code> inspects and operates the mounted hooks. Every command prints
+JSON.</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Flags</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cortex-hook list</code></td>
+<td>—</td>
+<td>Lists every mounted hook as <code>id</code>, <code>event</code>, <code>enabled</code>, <code>source</code> (<code>managed</code>, <code>user</code>, or <code>template-scoped</code>)</td>
+</tr>
+<tr>
+<td><code>cortex-hook show</code></td>
+<td><code>--id &lt;id&gt;</code></td>
+<td>Prints one complete declaration, including <code>source</code></td>
+</tr>
+<tr>
+<td><code>cortex-hook enable</code></td>
+<td><code>--id &lt;id&gt;</code>, <code>--dry-run</code></td>
+<td>Sets <code>enabled: true</code> in the declaration file, idempotently</td>
+</tr>
+<tr>
+<td><code>cortex-hook disable</code></td>
+<td><code>--id &lt;id&gt;</code>, <code>--dry-run</code></td>
+<td>Sets <code>enabled: false</code> the same way</td>
+</tr>
+<tr>
+<td><code>cortex-hook test</code></td>
+<td><code>--id &lt;id&gt;</code>, <code>--payload &lt;file\|-&gt;</code></td>
+<td>Runs the hook once with the payload on stdin</td>
+</tr>
+<tr>
+<td><code>cortex-hook ask</code></td>
+<td><code>--question</code>, <code>--options "a\|b"</code>, <code>--level</code>, <code>--channel</code> / <code>--session-id</code>, <code>--payload &lt;file\|-&gt;</code>, <code>--multi</code>, <code>--dry-run</code></td>
+<td>Posts an ask-user card on the session's platform and blocks for the answer (exit <code>2</code> on timeout)</td>
+</tr>
+</tbody>
+</table>
+<p><code>--help</code> / <code>-h</code> works on the root command and on each subcommand.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>cortex-hook<span class="w"> </span>list
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>cortex-hook<span class="w"> </span>show<span class="w"> </span>--id<span class="w"> </span>task-status-check
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>cortex-hook<span class="w"> </span>disable<span class="w"> </span>--id<span class="w"> </span>rules-loader<span class="w"> </span>--dry-run
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>cortex-hook<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--id<span class="w"> </span>tasks-yaml-guard<span class="w"> </span>--payload<span class="w"> </span>payload.json
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>cat<span class="w"> </span>payload.json<span class="w"> </span><span class="p">|</span><span class="w"> </span>cortex-hook<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--id<span class="w"> </span>tasks-yaml-guard<span class="w"> </span>--payload<span class="w"> </span>-
+</code></pre></div>
+<p><code>enable</code> and <code>disable</code> report <code>changed</code> so you can tell a real state change from
+a no-op, and <code>--dry-run</code> adds a <code>would_set</code> block instead of writing. Disabling
+a managed hook returns a warning: a later sync that ships a newer version of
+that entry restores its shipped <code>enabled</code> state. Template-scoped hooks are
+read-only — <code>enable</code> and <code>disable</code> reject them and list the registry ids you can
+act on instead.</p>
+<p><code>test</code> returns <code>ok</code>, <code>id</code>, <code>exit_code</code>, <code>stdout</code>, <code>stderr</code>, and <code>error</code> when the
+process failed, and exits with the hook's own exit code.</p>
+<h2 id="adding-a-hook">Adding a hook<a class="headerlink" href="#adding-a-hook" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Write the script into <code>$CORTEX_HOME/hooks/</code>, for example
+   <code>warn-sensitive-file.mjs</code>:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="ch">#!/usr/bin/env node</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kd">const</span><span class="w"> </span><span class="nx">chunks</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="k">for</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">chunk</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">process</span><span class="p">.</span><span class="nx">stdin</span><span class="p">)</span><span class="w"> </span><span class="nx">chunks</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">chunk</span><span class="p">);</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="kd">const</span><span class="w"> </span><span class="nx">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">Buffer</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nx">chunks</span><span class="p">).</span><span class="nx">toString</span><span class="p">());</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">input</span><span class="p">.</span><span class="nx">tool_input</span><span class="o">?</span><span class="p">.</span><span class="nx">file_path</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">;</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">path</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;.env&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">path</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;credentials&#39;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">    </span><span class="nx">hookSpecificOutput</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">      </span><span class="nx">hookEventName</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;PreToolUse&#39;</span><span class="p">,</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">      </span><span class="nx">permissionDecision</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;deny&#39;</span><span class="p">,</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">      </span><span class="nx">permissionDecisionReason</span><span class="o">:</span><span class="w"> </span><span class="sb">`Refusing to edit sensitive file: </span><span class="si">${</span><span class="nx">path</span><span class="si">}</span><span class="sb">`</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">  </span><span class="p">}));</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">  </span><span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mf">0</span><span class="p">);</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="p">}</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">  </span><span class="nx">hookSpecificOutput</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="w">    </span><span class="nx">hookEventName</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;PreToolUse&#39;</span><span class="p">,</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="w">    </span><span class="nx">permissionDecision</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;allow&#39;</span>
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="p">}));</span>
+</code></pre></div>
+<ol>
+<li>Declare it. Drop <code>$CORTEX_HOME/config/hooks/50-warn-sensitive-file.json</code>
+   next to the shipped entries — the numeric prefix places it after them:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;warn-sensitive-file&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">&quot;event&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;agent:pre-tool&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Edit|Write&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">&quot;run&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;script&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;warn-sensitive-file.mjs&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>Leave <code>version</code> out. That marks the entry as yours, and hook syncs will never
+   touch it.</p>
+<ol>
+<li>Verify with <code>cortex-hook list</code> (the id appears with source <code>user</code>) and
+   <code>cortex-hook test --id warn-sensitive-file --payload payload.json</code>.</li>
+</ol>
+<p>An <code>agent:*</code>, <code>cc:*</code>, or <code>pi:*</code> hook applies to the next agent that spawns. A
+<code>cortex:*</code> hook is picked up when the server next starts, because the bus
+snapshots the registry at startup.</p>
+<p>The same three steps cover server-side events — declare
+<code>"event": "cortex:task.completed"</code> with a <code>matcher</code> such as
+<code>{"project": "my-project"}</code> to run something whenever that project completes a
+task.</p>
+<h2 id="reference-tracking">Reference tracking<a class="headerlink" href="#reference-tracking" title="Permanent link">&para;</a></h2>
+<p>The <code>memory-ref-tracker</code> hook implements automatic reference tracking for the
+atomized memory system (see <a href="../memory/">memory.md</a> for the full architecture).
+It records every Read and Grep access to experiment, knowledge, and pattern
+files as one JSONL record of the accessed filename, the tool, and a timestamp:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span><span class="nt">&quot;file&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;entry&gt;.md&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;tool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Read&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-05-19T10:30:00.000Z&quot;</span><span class="p">}</span>
+</code></pre></div>
+<p>The log lives at <code>&lt;project&gt;/_meta/access-log.jsonl</code> and is auto-committed to git
+after each write. Memory index regeneration reads it to compute access counts
+(<code>refs</code>) and last-access timestamps (<code>last-ref</code>), which drive index sorting and
+hot/cold classification.</p>
+<h2 id="debugging-hooks">Debugging hooks<a class="headerlink" href="#debugging-hooks" title="Permanent link">&para;</a></h2>
+<p>Start with <code>cortex-hook list</code> to confirm the hook is mounted and enabled, then
+<code>cortex-hook test --id &lt;id&gt; --payload &lt;file&gt;</code> to run it in isolation with a
+payload you control — that separates "the script is broken" from "the
+declaration never matched". Hook execution and failures are logged to
+<code>$CORTEX_HOME/logs/daemon.log</code>; anything a script writes to stderr is captured
+there too.</p>
+<ul>
+<li><strong>Hook doesn't appear in <code>cortex-hook list</code></strong> — the loader rejected it. Look
+  for <code>[hook-registry] skipped &lt;file&gt;</code> in the log: invalid JSON, a schema
+  violation, or an <code>id</code> already used by an earlier file.</li>
+<li><strong>Hook is listed but never fires</strong> — check the matcher. Tool matchers for
+  <code>agent:*</code> and <code>cc:*</code> events use Claude's PascalCase names, and <code>cortex:*</code>
+  matchers require every key to be present in the payload with exactly that
+  value.</li>
+<li><strong><code>agent:session-end</code>, <code>agent:pre-compact</code>, <code>agent:user-prompt</code>, or
+  <code>agent:turn-end</code> has no effect on Claude</strong> — those four compile to PI only.
+  Use the <code>cc:</code> form for the Claude mount point.</li>
+<li><strong>New <code>cortex:*</code> hook does nothing</strong> — the bus snapshots the registry at
+  startup; restart the server.</li>
+<li><strong>JSON parse error</strong> — stdout wasn't valid JSON. Make sure nothing but the
+  result is written to stdout; diagnostics belong on stderr.</li>
+<li><strong>Timeout</strong> — raise <code>run.timeout</code> (seconds for registry entries, milliseconds
+  for template hooks). The default is 30 seconds, or 60 for session events.</li>
+<li><strong>Script not found</strong> — <code>run.script</code> resolves relative to <code>$CORTEX_HOME/hooks/</code>;
+  absolute paths and <code>..</code> segments are rejected by the loader.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

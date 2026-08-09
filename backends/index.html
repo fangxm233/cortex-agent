@@ -1,0 +1,1598 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/backends/">
+      
+      
+        <link rel="prev" href="../cli-reference/">
+      
+      
+        <link rel="next" href="../architecture/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/backends/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Backends - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#backends" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Backends
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/backends/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#supported-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported backends
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-backends-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How backends work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#feature-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feature matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remote-login" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remote login
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom providers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selecting-a-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selecting a backend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thinking-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thinking level
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fallback-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fallback behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage-limit-throttling-and-auto-resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage-limit throttling and auto-resume
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cost-reporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cost reporting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-new-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a new backend
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#supported-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported backends
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-backends-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How backends work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#feature-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feature matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remote-login" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remote login
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom providers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selecting-a-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selecting a backend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thinking-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thinking level
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fallback-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fallback behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage-limit-throttling-and-auto-resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage-limit throttling and auto-resume
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cost-reporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cost reporting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-new-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a new backend
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="backends">Backends<a class="headerlink" href="#backends" title="Permanent link">&para;</a></h1>
+<p>A backend is Cortex's adapter for a specific coding-agent CLI. Cortex
+does not call LLM APIs directly. It spawns a coding agent (Claude Code
+or PI) as a child process, sends messages to it, and consumes a
+normalized event stream. Each backend implements the <code>AgentAdapter</code>
+interface defined in <code>agent-server/src/agent-adapter/types.ts</code>.</p>
+<h2 id="supported-backends">Supported backends<a class="headerlink" href="#supported-backends" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Status</th>
+<th>Binary</th>
+<th>npm package</th>
+<th>Feature level</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Code</td>
+<td>Supported</td>
+<td><code>claude</code></td>
+<td><code>@anthropic-ai/claude-code</code></td>
+<td>Full (10/10 capabilities)</td>
+</tr>
+<tr>
+<td>PI</td>
+<td>Supported</td>
+<td><code>pi</code></td>
+<td><code>@mariozechner/pi-coding-agent</code></td>
+<td>Full (10/10 capabilities)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="how-backends-work">How backends work<a class="headerlink" href="#how-backends-work" title="Permanent link">&para;</a></h2>
+<p>When an agent session starts, Cortex resolves the active profile (from
+<code>profiles.json</code> or the <code>--profile</code> flag) to determine which backend to use.
+It then calls <code>getAdapter(backend)</code> to get the adapter instance and calls
+<code>adapter.spawn(config)</code> to start a session.</p>
+<p>The <code>AgentSpawnConfig</code> carries the full session context: system prompt,
+plugin directories, tool allowlist, MCP server config, hooks, model name,
+and backend-specific passthroughs. The adapter translates this into
+backend-native CLI arguments and spawns the coding agent.</p>
+<p>From there, Cortex sends user messages and receives a normalized event
+stream. The normalization layer (<code>agent-adapter/normalize/</code>) translates
+each backend's native event format into a common <code>NormalizedEvent</code>
+discriminated union, so the orchestration layer never needs to know which
+backend is running.</p>
+<h2 id="feature-matrix">Feature matrix<a class="headerlink" href="#feature-matrix" title="Permanent link">&para;</a></h2>
+<p>Cortex defines ten capabilities that a backend may support. The
+orchestration layer checks capabilities before attempting backend-specific
+operations.</p>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Claude Code</th>
+<th>PI</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hooks</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>PreToolUse/PostToolUse/Stop hooks via hook-bridge</td>
+</tr>
+<tr>
+<td><code>plugins</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>Role-scoped skill plugins via <code>--skill</code> or equivalent</td>
+</tr>
+<tr>
+<td><code>mcp</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>MCP tool server integration</td>
+</tr>
+<tr>
+<td><code>plan-mode</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>EnterPlanMode/ExitPlanMode tool support</td>
+</tr>
+<tr>
+<td><code>ask-user-question</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>AskUserQuestion tool support</td>
+</tr>
+<tr>
+<td><code>system-prompt-override</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>Custom system prompt injection</td>
+</tr>
+<tr>
+<td><code>session-resume</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>Resume an existing session</td>
+</tr>
+<tr>
+<td><code>tool-allowlist</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>Restrict available tools to a subset</td>
+</tr>
+<tr>
+<td><code>streaming-deltas</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>Publish token-level assistant text during generation</td>
+</tr>
+<tr>
+<td><code>mid-turn-inject</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>Accept user input into a turn already in flight</td>
+</tr>
+</tbody>
+</table>
+<h2 id="claude-code">Claude Code<a class="headerlink" href="#claude-code" title="Permanent link">&para;</a></h2>
+<p>The reference backend. Supports all ten capabilities. Two
+adapter modes are available:</p>
+<p><strong>Print mode</strong> (<code>claudeBackend: "print"</code>, default). Uses <code>claude -p
+--stream-json</code> for one-shot turns. Each user message spawns a fresh Claude
+invocation. Fast, stateless, and the recommended mode for most use cases.</p>
+<p><strong>TUI mode</strong> (<code>claudeBackend: "tui"</code>). Spawns an interactive Claude session
+under tmux and tails the session's JSONL file for events. Supports
+multi-turn conversation with session persistence. Heavier resource usage
+but allows interactive workflows.</p>
+<p>Claude Code adapter session pool is keyed by channel for session reuse.
+Cost reporting reverse-derives USD from <code>message.usage</code> token counts using
+Anthropic's published pricing.</p>
+<h2 id="pi">PI<a class="headerlink" href="#pi" title="Permanent link">&para;</a></h2>
+<p>Full feature parity with Claude Code. PI's adapter bridges the gap where
+PI's native feature set differs:</p>
+<ul>
+<li><strong>MCP</strong> — implemented via <code>mcp-bridge.ts</code>, an extension that connects PI
+  to Cortex's MCP server. Auto-injected via <code>--extension</code> at spawn time.</li>
+<li><strong>PlanMode / AskUserQuestion</strong> — implemented via <code>tool-shims.ts</code> pseudo
+  tools that register <code>ask</code>, <code>exit_plan</code>, and <code>todo</code> as first-class PI
+  tools, routing responses through <code>extension_ui_response</code>.</li>
+<li><strong>Hooks</strong> — implemented via <code>hook-bridge.ts</code>, which translates PI tool
+  events to Cortex hook scripts.</li>
+<li><strong>Plugins</strong> — PI's native <code>--skill</code> flag maps to Cortex's plugin system.</li>
+</ul>
+<p>PI sessions use <code>--session &lt;path&gt;</code> for resume and <code>--system-prompt</code> for
+system prompt override. The adapter handles LF-only NDJSON framing for
+PI's event stream.</p>
+<p>PI provider names are independent of Cortex backend names. In particular,
+<code>openai-codex</code> is a supported PI provider (including the
+<code>openai-codex-responses</code> API kind); profiles using it still set
+<code>"backend": "pi"</code>.</p>
+<h2 id="remote-login">Remote login<a class="headerlink" href="#remote-login" title="Permanent link">&para;</a></h2>
+<p>Backend login can be completed remotely without SSH access to the Cortex
+host. The same login flow is exposed through three channels:</p>
+<table>
+<thead>
+<tr>
+<th>Channel</th>
+<th>Entry</th>
+<th>Interaction</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Slack</td>
+<td>Send <code>!login</code>, <code>!login cc</code>, or <code>!login pi [provider]</code></td>
+<td>Selectors and secret fields open in Slack modals; authorization links are posted to the channel.</td>
+</tr>
+<tr>
+<td>Feishu</td>
+<td>Send <code>!login</code>, <code>!login cc</code>, or <code>!login pi [provider]</code></td>
+<td>Selectors and secret fields use inline card forms; authorization links are posted to the chat.</td>
+</tr>
+<tr>
+<td>Web (desktop and mobile)</td>
+<td>Desktop: open <strong>Settings → Accounts</strong>. Mobile: tap <strong>Settings → Accounts</strong> to drill in to <code>/m/settings/accounts</code>.</td>
+<td>The Accounts section shows Claude Code credentials and every PI provider, with status plus login/logout actions that open the same selector-driven login flow.</td>
+</tr>
+</tbody>
+</table>
+<p>The chat command forms are:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>!login
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>!login status
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>!login cc
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>!login pi
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>!login pi &lt;provider&gt;
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>!login custom
+</code></pre></div>
+<p><code>!login custom</code> manages self-hosted endpoints that have no login flow; see
+<a href="#custom-providers">Custom providers</a> below.</p>
+<p><code>!login</code> with no arguments and <code>!login status</code> both show the authentication
+status overview. <code>!login cc</code> selects Claude Code. <code>!login pi</code> opens a PI
+provider selector; adding a provider skips that selector. Authentication type
+is also selected interactively when a provider supports more than one type.
+Do not append <code>oauth</code>, API keys, authorization codes, or provider-specific
+OAuth flags to the command.</p>
+<p>OAuth is offered only when the installed PI provider exposes
+<code>provider.auth.oauth.login</code> as a function. On the reference installation this
+criterion was true for 7 of 39 providers; the list is discovered dynamically,
+so API-key-only providers never show a non-functional OAuth option. Claude Code
+similarly offers API-key and subscription choices through the selector.</p>
+<p>For a Claude Code subscription, Cortex drives <code>claude setup-token</code> in a
+controlled tmux session, sends the authorization URL to the initiating channel,
+and accepts the returned code through the channel form. The resulting long-lived
+token is stored as <code>CLAUDE_CODE_OAUTH_TOKEN</code> in
+<code>~/.cortex/config/.env</code>; it is never printed in status output or transcripts.</p>
+<p>When a running backend reports expired authentication, Cortex posts a card that
+names the backend/provider and offers one-click re-login with the selection
+pre-filled. A daily expiration scan checks in-use accounts and sends the same
+actionable warning for credentials that are expiring, expired, or missing. The
+daily scan skips any provider the runtime notification already reported within
+the reminder window, so a scheduled warning never repeats a notice you just
+received. The reverse is deliberate: a runtime failure always notifies, even if
+the daily scan warned about that provider earlier, because an in-session failure
+is the message you most need at that moment.</p>
+<p>For a read-only status check from the host, use:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cortex<span class="w"> </span>auth<span class="w"> </span>status
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>cortex<span class="w"> </span>auth<span class="w"> </span>status<span class="w"> </span>--json
+</code></pre></div>
+<p>The text form is a concise overview; <code>--json</code> returns the complete normalized
+status snapshot. Both are credential-free. See
+<a href="../cli-reference/#cortex">CLI Reference</a> for the exact command contract.</p>
+<h2 id="custom-providers">Custom providers<a class="headerlink" href="#custom-providers" title="Permanent link">&para;</a></h2>
+<p>A custom provider is an endpoint PI does not ship a definition for: a local
+inference server, a lab GPU box, or a company proxy. It has no login flow —
+there is no vendor to authenticate against — so it is defined rather than
+logged into, and it is managed from the same three surfaces as everything else:</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Entry</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CLI</td>
+<td><code>cortex auth provider list \| add \| remove</code></td>
+</tr>
+<tr>
+<td>Web (desktop and mobile)</td>
+<td><strong>Settings → Accounts → Custom providers</strong></td>
+</tr>
+<tr>
+<td>Slack / Feishu</td>
+<td><code>!login custom [list \| add &lt;name&gt; &lt;api&gt; &lt;url&gt; &lt;model…&gt; \| remove &lt;name&gt;]</code></td>
+</tr>
+</tbody>
+</table>
+<p>A definition needs four things: a name, the request protocol the endpoint
+speaks (<code>anthropic-messages</code>, <code>openai-completions</code>, <code>openai-responses</code>, or
+<code>google-generative-ai</code>), the upstream URL, and at least one model id. An
+upstream key is optional; without one the gateway passes the caller's own key
+through.</p>
+<p>Saving writes two files. <code>~/.pi/agent/models.json</code> gets a <code>providers.&lt;name&gt;</code>
+entry whose <code>baseUrl</code> points at the gateway, so the terminal <code>pi</code> and Cortex
+share one definition. <code>~/.aistatus/gateway.yaml</code> gets the route that forwards to
+the real endpoint, carrying the upstream key. <strong>The key lives only in the
+gateway config</strong> — the PI catalog holds a placeholder, so copying the catalog
+around never copies a secret. Every call therefore goes through the gateway and
+is accounted and throttled like any other route. The gateway reloads its config
+by itself, so no restart is needed.</p>
+<p>The chat command deliberately has no key argument: a channel transcript is a
+poor place for a secret. Add the key from the CLI with <code>--key -</code> (read from
+stdin) or from the Web form, both of which keep it off any transcript.</p>
+<p>To use a custom provider, add a profile that names it — for example
+<code>{"backend": "pi", "provider": "my-vllm", "mode": "my-vllm", "model": "Model-27B"}</code>
+(see <a href="../configuration/">configuration.md</a> for the profiles schema). Deleting
+a provider removes both the catalog entry and the gateway route; profiles that
+still point at it will fail to resolve, so re-point them first.</p>
+<h2 id="selecting-a-backend">Selecting a backend<a class="headerlink" href="#selecting-a-backend" title="Permanent link">&para;</a></h2>
+<p>Backends are selected per profile in <code>$CORTEX_HOME/config/profiles.json</code>
+(see <a href="../configuration/">configuration.md</a> for the full profiles schema):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;defaultProfile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;plan&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;profiles&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">&quot;plan&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">      </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet-4-20250514&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">      </span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude&quot;</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="nt">&quot;execute&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet-4-20250514&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pi&quot;</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="p">}</span>
+</code></pre></div>
+<p>The <code>backend</code> field accepts <code>"claude"</code> or <code>"pi"</code>. If omitted, it defaults
+to <code>"claude"</code>.</p>
+<p>Thread templates can also specify a profile per agent, allowing different
+agents in the same pipeline to use different backends. See
+<a href="../threads/">threads.md</a> for template configuration.</p>
+<h2 id="thinking-level">Thinking level<a class="headerlink" href="#thinking-level" title="Permanent link">&para;</a></h2>
+<p>The optional <code>thinking</code> profile field sets the backend's reasoning depth.
+Each backend receives it in its native flag: Claude Code as
+<code>--effort &lt;level&gt;</code> (<code>low</code>/<code>medium</code>/<code>high</code>/<code>xhigh</code>/<code>max</code>), PI as
+<code>--thinking &lt;level&gt;</code> (<code>off</code>/<code>minimal</code>/<code>low</code>/<code>medium</code>/<code>high</code>/<code>xhigh</code>).
+When the field is absent no flag is passed and the backend uses its own
+default, so existing profiles behave unchanged.
+Fallback entries do not inherit the primary's value — each entry declares
+its own.</p>
+<h2 id="fallback-behavior">Fallback behavior<a class="headerlink" href="#fallback-behavior" title="Permanent link">&para;</a></h2>
+<p>Each profile entry can specify a <code>fallback</code> array of alternative profiles.
+If the primary backend call fails with a transient error (network timeout,
+rate limit, authentication), Cortex iterates through the fallback chain in
+order. Each fallback entry inherits unspecified fields from the primary.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;plan&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet-4-20250514&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nt">&quot;fallback&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet-4-20250514&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pi&quot;</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="p">]</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">}</span>
+</code></pre></div>
+<h2 id="usage-limit-throttling-and-auto-resume">Usage-limit throttling and auto-resume<a class="headerlink" href="#usage-limit-throttling-and-auto-resume" title="Permanent link">&para;</a></h2>
+<p>The fallback chain handles individual failed calls. A separate mechanism
+handles rolling usage windows. Provider identifiers are opaque strings, so
+the throttle can track any number of providers without a fixed provider
+enum. Each provider keeps its own window types and reset times. A provider
+and route mode are gated without blocking another provider that happens to
+use the same mode name.</p>
+<p>Interrupted direct conversations and threads are stored with the provider
+that limited them. When one provider fully recovers, Cortex resumes only that
+provider's work; entries belonging to other active providers remain queued.
+A direct conversation resumes in its own channel with the prior context
+intact. A thread whose interrupted step had already streamed real work
+resumes that step's backend session with a short continuation reminder, so
+partial progress is kept; a step that never produced any activity is rerun
+from its original prompt. Resume starts are staggered so a freshly opened
+window is not immediately exhausted.</p>
+<p>The active rate-limit details show the waiting direct-session and thread
+counts for each provider. The provider key is the isolation boundary:
+multiple accounts or quota pools reported under the same provider key share
+one provider record, and same-type windows retain the later reset time.
+Automatic recovery also requires a reset-bearing provider event. The Claude
+print adapter supplies that event; an adapter that only reports a failed call
+or low remaining usage does not create a timed throttle by itself.</p>
+<p>Throttle windows and provider-attributed resume entries persist in
+<code>schedules.json</code>. On startup Cortex re-arms active timers and immediately
+resumes entries whose provider window expired during downtime, even when a
+different provider remains limited. Provider-less entries from older data
+wait until every active provider clears. A busy direct channel or a thread
+that has since finished is skipped; elapsed age alone does not discard work.</p>
+<p>Auto-resume is on by default. Set <code>"autoResume": false</code> in
+<a href="../configuration/#configsettingsjson"><code>config/settings.json</code></a> to drop ready
+resume entries instead of dispatching them automatically; the change takes
+effect without a daemon restart. The legacy <code>CORTEX_AUTO_RESUME=0</code> variable in
+<code>.env</code> is still read as a deprecated fallback.</p>
+<h2 id="cost-reporting">Cost reporting<a class="headerlink" href="#cost-reporting" title="Permanent link">&para;</a></h2>
+<p>Cost reporting differs by backend:</p>
+<ul>
+<li><strong>Claude Code</strong> — reverse-derives USD cost from <code>message.usage</code> token
+  counts (input/output) using Anthropic's published per-model pricing.
+  Costs are written to <code>$CORTEX_HOME/data/costs.jsonl</code>.</li>
+<li><strong>PI</strong> — cost reporting depends on the PI coding agent's provider
+  configuration. The adapter captures whatever cost metadata PI emits.</li>
+</ul>
+<p>All cost records follow the same JSONL format and are subject to a 90-day
+rolling retention window. Cost queries via MCP tools aggregate across all
+backends — see <a href="../mcp/">mcp.md</a> for the <code>cost_query</code> tool.</p>
+<h2 id="adding-a-new-backend">Adding a new backend<a class="headerlink" href="#adding-a-new-backend" title="Permanent link">&para;</a></h2>
+<p>New backends implement the <code>AgentAdapter</code> interface in a new directory
+under <code>agent-server/src/agent-adapter/</code>. The required surface:</p>
+<ol>
+<li><strong><code>adapter.ts</code></strong> — implements <code>AgentAdapter</code> with <code>spawn()</code>, <code>close()</code>,
+   <code>kill()</code>, and <code>listSessions()</code>. Returns an <code>AgentProcess</code> from <code>spawn()</code>.</li>
+<li><strong><code>AgentProcess</code></strong> — exposes <code>send(message)</code> for user messages and
+   <code>events</code> as an async iterable of <code>NormalizedEvent</code>. Must also support
+   <code>close()</code> and <code>kill()</code>.</li>
+<li><strong><code>event-parser.ts</code></strong> — translates the backend's native event format to
+   <code>NormalizedEvent</code> discriminated union members.</li>
+<li><strong>Registration</strong> — add the adapter to the <code>ADAPTERS</code> map in
+   <code>agent-adapter/index.ts</code>, add capabilities to <code>capabilities.ts</code>, and
+   include the backend label in the <code>Backend</code> type union in <code>types.ts</code>.</li>
+</ol>
+<p>The normalization layer (<code>agent-adapter/normalize/</code>) provides shared
+utilities for event stream queuing, tool name translation, and hook
+specification that all backends use.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,2569 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/threads/">
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../tasks/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/threads/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Threads - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cortex-thread-system" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Threads
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/threads/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#mental-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mental Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration File
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration File">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#editing-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing Templates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent Definitions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-stage-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Stage Agents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Templates
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Templates">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-references-in-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent References in Templates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shell-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shell Templates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transitions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Transitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#transition-endpoint-syntax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transition Endpoint Syntax
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#condition-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Condition Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluation-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluation Order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#convergence-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convergence Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#template-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Template Limits
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Lifecycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Thread Lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        States
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent-initiated-control-abort-split-wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent-Initiated Control (abort / split / wait)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#suspension-and-wake-up-thread_wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Suspension and Wake-up (thread_wait)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thread_wait-checkpoint-gate-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        thread_wait Checkpoint Gate (DR-0017)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execution-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution Loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle Hooks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Lifecycle Hooks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hook-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hook Points
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hook Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-return-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hook Return Values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-execution-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hook Execution Order
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workspace-and-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workspace and Artifact
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Workspace and Artifact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-keyed-manager-artifact-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task-Keyed Manager Artifact (DR-0017)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Thread Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#starting-a-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Starting a Thread
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-an-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding an Agent
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-thread-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other Thread Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Record
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prompt-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompt Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-loading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin Loading
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manager-session-rotation-rehydration-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manager Session Rotation &amp; Rehydration (DR-0017)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Cleanup
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#mental-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mental Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration File
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration File">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#editing-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing Templates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent Definitions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-stage-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Stage Agents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Templates
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Templates">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-references-in-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent References in Templates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shell-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shell Templates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transitions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Transitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#transition-endpoint-syntax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transition Endpoint Syntax
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#condition-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Condition Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluation-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluation Order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#convergence-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convergence Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#template-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Template Limits
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Lifecycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Thread Lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        States
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent-initiated-control-abort-split-wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent-Initiated Control (abort / split / wait)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#suspension-and-wake-up-thread_wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Suspension and Wake-up (thread_wait)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thread_wait-checkpoint-gate-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        thread_wait Checkpoint Gate (DR-0017)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execution-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution Loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle Hooks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Lifecycle Hooks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hook-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hook Points
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hook Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-return-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hook Return Values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-execution-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hook Execution Order
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workspace-and-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workspace and Artifact
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Workspace and Artifact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-keyed-manager-artifact-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task-Keyed Manager Artifact (DR-0017)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Thread Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#starting-a-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Starting a Thread
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-an-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding an Agent
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-thread-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other Thread Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Record
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prompt-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompt Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-loading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin Loading
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manager-session-rotation-rehydration-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manager Session Rotation &amp; Rehydration (DR-0017)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Cleanup
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cortex-thread-system">Cortex Thread System<a class="headerlink" href="#cortex-thread-system" title="Permanent link">&para;</a></h1>
+<p>The thread system is Cortex's multi-agent orchestration engine. A thread is a relay of focused agents — each with its own system prompt, tools, and plugins — passing a shared artifact file between them to accomplish complex, multi-step research work.</p>
+<h2 id="mental-model">Mental Model<a class="headerlink" href="#mental-model" title="Permanent link">&para;</a></h2>
+<p>A thread is like a relay race. Each agent (runner) picks up the baton (the <code>artifact.md</code> file), does its work, and hands off to the next agent based on transition rules. The artifact file is the shared memory — agents write their findings to it, and subsequent agents read what came before.</p>
+<p>Threads are defined by <strong>templates</strong> under <code>~/.cortex/config/thread-templates/</code> (see <a href="#configuration-file">Configuration File</a>). Threads are often launched by the task dispatch system — see <a href="../tasks/">tasks.md</a> for how tasks trigger thread execution. A template specifies: which agents participate, in what order, with what transition logic, and what lifecycle hooks fire between steps.</p>
+<h2 id="configuration-file">Configuration File<a class="headerlink" href="#configuration-file" title="Permanent link">&para;</a></h2>
+<p>The thread system is configured under <code>~/.cortex/config/thread-templates/</code> (read from <code>$CORTEX_HOME/config/thread-templates/</code>) — a <strong>directory</strong> holding one JSON file per entity, split across three subdirectories:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>~/.cortex/config/thread-templates/
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── agents/&lt;name&gt;.json      # one agent definition per file
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── templates/&lt;name&gt;.json   # one pipeline template (or shell binding) per file
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>└── shells/&lt;name&gt;.json      # one shell definition (parameterized transition graph) per file
+</code></pre></div>
+<p>Each file holds a single entity, and <strong>the filename (without <code>.json</code>) is the entity name</strong>. For <code>agents/</code>, the JSON's <code>name</code> field must match the filename or the file is skipped with a warning; for <code>templates/</code>, a <code>name</code> field is optional but if present must match the filename.</p>
+<p><strong>Loading priority.</strong> If the <code>config/thread-templates/</code> directory exists, it is used. Otherwise the loader falls back to the legacy single file <code>config/thread-templates.json</code> (backward compatibility). Note that shell bindings only resolve in the directory form — shell definitions live under <code>shells/</code>, so a legacy single-file config cannot expand them.</p>
+<p><strong>One-time migration.</strong> On startup, if a legacy <code>config/thread-templates.json</code> exists and the directory does not, the server splits the single file into per-entity files under the directory and renames the original to <code>thread-templates.json.migrated-bak</code> (the original is preserved, never deleted). The migration is idempotent — it is a no-op once the directory exists.</p>
+<p><strong>Defaults merge.</strong> The shipped defaults are a directory too. On startup they are merged into your config with <strong>per-file copy-if-missing</strong> semantics (aligned with plugin-sync): a default agent/template/shell file you do not yet have is copied in; files you already have are never overwritten. This lets new default entities (for example a newly shipped shell definition) reach existing installs without clobbering local edits.</p>
+<p><strong>Hot-reload.</strong> Each entity subdirectory (<code>agents/</code>, <code>templates/</code>, <code>shells/</code>) is watched, along with any prompt files in the <code>prompts/</code> directory. Changes are detected via <code>fs.watch</code>, debounced (300ms), and the whole config is reloaded without restarting the server. Reload is fail-soft: a single malformed JSON file is skipped with a warning rather than clearing the whole table. A notification is sent to the admin Slack channel on reload.</p>
+<h3 id="editing-templates">Editing Templates<a class="headerlink" href="#editing-templates" title="Permanent link">&para;</a></h3>
+<p>These files can be edited by hand, and hot-reload will pick the change up. They can also be edited from the desktop app under <strong>Settings → Thread templates</strong>, which is the safer route because it validates before it writes.</p>
+<p>The panel is a master-detail editor: the list on the left carries every agent, template and shell with a badge marking anything that currently fails validation, and the pane on the right holds the entity's raw JSON alongside two read-only tabs. <strong>Validation</strong> lists errors and warnings with the field each one came from; <strong>References</strong> shows the file path on disk, which templates depend on this entity, how many live threads are running on it and how many open tasks name it.</p>
+<p>Validation runs on save and on demand, and it judges the candidate against the world the save would produce rather than the one it replaces — so a template may name an agent that is being created in the same edit. Errors block the write; warnings (an unrecognized field, most often) are reported and let it through. The check that matters most is the impact pass: saving an agent re-validates every template that uses it, which is what catches the class of edit that would otherwise leave a running thread with nowhere to step. Because the executor re-reads transitions and prompts on <em>every</em> step, a bad edit does not fail loudly at launch — it stalls a thread mid-flight.</p>
+<p>Three guards sit on the write path. A save to an entity with live threads on it asks for a second click, since those threads will pick the change up on their next step. Deleting is refused outright while another template still references the entity. And a save carries the hash of the body the editor loaded, so an edit made against a stale view — someone else's save, or your own hand-edit landing through hot-reload — is rejected as a conflict rather than silently overwriting it.</p>
+<p>Renaming is not offered: the filename <em>is</em> the identity, and a rename would orphan every reference to the old name. Duplicate to the new name and delete the old one, which forces the dependent templates to be updated in between.</p>
+<p>Entities are labelled by origin. <strong>stock</strong> is byte-identical to the file Cortex ships, <strong>modified</strong> is a shipped file you have since changed, and <strong>custom</strong> is entirely your own. Editing a stock entity forks it permanently — the defaults merge is copy-if-missing, so your version will never be overwritten by an upgrade, and equally will never pick up improvements to the shipped one. The config directory is plain JSON and worth keeping under git; that, not a backup file, is the undo.</p>
+<h3 id="agent-definitions">Agent Definitions<a class="headerlink" href="#agent-definitions" title="Permanent link">&para;</a></h3>
+<p>Each file under <code>agents/</code> defines one agent — an independent entity with its own identity, tools, and prompt. The file holds the agent object itself, and its <code>name</code> must match the filename.</p>
+<p><code>agents/planner.json</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Plans the research approach&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;profile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;persistSession&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">&quot;directive&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;You are a research planner. Break down problems into testable hypotheses.&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;promptTemplate&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;file:planner-prompt.md&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Agent,AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">&quot;pluginDirs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;plugins/cortex-common&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;plugins/cortex-surveyor&quot;</span><span class="p">]</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">}</span>
+</code></pre></div>
+<p><strong>Agent definition fields:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>Agent ID — required, and must equal the filename (<code>agents/&lt;name&gt;.json</code>)</td>
+</tr>
+<tr>
+<td><code>profile</code></td>
+<td>string</td>
+<td>Profile name from <code>profiles.json</code>, or <code>"__active__"</code> to use the current runtime profile</td>
+</tr>
+<tr>
+<td><code>persistSession</code></td>
+<td>boolean</td>
+<td><code>true</code>: reuse the same LLM session across iterations (preserves conversation context). <code>false</code>: fresh session each step</td>
+</tr>
+<tr>
+<td><code>directive</code></td>
+<td>string?</td>
+<td>Agent role/identity, prepended to the prompt. Supports <code>file:filename.md</code> references</td>
+</tr>
+<tr>
+<td><code>systemPrompt</code></td>
+<td>string?</td>
+<td>Full system prompt override. Supports <code>file:</code> references</td>
+</tr>
+<tr>
+<td><code>promptTemplate</code></td>
+<td>string?</td>
+<td>Template with <code>{{input}}</code>, <code>{{artifactPath}}</code>, <code>{{previousOutput}}</code>, <code>{{modifiedFiles}}</code>, <code>{{currentDateTime}}</code> variables. Supports <code>file:</code> references</td>
+</tr>
+<tr>
+<td><code>claudeAgent</code></td>
+<td>string?</td>
+<td>Claude Code agent name (<code>--agent</code> flag, loads from <code>.claude/agents/</code>)</td>
+</tr>
+<tr>
+<td><code>outputStyle</code></td>
+<td>string?</td>
+<td>Claude Code output style</td>
+</tr>
+<tr>
+<td><code>tools</code></td>
+<td>string?</td>
+<td>Comma-separated tool list (overrides defaults)</td>
+</tr>
+<tr>
+<td><code>pluginDirs</code></td>
+<td>string[]?</td>
+<td>Plugin directories to load (<code>--plugin-dir</code> flags)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="multi-stage-agents">Multi-Stage Agents<a class="headerlink" href="#multi-stage-agents" title="Permanent link">&para;</a></h3>
+<p>An agent can declare multiple <strong>stages</strong> via the <code>stages</code> field. When stages are present, <code>promptTemplate</code> is ignored — the engine selects the appropriate stage's prompt for each step based on the transition target.</p>
+<p><code>agents/coder.json</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;profile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">&quot;persistSession&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">&quot;entryStage&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;implement&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="nt">&quot;stages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nt">&quot;implement&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">      </span><span class="nt">&quot;promptTemplate&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;You are implementing the plan. Write code to {{artifactPath}}.&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Write the implementation&quot;</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">    </span><span class="nt">&quot;review&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">      </span><span class="nt">&quot;promptTemplate&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;You are reviewing the code in {{artifactPath}}. Check for correctness.&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">      </span><span class="nt">&quot;continuesSession&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Review the implementation&quot;</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">  </span><span class="nt">&quot;pluginDirs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;plugins/cortex-coder&quot;</span><span class="p">]</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="p">}</span>
+</code></pre></div>
+<p>When <code>continuesSession: true</code> is set on a stage, and the agent has a persistent session that is being resumed, the engine sends only the stage-specific incremental prompt — skipping the directive, protocol preamble, and automatic <code>previousOutput</code> injection.</p>
+<h3 id="file-references">File References<a class="headerlink" href="#file-references" title="Permanent link">&para;</a></h3>
+<p>Fields that accept <code>file:filename.md</code> syntax load their content from <code>prompts/&lt;subdir&gt;/filename.md</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Subdirectory</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>directive</code></td>
+<td><code>prompts/directives/</code></td>
+</tr>
+<tr>
+<td><code>promptTemplate</code></td>
+<td><code>prompts/promptTemplates/</code></td>
+</tr>
+<tr>
+<td><code>systemPrompt</code></td>
+<td><code>prompts/systemPrompts/</code></td>
+</tr>
+</tbody>
+</table>
+<p>The template system supports a YAML-frontmatter-based format with <code>extends:</code> (inheritance), <code>@fill(name)</code>/<code>@endfill</code> named blocks, <code>@block(name)</code>/<code>@endblock</code> template blocks, <code>${var}</code> / <code>${var:-default}</code> variable interpolation, and <code>@if(var)</code>/<code>@endif</code> conditionals.</p>
+<h2 id="templates">Templates<a class="headerlink" href="#templates" title="Permanent link">&para;</a></h2>
+<p>Templates compose agents into multi-step pipelines. Each file under <code>templates/</code> holds one template object.</p>
+<p><code>templates/coder-review.json</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder-review&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Implement a feature then review it&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;planner&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;coder&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">],</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">&quot;transitions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:implement&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;always&quot;</span><span class="p">}},</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:implement&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:review&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;always&quot;</span><span class="p">}},</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:review&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;always&quot;</span><span class="p">}}</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span><span class="nt">&quot;entryAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">  </span><span class="nt">&quot;maxTotalSteps&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">  </span><span class="nt">&quot;maxTotalCostUsd&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">5.00</span><span class="p">,</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">  </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">    </span><span class="nt">&quot;onEnd&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node hooks/post-task-hook.mjs&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">      </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30000</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="p">}</span>
+</code></pre></div>
+<p><strong>Template fields:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>string?</td>
+<td>Optional; if present it must equal the filename (<code>templates/&lt;name&gt;.json</code>). The filename is the template ID used in <code>!thread &lt;name&gt;</code> and task dispatch</td>
+</tr>
+<tr>
+<td><code>agents</code></td>
+<td>TemplateAgentRef[]</td>
+<td>Ordered list of participating agents</td>
+</tr>
+<tr>
+<td><code>transitions</code></td>
+<td>TransitionRule[]</td>
+<td>Rules governing when to move from one agent to the next</td>
+</tr>
+<tr>
+<td><code>entryAgent</code></td>
+<td>string</td>
+<td>The first agent to run</td>
+</tr>
+<tr>
+<td><code>entryStage</code></td>
+<td>string?</td>
+<td>Which stage to enter on the first step (defaults to agent's <code>entryStage</code>)</td>
+</tr>
+<tr>
+<td><code>maxTotalSteps</code></td>
+<td>number</td>
+<td>Hard limit on total agent steps</td>
+</tr>
+<tr>
+<td><code>maxTotalCostUsd</code></td>
+<td>number?</td>
+<td>Cost limit in USD</td>
+</tr>
+<tr>
+<td><code>hooks</code></td>
+<td>ThreadHooks?</td>
+<td>Lifecycle hooks (onStart, onTransition, onEnd)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="agent-references-in-templates">Agent References in Templates<a class="headerlink" href="#agent-references-in-templates" title="Permanent link">&para;</a></h3>
+<p>Templates reference agents either by name (as a string) or with per-template overrides (as an object):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">// Simple reference — use agent as defined</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;planner&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">]</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1">// With overrides — customize the agent for this template</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="p">{</span><span class="nt">&quot;ref&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">},</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="p">{</span><span class="nt">&quot;ref&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;promptTemplate&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;file:special-coder-prompt.md&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Read,Write,Edit&quot;</span><span class="p">}</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">]</span>
+</code></pre></div>
+<p>Override fields: <code>promptTemplate</code>, <code>directive</code>, <code>systemPrompt</code>, <code>persistSession</code>, <code>claudeAgent</code>, <code>outputStyle</code>, <code>tools</code>, <code>pluginDirs</code>.</p>
+<h3 id="shell-templates">Shell Templates<a class="headerlink" href="#shell-templates" title="Permanent link">&para;</a></h3>
+<p>Pipelines that share the same transition graph and differ only in which agents fill the roles are defined once as a <strong>shell</strong> — a parameterized transition graph stored as pure JSON in <code>shells/&lt;name&gt;.json</code> — and referenced by lightweight <strong>shell bindings</strong> in <code>templates/</code>.</p>
+<p>A shell declares its parameters and uses placeholders in the graph:</p>
+<ul>
+<li><code>{param}</code> — substituted with the binding's value for that parameter (an agent name).</li>
+<li><code>{param.entryStage}</code> — substituted with that agent's <code>entryStage</code>, resolved from that agent's definition under <code>agents/</code>.</li>
+</ul>
+<p>For example, the shipped <code>worker-review</code> shell (<code>shells/worker-review.json</code>) — a generic produce-then-audit loop:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;params&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;worker&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">],</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;{worker}&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;{reviewer}&quot;</span><span class="p">],</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;transitions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{worker}:{worker.entryStage}&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{reviewer}&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;always&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{reviewer}&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{worker}:retry&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;convergence&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;marker&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;[APPROVED]&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;maxIterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{worker}:retry&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{reviewer}&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;output_contains&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pattern&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;\\[REVISED\\]&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="nt">&quot;entryAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{worker}&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span><span class="nt">&quot;entryStage&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{worker.entryStage}&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span><span class="nt">&quot;maxTotalSteps&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">  </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">    </span><span class="nt">&quot;onEnd&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node ~/.cortex/hooks/post-task-hook.mjs&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;{worker}&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="p">}</span>
+</code></pre></div>
+<p>A template then binds it by naming the shell and its parameters (<code>templates/doc-review.json</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;shell&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;worker-review&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">&quot;worker&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;doc-writer&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">&quot;reviewer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;doc-reviewer&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Generic produce-then-audit for documents&quot;</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>At load time the engine interpolates the placeholders and validates the result, producing a full template equivalent to writing the graph out by hand (here: <code>doc-writer</code> at its entry stage → <code>doc-reviewer</code> → <code>doc-writer:retry</code> until <code>[APPROVED]</code>). Validation errors — a missing parameter, an unknown placeholder, a referenced agent that does not exist, an agent missing its <code>entryStage</code>, or a transition endpoint naming a stage the agent lacks — fail that one template at load with a logged error; an unknown shell name is fail-soft skipped. In every case the rest of the config still loads.</p>
+<p><strong>Shell definition fields (<code>shells/&lt;name&gt;.json</code>):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>params</code></td>
+<td>string[]</td>
+<td>Required binding parameter names</td>
+</tr>
+<tr>
+<td><code>agents</code></td>
+<td>string[]</td>
+<td>Agent slots as placeholder strings (e.g. <code>"{worker}"</code>) — declares which params name agents</td>
+</tr>
+<tr>
+<td><code>transitions</code></td>
+<td>TransitionRule[]</td>
+<td>Transition graph with placeholder endpoints</td>
+</tr>
+<tr>
+<td><code>entryAgent</code></td>
+<td>string</td>
+<td>Entry agent placeholder</td>
+</tr>
+<tr>
+<td><code>entryStage</code></td>
+<td>string?</td>
+<td>Entry stage placeholder</td>
+</tr>
+<tr>
+<td><code>maxTotalSteps</code></td>
+<td>number</td>
+<td>Default step budget (a binding's <code>maxTotalSteps</code> overrides it)</td>
+</tr>
+<tr>
+<td><code>maxTotalCostUsd</code></td>
+<td>number?</td>
+<td>Cost limit in USD</td>
+</tr>
+<tr>
+<td><code>hooks</code></td>
+<td>ThreadHooks?</td>
+<td>Lifecycle hooks (placeholders allowed in args)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Shell binding fields (a template that references a shell):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shell</code></td>
+<td>string</td>
+<td>Name of the shell to expand</td>
+</tr>
+<tr>
+<td><code>&lt;param&gt;</code></td>
+<td>string</td>
+<td>One value per shell parameter (e.g. <code>worker</code>, <code>reviewer</code>) — the agent name that fills that role</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>string?</td>
+<td>Human-readable description (carried onto the expanded template)</td>
+</tr>
+<tr>
+<td><code>maxTotalSteps</code></td>
+<td>number?</td>
+<td>Override the shell's default step budget</td>
+</tr>
+</tbody>
+</table>
+<h2 id="transitions">Transitions<a class="headerlink" href="#transitions" title="Permanent link">&para;</a></h2>
+<p>Transitions determine how the thread moves from one agent to the next. They are evaluated after each agent step completes.</p>
+<h3 id="transition-endpoint-syntax">Transition Endpoint Syntax<a class="headerlink" href="#transition-endpoint-syntax" title="Permanent link">&para;</a></h3>
+<p>Endpoints use the syntax <code>"agent"</code> or <code>"agent:stage"</code>. A bare agent name matches any stage of that agent. An <code>agent:stage</code> endpoint matches only that specific stage.</p>
+<h3 id="condition-types">Condition Types<a class="headerlink" href="#condition-types" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Behavior</th>
+<th>Parameters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>always</code></td>
+<td>Always transition</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>convergence</code></td>
+<td>Loop until a marker string appears in the artifact output, or until <code>maxIterations</code> is reached</td>
+<td><code>marker</code> (string to find), <code>maxIterations</code> (max loops, default 3)</td>
+</tr>
+<tr>
+<td><code>output_contains</code></td>
+<td>Transition if the artifact output matches a regex pattern</td>
+<td><code>pattern</code> (regex string)</td>
+</tr>
+<tr>
+<td><code>output_not_contains</code></td>
+<td>Transition if the artifact output does NOT match a regex pattern</td>
+<td><code>pattern</code> (regex string)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="evaluation-order">Evaluation Order<a class="headerlink" href="#evaluation-order" title="Permanent link">&para;</a></h3>
+<p>Transitions are evaluated in the order they appear in the template. The <strong>first matching rule wins</strong>. If no rule matches, the thread stops (terminal state: <code>no_matching_transition</code>).</p>
+<p>A rule's <code>from</code> endpoint is matched against the last completed step. Only rules whose <code>from</code> matches the last step's agent (and optionally stage) are considered.</p>
+<h3 id="convergence-example">Convergence Example<a class="headerlink" href="#convergence-example" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:implement&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:review&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;convergence&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="nt">&quot;marker&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;[IMPLEMENTATION COMPLETE]&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="nt">&quot;maxIterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="p">}</span>
+</code></pre></div>
+<p>This means: after <code>coder:implement</code> runs, check if the artifact contains <code>[IMPLEMENTATION COMPLETE]</code>. If it does, transition to <code>coder:review</code>. If not, loop back to <code>coder:implement</code>. If it loops 5 times without the marker, stop with <code>max_iterations</code>.</p>
+<h3 id="template-limits">Template Limits<a class="headerlink" href="#template-limits" title="Permanent link">&para;</a></h3>
+<p>Two hard limits are checked before evaluating any transitions:</p>
+<ul>
+<li><code>maxTotalSteps</code> — if the thread has reached this many total steps, stop with <code>max_iterations</code></li>
+<li><code>maxTotalCostUsd</code> — if the accumulated cost exceeds this, stop with <code>cost_limit</code></li>
+</ul>
+<h2 id="thread-lifecycle">Thread Lifecycle<a class="headerlink" href="#thread-lifecycle" title="Permanent link">&para;</a></h2>
+<h3 id="states">States<a class="headerlink" href="#states" title="Permanent link">&para;</a></h3>
+<p>A thread moves through these states during its lifetime:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>running → completed   (all steps finished successfully)
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>running → failed      (unrecoverable error)
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>running → cancelled   (user cancelled via !cancel or button)
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>running → aborted     (agent self-aborted via the thread_abort tool)
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>running → waiting     (waiting for user input — Phase 6 buffering)
+</code></pre></div>
+<p>Terminal states: <code>completed</code>, <code>failed</code>, <code>cancelled</code>, <code>aborted</code>.</p>
+<h3 id="agent-initiated-control-abort-split-wait">Agent-Initiated Control (abort / split / wait)<a class="headerlink" href="#agent-initiated-control-abort-split-wait" title="Permanent link">&para;</a></h3>
+<p>Thread control is out-of-band: an agent signals its own thread by calling the <code>thread_abort</code>, <code>thread_split</code>, or <code>thread_wait</code> MCP tools, never by writing markers into the artifact (text mentioning those keywords in the artifact does nothing). The tool writes a structured <code>metadata.pendingControl</code> on the agent's own thread; the runner reads it after every step completion, with <strong>higher priority than all transition rules</strong>. <code>thread_abort({ kind, diagnosis })</code> immediately terminates the thread with status <code>aborted</code> (but <code>onEnd</code> hooks still fire); <code>thread_split({ subtasks })</code> proposes a decomposition of the owning dispatch task; <code>thread_wait</code> suspends until awaited children finish.</p>
+<h3 id="suspension-and-wake-up-thread_wait">Suspension and Wake-up (thread_wait)<a class="headerlink" href="#suspension-and-wake-up-thread_wait" title="Permanent link">&para;</a></h3>
+<p>A suspended manager waits on its child tasks (and any child threads). Calling <code>thread_wait</code> without <code>on_tasks</code> or <code>on_threads</code> infers all live linked children. Supplying either parameter switches to explicit override mode: only IDs listed in the supplied arrays are awaited, and an omitted array is treated as empty. Explicit IDs must identify live linked children; duplicate, missing, unrelated, and terminal IDs are ignored. Empty arrays therefore leave nothing to await and the thread continues.</p>
+<p>Each child that completes or blocks is delivered into the manager's <code>pendingMessages</code> as a result or escalation notice, and the manager is re-entered once nothing is left to wait on. Delivery is event-driven (<code>task.completed</code> / <code>task.blocked</code>, verified against <code>TASKS.yaml</code> before delivery), backed by two safety nets: a periodic disk-driven sweep (every 60 seconds, configurable via the <code>waitingSweepMs</code> key in <a href="../configuration/#configsettingsjson"><code>config/settings.json</code></a>; the legacy <code>CORTEX_WAITING_SWEEP_MS</code> variable is still read as a deprecated fallback) that reconciles every waiting manager against on-disk task state, and a startup recovery pass that re-delivers results that turned terminal while the server was down. Open child tasks survive restarts and stay awaited.</p>
+<p>Blocking a task does not cascade to its dependents, so a wait set can reach a state where every remaining awaited task depends — directly or transitively — on a blocked task and can never start. The wake path detects this stall and wakes the manager with a deadlock notice naming the stuck tasks and their blockers; the manager is expected to unblock, re-plan the decomposition, or escalate via <code>thread_abort</code>. Each distinct stall wakes the manager exactly once — an unchanged stall never re-wakes it.</p>
+<h3 id="thread_wait-checkpoint-gate-dr-0017">thread_wait Checkpoint Gate (DR-0017)<a class="headerlink" href="#thread_wait-checkpoint-gate-dr-0017" title="Permanent link">&para;</a></h3>
+<p>Before a manager suspends via <code>thread_wait</code>, it must leave a fresh checkpoint for its (possibly rotated) next incarnation. The runner enforces this with a <strong>checkpoint gate</strong>:</p>
+<ul>
+<li>On <code>thread_wait</code>, the gate compares the artifact's <strong>current content hash</strong> against the hash recorded at the <strong>start of the current step</strong>. If the artifact is <strong>unchanged</strong> since step start, <code>thread_wait</code> is <strong>rejected</strong>; if it <strong>changed</strong>, the wait is allowed.</li>
+<li>The comparison uses a <strong>content hash, not mtime</strong> — a bare <code>touch</code> cannot bypass it.</li>
+<li>The baseline hash is recorded at thread creation (the initial/inherited artifact state) and again at the end of every step, so the gate covers both the first step and every re-entry.</li>
+<li><strong>Exemptions</strong>: <code>thread_abort</code> and <code>thread_split</code> are exempt — escalation must never be blocked. The gate applies only to threads that hold an <code>artifactPath</code>, and it <strong>fails open</strong> when no baseline was recorded.</li>
+</ul>
+<p>The checkpoint the manager writes always covers four sections: <strong>current delegations &amp; their acceptance criteria</strong>, <strong>decisions made</strong> (an append-only log), <strong>remaining plan</strong>, and <strong>assumptions</strong>.</p>
+<p>When the gate rejects a wait, it returns:</p>
+<blockquote>
+<p><code>checkpoint gate (DR-0017): your artifact has not been updated during this step. Before suspending, write your checkpoint into the artifact — current delegations &amp; their acceptance criteria, decisions made, remaining plan, assumptions — then call thread_wait again.</code></p>
+</blockquote>
+<h3 id="execution-loop">Execution Loop<a class="headerlink" href="#execution-loop" title="Permanent link">&para;</a></h3>
+<p>The main execution loop in <code>runner.ts</code> runs as follows:</p>
+<ol>
+<li><strong>onStart hook</strong>: Fire before the first step (template hook first, then caller's extraHooks)</li>
+<li><strong>Loop</strong>:
+   a. Resolve the next step (which agent, which stage)
+   b. Build the step config (prompt, session, profile, execution registry entry)
+   c. Set up streaming callbacks (assistant message aggregation, tool traces)
+   d. Execute the agent (spawn LLM process, await result)
+   e. Record step outcome (persist to thread store, register session, finalize execution)
+   f. Read metadata.pendingControl (abort / split / wait) written by the control tools
+   g. Evaluate transitions (first matching rule wins, or stop)
+   h. <strong>onTransition hook</strong>: Fire between steps (if transitioning)</li>
+<li><strong>onEnd hook</strong>: Fire after the main loop completes</li>
+<li>Mark thread as completed (if still running)</li>
+</ol>
+<h2 id="lifecycle-hooks">Lifecycle Hooks<a class="headerlink" href="#lifecycle-hooks" title="Permanent link">&para;</a></h2>
+<p>Hooks are shell commands executed at specific points in the thread lifecycle. They receive context as JSON on stdin and can return instructions as JSON on stdout. Thread hooks are one of three hook subsystems — see <a href="../hooks/">hooks.md</a> for the full hook architecture, including agent-level and session-level hooks.</p>
+<h3 id="hook-points">Hook Points<a class="headerlink" href="#hook-points" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Hook</th>
+<th>When it fires</th>
+<th>Context</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>onStart</code></td>
+<td>Before the first agent step</td>
+<td><code>{ threadId, templateName, phase: "start", steps: [], activeAgent, artifactContent, userMessage, totalCostUsd }</code></td>
+</tr>
+<tr>
+<td><code>onTransition</code></td>
+<td>After each transition, before the next step</td>
+<td>Same as above, plus <code>previousAgent</code> identifying the agent that just completed</td>
+</tr>
+<tr>
+<td><code>onEnd</code></td>
+<td>After all steps complete, before the thread is marked done</td>
+<td>Same as above, with final artifact content and completed steps</td>
+</tr>
+</tbody>
+</table>
+<h3 id="hook-configuration">Hook Configuration<a class="headerlink" href="#hook-configuration" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">&quot;onEnd&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node hooks/post-task-hook.mjs&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;--project&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;nimbus&quot;</span><span class="p">],</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30000</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li><code>command</code> — full shell invocation (interpreter must be included: <code>node ...</code>, <code>bash ...</code>, etc.)</li>
+<li><code>args</code> — positional arguments passed as <code>$1</code>, <code>$2</code>, ... via <code>sh -c 'cmd "$@"'</code></li>
+<li><code>timeout</code> — execution timeout in milliseconds (default: 30000)</li>
+</ul>
+<h3 id="hook-return-values">Hook Return Values<a class="headerlink" href="#hook-return-values" title="Permanent link">&para;</a></h3>
+<p>Hooks return JSON on stdout to control what happens next:</p>
+<p><strong>Insert a temporary agent:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;insertAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Run post-task cleanup: verify all tests pass&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">&quot;profile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-haiku&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">&quot;directive&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;You are a cleanup agent&quot;</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">}</span>
+</code></pre></div>
+This creates a new temporary agent that runs the given prompt, then the thread continues normally.</p>
+<p><strong>Target an existing agent's session:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;targetAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Double-check the results in the artifact against the original requirements&quot;</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="p">}</span>
+</code></pre></div>
+This sends the prompt to the <code>reviewer</code> agent's persistent session (via stdin if the process is still alive, or <code>--resume</code> if dead). <code>targetAgent</code> takes priority over <code>insertAgent</code>.</p>
+<h3 id="hook-execution-order">Hook Execution Order<a class="headerlink" href="#hook-execution-order" title="Permanent link">&para;</a></h3>
+<p>Template hooks fire first, then the caller's <code>extraHooks</code> (injected by scheduler/dispatch) at the same phase. Both use identical execution semantics. ExtraHooks are not persisted to the ThreadRecord — they are valid only for the current <code>runThread()</code> invocation.</p>
+<h2 id="workspace-and-artifact">Workspace and Artifact<a class="headerlink" href="#workspace-and-artifact" title="Permanent link">&para;</a></h2>
+<p>Each thread gets an isolated workspace on the filesystem:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>tmp/threads/thr_a1b2c3d4/
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>├── artifact.md        # The shared artifact — agents read and write this
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>└── ...                # Any other files agents create
+</code></pre></div>
+<p>The artifact path is available to all agents via the <code>{{artifactPath}}</code> template variable. Agents communicate by reading what previous agents wrote and appending their own findings.</p>
+<p>Agents can also identify files modified by previous agents:
+- <code>{{previousOutput}}</code> — the complete output from the last completed step
+- <code>{{modifiedFiles}}</code> — list of files edited by the previous agent (extracted from path-only session activity logs)</p>
+<h3 id="task-keyed-manager-artifact-dr-0017">Task-Keyed Manager Artifact (DR-0017)<a class="headerlink" href="#task-keyed-manager-artifact-dr-0017" title="Permanent link">&para;</a></h3>
+<p>Most threads keep their artifact in the <strong>ephemeral thread workspace</strong> shown above (<code>tmp/threads/{threadId}/artifact.md</code>), addressed by thread id and deleted on thread cleanup. A <strong>manager thread</strong> is different: it owns a composite task node and keeps its artifact at a <strong>task-keyed</strong> path, addressed by the owning task id rather than the thread id:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>context/projects/{project}/manager/{taskId}/artifact.md
+</code></pre></div>
+<p>This artifact is <strong>durable</strong>. It survives thread cleanup, server restarts, and manager replacement/rotation, and is git-versioned with the context repo (every checkpoint accrues version history) — in contrast to the ephemeral <code>tmp/threads/{threadId}/artifact.md</code> workspace, which is discarded when the thread is cleaned up. It is set at dispatch time — the manager thread's <code>artifactPath</code> points at this task-keyed path — so <code>{{artifactPath}}</code>, artifact reads, and the <a href="#thread_wait-checkpoint-gate-dr-0017">checkpoint gate</a> all operate on it unchanged, and workspace cleanup never touches it.</p>
+<p>Its role is <strong>rehydration memory</strong>: a fresh manager incarnation (after rotation or a crash) inherits the previous incarnation's checkpoint from this file, so managers are expected to write it such that a stranger could continue the task from it alone. The manager-node concept and its acceptance ledger are documented in <a href="../tasks/">tasks.md</a>.</p>
+<h2 id="thread-commands">Thread Commands<a class="headerlink" href="#thread-commands" title="Permanent link">&para;</a></h2>
+<h3 id="starting-a-thread">Starting a Thread<a class="headerlink" href="#starting-a-thread" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>!thread coder-review Implement user authentication for the API
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>!thread researcher Survey recent papers on grasp planning
+</code></pre></div>
+<p>The first word after <code>!thread</code> is the template name (or agent name for single-agent execution). The rest is the user message passed to the first agent.</p>
+<h3 id="adding-an-agent">Adding an Agent<a class="headerlink" href="#adding-an-agent" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>!thread add reviewer
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>!thread add critic Please focus on security implications
+</code></pre></div>
+<p>This dynamically adds an agent to an existing thread. The thread must be completed or waiting (not currently running). If the thread was an auto-record (no filesystem workspace), a workspace is created lazily.</p>
+<h3 id="other-thread-commands">Other Thread Commands<a class="headerlink" href="#other-thread-commands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>!thread list</code></td>
+<td>List active threads</td>
+</tr>
+<tr>
+<td><code>!thread status [id]</code></td>
+<td>Show thread status and steps</td>
+</tr>
+<tr>
+<td><code>!thread cancel [id]</code></td>
+<td>Cancel a running thread</td>
+</tr>
+<tr>
+<td><code>!thread agents</code></td>
+<td>List available agents</td>
+</tr>
+<tr>
+<td><code>!thread templates</code></td>
+<td>List available templates</td>
+</tr>
+</tbody>
+</table>
+<h2 id="thread-types">Thread Types<a class="headerlink" href="#thread-types" title="Permanent link">&para;</a></h2>
+<p>Cortex uses three types of thread records internally:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>templateName</th>
+<th>Workspace</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Template thread</strong></td>
+<td>Actual template name</td>
+<td>Yes</td>
+<td><code>!thread &lt;template&gt;</code>, task dispatch</td>
+</tr>
+<tr>
+<td><strong>Default thread</strong></td>
+<td><code>"default"</code></td>
+<td>Yes</td>
+<td>Single-agent messages (the normal chat path)</td>
+</tr>
+<tr>
+<td><strong>Auto thread</strong></td>
+<td><code>null</code></td>
+<td>No (initially)</td>
+<td><code>!thread add</code> chaining from single-agent runs</td>
+</tr>
+</tbody>
+</table>
+<p>The distinction matters because the runner treats default threads differently: they run exactly one step (no transitions), use the channel's existing session, and forward streaming output directly to the user.</p>
+<h2 id="thread-record">Thread Record<a class="headerlink" href="#thread-record" title="Permanent link">&para;</a></h2>
+<p>Each thread's full state is persisted in <code>~/.cortex/data/threads.json</code> as a <code>ThreadRecord</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>Thread ID (<code>thr_&lt;8 hex&gt;</code>)</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>Current lifecycle state</td>
+</tr>
+<tr>
+<td><code>channel</code></td>
+<td>Slack channel ID</td>
+</tr>
+<tr>
+<td><code>templateName</code></td>
+<td>Template used (null for ad-hoc)</td>
+</tr>
+<tr>
+<td><code>userMessage</code></td>
+<td>The original user message</td>
+</tr>
+<tr>
+<td><code>workspacePath</code> / <code>artifactPath</code></td>
+<td>File paths for the shared artifact</td>
+</tr>
+<tr>
+<td><code>agents</code></td>
+<td>Map of agent slots with their state (sessionId, status, persistSession)</td>
+</tr>
+<tr>
+<td><code>activeAgent</code> / <code>activeStage</code></td>
+<td>Which agent and stage runs next</td>
+</tr>
+<tr>
+<td><code>steps[]</code></td>
+<td>Recorded execution history per step (agent, stage, cost, duration, output)</td>
+</tr>
+<tr>
+<td><code>iterationCounts</code></td>
+<td>Track convergence loop counts per transition edge</td>
+</tr>
+<tr>
+<td><code>totalCostUsd</code></td>
+<td>Cumulative cost across all steps</td>
+</tr>
+<tr>
+<td><code>metadata</code></td>
+<td>Caller-provided context: scheduleTaskId, trigger, project, pendingMessages</td>
+</tr>
+<tr>
+<td><code>abortReason</code></td>
+<td>Reason if agent self-aborted</td>
+</tr>
+</tbody>
+</table>
+<p>Old threads are cleaned up on startup: threads older than 7 days are removed (24 hours for auto-records without workspaces).</p>
+<h2 id="prompt-variables">Prompt Variables<a class="headerlink" href="#prompt-variables" title="Permanent link">&para;</a></h2>
+<p>Agent prompts support template variables that are resolved at runtime:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>{{input}}</code></td>
+<td>The user message (for the first step) or the previous agent's output</td>
+</tr>
+<tr>
+<td><code>{{artifactPath}}</code></td>
+<td>Absolute path to <code>artifact.md</code></td>
+</tr>
+<tr>
+<td><code>{{previousOutput}}</code></td>
+<td>Full output from the last completed step</td>
+</tr>
+<tr>
+<td><code>{{modifiedFiles}}</code></td>
+<td>Files edited by the previous agent</td>
+</tr>
+<tr>
+<td><code>{{currentDateTime}}</code></td>
+<td>Current date and time in ISO format</td>
+</tr>
+</tbody>
+</table>
+<h2 id="plugin-loading">Plugin Loading<a class="headerlink" href="#plugin-loading" title="Permanent link">&para;</a></h2>
+<p>Each agent definition specifies which plugin directories to load via <code>pluginDirs</code>. Plugins are resolved relative to <code>DATA_DIR</code> (default: <code>~/.cortex/</code>). For example, <code>plugins/cortex-coder</code> resolves to <code>~/.cortex/plugins/cortex-coder/</code>.</p>
+<p>The plugin directories are passed to the LLM backend as <code>--plugin-dir</code> flags (Claude Code) or <code>--skill</code> flags (PI). The backend then scans for <code>SKILL.md</code> files and makes them available as invocable skills. See <a href="../skills-and-plugins/">skills-and-plugins.md</a> for the full skill and plugin system.</p>
+<h2 id="manager-session-rotation-rehydration-dr-0017">Manager Session Rotation &amp; Rehydration (DR-0017)<a class="headerlink" href="#manager-session-rotation-rehydration-dr-0017" title="Permanent link">&para;</a></h2>
+<p>A manager thread is long-lived: it accumulates context across many wake-ups as its children run. To keep that context clean, DR-0017 <strong>rotates the manager's LLM session</strong> periodically, relying on the durable <a href="#task-keyed-manager-artifact-dr-0017">task-keyed artifact</a> and its acceptance ledger (see <a href="../tasks/">tasks.md</a>) to carry state across the boundary.</p>
+<ul>
+<li><strong>Trigger</strong>: checked at the resume chokepoint, just before re-entering a suspended manager. When <code>steps.length - rotationBaseStepIndex &gt;= managerRotateSteps</code> (the <code>managerRotateSteps</code> key in <a href="../configuration/#configsettingsjson"><code>config/settings.json</code></a>, <strong>default 10</strong>; the legacy <code>CORTEX_MANAGER_ROTATE_STEPS</code> variable is still read as a deprecated fallback), the session rotates. Only <strong>manager (task-artifact) templates</strong> rotate — ordinary threads never do.</li>
+<li><strong>Rotation action</strong>: clear every agent slot's <code>sessionId</code> (so the next step runs on a <strong>fresh LLM session</strong>, which naturally re-injects the full manager directive and the original task contract prompt), reset <code>rotationBaseStepIndex</code> to the current step count, and enqueue a <strong>rehydration notice</strong> for the fresh incarnation.</li>
+<li><strong>Rehydration notice</strong>: it instructs the fresh incarnation to (1) <strong>read its artifact first</strong> — the file holds the predecessor's checkpoint; (2) <strong>reconcile the task tree</strong> (e.g. <code>cortex-task tree --task-id &lt;id&gt;</code>); and (3) <strong>verify pending ledger deliveries</strong> — child results still awaiting this manager's verdict must each be checked against their <code>done-when</code> before being trusted. It also tells the incarnation <strong>not</strong> to redo completed work or re-litigate recorded decisions, but to continue from the remaining plan.</li>
+<li>Rotation is a <strong>deliberate kill test</strong>: it is isomorphic to disaster/crash recovery — the fresh incarnation is rehydrated purely from durable state. It <strong>fails open</strong>: a rotation failure is non-fatal (the resume proceeds on the old session), and non-manager threads never rotate.</li>
+</ul>
+<h2 id="thread-cleanup">Thread Cleanup<a class="headerlink" href="#thread-cleanup" title="Permanent link">&para;</a></h2>
+<p>When a thread completes, fails, or is cancelled:</p>
+<ul>
+<li>The agent handle is removed from <code>RunningExecutions</code></li>
+<li>Thread-specific sessions (keyed by <code>thr:&lt;threadId&gt;:</code>) are closed</li>
+<li>The thread store is flushed to disk</li>
+</ul>
+<p>On server startup, any threads left in <code>running</code> status are marked as <code>failed</code> to prevent stale state.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

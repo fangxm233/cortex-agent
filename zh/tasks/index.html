@@ -1,0 +1,2328 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/tasks/">
+      
+      
+        <link rel="prev" href="../threads/">
+      
+      
+        <link rel="next" href="../memory/">
+      
+      
+        
+          <link rel="alternate" href="../../tasks/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>任务 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cortex-task-system" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              任务
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../tasks/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    线程
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    任务
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    任务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#tasksyaml-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TASKS.yaml 格式
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TASKS.yaml 格式">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        项目锁
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务生命周期
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="任务生命周期">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-states-stored" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        核心状态（存储的）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#derived-states-computed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        派生状态（计算得出的）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态转换
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#done-when-discipline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Done-When 纪律
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Done-When 纪律">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#completion-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        完成验证
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blocked-by-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Blocked-By 语义
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Blocked-By 语义">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#auto-block-quarantine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自动阻塞隔离
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stale-claim-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        陈旧认领检测
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-dispatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务分发
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="任务分发">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        触发
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dispatch-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        分发流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selection-priority" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        选择优先级
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pending-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pending 任务
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-run-watchdog-dr-0011" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cortex-Run 看门狗（DR-0011）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-archive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务归档
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-task-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cortex-Task CLI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cortex-Task CLI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#read-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        读取命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#approval-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        审批命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#blocking-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        阻塞命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mutation-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修改命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lock-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        锁命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#maintenance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        维护命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-criterion-one-task-dr-0006" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        一个标准，一个任务（DR-0006）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manager-tasks-and-the-acceptance-ledger-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manager 任务与验收账本（DR-0017）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Manager 任务与验收账本（DR-0017）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#manager-task-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manager 任务节点
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acceptance-ledger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        验收账本
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-verdict-command-in-the-acceptance-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        验收循环中的 verdict 命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-dispatch-concurrency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务分发并发
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#tasksyaml-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TASKS.yaml 格式
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TASKS.yaml 格式">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        项目锁
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务生命周期
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="任务生命周期">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-states-stored" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        核心状态（存储的）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#derived-states-computed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        派生状态（计算得出的）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态转换
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#done-when-discipline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Done-When 纪律
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Done-When 纪律">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#completion-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        完成验证
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blocked-by-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Blocked-By 语义
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Blocked-By 语义">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#auto-block-quarantine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自动阻塞隔离
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stale-claim-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        陈旧认领检测
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-dispatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务分发
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="任务分发">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        触发
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dispatch-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        分发流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selection-priority" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        选择优先级
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pending-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pending 任务
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-run-watchdog-dr-0011" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cortex-Run 看门狗（DR-0011）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-archive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务归档
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-task-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cortex-Task CLI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cortex-Task CLI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#read-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        读取命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#approval-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        审批命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#blocking-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        阻塞命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mutation-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修改命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lock-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        锁命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#maintenance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        维护命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-criterion-one-task-dr-0006" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        一个标准，一个任务（DR-0006）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manager-tasks-and-the-acceptance-ledger-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manager 任务与验收账本（DR-0017）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Manager 任务与验收账本（DR-0017）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#manager-task-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manager 任务节点
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acceptance-ledger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        验收账本
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-verdict-command-in-the-acceptance-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        验收循环中的 verdict 命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-dispatch-concurrency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务分发并发
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cortex-task-system">Cortex 任务系统<a class="headerlink" href="#cortex-task-system" title="Permanent link">&para;</a></h1>
+<p>任务系统是 Cortex 的结构化工作队列。任务存储在 <code>TASKS.yaml</code> 文件中——每个项目一个——并通过 <code>cortex-task</code> CLI 管理。系统支持将任务分发给队列工作器、追踪远程机器上的执行情况以及归档已完成的工作。</p>
+<h2 id="tasksyaml-format">TASKS.yaml 格式<a class="headerlink" href="#tasksyaml-format" title="Permanent link">&para;</a></h2>
+<p>每个项目的 <code>TASKS.yaml</code> 包含一个扁平的任务列表。每个任务有以下字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>必需</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string（4 个十六进制字符）</td>
+<td>是</td>
+<td>项目内唯一任务标识符（如 <code>f7cf</code>、<code>6a07</code>）</td>
+</tr>
+<tr>
+<td><code>text</code></td>
+<td>string</td>
+<td>是</td>
+<td>动词开头的任务描述</td>
+</tr>
+<tr>
+<td><code>why</code></td>
+<td>string</td>
+<td>是</td>
+<td>理由——为什么这个任务重要</td>
+</tr>
+<tr>
+<td><code>done-when</code></td>
+<td>string</td>
+<td>是</td>
+<td>可验证的完成标准</td>
+</tr>
+<tr>
+<td><code>priority</code></td>
+<td><code>high</code> | <code>medium</code> | <code>low</code></td>
+<td>是</td>
+<td>任务优先级</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>open</code> | <code>done</code> | <code>pending</code></td>
+<td>是</td>
+<td>核心状态（仅存储这 3 种；派生状态是计算得出的）</td>
+</tr>
+<tr>
+<td><code>template</code></td>
+<td>string</td>
+<td>是</td>
+<td>分发时使用的线程模板名称（如 <code>coder-review</code>）</td>
+</tr>
+<tr>
+<td><code>plan</code></td>
+<td>string</td>
+<td>否</td>
+<td>设计文档的路径</td>
+</tr>
+<tr>
+<td><code>depends-on</code></td>
+<td>string[]</td>
+<td>否</td>
+<td>此任务依赖的任务 ID 列表</td>
+</tr>
+<tr>
+<td><code>gpu</code></td>
+<td>string | null</td>
+<td>否</td>
+<td>目标机器名称（如 <code>lab2</code>）</td>
+</tr>
+<tr>
+<td><code>gpu-count</code></td>
+<td>number</td>
+<td>否</td>
+<td>所需 GPU 数量（默认：1）</td>
+</tr>
+<tr>
+<td><code>blocked-by</code></td>
+<td>string | null</td>
+<td>否</td>
+<td>外部阻塞原因（自由文本）</td>
+</tr>
+<tr>
+<td><code>claimed-by</code></td>
+<td>string | null</td>
+<td>否</td>
+<td>认领此任务的智能体标识符</td>
+</tr>
+<tr>
+<td><code>claimed-at</code></td>
+<td>string | null</td>
+<td>否</td>
+<td>认领的 ISO 时间戳</td>
+</tr>
+<tr>
+<td><code>paused</code></td>
+<td>boolean</td>
+<td>否</td>
+<td>任务是否已暂停</td>
+</tr>
+<tr>
+<td><code>approval-needed</code></td>
+<td>boolean</td>
+<td>否</td>
+<td>分发前是否需要审批</td>
+</tr>
+<tr>
+<td><code>approved-at</code></td>
+<td>string | null</td>
+<td>否</td>
+<td>审批的 ISO 时间戳</td>
+</tr>
+<tr>
+<td><code>not-before</code></td>
+<td>string | null</td>
+<td>否</td>
+<td>日期门控：在此 ISO 日期之前不分发</td>
+</tr>
+<tr>
+<td><code>completed-at</code></td>
+<td>string | null</td>
+<td>否</td>
+<td>完成的 ISO 时间戳</td>
+</tr>
+<tr>
+<td><code>completed-note</code></td>
+<td>string | null</td>
+<td>否</td>
+<td>完成时添加的备注</td>
+</tr>
+<tr>
+<td><code>pending-at</code></td>
+<td>string | null</td>
+<td>否</td>
+<td>标记为 pending 时的 ISO 时间戳（cortex-run）</td>
+</tr>
+</tbody>
+</table>
+<p>YAML 键使用 kebab-case（<code>done-when</code>、<code>depends-on</code>、<code>claimed-by</code> 等），内部映射为 snake_case 字段。</p>
+<h3 id="example-tasks">任务示例<a class="headerlink" href="#example-tasks" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">f7cf</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">text</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;用统一的</span><span class="nv"> </span><span class="s">adapter.runWithAdapter</span><span class="nv"> </span><span class="s">替换后端分发&quot;</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">why</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;重复的后端分发路径会增加维护负担&quot;</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">done-when</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mode-manager.ts</span><span class="nv"> </span><span class="s">对两个后端使用</span><span class="nv"> </span><span class="s">runWithAdapter；fixture</span><span class="nv"> </span><span class="s">回放测试通过&quot;</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">priority</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">high</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">open</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">template</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">coder-review</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="nt">plan</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">decisions/0002-unified-backend-dispatch.md</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5349</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="nt">text</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;完整管道集成测试&quot;</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">why</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;各阶段单独通过但端到端尚未验证&quot;</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">done-when</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;完整管道运行（prompt</span><span class="nv"> </span><span class="s">→</span><span class="nv"> </span><span class="s">VLA</span><span class="nv"> </span><span class="s">→</span><span class="nv"> </span><span class="s">dataset）完成，生成阶段成功率</span><span class="nv"> </span><span class="s">&gt;=80%&quot;</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">  </span><span class="nt">priority</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">high</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">  </span><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">open</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">  </span><span class="nt">template</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">experiment-runner</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">  </span><span class="nt">gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lab2</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">  </span><span class="nt">gpu-count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+</code></pre></div>
+<h3 id="project-lock">项目锁<a class="headerlink" href="#project-lock" title="Permanent link">&para;</a></h3>
+<p><code>TASKS.yaml</code> 可以可选地包含一个防止并发修改的 <code>lock</code> 部分：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">lock</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;exec_local_abc&quot;</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">acquired_at</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-04-23T12:00:00.000Z&quot;</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">expires_at</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-04-23T12:20:00.000Z&quot;</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">note</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;重构任务&quot;</span>
+</code></pre></div>
+<p>锁有固定的 20 分钟 TTL。修改任务列表的命令（<code>add</code>、<code>edit</code>、<code>batch-edit</code>、<code>decompose</code>）要求调用者持有锁。当拥有的执行完成时，锁会自动释放。</p>
+<h2 id="task-lifecycle">任务生命周期<a class="headerlink" href="#task-lifecycle" title="Permanent link">&para;</a></h2>
+<h3 id="core-states-stored">核心状态（存储的）<a class="headerlink" href="#core-states-stored" title="Permanent link">&para;</a></h3>
+<p>任务有三个存储在 YAML 中的核心状态：</p>
+<ul>
+<li><strong><code>open</code></strong> — 可被认领</li>
+<li><strong><code>done</code></strong> — 已完成（终止状态）</li>
+<li><strong><code>pending</code></strong> — 已分发到远程机器，等待 cortex-run 完成</li>
+</ul>
+<h3 id="derived-states-computed">派生状态（计算得出的）<a class="headerlink" href="#derived-states-computed" title="Permanent link">&para;</a></h3>
+<p>附加状态从布尔标志计算得出：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>派生状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>claimed_by</code> 已设置</td>
+<td><code>in-progress</code></td>
+</tr>
+<tr>
+<td><code>blocked_by</code> 已设置</td>
+<td><code>blocked</code></td>
+</tr>
+<tr>
+<td><code>paused</code> 为 true</td>
+<td><code>paused</code></td>
+</tr>
+<tr>
+<td><code>approval_needed</code> 为 true 且 <code>approved_at</code> 为 null</td>
+<td><code>approval-needed</code></td>
+</tr>
+<tr>
+<td><code>approved_at</code> 已设置</td>
+<td><code>approved</code>（可被分发）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="state-transitions">状态转换<a class="headerlink" href="#state-transitions" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>open ──claim──→ in-progress ──complete──→ done
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a> │                  │
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a> ├──block──→ blocked ├──unclaim──→ open
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a> │    │               │
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a> │    └──unblock──→ open
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a> │
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a> ├──pause──→ paused ──resume──→ open（清除认领）
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a> │
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a> ├──request-approval──→ approval-needed ──approve──→ open（approved_at 已设置）
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a> │
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a> └──pending──→ pending ──(cortex-run 结果)──→ done / open+blocked
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>                  │
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>                  └──reopen──→ open
+</code></pre></div>
+<p><strong>守卫规则：</strong></p>
+<ul>
+<li>不能认领已被认领的任务（409 错误）</li>
+<li>不能认领已阻塞或已完成的任务</li>
+<li>不能完成已阻塞或已暂停的任务</li>
+<li>设置 <code>blocked_by</code> 自动清除 <code>claimed_by</code>、<code>claimed_at</code> 和 <code>pending_at</code>，并把 <code>pending</code> 状态归一回 <code>open</code>（这样解阻后任务可重新派发——阻塞期间真正拦截派发的是 <code>blocked_by</code> 而非状态）</li>
+<li>暂停任务清除 <code>claimed_by</code> 和 <code>claimed_at</code></li>
+<li><code>pending</code> 清除 <code>claimed_by</code> 和 <code>blocked_by</code>，设置 <code>pending_at</code></li>
+<li><code>unblock</code> 清除 <code>blocked_by</code>，并把遗留的 <code>pending</code> 状态还原为 <code>open</code></li>
+<li><code>reopen</code> 把卡住的 <code>pending</code> 任务还原为 <code>open</code>（cortex-run 回调丢失时的挽救路径）；拒绝 <code>done</code> 任务</li>
+</ul>
+<h2 id="done-when-discipline">Done-When 纪律<a class="headerlink" href="#done-when-discipline" title="Permanent link">&para;</a></h2>
+<p><code>done-when</code> 字段是任务中最重要的字段。它必须描述<strong>可验证的完成标准</strong>，而不是模糊的意图。</p>
+<p><strong>好例子：</strong></p>
+<ul>
+<li><code>"mode-manager.ts:310-311 替换为 runWithAdapter；两个后端通过同一函数路由；fixture 回放测试通过"</code></li>
+<li><code>"完整管道运行完成，生成阶段成功率 &gt;=80%"</code></li>
+<li><code>"docs/architecture.md 存在，所有六层已记录并对照实际代码验证"</code></li>
+</ul>
+<p><strong>坏例子（太模糊）：</strong></p>
+<ul>
+<li><code>"修复 bug"</code></li>
+<li><code>"提高性能"</code></li>
+<li><code>"写文档"</code></li>
+</ul>
+<h3 id="completion-verification">完成验证<a class="headerlink" href="#completion-verification" title="Permanent link">&para;</a></h3>
+<p>当通过 <code>cortex-task complete</code> 将任务标记为完成时，系统运行自动验证（<code>verifyCompletionEvidence</code>）：</p>
+<ol>
+<li><strong>Git 日志检查</strong>：运行 <code>git log --oneline --grep=&lt;taskId&gt;</code> 查找引用任务 ID 的提交。必须存在至少一个不是认领/取消认领提交的提交。</li>
+<li><strong>产物检查</strong>：如果 git 检查失败，检查 <code>done-when</code> 文本中提到的任何文件路径是否存在于数据目录中。</li>
+</ol>
+<p>如果两项检查都不通过，命令返回错误：<code>"no evidence of work: no matching git commit and no Done-when artifact found in repo"</code>。用户可以通过 <code>--skip-verify</code> 绕过（可选地附带 <code>--skip-verify-reason</code>）。</p>
+<h2 id="blocked-by-semantics">Blocked-By 语义<a class="headerlink" href="#blocked-by-semantics" title="Permanent link">&para;</a></h2>
+<p><code>blocked_by</code> 字段用于<strong>仅外部阻塞</strong>——无法通过编写代码或配置工具来解决的事情。有效阻塞的例子：等待 GPU 分配、等待数据集交付、等待 API 访问审批。</p>
+<p>将任务设置为 blocked 会自动取消认领。不能完成被阻塞的任务——必须先解除阻塞。</p>
+<h3 id="auto-block-quarantine">自动阻塞隔离<a class="headerlink" href="#auto-block-quarantine" title="Permanent link">&para;</a></h3>
+<p>任务调度系统有一个自动隔离机制：如果一个已分发的任务连续失败 3 次，任务会自动被阻塞，<code>blocked_by</code> 中填入最后的错误消息。这防止调度器重复尝试一个损坏的任务。</p>
+<h2 id="stale-claim-detection">陈旧认领检测<a class="headerlink" href="#stale-claim-detection" title="Permanent link">&para;</a></h2>
+<p>服务器启动时会对照认领的归属方做一次核对。被 <code>task-dispatcher</code> 认领、但其执行没有跨过重启存活下来的任务会被自动取消认领，回到分发队列。有存活归属方的认领会被保留：等待子项的挂起 manager 线程、等待自动恢复的限流暂停线程、以及由 pending 任务追踪器追踪的远程 <code>cortex-run</code>，它们都合法地跨重启持有认领。手动认领（<code>claimed_by</code> 不是 <code>task-dispatcher</code> 的任何值）永远不会被触碰。</p>
+<p>3 天规则：如果一个任务被智能体 <code>claimed_by</code> 超过 3 天而没有完成，它被视为陈旧/孤立认领，应进行调查。这个手动约定覆盖自动核对刻意保留的那些认领（例如手动认领）。</p>
+<p>另外，pending 任务追踪器对远程机器上已分发的任务有 4 小时超时——如果已分发的任务在 4 小时内没有回报，其追踪状态被清除。</p>
+<h2 id="task-dispatch">任务分发<a class="headerlink" href="#task-dispatch" title="Permanent link">&para;</a></h2>
+<p>分发管道是任务如何自动执行的机制。</p>
+<h3 id="trigger">触发<a class="headerlink" href="#trigger" title="Permanent link">&para;</a></h3>
+<p>内置任务派发器会周期性检查任务队列（默认每 30 秒）。该循环由 <code>config/settings.json</code> 中的 <code>taskDispatchEnabled</code> 和 <code>taskDispatchIntervalMs</code> 控制。</p>
+<h3 id="dispatch-flow">分发流程<a class="headerlink" href="#dispatch-flow" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>预演选择</strong>：找到一个可以分发的任务（尚未认领）</li>
+<li><strong>速率限制检查</strong>：确保系统未被限速</li>
+<li><strong>选择并认领</strong>：<code>selectAndClaimTask()</code> 选择最高优先级的可操作任务</li>
+<li><strong>GPU 检查</strong>：如果任务需要 GPU，验证目标机器在线且有空闲 GPU</li>
+<li><strong>去重</strong>：如果类似任务已在运行则跳过（通过执行注册表检查）</li>
+<li><strong>线程创建</strong>：从任务的模板创建线程，带项目上下文运行（线程执行模型参见 <a href="../threads/">threads.md</a>）</li>
+<li><strong>任务完成</strong>：线程成功时自动完成任务。失败时递增失败计数器（3 次连续失败 → 自动阻塞）</li>
+</ol>
+<h3 id="selection-priority">选择优先级<a class="headerlink" href="#selection-priority" title="Permanent link">&para;</a></h3>
+<p>任务按以下顺序选择：</p>
+<ol>
+<li>高优先级项目的任务优先</li>
+<li>有 <code>done-when</code> 字段的任务优先于没有的</li>
+<li>更高 <code>priority</code> 值的任务优先（<code>high</code> &gt; <code>medium</code> &gt; <code>low</code>）</li>
+</ol>
+<h3 id="pending-tasks">Pending 任务<a class="headerlink" href="#pending-tasks" title="Permanent link">&para;</a></h3>
+<p>当任务被分发到远程机器进行长时间运行（通过 <code>cortex-run</code>）时，它被标记为 <code>pending</code>。远程机器的 <code>cortex-run-watcher</code> 追踪进程并通过 WebSocket <code>task-callback</code> 消息回报成功/失败。服务器随后相应地完成或阻塞任务。</p>
+<h2 id="cortex-run-watchdog-dr-0011">Cortex-Run 看门狗（DR-0011）<a class="headerlink" href="#cortex-run-watchdog-dr-0011" title="Permanent link">&para;</a></h2>
+<p><code>cortex-run</code> 系统处理远程机器上的长时间运行任务执行。完整的 <code>cortex-run</code> CLI 参考参见 <a href="../cli-reference/">cli-reference.md</a>，内置任务派发器的配置见 <a href="../scheduling/">scheduling.md</a>。</p>
+<ul>
+<li><strong>服务器端</strong>：<code>cortex-run</code> CLI 通过 <code>sendCommand</code> 转发到远程客户端</li>
+<li><strong>客户端端</strong>：<code>cortex-run-watcher.ts</code> 将用户命令作为分离的子进程生成，用两层停滞检测（输出字节停滞和进度行停滞）监控它，通过 <code>nvidia-smi</code> 自动选择 GPU，写入状态/输出/结果文件，并在完成时发送 <code>task-callback</code> WebSocket 消息</li>
+<li><strong>客户端端</strong>：<code>cortex-run-launch.ts</code> 处理启动/取消/刷新周期，带僵尸进程的孤立检测</li>
+</ul>
+<p>三层进程模型：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cortex-client（到服务器的 WebSocket 连接）
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  └── cortex-run-watcher（分离的，unref&#39;d）
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>        └── 用户命令（如 python train.py）
+</code></pre></div>
+<h2 id="task-archive">任务归档<a class="headerlink" href="#task-archive" title="Permanent link">&para;</a></h2>
+<p>已完成的任务在 3 天后自动归档（<code>ARCHIVE_AGE_DAYS = 3</code>）。内置归档器默认每 6 小时运行一次，由 <code>config/settings.json</code> 中的 <code>taskArchiveEnabled</code> 和 <code>taskArchiveIntervalMs</code> 控制。</p>
+<p><strong>归档流程：</strong></p>
+<ol>
+<li>扫描 <code>context/projects/</code> 中的所有项目</li>
+<li>找到 <code>status: done</code> 且 <code>completed-at</code> 超过 3 天的任务</li>
+<li>从 <code>TASKS.yaml</code> 中移除它们</li>
+<li>以 markdown 清单格式追加到 <code>tasks-archive.md</code>，包含 text、id、why、done-when、priority、完成日期和备注</li>
+<li>自动提交，消息为：<code>auto-archive: completed tasks (&lt;project&gt;: &lt;N&gt; tasks)</code></li>
+</ol>
+<p>没有 <code>completed-at</code> 日期的任务永远不会被归档。</p>
+<h2 id="cortex-task-cli">Cortex-Task CLI<a class="headerlink" href="#cortex-task-cli" title="Permanent link">&para;</a></h2>
+<p><code>cortex-task</code> CLI 提供完整的任务生命周期管理。完整的 CLI 参考（包括每个子命令和标志）参见 <a href="../cli-reference/">cli-reference.md</a>。所有命令操作当前工作目录中的项目，或接受 <code>--project</code> 标志。</p>
+<h3 id="read-commands">读取命令<a class="headerlink" href="#read-commands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list</code></td>
+<td>显示可操作任务（默认）。使用 <code>--all</code> 查看所有任务包括 done/blocked/paused</td>
+</tr>
+<tr>
+<td><code>query</code></td>
+<td>按状态、优先级、文本模式或任务 ID 过滤任务</td>
+</tr>
+<tr>
+<td><code>show --task-id &lt;id&gt;</code></td>
+<td>显示一个任务的详细信息</td>
+</tr>
+<tr>
+<td><code>deps --task-id &lt;id&gt;</code></td>
+<td>显示任务的依赖图</td>
+</tr>
+<tr>
+<td><code>lint</code></td>
+<td>验证任务结构（缺失 ID、悬空依赖、循环）</td>
+</tr>
+<tr>
+<td><code>stats</code></td>
+<td>每项目任务供给统计（按状态和优先级计数）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="state-commands">状态命令<a class="headerlink" href="#state-commands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>claim --task-id &lt;id&gt;</code></td>
+<td>将任务标记为进行中（<code>--agent</code> 默认为 <code>cortex-local</code>）</td>
+</tr>
+<tr>
+<td><code>unclaim --task-id &lt;id&gt;</code></td>
+<td>移除进行中状态</td>
+</tr>
+<tr>
+<td><code>pause --task-id &lt;id&gt;</code></td>
+<td>暂停任务（清除认领）</td>
+</tr>
+<tr>
+<td><code>resume --task-id &lt;id&gt;</code></td>
+<td>恢复暂停的任务</td>
+</tr>
+<tr>
+<td><code>pending --task-id &lt;id&gt;</code></td>
+<td>标记为 pending（等待 cortex-run 结果）</td>
+</tr>
+<tr>
+<td><code>reopen --task-id &lt;id&gt;</code></td>
+<td>把卡住的 <code>pending</code> 任务还原为 <code>open</code>（挽救丢失的 cortex-run 回调）</td>
+</tr>
+<tr>
+<td><code>complete --task-id &lt;id&gt;</code></td>
+<td>标记完成（<code>--note</code>、<code>--skip-verify</code> 绕过验证）</td>
+</tr>
+<tr>
+<td><code>uncomplete --task-id &lt;id&gt;</code></td>
+<td>撤销已完成的任务回到 open</td>
+</tr>
+<tr>
+<td><code>verdict --task-id &lt;parent&gt; --child &lt;id&gt; --verdict accepted\|rejected</code></td>
+<td>将 manager 对已交付子任务的验收裁决记录到父任务的验收账本（见 <a href="#manager-tasks-and-the-acceptance-ledger-dr-0017">Manager 任务与验收账本</a>；完整语法见 <a href="../cli-reference/">cli-reference.md</a>）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="approval-commands">审批命令<a class="headerlink" href="#approval-commands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>request-approval --task-id &lt;id&gt;</code></td>
+<td>设置 approval-needed 标志</td>
+</tr>
+<tr>
+<td><code>approve --task-id &lt;id&gt;</code></td>
+<td>审批（设置 approved_at，清除 approval-needed）</td>
+</tr>
+<tr>
+<td><code>clear-approval --task-id &lt;id&gt;</code></td>
+<td>清除审批状态</td>
+</tr>
+</tbody>
+</table>
+<h3 id="blocking-commands">阻塞命令<a class="headerlink" href="#blocking-commands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>block --task-id &lt;id&gt; --reason "..."</code></td>
+<td>以某个原因阻塞任务</td>
+</tr>
+<tr>
+<td><code>unblock --task-id &lt;id&gt;</code></td>
+<td>解除阻塞任务</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mutation-commands">修改命令<a class="headerlink" href="#mutation-commands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add</code></td>
+<td>添加新任务（<code>--text</code>、<code>--why</code>、<code>--done-when</code>、<code>--template</code>、<code>--priority</code> 等）</td>
+</tr>
+<tr>
+<td><code>edit --task-id &lt;id&gt;</code></td>
+<td>编辑任务字段</td>
+</tr>
+<tr>
+<td><code>batch-edit --task-ids &lt;id1,id2&gt;</code></td>
+<td>对多个任务应用相同编辑</td>
+</tr>
+<tr>
+<td><code>decompose --task-id &lt;id&gt; --subtasks-file &lt;path&gt;</code></td>
+<td>用子任务替换一个任务</td>
+</tr>
+</tbody>
+</table>
+<h3 id="lock-commands">锁命令<a class="headerlink" href="#lock-commands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lock-acquire</code></td>
+<td>获取项目锁（20 分钟 TTL）</td>
+</tr>
+<tr>
+<td><code>lock-release</code></td>
+<td>释放项目锁</td>
+</tr>
+<tr>
+<td><code>lock-status</code></td>
+<td>显示所有或一个项目的锁状态</td>
+</tr>
+<tr>
+<td><code>lock-force-release</code></td>
+<td>强制释放项目锁</td>
+</tr>
+</tbody>
+</table>
+<h3 id="maintenance-commands">维护命令<a class="headerlink" href="#maintenance-commands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>assign-ids</code></td>
+<td>自动为缺少 ID 的任务分配 4 位十六进制 ID</td>
+</tr>
+<tr>
+<td><code>validate</code></td>
+<td>验证所有项目的所有任务 ID（检查重复、缺失引用）</td>
+</tr>
+<tr>
+<td><code>stop --task-id &lt;id&gt;</code></td>
+<td>终止已分发的任务进程</td>
+</tr>
+</tbody>
+</table>
+<p>修改命令（<code>add</code>、<code>edit</code>、<code>batch-edit</code>、<code>decompose</code>）要求调用者持有项目锁。</p>
+<h2 id="one-criterion-one-task-dr-0006">一个标准，一个任务（DR-0006）<a class="headerlink" href="#one-criterion-one-task-dr-0006" title="Permanent link">&para;</a></h2>
+<p>每个任务应只有一个可验证的完成标准。具有多个独立标准的任务应使用 <code>decompose</code> 命令分解为子任务。这确保了清晰的分发、明确的所有权和无歧义的完成验证。</p>
+<h2 id="manager-tasks-and-the-acceptance-ledger-dr-0017">Manager 任务与验收账本（DR-0017）<a class="headerlink" href="#manager-tasks-and-the-acceptance-ledger-dr-0017" title="Permanent link">&para;</a></h2>
+<p>简单工作是分发给单个工作线程的叶子任务。<strong>复合工作</strong>——一个会分解为多个独立可验证单元、且需要协调、验收与返工的目标——则改用 <strong>manager 任务</strong>建模。</p>
+<h3 id="manager-task-node">Manager 任务节点<a class="headerlink" href="#manager-task-node" title="Permanent link">&para;</a></h3>
+<p><code>template</code> 为 <code>manager</code> 的任务是一个<strong>复合任务节点</strong>，由一个常驻的 <strong>manager 线程</strong>拥有。manager 本身不做具体工作，它的生命周期是：</p>
+<ol>
+<li><strong>分解（Decompose）</strong>——将任务拆分为子任务（通常用 <code>decompose --keep-parent</code>，让父任务作为依赖其子任务的汇合/验收节点保留下来）。</li>
+<li><strong>挂起（Suspend）</strong>——调用 <code>thread_wait</code> 并在子任务运行期间休眠。</li>
+<li><strong>验证（Verify）</strong>——子任务完成后，对照每个子任务自己的 <code>done-when</code> 验证其交付物（先验收再信任：读文件、跑测试——绝不把子任务的自我汇报当作证据）。</li>
+<li><strong>记录裁决（Record a verdict）</strong>——对每个已交付的子任务给出接受或拒绝（见下方验收账本）。</li>
+<li><strong>整合并完成（Integrate and complete）</strong>——当每个子任务都被接受后，整合结果并完成父任务。</li>
+</ol>
+<p>manager 线程的完整生命周期——其持久的按任务寻址的 artifact、<code>thread_wait</code> 检查点门、以及会话轮换/再水化——记录在 <a href="../threads/">threads.md</a>。</p>
+<h3 id="acceptance-ledger">验收账本<a class="headerlink" href="#acceptance-ledger" title="Permanent link">&para;</a></h3>
+<p>验收账本是一份持久的、机器可读的记录，记载 manager 已收到并已裁决了哪些子任务结果。它位于：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>context/projects/{project}/manager/{taskId}/ledger.json
+</code></pre></div>
+<p>与 manager 的按任务寻址 artifact 放在一起，以 JSON 形式同步原子写入。</p>
+<p><strong>为什么存在：</strong> 对<em>任务型</em>子任务的结果交付做<strong>跨化身（cross-incarnation）去重</strong>。每线程的交付记录只能在单个 manager 化身内去重；账本则跨化身（会话轮换、服务器重启、manager 替换）去重，因此当 manager 的 LLM 会话被替换时，已交付的结果既不会丢失也不会被重复交付。</p>
+<p><strong>结构：</strong> <code>{ parent, project, children: { &lt;childId&gt;: LedgerEntry } }</code>，其中每个 <code>LedgerEntry</code> 有以下字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>child</code></td>
+<td>子任务 id</td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td>子任务如何终止：<code>completed</code> 或 <code>blocked</code></td>
+</tr>
+<tr>
+<td><code>delivered_at</code></td>
+<td>结果交付给 manager 的 ISO 时间戳</td>
+</tr>
+<tr>
+<td><code>verdict</code></td>
+<td><code>pending</code> | <code>accepted</code> | <code>rejected</code></td>
+</tr>
+<tr>
+<td><code>verdict_at</code></td>
+<td>裁决的 ISO 时间戳（记录前为 null）</td>
+</tr>
+<tr>
+<td><code>verdict_note</code></td>
+<td>manager 对该裁决的备注</td>
+</tr>
+<tr>
+<td><code>rework_round</code></td>
+<td>该子任务被拒绝并退回的次数</td>
+</tr>
+</tbody>
+</table>
+<p><strong>交付语义</strong>（在裁决记录之前，每个化身内交付至少一次）：</p>
+<ul>
+<li><strong><code>accepted</code></strong> → 该子任务结果<strong>永不再交付</strong>给未来的 manager 化身。</li>
+<li><strong><code>pending</code></strong>（已交付但尚未裁决——包括化身在裁决前死亡的情况）→ <strong>重新交付</strong>给新的化身。这个偏向是刻意的：宁可重复交付也不丢失。</li>
+<li><strong><code>rejected</code></strong> → 重新打开为 <code>pending</code>，并在子任务返工后再次完成时重新交付，<strong>并保留 <code>rework_round</code></strong>。</li>
+</ul>
+<p><strong>Fail-open（失败即放行）：</strong> 缺失或损坏的账本降级为空账本——最坏情况是结果被重复交付，绝不会丢失结果。</p>
+<h3 id="the-verdict-command-in-the-acceptance-loop">验收循环中的 <code>verdict</code> 命令<a class="headerlink" href="#the-verdict-command-in-the-acceptance-loop" title="Permanent link">&para;</a></h3>
+<p>manager 通过 <code>cortex-task verdict</code> 命令把裁决写入账本——它是账本的写入路径。在 manager 的验证阶段，对每个已交付的子任务：</p>
+<ul>
+<li><strong>通过</strong> → <code>verdict --verdict accepted</code>。该子任务结果不再重新交付。</li>
+<li><strong>不通过</strong> → <code>verdict --verdict rejected --note "&lt;gap&gt;"</code>。这会递增该子任务的 <code>rework_round</code>；子任务随后被返工（例如 <code>uncomplete</code> + 编辑，或新增一个修订子任务）并重新交付，此时它重新打开等待再次裁决。</li>
+</ul>
+<p><code>--verdict</code> 必须恰好是 <code>accepted</code> 或 <code>rejected</code>，且 <code>--child</code> 为必填。命令的确切签名与标志见 <a href="../cli-reference/">cli-reference.md</a>。</p>
+<h2 id="task-dispatch-concurrency">任务分发并发<a class="headerlink" href="#task-dispatch-concurrency" title="Permanent link">&para;</a></h2>
+<p>任务派发器会在每次派发尝试前检查容量。<code>taskDispatchMaxConcurrent</code> 可设置显式上限；默认值 <code>null</code> 使用 <code>max(4, os.cpus().length - 2)</code>。从任务选择到 execution 注册之间由 reservation 占位，因此快速计时器触发也不会超过上限。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

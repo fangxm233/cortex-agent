@@ -1,0 +1,2569 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/threads/">
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../tasks/">
+      
+      
+        
+          <link rel="alternate" href="../../threads/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>线程 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cortex-thread-system" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              线程
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../threads/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    线程
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    线程
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#mental-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        心智模型
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置文件
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="配置文件">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#editing-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        编辑模板
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        智能体定义
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-stage-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        多阶段智能体
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        文件引用
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        模板
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="模板">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-references-in-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        模板中的智能体引用
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shell-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shell 模板
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        转换
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="转换">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#transition-endpoint-syntax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        转换端点语法
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#condition-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        条件类型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluation-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        评估顺序
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#convergence-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        收敛示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#template-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        模板限制
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程生命周期
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="线程生命周期">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent-initiated-control-abort-split-wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        智能体发起的控制（中止 / 拆分 / 等待）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#suspension-and-wake-up-thread_wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        挂起与唤醒（thread_wait）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thread_wait-checkpoint-gate-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        thread_wait 检查点门禁（DR-0017）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execution-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        执行循环
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        生命周期钩子
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="生命周期钩子">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hook-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子点
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-return-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子返回值
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-execution-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子执行顺序
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workspace-and-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工作区和产物
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="工作区和产物">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-keyed-manager-artifact-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务定址的 manager 产物（DR-0017）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程命令
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="线程命令">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#starting-a-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动线程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-an-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        添加智能体
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-thread-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        其他线程命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程类型
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程记录
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prompt-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        提示变量
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-loading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        插件加载
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manager-session-rotation-rehydration-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manager 会话轮换与再水化（DR-0017）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程清理
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    任务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#mental-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        心智模型
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置文件
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="配置文件">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#editing-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        编辑模板
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        智能体定义
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-stage-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        多阶段智能体
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        文件引用
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        模板
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="模板">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-references-in-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        模板中的智能体引用
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shell-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shell 模板
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        转换
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="转换">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#transition-endpoint-syntax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        转换端点语法
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#condition-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        条件类型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluation-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        评估顺序
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#convergence-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        收敛示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#template-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        模板限制
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程生命周期
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="线程生命周期">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent-initiated-control-abort-split-wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        智能体发起的控制（中止 / 拆分 / 等待）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#suspension-and-wake-up-thread_wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        挂起与唤醒（thread_wait）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thread_wait-checkpoint-gate-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        thread_wait 检查点门禁（DR-0017）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execution-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        执行循环
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        生命周期钩子
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="生命周期钩子">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hook-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子点
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-return-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子返回值
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hook-execution-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子执行顺序
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workspace-and-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工作区和产物
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="工作区和产物">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-keyed-manager-artifact-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务定址的 manager 产物（DR-0017）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程命令
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="线程命令">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#starting-a-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动线程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-an-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        添加智能体
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-thread-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        其他线程命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程类型
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程记录
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prompt-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        提示变量
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-loading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        插件加载
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manager-session-rotation-rehydration-dr-0017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manager 会话轮换与再水化（DR-0017）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程清理
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cortex-thread-system">Cortex 线程系统<a class="headerlink" href="#cortex-thread-system" title="Permanent link">&para;</a></h1>
+<p>线程系统是 Cortex 的多智能体编排引擎。线程是一个聚焦的智能体接力——每个智能体拥有自己的系统提示、工具和插件——在它们之间传递共享的产物文件以完成复杂的多步骤研究工作。</p>
+<h2 id="mental-model">心智模型<a class="headerlink" href="#mental-model" title="Permanent link">&para;</a></h2>
+<p>线程就像接力赛。每个智能体（跑者）拿起接力棒（<code>artifact.md</code> 文件），完成自己的工作，并根据转换规则将接力棒交给下一个智能体。产物文件是共享内存——智能体将发现写入其中，后续智能体读取之前的输出。</p>
+<p>线程由 <code>~/.cortex/config/thread-templates/</code> 下的<strong>模板</strong>定义（参见下方"配置文件"章节）。线程通常由任务调度系统启动——任务如何触发线程执行参见 <a href="../tasks/">tasks.md</a>。模板指定：哪些智能体参与、以什么顺序、按什么转换逻辑、以及在步骤之间触发什么生命周期钩子。</p>
+<h2 id="configuration-file">配置文件<a class="headerlink" href="#configuration-file" title="Permanent link">&para;</a></h2>
+<p>线程系统在 <code>~/.cortex/config/thread-templates/</code> 目录下配置（从 <code>$CORTEX_HOME/config/thread-templates/</code> 读取）——这是一个<strong>目录</strong>，每个实体一个 JSON 文件，分为三个子目录：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>~/.cortex/config/thread-templates/
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── agents/&lt;name&gt;.json      # 每个文件一个智能体定义
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── templates/&lt;name&gt;.json   # 每个文件一个管道模板（或 shell 绑定）
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>└── shells/&lt;name&gt;.json      # 每个文件一个 shell 定义（参数化转换图）
+</code></pre></div>
+<p>每个文件只装一个实体，且<strong>文件名（去掉 <code>.json</code>）即实体名</strong>。对于 <code>agents/</code>，JSON 中的 <code>name</code> 字段必须与文件名一致，否则该文件被跳过并告警；对于 <code>templates/</code>，<code>name</code> 字段可选，但若存在则必须与文件名一致。</p>
+<p><strong>加载优先级。</strong> 若 <code>config/thread-templates/</code> 目录存在，则使用该目录。否则加载器回落读取旧的单文件 <code>config/thread-templates.json</code>（向后兼容）。注意 shell 绑定仅在目录形式下才能解析——shell 定义位于 <code>shells/</code> 下，因此旧的单文件配置无法展开它们。</p>
+<p><strong>一次性迁移。</strong> 服务器启动时，若存在旧的 <code>config/thread-templates.json</code> 且目录尚不存在，则将该单文件拆分为目录下的每实体文件，并将原文件改名为 <code>thread-templates.json.migrated-bak</code>（原文件保留，绝不删除）。迁移是幂等的——目录一旦存在即为空操作。</p>
+<p><strong>默认值合并。</strong> 随产品发货的默认配置同样是目录。启动时它们以<strong>逐文件 copy-if-missing</strong> 语义合并进你的配置（对齐 plugin-sync）：你尚未拥有的默认 agent/template/shell 文件会被拷入；你已有的文件绝不被覆盖。这让新增的默认实体（例如新发货的 shell 定义）能够到达已有安装，同时不冲掉本地改动。</p>
+<p><strong>热重载。</strong> 每个实体子目录（<code>agents/</code>、<code>templates/</code>、<code>shells/</code>）都被监视，<code>prompts/</code> 目录中的任何提示文件也一并监视。更改通过 <code>fs.watch</code> 检测、去抖（300ms）后整体重新加载，无需重启服务器。重载为 fail-soft：单个格式错误的 JSON 文件被跳过并告警，而非清空整张表。重载时向管理 Slack 频道发送通知。</p>
+<h3 id="editing-templates">编辑模板<a class="headerlink" href="#editing-templates" title="Permanent link">&para;</a></h3>
+<p>这些文件可以直接手工编辑，热重载会自动生效。也可以在桌面端的 <strong>设置 → 线程模板</strong> 中编辑——后者更稳妥，因为它在写入前先做校验。</p>
+<p>面板是主从式编辑器：左侧列出全部 agent、template 和 shell，当前校验不通过的条目带标记；右侧是该实体的原始 JSON，外加两个只读页签。<strong>校验</strong> 列出错误与警告，并标注各自来自哪个字段；<strong>引用</strong> 显示磁盘上的文件路径、哪些模板依赖该实体、有多少正在运行的线程使用它、以及有多少未完成的任务指名它。</p>
+<p>校验在保存时和手动触发时运行，判定依据是这次保存之后会产生的世界，而非它所替换的那个——因此一个模板可以引用同一批编辑中正在新建的 agent。错误会阻止写入；警告（多数是未识别的字段）会报告但放行。最关键的是影响面检查：保存一个 agent 会重新校验所有使用它的模板，正是这一步拦下了那类会让运行中的线程无处可走的编辑。因为执行器在<strong>每一步</strong>都重新读取转换规则与提示，坏编辑不会在启动时大声失败——它会让线程在半途悄悄卡住。</p>
+<p>写入路径上有三道保护。对有活跃线程的实体保存需要二次确认，因为那些线程会在下一步取到改动。只要还有其他模板引用该实体，删除会被直接拒绝。保存会带上编辑器载入时那份内容的哈希，因此基于过期视图做出的编辑——别人的保存，或你自己经热重载落地的手工改动——会被判为冲突而拒绝，而不是无声覆盖。</p>
+<p>不提供重命名：文件名<strong>就是</strong>身份，重命名会让指向旧名的所有引用变成孤儿。请复制为新名再删除旧的，这样中间必须显式更新依赖它的模板。</p>
+<p>实体按来源标注。<strong>stock</strong> 表示与 Cortex 发货文件逐字节一致，<strong>modified</strong> 表示发货文件被你改过，<strong>custom</strong> 表示完全由你创建。编辑 stock 实体会永久分叉——默认值合并是 copy-if-missing，所以你的版本永远不会被升级覆盖，同样也永远不会拿到发货版本的改进。配置目录是纯 JSON，值得纳入 git 管理；那才是撤销手段，而不是备份文件。</p>
+<h3 id="agent-definitions">智能体定义<a class="headerlink" href="#agent-definitions" title="Permanent link">&para;</a></h3>
+<p><code>agents/</code> 下的每个文件定义一个智能体——一个独立的实体，有自己的身份、工具和提示。文件中直接放智能体对象本身，其 <code>name</code> 必须与文件名一致。</p>
+<p><code>agents/planner.json</code>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;规划研究方法&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;profile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;persistSession&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">&quot;directive&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;你是一个研究规划器。将问题分解为可测试的假设。&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;promptTemplate&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;file:planner-prompt.md&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Agent,AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">&quot;pluginDirs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;plugins/cortex-common&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;plugins/cortex-surveyor&quot;</span><span class="p">]</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">}</span>
+</code></pre></div>
+<p><strong>智能体定义字段：</strong></p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>智能体 ID——必填，且必须与文件名一致（<code>agents/&lt;name&gt;.json</code>）</td>
+</tr>
+<tr>
+<td><code>profile</code></td>
+<td>string</td>
+<td><code>profiles.json</code> 中的配置名称，或使用当前运行时配置的 <code>"__active__"</code></td>
+</tr>
+<tr>
+<td><code>persistSession</code></td>
+<td>boolean</td>
+<td><code>true</code>：在迭代间重用相同的 LLM 会话（保留对话上下文）。<code>false</code>：每个步骤使用新会话</td>
+</tr>
+<tr>
+<td><code>directive</code></td>
+<td>string?</td>
+<td>智能体角色/身份，添加到提示之前。支持 <code>file:filename.md</code> 引用</td>
+</tr>
+<tr>
+<td><code>systemPrompt</code></td>
+<td>string?</td>
+<td>完整系统提示覆盖。支持 <code>file:</code> 引用</td>
+</tr>
+<tr>
+<td><code>promptTemplate</code></td>
+<td>string?</td>
+<td>带 <code>{{input}}</code>、<code>{{artifactPath}}</code>、<code>{{previousOutput}}</code>、<code>{{modifiedFiles}}</code>、<code>{{currentDateTime}}</code> 变量的模板。支持 <code>file:</code> 引用</td>
+</tr>
+<tr>
+<td><code>claudeAgent</code></td>
+<td>string?</td>
+<td>Claude Code 智能体名称（<code>--agent</code> 标志，从 <code>.claude/agents/</code> 加载）</td>
+</tr>
+<tr>
+<td><code>outputStyle</code></td>
+<td>string?</td>
+<td>Claude Code 输出风格</td>
+</tr>
+<tr>
+<td><code>tools</code></td>
+<td>string?</td>
+<td>逗号分隔的工具列表（覆盖默认值）</td>
+</tr>
+<tr>
+<td><code>pluginDirs</code></td>
+<td>string[]?</td>
+<td>要加载的插件目录（<code>--plugin-dir</code> 标志）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="multi-stage-agents">多阶段智能体<a class="headerlink" href="#multi-stage-agents" title="Permanent link">&para;</a></h3>
+<p>智能体可以通过 <code>stages</code> 字段声明多个<strong>阶段</strong>。当存在阶段时，<code>promptTemplate</code> 被忽略——引擎根据转换目标为每个步骤选择适当的阶段提示。</p>
+<p><code>agents/coder.json</code>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;profile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">&quot;persistSession&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">&quot;entryStage&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;implement&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="nt">&quot;stages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nt">&quot;implement&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">      </span><span class="nt">&quot;promptTemplate&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;你正在实施计划。将代码写入 {{artifactPath}}。&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;编写实现&quot;</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">    </span><span class="nt">&quot;review&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">      </span><span class="nt">&quot;promptTemplate&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;你正在审查 {{artifactPath}} 中的代码。检查正确性。&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">      </span><span class="nt">&quot;continuesSession&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;审查实现&quot;</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">  </span><span class="nt">&quot;pluginDirs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;plugins/cortex-coder&quot;</span><span class="p">]</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="p">}</span>
+</code></pre></div>
+<p>当阶段上设置了 <code>continuesSession: true</code>，且智能体有一个正在恢复的持久会话时，引擎只发送阶段特定的增量提示——跳过指令、协议引言和自动的 <code>previousOutput</code> 注入。</p>
+<h3 id="file-references">文件引用<a class="headerlink" href="#file-references" title="Permanent link">&para;</a></h3>
+<p>接受 <code>file:filename.md</code> 语法的字段从 <code>prompts/&lt;subdir&gt;/filename.md</code> 加载内容：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>子目录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>directive</code></td>
+<td><code>prompts/directives/</code></td>
+</tr>
+<tr>
+<td><code>promptTemplate</code></td>
+<td><code>prompts/promptTemplates/</code></td>
+</tr>
+<tr>
+<td><code>systemPrompt</code></td>
+<td><code>prompts/systemPrompts/</code></td>
+</tr>
+</tbody>
+</table>
+<p>模板系统支持基于 YAML frontmatter 的格式，包括 <code>extends:</code>（继承）、<code>@fill(name)</code>/<code>@endfill</code> 命名块、<code>@block(name)</code>/<code>@endblock</code> 模板块、<code>${var}</code>/<code>${var:-default}</code> 变量插值和 <code>@if(var)</code>/<code>@endif</code> 条件。</p>
+<h2 id="templates">模板<a class="headerlink" href="#templates" title="Permanent link">&para;</a></h2>
+<p>模板将智能体组合为多步骤管道。<code>templates/</code> 下的每个文件装一个模板对象。</p>
+<p><code>templates/coder-review.json</code>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder-review&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;实现一个功能然后审查它&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;planner&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;coder&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">],</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">&quot;transitions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:implement&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;always&quot;</span><span class="p">}},</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:implement&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:review&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;always&quot;</span><span class="p">}},</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:review&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;always&quot;</span><span class="p">}}</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span><span class="nt">&quot;entryAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">  </span><span class="nt">&quot;maxTotalSteps&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">  </span><span class="nt">&quot;maxTotalCostUsd&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">5.00</span><span class="p">,</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">  </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">    </span><span class="nt">&quot;onEnd&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node hooks/post-task-hook.mjs&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">      </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30000</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="p">}</span>
+</code></pre></div>
+<p><strong>模板字段：</strong></p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>string?</td>
+<td>可选；若存在则必须与文件名一致（<code>templates/&lt;name&gt;.json</code>）。文件名即模板 ID，用于 <code>!thread &lt;name&gt;</code> 和任务调度</td>
+</tr>
+<tr>
+<td><code>agents</code></td>
+<td>TemplateAgentRef[]</td>
+<td>有序的参与智能体列表</td>
+</tr>
+<tr>
+<td><code>transitions</code></td>
+<td>TransitionRule[]</td>
+<td>控制何时从一个智能体移动到下一个的规则</td>
+</tr>
+<tr>
+<td><code>entryAgent</code></td>
+<td>string</td>
+<td>第一个运行的智能体</td>
+</tr>
+<tr>
+<td><code>entryStage</code></td>
+<td>string?</td>
+<td>第一步进入哪个阶段（默认为智能体的 <code>entryStage</code>）</td>
+</tr>
+<tr>
+<td><code>maxTotalSteps</code></td>
+<td>number</td>
+<td>智能体步骤总数的硬限制</td>
+</tr>
+<tr>
+<td><code>maxTotalCostUsd</code></td>
+<td>number?</td>
+<td>USD 费用限制</td>
+</tr>
+<tr>
+<td><code>hooks</code></td>
+<td>ThreadHooks?</td>
+<td>生命周期钩子（onStart、onTransition、onEnd）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="agent-references-in-templates">模板中的智能体引用<a class="headerlink" href="#agent-references-in-templates" title="Permanent link">&para;</a></h3>
+<p>模板按名称（字符串）或按模板覆盖（对象）引用智能体：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">// 简单引用 — 使用定义的智能体</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;planner&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">]</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1">// 带覆盖 — 为此模板自定义智能体</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="p">{</span><span class="nt">&quot;ref&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">},</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="p">{</span><span class="nt">&quot;ref&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;promptTemplate&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;file:special-coder-prompt.md&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Read,Write,Edit&quot;</span><span class="p">}</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">]</span>
+</code></pre></div>
+<p>覆盖字段：<code>promptTemplate</code>、<code>directive</code>、<code>systemPrompt</code>、<code>persistSession</code>、<code>claudeAgent</code>、<code>outputStyle</code>、<code>tools</code>、<code>pluginDirs</code>。</p>
+<h3 id="shell-templates">Shell 模板<a class="headerlink" href="#shell-templates" title="Permanent link">&para;</a></h3>
+<p>若多个管道共享同一转换图、仅在由哪些智能体担任角色上不同，可将其一次性定义为一个 <strong>shell</strong>——即一个参数化转换图，以纯 JSON 存于 <code>shells/&lt;name&gt;.json</code>——并由 <code>templates/</code> 中轻量的 <strong>shell 绑定</strong>引用。</p>
+<p>shell 声明其参数，并在转换图中使用占位符：</p>
+<ul>
+<li><code>{param}</code> — 替换为该参数在绑定中的取值（一个智能体名）。</li>
+<li><code>{param.entryStage}</code> — 替换为该智能体的 <code>entryStage</code>，从 <code>agents/</code> 下该智能体的定义解析。</li>
+</ul>
+<p>例如随产品发货的 <code>worker-review</code> shell（<code>shells/worker-review.json</code>）——一个通用的"产出后审核"环：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;params&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;worker&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">],</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;{worker}&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;{reviewer}&quot;</span><span class="p">],</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;transitions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{worker}:{worker.entryStage}&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{reviewer}&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;always&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{reviewer}&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{worker}:retry&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;convergence&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;marker&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;[APPROVED]&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;maxIterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{worker}:retry&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{reviewer}&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;output_contains&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pattern&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;\\[REVISED\\]&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="nt">&quot;entryAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{worker}&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span><span class="nt">&quot;entryStage&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{worker.entryStage}&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span><span class="nt">&quot;maxTotalSteps&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">  </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">    </span><span class="nt">&quot;onEnd&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node ~/.cortex/hooks/post-task-hook.mjs&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;{worker}&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="p">}</span>
+</code></pre></div>
+<p>模板随后通过指定 shell 名及其参数来绑定它（<code>templates/doc-review.json</code>）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;shell&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;worker-review&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">&quot;worker&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;doc-writer&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">&quot;reviewer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;doc-reviewer&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;文档的通用产出后审核&quot;</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>加载时引擎插值占位符并校验结果，产出一个与手写转换图等价的完整模板（此例为：<code>doc-writer</code> 在其入口阶段 → <code>doc-reviewer</code> → <code>doc-writer:retry</code>，直至 <code>[APPROVED]</code>）。校验错误——缺少参数、未知占位符、引用的智能体不存在、智能体缺少 <code>entryStage</code>、或某转换端点引用了该智能体没有的阶段——会使该单个模板在加载期报错失败；未知的 shell 名则 fail-soft 跳过。任一情形下，配置的其余部分照常加载。</p>
+<p><strong>Shell 定义字段（<code>shells/&lt;name&gt;.json</code>）：</strong></p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>params</code></td>
+<td>string[]</td>
+<td>必需的绑定参数名</td>
+</tr>
+<tr>
+<td><code>agents</code></td>
+<td>string[]</td>
+<td>以占位符字符串表示的智能体槽位（如 <code>"{worker}"</code>）——声明哪些参数命名智能体</td>
+</tr>
+<tr>
+<td><code>transitions</code></td>
+<td>TransitionRule[]</td>
+<td>带占位符端点的转换图</td>
+</tr>
+<tr>
+<td><code>entryAgent</code></td>
+<td>string</td>
+<td>入口智能体占位符</td>
+</tr>
+<tr>
+<td><code>entryStage</code></td>
+<td>string?</td>
+<td>入口阶段占位符</td>
+</tr>
+<tr>
+<td><code>maxTotalSteps</code></td>
+<td>number</td>
+<td>默认步数预算（绑定的 <code>maxTotalSteps</code> 可覆盖）</td>
+</tr>
+<tr>
+<td><code>maxTotalCostUsd</code></td>
+<td>number?</td>
+<td>以 USD 计的成本上限</td>
+</tr>
+<tr>
+<td><code>hooks</code></td>
+<td>ThreadHooks?</td>
+<td>生命周期钩子（args 中允许占位符）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Shell 绑定字段（引用 shell 的模板）：</strong></p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shell</code></td>
+<td>string</td>
+<td>要展开的 shell 名</td>
+</tr>
+<tr>
+<td><code>&lt;param&gt;</code></td>
+<td>string</td>
+<td>每个 shell 参数一个取值（如 <code>worker</code>、<code>reviewer</code>）——担任该角色的智能体名</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>string?</td>
+<td>人类可读描述（携带到展开后的模板上）</td>
+</tr>
+<tr>
+<td><code>maxTotalSteps</code></td>
+<td>number?</td>
+<td>覆盖 shell 的默认步数预算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="transitions">转换<a class="headerlink" href="#transitions" title="Permanent link">&para;</a></h2>
+<p>转换决定线程如何从一个智能体移动到下一个。它们在每个智能体步骤完成后进行评估。</p>
+<h3 id="transition-endpoint-syntax">转换端点语法<a class="headerlink" href="#transition-endpoint-syntax" title="Permanent link">&para;</a></h3>
+<p>端点使用 <code>"agent"</code> 或 <code>"agent:stage"</code> 语法。裸智能体名称匹配该智能体的任何阶段。<code>agent:stage</code> 端点仅匹配该特定阶段。</p>
+<h3 id="condition-types">条件类型<a class="headerlink" href="#condition-types" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>行为</th>
+<th>参数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>always</code></td>
+<td>总是转换</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>convergence</code></td>
+<td>循环直到产物输出中出现标记字符串，或达到 <code>maxIterations</code></td>
+<td><code>marker</code>（要查找的字符串），<code>maxIterations</code>（最大循环次数，默认 3）</td>
+</tr>
+<tr>
+<td><code>output_contains</code></td>
+<td>如果产物输出匹配正则表达式模式则转换</td>
+<td><code>pattern</code>（正则表达式字符串）</td>
+</tr>
+<tr>
+<td><code>output_not_contains</code></td>
+<td>如果产物输出不匹配正则表达式模式则转换</td>
+<td><code>pattern</code>（正则表达式字符串）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="evaluation-order">评估顺序<a class="headerlink" href="#evaluation-order" title="Permanent link">&para;</a></h3>
+<p>转换按模板中出现的顺序评估。<strong>第一个匹配的规则胜出</strong>。如果没有规则匹配，线程停止（终止状态：<code>no_matching_transition</code>）。</p>
+<p>规则的 <code>from</code> 端点与最后完成的步骤匹配。只有 <code>from</code> 匹配最后步骤的智能体（和可选的阶段）的规则才会被考虑。</p>
+<h3 id="convergence-example">收敛示例<a class="headerlink" href="#convergence-example" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:implement&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coder:review&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">&quot;condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;convergence&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="nt">&quot;marker&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;[IMPLEMENTATION COMPLETE]&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="nt">&quot;maxIterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="p">}</span>
+</code></pre></div>
+<p>这表示：<code>coder:implement</code> 运行后，检查产物是否包含 <code>[IMPLEMENTATION COMPLETE]</code>。如果包含，转换到 <code>coder:review</code>。如果不包含，循环回 <code>coder:implement</code>。如果循环 5 次没有标记，以 <code>max_iterations</code> 停止。</p>
+<h3 id="template-limits">模板限制<a class="headerlink" href="#template-limits" title="Permanent link">&para;</a></h3>
+<p>在评估任何转换之前检查两个硬限制：</p>
+<ul>
+<li><code>maxTotalSteps</code> — 如果线程已达到这么多的总步骤数，以 <code>max_iterations</code> 停止</li>
+<li><code>maxTotalCostUsd</code> — 如果累计费用超过此值，以 <code>cost_limit</code> 停止</li>
+</ul>
+<h2 id="thread-lifecycle">线程生命周期<a class="headerlink" href="#thread-lifecycle" title="Permanent link">&para;</a></h2>
+<h3 id="states">状态<a class="headerlink" href="#states" title="Permanent link">&para;</a></h3>
+<p>线程在其生命周期中经历这些状态：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>running → completed   （所有步骤成功完成）
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>running → failed      （不可恢复的错误）
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>running → cancelled   （用户通过 !cancel 或按钮取消）
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>running → aborted     （智能体通过 thread_abort 工具自行中止）
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>running → waiting     （等待用户输入 — 第 6 阶段缓冲）
+</code></pre></div>
+<p>终止状态：<code>completed</code>、<code>failed</code>、<code>cancelled</code>、<code>aborted</code>。</p>
+<h3 id="agent-initiated-control-abort-split-wait">智能体发起的控制（中止 / 拆分 / 等待）<a class="headerlink" href="#agent-initiated-control-abort-split-wait" title="Permanent link">&para;</a></h3>
+<p>线程控制是带外（out-of-band）的：智能体通过调用 <code>thread_abort</code>、<code>thread_split</code>、<code>thread_wait</code> MCP 工具来控制自己的线程，而不是向产物写入标记（在产物里提及这些关键字不会触发任何动作）。工具会在该智能体自己的线程上写入结构化的 <code>metadata.pendingControl</code>；runner 在每步完成后读取它，<strong>优先级高于所有转换规则</strong>。<code>thread_abort({ kind, diagnosis })</code> 立即将线程终止为 <code>aborted</code>（<code>onEnd</code> 钩子仍会触发）；<code>thread_split({ subtasks })</code> 提议对所属派发任务做分解；<code>thread_wait</code> 挂起直到被等待的子项完成。</p>
+<h3 id="suspension-and-wake-up-thread_wait">挂起与唤醒（thread_wait）<a class="headerlink" href="#suspension-and-wake-up-thread_wait" title="Permanent link">&para;</a></h3>
+<p>挂起中的 manager 等待它的子任务（以及子线程）。调用 <code>thread_wait</code> 时若不传 <code>on_tasks</code> 和 <code>on_threads</code>，系统会自动推断所有仍存活且已关联的子项。只要传入其中任一参数，就会切换到显式覆盖模式：系统仅等待参数数组中列出的 ID，未传的另一类按空数组处理。显式 ID 必须指向仍存活且已关联的子项；重复、缺失、无关和已终止的 ID 会被忽略。因此，传入空数组时没有需要等待的子项，线程会继续执行。</p>
+<p>每个完成或被阻塞的子项都会作为结果/升级通知投递进 manager 的 <code>pendingMessages</code>；当没有剩余等待项时，manager 被重新进入。投递由事件驱动（<code>task.completed</code> / <code>task.blocked</code>，投递前会对照 <code>TASKS.yaml</code> 验证），并有两张安全网：周期性的磁盘对账扫描（每 60 秒一次，可通过 <a href="../configuration/#configsettingsjson"><code>config/settings.json</code></a> 中的 <code>waitingSweepMs</code> 键配置；旧变量 <code>CORTEX_WAITING_SWEEP_MS</code> 仍作为已弃用的回退被读取），逐个核对每个等待中 manager 的磁盘任务状态；以及启动恢复流程，补投服务器停机期间转为终态的结果。未完成的子任务跨重启存续、继续被等待。</p>
+<p>任务被阻塞不会级联到依赖它的任务，因此等待集可能进入这样的状态：每个剩余等待项都（直接或传递地）依赖某个被阻塞的任务，永远无法开始。唤醒路径会检测这种停滞，并用一条死锁通知唤醒 manager，通知中列出被卡住的任务及其阻塞源；manager 应当解除阻塞、重新规划分解，或通过 <code>thread_abort</code> 升级。每种不同的停滞状态只唤醒 manager 一次——停滞状态不变则不会重复唤醒。</p>
+<h3 id="thread_wait-checkpoint-gate-dr-0017">thread_wait 检查点门禁（DR-0017）<a class="headerlink" href="#thread_wait-checkpoint-gate-dr-0017" title="Permanent link">&para;</a></h3>
+<p>manager 通过 <code>thread_wait</code> 挂起之前，必须为它（可能被轮换过的）下一个化身留下一份新鲜的检查点。runner 通过<strong>检查点门禁</strong>强制这一点：</p>
+<ul>
+<li>调用 <code>thread_wait</code> 时，门禁将产物的<strong>当前内容哈希</strong>与<strong>当前步骤开始时</strong>记录的哈希比对。若产物自步骤开始以来<strong>未改变</strong>，<code>thread_wait</code> 被<strong>拒绝</strong>；若<strong>已改变</strong>，则允许挂起。</li>
+<li>比对用的是<strong>内容哈希，而非 mtime</strong>——单纯 <code>touch</code> 无法绕过它。</li>
+<li>基线哈希在线程创建时记录（初始/继承的产物状态），并在每一步结束时再次记录，因此门禁既覆盖第一步，也覆盖每一次重新进入。</li>
+<li><strong>豁免</strong>：<code>thread_abort</code> 和 <code>thread_split</code> 豁免——升级永远不能被阻断。门禁只作用于持有 <code>artifactPath</code> 的线程，并在没有记录基线时<strong>故障放行（fail open）</strong>。</li>
+</ul>
+<p>manager 写入的检查点始终覆盖四个部分：<strong>当前委托及其验收标准</strong>、<strong>已做决策</strong>（追加式日志）、<strong>剩余计划</strong>和<strong>假设</strong>。</p>
+<p>当门禁拒绝挂起时，返回：</p>
+<blockquote>
+<p><code>checkpoint gate (DR-0017): your artifact has not been updated during this step. Before suspending, write your checkpoint into the artifact — current delegations &amp; their acceptance criteria, decisions made, remaining plan, assumptions — then call thread_wait again.</code></p>
+</blockquote>
+<h3 id="execution-loop">执行循环<a class="headerlink" href="#execution-loop" title="Permanent link">&para;</a></h3>
+<p><code>runner.ts</code> 中的主执行循环运行如下：</p>
+<ol>
+<li><strong>onStart 钩子</strong>：在第一步之前触发（先模板钩子，然后是调用者的 extraHooks）</li>
+<li><strong>循环</strong>：
+   a. 解析下一步（哪个智能体、哪个阶段）
+   b. 构建步骤配置（提示、会话、配置、执行注册表条目）
+   c. 设置流式回调（助手消息聚合、工具追踪）
+   d. 执行智能体（生成 LLM 进程，等待结果）
+   e. 记录步骤结果（持久化到线程存储、注册会话、完成执行）
+   f. 读取控制工具写入的 metadata.pendingControl（中止 / 拆分 / 等待）
+   g. 评估转换（第一个匹配的规则胜出，或停止）
+   h. <strong>onTransition 钩子</strong>：步骤之间触发（如果正在转换）</li>
+<li><strong>onEnd 钩子</strong>：主循环完成后触发</li>
+<li>将线程标记为已完成（如果仍在运行）</li>
+</ol>
+<h2 id="lifecycle-hooks">生命周期钩子<a class="headerlink" href="#lifecycle-hooks" title="Permanent link">&para;</a></h2>
+<p>钩子是在线程生命周期的特定点执行的 shell 命令。它们通过 stdin 接收 JSON 格式的上下文，并可以通过 stdout 返回 JSON 格式的指令。线程钩子是三个钩子子系统之一——完整的钩子架构（包括智能体级和会话级钩子）参见 <a href="../hooks/">hooks.md</a>。</p>
+<h3 id="hook-points">钩子点<a class="headerlink" href="#hook-points" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>钩子</th>
+<th>触发时机</th>
+<th>上下文</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>onStart</code></td>
+<td>第一个智能体步骤之前</td>
+<td><code>{ threadId, templateName, phase: "start", steps: [], activeAgent, artifactContent, userMessage, totalCostUsd }</code></td>
+</tr>
+<tr>
+<td><code>onTransition</code></td>
+<td>每次转换之后，下一个步骤之前</td>
+<td>同上，加上标识刚完成的智能体的 <code>previousAgent</code></td>
+</tr>
+<tr>
+<td><code>onEnd</code></td>
+<td>所有步骤完成后，线程被标记为完成之前</td>
+<td>同上，包含最终产物内容和已完成的步骤</td>
+</tr>
+</tbody>
+</table>
+<h3 id="hook-configuration">钩子配置<a class="headerlink" href="#hook-configuration" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">&quot;onEnd&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node hooks/post-task-hook.mjs&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;--project&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;nimbus&quot;</span><span class="p">],</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30000</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li><code>command</code> — 完整的 shell 调用（必须包括解释器：<code>node ...</code>、<code>bash ...</code> 等）</li>
+<li><code>args</code> — 通过 <code>sh -c 'cmd "$@"'</code> 作为 <code>$1</code>、<code>$2</code>、...传递的位置参数</li>
+<li><code>timeout</code> — 执行超时（毫秒，默认：30000）</li>
+</ul>
+<h3 id="hook-return-values">钩子返回值<a class="headerlink" href="#hook-return-values" title="Permanent link">&para;</a></h3>
+<p>钩子通过 stdout 返回 JSON 来控制接下来发生的事情：</p>
+<p><strong>插入临时智能体：</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;insertAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;运行任务后清理：验证所有测试通过&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">&quot;profile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-haiku&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">&quot;directive&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;你是一个清理智能体&quot;</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">}</span>
+</code></pre></div>
+这会创建一个新的临时智能体，运行给定的提示，然后线程继续正常进行。</p>
+<p><strong>针对已有智能体的会话：</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;targetAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;根据原始要求再次检查产物中的结果&quot;</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="p">}</span>
+</code></pre></div>
+这会将提示发送到 <code>reviewer</code> 智能体的持久会话（如果进程仍然存活则通过 stdin，如果已死则通过 <code>--resume</code>）。<code>targetAgent</code> 优先于 <code>insertAgent</code>。</p>
+<h3 id="hook-execution-order">钩子执行顺序<a class="headerlink" href="#hook-execution-order" title="Permanent link">&para;</a></h3>
+<p>模板钩子先触发，然后是调用者的 <code>extraHooks</code>（由调度器/分发器注入）在同一阶段。两者使用相同的执行语义。ExtraHooks 不会持久化到 ThreadRecord——它们仅对当前的 <code>runThread()</code> 调用有效。</p>
+<h2 id="workspace-and-artifact">工作区和产物<a class="headerlink" href="#workspace-and-artifact" title="Permanent link">&para;</a></h2>
+<p>每个线程在文件系统上获得一个隔离的工作区：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>tmp/threads/thr_a1b2c3d4/
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>├── artifact.md        # 共享产物——智能体读和写此文件
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>└── ...                # 智能体创建的任何其他文件
+</code></pre></div>
+<p>产物路径对所有智能体通过 <code>{{artifactPath}}</code> 模板变量可用。智能体通过读取之前智能体写入的内容并追加自己的发现来进行通信。</p>
+<p>智能体还可以识别之前智能体修改的文件：
+- <code>{{previousOutput}}</code> — 上一个已完成步骤的完整输出
+- <code>{{modifiedFiles}}</code> — 上一个智能体编辑的文件列表（从只记录路径的会话活动日志中提取）</p>
+<h3 id="task-keyed-manager-artifact-dr-0017">任务定址的 manager 产物（DR-0017）<a class="headerlink" href="#task-keyed-manager-artifact-dr-0017" title="Permanent link">&para;</a></h3>
+<p>大多数线程把产物放在上文所示的<strong>临时线程工作区</strong>（<code>tmp/threads/{threadId}/artifact.md</code>），按线程 id 定址，并在线程清理时被删除。<strong>manager 线程</strong>不同：它拥有一个复合任务节点，其产物放在<strong>任务定址</strong>的路径下——按所属任务 id 定址，而非线程 id：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>context/projects/{project}/manager/{taskId}/artifact.md
+</code></pre></div>
+<p>该产物是<strong>持久的</strong>。它能在线程清理、服务器重启以及 manager 替换/轮换后存活，并随 context 仓库进行 git 版本管理（每次检查点都累积版本历史）——与临时的 <code>tmp/threads/{threadId}/artifact.md</code> 工作区形成对比，后者在线程清理时被丢弃。它在派发时即被设定——manager 线程的 <code>artifactPath</code> 指向这个任务定址路径——因此 <code>{{artifactPath}}</code>、产物读取以及<strong>thread_wait 检查点门禁</strong>（见上文）全都无缝地作用于它，工作区清理永远不会触及它。</p>
+<p>它的角色是<strong>再水化（rehydration）记忆</strong>：一个新鲜的 manager 化身（在轮换或崩溃之后）从此文件继承上一个化身的检查点，因此 manager 应当把它写得让一个陌生人仅凭此文件就能继续这个任务。manager 节点概念及其验收台账记录在 <a href="../tasks/">tasks.md</a> 中。</p>
+<h2 id="thread-commands">线程命令<a class="headerlink" href="#thread-commands" title="Permanent link">&para;</a></h2>
+<h3 id="starting-a-thread">启动线程<a class="headerlink" href="#starting-a-thread" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>!thread coder-review 为 API 实现用户认证
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>!thread researcher 调研触觉感知的最新论文
+</code></pre></div>
+<p><code>!thread</code> 后的第一个词是模板名称（或单智能体执行的智能体名称）。其余是传递给第一个智能体的用户消息。</p>
+<h3 id="adding-an-agent">添加智能体<a class="headerlink" href="#adding-an-agent" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>!thread add reviewer
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>!thread add critic 请关注安全影响
+</code></pre></div>
+<p>这会向已有线程动态添加一个智能体。线程必须已完成或等待中（不是当前正在运行）。如果线程是 auto-record（没有文件系统工作区），则延迟创建工作区。</p>
+<h3 id="other-thread-commands">其他线程命令<a class="headerlink" href="#other-thread-commands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>!thread list</code></td>
+<td>列出活跃线程</td>
+</tr>
+<tr>
+<td><code>!thread status [id]</code></td>
+<td>显示线程状态和步骤</td>
+</tr>
+<tr>
+<td><code>!thread cancel [id]</code></td>
+<td>取消运行中的线程</td>
+</tr>
+<tr>
+<td><code>!thread agents</code></td>
+<td>列出可用智能体</td>
+</tr>
+<tr>
+<td><code>!thread templates</code></td>
+<td>列出可用模板</td>
+</tr>
+</tbody>
+</table>
+<h2 id="thread-types">线程类型<a class="headerlink" href="#thread-types" title="Permanent link">&para;</a></h2>
+<p>Cortex 内部使用三种类型的线程记录：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>templateName</th>
+<th>工作区</th>
+<th>使用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>模板线程</strong></td>
+<td>实际模板名称</td>
+<td>是</td>
+<td><code>!thread &lt;template&gt;</code>、任务调度</td>
+</tr>
+<tr>
+<td><strong>默认线程</strong></td>
+<td><code>"default"</code></td>
+<td>是</td>
+<td>单智能体消息（正常聊天路径）</td>
+</tr>
+<tr>
+<td><strong>自动线程</strong></td>
+<td><code>null</code></td>
+<td>否（初始）</td>
+<td>从单智能体运行链接的 <code>!thread add</code></td>
+</tr>
+</tbody>
+</table>
+<p>区别很重要，因为运行器对默认线程的处理不同：它们只运行一个步骤（无转换），使用频道的已有会话，并将流式输出直接转发给用户。</p>
+<h2 id="thread-record">线程记录<a class="headerlink" href="#thread-record" title="Permanent link">&para;</a></h2>
+<p>每个线程的完整状态作为 <code>ThreadRecord</code> 持久化在 <code>~/.cortex/data/threads.json</code> 中：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>线程 ID（<code>thr_&lt;8 位十六进制&gt;</code>）</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>当前生命周期状态</td>
+</tr>
+<tr>
+<td><code>channel</code></td>
+<td>Slack 频道 ID</td>
+</tr>
+<tr>
+<td><code>templateName</code></td>
+<td>使用的模板（ad-hoc 为 null）</td>
+</tr>
+<tr>
+<td><code>userMessage</code></td>
+<td>原始用户消息</td>
+</tr>
+<tr>
+<td><code>workspacePath</code> / <code>artifactPath</code></td>
+<td>共享产物的文件路径</td>
+</tr>
+<tr>
+<td><code>agents</code></td>
+<td>智能体槽位映射及其状态（sessionId、status、persistSession）</td>
+</tr>
+<tr>
+<td><code>activeAgent</code> / <code>activeStage</code></td>
+<td>下一个运行的智能体和阶段</td>
+</tr>
+<tr>
+<td><code>steps[]</code></td>
+<td>每步记录的执行历史（agent、stage、cost、duration、output）</td>
+</tr>
+<tr>
+<td><code>iterationCounts</code></td>
+<td>按转换边追踪收敛循环计数</td>
+</tr>
+<tr>
+<td><code>totalCostUsd</code></td>
+<td>所有步骤的累计费用</td>
+</tr>
+<tr>
+<td><code>metadata</code></td>
+<td>调用者提供的上下文：scheduleTaskId、trigger、project、pendingMessages</td>
+</tr>
+<tr>
+<td><code>abortReason</code></td>
+<td>智能体自行中止时的原因</td>
+</tr>
+</tbody>
+</table>
+<p>旧线程在启动时清理：7 天前的线程被移除（无工作区的 auto-records 为 24 小时）。</p>
+<h2 id="prompt-variables">提示变量<a class="headerlink" href="#prompt-variables" title="Permanent link">&para;</a></h2>
+<p>智能体提示支持在运行时解析的模板变量：</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>{{input}}</code></td>
+<td>用户消息（对于第一步）或前一个智能体的输出</td>
+</tr>
+<tr>
+<td><code>{{artifactPath}}</code></td>
+<td><code>artifact.md</code> 的绝对路径</td>
+</tr>
+<tr>
+<td><code>{{previousOutput}}</code></td>
+<td>上一个已完成步骤的完整输出</td>
+</tr>
+<tr>
+<td><code>{{modifiedFiles}}</code></td>
+<td>上一个智能体编辑的文件</td>
+</tr>
+<tr>
+<td><code>{{currentDateTime}}</code></td>
+<td>ISO 格式的当前日期和时间</td>
+</tr>
+</tbody>
+</table>
+<h2 id="plugin-loading">插件加载<a class="headerlink" href="#plugin-loading" title="Permanent link">&para;</a></h2>
+<p>每个智能体定义通过 <code>pluginDirs</code> 指定要加载的插件目录。插件相对于 <code>DATA_DIR</code>（默认：<code>~/.cortex/</code>）解析。例如，<code>plugins/cortex-coder</code> 解析为 <code>~/.cortex/plugins/cortex-coder/</code>。</p>
+<p>插件目录作为 <code>--plugin-dir</code> 标志（Claude Code）或 <code>--skill</code> 标志（PI）传递给 LLM 后端。后端然后扫描 <code>SKILL.md</code> 文件并将其作为可调用技能提供。完整的技能和插件系统参见 <a href="../skills-and-plugins/">skills-and-plugins.md</a>。</p>
+<h2 id="manager-session-rotation-rehydration-dr-0017">Manager 会话轮换与再水化（DR-0017）<a class="headerlink" href="#manager-session-rotation-rehydration-dr-0017" title="Permanent link">&para;</a></h2>
+<p>manager 线程是长生命周期的：随着子项运行，它跨越多次唤醒累积上下文。为保持上下文清洁，DR-0017 会周期性地<strong>轮换 manager 的 LLM 会话</strong>，依赖持久的<strong>任务定址 manager 产物</strong>（见上文）及其验收台账（见 <a href="../tasks/">tasks.md</a>）来跨越边界携带状态。</p>
+<ul>
+<li><strong>触发</strong>：在恢复的收窄点检查，就在重新进入一个被挂起的 manager 之前。当 <code>steps.length - rotationBaseStepIndex &gt;= managerRotateSteps</code>（<a href="../configuration/#configsettingsjson"><code>config/settings.json</code></a> 中的 <code>managerRotateSteps</code> 键，<strong>默认 10</strong>；旧变量 <code>CORTEX_MANAGER_ROTATE_STEPS</code> 仍作为已弃用的回退被读取）时，会话被轮换。只有 <strong>manager（任务产物）模板</strong>会轮换——普通线程从不轮换。</li>
+<li><strong>轮换动作</strong>：清空每个智能体槽位的 <code>sessionId</code>（这样下一步在一个<strong>全新的 LLM 会话</strong>上运行，会自然地重新注入完整的 manager 指令和原始任务契约提示），把 <code>rotationBaseStepIndex</code> 重置为当前步骤计数，并为新鲜化身入队一条<strong>再水化通知</strong>。</li>
+<li><strong>再水化通知</strong>：它指示新鲜化身：(1) <strong>先读自己的产物</strong>——该文件保存着前任的检查点；(2) <strong>对账任务树</strong>（例如 <code>cortex-task tree --task-id &lt;id&gt;</code>）；(3) <strong>验证台账中待处理的交付</strong>——仍在等待本 manager 裁决的子项结果，必须逐一按其 <code>done-when</code> 核验后才可信任。它还告诉化身<strong>不要</strong>重做已完成的工作或重新争论已记录的决策，而是从剩余计划继续。</li>
+<li>轮换是一次<strong>刻意的击杀测试</strong>：它与灾难/崩溃恢复同构——新鲜化身纯粹从持久状态再水化。它<strong>故障放行</strong>：轮换失败是非致命的（恢复在旧会话上继续），且非 manager 线程从不轮换。</li>
+</ul>
+<h2 id="thread-cleanup">线程清理<a class="headerlink" href="#thread-cleanup" title="Permanent link">&para;</a></h2>
+<p>当线程完成、失败或被取消时：</p>
+<ul>
+<li>智能体句柄从 <code>RunningExecutions</code> 中移除</li>
+<li>线程特定会话（按键为 <code>thr:&lt;threadId&gt;:</code>）被关闭</li>
+<li>线程存储刷新到磁盘</li>
+</ul>
+<p>在服务器启动时，任何留在 <code>running</code> 状态的线程都被标记为 <code>failed</code> 以防止陈旧状态。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

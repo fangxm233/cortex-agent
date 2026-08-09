@@ -1,0 +1,2510 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/configuration/">
+      
+      
+        <link rel="prev" href="../slack-setup/">
+      
+      
+        <link rel="next" href="../cli-reference/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/configuration/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Configuration - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#configuration" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Configuration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/configuration/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#file-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File hierarchy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-order-and-precedence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loading order and precedence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Startup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rate-limiting-slack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limiting (Slack)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webhook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-file-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data file overrides
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#feature-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feature flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#profilesjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        profiles.json
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="profiles.json">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#profile-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Profile resolution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validation-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configsettingsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        config/settings.json
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="config/settings.json">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hot-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hot reload
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#legacy-environment-variables-and-deprecation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Legacy environment variables and deprecation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-migration-out-of-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic migration out of .env
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-stays-in-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What stays in .env
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#not-the-same-file-as-claudesettingsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not the same file as .claude/settings.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claudesettingsjson-claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .claude/settings.json (Claude Code)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defaultsconfig-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        defaults/config/ layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hot-reload-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hot-reload behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-each-file-lives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where each file lives
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#file-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File hierarchy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-order-and-precedence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loading order and precedence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Startup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rate-limiting-slack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limiting (Slack)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webhook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-file-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data file overrides
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#feature-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feature flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#profilesjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        profiles.json
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="profiles.json">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#profile-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Profile resolution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validation-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configsettingsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        config/settings.json
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="config/settings.json">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hot-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hot reload
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#legacy-environment-variables-and-deprecation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Legacy environment variables and deprecation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-migration-out-of-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic migration out of .env
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-stays-in-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What stays in .env
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#not-the-same-file-as-claudesettingsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not the same file as .claude/settings.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claudesettingsjson-claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .claude/settings.json (Claude Code)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defaultsconfig-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        defaults/config/ layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hot-reload-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hot-reload behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-each-file-lives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where each file lives
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h1>
+<p>Cortex loads all configuration from <code>$CORTEX_HOME/config/</code> at startup. The
+only required variables are <code>CORTEX_PLATFORM</code> and the platform credentials
+(Slack). Everything else has sensible defaults and most users
+never touch them.</p>
+<h2 id="file-hierarchy">File hierarchy<a class="headerlink" href="#file-hierarchy" title="Permanent link">&para;</a></h2>
+<p>All paths below are relative to <code>$CORTEX_HOME</code> (default: <code>~/.cortex/</code>).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$CORTEX_HOME/
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── .env                          # Platform tokens, feature flags
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── config/
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│   ├── .env                      # Same file (symlinked / canonical location)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│   ├── settings.json             # Runtime behavior settings (hot-reloaded)
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│   ├── profiles.json             # Named agent profiles
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>│   ├── thread-templates/         # Thread config — one JSON per agent/template/shell
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>│   ├── machines.json             # Machine registry for remote clients
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>│   ├── budget.json               # Daily/monthly budget limits
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>│   ├── mcp-config.json           # Direct-session MCP configuration
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>│   ├── mcp-config-core.json      # Remote execution/time layer
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>│   ├── mcp-config-tasks.json     # Read-only task-monitoring layer
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>│   ├── mcp-config-manager-qa.json # Shared manager-answer layer
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>│   ├── mcp-config-thread.json    # Thread-control layer
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>│   ├── mcp-config-tui.json       # TUI interaction layer
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>│   └── hooks/                    # Hook registry — one JSON declaration per hook
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>├── data/
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│   ├── mode.json                 # Current runtime mode and profile
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>│   ├── schedules.json            # Persistent scheduled task list
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>│   ├── executions.json           # Unified execution registry
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>│   ├── costs.jsonl               # 90-day rolling cost records
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>│   └── sessions.json             # Channel-to-agent session mapping
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>├── .claude/
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>│   └── settings.json             # Claude Code hooks and permissions
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>├── hooks/                        # Hook scripts (.mjs)
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>├── plugins/                      # Role-scoped skill plugins
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>├── prompts/                      # System prompts, directives, templates
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>├── rules/                        # Context rules for agent sessions
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>├── context/                      # Dense Context knowledge repository
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>│   └── projects/                 # Research project files
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>├── logs/                         # Daemon and LLM session logs
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>└── tmp/                          # Temporary workspaces (threads, etc.)
+</code></pre></div>
+<h2 id="loading-order-and-precedence">Loading order and precedence<a class="headerlink" href="#loading-order-and-precedence" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Built-in defaults</strong> (<code>agent-server/defaults/</code>) ship with the npm
+   package and provide fallback values for every config file.</li>
+<li><strong><code>$CORTEX_HOME/config/.env</code></strong> is loaded at daemon startup via
+   <code>dotenv</code>. These override the process environment for the daemon and
+   all forked child processes.</li>
+<li><strong><code>$CORTEX_HOME/config/settings.json</code></strong> holds the runtime behavior
+   settings. It is read at the point of use and hot-reloaded on change.
+   For every key it defines, it overrides the legacy environment
+   variable of the same setting.</li>
+<li><strong><code>$CORTEX_HOME/config/profiles.json</code></strong> is read on every agent
+   spawn to resolve model, backend, and extra environment.</li>
+<li><strong><code>$CORTEX_HOME/.claude/settings.json</code></strong> is read by Claude Code
+   (not by Cortex directly) to configure hooks and permissions for the
+   coding-agent backend.</li>
+</ol>
+<p>The <code>.env</code> file supports standard <code>KEY=VALUE</code> syntax and <code>#</code> comments.
+Environment variables already set in the shell take precedence over the
+<code>.env</code> file (dotenv default behavior).</p>
+<h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
+<p>All values are loaded from the <code>.env</code> file at <code>$CORTEX_HOME/config/.env</code>.
+Only <code>CORTEX_PLATFORM</code> and your platform credentials are required.</p>
+<p>Server behavior settings no longer live here: they moved to
+<a href="#configsettingsjson"><code>config/settings.json</code></a>, where they hot-reload instead of
+requiring a restart. Their old variables still work as a deprecated fallback and
+are migrated out of <code>.env</code> automatically on the next daemon start.</p>
+<h3 id="paths">Paths<a class="headerlink" href="#paths" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CORTEX_HOME</code></td>
+<td><code>~/.cortex/</code></td>
+<td>User data root (config, context, logs, store)</td>
+</tr>
+<tr>
+<td><code>CORTEX_PROJECTS_DIR</code></td>
+<td><code>&lt;CORTEX_HOME&gt;/context/projects/</code></td>
+<td>Override project directory</td>
+</tr>
+<tr>
+<td><code>CORTEX_REPO</code></td>
+<td>—</td>
+<td>Repo path for daemon auto-rebuild / hot-reload</td>
+</tr>
+</tbody>
+</table>
+<h3 id="startup">Startup<a class="headerlink" href="#startup" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CORTEX_MACHINE</code></td>
+<td><code>os.hostname()</code></td>
+<td>Machine label for startup DM</td>
+</tr>
+<tr>
+<td><code>CORTEX_RESTART_REASON</code></td>
+<td>—</td>
+<td>Reason string for restart notification</td>
+</tr>
+<tr>
+<td><code>CORTEX_CLIENT_PORT</code></td>
+<td><code>3002</code></td>
+<td>WebSocket port for cortex-client manager</td>
+</tr>
+</tbody>
+</table>
+<h3 id="platform">Platform<a class="headerlink" href="#platform" title="Permanent link">&para;</a></h3>
+<p><code>CORTEX_PLATFORM</code> selects the messaging platform(s). It accepts a single value
+(<code>slack</code>, <code>feishu</code>) or a <strong>comma-separated list</strong> to run several at once
+(<code>slack,feishu</code>). Each platform whose credentials are present is brought online;
+the optional TUI gateway (<code>CORTEX_TUI</code>) is added on top. With multiple platforms,
+messages route by platform and system notices fan out to each platform's admin
+channel.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Required</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CORTEX_PLATFORM</code></td>
+<td>yes</td>
+<td><code>slack</code> (default). Comma list for multi-platform, e.g. <code>slack,feishu</code></td>
+</tr>
+<tr>
+<td><code>SLACK_BOT_TOKEN</code></td>
+<td>for slack</td>
+<td>Slack Bot OAuth token (<code>xoxb-...</code>)</td>
+</tr>
+<tr>
+<td><code>SLACK_SIGNING_SECRET</code></td>
+<td>for slack</td>
+<td>Slack app signing secret</td>
+</tr>
+<tr>
+<td><code>SLACK_APP_TOKEN</code></td>
+<td>for slack</td>
+<td>Slack app-level token for Socket Mode (<code>xapp-...</code>)</td>
+</tr>
+<tr>
+<td><code>FEISHU_APP_ID</code></td>
+<td>for feishu</td>
+<td>Feishu app ID (<code>cli_...</code>)</td>
+</tr>
+<tr>
+<td><code>FEISHU_APP_SECRET</code></td>
+<td>for feishu</td>
+<td>Feishu app secret</td>
+</tr>
+<tr>
+<td><code>FEISHU_ENCRYPT_KEY</code></td>
+<td>no</td>
+<td>Feishu event encrypt key (optional with long-connection)</td>
+</tr>
+<tr>
+<td><code>FEISHU_VERIFICATION_TOKEN</code></td>
+<td>no</td>
+<td>Feishu event verification token (optional)</td>
+</tr>
+<tr>
+<td><code>FEISHU_DOMAIN</code></td>
+<td>no</td>
+<td><code>feishu</code> (default) or <code>lark</code> for the international edition</td>
+</tr>
+<tr>
+<td><code>FEISHU_CHANNEL</code></td>
+<td>no</td>
+<td>Feishu channel ID (auto-set by session) — identifies the current Feishu conduit for MCP tools</td>
+</tr>
+</tbody>
+</table>
+<p>The admin channels for system notices are settings, not environment variables:
+see <code>adminChannel</code> and <code>feishuAdminChannel</code> in
+<a href="#configsettingsjson"><code>config/settings.json</code></a>. The legacy variables
+<code>SLACK_ADMIN_CHANNEL</code>, <code>CORTEX_ADMIN_CHANNEL</code>, and <code>FEISHU_ADMIN_CHANNEL</code> are
+still read as a deprecated fallback.</p>
+<h3 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ANTHROPIC_API_KEY</code></td>
+<td>Anthropic API key for direct-API mode</td>
+</tr>
+<tr>
+<td><code>ANTHROPIC_BASE_URL</code></td>
+<td>Override API base URL (auto-set by gateway proxy)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rate-limiting-slack">Rate limiting (Slack)<a class="headerlink" href="#rate-limiting-slack" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CORTEX_SLACK_RL_GLOBAL_CAPACITY</code></td>
+<td><code>20</code></td>
+<td>Global API call bucket capacity</td>
+</tr>
+<tr>
+<td><code>CORTEX_SLACK_RL_GLOBAL_REFILL_PER_SEC</code></td>
+<td><code>1</code></td>
+<td>Global refill rate per second</td>
+</tr>
+<tr>
+<td><code>CORTEX_SLACK_RL_CHANNEL_CAPACITY</code></td>
+<td><code>1</code></td>
+<td>Per-channel bucket capacity</td>
+</tr>
+<tr>
+<td><code>CORTEX_SLACK_RL_CHANNEL_REFILL_PER_SEC</code></td>
+<td><code>1</code></td>
+<td>Per-channel refill rate per second</td>
+</tr>
+</tbody>
+</table>
+<h3 id="webhook">Webhook<a class="headerlink" href="#webhook" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WEBHOOK_PORT</code></td>
+<td><code>3001</code></td>
+<td>Webhook HTTP server port</td>
+</tr>
+<tr>
+<td><code>WEBHOOK_HOST</code></td>
+<td><code>127.0.0.1</code></td>
+<td>Fallback host for remote clients (when Tailscale/LAN IP not detected)</td>
+</tr>
+<tr>
+<td><code>GITHUB_WEBHOOK_SECRET</code></td>
+<td>—</td>
+<td>GitHub webhook HMAC-SHA256 signing secret</td>
+</tr>
+</tbody>
+</table>
+<h3 id="data-file-overrides">Data file overrides<a class="headerlink" href="#data-file-overrides" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CORTEX_EXECUTIONS_FILE</code></td>
+<td><code>&lt;STORE_DIR&gt;/executions.json</code></td>
+<td>Execution records</td>
+</tr>
+<tr>
+<td><code>CORTEX_COSTS_FILE</code></td>
+<td><code>&lt;STORE_DIR&gt;/costs.jsonl</code></td>
+<td>Cost tracking</td>
+</tr>
+<tr>
+<td><code>CORTEX_BUDGET_FILE</code></td>
+<td><code>&lt;CONFIG_DIR&gt;/budget.json</code></td>
+<td>Budget configuration</td>
+</tr>
+</tbody>
+</table>
+<h3 id="feature-flags">Feature flags<a class="headerlink" href="#feature-flags" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DEBUG</code></td>
+<td>—</td>
+<td>Enable server-wide debug mode. In addition to debug-level logs, the desktop transcript shows hover inspectors for the exact agent message and each tool call's complete input/result. Any non-empty value enables it; restart agent-server after changing it</td>
+</tr>
+<tr>
+<td><code>CORTEX_DEBUG_TOOL_WARNING_CHARS</code></td>
+<td><code>10000</code></td>
+<td>In DEBUG transcripts, mark a tool-name badge amber when its formatted complete parameters plus complete result strictly exceed this Unicode character count. Positive integers only; invalid values use the default. Restart agent-server after changing it</td>
+</tr>
+<tr>
+<td><code>CORTEX_GPU_MONITOR_MOCK</code></td>
+<td>—</td>
+<td>Mock GPU data JSON for testing (overrides real nvidia-smi queries)</td>
+</tr>
+</tbody>
+</table>
+<p>The event log, tool-call rendering, user-context injection, update check,
+compaction notice, turn notification, and auto-resume switches are now settings
+keys — see <a href="#configsettingsjson"><code>config/settings.json</code></a>.</p>
+<p><code>DEBUG</code> persists unabridged prompts, tool parameters, and tool results in per-session conversation-history files. These values can contain secrets, private file contents, or large outputs, and storage grows with their full size. Enable this mode only on a trusted development server and turn it off when inspection is complete. Turning it off immediately removes debug fields and buttons from transcript responses, but it does not delete records captured earlier.</p>
+<h2 id="profilesjson">profiles.json<a class="headerlink" href="#profilesjson" title="Permanent link">&para;</a></h2>
+<p>Located at <code>$CORTEX_HOME/config/profiles.json</code>. Defines named agent profiles
+that control which backend, model, and extra configuration each agent session
+uses. For a comparison of available backends, see
+<a href="../backends/">backends.md</a>.</p>
+<h3 id="schema">Schema<a class="headerlink" href="#schema" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;defaultProfile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;plan&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;profiles&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">&quot;plan&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet-4-20250514&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="nt">&quot;mode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;plan&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">      </span><span class="nt">&quot;claudeBackend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;print&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">&quot;extraEnv&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="nt">&quot;extraOption&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="nt">&quot;fallback&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="nt">&quot;execute&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">      </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet-4-20250514&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">      </span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">      </span><span class="nt">&quot;mode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;execute&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">      </span><span class="nt">&quot;claudeBackend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;print&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">      </span><span class="nt">&quot;extraEnv&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">      </span><span class="nt">&quot;extraOption&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="fields">Fields<a class="headerlink" href="#fields" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>defaultProfile</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Name of the default profile when none is specified</td>
+</tr>
+<tr>
+<td><code>profiles</code></td>
+<td>object</td>
+<td>yes</td>
+<td>Map of profile name to profile entry</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.model</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Model identifier (e.g. <code>claude-sonnet-4-20250514</code>)</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.backend</code></td>
+<td>string</td>
+<td>no</td>
+<td>Backend: <code>claude</code> or <code>pi</code> (default: <code>claude</code>)</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.mode</code></td>
+<td>string</td>
+<td>no</td>
+<td>Operational mode identifier (free-form, e.g. <code>plan</code>, <code>execute</code>)</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.extraEnv</code></td>
+<td>object</td>
+<td>no</td>
+<td>Extra environment variables passed to the backend process. Keys must match <code>^[A-Z_][A-Z0-9_]*$</code>.</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.extraOption</code></td>
+<td>object</td>
+<td>no</td>
+<td>Extra CLI flags passed to the backend. Keys must start with <code>--</code>.</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.claudeBackend</code></td>
+<td>string</td>
+<td>no</td>
+<td>Claude adapter mode: <code>print</code> (default, uses <code>-p</code> + stream-json) or <code>tui</code> (interactive Claude under tmux + jsonl tail). Ignored for non-claude backends.</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.thinking</code></td>
+<td>string</td>
+<td>no</td>
+<td>Thinking level, in the backend's native value set: for <code>claude</code> one of <code>low</code>/<code>medium</code>/<code>high</code>/<code>xhigh</code>/<code>max</code> (passed as <code>--effort</code>), for <code>pi</code> one of <code>off</code>/<code>minimal</code>/<code>low</code>/<code>medium</code>/<code>high</code>/<code>xhigh</code> (passed as <code>--thinking</code>). Absent → no flag is passed. Fallback entries do not inherit it — each declares its own.</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.fallback</code></td>
+<td>array</td>
+<td>no</td>
+<td>Ordered list of fallback profile entries. If the primary backend fails, Cortex tries each fallback in order. Each fallback inherits unspecified fields from the primary.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="profile-resolution">Profile resolution<a class="headerlink" href="#profile-resolution" title="Permanent link">&para;</a></h3>
+<p>At agent spawn time, Cortex resolves the profile through this chain:</p>
+<ol>
+<li>If a profile name is explicitly provided (via <code>--profile</code> or thread
+   template), use it.</li>
+<li>Otherwise, use <code>defaultProfile</code> from <code>profiles.json</code>.</li>
+<li>The resolved profile supplies <code>model</code>, <code>backend</code>, <code>mode</code>, <code>extraEnv</code>,
+   <code>extraOption</code>, <code>claudeBackend</code>, and <code>thinking</code>.</li>
+<li>If the backend call fails with a transient error, Cortex iterates
+   through the <code>fallback</code> array (if any), trying each entry in order.</li>
+</ol>
+<h3 id="validation-rules">Validation rules<a class="headerlink" href="#validation-rules" title="Permanent link">&para;</a></h3>
+<p>Profile names must match <code>^[a-zA-Z0-9_-]+$</code>. Backend must be <code>claude</code>
+or <code>pi</code>. <code>claudeBackend</code> must be <code>print</code> or <code>tui</code> if specified.
+<code>thinking</code>, if specified, must be a value from the entry's backend value
+set (see the fields table). Unknown fields are silently ignored.</p>
+<h2 id="configsettingsjson">config/settings.json<a class="headerlink" href="#configsettingsjson" title="Permanent link">&para;</a></h2>
+<p>Located at <code>$CORTEX_HOME/config/settings.json</code>. This file holds the <strong>runtime
+behavior settings</strong> of the server: switches and limits that used to be
+environment variables and needed a daemon restart to change. Editing this file
+takes effect without a restart.</p>
+<p>It is a flat JSON object that stores <strong>only the keys you explicitly override</strong>.
+Any key you leave out falls back to its legacy environment variable when one
+exists, and then to the built-in default. The file itself is optional — a fresh install has none and
+runs entirely on defaults. It is created the first time something writes it: the
+startup migration below, admin-channel auto-detection, or the Web workbench
+settings panels.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;turnNotify&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;waitingSweepMs&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30000</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">&quot;uiCorsOrigins&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;cortexui://localhost&quot;</span><span class="p">]</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">}</span>
+</code></pre></div>
+<p>Values are type-checked against the schema below when the file is read. A key
+whose JSON type does not match rejects the whole file: at startup Cortex falls
+back to environment variables and defaults, and on a reload it keeps the last
+valid settings. Either way the reason is logged. Unknown keys are ignored.</p>
+<h3 id="keys">Keys<a class="headerlink" href="#keys" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Effect</th>
+<th>Legacy env variable</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>turnNotify</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>When a long-running turn finishes, post a fresh message to the conversation so you get a push notification (the inline status seals to "✓ Done" with an edit, which Slack and Feishu do not notify on). Both success and failure are announced</td>
+<td><code>CORTEX_TURN_NOTIFY</code></td>
+</tr>
+<tr>
+<td><code>turnNotifyThresholdS</code></td>
+<td>number</td>
+<td><code>60</code></td>
+<td>Minimum turn duration, in seconds, before that completion notification is posted. Shorter turns stay quiet</td>
+<td><code>CORTEX_TURN_NOTIFY_THRESHOLD_S</code></td>
+</tr>
+<tr>
+<td><code>notifyCompaction</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>Post a chat notice when an agent's context is compacted. Covers the Claude Code (print mode) and pi backends; the notice names the trigger and, for Claude Code, the pre-compaction token count</td>
+<td><code>CORTEX_NOTIFY_COMPACTION</code></td>
+</tr>
+<tr>
+<td><code>showToolCalls</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>Inline tool-call rendering in VirtualMessage tails</td>
+<td><code>CORTEX_SHOW_TOOL_CALLS</code></td>
+</tr>
+<tr>
+<td><code>statusNewqButton</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>Show the "New (quiet)" button on status messages (<code>=!newq</code>, which skips the pre-close hook)</td>
+<td><code>CORTEX_STATUS_NEWQ_BUTTON</code></td>
+</tr>
+<tr>
+<td><code>autoResume</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>When a usage-limit window resets, automatically continue the conversations and threads the limit interrupted, injecting a note to pick up where they left off. Set to <code>false</code> to leave interrupted work paused for manual continuation</td>
+<td><code>CORTEX_AUTO_RESUME</code></td>
+</tr>
+<tr>
+<td><code>streamDeltas</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>Stream assistant text token by token. Disable to deliver each assistant message in one piece</td>
+<td><code>CORTEX_STREAM_DELTAS</code></td>
+</tr>
+<tr>
+<td><code>bgContinuation</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>Forward the output of background tasks back into the conversation when they finish</td>
+<td><code>CORTEX_BG_CONTINUATION</code></td>
+</tr>
+<tr>
+<td><code>eventLog</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>Write the event bus to the daily rolling JSONL event log</td>
+<td><code>CORTEX_EVENT_LOG</code></td>
+</tr>
+<tr>
+<td><code>diskMonitor</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>Check free space on the filesystem containing <code>$CORTEX_HOME</code> every five minutes and send a system notice below 500 MiB. <code>false</code> stops the timer; switching back to <code>true</code> runs an immediate check</td>
+<td><code>CORTEX_DISK_MONITOR</code></td>
+</tr>
+<tr>
+<td><code>disableUserContext</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>Set to <code>true</code> to stop injecting <code>USER.md</code> context into direct conversation turns (injected by default; multi-agent thread steps never receive it)</td>
+<td><code>CORTEX_DISABLE_USER_CONTEXT</code></td>
+</tr>
+<tr>
+<td><code>serverUpdateDisable</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>Set to <code>true</code> to disable the server auto-update check (enabled by default)</td>
+<td><code>CORTEX_SERVER_UPDATE_DISABLE</code></td>
+</tr>
+<tr>
+<td><code>hooksLegacy</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>Bypass the hook registry and build Claude hook settings from the fixed built-in table instead. See <a href="../hooks/">hooks.md</a></td>
+<td><code>CORTEX_HOOKS_LEGACY</code></td>
+</tr>
+<tr>
+<td><code>managerRotateSteps</code></td>
+<td>number</td>
+<td><code>10</code></td>
+<td>Steps a manager session runs before it is rotated into a fresh incarnation. See <a href="../threads/">threads.md</a></td>
+<td><code>CORTEX_MANAGER_ROTATE_STEPS</code></td>
+</tr>
+<tr>
+<td><code>waitingSweepMs</code></td>
+<td>number</td>
+<td><code>60000</code></td>
+<td>Interval, in milliseconds, of the disk-driven sweep that reconciles waiting manager threads against on-disk task state. <code>0</code> disables the sweep (see the hot-reload exception below)</td>
+<td><code>CORTEX_WAITING_SWEEP_MS</code></td>
+</tr>
+<tr>
+<td><code>injectWaitMaxS</code></td>
+<td>number</td>
+<td><code>600</code></td>
+<td>Upper bound, in seconds, on how long an injected mid-turn message waits for a reply before the busy gate is released. Prevents a wedged process from holding the daemon restart gate forever</td>
+<td><code>CORTEX_INJECT_WAIT_MAX_S</code></td>
+</tr>
+<tr>
+<td><code>threadMaxDepth</code></td>
+<td>number</td>
+<td><code>5</code></td>
+<td>Maximum nesting depth for spawning nested threads; a spawn at or beyond this depth is rejected</td>
+<td><code>CORTEX_THREAD_MAX_DEPTH</code></td>
+</tr>
+<tr>
+<td><code>taskArtifactTemplates</code></td>
+<td>string[]</td>
+<td><code>["manager"]</code></td>
+<td>Templates whose dispatch threads keep their artifact on the task node instead of the temporary workspace</td>
+<td><code>CORTEX_TASK_ARTIFACT_TEMPLATES</code> (comma-separated)</td>
+</tr>
+<tr>
+<td><code>taskDispatchMaxConcurrent</code></td>
+<td>number | null</td>
+<td><code>null</code></td>
+<td>Max number of task-dispatch threads allowed to run concurrently. A number set here is used as-is (use a positive value); <code>null</code> keeps the automatic policy <code>max(4, os.cpus().length - 2)</code> — all-but-2 cores, floored at 4</td>
+<td><code>TASK_DISPATCH_MAX_CONCURRENT</code></td>
+</tr>
+<tr>
+<td><code>taskDispatchEnabled</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>Run the built-in task dispatcher. Switching from <code>false</code> to <code>true</code> triggers an immediate dispatch check</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>taskDispatchIntervalMs</code></td>
+<td>number</td>
+<td><code>30000</code></td>
+<td>Interval between built-in dispatch checks, in integer milliseconds</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>taskArchiveEnabled</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>Run the built-in completed-task archiver. Switching from <code>false</code> to <code>true</code> runs it immediately</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>taskArchiveIntervalMs</code></td>
+<td>number</td>
+<td><code>21600000</code></td>
+<td>Interval between completed-task archive runs, in integer milliseconds</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>memoryIndexRegenEnabled</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>Run the built-in experiment/knowledge/pattern index rebuild. Switching from <code>false</code> to <code>true</code> runs it immediately</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>memoryIndexRegenIntervalMs</code></td>
+<td>number</td>
+<td><code>86400000</code></td>
+<td>Interval between memory-index rebuilds, in integer milliseconds</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>uiCorsOrigins</code></td>
+<td>string[]</td>
+<td><code>[]</code></td>
+<td>Origins that receive CORS headers from the Web UI HTTP host. See <a href="../desktop-app/">desktop-app.md</a></td>
+<td><code>CORTEX_UI_CORS_ORIGINS</code> (comma-separated)</td>
+</tr>
+<tr>
+<td><code>adminChannel</code></td>
+<td>string | null</td>
+<td><code>null</code></td>
+<td>Slack channel for system notices (startup, rate-limit, disk alerts). The first DM to the bot is auto-detected and persisted here</td>
+<td><code>SLACK_ADMIN_CHANNEL</code>, then <code>CORTEX_ADMIN_CHANNEL</code></td>
+</tr>
+<tr>
+<td><code>feishuAdminChannel</code></td>
+<td>string | null</td>
+<td><code>null</code></td>
+<td>Feishu admin <code>chat_id</code> (<code>oc_...</code>) for the same notices. Independent of <code>adminChannel</code> — Slack channel ids are not usable on Feishu</td>
+<td><code>FEISHU_ADMIN_CHANNEL</code></td>
+</tr>
+</tbody>
+</table>
+<p>The Web workbench writes a subset of these from <strong>Settings → Notifications</strong>
+(<code>turnNotify</code>, <code>autoResume</code>, <code>notifyCompaction</code>) and <strong>Settings → Advanced</strong>
+(<code>eventLog</code>, <code>diskMonitor</code>, <code>showToolCalls</code>, <code>disableUserContext</code>,
+<code>serverUpdateDisable</code>, and the built-in job switches and intervals). Every other key is edited by hand in the file.</p>
+<p>Built-in job intervals must be integer milliseconds from <code>1000</code> through
+<code>2147483647</code>, the safe range for Node timers. Enabled jobs run once at daemon
+startup. Archive and memory-index runs never overlap; a changed interval takes
+effect after an active run finishes.</p>
+<h3 id="hot-reload">Hot reload<a class="headerlink" href="#hot-reload" title="Permanent link">&para;</a></h3>
+<p>The config directory is watched. A change to <code>settings.json</code> is debounced for
+300 ms, the file is re-read, and the new values are used from then on — <strong>no
+daemon restart</strong>. Two consequences worth knowing:</p>
+<ul>
+<li>Each setting takes effect at its own point of use: the next turn, the next
+  agent spawn, the next dispatch cycle, or the next HTTP request. <code>uiCorsOrigins</code>
+  is resolved per request; <code>adminChannel</code> and <code>feishuAdminChannel</code> are pushed
+  into the running platform adapter as soon as they change. <code>diskMonitor=false</code>
+  stops its timer, while restoring <code>true</code> starts the timer and checks immediately.
+  Each built-in job switch likewise cancels or starts its timer immediately, and
+  interval edits reschedule its next idle run.</li>
+<li>A broken file never takes the server down. Invalid JSON or a type mismatch
+  leaves the previous settings in place and logs the error; fix the file and the
+  next write reloads it.</li>
+</ul>
+<p><strong>Exception — <code>waitingSweepMs</code>.</strong> The waiting-manager sweep re-arms itself after
+each run using the current value, so raising or lowering the interval applies
+from the next round. Setting it to <code>0</code> while the server runs stops the loop for
+good: nothing re-arms it, and restoring a positive value later does <strong>not</strong>
+restart it. Only a daemon restart does. (A value of <code>0</code> at startup means the
+loop never starts.)</p>
+<h3 id="legacy-environment-variables-and-deprecation">Legacy environment variables and deprecation<a class="headerlink" href="#legacy-environment-variables-and-deprecation" title="Permanent link">&para;</a></h3>
+<p>Keys with a legacy environment variable in the table keep it as a fallback,
+parsed with its established semantics — <code>CORTEX_EVENT_LOG=off</code>, <code>CORTEX_TURN_NOTIFY=0</code>/<code>false</code>/<code>off</code>/<code>no</code>,
+<code>CORTEX_NOTIFY_COMPACTION=1</code>, comma-separated lists for the two <code>string[]</code> keys,
+and so on. Precedence is always: key in <code>settings.json</code> → legacy variable →
+built-in default. For <code>adminChannel</code> the original chain is preserved:
+<code>SLACK_ADMIN_CHANNEL</code> is consulted before <code>CORTEX_ADMIN_CHANNEL</code>.</p>
+<p>The first time a legacy variable supplies a value, the daemon logs a
+deprecation warning naming the variable and the setting it feeds
+(<code>Deprecated env &lt;VAR&gt; supplies settings.&lt;key&gt;; move it to settings.json</code>). The
+fallback exists for compatibility during migration — new configuration belongs
+in <code>settings.json</code>.</p>
+<h3 id="automatic-migration-out-of-env">Automatic migration out of .env<a class="headerlink" href="#automatic-migration-out-of-env" title="Permanent link">&para;</a></h3>
+<p>On every daemon start, right after <code>.env</code> is loaded, Cortex scans
+<code>$CORTEX_HOME/config/.env</code> for the legacy variables listed above. If it finds at
+least one:</p>
+<ol>
+<li><code>.env</code> is copied to <code>.env.bak-&lt;timestamp&gt;</code> in the same directory, where
+   <code>&lt;timestamp&gt;</code> is an ISO 8601 instant with <code>:</code> and <code>.</code> replaced by <code>-</code>
+   (for example <code>.env.bak-2026-07-30T09-12-33-482Z</code>).</li>
+<li>Each legacy value is parsed with its old semantics and written into
+   <code>settings.json</code>. A key already present in <code>settings.json</code> is never
+   overwritten — the file wins over <code>.env</code>.</li>
+<li>The migrated assignments are removed from <code>.env</code>, which keeps its original
+   file permissions and gains the header comment
+   <code># Legacy server settings migrated to settings.json; secrets remain in .env.</code></li>
+<li>The dead variable <code>CORTEX_SERVER_UPDATE_ENABLE</code>, which nothing reads any
+   more, is dropped in the same pass.</li>
+</ol>
+<p>The migration is idempotent: a <code>.env</code> with no legacy variables is left
+untouched, and later starts do nothing. If any step fails, the error is logged,
+<code>.env</code> is left intact, and the server keeps running on the environment
+fallback — so a failed migration costs nothing but the deprecation warnings.</p>
+<h3 id="what-stays-in-env">What stays in .env<a class="headerlink" href="#what-stays-in-env" title="Permanent link">&para;</a></h3>
+<p>Three categories of variables deliberately remain in <code>.env</code>:</p>
+<ul>
+<li><strong>Secrets and credentials</strong> — <code>SLACK_BOT_TOKEN</code>, <code>SLACK_SIGNING_SECRET</code>,
+  <code>SLACK_APP_TOKEN</code>, <code>FEISHU_APP_ID</code>, <code>FEISHU_APP_SECRET</code>,
+  <code>ANTHROPIC_API_KEY</code>, <code>GITHUB_WEBHOOK_SECRET</code>, <code>CORTEX_CLIENT_TOKEN</code>. They are
+  settings in a loose sense, but keeping them out of a file that the Web UI can
+  read and write keeps the blast radius small.</li>
+<li><strong>Variables consumed by child processes</strong> — <code>CORTEX_HOME</code>,
+  <code>CORTEX_PROJECTS_DIR</code>, <code>WEBHOOK_PORT</code>, <code>DEBUG</code>, <code>CORTEX_LANG</code>, and the data
+  file overrides. Hooks, MCP servers, the CLI, and <code>cortex-client</code> inherit the
+  daemon's environment; a server-side JSON file would never reach them.</li>
+<li><strong>Startup topology</strong> — <code>CORTEX_PLATFORM</code>, <code>CORTEX_MACHINE</code>, <code>CORTEX_UI_HTTP</code>,
+  <code>CORTEX_UI_PORT</code>, <code>CORTEX_UI_SPA_DIR</code>. These decide which adapters and
+  listeners exist at boot, so hot-reloading them would have no meaning; they
+  require a restart by construction.</li>
+</ul>
+<h3 id="not-the-same-file-as-claudesettingsjson">Not the same file as .claude/settings.json<a class="headerlink" href="#not-the-same-file-as-claudesettingsjson" title="Permanent link">&para;</a></h3>
+<p><code>$CORTEX_HOME/config/settings.json</code> (this file) configures the <strong>Cortex
+server</strong>. <code>$CORTEX_HOME/.claude/settings.json</code> configures <strong>Claude Code</strong>'s
+hooks and permissions and is read by the Claude CLI, not by Cortex. Same file
+name, different directory, different owner, different schema — see the next
+section.</p>
+<h2 id="claudesettingsjson-claude-code">.claude/settings.json (Claude Code)<a class="headerlink" href="#claudesettingsjson-claude-code" title="Permanent link">&para;</a></h2>
+<p>Located at <code>$CORTEX_HOME/.claude/settings.json</code>. This file configures
+Claude Code's hook and permission system. Cortex seeds it from
+<code>defaults/.claude/settings.json</code> during <code>cortex init</code> and never
+overwrites it on subsequent runs.</p>
+<p>The file follows Claude Code's settings format with <code>hooks</code> and
+<code>permissions</code> sections. See <a href="../hooks/">hooks.md</a> for the hook
+system documentation. It has nothing to do with the Cortex runtime
+settings in <a href="#configsettingsjson"><code>config/settings.json</code></a>.</p>
+<h2 id="defaultsconfig-layout">defaults/config/ layout<a class="headerlink" href="#defaultsconfig-layout" title="Permanent link">&para;</a></h2>
+<p>The <code>agent-server/defaults/</code> directory in the npm package contains
+shipped defaults. Most are copied to <code>$CORTEX_HOME/</code> during init; the hook
+assets and the thread-template entities are additionally re-synced by the
+server on every startup:</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Destination</th>
+<th>Overwrite behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>defaults/CORTEX.md</code></td>
+<td><code>$CORTEX_HOME/CORTEX.md</code></td>
+<td>Never</td>
+</tr>
+<tr>
+<td><code>defaults/gitignore</code></td>
+<td><code>$CORTEX_HOME/.gitignore</code></td>
+<td>Never</td>
+</tr>
+<tr>
+<td><code>defaults/.claude/settings.json</code></td>
+<td><code>$CORTEX_HOME/.claude/settings.json</code></td>
+<td>Never</td>
+</tr>
+<tr>
+<td><code>defaults/config/budget.json</code></td>
+<td><code>$CORTEX_HOME/config/budget.json</code></td>
+<td>Only with <code>--force</code></td>
+</tr>
+<tr>
+<td><code>defaults/config/thread-templates/</code></td>
+<td><code>$CORTEX_HOME/config/thread-templates/</code></td>
+<td>Per-file copy-if-missing, at init and again at every server start: a shipped agent/template/shell file you do not have yet is added; a file you already have is never overwritten — <code>--force</code> does not apply to this tree</td>
+</tr>
+<tr>
+<td><code>defaults/config/hooks/</code></td>
+<td><code>$CORTEX_HOME/config/hooks/</code></td>
+<td>Per-file CalVer sync at every server start: added when missing, refreshed when the shipped <code>version</code> is newer. A declaration with no <code>version</code> — yours — is never overwritten</td>
+</tr>
+<tr>
+<td><code>defaults/prompts/</code></td>
+<td><code>$CORTEX_HOME/prompts/</code></td>
+<td>Per-file: new files always added, existing preserved unless <code>--force</code></td>
+</tr>
+<tr>
+<td><code>defaults/plugins/</code></td>
+<td><code>$CORTEX_HOME/plugins/</code></td>
+<td>Per-file: new files always added, existing preserved unless <code>--force</code></td>
+</tr>
+<tr>
+<td><code>defaults/rules/</code></td>
+<td><code>$CORTEX_HOME/rules/</code></td>
+<td>Per-file: new files always added, existing preserved unless <code>--force</code></td>
+</tr>
+<tr>
+<td><code>defaults/hooks/</code></td>
+<td><code>$CORTEX_HOME/hooks/</code></td>
+<td>Per-file at init: never overwrite unless <code>--force</code>. At every server start, a shipped script is re-copied unless the deployed file already carries an equal or newer <code>@cortex-hook-version</code></td>
+</tr>
+<tr>
+<td><code>defaults/data/schedules.json</code></td>
+<td><code>$CORTEX_HOME/data/schedules.json</code></td>
+<td>Never (unless <code>--force</code>)</td>
+</tr>
+<tr>
+<td><code>defaults/context/</code></td>
+<td><code>$CORTEX_HOME/context/</code></td>
+<td>Scaffold files: never overwrite</td>
+</tr>
+</tbody>
+</table>
+<p>This design means npm package upgrades automatically deliver new prompts,
+plugins, rules, hooks, and thread-template entities without overwriting user
+customizations. Whole-file config such as <code>budget.json</code> still requires
+<code>--force</code> to replace; <code>config/thread-templates/</code> is merged per file instead,
+so newly shipped entities reach existing installs without touching your edits.</p>
+<h2 id="hot-reload-behavior">Hot-reload behavior<a class="headerlink" href="#hot-reload-behavior" title="Permanent link">&para;</a></h2>
+<p>Watcher-backed files under <code>config/</code> automatically switch to filesystem
+snapshot polling every 5 seconds if the watcher cannot start or reports a
+runtime error. Each loader keeps the same validation and failure behavior in
+polling mode as it uses with filesystem events.</p>
+<ul>
+<li><strong><code>config/settings.json</code></strong> — watched via file watcher, debounced 300 ms. New
+  values apply at the next point of use without a restart; a broken file keeps
+  the previous settings. <code>waitingSweepMs</code> set to <code>0</code> at runtime is the one
+  exception that needs a restart to recover. See
+  <a href="#configsettingsjson">config/settings.json</a>.</li>
+<li><strong><code>schedules.json</code></strong> — watched via file watcher. Changes are picked up
+  within seconds without restart. See <a href="../scheduling/">scheduling.md</a>
+  for the full scheduling system.</li>
+<li><strong><code>profiles.json</code></strong> — cached and watched for parseable JSON changes. An
+  update refreshes the cache before the next agent spawn; malformed JSON keeps
+  the previous profiles.</li>
+<li><strong><code>machines.json</code></strong> — watched and reloaded after valid changes. Invalid
+  entries keep the previous machine registry.</li>
+<li><strong><code>thread-templates/</code></strong> — each entity subdirectory (<code>agents/</code>, <code>templates/</code>,
+  <code>shells/</code>) is watched. Changes are debounced (300ms) and the whole config is
+  reloaded without a restart; a legacy single <code>thread-templates.json</code> is watched
+  the same way until it is migrated. See <a href="../threads/">threads.md</a>.</li>
+<li><strong><code>.env</code></strong> — requires a daemon restart to pick up changes (loaded once
+  at startup via dotenv). Behavior settings that used to live here have moved
+  to <code>config/settings.json</code>, which does not.</li>
+<li><strong>Hook declarations (<code>config/hooks/*.json</code>)</strong> — the registry is re-read on
+  every agent spawn, so a new <code>agent:*</code> / <code>cc:*</code> / <code>pi:*</code> entry applies to the
+  next agent that starts. <code>cortex:*</code> entries are snapshotted at server start
+  and need a restart. See <a href="../hooks/">hooks.md</a>.</li>
+<li><strong>Hook scripts (<code>hooks/*.mjs</code>)</strong> — read fresh on every hook invocation.</li>
+<li><strong>Plugins, prompts, rules</strong> — read fresh on each agent session spawn.</li>
+</ul>
+<h2 id="where-each-file-lives">Where each file lives<a class="headerlink" href="#where-each-file-lives" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.env</code></td>
+<td>Environment variables</td>
+<td><code>$CORTEX_HOME/config/.env</code></td>
+</tr>
+<tr>
+<td><code>settings.json</code></td>
+<td>Runtime behavior settings (hot-reloaded)</td>
+<td><code>$CORTEX_HOME/config/settings.json</code></td>
+</tr>
+<tr>
+<td><code>profiles.json</code></td>
+<td>Agent profiles</td>
+<td><code>$CORTEX_HOME/config/profiles.json</code></td>
+</tr>
+<tr>
+<td><code>thread-templates/</code></td>
+<td>Thread definitions — one JSON per agent/template/shell. Used when present; otherwise the loader falls back to the legacy single file <code>thread-templates.json</code>, which is split into this directory by a one-time startup migration</td>
+<td><code>$CORTEX_HOME/config/thread-templates/</code></td>
+</tr>
+<tr>
+<td><code>machines.json</code></td>
+<td>Machine registry</td>
+<td><code>$CORTEX_HOME/config/machines.json</code></td>
+</tr>
+<tr>
+<td><code>budget.json</code></td>
+<td>Budget limits</td>
+<td><code>$CORTEX_HOME/config/budget.json</code></td>
+</tr>
+<tr>
+<td><code>mcp-config.json</code></td>
+<td>MCP server config</td>
+<td><code>$CORTEX_HOME/config/mcp-config.json</code></td>
+</tr>
+<tr>
+<td><code>.claude/settings.json</code></td>
+<td>Claude Code hooks/permissions (not the Cortex settings file)</td>
+<td><code>$CORTEX_HOME/.claude/settings.json</code></td>
+</tr>
+<tr>
+<td><code>mode.json</code></td>
+<td>Runtime mode</td>
+<td><code>$CORTEX_HOME/data/mode.json</code></td>
+</tr>
+<tr>
+<td><code>schedules.json</code></td>
+<td>Scheduled tasks</td>
+<td><code>$CORTEX_HOME/data/schedules.json</code></td>
+</tr>
+<tr>
+<td><code>hooks/*.json</code></td>
+<td>Hook declarations</td>
+<td><code>$CORTEX_HOME/config/hooks/</code></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

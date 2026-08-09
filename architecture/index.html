@@ -1,0 +1,1885 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/architecture/">
+      
+      
+        <link rel="prev" href="../backends/">
+      
+      
+        <link rel="next" href="../threads/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/architecture/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Architecture - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cortex-architecture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Architecture
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/architecture/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#two-packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two Packages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-server-architecture-six-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent-Server Architecture: Six Layers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Agent-Server Architecture: Six Layers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#layer-0-core-zero-dependency-foundation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 0: core/ — Zero-Dependency Foundation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-1-store-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 1: store/ — Persistence
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-2-events-event-bus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 2: events/ — Event Bus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-3-domain-business-logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 3: domain/ — Business Logic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-4-orchestration-message-routing-and-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 4: orchestration/ — Message Routing and Execution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-5-entry-composition-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 5: entry/ — Composition Root
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-backend-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM Backend Adapter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#platform-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Adapter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#websocket-protocol-server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebSocket Protocol (Server ↔ Client)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WebSocket Protocol (Server ↔ Client)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#message-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Actions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-bus-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Bus Topology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State Storage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#naming-conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Naming Conventions
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#two-packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two Packages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-server-architecture-six-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent-Server Architecture: Six Layers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Agent-Server Architecture: Six Layers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#layer-0-core-zero-dependency-foundation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 0: core/ — Zero-Dependency Foundation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-1-store-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 1: store/ — Persistence
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-2-events-event-bus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 2: events/ — Event Bus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-3-domain-business-logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 3: domain/ — Business Logic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-4-orchestration-message-routing-and-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 4: orchestration/ — Message Routing and Execution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-5-entry-composition-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 5: entry/ — Composition Root
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-backend-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM Backend Adapter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#platform-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Adapter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#websocket-protocol-server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebSocket Protocol (Server ↔ Client)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WebSocket Protocol (Server ↔ Client)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#message-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Actions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-bus-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Bus Topology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State Storage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#naming-conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Naming Conventions
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cortex-architecture">Cortex Architecture<a class="headerlink" href="#cortex-architecture" title="Permanent link">&para;</a></h1>
+<p>Cortex is an autonomous research agent system for robotics and AI/ML. It runs as a server-client architecture: the <strong>agent-server</strong> orchestrates work — task dispatch, thread execution, scheduling, Slack integration, and MCP tools — while remote <strong>agent clients</strong> connect via WebSocket to execute commands on remote machines. For deeper dives into these subsystems, see <a href="../threads/">threads.md</a>, <a href="../tasks/">tasks.md</a>, and <a href="../memory/">memory.md</a>.</p>
+<h2 id="two-packages">Two Packages<a class="headerlink" href="#two-packages" title="Permanent link">&para;</a></h2>
+<p>Cortex consists of two npm packages plus a set of plugins:</p>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>@cortex-agent/server</code></td>
+<td><code>agent-server/</code></td>
+<td>Main server: Slack bot, LLM orchestration, scheduling, task system, MCP tools. Provides three CLI binaries: <code>cortex</code>, <code>cortex-task</code>, <code>cortex-run</code>.</td>
+</tr>
+<tr>
+<td><code>@cortex-agent/client</code></td>
+<td><code>client/</code></td>
+<td>Lightweight remote agent daemon. Connects via WebSocket, executes shell/file commands locally, supports <code>cortex-run</code> for long-running task execution.</td>
+</tr>
+<tr>
+<td>Plugins</td>
+<td><code>plugins/cortex-*</code></td>
+<td>8 role-scoped plugin bundles containing skills. Not npm packages — loaded as directories at runtime.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="agent-server-architecture-six-layers">Agent-Server Architecture: Six Layers<a class="headerlink" href="#agent-server-architecture-six-layers" title="Permanent link">&para;</a></h2>
+<p>The agent-server code at <code>agent-server/src/</code> is organized into six strict layers (L0 through L5). Each layer may only import from lower-numbered layers. This constraint is <strong>enforced at test time</strong> by <code>agent-server/.dependency-cruiser.cjs</code> — the <code>depcruise</code> rule runs as part of <code>npm test</code> and fails the build on any violation.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>L0  core/          → (no dependencies)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>L1  store/         → core
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>L2  events/        → core
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>L3  domain/        → core, store, events
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>L4  orchestration/ → core, store, events, domain
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>L5  entry/         → everything (composition root)
+</code></pre></div>
+<p>Two additional directories sit outside the layer hierarchy because they are imported across multiple layers:</p>
+<ul>
+<li><strong><code>agent-adapter/</code></strong> — the two-LLM-backend abstraction (Claude Code and PI)</li>
+<li><strong><code>platform/</code></strong> — the messaging platform abstraction (Slack)</li>
+</ul>
+<h3 id="layer-0-core-zero-dependency-foundation">Layer 0: <code>core/</code> — Zero-Dependency Foundation<a class="headerlink" href="#layer-0-core-zero-dependency-foundation" title="Permanent link">&para;</a></h3>
+<p>The foundation layer. Contains only pure TypeScript with no runtime dependencies on other layers.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>paths.ts</code></td>
+<td>Canonical path constants: <code>INSTALL_ROOT</code>, <code>DATA_DIR</code> (<code>~/.cortex/</code>), <code>CONFIG_DIR</code>, <code>STORE_DIR</code>, <code>CONTEXT_DIR</code>, <code>PROJECTS_DIR</code>, <code>WORKSPACE_DIR</code>, <code>PLUGINS_DIR</code>, <code>PROMPTS_DIR</code>, <code>HOOKS_DIR</code>, <code>LOGS_DIR</code></td>
+</tr>
+<tr>
+<td><code>utils.ts</code></td>
+<td>Re-exports path constants plus utility functions: <code>chunkText</code>, <code>formatDurationCompact</code>, <code>todayISO</code>, <code>listProjectDirs</code>, <code>readableTimestamp</code></td>
+</tr>
+<tr>
+<td><code>async-mutex.ts</code></td>
+<td><code>AsyncMutex</code> class — promise-based mutex for serializing async disk writes. Used throughout the store layer to prevent concurrent file corruption</td>
+</tr>
+<tr>
+<td><code>log.ts</code></td>
+<td><code>createLogger(tag)</code> — console + daily-rolling file sink with 14-day retention</td>
+</tr>
+<tr>
+<td><code>cli-utils.ts</code></td>
+<td><code>formatHelp</code>, <code>formatError</code>, <code>readStdinSync</code>, <code>cliError</code> — shared CLI formatting</td>
+</tr>
+<tr>
+<td><code>status-format.ts</code></td>
+<td>Pure formatting: <code>computeElapsed</code>, <code>formatMetricsSuffix</code>, <code>buildSessionTag</code>, <code>buildUserProcessingMessage</code></td>
+</tr>
+<tr>
+<td><code>task-parser.ts</code></td>
+<td>Task interface definition, YAML parsing/serialization with kebab↔snake_case key mapping, <code>scanAllTasks</code>, <code>scanAvailableTasks</code>, <code>filterTasks</code>, <code>getTaskStats</code></td>
+</tr>
+<tr>
+<td><code>running-executions.ts</code></td>
+<td><code>RunningExecutions</code> singleton with three-index registry (byKey, byThreadId, byExecutionId). Publishes <code>agent.*</code> lifecycle events to the EventBus</td>
+</tr>
+<tr>
+<td><code>types/agent-types.ts</code></td>
+<td><code>AgentResult</code>, <code>AgentHandle</code>, <code>AgentProgress</code>, <code>AskUserQuestionInfo</code></td>
+</tr>
+<tr>
+<td><code>types/thread-types.ts</code></td>
+<td>Full thread type family: <code>ThreadRecord</code>, <code>AgentDefinition</code>, <code>ThreadTemplate</code>, <code>TransitionRule</code>, <code>HookConfig</code>, <code>RunThreadOptions</code>, <code>AgentStep</code>, and more</td>
+</tr>
+<tr>
+<td><code>config-generator.ts</code></td>
+<td>Config file initialization for new installs</td>
+</tr>
+<tr>
+<td><code>gateway-generator.ts</code></td>
+<td>API gateway YAML generation</td>
+</tr>
+<tr>
+<td><code>profile-generator.ts</code></td>
+<td>Profile JSON generation</td>
+</tr>
+</tbody>
+</table>
+<h3 id="layer-1-store-persistence">Layer 1: <code>store/</code> — Persistence<a class="headerlink" href="#layer-1-store-persistence" title="Permanent link">&para;</a></h3>
+<p>All write operations are serialized through <code>AsyncMutex</code> to prevent corruption from concurrent writes. The layer uses two repository patterns:</p>
+<ul>
+<li><strong>Pattern A (JsonRepository delegation)</strong>: Simple CRUD wrappers around <code>JsonRepository&lt;T&gt;</code>. Used for schedule-repo, session-repo, channel-repo, session-registry-repo, cost-repo. All writes go through <code>atomicWrite()</code> (write to <code>.tmp.&lt;pid&gt;.&lt;ts&gt;</code> then <code>fs.rename</code>).</li>
+<li><strong>Pattern B (in-memory Map + fire-and-forget persist)</strong>: Synchronous in-memory <code>Map</code> for reads, with async persist chain for writes. Used for execution-repo and thread-repo where read latency matters and stale-on-crash is acceptable.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>json-repository.ts</code></td>
+<td>Generic <code>JsonRepository&lt;T&gt;</code> base class: <code>read()</code>, <code>write()</code>, <code>mutate(fn)</code>, <code>flush()</code>. Lazy orphan <code>.tmp.*</code> sweep on first I/O. Corrupt-JSON backup mechanism</td>
+</tr>
+<tr>
+<td><code>in-memory-repository.ts</code></td>
+<td><code>InMemoryRepository&lt;T&gt;</code> — test double with identical interface, no disk I/O</td>
+</tr>
+<tr>
+<td><code>atomic-write.ts</code></td>
+<td><code>atomicWrite(filePath, data)</code> — write to <code>.tmp.&lt;pid&gt;.&lt;ts&gt;</code> then <code>fs.rename</code></td>
+</tr>
+<tr>
+<td><code>outbound-queue.ts</code></td>
+<td>WAL-based durable outbound message queue. 30-min TTL, 200-entry compaction, 5-second drain loop. Coalesces consecutive updates to the same message</td>
+</tr>
+<tr>
+<td><code>thread-repo.ts</code></td>
+<td><code>ThreadRepo</code> — in-memory <code>Map&lt;string, ThreadRecord&gt;</code> + async persist. Queries: <code>findByChannel</code>, <code>findActive</code>, <code>findByPlatformThread</code>. Startup recovery: <code>markRunningAsFailedOnStartup</code>. Cleanup: 7-day old threads (24h for auto-records)</td>
+</tr>
+<tr>
+<td><code>session-repo.ts</code></td>
+<td><code>SessionRepo</code> — <code>Record&lt;string, string&gt;</code> mapping <code>backend:channel → sessionId</code></td>
+</tr>
+<tr>
+<td><code>conversation-ledger-repo.ts</code></td>
+<td>Per-channel turn tracking: <code>initConversation</code>, <code>beginTurn</code>, <code>addResponseTs</code>, <code>completeTurn</code>, <code>rollbackTo</code></td>
+</tr>
+<tr>
+<td><code>session-registry-repo.ts</code></td>
+<td><code>cortex-XXXX</code> short name registry. <code>generateSessionName</code>, <code>registerSession</code>, <code>lookupSession</code></td>
+</tr>
+<tr>
+<td><code>execution-repo.ts</code></td>
+<td>Pattern B repository. Full CRUD: <code>startLocalExecution</code>, <code>registerDispatchExecution</code>, <code>completeExecution</code>, <code>failExecution</code>. Async stale detection via <code>reconcileStaleDispatches</code></td>
+</tr>
+<tr>
+<td><code>channel-repo.ts</code></td>
+<td><code>projectName → channelId</code> mapping</td>
+</tr>
+<tr>
+<td><code>project-dir-repo.ts</code></td>
+<td><code>projectName → machineName → dirPath</code> with reverse channel lookup</td>
+</tr>
+<tr>
+<td><code>schedule-repo.ts</code></td>
+<td>Schedule persistence. <code>ScheduleTask</code> interface, <code>ScheduleTarget</code> union type</td>
+</tr>
+<tr>
+<td><code>cost-repo.ts</code></td>
+<td>Costs in JSONL (append-only), budget in JSON. 90-day pruning at startup</td>
+</tr>
+<tr>
+<td><code>profile-repo.ts</code></td>
+<td>Hybrid sync/async reader. <code>startProfileWatcher()</code> for hot-reload</td>
+</tr>
+<tr>
+<td><code>task-repo.ts</code></td>
+<td>Reads TASKS.yaml files. Pure I/O + mutex + git sync (<code>commitAndPush</code>). Mutations live in <code>domain/tasks/mutator.ts</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="layer-2-events-event-bus">Layer 2: <code>events/</code> — Event Bus<a class="headerlink" href="#layer-2-events-event-bus" title="Permanent link">&para;</a></h3>
+<p>A synchronous, type-safe event bus with JSONL logging.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>event-types.ts</code></td>
+<td>22 user event types + 2 meta events in a <code>CortexEvent</code> discriminated union. Categories: message/interaction, agent lifecycle, thread lifecycle, task, system</td>
+</tr>
+<tr>
+<td><code>event-bus.ts</code></td>
+<td><code>EventBus</code> class — <code>subscribe(type, handler)</code> / <code>publish(event)</code>. Synchronous fan-out. Async handlers fire-and-forget. Re-entrant guard for <code>event-bus.handler-failed</code>. Close hooks for SIGTERM drain</td>
+</tr>
+<tr>
+<td><code>event-logger.ts</code></td>
+<td>Subscribes to <code>'*'</code>, ring buffer of 1024 entries, 100ms flush interval, daily rolling JSONL, 14-day retention. Gated by the <code>eventLog</code> setting in <a href="../configuration/#configsettingsjson"><code>config/settings.json</code></a> (set it to <code>false</code> to disable; legacy env <code>CORTEX_EVENT_LOG=off</code> still works as a deprecated fallback)</td>
+</tr>
+<tr>
+<td><code>event-replay.ts</code></td>
+<td>Debug CLI: <code>node events/event-replay.ts --date YYYY-MM-DD [--type xxx]</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Event categories:</strong></p>
+<ul>
+<li><strong>Message/interaction</strong>: <code>message.received</code>, <code>message.edited</code>, <code>plan.submitted</code>, <code>plan.approved</code>, <code>ask-user.requested</code>, <code>ask-user.answered</code></li>
+<li><strong>Agent lifecycle</strong>: <code>agent.started</code>, <code>agent.completed</code>, <code>agent.failed</code>, <code>agent.superseded</code></li>
+<li><strong>Thread lifecycle</strong>: <code>thread.created</code>, <code>thread.step.started</code>, <code>thread.step.finished</code>, <code>thread.transitioned</code>, <code>thread.completed</code>, <code>thread.failed</code></li>
+<li><strong>Task</strong>: <code>task.claimed</code>, <code>task.completed</code>, <code>task.dispatched</code></li>
+<li><strong>System</strong>: <code>llm.active-count-delta</code>, <code>scheduler.tick</code>, <code>rate-limit.breach</code></li>
+</ul>
+<h3 id="layer-3-domain-business-logic">Layer 3: <code>domain/</code> — Business Logic<a class="headerlink" href="#layer-3-domain-business-logic" title="Permanent link">&para;</a></h3>
+<p>The thickest layer. Contains 14 subdirectories, each encapsulating a domain concern.</p>
+<table>
+<thead>
+<tr>
+<th>Subdirectory</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agents/</code></td>
+<td>Agent execution facade. <code>runAgent()</code> delegates to the backend adapter. Profile resolution, backend detection</td>
+</tr>
+<tr>
+<td><code>sessions/</code></td>
+<td>Session lifecycle. Hook pipeline (onNew, onMessageEnd) with VirtualMessage display and optional agent injection</td>
+</tr>
+<tr>
+<td><code>tasks/</code></td>
+<td>Full task system: YAML parsing, dispatch, archiving, pending tracking, lock management, CLI (<code>cortex-task</code>), verification</td>
+</tr>
+<tr>
+<td><code>executions/</code></td>
+<td>Thin re-export over <code>store/execution-repo.ts</code> with lock-release side effect: every terminal transition auto-releases task locks</td>
+</tr>
+<tr>
+<td><code>costs/</code></td>
+<td>Cost tracking, gateway management, rate limiting with per-provider awareness</td>
+</tr>
+<tr>
+<td><code>scheduling/</code></td>
+<td>Persisted schedule engine plus settings-backed built-in job controller. <code>Scheduler</code> hot-reloads user schedules; built-in task dispatch, archive, and memory-index jobs own daemon timers</td>
+</tr>
+<tr>
+<td><code>memory/</code></td>
+<td>Memory/index management. <code>memory-index-regen.ts</code> rebuilds index.md from YAML frontmatter. File watcher for context changes. CORTEX.md scanning and injection</td>
+</tr>
+<tr>
+<td><code>monitor/</code></td>
+<td>GPU and disk resource monitoring</td>
+</tr>
+<tr>
+<td><code>remote/</code></td>
+<td>Remote device management via WebSocket. SSH-based client deployment, hot-reload via npm update</td>
+</tr>
+<tr>
+<td><code>threads/</code></td>
+<td>Full thread system: state machine, runner, template loading, prompt building, hook execution, artifact I/O, auto-thread logic</td>
+</tr>
+<tr>
+<td><code>mcp/</code></td>
+<td>MCP server implementation. 16 Cortex MCP tools across 8 tool modules (see <a href="../mcp/">mcp.md</a>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="layer-4-orchestration-message-routing-and-execution">Layer 4: <code>orchestration/</code> — Message Routing and Execution<a class="headerlink" href="#layer-4-orchestration-message-routing-and-execution" title="Permanent link">&para;</a></h3>
+<p>Connects platform messages to domain logic. The hook-bridge (part of this
+layer) is detailed in <a href="../hooks/">hooks.md</a>.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>channel-queue.ts</code></td>
+<td>Per-channel serial Promise queue. Ensures only one agent runs per channel at a time</td>
+</tr>
+<tr>
+<td><code>orchestrator.ts</code></td>
+<td>Two-branch decision tree: if <code>!thread</code> command → <code>ThreadExecutor</code>, else → <code>AgentRunner</code> (default single-agent path)</td>
+</tr>
+<tr>
+<td><code>agent-runner.ts</code></td>
+<td>Default-agent execution path. Creates a <code>default</code> thread pre-execution, runs it, manages streaming and interactive callbacks</td>
+</tr>
+<tr>
+<td><code>thread-executor.ts</code></td>
+<td>Thread routing: handles <code>!thread start</code>, <code>!thread add</code>, thread continuation, user message buffering during running steps</td>
+</tr>
+<tr>
+<td><code>busy-tracker.ts</code></td>
+<td>Tracks active LLM count, sends IPC <code>busy</code>/<code>idle</code> to parent daemon process</td>
+</tr>
+<tr>
+<td><code>lifecycle.ts</code></td>
+<td>Agent success/error handling, edit retry, AskUserQuestion resume, turn tracking</td>
+</tr>
+<tr>
+<td><code>superseded-edits.ts</code></td>
+<td>Message edit supersede markers</td>
+</tr>
+<tr>
+<td><code>dispatch-reconciler.ts</code></td>
+<td>Background timer for stale dispatch cleanup</td>
+</tr>
+<tr>
+<td><code>routing/message-router.ts</code></td>
+<td>Slack message entry point. Parses <code>!thread</code> commands, normalizes skill commands, delegates to orchestrator</td>
+</tr>
+<tr>
+<td><code>routing/commands/</code></td>
+<td>14 <code>!command</code> handlers: <code>cancel</code>, <code>channel</code>, <code>cost</code>, <code>device</code>, <code>dispatch</code>, <code>mode</code>, <code>nvtop</code>, <code>orient</code>, <code>schedule</code>, <code>sendfile</code>, <code>session</code>, <code>status</code>, <code>tail</code>, <code>task</code>, <code>thread</code></td>
+</tr>
+<tr>
+<td><code>routing/hook-bridge.ts</code></td>
+<td>PreToolUse hook → EventBus bridge. Publishes <code>plan.submitted</code> and <code>ask-user.requested</code></td>
+</tr>
+<tr>
+<td><code>routing/hook-bridge-subscribers.ts</code></td>
+<td>Subscribers that create Slack modals for questions and send plans to Slack</td>
+</tr>
+<tr>
+<td><code>interactions/</code></td>
+<td>AskUserQuestion modal flow, plan approval state machine, button/modal action routing</td>
+</tr>
+</tbody>
+</table>
+<h3 id="layer-5-entry-composition-root">Layer 5: <code>entry/</code> — Composition Root<a class="headerlink" href="#layer-5-entry-composition-root" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>app.ts</code></td>
+<td><strong>Composition root</strong>. Wires EventBus → logger → hook-bridge → runningExecutions → adapters → commands → interactions → scheduler → remote clients → webhook → memory watcher. Handles SIGTERM graceful shutdown</td>
+</tr>
+<tr>
+<td><code>daemon.ts</code></td>
+<td>Process supervisor. Forks <code>app.js</code>, watches <code>src/*.ts</code> for auto-rebuild (when <code>CORTEX_REPO</code> is set), watches <code>.restart</code> trigger file, crash recovery with exponential backoff (1s→30s max)</td>
+</tr>
+<tr>
+<td><code>cli.ts</code></td>
+<td><code>cortex</code> CLI entry point. Dispatches to: <code>init</code>, <code>start</code>, <code>daemon</code>, <code>restart</code>, <code>task</code>, <code>config</code>, <code>setup-gateway</code></td>
+</tr>
+<tr>
+<td><code>init.ts</code></td>
+<td>Interactive first-time initialization</td>
+</tr>
+<tr>
+<td><code>startup-helpers.ts</code></td>
+<td>Cleanup logs, ensure MCP config</td>
+</tr>
+<tr>
+<td><code>startup-notify.ts</code></td>
+<td>Send startup DM to admin channel</td>
+</tr>
+</tbody>
+</table>
+<h2 id="llm-backend-adapter">LLM Backend Adapter<a class="headerlink" href="#llm-backend-adapter" title="Permanent link">&para;</a></h2>
+<p>The <code>agent-adapter/</code> directory abstracts two LLM backends behind a unified interface:</p>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Adapter</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Code</td>
+<td><code>claude/adapter.ts</code></td>
+<td>Session pool, <code>stream-json</code> mode, TUI mode (tmux + JSONL tail). Spawn-args builder, event parser</td>
+</tr>
+<tr>
+<td>PI</td>
+<td><code>pi/adapter.ts</code></td>
+<td>PISession, MCP bridge, hook bridge, tool shims</td>
+</tr>
+</tbody>
+</table>
+<p>A normalization layer (<code>normalize/</code>) converts backend-specific events into a unified <code>NormalizedEvent</code> stream. The <code>capabilities.ts</code> file declares a <code>Capability</code> enum with capability sets for Claude and PI.</p>
+<h2 id="platform-adapter">Platform Adapter<a class="headerlink" href="#platform-adapter" title="Permanent link">&para;</a></h2>
+<p>The <code>platform/</code> directory abstracts Slack behind a <code>PlatformAdapter</code> interface:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start</code> / <code>stop</code></td>
+<td>Lifecycle</td>
+</tr>
+<tr>
+<td><code>onMessage</code> / <code>onMessageEdit</code> / <code>onAction</code> / <code>onModalSubmit</code></td>
+<td>Event registration</td>
+</tr>
+<tr>
+<td><code>postMessage</code> / <code>updateMessage</code> / <code>deleteMessage</code></td>
+<td>Outbound messaging</td>
+</tr>
+<tr>
+<td><code>postInteractive</code></td>
+<td>Interactive messages with buttons</td>
+</tr>
+<tr>
+<td><code>openModal</code></td>
+<td>Modals</td>
+</tr>
+<tr>
+<td><code>uploadFile</code> / <code>downloadFile</code></td>
+<td>File operations</td>
+</tr>
+<tr>
+<td><code>addReaction</code></td>
+<td>Emoji reactions</td>
+</tr>
+<tr>
+<td><code>getPermalink</code> / <code>getAdminChannel</code></td>
+<td>Utility</td>
+</tr>
+</tbody>
+</table>
+<p><code>VirtualMessage</code> handles message aggregation — merging multiple appends into fewer messages with retry delays to avoid rate limits.</p>
+<h2 id="websocket-protocol-server-client">WebSocket Protocol (Server ↔ Client)<a class="headerlink" href="#websocket-protocol-server-client" title="Permanent link">&para;</a></h2>
+<p>The WebSocket protocol is used for <strong>remote device command execution</strong>, not for Slack/agent communication. The server runs a WebSocket server (default port 3002) via <code>startClientManager()</code>. For the full cross-machine story — deployment, network topology, and security — see <a href="../cross-machine/">cross-machine.md</a>.</p>
+<h3 id="message-flow">Message Flow<a class="headerlink" href="#message-flow" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Client connects</strong> → sends <code>{ type: 'hello', device, platform, capabilities }</code></li>
+<li><strong>Server validates</strong> → checks for duplicate device name (error code <code>4002</code> if duplicate)</li>
+<li><strong>Heartbeat</strong> → client sends <code>{ type: 'heartbeat', device, timestamp }</code> every 5 seconds. Server marks device offline after 15 seconds of silence (code <code>4003</code>)</li>
+<li><strong>Command dispatch</strong> → server sends <code>{ type: 'command', commandId, action, params }</code>. Client executes and replies with <code>{ type: 'result', commandId, success, data, error }</code></li>
+</ol>
+<h3 id="command-actions">Command Actions<a class="headerlink" href="#command-actions" title="Permanent link">&para;</a></h3>
+<p>The client supports these remote actions: <code>bash</code> (shell execution with timeout/background), <code>read</code> (file read with text/image/PDF support), <code>write</code> (file write with CRLF detection), <code>edit</code> (text replacement with replace_all), <code>glob</code> (file glob with VCS exclusion), <code>grep</code> (ripgrep with pagination), <code>cortex-run.launch</code>, <code>cortex-run.cancel</code>.</p>
+<h3 id="client-architecture">Client Architecture<a class="headerlink" href="#client-architecture" title="Permanent link">&para;</a></h3>
+<p>The client (<code>client/src/client.ts</code>) is a lightweight WebSocket daemon that maintains a persistent connection. It supports automatic reconnection with exponential backoff (1s→30s max). The <code>cortex-run-watcher.ts</code> implements a client-resident watchdog for long-running tasks with two-layer stall detection (output stall and progress stall) and GPU auto-detection via <code>nvidia-smi</code>.</p>
+<h2 id="event-bus-topology">Event Bus Topology<a class="headerlink" href="#event-bus-topology" title="Permanent link">&para;</a></h2>
+<p>The EventBus is wired in <code>app.ts</code> via a singleton-then-inject pattern. Components are constructed with no dependencies, then wired via <code>setBus(bus)</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Publishes</th>
+<th>Subscribes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>runningExecutions</code></td>
+<td><code>agent.started/completed/failed/superseded</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>eventLogger</code></td>
+<td><code>event-logger.dropped</code></td>
+<td><code>'*'</code> (all events → JSONL)</td>
+</tr>
+<tr>
+<td><code>planApprovals</code></td>
+<td><code>plan.approved</code></td>
+<td><code>plan.submitted</code></td>
+</tr>
+<tr>
+<td><code>busyTracker</code></td>
+<td>—</td>
+<td><code>llm.active-count-delta</code></td>
+</tr>
+<tr>
+<td><code>interactionHandlers</code></td>
+<td><code>ask-user.answered</code></td>
+<td><code>ask-user.requested</code></td>
+</tr>
+<tr>
+<td><code>hookBridge</code></td>
+<td><code>plan.submitted</code>, <code>ask-user.requested</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="state-storage">State Storage<a class="headerlink" href="#state-storage" title="Permanent link">&para;</a></h2>
+<p>Cortex stores all state on the filesystem under <code>~/.cortex/</code>. There is no database — everything is JSON files with atomic writes (<code>tmp + rename</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mode.json</code></td>
+<td>Current runtime mode and profile</td>
+</tr>
+<tr>
+<td><code>profiles.json</code></td>
+<td>Named agent profile list</td>
+</tr>
+<tr>
+<td><code>schedules.json</code></td>
+<td>Persistent scheduled task list</td>
+</tr>
+<tr>
+<td><code>sessions.json</code></td>
+<td>Channel-to-agent session mapping</td>
+</tr>
+<tr>
+<td><code>executions.json</code></td>
+<td>Unified execution registry</td>
+</tr>
+<tr>
+<td><code>config/thread-templates/</code></td>
+<td>Agent definitions and orchestration templates — one JSON file per entity under <code>agents/</code>, <code>templates/</code>, <code>shells/</code></td>
+</tr>
+<tr>
+<td><code>threads.json</code></td>
+<td>Active and historical thread state</td>
+</tr>
+<tr>
+<td><code>tasks/</code></td>
+<td>Project task queues (TASKS.yaml per project)</td>
+</tr>
+<tr>
+<td><code>costs.jsonl</code></td>
+<td>Per-call cost records (90-day rolling)</td>
+</tr>
+<tr>
+<td><code>logs/</code></td>
+<td>Daemon and LLM logs</td>
+</tr>
+</tbody>
+</table>
+<h2 id="naming-conventions">Naming Conventions<a class="headerlink" href="#naming-conventions" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Thread IDs</strong>: <code>thr_&lt;8-hex-chars&gt;</code> (e.g., <code>thr_a1b2c3d4</code>)</li>
+<li><strong>Execution IDs</strong>: <code>exec_&lt;kind&gt;_&lt;base36-ts&gt;_&lt;4-rand&gt;</code> (e.g., <code>exec_local_1a2b3c_xyzw</code>)</li>
+<li><strong>Schedule task IDs</strong>: 8 hex characters (from <code>randomBytes(4)</code>)</li>
+<li><strong>Session names</strong>: <code>cortex-&lt;6-hex-chars&gt;</code> (e.g., <code>cortex-a1b2c3</code>)</li>
+<li><strong>Task IDs</strong>: 4 hex characters (e.g., <code>f7cf</code>)</li>
+<li><strong>File format</strong>: All TypeScript uses <code>.ts</code> with ESM import style (<code>import { X } from './foo.js'</code>)</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

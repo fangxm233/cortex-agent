@@ -1,0 +1,1981 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/hooks/">
+      
+      
+        <link rel="prev" href="../safety-and-approvals/">
+      
+      
+        <link rel="next" href="../mcp/">
+      
+      
+        
+          <link rel="alternate" href="../../hooks/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>钩子 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#hooks" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              钩子
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../hooks/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    线程
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    任务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        架构概览
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-hook-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子注册表
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="钩子注册表">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entry-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        条目 schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#managed-and-user-entries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        managed 条目与 user 条目
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-namespaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        事件命名空间
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="事件命名空间">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-backend-neutral-agent-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        agent:* — 后端中立的智能体事件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cc-claude-code-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cc:* — Claude Code 原生透传
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi-pi-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pi:* — PI 原生透传
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-server-side-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex:* — 服务器端事件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#matchers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        匹配器
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling-to-the-agent-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        编译到智能体后端
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="编译到智能体后端">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-server-side-dispatcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        服务器端派发器
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-template-scoped-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程模板作用域的钩子
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#session-events-and-prompt-injection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        会话事件与提示注入
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-hook-bridge-blocking-tool-calls-over-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        hook-bridge：经 HTTP 阻塞的工具调用
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hook-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子脚本
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#asking-the-user-from-a-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        从钩子向用户提问
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-cortex-hook-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-hook CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        添加一个钩子
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        引用追踪
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugging-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        调试钩子
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        架构概览
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-hook-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子注册表
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="钩子注册表">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entry-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        条目 schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#managed-and-user-entries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        managed 条目与 user 条目
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-namespaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        事件命名空间
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="事件命名空间">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-backend-neutral-agent-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        agent:* — 后端中立的智能体事件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cc-claude-code-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cc:* — Claude Code 原生透传
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi-pi-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pi:* — PI 原生透传
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-server-side-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex:* — 服务器端事件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#matchers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        匹配器
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling-to-the-agent-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        编译到智能体后端
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="编译到智能体后端">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-server-side-dispatcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        服务器端派发器
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-template-scoped-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程模板作用域的钩子
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#session-events-and-prompt-injection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        会话事件与提示注入
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-hook-bridge-blocking-tool-calls-over-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        hook-bridge：经 HTTP 阻塞的工具调用
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hook-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        钩子脚本
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#asking-the-user-from-a-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        从钩子向用户提问
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-cortex-hook-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-hook CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        添加一个钩子
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        引用追踪
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugging-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        调试钩子
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="hooks">钩子<a class="headerlink" href="#hooks" title="Permanent link">&para;</a></h1>
+<p>钩子是 Cortex 在某件事发生时运行的一条命令——工具即将执行、会话开始、线程结束、任务完成。每个钩子都是一份<strong>声明</strong>：<code>$CORTEX_HOME/config/hooks/</code> 下的一个 JSON 文件，声明一个事件、一个可选的匹配器，以及要运行的命令。服务器在启动时加载这些声明，各个消费方分别编译自己关心的子集：Claude Code 后端、PI 后端，以及服务器自身的事件派发器。添加一个钩子意味着添加一个文件，而不是改代码。关于钩子在整体系统中的位置，参见 <a href="../architecture/">architecture.md</a>。</p>
+<h2 id="architecture-overview">架构概览<a class="headerlink" href="#architecture-overview" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>        $CORTEX_HOME/config/hooks/*.json   — 一个文件一条声明
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                            │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                            │  加载 + 校验（store/hook-registry.ts）
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        ┌───────────────────┼────────────────────────┐
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        ▼                   ▼                        ▼
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a> Claude 编译器           PI 钩子桥接               HookBus
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a> hooks-builder.ts      pi/hook-bridge.ts         core/hook-bus.ts
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a> agent:* + cc:*        agent:* + pi:*            cortex:*
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        │                   │                        │
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        ▼                   ▼                        ▼
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a> Claude 生成时注入      扩展加载时调用            服务器端派发，
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a> --settings JSON       pi.on(&lt;原生事件&gt;)         外加模板作用域的
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>                                                 线程钩子
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        └───────────────────┴────────────────────────┘
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                            │
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>                            ▼
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>              $CORTEX_HOME/hooks/*.mjs — 脚本本体
+</code></pre></div>
+<h2 id="the-hook-registry">钩子注册表<a class="headerlink" href="#the-hook-registry" title="Permanent link">&para;</a></h2>
+<p>注册表就是目录 <code>$CORTEX_HOME/config/hooks/</code>。其中每个 <code>.json</code> 文件是一条钩子声明。文件按文件名排序读取，这个顺序同时也是同一事件下钩子的执行顺序——随 Cortex 发布的声明带有数字前缀（<code>01-…</code>、<code>02-…</code>），使相对顺序显式可见。</p>
+<p>加载是容错且高声报错的。JSON 非法、schema 校验失败，或 <code>id</code> 与更早的文件重复的文件会被跳过，并在 stderr 打印 <code>[hook-registry] skipped &lt;file&gt;: &lt;reason&gt;</code>；注册表的其余部分照常挂载。服务器启动时会记录挂载数量，形如 <code>Startup: mounted 12 hooks (1 cc / 2 cortex)</code>。Web UI 的设置面板读取同一份列表。</p>
+<p>桌面端的 <strong>设置 → 钩子</strong> 面板不只是一份清单，而是这份注册表的完整视图：它按事件命名空间分组、按加载顺序排列，显示每条声明真正挂载到哪里（<code>claude</code> / <code>pi</code> / <code>server</code>）、改动是下次智能体启动生效还是必须重启服务端，并对 <code>run.script</code> 在钩子目录中缺失的条目打上标记。可改的范围取决于条目来源。<strong>user</strong> 条目完全可编辑，也可以新建与删除。<strong>managed</strong> 条目只开放启用开关，并常驻一条提示：下一次 hook sync 会把启用状态恢复为随附值——其余字段同样会被覆盖，因此面板不会假装它们可改。<strong>template-scoped</strong> 条目只读，并指向拥有它的线程模板。<code>result</code> 的选项收敛为该事件真正支持的模式；<code>version</code> 永不可写——从 UI 创建的条目始终是 user 条目。每个条目还可以针对一份可编辑的样例负载试跑，退出码、stdout 与 stderr 就地展示。</p>
+<p>移动端对同一份注册表只读：钩子页展示分组后的清单以及每行背后的完整声明，但不提供编辑、新建与试跑。要改钩子请使用桌面端会话。</p>
+<h3 id="entry-schema">条目 schema<a class="headerlink" href="#entry-schema" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tasks-yaml-guard&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;event&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;agent:pre-tool&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Edit|Write&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;run&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;script&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tasks-yaml-guard.mjs&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">&quot;enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026.7.29-2&quot;</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string，必填</td>
+<td>注册表内唯一。<code>cortex-hook</code> 和日志行用它指代钩子</td>
+</tr>
+<tr>
+<td><code>event</code></td>
+<td>string，必填</td>
+<td><code>agent:*</code> 事件之一，或任意以 <code>cc:</code> / <code>pi:</code> / <code>cortex:</code> 为前缀的名称</td>
+</tr>
+<tr>
+<td><code>matcher</code></td>
+<td>string 或 object</td>
+<td><code>agent:*</code> / <code>cc:*</code> / <code>pi:*</code> 事件用正则；<code>cortex:*</code> 事件用等值过滤对象。省略即匹配全部</td>
+</tr>
+<tr>
+<td><code>run.script</code></td>
+<td>string</td>
+<td>脚本文件名，相对 <code>$CORTEX_HOME/hooks/</code> 解析。绝对路径与 <code>..</code> 片段会被拒绝</td>
+</tr>
+<tr>
+<td><code>run.command</code></td>
+<td>string</td>
+<td>用裸 shell 命令代替脚本。<code>script</code> 与 <code>command</code> 必须且只能有一个</td>
+</tr>
+<tr>
+<td><code>run.timeout</code></td>
+<td>number</td>
+<td>超时，单位<strong>秒</strong>。默认 30</td>
+</tr>
+<tr>
+<td><code>scope.backends</code></td>
+<td>array</td>
+<td>收窄 <code>agent:*</code> 钩子编译到 <code>claude</code> / <code>pi</code> 中的哪些后端</td>
+</tr>
+<tr>
+<td><code>scope.requiresTool</code></td>
+<td>string</td>
+<td>仅当智能体的工具列表包含该工具时才挂载此钩子</td>
+</tr>
+<tr>
+<td><code>blocking</code></td>
+<td>object</td>
+<td><code>{ "mode": "webhook", "ttlMin": &lt;正数&gt; }</code>，由加载器校验，用于需要 webhook 往返阻塞的钩子</td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td>string</td>
+<td><code>hook-result</code>、<code>stdout-as-prompt</code> 或 <code>none</code>。决定 <code>cortex:*</code> 钩子的 stdout 如何被解释</td>
+</tr>
+<tr>
+<td><code>enabled</code></td>
+<td>boolean</td>
+<td><code>false</code> 时从所有消费方移除该钩子而不删除文件。默认 <code>true</code></td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>string</td>
+<td>CalVer 版本戳（<code>2026.7.29</code>，可带 <code>-1</code>），标记该条目为 managed</td>
+</tr>
+</tbody>
+</table>
+<h3 id="managed-and-user-entries">managed 条目与 user 条目<a class="headerlink" href="#managed-and-user-entries" title="Permanent link">&para;</a></h3>
+<p>带合法 CalVer <code>version</code> 的条目是 <strong>managed</strong>：它随 Cortex 发布，启动时只要发布版本比已部署版本更新，就从 <code>defaults/config/hooks/</code> 刷新过来。没有 <code>version</code> 的条目是 <strong>user</strong> 条目，永不被覆盖——正是这条保证让你可以把自己的声明直接放在随发布的声明旁边。钩子脚本以同样方式同步，依据是脚本源码里的 <code>@cortex-hook-version</code> 注释。</p>
+<h2 id="event-namespaces">事件命名空间<a class="headerlink" href="#event-namespaces" title="Permanent link">&para;</a></h2>
+<h3 id="agent-backend-neutral-agent-events"><code>agent:*</code> — 后端中立的智能体事件<a class="headerlink" href="#agent-backend-neutral-agent-events" title="Permanent link">&para;</a></h3>
+<p>这些是两个编程智能体后端语义真正一致的事件。一条声明同时编译到 Claude Code 与 PI，且两边交给脚本的 payload 都是 Claude 形状，因此同一个脚本可以服务两个后端。</p>
+<table>
+<thead>
+<tr>
+<th><code>agent:*</code> 事件</th>
+<th>Claude 事件</th>
+<th>PI 事件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent:pre-tool</code></td>
+<td><code>PreToolUse</code></td>
+<td><code>tool_call</code></td>
+</tr>
+<tr>
+<td><code>agent:post-tool</code></td>
+<td><code>PostToolUse</code></td>
+<td><code>tool_result</code></td>
+</tr>
+<tr>
+<td><code>agent:session-start</code></td>
+<td><code>SessionStart</code></td>
+<td><code>before_agent_start</code></td>
+</tr>
+<tr>
+<td><code>agent:session-end</code></td>
+<td>—</td>
+<td><code>session_shutdown</code></td>
+</tr>
+<tr>
+<td><code>agent:pre-compact</code></td>
+<td>—</td>
+<td><code>session_before_compact</code></td>
+</tr>
+<tr>
+<td><code>agent:user-prompt</code></td>
+<td>—</td>
+<td><code>input</code></td>
+</tr>
+<tr>
+<td><code>agent:turn-end</code></td>
+<td>—</td>
+<td><code>turn_end</code></td>
+</tr>
+</tbody>
+</table>
+<p>Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂上对应的 Claude 挂载点，用原生形式声明为 <code>cc:SessionEnd</code>、<code>cc:PreCompact</code>、<code>cc:UserPromptSubmit</code> 或 <code>cc:Stop</code>。</p>
+<h3 id="cc-claude-code-passthrough"><code>cc:*</code> — Claude Code 原生透传<a class="headerlink" href="#cc-claude-code-passthrough" title="Permanent link">&para;</a></h3>
+<p><code>cc:</code> 之后的部分原样用作 Claude 设置里的事件名，因此不改代码就能触达 Claude Code 的任意挂载点——<code>cc:PermissionRequest</code>（随发布的自动放行钩子即用它）、<code>cc:SessionEnd</code>、<code>cc:PreCompact</code>、<code>cc:UserPromptSubmit</code>、<code>cc:Stop</code>。这类声明只挂在 Claude 后端。</p>
+<h3 id="pi-pi-passthrough"><code>pi:*</code> — PI 原生透传<a class="headerlink" href="#pi-pi-passthrough" title="Permanent link">&para;</a></h3>
+<p><code>pi:</code> 之后的部分直接注册为 PI 扩展事件，因此 <code>pi:session_start</code>、<code>pi:before_provider_headers</code> 等 PI 独有挂载点也以同样方式可用。这类声明只挂在 PI 后端，且脚本收到的是原始 PI 事件对象，而非 Claude 形状的 payload。</p>
+<h3 id="cortex-server-side-events"><code>cortex:*</code> — 服务器端事件<a class="headerlink" href="#cortex-server-side-events" title="Permanent link">&para;</a></h3>
+<p>这些事件在 agent-server 进程内部触发，由 HookBus 派发。</p>
+<table>
+<thead>
+<tr>
+<th>事件</th>
+<th>触发时机</th>
+<th>payload 字段</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cortex:server.start</code></td>
+<td>服务器完成接线并开始服务</td>
+<td><code>version</code>、<code>pid</code></td>
+</tr>
+<tr>
+<td><code>cortex:server.shutdown</code></td>
+<td>服务器收到 <code>SIGTERM</code></td>
+<td><code>version</code>、<code>pid</code>、<code>reason</code></td>
+</tr>
+<tr>
+<td><code>cortex:thread.start</code></td>
+<td>线程第一个智能体步骤之前</td>
+<td>完整线程上下文（见下）</td>
+</tr>
+<tr>
+<td><code>cortex:thread.transition</code></td>
+<td>智能体步骤之间、转换评估之后</td>
+<td>完整线程上下文</td>
+</tr>
+<tr>
+<td><code>cortex:thread.end</code></td>
+<td>线程主循环结束之后</td>
+<td>完整线程上下文</td>
+</tr>
+<tr>
+<td><code>cortex:dispatch.started</code></td>
+<td>一个任务被分发进线程</td>
+<td><code>taskId</code>、<code>project</code>、<code>source</code>、<code>templateName</code></td>
+</tr>
+<tr>
+<td><code>cortex:schedule.fired</code></td>
+<td>一个计划任务触发</td>
+<td><code>scheduleId</code>、<code>name</code>、<code>project</code></td>
+</tr>
+<tr>
+<td><code>cortex:task.completed</code></td>
+<td>任务被标记为完成</td>
+<td><code>taskId</code>、<code>project</code></td>
+</tr>
+<tr>
+<td><code>cortex:task.blocked</code></td>
+<td>任务被阻塞</td>
+<td><code>taskId</code>、<code>project</code>、<code>reason</code></td>
+</tr>
+<tr>
+<td><code>cortex:client.connected</code></td>
+<td>远程设备客户端注册</td>
+<td><code>device</code></td>
+</tr>
+<tr>
+<td><code>cortex:client.disconnected</code></td>
+<td>远程设备客户端掉线</td>
+<td><code>device</code>，已知时带 <code>reason</code></td>
+</tr>
+<tr>
+<td><code>cortex:session.new</code></td>
+<td>会话因 <code>!new</code> 或“New”状态按钮而关闭</td>
+<td><code>channel</code>、<code>sessionId</code>、<code>sessionName</code>、<code>executionId</code>、<code>profile</code>、<code>trigger</code>（<code>new</code>）、<code>timestampIso</code></td>
+</tr>
+<tr>
+<td><code>cortex:session.messageEnd</code></td>
+<td>一次助手回合完成</td>
+<td>同样的形状，<code>trigger</code> 为 <code>messageEnd</code></td>
+</tr>
+</tbody>
+</table>
+<p>三个 <code>cortex:thread.*</code> 事件携带的线程上下文为：<code>threadId</code>、<code>templateName</code>、<code>phase</code>、<code>source</code>、<code>project</code>、<code>projectId</code>、<code>taskId</code>、<code>taskProject</code>、<code>currentStepIndex</code>、<code>steps</code>、<code>activeAgent</code>、<code>previousAgent</code>、<code>artifactContent</code>、<code>userMessage</code>、<code>totalCostUsd</code>、<code>pendingControlAction</code>。</p>
+<h3 id="matchers">匹配器<a class="headerlink" href="#matchers" title="Permanent link">&para;</a></h3>
+<p>对 <code>agent:*</code>、<code>cc:*</code>、<code>pi:*</code> 事件，匹配器是对工具名求值的正则。<code>agent:*</code> 与 <code>cc:*</code> 的匹配器使用 Claude 的 PascalCase 名称（<code>Edit|Write</code>、<code>Read|Grep</code>）；在 PI 侧，桥接会先把 PI 的 <code>edit</code> / <code>read</code> / <code>web_fetch</code> 这类名称映射为上述规范名再做匹配，因此一个匹配器覆盖两个后端。<code>pi:*</code> 的匹配器则直接对 PI 的原生工具名求值。非工具事件的匹配对象不同：Claude 用 <code>SessionStart</code> 匹配器去匹配启动原因（<code>startup|resume|clear|compact</code>），而 PI 桥接只对工具事件应用匹配器，生命周期事件上忽略它。</p>
+<p>对 <code>cortex:*</code> 事件，匹配器是一个等值过滤对象，其中每个键都必须出现在 payload 中且值完全相等。随发布的分发钩子使用 <code>{"source": "task-dispatch"}</code>，因此它只对由任务分发启动的线程触发，而不是每个结束的线程都触发。</p>
+<h2 id="compiling-to-the-agent-backends">编译到智能体后端<a class="headerlink" href="#compiling-to-the-agent-backends" title="Permanent link">&para;</a></h2>
+<h3 id="claude-code">Claude Code<a class="headerlink" href="#claude-code" title="Permanent link">&para;</a></h3>
+<p>生成 Claude 进程时，<code>agent-adapter/claude/hooks-builder.ts</code> 中的 <code>buildHooksSettings()</code> 加载注册表，保留已启用、挂在 <code>claude</code> 后端、且 <code>scope.requiresTool</code> 能在该智能体工具列表中得到满足的条目，然后生成一个通过 <code>--settings</code> CLI 标志注入的 Claude 设置对象。<code>run.script</code> 变为 <code>node $CORTEX_HOME/hooks/&lt;script&gt;</code>，<code>run.command</code> 原样透传，<code>run.timeout</code> 成为 Claude 的每钩子 <code>timeout</code>（秒）。同一事件下相邻且匹配器相同的条目会被合并进同一个 matcher 组：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;PreToolUse&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Edit|Write&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;command&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node $CORTEX_HOME/hooks/tasks-yaml-guard.mjs&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="p">]},</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AskUserQuestion&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nt">&quot;PostToolUse&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="nt">&quot;SessionStart&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">  </span><span class="nt">&quot;PermissionRequest&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="p">}</span>
+</code></pre></div>
+<p>由于每次生成都会重新读取注册表，新声明会在下一个启动的智能体上生效。在 <a href="../configuration/#configsettingsjson"><code>config/settings.json</code></a> 中设置 <code>"hooksLegacy": true</code> 会绕过注册表，改用一张固定的内置表；旧环境变量 <code>CORTEX_HOOKS_LEGACY=1</code> 仍作为已弃用的回退被读取。</p>
+<h3 id="pi">PI<a class="headerlink" href="#pi" title="Permanent link">&para;</a></h3>
+<p><code>agent-adapter/pi/hook-bridge.ts</code> 作为 PI 扩展运行。加载时它取出挂在 <code>pi</code> 后端的注册表条目，为每个条目调用一次 <code>pi.on()</code>，事件名取自上面 <code>agent:*</code> 映射表中的原生名，或 <code>pi:*</code> 事件的字面后缀。</p>
+<p>对 <code>agent:*</code> 条目，桥接把 PI 的形状归一化为钩子脚本期望的 Claude 形式：工具名映射为 PascalCase（<code>edit</code> → <code>Edit</code>、<code>web_fetch</code> → <code>WebFetch</code>），并为 <code>read</code> / <code>write</code> / <code>edit</code> 工具把 <code>input.path</code> 复制到 <code>input.file_path</code>。payload 携带 <code>hook_event_name</code>（Claude 名）、<code>session_id</code>、<code>tool_name</code>、<code>tool_input</code>、<code>tool_use_id</code>、<code>cwd</code>；工具结果事件另加 <code>tool_output</code>、<code>tool_response</code>、<code>is_error</code>。</p>
+<p>脚本输出会被原生地兑现。在 <code>tool_call</code> 上，<code>hookSpecificOutput.permissionDecision</code> 为 <code>deny</code> 会阻断该工具并给出 <code>permissionDecisionReason</code>，<code>hookSpecificOutput.updatedInput</code> 会替换工具输入。在 <code>tool_result</code> 上，<code>hookSpecificOutput.additionalContext</code> 会追加到工具内容中。在 <code>before_agent_start</code> 上，同一字段会追加到 system prompt。<code>pi:*</code> 条目还可以在 <code>pi:tool_call</code> 上返回 <code>{"block": true}</code>、整体替换 <code>input</code>，以及在 <code>pi:before_provider_headers</code> 上改写 <code>headers</code>。</p>
+<h2 id="the-server-side-dispatcher">服务器端派发器<a class="headerlink" href="#the-server-side-dispatcher" title="Permanent link">&para;</a></h2>
+<p><code>core/hook-bus.ts</code> 派发 <code>cortex:*</code> 事件。服务器在启动时把注册表快照进 bus，因此新增的 <code>cortex:*</code> 声明在服务器下次启动时生效。</p>
+<p>事件触发时，bus 选出 <code>event</code> 完全相同、且对象匹配器被 payload 满足的已启用条目，然后逐个运行。每个钩子以 <code>sh -c '&lt;command&gt; "$@"' hook &lt;args&gt;</code> 运行，工作目录为 <code>$CORTEX_HOME</code>，payload 以 JSON 从 stdin 送入，stderr 被捕获进守护进程日志。<code>run.timeout</code> 秒即进程上限——默认 30，会话事件在声明未另行指定时用 60。</p>
+<p>bus 如何处理 stdout 取决于 <code>result</code>：</p>
+<ul>
+<li><code>hook-result</code> — stdout 按 JSON 解析并交回调用方。线程生命周期钩子用它请求一次后续智能体回合。</li>
+<li><code>stdout-as-prompt</code> — 去掉首尾空白的 stdout 作为提示使用。会话事件用它注入一个回合。</li>
+<li><code>none</code> 或省略 — 输出被丢弃；钩子是即发即忘的。</li>
+</ul>
+<p>超时、非零退出或输出无法解析的钩子会被记录并跳过，绝不会让其所处的主流程失败。</p>
+<h2 id="thread-template-scoped-hooks">线程模板作用域的钩子<a class="headerlink" href="#thread-template-scoped-hooks" title="Permanent link">&para;</a></h2>
+<p>有些钩子属于某一个线程模板而非整个系统，因此模板在 <code>$CORTEX_HOME/config/thread-templates/templates/&lt;name&gt;.json</code> 里保留自己的钩子块：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;example&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">&quot;onEnd&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node $CORTEX_HOME/hooks/post-task-hook.mjs&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;reviewer&quot;</span><span class="p">],</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">      </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">}</span>
+</code></pre></div>
+<p><code>onStart</code>、<code>onTransition</code>、<code>onEnd</code> 分别对应 <code>cortex:thread.start</code>、<code>cortex:thread.transition</code>、<code>cortex:thread.end</code>。它们与注册表钩子经由同一个 bus、在同一次触发中派发，使用合成 id <code>template:&lt;template&gt;:&lt;phase&gt;</code>，且始终按 <code>hook-result</code> 语义处理。与注册表条目有两点不同：这里的 <code>timeout</code> 单位是<strong>毫秒</strong>（默认 30000），且 <code>args</code> 以位置参数 <code>$1</code>、<code>$2</code> 传给命令。以编程方式启动线程的调用方可以为该次运行单独提供同样形状的额外钩子；它们以 <code>extra:&lt;threadId&gt;:&lt;phase&gt;</code> 出现。</p>
+<p>线程钩子通过向 stdout 写 JSON 来控制接下来发生什么：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;insertAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;profile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;__active__&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;审查线程输出并建议下一步。&quot;</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">}</span>
+</code></pre></div>
+<p><code>insertAgent</code> 会为该提示生成一个临时智能体。若要把提示路由给线程中已有的智能体，指名即可：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;targetAgent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;reviewer&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;规划器已完成。这里是额外的上下文……&quot;</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">}</span>
+</code></pre></div>
+<p><code>targetAgent</code> 把提示发送到该智能体的持久会话；两种模式下都可用可选的 <code>directive</code> 前置到提示之前。</p>
+<h2 id="session-events-and-prompt-injection">会话事件与提示注入<a class="headerlink" href="#session-events-and-prompt-injection" title="Permanent link">&para;</a></h2>
+<p><code>cortex:session.new</code> 在会话被 <code>!new</code> 或“New”状态按钮拆除之前触发，<code>cortex:session.messageEnd</code> 在每次助手回合之后触发。二者与其他钩子一样以声明方式配置；随发布的 <code>session-new-hook</code> 声明指向 <code>new-session-hook.mjs</code>，<code>result</code> 为 <code>stdout-as-prompt</code>。</p>
+<p>除了 stdin 上的 JSON payload，会话钩子还会在环境中收到 <code>CORTEX_HOOK_CHANNEL</code>、<code>CORTEX_HOOK_SESSION_ID</code>、<code>CORTEX_HOOK_SESSION_NAME</code>、<code>CORTEX_HOOK_TRIGGER</code> 和 <code>CORTEX_HOOK_EXECUTION_ID</code>。非空 stdout 会作为一次新的智能体回合注入——对 <code>session.new</code>，注入到仍存活的会话上，并使用一个事后关闭的隔离会话键，使这次关闭前的回合不会把旧会话复活到频道槽位上；对 <code>session.messageEnd</code>，注入在频道本身上，因此后续回合延续实时对话，其输出也挂在触发它的那条回复之下。</p>
+<h2 id="the-hook-bridge-blocking-tool-calls-over-http">hook-bridge：经 HTTP 阻塞的工具调用<a class="headerlink" href="#the-hook-bridge-blocking-tool-calls-over-http" title="Permanent link">&para;</a></h2>
+<p>有两个工具事件需要人介入，而智能体进程自己做不到。<code>ask-user-question-hook.mjs</code> 与 <code>exit-plan-mode-hook.mjs</code> 向服务器的 webhook 监听端口（<code>WEBHOOK_PORT</code>，默认 3001）POST 到 <code>/hook/ask-user-question</code> 和 <code>/hook/exit-plan-mode</code>，并阻塞等待响应。</p>
+<p>在服务器侧，<code>orchestration/routing/hook-bridge.ts</code> 注册一个带 30 分钟 TTL 的挂起 promise，并在事件总线上发布 <code>ask-user.requested</code> 或 <code>plan.submitted</code>。<code>hook-bridge-subscribers.ts</code> 中的订阅者把它们转成交互式 Slack 消息。当用户点击按钮或提交模态框时，交互处理器解析该 promise，HTTP 响应回到等待中的钩子脚本，脚本把答案写到 stdout——智能体将其读作该工具执行前的结果。</p>
+<h2 id="hook-scripts">钩子脚本<a class="headerlink" href="#hook-scripts" title="Permanent link">&para;</a></h2>
+<p>脚本位于 <code>$CORTEX_HOME/hooks/</code>，是普通的 Node.js <code>.mjs</code> 文件：从 stdin 读 JSON 上下文，向 stdout 写 JSON（对 <code>stdout-as-prompt</code> 钩子则写纯文本）。随 Cortex 发布的脚本如下：</p>
+<table>
+<thead>
+<tr>
+<th>脚本</th>
+<th>使用方</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tasks-yaml-guard.mjs</code></td>
+<td><code>agent:pre-tool</code>，<code>Edit\|Write</code></td>
+<td>当前进程不持有项目锁时，拒绝对 <code>TASKS.yaml</code> 的编辑</td>
+</tr>
+<tr>
+<td><code>ask-user-question-hook.mjs</code></td>
+<td><code>agent:pre-tool</code>，<code>AskUserQuestion</code></td>
+<td>把问题转发给 hook-bridge 并阻塞直到用户回答</td>
+</tr>
+<tr>
+<td><code>exit-plan-mode-hook.mjs</code></td>
+<td><code>agent:pre-tool</code>，<code>ExitPlanMode</code></td>
+<td>把计划转发给 hook-bridge 并阻塞直到批准或拒绝</td>
+</tr>
+<tr>
+<td><code>memory-ref-tracker.mjs</code></td>
+<td><code>agent:post-tool</code>，<code>Read\|Grep</code></td>
+<td>把内存文件访问记录到 <code>_meta/access-log.jsonl</code></td>
+</tr>
+<tr>
+<td><code>rules-loader.mjs</code></td>
+<td><code>agent:post-tool</code>，<code>Read\|Grep</code></td>
+<td>读到匹配路径时注入 <code>$CORTEX_HOME/rules/</code> 下的限定规则，每条规则每会话一次</td>
+</tr>
+<tr>
+<td><code>session-activity-tracker.mjs</code></td>
+<td><code>agent:post-tool</code>，<code>Read\|Edit\|Write\|Skill</code></td>
+<td>把活动记录追加到 <code>logs/session-activity/&lt;session_id&gt;.jsonl</code></td>
+</tr>
+<tr>
+<td><code>cortex-md-injector.mjs</code></td>
+<td><code>agent:post-tool</code>（<code>Read\|Edit</code>）与 <code>agent:session-start</code></td>
+<td>把 CORTEX.md 祖先链注入智能体上下文，并按会话去重</td>
+</tr>
+<tr>
+<td><code>task-status-check.mjs</code></td>
+<td><code>cortex:thread.end</code>，<code>{"source": "task-dispatch"}</code></td>
+<td>检查被分发的任务是否停留在未决状态，并要求线程收尾</td>
+</tr>
+<tr>
+<td><code>new-session-hook.mjs</code></td>
+<td><code>cortex:session.new</code></td>
+<td>从即将关闭的会话中回忆有价值的信息并写入上下文文件</td>
+</tr>
+<tr>
+<td><code>post-task-hook.mjs</code></td>
+<td>模板的 <code>onEnd</code> 钩子</td>
+<td>提示目标智能体沉淀所学并提交</td>
+</tr>
+</tbody>
+</table>
+<p><code>PermissionRequest</code> 自动放行声明用的是 <code>run.command</code> 而非脚本：一行 <code>printf</code>，对 <code>Edit|Write</code> 返回 allow 决策。这两个工具的访问控制由上面的 pre-tool 守卫负责。</p>
+<p>同目录下的 <code>cortex-hook-api.mjs</code> 不是钩子入口，而是供钩子脚本 import 的辅助库（见下一节）。</p>
+<h2 id="asking-the-user-from-a-hook">从钩子向用户提问<a class="headerlink" href="#asking-the-user-from-a-hook" title="Permanent link">&para;</a></h2>
+<p>任何钩子都可以在当前会话绑定的消息平台——Slack、飞书或 Web UI——上弹出一张 ask-user-question 卡片，并阻塞等待用户作答。卡片与 <code>AskUserQuestion</code> 工具产生的交互表单相同，并接受可选的分级（<code>info</code>、<code>warning</code>、<code>error</code>，<code>warn</code> 是别名）：Web UI 复用 ChatNotice 的分级配色，Slack 与飞书在标题前加对应图标。不带分级时卡片保持中性外观。</p>
+<p>Node 钩子脚本直接 import 与其同目录（<code>$CORTEX_HOME/hooks/</code>）的辅助库：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">askUser</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;./cortex-hook-api.mjs&#39;</span><span class="p">;</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">answers</span><span class="p">,</span><span class="w"> </span><span class="nx">error</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">askUser</span><span class="p">({</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nx">questions</span><span class="o">:</span><span class="w"> </span><span class="p">[{</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nx">question</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;磁盘即将写满——清理旧 checkpoint？&#39;</span><span class="p">,</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nx">header</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;Disk&#39;</span><span class="p">,</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nx">options</span><span class="o">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;清理&#39;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;保留&#39;</span><span class="w"> </span><span class="p">}],</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="p">}],</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="nx">level</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;warning&#39;</span><span class="p">,</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="p">});</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">error</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;timeout&#39;</span><span class="p">)</span><span class="w"> </span><span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mf">0</span><span class="p">);</span><span class="w"> </span><span class="c1">// 用户未作答——按安全默认继续</span>
+</code></pre></div>
+<p><code>run.command</code> 型钩子（以及任何 shell 场景）用 CLI：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>cortex-hook<span class="w"> </span>ask<span class="w"> </span>--question<span class="w"> </span><span class="s2">&quot;磁盘即将写满——清理旧 checkpoint？&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>--options<span class="w"> </span><span class="s2">&quot;清理|保留&quot;</span><span class="w"> </span>--level<span class="w"> </span>warning
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># → { &quot;ok&quot;: true, &quot;answers&quot;: { &quot;磁盘即将写满——清理旧 checkpoint？&quot;: &quot;清理&quot; } }</span>
+</code></pre></div>
+<p>两个入口都 POST 到服务器的 <code>/hook/ask-user-question</code> webhook，共享同一套路由与阻塞契约：</p>
+<ul>
+<li><strong>路由。</strong> 显式 <code>channel</code> 优先。否则辅助库与 CLI 回退到钩子环境变量：<code>CORTEX_HOOK_CHANNEL</code>（会话钩子），然后 <code>SLACK_CHANNEL</code>（智能体侧钩子）。只有 <code>sessionId</code> 时（<code>CORTEX_HOOK_SESSION_ID</code> 或显式传入），服务器会经 session registry 反解出该会话的 channel。<code>cortex:thread.*</code> 的 payload 不含 channel，线程钩子须自行传 <code>channel</code> 或 <code>sessionId</code>。</li>
+<li><strong>阻塞。</strong> 服务器在 hook-bridge 中挂起请求，TTL 30 分钟。响应是 <code>{ answers }</code>，TTL 到期则是 <code>{ error: "timeout", answers: {} }</code>。<code>cortex-hook ask</code> 有答案时退出码为 <code>0</code>，超时为 <code>2</code>，其他错误为 <code>1</code>，shell 钩子可按 <code>$?</code> 分支。发起提问的钩子应把 <code>run.timeout</code> 设得高于预期等待时长，并声明 <code>blocking: { "mode": "webhook", "ttlMin": 30 }</code>，与随附的 <code>ask-user-question-hook</code> 声明一致。</li>
+<li><strong>多问题。</strong> <code>askUser</code> 接受 1–4 个问题对象；<code>cortex-hook ask --payload &lt;file|-&gt;</code> 接受同样的 JSON 数组，例如 <code>cat questions.json | cortex-hook ask --payload - --session-id &lt;id&gt;</code>。</li>
+<li><strong>冒烟测试。</strong> <code>--dry-run</code>（CLI）或 <code>dryRun: true</code>（辅助库）只记录事件并合成返回，不真正发卡片。</li>
+</ul>
+<p>智能体本体则通过 <code>cortex_ask_user</code> MCP 工具的 <code>level</code> 参数获得同样的分级能力。</p>
+<h2 id="the-cortex-hook-cli">cortex-hook CLI<a class="headerlink" href="#the-cortex-hook-cli" title="Permanent link">&para;</a></h2>
+<p><code>cortex-hook</code> 用于查看和操作已挂载的钩子。所有命令都输出 JSON。</p>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>标志</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cortex-hook list</code></td>
+<td>—</td>
+<td>列出每个已挂载钩子的 <code>id</code>、<code>event</code>、<code>enabled</code>、<code>source</code>（<code>managed</code>、<code>user</code> 或 <code>template-scoped</code>）</td>
+</tr>
+<tr>
+<td><code>cortex-hook show</code></td>
+<td><code>--id &lt;id&gt;</code></td>
+<td>打印一条完整声明，含 <code>source</code></td>
+</tr>
+<tr>
+<td><code>cortex-hook enable</code></td>
+<td><code>--id &lt;id&gt;</code>、<code>--dry-run</code></td>
+<td>幂等地把声明文件中的 <code>enabled</code> 设为 <code>true</code></td>
+</tr>
+<tr>
+<td><code>cortex-hook disable</code></td>
+<td><code>--id &lt;id&gt;</code>、<code>--dry-run</code></td>
+<td>以同样方式设为 <code>false</code></td>
+</tr>
+<tr>
+<td><code>cortex-hook test</code></td>
+<td><code>--id &lt;id&gt;</code>、<code>--payload &lt;file\|-&gt;</code></td>
+<td>用给定 payload 从 stdin 执行该钩子一次</td>
+</tr>
+<tr>
+<td><code>cortex-hook ask</code></td>
+<td><code>--question</code>、<code>--options "a\|b"</code>、<code>--level</code>、<code>--channel</code> / <code>--session-id</code>、<code>--payload &lt;file\|-&gt;</code>、<code>--multi</code>、<code>--dry-run</code></td>
+<td>在会话的消息平台上发一张 ask-user 卡片并阻塞等待答案（超时退出码 <code>2</code>）</td>
+</tr>
+</tbody>
+</table>
+<p><code>--help</code> / <code>-h</code> 在根命令和每个子命令上都可用。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>cortex-hook<span class="w"> </span>list
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>cortex-hook<span class="w"> </span>show<span class="w"> </span>--id<span class="w"> </span>task-status-check
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>cortex-hook<span class="w"> </span>disable<span class="w"> </span>--id<span class="w"> </span>rules-loader<span class="w"> </span>--dry-run
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>cortex-hook<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--id<span class="w"> </span>tasks-yaml-guard<span class="w"> </span>--payload<span class="w"> </span>payload.json
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>cat<span class="w"> </span>payload.json<span class="w"> </span><span class="p">|</span><span class="w"> </span>cortex-hook<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--id<span class="w"> </span>tasks-yaml-guard<span class="w"> </span>--payload<span class="w"> </span>-
+</code></pre></div>
+<p><code>enable</code> 与 <code>disable</code> 会报告 <code>changed</code>，让你区分真实的状态变化和空操作；<code>--dry-run</code> 不写文件，改为附加一个 <code>would_set</code> 块。禁用一个 managed 钩子会返回警告：之后如果同步部署了该条目的更新版本，会把它恢复为发布时的 <code>enabled</code> 状态。模板作用域的钩子是只读的——<code>enable</code> 与 <code>disable</code> 会拒绝它们，并列出你可以操作的注册表 id。</p>
+<p><code>test</code> 返回 <code>ok</code>、<code>id</code>、<code>exit_code</code>、<code>stdout</code>、<code>stderr</code>，进程失败时还有 <code>error</code>，并以钩子自身的退出码退出。</p>
+<h2 id="adding-a-hook">添加一个钩子<a class="headerlink" href="#adding-a-hook" title="Permanent link">&para;</a></h2>
+<ol>
+<li>把脚本写进 <code>$CORTEX_HOME/hooks/</code>，例如 <code>warn-sensitive-file.mjs</code>：</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="ch">#!/usr/bin/env node</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kd">const</span><span class="w"> </span><span class="nx">chunks</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="k">for</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">chunk</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">process</span><span class="p">.</span><span class="nx">stdin</span><span class="p">)</span><span class="w"> </span><span class="nx">chunks</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">chunk</span><span class="p">);</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="kd">const</span><span class="w"> </span><span class="nx">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">Buffer</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nx">chunks</span><span class="p">).</span><span class="nx">toString</span><span class="p">());</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="kd">const</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">input</span><span class="p">.</span><span class="nx">tool_input</span><span class="o">?</span><span class="p">.</span><span class="nx">file_path</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">;</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">path</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;.env&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">path</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;credentials&#39;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">    </span><span class="nx">hookSpecificOutput</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">      </span><span class="nx">hookEventName</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;PreToolUse&#39;</span><span class="p">,</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">      </span><span class="nx">permissionDecision</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;deny&#39;</span><span class="p">,</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">      </span><span class="nx">permissionDecisionReason</span><span class="o">:</span><span class="w"> </span><span class="sb">`拒绝编辑敏感文件：</span><span class="si">${</span><span class="nx">path</span><span class="si">}</span><span class="sb">`</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">  </span><span class="p">}));</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">  </span><span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">(</span><span class="mf">0</span><span class="p">);</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="p">}</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">  </span><span class="nx">hookSpecificOutput</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="w">    </span><span class="nx">hookEventName</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;PreToolUse&#39;</span><span class="p">,</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="w">    </span><span class="nx">permissionDecision</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;allow&#39;</span>
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="p">}));</span>
+</code></pre></div>
+<ol>
+<li>声明它。把 <code>$CORTEX_HOME/config/hooks/50-warn-sensitive-file.json</code> 放在随发布的条目旁边——数字前缀让它排在它们之后：</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;warn-sensitive-file&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">&quot;event&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;agent:pre-tool&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Edit|Write&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">&quot;run&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;script&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;warn-sensitive-file.mjs&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>不要写 <code>version</code>。这标记该条目属于你，钩子同步永远不会碰它。</p>
+<ol>
+<li>用 <code>cortex-hook list</code> 验证（该 id 出现，source 为 <code>user</code>），再用 <code>cortex-hook test --id warn-sensitive-file --payload payload.json</code> 验证。</li>
+</ol>
+<p><code>agent:*</code>、<code>cc:*</code>、<code>pi:*</code> 钩子在下一个生成的智能体上生效。<code>cortex:*</code> 钩子在服务器下次启动时被拾取，因为 bus 在启动时快照注册表。</p>
+<p>同样的三步也适用于服务器端事件——声明 <code>"event": "cortex:task.completed"</code> 并配上 <code>{"project": "my-project"}</code> 这样的 <code>matcher</code>，即可在该项目每次完成任务时运行某个动作。</p>
+<h2 id="reference-tracking">引用追踪<a class="headerlink" href="#reference-tracking" title="Permanent link">&para;</a></h2>
+<p><code>memory-ref-tracker</code> 钩子为原子化内存系统实现自动引用追踪（完整架构参见 <a href="../memory/">memory.md</a>）。它把对实验、知识和模式文件的每次 Read 与 Grep 访问记录为一行 JSONL——被访问的文件名、工具名与时间戳：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span><span class="nt">&quot;file&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;entry&gt;.md&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;tool&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Read&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-05-19T10:30:00.000Z&quot;</span><span class="p">}</span>
+</code></pre></div>
+<p>日志位于 <code>&lt;project&gt;/_meta/access-log.jsonl</code>，每次写入后自动提交到 git。内存索引重建会读取它来计算访问计数（<code>refs</code>）和最后访问时间戳（<code>last-ref</code>），这些驱动索引排序与热/冷分类。</p>
+<h2 id="debugging-hooks">调试钩子<a class="headerlink" href="#debugging-hooks" title="Permanent link">&para;</a></h2>
+<p>先用 <code>cortex-hook list</code> 确认钩子已挂载且已启用，再用 <code>cortex-hook test --id &lt;id&gt; --payload &lt;file&gt;</code> 以你控制的 payload 单独运行它——这能把“脚本坏了”和“声明根本没匹配上”分开。钩子的执行与失败记录在 <code>$CORTEX_HOME/logs/daemon.log</code>；脚本写到 stderr 的内容也会被捕获到那里。</p>
+<ul>
+<li><strong>钩子没出现在 <code>cortex-hook list</code> 里</strong> — 加载器拒绝了它。在日志里找 <code>[hook-registry] skipped &lt;file&gt;</code>：JSON 非法、schema 违规，或 <code>id</code> 已被更早的文件占用。</li>
+<li><strong>钩子列出来了却从不触发</strong> — 检查匹配器。<code>agent:*</code> 与 <code>cc:*</code> 事件的工具匹配器用 Claude 的 PascalCase 名称，而 <code>cortex:*</code> 匹配器要求每个键都出现在 payload 中且值完全相等。</li>
+<li><strong><code>agent:session-end</code>、<code>agent:pre-compact</code>、<code>agent:user-prompt</code> 或 <code>agent:turn-end</code> 在 Claude 上没效果</strong> — 这四个只编译到 PI。要挂 Claude 挂载点，请用 <code>cc:</code> 形式。</li>
+<li><strong>新的 <code>cortex:*</code> 钩子毫无动静</strong> — bus 在启动时快照注册表；重启服务器。</li>
+<li><strong>JSON 解析错误</strong> — stdout 不是合法 JSON。确保除结果外没有别的内容写到 stdout；诊断信息应走 stderr。</li>
+<li><strong>超时</strong> — 调大 <code>run.timeout</code>（注册表条目为秒，模板钩子为毫秒）。默认 30 秒，会话事件为 60 秒。</li>
+<li><strong>找不到脚本</strong> — <code>run.script</code> 相对 <code>$CORTEX_HOME/hooks/</code> 解析；绝对路径与 <code>..</code> 片段会被加载器拒绝。</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,2372 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/configuration/">
+      
+      
+        <link rel="prev" href="../slack-setup/">
+      
+      
+        <link rel="next" href="../cli-reference/">
+      
+      
+        
+          <link rel="alternate" href="../../configuration/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>配置 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#configuration" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              配置
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../configuration/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#file-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        文件层次结构
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-order-and-precedence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        加载顺序和优先级
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        环境变量
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="环境变量">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        路径
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        平台
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rate-limiting-slack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        速率限制（Slack）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webhook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-file-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据文件覆盖
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#feature-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        功能标志
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#profilesjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        profiles.json
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="profiles.json">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        模式
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        字段
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#profile-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置解析
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validation-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        验证规则
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configsettingsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        config/settings.json
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="config/settings.json">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        键
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hot-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        热更新
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#legacy-environment-variables-and-deprecation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        旧环境变量与弃用提示
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-migration-out-of-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        从 .env 自动迁移
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-stays-in-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        仍然留在 .env 的内容
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#not-the-same-file-as-claudesettingsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        与 .claude/settings.json 同名不同物
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claudesettingsjson-claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .claude/settings.json（Claude Code）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defaultsconfig-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        defaults/config/ 布局
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hot-reload-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        热重载行为
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-each-file-lives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        各文件位置
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    线程
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    任务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#file-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        文件层次结构
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-order-and-precedence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        加载顺序和优先级
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        环境变量
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="环境变量">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        路径
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        平台
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rate-limiting-slack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        速率限制（Slack）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webhook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-file-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据文件覆盖
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#feature-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        功能标志
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#profilesjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        profiles.json
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="profiles.json">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        模式
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        字段
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#profile-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置解析
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validation-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        验证规则
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configsettingsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        config/settings.json
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="config/settings.json">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        键
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hot-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        热更新
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#legacy-environment-variables-and-deprecation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        旧环境变量与弃用提示
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-migration-out-of-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        从 .env 自动迁移
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-stays-in-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        仍然留在 .env 的内容
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#not-the-same-file-as-claudesettingsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        与 .claude/settings.json 同名不同物
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claudesettingsjson-claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .claude/settings.json（Claude Code）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defaultsconfig-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        defaults/config/ 布局
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hot-reload-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        热重载行为
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-each-file-lives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        各文件位置
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="configuration">配置<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h1>
+<p>Cortex 在启动时从 <code>$CORTEX_HOME/config/</code> 加载所有配置。唯一必需的变量是 <code>CORTEX_PLATFORM</code> 和平台凭据（Slack）。其他所有内容都有合理的默认值，大多数用户无需修改。</p>
+<h2 id="file-hierarchy">文件层次结构<a class="headerlink" href="#file-hierarchy" title="Permanent link">&para;</a></h2>
+<p>以下所有路径均相对于 <code>$CORTEX_HOME</code>（默认：<code>~/.cortex/</code>）。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$CORTEX_HOME/
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── .env                          # 平台令牌、功能标志
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── config/
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│   ├── .env                      # 同一个文件（符号链接/规范位置）
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│   ├── settings.json             # 运行时行为设置（热更新）
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│   ├── profiles.json             # 命名的智能体配置
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>│   ├── thread-templates/         # 线程配置——每个 agent/template/shell 一个 JSON
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>│   ├── machines.json             # 远程客户端机器注册表
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>│   ├── budget.json               # 每日/每月预算限制
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>│   ├── mcp-config.json           # 直接会话 MCP 配置
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>│   ├── mcp-config-core.json      # 远程执行/时间分层
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>│   ├── mcp-config-tasks.json     # 只读任务监控分层
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>│   ├── mcp-config-manager-qa.json # 共享 manager 回答分层
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>│   ├── mcp-config-thread.json    # 线程控制分层
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>│   ├── mcp-config-tui.json       # TUI 交互分层
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>│   └── hooks/                    # 钩子注册表——每个钩子一个 JSON 声明
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>├── data/
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│   ├── mode.json                 # 当前运行时模式和配置
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>│   ├── schedules.json            # 持久化的调度任务列表
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>│   ├── executions.json           # 统一执行注册表
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>│   ├── costs.jsonl               # 90 天滚动费用记录
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>│   └── sessions.json             # 频道到智能体会话的映射
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>├── .claude/
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>│   └── settings.json             # Claude Code 钩子和权限
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>├── hooks/                        # 钩子脚本（.mjs）
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>├── plugins/                      # 角色限定技能插件
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>├── prompts/                      # 系统提示、指令、模板
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>├── rules/                        # 智能体会话的上下文规则
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>├── context/                      # Dense Context 知识库
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>│   └── projects/                 # 研究项目文件
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>├── logs/                         # 守护进程和 LLM 会话日志
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>└── tmp/                          # 临时工作区（线程等）
+</code></pre></div>
+<h2 id="loading-order-and-precedence">加载顺序和优先级<a class="headerlink" href="#loading-order-and-precedence" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>内置默认值</strong>（<code>agent-server/defaults/</code>）随 npm 包一起发布，为每个配置文件提供回退值。</li>
+<li><strong><code>$CORTEX_HOME/config/.env</code></strong> 在守护进程启动时通过 <code>dotenv</code> 加载。这些会覆盖守护进程和所有 fork 子进程的进程环境变量。</li>
+<li><strong><code>$CORTEX_HOME/config/settings.json</code></strong> 保存运行时行为设置。它在使用点按需读取，改动热更新生效；对它显式声明的每个键，它的优先级高于同一设置的旧环境变量。</li>
+<li><strong><code>$CORTEX_HOME/config/profiles.json</code></strong> 在每次生成智能体时读取，用于解析模型、后端和额外环境变量。</li>
+<li><strong><code>$CORTEX_HOME/.claude/settings.json</code></strong> 由 Claude Code 读取（不是由 Cortex 直接读取），用于配置编程智能体后端的钩子和权限。</li>
+</ol>
+<p><code>.env</code> 文件支持标准的 <code>KEY=VALUE</code> 语法和 <code>#</code> 注释。已在 shell 中设置的环境变量优先于 <code>.env</code> 文件（dotenv 默认行为）。</p>
+<h2 id="environment-variables">环境变量<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
+<p>所有值从 <code>$CORTEX_HOME/config/.env</code> 文件加载。只有 <code>CORTEX_PLATFORM</code> 和平台凭据是必需的。</p>
+<p>服务器的行为设置已不在这里：它们迁到了 <a href="#configsettingsjson"><code>config/settings.json</code></a>，改了即刻生效，不再需要重启。旧的环境变量仍作为已弃用的回退继续可用，并会在下一次守护进程启动时自动从 <code>.env</code> 迁出。</p>
+<h3 id="paths">路径<a class="headerlink" href="#paths" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CORTEX_HOME</code></td>
+<td><code>~/.cortex/</code></td>
+<td>用户数据根目录（配置、上下文、日志、存储）</td>
+</tr>
+<tr>
+<td><code>CORTEX_PROJECTS_DIR</code></td>
+<td><code>&lt;CORTEX_HOME&gt;/context/projects/</code></td>
+<td>覆盖项目目录</td>
+</tr>
+<tr>
+<td><code>CORTEX_REPO</code></td>
+<td>—</td>
+<td>用于守护进程自动重建/热重载的仓库路径</td>
+</tr>
+</tbody>
+</table>
+<h3 id="startup">启动<a class="headerlink" href="#startup" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CORTEX_MACHINE</code></td>
+<td><code>os.hostname()</code></td>
+<td>启动私信的机器标签</td>
+</tr>
+<tr>
+<td><code>CORTEX_RESTART_REASON</code></td>
+<td>—</td>
+<td>重启通知的原因字符串</td>
+</tr>
+<tr>
+<td><code>CORTEX_CLIENT_PORT</code></td>
+<td><code>3002</code></td>
+<td>cortex-client 管理器的 WebSocket 端口</td>
+</tr>
+</tbody>
+</table>
+<h3 id="platform">平台<a class="headerlink" href="#platform" title="Permanent link">&para;</a></h3>
+<p><code>CORTEX_PLATFORM</code> 选择消息平台，可填单个值（<code>slack</code>、<code>feishu</code>），也可填<strong>逗号列表</strong>让多个平台同时在线（<code>slack,feishu</code>）。每个凭据齐全的平台都会启动，可选的 TUI 网关（<code>CORTEX_TUI</code>）叠加其上。多平台时消息按平台路由，系统通知扇出到各平台各自的 admin channel。</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>必需</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CORTEX_PLATFORM</code></td>
+<td>是</td>
+<td><code>slack</code>（默认）。多平台填逗号列表，如 <code>slack,feishu</code></td>
+</tr>
+<tr>
+<td><code>SLACK_BOT_TOKEN</code></td>
+<td>slack 需要</td>
+<td>Slack Bot OAuth 令牌（<code>xoxb-...</code>）</td>
+</tr>
+<tr>
+<td><code>SLACK_SIGNING_SECRET</code></td>
+<td>slack 需要</td>
+<td>Slack 应用签名密钥</td>
+</tr>
+<tr>
+<td><code>SLACK_APP_TOKEN</code></td>
+<td>slack 需要</td>
+<td>Socket Mode 的 Slack 应用级令牌（<code>xapp-...</code>）</td>
+</tr>
+<tr>
+<td><code>FEISHU_APP_ID</code></td>
+<td>feishu 需要</td>
+<td>飞书应用 ID（<code>cli_...</code>）</td>
+</tr>
+<tr>
+<td><code>FEISHU_APP_SECRET</code></td>
+<td>feishu 需要</td>
+<td>飞书应用密钥</td>
+</tr>
+<tr>
+<td><code>FEISHU_ENCRYPT_KEY</code></td>
+<td>否</td>
+<td>飞书事件加密密钥（长连接模式下可选）</td>
+</tr>
+<tr>
+<td><code>FEISHU_VERIFICATION_TOKEN</code></td>
+<td>否</td>
+<td>飞书事件验证令牌（可选）</td>
+</tr>
+<tr>
+<td><code>FEISHU_DOMAIN</code></td>
+<td>否</td>
+<td><code>feishu</code>（默认）或国际版 <code>lark</code></td>
+</tr>
+<tr>
+<td><code>FEISHU_CHANNEL</code></td>
+<td>否</td>
+<td>飞书频道 ID（会话自动设置）— 用于标识当前飞书 conduit，供 MCP 工具使用</td>
+</tr>
+</tbody>
+</table>
+<p>发送系统通知的 admin channel 现在是设置项而非环境变量：见 <a href="#configsettingsjson"><code>config/settings.json</code></a> 中的 <code>adminChannel</code> 与 <code>feishuAdminChannel</code>。旧变量 <code>SLACK_ADMIN_CHANNEL</code>、<code>CORTEX_ADMIN_CHANNEL</code>、<code>FEISHU_ADMIN_CHANNEL</code> 仍作为已弃用的回退被读取。</p>
+<h3 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ANTHROPIC_API_KEY</code></td>
+<td>直接 API 模式的 Anthropic API 密钥</td>
+</tr>
+<tr>
+<td><code>ANTHROPIC_BASE_URL</code></td>
+<td>覆盖 API 基础 URL（由网关代理自动设置）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rate-limiting-slack">速率限制（Slack）<a class="headerlink" href="#rate-limiting-slack" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CORTEX_SLACK_RL_GLOBAL_CAPACITY</code></td>
+<td><code>20</code></td>
+<td>全局 API 调用令牌桶容量</td>
+</tr>
+<tr>
+<td><code>CORTEX_SLACK_RL_GLOBAL_REFILL_PER_SEC</code></td>
+<td><code>1</code></td>
+<td>全局每秒补充速率</td>
+</tr>
+<tr>
+<td><code>CORTEX_SLACK_RL_CHANNEL_CAPACITY</code></td>
+<td><code>1</code></td>
+<td>每频道令牌桶容量</td>
+</tr>
+<tr>
+<td><code>CORTEX_SLACK_RL_CHANNEL_REFILL_PER_SEC</code></td>
+<td><code>1</code></td>
+<td>每频道每秒补充速率</td>
+</tr>
+</tbody>
+</table>
+<h3 id="webhook">Webhook<a class="headerlink" href="#webhook" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WEBHOOK_PORT</code></td>
+<td><code>3001</code></td>
+<td>Webhook HTTP 服务器端口</td>
+</tr>
+<tr>
+<td><code>WEBHOOK_HOST</code></td>
+<td><code>127.0.0.1</code></td>
+<td>远程客户端的回退主机（当 Tailscale/LAN IP 未检测到时）</td>
+</tr>
+<tr>
+<td><code>GITHUB_WEBHOOK_SECRET</code></td>
+<td>—</td>
+<td>GitHub webhook HMAC-SHA256 签名密钥</td>
+</tr>
+</tbody>
+</table>
+<h3 id="data-file-overrides">数据文件覆盖<a class="headerlink" href="#data-file-overrides" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CORTEX_EXECUTIONS_FILE</code></td>
+<td><code>&lt;STORE_DIR&gt;/executions.json</code></td>
+<td>执行记录</td>
+</tr>
+<tr>
+<td><code>CORTEX_COSTS_FILE</code></td>
+<td><code>&lt;STORE_DIR&gt;/costs.jsonl</code></td>
+<td>费用追踪</td>
+</tr>
+<tr>
+<td><code>CORTEX_BUDGET_FILE</code></td>
+<td><code>&lt;CONFIG_DIR&gt;/budget.json</code></td>
+<td>预算配置</td>
+</tr>
+</tbody>
+</table>
+<h3 id="feature-flags">功能标志<a class="headerlink" href="#feature-flags" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DEBUG</code></td>
+<td>—</td>
+<td>启用 agent-server 全局调试模式。除调试级日志外，desktop 会在 transcript 中提供 hover 检查按钮，用于查看实际发送给 agent 的完整消息，以及每次工具调用的完整参数和结果。任意非空值都会启用；修改后需重启 agent-server</td>
+</tr>
+<tr>
+<td><code>CORTEX_DEBUG_TOOL_WARNING_CHARS</code></td>
+<td><code>10000</code></td>
+<td>DEBUG transcript 中，若格式化后的完整参数与完整结果之和严格超过该 Unicode 字符数，则将工具名称 badge 标黄。仅接受正整数，非法值回退默认值；修改后需重启 agent-server</td>
+</tr>
+<tr>
+<td><code>CORTEX_GPU_MONITOR_MOCK</code></td>
+<td>—</td>
+<td>用于测试的模拟 GPU 数据 JSON（覆盖真实的 nvidia-smi 查询）</td>
+</tr>
+</tbody>
+</table>
+<p>事件日志、工具调用渲染、用户上下文注入、更新检查、压缩提示、回合完成提醒与自动恢复这些开关现在是设置项——见 <a href="#configsettingsjson"><code>config/settings.json</code></a>。</p>
+<p><code>DEBUG</code> 会把未截断的 prompt、工具参数和工具结果持久化到各 session 的 conversation-history 文件中。这些内容可能包含密钥、私有文件内容或体积很大的输出，存储占用也会按完整内容持续增长。仅应在可信的开发服务器上临时启用，检查完成后及时关闭。关闭后 transcript 响应会立即停止返回调试字段，相关按钮也会消失，但此前已写入的记录不会被自动删除。</p>
+<h2 id="profilesjson">profiles.json<a class="headerlink" href="#profilesjson" title="Permanent link">&para;</a></h2>
+<p>位于 <code>$CORTEX_HOME/config/profiles.json</code>。定义命名智能体配置，控制每个智能体会话使用的后端、模型和额外配置。可用后端对比参见 <a href="../backends/">backends.md</a>。</p>
+<h3 id="schema">模式<a class="headerlink" href="#schema" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;defaultProfile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;plan&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;profiles&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">&quot;plan&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet-4-20250514&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="nt">&quot;mode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;plan&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">      </span><span class="nt">&quot;claudeBackend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;print&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">&quot;extraEnv&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="nt">&quot;extraOption&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="nt">&quot;fallback&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="nt">&quot;execute&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">      </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet-4-20250514&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">      </span><span class="nt">&quot;backend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">      </span><span class="nt">&quot;mode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;execute&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">      </span><span class="nt">&quot;claudeBackend&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;print&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">      </span><span class="nt">&quot;extraEnv&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">      </span><span class="nt">&quot;extraOption&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="fields">字段<a class="headerlink" href="#fields" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>必需</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>defaultProfile</code></td>
+<td>string</td>
+<td>是</td>
+<td>未指定配置时使用的默认配置名称</td>
+</tr>
+<tr>
+<td><code>profiles</code></td>
+<td>object</td>
+<td>是</td>
+<td>配置名称到配置项的映射</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.model</code></td>
+<td>string</td>
+<td>是</td>
+<td>模型标识符（如 <code>claude-sonnet-4-20250514</code>）</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.backend</code></td>
+<td>string</td>
+<td>否</td>
+<td>后端：<code>claude</code> 或 <code>pi</code>（默认：<code>claude</code>）</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.mode</code></td>
+<td>string</td>
+<td>否</td>
+<td>运行模式标识符（自由格式，如 <code>plan</code>、<code>execute</code>）</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.extraEnv</code></td>
+<td>object</td>
+<td>否</td>
+<td>传递给后端进程的额外环境变量。键必须匹配 <code>^[A-Z_][A-Z0-9_]*$</code>。</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.extraOption</code></td>
+<td>object</td>
+<td>否</td>
+<td>传递给后端的额外 CLI 标志。键必须以 <code>--</code> 开头。</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.claudeBackend</code></td>
+<td>string</td>
+<td>否</td>
+<td>Claude 适配器模式：<code>print</code>（默认，使用 <code>-p</code> + stream-json）或 <code>tui</code>（在 tmux 下交互式 Claude + jsonl tail）。非 claude 后端忽略。</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.thinking</code></td>
+<td>string</td>
+<td>否</td>
+<td>思考档位，取后端原生值域：<code>claude</code> 为 <code>low</code>/<code>medium</code>/<code>high</code>/<code>xhigh</code>/<code>max</code> 之一（以 <code>--effort</code> 传递），<code>pi</code> 为 <code>off</code>/<code>minimal</code>/<code>low</code>/<code>medium</code>/<code>high</code>/<code>xhigh</code> 之一（以 <code>--thinking</code> 传递）。不写则不传任何标志。fallback 条目不继承——每条自行声明。</td>
+</tr>
+<tr>
+<td><code>profiles.&lt;name&gt;.fallback</code></td>
+<td>array</td>
+<td>否</td>
+<td>有序的回退配置项列表。如果主后端失败，Cortex 按顺序尝试每个回退项。每个回退项继承主配置中未指定的字段。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="profile-resolution">配置解析<a class="headerlink" href="#profile-resolution" title="Permanent link">&para;</a></h3>
+<p>在智能体生成时，Cortex 通过以下链解析配置：</p>
+<ol>
+<li>如果显式提供了配置名称（通过 <code>--profile</code> 或线程模板），使用它。</li>
+<li>否则，使用 <code>profiles.json</code> 中的 <code>defaultProfile</code>。</li>
+<li>解析后的配置提供 <code>model</code>、<code>backend</code>、<code>mode</code>、<code>extraEnv</code>、<code>extraOption</code>、<code>claudeBackend</code> 和 <code>thinking</code>。</li>
+<li>如果后端调用因瞬态错误失败，Cortex 遍历 <code>fallback</code> 数组（如果有），按顺序尝试每个条目。</li>
+</ol>
+<h3 id="validation-rules">验证规则<a class="headerlink" href="#validation-rules" title="Permanent link">&para;</a></h3>
+<p>配置名称必须匹配 <code>^[a-zA-Z0-9_-]+$</code>。后端必须是 <code>claude</code> 或 <code>pi</code>。如果指定，<code>claudeBackend</code> 必须是 <code>print</code> 或 <code>tui</code>。如果指定 <code>thinking</code>，其值必须属于该条目后端的值域（见字段表）。未知字段会被静默忽略。</p>
+<h2 id="configsettingsjson">config/settings.json<a class="headerlink" href="#configsettingsjson" title="Permanent link">&para;</a></h2>
+<p>位于 <code>$CORTEX_HOME/config/settings.json</code>。该文件保存服务器的<strong>运行时行为设置</strong>：这些开关与上限过去是环境变量，改动必须重启守护进程才生效。现在改这个文件无需重启。</p>
+<p>它是一个扁平 JSON 对象，<strong>只存放你显式覆盖的键</strong>。没写的键在存在旧环境变量时先回退到该变量，再回退到内置默认值。文件本身是可选的——全新安装没有这个文件，完全按默认值运行；它会在第一次被写入时创建：下文的启动迁移、admin channel 自动探测，或 Web 工作台的设置面板。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;turnNotify&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;waitingSweepMs&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30000</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">&quot;uiCorsOrigins&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;cortexui://localhost&quot;</span><span class="p">]</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">}</span>
+</code></pre></div>
+<p>读取文件时会按下表的类型逐键校验。类型不符的键会让整个文件被判为无效：启动时回退到环境变量与默认值，热重载时则保留上一份有效设置。两种情况都会记录原因日志。未知键被忽略。</p>
+<h3 id="keys">键<a class="headerlink" href="#keys" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>键</th>
+<th>类型</th>
+<th>默认值</th>
+<th>作用</th>
+<th>旧环境变量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>turnNotify</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>当一个耗时较长的回合结束时，向会话发送一条新消息，让你收到推送通知（内联状态是以编辑方式封口为「✓ 完成」，而 Slack 与飞书都不会对消息编辑推送）。成功和失败都会提醒</td>
+<td><code>CORTEX_TURN_NOTIFY</code></td>
+</tr>
+<tr>
+<td><code>turnNotifyThresholdS</code></td>
+<td>number</td>
+<td><code>60</code></td>
+<td>触发上述完成提醒所需的最短回合时长（秒）。更短的回合保持静默</td>
+<td><code>CORTEX_TURN_NOTIFY_THRESHOLD_S</code></td>
+</tr>
+<tr>
+<td><code>notifyCompaction</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>在 agent 的上下文被压缩（compaction）时向会话发送一条提示。覆盖 Claude Code（print 模式）与 pi 两个后端；提示会注明触发原因，Claude Code 还会附上压缩前的 token 数</td>
+<td><code>CORTEX_NOTIFY_COMPACTION</code></td>
+</tr>
+<tr>
+<td><code>showToolCalls</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>在 VirtualMessage 尾部内联渲染工具调用</td>
+<td><code>CORTEX_SHOW_TOOL_CALLS</code></td>
+</tr>
+<tr>
+<td><code>statusNewqButton</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>在状态消息上显示「New (quiet)」按钮（<code>=!newq</code>，跳过 pre-close 钩子）</td>
+<td><code>CORTEX_STATUS_NEWQ_BUTTON</code></td>
+</tr>
+<tr>
+<td><code>autoResume</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>当用量限制窗口重置后，自动继续被该限制中断的对话与线程，并注入一条提示让其从中断处接着做。设为 <code>false</code> 可让被中断的工作保持暂停、由人工继续</td>
+<td><code>CORTEX_AUTO_RESUME</code></td>
+</tr>
+<tr>
+<td><code>streamDeltas</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>按 token 流式输出助手文本。关闭后每条助手消息整条投递</td>
+<td><code>CORTEX_STREAM_DELTAS</code></td>
+</tr>
+<tr>
+<td><code>bgContinuation</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>后台任务结束时，把其输出续投回会话</td>
+<td><code>CORTEX_BG_CONTINUATION</code></td>
+</tr>
+<tr>
+<td><code>eventLog</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>把事件总线写入按日滚动的 JSONL 事件日志</td>
+<td><code>CORTEX_EVENT_LOG</code></td>
+</tr>
+<tr>
+<td><code>diskMonitor</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>每五分钟检查 <code>$CORTEX_HOME</code> 所在文件系统的可用空间，低于 500 MiB 时发送系统通知。设为 <code>false</code> 会停止计时器；重新设为 <code>true</code> 会立即检查一次</td>
+<td><code>CORTEX_DISK_MONITOR</code></td>
+</tr>
+<tr>
+<td><code>disableUserContext</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>设为 <code>true</code> 可停止把 <code>USER.md</code> 上下文注入普通直接对话轮次（默认注入；多 agent thread 步骤不会收到）</td>
+<td><code>CORTEX_DISABLE_USER_CONTEXT</code></td>
+</tr>
+<tr>
+<td><code>serverUpdateDisable</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>设为 <code>true</code> 可禁用服务器自动更新检查（默认开启）</td>
+<td><code>CORTEX_SERVER_UPDATE_DISABLE</code></td>
+</tr>
+<tr>
+<td><code>hooksLegacy</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>绕过钩子注册表，改用固定的内置表构建 Claude 的 hook 设置。参见 <a href="../hooks/">hooks.md</a></td>
+<td><code>CORTEX_HOOKS_LEGACY</code></td>
+</tr>
+<tr>
+<td><code>managerRotateSteps</code></td>
+<td>number</td>
+<td><code>10</code></td>
+<td>一个 manager 会话在被轮换成新 incarnation 之前运行的步数。参见 <a href="../threads/">threads.md</a></td>
+<td><code>CORTEX_MANAGER_ROTATE_STEPS</code></td>
+</tr>
+<tr>
+<td><code>waitingSweepMs</code></td>
+<td>number</td>
+<td><code>60000</code></td>
+<td>磁盘对账扫描的间隔（毫秒），逐个核对等待中的 manager 线程与磁盘上的任务状态。<code>0</code> 表示禁用扫描（见下文的热更新例外）</td>
+<td><code>CORTEX_WAITING_SWEEP_MS</code></td>
+</tr>
+<tr>
+<td><code>injectWaitMaxS</code></td>
+<td>number</td>
+<td><code>600</code></td>
+<td>一条中途注入的消息等待回复的时长上限（秒），超过即释放 busy 闸门。防止卡死的进程永久占住守护进程的重启闸门</td>
+<td><code>CORTEX_INJECT_WAIT_MAX_S</code></td>
+</tr>
+<tr>
+<td><code>threadMaxDepth</code></td>
+<td>number</td>
+<td><code>5</code></td>
+<td>嵌套线程生成的最大深度；达到或超过该深度的 spawn 会被拒绝</td>
+<td><code>CORTEX_THREAD_MAX_DEPTH</code></td>
+</tr>
+<tr>
+<td><code>taskArtifactTemplates</code></td>
+<td>string[]</td>
+<td><code>["manager"]</code></td>
+<td>哪些模板的派发线程把 artifact 挂在任务节点上，而不是临时工作区</td>
+<td><code>CORTEX_TASK_ARTIFACT_TEMPLATES</code>（逗号分隔）</td>
+</tr>
+<tr>
+<td><code>taskDispatchMaxConcurrent</code></td>
+<td>number | null</td>
+<td><code>null</code></td>
+<td>允许并发运行的任务派发线程数上限。这里写的数值直接使用（请填正数）；<code>null</code> 保持自动策略 <code>max(4, os.cpus().length - 2)</code>——按「核数减 2」伸缩，并以 4 为下限保底</td>
+<td><code>TASK_DISPATCH_MAX_CONCURRENT</code></td>
+</tr>
+<tr>
+<td><code>taskDispatchEnabled</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>运行内置任务派发器；从 <code>false</code> 切换为 <code>true</code> 时立即检查一次任务队列</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>taskDispatchIntervalMs</code></td>
+<td>number</td>
+<td><code>30000</code></td>
+<td>内置任务派发检查的间隔，单位为整数毫秒</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>taskArchiveEnabled</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>运行内置已完成任务归档器；从 <code>false</code> 切换为 <code>true</code> 时立即执行一次</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>taskArchiveIntervalMs</code></td>
+<td>number</td>
+<td><code>21600000</code></td>
+<td>已完成任务归档的执行间隔，单位为整数毫秒</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>memoryIndexRegenEnabled</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>运行内置实验、知识和模式索引重建；从 <code>false</code> 切换为 <code>true</code> 时立即执行一次</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>memoryIndexRegenIntervalMs</code></td>
+<td>number</td>
+<td><code>86400000</code></td>
+<td>记忆索引重建的执行间隔，单位为整数毫秒</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>uiCorsOrigins</code></td>
+<td>string[]</td>
+<td><code>[]</code></td>
+<td>Web UI HTTP 宿主为哪些 origin 返回 CORS header。参见 <a href="../desktop-app/">desktop-app.md</a></td>
+<td><code>CORTEX_UI_CORS_ORIGINS</code>（逗号分隔）</td>
+</tr>
+<tr>
+<td><code>adminChannel</code></td>
+<td>string | null</td>
+<td><code>null</code></td>
+<td>发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里</td>
+<td><code>SLACK_ADMIN_CHANNEL</code>，然后 <code>CORTEX_ADMIN_CHANNEL</code></td>
+</tr>
+<tr>
+<td><code>feishuAdminChannel</code></td>
+<td>string | null</td>
+<td><code>null</code></td>
+<td>同类通知的飞书 admin <code>chat_id</code>（<code>oc_...</code>）。与 <code>adminChannel</code> 相互独立——Slack 的频道 id 在飞书上不可用</td>
+<td><code>FEISHU_ADMIN_CHANNEL</code></td>
+</tr>
+</tbody>
+</table>
+<p>Web 工作台可写其中一部分：<strong>设置 → 通知</strong>（<code>turnNotify</code>、<code>autoResume</code>、<code>notifyCompaction</code>）与<strong>设置 → 高级</strong>（<code>eventLog</code>、<code>diskMonitor</code>、<code>showToolCalls</code>、<code>disableUserContext</code>、<code>serverUpdateDisable</code>，以及内置任务的开关和间隔）。其余键都靠手工编辑该文件。</p>
+<p>内置任务间隔必须是 <code>1000</code> 到 <code>2147483647</code> 之间的整数毫秒，这是 Node timer 的安全范围。启用的任务会在 daemon 启动时执行一次。任务归档和记忆索引重建不会重叠运行；运行期间修改间隔会在本轮结束后生效。</p>
+<h3 id="hot-reload">热更新<a class="headerlink" href="#hot-reload" title="Permanent link">&para;</a></h3>
+<p>config 目录被监视。<code>settings.json</code> 的变更去抖 300 毫秒后重新读取文件，之后一律使用新值——<strong>无需重启守护进程</strong>。有两点值得注意：</p>
+<ul>
+<li>每个设置在各自的使用点生效：下一个回合、下一次 agent 生成、下一轮派发，或下一个 HTTP 请求。<code>uiCorsOrigins</code> 在每个请求时解析；<code>adminChannel</code> 与 <code>feishuAdminChannel</code> 一变更就推送给正在运行的平台适配器。<code>diskMonitor=false</code> 会停止计时器，恢复为 <code>true</code> 时会重新启动并立即检查。每个内置任务开关也会立即停止或启动对应计时器，间隔修改会重排下一次空闲运行。</li>
+<li>坏文件不会打挂服务器。JSON 非法或类型不符时保留上一份设置并记录错误日志；修好文件后，下一次写入即被重新加载。</li>
+</ul>
+<p><strong>例外——<code>waitingSweepMs</code>。</strong> 等待中 manager 的扫描循环在每轮结束后按当前值自我重排，因此调大或调小间隔会从下一轮开始生效。但在运行中把它改成 <code>0</code> 会让循环彻底停下：没有任何东西会重排它，之后再改回正数也<strong>不会</strong>把它重新拉起，只有重启守护进程才行。（启动时值为 <code>0</code> 则该循环从不启动。）</p>
+<h3 id="legacy-environment-variables-and-deprecation">旧环境变量与弃用提示<a class="headerlink" href="#legacy-environment-variables-and-deprecation" title="Permanent link">&para;</a></h3>
+<p>表中列出旧环境变量的键会保留该变量作为回退，并按既定语义解析——<code>CORTEX_EVENT_LOG=off</code>、<code>CORTEX_TURN_NOTIFY=0</code>/<code>false</code>/<code>off</code>/<code>no</code>、<code>CORTEX_NOTIFY_COMPACTION=1</code>，两个 <code>string[]</code> 键用逗号分隔的列表，等等。优先级始终是：<code>settings.json</code> 中的键 → 旧环境变量 → 内置默认值。<code>adminChannel</code> 的优先级链是先看 <code>SLACK_ADMIN_CHANNEL</code>，再看 <code>CORTEX_ADMIN_CHANNEL</code>。</p>
+<p>当某个旧环境变量第一次实际供值时，守护进程会记录一条弃用警告，指明该变量和它喂给的设置项（<code>Deprecated env &lt;VAR&gt; supplies settings.&lt;key&gt;; move it to settings.json</code>）。这层回退只为迁移期的兼容而存在——新的配置应写进 <code>settings.json</code>。</p>
+<h3 id="automatic-migration-out-of-env">从 .env 自动迁移<a class="headerlink" href="#automatic-migration-out-of-env" title="Permanent link">&para;</a></h3>
+<p>每次守护进程启动、<code>.env</code> 加载之后，Cortex 会扫描 <code>$CORTEX_HOME/config/.env</code> 中是否存在上表中的旧变量。只要发现至少一个：</p>
+<ol>
+<li><code>.env</code> 被复制为同目录下的 <code>.env.bak-&lt;时间戳&gt;</code>，其中 <code>&lt;时间戳&gt;</code> 是把 <code>:</code> 和 <code>.</code> 替换为 <code>-</code> 的 ISO 8601 时刻（例如 <code>.env.bak-2026-07-30T09-12-33-482Z</code>）。</li>
+<li>每个旧值按其原语义解析后写入 <code>settings.json</code>。<code>settings.json</code> 中已存在的键绝不被覆盖——文件优先于 <code>.env</code>。</li>
+<li>被迁移的赋值行从 <code>.env</code> 中删除；<code>.env</code> 保持原有文件权限，并在头部加上一行注释 <code># Legacy server settings migrated to settings.json; secrets remain in .env.</code>。</li>
+<li>同一趟顺带删除死变量 <code>CORTEX_SERVER_UPDATE_ENABLE</code>——已经没有任何代码读它。</li>
+</ol>
+<p>迁移是幂等的：<code>.env</code> 中没有旧变量时原样不动，之后的启动也什么都不做。若任一步失败，错误会被记录，<code>.env</code> 保持完整，服务器继续按环境变量回退运行——迁移失败的代价仅仅是那些弃用警告。</p>
+<h3 id="what-stays-in-env">仍然留在 .env 的内容<a class="headerlink" href="#what-stays-in-env" title="Permanent link">&para;</a></h3>
+<p>有三类变量刻意留在 <code>.env</code>：</p>
+<ul>
+<li><strong>密钥与凭据</strong>——<code>SLACK_BOT_TOKEN</code>、<code>SLACK_SIGNING_SECRET</code>、<code>SLACK_APP_TOKEN</code>、<code>FEISHU_APP_ID</code>、<code>FEISHU_APP_SECRET</code>、<code>ANTHROPIC_API_KEY</code>、<code>GITHUB_WEBHOOK_SECRET</code>、<code>CORTEX_CLIENT_TOKEN</code>。它们广义上也是设置，但把它们挡在一个 Web UI 可读可写的文件之外，能把影响面压到最小。</li>
+<li><strong>由子进程消费的变量</strong>——<code>CORTEX_HOME</code>、<code>CORTEX_PROJECTS_DIR</code>、<code>WEBHOOK_PORT</code>、<code>DEBUG</code>、<code>CORTEX_LANG</code> 以及数据文件覆盖项。钩子、MCP server、CLI 和 <code>cortex-client</code> 都继承守护进程的环境；服务器侧的 JSON 文件根本传不到它们那里。</li>
+<li><strong>启动拓扑</strong>——<code>CORTEX_PLATFORM</code>、<code>CORTEX_MACHINE</code>、<code>CORTEX_UI_HTTP</code>、<code>CORTEX_UI_PORT</code>、<code>CORTEX_UI_SPA_DIR</code>。它们决定启动时存在哪些适配器与监听器，热更新对它们没有意义，结构上就必须重启。</li>
+</ul>
+<h3 id="not-the-same-file-as-claudesettingsjson">与 .claude/settings.json 同名不同物<a class="headerlink" href="#not-the-same-file-as-claudesettingsjson" title="Permanent link">&para;</a></h3>
+<p><code>$CORTEX_HOME/config/settings.json</code>（本文件）配置的是 <strong>Cortex 服务器</strong>。<code>$CORTEX_HOME/.claude/settings.json</code> 配置的是 <strong>Claude Code</strong> 的钩子与权限，由 Claude CLI 读取，Cortex 不读它。文件名相同，但目录不同、归属不同、schema 不同——见下一节。</p>
+<h2 id="claudesettingsjson-claude-code">.claude/settings.json（Claude Code）<a class="headerlink" href="#claudesettingsjson-claude-code" title="Permanent link">&para;</a></h2>
+<p>位于 <code>$CORTEX_HOME/.claude/settings.json</code>。此文件配置 Claude Code 的钩子和权限系统。Cortex 在 <code>cortex init</code> 期间从 <code>defaults/.claude/settings.json</code> 初始化它，并且在后续运行中从不覆盖它。</p>
+<p>文件遵循 Claude Code 的设置格式，包含 <code>hooks</code> 和 <code>permissions</code> 部分。钩子系统文档参见 <a href="../hooks/">hooks.md</a>。它与 <a href="#configsettingsjson"><code>config/settings.json</code></a> 中的 Cortex 运行时设置毫无关系。</p>
+<h2 id="defaultsconfig-layout">defaults/config/ 布局<a class="headerlink" href="#defaultsconfig-layout" title="Permanent link">&para;</a></h2>
+<p>npm 包中的 <code>agent-server/defaults/</code> 目录包含随包发布的默认值。多数在 init 期间复制到 <code>$CORTEX_HOME/</code>；钩子资产与线程模板实体还会在服务器每次启动时重新同步：</p>
+<table>
+<thead>
+<tr>
+<th>源</th>
+<th>目标</th>
+<th>覆盖行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>defaults/CORTEX.md</code></td>
+<td><code>$CORTEX_HOME/CORTEX.md</code></td>
+<td>从不</td>
+</tr>
+<tr>
+<td><code>defaults/gitignore</code></td>
+<td><code>$CORTEX_HOME/.gitignore</code></td>
+<td>从不</td>
+</tr>
+<tr>
+<td><code>defaults/.claude/settings.json</code></td>
+<td><code>$CORTEX_HOME/.claude/settings.json</code></td>
+<td>从不</td>
+</tr>
+<tr>
+<td><code>defaults/config/budget.json</code></td>
+<td><code>$CORTEX_HOME/config/budget.json</code></td>
+<td>仅 <code>--force</code></td>
+</tr>
+<tr>
+<td><code>defaults/config/thread-templates/</code></td>
+<td><code>$CORTEX_HOME/config/thread-templates/</code></td>
+<td>逐文件 copy-if-missing，init 时与之后每次服务器启动时各执行一次：你尚未拥有的 agent/template/shell 文件会被拷入；你已有的文件绝不被覆盖——<code>--force</code> 对这棵树不生效</td>
+</tr>
+<tr>
+<td><code>defaults/config/hooks/</code></td>
+<td><code>$CORTEX_HOME/config/hooks/</code></td>
+<td>每次服务器启动时逐文件按 CalVer 同步：缺失则添加，发布的 <code>version</code> 更新则刷新。没有 <code>version</code> 的声明（你自己的）永不被覆盖</td>
+</tr>
+<tr>
+<td><code>defaults/prompts/</code></td>
+<td><code>$CORTEX_HOME/prompts/</code></td>
+<td>逐文件：新文件总是添加，已有文件保留除非 <code>--force</code></td>
+</tr>
+<tr>
+<td><code>defaults/plugins/</code></td>
+<td><code>$CORTEX_HOME/plugins/</code></td>
+<td>逐文件：新文件总是添加，已有文件保留除非 <code>--force</code></td>
+</tr>
+<tr>
+<td><code>defaults/rules/</code></td>
+<td><code>$CORTEX_HOME/rules/</code></td>
+<td>逐文件：新文件总是添加，已有文件保留除非 <code>--force</code></td>
+</tr>
+<tr>
+<td><code>defaults/hooks/</code></td>
+<td><code>$CORTEX_HOME/hooks/</code></td>
+<td>init 时逐文件：从不覆盖除非 <code>--force</code>。每次服务器启动时，除非已部署文件带有相等或更新的 <code>@cortex-hook-version</code>，否则重新复制发布的脚本</td>
+</tr>
+<tr>
+<td><code>defaults/data/schedules.json</code></td>
+<td><code>$CORTEX_HOME/data/schedules.json</code></td>
+<td>从不（除非 <code>--force</code>）</td>
+</tr>
+<tr>
+<td><code>defaults/context/</code></td>
+<td><code>$CORTEX_HOME/context/</code></td>
+<td>脚手架文件：从不覆盖</td>
+</tr>
+</tbody>
+</table>
+<p>这种设计意味着 npm 包升级会自动提供新的提示、插件、规则、钩子和线程模板实体，而不会覆盖用户的自定义内容。整文件型配置（如 <code>budget.json</code>）仍需 <code>--force</code> 才能替换；<code>config/thread-templates/</code> 则改为逐文件合并，新发货的实体能到达已有安装，同时不动你的改动。</p>
+<h2 id="hot-reload-behavior">热重载行为<a class="headerlink" href="#hot-reload-behavior" title="Permanent link">&para;</a></h2>
+<p><code>config/</code> 下通过文件监视器热更新的配置，在监视器无法启动或运行期报错时，会自动切换为每 5 秒一次的文件系统快照轮询。每个加载器在轮询模式下沿用其处理文件事件时的校验和失败行为。</p>
+<ul>
+<li><strong><code>config/settings.json</code></strong> — 通过文件监视器监视，去抖 300 毫秒。新值在下一个使用点生效，无需重启；文件损坏时保留上一份设置。唯一的例外是运行中把 <code>waitingSweepMs</code> 改成 <code>0</code>，需重启才能恢复。参见 <a href="#configsettingsjson">config/settings.json</a>。</li>
+<li><strong><code>schedules.json</code></strong> — 通过文件监视器监视。更改在几秒钟内生效，无需重启。完整调度系统参见 <a href="../scheduling/">scheduling.md</a>。</li>
+<li><strong><code>profiles.json</code></strong> — 缓存在内存中并监视可解析的 JSON 变更。更新会在下一个智能体生成前刷新缓存；JSON 语法损坏时保留上一份配置。</li>
+<li><strong><code>machines.json</code></strong> — 监视并在有效变更后重新加载。条目无效时保留上一份机器注册表。</li>
+<li><strong><code>thread-templates/</code></strong> — 每个实体子目录（<code>agents/</code>、<code>templates/</code>、<code>shells/</code>）都被监视。变更去抖（300ms）后整体重载配置，无需重启；旧的单文件 <code>thread-templates.json</code> 在迁移前以同样方式被监视。参见 <a href="../threads/">threads.md</a>。</li>
+<li><strong><code>.env</code></strong> — 需要守护进程重启才能生效（启动时通过 dotenv 加载一次）。过去放在这里的行为设置已迁到 <code>config/settings.json</code>，后者不需要重启。</li>
+<li><strong>钩子声明（<code>config/hooks/*.json</code>）</strong> — 注册表在每次智能体生成时重新读取，因此新增的 <code>agent:*</code> / <code>cc:*</code> / <code>pi:*</code> 条目对下一个启动的智能体生效。<code>cortex:*</code> 条目在服务器启动时被快照，需重启才生效。参见 <a href="../hooks/">hooks.md</a>。</li>
+<li><strong>钩子脚本（<code>hooks/*.mjs</code>）</strong> — 每次钩子调用时重新读取。</li>
+<li><strong>插件、提示、规则</strong> — 每次智能体会话生成时重新读取。</li>
+</ul>
+<h2 id="where-each-file-lives">各文件位置<a class="headerlink" href="#where-each-file-lives" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>用途</th>
+<th>路径</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.env</code></td>
+<td>环境变量</td>
+<td><code>$CORTEX_HOME/config/.env</code></td>
+</tr>
+<tr>
+<td><code>settings.json</code></td>
+<td>运行时行为设置（热更新）</td>
+<td><code>$CORTEX_HOME/config/settings.json</code></td>
+</tr>
+<tr>
+<td><code>profiles.json</code></td>
+<td>智能体配置</td>
+<td><code>$CORTEX_HOME/config/profiles.json</code></td>
+</tr>
+<tr>
+<td><code>thread-templates/</code></td>
+<td>线程定义——每个 agent/template/shell 一个 JSON。目录存在时使用它；否则加载器回落读取旧的单文件 <code>thread-templates.json</code>，该文件会被一次性启动迁移拆分进本目录</td>
+<td><code>$CORTEX_HOME/config/thread-templates/</code></td>
+</tr>
+<tr>
+<td><code>machines.json</code></td>
+<td>机器注册表</td>
+<td><code>$CORTEX_HOME/config/machines.json</code></td>
+</tr>
+<tr>
+<td><code>budget.json</code></td>
+<td>预算限制</td>
+<td><code>$CORTEX_HOME/config/budget.json</code></td>
+</tr>
+<tr>
+<td><code>mcp-config.json</code></td>
+<td>MCP 服务器配置</td>
+<td><code>$CORTEX_HOME/config/mcp-config.json</code></td>
+</tr>
+<tr>
+<td><code>.claude/settings.json</code></td>
+<td>Claude Code 钩子/权限（不是 Cortex 的设置文件）</td>
+<td><code>$CORTEX_HOME/.claude/settings.json</code></td>
+</tr>
+<tr>
+<td><code>mode.json</code></td>
+<td>运行时模式</td>
+<td><code>$CORTEX_HOME/data/mode.json</code></td>
+</tr>
+<tr>
+<td><code>schedules.json</code></td>
+<td>调度任务</td>
+<td><code>$CORTEX_HOME/data/schedules.json</code></td>
+</tr>
+<tr>
+<td><code>hooks/*.json</code></td>
+<td>钩子声明</td>
+<td><code>$CORTEX_HOME/config/hooks/</code></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

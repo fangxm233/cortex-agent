@@ -1,0 +1,1615 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/memory/">
+      
+      
+        <link rel="prev" href="../tasks/">
+      
+      
+        <link rel="next" href="../skills-and-plugins/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/memory/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Memory - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cortex-memory-system" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Memory
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/memory/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-atomized-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Atomized Memory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#directory-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Directory Layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-three-atom-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Three Atom Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Three Atom Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#experiments-exp-nnnmd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiments (EXP-NNN.md)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#knowledge-entries-k-nnnmd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Knowledge Entries (K-NNN.md)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#patterns-pat-nnnmd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patterns (PAT-NNN.md)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#index-auto-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Index Auto-Generation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#access-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access Tracking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#project-log-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project Log Files
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Project Log Files">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#missionmd-the-constitution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mission.md — The Constitution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#roadmapmd-milestone-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        roadmap.md — Milestone Map
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#statusmd-current-snapshot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        STATUS.md — Current Snapshot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#issuesmd-execution-friction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ISSUES.md — Execution Friction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decisions-decision-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        decisions/ — Decision Records
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dense-context-conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dense Context Conventions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fresh-session-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fresh Session Test
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memory-index-regeneration-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory Index Regeneration Job
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-experiment-maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle: Experiment Maintenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scale
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-atomized-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Atomized Memory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#directory-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Directory Layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-three-atom-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Three Atom Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Three Atom Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#experiments-exp-nnnmd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiments (EXP-NNN.md)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#knowledge-entries-k-nnnmd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Knowledge Entries (K-NNN.md)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#patterns-pat-nnnmd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patterns (PAT-NNN.md)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#index-auto-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Index Auto-Generation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#access-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access Tracking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#project-log-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project Log Files
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Project Log Files">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#missionmd-the-constitution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mission.md — The Constitution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#roadmapmd-milestone-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        roadmap.md — Milestone Map
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#statusmd-current-snapshot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        STATUS.md — Current Snapshot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#issuesmd-execution-friction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ISSUES.md — Execution Friction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decisions-decision-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        decisions/ — Decision Records
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dense-context-conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dense Context Conventions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fresh-session-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fresh Session Test
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memory-index-regeneration-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory Index Regeneration Job
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-experiment-maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle: Experiment Maintenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scale
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cortex-memory-system">Cortex Memory System<a class="headerlink" href="#cortex-memory-system" title="Permanent link">&para;</a></h1>
+<p>Cortex stores all knowledge on the filesystem as atomized, indexed markdown files — the <strong>Dense Context</strong> structure (DR-0007). There is no vector database, no RAG pipeline, and no external knowledge store. The filesystem is the database. For how this fits into the broader system architecture, see <a href="../architecture/">architecture.md</a>.</p>
+<h2 id="why-atomized-memory">Why Atomized Memory<a class="headerlink" href="#why-atomized-memory" title="Permanent link">&para;</a></h2>
+<p>The core insight (from DR-0007) is that monolithic context files don't scale. A single <code>EXPERIMENTS.md</code> file grows unboundedly, making it expensive to load into agent context and hard to search. The solution is to atomize each experiment, knowledge entry, and pattern into its own file, with auto-generated indexes for fast lookup.</p>
+<p>This design draws from academic work: Du 2026's survey of agent memory patterns, QMatSuite's layered knowledge hierarchy (finding → pattern → principle), and A-MEM's atomic notes with dynamic linking (&lt; 4μs retrieval time at 1M memories).</p>
+<h2 id="directory-layout">Directory Layout<a class="headerlink" href="#directory-layout" title="Permanent link">&para;</a></h2>
+<p>The knowledge root is <code>~/.cortex/context/</code>, structured as follows:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>context/
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── CORTEX.md                    # Root index — entry point for finding anything
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── OVERVIEW.md                  # Global overview: one-line status per project + last scan date
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>├── decisions/                   # System-level design decisions (DR-NNNN-title.md)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>├── ideas/                       # Incubating research directions
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>├── scans/                       # Knowledge scan reports, one per date
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>├── user/                        # User preferences (maintained by /user-learn)
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>│   └── USER.md                  # Language, style, working habits (&lt; 3KB)
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>└── projects/                    # One subdirectory per active research project
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    └── &lt;project&gt;/
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        ├── CORTEX.md            # Project-level index
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>        ├── mission.md           # Goal and success conditions
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        ├── roadmap.md           # Milestones with testable checklist conditions
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        ├── STATUS.md            # Present-tense state register (overwriting, max 80 lines / 6KB)
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        ├── ISSUES.md            # Execution friction (append-only, resolved items deleted, max 80 lines / 6KB)
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        ├── TASKS.yaml           # Structured task queue (machine-readable YAML)
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        ├── tasks-archive.md     # Completed tasks archived by the built-in archiver
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>        ├── experiments/
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>        │   ├── index.md         # Auto-generated — do not edit manually
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>        │   └── EXP-NNN.md       # One file per experiment, YAML frontmatter
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>        ├── knowledge/
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>        │   ├── index.md         # Auto-generated
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>        │   └── K-NNN.md         # One file per knowledge entry
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>        ├── patterns/
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>        │   ├── index.md         # Auto-generated
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>        │   └── PAT-NNN.md       # One file per cross-experiment pattern
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>        ├── decisions/           # Project-level design decisions
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>        └── _meta/
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>            └── access-log.jsonl # Auto-tracked Read/Grep access log
+</code></pre></div>
+<h2 id="the-three-atom-types">The Three Atom Types<a class="headerlink" href="#the-three-atom-types" title="Permanent link">&para;</a></h2>
+<h3 id="experiments-exp-nnnmd">Experiments (EXP-NNN.md)<a class="headerlink" href="#experiments-exp-nnnmd" title="Permanent link">&para;</a></h3>
+<p>Each experiment is an atomic file recording a single investigation. An experiment records what was done, what was observed, what was concluded, and what should change going forward.</p>
+<p><strong>YAML frontmatter:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nn">---</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EXP-042</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nt">date</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2026-03-09</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nimbus</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nt">summary</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Initial</span><span class="nv"> </span><span class="s">object</span><span class="nv"> </span><span class="s">registry</span><span class="nv"> </span><span class="s">extraction</span><span class="nv"> </span><span class="s">from</span><span class="nv"> </span><span class="s">573</span><span class="nv"> </span><span class="s">artifacts&quot;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">registry</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">data-analysis</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">milestone-2.2</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valid</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nt">executor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Cortex-lab2</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nt">links</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">PAT-002</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nt">refs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nt">last-ref</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-04-16T03:12:21.074Z&quot;</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nn">---</span>
+</code></pre></div>
+<p><strong>Required fields:</strong> <code>id</code>, <code>date</code>, <code>project</code>, <code>summary</code>, <code>tags</code>.</p>
+<p><strong>Optional fields:</strong> <code>status</code>, <code>executor</code>, <code>links</code> (related entries), <code>refs</code> (auto), <code>last-ref</code> (auto).</p>
+<p><strong>Body structure:</strong> The markdown body follows a standard template with sections: Background, Execution, Results, Conclusion, and Reflection (goal attainment, unexpected findings, process defects, behavioral adjustments).</p>
+<p><strong>Status lifecycle:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>active</code></td>
+<td>Currently in progress</td>
+</tr>
+<tr>
+<td><code>valid</code></td>
+<td>Completed, conclusions stand</td>
+</tr>
+<tr>
+<td><code>partial</code></td>
+<td>Incomplete but worth keeping</td>
+</tr>
+<tr>
+<td><code>challenged</code></td>
+<td>Conclusions under dispute (tagged with challenging experiment)</td>
+</tr>
+<tr>
+<td><code>corrected</code></td>
+<td>Conclusions were wrong, now fixed</td>
+</tr>
+<tr>
+<td><code>superseded</code></td>
+<td>Replaced by a later experiment</td>
+</tr>
+<tr>
+<td><code>refined</code></td>
+<td>Updated/improved by a later experiment</td>
+</tr>
+<tr>
+<td><code>invalidated</code></td>
+<td>Proven wrong, tombstoned</td>
+</tr>
+<tr>
+<td><code>stale</code></td>
+<td>No activity, reference count zero</td>
+</tr>
+</tbody>
+</table>
+<h3 id="knowledge-entries-k-nnnmd">Knowledge Entries (K-NNN.md)<a class="headerlink" href="#knowledge-entries-k-nnnmd" title="Permanent link">&para;</a></h3>
+<p>Knowledge entries are atomic facts, anti-patterns, or heuristics distilled from experiments. Each must cite its source experiments in the <code>evidence</code> field.</p>
+<p><strong>YAML frontmatter:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nn">---</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">K-008</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nt">date</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2026-04-01</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nimbus</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nt">summary</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ANTI-PATTERN:</span><span class="nv"> </span><span class="s">Running</span><span class="nv"> </span><span class="s">smoke</span><span class="nv"> </span><span class="s">tests</span><span class="nv"> </span><span class="s">or</span><span class="nv"> </span><span class="s">broader</span><span class="nv"> </span><span class="s">validation</span><span class="nv"> </span><span class="s">without</span><span class="nv"> </span><span class="s">verifying</span><span class="nv"> </span><span class="s">upstream</span><span class="nv"> </span><span class="s">service</span><span class="nv"> </span><span class="s">availability&quot;</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">anti-pattern</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">smoke-test</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">service-dependency</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="nt">evidence</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">EXP-021</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">EXP-022</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">EXP-025</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">EXP-033</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">EXP-040</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="nt">refs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="nt">last-ref</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-04-10T20:42:00.826Z&quot;</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="nn">---</span>
+</code></pre></div>
+<p><strong>Required fields:</strong> <code>id</code>, <code>date</code>, <code>project</code>, <code>summary</code>, <code>tags</code>, <code>evidence</code>.</p>
+<p><strong>Anti-pattern convention:</strong> Knowledge entries describing anti-patterns prefix the summary with <code>ANTI-PATTERN:</code> and include <code>anti-pattern</code> in tags.</p>
+<h3 id="patterns-pat-nnnmd">Patterns (PAT-NNN.md)<a class="headerlink" href="#patterns-pat-nnnmd" title="Permanent link">&para;</a></h3>
+<p>Patterns synthesize invariants across multiple experiments. A pattern states a reusable observation that holds across a cluster of experiments.</p>
+<p><strong>YAML frontmatter:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nn">---</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PAT-001</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nt">date</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2026-04-01</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nimbus</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nt">summary</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;When</span><span class="nv"> </span><span class="s">a</span><span class="nv"> </span><span class="s">multi-stage</span><span class="nv"> </span><span class="s">pipeline</span><span class="nv"> </span><span class="s">yields</span><span class="nv"> </span><span class="s">zero</span><span class="nv"> </span><span class="s">output,</span><span class="nv"> </span><span class="s">per-stage</span><span class="nv"> </span><span class="s">pass-rate</span><span class="nv"> </span><span class="s">quantification</span><span class="nv"> </span><span class="s">locates</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">bottleneck</span><span class="nv"> </span><span class="s">faster</span><span class="nv"> </span><span class="s">than</span><span class="nv"> </span><span class="s">end-to-end</span><span class="nv"> </span><span class="s">retries&quot;</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">pipeline</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">diagnosis</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">stage-isolation</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="nt">source-experiments</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">EXP-001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">EXP-005</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">EXP-006</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">EXP-008</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nt">evidence</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">EXP-001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">EXP-005</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">EXP-006</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">EXP-008</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="nt">refs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="nt">last-ref</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-04-16T03:16:28.890Z&quot;</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="nn">---</span>
+</code></pre></div>
+<p><strong>Required fields:</strong> <code>id</code>, <code>date</code>, <code>project</code>, <code>summary</code>, <code>tags</code>, <code>source-experiments</code> (the experiments the pattern was extracted from).</p>
+<p><strong>Body structure:</strong> Observation, Evidence (table citing experiments with specific findings), Pattern Statement, Scope &amp; Limitations, Implications.</p>
+<h2 id="index-auto-generation">Index Auto-Generation<a class="headerlink" href="#index-auto-generation" title="Permanent link">&para;</a></h2>
+<p>Each directory under a project (<code>experiments/</code>, <code>knowledge/</code>, <code>patterns/</code>) has an <code>index.md</code> that is auto-generated by the <code>memory-index-regen</code> job. Index files contain the warning:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>&gt; Auto-generated by memory-index-regen.ts from YAML frontmatter. Do not edit manually.
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>&gt; Last updated: 2026-05-06T20:31:10
+</code></pre></div>
+<p><strong>Index structure:</strong></p>
+<ul>
+<li><strong>Active table</strong> — all entries with status <code>active</code>, <code>valid</code>, or <code>partial</code>, sorted by reference count (descending)</li>
+<li><strong>Superseded/Deprecated table</strong> — entries replaced by later work</li>
+<li><strong>Invalidated table</strong> — tombstoned entries proven wrong</li>
+<li><strong>Stats section</strong> — total counts, hot entries (refs &gt;= 5), cold entries (refs = 0, age &gt; 14 days)</li>
+</ul>
+<p><strong>Rebuild command:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># For all projects</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">cd</span><span class="w"> </span>agent-server<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>node<span class="w"> </span>--import<span class="w"> </span>tsx<span class="w"> </span>src/memory-index-regen.ts<span class="w"> </span>--all
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># For a specific project</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="nb">cd</span><span class="w"> </span>agent-server<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>node<span class="w"> </span>--import<span class="w"> </span>tsx<span class="w"> </span>src/memory-index-regen.ts<span class="w"> </span>&lt;project-name&gt;
+</code></pre></div>
+<p>The rebuild process reads YAML frontmatter from all atom files, extracts <code>refs</code> and <code>last-ref</code> from the current index to preserve access tracking, and writes the new index.</p>
+<h2 id="access-tracking">Access Tracking<a class="headerlink" href="#access-tracking" title="Permanent link">&para;</a></h2>
+<p>Cortex automatically tracks which experiment, knowledge, and pattern files are accessed during research. This is implemented as a Claude Code <code>PostToolUse</code> hook in <code>~/.cortex/hooks/memory-ref-tracker.mjs</code> (see <a href="../hooks/">hooks.md</a> for the full hook system).</p>
+<p><strong>How it works:</strong></p>
+<ol>
+<li>After every <code>Read</code> or <code>Grep</code> tool call, the hook checks if the accessed file path matches the pattern <code>/(experiments|knowledge|patterns)/(EXP-\d+[a-z]?|K-\d+|PAT-\d+)\.md$/</code></li>
+<li>If matched, it extracts the project name from the path and appends a JSON line to <code>_meta/access-log.jsonl</code>:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="nt">&quot;file&quot;</span><span class="p">:</span><span class="s2">&quot;EXP-001.md&quot;</span><span class="p">,</span><span class="nt">&quot;tool&quot;</span><span class="p">:</span><span class="s2">&quot;Read&quot;</span><span class="p">,</span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="s2">&quot;2026-04-02T03:12:21.074Z&quot;</span><span class="p">}</span>
+</code></pre></div></li>
+<li>For <code>Grep</code> operations that match multiple files, it parses the tool output to count per-file matches, avoiding duplicate counting</li>
+<li>If a <code>Grep</code> returns zero file matches, it records <code>_directory_search</code> instead</li>
+<li>The hook auto-commits access log changes with message <code>chore: update access log</code></li>
+</ol>
+<p>The reference counts (<code>refs</code>) in index.md are updated by <code>memory-index-regen</code> based on these access logs — a file that is frequently read during research gets a higher reference count and appears higher in the index.</p>
+<h2 id="project-log-files">Project Log Files<a class="headerlink" href="#project-log-files" title="Permanent link">&para;</a></h2>
+<p>Each project has a set of governance files that together form its operational memory:</p>
+<h3 id="missionmd-the-constitution">mission.md — The Constitution<a class="headerlink" href="#missionmd-the-constitution" title="Permanent link">&para;</a></h3>
+<p>Defines the project's goal, success conditions, and scope boundaries. This file is stable and should only change with explicit user approval. It answers: what are we trying to achieve, and how will we know we've succeeded?</p>
+<h3 id="roadmapmd-milestone-map">roadmap.md — Milestone Map<a class="headerlink" href="#roadmapmd-milestone-map" title="Permanent link">&para;</a></h3>
+<p>Layered phases, each containing milestones with testable checklist conditions. Completed milestones are preserved with checkmarks (not deleted). The roadmap shows where the project has been, where it is now, and where it's going.</p>
+<h3 id="statusmd-current-snapshot">STATUS.md — Current Snapshot<a class="headerlink" href="#statusmd-current-snapshot" title="Permanent link">&para;</a></h3>
+<p>An overwriting (not append-only) state register capturing the project's present tense — the minimal state a fresh session needs to continue correctly. Hard-capped at 80 lines and 6KB, with each bullet at most 2 lines. Required sections: current situation, in-flight work &amp; new variables, blockers &amp; pending decisions, next step. Facts that have a durable home elsewhere (experiments, knowledge entries, decision records, task archive) appear only as pointers; the file grows with state complexity, never with project age. Updated when the situation changes — not on every task completion. This is the first file to read when resuming work on a project after a gap.</p>
+<h3 id="issuesmd-execution-friction">ISSUES.md — Execution Friction<a class="headerlink" href="#issuesmd-execution-friction" title="Permanent link">&para;</a></h3>
+<p>An append-only log of problems that slow work, capped at 80 lines and 6KB with each entry at most 4 lines. An entry is a dated title, a one-line symptom, and a one-line root cause with a pointer to the detailed investigation (knowledge entry, task artifact, or experiment record). Resolved issues are deleted from the file (not archived).</p>
+<h3 id="decisions-decision-records">decisions/ — Decision Records<a class="headerlink" href="#decisions-decision-records" title="Permanent link">&para;</a></h3>
+<p>Each decision is one file named <code>NNNN-title.md</code>. Format follows the project decision record template: Date, Status, Context, Alternatives (at least 2), Decision, Consequences.</p>
+<h2 id="dense-context-conventions">Dense Context Conventions<a class="headerlink" href="#dense-context-conventions" title="Permanent link">&para;</a></h2>
+<p>The Dense Context system follows these operational conventions:</p>
+<ol>
+<li><strong>Every directory has a CORTEX.md index</strong> — describing the directory's purpose, file list, and lookup rules. Indexes are pointer-style (one sentence + pointer per line, one line per atomic directory) and hard-capped at 120 lines and 8KB, matching the context-injection budget</li>
+<li><strong>Create file → update index</strong> — when adding a new file to a directory, update that directory's CORTEX.md</li>
+<li><strong>Overwrite vs. append</strong> — STATUS.md overwrites (only current state); ISSUES.md appends then deletes; experiments/knowledge/patterns append and stay</li>
+<li><strong>Provenance is mandatory</strong> — every factual claim must trace to a specific EXP-NNN, K-NNN, file:line, or inline calculation</li>
+<li><strong>Git as persistence</strong> — all context updates are committed via git, incrementally after each logical work unit</li>
+</ol>
+<h2 id="fresh-session-test">Fresh Session Test<a class="headerlink" href="#fresh-session-test" title="Permanent link">&para;</a></h2>
+<p>The acid test for Dense Context quality: if you start a fresh session with only read access to the repo, can you learn everything the previous session knew? If the answer is no, something wasn't recorded properly.</p>
+<h2 id="memory-index-regeneration-job">Memory Index Regeneration Job<a class="headerlink" href="#memory-index-regeneration-job" title="Permanent link">&para;</a></h2>
+<p>The built-in memory-index regeneration job rebuilds all index files from YAML frontmatter. <code>memoryIndexRegenEnabled</code> and <code>memoryIndexRegenIntervalMs</code> in <code>config/settings.json</code> control it. The job:</p>
+<ol>
+<li>Scans all projects under <code>context/projects/</code></li>
+<li>Reads frontmatter from every <code>EXP-*.md</code>, <code>K-*.md</code>, and <code>PAT-*.md</code></li>
+<li>Preserves existing <code>refs</code> and <code>last-ref</code> from current indexes</li>
+<li>Writes updated <code>index.md</code> files</li>
+</ol>
+<h2 id="lifecycle-experiment-maintenance">Lifecycle: Experiment Maintenance<a class="headerlink" href="#lifecycle-experiment-maintenance" title="Permanent link">&para;</a></h2>
+<p>The <code>experiment-maintenance</code> skill runs periodic checks on experiment files:</p>
+<ul>
+<li>Identifies experiments whose conclusions may be stale (based on newer contradictory experiments)</li>
+<li>Flags experiments with zero references and age &gt; 14 days ("cold" entries)</li>
+<li>Checks frontmatter validity</li>
+<li>Suggests consolidation opportunities for related experiments</li>
+</ul>
+<h2 id="scale">Scale<a class="headerlink" href="#scale" title="Permanent link">&para;</a></h2>
+<p>As of the last index rebuild, the system tracks across 9 projects:</p>
+<table>
+<thead>
+<tr>
+<th>Project</th>
+<th>Experiments</th>
+<th>Knowledge</th>
+<th>Patterns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>nimbus</td>
+<td>56</td>
+<td>11</td>
+<td>4</td>
+</tr>
+<tr>
+<td>cortex-self</td>
+<td>66</td>
+<td>15</td>
+<td>6</td>
+</tr>
+<tr>
+<td>beacon-nav</td>
+<td>27</td>
+<td>~13</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Other projects</td>
+<td>varies</td>
+<td>varies</td>
+<td>varies</td>
+</tr>
+</tbody>
+</table>
+<p>All indexes are rebuilt simultaneously — the command runs in under a second.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

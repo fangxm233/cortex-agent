@@ -1,0 +1,2001 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/cross-machine/">
+      
+      
+        <link rel="prev" href="../mcp/">
+      
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/cross-machine/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Cross-machine - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cross-machine-operation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Cross-machine
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/cross-machine/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-remote-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why remote clients
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installing-cortex-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installing cortex-client
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installing cortex-client">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registering-machines-on-the-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registering machines on the server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#network-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network topology
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Network topology">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#same-lan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Same LAN
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tailscale-recommended-for-cross-network" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tailscale (recommended for cross-network)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cloudflare-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cloudflare Tunnel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stcp-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        STCP tunnel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connection-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#websocket-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebSocket protocol
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WebSocket protocol">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#client-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client → Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server → Client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#server-side-client-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server-side client lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-side-reconnect-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client-side reconnect behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remote-command-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remote command execution
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Remote command execution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bash
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        read
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#write-and-edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        write and edit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glob-and-grep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        glob and grep
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-run-long-running-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-run (long-running tasks)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-device-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking device status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security boundary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-client-routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-client routing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-client-manage-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The client-manage skill
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-remote-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why remote clients
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installing-cortex-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installing cortex-client
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installing cortex-client">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registering-machines-on-the-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registering machines on the server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#network-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network topology
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Network topology">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#same-lan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Same LAN
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tailscale-recommended-for-cross-network" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tailscale (recommended for cross-network)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cloudflare-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cloudflare Tunnel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stcp-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        STCP tunnel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connection-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#websocket-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebSocket protocol
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WebSocket protocol">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#client-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client → Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server → Client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#server-side-client-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server-side client lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-side-reconnect-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client-side reconnect behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remote-command-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remote command execution
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Remote command execution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bash
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        read
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#write-and-edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        write and edit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glob-and-grep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        glob and grep
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-run-long-running-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-run (long-running tasks)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-device-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking device status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security boundary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-client-routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-client routing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-client-manage-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The client-manage skill
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cross-machine-operation">Cross-Machine Operation<a class="headerlink" href="#cross-machine-operation" title="Permanent link">&para;</a></h1>
+<p>Cortex can dispatch work to remote machines: run commands, read and write
+files, search code, and execute long-running training jobs. This is done
+through <code>cortex-client</code>, a lightweight WebSocket daemon that runs on each
+remote machine and connects back to the agent-server. This document covers
+deployment, the network topology, and the security model.</p>
+<h2 id="why-remote-clients">Why remote clients<a class="headerlink" href="#why-remote-clients" title="Permanent link">&para;</a></h2>
+<p>The agent-server process (which runs the LLM orchestration, Slack bot, and
+scheduling) may not be on the machine with the GPUs or the project files. A
+typical setup:</p>
+<ul>
+<li><code>lab2</code> — the agent-server host (GPU training, simulation, the Cortex
+  daemon itself)</li>
+<li><code>lab</code> — a dedicated training box on the LAN with its own GPU</li>
+<li><code>lab-ksu</code> — a remote training cluster accessed via an STCP tunnel</li>
+<li><code>my-pc</code> — a Windows workstation for Unity, VR, and documentation</li>
+</ul>
+<p>Each remote machine runs <code>cortex-client</code>, which connects to the agent-server
+and executes commands on that machine's behalf. The agent sees all machines as
+a flat pool and selects which device to target per tool call.</p>
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<p>For the full server-side architecture including the six-layer structure,
+event bus, and WebSocket protocol details, see <a href="../architecture/">architecture.md</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─────────────────────────────────┐
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│  Agent-Server (lab2)            │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│                                 │
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│  client-manager.ts              │
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│  ┌───────────────────────────┐  │
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│  │ WebSocketServer :3002     │  │
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>│  │ devices Map&lt;name, ws&gt;     │  │
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>│  │ - lab2 (local)            │  │
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>│  │ - lab (remote, SSH)       │  │
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>│  │ - lab-ksu (remote, STCP)  │  │
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>│  │ - my-pc (remote, Win/SSH) │  │
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>│  └───────────────────────────┘  │
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>│                                 │
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>│  MCP core-server                │
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>│  ┌───────────────────────────┐  │
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>│  │ remote_bash/read/write    │──┼──→ HTTP :3001 → client-manager → WS → device
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>│  │ remote_edit/glob/grep     │  │
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│  └───────────────────────────┘  │
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>└─────────────────────────────────┘
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>         ▲ WebSocket              ▲ SSH
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>         │ (port 3002)            │ (port 22)
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>┌────────┴────────┐    ┌──────────┴──────────┐
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>│ cortex-client   │    │ cortex-client        │
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>│ (lab2, local)   │    │ (lab, remote)        │
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>│ ws://127.0.0.1  │    │ ws://10.18.108.245   │
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>└─────────────────┘    └─────────────────────┘
+</code></pre></div>
+<p>Each <code>cortex-client</code> instance:
+- Connects to the agent-server's WebSocket server (port 3002)
+- Registers itself with a device name on connect (<code>hello</code> message)
+- Sends a heartbeat every 5 seconds
+- Receives command messages and executes them on the local machine
+- Returns results over the same WebSocket connection</p>
+<h2 id="installing-cortex-client">Installing cortex-client<a class="headerlink" href="#installing-cortex-client" title="Permanent link">&para;</a></h2>
+<h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Node.js ≥ 20</li>
+<li>Network path from the remote machine to the agent-server on port 3002
+  (WebSocket)</li>
+<li>Network path from the agent-server to the remote machine on port 22 (SSH),
+  if the server needs to start/restart the client remotely</li>
+</ul>
+<h3 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h3>
+<p>On each remote machine:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>npm<span class="w"> </span>install<span class="w"> </span>-g<span class="w"> </span>@cortex-agent/client
+</code></pre></div>
+<p>This puts <code>cortex-client</code> on the PATH. The client has no runtime dependencies
+beyond Node.js — it uses only Node built-in modules (<code>fs</code>, <code>child_process</code>,
+<code>ws</code>).</p>
+<h3 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h3>
+<p>Create <code>~/.cortex/config/cortex-client.json</code> on the remote machine:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;serverHost&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;10.18.108.245&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;serverPort&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3002</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">&quot;deviceName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;lab&quot;</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li><code>serverHost</code> — the IP or hostname of the agent-server machine, reachable
+  from this remote machine</li>
+<li><code>serverPort</code> — the WebSocket port (default 3002)</li>
+<li><code>serverUrl</code> — (optional) a full WebSocket URL the client dials, taking
+  precedence over <code>serverHost</code>/<code>serverPort</code>. Use it for a Cloudflare Tunnel or
+  any reverse-proxied route, e.g. <code>"wss://cortex.example.com"</code> — this lets a
+  client reach a server that has no public IP (see Cloudflare Tunnel below)</li>
+<li><code>clientToken</code> — the server's <code>CORTEX_CLIENT_TOKEN</code> shared secret; the WS
+  upgrade is rejected with <code>401</code> without it. The server injects this
+  automatically when it launches the client over SSH, so set it here only for
+  hand-started or systemd-managed clients</li>
+<li><code>deviceName</code> — a unique name for this machine, matching the key in the
+  server's <code>machines.json</code></li>
+</ul>
+<p>Start the client:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cortex-client
+</code></pre></div>
+<p>It runs in the foreground. For production, wrap it in a process supervisor
+(systemd, launchd, tmux, screen).</p>
+<h2 id="registering-machines-on-the-server">Registering machines on the server<a class="headerlink" href="#registering-machines-on-the-server" title="Permanent link">&para;</a></h2>
+<p>Machines are registered in <code>~/.cortex/config/machines.json</code> on the agent-server
+host:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;lab2&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nt">&quot;cortexPath&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/home/fangxin/Cortex&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">&quot;gpuCount&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">&quot;lab&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nt">&quot;cortexPath&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/home/fangxm/Cortex&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="nt">&quot;gpuCount&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="nt">&quot;ssh&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;fangxm@10.18.108.245&quot;</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span><span class="nt">&quot;my-pc&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="nt">&quot;cortexPath&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;D:\\Projects\\Cortex&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="nt">&quot;gpuCount&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">    </span><span class="nt">&quot;ssh&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;fangxm@rdp.fangxm.me&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">    </span><span class="nt">&quot;win&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">  </span><span class="nt">&quot;lab-ksu&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="w">    </span><span class="nt">&quot;cortexPath&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/home/xinmin&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="w">    </span><span class="nt">&quot;gpuCount&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="w">    </span><span class="nt">&quot;ssh&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;xinmin@lab-ksu&quot;</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="p">}</span>
+</code></pre></div>
+<p>Each entry:
+- <code>cortexPath</code> (required) — the working directory path on that machine
+- <code>gpuCount</code> (required) — number of GPUs (0 for non-GPU machines)
+- <code>ssh</code> (optional) — <code>user@host</code> for SSH connections. If omitted, the machine
+  is assumed to be local and no SSH is needed
+- <code>win</code> (optional) — set to <code>true</code> for Windows targets (changes the SSH
+  command syntax)
+- <code>clientCommand</code> (optional) — the command the server runs (over SSH) to launch
+  <code>cortex-client</code> on this machine. Defaults to a bare <code>cortex-client</code>. Override it
+  when <code>cortex-client</code> isn't on the machine's non-login SSH PATH — most commonly an
+  <code>nvm</code> install, where the binary lives under <code>~/.nvm/...</code> and only appears on PATH
+  after the login profile runs. In that case set <code>"clientCommand": "bash -lc cortex-client"</code>
+  so a login shell resolves node and <code>cortex-client</code>. The server still wraps this command
+  with its token injection and the <code>nohup</code>/<code>echo $!</code> (Linux) or <code>cmd.exe</code>-wrapped WMI
+  (Windows) launch machinery.</p>
+<p>The file is hot-reloaded via <code>fs.watch()</code> — changes take effect within a few
+hundred milliseconds without restarting the server.</p>
+<h2 id="network-topology">Network topology<a class="headerlink" href="#network-topology" title="Permanent link">&para;</a></h2>
+<p>The connection from the remote client to the server requires a TCP path to
+port 3002. Several options exist depending on the network layout.</p>
+<h3 id="same-lan">Same LAN<a class="headerlink" href="#same-lan" title="Permanent link">&para;</a></h3>
+<p>The simplest case. Use the server's LAN IP as <code>serverHost</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;serverHost&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;192.168.1.100&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;serverPort&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3002</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;deviceName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;lab&quot;</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>If the connection fails, check the server's firewall:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="m">3002</span>
+</code></pre></div>
+<h3 id="tailscale-recommended-for-cross-network">Tailscale (recommended for cross-network)<a class="headerlink" href="#tailscale-recommended-for-cross-network" title="Permanent link">&para;</a></h3>
+<p>Tailscale assigns each machine a stable CGNAT IP (<code>100.x.y.z</code>) regardless of
+physical network. The client connects to the server's Tailscale IP:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;serverHost&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;100.87.154.62&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;serverPort&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3002</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;deviceName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;lab-ksu&quot;</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>To find the server's Tailscale IP:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>tailscale<span class="w"> </span>ip<span class="w"> </span>-4
+</code></pre></div>
+<p>Tailscale works through NAT and firewalls without port forwarding. This is
+the recommended option for machines on different networks.</p>
+<h3 id="cloudflare-tunnel">Cloudflare Tunnel<a class="headerlink" href="#cloudflare-tunnel" title="Permanent link">&para;</a></h3>
+<p>When both the server and the client are behind NAT with no public IP, run
+<code>cloudflared</code> on the server to expose its WebSocket port through a tunnel, and
+point the client at the tunnel hostname with <code>serverUrl</code>. The server's
+<code>cloudflared</code> ingress maps a hostname to the local WS port:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">ingress</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cortex.example.com</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:3002</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http_status:404</span>
+</code></pre></div>
+<p>The client then dials the tunnel over wss/443:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;serverUrl&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;wss://cortex.example.com&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;deviceName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;my-pc&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;clientToken&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;token&gt;&quot;</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>Both sides connect outbound to Cloudflare's edge, so neither needs a public IP
+or port forwarding, and WebSocket upgrades pass through the tunnel transparently.</p>
+<h3 id="stcp-tunnel">STCP tunnel<a class="headerlink" href="#stcp-tunnel" title="Permanent link">&para;</a></h3>
+<p>For machines behind restrictive firewalls where even Tailscale can't establish
+a direct connection, use an STCP reverse tunnel. The remote machine forwards
+the server's port back to itself:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># On the remote machine (or via SSH):</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>ssh<span class="w"> </span>-R<span class="w"> </span><span class="m">3002</span>:localhost:3002<span class="w"> </span>user@lab2
+</code></pre></div>
+<p>Then the client connects to <code>localhost:3002</code>. This is how <code>lab-ksu</code> connects
+in the current setup.</p>
+<h3 id="connection-troubleshooting">Connection troubleshooting<a class="headerlink" href="#connection-troubleshooting" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Client won't connect</td>
+<td>Port 3002 blocked</td>
+<td>Check firewall: <code>sudo ufw allow 3002</code></td>
+</tr>
+<tr>
+<td>Client connects then disconnects</td>
+<td>NAT timeout</td>
+<td>Use Tailscale or enable TCP keepalive</td>
+</tr>
+<tr>
+<td>SSH works but WebSocket doesn't</td>
+<td>SSH only opens port 22</td>
+<td>Open port 3002 or use Tailscale/reverse tunnel</td>
+</tr>
+<tr>
+<td>Tailscale installed but can't connect</td>
+<td>ACLs blocking</td>
+<td>Check <code>tailscale status</code> and ACL rules</td>
+</tr>
+<tr>
+<td>"Device already connected" (code 4002)</td>
+<td>Stale connection or duplicate</td>
+<td>Kill the old client process on the remote machine</td>
+</tr>
+</tbody>
+</table>
+<h2 id="websocket-protocol">WebSocket protocol<a class="headerlink" href="#websocket-protocol" title="Permanent link">&para;</a></h2>
+<p>The protocol between agent-server and cortex-client is a simple JSON message
+stream over plain WebSocket. There is no TLS, no authentication token, and no
+shared secret. Security relies on the network perimeter.</p>
+<h3 id="client-server">Client → Server<a class="headerlink" href="#client-server" title="Permanent link">&para;</a></h3>
+<p><strong>Hello</strong> (sent immediately on connect):
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;hello&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;device&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;lab&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;platform&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;linux&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;capabilities&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;rg&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Heartbeat</strong> (every 5 seconds):
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;heartbeat&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;device&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;lab&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1716154200000</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Command result</strong> (in response to a server command):
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;result&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;cmd-abc123&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;success&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;stdout&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<h3 id="server-client">Server → Client<a class="headerlink" href="#server-client" title="Permanent link">&para;</a></h3>
+<p><strong>Command</strong>:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;command&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;cmd-abc123&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bash&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;params&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;nvidia-smi&quot;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">120000</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<p>Supported actions: <code>bash</code>, <code>read</code>, <code>write</code>, <code>edit</code>, <code>glob</code>, <code>grep</code>,
+<code>cortex-run.launch</code>, <code>cortex-run.cancel</code>.</p>
+<h3 id="error-codes">Error codes<a class="headerlink" href="#error-codes" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4001</td>
+<td>Missing device name in hello</td>
+</tr>
+<tr>
+<td>4002</td>
+<td>Device already connected</td>
+</tr>
+<tr>
+<td>4003</td>
+<td>Heartbeat timeout (15 seconds)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="server-side-client-lifecycle">Server-side client lifecycle<a class="headerlink" href="#server-side-client-lifecycle" title="Permanent link">&para;</a></h2>
+<p>The <code>client-manager.ts</code> module in agent-server manages the remote client
+lifecycle:</p>
+<ol>
+<li>
+<p><strong>At startup</strong> — <code>startAllRemoteClients()</code> iterates <code>machines.json</code> and
+   spawns or SSH-launches <code>cortex-client</code> on each machine. For local machines
+   (no <code>ssh</code> field), it spawns directly. For remote machines, it runs
+   <code>ssh user@host "nohup cortex-client &gt; /dev/null 2&gt;&amp;1 &amp; echo $!"</code> (Linux)
+   or uses WMI (Windows).</p>
+</li>
+<li>
+<p><strong>Heartbeat monitoring</strong> — every 5 seconds, the server checks that each
+   connected device has sent a heartbeat within the last 15 seconds.
+   Missed heartbeats trigger a disconnect and automatic restart attempt.</p>
+</li>
+<li>
+<p><strong>Automatic restart</strong> — on disconnect or heartbeat timeout, the server
+   schedules a restart after a 60-second delay. It retries until the client
+   reconnects. A per-device timer prevents duplicate restart attempts.</p>
+</li>
+<li>
+<p><strong>PID tracking</strong> — for SSH-launched clients, the server records the remote
+   PID in <code>~/.cortex/data/client-pids.json</code> so it can check if the process is
+   still alive before attempting a restart.</p>
+</li>
+<li>
+<p><strong>Command routing</strong> — when the agent calls <code>remote_bash({ device: "lab",
+   ... })</code>, the MCP server sends an HTTP request to <code>client-manager</code>, which
+   looks up the WebSocket connection for <code>lab</code> in its devices map and sends
+   the command. Only online devices receive commands — if the target device
+   is offline, the tool call returns an error.</p>
+</li>
+</ol>
+<h2 id="client-side-reconnect-behavior">Client-side reconnect behavior<a class="headerlink" href="#client-side-reconnect-behavior" title="Permanent link">&para;</a></h2>
+<p>The <code>cortex-client</code> process handles reconnection automatically:</p>
+<ul>
+<li>On disconnect, it waits 1 second before the first reconnect attempt</li>
+<li>Uses exponential backoff: 1s, 2s, 4s, 8s, 16s, capping at 30 seconds</li>
+<li>If the server rejects with code 4002 ("Device already connected"), the
+  client exits. This prevents two clients from fighting over the same device
+  name</li>
+<li>For all other disconnects (network errors, server restart, heartbeat
+  timeout), the client keeps retrying indefinitely</li>
+</ul>
+<h2 id="remote-command-execution">Remote command execution<a class="headerlink" href="#remote-command-execution" title="Permanent link">&para;</a></h2>
+<p>Each command from the server includes an <code>action</code> and <code>params</code>. The client
+dispatches to the appropriate handler:</p>
+<h3 id="bash">bash<a class="headerlink" href="#bash" title="Permanent link">&para;</a></h3>
+<p>Executes in a login shell: <code>/bin/bash -l -c "&lt;command&gt;"</code>. On Windows, commands
+run through git-bash. The timeout defaults to 120 seconds for shell commands
+(max 600 seconds). Long-running jobs use <code>run_in_background: true</code>, which
+spawns a <code>cortex-run-watcher</code> process for stall detection and callback
+reporting. These remote execution tools are exposed to agents via the
+<code>cortex-core</code> MCP server — see <a href="../mcp/">mcp.md</a>.</p>
+<h3 id="read">read<a class="headerlink" href="#read" title="Permanent link">&para;</a></h3>
+<p>Reads a file from disk with <code>fs.readFileSync()</code>. Supports image files (PNG,
+JPEG, WebP, GIF, BMP) with an optional <code>sharp</code>-based resize/compress pipeline
+(to stay under token budgets), and PDF files handled as embedded resources.
+Paths must be absolute.</p>
+<h3 id="write-and-edit">write and edit<a class="headerlink" href="#write-and-edit" title="Permanent link">&para;</a></h3>
+<p><code>write</code> creates or overwrites a file, creating parent directories if needed.
+<code>edit</code> finds and replaces a string in an existing file. Successful mutations
+return a compact confirmation; session activity records the target path and
+device without copying file contents.</p>
+<h3 id="glob-and-grep">glob and grep<a class="headerlink" href="#glob-and-grep" title="Permanent link">&para;</a></h3>
+<p><code>glob</code> finds files by pattern (e.g., <code>**/*.ts</code>), limited to 500 results and
+excluding VCS directories. <code>grep</code> uses <code>rg</code> (ripgrep) when available, with
+a fallback to <code>grep -rn</code>. Supports <code>head_limit</code> and <code>offset</code> for pagination.</p>
+<h3 id="cortex-run-long-running-tasks">cortex-run (long-running tasks)<a class="headerlink" href="#cortex-run-long-running-tasks" title="Permanent link">&para;</a></h3>
+<p>For training jobs and other long-running work, <code>cortex-run.launch</code> spawns a
+<code>cortex-run-watcher</code> child process that:
+- Monitors the subprocess for stalls (configurable timeout, default 10 minutes
+  of no output)
+- Writes status, output, and results to JSON files
+- Sets a <code>callback.pending</code> flag on completion
+- The main client flushes pending callbacks on connect and every 60 seconds</p>
+<p><code>cortex-run.cancel</code> kills the tracked subprocess by PID.</p>
+<h2 id="checking-device-status">Checking device status<a class="headerlink" href="#checking-device-status" title="Permanent link">&para;</a></h2>
+<p>From within an agent session, check which devices are online:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>remote_bash({ device: &quot;lab&quot;, command: &quot;hostname&quot; })
+</code></pre></div>
+<p>The agent-server's Slack integration also supports the <code>!devices</code> command,
+which lists all registered machines with their online/offline status.</p>
+<p>From the server's CLI:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Check machine registry</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>cat<span class="w"> </span>~/.cortex/config/machines.json
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># Check which clients are connected (via the server logs)</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>tail<span class="w"> </span>-f<span class="w"> </span>~/.cortex/logs/daemon.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>client-manager
+</code></pre></div>
+<h2 id="security-boundary">Security boundary<a class="headerlink" href="#security-boundary" title="Permanent link">&para;</a></h2>
+<p>The remote client system operates with these security constraints:</p>
+<ul>
+<li>The client runs as the same user who started it — no privilege escalation</li>
+<li>The WebSocket protocol has no authentication. Any process that can reach
+  port 3002 can impersonate a device. Protect the port at the network level
+  (firewall, Tailscale ACLs, or localhost binding)</li>
+<li>The server's SSH access to remote machines is governed by the SSH key of the
+  user running agent-server. The agent cannot escalate beyond what that user
+  can do</li>
+<li>MCP tools that target remote devices are subject to the same safety boundary
+  rules documented in <a href="../safety-and-approvals/">safety-and-approvals.md</a></li>
+<li>The <code>cortex-client</code> npm package installs no postinstall scripts, uses no
+  native addons beyond what Node.js ships, and has no external dependencies
+  beyond <code>ws</code></li>
+</ul>
+<h2 id="multi-client-routing">Multi-client routing<a class="headerlink" href="#multi-client-routing" title="Permanent link">&para;</a></h2>
+<p>There is no automatic device selection. The agent explicitly specifies which
+device to target in each tool call via the <code>device</code> parameter. The agent
+learns about available devices from the <code>machines.json</code> registry (visible
+through context injection) and from tool descriptions.</p>
+<p>For GPU-aware workloads (training), the dispatch system consults <code>gpuCount</code>
+and can check GPU utilization before assigning work. See <a href="../tasks/">tasks.md</a>
+for the task dispatch model.</p>
+<h2 id="the-client-manage-skill">The client-manage skill<a class="headerlink" href="#the-client-manage-skill" title="Permanent link">&para;</a></h2>
+<p>Cortex includes a <code>client-manage</code> skill (in the cortex-system plugin) that
+provides step-by-step operational guidance for:
+- Bootstrapping a new device (register, install, configure, verify, restart)
+- Checking online status and connectivity
+- Viewing client logs
+- Updating client configuration
+- Troubleshooting nine common symptoms with root causes and fixes</p>
+<p>The skill is available to the agent automatically and serves as the
+operational reference for cross-machine management.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

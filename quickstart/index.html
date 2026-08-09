@@ -1,0 +1,2171 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/quickstart/">
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../desktop-app/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/quickstart/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Quickstart - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#quickstart" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Quickstart
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/quickstart/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prerequisites">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#checking-your-nodejs-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking your Node.js version
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installing-nodejs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installing Node.js
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-install-cortex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1 — Install Cortex
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-run-the-setup-wizard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2 — Run the setup wizard
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 2 — Run the setup wizard">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-which-language" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Which language?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-which-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Which backends?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-which-interaction-platforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Which interaction platform(s)?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-slack-app-setup-step-by-step-in-the-browser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 Slack app setup (step by step in the browser)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2.4 Slack app setup (step by step in the browser)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-open-the-slack-api-apps-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        a) Open the Slack API apps page
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-create-a-new-app-from-manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        b) Create a new app from manifest
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#c-pick-your-workspace-and-paste-the-manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        c) Pick your workspace and paste the manifest
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#d-copy-the-signing-secret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        d) Copy the Signing Secret
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e-generate-the-app-level-token-xapp-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        e) Generate the App-Level Token (xapp-…)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#f-install-to-workspace-and-copy-the-bot-token-xoxb-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        f) Install to Workspace and copy the Bot Token (xoxb-…)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#g-enable-the-messages-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        g) Enable the Messages Tab
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#h-admin-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        h) Admin channel
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-feishu-app-setup-step-by-step-in-the-browser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 Feishu app setup (step by step in the browser)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2.5 Feishu app setup (step by step in the browser)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-create-a-feishu-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        a) Create a Feishu app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-copy-the-app-id-and-app-secret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        b) Copy the App ID and App Secret
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#c-subscribe-to-message-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        c) Subscribe to message events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#d-domain-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        d) Domain (optional)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e-identity-for-document-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        e) Identity for document operations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#26-machine-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.6 Machine name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#27-gpu-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.7 GPU detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#28-aistatus-token-usage-reporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.8 aistatus token-usage reporting?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#29-register-as-a-system-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.9 Register as a system service?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#210-auto-detect-backends-for-gatewayprofiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.10 Auto-detect backends for gateway/profiles?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#211-when-the-backend-login-expires" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.11 When the backend login expires
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-cortex-init-created" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What cortex init created
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-start-the-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3 — Start the server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-4-send-your-first-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4 — Send your first messages
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 4 — Send your first messages">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-say-hello" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Say hello
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-create-your-first-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Create your first project
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-create-a-task-in-an-existing-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Create a task in an existing project
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-check-project-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Check project status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-to-read-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to read next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prerequisites">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#checking-your-nodejs-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking your Node.js version
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installing-nodejs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installing Node.js
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-install-cortex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1 — Install Cortex
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-run-the-setup-wizard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2 — Run the setup wizard
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 2 — Run the setup wizard">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-which-language" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Which language?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-which-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Which backends?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-which-interaction-platforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Which interaction platform(s)?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-slack-app-setup-step-by-step-in-the-browser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 Slack app setup (step by step in the browser)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2.4 Slack app setup (step by step in the browser)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-open-the-slack-api-apps-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        a) Open the Slack API apps page
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-create-a-new-app-from-manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        b) Create a new app from manifest
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#c-pick-your-workspace-and-paste-the-manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        c) Pick your workspace and paste the manifest
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#d-copy-the-signing-secret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        d) Copy the Signing Secret
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e-generate-the-app-level-token-xapp-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        e) Generate the App-Level Token (xapp-…)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#f-install-to-workspace-and-copy-the-bot-token-xoxb-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        f) Install to Workspace and copy the Bot Token (xoxb-…)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#g-enable-the-messages-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        g) Enable the Messages Tab
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#h-admin-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        h) Admin channel
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-feishu-app-setup-step-by-step-in-the-browser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 Feishu app setup (step by step in the browser)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2.5 Feishu app setup (step by step in the browser)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-create-a-feishu-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        a) Create a Feishu app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-copy-the-app-id-and-app-secret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        b) Copy the App ID and App Secret
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#c-subscribe-to-message-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        c) Subscribe to message events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#d-domain-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        d) Domain (optional)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e-identity-for-document-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        e) Identity for document operations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#26-machine-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.6 Machine name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#27-gpu-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.7 GPU detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#28-aistatus-token-usage-reporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.8 aistatus token-usage reporting?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#29-register-as-a-system-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.9 Register as a system service?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#210-auto-detect-backends-for-gatewayprofiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.10 Auto-detect backends for gateway/profiles?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#211-when-the-backend-login-expires" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.11 When the backend login expires
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-cortex-init-created" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What cortex init created
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-start-the-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3 — Start the server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-4-send-your-first-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4 — Send your first messages
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 4 — Send your first messages">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-say-hello" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Say hello
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-create-your-first-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Create your first project
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-create-a-task-in-an-existing-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Create a task in an existing project
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-check-project-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Check project status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-to-read-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to read next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="quickstart">Quickstart<a class="headerlink" href="#quickstart" title="Permanent link">&para;</a></h1>
+<p>From zero to a Cortex agent answering you in chat in about 5 minutes,
+most of which is waiting for <code>npm</code> and clicking through your chat
+platform's app creation page.</p>
+<p>Cortex talks to you through Slack or Feishu (飞书/Lark) — pick either, or
+run both at once. <code>cortex init</code> does almost everything. You will not edit
+a single config file by hand. This guide tells you what to expect at each
+prompt and shows you exactly where to click.</p>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Node.js ≥ 20</strong> (Cortex itself targets 20+; the bundled coding-agent
+  backends prefer 22).</li>
+<li><strong>A Slack workspace or a Feishu (Lark) organization</strong> where you can
+  create an app.</li>
+<li><strong>About 2 GB of free disk</strong> for backends, plugins, and logs.</li>
+</ul>
+<p>You do <strong>not</strong> need to install <code>claude</code> (Claude Code) or <code>pi</code>
+(pi-coding-agent) beforehand. You do not need to install <code>git</code>
+beforehand. You do not need to pre-create any directories or env files.
+<code>cortex init</code> installs all of these for you.</p>
+<h3 id="checking-your-nodejs-version">Checking your Node.js version<a class="headerlink" href="#checking-your-nodejs-version" title="Permanent link">&para;</a></h3>
+<p>Open a terminal and run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>node<span class="w"> </span>--version
+</code></pre></div>
+<p>You should see something like <code>v22.14.0</code>. If the version is below 20,
+or if you see <code>command not found: node</code>, install or upgrade Node.js
+using one of the methods below.</p>
+<h3 id="installing-nodejs">Installing Node.js<a class="headerlink" href="#installing-nodejs" title="Permanent link">&para;</a></h3>
+<p><strong>macOS (Homebrew):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>brew<span class="w"> </span>install<span class="w"> </span>node@22
+</code></pre></div>
+<p><strong>Linux (nvm, recommended):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>curl<span class="w"> </span>-o-<span class="w"> </span>https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># Restart your shell, then:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>nvm<span class="w"> </span>install<span class="w"> </span><span class="m">22</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>nvm<span class="w"> </span>use<span class="w"> </span><span class="m">22</span>
+</code></pre></div>
+<p><strong>Linux (apt, Ubuntu/Debian 24.04+):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>update<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>nodejs<span class="w"> </span>npm
+</code></pre></div>
+<p><strong>Windows:</strong></p>
+<p>Download the LTS installer from <a href="https://nodejs.org/">nodejs.org</a>
+(choose the "LTS" version, 22.x or later). Run the <code>.msi</code> installer
+and follow the prompts. After installation, restart your terminal.</p>
+<p>Verify the installation:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>node<span class="w"> </span>--version<span class="w">   </span><span class="c1"># should print v22.x.y or v20.x.y</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>npm<span class="w"> </span>--version<span class="w">    </span><span class="c1"># should print 10.x.y or later</span>
+</code></pre></div>
+<h2 id="step-1-install-cortex">Step 1 — Install Cortex<a class="headerlink" href="#step-1-install-cortex" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>npm<span class="w"> </span>install<span class="w"> </span>-g<span class="w"> </span>@cortex-agent/server
+</code></pre></div>
+<p>This puts three commands on your PATH: <code>cortex</code>, <code>cortex-task</code>, and
+<code>cortex-run</code>.</p>
+<p>If <code>npm install -g</code> fails with a permission error (common on Linux),
+prefix with <code>sudo</code>, or better, configure npm to use a user-local
+prefix:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.npm-global
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>npm<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>prefix<span class="w"> </span>~/.npm-global
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;export PATH=~/.npm-global/bin:$PATH&#39;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.bashrc
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nb">source</span><span class="w"> </span>~/.bashrc
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>npm<span class="w"> </span>install<span class="w"> </span>-g<span class="w"> </span>@cortex-agent/server
+</code></pre></div>
+<h2 id="step-2-run-the-setup-wizard">Step 2 — Run the setup wizard<a class="headerlink" href="#step-2-run-the-setup-wizard" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>cortex<span class="w"> </span>init
+</code></pre></div>
+<p>The wizard walks through the following prompts. Defaults are sensible;
+hit Enter to accept. Here is what each prompt does and how to answer.</p>
+<h3 id="21-which-language">2.1 Which language?<a class="headerlink" href="#21-which-language" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>Select language / 选择语言
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>❯ English
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>  中文 (Simplified Chinese)
+</code></pre></div>
+<p>The first prompt picks the language Cortex uses for its
+system-generated messages and for the rest of this wizard. It defaults
+to your system locale, so a Chinese system pre-selects 中文. The choice
+is saved to <code>config/preferences.json</code> and you can change it later with
+the <code>!lang</code> command.</p>
+<h3 id="22-which-backends">2.2 Which backends?<a class="headerlink" href="#22-which-backends" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>? Which coding-agent backends would you like to use?
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>❯ ◯ Claude Code (recommended for Anthropic subscriptions)
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>  ◯ PI (for other subscriptions)
+</code></pre></div>
+<ul>
+<li><strong>Claude Code</strong> — recommended if you have an Anthropic subscription
+  (Claude Pro, Max, or API). Cortex will install it automatically.</li>
+<li><strong>PI</strong> — use if you subscribe to other LLM providers through PI.</li>
+</ul>
+<p>You can pick both. Cortex runs <code>npm install -g</code> for whichever you
+select on the next step.</p>
+<h3 id="23-which-interaction-platforms">2.3 Which interaction platform(s)?<a class="headerlink" href="#23-which-interaction-platforms" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>? Which interaction platform(s) would you like to use? (space to toggle,
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>  enter to confirm, leave empty to skip)
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>❯ ◯ Slack (recommended)
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>  ◯ Feishu (飞书)
+</code></pre></div>
+<p>This is a multi-select. Toggle with space, confirm with Enter. Pick
+<strong>Slack</strong>, <strong>Feishu</strong>, or both — Cortex composes the platforms you
+choose and connects to all of them at once. Each platform you select
+triggers its own credential-collection steps below (Slack first, then
+Feishu).</p>
+<p>Leaving the selection empty skips platform setup. You can configure a
+platform later with <code>cortex init --force</code> or by editing
+<code>$CORTEX_HOME/config/.env</code>.</p>
+<h3 id="24-slack-app-setup-step-by-step-in-the-browser">2.4 Slack app setup (step by step in the browser)<a class="headerlink" href="#24-slack-app-setup-step-by-step-in-the-browser" title="Permanent link">&para;</a></h3>
+<p>Skip this section if you did not select Slack.</p>
+<p>Cortex first prints a complete <strong>Slack App Manifest</strong> and asks if you
+want it copied to your clipboard. Press <strong>c</strong> — the manifest JSON
+is now in your clipboard.</p>
+<h4 id="a-open-the-slack-api-apps-page">a) Open the Slack API apps page<a class="headerlink" href="#a-open-the-slack-api-apps-page" title="Permanent link">&para;</a></h4>
+<p>Go to <strong><a href="https://api.slack.com/apps">https://api.slack.com/apps</a></strong>.</p>
+<h4 id="b-create-a-new-app-from-manifest">b) Create a new app from manifest<a class="headerlink" href="#b-create-a-new-app-from-manifest" title="Permanent link">&para;</a></h4>
+<p>Click the green <strong>Create New App</strong> button, then click <strong>From a
+manifest</strong>. If you don't have a workspace yet, create one first.</p>
+<p><img alt="Create New App → From a manifest" src="../images/slack-create-from-manifest.png" /></p>
+<h4 id="c-pick-your-workspace-and-paste-the-manifest">c) Pick your workspace and paste the manifest<a class="headerlink" href="#c-pick-your-workspace-and-paste-the-manifest" title="Permanent link">&para;</a></h4>
+<ol>
+<li>Select your Slack workspace from the dropdown.</li>
+<li>Paste the manifest JSON into the text area (Ctrl+V / Cmd+V). The
+   manifest was copied to your clipboard by <code>cortex init</code>, so just paste.</li>
+<li>Click <strong>Next</strong>.</li>
+<li>Review the summary and click <strong>Create</strong>.</li>
+</ol>
+<p><img alt="Paste the manifest and pick workspace" src="../images/slack-paste-manifest.png" /></p>
+<h4 id="d-copy-the-signing-secret">d) Copy the Signing Secret<a class="headerlink" href="#d-copy-the-signing-secret" title="Permanent link">&para;</a></h4>
+<p>After creation, Slack drops you on the app's <strong>Basic Information</strong>
+page. Under <strong>App Credentials</strong>, find the <strong>Signing Secret</strong>. Click
+<strong>Show</strong> and copy it.</p>
+<p>Back in your terminal, paste this as <code>SLACK_SIGNING_SECRET</code>.</p>
+<p><img alt="Copy the Signing Secret" src="../images/slack-signing-secret.png" /></p>
+<h4 id="e-generate-the-app-level-token-xapp-">e) Generate the App-Level Token (xapp-…)<a class="headerlink" href="#e-generate-the-app-level-token-xapp-" title="Permanent link">&para;</a></h4>
+<p>Scroll down on the same <strong>Basic Information</strong> page to the
+<strong>App-Level Tokens</strong> section. Click <strong>Generate Token and Scopes</strong>.</p>
+<ul>
+<li>Token Name: <code>cortex-socket</code></li>
+<li>Add Scope: <code>connections:write</code></li>
+<li>Click <strong>Generate</strong></li>
+</ul>
+<p>Copy the token that appears (starts with <code>xapp-</code>). It only shows once
+— copy it now.</p>
+<p>Back in your terminal, paste this as <code>SLACK_APP_TOKEN</code>.</p>
+<p><img alt="Generate App-Level Token" src="../images/slack-app-token.png" /></p>
+<h4 id="f-install-to-workspace-and-copy-the-bot-token-xoxb-">f) Install to Workspace and copy the Bot Token (xoxb-…)<a class="headerlink" href="#f-install-to-workspace-and-copy-the-bot-token-xoxb-" title="Permanent link">&para;</a></h4>
+<p>In the left sidebar, click <strong>OAuth &amp; Permissions</strong>. Scroll up to the
+<strong>OAuth Tokens</strong> section and click <strong>Install to Workspace</strong>. On the
+authorization screen, click <strong>Allow</strong>.</p>
+<p>After installation, the page shows a <strong>Bot User OAuth Token</strong> at the
+top (starts with <code>xoxb-</code>). Copy it.</p>
+<p>Back in your terminal, paste this as <code>SLACK_BOT_TOKEN</code>.</p>
+<p><img alt="OAuth &amp; Permissions → Install to Workspace" src="../images/slack-oauth-install.png" /></p>
+<p><img alt="Copy Bot User OAuth Token" src="../images/slack-bot-token.png" /></p>
+<h4 id="g-enable-the-messages-tab">g) Enable the Messages Tab<a class="headerlink" href="#g-enable-the-messages-tab" title="Permanent link">&para;</a></h4>
+<p>In the left sidebar, click <strong>App Home</strong>. Scroll down to the <strong>Show
+Tabs</strong> section:</p>
+<ul>
+<li>Check <strong>Messages Tab</strong> (so it appears in the bot's App Home).</li>
+<li>Check <strong>Allow users to send Slash commands and messages from the
+  messages tab</strong> (so you can DM the bot).</li>
+</ul>
+<p>Without this checkbox, you can <code>@cortex</code> the bot in channels but you
+cannot send it DMs.</p>
+<p><img alt="Enable Messages Tab in App Home" src="../images/slack-messages-tab.png" /></p>
+<h4 id="h-admin-channel">h) Admin channel<a class="headerlink" href="#h-admin-channel" title="Permanent link">&para;</a></h4>
+<p>Cortex sends startup notices, approval requests, and other operational
+messages to an admin channel. There is nothing to enter during setup —
+Cortex auto-detects the admin channel the first time you DM the bot and
+persists it.</p>
+<p>If you'd rather route admin messages to a specific channel (e.g., a
+shared ops channel), grab the channel ID from Slack — right-click the
+channel name → View channel details → copy the Channel ID from the
+bottom of the dialog — and set the <code>adminChannel</code> key in
+<code>$CORTEX_HOME/config/settings.json</code> (see
+<a href="../configuration/#configsettingsjson">configuration.md</a>). The legacy
+<code>SLACK_ADMIN_CHANNEL</code> / <code>CORTEX_ADMIN_CHANNEL</code> variables in <code>.env</code> still work
+as a deprecated fallback.</p>
+<h3 id="25-feishu-app-setup-step-by-step-in-the-browser">2.5 Feishu app setup (step by step in the browser)<a class="headerlink" href="#25-feishu-app-setup-step-by-step-in-the-browser" title="Permanent link">&para;</a></h3>
+<p>Skip this section if you did not select Feishu. Cortex prints a setup
+guide and then collects your app credentials.</p>
+<h4 id="a-create-a-feishu-app">a) Create a Feishu app<a class="headerlink" href="#a-create-a-feishu-app" title="Permanent link">&para;</a></h4>
+<p>Go to <strong><a href="https://open.feishu.cn/app">https://open.feishu.cn/app</a></strong> and
+click <strong>Create Agentic App</strong>（创建 agentic 应用）. Enter an agent name
+(e.g. <code>CortexAgent</code>), pick an avatar, and click <strong>Create</strong>.</p>
+<p><img alt="Create a Feishu agentic app" src="../images/feishu-create-agentic-app.png" /></p>
+<h4 id="b-copy-the-app-id-and-app-secret">b) Copy the App ID and App Secret<a class="headerlink" href="#b-copy-the-app-id-and-app-secret" title="Permanent link">&para;</a></h4>
+<p>After creation, the app page displays the <strong>App ID</strong> and <strong>App Secret</strong>.
+Copy them.</p>
+<p><img alt="Copy the Feishu App ID and App Secret" src="../images/feishu-app-credentials.png" /></p>
+<p>Back in your terminal, paste them at the <code>FEISHU_APP_ID</code> and
+<code>FEISHU_APP_SECRET</code> prompts.</p>
+<h4 id="c-subscribe-to-message-events">c) Subscribe to message events<a class="headerlink" href="#c-subscribe-to-message-events" title="Permanent link">&para;</a></h4>
+<p>In the app's event configuration, enable bot events and subscribe to
+<strong><code>im.message.receive_v1</code></strong>. Without this subscription the bot never
+receives your messages.</p>
+<h4 id="d-domain-optional">d) Domain (optional)<a class="headerlink" href="#d-domain-optional" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>? FEISHU_DOMAIN (optional, &quot;feishu&quot; or &quot;lark&quot;):
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  feishu (leave blank to use default)
+</code></pre></div>
+<p>Enter <code>feishu</code> for the Feishu (mainland China) domain or <code>lark</code> for the
+international Lark domain. Leave it blank to use the default.</p>
+<h4 id="e-identity-for-document-operations">e) Identity for document operations<a class="headerlink" href="#e-identity-for-document-operations" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>? Identity for MCP document operations:
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>  bot   — documents owned by the app
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>❯ user (Recommended) — documents owned by your Feishu account
+</code></pre></div>
+<p>Cortex's MCP tools can create and edit Feishu documents (docx, wiki,
+bitable, sheets, drive). This prompt decides who owns those documents.
+Choosing <strong>bot</strong> makes the app the owner. Choosing <strong>user</strong> makes your
+own Feishu account the owner, which keeps documents in your personal
+space — this is the recommended choice.</p>
+<p>If you pick <strong>user</strong>, <code>cortex init</code> immediately runs the Feishu user
+login (an OAuth device flow) so you authorize in one sitting. It prints
+a URL — open it in any browser, approve access, and Cortex polls for the
+token automatically. No redirect URI is needed. If you skip or abandon
+the login, your credentials are still saved and you can authorize later
+with <code>cortex feishu login</code>.</p>
+<h3 id="26-machine-name">2.6 Machine name<a class="headerlink" href="#26-machine-name" title="Permanent link">&para;</a></h3>
+<p>Defaults to your hostname. Hit Enter unless you want a custom label.</p>
+<h3 id="27-gpu-detection">2.7 GPU detection<a class="headerlink" href="#27-gpu-detection" title="Permanent link">&para;</a></h3>
+<p>Cortex runs <code>nvidia-smi</code> and prints the count. Nothing to type. If you
+don't have an NVIDIA GPU, it prints 0 — perfectly fine for most usage.</p>
+<h3 id="28-aistatus-token-usage-reporting">2.8 aistatus token-usage reporting?<a class="headerlink" href="#28-aistatus-token-usage-reporting" title="Permanent link">&para;</a></h3>
+<p>Optional opt-in to share anonymous token counts on the public
+leaderboard at <a href="https://aistatus.cc">aistatus.cc</a>. If you answer yes,
+provide a name, org, and email (email is identity only, never
+displayed).</p>
+<h3 id="29-register-as-a-system-service">2.9 Register as a system service?<a class="headerlink" href="#29-register-as-a-system-service" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>macOS</strong> — creates a <code>launchd</code> plist at
+  <code>~/Library/LaunchAgents/com.cortex.daemon.plist</code>. The daemon starts
+  automatically on login.</li>
+<li><strong>Linux</strong> — creates a <code>systemd --user</code> unit (no <code>sudo</code> needed). The
+  daemon starts automatically on login.</li>
+<li><strong>Windows</strong> — not supported. Start manually with <code>cortex daemon</code>.</li>
+</ul>
+<h3 id="210-auto-detect-backends-for-gatewayprofiles">2.10 Auto-detect backends for gateway/profiles?<a class="headerlink" href="#210-auto-detect-backends-for-gatewayprofiles" title="Permanent link">&para;</a></h3>
+<p>Answer <strong>Yes</strong> if you already logged in to your backend in another
+shell. Cortex scans your <code>~/.claude/.credentials.json</code> and
+<code>~/.pi/agent/</code> to discover endpoints and asks you to pick which
+discovered (mode, model) pair becomes the <code>plan</code> profile (used by
+executor agents — planner, doc-writer, coder, etc.) and which becomes
+the <code>execute</code> profile (used by reviewer agents).</p>
+<p>If you have not logged in yet, open a new terminal and run <code>claude</code>
+(or <code>pi</code>, depending on the backend you selected in step 2.2). Inside
+that session type <code>/login</code> and follow the prompts — pick the login
+method that matches your subscription.</p>
+<p><img alt="Backend login prompt" src="../images/backend-login.png" /></p>
+<p>Once the login finishes, come back to the wizard and answer <strong>Yes</strong> so
+the credentials are picked up.</p>
+<p>You can also run this later with <code>cortex setup-gateway</code>.</p>
+<h3 id="211-when-the-backend-login-expires">2.11 When the backend login expires<a class="headerlink" href="#211-when-the-backend-login-expires" title="Permanent link">&para;</a></h3>
+<p>Backend credentials expire after a while. When they do, agent runs
+fail with an authentication error such as:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Failed to authenticate. API Error: 401 OAuth access token has expired.
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>Re-authenticate to continue.
+</code></pre></div>
+<p>The fix is the same login flow as above. Open a new terminal and run
+<code>claude</code> (or <code>pi</code>, depending on the backend you use). Inside that
+session type <code>/login</code> and follow the prompts — pick the login method
+that matches your subscription.</p>
+<p><img alt="Backend login prompt" src="../images/backend-login.png" /></p>
+<p>Once the login finishes, the refreshed credentials are picked up on the
+next agent run. If the endpoint or model changed, re-run
+<code>cortex setup-gateway</code> so the <code>plan</code> and <code>execute</code> profiles point at
+the new backend.</p>
+<hr />
+<p>When the wizard finishes you will see:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
+</code></pre></div>
+<h2 id="what-cortex-init-created">What <code>cortex init</code> created<a class="headerlink" href="#what-cortex-init-created" title="Permanent link">&para;</a></h2>
+<p>Everything lives under <code>CORTEX_HOME</code> (default <code>~/.cortex/</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>~/.cortex/
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>├── .git/                       # auto git-init&#39;d, all state is committed
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>├── CORTEX.md                   # root agent context (seeded from defaults)
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>├── config/
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>│   ├── .env                    # CORTEX_PLATFORM list + platform tokens + CORTEX_MACHINE
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>│   ├── feishu-user-token.json  # Feishu user-identity token (only when FEISHU_AUTH_MODE=user)
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>│   ├── preferences.json        # operator UI language
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>│   ├── budget.json             # daily/monthly budget limits
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>│   ├── machines.json           # this machine&#39;s capabilities (gpuCount, path)
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>│   ├── mcp-config.json         # direct-session MCP servers
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>│   ├── mcp-config-core.json    # remote execution/time layer
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>│   ├── mcp-config-tasks.json   # read-only task-monitoring layer
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>│   ├── mcp-config-manager-qa.json # shared manager-answer layer
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a>│   ├── mcp-config-thread.json  # thread-control layer
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>│   ├── mcp-config-tui.json     # TUI interaction layer
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a>│   ├── profiles.json           # named (backend, model) profiles
+<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a>│   ├── thread-templates/       # multi-agent thread definitions
+<a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a>│   │   └── agents/, templates/, shells/   # one JSON file per entity
+<a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a>│   └── hooks/                  # hook registry — one JSON declaration per hook
+<a id="__codelineno-15-20" name="__codelineno-15-20" href="#__codelineno-15-20"></a>├── data/
+<a id="__codelineno-15-21" name="__codelineno-15-21" href="#__codelineno-15-21"></a>│   ├── mode.json               # current mode + active profile
+<a id="__codelineno-15-22" name="__codelineno-15-22" href="#__codelineno-15-22"></a>│   └── schedules.json          # seeded recurring tasks
+<a id="__codelineno-15-23" name="__codelineno-15-23" href="#__codelineno-15-23"></a>├── context/                    # the project log lives here
+<a id="__codelineno-15-24" name="__codelineno-15-24" href="#__codelineno-15-24"></a>│   ├── CORTEX.md, projects/, decisions/, scans/, ideas/, retrospectives/, user/
+<a id="__codelineno-15-25" name="__codelineno-15-25" href="#__codelineno-15-25"></a>├── plugins/                    # 8 role-scoped skill plugins (full copy of defaults)
+<a id="__codelineno-15-26" name="__codelineno-15-26" href="#__codelineno-15-26"></a>├── prompts/                    # directives, system prompts, templates
+<a id="__codelineno-15-27" name="__codelineno-15-27" href="#__codelineno-15-27"></a>├── rules/                      # rule files auto-loaded by agents
+<a id="__codelineno-15-28" name="__codelineno-15-28" href="#__codelineno-15-28"></a>├── hooks/                      # hook scripts (.mjs)
+<a id="__codelineno-15-29" name="__codelineno-15-29" href="#__codelineno-15-29"></a>├── .claude/                    # Claude Code hooks + settings
+<a id="__codelineno-15-30" name="__codelineno-15-30" href="#__codelineno-15-30"></a>└── logs/                       # daemon + LLM logs
+</code></pre></div>
+<p>You should <strong>not</strong> need to edit any of these by hand for normal use.
+<code>cortex init --force</code> regenerates the auto-generated ones
+(<code>mcp-config*.json</code>, <code>machines.json</code>, <code>mode.json</code>) while preserving
+your <code>.env</code>, profiles, and content files.</p>
+<p><code>~/.aistatus/</code> separately holds:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>~/.aistatus/
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>├── gateway.yaml                # gateway routing config (auto-generated)
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>└── config.yaml                 # aistatus uploader settings (your name/org/email)
+</code></pre></div>
+<h2 id="step-3-start-the-server">Step 3 — Start the server<a class="headerlink" href="#step-3-start-the-server" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>cortex<span class="w"> </span>daemon<span class="w">         </span><span class="c1"># supervised, restarts on crash + hot-reload</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="c1"># or</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>cortex<span class="w"> </span>start<span class="w">          </span><span class="c1"># foreground, Ctrl-C to stop</span>
+</code></pre></div>
+<p>If you chose to register a system service in Step 2.9, the daemon is
+already running and you can skip this. Check with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>cortex<span class="w"> </span>config<span class="w">         </span><span class="c1"># prints resolved paths + init status</span>
+</code></pre></div>
+<p>You should see output confirming the daemon is running, including the
+Slack connection status and active profiles.</p>
+<h2 id="step-4-send-your-first-messages">Step 4 — Send your first messages<a class="headerlink" href="#step-4-send-your-first-messages" title="Permanent link">&para;</a></h2>
+<p>Now the fun part. Open Slack or Feishu, find the Cortex bot you just
+installed, and start a direct message with it.</p>
+<h3 id="41-say-hello">4.1 Say hello<a class="headerlink" href="#41-say-hello" title="Permanent link">&para;</a></h3>
+<p>Send a DM to the bot:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>hello
+</code></pre></div>
+<p>The first DM is what Cortex uses to auto-detect your admin channel
+(unless you set <code>adminChannel</code> explicitly in <code>config/settings.json</code>). You
+should get a reply within a few seconds.</p>
+<h3 id="42-create-your-first-project">4.2 Create your first project<a class="headerlink" href="#42-create-your-first-project" title="Permanent link">&para;</a></h3>
+<p>Give Cortex a mission. Cortex will create the project, set up the
+directory structure, and confirm back to you:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>create a project called &quot;hello-world&quot; — I want to build a
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>simple web dashboard that shows the weather in my city
+</code></pre></div>
+<p>Cortex replies with the project structure it created, the initial
+tasks it decomposed, and asks if you want it to start working on them.</p>
+<h3 id="43-create-a-task-in-an-existing-project">4.3 Create a task in an existing project<a class="headerlink" href="#43-create-a-task-in-an-existing-project" title="Permanent link">&para;</a></h3>
+<p>Once you have a project, you can add tasks to it directly from Slack:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>in project hello-world, add a task: add a 5-day forecast
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>chart using Chart.js
+</code></pre></div>
+<p>Cortex adds the task to the project's <code>TASKS.yaml</code>, assigns it a hex
+ID, sets priority and dependencies, and confirms back.</p>
+<h3 id="44-check-project-status">4.4 Check project status<a class="headerlink" href="#44-check-project-status" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>status of hello-world
+</code></pre></div>
+<p>Cortex reads the project's <code>STATUS.md</code>, <code>TASKS.yaml</code>, and recent
+experiment records, then gives you a summary of where things stand.</p>
+<p>Once a project has tasks in its queue, Cortex automatically picks up
+and dispatches the highest-priority ready task — you don't need to
+tell it to "start working." Just keep adding tasks and Cortex will work
+through them autonomously.</p>
+<h2 id="what-to-read-next">What to read next<a class="headerlink" href="#what-to-read-next" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The Slack app setup failed, or you want to do it before running
+  <code>cortex init</code> — read <a href="../slack-setup/">slack-setup.md</a>.</li>
+<li>You want to know every config file and env var Cortex understands,
+  or override one of the auto-generated paths — read
+  <a href="../configuration/">configuration.md</a>.</li>
+<li>You want to know every CLI subcommand and flag — read
+  <a href="../cli-reference/">cli-reference.md</a>.</li>
+<li>You want to switch backends or add another provider — read
+  <a href="../backends/">backends.md</a>.</li>
+<li>You want to understand how the multi-agent thread pipelines work —
+  read <a href="../threads/">threads.md</a>.</li>
+<li>You want to connect remote machines to Cortex — read
+  <a href="../cross-machine/">cross-machine.md</a>.</li>
+<li>You want to understand the project log structure (experiments,
+  knowledge, patterns) — read <a href="../memory/">memory.md</a>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

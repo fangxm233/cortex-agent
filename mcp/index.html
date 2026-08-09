@@ -1,0 +1,1931 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/mcp/">
+      
+      
+        <link rel="prev" href="../hooks/">
+      
+      
+        <link rel="next" href="../cross-machine/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/mcp/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>MCP - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#mcp-model-context-protocol" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              MCP
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/mcp/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-mcp-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What MCP is
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-cortex-ships-its-own-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Cortex ships its own MCP servers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-bundled-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The bundled MCP servers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The bundled MCP servers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cortex-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-core
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-tasks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-manager-qa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-manager-qa
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-thread
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-ext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-ext
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-slack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-slack
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-feishu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-feishu
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-tui-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-tui-bridge
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mcp-configuration-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCP configuration files
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCP configuration files">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-the-right-config-gets-selected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the right config gets selected
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-mcp-tools-communicate-with-agent-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How MCP tools communicate with agent-server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-provided-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin-provided MCP servers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-custom-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global custom MCP servers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#permission-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Permission model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables-passed-to-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variables passed to MCP servers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security considerations
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-mcp-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What MCP is
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-cortex-ships-its-own-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Cortex ships its own MCP servers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-bundled-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The bundled MCP servers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The bundled MCP servers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cortex-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-core
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-tasks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-manager-qa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-manager-qa
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-thread
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-ext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-ext
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-slack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-slack
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-feishu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-feishu
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-tui-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-tui-bridge
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mcp-configuration-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCP configuration files
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCP configuration files">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-the-right-config-gets-selected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the right config gets selected
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-mcp-tools-communicate-with-agent-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How MCP tools communicate with agent-server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-provided-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin-provided MCP servers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-custom-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global custom MCP servers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#permission-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Permission model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables-passed-to-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variables passed to MCP servers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security considerations
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="mcp-model-context-protocol">MCP — Model Context Protocol<a class="headerlink" href="#mcp-model-context-protocol" title="Permanent link">&para;</a></h1>
+<p>Cortex ships privilege-scoped and platform-scoped MCP (Model Context Protocol)
+servers that give agents access to remote machines, task monitoring, thread
+control, scheduling, costs, and platform integrations. This document explains
+what each server provides, how they are composed, and how to add third-party
+MCP servers.</p>
+<h2 id="what-mcp-is">What MCP is<a class="headerlink" href="#what-mcp-is" title="Permanent link">&para;</a></h2>
+<p>MCP is an open protocol that lets LLM applications expose tools to agents
+through a standardized JSON-RPC interface over stdio or HTTP. Cortex uses MCP
+to bridge between the agent process (which has no direct access to
+agent-server internals) and the server's capabilities. MCP support varies by
+backend — see the feature matrix in <a href="../backends/">backends.md</a>.</p>
+<p>Claude Code reads MCP server configurations from a JSON file and spawns each
+server as a child process. The agent can then call MCP tools just like
+built-in tools (Bash, Read, Edit, etc.), with the tool names prefixed by
+<code>mcp__&lt;server-name&gt;__</code>.</p>
+<h2 id="why-cortex-ships-its-own-mcp-servers">Why Cortex ships its own MCP servers<a class="headerlink" href="#why-cortex-ships-its-own-mcp-servers" title="Permanent link">&para;</a></h2>
+<p>Cortex's agent-server maintains state that the agent process cannot access
+directly: WebSocket connections to remote machines, the schedule database,
+cost records, the Slack API client, and execution registry. MCP servers serve
+as a controlled bridge — the agent calls an MCP tool, the MCP server talks to
+agent-server internals (via HTTP to the local webhook server on port 3001, or
+by reading shared files), and the result flows back to the agent.</p>
+<h2 id="the-bundled-mcp-servers">The bundled MCP servers<a class="headerlink" href="#the-bundled-mcp-servers" title="Permanent link">&para;</a></h2>
+<h3 id="cortex-core">cortex-core<a class="headerlink" href="#cortex-core" title="Permanent link">&para;</a></h3>
+<p>Exposes remote-machine operations and the read-only clock. It is loaded in all
+sessions. Keeping the <code>cortex-core</code> server name preserves the canonical
+<code>mcp__cortex-core__remote_*</code> names used by existing clients and skills.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Parameters</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>remote_bash</code></td>
+<td><code>device</code>, <code>command</code>, <code>timeout?</code>, <code>description?</code>, <code>run_in_background?</code></td>
+<td>Execute a shell command on a remote device via cortex-client</td>
+</tr>
+<tr>
+<td><code>remote_read</code></td>
+<td><code>device</code>, <code>file_path</code>, <code>offset?</code>, <code>limit?</code></td>
+<td>Read a file from a remote device (supports images and PDFs)</td>
+</tr>
+<tr>
+<td><code>remote_write</code></td>
+<td><code>device</code>, <code>file_path</code>, <code>content</code></td>
+<td>Write content to a file on a remote device</td>
+</tr>
+<tr>
+<td><code>remote_edit</code></td>
+<td><code>device</code>, <code>file_path</code>, <code>old_string</code>, <code>new_string</code>, <code>replace_all?</code></td>
+<td>Edit a file on a remote device by string replacement</td>
+</tr>
+<tr>
+<td><code>remote_glob</code></td>
+<td><code>device</code>, <code>pattern</code>, <code>path?</code></td>
+<td>Find files matching a glob pattern on a remote device</td>
+</tr>
+<tr>
+<td><code>remote_grep</code></td>
+<td><code>device</code>, <code>pattern</code>, <code>path?</code>, <code>glob?</code>, <code>type?</code>, <code>output_mode?</code>, <code>-A?</code>, <code>-B?</code>, <code>-C?</code>, <code>-i?</code>, <code>-n?</code>, <code>head_limit?</code>, <code>offset?</code>, <code>multiline?</code></td>
+<td>Search file contents on a remote device using ripgrep</td>
+</tr>
+<tr>
+<td><code>current_time</code></td>
+<td><code>timezone?</code></td>
+<td>Get the current date/time; optional IANA timezone (defaults to server local). Returns Unix epoch, UTC ISO, and localized wall-clock with offset</td>
+</tr>
+</tbody>
+</table>
+<p>The server implementation is at <code>agent-server/src/domain/mcp/core-server.ts</code>.</p>
+<h3 id="cortex-tasks">cortex-tasks<a class="headerlink" href="#cortex-tasks" title="Permanent link">&para;</a></h3>
+<p>Exposes read-only task monitoring and is loaded in maintained Claude and PI
+top-level direct and thread sessions. PI <code>Agent</code> subagents receive only
+cortex-core.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Parameters</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>task_status</code></td>
+<td><code>task_id</code>, <code>project?</code></td>
+<td>Read a task's lifecycle state (status, actionable, claimed_by, blocked_by, deps, parent)</td>
+</tr>
+<tr>
+<td><code>task_result</code></td>
+<td><code>task_id</code>, <code>project?</code></td>
+<td>Read a task's outcome (done/blocked, done_when, completion note, block reason)</td>
+</tr>
+<tr>
+<td><code>task_list</code></td>
+<td><code>project?</code>, <code>status?</code>, <code>parent?</code>, <code>limit?</code></td>
+<td>List tasks (optionally by status or parent)</td>
+</tr>
+</tbody>
+</table>
+<p>The server implementation is at <code>agent-server/src/domain/mcp/tasks-server.ts</code>.</p>
+<h3 id="cortex-manager-qa">cortex-manager-qa<a class="headerlink" href="#cortex-manager-qa" title="Permanent link">&para;</a></h3>
+<p>Exposes the manager-to-subtask answer channel to top-level direct and thread
+sessions. The canonical Claude tool name is
+<code>mcp__cortex-manager-qa__answer_subtask</code>. PI <code>Agent</code> subagents do not load this
+server because they do not own task-tree questions.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Parameters</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>answer_subtask</code></td>
+<td><code>question_id</code>, <code>answer</code></td>
+<td>Answer a clarification question from a child task</td>
+</tr>
+</tbody>
+</table>
+<p>The server implementation is at
+<code>agent-server/src/domain/mcp/manager-qa-server.ts</code>.</p>
+<h3 id="cortex-thread">cortex-thread<a class="headerlink" href="#cortex-thread" title="Permanent link">&para;</a></h3>
+<p>Exposes thread lifecycle control and upward clarification. For Claude and PI,
+it is loaded only when <code>CORTEX_THREAD_ID</code> identifies an active thread; direct
+sessions never receive these tools.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Parameters</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>thread_abort</code></td>
+<td><code>kind</code>, <code>diagnosis</code></td>
+<td>Escalate YOUR OWN thread when the task is too-big / mis-scoped / blocked-external (terminal <code>aborted</code>)</td>
+</tr>
+<tr>
+<td><code>thread_split</code></td>
+<td><code>subtasks</code></td>
+<td>Decompose YOUR OWN task into children (keep-parent join) that flow through the dispatch queue</td>
+</tr>
+<tr>
+<td><code>thread_wait</code></td>
+<td><code>on_tasks?</code>, <code>on_threads?</code></td>
+<td>Suspend YOUR OWN thread until awaited children finish; pair with <code>cortex-task spawn</code></td>
+</tr>
+<tr>
+<td><code>ask_manager</code></td>
+<td><code>question</code></td>
+<td>Ask the planning manager a blocking clarification question</td>
+</tr>
+</tbody>
+</table>
+<p>The server implementation is at <code>agent-server/src/domain/mcp/thread-server.ts</code>.
+Tool registrars remain in <code>agent-server/src/domain/mcp/tools/</code>.</p>
+<h3 id="cortex-ext">cortex-ext<a class="headerlink" href="#cortex-ext" title="Permanent link">&para;</a></h3>
+<p>Exposes Cortex management tools: scheduling, cost queries, and context
+resolution. Claude loads it only for direct/user sessions; the PI bridge
+loads cortex-ext in all top-level sessions.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Parameters</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cortex_schedule_add</code></td>
+<td><code>type</code>, <code>message</code>, <code>interval?</code>, <code>time?</code>, <code>dayOfWeek?</code>, <code>delay?</code>, <code>target?</code>, <code>fallback?</code>, <code>profile?</code>, <code>preCheck?</code>, <code>channel?</code></td>
+<td>Create a scheduled task (interval, daily, weekly, or once)</td>
+</tr>
+<tr>
+<td><code>cortex_schedule_list</code></td>
+<td><code>limit?</code></td>
+<td>List all scheduled tasks with their status</td>
+</tr>
+<tr>
+<td><code>cortex_schedule_get</code></td>
+<td><code>id</code></td>
+<td>Look up a scheduled task by its 8-char hex ID</td>
+</tr>
+<tr>
+<td><code>cortex_schedule_remove</code></td>
+<td><code>id</code></td>
+<td>Delete a scheduled task (idempotent)</td>
+</tr>
+<tr>
+<td><code>cortex_schedule_pause</code></td>
+<td><code>id</code></td>
+<td>Pause a recurring scheduled task</td>
+</tr>
+<tr>
+<td><code>cortex_schedule_resume</code></td>
+<td><code>id</code></td>
+<td>Resume a paused scheduled task</td>
+</tr>
+<tr>
+<td><code>cost_query</code></td>
+<td><em>(none)</em></td>
+<td>Query current cost: today/month spending, budget limits, remaining budget, API/plan split, source breakdown, token usage</td>
+</tr>
+<tr>
+<td><code>query_executions</code></td>
+<td><code>execution_id?</code>, <code>task_id?</code>, <code>status?</code>, <code>project?</code>, <code>limit?</code></td>
+<td>Query execution records — filter by status, project, or look up by ID</td>
+</tr>
+<tr>
+<td><code>cortex_context</code></td>
+<td><em>(none)</em></td>
+<td>Return the current execution context: channel, sessionId, sessionName, threadId, profile, project, backend</td>
+</tr>
+</tbody>
+</table>
+<p>The server implementation is at <code>agent-server/src/domain/mcp/server.ts</code>.
+Individual tools are in <code>agent-server/src/domain/mcp/tools/</code>.</p>
+<h3 id="cortex-slack">cortex-slack<a class="headerlink" href="#cortex-slack" title="Permanent link">&para;</a></h3>
+<p>Platform-specific MCP server for Slack. Loaded only when the session originates
+from Slack, providing platform-specific file upload and messaging capabilities.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Parameters</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>slack_send_file</code></td>
+<td><code>file_path</code>, <code>file_name?</code>, <code>title?</code>, <code>comment?</code></td>
+<td>Upload a local file to Slack</td>
+</tr>
+</tbody>
+</table>
+<p>The server implementation is at <code>agent-server/src/domain/mcp/slack-server.ts</code>.</p>
+<h3 id="cortex-feishu">cortex-feishu<a class="headerlink" href="#cortex-feishu" title="Permanent link">&para;</a></h3>
+<p>Platform-specific MCP server for Feishu/Lark. Loaded only when the session
+originates from Feishu. It exposes a single tool — sending files to a chat.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Parameters</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>feishu_send_file</code></td>
+<td><code>file_path</code>, <code>file_name?</code>, <code>title?</code>, <code>channel?</code></td>
+<td>Upload a local file to a Feishu chat</td>
+</tr>
+</tbody>
+</table>
+<p>Document, table, spreadsheet, and knowledge-base operations are <strong>not</strong> MCP
+tools. They run through the official Lark/Feishu CLI (<code>@larksuite/cli</code>), driven
+by the <code>feishu-doc</code> skill. The CLI handles native tables and block-level edits
+reliably (the previous <code>feishu_docx_*</code> MCP tools degraded tables into text
+blocks and were removed). See the <code>feishu-doc</code> skill for the install/auth
+preflight and how to delegate to the CLI's embedded <code>lark-doc</code> / <code>lark-sheets</code>
+/ <code>lark-base</code> skill guides.</p>
+<p>The server implementation is at <code>agent-server/src/domain/mcp/feishu-server.ts</code>.
+The tool is in <code>agent-server/src/domain/mcp/feishu/file.ts</code>.</p>
+<h3 id="cortex-tui-bridge">cortex-tui-bridge<a class="headerlink" href="#cortex-tui-bridge" title="Permanent link">&para;</a></h3>
+<p>Loaded for interactive TUI sessions and user-initiated Claude print sessions.
+It replaces Claude Code's native <code>EnterPlanMode</code>, <code>ExitPlanMode</code>, and
+<code>AskUserQuestion</code> tools with MCP equivalents routed through Cortex.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cortex_plan_enter</code></td>
+<td>Emits a reminder that the agent is in plan mode</td>
+</tr>
+<tr>
+<td><code>cortex_plan_exit</code></td>
+<td>Reads the plan file, sends to Slack for human approval, blocks until resolved</td>
+</tr>
+<tr>
+<td><code>cortex_ask_user</code></td>
+<td>Asks 1–4 questions via Slack modal, blocks until answered</td>
+</tr>
+</tbody>
+</table>
+<p>The server implementation is at <code>agent-server/src/domain/mcp/tui-server.ts</code>.
+Tools are in <code>agent-server/src/domain/mcp/tools/tui-plan.js</code> and <code>tui-ask.js</code>.</p>
+<h2 id="mcp-configuration-files">MCP configuration files<a class="headerlink" href="#mcp-configuration-files" title="Permanent link">&para;</a></h2>
+<p>Cortex auto-generates MCP config files at startup (via
+<code>agent-server/src/core/config-generator.ts</code> and the <code>ensureMcpConfig()</code> call
+in <code>agent-server/src/entry/startup-helpers.ts</code>). Platform-specific servers
+(cortex-slack, cortex-feishu) are dynamically loaded based on the session's
+origin platform.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Loaded by</th>
+<th>Servers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>~/.cortex/config/mcp-config.json</code></td>
+<td>Direct-session base</td>
+<td>core + tasks + manager-Q&amp;A + ext</td>
+</tr>
+<tr>
+<td><code>~/.cortex/config/mcp-config-core.json</code></td>
+<td>Thread-session layer</td>
+<td>cortex-core only</td>
+</tr>
+<tr>
+<td><code>~/.cortex/config/mcp-config-tasks.json</code></td>
+<td>Thread-session layer</td>
+<td>cortex-tasks only</td>
+</tr>
+<tr>
+<td><code>~/.cortex/config/mcp-config-manager-qa.json</code></td>
+<td>Thread-session answer layer</td>
+<td>cortex-manager-qa only</td>
+</tr>
+<tr>
+<td><code>~/.cortex/config/mcp-config-thread.json</code></td>
+<td>Thread-session-only layer</td>
+<td>cortex-thread only</td>
+</tr>
+<tr>
+<td><code>~/.cortex/config/mcp-config-tui.json</code></td>
+<td>Interaction layering (on-demand)</td>
+<td>cortex-tui-bridge only</td>
+</tr>
+<tr>
+<td><code>~/.cortex/config/mcp-config-slack.json</code></td>
+<td>Slack-specific layering (on-demand)</td>
+<td>cortex-slack</td>
+</tr>
+</tbody>
+</table>
+<p>Each file follows Claude Code's standard MCP config format:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">&quot;cortex-core&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;/path/to/core-server.js&quot;</span><span class="p">],</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="nt">&quot;cwd&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/cwd&quot;</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nt">&quot;cortex-tasks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;/path/to/tasks-server.js&quot;</span><span class="p">],</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">      </span><span class="nt">&quot;cwd&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/cwd&quot;</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span><span class="nt">&quot;cortex-manager-qa&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;/path/to/manager-qa-server.js&quot;</span><span class="p">],</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">      </span><span class="nt">&quot;cwd&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/cwd&quot;</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">    </span><span class="nt">&quot;cortex-ext&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;/path/to/server.js&quot;</span><span class="p">],</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">      </span><span class="nt">&quot;cwd&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/cwd&quot;</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="p">}</span>
+</code></pre></div>
+<p>The config files are regenerated on every agent-server startup. Manual edits
+to them will be overwritten. To customize MCP configuration, modify the
+generator in <code>core/config-generator.ts</code> or the profile/budget/schedule settings
+that the tools read.</p>
+<h3 id="how-the-right-config-gets-selected">How the right config gets selected<a class="headerlink" href="#how-the-right-config-gets-selected" title="Permanent link">&para;</a></h3>
+<p>In <code>agent-adapter/claude/spawn-args.ts</code>, MCP configs are composed from session
+context:</p>
+<ul>
+<li><strong>Direct/user sessions</strong> load <code>mcp-config.json</code> (core + tasks + manager-Q&amp;A + ext), then add eligible platform and interaction layers. They never load <code>mcp-config-thread.json</code>.</li>
+<li><strong>Thread/template sessions</strong> load <code>mcp-config-core.json</code>, <code>mcp-config-tasks.json</code>, <code>mcp-config-manager-qa.json</code>, and <code>mcp-config-thread.json</code>. They do not load direct-only ext, platform, or TUI-bridge layers.</li>
+</ul>
+<p>The thread branch is marked by <code>session.cortexContext.useCoreMcp</code>. In the PI
+bridge, top-level sessions always connect core, tasks, manager-Q&amp;A, and ext;
+<code>shouldLoadThreadControl()</code> adds cortex-thread only when <code>CORTEX_THREAD_ID</code> is
+present. PI <code>Agent</code> subagents connect only cortex-core. Platform-specific
+servers remain gated by their source-channel predicates.</p>
+<h2 id="how-mcp-tools-communicate-with-agent-server">How MCP tools communicate with agent-server<a class="headerlink" href="#how-mcp-tools-communicate-with-agent-server" title="Permanent link">&para;</a></h2>
+<p>MCP servers run as separate child processes. They cannot directly access
+agent-server in-process state (WebSocket connections, the schedule repo, the
+execution registry). Instead, they communicate through two paths:</p>
+<ol>
+<li>
+<p><strong>HTTP loopback</strong> — remote machine tools (<code>remote_bash</code>, <code>remote_read</code>,
+   etc.) send HTTP POST to <code>http://127.0.0.1:3001/webhook/remote-command</code>.
+   The webhook handler in <code>agent-server/src/orchestration/routing/webhook.ts</code>
+   forwards the request to <code>client-manager.sendCommand()</code>, which sends it over
+   WebSocket to the remote device.</p>
+</li>
+<li>
+<p><strong>Shared file access</strong> — schedule, cost, and execution tools read and write
+   the shared data files in <code>~/.cortex/data/</code> (schedules.json, costs.jsonl,
+   executions.json) directly, using the same repository layer as the main
+   server process.</p>
+</li>
+</ol>
+<h2 id="plugin-provided-mcp-servers">Plugin-provided MCP servers<a class="headerlink" href="#plugin-provided-mcp-servers" title="Permanent link">&para;</a></h2>
+<p>Target-scoped third-party MCP belongs in a portable Agent Plugins package under <code>$CORTEX_HOME/plugins/&lt;plugin-id&gt;/</code>. The package declares servers in root <code>mcp.json</code>, and <strong>Settings → Plugins</strong> assigns the package to an agent or template slot. The schema supports <code>stdio</code>, <code>streamable-http</code>, and legacy <code>sse</code>; <a href="../skills-and-plugins/#portable-mcp-servers">Skills and Plugins</a> documents the complete package and trust model.</p>
+<p>A legacy plugin directory is still passed through to its backend. Claude can load a Claude-native root <code>.mcp.json</code> from such a directory, but Cortex does not inventory, summarize, or acknowledgment-gate those native servers, and PI does not receive them. The guarantees in this section apply to portable root <code>mcp.json</code> only (<code>agent-server/src/domain/plugins/runtime.ts:546-562</code>; <code>agent-server/src/agent-adapter/claude/spawn-args.ts:224-238</code>).</p>
+<p>Cortex validates and normalizes the package once at spawn time. Claude receives a private supplemental configuration layered after the normal Cortex files. Stdio entries remain separate processes; each remote entry becomes a local stdio proxy whose private configuration holds its URL and headers. PI receives a private content-addressed configuration consumed by its MCP bridge. Both remote paths use the same manual-redirect fetch and reject every redirect before a configured header or request body can be replayed. Connection and tool registration are isolated by process. Materialization follows declared dependencies: unavailable plugin-scoped <code>PLUGIN_DATA</code> omits its stdio dependents while preserving remote MCP, skills, and bundled tools (<code>agent-server/src/agent-adapter/claude/mcp-config.ts:105-164</code>; <code>agent-server/src/agent-adapter/claude/remote-mcp-proxy.ts:48-82</code>; <code>agent-server/src/agent-adapter/pi/mcp-bridge.ts:279-476</code>).</p>
+<p>Portable MCP is omitted when the resolved MCP composition is <code>none</code> or <code>benchmark-thread-run</code>, and it is not exposed to restricted PI <code>Agent</code> subagents. Normal top-level Claude and PI sessions receive it only through an assigned plugin (<code>agent-server/src/domain/plugins/runtime.ts:120-122,673-688</code>; <code>agent-server/src/agent-adapter/pi/adapter.ts:901-918</code>; <code>agent-server/src/agent-adapter/pi/mcp-bridge.ts:220-244</code>).</p>
+<p>The plugin catalog and Settings API expose sanitized summaries. Stdio summaries contain the executable basename, argument count, and environment key names; remote summaries contain the origin and header names. Environment values, full remote URLs, and header values remain server-side (<code>agent-server/src/domain/plugins/mcp.ts:102-216</code>; <code>agent-server/src/domain/ui-service/plugins-shared.ts:98-134</code>). Installed stdio commands and their working directories remain administrator-trusted package inputs; the private config and per-server isolation are not a code sandbox.</p>
+<h2 id="global-custom-mcp-servers">Global custom MCP servers<a class="headerlink" href="#global-custom-mcp-servers" title="Permanent link">&para;</a></h2>
+<p>The files under <code>$CORTEX_HOME/config/mcp-config*.json</code> describe Cortex's global and session-composed MCP layers. They are regenerated at server startup, so direct edits are temporary. A persistent global server requires an explicit builder and privilege-composition change in <code>agent-server/src/core/config-generator.ts</code>; it does not belong in an assignment-scoped plugin.</p>
+<p>This distinction keeps global Cortex privileges separate from administrator-installed plugin capabilities. Use a portable plugin when the server should follow agent or template assignment, and change the global builders only when every eligible session composition should receive the server.</p>
+<h2 id="permission-model">Permission model<a class="headerlink" href="#permission-model" title="Permanent link">&para;</a></h2>
+<p>MCP tools cross the trust boundary from the agent process into agent-server
+internals and remote machines. Installed plugins are administrator-trusted code. For portable root <code>mcp.json</code>,
+the assignment confirmation makes the capability addition explicit, but it is
+not a sandbox or a separate authorization boundary. Legacy Claude-native MCP
+configuration remains outside that confirmation. Cortex applies the following
+controls:</p>
+<ol>
+<li>
+<p><strong>Server-level availability</strong> — MCP privileges are separated by server
+   because backend tool allowlists do not filter individual MCP tools. Both
+   top-level direct and thread sessions receive cortex-manager-qa. Only thread
+   sessions receive cortex-thread. PI <code>Agent</code> subagents receive cortex-core
+   alone, while top-level PI sessions retain cortex-ext.</p>
+</li>
+<li>
+<p><strong>Claude account-level MCP discovery is disabled</strong> — the setting
+   <code>ENABLE_CLAUDEAI_MCP_SERVERS: "false"</code> in <code>~/.cortex/.claude/settings.json</code>
+   prevents account-level auto-discovery. It does not disable Claude-native
+   <code>.mcp.json</code> inside an explicitly assigned legacy plugin directory. Cortex
+   manages bundled and portable MCP through its config layers while preserving
+   that legacy backend behavior.</p>
+</li>
+<li>
+<p><strong>Bypass permissions</strong> — Claude Code is spawned with
+   <code>--dangerously-skip-permissions --permission-mode bypassPermissions</code>,
+   meaning it won't prompt for each MCP tool call. Access control happens at
+   the MCP tool implementation level and through the PreToolUse hook system.</p>
+</li>
+<li>
+<p><strong>PreToolUse guards</strong> — the <code>tasks-yaml-guard.mjs</code> hook intercepts
+   Edit/Write operations on <code>TASKS.yaml</code> files (including remote edits) and
+   checks project locks.</p>
+</li>
+<li>
+<p><strong>Network boundary</strong> — MCP tools that talk to remote machines go through
+   the client-manager's WebSocket layer. The <code>machines.json</code> registry
+   controls which devices are known. Only devices with an active WebSocket
+   connection can receive commands.</p>
+</li>
+</ol>
+<h2 id="environment-variables-passed-to-mcp-servers">Environment variables passed to MCP servers<a class="headerlink" href="#environment-variables-passed-to-mcp-servers" title="Permanent link">&para;</a></h2>
+<p>The MCP server processes receive a subset of the agent server's environment:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Source</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SLACK_CHANNEL</code></td>
+<td>Channel parameter at spawn time</td>
+<td>cortex-ext (slack_send_file), tui-server</td>
+</tr>
+<tr>
+<td><code>SLACK_BOT_TOKEN</code></td>
+<td>process.env</td>
+<td>cortex-ext</td>
+</tr>
+<tr>
+<td><code>CORTEX_SESSION_ID</code></td>
+<td>Session context</td>
+<td>tui-server, context tools</td>
+</tr>
+<tr>
+<td><code>CORTEX_SESSION_NAME</code></td>
+<td>Session context</td>
+<td>context tools</td>
+</tr>
+<tr>
+<td><code>CORTEX_THREAD_ID</code></td>
+<td>Thread context</td>
+<td>cortex-thread tools, PI thread-control predicate, context tools</td>
+</tr>
+<tr>
+<td><code>CORTEX_PROFILE</code></td>
+<td>Session context</td>
+<td>context tools</td>
+</tr>
+<tr>
+<td><code>CORTEX_PROJECT</code></td>
+<td>Session context</td>
+<td>context tools</td>
+</tr>
+<tr>
+<td><code>CORTEX_EXECUTION_ID</code></td>
+<td>Execution context</td>
+<td>task lock hooks</td>
+</tr>
+<tr>
+<td><code>CORTEX_TUI_MODE</code></td>
+<td>Set to <code>'1'</code> in TUI mode</td>
+<td>tui-server</td>
+</tr>
+<tr>
+<td><code>CORTEX_CALLBACK_SOURCE</code></td>
+<td>Optional callback metadata</td>
+<td>cortex-ext</td>
+</tr>
+<tr>
+<td><code>CORTEX_SCHEDULE_TASK_ID</code></td>
+<td>Optional schedule task ID</td>
+<td>cortex-ext</td>
+</tr>
+<tr>
+<td><code>ANTHROPIC_BASE_URL</code></td>
+<td>Optional API base URL override</td>
+<td>Model routing</td>
+</tr>
+<tr>
+<td><code>PLUGIN_ROOT</code></td>
+<td>Resolved selected plugin root</td>
+<td>Portable stdio plugin servers</td>
+</tr>
+<tr>
+<td><code>PLUGIN_DATA</code></td>
+<td>Private persistent per-plugin data directory</td>
+<td>Portable stdio plugin servers</td>
+</tr>
+</tbody>
+</table>
+<h2 id="security-considerations">Security considerations<a class="headerlink" href="#security-considerations" title="Permanent link">&para;</a></h2>
+<p>MCP tools give the agent the ability to execute shell commands on remote
+machines, read and write files, upload to Slack, and modify schedules. The
+security posture assumes:</p>
+<ul>
+<li>The <code>cortex-client</code> WebSocket port (3002) is not exposed to the public
+  internet. Use Tailscale, a VPN, or localhost-only binding (see
+  <a href="../cross-machine/">cross-machine.md</a> for network topology options).</li>
+<li>The webhook HTTP port (3001) is bound to <code>127.0.0.1</code> only — MCP servers
+  talk to it via loopback, not over the network.</li>
+<li>The agent operates within the same blast-radius safety boundaries documented
+  in <a href="../safety-and-approvals/">safety-and-approvals.md</a>. MCP tools cannot
+  bypass the need-approval gating for high-privilege operations.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,1737 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/cli-reference/">
+      
+      
+        <link rel="prev" href="../configuration/">
+      
+      
+        <link rel="next" href="../backends/">
+      
+      
+        
+          <link rel="alternate" href="../../cli-reference/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>CLI 参考 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cli-reference" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLI 参考
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../cli-reference/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cortex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-task
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-task">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#read-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        读取命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#approval-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        审批命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#blocking-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        阻塞命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acceptance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        验收命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mutation-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修改命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lock-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        锁命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#maintenance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        维护命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        通用选项
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-lifecycle-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务生命周期状态
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-run
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#launch-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动模式
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        取消模式
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    线程
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    任务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cortex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-task
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-task">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#read-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        读取命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#approval-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        审批命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#blocking-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        阻塞命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acceptance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        验收命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mutation-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        修改命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lock-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        锁命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#maintenance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        维护命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        通用选项
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-lifecycle-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        任务生命周期状态
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-run
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#launch-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动模式
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        取消模式
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cli-reference">CLI 参考<a class="headerlink" href="#cli-reference" title="Permanent link">&para;</a></h1>
+<p>Cortex 提供三个可执行文件，在 <code>agent-server/package.json</code> 中注册：</p>
+<table>
+<thead>
+<tr>
+<th>可执行文件</th>
+<th>入口点</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cortex</code></td>
+<td><code>dist/entry/cli.js</code></td>
+<td>服务器管理和初始化</td>
+</tr>
+<tr>
+<td><code>cortex-task</code></td>
+<td><code>dist/domain/tasks/system/task-cli.js</code></td>
+<td>任务系统读取和修改</td>
+</tr>
+<tr>
+<td><code>cortex-run</code></td>
+<td><code>dist/domain/tasks/system/cortex-run.js</code></td>
+<td>远程命令分发</td>
+</tr>
+</tbody>
+</table>
+<p>三个都接受 <code>--help</code>（或 <code>-h</code>）打印用法。<code>cortex task</code> 子命令直接委托给 <code>cortex-task</code>。</p>
+<hr />
+<h2 id="cortex">cortex<a class="headerlink" href="#cortex" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cortex &lt;command&gt; [options]
+</code></pre></div>
+<p>服务器生命周期和初始化 CLI。</p>
+<h3 id="commands">命令<a class="headerlink" href="#commands" title="Permanent link">&para;</a></h3>
+<p><strong><code>cortex init [--home &lt;path&gt;] [--gateway-config-dir &lt;path&gt;] [--force]</code></strong></p>
+<p>交互式初始化向导。创建 <code>CORTEX_HOME</code> 目录结构，提示选择后端（Claude Code / PI）、交互平台（Slack）、网关使用和系统服务注册。生成带平台令牌的 <code>.env</code>，复制默认配置，并自动生成 <code>mcp-config.json</code> 和 <code>mode.json</code>。</p>
+<p>选项：
+- <code>--home &lt;path&gt;</code> — 设置 <code>CORTEX_HOME</code>（默认：<code>$CORTEX_HOME</code> 或 <code>~/.cortex/</code>）
+- <code>--gateway-config-dir &lt;path&gt;</code> — 网关配置输出目录（默认：<code>~/.aistatus/</code>）
+- <code>--force</code> — 覆盖已有配置（<code>.env</code>、<code>budget.json</code>、<code>mode.json</code> 等）</p>
+<p><strong><code>cortex start</code></strong></p>
+<p>Fork <code>dist/entry/app.js</code> 作为子进程，继承 stdio。这是在前台运行 Cortex 的主要方式。子进程运行 Slack 机器人、webhook 服务器和所有智能体编排。</p>
+<p><strong><code>cortex daemon</code></strong></p>
+<p>Fork <code>dist/entry/daemon.js</code> 作为子进程，继承 stdio。守护进程包装 <code>app.js</code>，带文件监视和崩溃时自动重启。触碰 <code>$STORE_DIR/.restart</code> 通知守护进程排放并重生 <code>app.js</code>。</p>
+<p><strong><code>cortex restart</code></strong></p>
+<p>通过触碰 <code>$STORE_DIR/.restart</code> 的 <code>.restart</code> 触发文件，通知运行中的守护进程排放并重生 <code>app.js</code>。如果没有守护进程在运行，此操作除了创建文件之外不执行任何操作。</p>
+<p><strong><code>cortex task &lt;subcommand&gt; [options]</code></strong></p>
+<p>委托给 <code>cortex-task</code>。所有子命令参见下方 <code>cortex-task</code> 部分。</p>
+<p><strong><code>cortex config</code></strong></p>
+<p>打印解析后的路径和初始化状态。显示 <code>INSTALL_ROOT</code>、所有数据目录，以及 <code>.env</code>、<code>mcp-config.json</code> 和 <code>mode.json</code> 是否存在。</p>
+<p><strong><code>cortex doctor [--fix] [--json]</code></strong></p>
+<p>以只读方式检查整个安装，包括运行时与进程、backend 安装与登录、消息平台和 gateway。
+Backend 检查还会对已安装 PI 运行时及其 <code>login</code> 导出做烟测，并从不含凭据的认证快照中汇总
+使用中但已过期或未登录的 provider。这两项失败只产生 warning，不会让 doctor 整体失败。
+API 模式下，如果 gateway 健康但本地没有 key，会显示 gateway 托管的说明信息，不会误报未登录。</p>
+<p>每项检查显示 <code>[OK]</code>、<code>[WARN]</code>、<code>[FAIL]</code> 或 <code>[--]</code>（跳过）。存在失败项时命令退出码为 1；
+只有 warning 或跳过项时退出码仍为 0。</p>
+<p>选项：
+- <code>--fix</code> — 只执行安全且幂等的修复：创建缺失的数据目录、生成缺失的 Cortex 认证 token、重建 <code>mcp-config.json</code>
+- <code>--json</code> — 以 JSON 输出完整报告</p>
+<p><strong><code>cortex auth status [--json]</code></strong></p>
+<p>读取归一化的 Claude Code 与 PI 认证快照。默认文本输出是简洁状态总览；<code>--json</code> 返回完整
+<code>AuthStatusSnapshot</code>，便于脚本处理。两种输出都不会包含凭据值或其片段。</p>
+<p>该子命令只读。远程登录从 Slack/飞书的 <code>!login</code> 或 Web UI 的 <strong>设置 → 账号</strong> 发起；
+移动端 drill-in 路径是 <code>/m/settings/accounts</code>。<code>cortex auth</code> 没有 OAuth 或 API-key 登录参数。</p>
+<p>选项：
+- <code>--json</code> — 以 JSON 输出完整且不含凭据的状态快照
+- <code>--help</code>、<code>-h</code> — 显示 auth 命令帮助</p>
+<p>登录命令、provider 能力判据和过期处理参见<a href="../backends/#remote-login">后端：远程登录</a>。</p>
+<p><strong><code>cortex auth provider &lt;list|add|remove&gt; [选项]</code></strong></p>
+<p>管理自定义 PI provider——自建或代理的推理端点，它们没有自己的登录流程。<code>add</code> 即 upsert：
+用改过的地址或模型列表重跑一次，就是原地编辑这条定义。</p>
+<p>选项：
+- <code>--name &lt;名称&gt;</code> — provider 名称，仅限字母、数字、<code>-</code> 和 <code>_</code>
+- <code>--api &lt;协议&gt;</code> — 请求协议：<code>anthropic-messages</code>、<code>openai-completions</code>、<code>openai-responses</code> 或 <code>google-generative-ai</code>
+- <code>--url &lt;地址&gt;</code> — 上游端点地址，保存在网关路由里
+- <code>--key &lt;密钥|-&gt;</code> — 上游 API key；填 <code>-</code> 表示从标准输入读取，这样密钥不会进入 shell 历史
+- <code>--model &lt;id&gt;</code> — 端点提供的模型 id，可重复
+- <code>--dry-run</code> — 用于 <code>remove</code>：只显示会删掉什么，不真的删
+- <code>--json</code> — 以 JSON 输出结果
+- <code>--help</code>、<code>-h</code> — 显示 provider 命令帮助</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># 定义一个使用 Anthropic 协议的本地端点</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>add<span class="w"> </span>--name<span class="w"> </span>my-vllm<span class="w"> </span>--api<span class="w"> </span>anthropic-messages<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--url<span class="w"> </span>http://127.0.0.1:8100<span class="w"> </span>--model<span class="w"> </span>Model-27B
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># 从密钥库取 key，不出现在命令行里</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>pass<span class="w"> </span>show<span class="w"> </span>my-endpoint<span class="w"> </span><span class="p">|</span><span class="w"> </span>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>add<span class="w"> </span>--name<span class="w"> </span>my-proxy<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--api<span class="w"> </span>openai-completions<span class="w"> </span>--url<span class="w"> </span>https://proxy.example.com/v1<span class="w"> </span>--model<span class="w"> </span>small<span class="w"> </span>--key<span class="w"> </span>-
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>list<span class="w"> </span>--json
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>remove<span class="w"> </span>--name<span class="w"> </span>my-vllm<span class="w"> </span>--dry-run
+</code></pre></div>
+<p>两份写入的内容以及一条定义如何抵达 agent，参见<a href="../backends/#自定义-provider">后端：自定义 provider</a>。</p>
+<p><strong><code>cortex setup-gateway [--dry-run] [--output-dir &lt;path&gt;]</code></strong></p>
+<p>从本地配置文件自动检测 Claude Code 和 PI 配置，生成 <code>~/.aistatus/gateway.yaml</code>（备份已有文件），并写入 <code>$CORTEX_HOME/config/profiles.json</code>。在添加新的 API 密钥或更改模型时运行此命令。</p>
+<p>选项：
+- <code>--dry-run</code> — 将生成的 gateway.yaml 打印到 stdout 而不写入
+- <code>--output-dir &lt;path&gt;</code> — 在 <code>&lt;path&gt;</code> 下写入 gateway.yaml 和 profiles.json 而不是默认位置</p>
+<h3 id="exit-codes">退出码<a class="headerlink" href="#exit-codes" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>代码</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>成功</td>
+</tr>
+<tr>
+<td>1</td>
+<td>错误（无效命令、缺少配置、运行时失败）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cortex-task">cortex-task<a class="headerlink" href="#cortex-task" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>cortex-task &lt;command&gt; [options]
+</code></pre></div>
+<p>跨项目读取和修改 TASKS.yaml 文件。完整的任务系统生命周期、格式参考和调度模型参见 <a href="../tasks/">tasks.md</a>。既可作为独立可执行文件使用，也可通过 <code>cortex task &lt;command&gt;</code> 使用。</p>
+<h3 id="read-commands">读取命令<a class="headerlink" href="#read-commands" title="Permanent link">&para;</a></h3>
+<p>这些命令不修改任何文件。它们都支持 <code>--json</code> 以输出机器可读格式。</p>
+<p><strong><code>list [--project &lt;name&gt;] [--status &lt;status&gt;] [--priority &lt;level&gt;] [--text &lt;filter&gt;] [--has-deps] [--no-deps] [--json]</code></strong></p>
+<p>显示可操作任务（默认）。按项目、状态、优先级、文本子串或依赖存在性过滤。使用 <code>--all</code> 包含已完成任务。</p>
+<p><strong><code>all [options]</code></strong></p>
+<p><code>list --all</code> 的别名。显示所有任务包括已完成的。</p>
+<p><strong><code>query [--project &lt;name&gt;] [--status &lt;status&gt;] [--priority &lt;level&gt;] [--has-deps] [--no-deps] [--json]</code></strong></p>
+<p>过滤所有任务（包括已完成的）。与 <code>list</code> 相同的过滤选项，但总是扫描完整的任务集。</p>
+<p><strong><code>show --task-id &lt;id&gt; [--json]</code></strong></p>
+<p>显示单个任务的详细信息：text、why、done-when、plan、status、依赖和依赖它的任务。</p>
+<p><strong><code>deps --task-id &lt;id&gt; [--json]</code></strong></p>
+<p>显示一个任务的依赖图：它依赖什么以及什么依赖它。</p>
+<p><strong><code>lint [--project &lt;name&gt;] [--json]</code></strong></p>
+<p>验证任务结构：缺失 ID、悬空依赖、循环和无效模板名称。</p>
+<p><strong><code>stats [--json]</code></strong></p>
+<p>打印每项目的任务供给统计：按状态和优先级的计数。</p>
+<h3 id="state-commands">状态命令<a class="headerlink" href="#state-commands" title="Permanent link">&para;</a></h3>
+<p>这些命令需要 <code>--project</code> 和 <code>--task-id</code> 或 <code>--task</code>。</p>
+<p><strong><code>claim --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;) [--agent &lt;name&gt;]</code></strong></p>
+<p>将任务标记为进行中（claimed）。<code>--agent</code> 标志记录认领的智能体（默认：<code>cortex-local</code>）。</p>
+<p><strong><code>unclaim --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>从任务中移除 claimed 状态，将其返回为 open。</p>
+<p><strong><code>pause --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>暂停一个任务（通常是进行中的）。暂停的任务不会被调度。</p>
+<p><strong><code>resume --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>恢复一个暂停的任务。</p>
+<p><strong><code>pending --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>将任务标记为 pending（等待 <code>cortex-run</code> 进程完成）。</p>
+<p><strong><code>reopen --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>将卡住的 <code>pending</code> 任务还原为 <code>open</code>，使调度器可以重新派发。用于挽救因 <code>cortex-run</code>
+回调丢失而停留在 <code>pending</code> 的任务。对已是 open 的任务幂等，对已完成的任务则拒绝（请改用
+<code>uncomplete</code>）。</p>
+<p><strong><code>complete --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;) [--note &lt;text&gt;] [--skip-verify] [--skip-verify-reason &lt;text&gt;]</code></strong></p>
+<p>将任务标记为完成。需要 <code>--note</code> 描述完成了什么。默认情况下，Cortex 验证 <code>done-when</code> 条件是否满足。使用 <code>--skip-verify</code> 和 <code>--skip-verify-reason</code> 绕过验证。</p>
+<p><strong><code>uncomplete --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>撤销已完成的任务，将其返回到之前的状态。</p>
+<h3 id="approval-commands">审批命令<a class="headerlink" href="#approval-commands" title="Permanent link">&para;</a></h3>
+<p><strong><code>request-approval --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>将任务标记为需要审批。</p>
+<p><strong><code>approve --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>审批一个等待审批的任务。</p>
+<p><strong><code>clear-approval --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>清除任务的审批状态。</p>
+<h3 id="blocking-commands">阻塞命令<a class="headerlink" href="#blocking-commands" title="Permanent link">&para;</a></h3>
+<p><strong><code>block --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;) --reason &lt;text&gt;</code></strong></p>
+<p>以某个原因阻塞任务。被阻塞的任务不会被调度。</p>
+<p><strong><code>unblock --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;)</code></strong></p>
+<p>解除一个之前被阻塞的任务。</p>
+<h3 id="acceptance-commands">验收命令<a class="headerlink" href="#acceptance-commands" title="Permanent link">&para;</a></h3>
+<p><strong><code>verdict --project &lt;name&gt; --task-id &lt;parent id&gt; --child &lt;child id&gt; --verdict accepted|rejected [--note &lt;text&gt;]</code></strong></p>
+<p>将 manager 对已交付子任务的验收结论记入父任务节点的验收台账（DR-0017）。必需：<code>--project</code>、<code>--task-id</code>（父/manager 任务）、<code>--child</code>（子任务 id）以及 <code>--verdict</code>，其值必须严格为 <code>accepted</code> 或 <code>rejected</code>（其他任何值都会报错）。<code>--note</code> 可选，用于记录原因。<code>accepted</code> 的子任务结果<strong>不会再次投递</strong>给未来的 manager 化身；<code>rejected</code> 结论会递增该子任务的 <code>rework_round</code>，并在其返工后再次完成时<strong>重新打开</strong>以进行下一次验收。该命令写入的是每个节点的台账，<strong>不需要项目锁</strong>。验收台账的数据模型见 <a href="../tasks/">tasks.md</a>。</p>
+<h3 id="mutation-commands">修改命令<a class="headerlink" href="#mutation-commands" title="Permanent link">&para;</a></h3>
+<p>这些命令需要项目锁（<code>cortex-task lock-acquire</code>）才能运行，以防止对同一 TASKS.yaml 的并发编辑。</p>
+<p><strong><code>add --project &lt;name&gt; --text &lt;text&gt; [--why &lt;text&gt;] [--done-when &lt;text&gt;] [--plan &lt;path&gt;] [--priority &lt;level&gt;] [--template &lt;name&gt;] [--depends-on &lt;id...&gt;]</code></strong></p>
+<p>添加新任务。必需：<code>--text</code>。可选：<code>--why</code>（理由）、<code>--done-when</code>（成功标准）、<code>--plan</code>（设计文档引用）、<code>--priority</code>（high/medium/low，默认：medium）、<code>--template</code>（线程模板名称）、<code>--depends-on</code>（空格分隔的十六进制 ID）。</p>
+<p><strong><code>edit --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;) [--text &lt;text&gt;] [--why &lt;text&gt;] [--done-when &lt;text&gt;] [--plan &lt;path&gt;] [--priority &lt;level&gt;] [--depends-on &lt;id...&gt;] [--add-depends-on &lt;id&gt;] [--remove-depends-on &lt;id&gt;] [--clear-depends-on]</code></strong></p>
+<p>编辑任务字段。必须至少指定一个字段。依赖可以设值（替换）、追加（<code>--add-depends-on</code>，可重复）、移除（<code>--remove-depends-on</code>，可重复）或清除（<code>--clear-depends-on</code>）。</p>
+<p><strong><code>batch-edit --project &lt;name&gt; --task-ids &lt;ids&gt; [fields...]</code></strong></p>
+<p>对多个任务应用相同编辑。<code>--task-ids</code> 接受逗号分隔的十六进制 ID 列表。字段选项与 <code>edit</code> 相同。</p>
+<p><strong><code>decompose --project &lt;name&gt; (--task-id &lt;id&gt; | --task &lt;text&gt;) --subtasks-file &lt;path&gt; [--dry-run]</code></strong></p>
+<p>用 JSON 文件中定义的子任务替换一个任务。<code>-</code> 表示 stdin。<code>--dry-run</code> 预览而不执行。</p>
+<h3 id="lock-commands">锁命令<a class="headerlink" href="#lock-commands" title="Permanent link">&para;</a></h3>
+<p>项目锁系统防止对 TASKS.yaml 的并发编辑。每个锁有固定的 20 分钟 TTL。</p>
+<p><strong><code>lock-acquire --project &lt;name&gt; [--force] [--note &lt;text&gt;] [--json]</code></strong></p>
+<p>获取项目锁。通过 <code>git config user.email</code> 或 <code>$USER</code> 识别所有者。<code>--force</code> 从其他所有者那里抢占锁。</p>
+<p><strong><code>lock-release --project &lt;name&gt; [--force] [--json]</code></strong></p>
+<p>释放项目锁。只有锁的所有者（或 <code>--force</code>）可以释放。</p>
+<p><strong><code>lock-status [--project &lt;name&gt;] [--json]</code></strong></p>
+<p>显示锁状态。不带 <code>--project</code> 则列出所有项目。</p>
+<p><strong><code>lock-force-release --project &lt;name&gt; [--json]</code></strong></p>
+<p>强制释放项目锁，无论所有者是谁。</p>
+<h3 id="maintenance-commands">维护命令<a class="headerlink" href="#maintenance-commands" title="Permanent link">&para;</a></h3>
+<p><strong><code>assign-ids [--project &lt;name&gt;]</code></strong></p>
+<p>自动为缺少 ID 的任务分配 4 字符十六进制 ID。需要项目锁。</p>
+<p><strong><code>validate</code></strong></p>
+<p>验证所有项目的所有任务 ID。检查重复 ID 和格式错误的条目。不修改文件。</p>
+<p><strong><code>stop --task-id &lt;id&gt; [--dry-run]</code></strong></p>
+<p>终止一个已分发的任务进程。<code>--task-id</code> 可以是分发 ID（如 <code>dispatch_abc123</code>）或任务哈希。<code>--dry-run</code> 显示将被终止的内容而不执行。终止命令通过守护进程 webhook 转发到远程客户端。</p>
+<h3 id="common-options">通用选项<a class="headerlink" href="#common-options" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>标志</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--project &lt;name&gt;</code></td>
+<td>项目名称（大多数写入命令必需）</td>
+</tr>
+<tr>
+<td><code>--task-id &lt;id&gt;</code></td>
+<td>任务哈希 ID（4 字符十六进制）</td>
+</tr>
+<tr>
+<td><code>--task &lt;text&gt;</code></td>
+<td>按任务文本查找（<code>--task-id</code> 的模糊替代）</td>
+</tr>
+<tr>
+<td><code>--base-dir &lt;path&gt;</code></td>
+<td>Cortex 根目录（默认：<code>~/Cortex</code>）</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>以 JSON 输出（读取命令和锁操作）</td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>显示命令帮助</td>
+</tr>
+</tbody>
+</table>
+<h3 id="task-lifecycle-states">任务生命周期状态<a class="headerlink" href="#task-lifecycle-states" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>open → claimed → done
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  ↓        ↓
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>paused   pending → open (reopen)
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  ↓
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>blocked → open (unblock)
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>approval states: request-approval → approve → clear-approval
+</code></pre></div>
+<p><code>block</code>/<code>unblock</code> 与 <code>reopen</code> 都会把任务状态归一回 <code>open</code>，因此在 <code>cortex-run</code> 中途失败
+（停留在 <code>pending</code>）的任务会回到可派发状态，而不会对调度器永久隐形。</p>
+<h3 id="exit-codes_1">退出码<a class="headerlink" href="#exit-codes_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>代码</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>成功</td>
+</tr>
+<tr>
+<td>1</td>
+<td>错误（无效参数、锁被他人持有、任务未找到）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cortex-run">cortex-run<a class="headerlink" href="#cortex-run" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>cortex-run [options] -- COMMAND [ARGS...]
+</code></pre></div>
+<p>通过 Cortex 守护进程在远程设备上分发命令。所有执行通过 <code>sendCommand</code> 转发到 cortex-client；本地不生成任何进程。守护进程必须正在运行（它在 <code>127.0.0.1:3001</code> 上提供 webhook 服务）。定时重复运行参见 <a href="../scheduling/">scheduling.md</a>。基于线程的执行参见 <a href="../threads/">threads.md</a>。</p>
+<h3 id="launch-mode">启动模式<a class="headerlink" href="#launch-mode" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cortex-run [--device &lt;name&gt;] --name &lt;name&gt; [--stall 10m] [--gpu auto]
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>           [--task-project P --task-id ABCD] [--force]
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>           [--env-passthrough VAR1,VAR2,...]
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>           [--log-tail-bytes 5000]
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>           -- COMMAND [ARGS...]
+</code></pre></div>
+<p>选项：
+- <code>--name &lt;name&gt;</code> — 必需，唯一的运行名称（也用作结果目录）
+- <code>--device &lt;name&gt;</code> — 目标设备（默认：来自 <code>machines.json</code> 的本地机器名称）
+- <code>--stall &lt;duration&gt;</code> — 停滞超时，如 <code>10m</code>、<code>1h</code>（默认：<code>10m</code>）
+- <code>--gpu &lt;slot&gt;</code> — GPU 槽位：<code>auto</code>、<code>none</code> 或数字索引（默认：<code>auto</code>）
+- <code>--force</code> — 即使存在同名运行状态目录也允许启动
+- <code>--task-project &lt;name&gt;</code> — 将此运行链接到项目以进行任务生命周期追踪
+- <code>--task-id &lt;hash&gt;</code> — 4 字符十六进制任务 ID（与 <code>--task-project</code> 一起使用）；无效 ID 在分发前导致非零退出
+- <code>--env-passthrough &lt;list&gt;</code> — 逗号分隔的要转发到远程的环境变量名
+- <code>--log-tail-bytes &lt;n&gt;</code> — 回调中返回的日志尾部字节数（默认：5000）</p>
+<p><code>--</code> 分隔符是必需的。其后的所有内容都是要在远程设备上运行的命令。</p>
+<p>当提供 <code>--task-project</code> 和 <code>--task-id</code> 时，<code>cortex-run</code> 在分发前将任务标记为 pending，并将完成/阻塞推迟到客户端回调处理器。成功时任务自动完成；失败时自动阻塞，附带日志尾部上下文。</p>
+<h3 id="cancel-mode">取消模式<a class="headerlink" href="#cancel-mode" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>cortex-run --cancel &lt;name&gt; [--device &lt;name&gt;] [--signal SIGTERM]
+</code></pre></div>
+<p>选项：
+- <code>--cancel &lt;name&gt;</code> — 要取消的运行名称
+- <code>--device &lt;name&gt;</code> — 目标设备（默认：本地机器名称）
+- <code>--signal &lt;sig&gt;</code> — 要发送的信号（默认：<code>SIGTERM</code>）</p>
+<h3 id="exit-codes_2">退出码<a class="headerlink" href="#exit-codes_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>代码</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>成功（已启动或已取消）</td>
+</tr>
+<tr>
+<td>1</td>
+<td>致命错误（无效 task-id、设备离线、启动/取消失败）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>用法错误（缺少必需标志、<code>--</code> 后无命令）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples">示例<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># 在本地机器上启动训练脚本</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>cortex-run<span class="w"> </span>--name<span class="w"> </span>train-v2<span class="w"> </span>--gpu<span class="w"> </span>auto<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>train.py<span class="w"> </span>--epochs<span class="w"> </span><span class="m">100</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># 带任务链接的启动（成功时自动完成任务）</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>cortex-run<span class="w"> </span>--name<span class="w"> </span>eval-run<span class="w"> </span>--task-project<span class="w"> </span>my-project<span class="w"> </span>--task-id<span class="w"> </span>a1b2<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>eval.py
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># 在远程设备上启动，带环境变量透传</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>cortex-run<span class="w"> </span>--device<span class="w"> </span>lab<span class="w"> </span>--name<span class="w"> </span>remote-train<span class="w"> </span>--env-passthrough<span class="w"> </span>WANDB_API_KEY,HF_TOKEN<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>train.py
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># 取消运行中的作业</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>cortex-run<span class="w"> </span>--cancel<span class="w"> </span>train-v2
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># 用特定信号取消</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>cortex-run<span class="w"> </span>--cancel<span class="w"> </span>train-v2<span class="w"> </span>--signal<span class="w"> </span>SIGKILL
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

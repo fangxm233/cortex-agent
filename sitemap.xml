@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/architecture/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/architecture/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/architecture/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/backends/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/backends/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/backends/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/browser-access/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/browser-access/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/browser-access/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/cli-reference/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/cli-reference/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/cli-reference/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/configuration/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/configuration/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/configuration/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/cross-machine/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/cross-machine/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/cross-machine/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/desktop-app/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/desktop-app/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/desktop-app/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/hooks/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/hooks/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/hooks/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/mcp/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/mcp/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/mcp/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/memory/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/memory/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/memory/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/quickstart/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/quickstart/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/quickstart/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/safety-and-approvals/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/safety-and-approvals/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/safety-and-approvals/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/scheduling/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/scheduling/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/scheduling/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/skills-and-plugins/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/skills-and-plugins/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/skills-and-plugins/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/slack-setup/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/slack-setup/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/slack-setup/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/tasks/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/tasks/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/tasks/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/threads/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/threads/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/threads/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/images/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/images/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/images/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/architecture/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/architecture/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/architecture/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/backends/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/backends/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/backends/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/browser-access/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/browser-access/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/browser-access/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/cli-reference/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/cli-reference/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/cli-reference/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/configuration/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/configuration/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/configuration/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/cross-machine/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/cross-machine/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/cross-machine/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/desktop-app/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/desktop-app/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/desktop-app/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/hooks/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/hooks/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/hooks/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/mcp/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/mcp/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/mcp/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/memory/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/memory/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/memory/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/quickstart/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/quickstart/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/quickstart/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/safety-and-approvals/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/safety-and-approvals/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/safety-and-approvals/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/scheduling/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/scheduling/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/scheduling/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/skills-and-plugins/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/skills-and-plugins/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/skills-and-plugins/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/slack-setup/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/slack-setup/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/slack-setup/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/tasks/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/tasks/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/tasks/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/threads/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/threads/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/threads/"/>
+    </url>
+    <url>
+        <loc>https://fangxm233.github.io/cortex-agent/zh/images/</loc>
+        <lastmod>2026-08-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://fangxm233.github.io/cortex-agent/zh/images/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://fangxm233.github.io/cortex-agent/images/"/>
+    </url>
+</urlset>

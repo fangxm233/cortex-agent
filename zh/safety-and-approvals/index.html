@@ -1,0 +1,1458 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/safety-and-approvals/">
+      
+      
+        <link rel="prev" href="../scheduling/">
+      
+      
+        <link rel="next" href="../hooks/">
+      
+      
+        
+          <link rel="alternate" href="../../safety-and-approvals/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>安全与审批 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#safety-and-approvals" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              安全与审批
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../safety-and-approvals/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    线程
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    任务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-three-blast-radius-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        三个影响范围等级
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="三个影响范围等级">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#self-serve-autonomous" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自助（自主执行）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#needs-approval-requires-sign-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        需要审批（需要签字）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#forbidden-never-permitted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        禁止（永不允许）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        决策表
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-agent-decides-the-need-approval-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        智能体如何决策：need-approval 技能
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-you-approve-or-reject" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        你如何批准或拒绝
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="你如何批准或拒绝">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#via-slack-primary-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        通过 Slack（主要路径）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-happens-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        之后发生什么
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#slack-approval-flow-in-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slack 审批流程详解
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Slack 审批流程详解">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#plan-approval-exitplanmode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        计划审批（ExitPlanMode）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-questions-askuserquestion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        用户问题（AskUserQuestion）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi-backend-difference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI 后端的差异
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-agent-isnt-given-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        为什么不给智能体 root 权限
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-trail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        审计追踪
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-three-blast-radius-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        三个影响范围等级
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="三个影响范围等级">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#self-serve-autonomous" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自助（自主执行）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#needs-approval-requires-sign-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        需要审批（需要签字）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#forbidden-never-permitted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        禁止（永不允许）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        决策表
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-agent-decides-the-need-approval-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        智能体如何决策：need-approval 技能
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-you-approve-or-reject" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        你如何批准或拒绝
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="你如何批准或拒绝">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#via-slack-primary-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        通过 Slack（主要路径）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-happens-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        之后发生什么
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#slack-approval-flow-in-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slack 审批流程详解
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Slack 审批流程详解">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#plan-approval-exitplanmode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        计划审批（ExitPlanMode）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-questions-askuserquestion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        用户问题（AskUserQuestion）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi-backend-difference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI 后端的差异
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-agent-isnt-given-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        为什么不给智能体 root 权限
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-trail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        审计追踪
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="safety-and-approvals">安全和审批<a class="headerlink" href="#safety-and-approvals" title="Permanent link">&para;</a></h1>
+<p>Cortex 可以编辑文件、生成进程、管理 GPU 训练以及与多台机器通信。安全与审批系统定义了智能体可以自主做什么、什么需要你的签字确认、以及什么永远不允许。它还提供了让你从 Slack 查看和审批挂起操作的机制。审批流程建立在 hook-bridge（参见 <a href="../hooks/">hooks.md</a>）和 MCP 工具（参见 <a href="../mcp/">mcp.md</a>）之上。</p>
+<h2 id="the-three-blast-radius-classes">三个影响范围等级<a class="headerlink" href="#the-three-blast-radius-classes" title="Permanent link">&para;</a></h2>
+<p>Cortex 将每个智能体操作分类到三个桶中。分类位于根 CORTEX.md 的"安全边界"部分，是单一真相来源。判断标准是<strong>行为影响</strong>，而不是文件类别——修正技能文件中的拼写错误和向其中添加新工作流步骤是不同级别的操作，即使两者都触及 <code>.claude/skills/</code>。</p>
+<h3 id="self-serve-autonomous">自助（自主执行）<a class="headerlink" href="#self-serve-autonomous" title="Permanent link">&para;</a></h3>
+<p>智能体无需询问即可执行的操作。这些是只读信息收集、本地状态更新和低风险维护。</p>
+<ul>
+<li>读取文件、检查 GPU 状态、读取日志、小型测试脚本</li>
+<li>更新上下文文件（STATUS.md、experiments/、knowledge/、OVERVIEW.md、TASKS.yaml）</li>
+<li>网络搜索、知识扫描</li>
+<li>在预算内启动训练运行（需要 GPU preflight）</li>
+<li>运行分析脚本</li>
+<li>技能维护性更改（修正拼写错误、对齐格式、描述文字润色——不改变行为）</li>
+<li>Agent-server 非行为性修复（语法错误、日志消息、注释更新）</li>
+</ul>
+<h3 id="needs-approval-requires-sign-off">需要审批（需要签字）<a class="headerlink" href="#needs-approval-requires-sign-off" title="Permanent link">&para;</a></h3>
+<p>更改系统行为、消耗大量资源或难以撤销的操作。这些被排队到 PENDING_APPROVALS.md 并在你批准之前被阻止。</p>
+<ul>
+<li>修改 CORTEX.md 或 CLAUDE.local.md</li>
+<li>新建技能或技能行为性更改（新触发条件、新工作流步骤、能力扩展）</li>
+<li>Agent-server 行为性或架构性更改（新功能、协议变更、API 变更）</li>
+<li>超预算的训练任务、大规模架构修改</li>
+<li>删除文件或数据</li>
+<li>修改模型代码或训练配置</li>
+<li>终止 app.js 或守护进程</li>
+</ul>
+<h3 id="forbidden-never-permitted">禁止（永不允许）<a class="headerlink" href="#forbidden-never-permitted" title="Permanent link">&para;</a></h3>
+<p>即使你请求审批，智能体也会拒绝的操作。这些是可能使机器不稳定的系统级更改。</p>
+<ul>
+<li>安装系统级软件包</li>
+<li>修改系统配置</li>
+<li><code>rm -rf</code></li>
+</ul>
+<h3 id="decision-table">决策表<a class="headerlink" href="#decision-table" title="Permanent link">&para;</a></h3>
+<p>来自安全边界的判断示例，供分类边缘情况时参考：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>等级</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>修正技能 SKILL.md 中的拼写错误</td>
+<td>自助</td>
+<td>维护性，不改变行为</td>
+</tr>
+<tr>
+<td>向技能添加新工作流步骤</td>
+<td>需要审批</td>
+<td>改变行为逻辑</td>
+</tr>
+<tr>
+<td>修复 agent-server 语法错误</td>
+<td>自助</td>
+<td>非行为性修复</td>
+</tr>
+<tr>
+<td>向 agent-server 添加新守卫逻辑</td>
+<td>需要审批</td>
+<td>改变行为</td>
+</tr>
+<tr>
+<td>在预算内启动 GPU 训练</td>
+<td>自助</td>
+<td>预算内，但需要 GPU preflight</td>
+</tr>
+<tr>
+<td>修改 CORTEX.md 规则</td>
+<td>需要审批</td>
+<td>系统约定变更</td>
+</tr>
+</tbody>
+</table>
+<h2 id="how-the-agent-decides-the-need-approval-skill">智能体如何决策：<code>need-approval</code> 技能<a class="headerlink" href="#how-the-agent-decides-the-need-approval-skill" title="Permanent link">&para;</a></h2>
+<p>在执行任何非平凡操作之前，智能体运行 <code>need-approval</code> 技能（位于 <code>plugins/cortex-stage-gate/skills/need-approval/</code>）。该技能执行三步流程：</p>
+<ol>
+<li>
+<p><strong>分类</strong>操作，对照 CORTEX.md 的安全边界规则。该技能有分类表的同步副本，并应用相同的判断启发式。</p>
+</li>
+<li>
+<p><strong>如果需要审批</strong>，将操作记录到 <code>~/.cortex/context/PENDING_APPROVALS.md</code>，附带足够的细节让你无需追问即可决定。条目格式为：</p>
+</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gu">## [timestamp]</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">-</span><span class="w"> </span><span class="gs">**操作**</span>：[将要做什么的简洁描述]
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">-</span><span class="w"> </span><span class="gs">**原因**</span>：[为什么需要此操作]
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">-</span><span class="w"> </span><span class="gs">**影响**</span>：[它影响什么——文件、机器、资源]
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">-</span><span class="w"> </span><span class="gs">**命令/动作**</span>：[要执行的具体命令或更改]
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">-</span><span class="w"> </span><span class="gs">**状态**</span>：pending
+</code></pre></div>
+<p>然后智能体输出 <code>Queued for approval: [一行摘要]</code> 并阻止进一步操作。</p>
+<ol>
+<li><strong>如果不需要审批</strong>，智能体输出 <code>No approval needed — safe to execute.</code> 并直接继续。</li>
+</ol>
+<p>指导原则是：有疑问时，排队。宁可过度询问也不要破坏东西。</p>
+<h2 id="how-you-approve-or-reject">你如何批准或拒绝<a class="headerlink" href="#how-you-approve-or-reject" title="Permanent link">&para;</a></h2>
+<h3 id="via-slack-primary-path">通过 Slack（主要路径）<a class="headerlink" href="#via-slack-primary-path" title="Permanent link">&para;</a></h3>
+<p>在你的管理私信频道中使用 <code>/approval</code> 命令（管理频道如何配置参见 <a href="../slack-setup/">slack-setup.md</a>）。<code>approval</code> 技能（cortex-system 插件的一部分）读取 PENDING_APPROVALS.md 并展示每个挂起项。回复 <code>approve 1</code> 或 <code>reject 2</code> 对特定条目进行操作。</p>
+<p>对于 ExitPlanMode 工作流，Cortex 呈现一个带有 <strong>Approve</strong> 和 <strong>Provide Feedback</strong> 按钮的交互式 Slack 消息。点击 Approve 通知智能体继续执行计划。点击 Provide Feedback 打开一个模态框，你可以在其中输入拒绝原因——智能体接收该文本并可以修改计划。</p>
+<h3 id="what-happens-after">之后发生什么<a class="headerlink" href="#what-happens-after" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>已批准</strong>：智能体执行排队的操作。PENDING_APPROVALS.md 条目更新为 <code>状态：已批准</code>，带时间戳。</li>
+<li><strong>已拒绝</strong>：操作不被执行。条目更新为 <code>状态：已拒绝</code>。智能体可能提出替代方案。</li>
+<li><strong>超时</strong>：hook-bridge 中的挂起请求在 30 分钟后过期。如果你在该窗口内未在 Slack 中响应，智能体的钩子超时并将再次提示。</li>
+</ul>
+<h2 id="slack-approval-flow-in-detail">Slack 审批流程详解<a class="headerlink" href="#slack-approval-flow-in-detail" title="Permanent link">&para;</a></h2>
+<p>有两种不同的审批路径，取决于触发用户交互的原因。</p>
+<h3 id="plan-approval-exitplanmode">计划审批（ExitPlanMode）<a class="headerlink" href="#plan-approval-exitplanmode" title="Permanent link">&para;</a></h3>
+<p>当智能体调用 ExitPlanMode（通常在执行线程期间），流程为：</p>
+<ol>
+<li>智能体的 PreToolUse 钩子触发，向 <code>agent-server:3001/hook/exit-plan-mode</code> 发送 HTTP POST，包含计划内容。</li>
+<li>hook-bridge（<code>agent-server/src/orchestration/routing/hook-bridge.ts</code>）在内存 <code>pendingRequests</code> 映射中注册请求（30 分钟 TTL），并在事件总线上发布 <code>plan.submitted</code> 事件。</li>
+<li>hook-bridge 订阅者（<code>agent-server/src/orchestration/routing/hook-bridge-subscribers.ts</code>）接收事件，在 <code>PlanApprovals</code> 单例中注册计划，并发布带有 Approve 和 Provide Feedback 按钮的交互式 Slack 消息。</li>
+<li>当你点击按钮时，Slack 交互处理程序（<code>agent-server/src/orchestration/interactions/interaction-handlers.ts</code>）解析或拒绝计划：</li>
+<li><strong>批准</strong> → 在事件总线上发布 <code>plan.approved</code>，解析挂起的 HTTP 请求，智能体的钩子脚本返回成功，允许智能体继续。</li>
+<li><strong>拒绝</strong> → 挂起的 HTTP 请求以 <code>approved: false</code> 和你的反馈文本解析，智能体接收并可据此修改。</li>
+</ol>
+<h3 id="user-questions-askuserquestion">用户问题（AskUserQuestion）<a class="headerlink" href="#user-questions-askuserquestion" title="Permanent link">&para;</a></h3>
+<p>当智能体调用 AskUserQuestion（例如，澄清设计选择），流程结构相同但使用不同的事件：</p>
+<ol>
+<li>HTTP POST 到 <code>agent-server:3001/hook/ask-user-question</code>，带问题定义。</li>
+<li>hook-bridge 在事件总线上发布 <code>ask-user.requested</code>。</li>
+<li>订阅者发布带有 <strong>Answer</strong> 按钮的 Slack 消息。</li>
+<li>点击 Answer 打开一个模态表单（每问题单选、多选或文本输入）。</li>
+<li>模态框提交时，处理程序发布 <code>ask-user.answered</code> 并以用户的答案解析 HTTP 请求。</li>
+</ol>
+<h3 id="pi-backend-difference">PI 后端的差异<a class="headerlink" href="#pi-backend-difference" title="Permanent link">&para;</a></h3>
+<p>PI 编程智能体后端使用不同的解析机制。PI 的计划和问题响应不通过解析 HTTP 请求，而是通过 <code>sendExtensionUiResponse()</code>——一个 PI 原生的扩展 UI 回调。hook-bridge 为此路径提供非阻塞发布辅助函数（<code>publishPlanSubmitted</code>、<code>publishAskUserRequested</code>）。</p>
+<h2 id="why-the-agent-isnt-given-root">为什么不给智能体 root 权限<a class="headerlink" href="#why-the-agent-isnt-given-root" title="Permanent link">&para;</a></h2>
+<p>Cortex 以启动它的用户相同的权限运行。没有 <code>sudo</code>、没有 Docker socket、没有权限提升路径。禁止桶（安装系统软件包、修改系统配置、<code>rm -rf</code>）的存在是为了防止智能体即使拥有 Unix 权限也不能使机器不稳定。</p>
+<p>在远程机器上，<code>cortex-client</code> 进程也以启动它的用户身份运行——没有权限提升。服务器和客户端之间的 WebSocket 协议没有认证令牌（它信任网络边界），因此客户端只应在 localhost 或 Tailscale/VPN 边界内暴露。</p>
+<h2 id="audit-trail">审计追踪<a class="headerlink" href="#audit-trail" title="Permanent link">&para;</a></h2>
+<p>审批记录在三个地方：</p>
+<ol>
+<li><strong>PENDING_APPROVALS.md</strong> — 每个排队的操作在此附加，包含完整细节和最终状态（approved/rejected）。这是人类可读的审计追踪。</li>
+<li><strong>事件总线 JSONL</strong> — <code>plan.submitted</code> 和 <code>plan.approved</code> 事件由事件记录器持久化到 <code>~/.cortex/data/</code> 中按日滚动的 <code>events-YYYYMMDD.jsonl</code> 文件。</li>
+<li><strong>Slack 对话</strong> — 每次审批交互在 Slack 中留下可见的消息，带有 Approve/Provide Feedback 按钮或问题模态框。对话历史是运行记录。</li>
+</ol>
+<h2 id="configuration">配置<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<p>安全边界分类位于 <code>~/.cortex/CORTEX.md</code> 的根 CORTEX.md 中"安全边界"部分。<code>need-approval</code> 技能维护一个同步副本。如果你修改安全边界规则，更新两个位置。</p>
+<p>PENDING_APPROVALS.md 文件位于 <code>~/.cortex/context/PENDING_APPROVALS.md</code>。首次使用时自动创建。</p>
+<p>无需额外配置——审批系统内置于智能体的核心推理中，并在智能体考虑高权限操作时自动触发。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
