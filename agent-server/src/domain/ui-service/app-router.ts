@@ -1,5 +1,5 @@
-// input:  UiService, zod operation schemas, and tRPC init
-// output: createAppRouter including authentication mutations
+// input:  UiService, op schemas, tRPC init
+// output: createAppRouter with UI op procedures
 // pos:    Typed tRPC mirror of UI operations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -77,6 +77,8 @@ import {
   machinesListInput,
   machineDetailInput,
   skillsListInput,
+  pluginsListInput,
+  pluginsAssignInput,
   threadTemplatesGetInput,
   threadTemplatesDetailInput,
   threadTemplatesValidateInput,
@@ -115,6 +117,7 @@ const ERR_CODE_MAP: Record<string, TRPCError['code']> = {
   'invalid-notes-file': 'BAD_REQUEST',
   'already-terminal': 'CONFLICT',
   'already-exists': 'CONFLICT',
+  conflict: 'CONFLICT',
   'backend-locked': 'CONFLICT',
   'session-running': 'CONFLICT',
   'not-available': 'BAD_REQUEST',
@@ -326,6 +329,45 @@ function systemRouter(service: UiService) {
   });
 }
 
+function costRouter(service: UiService) {
+  return router({ summary: makeQuery(service, 'cost.summary', costSummaryInput) });
+}
+
+function configRouter(service: UiService) {
+  return router({
+    get: makeQuery(service, 'config.get', configGetInput),
+    set: makeMutation(service, 'config.set', configSetInput),
+  });
+}
+
+function machinesRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'machines.list', machinesListInput),
+    detail: makeQuery(service, 'machines.detail', machineDetailInput),
+  });
+}
+
+function skillsRouter(service: UiService) {
+  return router({ list: makeQuery(service, 'skills.list', skillsListInput) });
+}
+
+function pluginsRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'plugins.list', pluginsListInput),
+    assign: makeMutation(service, 'plugins.assign', pluginsAssignInput),
+  });
+}
+
+function threadTemplatesRouter(service: UiService) {
+  return router({
+    get: makeQuery(service, 'threadTemplates.get', threadTemplatesGetInput),
+    detail: makeQuery(service, 'threadTemplates.detail', threadTemplatesDetailInput),
+    validate: makeMutation(service, 'threadTemplates.validate', threadTemplatesValidateInput),
+    save: makeMutation(service, 'threadTemplates.save', threadTemplatesSaveInput),
+    remove: makeMutation(service, 'threadTemplates.remove', threadTemplatesRemoveInput),
+  });
+}
+
 function subscribeProcedure(service: UiService) {
   return publicProcedure.input(subscribeFilterInput).subscription(async function* ({ input, signal }) {
     const sub = service.subscribe(input);
@@ -350,26 +392,15 @@ export function createAppRouter(service: UiService) {
     approvals: approvalsRouter(service),
     issues: issuesRouter(service),
     notes: notesRouter(service),
-    cost: router({ summary: makeQuery(service, 'cost.summary', costSummaryInput) }),
-    config: router({
-      get: makeQuery(service, 'config.get', configGetInput),
-      set: makeMutation(service, 'config.set', configSetInput),
-    }),
+    cost: costRouter(service),
+    config: configRouter(service),
     profiles: profilesRouter(service),
     auth: authRouter(service),
     hooks: hooksRouter(service),
-    machines: router({
-      list: makeQuery(service, 'machines.list', machinesListInput),
-      detail: makeQuery(service, 'machines.detail', machineDetailInput),
-    }),
-    skills: router({ list: makeQuery(service, 'skills.list', skillsListInput) }),
-    threadTemplates: router({
-      get: makeQuery(service, 'threadTemplates.get', threadTemplatesGetInput),
-      detail: makeQuery(service, 'threadTemplates.detail', threadTemplatesDetailInput),
-      validate: makeMutation(service, 'threadTemplates.validate', threadTemplatesValidateInput),
-      save: makeMutation(service, 'threadTemplates.save', threadTemplatesSaveInput),
-      remove: makeMutation(service, 'threadTemplates.remove', threadTemplatesRemoveInput),
-    }),
+    machines: machinesRouter(service),
+    skills: skillsRouter(service),
+    plugins: pluginsRouter(service),
+    threadTemplates: threadTemplatesRouter(service),
     system: systemRouter(service),
     subscribe: subscribeProcedure(service),
   });

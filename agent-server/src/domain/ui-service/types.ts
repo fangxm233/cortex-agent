@@ -1,5 +1,5 @@
-// input:  domain types, auth flows/logout, runtime settings, stores
-// output: UI DTOs/maps including auth account mutations
+// input:  domain types, auth flows, settings, stores
+// output: UI DTOs/maps incl plugin and auth ops
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -105,6 +105,7 @@ export type QueryScope =
   | 'machines.list'
   | 'machines.detail'
   | 'skills.list'
+  | 'plugins.list'
   | 'threadTemplates.get'
   | 'threadTemplates.detail'
   | 'system.daemonStatus'
@@ -162,6 +163,7 @@ export type MutateOp =
   | 'profiles.create'
   | 'profiles.update'
   | 'profiles.remove'
+  | 'plugins.assign'
   | 'threadTemplates.validate'
   | 'threadTemplates.save'
   | 'threadTemplates.remove'
@@ -302,6 +304,8 @@ export interface MachineDetailParams {
 }
 
 export type SkillsListParams = Record<string, never>;
+
+export type PluginsListParams = Record<string, never>;
 
 export type ThreadTemplatesGetParams = Record<string, never>;
 
@@ -1473,6 +1477,121 @@ export interface SkillGroup {
   skills: string[];
 }
 
+// ── plugins.list / plugins.assign DTOs ──────────────────────────────────────
+// Sanitized plugin catalog view plus the editable assignment targets exposed by ui-service.
+
+export interface UiPluginCatalogIssue {
+  code: string;
+  scope: 'plugin' | 'manifest' | 'skill' | 'mcp' | 'server';
+  path: string | null;
+  message: string;
+}
+
+export interface UiPluginManifest {
+  source: 'root' | 'legacy' | 'none';
+  name?: string;
+  schema?: string;
+  version?: string;
+  description?: string;
+}
+
+export interface UiPluginSkill {
+  name: string;
+}
+
+export interface UiPluginMcpStdioSummary {
+  command: string;
+  argsCount: number;
+  envKeys: string[];
+}
+
+export interface UiPluginMcpRemoteSummary {
+  origin: string;
+  headerKeys: string[];
+}
+
+export type UiPluginMcpServer =
+  | { name: string; type: 'stdio'; summary: UiPluginMcpStdioSummary }
+  | { name: string; type: 'streamable-http' | 'sse'; summary: UiPluginMcpRemoteSummary };
+
+export interface UiPluginCatalogEntry {
+  id: string;
+  kind: 'portable' | 'legacy' | 'unknown';
+  rootDir: string;
+  valid: boolean;
+  assignable: boolean;
+  manifest: UiPluginManifest;
+  skills: UiPluginSkill[];
+  mcp: { status: 'missing' | 'valid' | 'invalid'; servers: UiPluginMcpServer[] };
+  issues: UiPluginCatalogIssue[];
+}
+
+export interface PluginAgentTarget {
+  kind: 'agent';
+  name: string;
+  editable: true;
+  baseHash: string;
+  managedPluginIds: string[];
+  unmanagedPluginCount: number;
+}
+
+export interface PluginTemplateSlotTarget {
+  kind: 'template-slot';
+  templateName: string;
+  index: number;
+  ref: string;
+  editable: boolean;
+  baseHash: string;
+  mode: 'inherit' | 'custom';
+  managedPluginIds: string[];
+  unmanagedPluginCount: number;
+  readOnlyReason?: 'active-agent';
+}
+
+export interface PluginTemplateShellBindingTarget {
+  kind: 'template-shell';
+  templateName: string;
+  editable: false;
+  baseHash: string;
+  readOnlyReason: 'shell-binding';
+}
+
+export type PluginAssignmentTarget =
+  | PluginAgentTarget
+  | PluginTemplateSlotTarget
+  | PluginTemplateShellBindingTarget;
+
+export interface PluginsListReturn {
+  plugins: UiPluginCatalogEntry[];
+  targets: PluginAssignmentTarget[];
+}
+
+export interface PluginsAssignAgentTarget {
+  kind: 'agent';
+  name: string;
+  baseHash: string;
+}
+
+export interface PluginsAssignTemplateTarget {
+  kind: 'template-slot';
+  templateName: string;
+  index: number;
+  ref: string;
+  baseHash: string;
+  mode: 'inherit' | 'custom';
+}
+
+export interface PluginsAssignArgs {
+  target: PluginsAssignAgentTarget | PluginsAssignTemplateTarget;
+  pluginIds: string[];
+  acknowledgeMcp?: boolean;
+}
+
+export interface PluginsAssignReturn {
+  changed: boolean;
+  baseHash: string;
+}
+
 // ── memory read-only fs DTOs (DR-0018 §6 Stage-6 memory viewer 7b) ─────────
 // A project's memory tree: top-level files + memory dirs with entry counts. Read-only;
 // the underlying handler restricts all paths to the project root under PROJECTS_DIR.
@@ -1791,6 +1910,7 @@ export interface QueryParamMap {
   'machines.list': MachinesListParams;
   'machines.detail': MachineDetailParams;
   'skills.list': SkillsListParams;
+  'plugins.list': PluginsListParams;
   'threadTemplates.get': ThreadTemplatesGetParams;
   'threadTemplates.detail': ThreadTemplateDetailParams;
   'system.daemonStatus': SystemDaemonStatusParams;
@@ -1823,6 +1943,7 @@ export interface QueryReturnMap {
   'machines.list': MachineInfo[];
   'machines.detail': MachineDetail;
   'skills.list': SkillGroup[];
+  'plugins.list': PluginsListReturn;
   'threadTemplates.get': ThreadTemplateEntry[];
   'threadTemplates.detail': ThreadTemplateDetail;
   'system.daemonStatus': SystemDaemonStatus;
@@ -1879,6 +2000,7 @@ export interface MutateArgsMap {
   'profiles.create': ProfilesCreateArgs;
   'profiles.update': ProfilesUpdateArgs;
   'profiles.remove': ProfilesRemoveArgs;
+  'plugins.assign': PluginsAssignArgs;
   'threadTemplates.validate': ThreadTemplatesValidateArgs;
   'threadTemplates.save': ThreadTemplatesSaveArgs;
   'threadTemplates.remove': ThreadTemplatesRemoveArgs;
@@ -1936,6 +2058,7 @@ export interface MutateReturnMap {
   'profiles.create': ProfilesCreateReturn;
   'profiles.update': ProfilesUpdateReturn;
   'profiles.remove': ProfilesRemoveReturn;
+  'plugins.assign': PluginsAssignReturn;
   'threadTemplates.validate': ThreadTemplatesValidateReturn;
   'threadTemplates.save': ThreadTemplatesSaveReturn;
   'threadTemplates.remove': ThreadTemplatesRemoveReturn;

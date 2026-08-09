@@ -9,6 +9,7 @@ import * as path from 'path';
 import { createLogger } from '@core/log.js';
 import { TmuxControl } from './tmux-control.js';
 import { JsonlTail, JsonlEventNormalizer } from './jsonl-tail.js';
+import type { IdentityJsonValue } from '../../domain/agent-run/identity.js';
 import {
   CancelledError,
   TUI_TMUX_NAME_PREFIX,
@@ -23,6 +24,7 @@ import {
   PANE_READY_MARKER,
 } from './defaults.js';
 import { buildSpawnArgs, buildClaudeEnv, type CortexAgentContext } from './spawn-args.js';
+import { validateClaudeSupplementalMcpConfig } from './mcp-config.js';
 import { buildPrompt, mergeSubstantialOutput } from './event-parser.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { resolveMcpComposition, type McpComposition } from '../types.js';
@@ -84,6 +86,12 @@ export interface ClaudeTuiSessionConfig {
   /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
   thinking?: string | null;
   mcpComposition?: McpComposition;
+  mcpConfigPaths?: string[] | null;
+  supplementalMcpConfigPath?: string | null;
+  disableHooks?: boolean;
+  benchmarkPolicyGuard?: IdentityJsonValue;
+  pluginCapabilityFingerprint?: string | null;
+  supplementalMcpConfigIdentity?: string | null;
   // -- runtime context surfaced to MCP servers via env --
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
@@ -151,6 +159,10 @@ export class ClaudeTuiSession {
   readonly mcpComposition: McpComposition;
   readonly tmuxName: string;
   readonly jsonlPath: string;
+  readonly pluginCapabilityFingerprint: string | null;
+  readonly supplementalMcpConfigIdentity: string | null;
+  readonly pluginDirs: string[];
+  readonly mcpConfigPaths: string[];
 
   private readonly tmux: TmuxControl;
   private readonly tailFactory: (p: string) => JsonlTailLike;
@@ -188,6 +200,10 @@ export class ClaudeTuiSession {
 
     this.tmuxName = `${TUI_TMUX_NAME_PREFIX}${this.sessionId}`;
     this.jsonlPath = computeJsonlPath(this.cwd, this.sessionId);
+    this.pluginCapabilityFingerprint = config.pluginCapabilityFingerprint ?? null;
+    this.supplementalMcpConfigIdentity = config.supplementalMcpConfigIdentity ?? null;
+    this.pluginDirs = [...(config.pluginDirs ?? [])];
+    this.mcpConfigPaths = [...(config.mcpConfigPaths ?? [])];
   }
 
   isAlive(): boolean {
@@ -200,8 +216,24 @@ export class ClaudeTuiSession {
 
   private async ensureSpawned(): Promise<void> {
     if (this.alive && this.tmux.hasSession(this.tmuxName)) return;
+    this.validateSupplementalMcpConfig();
+    const argv = this.tuiSpawnArgs();
+    const env = this.tuiSpawnEnv();
+    this.removeStaleTmuxSession();
+    this.spawnTmux(argv, env);
+    await this.replaceTail();
+    await this.waitForPaneReady();
+    this.activateSpawnedSession();
+  }
 
-    const argv = buildSpawnArgs({
+  private validateSupplementalMcpConfig(): void {
+    const configPath = this.config.supplementalMcpConfigPath;
+    const identity = this.supplementalMcpConfigIdentity;
+    if (configPath && identity) validateClaudeSupplementalMcpConfig(configPath, identity);
+  }
+
+  private tuiSpawnArgs(): string[] {
+    return buildSpawnArgs({
       tools: this.config.tools ?? null,
       systemPrompt: this.config.systemPrompt ?? null,
       appendSystemPrompt: this.config.appendSystemPrompt ?? null,
@@ -212,11 +244,17 @@ export class ClaudeTuiSession {
       extraOption: this.config.extraOption ?? null,
       thinking: this.config.thinking ?? null,
       mcpComposition: this.mcpComposition,
+      mcpConfigPaths: this.config.mcpConfigPaths ?? null,
+      supplementalMcpConfigPath: this.config.supplementalMcpConfigPath ?? null,
+      disableHooks: this.config.disableHooks,
+      benchmarkPolicyGuard: this.config.benchmarkPolicyGuard,
       needsResume: this.needsResume,
       sessionId: this.sessionId,
       mode: 'tui',
     });
+  }
 
+  private tuiSpawnEnv(): Record<string, string> {
     const env = buildClaudeEnv(
       this.channel,
       this.sessionId,
@@ -226,70 +264,55 @@ export class ClaudeTuiSession {
       this.config.extraEnv,
       this.config.context,
     );
-    // Mark TUI mode for downstream MCP server self-detection
+    // Mark TUI mode for downstream MCP server self-detection.
     env.CORTEX_TUI_MODE = '1';
-
-    // Filter env to string-only entries (tmux -e requires KEY=VAL strings)
+    // Filter env to string-only entries (tmux -e requires KEY=VAL strings).
     const stringEnv: Record<string, string> = {};
-    for (const [k, v] of Object.entries(env)) {
-      if (typeof v === 'string') stringEnv[k] = v;
+    for (const [key, value] of Object.entries(env)) {
+      if (typeof value === 'string') stringEnv[key] = value;
     }
+    return stringEnv;
+  }
 
-    // A tmux session under our name may already exist while we are NOT `alive` — e.g. a prior
-    // spawn created it but then failed (the first tail.start threw), or it was orphaned. Killing
-    // it first (idempotent) keeps the next newSession from crashing with "duplicate session" and
-    // permanently wedging the pool entry. The top-of-method guard already returned early for the
-    // healthy alive+hasSession case, so reaching here with a live session means it is stale.
-    if (this.tmux.hasSession(this.tmuxName)) {
-      log.warn(`ensureSpawned: stale tmux session ${this.tmuxName} present while not alive — killing before respawn`);
-      this.tmux.killSession(this.tmuxName);
-    }
+  /** Remove a tmux session left behind by a failed tail start or external orphaning. */
+  private removeStaleTmuxSession(): void {
+    if (!this.tmux.hasSession(this.tmuxName)) return;
+    log.warn(`ensureSpawned: stale tmux session ${this.tmuxName} present while not alive — killing before respawn`);
+    this.tmux.killSession(this.tmuxName);
+  }
 
+  private spawnTmux(argv: string[], env: Record<string, string>): void {
     log.info(`Spawning TUI session ${this.tmuxName} (${this.needsResume ? 'resume' : 'new'})`);
     this.tmux.newSession({
       name: this.tmuxName,
       command: ['claude', ...argv],
       cwd: this.cwd,
-      env: stringEnv,
+      env,
     });
-    // After the first spawn, any subsequent spawn for this session must use --resume:
-    // the Claude jsonl transcript now exists at jsonlPath, and --session-id would conflict.
-    // This covers the "tmux died externally between turns" case (DR-0012 §3.6 recovery path).
+    // Every later recovery must resume the transcript created by this spawn.
     this.needsResume = true;
+  }
 
-    // NOTE: we do NOT wait for the jsonl file here. Current Claude Code creates the transcript only
-    // after the first message is submitted (DR-0012 soak finding), so the file cannot appear before
-    // the paste in sendMessage. The tail attaches now (non-blocking) and backfills the first turn
-    // once Claude writes it; a missing-output failure is bounded by the first-event watchdog.
-    // Tear down any pre-existing tail before reassigning. This path is reached during
-    // recovery from external tmux death (alive flag was true but hasSession returned false),
-    // where the previous tail's poll timer would otherwise keep firing forever and
-    // double-emit events into the new turn.
+  /** Replace spawn-bound tail and normalizer state without waiting for the transcript to appear. */
+  private async replaceTail(): Promise<void> {
     if (this.tail) {
       try { await this.tail.stop(); } catch { /* best effort */ }
       this.tail = null;
     }
-    // Reset the normalizer too — msg.id dedup and per-turn usage are bound to the previous
-    // tail's event stream; carrying them forward risks dropping the first re-spawn message
-    // (if it happens to reuse an id) or accumulating cost across the spawn boundary.
     this.normalizer = new JsonlEventNormalizer();
     this.tail = this.tailFactory(this.jsonlPath);
     this.tail.on('event', (raw) => this.handleRawEvent(raw));
     await this.tail.start();
+  }
 
-    // Claude's Ink TUI boots asynchronously and only accepts input once its prompt UI is drawn.
-    // Block here until capture-pane shows a readiness marker, otherwise the first paste lands in a
-    // not-yet-ready terminal and the submit Enter is a no-op (no jsonl → first-event watchdog kill).
-    await this.waitForPaneReady();
-
+  private activateSpawnedSession(): void {
     this.alive = true;
     this.resetIdleTimer();
     this.maxTimer = setTimeout(() => {
       log.info(`TUI session ${this.sessionId.substring(0, 8)} hit max timeout, killing`);
       this.kill();
     }, MAX_TIMEOUT);
-    // Long-lived timers must not keep the event loop alive (so node:test cleanly exits when
-    // tests don't explicitly kill every session). Cleared on close/kill regardless.
+    // Long-lived timers must not keep the event loop alive.
     if (typeof this.maxTimer.unref === 'function') this.maxTimer.unref();
   }
 

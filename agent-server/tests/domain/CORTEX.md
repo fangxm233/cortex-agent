@@ -16,6 +16,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 | pi-custom-providers.test.ts | test | Custom PI provider validation, storage and rollback |
 | pi-login.test.ts | test | PI login receipts and safe failure payloads |
 | pi-oauth.test.ts | test | PI OAuth expiry, notices, aborts and failures |
+| plugins/ | subdir | Plugin catalog schema and discovery regressions |
 | costs/ | subdir | cost attribution and summary reporting |
 | hook-view.test.ts | test | mount targets, result modes and apply time |
 | mcp/ | subdir | MCP tool registration and handlers |

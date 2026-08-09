@@ -1,5 +1,5 @@
-// input:  UiServiceDeps and query/mutation handlers
-// output: createUiService with authentication mutation routing
+// input:  UiServiceDeps and UI op handlers
+// output: createUiService with query/mutate routing
 // pos:    Transport-neutral UI-service dispatcher
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -23,6 +23,7 @@ import { handleHooksList } from './query/hooks.js';
 import { handleMachinesList } from './query/machines.js';
 import { handleMachineDetail } from './query/machine-detail.js';
 import { handleSkillsList } from './query/skills.js';
+import { handlePluginsList } from './query/plugins.js';
 import { handleThreadTemplatesGet } from './query/thread-templates.js';
 import { handleThreadTemplatesDetail } from './query/thread-template-detail.js';
 import { handleSystemDaemonStatus, handleSystemRateLimitStatus } from './query/system.js';
@@ -44,6 +45,7 @@ import {
   handleThreadTemplatesSave,
   handleThreadTemplatesRemove,
 } from './mutate/thread-templates.js';
+import { handlePluginsAssign } from './mutate/plugins.js';
 import { handleCreateProject } from './mutate/projects.js';
 import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleCancelResume, handleRewindSession } from './mutate/sessions.js';
 import { handleCancelThread } from './mutate/threads.js';
@@ -114,6 +116,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'machines.list': (deps, params) => handleMachinesList(deps, params),
   'machines.detail': (deps, params) => handleMachineDetail(deps, params),
   'skills.list': (deps, params) => handleSkillsList(deps, params),
+  'plugins.list': (deps, params) => handlePluginsList(deps, params),
   'threadTemplates.get': (deps, params) => handleThreadTemplatesGet(deps, params),
   'threadTemplates.detail': (deps, params) => handleThreadTemplatesDetail(deps, params),
   'system.daemonStatus': (_deps, params) => handleSystemDaemonStatus(params),
@@ -170,6 +173,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'profiles.create': (deps, args) => handleProfilesCreate(deps, args),
   'profiles.update': (deps, args) => handleProfilesUpdate(deps, args),
   'profiles.remove': (deps, args) => handleProfilesRemove(deps, args),
+  'plugins.assign': (deps, args) => handlePluginsAssign(deps, args),
   'threadTemplates.validate': (deps, args) => handleThreadTemplatesValidate(deps, args),
   'threadTemplates.save': (deps, args) => handleThreadTemplatesSave(deps, args),
   'threadTemplates.remove': (deps, args) => handleThreadTemplatesRemove(deps, args),

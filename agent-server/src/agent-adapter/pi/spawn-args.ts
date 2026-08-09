@@ -1,7 +1,7 @@
-// input:  PI spawn options and task-aware AgentSpawnConfig context
-// output: PI argv and isolated CORTEX_* subprocess environment
-// pos:    Pure PI argument and environment construction
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  PI spawn options, task context, policy guard
+// output: Isolated PI argv and subprocess environment
+// pos:    Builds PI process arguments and environment
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { IdentityJsonValue } from '../../domain/agent-run/identity.js';
 import type { AgentSpawnConfig, McpComposition } from '../types.js';
@@ -9,6 +9,7 @@ import {
   PI_LEASE_STATE_ENV, PI_MCP_COMPOSITION_ENV, PI_POLICY_GUARD_ENV, GATE2_LEASE_STATE,
 } from './policy-guard.js';
 import { PI_BENCHMARK_DEADLINE_ENV } from './mcp-duration.js';
+import { PI_PLUGIN_MCP_CONFIG_ENV } from './mcp-config.js';
 
 export interface PISpawnOptions {
   sessionDir: string;
@@ -26,6 +27,7 @@ export interface PISpawnOptions {
   /** Single string or multi-value array; pi args.js:49-51 accepts repeated --append-system-prompt flags. */
   appendSystemPrompt?: string | string[] | null;
   pluginDirs?: string[] | null;
+  pluginSkillDirs?: string[] | null;
   /** PI extension file paths; each emits a repeated --extension flag (pi args.js:95-98). */
   extensionPaths?: string[] | null;
   /** Thinking level from the profile's `thinking` field → `--thinking <level>`
@@ -38,6 +40,45 @@ export interface PISpawnOptions {
 /** Strip context-window suffix like "[1m]" from model strings (e.g. "deepseek-v4-flash[1m]" → "deepseek-v4-flash"). */
 function stripModelSuffix(model: string): string {
   return model.replace(/\[.*?\]$/, '');
+}
+
+function appendModelArgs(args: string[], opts: PISpawnOptions): void {
+  if (!opts.model) return;
+  args.push('--model', stripModelSuffix(opts.model));
+  // Provider is profile-selected and only meaningful alongside an explicit model.
+  if (opts.provider) args.push('--provider', opts.provider);
+}
+
+function appendSessionArgs(args: string[], opts: PISpawnOptions): void {
+  // Explicit legacy IDs retain precedence over exact transcript paths.
+  if (opts.sessionId && opts.sessionId.length > 0) {
+    args.push('--session', opts.sessionId);
+    return;
+  }
+  if (opts.sessionPath && opts.sessionPath.length > 0) args.push('--session', opts.sessionPath);
+}
+
+function appendOptionalArg(args: string[], flag: string, value: string | null | undefined): void {
+  if (value && value.length > 0) args.push(flag, value);
+}
+
+function appendArgs(args: string[], flag: string, values: readonly string[]): void {
+  for (const value of values) args.push(flag, value);
+}
+
+function appendNonEmptyArgs(args: string[], flag: string, values: readonly string[]): void {
+  for (const value of values) {
+    if (value.length > 0) args.push(flag, value);
+  }
+}
+
+function promptValues(value: PISpawnOptions['appendSystemPrompt']): string[] {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function appendExtraOptions(args: string[], options: PISpawnOptions['extraOption']): void {
+  for (const [key, value] of Object.entries(options ?? {})) args.push(key, value);
 }
 
 export interface PIEnvOptions {
@@ -58,15 +99,20 @@ export interface PIEnvOptions {
   mcpComposition?: McpComposition;
   /** Absolute trial deadline the MCP bridge bounds its calls against (§5.6 P2/P5). */
   deadlineEpochMs?: number;
+  /** Private path to the typed plugin MCP config written by the adapter. */
+  pluginMcpConfigPath?: string | null;
+  /** Explicit marker for the restricted PI subagent surface. */
+  subagentMarker?: string | null;
 }
 
 const RESET_CONTEXT_KEYS = [
+  'SLACK_CHANNEL', 'FEISHU_CHANNEL',
   'CORTEX_SESSION_ID', 'CORTEX_THREAD_ID', 'CORTEX_PROFILE',
   'CORTEX_PROJECT', 'CORTEX_SESSION_NAME', 'CORTEX_EXECUTION_ID',
   'CORTEX_THREAD_DEPTH', 'CORTEX_TASK_ID', 'CORTEX_TASK_PROJECT',
   'CORTEX_TASK_GENERATION',
   'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
-  'CORTEX_PI_ALLOWED_TOOLS',
+  'CORTEX_PI_ALLOWED_TOOLS', 'CORTEX_PI_SUBAGENT', PI_PLUGIN_MCP_CONFIG_ENV,
   PI_POLICY_GUARD_ENV, PI_LEASE_STATE_ENV, PI_MCP_COMPOSITION_ENV, PI_BENCHMARK_DEADLINE_ENV,
 ] as const;
 
@@ -113,65 +159,22 @@ export function buildPiEnv(
   }
   setOptional(env, PI_MCP_COMPOSITION_ENV, options.mcpComposition);
   setOptional(env, PI_BENCHMARK_DEADLINE_ENV, options.deadlineEpochMs);
+  setOptional(env, PI_PLUGIN_MCP_CONFIG_ENV, options.pluginMcpConfigPath);
+  setOptional(env, 'CORTEX_PI_SUBAGENT', options.subagentMarker);
   applyContext(env, options);
   return env;
 }
 
 export function buildSpawnArgs(opts: PISpawnOptions): string[] {
   const args: string[] = ['--mode', 'rpc', '--session-dir', opts.sessionDir];
-
-  if (opts.model) {
-    const cleaned = stripModelSuffix(opts.model);
-    args.push('--model', cleaned);
-    // Provider is decided by the active cortex profile (mode field). For non-Claude PI providers
-    // (deepseek / openai-codex / etc.) cortex writes a multi-provider models.json (writeProvidersConfig)
-    // that overrides each provider's baseUrl to the gateway, then PI selects the matching provider here.
-    if (opts.provider) {
-      args.push('--provider', opts.provider);
-    }
-  }
-
-  // --session accepts a UUID or an exact path. The adapter resolves and supplies a path;
-  // sessionId remains for explicit legacy callers.
-  if (opts.sessionId && opts.sessionId.length > 0) {
-    args.push('--session', opts.sessionId);
-  } else if (opts.sessionPath && opts.sessionPath.length > 0) {
-    args.push('--session', opts.sessionPath);
-  }
-
-  if (opts.systemPrompt && opts.systemPrompt.length > 0) {
-    args.push('--system-prompt', opts.systemPrompt);
-  }
-
-  if (opts.appendSystemPrompt) {
-    const values = Array.isArray(opts.appendSystemPrompt)
-      ? opts.appendSystemPrompt
-      : [opts.appendSystemPrompt];
-    for (const v of values) {
-      if (v.length > 0) args.push('--append-system-prompt', v);
-    }
-  }
-
-  if (opts.pluginDirs) {
-    for (const dir of opts.pluginDirs) {
-      args.push('--skill', dir);
-    }
-  }
-
-  if (opts.extensionPaths) {
-    for (const ext of opts.extensionPaths) {
-      args.push('--extension', ext);
-    }
-  }
-
-  // Before extraOption so an explicit extraOption {"--thinking": ...} still wins (CLI last-wins).
-  if (opts.thinking) {
-    args.push('--thinking', opts.thinking);
-  }
-
-  if (opts.extraOption) {
-    for (const [k, v] of Object.entries(opts.extraOption)) args.push(k, v);
-  }
-
+  appendModelArgs(args, opts);
+  appendSessionArgs(args, opts);
+  appendOptionalArg(args, '--system-prompt', opts.systemPrompt);
+  appendNonEmptyArgs(args, '--append-system-prompt', promptValues(opts.appendSystemPrompt));
+  appendArgs(args, '--skill', [...(opts.pluginSkillDirs ?? []), ...(opts.pluginDirs ?? [])]);
+  appendArgs(args, '--extension', opts.extensionPaths ?? []);
+  // Before extraOption so an explicit {"--thinking": ...} still wins (CLI last-wins).
+  appendOptionalArg(args, '--thinking', opts.thinking);
+  appendExtraOptions(args, opts.extraOption);
   return args;
 }

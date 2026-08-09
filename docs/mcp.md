@@ -242,41 +242,32 @@ execution registry). Instead, they communicate through two paths:
    executions.json) directly, using the same repository layer as the main
    server process.
 
-## Adding a third-party MCP server
+## Plugin-provided MCP servers
 
-To add a third-party MCP server (e.g., a database connector, a web search
-tool, or a custom research tool), add it to `~/.cortex/config/mcp-config.json`.
-If thread agents should also have it, add it to one of the thread-composed
-config builders rather than the direct config only:
+Target-scoped third-party MCP belongs in a portable Agent Plugins package under `$CORTEX_HOME/plugins/<plugin-id>/`. The package declares servers in root `mcp.json`, and **Settings → Plugins** assigns the package to an agent or template slot. The schema supports `stdio`, `streamable-http`, and legacy `sse`; [Skills and Plugins](./skills-and-plugins.md#portable-mcp-servers) documents the complete package and trust model.
 
-```json
-{
-  "mcpServers": {
-    "cortex-core": { "command": "node", "args": ["..."], "cwd": "..." },
-    "cortex-tasks": { "command": "node", "args": ["..."], "cwd": "..." },
-    "cortex-ext": { "command": "node", "args": ["..."], "cwd": "..." },
-    "my-custom-server": {
-      "command": "python",
-      "args": ["/home/user/my-mcp-server/server.py"],
-      "env": { "API_KEY": "${MY_API_KEY}" }
-    }
-  }
-}
-```
+A legacy plugin directory is still passed through to its backend. Claude can load a Claude-native root `.mcp.json` from such a directory, but Cortex does not inventory, summarize, or acknowledgment-gate those native servers, and PI does not receive them. The guarantees in this section apply to portable root `mcp.json` only (`agent-server/src/domain/plugins/runtime.ts:546-562`; `agent-server/src/agent-adapter/claude/spawn-args.ts:224-238`).
 
-**Important**: the config files are regenerated on every server restart. To
-persist custom MCP server entries, modify the appropriate builder in
-`agent-server/src/core/config-generator.ts` rather than editing generated JSON.
+Cortex validates and normalizes the package once at spawn time. Claude receives a private supplemental configuration layered after the normal Cortex files. Stdio entries remain separate processes; each remote entry becomes a local stdio proxy whose private configuration holds its URL and headers. PI receives a private content-addressed configuration consumed by its MCP bridge. Both remote paths use the same manual-redirect fetch and reject every redirect before a configured header or request body can be replayed. Connection and tool registration are isolated by process. Materialization follows declared dependencies: unavailable plugin-scoped `PLUGIN_DATA` omits its stdio dependents while preserving remote MCP, skills, and bundled tools (`agent-server/src/agent-adapter/claude/mcp-config.ts:105-164`; `agent-server/src/agent-adapter/claude/remote-mcp-proxy.ts:48-82`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts:279-476`).
 
-The type system already supports third-party MCP servers through the
-`AgentSpawnConfig.mcpServers` field (per-backend `McpServerConfig` array), but
-this field is not yet consumed by the adapters as of the current codebase. All
-MCP configuration still flows through the `--mcp-config` CLI flag.
+Portable MCP is omitted when the resolved MCP composition is `none` or `benchmark-thread-run`, and it is not exposed to restricted PI `Agent` subagents. Normal top-level Claude and PI sessions receive it only through an assigned plugin (`agent-server/src/domain/plugins/runtime.ts:120-122,673-688`; `agent-server/src/agent-adapter/pi/adapter.ts:901-918`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts:220-244`).
+
+The plugin catalog and Settings API expose sanitized summaries. Stdio summaries contain the executable basename, argument count, and environment key names; remote summaries contain the origin and header names. Environment values, full remote URLs, and header values remain server-side (`agent-server/src/domain/plugins/mcp.ts:102-216`; `agent-server/src/domain/ui-service/plugins-shared.ts:98-134`). Installed stdio commands and their working directories remain administrator-trusted package inputs; the private config and per-server isolation are not a code sandbox.
+
+## Global custom MCP servers
+
+The files under `$CORTEX_HOME/config/mcp-config*.json` describe Cortex's global and session-composed MCP layers. They are regenerated at server startup, so direct edits are temporary. A persistent global server requires an explicit builder and privilege-composition change in `agent-server/src/core/config-generator.ts`; it does not belong in an assignment-scoped plugin.
+
+This distinction keeps global Cortex privileges separate from administrator-installed plugin capabilities. Use a portable plugin when the server should follow agent or template assignment, and change the global builders only when every eligible session composition should receive the server.
 
 ## Permission model
 
 MCP tools cross the trust boundary from the agent process into agent-server
-internals and remote machines. Cortex applies the following controls:
+internals and remote machines. Installed plugins are administrator-trusted code. For portable root `mcp.json`,
+the assignment confirmation makes the capability addition explicit, but it is
+not a sandbox or a separate authorization boundary. Legacy Claude-native MCP
+configuration remains outside that confirmation. Cortex applies the following
+controls:
 
 1. **Server-level availability** — MCP privileges are separated by server
    because backend tool allowlists do not filter individual MCP tools. Both
@@ -284,10 +275,12 @@ internals and remote machines. Cortex applies the following controls:
    sessions receive cortex-thread. PI `Agent` subagents receive cortex-core
    alone, while top-level PI sessions retain cortex-ext.
 
-2. **Claude Code's third-party MCP is disabled** — the setting
+2. **Claude account-level MCP discovery is disabled** — the setting
    `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` in `~/.cortex/.claude/settings.json`
-   prevents Claude from auto-discovering MCP servers from its own directory.
-   Cortex exclusively manages MCP servers through its own config files.
+   prevents account-level auto-discovery. It does not disable Claude-native
+   `.mcp.json` inside an explicitly assigned legacy plugin directory. Cortex
+   manages bundled and portable MCP through its config layers while preserving
+   that legacy backend behavior.
 
 3. **Bypass permissions** — Claude Code is spawned with
    `--dangerously-skip-permissions --permission-mode bypassPermissions`,
@@ -321,6 +314,8 @@ The MCP server processes receive a subset of the agent server's environment:
 | `CORTEX_CALLBACK_SOURCE` | Optional callback metadata | cortex-ext |
 | `CORTEX_SCHEDULE_TASK_ID` | Optional schedule task ID | cortex-ext |
 | `ANTHROPIC_BASE_URL` | Optional API base URL override | Model routing |
+| `PLUGIN_ROOT` | Resolved selected plugin root | Portable stdio plugin servers |
+| `PLUGIN_DATA` | Private persistent per-plugin data directory | Portable stdio plugin servers |
 
 ## Security considerations
 

@@ -1,14 +1,17 @@
-// input:  Node test runner + agent-adapter/claude/adapter-tui module
-// output: ClaudeTuiSession turn lifecycle + cancel + cost + plan/ask aggregation spec lock-down
-// pos:    DR-0012 Phase 2 — TUI adapter state-machine regression tests (mocked tmux + jsonl tail)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Claude TUI adapter and test doubles
+// output: TUI lifecycle, cancel, cost, and plan tests
+// pos:    Claude TUI state-machine regressions
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
+import { tmpdir } from 'node:os';
+import * as path from 'node:path';
 
 import { ClaudeTuiSession, type TuiSessionDeps } from '../../src/agent-adapter/claude/adapter-tui.js';
+import { writeClaudeSupplementalMcpConfig } from '../../src/agent-adapter/claude/mcp-config.js';
 import type { TmuxExecResult } from '../../src/agent-adapter/claude/tmux-control.js';
 import { TmuxControl } from '../../src/agent-adapter/claude/tmux-control.js';
 
@@ -142,6 +145,51 @@ test('first sendMessage with needsResume=true uses --resume instead of --session
 
   tails[0].finishTurn();
   await turnPromise;
+});
+
+test('TUI spawn forwards base and supplemental MCP config paths without leaking secrets into tmux argv', async (t) => {
+  const { deps, tmuxCalls, tails } = makeDeps();
+  const sess = makeSession(deps, {
+    mcpConfigPaths: ['/fixture/base-a.json', '/fixture/base-b.json'],
+    supplementalMcpConfigPath: '/fixture/portable-supplemental.json',
+  });
+  t.onTestFinished(() => { sess.kill(); });
+
+  const turnPromise = sess.sendMessage('hi', {});
+  await new Promise(r => setImmediate(r));
+
+  const newSessCall = tmuxCalls.find(c => c.args[0] === 'new-session');
+  const script = launcherScriptFor(newSessCall!);
+  assert.ok(script.includes('/fixture/base-a.json'));
+  assert.ok(script.includes('/fixture/base-b.json'));
+  assert.ok(script.includes('/fixture/portable-supplemental.json'));
+  assert.equal(script.includes('secret-arg'), false);
+  assert.equal(script.includes('secret-env'), false);
+  assert.equal(script.includes('secret-http'), false);
+
+  tails[0].finishTurn();
+  await turnPromise;
+});
+
+test('TUI spawn revalidates supplemental MCP content before creating tmux', async (t) => {
+  const runtimeDir = fs.mkdtempSync(path.join(tmpdir(), 'claude-tui-revalidate-'));
+  const supplemental = writeClaudeSupplementalMcpConfig([{
+    name: 'portable', type: 'stdio', command: 'node', args: [], env: {}, cwd: '/srv/plugin',
+  }], { runtimeDir });
+  const { deps, tmuxCalls, tails } = makeDeps();
+  const sess = makeSession(deps, {
+    supplementalMcpConfigPath: supplemental.path,
+    supplementalMcpConfigIdentity: supplemental.identity,
+  });
+  t.onTestFinished(() => {
+    sess.kill();
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
+  });
+  fs.writeFileSync(supplemental.path, '{"mcpServers":{}}\n');
+
+  await assert.rejects(sess.sendMessage('hi', {}), /identity mismatch|content mismatch/i);
+  assert.equal(tmuxCalls.some(call => call.args[0] === 'new-session'), false);
+  assert.equal(tails.length, 0);
 });
 
 test('sendMessage pastes the prompt text and submits with Enter', async (t) => {

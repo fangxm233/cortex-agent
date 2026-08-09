@@ -7,9 +7,18 @@ import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { tmpdir } from 'node:os';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 
 import { resetSettingsForTests } from '../src/core/settings.js';
 import { buildSpawnArgs, buildClaudeEnv } from '../src/agent-adapter/claude/spawn-args.js';
+import type { ClaudeSpawnOptions } from '../src/agent-adapter/claude/spawn-args.js';
+import {
+  claudeSupplementalMcpConfigJson,
+  validateClaudeSupplementalMcpConfig,
+  writeClaudeSupplementalMcpConfig,
+} from '../src/agent-adapter/claude/mcp-config.js';
 import {
   buildHooksSettings,
   POST_TOOL_USE_HOOKS,
@@ -17,6 +26,7 @@ import {
 } from '../src/agent-adapter/claude/hooks-builder.js';
 import { summarizeToolInput } from '../src/agent-adapter/claude/tool-summarizers.js';
 import {
+  BENCHMARK_THREAD_MCP_CONFIG,
   CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
   FEISHU_MCP_CONFIG,
@@ -35,9 +45,11 @@ import {
   clearActivePlanFile,
   getCurrentPlanFilePath,
 } from '../src/agent-adapter/claude/event-parser.js';
-import { _test as adapterTest, selectClaudeMode, recoverTuiOrphans } from '../src/agent-adapter/claude/adapter.js';
+import { ClaudeAdapter, _test as adapterTest, selectClaudeMode, recoverTuiOrphans } from '../src/agent-adapter/claude/adapter.js';
 import type { TmuxExecResult } from '../src/agent-adapter/claude/tmux-control.js';
 import { CONFIG_DIR, DEFAULTS_DIR, HOOKS_DIR } from '../src/core/paths.js';
+import { safeNativeName } from '../src/domain/plugins/native-name.js';
+import type { AgentSpawnConfig, McpServerConfig } from '../src/agent-adapter/types.js';
 import type { HookEntry } from '../src/store/hook-registry.js';
 
 const HOOK_REGISTRY_DIR = path.join(CONFIG_DIR, 'hooks');
@@ -80,6 +92,125 @@ afterAll(() => {
   if (inheritedLegacyHooks === undefined) delete process.env.CORTEX_HOOKS_LEGACY;
   else process.env.CORTEX_HOOKS_LEGACY = inheritedLegacyHooks;
 });
+
+function mcpConfigPaths(args: string[]): string[] {
+  const start = args.indexOf('--mcp-config');
+  assert.ok(start >= 0, '--mcp-config must be present');
+  const paths: string[] = [];
+  for (let index = start + 1; index < args.length; index += 1) {
+    if (args[index].startsWith('--')) break;
+    paths.push(args[index]);
+  }
+  return paths;
+}
+
+const PRIVATE_STDIO_SERVER: McpServerConfig = {
+  name: 'supplemental',
+  type: 'stdio',
+  command: '/opt/private-server',
+  args: ['--token', 'secret-arg'],
+  env: { API_KEY: 'secret-env' },
+  cwd: '/opt/private-cwd',
+};
+
+function privateStdioServer(name = 'supplemental'): McpServerConfig {
+  return { ...PRIVATE_STDIO_SERVER, name };
+}
+
+interface ExpectedMcpConfig {
+  mcpServers: Record<string, unknown>;
+}
+
+function expectedPrivateConfig(name = 'supplemental'): ExpectedMcpConfig {
+  return {
+    mcpServers: {
+      [name]: {
+        command: '/opt/private-server',
+        args: ['--token', 'secret-arg'],
+        env: { API_KEY: 'secret-env' },
+        cwd: '/opt/private-cwd',
+      },
+    },
+  };
+}
+
+function writePrivateSupplemental(runtimeDir: string) {
+  return writeClaudeSupplementalMcpConfig([privateStdioServer()], { runtimeDir });
+}
+
+function conversionMcpServers(): McpServerConfig[] {
+  return [
+    privateStdioServer('stdio-server'),
+    {
+      name: 'http-server',
+      type: 'streamable-http',
+      url: 'https://private.example.com/mcp',
+      headers: { Authorization: 'Bearer secret-http' },
+    },
+    {
+      name: 'sse-server',
+      type: 'sse',
+      url: 'https://private.example.com/events',
+      headers: { 'X-Secret': 'secret-sse' },
+    },
+  ];
+}
+
+function expectedConversionConfig(): ExpectedMcpConfig {
+  const expected = expectedPrivateConfig('stdio-server');
+  expected.mcpServers['http-server'] = {
+    type: 'http',
+    url: 'https://private.example.com/mcp',
+    headers: { Authorization: 'Bearer secret-http' },
+  };
+  expected.mcpServers['sse-server'] = {
+    type: 'sse',
+    url: 'https://private.example.com/events',
+    headers: { 'X-Secret': 'secret-sse' },
+  };
+  return expected;
+}
+
+function buildSupplementalArgs(overrides: Partial<ClaudeSpawnOptions>): string[] {
+  return buildSpawnArgs({
+    tools: 'Bash',
+    needsResume: false,
+    sessionId: 'uuid-supplemental',
+    supplementalMcpConfigPath: '/fixture/supplemental.json',
+    ...overrides,
+  });
+}
+
+function supplementalCompositionArgs(): Record<string, string[]> {
+  return {
+    direct: buildSupplementalArgs({
+      mcpConfigPaths: ['/fixture/base-a.json', '/fixture/base-b.json'],
+    }),
+    thread: buildSupplementalArgs({ mcpComposition: 'thread-control' }),
+    none: buildSupplementalArgs({
+      mcpComposition: 'none',
+      mcpConfigPaths: ['/fixture/empty.json'],
+    }),
+    benchmark: buildSupplementalArgs({ mcpComposition: 'benchmark-thread-run' }),
+  };
+}
+
+function assertSupplementalCompositionPaths(args: Record<string, string[]>): void {
+  assert.deepEqual(mcpConfigPaths(args.direct), [
+    '/fixture/base-a.json',
+    '/fixture/base-b.json',
+    '/fixture/supplemental.json',
+  ]);
+  assert.deepEqual(mcpConfigPaths(args.thread), [
+    CORE_MCP_CONFIG,
+    TASKS_MCP_CONFIG,
+    MANAGER_QA_MCP_CONFIG,
+    THREAD_MCP_CONFIG,
+    '/fixture/supplemental.json',
+  ]);
+  assert.deepEqual(mcpConfigPaths(args.none), ['/fixture/empty.json']);
+  assert.deepEqual(mcpConfigPaths(args.benchmark), [BENCHMARK_THREAD_MCP_CONFIG]);
+}
 
 // --- buildSpawnArgs (pure) ---
 
@@ -172,6 +303,105 @@ test('buildSpawnArgs with full options — system-prompt, append, model, agent, 
     '--resume', 'uuid-bbb',
   ];
   assert.deepEqual(args, expected);
+});
+
+test('claudeSupplementalMcpConfigJson converts stdio, streamable-http, and sse servers to Claude JSON', () => {
+  const text = claudeSupplementalMcpConfigJson(conversionMcpServers());
+  assert.deepEqual(JSON.parse(text), expectedConversionConfig());
+});
+
+test('writeClaudeSupplementalMcpConfig hides remote headers behind redirect-safe stdio proxies', () => {
+  const runtimeDir = fs.mkdtempSync(path.join(tmpdir(), 'claude-mcp-proxy-'));
+  try {
+    const written = writeClaudeSupplementalMcpConfig(conversionMcpServers(), { runtimeDir });
+    const text = fs.readFileSync(written.path, 'utf8');
+    const parsed = JSON.parse(text) as ExpectedMcpConfig;
+    const remote = parsed.mcpServers['http-server'] as { command: string; args: string[] };
+    const sse = parsed.mcpServers['sse-server'] as { command: string; args: string[] };
+    const proxy = JSON.parse(fs.readFileSync(remote.args[1], 'utf8'));
+
+    assert.equal(text.includes('Bearer secret-http'), false);
+    assert.equal(text.includes('secret-sse'), false);
+    assert.equal(remote.command, process.execPath);
+    assert.equal(sse.command, process.execPath);
+    assert.match(remote.args[0], /remote-mcp-proxy\.js$/);
+    assert.deepEqual(proxy, { type: 'streamable-http', url: 'https://private.example.com/mcp', headers: { Authorization: 'Bearer secret-http' } });
+    assert.equal(fs.statSync(remote.args[1]).mode & 0o777, 0o600);
+  } finally {
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
+  }
+});
+
+test('writeClaudeSupplementalMcpConfig isolates a remote proxy config failure', () => {
+  const runtimeDir = fs.mkdtempSync(path.join(tmpdir(), 'claude-mcp-proxy-failure-'));
+  try {
+    const first = writeClaudeSupplementalMcpConfig(conversionMcpServers(), { runtimeDir });
+    const initial = JSON.parse(fs.readFileSync(first.path, 'utf8')) as ExpectedMcpConfig;
+    const failed = initial.mcpServers['http-server'] as { args: string[] };
+    fs.chmodSync(failed.args[1], 0o644);
+
+    const second = writeClaudeSupplementalMcpConfig(conversionMcpServers(), { runtimeDir });
+    const names = Object.keys((JSON.parse(fs.readFileSync(second.path, 'utf8')) as ExpectedMcpConfig).mcpServers);
+
+    assert.deepEqual(names.sort(), ['sse-server', 'stdio-server']);
+  } finally {
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
+  }
+});
+
+test('writeClaudeSupplementalMcpConfig is deterministic, atomic, private on disk, and revalidatable', () => {
+  const runtimeDir = fs.mkdtempSync(path.join(tmpdir(), 'claude-mcp-config-'));
+  try {
+    const written = writePrivateSupplemental(runtimeDir);
+    const again = writePrivateSupplemental(runtimeDir);
+    assert.equal(written.path, again.path);
+    assert.equal(written.identity, again.identity);
+    assert.equal(fs.statSync(path.dirname(written.path)).mode & 0o777, 0o700);
+    assert.equal(fs.statSync(written.path).mode & 0o777, 0o600);
+    validateClaudeSupplementalMcpConfig(written.path, written.identity);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(written.path, 'utf8')),
+      expectedPrivateConfig(),
+    );
+  } finally {
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
+  }
+});
+
+test('writeClaudeSupplementalMcpConfig rejects symlinked runtime ancestry', () => {
+  const root = fs.mkdtempSync(path.join(tmpdir(), 'claude-mcp-config-link-'));
+  const physical = path.join(root, 'physical');
+  const alias = path.join(root, 'alias');
+  fs.mkdirSync(physical);
+  fs.symlinkSync(physical, alias, 'dir');
+  try {
+    assert.throws(() => writeClaudeSupplementalMcpConfig([], {
+      runtimeDir: path.join(alias, 'runtime'),
+    }), /symlink|physical/i);
+    assert.equal(fs.existsSync(path.join(physical, 'runtime')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('validateClaudeSupplementalMcpConfig rejects a pre-existing public file instead of chmod-fixing it', () => {
+  const runtimeDir = fs.mkdtempSync(path.join(tmpdir(), 'claude-mcp-config-public-'));
+  try {
+    const written = writePrivateSupplemental(runtimeDir);
+    fs.chmodSync(written.path, 0o644);
+    assert.throws(
+      () => validateClaudeSupplementalMcpConfig(written.path, written.identity),
+      /not private/i,
+    );
+    assert.equal(fs.statSync(written.path).mode & 0o777, 0o644);
+    assert.throws(() => writePrivateSupplemental(runtimeDir), /not private/i);
+  } finally {
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
+  }
+});
+
+test('buildSpawnArgs preserves explicit mcpConfigPaths and appends supplemental only for direct and thread-control', () => {
+  assertSupplementalCompositionPaths(supplementalCompositionArgs());
 });
 
 test('buildSpawnArgs: thinking level is passed as --effort', () => {
@@ -693,6 +923,140 @@ test("selectClaudeMode returns 'print' for unknown claudeBackend value (conserva
   assert.equal(selectClaudeMode({ sessionId: null, sessionKey: 'k', resume: false, claudeBackend: 'bogus' } as any), 'print');
 });
 
+function stubClaudeChild() {
+  const child = new EventEmitter() as any;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  child.stdin = new PassThrough();
+  child.exitCode = null;
+  child.kill = () => true;
+  return child;
+}
+
+type ClaudeSpawnOverrides = Omit<Partial<AgentSpawnConfig>, 'sessionId' | 'sessionKey' | 'resume'>;
+type PoolSessionGetter = (key: string) => unknown;
+
+interface PoolReplacementFixture {
+  key: string;
+  getSession: PoolSessionGetter;
+  shared?: ClaudeSpawnOverrides;
+  first: ClaudeSpawnOverrides;
+  second: ClaudeSpawnOverrides;
+}
+
+function spawnPoolFixture(
+  adapter: ClaudeAdapter,
+  key: string,
+  shared: ClaudeSpawnOverrides,
+  overrides: ClaudeSpawnOverrides,
+): void {
+  adapter.spawn({ sessionId: key, sessionKey: key, resume: false, ...shared, ...overrides });
+}
+
+async function assertPoolReplacement(fixture: PoolReplacementFixture): Promise<void> {
+  const adapter = new ClaudeAdapter();
+  const shared = fixture.shared ?? {};
+  spawnPoolFixture(adapter, fixture.key, shared, fixture.first);
+  const first = fixture.getSession(fixture.key);
+  spawnPoolFixture(adapter, fixture.key, shared, fixture.second);
+  const second = fixture.getSession(fixture.key);
+  assert.ok(first);
+  assert.ok(second);
+  assert.notEqual(first, second);
+  await adapter.close(fixture.key);
+}
+
+function pooledMcpServer(name: string, marker: string): McpServerConfig {
+  return {
+    name,
+    type: 'stdio',
+    command: 'node',
+    args: ['--token', `secret-${marker}`],
+    env: { API_KEY: `secret-${marker}` },
+    cwd: `/srv/${marker}`,
+  };
+}
+
+function countingSpawner(counter: { value: number }) {
+  return (() => {
+    counter.value += 1;
+    return { process: stubClaudeChild() };
+  }) as any;
+}
+
+test('Claude print pool replaces the session when plugin capability changes', async () => {
+  await assertPoolReplacement({
+    key: 'pooled-print',
+    getSession: (key) => adapterTest.getPooledPrintSession(key),
+    shared: { processSpawner: (() => ({ process: stubClaudeChild() })) as any },
+    first: {
+      pluginCapabilityFingerprint: 'fingerprint-a',
+      mcpServers: [pooledMcpServer('portable-a', 'a')],
+    },
+    second: {
+      pluginCapabilityFingerprint: 'fingerprint-b',
+      mcpServers: [pooledMcpServer('portable-b', 'b')],
+    },
+  });
+});
+
+test('Claude print pool replaces the session when pluginDirs change', async () => {
+  await assertPoolReplacement({
+    key: 'pooled-print-dirs',
+    getSession: (key) => adapterTest.getPooledPrintSession(key),
+    shared: { processSpawner: (() => ({ process: stubClaudeChild() })) as any },
+    first: { pluginDirs: ['/plugins/one'] },
+    second: { pluginDirs: ['/plugins/two'] },
+  });
+});
+
+test('Claude TUI pool replaces the session when mcpConfigPaths change', async () => {
+  await assertPoolReplacement({
+    key: 'pooled-tui-paths',
+    getSession: (key) => adapterTest.getPooledTuiSession(key),
+    shared: { claudeBackend: 'tui' },
+    first: { mcpConfigPaths: ['/fixture/base-a.json'] },
+    second: { mcpConfigPaths: ['/fixture/base-b.json'] },
+  });
+});
+
+test('Claude TUI pool replaces the session when plugin capability changes', async () => {
+  await assertPoolReplacement({
+    key: 'pooled-tui-capability',
+    getSession: (key) => adapterTest.getPooledTuiSession(key),
+    shared: { claudeBackend: 'tui' },
+    first: { pluginCapabilityFingerprint: 'fingerprint-a' },
+    second: { pluginCapabilityFingerprint: 'fingerprint-b' },
+  });
+});
+
+test('Claude TUI pool replaces the session when supplemental MCP identity changes', async () => {
+  await assertPoolReplacement({
+    key: 'pooled-tui',
+    getSession: (key) => adapterTest.getPooledTuiSession(key),
+    shared: { claudeBackend: 'tui', mcpConfigPaths: ['/fixture/base.json'] },
+    first: { mcpServers: [pooledMcpServer('portable-a', 'a')] },
+    second: { mcpServers: [pooledMcpServer('portable-b', 'b')] },
+  });
+});
+
+test('Claude print respawn revalidates supplemental MCP content before spawning again', async () => {
+  const counter = { value: 0 };
+  const adapter = new ClaudeAdapter();
+  adapter.spawn({
+    sessionId: 'revalidate-print',
+    sessionKey: 'revalidate-print',
+    resume: false,
+    processSpawner: countingSpawner(counter),
+    mcpServers: [pooledMcpServer('portable-a', 'a')],
+  });
+  const session = adapterTest.getPooledPrintSession('revalidate-print') as any;
+  fs.writeFileSync(session.supplementalMcpConfigPath, '{"mcpServers":{}}\n');
+  assert.throws(() => session.spawnProcess(), /identity mismatch|content mismatch/i);
+  assert.equal(counter.value, 1);
+  await adapter.close('revalidate-print');
+});
+
 // --- recoverTuiOrphans (DR-0012 §3.6 startup sweep) ---
 
 function makeRecordingExec(scenario: {
@@ -1163,6 +1527,59 @@ test('ClaudeAdapter.spawn: appendSystemPrompt is propagated to --append-system-p
   const flagIdx = args.indexOf('--append-system-prompt');
   assert.ok(flagIdx >= 0, '--append-system-prompt flag must appear when config.appendSystemPrompt is set');
   assert.equal(args[flagIdx + 1], 'custom-append-text');
+});
+
+const PORTABLE_STDIO_NAME = safeNativeName('portable.http%name.with-extra-characters');
+const PORTABLE_REMOTE_NAME = safeNativeName('portable:remote%name.with-extra-characters');
+
+function portableRuntimeServers(): McpServerConfig[] {
+  return [
+    {
+      name: PORTABLE_STDIO_NAME,
+      type: 'stdio',
+      command: 'node',
+      args: ['--token', 'secret-arg'],
+      env: { API_KEY: 'secret-env' },
+      cwd: '/srv/plugin',
+    },
+    {
+      name: PORTABLE_REMOTE_NAME,
+      type: 'streamable-http',
+      url: 'https://private.example.com/mcp',
+      headers: { Authorization: 'Bearer secret-http' },
+    },
+  ];
+}
+
+function portableRuntimeSpawnArgs(): string[] {
+  return adapterTest.computeSpawnArgs({
+    sessionId: 'uuid-portable-mcp',
+    sessionKey: 'portable-mcp',
+    resume: false,
+    mcpConfigPaths: ['/fixture/base.json'],
+    mcpServers: portableRuntimeServers(),
+  });
+}
+
+function assertPortableRuntimeSpawnArgs(args: string[]): void {
+  const paths = mcpConfigPaths(args);
+  assert.deepEqual(paths.slice(0, 2), ['/fixture/base.json', paths[1]]);
+  assert.ok(paths[1].includes(path.join('plugin-runtime')));
+  const serializedArgs = JSON.stringify(args);
+  assert.equal(serializedArgs.includes('secret-arg'), false);
+  assert.equal(serializedArgs.includes('secret-env'), false);
+  assert.equal(serializedArgs.includes('secret-http'), false);
+  const parsed = JSON.parse(fs.readFileSync(paths[1], 'utf8')) as {
+    mcpServers: Record<string, unknown>;
+  };
+  assert.deepEqual(
+    Object.keys(parsed.mcpServers).sort(),
+    [PORTABLE_STDIO_NAME, PORTABLE_REMOTE_NAME].sort(),
+  );
+}
+
+test('ClaudeAdapter.spawn: portable MCP runtime is passed only through a supplemental config path', () => {
+  assertPortableRuntimeSpawnArgs(portableRuntimeSpawnArgs());
 });
 
 // task f7cf satisfied the previous "iterating rejects with task f7cf" test: ClaudeAdapter.spawn()

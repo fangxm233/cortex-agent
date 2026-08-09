@@ -1,6 +1,6 @@
-// input:  Zod, settings spec, UI-service operation unions
-// output: input schemas/maps including auth and draft mutations
-// pos:    Runtime validation source for the UI contract
+// input:  Zod, settings spec, UI-service op unions
+// output: UI input schemas/maps incl plugin ops
+// pos:    Runtime validation source for UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { z } from 'zod';
@@ -105,6 +105,8 @@ export const machineDetailInput = z.object({
 });
 
 export const skillsListInput = z.object({});
+
+export const pluginsListInput = z.object({});
 
 export const threadTemplatesGetInput = z.object({});
 
@@ -504,6 +506,36 @@ export const profilesRemoveInput = z.object({
   name: profileSafeName.min(1),
 });
 
+const componentByteLength = (value: string): boolean => new TextEncoder().encode(value).byteLength <= 255;
+const isSafeComponent = (value: string): boolean => value !== '.' && value !== '..'
+  && !value.includes('/') && !value.includes('\\') && !value.includes('\0');
+const pluginTargetName = z.string().max(240).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
+const pluginSlotRef = z.string().max(240).regex(/^(?:__active__|[A-Za-z0-9][A-Za-z0-9_-]*)$/);
+const pluginIdInput = z.string().min(1).refine(componentByteLength).refine(isSafeComponent);
+const sha256HashInput = z.string().regex(/^[a-f0-9]{64}$/);
+
+const pluginsAssignTargetInput = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('agent'),
+    name: pluginTargetName,
+    baseHash: sha256HashInput,
+  }),
+  z.object({
+    kind: z.literal('template-slot'),
+    templateName: pluginTargetName,
+    index: z.number().int().min(0),
+    ref: pluginSlotRef,
+    baseHash: sha256HashInput,
+    mode: z.enum(['inherit', 'custom']),
+  }),
+]);
+
+export const pluginsAssignInput = z.object({
+  target: pluginsAssignTargetInput,
+  pluginIds: z.array(pluginIdInput),
+  acknowledgeMcp: z.boolean().optional(),
+});
+
 // threadTemplates.detail / validate / save / remove — the thread-template editing surface.
 // The name pattern mirrors template-writer's: the filename IS the entity identity, so anything
 // that could escape the config directory is rejected before it reaches the writer.
@@ -630,6 +662,7 @@ export const queryInputSchemas = {
   'machines.list': machinesListInput,
   'machines.detail': machineDetailInput,
   'skills.list': skillsListInput,
+  'plugins.list': pluginsListInput,
   'threadTemplates.get': threadTemplatesGetInput,
   'threadTemplates.detail': threadTemplatesDetailInput,
   'system.daemonStatus': systemDaemonStatusInput,
@@ -686,6 +719,7 @@ export const mutateInputSchemas = {
   'profiles.create': profilesCreateInput,
   'profiles.update': profilesUpdateInput,
   'profiles.remove': profilesRemoveInput,
+  'plugins.assign': pluginsAssignInput,
   'threadTemplates.validate': threadTemplatesValidateInput,
   'threadTemplates.save': threadTemplatesSaveInput,
   'threadTemplates.remove': threadTemplatesRemoveInput,

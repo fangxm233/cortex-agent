@@ -1,7 +1,7 @@
-// input:  localized vocabulary and selected settings section
-// output: ordered settings navigation and section metadata
-// pos:    Pure navigation model for the Settings modal
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  localized copy and selected settings section
+// output: ordered settings nav and section metadata
+// pos:    Settings modal navigation model
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 // Labels are resolved via `getSettingsNav(L)` / `getSectionMeta(L, key)`.
 
@@ -15,6 +15,7 @@ export type SettingsSectionKey =
   | 'budget'
   | 'machines'
   | 'templates'
+  | 'plugins'
   | 'mcp'
   | 'notifications'
   | 'hooks'
@@ -41,6 +42,7 @@ const NAV_LABEL_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
   budget: 'stNavBudget',
   machines: 'stNavMachines',
   templates: 'stNavTemplates',
+  plugins: 'stNavPlugins',
   mcp: 'stNavMcp',
   notifications: 'stNavNotifications',
   hooks: 'stNavHooks',
@@ -56,6 +58,7 @@ const NAV_SUB_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
   budget: 'stMetaBudgetSub',
   machines: 'stMetaMachinesSub',
   templates: 'stMetaTemplatesSub',
+  plugins: 'stMetaPluginsSub',
   mcp: 'stMetaMcpSub',
   notifications: 'stMetaNotificationsSub',
   hooks: 'stMetaHooksSub',
@@ -71,6 +74,7 @@ const NAV_ORDER: SettingsSectionKey[] = [
   'budget',
   'machines',
   'templates',
+  'plugins',
   'mcp',
   'notifications',
   'hooks',
