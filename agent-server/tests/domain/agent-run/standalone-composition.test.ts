@@ -335,3 +335,22 @@ it('rejects a replaced output root before opening a journal', async () => {
   assert.match((thrown as Error).message, /physical trajectory root/i);
   assert.equal(fs.existsSync(path.join(outside, 'escaped.journal.ndjson')), false);
 });
+
+it('retains queued write failures for flush without an unhandled rejection', async () => {
+  const stores = createStandaloneStores(path.join(root, 'failing-state'), true);
+  fs.unlinkSync(stores.files.executions);
+  fs.mkdirSync(stores.files.executions);
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    stores.executions.startLocalExecution({ kind: 'local', trigger: 'test' });
+    for (let attempt = 0; attempt < 20 && unhandled.length === 0; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    assert.deepEqual(unhandled, []);
+    await assert.rejects(stores.flush());
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+  }
+});

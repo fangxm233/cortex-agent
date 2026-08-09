@@ -90,6 +90,8 @@ class DurableRecordStore<T> {
     this.pending = this.pending.then(
       () => atomicWrite(this.filePath, `${JSON.stringify(snapshot)}\n`),
     );
+    // Sync runtime ports may intentionally defer this write; flush still observes the rejection.
+    void this.pending.catch(() => {});
     return this.pending;
   }
 }
