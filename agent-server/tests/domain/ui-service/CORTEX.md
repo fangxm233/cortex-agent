@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Regression tests for the ui-service facade behind the web API: query handlers, mutate handlers, and event subscriptions.
-Scopes covered are approvals, config, executions, issues, memory, projects, schedules, sessions, tasks and threads.
+Scopes cover approvals, config, executions, issues, memory, plugins, projects, schedules, sessions, tasks, and threads.
 
 | filename | role | function |
 |---|---|---|
@@ -41,6 +41,7 @@ Scopes covered are approvals, config, executions, issues, memory, projects, sche
 | query-sessions-transcript.test.ts | test | Covers transcript turns and interactions |
 | query-sessions.test.ts | test | Covers session list filters and run state |
 | query-skills.test.ts | test | Covers skills list grouping by source |
+| plugins.test.ts | test | Covers plugin list, assignment and hot reload |
 | query-system-rate-limit.test.ts | test | Covers throttle windows and waiting counts |
 | query-task-verification.test.ts | test | Covers task evidence and dispatch history |
 | query-tasks.test.ts | test | Covers readiness, deps, claims and completion |

@@ -1,6 +1,6 @@
-// input:  runtime shared Zod schema maps
-// output: operation coverage including authentication mutations
-// pos:    Runtime UI-contract schema guard
+// input:  shared Zod schema maps
+// output: query/mutate schema coverage
+// pos:    UI-contract runtime schema guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'node:test';
@@ -11,8 +11,8 @@ const QUERY_SCOPES = [
   'projects.list', 'sessions.list', 'sessions.transcript', 'sessions.pendingInteraction', 'threads.list',
   'threads.get', 'tasks.list', 'tasks.verification', 'schedules.list', 'executions.list', 'executions.get',
   'memory.tree', 'memory.file', 'approvals.list', 'issues.list', 'notes.list', 'cost.summary', 'config.get',
-  'auth.status', 'auth.flowState', 'auth.customProviders', 'hooks.list', 'machines.list', 'machines.detail', 'skills.list', 'threadTemplates.get', 'threadTemplates.detail', 'system.daemonStatus',
-  'system.rateLimitStatus',
+  'auth.status', 'auth.flowState', 'auth.customProviders', 'hooks.list', 'machines.list', 'machines.detail', 'skills.list', 'plugins.list',
+  'threadTemplates.get', 'threadTemplates.detail', 'system.daemonStatus', 'system.rateLimitStatus',
 ] as const;
 
 const MUTATE_OPS = [
@@ -25,7 +25,7 @@ const MUTATE_OPS = [
   'tasks.block', 'tasks.unblock', 'approvals.approve', 'approvals.reject', 'approvals.request',
   'issues.handle', 'issues.delete', 'notes.add', 'notes.update', 'notes.setCompleted', 'notes.delete',
   'notes.clearCompleted', 'config.set', 'hooks.create', 'hooks.update', 'hooks.setEnabled', 'hooks.remove',
-  'hooks.test', 'profiles.create', 'profiles.update', 'profiles.remove',
+  'hooks.test', 'profiles.create', 'profiles.update', 'profiles.remove', 'plugins.assign',
   'threadTemplates.validate', 'threadTemplates.save', 'threadTemplates.remove',
   'auth.startLogin', 'auth.respondPrompt', 'auth.cancelFlow', 'auth.logout',
   'auth.upsertCustomProvider', 'auth.removeCustomProvider',
@@ -49,6 +49,7 @@ test('every MutateOp has an input schema', () => {
 test('empty query schemas accept empty input', () => {
   assert.deepEqual(queryInputSchemas['projects.list'].parse({}), {});
   assert.deepEqual(queryInputSchemas['auth.status'].parse({}), {});
+  assert.deepEqual(queryInputSchemas['plugins.list'].parse({}), {});
   assert.deepEqual(queryInputSchemas['system.rateLimitStatus'].parse({}), {});
 });
 
@@ -250,6 +251,53 @@ test('approvals.request enforces per-kind required fields', () => {
   assert.throws(() => s.parse({ kind: 'reconnect-platform' }));       // no platform
   assert.throws(() => s.parse({ kind: 'add-machine' }));              // no machineName
   assert.throws(() => s.parse({ kind: 'reboot' }));                   // unknown kind
+});
+
+test('plugins.assign accepts bounded lowercase hashes', () => {
+  const s = mutateInputSchemas['plugins.assign'];
+  const agent = {
+    target: { kind: 'agent', name: 'writer', baseHash: 'a'.repeat(64) },
+    pluginIds: ['alpha', 'beta'],
+  };
+  const slot = {
+    target: {
+      kind: 'template-slot',
+      templateName: 'workflow',
+      index: 1,
+      ref: 'writer',
+      baseHash: 'b'.repeat(64),
+      mode: 'custom',
+    },
+    pluginIds: ['alpha'],
+    acknowledgeMcp: true,
+  };
+
+  assert.deepEqual(s.parse(agent), agent);
+  assert.deepEqual(s.parse(slot), slot);
+});
+
+test('plugins.assign rejects bad hashes and oversized ids', () => {
+  const s = mutateInputSchemas['plugins.assign'];
+  const bigId = 'a'.repeat(65);
+  const manyIds = Array.from({ length: 129 }, (_, i) => `p${i}`);
+
+  assert.throws(() => s.parse({ target: { kind: 'agent', name: 'writer' }, pluginIds: [] }));
+  assert.throws(() => s.parse({
+    target: { kind: 'agent', name: 'writer', baseHash: 'A'.repeat(64) },
+    pluginIds: ['alpha'],
+  }));
+  assert.throws(() => s.parse({
+    target: { kind: 'template-slot', templateName: 'workflow', index: -1, ref: 'writer', baseHash: 'x', mode: 'inherit' },
+    pluginIds: [],
+  }));
+  assert.throws(() => s.parse({
+    target: { kind: 'template-slot', templateName: 'workflow', index: 1, ref: 'writer', baseHash: 'c'.repeat(64), mode: 'custom' },
+    pluginIds: [bigId],
+  }));
+  assert.throws(() => s.parse({
+    target: { kind: 'agent', name: 'writer', baseHash: 'd'.repeat(64) },
+    pluginIds: manyIds,
+  }));
 });
 
 test('schedules.add accepts valid per-type input', () => {

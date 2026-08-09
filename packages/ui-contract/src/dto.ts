@@ -1,6 +1,6 @@
 // input:  built UI-service declarations and cost types
-// output: browser DTO contract including auth account actions
-// pos:    Shared server-to-client compile-time DTO boundary
+// output: browser DTO contract incl plugin exports
+// pos:    Shared server/client compile-time DTO boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 export type {
@@ -37,6 +37,7 @@ export type {
   MachinesListParams,
   MachineDetailParams,
   SkillsListParams,
+  PluginsListParams,
   // Mutate args
   ProjectCreateArgs,
   SessionsCreateArgs,
@@ -155,6 +156,22 @@ export type {
   ProfilesUpdateReturn,
   ProfilesRemoveArgs,
   ProfilesRemoveReturn,
+  UiPluginCatalogIssue,
+  UiPluginManifest,
+  UiPluginSkill,
+  UiPluginMcpStdioSummary,
+  UiPluginMcpRemoteSummary,
+  UiPluginMcpServer,
+  UiPluginCatalogEntry,
+  PluginAgentTarget,
+  PluginTemplateSlotTarget,
+  PluginTemplateShellBindingTarget,
+  PluginAssignmentTarget,
+  PluginsListReturn,
+  PluginsAssignAgentTarget,
+  PluginsAssignTemplateTarget,
+  PluginsAssignArgs,
+  PluginsAssignReturn,
   ConfigBudget,
   ConfigProfiles,
   ConfigProfileEntry,

@@ -1,6 +1,6 @@
-// input:  shared zod schemas and agent-server query/mutation maps
-// output: exact-parity guards including auth logout
-// pos:    Anti-drift boundary for the shared UI contract
+// input:  shared schemas and UI op maps
+// output: exact parity guards incl plugin ops
+// pos:    Anti-drift boundary for UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { z } from 'zod';
@@ -68,6 +68,8 @@ import type {
   machinesListInput,
   machineDetailInput,
   skillsListInput,
+  pluginsListInput,
+  pluginsAssignInput,
   threadTemplatesGetInput,
   threadTemplatesDetailInput,
   threadTemplatesValidateInput,
@@ -114,6 +116,7 @@ const _hooksList: QueryParity<'hooks.list', typeof hooksListInput> = true;
 const _machinesList: QueryParity<'machines.list', typeof machinesListInput> = true;
 const _machineDetail: QueryParity<'machines.detail', typeof machineDetailInput> = true;
 const _skillsList: QueryParity<'skills.list', typeof skillsListInput> = true;
+const _pluginsList: QueryParity<'plugins.list', typeof pluginsListInput> = true;
 const _threadTemplatesGet: QueryParity<'threadTemplates.get', typeof threadTemplatesGetInput> = true;
 const _threadTemplatesDetail: QueryParity<'threadTemplates.detail', typeof threadTemplatesDetailInput> = true;
 const _systemDaemonStatus: QueryParity<'system.daemonStatus', typeof systemDaemonStatusInput> = true;
@@ -146,6 +149,7 @@ const _hooksTest: MutateParity<'hooks.test', typeof hooksTestInput> = true;
 const _profilesCreate: MutateParity<'profiles.create', typeof profilesCreateInput> = true;
 const _profilesUpdate: MutateParity<'profiles.update', typeof profilesUpdateInput> = true;
 const _profilesRemove: MutateParity<'profiles.remove', typeof profilesRemoveInput> = true;
+const _pluginsAssign: MutateParity<'plugins.assign', typeof pluginsAssignInput> = true;
 const _threadTemplatesValidate: MutateParity<'threadTemplates.validate', typeof threadTemplatesValidateInput> = true;
 const _threadTemplatesSave: MutateParity<'threadTemplates.save', typeof threadTemplatesSaveInput> = true;
 const _threadTemplatesRemove: MutateParity<'threadTemplates.remove', typeof threadTemplatesRemoveInput> = true;
@@ -177,7 +181,7 @@ const _executionsLog: Exact<z.infer<typeof executionsLogInput>, ExecutionsLogPar
 export const _contractParityChecked = [
   _projectsList, _sessionsList, _sessionsTranscript, _threadsList, _threadsGet, _tasksList, _schedulesList,
   _executionsList, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _notesList, _costSummary, _configGet,
-  _authStatus, _authFlowState, _machinesList, _skillsList, _threadTemplatesGet,
+  _authStatus, _authFlowState, _machinesList, _skillsList, _pluginsList, _threadTemplatesGet,
   _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _threadsCancel, _executionsCancel,
   _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _schedulesUpdate, _tasksClaim,
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
@@ -186,7 +190,7 @@ export const _contractParityChecked = [
   _configSet, _authStartLogin, _authRespondPrompt, _authCancelFlow, _authLogout, _executionsLog,
   _authCustomProviders, _authUpsertCustomProvider, _authRemoveCustomProvider,
   _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
-  _profilesCreate, _profilesUpdate, _profilesRemove,
+  _profilesCreate, _profilesUpdate, _profilesRemove, _pluginsAssign,
   _threadTemplatesDetail, _threadTemplatesValidate, _threadTemplatesSave, _threadTemplatesRemove,
   _systemDaemonStatus, _systemRateLimitStatus, _systemRestart,
 ] as const;
