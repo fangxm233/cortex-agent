@@ -1,6 +1,6 @@
 # input:  the CORTEX_BENCH_DOCKER_TESTS opt-in environment variable
-# output: one shared marker that keeps container tests out of offline runs
-# pos:    Docker opt-in gate for container-dependent tests
+# output: shared marker and module guard for container tests
+# pos:    Fail-closed Docker opt-in gate for benchmark tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import os
@@ -17,6 +17,12 @@ SKIP_REASON = (
     "these fixtures emit was re-pointed to the only admitted route, "
     "POST /v1/messages?beta=true, without a container run to confirm it."
 )
+
+
+def require_docker_opt_in() -> None:
+    if os.environ.get(DOCKER_OPT_IN) != "1":
+        pytest.skip(SKIP_REASON, allow_module_level=True)
+
 
 docker_opt_in = pytest.mark.skipif(
     os.environ.get(DOCKER_OPT_IN) != "1", reason=SKIP_REASON,

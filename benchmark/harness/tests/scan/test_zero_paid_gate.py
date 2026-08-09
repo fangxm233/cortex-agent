@@ -73,7 +73,7 @@ def run_zero_paid_probe(tmp_path: Path, selection: tuple[str, ...]) -> tuple[dic
         [sys.executable, "-m", "pytest", "-q", "-rs", "-p", "zero_paid_probe", *selection],
         cwd=HARNESS_ROOT, env=env, text=True, capture_output=True,
     )
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.returncode == pytest.ExitCode.NO_TESTS_COLLECTED, result.stdout + result.stderr
     return json.loads(report.read_text()), result.stdout
 
 
@@ -85,6 +85,6 @@ def test_zero_paid_commands_do_not_execute_container_tests(
 ) -> None:
     report, output = run_zero_paid_probe(tmp_path, selection)
 
-    assert report["targets"] > 0
+    assert report["targets"] == 0
     assert report["calls"] == 0
     assert f"set {DOCKER_OPT_IN}=1" in output

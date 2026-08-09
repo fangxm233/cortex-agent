@@ -3,6 +3,10 @@
 # pos:    Opt-in container proof for the Harbor install boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+from docker_gate import require_docker_opt_in
+
+require_docker_opt_in()
+
 import asyncio
 import hashlib
 import json
@@ -21,9 +25,6 @@ from harbor.models.trial.config import ServiceVolumeConfig
 from harbor.models.trial.paths import TrialPaths
 
 from cortex_bench_harness import CortexBenchAgent
-from docker_gate import docker_opt_in
-
-pytestmark = docker_opt_in
 
 IMAGE_DIGEST = "sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818"
 IMAGE_REF = f"debian@{IMAGE_DIGEST}"

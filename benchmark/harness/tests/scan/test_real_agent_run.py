@@ -3,6 +3,10 @@
 # pos:    Opt-in container proof for the real Cortex run path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+from docker_gate import require_docker_opt_in
+
+require_docker_opt_in()
+
 import asyncio
 import json
 import os
@@ -15,15 +19,12 @@ import pytest
 
 import stub_trial
 from cortex_bench_harness.launcher.arm_resolution import ContainerFacts
-from docker_gate import docker_opt_in
 from stub_trial import (
     TrialEvidence,
     result_surface_files,
     run_real_agent_trial,
     write_workspace_diff,
 )
-
-pytestmark = docker_opt_in
 
 EXPECTED_USAGE = {
     "input_tokens": 11,

@@ -5,7 +5,7 @@ Tests for the Python benchmark harness distribution.
 | filename | role | function |
 |---|---|---|
 | capability_admission.py | fixture | Admits or refuses capability rows for one test without writing the registry |
-| docker_gate.py | fixture | Gates container tests behind an opt-in variable |
+| docker_gate.py | fixture | Skips container modules unless explicitly opted in |
 | launcher/ | tests | Verifies arm routing and credential projections |
 | package/ | tests | Verifies package-level contracts |
 | proxy/ | tests | Proves credential and network containment |
