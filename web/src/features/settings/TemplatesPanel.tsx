@@ -1,5 +1,5 @@
 // input:  threadTemplates APIs, editor VM, shared settings primitives
-// output: bounded master-detail editor with validation and write guards
+// output: bounded master-detail editor with fixed actions and guards
 // pos:    Settings view for thread-template configuration
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -842,9 +842,6 @@ export function TemplatesPanel() {
             setCurrentText(formatBody(parsed.body));
           }}
         />
-      </div>
-      <div style={{ flex: 'none', paddingTop: 8, fontSize: 10, color: 'var(--proto-faint)', lineHeight: 1.6 }}>
-        {L.ttFootNote}
       </div>
     </div>
   );

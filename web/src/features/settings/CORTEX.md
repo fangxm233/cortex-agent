@@ -30,7 +30,7 @@ own their mutations.
 | HooksPanel.test.tsx | test | Tests hook result gating, layout and runner |
 | hooks-panel-vm.ts | vm | Filters, groups, validates and builds hook mutation args |
 | hooks-panel-vm.test.ts | test | Unit tests for the hooks panel view model |
-| TemplatesPanel.tsx | view | Edits templates with independent pane scrolling |
+| TemplatesPanel.tsx | view | Bounds template scrolling and fixes action bar |
 | TemplatesPanel.test.tsx | test | Tests detail-pane tabs, guards and save gating |
 | templates-panel-vm.ts | vm | Filters, parses editor JSON and builds template mutation args |
 | templates-panel-vm.test.ts | test | Unit tests for the templates panel view model |

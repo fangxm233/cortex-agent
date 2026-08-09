@@ -168,6 +168,7 @@ describe('desktop authentication settings entry', () => {
     const content = renderer.root.find(node => node.props.style?.padding === '16px 22px');
     expect(content.props.style).toMatchObject({ display: 'flex', flexDirection: 'column', overflow: 'hidden' });
     expect(renderedText(renderer.root)).not.toContain('config/thread-templates/ — validated on save');
+    expect(renderedText(renderer.root)).not.toContain('Files under config/thread-templates/');
 
     const panel = renderer.root.findByProps({ 'data-settings-panel': 'templates' });
     const cards = panel.findAll(node => (
