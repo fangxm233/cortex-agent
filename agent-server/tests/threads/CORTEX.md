@@ -8,7 +8,7 @@ expansion, step lifecycle, provider-outage recovery, and transcripts.
 | domain-threads-smoke.test.ts | test | Covers thread target, stage and var helpers |
 | resolve-template-profiles.test.ts | test | Covers template to profile resolution |
 | shell-template.test.ts | test | Covers shell expansion and shipped retry predicates |
-| template-merge.test.ts | test | Covers merging defaults into user config |
+| template-merge.test.ts | test | Covers default merging and safe legacy-shell upgrades |
 | thread-config-dir.test.ts | test | Covers config directory load and migration |
 | thread-config-watcher-fallback.test.ts | test | Covers polling and watcher registration races |
 | thread-doc-review-retry.test.ts | test | Covers revised documents receiving a second review |

@@ -5,6 +5,7 @@
 
 import { readFileSync, writeFileSync, readdirSync, renameSync, existsSync, mkdirSync, watch, type FSWatcher } from 'fs';
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import * as path from 'path';
 import { CONFIG_DIR, DATA_DIR, PROMPTS_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
@@ -122,31 +123,57 @@ function listFilesRecursive(dir: string, base = dir): string[] {
   return out;
 }
 
-/**
- * Merge the shipped defaults thread-templates directory into the user's config directory with
- * per-file copy-if-missing semantics (aligned with plugin-sync): a defaults entity file that the
- * user does not yet have is copied in; existing user files are never overwritten. Runs at startup
- * so new default agents/templates/shells (e.g. a new shell definition) reach existing installs.
- *
- * @returns true if any file was written, false otherwise.
- */
+const WORKER_REVIEW_SHELL = path.join('shells', 'worker-review.json');
+
+function isLegacyWorkerReviewShell(shipped: any, installed: unknown): boolean {
+  const legacy = structuredClone(shipped);
+  const condition = legacy?.transitions?.[2]?.condition;
+  if (condition?.type !== 'output_contains') return false;
+  condition.type = 'output_not_contains';
+  return isDeepStrictEqual(installed, legacy);
+}
+
+function upgradeLegacyWorkerReviewShell(defaultsDir: string, userDir: string): boolean {
+  const shippedPath = path.join(defaultsDir, WORKER_REVIEW_SHELL);
+  const installedPath = path.join(userDir, WORKER_REVIEW_SHELL);
+  if (!existsSync(shippedPath) || !existsSync(installedPath)) return false;
+  try {
+    const shippedText = readFileSync(shippedPath, 'utf8');
+    const shipped = JSON.parse(shippedText);
+    const installed = JSON.parse(readFileSync(installedPath, 'utf8'));
+    if (!isLegacyWorkerReviewShell(shipped, installed)) return false;
+    writeFileSync(installedPath, shippedText, 'utf8');
+    log.info(`Upgraded legacy thread-templates file: ${WORKER_REVIEW_SHELL}`);
+    return true;
+  } catch (e: any) {
+    log.error(`Failed to upgrade legacy thread-templates file ${WORKER_REVIEW_SHELL}: ${e.message}`);
+    return false;
+  }
+}
+
+function copyMissingTemplateFile(defaultsDir: string, userDir: string, rel: string): boolean {
+  const dst = path.join(userDir, rel);
+  if (existsSync(dst)) return false;
+  try {
+    mkdirSync(path.dirname(dst), { recursive: true });
+    writeFileSync(dst, readFileSync(path.join(defaultsDir, rel), 'utf8'), 'utf8');
+    log.info(`Added thread-templates file from defaults: ${rel}`);
+    return true;
+  } catch (e: any) {
+    log.error(`Failed to copy default thread-templates file ${rel}: ${e.message}`);
+    return false;
+  }
+}
+
+/** Merge missing shipped templates and upgrade the unchanged legacy worker-review shell. */
 export function mergeThreadTemplates(defaultsDir: string, userDir: string): boolean {
   if (!existsSync(defaultsDir)) {
     log.warn(`Cannot read default thread-templates dir from ${defaultsDir}`);
     return false;
   }
-  let changed = false;
+  let changed = upgradeLegacyWorkerReviewShell(defaultsDir, userDir);
   for (const rel of listFilesRecursive(defaultsDir)) {
-    const dst = path.join(userDir, rel);
-    if (existsSync(dst)) continue;
-    try {
-      mkdirSync(path.dirname(dst), { recursive: true });
-      writeFileSync(dst, readFileSync(path.join(defaultsDir, rel), 'utf8'), 'utf8');
-      log.info(`Added thread-templates file from defaults: ${rel}`);
-      changed = true;
-    } catch (e: any) {
-      log.error(`Failed to copy default thread-templates file ${rel}: ${e.message}`);
-    }
+    changed = copyMissingTemplateFile(defaultsDir, userDir, rel) || changed;
   }
   return changed;
 }

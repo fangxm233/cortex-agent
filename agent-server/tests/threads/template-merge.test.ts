@@ -1,6 +1,7 @@
-// Tests for mergeThreadTemplates (directory form, DR-0017 D6 Phase 2.5) — per-file copy-if-missing
-// from the defaults thread-templates/ dir into the user's config dir: new entity files propagate,
-// existing user files are never overwritten (aligned with plugin-sync semantics).
+// input:  Vitest, temp config trees, thread-template merger
+// output: Default-copy and legacy-shell upgrade regressions
+// pos:    Verifies safe thread-template config propagation
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { describe, it, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
@@ -33,7 +34,18 @@ describe('mergeThreadTemplates (directory form)', () => {
     writeJson(join(defaultsDir, 'agents', 'main.json'), { name: 'main', profile: '__active__', persistSession: true, promptTemplate: '{{input}}' });
     writeJson(join(defaultsDir, 'agents', 'worker.json'), { name: 'worker', profile: '__active__', persistSession: false, promptTemplate: '{{input}}' });
     writeJson(join(defaultsDir, 'templates', 'default.json'), { name: 'default', description: 'd', agents: ['main'], transitions: [], entryAgent: 'main', maxTotalSteps: 1 });
-    writeJson(join(defaultsDir, 'shells', 'worker-review.json'), { params: ['worker', 'reviewer'], agents: ['{worker}', '{reviewer}'], transitions: [], entryAgent: '{worker}', maxTotalSteps: 4 });
+    writeJson(join(defaultsDir, 'shells', 'worker-review.json'), {
+      params: ['worker', 'reviewer'],
+      agents: ['{worker}', '{reviewer}'],
+      transitions: [
+        { from: '{worker}:{worker.entryStage}', to: '{reviewer}', condition: { type: 'always' } },
+        { from: '{reviewer}', to: '{worker}:retry', condition: { type: 'convergence', marker: '[APPROVED]', maxIterations: 1 } },
+        { from: '{worker}:retry', to: '{reviewer}', condition: { type: 'output_contains', pattern: '\\[REVISED\\]' } },
+      ],
+      entryAgent: '{worker}',
+      entryStage: '{worker.entryStage}',
+      maxTotalSteps: 4,
+    });
   }
 
   it('copies the full defaults tree when the user dir is empty', () => {
@@ -60,6 +72,24 @@ describe('mergeThreadTemplates (directory form)', () => {
     // new files added
     assert.ok(existsSync(join(userDir, 'agents', 'worker.json')));
     assert.ok(existsSync(join(userDir, 'shells', 'worker-review.json')));
+  });
+
+  it('upgrades only an unchanged legacy worker-review shell', () => {
+    seedDefaults();
+    const shellPath = join('shells', 'worker-review.json');
+    const current = JSON.parse(readFileSync(join(defaultsDir, shellPath), 'utf8'));
+    const legacy = structuredClone(current);
+    legacy.transitions[2].condition.type = 'output_not_contains';
+    writeJson(join(userDir, shellPath), legacy);
+
+    assert.equal(mergeThreadTemplates(defaultsDir, userDir), true);
+    assert.deepEqual(JSON.parse(readFileSync(join(userDir, shellPath), 'utf8')), current);
+
+    const customized = structuredClone(legacy);
+    customized.maxTotalSteps = 6;
+    writeJson(join(userDir, shellPath), customized);
+    assert.equal(mergeThreadTemplates(defaultsDir, userDir), false);
+    assert.deepEqual(JSON.parse(readFileSync(join(userDir, shellPath), 'utf8')), customized);
   });
 
   it('returns false when the user dir already has everything', () => {
