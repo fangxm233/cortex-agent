@@ -1,6 +1,6 @@
-// input:  mounted MChatScreen, deferred mutations, captured live and route state
-// output: mobile optimistic-send display, promotion, and rejection restore specs
-// pos:    Mounted mobile optimistic sender integration specification
+// input:  mounted mobile chat, mutations and captured route state
+// output: optimistic-send and local slash-action specifications
+// pos:    Mounted mobile composer integration specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
@@ -14,6 +14,9 @@ const harness = vi.hoisted(() => ({
   transcripts: {} as Record<string, any>,
   sendMutateAsync: vi.fn(),
   createAndSendMutateAsync: vi.fn(),
+  cancelMutate: vi.fn(),
+  setProfileMutate: vi.fn(),
+  compact: vi.fn(),
   sendPending: false,
   createAndSendPending: false,
   navigate: vi.fn(),
@@ -31,6 +34,18 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
         const sessionId = options.input.sessionId as string;
         return { data: sessionId ? harness.transcripts[sessionId] : undefined, isPending: false };
       }
+      if (options.__kind === 'config.get') return {
+        data: {
+          profiles: {
+            defaultProfile: 'plan',
+            profiles: [
+              { name: 'plan', model: 'opus', backend: 'claude' },
+              { name: 'execute', model: 'sonnet', backend: 'claude' },
+            ],
+          },
+        },
+        isPending: false,
+      };
       return { data: undefined, isPending: false };
     },
     useMutation: (options: any) => {
@@ -40,6 +55,8 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       if (options.__kind === 'sessions.createAndSend') {
         return { mutateAsync: harness.createAndSendMutateAsync, isPending: harness.createAndSendPending };
       }
+      if (options.__kind === 'sessions.cancel') return { mutate: harness.cancelMutate, isPending: false };
+      if (options.__kind === 'sessions.setProfile') return { mutate: harness.setProfileMutate, isPending: false };
       return { mutate: vi.fn(), isPending: false };
     },
     useQueryClient: () => ({ invalidateQueries: harness.invalidateQueries }),
@@ -90,7 +107,16 @@ vi.mock('@/features/workbench/useSessionMessageLiveSync', () => ({
   }),
 }));
 
-vi.mock('@/features/workbench/useSessionCompact', () => ({ useSessionCompact: () => ({ compact: vi.fn() }) }));
+vi.mock('@/features/workbench/useSessionCompact', () => ({
+  useSessionCompact: () => ({
+    onCompact: harness.compact,
+    pending: false,
+    disabled: false,
+    status: null,
+    error: null,
+    disabledReason: null,
+  }),
+}));
 vi.mock('@/features/workbench/useInteractionActions', () => ({ useInteractionActions: () => ({}) }));
 vi.mock('@/features/workbench/useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
 vi.mock('@/features/thread/useThreadGetLiveSync', () => ({ useThreadGetLiveSync: () => {} }));
@@ -104,6 +130,8 @@ vi.mock('./MChatView', async () => {
         'data-system-lines': JSON.stringify(props.systemLines ?? []),
         onComposerChange: props.onComposerChange,
         onSend: props.onSend,
+        onSlashPick: props.onSlashPick,
+        slashSuggestions: props.slashSuggestions,
       },
       props.rows
         .filter((row: { kind: string }) => row.kind === 'user')
@@ -174,6 +202,9 @@ beforeEach(() => {
   harness.transcripts = { s1: emptyTranscript('s1') };
   harness.sendMutateAsync.mockReset();
   harness.createAndSendMutateAsync.mockReset();
+  harness.cancelMutate.mockReset();
+  harness.setProfileMutate.mockReset();
+  harness.compact.mockReset();
   harness.sendPending = false;
   harness.createAndSendPending = false;
   harness.navigate.mockReset();
@@ -184,6 +215,50 @@ beforeEach(() => {
 afterEach(() => {
   if (mounted) act(() => mounted?.unmount());
   mounted = null;
+});
+
+describe('mobile UI slash shortcuts', () => {
+  it('opens a new-session draft without sending command text', () => {
+    mounted = mountChat();
+    typeAndSend(mounted, '/new');
+    expect(harness.navigate).toHaveBeenCalledWith('/m/session/new');
+    expect(harness.sendMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('cancels and compacts through the existing session actions', () => {
+    harness.liveState = { ...emptyLiveState(), running: true };
+    harness.sessions = [{ ...SESSION, contextCompactionSupported: true, backendSessionId: 'backend-1' }];
+    mounted = mountChat();
+
+    typeAndSend(mounted, '/cancel');
+    expect(harness.cancelMutate).toHaveBeenCalledWith({ sessionId: 's1' });
+    typeAndSend(mounted, '/compact');
+    expect(harness.compact).toHaveBeenCalledOnce();
+    expect(harness.sendMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('switches a live profile and opens mobile settings locally', () => {
+    mounted = mountChat();
+
+    typeAndSend(mounted, '/profile execute');
+    expect(harness.setProfileMutate.mock.calls[0][0]).toEqual({ sessionId: 's1', profileName: 'execute' });
+    typeAndSend(mounted, '/settings');
+    expect(harness.navigate).toHaveBeenCalledWith('/m/settings');
+    expect(harness.sendMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('uses a slash-selected profile when the draft session is created', () => {
+    harness.routeParam = 'new';
+    harness.sessions = [];
+    harness.createAndSendMutateAsync.mockReturnValue(new Promise(() => {}));
+    mounted = mountChat();
+
+    typeAndSend(mounted, '/profile execute');
+    expect(harness.setProfileMutate).not.toHaveBeenCalled();
+    typeAndSend(mounted, 'first turn');
+
+    expect(harness.createAndSendMutateAsync.mock.calls[0][0].profileName).toBe('execute');
+  });
 });
 
 describe('mobile optimistic sender wiring', () => {

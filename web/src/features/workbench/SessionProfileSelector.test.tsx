@@ -1,5 +1,5 @@
-// input:  Mocked profile config, selected-session state and mutations
-// output: Draft and live profile-selection routing regressions
+// input:  Mocked profile config, shared selector and mutations
+// output: Shared draft/live profile routing regressions
 // pos:    Composer profile selector behavior specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -48,7 +48,7 @@ vi.mock('./SelectedSessionProvider', () => ({
   }),
 }));
 
-import { SessionProfileSelector } from './SessionProfileSelector';
+import { SessionProfileSelector, SessionProfileSelectorView } from './SessionProfileSelector';
 
 function mount(props: { isDraft: boolean; currentProfile: string | null; hasHistory: boolean }): ReactTestRenderer {
   return create(
@@ -80,6 +80,24 @@ afterEach(() => {
 });
 
 describe('SessionProfileSelector', () => {
+  it('lets another composer action reuse the same selection controller', () => {
+    const pickProfile = vi.fn();
+    const renderer = create(
+      <LangProvider>
+        <SessionProfileSelectorView selection={{
+          effectiveProfile: 'plan',
+          options: [{ name: 'execute', sub: 'sonnet', active: false, backend: 'claude', disabled: false }],
+          pick: pickProfile,
+        }} />
+      </LangProvider>,
+    );
+
+    act(() => renderer.root.findByProps({ 'data-chip': 'profile' }).props.onClick({ stopPropagation: vi.fn() }));
+    act(() => renderer.root.findByProps({ 'data-profile': 'execute' }).props.onClick({ stopPropagation: vi.fn() }));
+
+    expect(pickProfile).toHaveBeenCalledWith('execute');
+  });
+
   it('opens the profile menu above the bottom composer row', () => {
     const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: false });
 

@@ -1,12 +1,12 @@
-// input:  mobile chat rows, running state, and send availability
+// input:  mobile rows, slash suggestions and send availability
 // output: Mobile message layout and composer action contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it } from 'vitest';
-import { ComposerFullscreen } from '@/mobile/ui/kit';
+import { describe, expect, it, vi } from 'vitest';
+import { ComposerFullscreen, MComposer } from '@/mobile/ui/kit';
 import type { ChatRow } from '@/features/workbench/transcript-vm';
 import { MChatStream, MChatView, type MChatCopy, type MChatEditCopy } from './MChatView';
 
@@ -81,6 +81,33 @@ function renderChat(running: boolean, sendEnabled: boolean): string {
   );
 }
 
+describe('MChatView slash shortcuts', () => {
+  it('renders enabled suggestions and ignores disabled picks', () => {
+    const onSlashPick = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <MChatView
+          {...baseProps}
+          status={{ running: false, tone: 'idle', text: 'idle' }}
+          rows={[]}
+          slashSuggestions={[
+            { command: '/new', description: 'new', action: { type: 'new' }, disabled: false },
+            { command: '/cancel', description: 'cancel', action: { type: 'cancel' }, disabled: true },
+          ]}
+          onSlashPick={onSlashPick}
+        />,
+      );
+    });
+
+    act(() => renderer.root.findByProps({ 'data-mobile-slash-command': '/new' }).props.onClick());
+    act(() => renderer.root.findByProps({ 'data-mobile-slash-command': '/cancel' }).props.onClick());
+
+    expect(onSlashPick).toHaveBeenCalledOnce();
+    expect(onSlashPick.mock.calls[0][0].command).toBe('/new');
+  });
+});
+
 describe('MChatView send controls', () => {
   it('keeps Send reachable beside Stop while a turn is running', () => {
     const html = renderChat(true, true);
@@ -120,6 +147,27 @@ describe('MChatStream interaction layout', () => {
   });
 });
 
+describe('MComposer fullscreen commands', () => {
+  it('collapses the fullscreen editor after a command pick', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <MComposer
+          value={'line one\nline two'}
+          placeholder="composer"
+          commandMenu={<button type="button" data-command-pick>pick</button>}
+        />,
+      );
+    });
+    act(() => renderer.root.findByProps({ 'aria-label': 'Expand' }).props.onClick());
+    expect(renderer.root.findAllByProps({ 'aria-label': 'Collapse' })).toHaveLength(1);
+
+    act(() => renderer.root.findByProps({ 'data-fullscreen-command-menu': true }).props.onClick());
+
+    expect(renderer.root.findAllByProps({ 'aria-label': 'Collapse' })).toHaveLength(0);
+  });
+});
+
 describe('ComposerFullscreen send controls', () => {
   function render(sendEnabled: boolean): string {
     return renderToStaticMarkup(
@@ -130,6 +178,7 @@ describe('ComposerFullscreen send controls', () => {
         running
         sendEnabled={sendEnabled}
         onStop={() => {}}
+        commandMenu={<div data-command-menu="true">commands</div>}
       />,
     );
   }
@@ -142,6 +191,10 @@ describe('ComposerFullscreen send controls', () => {
 
   it('disables Send while running when the draft is empty', () => {
     expect(button(render(false), 'Send')).toContain('disabled');
+  });
+
+  it('keeps slash suggestions visible in the fullscreen editor', () => {
+    expect(render(true)).toContain('data-command-menu="true"');
   });
 });
 

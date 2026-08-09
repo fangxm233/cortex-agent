@@ -1,8 +1,13 @@
+// input:  Workbench panes, pinned preview and Settings overlay
+// output: Desktop workbench frame with global UI actions
+// pos:    Workbench route composition root
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { PinnedPreviewPane } from '@/features/media/PinnedPreviewPane';
 import { usePinnedPreview } from '@/features/media/PinnedPreviewProvider';
 import { LeftRail } from './LeftRail';
 import { CenterChat } from './CenterChat';
 import { RightPanel } from './RightPanel';
+import { useSettings } from '@/features/settings/SettingsProvider';
 
 // Workbench app-shell frame — 1:1 from prototype.dc.html L39 (Stage-R RB, task f528). The outer
 // flex row is the load-bearing seam every workbench pane composes into: 340px LeftRail (flex:none)
@@ -19,6 +24,7 @@ import { RightPanel } from './RightPanel';
 // chat is fluid exactly as before.
 export function WorkbenchPage(): JSX.Element {
   const { active, split } = usePinnedPreview();
+  const { open: openSettings } = useSettings();
   return (
     <div
       style={{
@@ -31,7 +37,7 @@ export function WorkbenchPage(): JSX.Element {
       }}
     >
       <LeftRail />
-      <CenterChat grow={active ? 1 - split : 1} />
+      <CenterChat grow={active ? 1 - split : 1} onOpenSettings={openSettings} />
       <PinnedPreviewPane />
       <RightPanel />
     </div>

@@ -1,5 +1,5 @@
-// input:  Session profile state, configured profiles and profile mutation
-// output: Composer-anchored profile selector with guarded switching
+// input:  Session profile state, configured profiles and mutation
+// output: Shared profile controller and composer selector
 // pos:    Desktop session profile control
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useEffect, useMemo, useState } from 'react';
@@ -20,7 +20,7 @@ interface SessionProfileSelectorProps {
   isDraft: boolean;
 }
 
-interface ProfileSelection {
+export interface ProfileSelection {
   effectiveProfile: string;
   options: ProfileOption[];
   pick: (name: string) => void;
@@ -50,7 +50,7 @@ function effectiveProfileName(
   return active ?? defaultProfile ?? firstProfile ?? '—';
 }
 
-function useProfileSelection(props: SessionProfileSelectorProps): ProfileSelection {
+export function useSessionProfileSelection(props: SessionProfileSelectorProps): ProfileSelection {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const config = useQuery(trpc.config.get.queryOptions({}));
@@ -77,9 +77,8 @@ function useProfileSelection(props: SessionProfileSelectorProps): ProfileSelecti
   return { effectiveProfile, options, pick };
 }
 
-export function SessionProfileSelector(props: SessionProfileSelectorProps): JSX.Element {
+export function SessionProfileSelectorView({ selection }: { selection: ProfileSelection }): JSX.Element {
   const L = useVocab();
-  const selection = useProfileSelection(props);
   const [hover, setHover] = useState(false);
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
@@ -102,4 +101,8 @@ export function SessionProfileSelector(props: SessionProfileSelectorProps): JSX.
       {open ? <ProfileMenu options={selection.options} placement="above" onPick={(name) => { close(); selection.pick(name); }} /> : null}
     </span>
   );
+}
+
+export function SessionProfileSelector(props: SessionProfileSelectorProps): JSX.Element {
+  return <SessionProfileSelectorView selection={useSessionProfileSelection(props)} />;
 }

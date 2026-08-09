@@ -4,7 +4,7 @@
 // Shared, presentational building blocks for the mobile v3 screens (1a–1r). Every screen composes
 // these so the four-tab redesign reads as one system. Pure — no data, no tRPC. The full-bleed shell
 // (MobileShell) owns the viewport + bottom Tab bar; a screen renders <MScreen> with its own header,
-// scroll body, and optional footer. Headers reserve the OS status-bar inset via env(safe-area-inset-top).
+// scroll body, and optional footer. Composer variants share an optional local-command menu slot.
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useBackDismiss } from '@/mobile/use-back-dismiss';
 
@@ -675,6 +675,7 @@ function useAutosize(
 export function MComposer({
   placeholder,
   above,
+  commandMenu,
   leading,
   sendEnabled = true,
   value,
@@ -690,6 +691,7 @@ export function MComposer({
 }: {
   placeholder: string;
   above?: ReactNode;
+  commandMenu?: ReactNode;
   leading?: ReactNode;
   sendEnabled?: boolean;
   value?: string;
@@ -728,6 +730,7 @@ export function MComposer({
       }}
     >
       {above}
+      {!expanded ? commandMenu : null}
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
         {leading}
         <div
@@ -860,6 +863,8 @@ export function MComposer({
           stopEnabled={stopEnabled}
           onCollapse={() => setExpanded(false)}
           onPlus={onPlus}
+          commandMenu={commandMenu}
+          onCommandPick={() => setExpanded(false)}
           lineUnit={lineUnit}
           charUnit={charUnit}
         />
@@ -884,6 +889,8 @@ export function ComposerFullscreen({
   stopEnabled = true,
   onCollapse,
   onPlus,
+  commandMenu,
+  onCommandPick,
   onSlash,
   lineUnit = '行',
   charUnit = '字',
@@ -898,6 +905,8 @@ export function ComposerFullscreen({
   stopEnabled?: boolean;
   onCollapse: () => void;
   onPlus?: () => void;
+  commandMenu?: ReactNode;
+  onCommandPick?: () => void;
   /** Slash-command affordance — defaults to inserting a leading `/` into the draft. */
   onSlash?: () => void;
   lineUnit?: string;
@@ -998,6 +1007,9 @@ export function ComposerFullscreen({
         >
           <CollapseIcon />
         </button>
+        {commandMenu ? (
+          <div data-fullscreen-command-menu onClick={onCommandPick}>{commandMenu}</div>
+        ) : null}
         <div
           style={{
             flex: 'none',

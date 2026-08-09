@@ -5,7 +5,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 
 | filename | role | function |
 |---|---|---|
-| WorkbenchPage.tsx | entry | Lays out rail, chat, preview and right panel |
+| WorkbenchPage.tsx | entry | Composes panes and global workbench actions |
 | LeftRail.tsx | view | Project, session and SCHEDULED-section navigation rail |
 | left-rail-projects.ts | vm | Builds ordered project rows with badges |
 | left-rail-projects.test.ts | test | Unit tests for project row ordering |
@@ -22,9 +22,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ProfileMenu.tsx | view | Lists profiles above or below its anchor |
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
-| SessionProfileSelector.tsx | view | Selects draft or live profiles from the composer |
-| SessionProfileSelector.test.tsx | test | Tests profile routing and menu placement |
-| CenterChat.tsx | view | Reconciles transcript, live and optimistic chat rows |
+| SessionProfileSelector.tsx | view | Shares guarded profile state with composer controls |
+| SessionProfileSelector.test.tsx | test | Tests shared profile routing and menu placement |
+| CenterChat.tsx | view | Reconciles chat state and local command controls |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | scheduled-chat.test.ts | test | Unit tests for scheduled-chat helpers |
 | ChatHeader.tsx | view | Session title, command, notes and session menu |
@@ -34,7 +34,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ChatNotice.tsx | view | Semantic notice boxes with optional auth actions |
 | ChatNotice.test.tsx | test | Tests notice semantics and auth activation |
 | MessageEdit.tsx | view | Message hover actions, edit box and rewind |
-| chat-content.ts | types | Tool call, attachment and slash command types |
+| chat-content.ts | types | Defines chat types and local shortcut catalog |
 | transcript-vm.ts | vm | Builds chat rows and strips the schedule prefix |
 | transcript-vm.test.ts | test | Tests transcript rows and auth action retention |
 | ToolCallsRow.tsx | view | Collapsed tool chips that expand on click |
@@ -53,10 +53,10 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Guards sends and restores rejected drafts |
-| Composer.test.tsx | test | Tests the visible rejected-send state |
-| ComposerActionRow.tsx | view | Groups profile, attach and command controls |
-| ComposerActionRow.test.tsx | test | Tests shared-row layout and callbacks |
+| Composer.tsx | view | Routes local shortcuts and guarded message sends |
+| Composer.test.tsx | test | Tests local shortcuts and rejected-send state |
+| ComposerActionRow.tsx | view | Renders profile, attach and local command controls |
+| ComposerActionRow.test.tsx | test | Tests action-row and slash-menu callbacks |
 | ComposerStatusLine.tsx | view | Status row above the input with an accessory |
 | composer-draft.ts | util | Persists, restores and prefills drafts |
 | composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |
@@ -64,8 +64,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useOptimisticUserMessages.ts | hook | Holds the shared optimistic-send lifecycle for both chats |
 | optimistic-message.test.ts | test | Tests stale rows, de-duplication and failure |
 | optimistic-message.integration.test.tsx | test | Tests pending sends and authority races |
-| composer-slash.ts | util | Resolves a slash-menu pick into a command |
-| composer-slash.test.ts | test | Unit tests for slash command dispatch |
+| composer-slash.ts | util | Resolves shared UI-local slash actions |
+| composer-slash.test.ts | test | Tests shortcut parsing, options and dispatch |
 | ContextUsageControl.tsx | view | Context usage bar, details and compact action |
 | ContextUsageControl.test.tsx | test | Unit tests for context control visibility |
 | context-usage.ts | vm | Resolves context snapshots into labels and bars |

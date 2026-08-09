@@ -3,7 +3,7 @@
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
 // Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer
-// meta row places the context bottom sheet trigger and Compact action beside the profile selector.
+// hosts local slash suggestions beside its profile and context controls.
 // Collapsed tool calls share Desktop width measurement and end hidden items with numeric +N.
 //
 // Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
@@ -16,6 +16,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import type { SlashSuggestion } from '@/features/workbench/composer-slash';
 import {
   ContextCompactFooter,
   ContextUsageBar,
@@ -1069,6 +1070,27 @@ function ProfileChip({ label, onClick }: { label: string; onClick: () => void })
   );
 }
 
+function MobileSlashMenu({ suggestions, onPick }: {
+  suggestions: SlashSuggestion[];
+  onPick: (suggestion: SlashSuggestion) => void;
+}): JSX.Element {
+  return (
+    <div data-mobile-slash-menu style={{ margin: '0 0 7px', border: `1px solid ${MC.hairline}`, borderRadius: 12, background: MC.card, overflow: 'hidden', boxShadow: '0 5px 18px rgba(25,28,34,.08)' }}>
+      {suggestions.map((suggestion) => (
+        <div
+          key={suggestion.command}
+          data-mobile-slash-command={suggestion.command}
+          onClick={() => { if (!suggestion.disabled) onPick(suggestion); }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 38, padding: '0 12px', borderBottom: `1px solid ${MC.divider}`, opacity: suggestion.disabled ? 0.45 : 1, cursor: suggestion.disabled ? 'default' : 'pointer' }}
+        >
+          <span style={{ font: `600 11.5px ${MONO}`, color: MC.run }}>{suggestion.command}</span>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10.5, color: MC.muted }}>{suggestion.description}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── the whole 1b screen composition ───────────────────────────────────────────
 export interface MChatViewProps {
   title: string;
@@ -1110,6 +1132,8 @@ export interface MChatViewProps {
   composerValue: string;
   onComposerChange: (v: string) => void;
   onSend: () => void;
+  slashSuggestions?: SlashSuggestion[];
+  onSlashPick?: (suggestion: SlashSuggestion) => void;
   sendEnabled: boolean;
   /** Overrides the composer placeholder (5a 说明原因 / 5b 直接输入回答 Q{k}). */
   composerPlaceholder?: string;
@@ -1239,6 +1263,10 @@ export function MChatView(props: MChatViewProps): JSX.Element {
     </>
   );
   const above = composerMode;
+  const commandMenu = !props.editing && !props.rejectBar
+    && props.slashSuggestions?.length && props.onSlashPick
+    ? <MobileSlashMenu suggestions={props.slashSuggestions} onPick={props.onSlashPick} />
+    : undefined;
 
   return (
     <div
@@ -1287,6 +1315,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           stopEnabled={props.stopEnabled}
           leading={props.editing || props.rejectBar ? undefined : <PlusButton onClick={props.onPlus} />}
           above={above}
+          commandMenu={commandMenu}
           onPlus={props.onPlus}
           lineUnit={copy.lineUnit}
           charUnit={copy.charUnit}

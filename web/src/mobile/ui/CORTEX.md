@@ -5,6 +5,6 @@ Provides the palette, screen frame, headers, cards, pills, segmented control, bo
 
 | filename | role | function |
 |---|---|---|
-| kit.tsx | core | Supplies mobile palette and reusable primitives |
+| kit.tsx | core | Supplies mobile primitives and composer command slots |
 | kit.test.ts | test | Unit tests for sheet drag and composer counts |
 | format.ts | util | Formats relative time, money and copy |

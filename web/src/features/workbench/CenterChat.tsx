@@ -1,5 +1,5 @@
-// input:  selected session, live snapshots, profiles and optimistic sends
-// output: reconciled desktop chat with a profile-aware composer
+// input:  selected session, live snapshots and UI shortcut actions
+// output: reconciled desktop chat with local command controls
 // pos:    Workbench conversation pane orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useMemo } from 'react';
@@ -41,7 +41,10 @@ const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
 // `grow` is the pane's share of the fluid center region — 1 normally, `1 - split` while a preview
 // is pinned beside the chat (WorkbenchPage owns the split).
-export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
+export function CenterChat({ grow = 1, onOpenSettings }: {
+  grow?: number;
+  onOpenSettings?: () => void;
+} = {}): JSX.Element {
   const L = useVocab();
   const lang = useLang();
   const trpc = useTRPC();
@@ -219,6 +222,8 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
         enqueueOptimistic={optimistic.enqueue}
         acceptOptimistic={optimistic.accept}
         rejectOptimistic={optimistic.reject}
+        compactAction={active?.contextCompactionSupported ? compactAction : undefined}
+        onOpenSettings={onOpenSettings}
         statusAccessory={(active?.contextCompactionSupported || contextUsage !== null) ? (
           <ContextUsageControl
             usage={contextUsage}

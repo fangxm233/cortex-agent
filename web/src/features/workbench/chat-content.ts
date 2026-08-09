@@ -1,5 +1,5 @@
-// input:  tool-call DEBUG details and composer command definitions
-// output: ToolCall/AttachmentMeta types and slash-command menu data
+// input:  tool-call details, attachments and UI shortcuts
+// output: chat types and local slash-command catalog
 // pos:    shared static shapes for workbench chat surfaces
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -23,12 +23,11 @@ export interface AttachmentMeta {
   type: 'image' | 'video' | 'file';
 }
 
-/** slash-menu commands (prototype cmds L2115–2121; EN copy verbatim). Running an item dispatches
- *  its '/cmd' as a real slash command through sessions.send (task 970d, no new backend op). */
+/** UI-local composer shortcuts shared by desktop and mobile surfaces. */
 export const SLASH_COMMANDS = [
-  { cmd: '/dispatch', desc: 'Dispatch a task to a remote machine' },
-  { cmd: '/diff', desc: 'Show pending repo changes at the commit gate' },
-  { cmd: '/devices', desc: 'gpu-01 · lab-4090 · mac-m3' },
-  { cmd: '/pause', desc: 'Pause the current thread' },
-  { cmd: '/status', desc: 'Session status summary' },
-];
+  { cmd: '/new', desc: 'Start a new session' },
+  { cmd: '/cancel', desc: 'Cancel the current run' },
+  { cmd: '/compact', desc: 'Compact this session' },
+  { cmd: '/profile', desc: 'Switch this session profile' },
+  { cmd: '/settings', desc: 'Open settings' },
+] as const;

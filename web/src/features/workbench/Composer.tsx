@@ -1,15 +1,18 @@
-// input:  session/profile state, optimistic callbacks, media and drafts
-// output: guarded desktop composer with profile and send controls
+// input:  session/profile state, UI shortcuts, media and drafts
+// output: guarded desktop composer with local slash actions
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
-import { SLASH_COMMANDS } from './chat-content';
-import { slashItemDispatch } from './composer-slash';
+import {
+  buildSlashSuggestions, resolveSlashInput, runSlashAction,
+  type SlashAction, type SlashActionHandlers, type SlashSuggestion,
+} from './composer-slash';
 import { formatCost } from './right-panel-vm';
 import { useSelectedSession } from './SelectedSessionProvider';
+import { DRAFT_SENTINEL } from './selected-session';
 import type { AttachmentMeta } from './chat-content';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { useDocViewer } from '@/features/media/DocViewer';
@@ -22,8 +25,9 @@ import {
 } from './composer-draft';
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 import { ComposerStatusLine } from './ComposerStatusLine';
-import { ComposerActionRow } from './ComposerActionRow';
-import { SessionProfileSelector } from './SessionProfileSelector';
+import { ComposerActionRow, ComposerSlashMenu } from './ComposerActionRow';
+import { SessionProfileSelectorView, useSessionProfileSelection } from './SessionProfileSelector';
+import type { ContextCompactAction } from './ContextUsageControl';
 import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
 
 // Composer — extended with file attachment support (15a 附件输入与消息).
@@ -176,6 +180,8 @@ export function Composer({
   acceptOptimistic,
   rejectOptimistic,
   statusAccessory,
+  compactAction,
+  onOpenSettings = () => {},
 }: {
   sessionId: string;
   running: boolean;
@@ -199,13 +205,16 @@ export function Composer({
   acceptOptimistic: (clientId: string, createdSessionId?: string) => boolean;
   rejectOptimistic: (clientId: string, error: Error) => boolean;
   statusAccessory?: ReactNode;
+  compactAction?: ContextCompactAction;
+  onOpenSettings?: () => void;
 }): JSX.Element {
   const trpc = useTRPC();
   const L = useVocab();
   const queryClient = useQueryClient();
   const { openMedia } = useMediaViewer();
   const { openDoc } = useDocViewer();
-  const { selectCreatedSession } = useSelectedSession();
+  const { selectCreatedSession, setSelectedSession } = useSelectedSession();
+  const profileSelection = useSessionProfileSelection({ sessionId, currentProfile, hasHistory, isDraft });
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
   const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
@@ -241,7 +250,6 @@ export function Composer({
 
   // ── Slash palette state ──
   const [slashOpen, setSlashOpen] = useState(false);
-  const [slashHover, setSlashHover] = useState<number | null>(null);
 
   // ── Hover states ──
   const [btnHover, setBtnHover] = useState(false);
@@ -325,6 +333,7 @@ export function Composer({
 
   const hasAttachments = attachments.length > 0;
   const doneAttachments = attachments.filter((a) => a.status === 'done');
+  const hasPendingUploads = attachments.some((a) => a.status === 'pending' || a.status === 'uploading');
   const hasText = !!composer.trim();
   const canSend = (hasText || doneAttachments.length > 0) && (!!sessionId || isDraft) && !sendMut.isPending && !createAndSendMut.isPending;
   const composerBorder = slashOpen ? 'var(--proto-accent)' : dragOver ? 'var(--proto-accent)' : 'var(--proto-line-3)';
@@ -342,9 +351,16 @@ export function Composer({
   // or created-but-unused) shows just `idle` — no placeholder metrics until a turn produces real values.
   const hasRun = !isDraft && turns != null;
 
-  const q = composer.startsWith('/') ? composer.slice(1).toLowerCase() : '';
-  const filtered = SLASH_COMMANDS.filter((c) => c.cmd.slice(1).startsWith(q));
-  const slashList = filtered.length ? filtered : SLASH_COMMANDS;
+  const slashProfiles = profileSelection.options.map((option) => ({
+    name: option.name, detail: option.sub, disabled: option.disabled,
+  }));
+  const slashAvailability = {
+    newDisabled: hasPendingUploads,
+    cancelDisabled: !running || cancelMut.isPending,
+    compactDisabled: !compactAction || compactAction.disabled || compactAction.pending,
+    settingsDisabled: hasPendingUploads,
+  };
+  const slashList = buildSlashSuggestions(composer, slashProfiles, slashAvailability);
 
   // ── File upload ──
   const startUpload = useCallback((pending: PendingAttachment): void => {
@@ -545,14 +561,51 @@ export function Composer({
     });
   };
 
-  const doSend = (): void => {
-    if (!canSend) return;
-    doSendText(composer);
-  };
-
   const doStop = (): void => {
     if (!sessionId || cancelMut.isPending) return;
     cancelMut.mutate({ sessionId });
+  };
+
+  const slashHandlers: SlashActionHandlers = {
+    onNew: () => setSelectedSession(DRAFT_SENTINEL),
+    onCancel: () => { if (running) doStop(); },
+    onCompact: () => compactAction?.onCompact(),
+    onProfile: profileSelection.pick,
+    onSettings: onOpenSettings,
+  };
+
+  const consumeSlashText = (): void => {
+    saveDraft(draftKey, {
+      text: '',
+      attachments: completedAttachmentMetas(attachments),
+      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
+    });
+    setComposer('');
+    setSlashOpen(false);
+  };
+
+  const executeSlashAction = (action: SlashAction): void => {
+    consumeSlashText();
+    runSlashAction(action, slashHandlers);
+  };
+
+  const handleSlashInput = (text: string): boolean => {
+    const resolution = resolveSlashInput(text, slashProfiles, slashAvailability);
+    if (resolution.kind === 'none') return false;
+    if (resolution.kind === 'action') executeSlashAction(resolution.action);
+    return true;
+  };
+
+  const onSlashPick = (suggestion: SlashSuggestion): void => {
+    if (suggestion.disabled) return;
+    if (suggestion.action) executeSlashAction(suggestion.action);
+    else { setComposer(`${suggestion.command} `); setSlashOpen(true); }
+  };
+
+  const doSend = (): void => {
+    if (handleSlashInput(composer)) return;
+    if (!canSend) return;
+    doSendText(composer);
   };
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -810,56 +863,7 @@ export function Composer({
         style={{ maxWidth: 756, margin: '0 auto', padding: '0 32px 18px', position: 'relative' }}
       >
         {/* Slash palette */}
-        {slashOpen && (
-          <div
-            style={{
-              position: 'absolute',
-              left: 32,
-              right: 32,
-              bottom: '100%',
-              marginBottom: -2,
-              border: '1px solid var(--proto-line)',
-              borderRadius: 12,
-              boxShadow: '0 6px 24px rgba(16,24,40,.08)',
-              background: 'var(--proto-card)',
-              overflow: 'hidden',
-              zIndex: 10,
-            }}
-          >
-            {slashList.map((c, i) => (
-              <div
-                key={c.cmd}
-                onMouseEnter={() => setSlashHover(i)}
-                onMouseLeave={() => setSlashHover((h) => (h === i ? null : h))}
-                onClick={() => {
-                  const d = slashItemDispatch(c.cmd);
-                  if (d) doSendText(d.text);
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '8px 14px',
-                  background: slashHover === i || i === 0 ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
-                  cursor: 'pointer',
-                }}
-              >
-                <span style={{ font: `600 12px ${mono}`, color: i === 0 ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{c.cmd}</span>
-                <span style={{ fontSize: 11.5, color: 'var(--proto-muted-2)', marginLeft: 12 }}>{c.desc}</span>
-              </div>
-            ))}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '7px 14px',
-                borderTop: '1px solid var(--proto-alt)',
-                background: 'var(--proto-rail)',
-              }}
-            >
-              <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)' }}>↑↓ {L.wbNavigate} · ⏎ {L.wbRun} · {L.wbEscDismiss}</span>
-            </div>
-          </div>
-        )}
+        {slashOpen ? <ComposerSlashMenu suggestions={slashList} onPick={onSlashPick} /> : null}
 
         {/* Running / idle status line with its optional right-aligned accessory. */}
         <ComposerStatusLine
@@ -960,14 +964,7 @@ export function Composer({
                     />
 
                     <ComposerActionRow
-                      profileControl={(
-                        <SessionProfileSelector
-                          sessionId={sessionId}
-                          currentProfile={currentProfile}
-                          hasHistory={hasHistory}
-                          isDraft={isDraft}
-                        />
-                      )}
+                      profileControl={<SessionProfileSelectorView selection={profileSelection} />}
                       hint={hasAttachments ? L.wbAttachHint : composerHint}
                       onAttach={() => fileInputRef.current?.click()}
                       onCommands={() => { setComposer('/'); setSlashOpen(true); }}

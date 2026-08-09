@@ -1,5 +1,5 @@
-// input:  mobile session/context queries, chat/compact hooks, mutations
-// output: MChatScreen live chat with mobile context-sheet state
+// input:  mobile session queries, UI shortcuts and chat mutations
+// output: MChatScreen live chat with local slash actions
 // pos:    Mobile session detail state and data orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -22,6 +22,11 @@ import { runOptimisticMutation } from '@/features/workbench/optimistic-message';
 import { useInteractionActions } from '@/features/workbench/useInteractionActions';
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
 import { useSessionCompact } from '@/features/workbench/useSessionCompact';
+import { buildProfileOptions, currentBackendOf } from '@/features/workbench/profile-menu';
+import {
+  buildSlashSuggestions, resolveSlashInput, runSlashAction,
+  type SlashAction, type SlashActionHandlers, type SlashSuggestion,
+} from '@/features/workbench/composer-slash';
 import {
   resolveTransitionProfile,
   type PendingCreatedSession,
@@ -591,11 +596,55 @@ export function MChatScreen(): JSX.Element {
       : `send failed · ${error.message} · text restored to the composer`]);
   };
 
+  const profileBackend = currentBackendOf(profiles, effectiveProfile);
+  const slashProfiles = buildProfileOptions(profiles, effectiveProfile, {
+    currentBackend: profileBackend,
+    hasHistory: transcript.turns.length > 0 || liveTail.length > 0,
+  }).map((profile) => ({ name: profile.name, detail: profile.sub, disabled: profile.disabled }));
+  const slashAvailability = {
+    newDisabled: uploading,
+    cancelDisabled: !running || cancelMut.isPending,
+    compactDisabled: !active?.contextCompactionSupported || compactAction.disabled || compactAction.pending,
+    settingsDisabled: uploading,
+  };
+  const slashSuggestions = editArmed || rejectArmed || pendingAskModel
+    ? []
+    : buildSlashSuggestions(text, slashProfiles, slashAvailability);
+  const slashHandlers: SlashActionHandlers = {
+    onNew: () => navigate('/m/session/new'),
+    onCancel: () => { if (running) onStop(); },
+    onCompact: compactAction.onCompact,
+    onProfile: onPickProfile,
+    onSettings: () => navigate('/m/settings'),
+  };
+  const consumeSlashText = (): void => {
+    saveDraft(draftKey, {
+      text: '', attachments: doneMetas,
+      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
+    });
+    setText('');
+  };
+  const executeSlashAction = (action: SlashAction): void => {
+    consumeSlashText();
+    runSlashAction(action, slashHandlers);
+  };
+  const handleSlashInput = (value: string): boolean => {
+    const resolution = resolveSlashInput(value, slashProfiles, slashAvailability);
+    if (resolution.kind === 'none') return false;
+    if (resolution.kind === 'action') executeSlashAction(resolution.action);
+    return true;
+  };
+  const onSlashPick = (suggestion: SlashSuggestion): void => {
+    if (suggestion.disabled) return;
+    if (suggestion.action) executeSlashAction(suggestion.action);
+    else setText(`${suggestion.command} `);
+  };
+
   const onSend = (): void => {
     const t = text.trim();
-    if (!sendEnabled) return;
     // 7b — send = rewind to the edited turn and regenerate with the new text.
     if (editArmed) {
+      if (!sendEnabled) return;
       const er = editingRow as Extract<typeof rows[number], { kind: 'user' }>;
       rewindMut.mutate({ sessionId, turnIndex: er.turnIndex!, text: t });
       setEditingRowIdx(null);
@@ -605,6 +654,7 @@ export function MChatScreen(): JSX.Element {
     }
     // 5a — send = reject with the typed feedback (required).
     if (rejectArmed) {
+      if (!sendEnabled) return;
       interactionActions.rejectPlan(rejectingId!, t);
       setRejectingId(null);
       setText('');
@@ -612,12 +662,15 @@ export function MChatScreen(): JSX.Element {
     }
     // 5b — typed text answers the CURRENT question of the pending ask card.
     if (pendingAskModel) {
+      if (!sendEnabled) return;
       const st = askStateOf(pendingAskModel.requestId);
       const q = pendingAskModel.questions[currentQuestionIndex(pendingAskModel, st)];
       if (q) commitAndMaybeSubmit(pendingAskModel, commitAnswer(st, q.question, t));
       setText('');
       return;
     }
+    if (handleSlashInput(t)) return;
+    if (!sendEnabled) return;
     // The row is enqueued before the mutation is awaited, so the message is on screen on the same
     // frame the composer clears — the send no longer looks dropped while the server round-trips.
     const sent: ComposerDraft = {
@@ -663,7 +716,7 @@ export function MChatScreen(): JSX.Element {
     });
   };
 
-  const onPickProfile = (name: string): void => {
+  function onPickProfile(name: string): void {
     setProfileOpen(false);
     if (name === effectiveProfile) return;
     const from = effectiveProfile;
@@ -679,7 +732,7 @@ export function MChatScreen(): JSX.Element {
         { onSuccess: () => setSystemLines((prev) => [...prev, line]) },
       );
     }
-  };
+  }
 
   // Header status = running snapshot + real agent-turn count + current/last-turn elapsed + last-run
   // cost — same progressive readout as the desktop composer (running: time+turns; idle-after-a-turn:
@@ -790,6 +843,8 @@ export function MChatScreen(): JSX.Element {
         composerValue={text}
         onComposerChange={setText}
         onSend={onSend}
+        slashSuggestions={slashSuggestions}
+        onSlashPick={onSlashPick}
         sendEnabled={sendEnabled}
         composerPlaceholder={composerPlaceholder}
         onStop={onStop}

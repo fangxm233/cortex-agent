@@ -5,10 +5,10 @@ The view models are framework-free record to slot mappings and each one has a co
 
 | filename | role | function |
 |---|---|---|
-| MChatScreen.tsx | screen | Owns chat data, live sync, scheduled-run title |
-| MChatScreen.optimistic.test.tsx | test | Tests mobile optimistic sends, promotion and restore |
-| MChatView.tsx | view | Chat stream with auth notices, composer and sheets |
-| MChatView.test.tsx | test | Tests chat controls and interaction layout |
+| MChatScreen.tsx | screen | Routes chat data, sends and local slash actions |
+| MChatScreen.optimistic.test.tsx | test | Tests optimistic sends and local shortcuts |
+| MChatView.tsx | view | Renders chat, slash menu, composer and sheets |
+| MChatView.test.tsx | test | Tests chat, slash and interaction controls |
 | m-chat-vm.ts | vm | Chat rows, status, attachments, menu placement |
 | m-chat-vm.test.ts | test | Unit tests for the chat view model |
 | MInteractionCards.tsx | view | Ask-user and plan-approval cards for chat |
