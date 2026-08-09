@@ -34,7 +34,14 @@ own their mutations.
 | TemplatesPanel.test.tsx | test | Tests detail-pane tabs, guards and save gating |
 | templates-panel-vm.ts | vm | Filters, parses editor JSON and builds template mutation args |
 | templates-panel-vm.test.ts | test | Unit tests for the templates panel view model |
+| PluginsPanel.tsx | view | Edits plugin targets and ack flow |
+| PluginsPanel.test.tsx | test | Covers plugin view states |
+| PluginsPanel.keyboard.test.tsx | test | Covers plugin mode keyboard access |
+| PluginsPanel.container.test.tsx | test | Covers mounted plugin query flow |
+| plugins-panel-vm.ts | vm | Syncs plugin drafts and payloads |
+| plugins-panel-vm.test.ts | test | Covers plugin VM rules |
 | platform-env.ts | vm | Defines env indexes, settings, and durations |
 | platform-env.test.ts | test | Tests env redaction, settings, and durations |
 | settings-nav.ts | vm | Lists settings sections and descriptions |
 | settings-ui.tsx | view | Shared card, row, field, button, toggle and radio primitives |
+| settings-ui.test.tsx | test | Covers shared keyboard access |

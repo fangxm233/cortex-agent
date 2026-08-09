@@ -1,9 +1,9 @@
-import { useState, type CSSProperties, type ReactNode } from 'react';
+// input:  settings card chrome and control props
+// output: cards, rows, toggles, buttons, and radios
+// pos:    Shared desktop settings primitives
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-// Small 1:1 building blocks shared by the settings panels — the prototype's white card chrome,
-// card header, mono key/value row, toggle and radio. Raw inline styles/px/hex per §8.3 (the light
-// settings palette var(--proto-line)/var(--proto-line-2)/var(--proto-alt) is not all in proto.* tokens; the 1:1 rebuild uses exact
-// values, matching the LeftRail / exec-drawer precedent).
+import { useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -30,17 +30,12 @@ export function SCardHeader({ title, right }: { title: ReactNode; right?: ReactN
     >
       <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{title}</span>
       {right != null ? (
-        <span
-          style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}
-        >
-          {right}
-        </span>
+        <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>{right}</span>
       ) : null}
     </div>
   );
 }
 
-/** A mono key (muted) + right-aligned value row, as used in the Platform / Daemon cards. */
 export function MonoKV({ k, value, valueColor }: { k: string; value: ReactNode; valueColor?: string }) {
   return (
     <div style={{ display: 'flex' }}>
@@ -50,36 +45,77 @@ export function MonoKV({ k, value, valueColor }: { k: string; value: ReactNode; 
   );
 }
 
-/**
- * Prototype pill toggle (32×19). `on` reflects state; `onClick` optional. When there is no backend
- * op the toggle is inert (no onClick) and shows a not-wired cursor via `inert`.
- */
-export function Toggle({ on, onClick, inert }: { on: boolean; onClick?: () => void; inert?: boolean }) {
+function isActionKey(key: string): boolean {
+  return key === 'Enter' || key === ' ' || key === 'Spacebar';
+}
+
+export function onActionKey(event: ReactKeyboardEvent, onClick?: () => void): void {
+  if (!onClick || !isActionKey(event.key)) return;
+  event.preventDefault();
+  onClick();
+}
+
+function interactiveButtonProps(onClick?: () => void) {
+  if (!onClick) return {};
+  return {
+    role: 'button' as const,
+    tabIndex: 0,
+    onKeyDown: (event: ReactKeyboardEvent) => onActionKey(event, onClick),
+  };
+}
+
+function toggleCursor(interactive: boolean, inert?: boolean): CSSProperties['cursor'] {
+  if (interactive) return 'pointer';
+  if (inert) return 'not-allowed';
+  return 'default';
+}
+
+function toggleVisualState(on: boolean, inert?: boolean): CSSProperties {
+  return {
+    background: on ? 'var(--proto-accent)' : 'var(--proto-line)',
+    justifyContent: on ? 'flex-end' : 'flex-start',
+    opacity: inert ? 0.85 : 1,
+  };
+}
+
+function focusShadow(focused: boolean): CSSProperties['boxShadow'] {
+  return focused ? '0 0 0 2px var(--proto-accent-bg)' : undefined;
+}
+
+function toggleStyle(
+  on: boolean,
+  interactive: boolean,
+  inert?: boolean,
+  focused = false,
+): CSSProperties {
+  return {
+    width: 32, height: 19, borderRadius: 999, display: 'flex',
+    alignItems: 'center', padding: 2, boxSizing: 'border-box',
+    cursor: toggleCursor(interactive, inert), flex: 'none',
+    boxShadow: focusShadow(focused), ...toggleVisualState(on, inert),
+  };
+}
+
+export function Toggle(props: {
+  on: boolean;
+  onClick?: () => void;
+  inert?: boolean;
+  ariaLabel?: string;
+}) {
+  const [focused, setFocused] = useState(false);
   return (
-    <div
-      onClick={onClick}
-      role={onClick ? 'button' : undefined}
-      style={{
-        width: 32,
-        height: 19,
-        borderRadius: 999,
-        background: on ? 'var(--proto-accent)' : 'var(--proto-line)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: on ? 'flex-end' : 'flex-start',
-        padding: 2,
-        boxSizing: 'border-box',
-        cursor: onClick ? 'pointer' : inert ? 'not-allowed' : 'default',
-        flex: 'none',
-        opacity: inert ? 0.85 : 1,
-      }}
-    >
+    <div onClick={props.onClick} role="switch"
+      tabIndex={props.onClick ? 0 : undefined}
+      onKeyDown={props.onClick ? (event) => onActionKey(event, props.onClick) : undefined}
+      aria-label={props.ariaLabel} aria-checked={props.on}
+      aria-disabled={!props.onClick}
+      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      style={toggleStyle(props.on, Boolean(props.onClick), props.inert, focused)}>
       <span style={{ width: 15, height: 15, borderRadius: '50%', background: 'var(--proto-card)' }} />
     </div>
   );
 }
 
-/** Prototype radio dot (14px) — selected = thick accent ring, unselected = thin gray ring. */
 export function RadioDot({ selected }: { selected: boolean }) {
   return (
     <span
@@ -96,7 +132,6 @@ export function RadioDot({ selected }: { selected: boolean }) {
   );
 }
 
-/** The uppercase section caption above a block of fields (TRIGGER / ACTION / SCOPE / ADVANCED). */
 export function SSectionLabel({ children }: { children: ReactNode }) {
   return (
     <div
@@ -114,13 +149,22 @@ export function SSectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-/** A fixed-width mono label + a control, with an optional hint or error line underneath. */
-export function SFieldRow({
-  label,
-  children,
-  hint,
-  hintTone,
-}: {
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <span style={{ width: 92, flex: 'none', font: `400 10px ${MONO}`,
+      color: 'var(--proto-muted-3)', paddingTop: 6 }}>
+      {children}
+    </span>
+  );
+}
+
+function FieldHint(props: { hint?: ReactNode; tone?: 'muted' | 'danger' }) {
+  if (props.hint == null) return null;
+  const color = props.tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-faint)';
+  return <div style={{ fontSize: 9.5, lineHeight: 1.6, marginTop: 3, color }}>{props.hint}</div>;
+}
+
+export function SFieldRow(props: {
   label: ReactNode;
   children: ReactNode;
   hint?: ReactNode;
@@ -128,37 +172,15 @@ export function SFieldRow({
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '4px 0' }}>
-      <span
-        style={{
-          width: 92,
-          flex: 'none',
-          font: `400 10px ${MONO}`,
-          color: 'var(--proto-muted-3)',
-          paddingTop: 6,
-        }}
-      >
-        {label}
-      </span>
+      <FieldLabel>{props.label}</FieldLabel>
       <div style={{ flex: 1, minWidth: 0 }}>
-        {children}
-        {hint != null ? (
-          <div
-            style={{
-              fontSize: 9.5,
-              lineHeight: 1.6,
-              marginTop: 3,
-              color: hintTone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-faint)',
-            }}
-          >
-            {hint}
-          </div>
-        ) : null}
+        {props.children}
+        <FieldHint hint={props.hint} tone={props.hintTone} />
       </div>
     </div>
   );
 }
 
-/** Shared text/number/select chrome so every settings control lines up. */
 export const S_CONTROL_STYLE: CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
@@ -195,10 +217,35 @@ const BUTTON_TONE: Record<SButtonTone, { base: CSSProperties; hover: CSSProperti
   },
 };
 
-/**
- * Footer action button. `disabled` keeps the control rendered (so its intent stays visible) but
- * removes the handler — the settings panels never hide an action the user is one state away from.
- */
+function buttonDisabledStyle(disabled?: boolean): CSSProperties {
+  return {
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.45 : 1,
+  };
+}
+
+function focusedButtonStyle(
+  style: CSSProperties,
+  focused: boolean,
+  disabled?: boolean,
+): CSSProperties {
+  if (!focused || disabled) return style;
+  return { ...style, boxShadow: '0 0 0 2px var(--proto-accent-bg)' };
+}
+
+function buttonBaseStyle(
+  tone: SButtonTone,
+  disabled?: boolean,
+  hover = false,
+  focused = false,
+): CSSProperties {
+  const spec = BUTTON_TONE[tone];
+  const base = { fontSize: 11.5, fontWeight: 600, borderRadius: 8,
+    padding: '6px 14px', flex: 'none', ...buttonDisabledStyle(disabled), ...spec.base };
+  const hovered = hover && !disabled ? { ...base, ...spec.hover } : base;
+  return focusedButtonStyle(hovered, focused, disabled);
+}
+
 export function SButton({
   tone,
   disabled,
@@ -212,25 +259,18 @@ export function SButton({
   children: ReactNode;
 } & Record<string, unknown>) {
   const [hover, setHover] = useState(false);
-  const spec = BUTTON_TONE[tone];
-  const base: CSSProperties = {
-    fontSize: 11.5,
-    fontWeight: 600,
-    borderRadius: 8,
-    padding: '6px 14px',
-    flex: 'none',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.45 : 1,
-    ...spec.base,
-  };
+  const [focused, setFocused] = useState(false);
+  const interactive = interactiveButtonProps(disabled ? undefined : onClick);
   return (
     <span
       {...rest}
       onClick={disabled ? undefined : onClick}
-      role={disabled ? undefined : 'button'}
+      {...interactive}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      style={hover && !disabled ? { ...base, ...spec.hover } : base}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={buttonBaseStyle(tone, disabled, hover, focused)}
     >
       {children}
     </span>
