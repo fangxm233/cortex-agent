@@ -1,5 +1,5 @@
-// input:  session state, optimistic send callbacks, media and drafts
-// output: guarded desktop composer with send failure recovery
+// input:  session/profile state, optimistic callbacks, media and drafts
+// output: guarded desktop composer with profile and send controls
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
@@ -22,6 +22,8 @@ import {
 } from './composer-draft';
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 import { ComposerStatusLine } from './ComposerStatusLine';
+import { ComposerActionRow } from './ComposerActionRow';
+import { SessionProfileSelector } from './SessionProfileSelector';
 import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
 
 // Composer — extended with file attachment support (15a 附件输入与消息).
@@ -164,6 +166,8 @@ export function Composer({
   cost,
   elapsed,
   isDraft = false,
+  currentProfile,
+  hasHistory,
   draftProfile = null,
   draftReloadToken = 0,
   projectId = 'general',
@@ -185,6 +189,8 @@ export function Composer({
   cost: number | null;
   elapsed: string;
   isDraft?: boolean;
+  currentProfile: string | null;
+  hasHistory: boolean;
   draftProfile?: string | null;
   draftReloadToken?: number;
   projectId?: string;
@@ -238,8 +244,6 @@ export function Composer({
   const [slashHover, setSlashHover] = useState<number | null>(null);
 
   // ── Hover states ──
-  const [chipHover, setChipHover] = useState(false);
-  const [attachHover, setAttachHover] = useState(false);
   const [btnHover, setBtnHover] = useState(false);
 
   // ── Attachment state ──
@@ -955,47 +959,19 @@ export function Composer({
                       }}
                     />
 
-                    {/* Action row */}
-                    <div style={{ display: 'flex', alignItems: 'center', marginTop: 0 }}>
-                      {/* "+ attach" chip */}
-                      <span
-                        onClick={() => fileInputRef.current?.click()}
-                        onMouseEnter={() => setAttachHover(true)}
-                        onMouseLeave={() => setAttachHover(false)}
-                        style={{
-                          font: `500 10.5px ${mono}`,
-                          border: '1px solid ' + (attachHover ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
-                          color: attachHover ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
-                          padding: '2px 7px',
-                          borderRadius: 6,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {L.wbAttach}
-                      </span>
-
-                      {/* "/ commands" chip */}
-                      <span
-                        onClick={() => { setComposer('/'); setSlashOpen(true); }}
-                        onMouseEnter={() => setChipHover(true)}
-                        onMouseLeave={() => setChipHover(false)}
-                        style={{
-                          font: `500 10.5px ${mono}`,
-                          border: '1px solid ' + (chipHover ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
-                          color: chipHover ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
-                          padding: '2px 7px',
-                          borderRadius: 6,
-                          cursor: 'pointer',
-                          marginLeft: 8,
-                        }}
-                      >
-                        / {L.commands}
-                      </span>
-
-                      <span style={{ marginLeft: 'auto', font: `400 10.5px ${mono}`, color: 'var(--proto-faint)' }}>
-                        {hasAttachments ? L.wbAttachHint : composerHint}
-                      </span>
-                    </div>
+                    <ComposerActionRow
+                      profileControl={(
+                        <SessionProfileSelector
+                          sessionId={sessionId}
+                          currentProfile={currentProfile}
+                          hasHistory={hasHistory}
+                          isDraft={isDraft}
+                        />
+                      )}
+                      hint={hasAttachments ? L.wbAttachHint : composerHint}
+                      onAttach={() => fileInputRef.current?.click()}
+                      onCommands={() => { setComposer('/'); setSlashOpen(true); }}
+                    />
                   </div>
 
                   {/* Send + Stop.

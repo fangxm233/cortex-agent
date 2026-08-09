@@ -1,5 +1,5 @@
-// input:  selected session, live authority snapshots and optimistic sends
-// output: reconciled desktop chat with context controls and composer
+// input:  selected session, live snapshots, profiles and optimistic sends
+// output: reconciled desktop chat with a profile-aware composer
 // pos:    Workbench conversation pane orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useMemo } from 'react';
@@ -190,14 +190,9 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
     >
       <ChatHeader
         title={title}
-        running={running}
         onCmdK={onCmdK}
-        sessionId={sessionId}
         backendSessionId={active?.backendSessionId ?? null}
         sessionName={active?.name ?? null}
-        currentProfile={active?.profileName ?? null}
-        hasHistory={hasHistory}
-        isDraft={isDraft}
       />
       <MessageStream
         rows={rows}
@@ -215,6 +210,8 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
         cost={active?.costUsd ?? null}
         elapsed={elapsed}
         isDraft={isDraft}
+        currentProfile={active?.profileName ?? null}
+        hasHistory={hasHistory}
         draftProfile={draftProfile}
         draftReloadToken={draftReloadToken}
         projectId={currentProjectId ?? 'general'}

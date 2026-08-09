@@ -19,13 +19,16 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | schedule-rail.ts | vm | Builds SCHEDULED rows, run ordinals and click routing |
 | schedule-rail.test.ts | test | Unit tests for the SCHEDULED section view model |
 | RunListModal.tsx | view | Run-list modal opening a run in the chat pane |
-| ProfileMenu.tsx | view | Lists selectable profiles with disabled reasons |
+| ProfileMenu.tsx | view | Lists profiles above or below its anchor |
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
+| SessionProfileSelector.tsx | view | Selects draft or live profiles from the composer |
+| SessionProfileSelector.test.tsx | test | Tests profile routing and menu placement |
 | CenterChat.tsx | view | Reconciles transcript, live and optimistic chat rows |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | scheduled-chat.test.ts | test | Unit tests for scheduled-chat helpers |
-| ChatHeader.tsx | view | Session title, profile, status and notes entry |
+| ChatHeader.tsx | view | Session title, command, notes and session menu |
+| ChatHeader.test.tsx | test | Tests removal of profile and status controls |
 | MessageStream.tsx | view | Scroll-stable transcript with actionable notices |
 | ChatMarkdown.tsx | view | Renders assistant markdown with chat typography |
 | ChatNotice.tsx | view | Semantic notice boxes with optional auth actions |
@@ -52,6 +55,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
 | Composer.tsx | view | Guards sends and restores rejected drafts |
 | Composer.test.tsx | test | Tests the visible rejected-send state |
+| ComposerActionRow.tsx | view | Groups profile, attach and command controls |
+| ComposerActionRow.test.tsx | test | Tests shared-row layout and callbacks |
 | ComposerStatusLine.tsx | view | Status row above the input with an accessory |
 | composer-draft.ts | util | Persists, restores and prefills drafts |
 | composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |

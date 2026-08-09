@@ -1,21 +1,25 @@
+// input:  Profile options, menu placement and selection callback
+// output: Selectable profile menu with disabled reasons
+// pos:    Shared desktop profile menu
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import type { ProfileOption } from './profile-menu';
 
-// Profile-chip dropdown — 1:1 from prototype.dc.html L112–120 (task c3ce). Rendered inside the
-// chip's position:relative span; absolute-anchored left:0;top:26px. Raw inline styles / px / hex /
-// font / weight reproduced verbatim. Options are the REAL configured profiles; a `disabled` option
-// (a cross-backend switch on a session that already has history) renders greyed and is not
-// selectable, with a tooltip explaining why.
+// Profile-chip dropdown anchored above or below its position:relative selector. Options come from
+// the configured profiles; cross-backend choices on a session with history stay disabled and show
+// the existing explanatory tooltip.
 
 const mono = "'IBM Plex Mono',monospace";
 
 export function ProfileMenu({
   options,
   onPick,
+  placement = 'below',
 }: {
   options: ProfileOption[];
   onPick: (name: string) => void;
+  placement?: 'above' | 'below';
 }): JSX.Element {
   const L = useVocab();
   const [hover, setHover] = useState<string | null>(null);
@@ -26,7 +30,7 @@ export function ProfileMenu({
       style={{
         position: 'absolute',
         left: 0,
-        top: 26,
+        ...(placement === 'above' ? { bottom: 26 } : { top: 26 }),
         background: 'var(--proto-card)',
         border: '1px solid var(--proto-line)',
         borderRadius: 9,
@@ -41,7 +45,10 @@ export function ProfileMenu({
           key={po.name}
           onMouseEnter={() => setHover(po.name)}
           onMouseLeave={() => setHover((h) => (h === po.name ? null : h))}
-          onClick={() => { if (!po.disabled) onPick(po.name); }}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!po.disabled) onPick(po.name);
+          }}
           data-profile={po.name}
           data-disabled={po.disabled ? 'true' : undefined}
           title={po.disabled ? `${L.wbSwitchTo} ${po.backend} ${L.wbNeedsNewSession}` : undefined}
