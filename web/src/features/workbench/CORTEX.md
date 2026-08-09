@@ -31,7 +31,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ChatHeader.test.tsx | test | Tests removal of profile and status controls |
 | MessageStream.tsx | view | Renders transcript with formula-aware replies |
 | ChatMarkdown.tsx | view | Renders Markdown with optional KaTeX formulas |
-| ChatMarkdown.test.tsx | test | Tests formula rendering and safety boundaries |
+| ChatMarkdown.test.tsx | test | Tests formula rendering, layout and safety |
 | ChatNotice.tsx | view | Semantic notice boxes with optional auth actions |
 | ChatNotice.test.tsx | test | Tests notice semantics and auth activation |
 | MessageEdit.tsx | view | Message hover actions, edit box and rewind |

@@ -27,6 +27,13 @@ describe('ChatMarkdown math', () => {
     expect(html).toContain('$x^2$');
   });
 
+  it('does not make inline formulas independent scroll containers', () => {
+    const html = renderToStaticMarkup(<ChatMarkdown text={'Inline $F_x$ formula'} renderMath />);
+
+    expect(html).toContain('class="katex"');
+    expect(html).not.toContain('overflow-x:auto');
+  });
+
   it('leaves formulas in code spans and fenced blocks untouched', () => {
     const html = renderToStaticMarkup(
       <ChatMarkdown text={'Use `$x$` here.\n\n```tex\n$$y$$\n```'} renderMath />,

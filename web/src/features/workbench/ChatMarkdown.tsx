@@ -21,7 +21,7 @@ function MathMarkup({ text, display }: { text: string; display: boolean }): JSX.
   });
   const style = display
     ? { overflowX: 'auto' as const, overflowY: 'hidden' as const, maxWidth: '100%' }
-    : { display: 'inline-block', maxWidth: '100%', overflowX: 'auto' as const, verticalAlign: 'middle' };
+    : undefined;
   const Tag = display ? 'div' : 'span';
   return <Tag style={style} dangerouslySetInnerHTML={{ __html: markup }} />;
 }
