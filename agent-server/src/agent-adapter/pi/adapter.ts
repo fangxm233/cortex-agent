@@ -1,6 +1,6 @@
-// input:  spawn config, provider cache, spawner, settings
-// output: PI sessions, resume path registry, events and compact
-// pos:    PI backend adapter
+// input:  Spawn config, provider cache, settings
+// output: PI process facade, sessions, events, compact
+// pos:    Coordinates PI process and session lifecycles
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { type ChildProcess } from 'child_process';
@@ -14,7 +14,8 @@ import { resolveMcpComposition } from '../types.js';
 import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentProcessSupervision, AgentSpawnConfig, Backend, InjectionAckSink, McpComposition, UserMessage } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
-import { buildPiEnv, buildSpawnArgs } from './spawn-args.js';
+import { buildPiEnv, buildSpawnArgs, type PISpawnOptions } from './spawn-args.js';
+import { writePiPluginMcpConfig } from './mcp-config.js';
 import { createLineSplitter, encodeCommand } from './framing.js';
 import { piRpcLineToNormalized, createPIEventParserState, piContextUsageFromStats, type PIEventParserState } from './event-parser.js';
 import {
@@ -858,6 +859,93 @@ function buildExtensionPaths(config: Pick<AgentSpawnConfig, 'disableHooks'> & Qu
   return paths;
 }
 
+type BenchmarkGuard = AgentSpawnConfig['benchmarkPolicyGuard'];
+type ProviderQuotaReporter = NonNullable<PISessionOptions['onProviderQuota']>;
+
+interface PreparedPISpawn {
+  sessionDir: string;
+  cliArgs: string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+}
+
+function piSpawnOptions(
+  config: AgentSpawnConfig,
+  sessionDir: string,
+  sessionPath: string | null,
+): PISpawnOptions {
+  return {
+    sessionDir,
+    sessionPath,
+    model: config.model ?? null,
+    provider: config.piProvider ?? null,
+    systemPrompt: config.systemPrompt ?? null,
+    appendSystemPrompt: config.appendSystemPrompt ?? null,
+    pluginDirs: config.pluginDirs ?? null,
+    pluginSkillDirs: config.pluginSkillDirs ?? null,
+    extensionPaths: buildExtensionPaths(config),
+    thinking: config.thinking ?? null,
+    extraOption: config.extraOption ?? null,
+  };
+}
+
+function spawnAllowedTools(config: AgentSpawnConfig, guard: BenchmarkGuard): string | undefined {
+  if (guard !== undefined) return undefined;
+  const canonical = config.tools && config.tools.length > 0
+    ? config.tools.map((tool) => fromCanonical('claude', tool))
+      .filter((name): name is string => !!name).join(',')
+    : undefined;
+  return config.rawTools ?? canonical;
+}
+
+function piSubagentMarker(config: AgentSpawnConfig): string | undefined {
+  return config.env?.CORTEX_PI_SUBAGENT === '1' ? '1' : undefined;
+}
+
+function allowsPluginMcp(composition: McpComposition, subagentMarker: string | undefined): boolean {
+  if (composition === 'direct') return true;
+  return composition === 'thread-control' && subagentMarker === undefined;
+}
+
+function spawnPluginMcpPath(
+  config: AgentSpawnConfig,
+  composition: McpComposition,
+  subagentMarker: string | undefined,
+): string | undefined {
+  if (!allowsPluginMcp(composition, subagentMarker)) return undefined;
+  if (!config.mcpServers || config.mcpServers.length === 0) return undefined;
+  return writePiPluginMcpConfig(config.mcpServers).path;
+}
+
+function buildSpawnEnvironment(
+  config: AgentSpawnConfig,
+  agentDir: string,
+  composition: McpComposition,
+): NodeJS.ProcessEnv {
+  const guard = config.benchmarkPolicyGuard;
+  const subagentMarker = piSubagentMarker(config);
+  return buildPiEnv({
+    sessionId: config.sessionId,
+    channel: guard === undefined ? config.channel : undefined,
+    callbackSource: config.callbackSource,
+    scheduleTaskId: config.scheduleTaskId,
+    extraEnv: config.env,
+    context: config.cortexContext,
+    piAgentDir: agentDir,
+    allowedTools: spawnAllowedTools(config, guard),
+    policyGuard: guard,
+    leaseState: config.benchmarkLeaseState,
+    mcpComposition: composition,
+    deadlineEpochMs: config.benchmarkDeadlineEpochMs,
+    pluginMcpConfigPath: spawnPluginMcpPath(config, composition, subagentMarker),
+    subagentMarker,
+  }, config.pinnedEnv);
+}
+
+function errorValue(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 /** Collaborators the daemon owns and a trial replaces. Both are injected rather than defaulted so
  *  the host PI home and its auth mirroring are not reachable from this module (§13 A1, A6). */
 export interface PIAdapterHooks {
@@ -918,195 +1006,152 @@ export class PIAdapter implements AgentAdapter {
     return Array.from(byName.values());
   }
 
-  spawn(config: AgentSpawnConfig): PIAgentProcess {
+  private resolveSpawnSessionPath(config: AgentSpawnConfig, sessionDir: string): string | null {
+    if (!config.resume || !config.sessionId) return null;
+    const sessionPath = this.resolveSessionPath(config.sessionId);
+    if (sessionPath === null) {
+      log.info(`PI resume target '${config.sessionId}' not found (no live session or file in ${sessionDir}); starting fresh`);
+    }
+    return sessionPath;
+  }
+
+  private prepareGatewayAgentDir(agentDir: string, guard: BenchmarkGuard): void {
+    try {
+      this.prepareAgentDir?.(agentDir);
+    } catch (error) {
+      if (guard !== undefined) throw error;
+      log.warn(`Failed to prepare the PI agent dir: ${(error as Error).message}`);
+    }
+  }
+
+  private writeGatewayProviders(
+    config: AgentSpawnConfig,
+    agentDir: string,
+    gatewayBaseUrl: string,
+    guard: BenchmarkGuard,
+  ): void {
+    try {
+      this.writeGatewayProvidersUnchecked(config, agentDir, gatewayBaseUrl);
+    } catch (error) {
+      if (guard !== undefined) throw error;
+      log.warn(`Failed to write PI models.json: ${(error as Error).message}`);
+    }
+  }
+
+  private writeGatewayProvidersUnchecked(
+    config: AgentSpawnConfig,
+    agentDir: string,
+    gatewayBaseUrl: string,
+  ): void {
+    const overrides = withCustomEntries(
+      this.gatewayOverrides(
+        this.providerDiscovery.getProviders(),
+        config.piProvider ?? null,
+        config.piGatewayPath ?? null,
+      ),
+      this.userModelsPath ? readCustomProviderEntries(this.userModelsPath) : {},
+    );
+    if (overrides.length === 0) {
+      log.warn('No PI providers to route (empty discovery and no profile provider); PI subprocess may fail to authenticate');
+      return;
+    }
+    writeProvidersConfig(overrides, gatewayBaseUrl, { modelsPath: piModelsPath(agentDir) });
+  }
+
+  private syncGatewayConfig(config: AgentSpawnConfig, agentDir: string, guard: BenchmarkGuard): void {
+    const gatewayBaseUrl = config.piGatewayBaseUrl;
+    if (!gatewayBaseUrl) return;
+    this.prepareGatewayAgentDir(agentDir, guard);
+    this.writeGatewayProviders(config, agentDir, gatewayBaseUrl, guard);
+  }
+
+  private prepareSpawn(config: AgentSpawnConfig): PreparedPISpawn {
     const guard = config.benchmarkPolicyGuard;
     if (guard !== undefined) assertBenchmarkSpawn(config, this.configuredAgentDir);
-    // P13: the two benchmark compositions are supported now. Strictness is not a promise made in a
-    // comment — the bridge derives its server set from this value, so `none` yields zero servers and
-    // `benchmark-thread-run` yields exactly `cortex-benchmark-thread` (§5.6 P1).
     const composition = resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp);
     const agentDir = this.configuredAgentDir ?? PI_AGENT_DIR;
     const sessionDir = this.sessionDir;
     mkdirSync(sessionDir, { recursive: true });
-
-    // Resolve the backend id to one exact path before spawn and pass that path to --session.
-    // PI therefore opens the selected transcript directly instead of scanning session bodies.
-    // The live registry carries PI's authoritative sessionFile; after restart, deterministic
-    // filename lookup prefers the canonical id form, then the newest timestamp-prefixed form.
-    // A missing target starts fresh because PI cannot create an externally assigned session id.
-    const wantResume = !!(config.resume && config.sessionId);
-    const sessionPathForSpawn = wantResume
-      ? this.resolveSessionPath(config.sessionId!)
-      : null;
-    if (wantResume && sessionPathForSpawn === null) {
-      log.info(`PI resume target '${config.sessionId}' not found (no live session or file in ${sessionDir}); starting fresh`);
-    }
-
-    const cliArgs = buildSpawnArgs({
-      sessionDir,
-      sessionPath: sessionPathForSpawn,
-      model: config.model ?? null,
-      provider: config.piProvider ?? null,
-      systemPrompt: config.systemPrompt ?? null,
-      appendSystemPrompt: config.appendSystemPrompt ?? null,
-      pluginDirs: config.pluginDirs ?? null,
-      // P9: the MCP bridge and the guard's host (tool shims) are always injected; the hook bridge is
-      // derived from the role, so a role that declares no hook surface never loads it.
-      extensionPaths: buildExtensionPaths(config),
-      thinking: config.thinking ?? null,
-      extraOption: config.extraOption ?? null,
-    });
-
-    // Pre-spawn config sync (sole writers of PI_AGENT_DIR — no other code path touches these files):
-    //  1. Mirror user's ~/.pi/agent/auth.json so the PI subprocess can resolve OAuth/API key auth
-    //  2. Write multi-provider models.json overriding every discovered PI provider's baseUrl to
-    //     land on the local gateway. PI uses its "Override Built-in Providers" mechanism
-    //     (PI docs/models.md §Overriding Built-in Providers) — only baseUrl is set, auth is
-    //     resolved from auth.json as usual.
-    if (config.piGatewayBaseUrl) {
-      try {
-        this.prepareAgentDir?.(agentDir);
-      } catch (err) {
-        if (guard !== undefined) throw err;
-        log.warn(`Failed to prepare the PI agent dir: ${(err as Error).message}`);
-      }
-      try {
-        // Override set = providers PI reports creds for (discovered) ∪ the provider THIS spawn
-        // uses (config.piProvider). The current provider is always routed through the gateway even
-        // when discovery doesn't list it (e.g. an anthropic-protocol relay whose key the gateway
-        // injects). config.piGatewayPath, when set, decouples the gateway route from the provider name.
-        const discovered = this.providerDiscovery.getProviders();
-        // A user-defined provider is unknown to PI, so a baseUrl-only override would hand the
-        // subprocess a provider with no protocol and no models. Its full definition rides along.
-        const overrides = withCustomEntries(
-          this.gatewayOverrides(
-            discovered,
-            config.piProvider ?? null,
-            config.piGatewayPath ?? null,
-          ),
-          this.userModelsPath ? readCustomProviderEntries(this.userModelsPath) : {},
-        );
-        if (overrides.length > 0) {
-          // A3: the catalog lands where the agent dir says, never at an implicit host default.
-          writeProvidersConfig(overrides, config.piGatewayBaseUrl, {
-            modelsPath: piModelsPath(agentDir),
-          });
-        } else {
-          log.warn('No PI providers to route (empty discovery and no profile provider); PI subprocess may fail to authenticate');
-        }
-      } catch (err) {
-        if (guard !== undefined) throw err;
-        log.warn(`Failed to write PI models.json: ${(err as Error).message}`);
-      }
-    }
-
-    // Forward the agent's tool allowlist (Claude-native names) so tool-shims.ts can gate which
-    // pseudo-tools it registers — mirroring the Claude backend's `--tools` allowlist. Without this,
-    // thread-dispatched agents (whose config excludes AskUserQuestion/EnterPlanMode/ExitPlanMode)
-    // would still be handed those interaction tools and deadlock on an approval no human can answer.
-    // P11: with a guard present the allow-list no longer decides anything — GT6's dispatch guard
-    // does — so the fail-open variable is not even exported into the child.
-    const allowedTools = guard !== undefined
-      ? undefined
-      : config.rawTools
-        ?? (config.tools && config.tools.length > 0
-          ? config.tools.map((t) => fromCanonical('claude', t)).filter((n): n is string => !!n).join(',')
-          : undefined);
-    const env = buildPiEnv({
-      sessionId: config.sessionId,
-      // C7/A13: `channel` is what emits SLACK_CHANNEL / FEISHU_CHANNEL — a platform surface a trial
-      // has no business naming, and the switch that layers the Slack and Feishu MCP servers.
-      channel: guard === undefined ? config.channel : undefined,
-      callbackSource: config.callbackSource,
-      scheduleTaskId: config.scheduleTaskId,
-      extraEnv: config.env,
-      context: config.cortexContext,
-      piAgentDir: agentDir,
-      allowedTools,
-      policyGuard: guard,
-      leaseState: config.benchmarkLeaseState,
-      mcpComposition: composition,
-      deadlineEpochMs: config.benchmarkDeadlineEpochMs,
-      // A13: the trial's exact allowlisted environment replaces host inheritance wholesale.
-    }, config.pinnedEnv);
+    const sessionPath = this.resolveSpawnSessionPath(config, sessionDir);
+    const cliArgs = buildSpawnArgs(piSpawnOptions(config, sessionDir, sessionPath));
+    this.syncGatewayConfig(config, agentDir, guard);
+    const env = buildSpawnEnvironment(config, agentDir, composition);
     const cwd = config.cwd ?? DATA_DIR;
+    return { sessionDir, cliArgs, cwd, env };
+  }
 
-    const session = new PISession({
+  private quotaReporter(config: AgentSpawnConfig): ProviderQuotaReporter | undefined {
+    if (!reportsProviderQuota(config)) return undefined;
+    return (reading) => {
+      void reportCodexQuota(reading, resolveQuotaSource(config))
+        .catch((error) => log.error('reportCodexQuota error:', error));
+    };
+  }
+
+  private createSession(config: AgentSpawnConfig, prepared: PreparedPISpawn): PISession {
+    return new PISession({
       sessionKey: config.sessionKey,
-      sessionDir,
-      // P2: one resolved binary for the whole session; PATH resolution is the daemon's fallback.
+      sessionDir: prepared.sessionDir,
       command: config.cliPath ?? DEFAULT_PI_BINARY,
-      cliArgs,
-      cwd,
-      env,
-      // S6.1: the spawn config is the single supervisor injection point for both backends. The
-      // constructor argument survives only as a test seam.
+      cliArgs: prepared.cliArgs,
+      cwd: prepared.cwd,
+      env: prepared.env,
       spawner: config.processSpawner ?? this.spawner,
-      // A15: an explicit per-spawn value, never a watched daemon setting, on the benchmark path.
       streamDeltas: config.streamDeltas ?? getSettings().streamDeltas,
       registry: this.sessionPathRegistry,
-      registrySessionDir: sessionDir,
+      registrySessionDir: prepared.sessionDir,
       onClose: (key) => this.sessions.delete(key),
-      // Only gateway-routed runs carry the probe, so only they can report; the closure freezes the
-      // provider/mode this session was routed under rather than re-deriving it later.
-      onProviderQuota: reportsProviderQuota(config)
-        ? (reading) => {
-          void reportCodexQuota(reading, resolveQuotaSource(config))
-            .catch((err) => log.error('reportCodexQuota error:', err));
-        }
-        : undefined,
+      onProviderQuota: this.quotaReporter(config),
     });
-    this.sessions.set(config.sessionKey, session);
+  }
 
+  private sendSpawnedTurn(session: PISession, msg: UserMessage): Promise<AgentResult> {
+    return new Promise<AgentResult>((resolve, reject) => {
+      session.beginTurn(resolve, reject);
+      const targetId = session.sessionId;
+      if (targetId === null) {
+        session.send(msg);
+        return;
+      }
+      const targetPath = this.resolveSessionPath(targetId);
+      session.sendTurn(targetId, targetPath, msg)
+        .catch((error) => session.beginTurnReject(errorValue(error)));
+    });
+  }
+
+  private async closeSpawnedSession(sessionKey: string, session: PISession): Promise<void> {
+    await session.close();
+    this.sessions.delete(sessionKey);
+  }
+
+  private killSpawnedSession(sessionKey: string, session: PISession): boolean {
+    const killed = session.kill();
+    if (killed) this.sessions.delete(sessionKey);
+    return killed;
+  }
+
+  private createAgentProcess(sessionKey: string, session: PISession): PIAgentProcess {
     return {
       supervision: session.supervision,
-      sessionKey: config.sessionKey,
-      get sessionId(): string | null {
-        return session.sessionId;
-      },
-      // BLOCKER-2 fix: route through session.sendTurn so auto-switch fires when subprocess
-      // was diverted to a different session via PIAdapter.switchSession().
-      // targetId = session.sessionId keeps this AgentProcess faithful to its bootstrapped session.
-      // AgentResult reconstruction (task 5b5c): beginTurn() sets up the accumulator; the
-      // pendingTurn promise is resolved/rejected by handleRawLine as events arrive.
-      send: (msg: UserMessage): Promise<AgentResult> => {
-        return new Promise<AgentResult>((resolve, reject) => {
-          // Register accumulator BEFORE writing the prompt so no events are missed.
-          session.beginTurn(resolve, reject);
-          const targetId = session.sessionId;
-          if (targetId !== null) {
-            const targetPath = this.resolveSessionPath(targetId);
-            // sendTurn errors (e.g. switch_session timeout) surface via the events stream
-            // as a fatal error event, which will reject pendingTurn. The catch here is a
-            // belt-and-suspenders guard for programming errors in sendTurn itself.
-            session.sendTurn(targetId, targetPath, msg).catch((err) => {
-              // Only reject if pendingTurn is still ours (hasn't been resolved by events).
-              const e = err instanceof Error ? err : new Error(String(err));
-              session.beginTurnReject(e);
-            });
-          } else {
-            // Bootstrap not yet complete; send directly (no switch possible yet).
-            session.send(msg);
-          }
-        });
-      },
-      compact: (): Promise<AgentCompactResult> => session.compact(),
-      sendExtensionUiResponse: (id: string, payload: Record<string, unknown>): void => {
-        session.sendExtensionUiResponse(id, payload);
-      },
-      injectUserMessage: (msg: UserMessage): boolean => session.injectUserMessage(msg),
-      setInjectionAckSink: (sink: InjectionAckSink): void => session.setInjectionAckSink(sink),
+      sessionKey,
+      get sessionId(): string | null { return session.sessionId; },
+      send: (msg) => this.sendSpawnedTurn(session, msg),
+      compact: () => session.compact(),
+      sendExtensionUiResponse: (id, payload) => session.sendExtensionUiResponse(id, payload),
+      injectUserMessage: (msg) => session.injectUserMessage(msg),
+      setInjectionAckSink: (sink) => session.setInjectionAckSink(sink),
       events: session.eventsIterable,
-      close: async () => {
-        await session.close();
-        this.sessions.delete(config.sessionKey);
-      },
-      kill: () => {
-        const ok = session.kill();
-        if (ok) this.sessions.delete(config.sessionKey);
-        return ok;
-      },
+      close: () => this.closeSpawnedSession(sessionKey, session),
+      kill: () => this.killSpawnedSession(sessionKey, session),
     };
+  }
+
+  spawn(config: AgentSpawnConfig): PIAgentProcess {
+    const prepared = this.prepareSpawn(config);
+    const session = this.createSession(config, prepared);
+    this.sessions.set(config.sessionKey, session);
+
+    return this.createAgentProcess(config.sessionKey, session);
   }
 
   /** Record the exact transcript path restored by rewind before the next resume spawn. */

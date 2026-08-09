@@ -1,5 +1,5 @@
-// input:  Claude options, task context, composition, hooks
-// output: Claude CLI arguments and isolated child environment
+// input:  Claude options, context, composition, hooks
+// output: Claude CLI args and isolated environment
 // pos:    Resolves Claude process configuration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -48,6 +48,8 @@ export interface ClaudeSpawnOptions {
   mcpComposition?: McpComposition;
   /** Concrete MCP files supplied by a frozen one-shot run configuration. */
   mcpConfigPaths?: string[] | null;
+  /** Supplemental Claude MCP config written from portable runtime servers. */
+  supplementalMcpConfigPath?: string | null;
   /** Omit all configured **ambient** hooks for isolated one-shot execution. */
   disableHooks?: boolean;
   /** Compiled benchmark policy guard. Present makes the guard the entire hooks surface. */
@@ -90,101 +92,148 @@ const MCP_CONFIGS: Record<McpComposition, readonly string[]> = {
   'benchmark-thread-run': [BENCHMARK_THREAD_MCP_CONFIG],
 };
 
-export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
-  const mode: ClaudeSpawnMode = options.mode ?? 'print';
-  const composition = options.mcpComposition ?? 'direct';
-  const isDirect = composition === 'direct';
-  const wantsInteractionBridge = isDirect
-    && (mode === 'tui' || (mode === 'print' && !!options.isUserInitiated));
-  const mcpConfigs = options.mcpConfigPaths
+function appendDirectMcpConfigs(
+  configs: string[],
+  options: ClaudeSpawnOptions,
+  isDirect: boolean,
+): void {
+  if (options.loadSlackMcp && isDirect) configs.push(SLACK_MCP_CONFIG);
+  if (options.loadFeishuMcp && isDirect) configs.push(FEISHU_MCP_CONFIG);
+  if (options.loadWebMcp && isDirect) configs.push(WEB_MCP_CONFIG);
+}
+
+function resolveMcpConfigs(
+  options: ClaudeSpawnOptions,
+  composition: McpComposition,
+  wantsInteractionBridge: boolean,
+): string[] {
+  const configs = options.mcpConfigPaths
     ? [...options.mcpConfigPaths]
     : [...MCP_CONFIGS[composition]];
-  if (wantsInteractionBridge) mcpConfigs.push(TUI_MCP_CONFIG);
-  // Slack-originated sessions additionally layer the cortex-slack server (slack_send_file tool).
-  // Suppressed for non-direct compositions.
-  if (options.loadSlackMcp && isDirect) mcpConfigs.push(SLACK_MCP_CONFIG);
-  // Feishu-originated sessions additionally layer the cortex-feishu server (Feishu document tools).
-  // Suppressed for non-direct compositions.
-  if (options.loadFeishuMcp && isDirect) mcpConfigs.push(FEISHU_MCP_CONFIG);
-  // Web-UI-originated sessions additionally layer the cortex-web server (send_file tool).
-  // Suppressed for non-direct compositions.
-  if (options.loadWebMcp && isDirect) mcpConfigs.push(WEB_MCP_CONFIG);
-  // TUI tool whitelist swaps the three native interaction tools for their MCP bridge equivalents;
-  // non-direct TUI sessions have no bridge server, so they fall back to the standard tool set.
-  const toolsDefault = (mode === 'tui' && isDirect) ? TUI_TOOLS : DEFAULT_TOOLS;
-
-  const args: string[] = [];
-
-  if (mode === 'print') {
-    // Stream-json over stdio for -p mode (current behavior — preserved exactly for regression)
-    args.push(
-      '-p',
-      '--input-format', 'stream-json',
-      '--output-format', 'stream-json',
-      '--verbose',
-      // Echo every user message back as a `user` event carrying `isReplay: true`, at the moment
-      // the CLI CONSUMES it rather than when it was written. That echo is the delivery
-      // ack for a mid-turn injected message — the only signal that distinguishes "queued in the
-      // CLI" from "in the model's view". Only the injection ack consumes these events; every other
-      // `user` handler ignores replays (they are otherwise indistinguishable from the tool_result
-      // carriers print mode already emits).
-      '--replay-user-messages',
-    );
-    // Token-level streaming: adds `stream_event` lines (message_start / content_block_start /
-    // content_block_delta / …) on top of the complete `assistant` / `result` events, which are
-    // unchanged — the addition is purely incremental, so every existing parser stays correct.
-    // It is what lets the Web UI show text as it is generated instead of waiting for the whole
-    // block (measured gap on a long reply: first delta at ~3.5s vs the complete event at ~25s).
-    // TUI mode reads the session jsonl, not stdout, so the flag would be pure overhead there.
-    if (options.streamDeltas ?? isStreamDeltasEnabled()) args.push('--include-partial-messages');
+  if (options.supplementalMcpConfigPath
+    && (composition === 'direct' || composition === 'thread-control')) {
+    configs.push(options.supplementalMcpConfigPath);
   }
-  // TUI mode: strip native interaction tools (AskUserQuestion / EnterPlanMode / ExitPlanMode)
-  // from ALL sessions (user messages and threads alike). These tools require stdin/stdout
-  // interaction that tmux-pasted TUI sessions cannot provide.
-  let effectiveTools = options.tools || toolsDefault;
+  if (wantsInteractionBridge) configs.push(TUI_MCP_CONFIG);
+  appendDirectMcpConfigs(configs, options, composition === 'direct');
+  return configs;
+}
+
+/** Print mode uses NDJSON stdio and replay echoes as queued-message delivery acknowledgements. */
+function printModeArgs(options: ClaudeSpawnOptions, mode: ClaudeSpawnMode): string[] {
+  if (mode !== 'print') return [];
+  const args = [
+    '-p',
+    '--input-format', 'stream-json',
+    '--output-format', 'stream-json',
+    '--verbose',
+    '--replay-user-messages',
+  ];
+  if (options.streamDeltas ?? isStreamDeltasEnabled()) {
+    args.push('--include-partial-messages');
+  }
+  return args;
+}
+
+function resolveEffectiveTools(
+  options: ClaudeSpawnOptions,
+  mode: ClaudeSpawnMode,
+  isDirect: boolean,
+  wantsInteractionBridge: boolean,
+): string {
+  const toolsDefault = mode === 'tui' && isDirect ? TUI_TOOLS : DEFAULT_TOOLS;
+  let tools = options.tools || toolsDefault;
   if (mode === 'tui' && options.tools) {
-    effectiveTools = options.tools.split(',').filter(t => !TUI_STRIP_TOOLS.has(t)).join(',');
+    tools = options.tools.split(',').filter(tool => !TUI_STRIP_TOOLS.has(tool)).join(',');
   }
-  // Print mode, user-initiated direct sessions: append the cortex-tui-bridge interaction tools.
-  // The native EnterPlanMode/ExitPlanMode/AskUserQuestion are dropped by headless -p regardless of
-  // the allowlist, so these MCP equivalents are the only way plan/ask reaches the user. TUI mode
-  // already carries them via TUI_TOOLS, so only the print branch needs the append.
   if (mode === 'print' && wantsInteractionBridge) {
-    effectiveTools = [effectiveTools, ...TUI_BRIDGE_TOOLS].filter(Boolean).join(',');
+    tools = [tools, ...TUI_BRIDGE_TOOLS].filter(Boolean).join(',');
   }
+  return tools;
+}
 
-  // Both modes: permission bypass + MCP + tools
+function appendCoreArgs(
+  args: string[],
+  configs: string[],
+  composition: McpComposition,
+  tools: string,
+): void {
   args.push(
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
-    '--mcp-config', ...mcpConfigs,
+    '--mcp-config', ...configs,
   );
   if (composition === 'none' || composition === 'benchmark-thread-run') {
     args.push('--strict-mcp-config');
   }
-  args.push('--tools', effectiveTools);
-  if (options.systemPrompt) args.push('--system-prompt', options.systemPrompt);
-  if (options.appendSystemPrompt) args.push('--append-system-prompt', options.appendSystemPrompt);
-  if (options.model) args.push('--model', options.model);
-  // Before extraOption so an explicit extraOption {"--effort": ...} still wins (CLI last-wins).
-  if (options.thinking) args.push('--effort', options.thinking);
-  if (options.claudeAgent) args.push('--agent', options.claudeAgent);
-  if (options.pluginDirs) {
-    for (const dir of options.pluginDirs) args.push('--plugin-dir', dir);
+  args.push('--tools', tools);
+}
+
+function appendTruthyOptions(
+  args: string[],
+  options: ReadonlyArray<readonly [string, string | null | undefined]>,
+): void {
+  for (const [flag, value] of options) {
+    if (value) args.push(flag, value);
   }
-  if (options.extraOption) {
-    for (const [k, v] of Object.entries(options.extraOption)) args.push(k, v);
-  }
-  // A compiled benchmark guard is the whole hook surface: the ambient registry is never consulted,
-  // and `disableHooks` keeps its shipped meaning of "no AMBIENT hooks" (design §13 GT5, §6.5).
+}
+
+/** Thinking precedes extra options so an explicit extra --effort remains last-wins. */
+function appendPromptOptions(args: string[], options: ClaudeSpawnOptions): void {
+  appendTruthyOptions(args, [
+    ['--system-prompt', options.systemPrompt],
+    ['--append-system-prompt', options.appendSystemPrompt],
+    ['--model', options.model],
+    ['--effort', options.thinking],
+    ['--agent', options.claudeAgent],
+  ]);
+}
+
+function appendRepeatedOption(
+  args: string[],
+  flag: string,
+  values: readonly string[] | null | undefined,
+): void {
+  for (const value of values ?? []) args.push(flag, value);
+}
+
+function appendExtraOptions(
+  args: string[],
+  options: Record<string, string> | null | undefined,
+): void {
+  for (const [flag, value] of Object.entries(options ?? {})) args.push(flag, value);
+}
+
+/** A compiled benchmark guard replaces the ambient hook surface completely. */
+function buildClaudeSettings(options: ClaudeSpawnOptions): Record<string, any> {
   const settings: Record<string, any> = {
     hooks: options.benchmarkPolicyGuard !== undefined
       ? options.benchmarkPolicyGuard
       : (options.disableHooks ? {} : buildHooksSettings(options.tools)),
   };
   if (options.outputStyle) settings.outputStyle = options.outputStyle;
-  args.push('--settings', JSON.stringify(settings));
+  return settings;
+}
+
+function appendSessionIdentity(args: string[], options: ClaudeSpawnOptions): void {
   if (options.needsResume) args.push('--resume', options.sessionId);
   else args.push('--session-id', options.sessionId);
+}
+
+export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
+  const mode = options.mode ?? 'print';
+  const composition = options.mcpComposition ?? 'direct';
+  const isDirect = composition === 'direct';
+  const wantsInteractionBridge = isDirect
+    && (mode === 'tui' || (mode === 'print' && !!options.isUserInitiated));
+  const configs = resolveMcpConfigs(options, composition, wantsInteractionBridge);
+  const args = printModeArgs(options, mode);
+  const tools = resolveEffectiveTools(options, mode, isDirect, wantsInteractionBridge);
+  appendCoreArgs(args, configs, composition, tools);
+  appendPromptOptions(args, options);
+  appendRepeatedOption(args, '--plugin-dir', options.pluginDirs);
+  appendExtraOptions(args, options.extraOption);
+  args.push('--settings', JSON.stringify(buildClaudeSettings(options)));
+  appendSessionIdentity(args, options);
   return args;
 }
 

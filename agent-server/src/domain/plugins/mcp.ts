@@ -1,7 +1,7 @@
-// input:  plugin mcp.json files, schemas, path guards
-// output: sanitized origin-only MCP views and private runtimes
+// input:  plugin mcp.json, schemas, and path guards
+// output: safe MCP views and private runtime values
 // pos:    Portable MCP loader for plugin inventory
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -100,6 +100,8 @@ function expandEnv(
   for (const [key, value] of Object.entries(env ?? {})) {
     expanded[key] = expandPluginVars(value, pluginRoot, dataRoot);
   }
+  expanded.PLUGIN_ROOT = pluginRoot;
+  expanded.PLUGIN_DATA = dataRoot;
   return expanded;
 }
 
@@ -202,10 +204,11 @@ function stdioServer(
   name: string,
   server: Extract<PortableMcpServer, { type: 'stdio' }>,
 ): PluginMcpServer | null {
+  const pluginData = dataRoot;
   const command = resolveCommand(pluginRoot, server.command);
-  const args = expandArgs(server.args, pluginRoot, dataRoot);
-  const env = expandEnv(server.env, pluginRoot, dataRoot);
-  const cwd = resolveWorkingDirectory(pluginRoot, dataRoot, server.cwd);
+  const args = expandArgs(server.args, pluginRoot, pluginData);
+  const env = expandEnv(server.env, pluginRoot, pluginData);
+  const cwd = resolveWorkingDirectory(pluginRoot, pluginData, server.cwd);
   if (!command || !cwd) return null;
   return attachPluginMcpRuntime({
     name,

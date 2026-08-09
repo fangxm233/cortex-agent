@@ -1,24 +1,25 @@
 Please update me when files in this folder change
 
-PI backend adapter: runs Cortex turns through the PI CLI over its RPC protocol.
-Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch, and provider-side WebSearch.
+PI backend adapter: runs Cortex turns through the PI CLI over RPC.
+Adds Cortex MCP tools, hooks, subagents, shims, and web tools.
 
 | filename | role | function |
 |---|---|---|
-| adapter.ts | adapter | runs supervised PI sessions from injected collaborators |
+| adapter.ts | adapter | Coordinates PI processes and sessions |
 | session-support.ts | core | PI session timers, queues, and probes |
-| spawn-args.ts | core | Builds PI arguments and isolated task-aware environment |
+| spawn-args.ts | core | Builds isolated PI args and environment in stages |
 | defaults.ts | config | PI agent, session and extension path defaults |
 | agent-dir.ts | config | manages the private PI agent directory |
 | discovery.ts | core | refreshes the host provider cache |
-| session-files.ts | core | resolves a PI transcript path without ambient reach |
+| session-files.ts | core | Resolves an isolated PI transcript path |
 | providers-config.ts | config | writes the PI provider catalog at an explicit path |
-| custom-catalog.ts | config | reads user-defined provider blocks from a catalog file |
-| policy-guard.ts | core | decides PI tool dispatch fail-closed from the compiled guard |
-| mcp-duration.ts | core | bounds an MCP call by the trial deadline plus cleanup grace |
+| custom-catalog.ts | config | Reads custom provider catalog entries |
+| policy-guard.ts | core | Guards PI tool dispatch fail-closed |
+| mcp-config.ts | config | Writes and reloads private plugin MCP config |
+| mcp-duration.ts | core | Bounds MCP calls by trial deadlines |
 | event-parser.ts | parser | translates PI events with nullable accounting |
 | framing.ts | codec | encodes and splits PI newline JSON records |
-| mcp-bridge.ts | bridge | composes shared and privilege-scoped MCP tools |
+| mcp-bridge.ts | bridge | composes shared, restricted, and plugin MCP tools |
 | mcp-bridge-logic.ts | core | decides server loading and maps tool content |
 | hook-bridge.ts | bridge | preserves native PI hook results and mutations |
 | web-fetch.ts | tool | fetches bounded HTTP(S) and strips data images |

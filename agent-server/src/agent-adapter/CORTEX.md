@@ -1,13 +1,14 @@
 Please update me when files in this folder change
 
-Agent abstraction layer decoupling Cortex core from the Claude and PI backend CLIs.
-Defines the shared adapter contract, the capability matrix, and the normalized event schema.
+Adapter layer for Cortex turns through Claude and PI backend CLIs.
+Defines shared contracts, capabilities, and normalized backend events.
 
 | filename | role | function |
 |---|---|---|
 | index.ts | entry | selects adapters and pins PI transcript paths |
-| types.ts | types | Adapter, process, task context, supervision and accounting contracts |
-| capabilities.ts | core | declares capabilities and long-call version governance |
+| types.ts | types | Shared adapter and plugin runtime contracts |
+| mcp-private-dir.ts | util | Guards private physical MCP directories |
+| capabilities.ts | core | Declares backend capabilities |
 | bg-wait.ts | core | emits cache-inclusive continuation input totals |
 | event-tee.ts | core | fans out run events and enforces required sinks |
 | claude/ | subdir | Claude Code backend adapter |

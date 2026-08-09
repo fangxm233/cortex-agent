@@ -1,6 +1,6 @@
-// input:  PI hooks, provider cache, transcripts, fake processes
-// output: PI resume identity, spawn policy, events and compact
-// pos:    Covers PI process and event lifecycle
+// input:  PI source, hooks, cache, transcripts, fake processes
+// output: PI spawn quality, lifecycle, event, and compact tests
+// pos:    Covers PI process construction and lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -9,13 +9,16 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import ts from 'typescript';
 import type {
   ChildProcess, ChildProcessWithoutNullStreams, SpawnOptions,
 } from 'node:child_process';
 import type { AgentProcessSpawner } from '../src/agent-adapter/types.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { PI_MODELS_PATH } from '../src/agent-adapter/pi/agent-dir.js';
+import { PI_PLUGIN_MCP_CONFIG_ENV } from '../src/agent-adapter/pi/mcp-config.js';
 import { createPIProviderDiscovery } from '../src/agent-adapter/pi/discovery.js';
 import { encodeCommand, createLineSplitter } from '../src/agent-adapter/pi/framing.js';
 import { buildPiEnv, buildSpawnArgs } from '../src/agent-adapter/pi/spawn-args.js';
@@ -78,6 +81,51 @@ function makeStubSpawner(): {
     },
   };
 }
+
+const COMPLEXITY_KINDS = new Set<ts.SyntaxKind>([
+  ts.SyntaxKind.IfStatement, ts.SyntaxKind.ConditionalExpression,
+  ts.SyntaxKind.CaseClause, ts.SyntaxKind.CatchClause,
+  ts.SyntaxKind.ForStatement, ts.SyntaxKind.ForInStatement, ts.SyntaxKind.ForOfStatement,
+  ts.SyntaxKind.WhileStatement, ts.SyntaxKind.DoStatement,
+]);
+
+function callableMetrics(relativePath: string, name: string): [number, number, number] {
+  const filePath = fileURLToPath(new URL(relativePath, import.meta.url));
+  const source = ts.createSourceFile(filePath, readFileSync(filePath, 'utf8'), ts.ScriptTarget.Latest);
+  let target: ts.FunctionLikeDeclaration | undefined;
+  const find = (node: ts.Node): void => {
+    const callable = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node);
+    if (callable && node.name?.getText(source) === name) target = node;
+    else ts.forEachChild(node, find);
+  };
+  find(source);
+  assert.ok(target, `${name} declaration not found`);
+  let branches = 0;
+  let maxNesting = 0;
+  const measure = (node: ts.Node, nesting: number): void => {
+    const nextNesting = nesting + Number(COMPLEXITY_KINDS.has(node.kind));
+    if (nextNesting > nesting) branches += 1;
+    maxNesting = Math.max(maxNesting, nextNesting);
+    ts.forEachChild(node, (child) => measure(child, nextNesting));
+  };
+  measure(target, 0);
+  const firstLine = source.getLineAndCharacterOfPosition(target.getStart(source)).line;
+  const lastLine = source.getLineAndCharacterOfPosition(target.getEnd()).line;
+  return [lastLine - firstLine + 1, branches, maxNesting];
+}
+
+test('PI spawn builders stay within function quality gates', () => {
+  const targets = [
+    ['../src/agent-adapter/pi/adapter.ts', 'spawn'],
+    ['../src/agent-adapter/pi/spawn-args.ts', 'buildSpawnArgs'],
+  ] as const;
+  for (const [filePath, name] of targets) {
+    const [lines, branches, nesting] = callableMetrics(filePath, name);
+    assert.ok(lines <= 30, `${name}: ${lines} lines exceeds 30`);
+    assert.ok(branches <= 3, `${name}: ${branches} branches exceeds 3`);
+    assert.ok(nesting <= 3, `${name}: nesting ${nesting} exceeds 3`);
+  }
+});
 
 test('spawn accepts explicit direct and thread-control MCP compositions', () => {
   for (const composition of ['direct', 'thread-control'] as const) {
@@ -152,6 +200,21 @@ test('buildSpawnArgs full options snapshot with multiple pluginDirs in order', (
     '--append-system-prompt', 'asp',
     '--skill', '/a',
     '--skill', '/b',
+  ]);
+});
+
+test('buildSpawnArgs places portable pluginSkillDirs before pluginDirs', () => {
+  const args = buildSpawnArgs({
+    sessionDir: '/pi-sessions',
+    pluginSkillDirs: ['/portable/skill-a', '/portable/skill-b'],
+    pluginDirs: ['/legacy/plugin'],
+  });
+  assert.deepEqual(args, [
+    '--mode', 'rpc',
+    '--session-dir', '/pi-sessions',
+    '--skill', '/portable/skill-a',
+    '--skill', '/portable/skill-b',
+    '--skill', '/legacy/plugin',
   ]);
 });
 
@@ -233,6 +296,8 @@ test('spawn forwards authoritative Cortex thread context to the PI subprocess', 
 
 test('buildPiEnv removes stale optional Cortex context from the parent env', () => {
   const stale = {
+    SLACK_CHANNEL: 'stale-channel',
+    FEISHU_CHANNEL: 'stale-feishu',
     CORTEX_THREAD_ID: 'stale-thread',
     CORTEX_PROFILE: 'stale-profile',
     CORTEX_PROJECT: 'stale-project',
@@ -243,6 +308,8 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
     CORTEX_TASK_PROJECT: 'stale-task-project',
     CORTEX_CALLBACK_SOURCE: 'stale-callback',
     CORTEX_SCHEDULE_TASK_ID: 'stale-schedule',
+    CORTEX_PI_SUBAGENT: '1',
+    [PI_PLUGIN_MCP_CONFIG_ENV]: '/stale-plugin-mcp.json',
   };
   const env = buildPiEnv({
     sessionId: null,
@@ -253,6 +320,60 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
   assert.equal(env.CORTEX_SESSION_ID, undefined);
   assert.equal(env.CORTEX_BACKEND, 'pi');
   assert.equal(env.PI_CODING_AGENT_DIR, '/pi-agent');
+});
+
+
+test('buildPiEnv resets and sets the PI plugin MCP config path through a dedicated env key', () => {
+  const stale = { [PI_PLUGIN_MCP_CONFIG_ENV]: '/stale-plugin-mcp.json' };
+  const cleared = buildPiEnv({ piAgentDir: '/pi-agent' }, stale);
+  assert.equal(cleared[PI_PLUGIN_MCP_CONFIG_ENV], undefined);
+
+  const updated = buildPiEnv({
+    piAgentDir: '/pi-agent',
+    pluginMcpConfigPath: '/runtime/pi-mcp/private-config.json',
+  }, stale);
+  assert.equal(updated[PI_PLUGIN_MCP_CONFIG_ENV], '/runtime/pi-mcp/private-config.json');
+});
+
+test('buildPiEnv preserves an explicit PI subagent marker after reset', () => {
+  const env = buildPiEnv({
+    piAgentDir: '/pi-agent',
+    subagentMarker: '1',
+  }, {
+    CORTEX_PI_SUBAGENT: 'stale-parent-marker',
+  });
+
+  assert.equal(env.CORTEX_PI_SUBAGENT, '1');
+});
+
+test('PIAdapter does not export plugin MCP config for restricted compositions or subagents', () => {
+  for (const entry of [
+    { key: 'pi-none', mcpComposition: 'none' as const },
+    { key: 'pi-benchmark', mcpComposition: 'benchmark-thread-run' as const },
+    { key: 'pi-subagent', mcpComposition: 'thread-control' as const, env: { CORTEX_PI_SUBAGENT: '1' } },
+  ]) {
+    const stub = makeStubSpawner();
+    const adapter = new PIAdapter(stub.spawn);
+    const proc = adapter.spawn({
+      sessionId: null,
+      sessionKey: entry.key,
+      resume: false,
+      mcpComposition: entry.mcpComposition,
+      env: entry.env,
+      mcpServers: [{
+        name: 'portable-plugin',
+        type: 'sse',
+        url: 'https://private.example.com/events',
+        headers: {},
+      }],
+    });
+
+    const env = stub.calls[0].opts.env as NodeJS.ProcessEnv;
+    assert.equal(env[PI_PLUGIN_MCP_CONFIG_ENV], undefined);
+    if (entry.env?.CORTEX_PI_SUBAGENT === '1') assert.equal(env.CORTEX_PI_SUBAGENT, '1');
+    proc.kill();
+    stub.children[0].emit('close', 0);
+  }
 });
 
 // --- D1: --provider passed through from profile mode, not hardcoded ---

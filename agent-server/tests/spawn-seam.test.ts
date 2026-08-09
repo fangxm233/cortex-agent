@@ -1,5 +1,5 @@
-// input:  spawn facade, task context, adapters, MCP configs, goldens
-// output: cwd, accounting, composition, pool, and golden proofs
+// input:  spawn facade, context, adapters, goldens
+// output: cwd, accounting, composition, and pool tests
 // pos:    Verifies the backend process spawn contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,7 +7,15 @@ import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -24,7 +32,13 @@ import {
   buildSpawnArgs,
 } from '../src/agent-adapter/claude/spawn-args.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
-import { BENCHMARK_THREAD_SERVER_NAME, buildServerStates } from '../src/agent-adapter/pi/mcp-bridge.js';
+import {
+  BENCHMARK_THREAD_SERVER_NAME,
+  buildServerStates,
+  pluginServerStateName,
+} from '../src/agent-adapter/pi/mcp-bridge.js';
+import { safeNativeComposite } from '../src/domain/plugins/native-name.js';
+import { PI_PLUGIN_MCP_CONFIG_ENV } from '../src/agent-adapter/pi/mcp-config.js';
 import { PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/policy-guard.js';
 import { buildPiEnv } from '../src/agent-adapter/pi/spawn-args.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
@@ -248,6 +262,184 @@ test('restricted one-shot options override MCP paths and disable hooks', () => {
   assert.deepEqual(JSON.parse(argv[argv.indexOf('--settings') + 1]), { hooks: {} });
 });
 
+const PORTABLE_ROOT = path.join(DATA_DIR, 'plugins', 'portable-spawn-fixture');
+const LEGACY_ROOT = path.join(DATA_DIR, 'plugins', 'legacy-spawn-fixture');
+const UNMANAGED_ROOT = path.join(DATA_DIR, 'unmanaged-spawn-fixture');
+const RUNTIME_MCP_PATHS = ['/fixture/mcp exact-a.json', '/fixture/mcp exact-b.json'];
+const PORTABLE_SERVER_NAME = safeNativeComposite(
+  ['portable-spawn-fixture', 'spawn'],
+  'plugin',
+);
+
+function writeJsonFixture(file: string, value: unknown): void {
+  writeFileSync(file, JSON.stringify(value, null, 2));
+}
+
+function writePortableSkillPlugin(
+  root: string,
+  name: string,
+  skill: string,
+  description: string,
+): void {
+  mkdirSync(path.join(root, 'skills', skill), { recursive: true });
+  writeJsonFixture(path.join(root, 'plugin.json'), {
+    $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+    name,
+  });
+  writeFileSync(path.join(root, 'skills', skill, 'SKILL.md'), [
+    '---',
+    `name: ${skill}`,
+    `description: ${description}`,
+    '---',
+    `# ${skill}`,
+    '',
+  ].join('\n'));
+}
+
+function removePluginRuntimeFixture(): void {
+  rmSync(PORTABLE_ROOT, { recursive: true, force: true });
+  rmSync(LEGACY_ROOT, { recursive: true, force: true });
+  rmSync(UNMANAGED_ROOT, { recursive: true, force: true });
+}
+
+function installPluginRuntimeFixture(): void {
+  writePortableSkillPlugin(
+    PORTABLE_ROOT,
+    'portable-spawn-fixture',
+    'portable-skill',
+    'portable spawn fixture skill.',
+  );
+  writeJsonFixture(path.join(PORTABLE_ROOT, 'mcp.json'), {
+    $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+    mcpServers: { spawn: { type: 'sse', url: 'https://spawn.example.com/sse' } },
+  });
+  mkdirSync(path.join(LEGACY_ROOT, '.claude-plugin'), { recursive: true });
+  writeJsonFixture(
+    path.join(LEGACY_ROOT, '.claude-plugin', 'plugin.json'),
+    { name: 'legacy-spawn-fixture' },
+  );
+  mkdirSync(UNMANAGED_ROOT, { recursive: true });
+}
+
+function pluginRuntimeSpawnOptions() {
+  return {
+    channel: 'general',
+    pluginDirs: [
+      'plugins/portable-spawn-fixture',
+      'plugins/legacy-spawn-fixture',
+      UNMANAGED_ROOT,
+    ],
+    mcpConfigPaths: RUNTIME_MCP_PATHS,
+    loadCortexRules: false,
+  };
+}
+
+function assertFingerprint(config: AgentSpawnConfig): void {
+  assert.equal(typeof config.pluginCapabilityFingerprint, 'string');
+  assert.ok(config.pluginCapabilityFingerprint!.length > 0);
+}
+
+function assertClaudePluginRuntime(config: AgentSpawnConfig): void {
+  assert.deepEqual(config.mcpConfigPaths, RUNTIME_MCP_PATHS);
+  assert.equal(config.pluginDirs?.length, 3);
+  assert.ok(config.pluginDirs?.[0].includes(path.join('plugin-runtime', 'claude')));
+  assert.deepEqual(config.pluginDirs?.slice(1), [LEGACY_ROOT, UNMANAGED_ROOT]);
+  assert.equal(config.pluginSkillDirs, undefined);
+  assert.deepEqual(config.mcpServers?.map((server) => server.name), [PORTABLE_SERVER_NAME]);
+  assertFingerprint(config);
+}
+
+function assertPiPluginRuntime(config: AgentSpawnConfig): void {
+  assert.deepEqual(config.mcpConfigPaths, RUNTIME_MCP_PATHS);
+  assert.deepEqual(config.pluginDirs, [LEGACY_ROOT, UNMANAGED_ROOT]);
+  assert.deepEqual(config.pluginSkillDirs, [
+    path.join(PORTABLE_ROOT, 'skills', 'portable-skill'),
+  ]);
+  assert.deepEqual(config.mcpServers?.map((server) => server.name), [PORTABLE_SERVER_NAME]);
+  assertFingerprint(config);
+}
+
+function assertPortableRuntimePropagation(): void {
+  removePluginRuntimeFixture();
+  try {
+    installPluginRuntimeFixture();
+    const options = pluginRuntimeSpawnOptions();
+    const claude = facadeTest.buildSpawnConfig(options, FIXTURE_CONFIG, undefined);
+    const pi = facadeTest.buildSpawnConfig(options, {
+      model: 'pi-fixture', backend: 'pi', mode: null, provider: 'anthropic',
+    }, undefined);
+    assertClaudePluginRuntime(claude);
+    assertPiPluginRuntime(pi);
+    assert.notEqual(pi.pluginCapabilityFingerprint, claude.pluginCapabilityFingerprint);
+  } finally {
+    removePluginRuntimeFixture();
+  }
+}
+
+test(
+  'buildSpawnConfig resolves plugin runtime per backend and preserves explicit mcpConfigPaths',
+  assertPortableRuntimePropagation,
+);
+
+function assertChannelPluginFiltering(): void {
+  const pluginRoot = path.join(DATA_DIR, 'plugins', 'cortex-feishu');
+  rmSync(pluginRoot, { recursive: true, force: true });
+  try {
+    writePortableSkillPlugin(
+      pluginRoot,
+      'cortex-feishu',
+      'feishu-skill',
+      'feishu fixture skill.',
+    );
+    const config = facadeTest.buildSpawnConfig({
+      channel: 'general', pluginDirs: ['plugins/cortex-feishu'], loadCortexRules: false,
+    }, FIXTURE_CONFIG, undefined);
+    assert.equal(config.pluginDirs, undefined);
+    assert.equal(config.pluginCapabilityFingerprint, undefined);
+  } finally {
+    rmSync(pluginRoot, { recursive: true, force: true });
+  }
+}
+
+test('channel-scoped plugin filtering happens before runtime projection', assertChannelPluginFiltering);
+
+function assertFrozenBenchmarkPluginPath(): void {
+  const pluginDirs = ['frozen/plugins/cortex-feishu'];
+  const config = facadeTest.buildSpawnConfig({
+    pluginDirs,
+    benchmarkPolicyGuard: {} as never,
+    pinnedEnv: {},
+    mcpComposition: 'benchmark-thread-run',
+    loadCortexRules: false,
+  }, FIXTURE_CONFIG, undefined);
+
+  assert.deepEqual(config.pluginDirs, pluginDirs);
+  assert.equal(config.pluginSkillDirs, undefined);
+  assert.equal(config.mcpServers, undefined);
+  assert.equal(config.pluginCapabilityFingerprint, undefined);
+}
+
+test(
+  'benchmark spawn preserves frozen plugin paths without ambient catalog resolution',
+  assertFrozenBenchmarkPluginPath,
+);
+
+function assertMalformedPluginDirsIgnored(): void {
+  const config = facadeTest.buildSpawnConfig({
+    channel: 'general',
+    pluginDirs: 'plugins/not-an-array' as never,
+    loadCortexRules: false,
+  }, FIXTURE_CONFIG, undefined);
+
+  assert.equal(config.pluginDirs, undefined);
+  assert.equal(config.pluginCapabilityFingerprint, undefined);
+}
+
+test(
+  'buildSpawnConfig ignores malformed pluginDirs values instead of crashing',
+  assertMalformedPluginDirsIgnored,
+);
+
 test('ordinary direct and thread spawn argv and environment match base goldens byte-for-byte', () => {
   deterministicEnvironment();
   try {
@@ -326,6 +518,61 @@ test('PI accepts the restricted MCP compositions and carries them strictly', () 
     [BENCHMARK_THREAD_SERVER_NAME],
   );
 });
+
+interface PiSpawnCapture {
+  argv: string[][];
+  envs: NodeJS.ProcessEnv[];
+}
+
+function capturingPiAdapter(capture: PiSpawnCapture): PIAdapter {
+  return new PIAdapter((_cmd, args, opts) => {
+    capture.argv.push(args);
+    capture.envs.push(opts.env ?? {});
+    return { process: stubPiChild() };
+  }, mkdtempSync(path.join(tmpdir(), 'pi-plugin-mcp-')));
+}
+
+function spawnPrivatePluginServer(adapter: PIAdapter): void {
+  adapter.spawn({
+    sessionId: null,
+    sessionKey: 'pi-plugin-mcp',
+    resume: false,
+    mcpComposition: 'direct',
+    mcpServers: [{
+      name: 'portable-private',
+      type: 'stdio',
+      command: '/opt/private-server',
+      args: ['--token', 'secret-arg'],
+      env: { API_KEY: 'secret-env' },
+      cwd: '/opt/private-cwd',
+    }],
+  });
+}
+
+function assertPrivatePluginCapture(capture: PiSpawnCapture): void {
+  assert.equal(capture.argv.length, 1);
+  assert.equal(capture.envs.length, 1);
+  assert.ok(capture.argv[0].every(value => !value.includes('secret-arg')));
+  assert.ok(capture.argv[0].every(value => !value.includes('secret-env')));
+  const configPath = capture.envs[0][PI_PLUGIN_MCP_CONFIG_ENV];
+  assert.equal(typeof configPath, 'string');
+  assert.ok(configPath!.includes(path.join('plugin-runtime', 'pi-mcp')));
+  const states = buildServerStates(capture.envs[0]).map(state => state.name);
+  assert.deepEqual(states, [
+    'core', 'tasks', 'manager-qa', 'ext', pluginServerStateName('portable-private'),
+  ]);
+}
+
+function assertPiPrivatePluginMcpBridge(): void {
+  const capture: PiSpawnCapture = { argv: [], envs: [] };
+  spawnPrivatePluginServer(capturingPiAdapter(capture));
+  assertPrivatePluginCapture(capture);
+}
+
+test(
+  'PI adapter writes private plugin MCP config to env only and the bridge resolves namespaced plugin states from it',
+  assertPiPrivatePluginMcpBridge,
+);
 
 function installFakeClaude(binDir: string): void {
   const fakeClaude = path.join(binDir, 'claude');

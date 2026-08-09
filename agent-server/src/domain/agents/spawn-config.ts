@@ -1,5 +1,5 @@
-// input:  run options, agent config, route base URL
-// output: the single backend-neutral AgentSpawnConfig every launcher hands an adapter
+// input:  run options, agent config, route URL
+// output: one backend-neutral agent spawn config
 // pos:    Registry-free spawn-config builder
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -11,6 +11,7 @@ import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.
 import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction } from '@core/types/agent-types.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
+import { resolvePluginRuntime } from '../plugins/runtime.js';
 
 // --- Types ---
 
@@ -70,6 +71,7 @@ export interface RunAgentOptions {
   pinnedEnv?: NodeJS.ProcessEnv;
   /** Absolute trial deadline a backend derives its in-process call budget from (§5.6 P5). */
   benchmarkDeadlineEpochMs?: number;
+  pluginDirs?: string[];
   /** Concrete MCP config paths frozen by a one-shot run config. */
   mcpConfigPaths?: string[];
   /** Suppress hooks for an isolated one-shot role. */
@@ -160,7 +162,9 @@ export function filterChannelScopedPlugins(
   channel: string | undefined,
 ): string[] | undefined {
   if (!dirs) return dirs;
+  if (!Array.isArray(dirs)) return undefined;
   return dirs.filter((dir) => {
+    if (typeof dir !== 'string') return false;
     const base = dir.split('/').filter(Boolean).pop();
     const rule = CHANNEL_SCOPED_PLUGINS.find((r) => r.plugin === base);
     if (!rule) return true;
@@ -170,19 +174,14 @@ export function filterChannelScopedPlugins(
 
 // --- Spawn config ---
 
-export function buildAgentSpawnConfig(
-  options: RunAgentOptions,
-  config: AgentConfig,
-  anthropicBaseUrl: string | undefined,
-): AgentSpawnConfig {
-  // Pack the Cortex execution context only if at least one field is set, so adapters can
-  // skip writing CORTEX_* env vars / route-context fields when there's nothing to report.
-  const ctx = {
+type SpawnContext = NonNullable<AgentSpawnConfig['cortexContext']>;
+
+function spawnContext(options: RunAgentOptions): SpawnContext {
+  return {
     threadId: options.threadId ?? null,
     profile: options.profileName ?? null,
     project: options.project ?? null,
     sessionName: options.sessionName ?? null,
-    // Stable Cortex tracking id for CORTEX_SESSION_ID; falls back to the backend id (threads/legacy).
     trackSessionId: options.trackSessionId ?? options.sessionId ?? null,
     executionId: options.executionId ?? null,
     useCoreMcp: options.useCoreMcp ?? undefined,
@@ -191,19 +190,26 @@ export function buildAgentSpawnConfig(
     taskProject: options.taskProject ?? null,
     taskGeneration: options.taskGeneration ?? null,
   };
-  const hasContext = !!(
-    ctx.threadId || ctx.profile || ctx.project || ctx.sessionName || ctx.trackSessionId ||
-    ctx.executionId || ctx.useCoreMcp || ctx.threadDepth != null || ctx.taskId ||
-    ctx.taskProject || ctx.taskGeneration
-  );
+}
 
-  // Load global rules (no paths frontmatter) and inject as appendSystemPrompt.
-  // Scoped rules (with paths) are handled by the Read/Grep PostToolUse hook.
+function hasSpawnContext(context: SpawnContext): boolean {
+  return Object.entries(context).some(([key, value]) => {
+    return key === 'threadDepth' ? value != null : Boolean(value);
+  });
+}
+
+function rulesPrompt(options: RunAgentOptions): string | undefined {
   const rules = options.loadCortexRules === false ? [] : loadCortexRules().global;
-  const appendSystemPrompt = rules.length > 0
+  return rules.length > 0
     ? rules.map(rule => rule.body).join('\n\n---\n\n')
     : undefined;
+}
 
+function spawnIdentity(
+  options: RunAgentOptions,
+  config: AgentConfig,
+  mcpComposition: McpComposition,
+): Pick<AgentSpawnConfig, 'sessionId' | 'sessionKey' | 'resume'> & Partial<AgentSpawnConfig> {
   return {
     sessionId: options.sessionId ?? null,
     sessionKey: options.sessionKey || options.channel || 'default',
@@ -212,7 +218,12 @@ export function buildAgentSpawnConfig(
     systemPrompt: typeof options.systemPrompt === 'string' ? options.systemPrompt : undefined,
     outputStyle: typeof options.outputStyle === 'string' ? options.outputStyle : undefined,
     cwd: options.cwd,
-    mcpComposition: resolveMcpComposition(options.mcpComposition, options.useCoreMcp),
+    mcpComposition,
+  };
+}
+
+function spawnPolicy(options: RunAgentOptions): Partial<AgentSpawnConfig> {
+  return {
     mcpConfigPaths: options.mcpConfigPaths,
     disableHooks: options.disableHooks,
     streamDeltas: options.streamDeltas,
@@ -223,10 +234,36 @@ export function buildAgentSpawnConfig(
     benchmarkPolicyGuard: options.benchmarkPolicyGuard,
     pinnedEnv: options.pinnedEnv,
     benchmarkDeadlineEpochMs: options.benchmarkDeadlineEpochMs,
-    pluginDirs: filterChannelScopedPlugins(
-      Array.isArray(options.pluginDirs) ? options.pluginDirs : undefined,
-      options.channel,
-    ),
+  };
+}
+
+function pluginSpawnFields(
+  options: RunAgentOptions,
+  config: AgentConfig,
+  mcpComposition: McpComposition,
+): Partial<AgentSpawnConfig> {
+  if (options.benchmarkPolicyGuard !== undefined) {
+    const frozenPluginDirs = Array.isArray(options.pluginDirs) ? options.pluginDirs : undefined;
+    return { pluginDirs: frozenPluginDirs };
+  }
+  const selectedPluginDirs = filterChannelScopedPlugins(options.pluginDirs, options.channel);
+  const runtime = resolvePluginRuntime({
+    backend: config.backend, selectedPluginDirs, mcpComposition,
+  });
+  return {
+    pluginDirs: runtime.pluginDirs,
+    pluginSkillDirs: runtime.pluginSkillDirs,
+    mcpServers: runtime.mcpServers,
+    pluginCapabilityFingerprint: runtime.pluginCapabilityFingerprint,
+  };
+}
+
+function adapterSpawnFields(
+  options: RunAgentOptions,
+  config: AgentConfig,
+  anthropicBaseUrl: string | undefined,
+): Partial<AgentSpawnConfig> {
+  return {
     env: config.extraEnv && Object.keys(config.extraEnv).length > 0 ? config.extraEnv : undefined,
     extraOption: config.extraOption && Object.keys(config.extraOption).length > 0 ? config.extraOption : undefined,
     claudeBackend: config.claudeBackend,
@@ -238,19 +275,35 @@ export function buildAgentSpawnConfig(
     isUserInitiated: !!options.isUserInitiated,
     rawTools: typeof options.tools === 'string' ? options.tools : undefined,
     anthropicBaseUrl,
-    // PI-specific routing: provider name (= profile mode) + gateway base URL. PI adapter writes
-    // a multi-provider models.json (writeProvidersConfig) so every PI provider lands on the
-    // gateway. Claude ignores these fields.
-    // PI routing: `provider` is the --provider (protocol; required for pi, validated at load — no
-    // default). The gateway sub-path `/m/<mode>/<provider>` is derived from the profile's logical
-    // `mode` (gateway.yaml owns the route).
-    piProvider: config.backend === 'pi' && config.provider ? config.provider : undefined,
-    piGatewayPath: config.backend === 'pi' && config.provider ? buildPiGatewaySubPath(config.mode, config.provider) : undefined,
-    // The host gateway authority, never the resolved Claude route: that URL already carries a
-    // `/m/<mode>/…/anthropic` path, and PI appends `piGatewayPath` to whatever it is given.
-    // P12: a trial is routed at its own proxy authority, which its factory writes over this default.
+  };
+}
+
+function piSpawnFields(config: AgentConfig): Partial<AgentSpawnConfig> {
+  const provider = config.backend === 'pi' ? config.provider : undefined;
+  return {
+    piProvider: provider || undefined,
+    piGatewayPath: provider
+      ? buildPiGatewaySubPath(config.mode, provider)
+      : undefined,
     piGatewayBaseUrl: config.backend === 'pi' ? GATEWAY_URL : undefined,
-    cortexContext: hasContext ? ctx : undefined,
+  };
+}
+
+export function buildAgentSpawnConfig(
+  options: RunAgentOptions,
+  config: AgentConfig,
+  anthropicBaseUrl: string | undefined,
+): AgentSpawnConfig {
+  const mcpComposition = resolveMcpComposition(options.mcpComposition, options.useCoreMcp);
+  const context = spawnContext(options);
+  const appendSystemPrompt = rulesPrompt(options);
+  return {
+    ...spawnIdentity(options, config, mcpComposition),
+    ...spawnPolicy(options),
+    ...pluginSpawnFields(options, config, mcpComposition),
+    ...adapterSpawnFields(options, config, anthropicBaseUrl),
+    ...piSpawnFields(config),
+    cortexContext: hasSpawnContext(context) ? context : undefined,
     appendSystemPrompt,
   };
 }

@@ -1,7 +1,7 @@
-// input:  isolated roots, schema fixtures, catalog loaders
+// input:  isolated roots, schemas, catalog loaders
 // output: plugin catalog regression coverage
-// pos:    Tests portable and legacy catalog discovery and containment
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// pos:    Tests catalog discovery and containment
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import '../../_test-home.js';
 import assert from 'node:assert/strict';
@@ -399,7 +399,7 @@ function assertPortableStdio(entry: CatalogEntry) {
   const runtime = runtimeFor(stdio);
   expect(stdio.summary.command).toBe('validator');
   expect(stdio.summary.argsCount).toBe(3);
-  expect(stdio.summary.envKeys).toEqual(['CONFIG']);
+  expect(stdio.summary.envKeys).toEqual(['CONFIG', 'PLUGIN_DATA', 'PLUGIN_ROOT']);
   expect(runtime.args).toEqual([
     '--data',
     path.join(pluginDataRoot, 'portable-alpha', 'validator'),
@@ -559,6 +559,16 @@ it('disables only malformed top-level mcp.json while keeping valid skills', () =
   expect(issueCodes(entry)).toContain('mcp_invalid');
 });
 
+it('rejects reserved stdio env keys with platform-insensitive comparison', () => {
+  const pluginDir = makePlugin('mcp-env-reserved');
+  writePortableManifest(pluginDir);
+  writeMcp(pluginDir, { bad: { type: 'stdio', command: 'node', env: { plugin_root: 'x', Plugin_Data: 'y' } } });
+  const entry = loadEntry('mcp-env-reserved');
+  expect(entry.valid).toBe(true);
+  expect(entry.mcp.servers).toEqual([]);
+  expect(issueCodes(entry)).toContain('mcp_server_invalid');
+});
+
 it('skips only invalid individual MCP entries', () => {
   const pluginDir = makePlugin('mcp-entry-invalid');
   writePortableManifest(pluginDir);
@@ -669,29 +679,39 @@ it('rejects PLUGIN_DATA symlink escapes after physical containment checks', () =
   expect(issueCodes(entry)).toContain('mcp_server_invalid');
 });
 
+it('catalog parsing computes but does not create PLUGIN_DATA for stdio servers', () => {
+  const fixture = makeRootFixture('plugin-data-purity-');
+  const pluginDir = path.join(fixture.pluginsDir, 'stdio-pure');
+  const dataPluginDir = path.join(fixture.dataDir, 'data', 'plugin-data', 'stdio-pure');
+  fs.mkdirSync(pluginDir, { recursive: true });
+  writePortableManifest(pluginDir);
+  writeMcp(pluginDir, { pure: { type: 'stdio', command: 'node', cwd: '${PLUGIN_DATA}' } });
+  const entry = loadEntry('stdio-pure', fixture);
+  expect(entry.valid).toBe(true);
+  expect(entry.mcp.servers.map((item) => item.name)).toEqual(['pure']);
+  expect(fs.existsSync(dataPluginDir)).toBe(false);
+});
+
 it('expands PLUGIN_ROOT and PLUGIN_DATA in args and env as opaque one-pass strings', () => {
   const fixture = makeRootFixture('plugins-${PLUGIN_DATA}-');
   const pluginDir = path.join(fixture.pluginsDir, 'one-pass');
   fs.mkdirSync(pluginDir, { recursive: true });
   writePortableManifest(pluginDir);
-  writeMcp(pluginDir, {
-    one: {
-      type: 'stdio',
-      command: 'node',
-      args: ['${PLUGIN_ROOT}/../outside', '${PLUGIN_DATA}/../cache'],
-      env: { CONFIG: '${PLUGIN_ROOT}/../secret', CACHE: '${PLUGIN_DATA}/../vault' },
-    },
-  });
-
+  writeMcp(pluginDir, { one: {
+    type: 'stdio',
+    command: 'node',
+    args: ['${PLUGIN_ROOT}/../outside', '${PLUGIN_DATA}/../cache'],
+    env: { CONFIG: '${PLUGIN_ROOT}/../secret', CACHE: '${PLUGIN_DATA}/../vault' },
+  } });
   const runtime = runtimeFor(loadEntry('one-pass', fixture).mcp.servers[0]);
-
-  expect(runtime.args).toEqual([
-    `${pluginDir}/../outside`,
+  expect(runtime.args).toEqual([`${pluginDir}/../outside`,
     `${path.join(fixture.dataDir, 'data', 'plugin-data', 'one-pass')}/../cache`,
   ]);
   expect(runtime.env).toEqual({
     CONFIG: `${pluginDir}/../secret`,
     CACHE: `${path.join(fixture.dataDir, 'data', 'plugin-data', 'one-pass')}/../vault`,
+    PLUGIN_ROOT: pluginDir,
+    PLUGIN_DATA: path.join(fixture.dataDir, 'data', 'plugin-data', 'one-pass'),
   });
 });
 

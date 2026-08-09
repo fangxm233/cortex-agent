@@ -1,11 +1,11 @@
 Please update me when files in this folder change
 
-Regression test suite for agent-server: agent adapters, task and thread orchestration, platform adapters, and stores.
-Files here cover cross-cutting server behaviour; subdirectories group tests by the source layer they exercise.
+Regression tests for adapters, task and thread orchestration, and platforms.
+Includes cross-cutting coverage and source-layer test subdirectories.
 
 | filename | role | function |
 |---|---|---|
-| _global-setup.ts | setup | allocates the run-scoped temp-home root and removes it after all workers finish |
+| _global-setup.ts | setup | Allocates and removes run-scoped test homes |
 | _shared-pool-manifest.ts | setup | lists tests safe for shared non-isolated forks |
 | _test-home-root.ts | setup | Allocates test homes and sweeps stale leftovers |
 | _test-home.ts | setup | isolates the data home per test process |
@@ -17,13 +17,14 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-event-parser.test.ts | test | PI events with nullable exact accounting |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |
+| agent-adapter-pi-mcp-config.test.ts | test | PI MCP config privacy and reloads |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP surfaces, isolation and retry policy |
 | agent-adapter-pi-quota-probe.test.ts | test | PI provider quota from child probe to throttle |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
-| agent-adapter-pi-web-search.test.ts | test | PI WebSearch provider routing and response decoding |
-| agent-adapter-pi.test.ts | test | PI resume identity, cache, events and context |
+| agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
+| agent-adapter-pi.test.ts | test | PI spawn quality, resume, context and lifecycle |
 | agent-adapter.test.ts | test | adapter dispatch, PI path wiring and capabilities |
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
@@ -34,7 +35,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | auto-compound.test.ts | test | compound trigger gating and output merge |
 | builtin-job-migration.test.ts | test | migrates legacy schedules into built-in settings |
 | builtin-jobs.test.ts | test | covers built-in job timers and shutdown |
-| benchmark-cli-artifact-stub | fixture | Frozen CLI stand-in bytes for the golden projection |
+| benchmark-cli-artifact-stub | fixture | Frozen CLI golden fixture |
 | benchmark-policy-system-prompt.txt | fixture | Pins representative compiled policy prompt bytes |
 | benchmark-resolved-run-config.golden.json | golden | Pins the cross-language run-config projection |
 | claim-recovery.test.ts | test | Generation-fenced orphan claim recovery |
@@ -66,7 +67,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | facade-compact.test.ts | test | manual context compact via agent facade |
 | facade-plugin-gating.test.ts | test | channel-scoped plugin directory filtering |
 | facade.test.ts | test | provider identity and isolated pre-flight gates |
-| feishu-adapter.test.ts | test | Feishu messages, rich-text links, forms and routing |
+| feishu-adapter.test.ts | test | Feishu messages, links, forms, and routing |
 | feishu-client.test.ts | test | Feishu SDK logs stay off protocol stdout |
 | feishu-device-login.test.ts | test | Feishu device authorization login flow |
 | feishu-login-cli.test.ts | test | Feishu login CLI, env locking and gating |
@@ -133,7 +134,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |
 | spawn-seam-direct.golden.json | golden | pins ordinary direct argv and environment |
 | spawn-seam-thread.golden.json | golden | pins ordinary thread argv and environment |
-| spawn-seam.test.ts | test | Proves task context, cwd, accounting and spawn policy |
+| spawn-seam.test.ts | test | Proves context, accounting, and spawn policy |
 | status-helpers.test.ts | test | status sealing and reset-isolated buttons |
 | status-md-guard.test.ts | test | STATUS.md size-guard allow/deny/warn hook |
 | store/ | subdir | JSON repository and store concurrency tests |
@@ -158,7 +159,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | thread-benchmark-run.test.ts | test | benchmark isolation, identity and accounting |
 | thread-callback-tree.test.ts | test | safe child results and parent re-entry |
 | thread-benchmark-coder-review.e2e.test.ts | e2e | benchmark graph, tools, MCP and identity isolation |
-| thread-coder-review.e2e.test.ts | e2e | coder-review stages, completion owner and commit policy |
+| thread-coder-review.e2e.test.ts | e2e | Coder-review stages and commit policy |
 | thread-contract.test.ts | test | delegation contracts and budget breaker |
 | thread-extra-hooks.test.ts | test | Covers lifecycle isolation and per-call HookBus routing |
 | thread-ledger-dedupe.test.ts | test | child dedupe across runs and same-ID reissues |

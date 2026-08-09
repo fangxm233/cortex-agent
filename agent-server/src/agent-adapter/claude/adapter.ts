@@ -1,5 +1,5 @@
-// input:  session streams, spawn config, reported accounting
-// output: Claude turns with cache-inclusive input accounting
+// input:  session streams, spawn config, accounting
+// output: Claude turns with cache-aware accounting
 // pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -55,6 +55,10 @@ import {
 import { BgTaskTracker, routeLine } from './bg-task-tracker.js';
 import { ClaudeContextUsageTracker } from './context-usage.js';
 import { resolveAutoCompactWindow } from './compact-window.js';
+import {
+  validateClaudeSupplementalMcpConfig,
+  writeClaudeSupplementalMcpConfig,
+} from './mcp-config.js';
 
 const log = createLogger('claude-bridge');
 
@@ -164,6 +168,9 @@ interface ClaudeSessionOptions {
   cwd?: string;
   mcpComposition?: McpComposition;
   mcpConfigPaths?: string[];
+  supplementalMcpConfigPath?: string | null;
+  supplementalMcpConfigIdentity?: string | null;
+  pluginCapabilityFingerprint?: string | null;
   disableHooks?: boolean;
   streamDeltas?: boolean;
   captureTranscriptLogs?: boolean;
@@ -186,26 +193,15 @@ interface ClaudeSessionOptions {
   context?: CortexAgentContext;
 }
 
-/** Single source of truth for ClaudeSession fields → ClaudeSpawnOptions CLI args translation.
- *  Used by both ClaudeSession.toSpawnOptions() (production) and _test.computeSpawnArgs (lock-in test). */
-function deriveClaudeSpawnOptions(fields: {
-  tools: string | null;
-  systemPrompt: string | null;
-  appendSystemPrompt: string | null;
-  model: string | null;
-  claudeAgent: string | null;
-  pluginDirs: string[] | null;
-  outputStyle: string | null;
+interface ClaudeSpawnFields extends ClaudeSpawnOptions {
+  mcpComposition: McpComposition;
   extraOption: Record<string, string> | undefined;
   thinking: string | null;
-  needsResume: boolean;
-  sessionId: string;
-  mcpComposition: McpComposition;
-  mcpConfigPaths?: string[];
-  disableHooks?: boolean;
-  benchmarkPolicyGuard?: IdentityJsonValue;
-  streamDeltas?: boolean;
-}): ClaudeSpawnOptions {
+}
+
+/** Single source of truth for ClaudeSession fields → ClaudeSpawnOptions CLI args translation.
+ *  Used by both ClaudeSession.toSpawnOptions() (production) and _test.computeSpawnArgs (lock-in test). */
+function deriveClaudeSpawnOptions(fields: ClaudeSpawnFields): ClaudeSpawnOptions {
   return {
     tools: fields.tools,
     systemPrompt: fields.systemPrompt,
@@ -220,10 +216,63 @@ function deriveClaudeSpawnOptions(fields: {
     sessionId: fields.sessionId,
     mcpComposition: fields.mcpComposition,
     mcpConfigPaths: fields.mcpConfigPaths,
+    supplementalMcpConfigPath: fields.supplementalMcpConfigPath,
     disableHooks: fields.disableHooks,
     benchmarkPolicyGuard: fields.benchmarkPolicyGuard,
     streamDeltas: fields.streamDeltas,
   };
+}
+
+interface ClaudeSpawnCompatibility {
+  cwd: string;
+  composition: McpComposition;
+  pluginCapabilityFingerprint: string | null;
+  pluginDirs: string[];
+  mcpConfigPaths: string[];
+  supplementalMcpConfigIdentity: string | null;
+}
+
+function cloneTextArray(values: string[] | null | undefined): string[] {
+  return values ? [...values] : [];
+}
+
+function sameTextArray(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function sameClaudeSpawnCompatibility(
+  left: ClaudeSpawnCompatibility,
+  right: ClaudeSpawnCompatibility,
+): boolean {
+  return left.cwd === right.cwd
+    && left.composition === right.composition
+    && left.pluginCapabilityFingerprint === right.pluginCapabilityFingerprint
+    && left.supplementalMcpConfigIdentity === right.supplementalMcpConfigIdentity
+    && sameTextArray(left.pluginDirs, right.pluginDirs)
+    && sameTextArray(left.mcpConfigPaths, right.mcpConfigPaths);
+}
+
+function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCompatibility {
+  return {
+    cwd: options.cwd ?? DATA_DIR,
+    composition: resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp),
+    pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
+    pluginDirs: cloneTextArray(options.pluginDirs),
+    mcpConfigPaths: cloneTextArray(options.mcpConfigPaths),
+    supplementalMcpConfigIdentity: options.supplementalMcpConfigIdentity ?? null,
+  };
+}
+
+/** Resolve per-session settings from the spawn cwd without falling through a pinned trial's config. */
+function createContextUsageTracker(
+  modelName: string | null,
+  cwd: string,
+  options: ClaudeSessionOptions,
+): ClaudeContextUsageTracker {
+  return new ClaudeContextUsageTracker(
+    modelName,
+    resolveAutoCompactWindow(cwd, options.pinnedEnv?.CLAUDE_CONFIG_DIR),
+  );
 }
 
 /**
@@ -263,21 +312,23 @@ class ClaudeSession {
   private cwd: string;
   private mcpComposition: McpComposition;
   private mcpConfigPaths: string[] | undefined;
+  private supplementalMcpConfigPath: string | null;
+  private compatibility: ClaudeSpawnCompatibility;
   private disableHooks: boolean;
   private streamDeltas: boolean | undefined;
-  private captureTranscriptLogs: boolean;
-  private preserveUnreportedAccounting: boolean;
-  private processSpawner: AgentProcessSpawner | undefined;
-  private cliPath: string | undefined;
-  private benchmarkPolicyGuard: IdentityJsonValue | undefined;
-  private pinnedEnv: NodeJS.ProcessEnv | undefined;
+  private captureTranscriptLogs!: boolean;
+  private preserveUnreportedAccounting!: boolean;
+  private processSpawner!: AgentProcessSpawner | undefined;
+  private cliPath!: string | undefined;
+  private benchmarkPolicyGuard!: IdentityJsonValue | undefined;
+  private pinnedEnv!: NodeJS.ProcessEnv | undefined;
   /** The trial deadline as an instant. The MCP budget derived from it is not stored: every spawn
    *  recomputes it, so a resumed or restarted process never inherits a stale budget. */
-  private benchmarkDeadlineEpochMs: number | undefined;
+  private benchmarkDeadlineEpochMs!: number | undefined;
   private supervision: AgentProcessSupervision | undefined;
-  private extraOption: Record<string, string> | undefined;
-  private thinking: string | null;
-  private context: CortexAgentContext | undefined;
+  private extraOption!: Record<string, string> | undefined;
+  private thinking!: string | null;
+  private context!: CortexAgentContext | undefined;
   private currentTurn: PendingTurn | null = null;
   /** Cursor over the `stream_event` sequence (--include-partial-messages). Session-scoped rather
    *  than turn-scoped because the stream is a property of the process, and every `message_start`
@@ -319,13 +370,7 @@ class ClaudeSession {
     this.needsResume = options.needsResume;
     this.modelName = options.model || null;
     this.cwd = options.cwd ?? DATA_DIR;
-    // Settings are read per session because the CLI reads project settings from its spawn cwd. A
-    // pinned trial supplies its own config dir, so the session never falls through to the host's
-    // ambient CLAUDE_CONFIG_DIR / ~/.claude (design §13 A15).
-    this.contextUsageTracker = new ClaudeContextUsageTracker(
-      this.modelName,
-      resolveAutoCompactWindow(this.cwd, options.pinnedEnv?.CLAUDE_CONFIG_DIR),
-    );
+    this.contextUsageTracker = createContextUsageTracker(this.modelName, this.cwd, options);
     this.isUserInitiated = options.isUserInitiated || false;
     this.callbackSource = options.callbackSource || null;
     this.scheduleTaskId = options.scheduleTaskId || null;
@@ -339,8 +384,15 @@ class ClaudeSession {
     this.extraEnv = options.extraEnv;
     this.mcpComposition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
     this.mcpConfigPaths = options.mcpConfigPaths;
+    this.supplementalMcpConfigPath = options.supplementalMcpConfigPath ?? null;
+    this.compatibility = compatibilityFromOptions(options);
     this.disableHooks = options.disableHooks === true;
     this.streamDeltas = options.streamDeltas;
+    this.initializeExecutionOptions(options);
+    this.spawnProcess();
+  }
+
+  private initializeExecutionOptions(options: ClaudeSessionOptions): void {
     this.captureTranscriptLogs = options.captureTranscriptLogs !== false;
     this.preserveUnreportedAccounting = options.preserveUnreportedAccounting === true;
     this.processSpawner = options.processSpawner;
@@ -351,7 +403,6 @@ class ClaudeSession {
     this.extraOption = options.extraOption;
     this.thinking = options.thinking ?? null;
     this.context = options.context;
-    this.spawnProcess();
   }
 
   private toSpawnOptions(): ClaudeSpawnOptions {
@@ -369,14 +420,15 @@ class ClaudeSession {
       sessionId: this.sessionId,
       mcpComposition: this.mcpComposition,
       mcpConfigPaths: this.mcpConfigPaths,
+      supplementalMcpConfigPath: this.supplementalMcpConfigPath,
       disableHooks: this.disableHooks,
       benchmarkPolicyGuard: this.benchmarkPolicyGuard,
       streamDeltas: this.streamDeltas,
     });
   }
 
-  matchesSpawn(cwd: string, composition: McpComposition): boolean {
-    return this.cwd === cwd && this.mcpComposition === composition;
+  matchesSpawn(next: ClaudeSpawnCompatibility): boolean {
+    return sameClaudeSpawnCompatibility(this.compatibility, next);
   }
 
   private handleProcessClose(code: number | null): void {
@@ -440,39 +492,55 @@ class ClaudeSession {
     try { sink.onResult(result); } catch (e) { log.warn('bg-interrupted sink onResult threw:', (e as Error).message); }
   }
 
-  private spawnProcess(): void {
-    const env = buildClaudeEnv(this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId, this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv, this.benchmarkDeadlineEpochMs);
-    const spawnOptions = this.toSpawnOptions();
-    // Sessions that originate from Slack (channel carries the SlackAdapter `slack:` prefix) load the
-    // cortex-slack MCP server so the agent can send files to Slack. Non-direct compositions suppress it.
-    spawnOptions.loadSlackMcp = this.channel.startsWith('slack:');
-    // Sessions that originate from Feishu (channel carries the FeishuAdapter `feishu:` prefix) load the
-    // cortex-feishu MCP server so the agent can read/write Feishu documents. Non-direct compositions suppress it.
-    spawnOptions.loadFeishuMcp = this.channel.startsWith('feishu:');
-    // Sessions that originate from the Web UI (channel carries the `web:` prefix) load the cortex-web
-    // MCP server so the agent can send files into the chat via send_file. Non-direct compositions suppress it.
-    spawnOptions.loadWebMcp = this.channel.startsWith('web:');
-    // User-message-initiated direct print sessions get the cortex-tui-bridge interaction tools;
-    // non-direct compositions suppress them.
-    spawnOptions.isUserInitiated = this.isUserInitiated;
-    const args = buildSpawnArgs(spawnOptions);
-    log.info(`Spawning persistent process: ${this.sessionId.substring(0, 8)} ${this.needsResume ? '(resume)' : '(new)'}`);
+  private validateSupplementalMcpConfig(): void {
+    const configPath = this.supplementalMcpConfigPath;
+    const identity = this.compatibility.supplementalMcpConfigIdentity;
+    if (!configPath || !identity) return;
+    validateClaudeSupplementalMcpConfig(configPath, identity);
+  }
 
-    const spawned = spawnClaudeProcess(this.processSpawner, args, { cwd: this.cwd, env }, this.cliPath);
+  private buildProcessLaunch(): { args: string[]; env: NodeJS.ProcessEnv } {
+    const env = buildClaudeEnv(
+      this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId,
+      this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv,
+      this.benchmarkDeadlineEpochMs,
+    );
+    const options = this.toSpawnOptions();
+    options.loadSlackMcp = this.channel.startsWith('slack:');
+    options.loadFeishuMcp = this.channel.startsWith('feishu:');
+    options.loadWebMcp = this.channel.startsWith('web:');
+    options.isUserInitiated = this.isUserInitiated;
+    return { args: buildSpawnArgs(options), env };
+  }
+
+  private attachSpawnedProcess(spawned: SpawnedAgentProcess): void {
     this.proc = spawned.process;
     this.supervision = spawned.supervision;
     this.stderr = '';
     this.rl = createInterface({ input: this.proc.stdout!, crlfDelay: Infinity });
     this.rl.on('line', (line) => this.handleLine(line));
-    this.proc.stderr!.on('data', (d) => { this.stderr += d.toString(); });
+    this.proc.stderr!.on('data', (data) => { this.stderr += data.toString(); });
     this.proc.on('close', (code) => this.handleProcessClose(code));
+  }
 
+  private armProcessTimers(): void {
     this.alive = true;
     this.resetIdleTimer();
     this.maxTimer = setTimeout(() => {
       log.info(`Session ${this.sessionId.substring(0, 8)} hit max timeout, killing`);
       this.kill();
     }, MAX_TIMEOUT);
+  }
+
+  private spawnProcess(): void {
+    this.validateSupplementalMcpConfig();
+    const { args, env } = this.buildProcessLaunch();
+    log.info(`Spawning persistent process: ${this.sessionId.substring(0, 8)} ${this.needsResume ? '(resume)' : '(new)'}`);
+    const spawned = spawnClaudeProcess(
+      this.processSpawner, args, { cwd: this.cwd, env }, this.cliPath,
+    );
+    this.attachSpawnedProcess(spawned);
+    this.armProcessTimers();
   }
 
   private createTurnStreams(userMessage: string): { rawStream: Writable; txtStream: Writable } {
@@ -1078,11 +1146,10 @@ const sessions = new Map<string, ClaudeSession>();
 
 function getOrCreateSession(channel: string, sessionId: string, options: ClaudeSessionOptions): ClaudeSession {
   const key = options.sessionKey || channel;
-  const cwd = options.cwd ?? DATA_DIR;
-  const composition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
+  const compatibility = compatibilityFromOptions(options);
   let session = sessions.get(key);
 
-  const incompatible = session && !session.matchesSpawn(cwd, composition);
+  const incompatible = session && !session.matchesSpawn(compatibility);
   if (!session || !session.isAlive() || incompatible || (options.needsResume && session.sessionId !== sessionId)) {
     if (session) session.close();
     session = new ClaudeSession(channel, sessionId, { ...options, sessionKey: key });
@@ -1195,53 +1262,88 @@ export function selectClaudeMode(config: AgentSpawnConfig): 'print' | 'tui' {
   return (config as any).claudeBackend === 'tui' ? 'tui' : 'print';
 }
 
+function matchesTuiSession(
+  session: ClaudeTuiSession,
+  sessionId: string,
+  options: ClaudeSessionOptions,
+  composition: McpComposition,
+): boolean {
+  return session.sessionId === sessionId
+    && session.cwd === options.cwd
+    && session.mcpComposition === composition
+    && session.pluginCapabilityFingerprint === (options.pluginCapabilityFingerprint ?? null)
+    && session.supplementalMcpConfigIdentity === (options.supplementalMcpConfigIdentity ?? null)
+    && sameTextArray(session.pluginDirs, cloneTextArray(options.pluginDirs))
+    && sameTextArray(session.mcpConfigPaths, cloneTextArray(options.mcpConfigPaths));
+}
+
+function tuiPromptFields(options: ClaudeSessionOptions): Partial<ClaudeTuiSessionConfig> {
+  return {
+    tools: options.tools,
+    systemPrompt: options.systemPrompt,
+    appendSystemPrompt: options.appendSystemPrompt,
+    model: options.model,
+    claudeAgent: options.claudeAgent,
+    pluginDirs: options.pluginDirs,
+    outputStyle: options.outputStyle,
+    extraOption: options.extraOption ?? null,
+    thinking: options.thinking ?? null,
+  };
+}
+
+function tuiSessionConfig(
+  config: AgentSpawnConfig,
+  sessionId: string,
+  options: ClaudeSessionOptions,
+  composition: McpComposition,
+): ClaudeTuiSessionConfig {
+  const cwd = options.cwd ?? DATA_DIR;
+  return {
+    channel: config.channel ?? config.env?.SLACK_CHANNEL ?? config.sessionKey,
+    sessionId, sessionKey: config.sessionKey, cwd,
+    needsResume: resolveTuiResume(config.resume, computeJsonlPath(cwd, sessionId)),
+    ...tuiPromptFields(options),
+    mcpComposition: composition,
+    mcpConfigPaths: options.mcpConfigPaths ?? null,
+    supplementalMcpConfigPath: options.supplementalMcpConfigPath ?? null,
+    disableHooks: options.disableHooks,
+    benchmarkPolicyGuard: options.benchmarkPolicyGuard,
+    pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
+    supplementalMcpConfigIdentity: options.supplementalMcpConfigIdentity ?? null,
+    callbackSource: options.callbackSource,
+    scheduleTaskId: options.scheduleTaskId,
+    anthropicBaseUrl: options.anthropicBaseUrl,
+    extraEnv: options.extraEnv,
+    context: options.context,
+    deps: { tmux: sharedTmux, tailFactory: defaultTailFactory },
+  };
+}
+
+function createTuiSession(
+  config: AgentSpawnConfig,
+  sessionId: string,
+  options: ClaudeSessionOptions,
+  composition: McpComposition,
+): ClaudeTuiSession {
+  const session = new ClaudeTuiSession(tuiSessionConfig(config, sessionId, options, composition));
+  tuiSessions.set(config.sessionKey, session);
+  return session;
+}
+
+function tuiComposition(options: ClaudeSessionOptions): McpComposition {
+  return options.mcpComposition ?? 'direct';
+}
+
 function getOrCreateTuiSession(config: AgentSpawnConfig, sessionIdEffective: string): ClaudeTuiSession {
-  const key = config.sessionKey;
-  const cwd = config.cwd || DATA_DIR;
-  const composition = resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp);
-  let session = tuiSessions.get(key);
-  if (session && (
-    session.sessionId !== sessionIdEffective
-    || session.cwd !== cwd
-    || session.mcpComposition !== composition
-  )) {
+  const options = sessionOptionsFromSpawnConfig({ ...config, sessionId: sessionIdEffective });
+  const composition = tuiComposition(options);
+  let session = tuiSessions.get(config.sessionKey);
+  if (session && !matchesTuiSession(session, sessionIdEffective, options, composition)) {
     session.kill();
     session = undefined;
   }
-  if (!session) {
-    const channel = config.channel ?? config.env?.SLACK_CHANNEL ?? config.sessionKey;
-    const opts = sessionOptionsFromSpawnConfig({ ...config, sessionId: sessionIdEffective });
-    // `--resume` only works once a transcript exists. A fresh TUI session pre-registers its
-    // sessionId before the first turn, so config.resume can be true with no transcript yet —
-    // gate it on the jsonl actually existing, else the first turn fails "No conversation found".
-    const needsResume = resolveTuiResume(config.resume, computeJsonlPath(cwd, sessionIdEffective));
-    const sessionConfig: ClaudeTuiSessionConfig = {
-      channel,
-      sessionId: sessionIdEffective,
-      sessionKey: key,
-      cwd,
-      needsResume,
-      tools: opts.tools,
-      systemPrompt: opts.systemPrompt,
-      appendSystemPrompt: opts.appendSystemPrompt,
-      model: opts.model,
-      claudeAgent: opts.claudeAgent,
-      pluginDirs: opts.pluginDirs,
-      outputStyle: opts.outputStyle,
-      extraOption: opts.extraOption ?? null,
-      thinking: opts.thinking ?? null,
-      mcpComposition: composition,
-      callbackSource: opts.callbackSource,
-      scheduleTaskId: opts.scheduleTaskId,
-      anthropicBaseUrl: opts.anthropicBaseUrl,
-      extraEnv: opts.extraEnv,
-      context: opts.context,
-      deps: { tmux: sharedTmux, tailFactory: defaultTailFactory },
-    };
-    session = new ClaudeTuiSession(sessionConfig);
-    tuiSessions.set(key, session);
-  }
-  return session;
+  if (session) return session;
+  return createTuiSession(config, sessionIdEffective, options, composition);
 }
 
 // --- ClaudeAdapter — DR-0008 §3.2 generic AgentAdapter entry point ---
@@ -1253,8 +1355,8 @@ function getOrCreateTuiSession(config: AgentSpawnConfig, sessionIdEffective: str
 //     before pushing turn_complete and returning the AgentResult from send().
 //   - AgentSpawnConfig.hooks (NormalizedHookSpec[]) is still NOT consumed; buildHooksSettings
 //     uses the native tools string per DR-0008 §3.5 (Phase 3 work).
-//   - AgentSpawnConfig.mcpServers is still NOT consumed; --mcp-config still references
-//     agent-server/mcp-config.json per DR-0008 §3.6 (Phase 3 work).
+//   - AgentSpawnConfig.mcpServers is projected into a private supplemental --mcp-config file;
+//     the base agent-server/mcp-config.json remains first in the composition.
 //   - Claude-specific passthrough fields (channel / claudeAgent / callbackSource / scheduleTaskId /
 //     isUserInitiated / rawTools / anthropicBaseUrl) are read directly from AgentSpawnConfig;
 //     they're Phase-3 cleanup targets (see types.ts).
@@ -1267,30 +1369,45 @@ function canonicalToolsToNative(tools: string[] | undefined): string | null {
   return native.length ? native.join(',') : null;
 }
 
-function sessionOptionsFromSpawnConfig(config: AgentSpawnConfig): ClaudeSessionOptions & { sessionIdEffective: string } {
-  const sessionIdEffective = config.sessionId || crypto.randomUUID();
-  // rawTools (if set) overrides canonical→native translation so legacy callers that already pass Claude-native
-  // "Bash,Read,..." strings via mode-manager do not need to be refactored in this task.
-  const tools = config.rawTools ?? canonicalToolsToNative(config.tools);
+function supplementalMcpConfig(
+  config: AgentSpawnConfig,
+  composition: McpComposition,
+): ReturnType<typeof writeClaudeSupplementalMcpConfig> | null {
+  if (!config.mcpServers) return null;
+  if (composition !== 'direct' && composition !== 'thread-control') return null;
+  return writeClaudeSupplementalMcpConfig(config.mcpServers);
+}
+
+function sessionPresentationOptions(config: AgentSpawnConfig): Partial<ClaudeSessionOptions> {
   return {
-    sessionIdEffective,
-    needsResume: config.resume,
     model: config.model ?? null,
-    sessionKey: config.sessionKey,
     systemPrompt: config.systemPrompt ?? null,
     appendSystemPrompt: config.appendSystemPrompt ?? null,
     outputStyle: config.outputStyle ?? null,
-    tools,
+    tools: config.rawTools ?? canonicalToolsToNative(config.tools),
     pluginDirs: config.pluginDirs ?? null,
     isUserInitiated: !!config.isUserInitiated,
     callbackSource: config.callbackSource ?? null,
     scheduleTaskId: config.scheduleTaskId ?? null,
     claudeAgent: config.claudeAgent ?? null,
+    thinking: config.thinking ?? null,
+  };
+}
+
+function sessionRuntimeOptions(
+  config: AgentSpawnConfig,
+  composition: McpComposition,
+): Partial<ClaudeSessionOptions> {
+  const supplemental = supplementalMcpConfig(config, composition);
+  return {
     anthropicBaseUrl: config.anthropicBaseUrl,
     extraEnv: config.env,
     cwd: config.cwd ?? DATA_DIR,
-    mcpComposition: resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp),
+    mcpComposition: composition,
     mcpConfigPaths: config.mcpConfigPaths,
+    supplementalMcpConfigPath: supplemental?.path ?? null,
+    supplementalMcpConfigIdentity: supplemental?.identity ?? null,
+    pluginCapabilityFingerprint: config.pluginCapabilityFingerprint ?? null,
     disableHooks: config.disableHooks,
     streamDeltas: config.streamDeltas,
     captureTranscriptLogs: config.captureTranscriptLogs,
@@ -1301,8 +1418,20 @@ function sessionOptionsFromSpawnConfig(config: AgentSpawnConfig): ClaudeSessionO
     pinnedEnv: config.pinnedEnv,
     benchmarkDeadlineEpochMs: config.benchmarkDeadlineEpochMs,
     extraOption: config.extraOption,
-    thinking: config.thinking ?? null,
     context: config.cortexContext,
+  };
+}
+
+function sessionOptionsFromSpawnConfig(
+  config: AgentSpawnConfig,
+): ClaudeSessionOptions & { sessionIdEffective: string } {
+  const composition = resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp);
+  return {
+    sessionIdEffective: config.sessionId || crypto.randomUUID(),
+    needsResume: config.resume,
+    sessionKey: config.sessionKey,
+    ...sessionPresentationOptions(config),
+    ...sessionRuntimeOptions(config, composition),
   };
 }
 
@@ -1326,6 +1455,7 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
     sessionId: opts.sessionIdEffective,
     mcpComposition: opts.mcpComposition ?? 'direct',
     mcpConfigPaths: opts.mcpConfigPaths,
+    supplementalMcpConfigPath: opts.supplementalMcpConfigPath,
     disableHooks: opts.disableHooks,
     benchmarkPolicyGuard: opts.benchmarkPolicyGuard,
     streamDeltas: opts.streamDeltas,
@@ -1613,6 +1743,8 @@ export const _test = {
   mergeSubstantialOutput,
   computeSpawnArgs: computeSpawnArgsForConfig,
   makeSessionForTest,
+  getPooledPrintSession: (sessionKey: string) => sessions.get(sessionKey),
+  getPooledTuiSession: (sessionKey: string) => tuiSessions.get(sessionKey),
 };
 
 // Re-exported for webhook consumer (parity with pre-refactor claude-bridge.ts:286 export)

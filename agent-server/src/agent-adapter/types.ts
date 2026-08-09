@@ -1,5 +1,5 @@
-// input:  normalized events, capabilities, child-process types
-// output: adapter, process, task context, supervision, accounting and continuation contracts
+// input:  events, capabilities, and process types
+// output: shared adapter and runtime contracts
 // pos:    Shared adapter runtime contracts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -26,17 +26,25 @@ export interface UserMessage {
   attachments?: { mimeType: string; path: string }[];
 }
 
-/**
- * Generic MCP server configuration covering both stdio (command/args/env) and HTTP (url) shapes.
- * @see DR-0008 §3.6 (MCP abstraction) and agent-server/mcp-config.json (existing Claude MCP config).
- */
-export interface McpServerConfig {
+export interface McpStdioServerConfig {
   name: string;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  url?: string;
+  type: 'stdio';
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  cwd: string;
 }
+
+export interface McpRemoteServerConfig {
+  name: string;
+  type: 'streamable-http' | 'sse';
+  url: string;
+  headers: Record<string, string>;
+}
+
+/** Portable MCP server configuration carrying the full validated spawn-time runtime.
+ *  @see DR-0008 §3.6 (MCP abstraction) and the portable plugin runtime resolver. */
+export type McpServerConfig = McpStdioServerConfig | McpRemoteServerConfig;
 
 export interface AgentProcessSupervision {
   started: Promise<{ pid: number; pgid: number }>;
@@ -68,10 +76,12 @@ export interface AgentSpawnConfig {
   /** Canonical tool names (see normalize/tool-names.ts). Adapter translates to backend-native at spawn time. */
   tools?: string[];
   pluginDirs?: string[];
+  pluginSkillDirs?: string[];
   model?: string;
   env?: Record<string, string>;
   extraOption?: Record<string, string>;
   mcpServers?: McpServerConfig[];
+  pluginCapabilityFingerprint?: string;
   hooks?: NormalizedHookSpec[];
   outputStyle?: string;
   cwd?: string;

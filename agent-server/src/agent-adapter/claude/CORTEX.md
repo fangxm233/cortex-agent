@@ -1,13 +1,14 @@
 Please update me when files in this folder change
 
-Claude Code backend adapter: runs Cortex turns through the Claude CLI in print or interactive mode.
+Claude backend adapter for print and interactive Cortex turns.
 Translates Claude stream and transcript events into the normalized event schema.
 
 | filename | role | function |
 |---|---|---|
 | adapter.ts | adapter | emits cache-inclusive prompt accounting |
 | adapter-tui.ts | adapter | runs declared Claude TUI sessions under tmux |
-| spawn-args.ts | core | Builds arguments and isolated task-aware environment |
+| spawn-args.ts | core | Builds isolated Claude args and environment |
+| mcp-config.ts | core | Writes private supplemental MCP configs |
 | defaults.ts | config | Claude timeout, MCP composition and tool constants |
 | hooks-builder.ts | core | selects and compiles Claude hooks from settings |
 | event-parser.ts | parser | tracks Claude stream blocks and reported models |

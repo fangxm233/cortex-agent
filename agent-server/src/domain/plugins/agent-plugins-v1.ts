@@ -1,7 +1,7 @@
-// input:  zod
-// output: Agent Plugins v1 schema constants and validators
+// input:  zod and Agent Plugins v1 JSON values
+// output: schema constants and strict validators
 // pos:    Portable manifest and MCP schema mirror
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { z } from 'zod';
 
@@ -55,7 +55,7 @@ export const portableManifestSchema = z.object({
 
 function checkReservedEnvKeys(env: Record<string, string>, ctx: z.RefinementCtx): void {
   for (const key of Object.keys(env)) {
-    if (!reservedEnvNames.has(key)) continue;
+    if (!reservedEnvNames.has(key.toUpperCase())) continue;
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: [key],

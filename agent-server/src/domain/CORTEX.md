@@ -1,13 +1,13 @@
 Please update me when files in this folder change
 
-Business-logic layer of the agent server: one subdirectory per capability, built on core, store and events,
-and consumed by orchestration and the platform surfaces.
+Business logic for agent-server capabilities, built on core, store, and events.
+Consumed by orchestration and platform surfaces.
 
 | filename | role | function |
 |---|---|---|
 | agent-run/ | subdir | One-shot identity, trajectories and containment |
 | agents/ | subdir | Backend, model and profile selection per channel |
-| auth/ | subdir | Provider auth status, lifecycle events, and notices |
+| auth/ | subdir | Tracks provider auth, lifecycle, and notices |
 | benchmark/ | subdir | Compiled benchmark arm and trial policy |
 | costs/ | subdir | Spend tracking, budgets and rate-limit throttle |
 | executions/ | subdir | Lifecycle and live output of dispatched runs |
@@ -16,7 +16,7 @@ and consumed by orchestration and the platform surfaces.
 | memory/ | subdir | Knowledge indexes and session context sources |
 | monitor/ | subdir | Host resource watch and system notices |
 | pi-providers/ | subdir | User-defined PI providers and their gateway routes |
-| plugins/ | subdir | Read-only inventory of installed plugin packages |
+| plugins/ | subdir | Catalogs and resolves installed plugin runtimes |
 | projects/ | subdir | Registry of projects that scope all work |
 | remote/ | subdir | Links to cortex-client daemons on devices |
 | scheduling/ | subdir | Recurring and one-off scheduled task runs |

@@ -5,3 +5,4 @@ Plugin catalog tests: schema pins and load coverage.
 | filename | role | function |
 |---|---|---|
 | catalog.test.ts | test | Cover catalog discovery and containment |
+| runtime.test.ts | test | Cover plugin runtime and projections |
