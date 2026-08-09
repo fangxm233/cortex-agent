@@ -1,3 +1,8 @@
+// input:  Mobile chat rows, interactions, and composer state
+// output: Mobile chat stream, controls, and sheets
+// pos:    Mobile chat presentation
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // @ds-adherence-ignore -- mobile v3 chat surface, chrome extracted 1:1 from scheme-mobile.dc.html
 // (1b L136-168 · 1o L753-786 · 1p L799-845 · 5a reject composer L200-218). Raw px/hex/font/svg by
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
@@ -683,7 +688,7 @@ function MAssistantBlock({ text, preview, streamKey }: {
 }): JSX.Element | null {
   const shown = useRevealedText(text, !!preview, streamKey);
   if (!shown.trim()) return null;
-  return <ChatMarkdown text={shown} dropTrailingHr />;
+  return <ChatMarkdown text={shown} dropTrailingHr renderMath />;
 }
 
 /** Interaction row for the mobile stream (scheme 6a/5b/4a-c). Entity rows render the full cards

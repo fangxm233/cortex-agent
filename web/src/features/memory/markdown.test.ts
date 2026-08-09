@@ -1,3 +1,8 @@
+// input:  Markdown source with frontmatter, formatting, and math
+// output: parser behavior regression coverage
+// pos:    Unit tests for the memory Markdown parser
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import { splitFrontmatter, parseInline, parseBlocks } from './markdown';
 
@@ -64,6 +69,37 @@ describe('parseInline', () => {
     ]);
     expect(parseInline('_em_')).toEqual([{ type: 'italic', text: 'em' }]);
   });
+
+  it('parses inline dollar and parenthesized math only when enabled', () => {
+    expect(parseInline('$x_i * y_i$').some((node) => node.type === 'math')).toBe(false);
+    expect(parseInline('Energy $x_i * y_i$ and \\(z^2\\).', { math: true })).toEqual([
+      { type: 'text', text: 'Energy ' },
+      { type: 'math', text: 'x_i * y_i' },
+      { type: 'text', text: ' and ' },
+      { type: 'math', text: 'z^2' },
+      { type: 'text', text: '.' },
+    ]);
+  });
+
+  it('keeps code, currency, escaped dollars, and unclosed delimiters literal', () => {
+    expect(parseInline('use `$x$` here', { math: true })).toEqual([
+      { type: 'text', text: 'use ' },
+      { type: 'code', text: '$x$' },
+      { type: 'text', text: ' here' },
+    ]);
+    expect(parseInline('use `` `$x$` `` here', { math: true }).some((node) => node.type === 'math')).toBe(false);
+    expect(parseInline('costs $5 and $10', { math: true })).toEqual([
+      { type: 'text', text: 'costs $5 and $10' },
+    ]);
+    expect(parseInline('I paid $5 for x, where $x=2$.', { math: true })).toEqual([
+      { type: 'text', text: 'I paid $5 for x, where ' },
+      { type: 'math', text: 'x=2' },
+      { type: 'text', text: '.' },
+    ]);
+    expect(parseInline('escaped \\$x$ and open $y', { math: true })).toEqual([
+      { type: 'text', text: 'escaped \\$x$ and open $y' },
+    ]);
+  });
 });
 
 describe('parseBlocks', () => {
@@ -104,6 +140,31 @@ describe('parseBlocks', () => {
     const src = '```ts\nconst x = 1;\n```';
     const blocks = parseBlocks(src);
     expect(blocks[0]).toMatchObject({ type: 'code', lang: 'ts', text: 'const x = 1;' });
+  });
+
+  it('parses dollar and bracket display math only when enabled', () => {
+    expect(parseBlocks('$$x^2$$')).toEqual([
+      { type: 'paragraph', inline: [{ type: 'text', text: '$$x^2$$' }] },
+    ]);
+    expect(parseBlocks('$$\n\\int_0^1 x\\,dx\n$$\n\n\\[y = mx + b\\]', { math: true })).toEqual([
+      { type: 'math', text: '\\int_0^1 x\\,dx' },
+      { type: 'math', text: 'y = mx + b' },
+    ]);
+  });
+
+  it('does not parse display delimiters inside code or before they close', () => {
+    for (const source of [
+      '```tex\n$$x^2$$\n```',
+      '````c++ title="sample"\n$$x^2$$\n````',
+      '~~~tex\n$$x^2$$\n~~~',
+    ]) {
+      expect(parseBlocks(source, { math: true })[0]).toMatchObject({ type: 'code', text: '$$x^2$$' });
+      expect(parseBlocks(source, { math: true }).some((block) => block.type === 'math')).toBe(false);
+    }
+    for (const prefix of ['$$', '$$x', '$$x$']) {
+      expect(parseBlocks(prefix, { math: true }).some((block) => block.type === 'math')).toBe(false);
+    }
+    expect(parseBlocks('$$x$$ trailing\nplain\nend$$', { math: true }).some((block) => block.type === 'math')).toBe(false);
   });
 
   it('parses a blockquote and a horizontal rule', () => {

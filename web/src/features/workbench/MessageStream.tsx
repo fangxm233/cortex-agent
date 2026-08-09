@@ -1,5 +1,5 @@
-// input:  desktop ChatRows with notices, DEBUG details, interactions, and edits
-// output: scroll-stable transcript with actionable notices and inspectors
+// input:  ChatRows, notices, interactions, and edits
+// output: Scroll-stable transcript and inspectors
 // pos:    Desktop workbench message presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -489,7 +489,7 @@ function AssistantBlock({ text, attachments, editCopy, regen, preview, streamKey
       {/* Token-level streaming carries NO caret here: the text visibly extends itself and the
           composer already reports the running turn, so a blinking block only adds noise. The
           mobile stream keeps its own caret (smaller viewport, no persistent status line). */}
-      {shown.trim() && <ChatMarkdown text={shown} />}
+      {shown.trim() && <ChatMarkdown text={shown} renderMath />}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
     </div>
   );
