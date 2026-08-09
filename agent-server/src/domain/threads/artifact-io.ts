@@ -7,9 +7,13 @@ import { readFileSync, rmSync, existsSync } from 'fs';
 import * as path from 'path';
 import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
-import { threadStore } from '@store/thread-repo.js';
+import { threadStore as daemonThreadStore } from '@store/thread-repo.js';
+import {
+  getLocalThreadRuntimeDeps, scopedLocalThreadService,
+} from './local-runtime-deps.js';
 
 const log = createLogger('artifact-io');
+const threadStore = scopedLocalThreadService(daemonThreadStore, deps => deps.threadStore);
 
 interface MutationRecord {
   event: 'edit_file' | 'write_file';
@@ -43,6 +47,7 @@ function readMutationRecords(sessionId: string | null | undefined): MutationReco
 
 /** Return unique file paths modified during a session, ordered by first touch. */
 export function getModifiedFilesFromSession(sessionId: string | null | undefined): string[] {
+  if (getLocalThreadRuntimeDeps()?.portScope === 'fail-closed') return [];
   const records = readMutationRecords(sessionId);
   const files = new Set(records.map((record) => record.file_path.trim()));
   return [...files];

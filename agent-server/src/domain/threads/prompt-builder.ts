@@ -3,9 +3,14 @@
 // pos:    Thread prompt assembly and agent slot resolution
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
-import { threadStore } from '@store/thread-repo.js';
+import { threadStore as daemonThreadStore } from '@store/thread-repo.js';
 import { buildResumeReminder } from '@core/resume-reminder.js';
-import { getAgent, getTemplate, resolveFileRef } from './template-loader.js';
+import {
+  getAgent as daemonGetAgent, getTemplate as daemonGetTemplate, resolveFileRef,
+} from './template-loader.js';
+import {
+  getLocalThreadRuntimeDeps, scopedLocalThreadService,
+} from './local-runtime-deps.js';
 import { getModifiedFilesFromSession } from './artifact-io.js';
 import { getDefaultAgent } from '../agents/index.js';
 import { loadUserContext } from '../memory/user-context.js';
@@ -13,6 +18,15 @@ import { waitForPendingUserInputs } from './pending-user-inputs.js';
 import type {
   AgentDefinition, AgentSlot, AgentSlotConfig, AgentSlotId, AgentStep, TemplateAgentRef, ThreadRecord, ThreadTemplate,
 } from '@core/types/thread-types.js';
+
+const threadStore = scopedLocalThreadService(daemonThreadStore, deps => deps.threadStore);
+const getTemplate: typeof daemonGetTemplate = (...args) => (
+  (getLocalThreadRuntimeDeps()?.getTemplate ?? daemonGetTemplate)(...args)
+);
+const getAgent: typeof daemonGetAgent = (name) => {
+  const deps = getLocalThreadRuntimeDeps();
+  return deps ? deps.loadTemplates().agents[name] : daemonGetAgent(name);
+};
 
 /** Resolve the `__active__` agent ref placeholder to the currently active default agent
  *  (set by `!agent`). Falls back to `'main'` when no default is configured. Other names

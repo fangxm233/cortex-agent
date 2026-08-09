@@ -22,8 +22,7 @@ import {
 } from '../agents/facade.js';
 import { listProfiles, resolveProfileConfig } from '../agents/profile-manager.js';
 import {
-  createTrialAdapter, trialAgentConfig, trialRunOptions,
-  type TrialAdapter, type TrialAdapterSpec,
+  trialAgentConfig, type TrialAdapter,
 } from '../benchmark/trial-adapter-factory.js';
 import { publishLeaseEcho } from '../benchmark/lease-echo.js';
 import {
@@ -46,16 +45,22 @@ import {
   PROXY_EXPORT_SCHEMA_VERSION, journalCostFromNumber, reconcileAccounting,
   type AccountingRecord, type JournalTotals, type ProxyExport, type Tagged,
 } from '../benchmark/accounting-reconciliation.js';
-import { preparePinnedTrialPaths } from './pinned-node-process.js';
+import {
+  createStandaloneAgentRunComposition, isStandaloneArmResolution,
+  type StandaloneAgentRunComposition,
+} from './standalone-composition.js';
+import {
+  createBenchmarkOutputAdapter, type BenchmarkOutputAdapter,
+} from './benchmark-output-adapter.js';
 import {
   canonicalJsonSha256, freezeIdentity, IdentityProfileFallbackError,
   type BundleManifestInput, type FrozenIdentity, type RoleToolSurfaceInput,
 } from './identity.js';
 import {
-  openJournal, TrajectoryWriteFailedError, type Journal, type JournalEventInput,
+  TrajectoryWriteFailedError, type Journal, type JournalEventInput,
 } from './journal.js';
 import {
-  resolveLifecyclePaths, writeStartedMarker, writeTerminalManifest,
+  resolveLifecyclePaths,
   type TerminalManifestInput, type TerminalReason, type TerminalState,
 } from './manifest.js';
 import { buildTerminalManifest } from './manifest-contract.js';
@@ -86,8 +91,11 @@ interface PreparedRun {
   profile: ReturnType<typeof resolveProfileConfig>;
   config: ResolvedAgentRunConfig;
   policy?: LoadedAgentRunConfig['policy'];
+  /** Present exactly on the benchmark path; owns all fresh trial-local dependencies. */
+  composition: StandaloneAgentRunComposition | null;
   /** Present exactly on the benchmark path; owns the adapter instance and its close (S5). */
   trial: TrialAdapter | null;
+  output: BenchmarkOutputAdapter;
   backend: Backend;
   identity: FrozenIdentity;
   spawnConfig: AgentSpawnConfig;
@@ -358,8 +366,9 @@ function resolveRunInputs(
   options: AgentRunCliOptions,
   profile: PreparedRun['profile'],
   rootRunId: string,
+  preloaded?: LoadedAgentRunConfig,
 ): LoadedAgentRunConfig {
-  const loaded = loadAgentRunConfigWithPolicy({
+  const loaded = preloaded ?? loadAgentRunConfigWithPolicy({
     runConfigFile: options.runConfigFile,
     agentSlot: options.agentSlot,
   });
@@ -370,29 +379,6 @@ function resolveRunInputs(
   }
   assertMcpFiles(loaded.config);
   return { ...loaded, config: observedRunConfig(loaded.config, profile, options.cwd, loaded.policy) };
-}
-
-// No CLI flag names the trial root, and adding a required one would break the shipped harness
-// invocation. The harness places the trajectory inside the per-trial agent directory, so the trial
-// root is a sibling of the trajectory root rather than the trajectory root itself.
-function trialAdapterSpec(
-  options: AgentRunCliOptions,
-  policy: NonNullable<LoadedAgentRunConfig['policy']>,
-  config: ResolvedAgentRunConfig,
-): TrialAdapterSpec {
-  const trialRoot = path.join(path.dirname(path.resolve(options.trajectoryRoot)), 'trial-home');
-  return {
-    policy,
-    slot: options.agentSlot,
-    config,
-    paths: preparePinnedTrialPaths(trialRoot),
-    supervisor: {
-      binary: options.supervisorBinary,
-      graceMs: options.graceMs,
-      deadlineMs: options.deadlineMs,
-    },
-    cwd: options.cwd,
-  };
 }
 
 // R4: the surface the process is actually spawned with must be the surface phase B hashed. A
@@ -412,29 +398,64 @@ function assertPolicyRoleSurface(run: {
   }
 }
 
-function prepareRun(options: AgentRunCliOptions, rootRunId: string): PreparedRun {
-  assertFreshTrajectory(options, rootRunId);
-  const prompt = readPrompt(options.promptFile);
-  const profile = resolveProfile(options.profile);
-  const loaded = resolveRunInputs(options, profile, rootRunId);
-  const config = loaded.config;
-  const spec = loaded.policy ? trialAdapterSpec(options, loaded.policy, config) : null;
-  const trial = spec ? createTrialAdapter(spec) : null;
-  const baseOptions = spec
-    ? trialRunOptions(spec)
-    : baseRunOptions(options, profile, config, `agent-run:${rootRunId}`);
+function standaloneComposition(
+  options: AgentRunCliOptions,
+  rootRunId: string,
+): StandaloneAgentRunComposition | null {
+  if (!isStandaloneArmResolution(options.runConfigFile)) return null;
+  const trialRoot = path.join(path.dirname(path.resolve(options.trajectoryRoot)), 'trial-home');
+  return createStandaloneAgentRunComposition({
+    runConfigFile: options.runConfigFile,
+    agentSlot: options.agentSlot,
+    profileName: options.profile,
+    rootRunId,
+    cwd: options.cwd,
+    trajectoryRoot: options.trajectoryRoot,
+    trialRoot,
+    supervisor: {
+      binary: options.supervisorBinary,
+      graceMs: options.graceMs,
+      deadlineMs: options.deadlineMs,
+    },
+    requireFresh: true,
+  });
+}
+
+function preparedSpawn(
+  options: AgentRunCliOptions,
+  rootRunId: string,
+  profile: PreparedRun['profile'],
+  config: ResolvedAgentRunConfig,
+  composition: StandaloneAgentRunComposition | null,
+) {
+  const trial = composition?.parentTrial ?? null;
+  const baseOptions = composition?.parentRunOptions
+    ?? baseRunOptions(options, profile, config, `agent-run:${rootRunId}`);
   const spawnConfig = trial?.spawnConfig
     ?? buildAgentSpawnConfig(baseOptions, agentConfig(profile), undefined);
   spawnConfig.preserveUnreportedAccounting = true;
-  // S7: the benchmark surface carries the directive and the guard; the legacy path carries neither.
   const roleSurface = trial?.roleSurface ?? roleSurfaceFromSpawnConfig(spawnConfig);
+  return { trial, baseOptions, spawnConfig, roleSurface };
+}
+
+function prepareRun(options: AgentRunCliOptions, rootRunId: string): PreparedRun {
+  assertFreshTrajectory(options, rootRunId);
+  const prompt = readPrompt(options.promptFile);
+  const composition = standaloneComposition(options, rootRunId);
+  const profile = composition?.profile ?? resolveProfile(options.profile);
+  const preloaded = composition
+    ? { policy: composition.policy, config: composition.config } : undefined;
+  const loaded = resolveRunInputs(options, profile, rootRunId, preloaded);
+  const config = loaded.config;
+  const spawn = preparedSpawn(options, rootRunId, profile, config, composition);
   const run: PreparedRun = {
-    options, rootRunId, profile, config, policy: loaded.policy, spawnConfig, baseOptions,
-    trial,
-    backend: trial?.backend ?? profile.backend,
+    options, rootRunId, profile, config, policy: loaded.policy, composition,
+    ...spawn,
+    output: composition?.output ?? createBenchmarkOutputAdapter(options.trajectoryRoot),
+    backend: spawn.trial?.backend ?? profile.backend,
     modelPrompt: prompt.modelVisible,
-    identity: freezeRunIdentity(options, profile, config, roleSurface, loaded.policy),
-    hashes: promptHashes(prompt, roleSurface),
+    identity: freezeRunIdentity(options, profile, config, spawn.roleSurface, loaded.policy),
+    hashes: promptHashes(prompt, spawn.roleSurface),
     startedAt: new Date().toISOString(),
   };
   assertPolicyRoleSurface(run);
@@ -737,12 +758,12 @@ function terminalManifest(
 ): Record<string, unknown> | null {
   if (!outcome.quiescent) return null;
   const input = terminalInput(run, journal, stats, outcome, classified);
-  writeTerminalManifest(input);
+  run.output.writeTerminal(input);
   return buildTerminalManifest(input);
 }
 
 function openRunJournal(run: PreparedRun): Journal {
-  return openJournal({
+  return run.output.openJournal({
     path: run.options.eventsFile,
     header: {
       rootRunId: run.rootRunId,
@@ -758,7 +779,7 @@ function openRunJournal(run: PreparedRun): Journal {
 }
 
 function writeStart(run: PreparedRun): void {
-  writeStartedMarker({
+  run.output.writeStarted({
     trajectoryRoot: run.options.trajectoryRoot,
     rootRunId: run.rootRunId,
     threadId: null,
@@ -1528,6 +1549,7 @@ export async function runOneShotAgent(
     writeTerminalOutput(io, rootRunId, null, classified);
     return classified.exitCode;
   } finally {
-    restoreLogging();
+    try { await run?.trial?.close(); }
+    finally { restoreLogging(); }
   }
 }

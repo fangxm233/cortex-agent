@@ -166,9 +166,8 @@ function writeProfile(): void {
     defaultProfile: 'benchmark-profile',
     profiles: {
       'benchmark-profile': {
-        model: 'claude-sonnet', backend: 'claude', mode: 'api', provider: 'anthropic',
-        extraEnv: { ANTHROPIC_BASE_URL: 'http://host-profile.invalid:1234' },
-        extraOption: {}, claudeBackend: 'print', thinking: 'high', fallback: [],
+        model: 'claude-sonnet', backend: 'claude', provider: 'anthropic',
+        extraEnv: {}, extraOption: {}, claudeBackend: 'print', fallback: [],
       },
     },
   }));

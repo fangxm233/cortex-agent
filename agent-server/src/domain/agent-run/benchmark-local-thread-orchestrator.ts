@@ -41,9 +41,9 @@ import {
 import {
   BenchmarkRateLimitError, runThread as daemonRunThread, type ThreadRunResult,
 } from '../threads/runner.js';
-import type { PlatformAdapter } from '../../platform/adapter.js';
-import type { OutputStream } from '../../platform/output-stream.js';
-import type { PlatformCapabilities } from '../../platform/types.js';
+import {
+  createBenchmarkOutputAdapter, type BenchmarkOutputAdapter,
+} from './benchmark-output-adapter.js';
 import { executionRepo as daemonExecutionRepo } from '../../store/execution-repo.js';
 import { sessionStore as daemonSessionStore } from '../../store/session-registry-repo.js';
 import { threadStore as daemonThreadStore } from '../../store/thread-repo.js';
@@ -52,10 +52,10 @@ import {
   freezeBenchmarkThreadIdentities, type BenchmarkRoleIdentity,
 } from './benchmark-thread-identity.js';
 import {
-  openJournal, TrajectoryWriteFailedError, type AgentSlot, type Journal,
+  TrajectoryWriteFailedError, type AgentSlot, type Journal,
 } from './journal.js';
 import {
-  resolveLifecyclePaths, validateTrajectoryLifecycle, writeStartedMarker, writeTerminalManifest,
+  resolveLifecyclePaths, validateTrajectoryLifecycle,
   type TerminalManifestInput, type TerminalReason, type TerminalState,
 } from './manifest.js';
 import { terminalManifestProblem } from './manifest-contract.js';
@@ -192,48 +192,6 @@ class BenchmarkAdmissionError extends Error {
     super(`Benchmark thread admission stopped: ${detail}`);
     this.name = 'BenchmarkAdmissionError';
   }
-}
-
-const NOOP_CAPABILITIES: PlatformCapabilities = {
-  threads: false,
-  messageEdit: false,
-  modals: false,
-  reactions: false,
-  fileUpload: false,
-  richFormatting: false,
-  maxMessageLength: Infinity,
-  maxThreadDepth: 0,
-};
-
-const NOOP_STREAM: OutputStream = {
-  emitText: () => {},
-  openMutable: () => ({ update: () => {} }),
-  postInteractive: async () => null,
-  flush: async () => {},
-  getRefs: () => [],
-  getParentRef: () => null,
-};
-
-function noopRef() {
-  return { conduit: '', messageId: '' };
-}
-
-function createNoopAdapter(): PlatformAdapter {
-  return {
-    name: 'benchmark-local-noop', capabilities: NOOP_CAPABILITIES,
-    start: async () => {}, stop: async () => {},
-    onMessage: () => {}, onMessageEdit: () => {}, onAction: () => {}, onModalSubmit: () => {},
-    postMessage: async () => noopRef(), updateMessage: async () => {}, deleteMessage: async () => {},
-    postInteractive: async () => noopRef(), openModal: async () => {},
-    markQueued: async () => {}, unmarkQueued: async () => {},
-    uploadFile: async () => {},
-    downloadFile: async () => ({ localPath: '', mimetype: '', name: '' }),
-    getPermalink: async () => null,
-    openOutputStream: () => NOOP_STREAM,
-    bindProjectConduit: async () => {}, unbindProjectConduit: async () => {},
-    getProjectConduits: async () => ({}), resolveInboundProject: async () => null,
-    ownsConduit: () => false,
-  };
 }
 
 function isDirectory(directory: string): boolean {
@@ -400,9 +358,10 @@ function openThreadJournal(
   template: ResolvedTemplate,
   thread: ThreadRecord,
   identity: BenchmarkRoleIdentity,
+  output: BenchmarkOutputAdapter,
 ): Journal {
   const journalPath = path.join(request.trajectoryRoot, `thread-${thread.id}.journal.ndjson`);
-  return openJournal({
+  return output.openJournal({
     path: journalPath,
     header: {
       rootRunId: request.rootRunId, threadId: thread.id,
@@ -419,8 +378,9 @@ function writeRunStarted(
   thread: ThreadRecord,
   journal: Journal,
   startedAt: string,
+  output: BenchmarkOutputAdapter,
 ): void {
-  writeStartedMarker({
+  output.writeStarted({
     trajectoryRoot: request.trajectoryRoot, rootRunId: request.rootRunId,
     threadId: thread.id, journalPath: journal.path, now: () => new Date(startedAt),
   });
@@ -443,6 +403,7 @@ async function createRunArtifacts(
   profile: ResolvedProfile,
   template: ResolvedTemplate,
   backend: Backend,
+  output: BenchmarkOutputAdapter,
 ): Promise<PreparedThreadRun> {
   fs.mkdirSync(request.trajectoryRoot, { recursive: true });
   const identities = freezeBenchmarkThreadIdentities(
@@ -454,9 +415,9 @@ async function createRunArtifacts(
   const lifecycle = resolveLifecyclePaths({
     trajectoryRoot: request.trajectoryRoot, rootRunId: request.rootRunId, threadId: thread.id,
   });
-  const journal = openThreadJournal(request, template, thread, identity);
+  const journal = openThreadJournal(request, template, thread, identity, output);
   const startedAt = new Date().toISOString();
-  try { writeRunStarted(request, thread, journal, startedAt); }
+  try { writeRunStarted(request, thread, journal, startedAt, output); }
   catch (error) {
     await journal.close().catch(() => {});
     throw error;
@@ -470,13 +431,16 @@ async function createRunArtifacts(
   };
 }
 
-async function prepareRun(request: BenchmarkThreadRequest): Promise<PreparedThreadRun> {
+async function prepareRun(
+  request: BenchmarkThreadRequest,
+  output: BenchmarkOutputAdapter,
+): Promise<PreparedThreadRun> {
   validateRequest(request);
   initializeRuntime();
   const backend = expectedBackend(request);
   const profile = resolveProfile(request.profileName, backend);
   const template = resolveTemplate(request.template);
-  return createRunArtifacts(request, profile, template, backend);
+  return createRunArtifacts(request, profile, template, backend, output);
 }
 
 function supervisorCancelReason(reason: StopReason | null): 'cancel' | 'deadline' {
@@ -595,10 +559,11 @@ function threadRunOptions(
   prepared: PreparedThreadRun,
   spawner: AgentProcessSpawner,
   boundary: WorkspaceStepBoundary,
+  output: BenchmarkOutputAdapter,
 ) {
   const channel = prepared.thread.channel;
   return {
-    adapter: createNoopAdapter(), channel,
+    adapter: output.threadAdapter, channel,
     destination: { type: 'interactive-reply' as const, conduit: channel, sessionId: '' },
     threadAnchorId: null, statusMsg: null, startTime: Date.now(), onProgress: null,
     benchmark: {
@@ -638,6 +603,7 @@ async function runLocalThread(
   prepared: PreparedThreadRun,
   control: RunControl,
   supervisorBinary: string,
+  output: BenchmarkOutputAdapter,
 ): Promise<{ result: ThreadRunResult | null; error: unknown }> {
   // Any identity gate refuses, and all of them refuse here — before the workspace is taken and
   // before any spawner exists, so a divergent identity can never reach a process.
@@ -656,7 +622,7 @@ async function runLocalThread(
     });
     const result = await control.deps.runThread(
       prepared.thread.id,
-      threadRunOptions(prepared, createSpawner(control, supervisorBinary), boundary),
+      threadRunOptions(prepared, createSpawner(control, supervisorBinary), boundary, output),
     );
     return { result, error: null };
   } catch (error) {
@@ -771,8 +737,9 @@ async function executeRun(
   prepared: PreparedThreadRun,
   control: RunControl,
   supervisorBinary: string,
+  output: BenchmarkOutputAdapter,
 ): Promise<RunOutcome> {
-  const execution = await runLocalThread(prepared, control, supervisorBinary);
+  const execution = await runLocalThread(prepared, control, supervisorBinary, output);
   const thread = threadStore.get(prepared.thread.id) ?? prepared.thread;
   enforceFinalCost(control, thread);
   const containment = await settleSupervisors(control);
@@ -916,13 +883,14 @@ function commitTerminal(
   prepared: PreparedThreadRun,
   classified: ClassifiedRun,
   thread: ThreadRecord,
+  output: BenchmarkOutputAdapter,
 ): TerminalCommit {
   const noManifest = classified.reason === 'containment_failed'
     || classified.reason === 'missing_quiescent';
   if (noManifest) return uncommittedTerminal(prepared, classified);
   const terminalClassification = classified as ManifestClassifiedRun;
   try {
-    const manifestPath = writeTerminalManifest(
+    const manifestPath = output.writeTerminal(
       terminalInput(prepared, terminalClassification, thread),
       { roleIdentities: prepared.roleIdentities },
     );
@@ -1020,18 +988,21 @@ async function disposeSupervisors(control: RunControl): Promise<void> {
 
 async function runBenchmarkThreadScoped(
   request: BenchmarkThreadRequest,
+  output: BenchmarkOutputAdapter,
+  durabilityBarrier: () => Promise<void>,
 ): Promise<BenchmarkThreadResult> {
   const supervisorBinary = resolveSupervisorBinary();
-  const prepared = await prepareRun(request);
+  const prepared = await prepareRun(request, output);
   const control = installControl(prepared);
   try {
     // The lease is published for the whole run so each step's spawn config can read the state it
     // was armed under, rather than one captured before the lease existed (16.1 LS3).
     return await withActiveWorkspaceLease(control.lease, async () => {
-      const outcome = await executeRun(prepared, control, supervisorBinary);
+      const outcome = await executeRun(prepared, control, supervisorBinary, output);
+      await durabilityBarrier();
       const thread = threadStore.get(prepared.thread.id) ?? prepared.thread;
       const classified = classifyRun(prepared, control, outcome);
-      const committed = commitTerminal(prepared, classified, thread);
+      const committed = commitTerminal(prepared, classified, thread, output);
       const proposal = proposeOutcome(prepared, committed, thread, control, outcome);
       return buildResult(prepared, committed, thread, proposal);
     });
@@ -1081,11 +1052,28 @@ function refuseLifecycleHookOverride(overrides: Partial<LocalThreadRuntimeDeps>)
   }
 }
 
+export async function runStandaloneBenchmarkThread(
+  request: BenchmarkThreadRequest,
+  deps: LocalThreadRuntimeDeps,
+  output: BenchmarkOutputAdapter,
+  durabilityBarrier: () => Promise<void> = async () => {},
+): Promise<BenchmarkThreadResult> {
+  if (deps.portScope !== 'fail-closed') {
+    throw new Error('Standalone benchmark coordinator requires fail-closed runtime dependencies');
+  }
+  return withLocalThreadRuntimeDeps(
+    deps, () => runBenchmarkThreadScoped(request, output, durabilityBarrier),
+  );
+}
+
 export async function runBenchmarkThread(
   request: BenchmarkThreadRequest,
   overrides: Partial<LocalThreadRuntimeDeps> = {},
 ): Promise<BenchmarkThreadResult> {
   refuseLifecycleHookOverride(overrides);
   const deps = createLocalThreadRuntimeDeps(daemonRunThread, overrides);
-  return withLocalThreadRuntimeDeps(deps, () => runBenchmarkThreadScoped(request));
+  const output = createBenchmarkOutputAdapter(request.trajectoryRoot);
+  return withLocalThreadRuntimeDeps(
+    deps, () => runBenchmarkThreadScoped(request, output, async () => {}),
+  );
 }

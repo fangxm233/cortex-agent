@@ -423,7 +423,7 @@ async function buildStepConfig(
     project: threadStore.get(threadId)?.projectId ?? 'general',
     trigger: executionTrigger,
     backend: profileBackend,
-    billingMode: getClaudeMode(),
+    billingMode: opts.benchmark ? 'benchmark' : getClaudeMode(),
     sessionId: trackSessionId,
     label: `[${label}] ${prompt.substring(0, 40)}`,
     scheduleTaskId: ctx.meta?.scheduleTaskId || null,
@@ -1141,7 +1141,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
     // Cleanup thread-specific sessions. Intentionally also runs on suspension (DR-0014):
     // a waiting parent holds no live session — the artifact is its durable memory, and
     // persistSession slots keep their sessionId so re-entry resumes via --resume.
-    closeSessionsByPrefix(`thr:${threadId}:`);
+    if (!opts.benchmark) closeSessionsByPrefix(`thr:${threadId}:`);
   }
 
   return finalizeThread(threadId, ctx);

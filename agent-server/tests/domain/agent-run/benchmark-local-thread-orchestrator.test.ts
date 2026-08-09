@@ -441,7 +441,9 @@ it('exports exactly C9 and completes one bounded thread with C2/C3 artifacts', a
   const api = await moduleUnderTest();
   // C9 plus the deriver PW1 adds: the caller hands over two paths, and everything the per-step
   // trial adapter needs is built here rather than supplied. Still a closed list.
-  assert.deepEqual(Object.keys(api), ['trialThreadAdapterInput', 'runBenchmarkThread']);
+  assert.deepEqual(Object.keys(api), [
+    'trialThreadAdapterInput', 'runStandaloneBenchmarkThread', 'runBenchmarkThread',
+  ]);
   const publish = vi.fn();
   const daemonBus = { publish } as any;
   jobCtx.bus = daemonBus;

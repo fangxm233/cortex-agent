@@ -97,8 +97,8 @@ function writeProfile(): void {
     defaultProfile: 'benchmark-profile',
     profiles: {
       'benchmark-profile': {
-        model: 'claude-sonnet', backend: 'claude', mode: 'api', provider: 'anthropic',
-        extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: 'high', fallback: [],
+        model: 'claude-sonnet', backend: 'claude', provider: 'anthropic',
+        extraEnv: {}, extraOption: {}, claudeBackend: 'print', fallback: [],
       },
     },
   }));
@@ -339,8 +339,8 @@ function writePiRunProfile(): void {
     defaultProfile: 'pi-benchmark-profile',
     profiles: {
       'pi-benchmark-profile': {
-        model: 'pi-trial-model', backend: 'pi', mode: 'api', provider: 'anthropic',
-        extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: 'high', fallback: [],
+        model: 'pi-trial-model', backend: 'pi', provider: 'anthropic',
+        extraEnv: {}, extraOption: {}, claudeBackend: 'print', fallback: [],
       },
     },
   }));

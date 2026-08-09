@@ -8,10 +8,13 @@ import path from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
-  runBenchmarkThread, trialThreadAdapterInput, type BenchmarkThreadResult,
+  runStandaloneBenchmarkThread, type BenchmarkThreadResult,
 } from '../../agent-run/benchmark-local-thread-orchestrator.js';
+import {
+  createStandaloneAgentRunComposition,
+} from '../../agent-run/standalone-composition.js';
+import { resolveSupervisorBinary } from '../../agent-run/supervisor.js';
 import type { ResolvedTrialPolicy } from '../../benchmark/resolved-policy.js';
-import { createBenchmarkTrialRunAgent } from '../../benchmark/trial-thread-adapter.js';
 import { MCP_PROGRESS_HEARTBEAT_MS } from '../../../agent-adapter/pi/mcp-duration.js';
 
 export const BENCHMARK_THREAD_POLICY_ENV = 'CORTEX_BENCHMARK_THREAD_POLICY_PATH';
@@ -193,6 +196,44 @@ interface BenchmarkToolExtra extends ProgressHeartbeatExtra {
   signal: AbortSignal;
 }
 
+function standaloneThreadComposition(policy: BenchmarkThreadPolicy) {
+  return createStandaloneAgentRunComposition({
+    runConfigFile: policy.run_config_path,
+    agentSlot: 'parent',
+    profileName: policy.profile_name,
+    rootRunId: policy.root_run_id,
+    cwd: policy.workspace_cwd,
+    trajectoryRoot: policy.trajectory_root,
+    trialRoot: policy.trial_root,
+    supervisor: { binary: resolveSupervisorBinary(), graceMs: 1_000 },
+    requireFresh: false,
+  });
+}
+
+async function runComposedThread(
+  policy: BenchmarkThreadPolicy,
+  input: ThreadRunInput,
+  signal: AbortSignal,
+): Promise<BenchmarkThreadResult> {
+  const composition = standaloneThreadComposition(policy);
+  try {
+    return await runStandaloneBenchmarkThread(
+      orchestratorRequest(policy, input, signal, composition.policy),
+      composition.coordinator,
+      composition.output,
+      () => composition.stores.flush(),
+    );
+  } finally {
+    await composition.parentTrial.close();
+  }
+}
+
+function completedRunResult(result: BenchmarkThreadResult) {
+  if (result.state !== 'completed' || !result.manifestCommitted) return failedRunResult(result);
+  const payload = successPayload(result);
+  return { ...textResult(payload), structuredContent: payload };
+}
+
 async function executeAdmittedRun(
   policy: BenchmarkThreadPolicy,
   input: ThreadRunInput,
@@ -202,17 +243,7 @@ async function executeAdmittedRun(
   const stopHeartbeat = startMcpProgressHeartbeat(extra);
   try {
     const signal = linkedSignal(extra.signal, shutdownSignal);
-    // The trial is re-compiled here, in this process, from the document the parent's `agent-run`
-    // was given. Nothing pre-built travels on the request, and the override set is exactly the one
-    // member — a lifecycle hook runner is refused by presence on the far side.
-    const trial = trialThreadAdapterInput(policy.run_config_path, policy.trial_root);
-    const result = await runBenchmarkThread(
-      orchestratorRequest(policy, input, signal, trial.policy),
-      { runAgent: createBenchmarkTrialRunAgent(trial) },
-    );
-    if (result.state !== 'completed' || !result.manifestCommitted) return failedRunResult(result);
-    const payload = successPayload(result);
-    return { ...textResult(payload), structuredContent: payload };
+    return completedRunResult(await runComposedThread(policy, input, signal));
   } catch (error) {
     return textResult({
       code: 'benchmark_thread_run_failed', message: (error as Error).message,

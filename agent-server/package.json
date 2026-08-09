@@ -9,7 +9,7 @@
   },
   "main": "dist/entry/app.js",
   "bin": {
-    "cortex": "dist/entry/cli.js",
+    "cortex": "dist/entry/cortex-cli.js",
     "cortex-hook": "dist/entry/hook-cli.js",
     "cortex-run": "dist/domain/tasks/system/cortex-run.js",
     "cortex-task": "dist/domain/tasks/system/task-cli.js"

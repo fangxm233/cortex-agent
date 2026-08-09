@@ -9,7 +9,8 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | access-probe.ts | process | probes through the fail-closed supervisor path |
 | agent-run-cli.ts | cli | parses flags and resolves the supervisor path |
 | atif.ts | format | converts print-mode fragment batches and metrics to a recursively nested ATIF tree |
-| benchmark-local-thread-orchestrator.ts | runtime | fails closed or runs one bounded supervised thread |
+| benchmark-local-thread-orchestrator.ts | runtime | runs one bounded thread with injected standalone deps |
+| benchmark-output-adapter.ts | output | confines lifecycle output without platform delivery |
 | benchmark-thread-identity.ts | identity | projects parent, role and prompt hashes |
 | identity.ts | core | hashes routed model, guarded role and bundle identities |
 | journal.ts | core | appends durable run event journals with role identity |
@@ -17,8 +18,10 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | manifest.ts | core | validates relocatable lifecycle truth and events |
 | pinned-node-process.ts | process | launches Node with canonical trial-pinned paths |
 | role-surface.ts | identity | hashes exact spawn defaults, directives and guards |
-| run-config.ts | config | dispatches legacy and benchmark run configs |
-| runner.ts | core | coordinates policy-held lifecycle and accounting, derives the DAG's subagent link map, and publishes the composite manifest and the merged ATIF as one all-or-nothing pair on the benchmark path |
+| run-config.ts | config | dispatches legacy and injected benchmark configs |
+| runner.ts | core | runs the composed lifecycle and publishes terminal evidence |
+| standalone-composition.ts | wiring | builds the fresh standalone trial object graph |
+| standalone-stores.ts | store | persists trial-local task, thread and session state |
 | supervisor.ts | core | resolves the binary and gates process containment |
 | trajectory-merge-cli.ts | cli | publishes one merged trajectory with typed failures |
 | trajectory-merge.ts | core | fails closed and publishes accounted journal metrics, walking the attempt DAG when one is supplied |

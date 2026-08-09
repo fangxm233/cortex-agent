@@ -192,11 +192,13 @@ function topLevelSchemaVersion(value: unknown): unknown {
   return (value as Record<string, unknown>).schema_version;
 }
 
-function policyCompilerDependencies(): PolicyCompilerDependencies {
+function policyCompilerDependencies(
+  resolveProfile: PolicyCompilerDependencies['resolve_profile'] = resolveProfileConfig,
+): PolicyCompilerDependencies {
   return {
     wall_clock_ms: Date.now,
     monotonic_ns: () => process.hrtime.bigint(),
-    resolve_profile: resolveProfileConfig,
+    resolve_profile: resolveProfile,
   };
 }
 
@@ -209,6 +211,7 @@ function unknownRunConfigSchema(): never {
 function dispatchRunConfig(
   document: RunConfigDocument,
   agentSlot: string,
+  resolveProfile?: PolicyCompilerDependencies['resolve_profile'],
 ): LoadedAgentRunConfig {
   const schemaVersion = topLevelSchemaVersion(document.value);
   if (schemaVersion === 'cortex-agent-run-config/1') {
@@ -219,7 +222,7 @@ function dispatchRunConfig(
       throw new Error('Benchmark arm resolution requires --run-config to be a file path');
     }
     const policy = compileResolvedTrialPolicy(
-      document.value as ArmResolution, policyCompilerDependencies(),
+      document.value as ArmResolution, policyCompilerDependencies(resolveProfile),
     );
     const projection = projectAgentRunConfig(policy, agentSlot);
     return { config: resolvedRunConfig(projection, process.cwd()), policy };
@@ -236,9 +239,12 @@ export function loadAgentRunConfig(file?: string): ResolvedAgentRunConfig {
 export function loadAgentRunConfigWithPolicy(options: {
   runConfigFile?: string;
   agentSlot: string;
+  resolveProfile?: PolicyCompilerDependencies['resolve_profile'];
 }): LoadedAgentRunConfig {
   if (options.runConfigFile === undefined) return { config: defaultConfig() };
-  return dispatchRunConfig(readRunConfigDocument(options.runConfigFile), options.agentSlot);
+  return dispatchRunConfig(
+    readRunConfigDocument(options.runConfigFile), options.agentSlot, options.resolveProfile,
+  );
 }
 
 export function validateResolvedExecution(

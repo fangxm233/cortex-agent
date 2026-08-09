@@ -82,8 +82,8 @@ export function writeTrialProfile(backend: Backend): void {
     defaultProfile: FIXTURE_PROFILE,
     profiles: {
       [FIXTURE_PROFILE]: {
-        model: FIXTURE_MODEL, backend, mode: 'api', provider: 'anthropic',
-        extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: 'high', fallback: [],
+        model: FIXTURE_MODEL, backend, provider: 'anthropic',
+        extraEnv: {}, extraOption: {}, claudeBackend: 'print', fallback: [],
       },
     },
   }));

@@ -15,7 +15,7 @@ const pkgRoot = path.resolve(scriptDir, '..');
 
 const SHEBANG = '#!/usr/bin/env node\n';
 const cliEntryPoints = [
-  'dist/entry/cli.js',
+  'dist/entry/cortex-cli.js',
   'dist/entry/hook-cli.js',
   'dist/domain/tasks/system/cortex-run.js',
   'dist/domain/tasks/system/task-cli.js',
