@@ -103,15 +103,28 @@ describe('Select', () => {
     expect(JSON.stringify(renderer.toJSON())).toContain('current backend');
   });
 
-  it('uses the profile menu surface, radius, shadow and minimum width', () => {
+  it('uses the compact profile-selector density for trigger and popup', () => {
     const renderer = mount('active', [{ value: 'active', label: 'Active' }]);
+    const trigger = part(renderer, 'trigger');
     const content = part(renderer, 'content');
+    const item = part(renderer, 'item');
+    const itemText = part(renderer, 'item-text');
 
+    expect(trigger.props.style).toMatchObject({
+      fontFamily: "'IBM Plex Mono',monospace",
+      fontSize: 10.5,
+      fontWeight: 500,
+      lineHeight: 1.2,
+      padding: '2px 7px',
+      borderRadius: 6,
+    });
     expect(content.props.className).toContain('border-proto-line');
     expect(content.props.className).toContain('rounded-menu');
     expect(content.props.className).toContain('shadow-menu');
     expect(content.props.style.minWidth).toBe(
-      'max(200px, var(--radix-select-trigger-width))',
+      'max(160px, var(--radix-select-trigger-width))',
     );
+    expect(item.props.className).toContain('px-1g');
+    expect(itemText.props.className).toContain('text-[10px]');
   });
 });

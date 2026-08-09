@@ -40,6 +40,8 @@ const CELL_BOX: CSSProperties = {
   padding: '7px 10px',
 };
 
+const SELECT_CELL_BOX: CSSProperties = { ...CELL_BOX, padding: '5px 8px' };
+
 // Shared Select trigger styled to disappear into the prototype's value-cell chrome.
 function bareSelectStyle(font: string): CSSProperties {
   return {
@@ -209,7 +211,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
               {vis.interval && (
                 <>
                   <div style={{ ...LABEL, marginBottom: 5 }}>{L.scEvery}</div>
-                  <div style={CELL_BOX}>
+                  <div style={SELECT_CELL_BOX}>
                     <input
                       type="number"
                       min={1}
@@ -226,6 +228,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                     />
                     <Select
                       data-schedule-select="intervalUnit"
+                      density="bare"
                       aria-label={L.scEvery}
                       value={form.intervalUnit}
                       options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: unit }))}
@@ -238,7 +241,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
               {vis.delay && (
                 <>
                   <div style={{ ...LABEL, marginBottom: 5 }}>{L.scIn}</div>
-                  <div style={CELL_BOX}>
+                  <div style={SELECT_CELL_BOX}>
                     <input
                       type="number"
                       min={1}
@@ -255,6 +258,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                     />
                     <Select
                       data-schedule-select="delayUnit"
+                      density="bare"
                       aria-label={L.scIn}
                       value={form.delayUnit}
                       options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: unit }))}
@@ -270,9 +274,10 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
             {vis.dayOfWeek && (
               <div>
                 <div style={{ ...LABEL, marginBottom: 5 }}>{L.scDay}</div>
-                <div style={CELL_BOX}>
+                <div style={SELECT_CELL_BOX}>
                   <Select
                     data-schedule-select="dayOfWeek"
+                    density="bare"
                     aria-label={L.scDay}
                     value={form.dayOfWeek}
                     options={DAY_OPTIONS.map((day) => ({
@@ -289,9 +294,10 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
             {/* PROFILE (prototype L1445) */}
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scProfile}</div>
-              <div style={CELL_BOX}>
+              <div style={SELECT_CELL_BOX}>
                 <Select
                   data-schedule-select="profile"
+                  density="bare"
                   aria-label={L.scProfile}
                   value={form.profile}
                   options={profileOptions.map((profile) => ({ value: profile, label: profile }))}
@@ -329,9 +335,10 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12, opacity: editing ? 0.55 : 1 }}>
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scTarget}</div>
-              <div style={CELL_BOX}>
+              <div style={SELECT_CELL_BOX}>
                 <Select
                   data-schedule-select="target"
+                  density="bare"
                   aria-label={L.scTarget}
                   value={form.target}
                   disabled={editing}
@@ -346,9 +353,10 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
             </div>
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scFallback}</div>
-              <div style={CELL_BOX}>
+              <div style={SELECT_CELL_BOX}>
                 <Select
                   data-schedule-select="fallback"
+                  density="bare"
                   aria-label={L.scFallback}
                   value={form.fallback}
                   disabled={editing}

@@ -26,6 +26,6 @@ export { DEGRADED_SEVERITIES, severityTone, type DegradedSeverity } from './degr
 export { Modal, ModalClose, type ModalProps } from './Modal';
 export { Drawer, DrawerClose, type DrawerProps, type DrawerSide } from './Drawer';
 export { Popover, PopoverClose, type PopoverProps } from './Popover';
-export { Select, type SelectOption, type SelectProps, type SelectValue } from './Select';
+export { Select, type SelectDensity, type SelectOption, type SelectProps, type SelectValue } from './Select';
 export { ToastProvider, useToast, useToastOptional, type ToastInput } from './Toast';
 export type { ToastAction } from './toast-store';

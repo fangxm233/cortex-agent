@@ -19,11 +19,11 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | schedule-rail.ts | vm | Builds SCHEDULED rows, run ordinals and click routing |
 | schedule-rail.test.ts | test | Unit tests for the SCHEDULED section view model |
 | RunListModal.tsx | view | Run-list modal opening a run in the chat pane |
-| ProfileMenu.tsx | view | Lists profiles above or below its anchor |
+| ProfileMenu.tsx | view | Lists compact profiles above or below its anchor |
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
 | SessionProfileSelector.tsx | view | Shares guarded profile state with composer controls |
-| SessionProfileSelector.test.tsx | test | Tests shared profile routing and menu placement |
+| SessionProfileSelector.test.tsx | test | Tests profile routing, placement and compact density |
 | CenterChat.tsx | view | Reconciles chat state and local command controls |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | scheduled-chat.test.ts | test | Unit tests for scheduled-chat helpers |

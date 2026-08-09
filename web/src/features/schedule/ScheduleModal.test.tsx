@@ -66,7 +66,13 @@ describe('ScheduleModal custom selections', () => {
     const onChange = vi.fn();
     const form = { ...defaultScheduleForm('nimbus'), type: 'interval' as const };
     const renderer = mount(form, onChange);
+    const interval = renderer.root.findByProps({ 'data-schedule-select': 'intervalUnit' });
+    const intervalHost = renderer.root.findAll((node) => (
+      node.type === 'div' && node.props['data-schedule-select'] === 'intervalUnit'
+    ))[0];
 
+    expect(interval.props.density).toBe('bare');
+    expect(intervalHost.parent?.parent?.props.style.padding).toBe('5px 8px');
     pick(renderer, 'intervalUnit', 'hr');
     pick(renderer, 'profile', 'review');
     pick(renderer, 'target', 'project');

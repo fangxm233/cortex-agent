@@ -7,7 +7,7 @@ Holds build tooling, design tokens and the source tree; the built bundle also sh
 |---|---|---|
 | index.html | entry | Hosts the app root and applies theme before paint |
 | vite.config.ts | config | Build stamp, path alias, dev API proxy and test worker cap |
-| tailwind.config.ts | config | Design tokens, menu chrome and animations |
+| tailwind.config.ts | config | Design tokens, compact menu chrome and animations |
 | postcss.config.js | config | Enables Tailwind and autoprefixer processing |
 | tsconfig.json | config | Strict TypeScript options and path alias |
 | package.json | config | Scripts, Radix primitives and test dependencies |

@@ -9,6 +9,7 @@ import type { ButtonHTMLAttributes, CSSProperties } from 'react';
 // Select 2.3.2 shares Dialog 1.1.18's dismissable-layer stack, so Escape closes only the top layer.
 
 export type SelectValue = string | number;
+export type SelectDensity = 'compact' | 'bare';
 
 export interface SelectOption<T extends SelectValue> {
   value: T;
@@ -24,6 +25,7 @@ export interface SelectProps<T extends SelectValue>
   options: readonly SelectOption<T>[];
   onValueChange: (value: T) => void;
   placeholder?: string;
+  density?: SelectDensity;
 }
 
 const TRIGGER_CLASS =
@@ -37,14 +39,26 @@ const CONTENT_CLASS =
   'motion-reduce:animate-none';
 
 const ITEM_CLASS =
-  'relative flex w-full select-none items-center gap-1g px-1.5g py-menu-row-y pr-4g outline-none ' +
+  'relative flex w-full select-none items-center gap-0.5g px-1g py-menu-row-y pr-3g outline-none ' +
   'data-[highlighted]:bg-proto-gray data-[state=checked]:bg-proto-accent-bg ' +
   'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40';
 
 const CONTENT_STYLE = {
-  minWidth: 'max(200px, var(--radix-select-trigger-width))',
+  minWidth: 'max(160px, var(--radix-select-trigger-width))',
   maxHeight: 'var(--radix-select-content-available-height)',
 } as CSSProperties;
+
+const DENSITY_FONT: CSSProperties = {
+  fontFamily: "'IBM Plex Mono',monospace",
+  fontSize: 10.5,
+  fontWeight: 500,
+  lineHeight: 1.2,
+};
+
+const DENSITY_STYLE: Record<SelectDensity, CSSProperties> = {
+  compact: { ...DENSITY_FONT, padding: '2px 7px', borderRadius: 6 },
+  bare: DENSITY_FONT,
+};
 
 function optionKey(index: number): string {
   return `option-${index}`;
@@ -82,11 +96,11 @@ function SelectItem<T extends SelectValue>({
       title={option.disabledReason}
       className={ITEM_CLASS}
     >
-      <RadixSelect.ItemText className="text-[11px] font-semibold">{option.label}</RadixSelect.ItemText>
+      <RadixSelect.ItemText className="text-[10px] font-semibold">{option.label}</RadixSelect.ItemText>
       {option.description ? (
-        <span className="text-[9.5px] font-normal text-proto-muted-3">{option.description}</span>
+        <span className="text-[9px] font-normal text-proto-muted-3">{option.description}</span>
       ) : null}
-      <RadixSelect.ItemIndicator className="absolute right-1.5g text-[10px] font-bold text-proto-accent">
+      <RadixSelect.ItemIndicator className="absolute right-1g text-[9px] font-bold text-proto-accent">
         ✓
       </RadixSelect.ItemIndicator>
     </RadixSelect.Item>
@@ -118,6 +132,7 @@ export function Select<T extends SelectValue>({
   options,
   onValueChange,
   placeholder = '',
+  density = 'compact',
   className,
   style,
   disabled,
@@ -137,7 +152,7 @@ export function Select<T extends SelectValue>({
         data-select-control
         disabled={disabled}
         className={`${TRIGGER_CLASS} ${className ?? ''}`}
-        style={style}
+        style={{ ...style, ...DENSITY_STYLE[density] }}
       >
         <RadixSelect.Value>{selected?.label ?? placeholder}</RadixSelect.Value>
         <RadixSelect.Icon aria-hidden className="ml-auto text-[8px] text-proto-muted-3">▾</RadixSelect.Icon>

@@ -121,7 +121,7 @@ const config: Config = {
         '0.5g': '4px',
         '1g': '8px',
         '1.5g': '12px',
-        'menu-row-y': '7.5px',
+        'menu-row-y': '5px',
         '2g': '16px',
         '3g': '24px',
         '4g': '32px',
@@ -130,7 +130,7 @@ const config: Config = {
       },
       borderRadius: {
         card: '10px',
-        menu: '9px',
+        menu: '8px',
       },
       boxShadow: {
         card: '0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06)',

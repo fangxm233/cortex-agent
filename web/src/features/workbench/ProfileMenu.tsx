@@ -33,11 +33,11 @@ export function ProfileMenu({
         ...(placement === 'above' ? { bottom: 26 } : { top: 26 }),
         background: 'var(--proto-card)',
         border: '1px solid var(--proto-line)',
-        borderRadius: 9,
+        borderRadius: 8,
         boxShadow: '0 10px 28px rgba(16,24,40,.14)',
         zIndex: 59,
         overflow: 'hidden',
-        minWidth: 200,
+        minWidth: 160,
       }}
     >
       {options.map((po) => (
@@ -55,17 +55,17 @@ export function ProfileMenu({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            padding: '7.5px 12px',
+            gap: 4,
+            padding: '5px 8px',
             cursor: po.disabled ? 'not-allowed' : 'pointer',
             opacity: po.disabled ? 0.42 : 1,
             background: po.disabled ? 'transparent' : hover === po.name ? 'var(--proto-gray)' : po.active ? 'var(--proto-accent-bg)' : 'transparent',
           }}
         >
-          <span style={{ font: `600 11px ${mono}`, color: 'var(--proto-ink)' }}>{po.name}</span>
-          <span style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{po.sub}</span>
+          <span style={{ font: `600 10px ${mono}`, color: 'var(--proto-ink)' }}>{po.name}</span>
+          <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-muted-3)' }}>{po.sub}</span>
           {po.active && (
-            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 10, fontWeight: 700 }}>✓</span>
+            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 9, fontWeight: 700 }}>✓</span>
           )}
         </div>
       ))}
