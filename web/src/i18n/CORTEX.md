@@ -10,7 +10,7 @@ Language stays in local storage and falls back to browser choice.
 | lang.ts | util | Resolves and persists language choice |
 | lang.test.ts | test | Covers language derivation and copy |
 | vocab.ts | compose | Merges split chunks into en and zh |
-| plugins-vocab.ts | copy | Holds plugin panel copy |
+| plugins-vocab.ts | copy | Holds plugin and stale-draft copy |
 | vocab-en-base.ts | copy | English chunk before plugin copy |
 | vocab-en-extra.ts | copy | English chunk after plugin copy |
 | vocab-zh-base.ts | copy | Chinese chunk before plugin copy |

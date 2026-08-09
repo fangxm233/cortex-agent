@@ -731,6 +731,21 @@ it('keeps valid MCP when a present skills directory escapes the plugin root', ()
   expect(issueMessages(entry, 'skill_invalid')).toContain('skills must resolve to a directory inside the plugin root');
 });
 
+it('skips a skill whose support tree escapes without losing portable MCP', () => {
+  const pluginDir = makePlugin('support-escape');
+  const outside = outsideDir('support-tree-outside-');
+  writePortableManifest(pluginDir);
+  makeSkill(pluginDir, 'unsafe-skill');
+  fs.symlinkSync(outside, path.join(pluginDir, 'skills', 'unsafe-skill', 'references'), 'dir');
+  writeMcp(pluginDir, { remote: { type: 'sse', url: 'https://safe.example/sse' } });
+
+  const entry = loadEntry('support-escape');
+
+  expect(entry.skills).toEqual([]);
+  expect(entry.mcp.servers.map((server) => server.name)).toEqual(['remote']);
+  expect(issueMessages(entry, 'skill_invalid').join(' ')).toMatch(/escapes plugin root/i);
+});
+
 it('survives a skills directory read failure without losing MCP or sibling plugins', () => {
   const brokenDir = makePlugin('skills-read-failed');
   const goodDir = makePlugin('skills-sibling');

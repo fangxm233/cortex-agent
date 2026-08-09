@@ -352,9 +352,9 @@ function assertClaudePluginRuntime(config: AgentSpawnConfig): void {
 function assertPiPluginRuntime(config: AgentSpawnConfig): void {
   assert.deepEqual(config.mcpConfigPaths, RUNTIME_MCP_PATHS);
   assert.deepEqual(config.pluginDirs, [LEGACY_ROOT, UNMANAGED_ROOT]);
-  assert.deepEqual(config.pluginSkillDirs, [
-    path.join(PORTABLE_ROOT, 'skills', 'portable-skill'),
-  ]);
+  assert.equal(config.pluginSkillDirs?.length, 1);
+  assert.ok(config.pluginSkillDirs?.[0].includes(path.join('plugin-runtime', 'pi')));
+  assert.notEqual(config.pluginSkillDirs?.[0], path.join(PORTABLE_ROOT, 'skills', 'portable-skill'));
   assert.deepEqual(config.mcpServers?.map((server) => server.name), [PORTABLE_SERVER_NAME]);
   assertFingerprint(config);
 }

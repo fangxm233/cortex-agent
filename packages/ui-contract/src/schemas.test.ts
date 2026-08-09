@@ -253,11 +253,12 @@ test('approvals.request enforces per-kind required fields', () => {
   assert.throws(() => s.parse({ kind: 'reboot' }));                   // unknown kind
 });
 
-test('plugins.assign accepts bounded lowercase hashes', () => {
+test('plugins.assign accepts catalog ids and filesystem-bounded entity names', () => {
   const s = mutateInputSchemas['plugins.assign'];
+  const longName = `writer-${'a'.repeat(190)}`;
   const agent = {
-    target: { kind: 'agent', name: 'writer', baseHash: 'a'.repeat(64) },
-    pluginIds: ['alpha', 'beta'],
+    target: { kind: 'agent', name: longName, baseHash: 'a'.repeat(64) },
+    pluginIds: ['alpha plugin', '实验插件', 'p'.repeat(255)],
   };
   const slot = {
     target: {
@@ -276,9 +277,9 @@ test('plugins.assign accepts bounded lowercase hashes', () => {
   assert.deepEqual(s.parse(slot), slot);
 });
 
-test('plugins.assign rejects bad hashes and oversized ids', () => {
+test('plugins.assign rejects bad hashes and unsafe path ids', () => {
   const s = mutateInputSchemas['plugins.assign'];
-  const bigId = 'a'.repeat(65);
+  const bigId = 'a'.repeat(256);
   const manyIds = Array.from({ length: 129 }, (_, i) => `p${i}`);
 
   assert.throws(() => s.parse({ target: { kind: 'agent', name: 'writer' }, pluginIds: [] }));
@@ -296,8 +297,12 @@ test('plugins.assign rejects bad hashes and oversized ids', () => {
   }));
   assert.throws(() => s.parse({
     target: { kind: 'agent', name: 'writer', baseHash: 'd'.repeat(64) },
-    pluginIds: manyIds,
+    pluginIds: ['unsafe/name'],
   }));
+  assert.equal(s.parse({
+    target: { kind: 'agent', name: 'writer', baseHash: 'e'.repeat(64) },
+    pluginIds: manyIds,
+  }).pluginIds.length, 129);
 });
 
 test('schedules.add accepts valid per-type input', () => {

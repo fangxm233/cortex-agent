@@ -310,6 +310,45 @@ test('claudeSupplementalMcpConfigJson converts stdio, streamable-http, and sse s
   assert.deepEqual(JSON.parse(text), expectedConversionConfig());
 });
 
+test('writeClaudeSupplementalMcpConfig hides remote headers behind redirect-safe stdio proxies', () => {
+  const runtimeDir = fs.mkdtempSync(path.join(tmpdir(), 'claude-mcp-proxy-'));
+  try {
+    const written = writeClaudeSupplementalMcpConfig(conversionMcpServers(), { runtimeDir });
+    const text = fs.readFileSync(written.path, 'utf8');
+    const parsed = JSON.parse(text) as ExpectedMcpConfig;
+    const remote = parsed.mcpServers['http-server'] as { command: string; args: string[] };
+    const sse = parsed.mcpServers['sse-server'] as { command: string; args: string[] };
+    const proxy = JSON.parse(fs.readFileSync(remote.args[1], 'utf8'));
+
+    assert.equal(text.includes('Bearer secret-http'), false);
+    assert.equal(text.includes('secret-sse'), false);
+    assert.equal(remote.command, process.execPath);
+    assert.equal(sse.command, process.execPath);
+    assert.match(remote.args[0], /remote-mcp-proxy\.js$/);
+    assert.deepEqual(proxy, { type: 'streamable-http', url: 'https://private.example.com/mcp', headers: { Authorization: 'Bearer secret-http' } });
+    assert.equal(fs.statSync(remote.args[1]).mode & 0o777, 0o600);
+  } finally {
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
+  }
+});
+
+test('writeClaudeSupplementalMcpConfig isolates a remote proxy config failure', () => {
+  const runtimeDir = fs.mkdtempSync(path.join(tmpdir(), 'claude-mcp-proxy-failure-'));
+  try {
+    const first = writeClaudeSupplementalMcpConfig(conversionMcpServers(), { runtimeDir });
+    const initial = JSON.parse(fs.readFileSync(first.path, 'utf8')) as ExpectedMcpConfig;
+    const failed = initial.mcpServers['http-server'] as { args: string[] };
+    fs.chmodSync(failed.args[1], 0o644);
+
+    const second = writeClaudeSupplementalMcpConfig(conversionMcpServers(), { runtimeDir });
+    const names = Object.keys((JSON.parse(fs.readFileSync(second.path, 'utf8')) as ExpectedMcpConfig).mcpServers);
+
+    assert.deepEqual(names.sort(), ['sse-server', 'stdio-server']);
+  } finally {
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
+  }
+});
+
 test('writeClaudeSupplementalMcpConfig is deterministic, atomic, private on disk, and revalidatable', () => {
   const runtimeDir = fs.mkdtempSync(path.join(tmpdir(), 'claude-mcp-config-'));
   try {

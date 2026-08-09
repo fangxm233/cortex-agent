@@ -8,6 +8,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 | index.ts | entry | selects adapters and pins PI transcript paths |
 | types.ts | types | Shared adapter and plugin runtime contracts |
 | mcp-private-dir.ts | util | Guards private physical MCP directories |
+| mcp-remote-fetch.ts | util | Rejects remote MCP HTTP redirects |
 | capabilities.ts | core | Declares backend capabilities |
 | bg-wait.ts | core | emits cache-inclusive continuation input totals |
 | event-tee.ts | core | fans out run events and enforces required sinks |

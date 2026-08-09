@@ -506,9 +506,12 @@ export const profilesRemoveInput = z.object({
   name: profileSafeName.min(1),
 });
 
-const pluginTargetName = z.string().max(64).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
-const pluginSlotRef = z.string().max(64).regex(/^(?:__active__|[A-Za-z0-9][A-Za-z0-9_-]*)$/);
-const pluginIdInput = z.string().max(64).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+const componentByteLength = (value: string): boolean => new TextEncoder().encode(value).byteLength <= 255;
+const isSafeComponent = (value: string): boolean => value !== '.' && value !== '..'
+  && !value.includes('/') && !value.includes('\\') && !value.includes('\0');
+const pluginTargetName = z.string().max(240).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
+const pluginSlotRef = z.string().max(240).regex(/^(?:__active__|[A-Za-z0-9][A-Za-z0-9_-]*)$/);
+const pluginIdInput = z.string().min(1).refine(componentByteLength).refine(isSafeComponent);
 const sha256HashInput = z.string().regex(/^[a-f0-9]{64}$/);
 
 const pluginsAssignTargetInput = z.discriminatedUnion('kind', [
@@ -529,7 +532,7 @@ const pluginsAssignTargetInput = z.discriminatedUnion('kind', [
 
 export const pluginsAssignInput = z.object({
   target: pluginsAssignTargetInput,
-  pluginIds: z.array(pluginIdInput).max(128),
+  pluginIds: z.array(pluginIdInput),
   acknowledgeMcp: z.boolean().optional(),
 });
 

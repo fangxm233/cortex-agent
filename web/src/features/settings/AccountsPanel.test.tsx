@@ -101,7 +101,7 @@ function mount(): ReactTestRenderer {
 
 function actions(renderer: ReactTestRenderer, provider: string, action: string) {
   return renderer.root.findAll(node => (
-    node.type === 'span'
+    node.type === 'button'
     && node.props['data-provider'] === provider
     && node.props['data-auth-action'] === action
   ));

@@ -181,7 +181,7 @@ describe('desktop authentication settings entry', () => {
     const detailCard = cards.find(card => card.props.style.minWidth === 0)!;
     const detailScroller = detailCard.find(node => node.props.style?.overflow === 'auto');
     expect(detailScroller.findAllByProps({ 'data-action': 'save' })).toHaveLength(0);
-    expect(detailCard.findAll(node => node.type === 'span' && node.props['data-action'] === 'save')).toHaveLength(1);
+    expect(detailCard.findAll(node => node.type === 'button' && node.props['data-action'] === 'save')).toHaveLength(1);
   });
 
   it('moves authentication controls out of Platform into a dedicated Accounts section', () => {

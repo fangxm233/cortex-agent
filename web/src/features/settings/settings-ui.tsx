@@ -55,15 +55,6 @@ export function onActionKey(event: ReactKeyboardEvent, onClick?: () => void): vo
   onClick();
 }
 
-function interactiveButtonProps(onClick?: () => void) {
-  if (!onClick) return {};
-  return {
-    role: 'button' as const,
-    tabIndex: 0,
-    onKeyDown: (event: ReactKeyboardEvent) => onActionKey(event, onClick),
-  };
-}
-
 function toggleCursor(interactive: boolean, inert?: boolean): CSSProperties['cursor'] {
   if (interactive) return 'pointer';
   if (inert) return 'not-allowed';
@@ -246,33 +237,30 @@ function buttonBaseStyle(
   return focusedButtonStyle(hovered, focused, disabled);
 }
 
-export function SButton({
-  tone,
-  disabled,
-  onClick,
-  children,
-  ...rest
-}: {
+type SButtonProps = {
   tone: SButtonTone;
   disabled?: boolean;
   onClick?: () => void;
   children: ReactNode;
-} & Record<string, unknown>) {
+} & Record<string, unknown>;
+
+export function SButton({ tone, disabled, onClick, children, ...rest }: SButtonProps) {
   const [hover, setHover] = useState(false);
   const [focused, setFocused] = useState(false);
-  const interactive = interactiveButtonProps(disabled ? undefined : onClick);
   return (
-    <span
+    <button
       {...rest}
-      onClick={disabled ? undefined : onClick}
-      {...interactive}
+      type="button"
+      disabled={Boolean(disabled)}
+      aria-disabled={Boolean(disabled)}
+      onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
-      style={buttonBaseStyle(tone, disabled, hover, focused)}
+      style={{ fontFamily: 'inherit', ...buttonBaseStyle(tone, disabled, hover, focused) }}
     >
       {children}
-    </span>
+    </button>
   );
 }

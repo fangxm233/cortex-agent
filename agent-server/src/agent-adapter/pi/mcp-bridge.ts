@@ -24,6 +24,7 @@ import { createLogger } from '@core/log.js';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { McpServerConfig } from '../types.js';
+import { createRedirectRejectingFetch } from '../mcp-remote-fetch.js';
 import {
   mapMcpContent,
   shouldLoadFeishu,
@@ -266,39 +267,7 @@ function exposedToolName(state: ServerState, toolName: string): string {
   return state.config.name === state.name ? toolName : pluginToolName(state.name, toolName);
 }
 
-function mergedHeaders(configured: HeadersInit | undefined, request: HeadersInit | undefined): Headers {
-  const headers = new Headers(configured);
-  for (const [key, value] of new Headers(request).entries()) headers.set(key, value);
-  return headers;
-}
-
-function redirectTarget(response: Response, requestUrl: URL): URL | null {
-  const location = response.headers.get('location');
-  return location ? new URL(location, requestUrl) : null;
-}
-
-function isRedirect(status: number): boolean {
-  return status >= 300 && status < 400;
-}
-
-async function cancelResponseBody(response: Response): Promise<void> {
-  try { await response.body?.cancel(); } catch { /* best-effort */ }
-}
-
-export function createSameOriginFetch(configured: Record<string, string>): typeof fetch {
-  return async (input, init) => {
-    const url = new URL(input instanceof URL ? input.toString() : String(input));
-    const response = await fetch(url, {
-      ...(init as RequestInit),
-      headers: mergedHeaders(configured, (init as RequestInit).headers),
-      redirect: 'manual',
-    });
-    const next = redirectTarget(response, url);
-    if (!isRedirect(response.status) || !next) return response;
-    await cancelResponseBody(response);
-    throw new Error(`MCP redirect rejected: ${url.origin} -> ${next.origin}`);
-  };
-}
+export const createSameOriginFetch = createRedirectRejectingFetch;
 
 export function createMcpTransport(
   config: McpServerConfig,

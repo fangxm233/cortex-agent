@@ -21,6 +21,7 @@ import {
 } from './fs-helpers.js';
 import { loadPortableMcpCatalog } from './mcp.js';
 import { loadSkillFile } from './skill.js';
+import { buildProjectedSkillTree } from './skill-projection.js';
 import type {
   PluginCatalogEntry,
   PluginCatalogIssue,
@@ -256,6 +257,24 @@ function discoverSkills(
   return { skills, issues };
 }
 
+function loadPortableContainedSkill(
+  pluginRoot: string,
+  name: string,
+  skillFile: string,
+): { skill?: PluginCatalogSkill; issues: PluginCatalogIssue[] } {
+  const loaded = loadSkillFile(name, skillFile);
+  if (!loaded.skill) return loaded;
+  try {
+    buildProjectedSkillTree(pluginRoot, path.dirname(skillFile));
+    return loaded;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { issues: [...loaded.issues, makeIssue(
+      'skill_invalid', 'skill', `skills.${name}`, `Skill support tree is invalid: ${message}`,
+    )] };
+  }
+}
+
 function loadContainedSkill(
   pluginRoot: string,
   skillsRoot: string,
@@ -265,14 +284,13 @@ function loadContainedSkill(
   const skillFile = path.join(skillsRoot, name, 'SKILL.md');
   const contained = resolveContainedAbsolutePath(pluginRoot, skillFile);
   if (!contained || !isRegularFile(contained)) {
-    return {
-      issues: [makeIssue('skill_outside_plugin_root', 'skill', `skills.${name}.SKILL.md`, 'SKILL.md must remain inside the plugin root')],
-    };
+    return { issues: [makeIssue(
+      'skill_outside_plugin_root', 'skill', `skills.${name}.SKILL.md`,
+      'SKILL.md must remain inside the plugin root',
+    )] };
   }
-  if (format === 'legacy') {
-    return { skill: { name, dir: path.join('skills', name) }, issues: [] };
-  }
-  return loadSkillFile(name, contained);
+  if (format === 'legacy') return { skill: { name, dir: path.join('skills', name) }, issues: [] };
+  return loadPortableContainedSkill(pluginRoot, name, contained);
 }
 
 function portableEntry(

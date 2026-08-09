@@ -279,7 +279,8 @@ test('createSameOriginFetch gives SDK/client headers precedence over configured 
   const requests: Array<{ url: string; headers: Headers }> = [];
   const previous = global.fetch;
   global.fetch = (async (input, init) => {
-    requests.push({ url: String(input), headers: new Headers((init as RequestInit).headers) });
+    const request = new Request(input, init);
+    requests.push({ url: request.url, headers: request.headers });
     return new Response('ok', { status: 200 });
   }) as typeof fetch;
   try {
@@ -300,11 +301,12 @@ type CapturedRequest = { url: string; method: string; headers: Headers; body: st
 function installRedirectFetch(calls: CapturedRequest[], cancel: () => void): typeof fetch {
   const previous = global.fetch;
   global.fetch = (async (input, init) => {
+    const request = new Request(input, init);
     calls.push({
-      url: String(input),
-      method: (init as RequestInit).method ?? 'GET',
-      headers: new Headers((init as RequestInit).headers),
-      body: String((init as RequestInit).body ?? ''),
+      url: request.url,
+      method: request.method,
+      headers: request.headers,
+      body: await request.text(),
     });
     return {
       status: 307,

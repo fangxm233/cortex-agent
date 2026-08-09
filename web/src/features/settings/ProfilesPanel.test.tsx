@@ -140,7 +140,7 @@ describe('ProfilesPanelView / editor', () => {
   it('lets a create name its profile', () => {
     const html = render({ draft: emptyProfileForm(), creating: true });
     expect(html).toContain('data-profile-field="name"');
-    expect(html).not.toContain('disabled=""');
+    expect(html).not.toContain('data-profile-field="name" disabled=""');
   });
 
   it('shows the preserved extraEnv keys and fallback count, never a value', () => {

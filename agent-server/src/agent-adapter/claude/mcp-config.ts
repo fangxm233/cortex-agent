@@ -6,9 +6,14 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createLogger } from '@core/log.js';
 import { DATA_DIR } from '@core/paths.js';
 import { ensurePrivateRuntimeDirectory } from '../mcp-private-dir.js';
 import type { McpServerConfig } from '../types.js';
+
+const log = createLogger('claude-mcp-config');
+const REMOTE_PROXY_PATH = fileURLToPath(new URL('./remote-mcp-proxy.js', import.meta.url));
 
 export interface ClaudeSupplementalMcpConfig {
   path: string;
@@ -100,20 +105,12 @@ function writePrivateAtomic(filePath: string, text: string): void {
   fs.chmodSync(filePath, 0o600);
 }
 
-export function writeClaudeSupplementalMcpConfig(
-  mcpServers: readonly McpServerConfig[],
-  options: ClaudeSupplementalMcpConfigOptions = {},
-): ClaudeSupplementalMcpConfig {
-  const text = claudeSupplementalMcpConfigJson(mcpServers);
-  const identity = sha256(text);
-  const runtimeDir = path.resolve(options.runtimeDir ?? path.join(DATA_DIR, 'data', 'plugin-runtime'));
-  const directory = path.join(runtimeDir, 'claude-mcp');
-  const filePath = path.join(directory, `${identity}.json`);
-  ensurePrivateRuntimeDirectory(runtimeDir, 'Claude MCP runtime');
-  ensurePrivateRuntimeDirectory(directory, 'Claude MCP runtime');
+function privateContentFile(directory: string, text: string, label: string): string {
+  ensurePrivateRuntimeDirectory(directory, label);
+  const filePath = path.join(directory, `${sha256(text)}.json`);
   if (fs.existsSync(filePath)) {
     validateExistingFile(filePath, text);
-    return { path: filePath, identity };
+    return filePath;
   }
   try {
     writePrivateAtomic(filePath, text);
@@ -121,5 +118,49 @@ export function writeClaudeSupplementalMcpConfig(
     if (!fs.existsSync(filePath)) throw error;
     validateExistingFile(filePath, text);
   }
+  return filePath;
+}
+
+function proxyServer(
+  server: Extract<McpServerConfig, { type: 'streamable-http' | 'sse' }>,
+  runtimeDir: string,
+): McpServerConfig {
+  const directory = path.join(runtimeDir, 'claude-mcp-proxies');
+  const text = `${JSON.stringify({
+    type: server.type, url: server.url,
+    headers: orderedObject(Object.entries(server.headers)),
+  })}\n`;
+  const configPath = privateContentFile(directory, text, 'Claude remote MCP runtime');
+  return {
+    name: server.name, type: 'stdio', command: process.execPath,
+    args: [REMOTE_PROXY_PATH, configPath], env: {}, cwd: directory,
+  };
+}
+
+function runtimeServers(
+  mcpServers: readonly McpServerConfig[],
+  runtimeDir: string,
+): McpServerConfig[] {
+  return mcpServers.flatMap((server) => {
+    if (server.type === 'stdio') return [server];
+    try {
+      return [proxyServer(server, runtimeDir)];
+    } catch (error) {
+      log.warn(`Skipping Claude remote MCP '${server.name}': ${(error as Error).message}`);
+      return [];
+    }
+  });
+}
+
+export function writeClaudeSupplementalMcpConfig(
+  mcpServers: readonly McpServerConfig[],
+  options: ClaudeSupplementalMcpConfigOptions = {},
+): ClaudeSupplementalMcpConfig {
+  const runtimeDir = path.resolve(options.runtimeDir ?? path.join(DATA_DIR, 'data', 'plugin-runtime'));
+  ensurePrivateRuntimeDirectory(runtimeDir, 'Claude MCP runtime');
+  const text = claudeSupplementalMcpConfigJson(runtimeServers(mcpServers, runtimeDir));
+  const identity = sha256(text);
+  const directory = path.join(runtimeDir, 'claude-mcp');
+  const filePath = privateContentFile(directory, text, 'Claude MCP runtime');
   return { path: filePath, identity };
 }

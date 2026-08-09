@@ -144,21 +144,27 @@ describe('plugins panel VM inherited gating', () => {
 });
 
 describe('plugins panel VM lifecycle safety', () => {
-  it('resets a draft when the selected target hash changes under it', () => {
+  it('preserves a dirty draft as conflicted when its target hash changes', () => {
     const initial = slot({ baseHash: 'hash-old', managedPluginIds: ['alpha'] });
     const changed = slot({ baseHash: 'hash-new', managedPluginIds: ['beta', 'alpha'] });
     const dirty = togglePluginDraftId(createPluginDraft(initial, [agent(), initial]), initial, plugin({ id: 'beta' }));
 
     const synced = syncPluginDraft(changed, [agent(), changed], dirty);
-    expect(synced).toEqual({
-      targetKey: 'template-slot:workflow:1:writer',
-      mode: 'custom',
-      baseHash: 'hash-new',
-      sourceFingerprint: JSON.stringify({ mode: 'custom', pluginIds: ['beta', 'alpha'] }),
-      pluginIds: ['beta', 'alpha'],
-    });
+    const state = pluginDraftState(changed, synced, false);
+
+    expect(synced).toBe(dirty);
+    expect(state).toEqual({ dirty: true, conflicted: true, canSave: false, canReset: true });
   });
 
+  it('refreshes a clean draft when its target hash changes', () => {
+    const initial = agent({ baseHash: 'hash-old', managedPluginIds: ['alpha'] });
+    const changed = agent({ baseHash: 'hash-new', managedPluginIds: ['beta'] });
+
+    const synced = syncPluginDraft(changed, [changed], createPluginDraft(initial, [initial]));
+
+    expect(synced.baseHash).toBe('hash-new');
+    expect(synced.pluginIds).toEqual(['beta']);
+  });
 });
 
 describe('plugins panel VM inherited dependency sync', () => {

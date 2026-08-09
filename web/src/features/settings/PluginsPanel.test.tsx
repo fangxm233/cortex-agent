@@ -254,6 +254,18 @@ describe('PluginsPanelView target mode state', () => {
 
 });
 
+describe('PluginsPanelView stale draft guard', () => {
+  it('requires reset after a conflicting refetch', () => {
+    const draft = { ...createPluginDraft(agent(), [agent()]), baseHash: 'stale-hash', pluginIds: ['alpha'] };
+    const html = render({ draft });
+
+    expect(html).toContain('data-plugin-conflict');
+    expect(html).toContain('Reset this stale draft');
+    expect(html).toContain('data-action="save" data-disabled="true"');
+    expect(html).toContain('data-action="reset" data-disabled="false"');
+  });
+});
+
 describe('PluginsPanelView target guards', () => {
   it('marks readonly targets as disabled options with reasons', () => {
     const html = render({ selectedKey: 'template-slot:workflow:2:__active__', draft: null });

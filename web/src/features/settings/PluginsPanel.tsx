@@ -71,7 +71,7 @@ type AssignMutation = { mutateAsync: (payload: PluginsAssignArgs) => Promise<unk
 
 interface AckState { key: string | null; payload: PluginsAssignArgs; plugins: UiPluginCatalogEntry[]; }
 interface RefreshPluginsArgs {
-  queryClient: PluginsQueryClient; trpc: PluginsTrpc; key: string | null;
+  queryClient: PluginsQueryClient; trpc: PluginsTrpc; key: string | null; draft: PluginsPanelDraft | null;
   setSelectedKey: Dispatch<SetStateAction<string | null>>; setDraft: Dispatch<SetStateAction<PluginsPanelDraft | null>>;
   setRefreshing: Dispatch<SetStateAction<boolean>>; toast: ToastFn; L: Vocab;
 }
@@ -189,17 +189,14 @@ function targetKey(target: PluginAssignmentTarget | null): string | null {
 }
 
 async function refreshPluginsData(
-  queryClient: PluginsQueryClient,
-  trpc: PluginsTrpc,
-  key: string | null,
-  setSelectedKey: Dispatch<SetStateAction<string | null>>,
-  setDraft: Dispatch<SetStateAction<PluginsPanelDraft | null>>,
+  args: RefreshPluginsArgs,
+  preserveDraft: boolean,
 ): Promise<void> {
-  await queryClient.invalidateQueries(trpc.plugins.list.queryFilter({}));
-  const fresh = await queryClient.fetchQuery<PluginsListReturn>(trpc.plugins.list.queryOptions({}) as never);
-  const next = selectionState(fresh.targets, key, null);
-  setSelectedKey(targetKey(next.target));
-  setDraft(next.draft);
+  await args.queryClient.invalidateQueries(args.trpc.plugins.list.queryFilter({}));
+  const fresh = await args.queryClient.fetchQuery<PluginsListReturn>(args.trpc.plugins.list.queryOptions({}) as never);
+  const next = selectionState(fresh.targets, args.key, preserveDraft ? args.draft : null);
+  args.setSelectedKey(targetKey(next.target));
+  args.setDraft(next.draft);
 }
 
 function toastRefreshFailed(
@@ -210,9 +207,9 @@ function toastRefreshFailed(
   toast({ title: `${L.plToastRefreshFailed}: ${errorMessage(error)}`, tone: 'failed' });
 }
 
-async function tryRefreshPluginsData(args: RefreshPluginsArgs): Promise<boolean> {
+async function tryRefreshPluginsData(args: RefreshPluginsArgs, preserveDraft: boolean): Promise<boolean> {
   try {
-    await refreshPluginsData(args.queryClient, args.trpc, args.key, args.setSelectedKey, args.setDraft);
+    await refreshPluginsData(args, preserveDraft);
     return true;
   } catch (error) {
     toastRefreshFailed(args.toast, args.L, error);
@@ -220,10 +217,10 @@ async function tryRefreshPluginsData(args: RefreshPluginsArgs): Promise<boolean>
   }
 }
 
-async function refreshPluginsWhileBusy(args: RefreshPluginsArgs): Promise<boolean> {
+async function refreshPluginsWhileBusy(args: RefreshPluginsArgs, preserveDraft: boolean): Promise<boolean> {
   args.setRefreshing(true);
   try {
-    return await tryRefreshPluginsData(args);
+    return await tryRefreshPluginsData(args, preserveDraft);
   } finally {
     args.setRefreshing(false);
   }
@@ -235,7 +232,7 @@ async function handleAssignError(args: SubmitPluginsArgs, error: unknown): Promi
     args.toast({ title: `${args.L.plToastFailed}: ${message}`, tone: 'failed' });
     return;
   }
-  const refreshed = await refreshPluginsWhileBusy(args);
+  const refreshed = await refreshPluginsWhileBusy(args, true);
   if (refreshed) args.toast({ title: args.L.plToastConflict, tone: 'failed' });
 }
 
@@ -247,7 +244,7 @@ async function submitPluginsAssign(args: SubmitPluginsArgs): Promise<void> {
     return;
   }
   args.toast({ title: args.L.plToastSaved, tone: 'done' });
-  await refreshPluginsWhileBusy(args);
+  await refreshPluginsWhileBusy(args, false);
 }
 
 function MetaBlock({ label, value }: { label: string; value: string }) {
@@ -499,7 +496,7 @@ function TargetCard(props: {
       <div style={SCROLLER}>
         <TargetSelector selectedKey={props.selectedKey} targets={props.targets} disabled={props.pending || state.dirty} onTargetChange={props.onTargetChange} />
         <TargetNotices target={props.target} targets={props.targets} draft={props.draft} />
-        <TargetModes target={props.target} draft={props.draft} pending={props.pending} onModeChange={props.onModeChange} />
+        {state.conflicted ? <div data-plugin-conflict="" style={NOTICE}>{L.plStaleDraft}</div> : null}<TargetModes target={props.target} draft={props.draft} pending={props.pending} onModeChange={props.onModeChange} />
       </div>
       <TargetFooter state={state} pending={props.pending} onReset={props.onReset} onSave={props.onSave} />
     </SCard>
@@ -697,6 +694,7 @@ function saveHandler(args: {
       key: targetKey(args.current.target),
       queryClient: args.queryClient,
       trpc: args.trpc,
+      draft: args.current.draft,
       setSelectedKey: args.setSelectedKey,
       setDraft: args.setDraft,
       setRefreshing: args.setRefreshing,
@@ -721,6 +719,7 @@ function ackConfirmHandler(args: {
       key: args.ack.key,
       queryClient: args.queryClient,
       trpc: args.trpc,
+      draft: args.draft,
       setSelectedKey: args.setSelectedKey,
       setDraft: args.setDraft,
       setRefreshing: args.setRefreshing,
@@ -778,7 +777,7 @@ function usePluginsPanelProps(
   const pending = assign.isPending || refreshing;
   const selection = usePluginsSelectionState(listQuery.data, pending, selectedKey, draft, setSelectedKey, setDraft);
   usePluginDirtyNotification(selection.currentState.dirty, onDirtyChange);
-  const refresh = { queryClient, trpc, setSelectedKey, setDraft, setRefreshing, toast, L };
+  const refresh = { queryClient, trpc, draft, setSelectedKey, setDraft, setRefreshing, toast, L };
   const handlers = pluginPanelHandlers({ data: listQuery.data, current: selection.current,
     dirty: selection.currentState.dirty, pending, assign, ack,
     setAck, setSelectedKey, setDraft, refresh });

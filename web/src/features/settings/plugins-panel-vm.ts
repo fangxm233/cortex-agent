@@ -21,6 +21,7 @@ export interface PluginsPanelDraft {
 
 export interface PluginDraftState {
   dirty: boolean;
+  conflicted: boolean;
   canSave: boolean;
   canReset: boolean;
 }
@@ -140,6 +141,10 @@ function syncInheritedDraft(
     : syncCustomToInherit(target, targets, draft);
 }
 
+function hasDraftChanges(draft: PluginsPanelDraft): boolean {
+  return draftSourceFingerprint(draft.mode, draft.pluginIds) !== draft.sourceFingerprint;
+}
+
 function syncSourceDraft(
   draft: PluginsPanelDraft,
   fresh: PluginsPanelDraft,
@@ -154,7 +159,7 @@ export function syncPluginDraft(
 ): PluginsPanelDraft {
   const fresh = createPluginDraft(target, targets);
   if (!draft || draft.targetKey !== fresh.targetKey) return fresh;
-  if (draft.baseHash !== fresh.baseHash) return fresh;
+  if (draft.baseHash !== fresh.baseHash) return hasDraftChanges(draft) ? draft : fresh;
   const inherited = syncInheritedDraft(target, targets, draft, fresh);
   return inherited ?? syncSourceDraft(draft, fresh);
 }
@@ -197,10 +202,12 @@ export function pluginDraftState(
   draft: PluginsPanelDraft | null,
   pending: boolean,
 ): PluginDraftState {
-  if (!target || !draft || !isEditableTarget(target)) return { dirty: false, canSave: false, canReset: false };
-  const current = draftSourceFingerprint(draft.mode, draft.pluginIds);
-  const dirty = current !== draft.sourceFingerprint;
-  return { dirty, canSave: dirty && !pending, canReset: dirty && !pending };
+  if (!target || !draft || !isEditableTarget(target)) {
+    return { dirty: false, conflicted: false, canSave: false, canReset: false };
+  }
+  const conflicted = target.baseHash !== draft.baseHash;
+  const dirty = conflicted || hasDraftChanges(draft);
+  return { dirty, conflicted, canSave: dirty && !conflicted && !pending, canReset: dirty && !pending };
 }
 
 export function targetReadOnlyReason(target: PluginAssignmentTarget | null): 'active-agent' | 'shell-binding' | null {

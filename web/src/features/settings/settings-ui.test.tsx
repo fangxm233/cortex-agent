@@ -47,21 +47,20 @@ describe('inert settings toggle', () => {
 
 });
 
-describe('settings button keyboard access', () => {
-  it('activates SButton on Enter and Space while disabled stays inert', () => {
+describe('settings button semantics', () => {
+  it('uses native buttons and exposes disabled state', () => {
     const onClick = vi.fn();
     const renderer = create(<SButton tone="accent" onClick={onClick}>Save</SButton>);
-    const button = renderer.root.findByProps({ role: 'button' });
+    const button = renderer.root.findByType('button');
     const disabled = create(<SButton tone="neutral" disabled onClick={onClick}>Idle</SButton>);
-    const disabledNode = disabled.root.findByType('span');
+    const disabledNode = disabled.root.findByType('button');
 
-    act(() => button.props.onKeyDown(keyEvent('Enter')));
-    act(() => button.props.onKeyDown(keyEvent(' ')));
+    act(() => button.props.onClick());
 
-    expect(button.props.tabIndex).toBe(0);
-    expect(onClick).toHaveBeenCalledTimes(2);
-    expect(disabledNode.props.role).toBeUndefined();
-    expect(disabledNode.props.tabIndex).toBeUndefined();
-    expect(disabledNode.props.onKeyDown).toBeUndefined();
+    expect(button.props.type).toBe('button');
+    expect(button.props.disabled).toBe(false);
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(disabledNode.props.disabled).toBe(true);
+    expect(disabledNode.props['aria-disabled']).toBe(true);
   });
 });

@@ -77,7 +77,7 @@ Linux、macOS 与 Windows 将连接 JSON 保存到操作系统密钥链，即 Se
 
 **Settings → Plugins** 会盘点当前连接的 Cortex server 上安装的 plugins，并把它们分配给 agent definition 或 template slot。每个 entry 显示 portable 或 legacy 格式、manifest metadata、skills、validation issues，以及 portable root `mcp.json` server 的 sanitized summary。Desktop shell 与 browser 渲染同一个 server-backed SPA，因此不会维护另一份本地 catalog（`web/src/features/settings/SettingsModal.tsx:81-112`；`web/src/features/settings/PluginsPanel.tsx:365-800`）。
 
-普通 template slot 可以使用 agent defaults，也可以自定义完整 plugin snapshot。Shell binding 与 `__active__` slot 只读。加入至少含一个有效、已盘点 `mcp.json` server 的 portable plugin 时必须先确认才能保存；assignment edit 尚未保存时，target navigation 与 Settings modal 关闭都会被阻止。该页面只管理 assignment，package directory 的安装、更新与删除由 server administrator 完成。Package 格式、runtime behavior 与 trusted-code boundary 见[技能与插件](./skills-and-plugins.md)。
+普通 template slot 可以使用 agent defaults，也可以自定义完整 plugin snapshot。Shell binding 与 `__active__` slot 只读。加入至少含一个有效、已盘点 `mcp.json` server 的 portable plugin 时必须先确认才能保存；assignment edit 尚未保存时，target navigation 与 Settings modal 关闭都会被阻止。如果编辑期间 server data 发生变化，页面会保留并标记 stale draft，重置后才能继续保存。该页面只管理 assignment，package directory 的安装、更新与删除由 server administrator 完成。Package 格式、runtime behavior 与 trusted-code boundary 见[技能与插件](./skills-and-plugins.md)。
 
 如需切换服务器，打开 daemon 或连接状态，选择 **Disconnect**，然后在连接界面输入新的端点和 token。
 

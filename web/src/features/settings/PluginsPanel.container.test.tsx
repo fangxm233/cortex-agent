@@ -159,7 +159,7 @@ function mountSettings(
 }
 
 function findTextButton(renderer: ReactTestRenderer, text: string) {
-  return renderer.root.findAll(node => node.type === 'span' && node.children.join('') === text)[0];
+  return renderer.root.findAll(node => node.type === 'button' && node.children.join('') === text)[0];
 }
 
 function pluginToggle(renderer: ReactTestRenderer, id: string) {
@@ -303,7 +303,28 @@ describe('PluginsPanel refresh lock', () => {
 
 });
 
-describe('PluginsPanel refresh errors', () => {
+describe('PluginsPanel conflict refresh', () => {
+  it('preserves the dirty draft as stale after an assignment conflict', async () => {
+    const fresh = listData();
+    fresh.targets[0] = { ...fresh.targets[0], baseHash: 'hash-next' } as PluginsListReturn['targets'][number];
+    adapter.assignImpl.mockRejectedValue(new Error('changed on disk'));
+    const queryClient = testQueryClient();
+    const renderer = mount(queryClient);
+
+    await ready(renderer);
+    await click(pluginToggle(renderer, 'beta'));
+    adapter.currentData = fresh;
+    await click(findTextButton(renderer, 'Save'));
+    await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-plugin-conflict': '' })).toHaveLength(1));
+
+    expect(pluginToggle(renderer, 'beta').props['aria-checked']).toBe(true);
+    expect(renderer.root.findByProps({ 'data-action': 'save' }).props['data-disabled']).toBe('true');
+    expect(renderer.root.findByProps({ 'data-action': 'reset' }).props['data-disabled']).toBe('false');
+    await cleanup(renderer, queryClient);
+  });
+});
+
+describe('PluginsPanel conflict refresh errors', () => {
   it('toasts a localized refresh failure when a conflict refresh also fails', async () => {
     adapter.assignImpl.mockRejectedValue(new Error('changed on disk'));
     const queryClient = testQueryClient();

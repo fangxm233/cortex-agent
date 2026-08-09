@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createLogger } from '@core/log.js';
 import { DATA_DIR, PLUGINS_DIR } from '@core/paths.js';
 import type { Backend, McpComposition, McpServerConfig } from '../../agent-adapter/types.js';
 import { atomicWriteSync } from '../../core/atomic-write.js';
@@ -55,9 +56,11 @@ interface PortableSkillDetail {
 interface PortableRuntimeDetail {
   namespace: string;
   skills: PortableSkillDetail[];
-  projectionDir: string;
+  projectionDir: string | null;
   mcpServers: McpServerConfig[];
 }
+
+const log = createLogger('plugin-runtime');
 
 type SelectedRuntimeItem =
   | { kind: 'portable'; id: string }
@@ -180,16 +183,25 @@ function serverConfig(entry: PluginCatalogEntry, server: PluginMcpServer): McpSe
   return { name, type: server.type, url: runtime.url, headers: { ...runtime.headers } };
 }
 
-function portableSkills(selection: PortableSelection): PortableSkillDetail[] {
-  return selection.entry.skills.map((skill) => {
-    const target = realpathIfExists(path.join(selection.root.real, skill.dir)) ?? path.join(selection.root.real, skill.dir);
+function portableSkill(
+  selection: PortableSelection,
+  skill: PluginCatalogEntry['skills'][number],
+): PortableSkillDetail | null {
+  try {
+    const source = path.join(selection.root.real, skill.dir);
+    const target = realpathIfExists(source) ?? source;
     const tree = buildProjectedSkillTree(selection.root.real, target);
-    return {
-      name: skill.name,
-      target,
-      contentSha256: tree.sha256,
-      tree,
-    };
+    return { name: skill.name, target, contentSha256: tree.sha256, tree };
+  } catch (error) {
+    log.warn(`Skipping portable skill '${selection.entry.id}/${skill.name}': ${(error as Error).message}`);
+    return null;
+  }
+}
+
+function portableSkills(selection: PortableSelection): PortableSkillDetail[] {
+  return selection.entry.skills.flatMap((skill) => {
+    const detail = portableSkill(selection, skill);
+    return detail ? [detail] : [];
   });
 }
 
@@ -285,7 +297,6 @@ function secureProjectionTree(target: string): void {
 }
 
 function writeProjection(
-  packageRoot: string,
   tmp: string,
   manifestText: string,
   skills: PortableSkillDetail[],
@@ -293,7 +304,7 @@ function writeProjection(
   secureProjectionTree(tmp);
   atomicWriteSync(path.join(tmp, '.claude-plugin', 'plugin.json'), manifestText);
   for (const skill of skills) {
-    copyProjectedSkillTree(packageRoot, skill.target, skill.tree, path.join(tmp, 'skills', skill.name));
+    copyProjectedSkillTree(skill.target, skill.target, skill.tree, path.join(tmp, 'skills', skill.name));
   }
 }
 
@@ -316,7 +327,7 @@ function createProjectionTarget(
   const tmp = projectionTemp(path.dirname(target), target);
   fs.mkdirSync(tmp, { mode: 0o700 });
   try {
-    writeProjection(selection.root.real, tmp, manifestText, skills);
+    writeProjection(tmp, manifestText, skills);
     fs.renameSync(tmp, target);
     return true;
   } catch (error) {
@@ -332,14 +343,96 @@ function validateReadyProjection(target: string, manifestText: string, skills: P
   return target;
 }
 
-function ensureClaudeProjection(
+function skillSnapshotTarget(
+  parent: string,
+  selection: PortableSelection,
+  skill: PortableSkillDetail,
+): string {
+  const descriptor = safeNativeComposite(
+    [selection.entry.id, skill.name, skill.contentSha256], 'skill',
+  );
+  return path.join(parent, descriptor, skill.name);
+}
+
+function createSkillSnapshot(
+  selection: PortableSelection,
+  skill: PortableSkillDetail,
+  target: string,
+): boolean {
+  const tmp = projectionTemp(path.dirname(target), target);
+  try {
+    copyProjectedSkillTree(selection.root.real, skill.target, skill.tree, tmp);
+    fs.renameSync(tmp, target);
+    return true;
+  } catch (error) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    if (!fs.existsSync(target)) throw error;
+    return false;
+  }
+}
+
+function validateSkillSnapshot(target: string, skill: PortableSkillDetail): string {
+  validateProjectedSkillTree(target, skill.tree);
+  ensurePrivateDirectory(target, 'Portable skill snapshot');
+  return target;
+}
+
+function ensureSkillSnapshot(
+  selection: PortableSelection,
+  skill: PortableSkillDetail,
+  runtimeDir: string,
+  backend: Backend,
+): string {
+  ensurePrivateDirectory(runtimeDir, 'Plugin runtime');
+  const parent = path.join(runtimeDir, backend, 'skill-snapshots');
+  ensurePrivateDirectory(parent, `${backend} skill snapshots`);
+  const target = skillSnapshotTarget(parent, selection, skill);
+  ensurePrivateDirectory(path.dirname(target), `${backend} skill snapshot`);
+  if (fs.existsSync(target)) return validateSkillSnapshot(target, skill);
+  const createdTarget = createSkillSnapshot(selection, skill, target);
+  try {
+    return validateSkillSnapshot(target, skill);
+  } catch (error) {
+    if (createdTarget) fs.rmSync(target, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function materializedSkill(
+  selection: PortableSelection,
+  skill: PortableSkillDetail,
+  runtimeDir: string,
+  backend: Backend,
+): PortableSkillDetail | null {
+  try {
+    return { ...skill, target: ensureSkillSnapshot(selection, skill, runtimeDir, backend) };
+  } catch (error) {
+    log.warn(`Skipping portable skill '${selection.entry.id}/${skill.name}': ${(error as Error).message}`);
+    return null;
+  }
+}
+
+function materializedSkills(
   selection: PortableSelection,
   skills: PortableSkillDetail[],
   runtimeDir: string,
+  backend: Backend,
+): PortableSkillDetail[] {
+  return skills.flatMap((skill) => {
+    const detail = materializedSkill(selection, skill, runtimeDir, backend);
+    return detail ? [detail] : [];
+  });
+}
+
+function ensurePortableProjection(
+  selection: PortableSelection,
+  skills: PortableSkillDetail[],
+  runtimeDir: string,
+  backend: Backend,
 ): string {
   ensurePrivateDirectory(runtimeDir, 'Plugin runtime');
-  const parent = path.join(runtimeDir, 'claude');
-  ensurePrivateDirectory(parent, 'Claude projection');
+  const parent = path.join(runtimeDir, backend);
+  ensurePrivateDirectory(parent, `${backend} plugin projection`);
   const manifestText = projectionManifest(selection.entry);
   const target = projectionTarget(parent, selection, skills);
   if (fs.existsSync(target)) return validateReadyProjection(target, manifestText, skills);
@@ -352,18 +445,52 @@ function ensureClaudeProjection(
   }
 }
 
+function optionalProjection(
+  selection: PortableSelection,
+  skills: PortableSkillDetail[],
+  runtimeDir: string,
+  backend: Backend,
+): string | null {
+  if (skills.length === 0) return null;
+  try {
+    return ensurePortableProjection(selection, skills, runtimeDir, backend);
+  } catch (error) {
+    log.warn(`Skipping portable skills for '${selection.entry.id}': ${(error as Error).message}`);
+    skills.splice(0);
+    return null;
+  }
+}
+
+function optionalServerConfig(
+  entry: PluginCatalogEntry,
+  server: PluginMcpServer,
+): McpServerConfig[] {
+  try {
+    return [serverConfig(entry, server)];
+  } catch (error) {
+    log.warn(`Skipping portable MCP '${entry.id}/${server.name}': ${(error as Error).message}`);
+    return [];
+  }
+}
+
 function portableRuntimeDetail(
   selection: PortableSelection,
   backend: Backend,
   runtimeDir: string,
   includePortableMcp: boolean,
 ): PortableRuntimeDetail {
-  const skills = portableSkills(selection);
+  const skills = materializedSkills(
+    selection, portableSkills(selection), runtimeDir, backend,
+  );
   return {
     namespace: portableNamespace(selection.entry),
     skills,
-    projectionDir: backend === 'claude' ? ensureClaudeProjection(selection, skills, runtimeDir) : '',
-    mcpServers: includePortableMcp ? selection.entry.mcp.servers.map((server) => serverConfig(selection.entry, server)) : [],
+    projectionDir: backend === 'claude'
+      ? optionalProjection(selection, skills, runtimeDir, backend)
+      : null,
+    mcpServers: includePortableMcp
+      ? selection.entry.mcp.servers.flatMap((server) => optionalServerConfig(selection.entry, server))
+      : [],
   };
 }
 
@@ -500,8 +627,8 @@ interface RuntimePaths {
 }
 
 function addPortablePaths(detail: PortableRuntimeDetail, backend: Backend, paths: RuntimePaths): void {
-  if (backend === 'claude') paths.pluginDirs.push(detail.projectionDir);
-  else paths.pluginSkillDirs.push(...detail.skills.map(skill => skill.target));
+  if (backend === 'claude' && detail.projectionDir) paths.pluginDirs.push(detail.projectionDir);
+  if (backend === 'pi') paths.pluginSkillDirs.push(...detail.skills.map((skill) => skill.target));
   paths.mcpServers.push(...detail.mcpServers);
 }
 

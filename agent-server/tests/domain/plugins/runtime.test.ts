@@ -410,23 +410,22 @@ test('Claude projection copies validated skill trees, preserves executable files
   assert.equal(fs.statSync(path.join(projection, 'skills', 'valid-skill', 'bin', 'run.sh')).mode & 0o111, 0o111);
 });
 
-test('fails closed when a pre-existing Claude projection manifest bytes do not match', () => {
+test('isolates a tampered Claude projection while preserving portable MCP', () => {
   const harness = makeHarness();
   portablePlugin(harness, {
-    id: 'portable-manifest-race',
-    version: '1.0.0',
+    id: 'portable-manifest-race', version: '1.0.0',
     skills: [{ name: 'race-skill' }],
+    mcpServers: { remote: { type: 'sse', url: 'https://safe.example/sse' } },
   });
-
   const first = resolveRuntime(harness, ['plugins/portable-manifest-race'], { backend: 'claude' });
   const projection = first.pluginDirs?.[0];
   assert.ok(projection, 'expected a Claude projection');
   fs.writeFileSync(path.join(projection, '.claude-plugin', 'plugin.json'), '{"name":"tampered"}\n');
 
-  assert.throws(
-    () => resolveRuntime(harness, ['plugins/portable-manifest-race'], { backend: 'claude' }),
-    /projection/i,
-  );
+  const second = resolveRuntime(harness, ['plugins/portable-manifest-race'], { backend: 'claude' });
+
+  assert.equal(second.pluginDirs, undefined);
+  assert.equal(second.mcpServers?.length, 1);
 });
 
 test('removes only a newly created Claude projection target when post-rename validation fails', () => {
@@ -437,14 +436,13 @@ test('removes only a newly created Claude projection target when post-rename val
   fs.renameSync = ((from: fs.PathLike, to: fs.PathLike) => {
     fsRenameSync(from, to);
     const target = String(to);
+    if (target.includes('skill-snapshots')) return;
     createdTargets.push(target);
     fs.writeFileSync(path.join(target, '.mcp.json'), '{}\n');
   }) as typeof fs.renameSync;
   try {
-    assert.throws(
-      () => resolveRuntime(harness, ['plugins/portable-post-rename'], { backend: 'claude' }),
-      /projection/i,
-    );
+    const resolved = resolveRuntime(harness, ['plugins/portable-post-rename'], { backend: 'claude' });
+    assert.equal(resolved.pluginDirs, undefined);
   } finally {
     fs.renameSync = fsRenameSync;
   }
@@ -465,10 +463,8 @@ test('fails closed when a pre-existing Claude projection skill content is tamper
   assert.ok(projection, 'expected a Claude projection');
   fs.writeFileSync(path.join(projection, 'skills', 'race-skill', 'asset.txt'), 'tampered\n');
 
-  assert.throws(
-    () => resolveRuntime(harness, ['plugins/portable-symlink-race'], { backend: 'claude' }),
-    /projection/i,
-  );
+  const second = resolveRuntime(harness, ['plugins/portable-symlink-race'], { backend: 'claude' });
+  assert.equal(second.pluginDirs, undefined);
   assert.equal(fs.existsSync(projection), true);
 });
 
@@ -488,9 +484,10 @@ test('returns backend-specific skill and plugin paths for portable, legacy, and 
     fs.realpathSync(path.join(harness.pluginsDir, 'legacy-backend')),
     fs.realpathSync(unmanaged),
   ]);
-  assert.deepEqual(pi.pluginSkillDirs, [
-    fs.realpathSync(path.join(harness.physicalPluginsDir, 'portable-backend', 'skills', 'portable-skill')),
-  ]);
+  assert.equal(pi.pluginSkillDirs?.length, 1);
+  assert.ok(pi.pluginSkillDirs?.[0].includes(path.join('plugin-runtime', 'pi')));
+  assert.equal(fs.lstatSync(pi.pluginSkillDirs?.[0] ?? '').isSymbolicLink(), false);
+  assert.equal(fs.readFileSync(path.join(pi.pluginSkillDirs?.[0] ?? '', 'SKILL.md'), 'utf8'), skillText('portable-skill'));
   assert.deepEqual(pi.pluginDirs, [
     fs.realpathSync(path.join(harness.pluginsDir, 'legacy-backend')),
     fs.realpathSync(unmanaged),
@@ -593,22 +590,94 @@ test('copyProjectedSkillTree rechecks each source realpath before read', () => {
   assert.equal(fs.existsSync(path.join(targetRoot, 'asset.txt')), false);
 });
 
-test('fails closed when a source skill tree contains a symlink escape', () => {
+test('copyProjectedSkillTree rejects a file swapped after source realpath resolution', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'portable-skill-open-race-'));
+  cleanup.push(root);
+  const packageRoot = path.join(root, 'package');
+  const skillRoot = path.join(packageRoot, 'skills', 'race-skill');
+  const source = path.join(skillRoot, 'asset.txt');
+  const outside = path.join(root, 'outside.txt');
+  const targetRoot = path.join(root, 'target');
+  fs.mkdirSync(skillRoot, { recursive: true });
+  fs.writeFileSync(source, 'inside\n');
+  fs.writeFileSync(outside, 'outside\n');
+  const tree = buildProjectedSkillTree(packageRoot, skillRoot);
+  const openSync = fs.openSync;
+  fs.openSync = ((filePath: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode) => {
+    if (String(filePath) === source) {
+      fs.rmSync(source);
+      fs.symlinkSync(outside, source, 'file');
+    }
+    return openSync(filePath, flags, mode);
+  }) as typeof fs.openSync;
+  try {
+    assert.throws(() => copyProjectedSkillTree(packageRoot, skillRoot, tree, targetRoot));
+    assert.equal(fs.existsSync(path.join(targetRoot, 'asset.txt')), false);
+  } finally {
+    fs.openSync = openSync;
+  }
+});
+
+test('isolates an escaping skill tree from valid MCP in the same plugin', () => {
   const harness = makeHarness();
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'portable-skill-escape-'));
   cleanup.push(outside);
   portablePlugin(harness, {
     id: 'portable-escape',
-    skills: [{
-      name: 'escape-skill',
-      symlink: { path: 'bin/escape', target: outside, type: 'dir' },
-    }],
+    skills: [{ name: 'escape-skill', symlink: { path: 'bin/escape', target: outside, type: 'dir' } }],
+    mcpServers: { remote: { type: 'sse', url: 'https://safe.example/sse' } },
   });
 
-  assert.throws(
-    () => resolveRuntime(harness, ['plugins/portable-escape'], { backend: 'claude' }),
-    /escapes plugin root|projection/i,
-  );
+  const resolved = resolveRuntime(harness, ['plugins/portable-escape'], { backend: 'claude' });
+
+  assert.equal(resolved.pluginDirs, undefined);
+  assert.equal(resolved.mcpServers?.length, 1);
+});
+
+test('isolates a failed skill snapshot from a valid sibling skill and MCP', () => {
+  const harness = makeHarness();
+  portablePlugin(harness, {
+    id: 'portable-skill-sibling',
+    skills: [{ name: 'bad-skill' }, { name: 'good-skill' }],
+    mcpServers: { remote: { type: 'sse', url: 'https://safe.example/sse' } },
+  });
+  const first = resolveRuntime(harness, ['plugins/portable-skill-sibling'], { backend: 'pi' });
+  const bad = first.pluginSkillDirs?.find((dir) => fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8').includes('bad-skill'));
+  assert.ok(bad);
+  fs.writeFileSync(path.join(bad, 'SKILL.md'), 'tampered\n');
+
+  const second = resolveRuntime(harness, ['plugins/portable-skill-sibling'], { backend: 'pi' });
+
+  assert.equal(second.pluginSkillDirs?.length, 1);
+  assert.match(fs.readFileSync(path.join(second.pluginSkillDirs?.[0] ?? '', 'SKILL.md'), 'utf8'), /good-skill/);
+  assert.equal(second.mcpServers?.length, 1);
+});
+
+test('isolates shared plugin-data failure from remote MCP and skills', () => {
+  const harness = makeHarness();
+  portablePlugin(harness, {
+    id: 'portable-data-failure', skills: [{ name: 'safe-skill' }],
+    mcpServers: {
+      localA: { type: 'stdio', command: 'node' },
+      localB: { type: 'stdio', command: 'node' },
+      remote: { type: 'sse', url: 'https://safe.example/sse' },
+    },
+  });
+  const selectedData = path.join(harness.dataDir, 'data', 'plugin-data', 'portable-data-failure');
+  const mkdirSync = fs.mkdirSync;
+  fs.mkdirSync = ((target: fs.PathLike, options?: fs.MakeDirectoryOptions) => {
+    if (path.resolve(String(target)) === selectedData) throw new Error('data denied');
+    return mkdirSync(target, options as never);
+  }) as typeof fs.mkdirSync;
+  try {
+    const resolved = resolveRuntime(harness, ['plugins/portable-data-failure'], { backend: 'pi' });
+    assert.deepEqual(resolved.mcpServers?.map((server) => server.name), [
+      safeNativeComposite(['portable-data-failure', 'remote'], 'plugin'),
+    ]);
+    assert.equal(resolved.pluginSkillDirs?.length, 1);
+  } finally {
+    fs.mkdirSync = mkdirSync;
+  }
 });
 
 test('fails closed when a pre-existing Claude projection contains unknown root entries', () => {
@@ -619,10 +688,8 @@ test('fails closed when a pre-existing Claude projection contains unknown root e
   assert.ok(projection);
   fs.writeFileSync(path.join(projection, '.mcp.json'), '{}\n');
 
-  assert.throws(
-    () => resolveRuntime(harness, ['plugins/portable-root-tamper'], { backend: 'claude' }),
-    /projection/i,
-  );
+  const second = resolveRuntime(harness, ['plugins/portable-root-tamper'], { backend: 'claude' });
+  assert.equal(second.pluginDirs, undefined);
 });
 
 test('rejects symlinked runtimeDir ancestry before writing a Claude projection', () => {
@@ -635,17 +702,15 @@ test('rejects symlinked runtimeDir ancestry before writing a Claude projection',
   fs.mkdirSync(physical, { recursive: true });
   fs.symlinkSync(physical, alias, 'dir');
 
-  assert.throws(
-    () => resolvePluginRuntime({
-      backend: 'claude',
-      selectedPluginDirs: ['plugins/portable-symlinked-runtime'],
-      mcpComposition: 'direct',
-      dataDir: harness.dataDir,
-      pluginsDir: harness.pluginsDir,
-      runtimeDir: path.join(alias, 'plugin-runtime'),
-    }),
-    /runtime|projection/i,
-  );
+  const resolved = resolvePluginRuntime({
+    backend: 'claude',
+    selectedPluginDirs: ['plugins/portable-symlinked-runtime'],
+    mcpComposition: 'direct',
+    dataDir: harness.dataDir,
+    pluginsDir: harness.pluginsDir,
+    runtimeDir: path.join(alias, 'plugin-runtime'),
+  });
+  assert.equal(resolved.pluginDirs, undefined);
   assert.equal(fs.existsSync(path.join(physical, 'plugin-runtime', 'claude')), false);
 });
 
@@ -670,9 +735,11 @@ test('Claude projection temp and final basenames stay bounded for long plugin id
     fs.renameSync = renameSync;
   }
 
-  assert.equal(seen.length, 1);
-  assert.ok(seen[0].from.length <= 64, seen[0].from);
-  assert.ok(seen[0].to.length <= 64, seen[0].to);
+  assert.equal(seen.length, 2);
+  for (const item of seen) {
+    assert.ok(item.from.length <= 64, item.from);
+    assert.ok(item.to.length <= 64, item.to);
+  }
 });
 
 test('fails closed when a pre-existing Claude projection manifest directory contains extra entries', () => {
@@ -683,10 +750,8 @@ test('fails closed when a pre-existing Claude projection manifest directory cont
   assert.ok(projection);
   fs.mkdirSync(path.join(projection, '.claude-plugin', 'hooks'));
 
-  assert.throws(
-    () => resolveRuntime(harness, ['plugins/portable-manifest-extra'], { backend: 'claude' }),
-    /projection/i,
-  );
+  const second = resolveRuntime(harness, ['plugins/portable-manifest-extra'], { backend: 'claude' });
+  assert.equal(second.pluginDirs, undefined);
 });
 
 test('suppresses portable MCP for restricted compositions only', () => {
