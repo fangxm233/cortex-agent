@@ -184,36 +184,31 @@ MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-ser
 
 2. **共享文件访问** — 调度、费用和执行工具直接读取和写入 `~/.cortex/data/` 中的共享数据文件（schedules.json、costs.jsonl、executions.json），使用与主服务器进程相同的仓库层。
 
-## 添加第三方 MCP 服务器 {#adding-a-third-party-mcp-server}
+## 插件提供的 MCP servers {#plugin-provided-mcp-servers}
 
-要添加第三方 MCP 服务器（例如数据库连接器、网络搜索工具或自定义研究工具），将其添加到 `~/.cortex/config/mcp-config.json`。如果线程智能体也应拥有它，请把它加入某个线程组合配置 builder，而不是只加入直接会话配置：
+按 target 分配的第三方 MCP 应放入 `$CORTEX_HOME/plugins/<plugin-id>/` 下的 portable Agent Plugins package。Package 在根目录 `mcp.json` 声明 servers，再由 **Settings → Plugins** 分配给 agent 或 template slot。Schema 支持 `stdio`、`streamable-http` 与 legacy `sse`；完整 package 与 trust model 见[技能与插件](./skills-and-plugins.md#portable-mcp-servers)。
 
-```json
-{
-  "mcpServers": {
-    "cortex-core": { "command": "node", "args": ["..."], "cwd": "..." },
-    "cortex-tasks": { "command": "node", "args": ["..."], "cwd": "..." },
-    "cortex-ext": { "command": "node", "args": ["..."], "cwd": "..." },
-    "my-custom-server": {
-      "command": "python",
-      "args": ["/home/user/my-mcp-server/server.py"],
-      "env": { "API_KEY": "${MY_API_KEY}" }
-    }
-  }
-}
-```
+Legacy plugin directory 仍会原样传给 backend。Claude 可以从该目录加载 Claude-native root `.mcp.json`，但 Cortex 不会 inventory、summarize 或 acknowledgment-gate 这些 native servers，PI 也不会获得它们。本节保证只适用于 portable root `mcp.json`（`agent-server/src/domain/plugins/runtime.ts:427-434`；`agent-server/src/agent-adapter/claude/spawn-args.ts:224-238`）。
 
-**重要**：配置文件在每次服务器重启时重新生成。要持久化自定义 MCP 服务器条目，请修改 `agent-server/src/core/config-generator.ts` 中对应的 builder，而不是直接编辑生成的 JSON。
+Cortex 在 spawn 时统一校验和规范化 package。Claude 获得叠加在常规 Cortex config files 之后的 private supplemental MCP config；PI 获得由 MCP bridge 消费的 private content-addressed config。PI 按 server 隔离 connection、tool registration、retry 与 shutdown，因此一个 plugin server 失败不会移除 bundled Cortex tools 或健康 sibling servers（`agent-server/src/agent-adapter/claude/mcp-config.ts:35-119`；`agent-server/src/agent-adapter/pi/mcp-config.ts:32-256`；`agent-server/src/agent-adapter/pi/mcp-bridge.ts:303-504`）。
 
-类型系统已经通过 `AgentSpawnConfig.mcpServers` 字段（每后端 `McpServerConfig` 数组）支持第三方 MCP 服务器，但截至当前代码库，此字段尚未被适配器消费。所有 MCP 配置仍然通过 `--mcp-config` CLI 标志流动。
+Resolved MCP composition 为 `none` 或 `benchmark-thread-run` 时 portable MCP 会被省略；受限 PI `Agent` subagent 也不会获得它。普通顶层 Claude 与 PI session 只有在分配了相应 plugin 时才会加载（`agent-server/src/domain/plugins/runtime.ts:117-119,529-559`；`agent-server/src/agent-adapter/pi/adapter.ts:901-918`；`agent-server/src/agent-adapter/pi/mcp-bridge.ts:220-244`）。
+
+Plugin catalog 与 Settings API 只公开 sanitized summary。Stdio summary 包含 executable basename、argument count 与 environment key names；remote summary 包含 origin 与 header names。Environment values、完整 remote URL 与 header values 都留在 server 侧（`agent-server/src/domain/plugins/mcp.ts:102-216`；`agent-server/src/domain/ui-service/plugins-shared.ts:98-134`）。
+
+## Global custom MCP servers {#global-custom-mcp-servers}
+
+`$CORTEX_HOME/config/mcp-config*.json` 描述 Cortex 的 global 与 session-composed MCP layers。这些文件在 server startup 时重新生成，因此直接修改只是临时的。要持久加入 global server，必须在 `agent-server/src/core/config-generator.ts` 中显式修改 builder 与 privilege composition；它不属于 assignment-scoped plugin。
+
+这种区分把 global Cortex privileges 与 administrator-installed plugin capabilities 分开。Server 应随 agent 或 template assignment 加载时使用 portable plugin；只有所有 eligible session composition 都应获得该 server 时才修改 global builders。
 
 ## 权限模型 {#permission-model}
 
-MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信任边界。Cortex 应用以下控制：
+MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信任边界。Installed plugin 属于 administrator-trusted code。对 portable root `mcp.json`，assignment confirmation 会显式呈现新增 capability，但它不是 sandbox，也不是独立 authorization boundary；legacy Claude-native MCP configuration 不经过该 confirmation。Cortex 应用以下控制：
 
 1. **服务器级可用性** — 后端工具 allowlist 无法逐个过滤 MCP 工具，因此权限按服务器拆分。顶层直接会话和线程会话都获得 cortex-manager-qa；只有线程会话获得 cortex-thread。PI `Agent` 子代理只获得 cortex-core，PI 顶层会话继续保留 cortex-ext。
 
-2. **Claude Code 的第三方 MCP 被禁用** — `~/.cortex/.claude/settings.json` 中的设置 `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` 阻止 Claude 从其自身的目录自动发现 MCP 服务器。Cortex 通过自己的配置文件独占管理 MCP 服务器。
+2. **Claude account-level MCP discovery 被禁用** — `~/.cortex/.claude/settings.json` 中的 `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` 阻止 account-level auto-discovery，但不会禁用显式分配的 legacy plugin directory 内 Claude-native `.mcp.json`。Cortex 通过自己的 config layers 管理 bundled 与 portable MCP，同时保留该 legacy backend behavior。
 
 3. **绕过权限** — Claude Code 以 `--dangerously-skip-permissions --permission-mode bypassPermissions` 生成，意味着它不会对每个 MCP 工具调用提示。访问控制在 MCP 工具实现级别和通过 PreToolUse 钩子系统进行。
 
@@ -239,6 +234,8 @@ MCP 服务器进程接收 agent server 环境变量的一个子集：
 | `CORTEX_CALLBACK_SOURCE` | 可选回调元数据 | cortex-ext |
 | `CORTEX_SCHEDULE_TASK_ID` | 可选调度任务 ID | cortex-ext |
 | `ANTHROPIC_BASE_URL` | 可选 API 基础 URL 覆盖 | 模型路由 |
+| `PLUGIN_ROOT` | 解析后的 selected plugin root | Portable stdio plugin servers |
+| `PLUGIN_DATA` | Private persistent per-plugin data directory | Portable stdio plugin servers |
 
 ## 安全考量 {#security-considerations}
 

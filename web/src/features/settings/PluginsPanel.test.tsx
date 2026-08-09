@@ -283,6 +283,7 @@ describe('PluginsPanelView MCP modal and empty states', () => {
 
     expect(modalProps[0]).toMatchObject({ open: true, layer: 'nested' });
     expect(html).toContain('Acknowledge MCP access');
+    expect(html).toContain('run local code or send tool data over the network');
     expect(html).toContain('./bin/private-server');
     expect(html).toContain('Authorization');
     expect(html).not.toContain('Bearer secret');
