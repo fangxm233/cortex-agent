@@ -19,10 +19,10 @@ BACKEND_CLI_BINARIES = {"claude": "claude", "pi": "pi"}
 # owns the proof. Empty is not "everything is allowed": an undeclared backend has no CLI binary
 # either, so it still refuses, with the generic wording below.
 BACKEND_LIFTING_GATES: dict[str, str] = {}
-# Every declared Cortex mode has a launcher-owned projection. Manager execution remains a later
-# runtime concern; its S1 bootstrap carries the frozen arm and installed direct-parent surface.
-MODE_LIFTING_GATES: dict[str, str] = {}
-COMPOSABLE_MODES = frozenset({"direct", "coder-review", "manager"})
+# A mode composes once the gate that owns its role set has authored one; until then it names that
+# gate. `coder-review` left this table when its two variant role sets landed; `manager` has not.
+MODE_LIFTING_GATES = {"manager": "gate 6"}
+COMPOSABLE_MODES = frozenset({"direct", "coder-review"})
 CODER_REVIEW_MODE = "coder-review"
 CODER_REVIEW_VARIANTS = frozenset({"audit-retry", "reviewer-fix"})
 

@@ -20,7 +20,11 @@ from cortex_bench_harness.launcher.arm_resolution import (
     parse_trial_seed,
     write_arm_resolution,
 )
-from cortex_bench_harness.launcher.arms import BackendUnsupportedForKindError, select_arm
+from cortex_bench_harness.launcher.arms import (
+    ArmCompositionUnsupportedError,
+    BackendUnsupportedForKindError,
+    select_arm,
+)
 
 DIGEST = f"sha256:{'a' * 64}"
 BASE_ARM: dict[str, object] = {
@@ -276,35 +280,16 @@ def test_parse_trial_seed_carries_the_optional_host_authorisations() -> None:
     assert document["pi_benchmark_capability_proven"] is False
 
 
-@pytest.mark.parametrize("ask_manager", [False, True])
-def test_composition_emits_manager_bootstrap_shape(ask_manager: bool) -> None:
+def test_composition_fails_closed_for_every_other_combination() -> None:
+    # coder-review composes now that its variant role sets exist; the manager mode does not, and
+    # its refusal still names the gate that owes it a role set.
     manager = copy.deepcopy(seed_document())
-    manager["arm"] = {
-        **BASE_ARM,
-        "orchestration": {"mode": "manager", "ask_manager": ask_manager},
-        "limits": {
-            **BASE_ARM["limits"],  # type: ignore[dict-item]
-            "max_thread_starts": 1,
-            "max_parent_questions": 2 if ask_manager else 0,
-            "max_task_depth": 2,
-            "max_tasks": 8,
-        },
-    }
-
-    document = compose_arm_resolution(parse_trial_seed(manager), FACTS)
-
-    assert document["arm"]["orchestration"] == {  # type: ignore[index]
-        "mode": "manager", "ask_manager": ask_manager,
-    }
-    assert list(document["roles"]) == ["parent"]  # type: ignore[arg-type]
-    assert document["thread_templates"] == {}
-    assert document["thread_agents"] == {}
-
-
-def test_composition_refuses_an_undeclared_backend() -> None:
+    manager["arm"] = {**BASE_ARM, "orchestration": {"mode": "manager", "ask_manager": False}}
     undeclared_backend = copy.deepcopy(seed_document())
     undeclared_backend["arm"] = {**BASE_ARM, "backend": "unknown-backend"}
 
+    with pytest.raises(ArmCompositionUnsupportedError, match="gate 6"):
+        compose_arm_resolution(parse_trial_seed(manager), FACTS)
     with pytest.raises(BackendUnsupportedForKindError, match="its owning gate"):
         compose_arm_resolution(parse_trial_seed(undeclared_backend), FACTS)
 

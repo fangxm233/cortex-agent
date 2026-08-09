@@ -15,6 +15,7 @@ from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.arms import (
     COMPOSABLE_MODES,
     MODE_LIFTING_GATES,
+    ArmCompositionUnsupportedError,
     BackendUnsupportedForKindError,
     ImageDigestUnpinnedError,
     backend_cli_binary,
@@ -214,34 +215,20 @@ def build_unsupported(tmp_path: Path, arm: dict[str, object]) -> AgentConfig:
     )
 
 
-@pytest.mark.parametrize("ask_manager", [False, True])
-@pytest.mark.parametrize("backend", ["claude", "pi"])
-def test_manager_bootstrap_arms_compose_on_both_backends(
-    tmp_path: Path, backend: str, ask_manager: bool,
+@pytest.mark.parametrize(("mode", "gate"), [("manager", "gate 6")])
+def test_unimplemented_modes_refuse_on_the_host(
+    tmp_path: Path, mode: str, gate: str,
 ) -> None:
     arm = copy.deepcopy(cortex_arm())
-    arm["name"] = f"cortex-{backend}-manager-qa-{'on' if ask_manager else 'off'}"
-    arm["backend"] = backend
-    arm["orchestration"] = {"mode": "manager", "ask_manager": ask_manager}
-    arm["limits"] = {
-        **arm["limits"],
-        "max_thread_starts": 1,
-        "max_parent_questions": 2 if ask_manager else 0,
-        "max_task_depth": 2,
-        "max_tasks": 8,
-    }
-    seed = {**trial_seed(), "arm": copy.deepcopy(arm)}
+    arm["name"] = f"cortex-{mode}"
+    arm["orchestration"] = {"mode": mode, "ask_manager": False}
 
-    config = build_agent_config(
-        arm, cli_version="2026.8.3", artifact_dir=tmp_path / "artifacts",
-        manifest=manifest(tmp_path), trial_seed=seed,
-    )
+    with pytest.raises(ArmCompositionUnsupportedError) as error:
+        build_unsupported(tmp_path, arm)
 
-    assert isinstance(config, AgentConfig)
-    assert config.kwargs["trial_seed"]["arm"]["orchestration"] == {
-        "mode": "manager", "ask_manager": ask_manager,
-    }
-    assert backend_cli_binary(arm) == backend
+    assert error.value.reason == "arm_composition_unsupported"
+    for expected in (f"cortex-{mode}", "claude", mode, gate):
+        assert expected in str(error.value)
 
 
 # Design section 3.1(h.5) row 2 lifts at this gate, and RB6 makes the lift's BOUNDS a done-when
@@ -269,9 +256,12 @@ def test_coder_review_arms_compose_on_both_backends(
     assert backend_cli_binary(arm) == backend
 
 
-def test_every_declared_cortex_mode_is_composable() -> None:
-    assert MODE_LIFTING_GATES == {}
-    assert COMPOSABLE_MODES == frozenset({"direct", "coder-review", "manager"})
+def test_the_manager_mode_gate_is_the_only_one_left_standing() -> None:
+    # RB6, read off the table rather than off a message: coder-review no longer names a lifting
+    # gate because it no longer refuses, and gate 6 keeps its entry.
+    assert MODE_LIFTING_GATES == {"manager": "gate 6"}
+    assert "coder-review" in COMPOSABLE_MODES
+    assert "manager" not in COMPOSABLE_MODES
 
 
 def test_vendor_baselines_are_unaffected_by_the_mode_lift(tmp_path: Path) -> None:
