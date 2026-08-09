@@ -16,6 +16,7 @@ and consumed by orchestration and the platform surfaces.
 | memory/ | subdir | Knowledge indexes and session context sources |
 | monitor/ | subdir | Host resource watch and system notices |
 | pi-providers/ | subdir | User-defined PI providers and their gateway routes |
+| plugins/ | subdir | Read-only inventory of installed plugin packages |
 | projects/ | subdir | Registry of projects that scope all work |
 | remote/ | subdir | Links to cortex-client daemons on devices |
 | scheduling/ | subdir | Recurring and one-off scheduled task runs |
