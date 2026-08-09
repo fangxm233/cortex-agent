@@ -1,6 +1,6 @@
-# input:  dynamic trial helpers, pinned image, bundle, fake Claude
-# output: blocking thread, child merge, mutation, and scan assertions
-# pos:    Container proof for the genuine dynamic Cortex run path
+# input:  dynamic trial helpers, fake Claude, Docker opt-in gate
+# output: gated thread, child merge, mutation, and scan assertions
+# pos:    Opt-in container proof for the real Cortex run path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
@@ -15,12 +15,15 @@ import pytest
 
 import stub_trial
 from cortex_bench_harness.launcher.arm_resolution import ContainerFacts
+from docker_gate import docker_opt_in
 from stub_trial import (
     TrialEvidence,
     result_surface_files,
     run_real_agent_trial,
     write_workspace_diff,
 )
+
+pytestmark = docker_opt_in
 
 EXPECTED_USAGE = {
     "input_tokens": 11,
