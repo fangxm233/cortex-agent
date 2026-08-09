@@ -1,5 +1,5 @@
 // input:  Vitest, assertions, temporary config files
-// output: Config and prompt migration regressions
+// output: Config, prompt, and version-clock migration regressions
 // pos:    Regression tests for versioned file migrations
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -553,8 +553,12 @@ test('runMigrations - text: updates docs and PI roles in system prompt files', a
   const idx = _testIdx++;
   const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
   const promptsDir = path.join(dataDir, 'prompts', 'systemPrompts');
-  const promptNames = ['direct', 'worker', 'coder'];
-  for (const promptName of promptNames) {
+  const promptVersions = [
+    ['direct', '2026.6.24'],
+    ['worker', '2026.8.2'],
+    ['coder', '2026.6.24'],
+  ] as const;
+  for (const [promptName] of promptVersions) {
     await writeText(
       path.join(promptsDir, `${promptName}.md`),
       `Custom ${promptName}\nUse subagent_type=Explore.\nTail ${promptName}\n`,
@@ -564,14 +568,14 @@ test('runMigrations - text: updates docs and PI roles in system prompt files', a
   await runMigrations({ dataDir, defaultsDir, storeDir });
 
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  for (const promptName of promptNames) {
+  for (const [promptName, expectedVersion] of promptVersions) {
     const out = await readText(path.join(promptsDir, `${promptName}.md`));
     assert.ok(out.startsWith(`Custom ${promptName}`), 'leading customization preserved');
     assert.ok(out.includes(`Tail ${promptName}`), 'trailing customization preserved');
     assert.ok(out.includes('subagent_type=explore'), 'PI role normalized');
     assert.ok(!out.includes('subagent_type=Explore'), 'stale PI role removed');
     assert.ok(out.includes('https://fangxm233.github.io/cortex-agent/'), 'docs URL injected');
-    assert.equal(versions[`prompts/systemPrompts/${promptName}.md`], '2026.6.24');
+    assert.equal(versions[`prompts/systemPrompts/${promptName}.md`], expectedVersion);
   }
 });
 
