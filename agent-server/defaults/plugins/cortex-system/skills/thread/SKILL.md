@@ -105,7 +105,7 @@ The signal is cleared after consumption so an intent fires exactly once; the web
 | Mechanism | Who triggers it | Effect |
 |-----------|-----------------|--------|
 | `[APPROVED]` / `[IMPL-APPROVED]` | Reviewer agent (artifact text) | Convergence marker — reviewer approves, transition to next agent |
-| `[REVISED]` | Doer agent (artifact text, after retry) | Signals retry complete; `output_not_contains` transition terminates loop |
+| `[REVISED]` | Doer agent (artifact text, after retry) | Signals retry complete; `output_contains` starts the second review |
 | `thread_abort` tool | Any agent | Global abort — thread enters `aborted` terminal state, overrides all transitions |
 | `!thread cancel` | User (Slack command) | Thread enters `cancelled` terminal state |
 
@@ -275,7 +275,7 @@ Shell definition (`shells/worker-review.json` — the shipped generic produce-th
   "transitions": [
     { "from": "{worker}:{worker.entryStage}", "to": "{reviewer}", "condition": { "type": "always" } },
     { "from": "{reviewer}", "to": "{worker}:retry", "condition": { "type": "convergence", "marker": "[APPROVED]", "maxIterations": 1 } },
-    { "from": "{worker}:retry", "to": "{reviewer}", "condition": { "type": "output_not_contains", "pattern": "\\[REVISED\\]" } }
+    { "from": "{worker}:retry", "to": "{reviewer}", "condition": { "type": "output_contains", "pattern": "\\[REVISED\\]" } }
   ],
   "entryAgent": "{worker}",
   "entryStage": "{worker.entryStage}",

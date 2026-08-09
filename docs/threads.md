@@ -194,7 +194,7 @@ For example, the shipped `worker-review` shell (`shells/worker-review.json`) —
   "transitions": [
     { "from": "{worker}:{worker.entryStage}", "to": "{reviewer}", "condition": { "type": "always" } },
     { "from": "{reviewer}", "to": "{worker}:retry", "condition": { "type": "convergence", "marker": "[APPROVED]", "maxIterations": 1 } },
-    { "from": "{worker}:retry", "to": "{reviewer}", "condition": { "type": "output_not_contains", "pattern": "\\[REVISED\\]" } }
+    { "from": "{worker}:retry", "to": "{reviewer}", "condition": { "type": "output_contains", "pattern": "\\[REVISED\\]" } }
   ],
   "entryAgent": "{worker}",
   "entryStage": "{worker.entryStage}",

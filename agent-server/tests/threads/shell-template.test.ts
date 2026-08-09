@@ -1,12 +1,13 @@
-// input:  Node test runner + domain/threads/shell-templates (generic interpolation engine)
-// output: expandShell / isShellBinding coverage (interpolation / validation / error branches)
-// pos:    DR-0017 D6 Phase 2.5 — shells are pure JSON data; the loader does GENERIC placeholder
-//         interpolation + validation (no per-shell hardcoded expander). The worker-review shell
-//         fixture below mirrors defaults/config/thread-templates/shells/worker-review.json.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Vitest, shell expander, shipped worker-review config
+// output: Shell binding expansion and validation regressions
+// pos:    Verifies generic worker-review shell expansion
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import * as path from 'node:path';
+import { DEFAULTS_DIR } from '../../src/core/paths.js';
 import { expandShell, isShellBinding } from '../../src/domain/threads/shell-templates.js';
 import type { AgentDefinition, ShellDefinition } from '../../src/core/types/thread-types.js';
 
@@ -17,7 +18,7 @@ const WORKER_REVIEW: ShellDefinition = {
   transitions: [
     { from: '{worker}:{worker.entryStage}', to: '{reviewer}', condition: { type: 'always' } },
     { from: '{reviewer}', to: '{worker}:retry', condition: { type: 'convergence', marker: '[APPROVED]', maxIterations: 1 } },
-    { from: '{worker}:retry', to: '{reviewer}', condition: { type: 'output_not_contains', pattern: '\\[REVISED\\]' } },
+    { from: '{worker}:retry', to: '{reviewer}', condition: { type: 'output_contains', pattern: '\\[REVISED\\]' } },
   ],
   entryAgent: '{worker}',
   entryStage: '{worker.entryStage}',
@@ -75,7 +76,7 @@ const GOLDEN_DOC_REVIEW = {
   transitions: [
     { from: 'doc-writer:write', to: 'doc-reviewer', condition: { type: 'always' } },
     { from: 'doc-reviewer', to: 'doc-writer:retry', condition: { type: 'convergence', marker: '[APPROVED]', maxIterations: 1 } },
-    { from: 'doc-writer:retry', to: 'doc-reviewer', condition: { type: 'output_not_contains', pattern: '\\[REVISED\\]' } },
+    { from: 'doc-writer:retry', to: 'doc-reviewer', condition: { type: 'output_contains', pattern: '\\[REVISED\\]' } },
   ],
   entryAgent: 'doc-writer',
   entryStage: 'write',
@@ -90,13 +91,22 @@ const GOLDEN_EXECUTE_REVIEW = {
   transitions: [
     { from: 'executor:execute', to: 'executor-reviewer', condition: { type: 'always' } },
     { from: 'executor-reviewer', to: 'executor:retry', condition: { type: 'convergence', marker: '[APPROVED]', maxIterations: 1 } },
-    { from: 'executor:retry', to: 'executor-reviewer', condition: { type: 'output_not_contains', pattern: '\\[REVISED\\]' } },
+    { from: 'executor:retry', to: 'executor-reviewer', condition: { type: 'output_contains', pattern: '\\[REVISED\\]' } },
   ],
   entryAgent: 'executor',
   entryStage: 'execute',
   maxTotalSteps: 4,
   hooks: { onEnd: { command: 'node ~/.cortex/hooks/post-task-hook.mjs', args: ['executor'], timeout: 10000 } },
 };
+
+test('shipped worker-review shell sends a revised retry back to its reviewer', () => {
+  const shellPath = path.join(
+    DEFAULTS_DIR,
+    'config', 'thread-templates', 'shells', 'worker-review.json',
+  );
+  const shipped = JSON.parse(readFileSync(shellPath, 'utf8'));
+  assert.deepEqual(shipped.transitions[2], WORKER_REVIEW.transitions[2]);
+});
 
 test('expandShell(doc-review) equals the pre-conversion full template', () => {
   const out = expandShell('doc-review', {
@@ -131,7 +141,7 @@ for (const [name, worker, reviewer, produce] of [
     assert.deepEqual(out.transitions, [
       { from: `${worker}:${produce}`, to: reviewer, condition: { type: 'always' } },
       { from: reviewer, to: `${worker}:retry`, condition: { type: 'convergence', marker: '[APPROVED]', maxIterations: 1 } },
-      { from: `${worker}:retry`, to: reviewer, condition: { type: 'output_not_contains', pattern: '\\[REVISED\\]' } },
+      { from: `${worker}:retry`, to: reviewer, condition: { type: 'output_contains', pattern: '\\[REVISED\\]' } },
     ]);
     assert.deepEqual(out.hooks?.onEnd?.args, [worker]);
   });

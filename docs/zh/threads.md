@@ -195,7 +195,7 @@ shell 声明其参数，并在转换图中使用占位符：
   "transitions": [
     { "from": "{worker}:{worker.entryStage}", "to": "{reviewer}", "condition": { "type": "always" } },
     { "from": "{reviewer}", "to": "{worker}:retry", "condition": { "type": "convergence", "marker": "[APPROVED]", "maxIterations": 1 } },
-    { "from": "{worker}:retry", "to": "{reviewer}", "condition": { "type": "output_not_contains", "pattern": "\\[REVISED\\]" } }
+    { "from": "{worker}:retry", "to": "{reviewer}", "condition": { "type": "output_contains", "pattern": "\\[REVISED\\]" } }
   ],
   "entryAgent": "{worker}",
   "entryStage": "{worker.entryStage}",
