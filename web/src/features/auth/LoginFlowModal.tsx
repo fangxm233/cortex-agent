@@ -1,5 +1,5 @@
-// input:  auth tRPC, LoginFlow metadata, notice/settings target
-// output: Accessible targeted OAuth/API-key login dialog
+// input:  auth tRPC, LoginFlow metadata and shared Select/Modal
+// output: accessible targeted OAuth/API-key login dialog
 // pos:    Shared desktop/mobile Web authentication workflow
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -18,8 +18,8 @@ import type {
   LoginFlowNotice,
   LoginFlowState,
 } from '@cortex-agent/ui-contract';
-import { Button, Modal } from '@/design';
-import { useVocab, type Vocab } from '@/i18n';
+import { Button, Modal, Select, type SelectOption } from '@/design';
+import { useIsMobile, useVocab, type Vocab } from '@/i18n';
 import { useTRPC, useTRPCClient } from '@/lib/trpc';
 import { buildLoginFlowVm, type LoginFlowVm } from './login-flow-vm';
 
@@ -47,6 +47,38 @@ interface ProviderOption {
   provider: string;
   label: string;
   capabilities: AuthType[];
+}
+
+interface AuthSelectProps<T extends string> {
+  field: 'secret' | 'backend' | 'type' | 'provider';
+  value: T;
+  options: readonly SelectOption<T>[];
+  onValueChange: (value: T) => void;
+  className: string;
+  ariaLabel?: string;
+  ariaLabelledBy?: string;
+  placeholder?: string;
+}
+
+function AuthSelect<T extends string>(props: AuthSelectProps<T>): JSX.Element {
+  const isMobile = useIsMobile();
+  const dataProps = { [`data-auth-${props.field}`]: true };
+  if (!isMobile) {
+    return <Select {...dataProps} aria-label={props.ariaLabel}
+      aria-labelledby={props.ariaLabelledBy} value={props.value} options={props.options}
+      onValueChange={props.onValueChange} placeholder={props.placeholder} className={props.className} />;
+  }
+  const hasValue = props.options.some((option) => option.value === props.value);
+  return (
+    <select {...dataProps} aria-label={props.ariaLabel} aria-labelledby={props.ariaLabelledBy}
+      value={props.value} onChange={(event) => props.onValueChange(event.target.value as T)}
+      className={props.className}>
+      {!hasValue ? <option value="">{props.placeholder}</option> : null}
+      {props.options.map((option) => (
+        <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
+      ))}
+    </select>
+  );
 }
 
 interface LoginController {
@@ -179,17 +211,20 @@ function PromptSelect({
 }: {
   state: LoginFlowState; value: string; onChange: (value: string) => void;
 }) {
+  const options = (state.pendingPrompt?.options ?? []).map(option => ({
+    value: option.id,
+    label: option.label,
+    description: option.description,
+  }));
   return (
-    <select
-      data-auth-secret aria-labelledby="auth-login-prompt-label" value={value}
-      onChange={event => onChange(event.target.value)}
+    <AuthSelect
+      field="secret"
+      ariaLabelledBy="auth-login-prompt-label"
+      value={value}
+      options={options}
+      onValueChange={onChange}
       className="w-full rounded-card border border-card bg-surface-card px-2g py-1g text-ui"
-    >
-      <option value="" />
-      {(state.pendingPrompt?.options ?? []).map(option => (
-        <option key={option.id} value={option.id}>{option.label}</option>
-      ))}
-    </select>
+    />
   );
 }
 
@@ -219,15 +254,17 @@ function SelectionBody({ controller }: { controller: LoginController }) {
     <div className="space-y-2g">
       <label className="block space-y-1g text-ui">
         <span>{L.authLoginBackend}</span>
-        <select
-          data-auth-backend
+        <AuthSelect
+          field="backend"
+          ariaLabel={L.authLoginBackend}
           value={controller.backend}
-          onChange={event => controller.chooseBackend(event.target.value as 'claude' | 'pi')}
+          options={[
+            { value: 'claude', label: 'Claude Code' },
+            { value: 'pi', label: 'PI' },
+          ]}
+          onValueChange={controller.chooseBackend}
           className="w-full rounded-card border border-card bg-surface-card px-2g py-1g"
-        >
-          <option value="claude">Claude Code</option>
-          <option value="pi">PI</option>
-        </select>
+        />
       </label>
       {controller.backend === 'pi' ? <ProviderSelect controller={controller} /> : null}
       {controller.authTypes.length > 1 ? <AuthTypeSelect controller={controller} /> : null}
@@ -240,20 +277,19 @@ function AuthTypeSelect({ controller }: { controller: LoginController }) {
   return (
     <label className="block space-y-1g text-ui">
       <span>{L.authLoginType}</span>
-      <select
-        data-auth-type
+      <AuthSelect
+        field="type"
+        ariaLabel={L.authLoginType}
         value={controller.authType}
-        onChange={event => controller.chooseAuthType(event.target.value as AuthType)}
+        options={controller.authTypes.map(authType => ({
+          value: authType,
+          label: authType === 'api_key'
+            ? L.authLoginApiKey
+            : controller.backend === 'claude' ? L.authLoginSubscription : L.authLoginOAuth,
+        }))}
+        onValueChange={controller.chooseAuthType}
         className="w-full rounded-card border border-card bg-surface-card px-2g py-1g"
-      >
-        {controller.authTypes.map(authType => (
-          <option key={authType} value={authType}>
-            {authType === 'api_key'
-              ? L.authLoginApiKey
-              : controller.backend === 'claude' ? L.authLoginSubscription : L.authLoginOAuth}
-          </option>
-        ))}
-      </select>
+      />
     </label>
   );
 }
@@ -263,16 +299,17 @@ function ProviderSelect({ controller }: { controller: LoginController }) {
   return (
     <label className="block space-y-1g text-ui">
       <span>{L.authLoginProvider}</span>
-      <select
-        data-auth-provider
+      <AuthSelect
+        field="provider"
+        ariaLabel={L.authLoginProvider}
         value={controller.provider}
-        onChange={event => controller.chooseProvider(event.target.value)}
+        options={controller.providers.map(option => ({
+          value: option.provider,
+          label: option.label,
+        }))}
+        onValueChange={controller.chooseProvider}
         className="w-full rounded-card border border-card bg-surface-card px-2g py-1g"
-      >
-        {controller.providers.map(option => (
-          <option key={option.provider} value={option.provider}>{option.label}</option>
-        ))}
-      </select>
+      />
     </label>
   );
 }

@@ -1,4 +1,4 @@
-// input:  config.get profiles, profile form state, profiles.* mutations
+// input:  config profiles, profile form state, mutations and Select
 // output: profile table with create, edit and delete
 // pos:    Settings view for the profiles map of profiles.json
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -7,7 +7,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ConfigProfileEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useToast } from '@/design';
+import { Select, useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import {
   MonoKV,
@@ -172,24 +172,19 @@ function ProfileEditor({
         />
       </SFieldRow>
       <SFieldRow label={L.pfFieldBackend}>
-        <select
+        <Select
           data-profile-field="backend"
+          aria-label={L.pfFieldBackend}
           value={draft.backend}
-          onChange={(e) => {
-            const backend = e.target.value as ProfileBackend;
+          options={PROFILE_BACKENDS.map((backend) => ({ value: backend, label: backend }))}
+          onValueChange={(backend: ProfileBackend) => {
             // Thinking levels are backend-specific — a level the new backend does not accept would
             // be rejected by the server, so it is dropped with the switch rather than left to fail.
             const thinking = THINKING_LEVELS[backend].includes(draft.thinking) ? draft.thinking : '';
             set({ backend, thinking });
           }}
           style={S_CONTROL_STYLE}
-        >
-          {PROFILE_BACKENDS.map((backend) => (
-            <option key={backend} value={backend}>
-              {backend}
-            </option>
-          ))}
-        </select>
+        />
       </SFieldRow>
       <SFieldRow label={L.pfFieldMode} hint={hint('mode', L.pfModeHint)} hintTone={tone('mode')}>
         <input
@@ -212,32 +207,32 @@ function ProfileEditor({
         />
       </SFieldRow>
       <SFieldRow label={L.pfFieldThinking} hint={hint('thinking')} hintTone={tone('thinking')}>
-        <select
+        <Select
           data-profile-field="thinking"
+          aria-label={L.pfFieldThinking}
           value={draft.thinking}
-          onChange={(e) => set({ thinking: e.target.value })}
+          options={[
+            { value: '', label: L.pfNotDeclared },
+            ...THINKING_LEVELS[draft.backend].map((level) => ({ value: level, label: level })),
+          ]}
+          onValueChange={(thinking) => set({ thinking })}
           style={S_CONTROL_STYLE}
-        >
-          <option value="">{L.pfNotDeclared}</option>
-          {THINKING_LEVELS[draft.backend].map((level) => (
-            <option key={level} value={level}>
-              {level}
-            </option>
-          ))}
-        </select>
+        />
       </SFieldRow>
       {draft.backend === 'claude' ? (
         <SFieldRow label={L.pfFieldClaudeBackend}>
-          <select
+          <Select
             data-profile-field="claudeBackend"
+            aria-label={L.pfFieldClaudeBackend}
             value={draft.claudeBackend}
-            onChange={(e) => set({ claudeBackend: e.target.value as ProfileFormState['claudeBackend'] })}
+            options={[
+              { value: '', label: L.pfPrintDefault },
+              { value: 'print', label: 'print' },
+              { value: 'tui', label: 'tui' },
+            ]}
+            onValueChange={(claudeBackend: ProfileFormState['claudeBackend']) => set({ claudeBackend })}
             style={S_CONTROL_STYLE}
-          >
-            <option value="">{L.pfPrintDefault}</option>
-            <option value="print">print</option>
-            <option value="tui">tui</option>
-          </select>
+          />
         </SFieldRow>
       ) : null}
 
@@ -360,10 +355,12 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
       >
         <span style={{ fontSize: 11, color: 'var(--proto-muted)' }}>{L.stDefaultProfile}</span>
         {canWrite ? (
-          <select
+          <Select
             data-default-profile-select
+            aria-label={L.stDefaultProfile}
             value={p?.defaultProfile ?? ''}
-            onChange={(e) => props.onSetDefaultProfile!(e.target.value)}
+            options={rows.map((row) => ({ value: row.name, label: row.name }))}
+            onValueChange={props.onSetDefaultProfile!}
             style={{
               font: `600 11px ${MONO}`,
               color: 'var(--proto-ink)',
@@ -373,13 +370,7 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
               background: 'var(--proto-card)',
               cursor: 'pointer',
             }}
-          >
-            {rows.map((r) => (
-              <option key={r.name} value={r.name}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+          />
         ) : (
           <span
             title="Select a profile to write profiles.json defaultProfile"

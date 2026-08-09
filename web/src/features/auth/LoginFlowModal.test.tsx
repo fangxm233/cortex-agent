@@ -22,6 +22,7 @@ const harness = vi.hoisted(() => ({
   startError: null as string | null,
   startPromise: null as Promise<LoginFlowState> | null,
   respondPromise: null as Promise<LoginFlowState> | null,
+  mobile: false,
 }));
 
 vi.mock('@/design', () => ({
@@ -29,6 +30,18 @@ vi.mock('@/design', () => ({
     ? <div data-auth-modal="true"><h1>{title}</h1>{children}<footer>{footer}</footer></div>
     : null,
   Button: (props: any) => <button {...props}>{props.children}</button>,
+  Select: ({ options, value, ...props }: any) => (
+    <div data-select-control data-select-value={String(value)} {...props}>
+      {options.map((option: any) => (
+        <span key={String(option.value)} data-option-value={String(option.value)}>{option.label}</span>
+      ))}
+    </div>
+  ),
+}));
+
+vi.mock('@/lib/desktop-config', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/desktop-config')>(),
+  isMobileShell: () => harness.mobile,
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -195,6 +208,10 @@ function clickNotice(renderer: ReactTestRenderer): void {
   act(() => { renderer.root.findByProps({ 'data-auth-notice-action': true }).props.onClick(); });
 }
 
+function pick(renderer: ReactTestRenderer, field: string, value: string): void {
+  act(() => { renderer.root.findByProps({ [`data-auth-${field}`]: true }).props.onValueChange(value); });
+}
+
 async function clickAsync(renderer: ReactTestRenderer, action: string): Promise<void> {
   await act(async () => {
     await renderer.root.findByProps({ 'data-action': action }).props.onClick();
@@ -215,6 +232,7 @@ beforeEach(() => {
   harness.startError = null;
   harness.startPromise = null;
   harness.respondPromise = null;
+  harness.mobile = false;
 });
 
 const NOTICE_CASES: Array<[LoginFlowNotice, LoginFlowNotice['kind']]> = [
@@ -225,6 +243,14 @@ const NOTICE_CASES: Array<[LoginFlowNotice, LoginFlowNotice['kind']]> = [
 ];
 
 describe('LoginFlowModal', () => {
+  it('keeps native authentication selectors on the mobile shell', () => {
+    harness.mobile = true;
+    const renderer = mount();
+
+    expect(renderer.root.findAllByType('select')).toHaveLength(2);
+    expect(renderer.root.findAllByProps({ 'data-select-control': true })).toHaveLength(0);
+  });
+
   it('auto-starts a notice target with the server-selected OAuth capability', async () => {
     harness.startState = state('prompt', {
       backend: 'pi', provider: 'dual-auth', authType: 'oauth',
@@ -282,14 +308,12 @@ describe('LoginFlowModal', () => {
 
   it('lists all PI providers and skips auth selection for an API-key-only provider', async () => {
     const renderer = mount();
-    act(() => {
-      renderer.root.findByProps({ 'data-auth-backend': true }).props.onChange({ target: { value: 'pi' } });
-    });
+    pick(renderer, 'backend', 'pi');
     const provider = renderer.root.findByProps({ 'data-auth-provider': true });
-    expect(provider.findAllByType('option').map(option => option.props.value)).toEqual([
+    expect(provider.props.options.map((option: any) => option.value)).toEqual([
       'deepseek', 'oauth-only', 'dual-auth',
     ]);
-    act(() => { provider.props.onChange({ target: { value: 'deepseek' } }); });
+    pick(renderer, 'provider', 'deepseek');
     expect(renderer.root.findAllByProps({ 'data-auth-type': true })).toHaveLength(0);
     await clickAsync(renderer, 'auth-start');
 
@@ -299,22 +323,19 @@ describe('LoginFlowModal', () => {
 
   it('shows auth selection after a dual-capability PI provider', async () => {
     const renderer = mount();
-    act(() => {
-      renderer.root.findByProps({ 'data-auth-backend': true }).props.onChange({ target: { value: 'pi' } });
-    });
-    const provider = renderer.root.findByProps({ 'data-auth-provider': true });
-    act(() => { provider.props.onChange({ target: { value: 'dual-auth' } }); });
-    const selectors = renderer.root.findAllByType('select').map(node => (
+    pick(renderer, 'backend', 'pi');
+    pick(renderer, 'provider', 'dual-auth');
+    const selectors = renderer.root.findAllByProps({ 'data-select-control': true }).map(node => (
       node.props['data-auth-backend'] ? 'backend'
         : node.props['data-auth-provider'] ? 'provider'
           : node.props['data-auth-type'] ? 'authType' : 'unknown'
     ));
     expect(selectors).toEqual(['backend', 'provider', 'authType']);
     const authType = renderer.root.findByProps({ 'data-auth-type': true });
-    expect(authType.findAllByType('option').map(option => option.props.value)).toEqual([
+    expect(authType.props.options.map((option: any) => option.value)).toEqual([
       'api_key', 'oauth',
     ]);
-    act(() => { authType.props.onChange({ target: { value: 'oauth' } }); });
+    pick(renderer, 'type', 'oauth');
     await clickAsync(renderer, 'auth-start');
 
     expect(harness.startCalls).toEqual([{
@@ -324,11 +345,8 @@ describe('LoginFlowModal', () => {
 
   it('skips auth selection and starts OAuth for an OAuth-only provider', async () => {
     const renderer = mount();
-    act(() => {
-      renderer.root.findByProps({ 'data-auth-backend': true }).props.onChange({ target: { value: 'pi' } });
-    });
-    const provider = renderer.root.findByProps({ 'data-auth-provider': true });
-    act(() => { provider.props.onChange({ target: { value: 'oauth-only' } }); });
+    pick(renderer, 'backend', 'pi');
+    pick(renderer, 'provider', 'oauth-only');
     expect(renderer.root.findAllByProps({ 'data-auth-type': true })).toHaveLength(0);
     await clickAsync(renderer, 'auth-start');
 
@@ -359,6 +377,25 @@ describe('LoginFlowModal', () => {
     await clickAsync(renderer, 'auth-start');
 
     expect(renderer.root.findByProps({ 'data-auth-secret': true }).props.type).toBe('password');
+  });
+
+  it('submits the exact id selected by an interactive login prompt', async () => {
+    harness.startState = state('prompt', {
+      pendingPrompt: {
+        kind: 'select', message: 'Region',
+        options: [{ id: 'us', label: 'US' }, { id: 'eu', label: 'EU' }],
+      },
+    });
+    harness.queryState = harness.startState;
+    const renderer = mount();
+    await clickAsync(renderer, 'auth-start');
+
+    const prompt = renderer.root.findByProps({ 'data-auth-secret': true });
+    expect(prompt.props.options.map((option: any) => option.value)).toEqual(['us', 'eu']);
+    act(() => { prompt.props.onValueChange('eu'); });
+    await clickAsync(renderer, 'auth-submit');
+
+    expect(harness.respondCalls).toEqual([{ flowId: 'flow-web', value: 'eu' }]);
   });
 
   it('does not echo a submitted OAuth redirect URL', async () => {

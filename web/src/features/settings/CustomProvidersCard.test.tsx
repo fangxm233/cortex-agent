@@ -25,6 +25,11 @@ const PROVIDER: CustomProviderView = {
 
 vi.mock('@/design', async importOriginal => ({
   ...await importOriginal<typeof import('@/design')>(),
+  Select: ({ options, value, ...props }: any) => (
+    <div data-select-control data-select-value={String(value)} {...props}>
+      {options.map((option: any) => <span key={String(option.value)}>{option.label}</span>)}
+    </div>
+  ),
   useToast: () => ({ toast: () => {} }),
 }));
 
@@ -76,7 +81,11 @@ function field(renderer: ReactTestRenderer, name: string) {
 }
 
 function type(renderer: ReactTestRenderer, name: string, value: string): void {
-  act(() => { field(renderer, name).props.onChange({ target: { value } }); });
+  const control = field(renderer, name);
+  act(() => {
+    if (control.props.onValueChange) control.props.onValueChange(value);
+    else control.props.onChange({ target: { value } });
+  });
 }
 
 beforeEach(() => {
@@ -109,6 +118,7 @@ describe('desktop custom providers', () => {
     const renderer = mount();
 
     click(renderer, 'new');
+    expect(renderer.root.findAllByProps({ 'data-select-control': true })).toHaveLength(1);
     type(renderer, 'name', 'my-proxy');
     type(renderer, 'api', 'openai-completions');
     type(renderer, 'url', 'https://proxy.example.com/v1');

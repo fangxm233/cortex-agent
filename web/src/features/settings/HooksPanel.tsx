@@ -1,4 +1,4 @@
-// input:  hooks.list data, hook form state, hooks.* mutations
+// input:  hooks data, form state, mutations and shared Select
 // output: full-height hook editor with gating and test runner
 // pos:    Settings view for the declarative hook registry
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -11,7 +11,7 @@ import type {
   HooksTestReturn,
 } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useToast } from '@/design';
+import { Select, useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import {
   MonoKV,
@@ -687,20 +687,16 @@ function HookEditor({
         hint={locked ? L.hkResultLocked : err(errors.result)}
         hintTone={errors.result ? 'danger' : 'muted'}
       >
-        <select
+        <Select
           data-hook-field="result"
           data-hook-result-locked={locked ? '' : undefined}
+          aria-label={L.hkFieldResult}
           disabled={locked}
           value={draft.result}
-          onChange={(e) => onDraftChange({ ...draft, result: e.target.value as HookResultMode })}
+          options={legal.map((mode) => ({ value: mode, label: mode }))}
+          onValueChange={(result: HookResultMode) => onDraftChange({ ...draft, result })}
           style={locked ? S_CONTROL_DISABLED_STYLE : S_CONTROL_STYLE}
-        >
-          {legal.map((mode) => (
-            <option key={mode} value={mode}>
-              {mode}
-            </option>
-          ))}
-        </select>
+        />
       </SFieldRow>
     </>
   );

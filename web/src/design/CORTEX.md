@@ -18,6 +18,8 @@ Interactive parts wrap Radix for accessibility; pure modules hold the tested sta
 | Modal.test.ts | test | Tests nested dialog stacking order |
 | Drawer.tsx | core | Side sheet dialog anchored left or right |
 | Popover.tsx | core | Anchored popover panel with arrow |
+| Select.tsx | core | Accessible profile-styled selection menu |
+| Select.test.tsx | test | Tests typed value mapping and option states |
 | Toast.tsx | provider | Toast context, viewport and imperative hook |
 | EmptyState.tsx | core | Centered empty placeholder with optional action |
 | DegradedState.tsx | core | Degraded or exception status card |

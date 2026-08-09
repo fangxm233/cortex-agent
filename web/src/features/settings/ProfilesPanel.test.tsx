@@ -4,9 +4,19 @@
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ConfigProfileEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
+
+vi.mock('@/design', async importOriginal => ({
+  ...await importOriginal<typeof import('@/design')>(),
+  Select: ({ options, value, ...props }: any) => (
+    <div data-select-control data-select-value={String(value)} {...props}>
+      {options.map((option: any) => <span key={String(option.value)}>{option.label}</span>)}
+    </div>
+  ),
+}));
+
 import { ProfilesPanelView, type ProfilesPanelViewProps } from './ProfilesPanel';
 import { emptyProfileForm, formStateFromEntry } from './profiles-panel-vm';
 
@@ -81,6 +91,7 @@ describe('ProfilesPanelView / table', () => {
   it('keeps the default-profile picker and its read note', () => {
     const html = render();
     expect(html).toContain('data-default-profile-select');
+    expect(html).toContain('data-select-control');
     expect(html).toContain('New profile');
   });
 
@@ -152,9 +163,13 @@ describe('ProfilesPanelView / editor', () => {
     expect(html).toContain('A pi profile must declare a provider');
   });
 
-  it('offers claudeBackend only for a claude profile', () => {
-    expect(render({ draft: formStateFromEntry(entry()), editingName: 'plan' }))
-      .toContain('data-profile-field="claudeBackend"');
+  it('offers custom selectors for backend, thinking and Claude output mode', () => {
+    const claude = render({ draft: formStateFromEntry(entry()), editingName: 'plan' });
+    expect(claude).toContain('data-profile-field="backend"');
+    expect(claude).toContain('data-profile-field="thinking"');
+    expect(claude).toContain('data-profile-field="claudeBackend"');
+    expect(claude.match(/data-select-control/g)).toHaveLength(4);
+
     expect(render({ draft: formStateFromEntry(SOL), editingName: 'sol' }))
       .not.toContain('data-profile-field="claudeBackend"');
   });

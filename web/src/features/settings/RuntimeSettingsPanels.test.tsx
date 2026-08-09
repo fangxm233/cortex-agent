@@ -32,7 +32,15 @@ vi.mock('@/lib/trpc', async (importOriginal) => {
 
 vi.mock('@/design', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/design')>();
-  return { ...actual, useToast: () => ({ toast: adapter.toast }) };
+  return {
+    ...actual,
+    Select: ({ options, value, ...props }: any) => (
+      <div data-select-control data-select-value={String(value)} {...props}>
+        {options.map((option: any) => <span key={String(option.value)}>{option.label}</span>)}
+      </div>
+    ),
+    useToast: () => ({ toast: adapter.toast }),
+  };
 });
 
 import {
@@ -148,9 +156,11 @@ describe('runtime settings panel reads', () => {
     expect(html).toContain('data-setting-key="taskArchiveEnabled" data-setting-value="true"');
     expect(html).toContain('data-setting-key="memoryIndexRegenIntervalMs" data-setting-value="86400000"');
     expect(html).toContain('value="30"');
-    expect(html).toContain('<option value="sec" selected="">sec</option>');
+    expect(html).toContain('data-duration-unit="taskDispatchIntervalMs"');
+    expect(html).toContain('data-select-value="sec"');
     expect(html).toContain('value="6"');
-    expect(html).toContain('<option value="hr" selected="">hr</option>');
+    expect(html).toContain('data-duration-unit="taskArchiveIntervalMs"');
+    expect(html).toContain('data-select-value="hr"');
     expect(html).toContain('data-env-key="DEBUG" data-env-present="true" data-writable="false"');
   });
 

@@ -4,9 +4,19 @@
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { HookDetail, HooksTestReturn } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
+
+vi.mock('@/design', async importOriginal => ({
+  ...await importOriginal<typeof import('@/design')>(),
+  Select: ({ options, value, ...props }: any) => (
+    <div data-select-control data-select-value={String(value)} {...props}>
+      {options.map((option: any) => <span key={String(option.value)}>{option.label}</span>)}
+    </div>
+  ),
+}));
+
 import { HooksPanelView, type HooksPanelViewProps } from './HooksPanel';
 import { emptyHookForm, formStateFromDetail } from './hooks-panel-vm';
 
@@ -247,6 +257,7 @@ describe('HooksPanelView / advanced', () => {
   it('offers only the legal result modes and locks the select when only none is legal', () => {
     const html = render({ hooks: [userHook] });
     expect(html).toContain('data-hook-field="result"');
+    expect(html).toContain('data-select-control');
     expect(html).toContain('data-hook-result-locked');
     expect(html).not.toContain('>hook-result<');
     expect(html).not.toContain('>stdout-as-prompt<');

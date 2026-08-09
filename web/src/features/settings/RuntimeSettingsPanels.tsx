@@ -1,4 +1,4 @@
-// input:  config snapshot/mutation, localized copy, settings primitives
+// input:  config snapshot/mutation, localized copy and Select
 // output: writable Notifications and Advanced desktop panels
 // pos:    Runtime settings read/write surface for desktop settings
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ConfigSetArgs, ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
-import { useToast } from '@/design';
+import { Select, useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { PlatformAvatar, PresencePill } from './SettingsPanels';
@@ -357,6 +357,7 @@ function ConcurrencyRow({ settings }: { settings: SettingsIndex }) {
 }
 
 function DurationFields(props: {
+  settingKey: WritableSettingKey;
   draft: DurationDraft;
   canSave: boolean;
   invalid: boolean;
@@ -369,10 +370,18 @@ function DurationFields(props: {
       <span style={KEY}>{L.stBuiltinInterval}</span>
       <input type="number" min={1} value={props.draft.value} style={DURATION_INPUT}
         onChange={(event) => props.onDraft({ ...props.draft, value: Number(event.target.value) })} />
-      <select value={props.draft.unit} style={DURATION_SELECT}
-        onChange={(event) => props.onDraft({ ...props.draft, unit: event.target.value as DurationUnit })}>
-        <option value="sec">sec</option><option value="min">min</option><option value="hr">hr</option>
-      </select>
+      <Select
+        data-duration-unit={props.settingKey}
+        aria-label={L.stBuiltinInterval}
+        value={props.draft.unit}
+        options={([
+          { value: 'sec', label: 'sec' },
+          { value: 'min', label: 'min' },
+          { value: 'hr', label: 'hr' },
+        ] satisfies Array<{ value: DurationUnit; label: string }>)}
+        onValueChange={(unit) => props.onDraft({ ...props.draft, unit })}
+        style={DURATION_SELECT}
+      />
       <button type="button" disabled={!props.canSave} style={DURATION_BUTTON}
         title={props.invalid ? L.stBuiltinInvalidInterval : undefined} onClick={props.onSave}>
         {L.stBuiltinSave}
@@ -401,8 +410,8 @@ function DurationControl(props: {
     <div data-setting-key={props.descriptor.interval}
       data-setting-value={currentMs === null ? 'missing' : String(currentMs)}
       style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-      <DurationFields draft={draft} canSave={canSave} invalid={nextMs === null}
-        onDraft={setDraft} onSave={save} />
+      <DurationFields settingKey={props.descriptor.interval} draft={draft}
+        canSave={canSave} invalid={nextMs === null} onDraft={setDraft} onSave={save} />
     </div>
   );
 }

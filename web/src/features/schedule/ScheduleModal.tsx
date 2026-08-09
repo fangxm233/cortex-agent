@@ -1,4 +1,10 @@
+// input:  schedule form state, localized labels and shared Select
+// output: create/edit schedule modal with typed field updates
+// pos:    Desktop schedule form presentation
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { useEffect, type CSSProperties } from 'react';
+import { Select } from '@/design';
 import { useVocab } from '@/i18n';
 import {
   visibleFields,
@@ -34,19 +40,13 @@ const CELL_BOX: CSSProperties = {
   padding: '7px 10px',
 };
 
-const CARET: CSSProperties = { marginLeft: 'auto', color: 'var(--proto-muted-3)', fontSize: 8 };
-
-// A native <select> styled to disappear into the prototype's value chrome (+ a ▾ glyph).
+// Shared Select trigger styled to disappear into the prototype's value-cell chrome.
 function bareSelectStyle(font: string): CSSProperties {
   return {
     flex: 1,
     minWidth: 0,
     border: 'none',
-    outline: 'none',
     background: 'transparent',
-    appearance: 'none',
-    WebkitAppearance: 'none',
-    MozAppearance: 'none',
     cursor: 'pointer',
     font,
     color: 'var(--proto-ink)',
@@ -71,7 +71,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
   const L = useVocab();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Escape' && !e.defaultPrevented) onCancel();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -224,16 +224,14 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                         color: 'var(--proto-ink)',
                       }}
                     />
-                    <select
+                    <Select
+                      data-schedule-select="intervalUnit"
+                      aria-label={L.scEvery}
                       value={form.intervalUnit}
-                      onChange={(e) => onChange({ intervalUnit: e.target.value as ScheduleForm['intervalUnit'] })}
+                      options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: unit }))}
+                      onValueChange={(intervalUnit) => onChange({ intervalUnit })}
                       style={bareSelectStyle("400 10px 'IBM Plex Mono',monospace")}
-                    >
-                      {INTERVAL_UNITS.map((u) => (
-                        <option key={u} value={u}>{u}</option>
-                      ))}
-                    </select>
-                    <span style={CARET}>▾</span>
+                    />
                   </div>
                 </>
               )}
@@ -255,16 +253,14 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                         color: 'var(--proto-ink)',
                       }}
                     />
-                    <select
+                    <Select
+                      data-schedule-select="delayUnit"
+                      aria-label={L.scIn}
                       value={form.delayUnit}
-                      onChange={(e) => onChange({ delayUnit: e.target.value as ScheduleForm['delayUnit'] })}
+                      options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: unit }))}
+                      onValueChange={(delayUnit) => onChange({ delayUnit })}
                       style={bareSelectStyle("400 10px 'IBM Plex Mono',monospace")}
-                    >
-                      {INTERVAL_UNITS.map((u) => (
-                        <option key={u} value={u}>{u}</option>
-                      ))}
-                    </select>
-                    <span style={CARET}>▾</span>
+                    />
                   </div>
                 </>
               )}
@@ -275,16 +271,17 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
               <div>
                 <div style={{ ...LABEL, marginBottom: 5 }}>{L.scDay}</div>
                 <div style={CELL_BOX}>
-                  <select
+                  <Select
+                    data-schedule-select="dayOfWeek"
+                    aria-label={L.scDay}
                     value={form.dayOfWeek}
-                    onChange={(e) => onChange({ dayOfWeek: Number(e.target.value) })}
+                    options={DAY_OPTIONS.map((day) => ({
+                      value: day.value,
+                      label: DAY_LABELS[day.value] ?? day.label,
+                    }))}
+                    onValueChange={(dayOfWeek) => onChange({ dayOfWeek })}
                     style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")}
-                  >
-                    {DAY_OPTIONS.map((d) => (
-                      <option key={d.value} value={d.value}>{DAY_LABELS[d.value] ?? d.label}</option>
-                    ))}
-                  </select>
-                  <span style={CARET}>▾</span>
+                  />
                 </div>
               </div>
             )}
@@ -293,16 +290,14 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scProfile}</div>
               <div style={CELL_BOX}>
-                <select
+                <Select
+                  data-schedule-select="profile"
+                  aria-label={L.scProfile}
                   value={form.profile}
-                  onChange={(e) => onChange({ profile: e.target.value })}
+                  options={profileOptions.map((profile) => ({ value: profile, label: profile }))}
+                  onValueChange={(profile) => onChange({ profile })}
                   style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")}
-                >
-                  {profileOptions.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-                <span style={CARET}>▾</span>
+                />
               </div>
             </div>
           </div>
@@ -335,33 +330,35 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scTarget}</div>
               <div style={CELL_BOX}>
-                <select
+                <Select
+                  data-schedule-select="target"
+                  aria-label={L.scTarget}
                   value={form.target}
                   disabled={editing}
-                  onChange={(e) => onChange({ target: e.target.value as ScheduleForm['target'] })}
-                  style={bareSelectStyle('11.5px system-ui, sans-serif')}
-                >
-                  {TARGET_OPTIONS.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                <span style={CARET}>▾</span>
+                  options={TARGET_OPTIONS.map((target) => ({ value: target, label: target }))}
+                  onValueChange={(target) => onChange({ target })}
+                  style={{
+                    ...bareSelectStyle('11.5px system-ui, sans-serif'),
+                    cursor: editing ? 'not-allowed' : 'pointer',
+                  }}
+                />
               </div>
             </div>
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scFallback}</div>
               <div style={CELL_BOX}>
-                <select
+                <Select
+                  data-schedule-select="fallback"
+                  aria-label={L.scFallback}
                   value={form.fallback}
                   disabled={editing}
-                  onChange={(e) => onChange({ fallback: e.target.value as ScheduleForm['fallback'] })}
-                  style={bareSelectStyle('11.5px system-ui, sans-serif')}
-                >
-                  {FALLBACK_OPTIONS.map((f) => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
-                <span style={CARET}>▾</span>
+                  options={FALLBACK_OPTIONS.map((fallback) => ({ value: fallback, label: fallback }))}
+                  onValueChange={(fallback) => onChange({ fallback })}
+                  style={{
+                    ...bareSelectStyle('11.5px system-ui, sans-serif'),
+                    cursor: editing ? 'not-allowed' : 'pointer',
+                  }}
+                />
               </div>
             </div>
           </div>

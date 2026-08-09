@@ -6,6 +6,7 @@ Type selection drives which timing fields show, and a success refreshes the sche
 | filename | role | function |
 |---|---|---|
 | ScheduleModalProvider.tsx | provider | Mounts the modal, owns create and edit submit |
-| ScheduleModal.tsx | view | Renders the form fields and footer actions |
+| ScheduleModal.tsx | view | Renders typed schedule fields and custom selections |
+| ScheduleModal.test.tsx | test | Tests selection patches and edit locks |
 | schedule-modal-vm.ts | vm | Maps forms to add/update args and next run |
 | schedule-modal-vm.test.ts | test | Unit tests for the schedule modal view model |

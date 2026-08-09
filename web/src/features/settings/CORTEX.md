@@ -11,23 +11,23 @@ own their mutations.
 | SettingsPanels.tsx | view | Renders non-runtime platform and config sections |
 | AccountsPanel.tsx | view | Filters providers and manages account login/logout |
 | AccountsPanel.test.tsx | test | Tests desktop account state and action visibility |
-| CustomProvidersCard.tsx | view | Lists, edits and deletes user-defined PI providers |
-| CustomProvidersCard.test.tsx | test | Tests custom provider rows, save payload and delete guard |
+| CustomProvidersCard.tsx | view | Edits custom PI providers and API protocol |
+| CustomProvidersCard.test.tsx | test | Tests provider selections, writes and delete guard |
 | custom-provider-vm.ts | vm | Validates custom provider drafts and builds mutation args |
 | custom-provider-vm.test.ts | test | Unit tests for the custom provider view model |
 | AuthLoginEntry.test.tsx | test | Tests settings layout, copy and login handoff |
-| RuntimeSettingsPanels.tsx | view | Edits runtime switches and built-in job intervals |
-| RuntimeSettingsPanels.test.tsx | test | Tests runtime rows and production write adapter |
+| RuntimeSettingsPanels.tsx | view | Edits runtime switches and job cadence selections |
+| RuntimeSettingsPanels.test.tsx | test | Tests runtime selections and production writes |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |
 | BudgetPanel.tsx | view | Writes global and per-project daily/monthly spend limits |
 | budget-vm.ts | vm | Resolves budget scope and builds chips, payload and spend bar |
 | budget-vm.test.ts | test | Unit tests for the budget view model |
-| ProfilesPanel.tsx | view | Profile table with create, edit and delete |
-| ProfilesPanel.test.tsx | test | Tests profile rows, editor gating and delete guard |
+| ProfilesPanel.tsx | view | Profile table and typed profile selectors |
+| ProfilesPanel.test.tsx | test | Tests profile selections, gating and delete guard |
 | profiles-panel-vm.ts | vm | Validates profile drafts and builds mutation args |
 | profiles-panel-vm.test.ts | test | Unit tests for the profiles panel view model |
-| HooksPanel.tsx | view | Full-height hook editor and test runner |
-| HooksPanel.test.tsx | test | Tests hook layout, gating and the test runner |
+| HooksPanel.tsx | view | Hook editor with result selection and test runner |
+| HooksPanel.test.tsx | test | Tests hook result gating, layout and runner |
 | hooks-panel-vm.ts | vm | Filters, groups, validates and builds hook mutation args |
 | hooks-panel-vm.test.ts | test | Unit tests for the hooks panel view model |
 | TemplatesPanel.tsx | view | Edits templates with independent pane scrolling |

@@ -1,4 +1,4 @@
-// input:  auth.customProviders tRPC surface and the custom provider VM
+// input:  auth.customProviders tRPC, custom provider VM and Select
 // output: desktop list and editor for user-defined PI providers
 // pos:    Custom provider section of the desktop accounts panel
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -6,7 +6,7 @@
 import { useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CustomProviderApi, CustomProviderView } from '@cortex-agent/ui-contract';
-import { useToast } from '@/design';
+import { Select, useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import {
@@ -121,13 +121,14 @@ function Editor({ draft, creating, errors, onChange }: {
         />
       </SFieldRow>
       <SFieldRow label={L.cpvFieldApi} hint={L.cpvApiHint}>
-        <select
-          data-cpv-field="api" value={draft.api}
-          onChange={(e) => set({ api: e.target.value as CustomProviderApi })}
+        <Select
+          data-cpv-field="api"
+          aria-label={L.cpvFieldApi}
+          value={draft.api}
+          options={CUSTOM_PROVIDER_API_OPTIONS.map((api) => ({ value: api, label: api }))}
+          onValueChange={(api: CustomProviderApi) => set({ api })}
           style={S_CONTROL_STYLE}
-        >
-          {CUSTOM_PROVIDER_API_OPTIONS.map((api) => <option key={api} value={api}>{api}</option>)}
-        </select>
+        />
       </SFieldRow>
       <SFieldRow label={L.cpvFieldUrl} hint={hint('upstreamUrl', L.cpvUrlHint)} hintTone={tone('upstreamUrl')}>
         <input

@@ -1,6 +1,7 @@
-// @cortex-agent/web design system — token-driven core primitives (design §5).
-// Every color/space/radius/shadow/font comes from tailwind.config.ts tokens;
-// no primitive hard-codes a hex value.
+// input:  shared design primitives and their public types
+// output: design-system barrel exports
+// pos:    Public import surface for Web UI primitives
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 export { TONES, statusTone, type Tone } from './tone';
 export { StatusPill, type StatusPillProps } from './StatusPill';
@@ -25,5 +26,6 @@ export { DEGRADED_SEVERITIES, severityTone, type DegradedSeverity } from './degr
 export { Modal, ModalClose, type ModalProps } from './Modal';
 export { Drawer, DrawerClose, type DrawerProps, type DrawerSide } from './Drawer';
 export { Popover, PopoverClose, type PopoverProps } from './Popover';
+export { Select, type SelectOption, type SelectProps, type SelectValue } from './Select';
 export { ToastProvider, useToast, useToastOptional, type ToastInput } from './Toast';
 export type { ToastAction } from './toast-store';
