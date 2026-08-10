@@ -182,18 +182,26 @@ def _cortex_kwargs(
     manifest: Mapping[str, object] | None,
     trial_seed: Mapping[str, object] | None,
     version: str,
+    trial_proxy: Mapping[str, object] | None,
+    admission_environment_digest: str | None,
+    defer_proxy_arm: bool,
 ) -> dict[str, object]:
     if artifact_dir is None or manifest is None or trial_seed is None:
         raise ValueError("cortex arms require artifact_dir, manifest, and trial_seed")
     seed_arm = trial_seed.get("arm")
     if not isinstance(seed_arm, Mapping) or seed_arm != arm:
         raise ValueError("trial_seed.arm must equal the selected arm")
-    return {
-        "artifact_dir": artifact_dir,
-        "manifest": dict(manifest),
-        "trial_seed": dict(trial_seed),
-        "version": version,
+    kwargs: dict[str, object] = {
+        "artifact_dir": artifact_dir, "manifest": dict(manifest),
+        "trial_seed": dict(trial_seed), "version": version,
     }
+    if trial_proxy is not None:
+        kwargs["trial_proxy"] = dict(trial_proxy)
+    if admission_environment_digest is not None:
+        kwargs["admission_environment_digest"] = admission_environment_digest
+    if defer_proxy_arm:
+        kwargs["defer_proxy_arm"] = True
+    return kwargs
 
 
 def _cortex_config(
@@ -203,9 +211,15 @@ def _cortex_config(
     manifest: Mapping[str, object] | None,
     trial_seed: Mapping[str, object] | None,
     version: str,
+    trial_proxy: Mapping[str, object] | None,
+    admission_environment_digest: str | None,
+    defer_proxy_arm: bool,
 ) -> AgentConfig:
     require_composable_arm(arm)
-    kwargs = _cortex_kwargs(arm, artifact_dir, manifest, trial_seed, version)
+    kwargs = _cortex_kwargs(
+        arm, artifact_dir, manifest, trial_seed, version, trial_proxy,
+        admission_environment_digest, defer_proxy_arm,
+    )
     return AgentConfig(import_path=CORTEX_IMPORT_PATH, kwargs=kwargs, **common)
 
 
@@ -241,6 +255,9 @@ def build_agent_config(
     override_setup_timeout_sec: float | None = None,
     max_timeout_sec: float | None = None,
     extra_allowed_hosts: Sequence[str] = (),
+    trial_proxy: Mapping[str, object] | None = None,
+    admission_environment_digest: str | None = None,
+    defer_proxy_arm: bool = False,
 ) -> AgentConfig:
     if not cli_version:
         raise ValueError("cli_version must be non-empty")
@@ -251,6 +268,7 @@ def build_agent_config(
     if arm.get("kind") == "cortex":
         return _cortex_config(
             arm, common, artifact_dir, manifest, trial_seed, cli_version,
+            trial_proxy, admission_environment_digest, defer_proxy_arm,
         )
     if arm.get("kind") == "vendor-baseline":
         return _vendor_config(arm, common, cli_version)

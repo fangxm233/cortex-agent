@@ -1,5 +1,5 @@
-# input:  Harbor lifecycle, npm bundle, manifest, trial seed
-# output: identity-bound admission, container facts, phase-A input
+# input:  Harbor lifecycle, bundle, manifest, admission seed
+# output: identity/env admission, container facts, phase-A input
 # pos:    Harbor BaseInstalledAgent wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -32,6 +32,10 @@ from .launcher.arms import (
     arm_orchestration_mode,
     backend_cli_binary,
     require_composable_arm,
+)
+from .launcher.trial_admission import (
+    HarborTrialAdmissionError,
+    environment_digest,
 )
 from .launcher.trial_proxy import (
     TrialProxySession,
@@ -69,26 +73,53 @@ class CortexBenchAgent(BaseInstalledAgent):
         trial_seed: Mapping[str, object],
         *args: object,
         trial_proxy: Mapping[str, object] | None = None,
+        admission_environment_digest: str | None = None,
+        defer_proxy_arm: bool = False,
+        extra_env: dict[str, str] | None = None,
         version: str = PACKAGE_VERSION,
         **kwargs: Any,
     ) -> None:
+        self._initialize_trial_state(
+            artifact_dir, manifest, trial_seed, trial_proxy,
+            admission_environment_digest, defer_proxy_arm, extra_env,
+        )
+        super().__init__(logs_dir, *args, version=version, extra_env=extra_env, **kwargs)
+        # The sealed path defers arming until EnvironmentFactory admits Harbor's final inputs.
+        self._proxy_session = None if defer_proxy_arm else self._arm_proxy(trial_proxy)
+
+    def _initialize_trial_state(
+        self, artifact_dir: Path | str, manifest: Mapping[str, object],
+        trial_seed: Mapping[str, object], trial_proxy: Mapping[str, object] | None,
+        environment_hash: str | None, defer_proxy_arm: bool,
+        extra_env: Mapping[str, str] | None,
+    ) -> None:
         self._artifact_dir = Path(artifact_dir)
-        self._manifest_seed: HarnessManifestSeed = parse_manifest_seed(manifest)
-        self._trial_seed: TrialSeed = parse_trial_seed(trial_seed)
+        self._manifest_seed = parse_manifest_seed(manifest)
+        self._trial_seed = parse_trial_seed(trial_seed)
         self._validate_trial_seed_binding()
         if not self._allow_unsupported_fixture_seed:
             require_composable_arm(self._trial_seed.arm)
+        self._validate_admission_environment(extra_env, environment_hash)
         self._resolved_cwd: ResolvedCwd | None = None
         self._staged_npm_artifact: Path | None = None
         self._cortex_cli_version: str | None = None
         self._container_facts: ContainerFacts | None = None
         self._captured_inventory: ArtifactInventory | None = None
         self._revoked = False
-        super().__init__(logs_dir, *args, version=version, **kwargs)
-        # Harbor builds the agent inside `Trial.__init__` and creates the container much later,
-        # from `Trial.run()`. This is therefore the last instant before the container exists, and
-        # the one place the route can be armed with a bound the container has not influenced.
-        self._proxy_session = self._arm_proxy(trial_proxy)
+        self._requires_admitted_proxy = environment_hash is not None
+        self._proxy_arm_deferred = defer_proxy_arm
+        self._deferred_proxy = dict(trial_proxy) if trial_proxy is not None else None
+
+    @staticmethod
+    def _validate_admission_environment(
+        extra_env: Mapping[str, str] | None, expected_digest: str | None,
+    ) -> None:
+        if expected_digest is None:
+            return
+        if environment_digest(dict(extra_env or {})) != expected_digest:
+            raise HarborTrialAdmissionError(
+                "agent environment differs from the sealed trial environment"
+            )
 
     @staticmethod
     @override
@@ -99,6 +130,23 @@ class CortexBenchAgent(BaseInstalledAgent):
     def proxy_session(self) -> TrialProxySession | None:
         """The armed credential route, or None for a trial that declared no proxy."""
         return self._proxy_session
+
+    def arm_admitted_proxy(self) -> TrialProxySession:
+        if not self._proxy_arm_deferred or self._deferred_proxy is None:
+            raise HarborTrialAdmissionError("current trial proxy is not awaiting admission")
+        session = self._arm_proxy(self._deferred_proxy)
+        if session is None:
+            raise HarborTrialAdmissionError("current trial proxy could not be armed")
+        self._proxy_session = session
+        self._proxy_arm_deferred = False
+        self._deferred_proxy = None
+        return session
+
+    def _require_admitted_proxy(self) -> None:
+        if self._proxy_arm_deferred or (
+            self._requires_admitted_proxy and self._proxy_session is None
+        ):
+            raise HarborTrialAdmissionError("current trial proxy is not armed")
 
     @property
     def captured_inventory(self) -> ArtifactInventory | None:
@@ -229,6 +277,13 @@ class CortexBenchAgent(BaseInstalledAgent):
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
+        try:
+            await self._install(environment)
+        except BaseException:
+            self._revoke_proxy()
+            raise
+
+    async def _install(self, environment: BaseEnvironment) -> None:
         staged, artifact = self._stage_npm_artifact()
         await environment.upload_file(staged, str(artifact))
         await self.exec_as_root(environment, command=self._install_command(artifact))
@@ -253,6 +308,7 @@ class CortexBenchAgent(BaseInstalledAgent):
     @override
     async def setup(self, environment: BaseEnvironment) -> None:
         try:
+            self._require_admitted_proxy()
             await self._setup(environment)
         except BaseException:
             # Harbor abandons the agent when setup raises and never reaches run(), and a cancelled
@@ -349,6 +405,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         context: AgentContext,
     ) -> None:
         try:
+            self._require_admitted_proxy()
             if self._resolved_cwd is None:
                 raise RuntimeError("CortexBenchAgent.setup() must complete before run")
             self.logs_dir.mkdir(parents=True, exist_ok=True)
