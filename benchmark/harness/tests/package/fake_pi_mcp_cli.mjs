@@ -1,11 +1,15 @@
-// input:  PI RPC commands, installed extension paths, benchmark policy env
-// output: strict MCP registration observation and one fake PI turn
-// pos:    Installed-form PI parent fixture for the Harbor package test
+// input:  PI RPC commands, installed extension paths, launcher run config
+// output: deterministic reply and strict MCP/run-config observation
+// pos:    Installed-form PI fixture for the six-row package matrix
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
+
+const RUN_CONFIG_PATH = '/logs/agent/arm-resolution.json';
+const OBSERVATION_PATH = '/app/s1-backend-observation.json';
 
 const argv = process.argv.slice(2);
 if (argv.includes('--version')) {
@@ -27,13 +31,28 @@ const bridge = await import(pathToFileURL(bridgePath).href);
 await bridge.default(pi);
 await handlers.get('before_agent_start')?.({}, {});
 const policyPath = process.env.CORTEX_BENCHMARK_THREAD_POLICY_PATH;
-fs.writeFileSync('/app/pi-mcp-observation.json', JSON.stringify({
-  bridgePath,
+const policyGuard = JSON.parse(process.env.CORTEX_PI_POLICY_GUARD ?? '{}');
+const leaseState = process.env.CORTEX_PI_LEASE_STATE;
+const runConfigBytes = fs.readFileSync(RUN_CONFIG_PATH);
+const runConfig = JSON.parse(runConfigBytes.toString('utf8'));
+const orchestration = runConfig.arm.orchestration;
+const observation = {
+  backend: 'pi', mode: orchestration.mode,
+  variant: orchestration.coder_review_variant ?? null,
+  armName: runConfig.arm.name,
+  runConfigPath: RUN_CONFIG_PATH,
+  runConfigSha256: createHash('sha256').update(runConfigBytes).digest('hex'),
+  cwd: process.cwd(), argv,
+  tools: leaseState ? policyGuard[leaseState] ?? [] : [],
+  strictMcpConfig: orchestration.mode === 'coder-review',
+  mcpConfigPaths: [], bridgePath,
   policyPath: policyPath ?? null,
   policyWritableBits: policyPath && fs.existsSync(policyPath)
     ? fs.statSync(policyPath).mode & 0o222 : null,
   registered,
-}));
+};
+fs.writeFileSync('/app/pi-mcp-observation.json', JSON.stringify(observation));
+fs.writeFileSync(OBSERVATION_PATH, JSON.stringify(observation));
 
 function say(record) {
   process.stdout.write(`${JSON.stringify(record)}\n`);

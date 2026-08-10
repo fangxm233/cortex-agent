@@ -1,5 +1,5 @@
-# input:  npm artifact, Docker environment, trial seed, opt-in gate
-# output: installed CLI, PI policy propagation, corrupt-artifact failure
+# input:  npm artifact, Docker environment, S1 arm seeds, opt-in gate
+# output: installed six-row execution matrix and corrupt-artifact failure
 # pos:    Opt-in container proof for the installed Harbor path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -11,6 +11,7 @@ import asyncio
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -32,7 +33,12 @@ AGENT_USER = "cortex-agent"
 MINIMUM_FREE_BYTES = 10 * 1024**3
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SERVER_ROOT = REPO_ROOT / "agent-server"
-PI_VARIANTS = ("audit-retry", "reviewer-fix")
+CODER_REVIEW_VARIANTS = ("audit-retry", "reviewer-fix")
+S1_ROWS = (
+    *((backend, "direct", None) for backend in ("claude", "pi")),
+    *((backend, "coder-review", variant)
+      for backend in ("claude", "pi") for variant in CODER_REVIEW_VARIANTS),
+)
 POLICY_PATH = "/logs/agent/benchmark-thread-policy.json"
 
 
@@ -159,35 +165,35 @@ def create_agent(
     )
 
 
-def pi_coder_review_seed(
-    image: dict[str, object], suffix: str, variant: str,
+def s1_seed(
+    image: dict[str, object], suffix: str, backend: str,
+    mode: str, variant: str | None,
 ) -> dict[str, object]:
     seed = trial_seed(image, suffix)
     arm = dict(seed["arm"])
-    arm["name"] = f"cortex-pi-{variant}"
-    arm["backend"] = "pi"
-    arm["orchestration"] = {
-        "mode": "coder-review", "coder_review_variant": variant,
-        "ask_manager": False,
-    }
-    arm["limits"] = {
-        **arm["limits"], "max_thread_starts": 1,
-        "max_resident_agent_processes": 3,
-    }
-    seed.update({
-        "arm": arm, "arm_path": f"arm://{arm['name']}",
-        "pi_benchmark_capability_proven": True,
-    })
+    arm.update({"name": f"cortex-{suffix}", "backend": backend})
+    if mode == "coder-review":
+        arm["orchestration"] = {
+            "mode": mode, "coder_review_variant": variant, "ask_manager": False,
+        }
+        arm["limits"] = {
+            **arm["limits"], "max_thread_starts": 1,
+            "max_resident_agent_processes": 3,
+        }
+    seed.update({"arm": arm, "arm_path": f"arm://{arm['name']}"})
+    if backend == "pi":
+        seed["pi_benchmark_capability_proven"] = True
     return seed
 
 
-def create_pi_coder_review_agent(
-    root: Path, artifact: Path, image: dict[str, object], variant: str,
+def create_s1_agent(
+    root: Path, artifact: Path, image: dict[str, object],
+    backend: str, mode: str, variant: str | None,
 ) -> CortexBenchAgent:
-    suffix = f"pi-{variant}"
+    suffix = "-".join(part for part in (backend, mode, variant) if part)
     wheel = root / "cortex_bench_harness-0.1.0-py3-none-any.whl"
     wheel.write_bytes(b"harness wheel fixture")
-    seed = pi_coder_review_seed(image, suffix, variant)
+    seed = s1_seed(image, suffix, backend, mode, variant)
     return CortexBenchAgent(
         logs_dir=root / "trial/agent", artifact_dir=root / "trial/artifacts",
         manifest={
@@ -218,7 +224,10 @@ async def provision_agent_user(environment: DockerEnvironment) -> None:
     assert result.return_code == 0, result.stderr
 
 
-async def provision_pi_agent_user(environment: DockerEnvironment) -> None:
+async def provision_s1_agent_user(
+    environment: DockerEnvironment, backend: str,
+) -> None:
+    script = "fake-pi.mjs" if backend == "pi" else "fake-claude.mjs"
     command = (
         "printf 'update-notifier=false\\n' > /etc/npmrc"
         " && ln -s /opt/node/bin/node /usr/local/bin/node"
@@ -226,17 +235,17 @@ async def provision_pi_agent_user(environment: DockerEnvironment) -> None:
         f" && useradd --create-home --shell /bin/bash {AGENT_USER}"
         f" && printf 'update-notifier=false\\n' > /home/{AGENT_USER}/.npmrc"
         f" && chown {AGENT_USER}:{AGENT_USER} /home/{AGENT_USER}/.npmrc"
-        " && printf '#!/bin/sh\\nexec /opt/node/bin/node /app/fake-pi.mjs \"$@\"\\n'"
-        " > /usr/local/bin/pi && chmod +x /usr/local/bin/pi"
+        f" && printf '#!/bin/sh\\nexec /opt/node/bin/node /app/{script} \"$@\"\\n'"
+        f" > /usr/local/bin/{backend} && chmod +x /usr/local/bin/{backend}"
     )
     result = await environment.exec(command=command, user="root")
     assert result.return_code == 0, result.stderr
 
 
-def write_fake_pi_cli(task_root: Path) -> Path:
-    source = Path(__file__).with_name("fake_pi_mcp_cli.mjs")
-    script = task_root / "fake-pi.mjs"
-    shutil.copy2(source, script)
+def write_fake_s1_cli(task_root: Path, backend: str) -> Path:
+    name = "fake_pi_mcp_cli.mjs" if backend == "pi" else "fake_claude_mcp_cli.mjs"
+    script = task_root / ("fake-pi.mjs" if backend == "pi" else "fake-claude.mjs")
+    shutil.copy2(Path(__file__).with_name(name), script)
     return script
 
 
@@ -314,39 +323,124 @@ async def run_negative_path(
         await environment.stop(delete=True)
 
 
-async def run_pi_coder_review_path(
-    root: Path, node_runtime: Path, artifact: Path,
-    image: dict[str, object], variant: str,
-) -> None:
-    environment = create_environment(root, node_runtime, f"pi-{variant}")
-    write_fake_pi_cli(root / "task-root")
-    agent = create_pi_coder_review_agent(root, artifact, image, variant)
+def assert_production_agent(agent: CortexBenchAgent) -> None:
     assert type(agent) is CortexBenchAgent
-    try:
-        await environment.start(force_build=False)
-        await provision_pi_agent_user(environment)
-        with environment.with_default_user(AGENT_USER):
-            await agent.setup(environment)
-            # The fake parent loads extensions but deliberately makes no tool call, so the later
-            # coder-review terminal predicate fails after the server-start boundary under test.
-            with pytest.raises(NonZeroAgentExitCodeError):
-                await agent.run("Solve the task.", environment, AgentContext())
-        declaration = json.loads(
-            (root / "trial/agent/mcp-config-benchmark-thread.json").read_text()
-        )
-        launcher_policy_path = declaration["mcpServers"][
-            "cortex-benchmark-thread"
-        ]["env"]["CORTEX_BENCHMARK_THREAD_POLICY_PATH"]
-        observation = json.loads(
-            (root / "task-root/pi-mcp-observation.json").read_text()
-        )
-        assert launcher_policy_path == POLICY_PATH
-        assert observation["policyPath"] == launcher_policy_path
-        assert observation["policyWritableBits"] == 0
-        assert observation["registered"] == ["thread_run"]
-        assert observation["bridgePath"].startswith(
+    for method in ("setup", "run", "preview_run_argv", "_compose_arm_resolution"):
+        assert getattr(agent, method).__func__ is getattr(CortexBenchAgent, method)
+
+
+def assert_coder_review_observation(
+    observation: dict[str, object], backend: str,
+) -> None:
+    assert observation["strictMcpConfig"] is True
+    assert observation["policyPath"] == POLICY_PATH
+    assert observation["policyWritableBits"] == 0
+    assert observation["registered"] == ["thread_run"]
+    if backend == "claude":
+        assert observation["mcpConfigPaths"] == [
+            "/logs/agent/mcp-config-benchmark-thread.json",
+        ]
+    else:
+        assert str(observation["bridgePath"]).startswith(
             "/installed-agent/npm/lib/node_modules/@cortex-agent/server/dist/"
         )
+
+
+def assert_s1_observation(
+    root: Path, resolution_bytes: bytes, backend: str,
+    mode: str, variant: str | None,
+) -> None:
+    resolution = json.loads(resolution_bytes)
+    observation = json.loads(
+        (root / "task-root/s1-backend-observation.json").read_text()
+    )
+    assert observation["backend"] == backend
+    assert observation["mode"] == mode
+    assert observation["variant"] == variant
+    assert observation["armName"] == resolution["arm"]["name"]
+    assert observation["runConfigPath"] == "/logs/agent/arm-resolution.json"
+    assert observation["runConfigSha256"] == hashlib.sha256(resolution_bytes).hexdigest()
+    assert observation["cwd"] == "/app"
+    assert observation["tools"] == resolution["roles"]["parent"]["tools"]
+    if mode == "direct":
+        assert observation["policyPath"] is None
+        assert "thread_run" not in observation["registered"]
+        assert observation["mcpConfigPaths"] == []
+        return
+    assert_coder_review_observation(observation, backend)
+
+
+async def assert_s1_terminal(
+    environment: DockerEnvironment, suffix: str, mode: str,
+) -> None:
+    terminal_path = f"/logs/agent/trajectory/run-root-{suffix}.terminal.json"
+    composite_path = "/logs/agent/trajectory/composite-manifest.json"
+    child_terminals = "/logs/agent/trajectory/thread-*.terminal.json"
+    with environment.with_default_user(AGENT_USER):
+        result = await environment.exec(command=f"cat {shlex.quote(terminal_path)}")
+        composite = await environment.exec(command=f"test -f {composite_path}")
+        child = await environment.exec(
+            command=f"set -- {child_terminals}; test ! -e \"$1\"",
+        )
+    assert result.return_code == 0, result.stderr
+    terminal = json.loads(result.stdout)
+    assert (terminal["state"], terminal["terminal_reason"]) == ("completed", "ok")
+    assert terminal["supervisor"] == {"quiescent": True, "descendants": 0}
+    assert child.return_code == 0, "the fake parent must not start a child thread"
+    assert (composite.return_code == 0) is (mode == "direct")
+
+
+async def execute_s1_public_cli(
+    agent: CortexBenchAgent, environment: DockerEnvironment,
+    root: Path, mode: str,
+) -> None:
+    with environment.with_default_user(AGENT_USER):
+        await agent.setup(environment)
+        installed = await environment.exec(command="command -v cortex")
+        assert installed.stdout.strip() == "/usr/local/bin/cortex"
+        preview = agent.preview_run_argv()
+        assert preview[:2] == ["cortex", "agent-run"]
+        assert preview[preview.index("--run-config") + 1] == (
+            "/logs/agent/arm-resolution.json"
+        )
+        run_error = None
+        try:
+            await agent.run("Solve the task.", environment, AgentContext())
+        except NonZeroAgentExitCodeError as error:
+            run_error = error
+    if mode == "direct":
+        observation = root / "task-root/s1-backend-observation.json"
+        detail = observation.read_text() if observation.is_file() else "no observation"
+        assert run_error is None, f"{run_error}\n{detail}"
+    else:
+        assert run_error is not None, "coder-review must fail without thread_run"
+        refusal = str(run_error)
+        assert "Command failed (exit 1): cortex agent-run" in refusal
+        assert '"state":"failed"' in refusal
+        assert '"manifest":null' in refusal
+        assert '"terminal_reason":"protocol_violation"' in refusal
+
+
+async def run_s1_path(
+    root: Path, node_runtime: Path, artifact: Path, image: dict[str, object],
+    backend: str, mode: str, variant: str | None,
+) -> None:
+    suffix = "-".join(part for part in (backend, mode, variant) if part)
+    environment = create_environment(root, node_runtime, suffix)
+    write_fake_s1_cli(root / "task-root", backend)
+    agent = create_s1_agent(root, artifact, image, backend, mode, variant)
+    assert_production_agent(agent)
+    try:
+        await environment.start(force_build=False)
+        await provision_s1_agent_user(environment, backend)
+        await assert_fresh_container(environment)
+        await execute_s1_public_cli(agent, environment, root, mode)
+        resolution_bytes = (root / "trial/agent/arm-resolution.json").read_bytes()
+        resolution = json.loads(resolution_bytes)
+        assert resolution["arm"]["backend"] == backend
+        assert resolution["arm"]["orchestration"]["mode"] == mode
+        assert_s1_observation(root, resolution_bytes, backend, mode, variant)
+        await assert_s1_terminal(environment, suffix, mode)
     finally:
         await environment.stop(delete=True)
 
@@ -373,11 +467,13 @@ def test_real_container_installs_bundle_and_aborts_corrupt_artifact(
     asyncio.run(run_negative_path(root / "negative", node_runtime, image))
 
 
-@pytest.mark.parametrize("variant", PI_VARIANTS)
-def test_installed_public_pi_coder_review_loads_launcher_policy_in_strict_server(
-    installed_bundle: tuple[Path, Path, Path, dict[str, object]], variant: str,
+@pytest.mark.parametrize(("backend", "mode", "variant"), S1_ROWS)
+def test_installed_exact_production_agent_executes_all_six_s1_rows(
+    installed_bundle: tuple[Path, Path, Path, dict[str, object]],
+    backend: str, mode: str, variant: str | None,
 ) -> None:
     root, node_runtime, artifact, image = installed_bundle
-    asyncio.run(run_pi_coder_review_path(
-        root / f"pi-{variant}", node_runtime, artifact, image, variant,
+    suffix = "-".join(part for part in (backend, mode, variant) if part)
+    asyncio.run(run_s1_path(
+        root / suffix, node_runtime, artifact, image, backend, mode, variant,
     ))
