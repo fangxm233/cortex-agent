@@ -1,5 +1,5 @@
 // input:  public arm resolution, explicit trial/output roots and supervisor
-// output: frozen policy, local stores, runtime deps and output-only adapter
+// output: validated fresh policy, stores, runtime deps and output adapter
 // pos:    Standalone container-side agent-run composition root
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -391,8 +391,6 @@ function assertPhysicalRootProjection(options: StandaloneCompositionOptions): vo
   }
 }
 
-const ALLOWED_FRESH_PROJECTIONS = new Set(['claude-config/settings.json']);
-
 function unexpectedFreshEntry(root: string, current = root): string | null {
   for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
     const target = path.join(current, entry.name);
@@ -401,7 +399,7 @@ function unexpectedFreshEntry(root: string, current = root): string | null {
     if (entry.isDirectory()) {
       const nested = unexpectedFreshEntry(root, target);
       if (nested) return nested;
-    } else if (!entry.isFile() || !ALLOWED_FRESH_PROJECTIONS.has(relative)) {
+    } else {
       return relative;
     }
   }

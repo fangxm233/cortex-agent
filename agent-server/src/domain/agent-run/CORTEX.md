@@ -20,7 +20,7 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | role-surface.ts | identity | hashes exact spawn defaults, directives and guards |
 | run-config.ts | config | dispatches legacy and injected benchmark configs |
 | runner.ts | core | runs the composed lifecycle and publishes terminal evidence |
-| standalone-composition.ts | wiring | builds the fresh standalone trial object graph |
+| standalone-composition.ts | wiring | validates and builds the fresh trial object graph |
 | standalone-stores.ts | store | persists trial-local task, thread and session state |
 | supervisor.ts | core | resolves the binary and gates process containment |
 | trajectory-merge-cli.ts | cli | publishes one merged trajectory with typed failures |
