@@ -1,10 +1,10 @@
-// input:  Spawn config, provider cache, settings
+// input:  Spawn config, provider cache, benchmark MCP policy
 // output: PI process facade, sessions, events, compact
 // pos:    Coordinates PI process and session lifecycles
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { type ChildProcess } from 'child_process';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
 import * as path from 'path';
 import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
@@ -14,7 +14,9 @@ import { resolveMcpComposition } from '../types.js';
 import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentProcessSupervision, AgentSpawnConfig, Backend, InjectionAckSink, McpComposition, UserMessage } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
-import { buildPiEnv, buildSpawnArgs, type PISpawnOptions } from './spawn-args.js';
+import {
+  buildPiEnv, buildSpawnArgs, PI_BENCHMARK_THREAD_POLICY_ENV, type PISpawnOptions,
+} from './spawn-args.js';
 import { writePiPluginMcpConfig } from './mcp-config.js';
 import { createLineSplitter, encodeCommand } from './framing.js';
 import { piRpcLineToNormalized, createPIEventParserState, piContextUsageFromStats, type PIEventParserState } from './event-parser.js';
@@ -917,6 +919,30 @@ function spawnPluginMcpPath(
   return writePiPluginMcpConfig(config.mcpServers).path;
 }
 
+type BenchmarkServerConfig = { env?: Record<string, unknown> };
+
+function benchmarkServerConfig(file: string): BenchmarkServerConfig[] {
+  const document = JSON.parse(readFileSync(file, 'utf8')) as {
+    mcpServers?: Record<string, BenchmarkServerConfig>;
+  };
+  const server = document.mcpServers?.['cortex-benchmark-thread'];
+  return server === undefined ? [] : [server];
+}
+
+function benchmarkThreadPolicyPath(
+  config: AgentSpawnConfig,
+  composition: McpComposition,
+): string | undefined {
+  if (composition !== 'benchmark-thread-run') return undefined;
+  const servers = (config.mcpConfigPaths ?? []).flatMap(benchmarkServerConfig);
+  if (servers.length !== 1) throw new Error('Benchmark PI spawn requires one thread MCP server');
+  const policyPath = servers[0].env?.[PI_BENCHMARK_THREAD_POLICY_ENV];
+  if (typeof policyPath !== 'string' || !path.isAbsolute(policyPath)) {
+    throw new Error(`Benchmark PI spawn requires absolute ${PI_BENCHMARK_THREAD_POLICY_ENV}`);
+  }
+  return policyPath;
+}
+
 function buildSpawnEnvironment(
   config: AgentSpawnConfig,
   agentDir: string,
@@ -938,6 +964,7 @@ function buildSpawnEnvironment(
     mcpComposition: composition,
     deadlineEpochMs: config.benchmarkDeadlineEpochMs,
     pluginMcpConfigPath: spawnPluginMcpPath(config, composition, subagentMarker),
+    benchmarkThreadPolicyPath: benchmarkThreadPolicyPath(config, composition),
     subagentMarker,
   }, config.pinnedEnv);
 }

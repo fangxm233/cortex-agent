@@ -21,7 +21,9 @@ import { PI_MODELS_PATH } from '../src/agent-adapter/pi/agent-dir.js';
 import { PI_PLUGIN_MCP_CONFIG_ENV } from '../src/agent-adapter/pi/mcp-config.js';
 import { createPIProviderDiscovery } from '../src/agent-adapter/pi/discovery.js';
 import { encodeCommand, createLineSplitter } from '../src/agent-adapter/pi/framing.js';
-import { buildPiEnv, buildSpawnArgs } from '../src/agent-adapter/pi/spawn-args.js';
+import {
+  buildPiEnv, buildSpawnArgs, PI_BENCHMARK_THREAD_POLICY_ENV,
+} from '../src/agent-adapter/pi/spawn-args.js';
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
 
 // Writable temp session dir used by Group G tests (avoids root-level paths that fail with EACCES).
@@ -310,6 +312,7 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
     CORTEX_SCHEDULE_TASK_ID: 'stale-schedule',
     CORTEX_PI_SUBAGENT: '1',
     [PI_PLUGIN_MCP_CONFIG_ENV]: '/stale-plugin-mcp.json',
+    [PI_BENCHMARK_THREAD_POLICY_ENV]: '/stale-thread-policy.json',
   };
   const env = buildPiEnv({
     sessionId: null,
@@ -346,10 +349,50 @@ test('buildPiEnv preserves an explicit PI subagent marker after reset', () => {
   assert.equal(env.CORTEX_PI_SUBAGENT, '1');
 });
 
+test('buildPiEnv replaces an inherited benchmark thread policy path', () => {
+  const env = buildPiEnv({
+    piAgentDir: '/pi-agent',
+    benchmarkThreadPolicyPath: '/logs/agent/benchmark-thread-policy.json',
+  }, {
+    [PI_BENCHMARK_THREAD_POLICY_ENV]: '/stale-thread-policy.json',
+  });
+
+  assert.equal(
+    env[PI_BENCHMARK_THREAD_POLICY_ENV],
+    '/logs/agent/benchmark-thread-policy.json',
+  );
+});
+
+test('PIAdapter carries only the declared benchmark policy into the restricted composition', () => {
+  const policyPath = '/logs/agent/benchmark-thread-policy.json';
+  const mcpConfigPath = pathJoin(G_SESSION_DIR, 'benchmark-thread-mcp.json');
+  writeFileSync(mcpConfigPath, JSON.stringify({
+    mcpServers: {
+      'cortex-benchmark-thread': {
+        command: 'node', args: ['/installed/benchmark-thread-server.js'],
+        cwd: '/installed', env: {
+          CORTEX_BENCHMARK_THREAD_POLICY_PATH: policyPath,
+        },
+      },
+    },
+  }));
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn);
+  const proc = adapter.spawn({
+    sessionId: null, sessionKey: 'pi-benchmark-policy', resume: false,
+    mcpComposition: 'benchmark-thread-run', mcpConfigPaths: [mcpConfigPath],
+  });
+
+  const env = stub.calls[0].opts.env as NodeJS.ProcessEnv;
+  assert.equal(env[PI_BENCHMARK_THREAD_POLICY_ENV], policyPath);
+  assert.equal(env[PI_PLUGIN_MCP_CONFIG_ENV], undefined);
+  proc.kill();
+  stub.children[0].emit('close', 0);
+});
+
 test('PIAdapter does not export plugin MCP config for restricted compositions or subagents', () => {
   for (const entry of [
     { key: 'pi-none', mcpComposition: 'none' as const },
-    { key: 'pi-benchmark', mcpComposition: 'benchmark-thread-run' as const },
     { key: 'pi-subagent', mcpComposition: 'thread-control' as const, env: { CORTEX_PI_SUBAGENT: '1' } },
   ]) {
     const stub = makeStubSpawner();

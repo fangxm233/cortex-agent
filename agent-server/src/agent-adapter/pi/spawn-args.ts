@@ -1,4 +1,4 @@
-// input:  PI spawn options, task context, policy guard
+// input:  PI spawn options, task context, benchmark policy
 // output: Isolated PI argv and subprocess environment
 // pos:    Builds PI process arguments and environment
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -10,6 +10,8 @@ import {
 } from './policy-guard.js';
 import { PI_BENCHMARK_DEADLINE_ENV } from './mcp-duration.js';
 import { PI_PLUGIN_MCP_CONFIG_ENV } from './mcp-config.js';
+
+export const PI_BENCHMARK_THREAD_POLICY_ENV = 'CORTEX_BENCHMARK_THREAD_POLICY_PATH';
 
 export interface PISpawnOptions {
   sessionDir: string;
@@ -101,6 +103,8 @@ export interface PIEnvOptions {
   deadlineEpochMs?: number;
   /** Private path to the typed plugin MCP config written by the adapter. */
   pluginMcpConfigPath?: string | null;
+  /** Launcher-declared policy path for the restricted benchmark thread server. */
+  benchmarkThreadPolicyPath?: string | null;
   /** Explicit marker for the restricted PI subagent surface. */
   subagentMarker?: string | null;
 }
@@ -113,7 +117,8 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_TASK_GENERATION',
   'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
   'CORTEX_PI_ALLOWED_TOOLS', 'CORTEX_PI_SUBAGENT', PI_PLUGIN_MCP_CONFIG_ENV,
-  PI_POLICY_GUARD_ENV, PI_LEASE_STATE_ENV, PI_MCP_COMPOSITION_ENV, PI_BENCHMARK_DEADLINE_ENV,
+  PI_BENCHMARK_THREAD_POLICY_ENV, PI_POLICY_GUARD_ENV, PI_LEASE_STATE_ENV,
+  PI_MCP_COMPOSITION_ENV, PI_BENCHMARK_DEADLINE_ENV,
 ] as const;
 
 function setOptional(env: NodeJS.ProcessEnv, key: string, value: unknown): void {
@@ -160,6 +165,7 @@ export function buildPiEnv(
   setOptional(env, PI_MCP_COMPOSITION_ENV, options.mcpComposition);
   setOptional(env, PI_BENCHMARK_DEADLINE_ENV, options.deadlineEpochMs);
   setOptional(env, PI_PLUGIN_MCP_CONFIG_ENV, options.pluginMcpConfigPath);
+  setOptional(env, PI_BENCHMARK_THREAD_POLICY_ENV, options.benchmarkThreadPolicyPath);
   setOptional(env, 'CORTEX_PI_SUBAGENT', options.subagentMarker);
   applyContext(env, options);
   return env;

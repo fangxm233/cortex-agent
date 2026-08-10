@@ -13,8 +13,8 @@ Production code lives in src/, regression tests in tests/, and the install scaff
 | vendor/ | subdir | Vendored npm tarball dependencies |
 | README.md | docs | describes the published server package |
 | .dependency-cruiser.cjs | config | Layer and standalone composition dependency rules |
-| package.json | config | Builds and packs server, CLIs and native supervisor |
-| package-lock.json | config | Locked dependency versions |
+| package.json | config | Builds, packs and declares runtime dependencies |
+| package-lock.json | config | Pins runtime and development dependencies |
 | tsconfig.json | config | TypeScript compiler options |
 | tsconfig.build.json | config | Compiler options for the dist build |
 | vitest.config.ts | config | Unit test runner configuration |
