@@ -771,6 +771,10 @@ def whole_tree_scan(layout: Layout, secrets: dict[str, str]) -> bool:
         total_bytes += len(data)
         if any(literal in data for literal in literals):
             findings.append(f"secret:{path.relative_to(layout.root)}")
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
         host_scan_data = data
         for endpoint in declared_endpoints:
             host_scan_data = host_scan_data.replace(endpoint, b"")
