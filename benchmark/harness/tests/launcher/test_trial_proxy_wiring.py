@@ -474,6 +474,20 @@ def route_is_dead(session: TrialProxySession) -> bool:
     return False
 
 
+def test_public_entry_revokes_the_route_when_install_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(CREDENTIAL_ENV, REAL_CREDENTIAL)
+    agent = public_agent(tmp_path, closed_upstream())
+    session = agent.proxy_session
+
+    with pytest.raises(RuntimeError, match="bundle root probe"):
+        asyncio.run(agent.install(BrokenContainerEnvironment()))
+
+    assert route_is_dead(session)
+    assert session.export_path.is_file()
+
+
 def test_public_entry_revokes_the_route_when_setup_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

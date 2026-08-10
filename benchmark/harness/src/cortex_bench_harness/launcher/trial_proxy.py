@@ -48,10 +48,11 @@ ADAPTER_SELECTION_FILENAME = "adapter-selection.json"
 ADAPTER_SELECTION_SCHEMA_VERSION = "cortex-bench-adapter-selection/1"
 LEASE_ECHO_RECORD_SCHEMA_VERSION = "cortex-bench-lease-echo-record/1"
 
-SPEC_FIELDS = frozenset({
+SPEC_REQUIRED_FIELDS = frozenset({
     "credential_env", "bound_source_ip", "max_request_cost_usd",
     "input_cost_per_million_usd", "output_cost_per_million_usd",
 })
+SPEC_OPTIONAL_FIELDS = frozenset({"listen_host", "advertised_host"})
 
 
 @dataclass(frozen=True)
@@ -67,21 +68,29 @@ class TrialProxySpec:
     max_request_cost_usd: Decimal
     input_cost_per_million_usd: Decimal
     output_cost_per_million_usd: Decimal
+    listen_host: str = "127.0.0.1"
+    advertised_host: str | None = None
 
 
 def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
-    rejected = sorted(set(source) - SPEC_FIELDS)
+    fields = SPEC_REQUIRED_FIELDS | SPEC_OPTIONAL_FIELDS
+    rejected = sorted(set(source) - fields)
     if rejected:
         raise ValueError(f"trial proxy spec rejects fields {rejected}")
-    missing = sorted(SPEC_FIELDS - set(source))
+    missing = sorted(SPEC_REQUIRED_FIELDS - set(source))
     if missing:
         raise ValueError(f"trial proxy spec requires fields {missing}")
+    advertised = source.get("advertised_host")
+    if advertised is not None and (not isinstance(advertised, str) or not advertised):
+        raise ValueError("advertised_host must be a non-empty string")
     return TrialProxySpec(
         credential_env=_text(source, "credential_env"),
         bound_source_ip=_text(source, "bound_source_ip"),
         max_request_cost_usd=_decimal(source, "max_request_cost_usd"),
         input_cost_per_million_usd=_decimal(source, "input_cost_per_million_usd"),
         output_cost_per_million_usd=_decimal(source, "output_cost_per_million_usd"),
+        listen_host=_optional_text(source, "listen_host", "127.0.0.1"),
+        advertised_host=advertised,
     )
 
 
@@ -182,6 +191,31 @@ def _admitted_capability_key(capability_id: str) -> CredentialCapabilityKey:
     return key
 
 
+def _start_proxy_session(
+    arm: Mapping[str, object], trial_id: str, upstream_base_url: str,
+    spec: TrialProxySpec, proxy_dir: Path, adapter: ProviderAdapter,
+    now_ms: Callable[[], int],
+) -> TrialProxySession:
+    budget_ms = _deadline_budget_ms(arm)
+    bound_ms = provisional_lease_bound_ms(now_ms(), budget_ms)
+    absolute_deadline = _epoch_datetime(bound_ms)
+    handle = start_trial_proxy(
+        trial_id=trial_id, upstream_base_url=upstream_base_url, adapter=adapter,
+        bound_source_ip=spec.bound_source_ip, absolute_deadline=absolute_deadline,
+        budget=_budget(arm, spec), log_path=proxy_dir / AUDIT_LOG_FILENAME,
+        lease_terms=LeaseTerms(
+            budget_ms=budget_ms, teardown_grace_ms=TEARDOWN_GRACE_MS,
+        ),
+        listen_host=spec.listen_host, advertised_host=spec.advertised_host,
+        now_ms=now_ms,
+    )
+    return TrialProxySession(
+        handle=handle, upstream_base_url=upstream_base_url,
+        absolute_deadline=absolute_deadline, provisional_bound_ms=bound_ms,
+        proxy_dir=proxy_dir,
+    )
+
+
 def arm_trial_proxy(
     *, arm: Mapping[str, object], trial_id: str, upstream_base_url: str,
     spec: TrialProxySpec, proxy_dir: Path, trial_roots: Sequence[Path],
@@ -191,36 +225,20 @@ def arm_trial_proxy(
     """Arm the trial's credential route. Called before the container is created."""
     _require_contained(proxy_dir, trial_roots)
     capability_id = _text(arm, "credential_capability")
-    # Before the credential is read, so a refused row never loads one.
     key = _admitted_capability_key(capability_id)
-    credential = _host_credential(spec.credential_env, environ)
-    # Selection is by exact capability key, and an unadapted route is never opened: this refusal
-    # happens before anything is started or written.
     adapter = select_adapter(
-        key, upstream_base_url=upstream_base_url, credential=credential,
+        key, upstream_base_url=upstream_base_url,
+        credential=_host_credential(spec.credential_env, environ),
         frozen_model=_text(arm, "model"),
     )
-    budget_ms = _deadline_budget_ms(arm)
-    bound_ms = provisional_lease_bound_ms(now_ms(), budget_ms)
-    absolute_deadline = _epoch_datetime(bound_ms)
-    handle = start_trial_proxy(
-        trial_id=trial_id, upstream_base_url=upstream_base_url, adapter=adapter,
-        bound_source_ip=spec.bound_source_ip,
-        absolute_deadline=absolute_deadline,
-        budget=_budget(arm, spec), log_path=proxy_dir / AUDIT_LOG_FILENAME,
-        lease_terms=LeaseTerms(budget_ms=budget_ms, teardown_grace_ms=TEARDOWN_GRACE_MS),
-        now_ms=now_ms,
-    )
-    session = TrialProxySession(
-        handle=handle, upstream_base_url=upstream_base_url,
-        absolute_deadline=absolute_deadline, provisional_bound_ms=bound_ms,
-        proxy_dir=proxy_dir,
+    session = _start_proxy_session(
+        arm, trial_id, upstream_base_url, spec, proxy_dir, adapter, now_ms,
     )
     try:
         _write_json(session.adapter_selection_path, _adapter_selection_record(
             trial_id, adapter, capability_id, key))
     except BaseException:
-        handle.stop()
+        session.handle.stop()
         raise
     return session
 
@@ -321,6 +339,13 @@ def _epoch_datetime(epoch_ms: int) -> datetime:
 
 def _text(values: Mapping[str, Any], key: str) -> str:
     value = values.get(key)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{key} must be a non-empty string")
+    return value
+
+
+def _optional_text(values: Mapping[str, Any], key: str, default: str) -> str:
+    value = values.get(key, default)
     if not isinstance(value, str) or not value:
         raise ValueError(f"{key} must be a non-empty string")
     return value

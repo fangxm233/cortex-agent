@@ -12,6 +12,7 @@ Launcher tests cover arm routing, credential projections, and vendor isolation.
 | test_independent_entry_parity.py | test | Second witness: shipped entry composes with no helper |
 | test_public_entry_parity.py | test | Proves seed-only composition through the shipped loader |
 | test_thread_policy.py | test | Verifies the composed in-trial thread-policy document and its file |
+| test_trial_admission.py | test | Proves production container admission and evidence |
 | test_trial_proxy_wiring.py | test | Proves the entry arms, produces, fills and revokes |
 | test_variant_role_sets.py | test | Verifies both coder-review variant role sets on both backends |
 | test_vendor_baseline_isolation.py | test | Proves baselines never invoke Cortex installation |
