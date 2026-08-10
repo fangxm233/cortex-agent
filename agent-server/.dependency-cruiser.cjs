@@ -33,10 +33,10 @@ const STANDALONE_COMPOSITION_RULES = [
   {
     name: 'standalone-root-no-daemon',
     severity: 'error',
-    comment: 'standalone entry and factories may not compose daemon state or entry points',
+    comment: 'standalone entry and factories may not compose daemon state, shared scheduling, or entry points',
     from: STANDALONE_COMPOSITION_SURFACES,
     to: {
-      path: '^src/(entry/(app|daemon)|domain/(scheduling/job-registry|mcp/tools/(thread-ops|manager-qa)))\\.ts$',
+      path: '^src/(entry/(app|daemon)|domain/(scheduling/(job-registry|scheduler)|mcp/tools/(thread-ops|manager-qa)))\\.ts$',
       ...DIRECT_RUNTIME_ONLY,
     },
   },
@@ -67,10 +67,10 @@ const STANDALONE_COMPOSITION_RULES = [
   {
     name: 'standalone-root-no-host-stores',
     severity: 'error',
-    comment: 'standalone entry and factories may not compose host task, thread or session stores',
+    comment: 'standalone entry and factories may not compose ambient or host runtime stores',
     from: STANDALONE_COMPOSITION_SURFACES,
     to: {
-      path: '^src/(store/(task-repo|thread-repo|session-registry-repo|execution-repo)\\.ts|domain/(projects|memory)/)',
+      path: '^src/(store/(task-repo|thread-repo|session-registry-repo|execution-repo|profile-repo|schedule-repo)\\.ts|domain/(projects|memory)/)',
       ...DIRECT_RUNTIME_ONLY,
     },
   },
