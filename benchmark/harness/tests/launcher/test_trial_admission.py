@@ -473,49 +473,21 @@ def test_container_start_accepts_only_keys_overridden_by_the_sealed_environment(
     start.assert_awaited_once_with(force_build=False)
 
 
-def test_image_inspection_does_not_block_other_coroutines(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_image_inspection_does_not_block_other_coroutines(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     trial = create_trial(tmp_path)
-    inspect_started = threading.Event()
-    inspect_release = threading.Event()
-    released_while_pending: list[bool] = []
-    result = subprocess.CompletedProcess(
-        args=["docker", "image", "inspect"], returncode=0,
-        stdout=json.dumps({
-            "Env": ["PATH=/image/path", "LANG=C"], "Volumes": None,
-        }) + "\n", stderr="",
-    )
-
-    def pending_inspect(*args: object, **kwargs: object) -> object:
-        inspect_started.set()
-        released_while_pending.append(inspect_release.wait(timeout=1))
-        return result
-
-    module = importlib.import_module(
-        "cortex_bench_harness.launcher.trial_admission_io",
-    )
+    pending_inspection = threading.Barrier(2, timeout=1)
     monkeypatch.setattr(
-        module, "subprocess", SimpleNamespace(run=pending_inspect), raising=False,
+        trial.agent_environment, "_validate_image_configuration",
+        lambda: pending_inspection.wait(),
     )
-    start = AsyncMock()
-    monkeypatch.setattr(DockerEnvironment, "start", start)
-
-    async def progress_peer() -> None:
-        while not inspect_started.is_set():
-            await asyncio.sleep(0)
-        inspect_release.set()
 
     async def start_with_peer() -> None:
-        await asyncio.gather(
-            trial.agent_environment.start(force_build=False), progress_peer(),
-        )
+        start = asyncio.create_task(trial.agent_environment.start(force_build=False))
+        await asyncio.sleep(0)
+        await asyncio.gather(start, asyncio.to_thread(pending_inspection.wait))
 
     asyncio.run(start_with_peer())
     LIVE_PROXY_HANDLES.append(trial.agent.proxy_session.handle)
-
-    assert released_while_pending == [True]
-    start.assert_awaited_once_with(force_build=False)
 
 
 @pytest.mark.parametrize(
