@@ -16,6 +16,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.27.1
         version: 1.29.0(zod@4.4.3)
+      '@sinclair/typebox':
+        specifier: ^0.34.49
+        version: 0.34.49
       '@slack/bolt':
         specifier: ^4.6.0
         version: 4.7.3(@types/express@5.0.6)
@@ -62,9 +65,6 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@sinclair/typebox':
-        specifier: ^0.34.49
-        version: 0.34.49
       '@types/react':
         specifier: ^18.3.29
         version: 18.3.31
