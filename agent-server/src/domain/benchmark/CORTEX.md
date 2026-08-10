@@ -26,7 +26,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | terminal-predicate.ts | 核心 | Evaluates trial terminal state |
 | trial-task-dispatcher.ts | 核心 | Selects and claims trial tasks |
 | trial-clock.ts | 类型 | Provides deterministic trial time |
-| trial-adapter-factory.ts | 核心 | Creates trial adapters |
-| trial-thread-adapter.ts | 核心 | Runs trial thread adapter steps |
+| trial-adapter-factory.ts | 核心 | Creates credential-pinned admitted adapters |
+| trial-thread-adapter.ts | 核心 | Admits trial thread adapter steps |
 | variant-proposal.ts | 核心 | Classifies variant proposals |
-| workspace-lease.ts | 核心 | Controls workspace write ownership |
+| workspace-lease.ts | 核心 | Confines physical workspace write ownership |

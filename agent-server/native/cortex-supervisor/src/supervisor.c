@@ -1,5 +1,5 @@
-// input:  parsed command, control fd, Linux process primitives
-// output: contained process lifecycle and final exit classification
+// input:  parsed command, control transport, Linux process tree
+// output: fail-closed containment and final exit classification
 // pos:    Native child-subreaper lifecycle state machine
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -173,7 +173,23 @@ static int cancel_fd_triggered(const struct supervisor_options *options, bool *t
   return errno == EINTR ? 0 : -1;
 }
 
+static int reporting_failed(int control_fd, bool *failed) {
+  *failed = false;
+  struct pollfd descriptor = { .fd = control_fd, .events = 0 };
+  int result = poll(&descriptor, 1, 0);
+  if (result < 0 && errno == EINTR) return 0;
+  if (result < 0 || (descriptor.revents & POLLNVAL) != 0) return -1;
+  *failed = (descriptor.revents & (POLLHUP | POLLERR | POLLRDHUP)) != 0;
+  return 0;
+}
+
 static int choose_external_trigger(const struct supervisor_options *options, uint64_t started_at, enum terminal_trigger *trigger) {
+  bool report_lost = false;
+  if (reporting_failed(options->control_fd, &report_lost) != 0) return -1;
+  if (report_lost) {
+    *trigger = TRIGGER_REPORTING_FAILED;
+    return 1;
+  }
   bool fd_cancelled = false;
   if (cancel_fd_triggered(options, &fd_cancelled) != 0) return -1;
   if (cancel_requested || fd_cancelled) {
@@ -358,7 +374,7 @@ int run_supervisor(const struct supervisor_options *options) {
   }
   if (contain_tree(options, &state) != 0) return containment_error(options->control_fd);
   if (!state.main_known) return containment_error(options->control_fd);
-  if (reporting_failed) return 125;
+  if (reporting_failed || trigger == TRIGGER_REPORTING_FAILED) return 125;
   if (emit_child_exit(options->control_fd, state.main_status) != 0) return 125;
   if (protocol_quiescent(options->control_fd) != 0) return 125;
   return classified_exit(trigger, state.main_status);

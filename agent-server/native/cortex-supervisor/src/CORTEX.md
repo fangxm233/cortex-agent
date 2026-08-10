@@ -11,5 +11,5 @@ C modules for CLI parsing, NDJSON reporting, Linux process discovery, and contai
 | process-tree.h | header | Declares process-tree operations |
 | protocol.c | protocol | Emits pinned NDJSON control records |
 | protocol.h | header | Declares control protocol writers |
-| supervisor.c | core | Runs child lifecycle and containment state machine |
+| supervisor.c | core | Contains child trees and control transport loss |
 | supervisor.h | header | Declares the supervisor runtime |

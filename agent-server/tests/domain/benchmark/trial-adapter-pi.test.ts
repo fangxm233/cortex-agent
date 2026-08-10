@@ -1,6 +1,6 @@
-// input:  a compiled trial policy re-labelled PI, pinned trial paths and fake spawners
-// output: per-trial PI construction, ambient-reach and battery proofs
-// pos:    Regression suite for design §13 (13.3) P1-P13, (13.4) A1-A15 and battery T2/T7-T14
+// input:  compiled PI policy, pinned roots and fake spawners
+// output: PI credential, route and physical-write proofs
+// pos:    PI trial-adapter regression suite
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // WHY THE POLICY IS CLONED RATHER THAN COMPILED (manager note F8 N2). `f063` deliberately withheld
@@ -314,6 +314,22 @@ it('writes the trial auth from the policy dummy token, never a host symlink (P6,
   const auth = JSON.parse(fs.readFileSync(authPath, 'utf8'));
   assert.deepEqual(Object.keys(auth), ['anthropic']);
   assert.equal(auth.anthropic.key, built.policy.credential.dummy_token_ref);
+});
+
+it('refuses a replaced PI auth projection without writing through its symlink', () => {
+  const built = spec();
+  const trial = createTrialAdapter(built);
+  const agentDir = path.join(built.paths.root, 'pi-agent');
+  const authPath = path.join(agentDir, 'auth.json');
+  const outside = path.join(root, 'outside-auth.json');
+  fs.writeFileSync(outside, 'outside\n');
+  fs.symlinkSync(outside, authPath);
+  const record: SpawnRecord = {};
+  trial.spawnConfig.processSpawner = capturingSpawner(record);
+
+  assert.throws(() => trial.adapter.spawn(trial.spawnConfig), /auth.*regular|projection/i);
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'outside\n');
+  assert.equal(record.command, undefined);
 });
 
 it('refuses to spawn when the trial credential cannot be prepared (P6)', () => {

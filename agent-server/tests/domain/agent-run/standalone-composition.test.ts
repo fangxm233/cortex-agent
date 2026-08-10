@@ -1,6 +1,6 @@
-// input:  public arm resolution, hostile ambient/stale trial roots
-// output: fresh composition and pre-mutation stale-root rejection
-// pos:    Construction contract for the installed benchmark agent-run root
+// input:  public arm resolution, hostile ambient/stale roots
+// output: fresh composition, admission evidence and root refusals
+// pos:    Construction contract for standalone agent-run
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -65,8 +65,8 @@ it('constructs the public projection without reading ambient profiles or stores'
   const composition = createComposition(input);
 
   assert.deepEqual(Object.keys(composition).sort(), [
-    'config', 'coordinator', 'output', 'parentRunOptions', 'parentTrial', 'paths', 'policy',
-    'profile', 'stores', 'taskRepository',
+    'admission', 'config', 'coordinator', 'output', 'parentRunOptions', 'parentTrial', 'paths',
+    'policy', 'profile', 'stores', 'taskRepository',
   ]);
   assert.equal(composition.policy.arm.backend, 'claude');
   assert.deepEqual(composition.profile, {
@@ -100,6 +100,21 @@ it('constructs the public projection without reading ambient profiles or stores'
     sessions: path.join(input.trialRoot, 'cortex-home', 'state', 'sessions.json'),
     executions: path.join(input.trialRoot, 'cortex-home', 'state', 'executions.json'),
   });
+  assert.deepEqual(composition.admission.evidence, {
+    schema_version: 'cortex-standalone-state-admission/1',
+    empty_before_projection: true,
+    roots: {
+      project: 'projects',
+      task: 'cortex-home/state/tasks.json',
+      thread: 'cortex-home/state/threads.json',
+      session: 'cortex-home/state/sessions.json',
+      execution: 'cortex-home/state/executions.json',
+      cache: 'xdg-cache',
+      temp: 'tmp',
+      backend: 'claude-config',
+    },
+  });
+  assert.equal(composition.admission.isInitialVerified(), false);
   assert.deepEqual(composition.stores.tasks.getAll(), []);
   assert.deepEqual(composition.stores.threads.getAll(), []);
   assert.equal(composition.coordinator.portScope, 'fail-closed');
@@ -258,6 +273,31 @@ it('refuses an installed asset that changes after policy compilation', () => {
   }
   assert.equal(reads >= 2, true);
 });
+
+const STALE_ADMISSION_ROOTS = [
+  ['project', 'projects/stale'],
+  ['task', 'cortex-home/state/tasks.json'],
+  ['thread', 'cortex-home/state/threads.json'],
+  ['session', 'cortex-home/state/sessions.json'],
+  ['execution', 'cortex-home/state/executions.json'],
+  ['cache', 'xdg-cache/stale'],
+  ['temp', 'tmp/stale'],
+  ['backend', 'claude-config/stale'],
+] as const;
+
+it.each(STALE_ADMISSION_ROOTS)(
+  'rejects a stale %s root before any projected write or backend admission',
+  (_label, relative) => {
+    const input = fixture();
+    const stale = path.join(input.trialRoot, relative);
+    fs.mkdirSync(path.dirname(stale), { recursive: true });
+    fs.writeFileSync(stale, 'stale');
+
+    assert.throws(() => createComposition(input), /standalone trial root must be fresh/i);
+    assert.equal(fs.readFileSync(stale, 'utf8'), 'stale');
+    assert.deepEqual(fs.readdirSync(input.trajectoryRoot), []);
+  },
+);
 
 it('refuses a non-fresh state root instead of resuming ambient trial state', () => {
   const input = fixture();

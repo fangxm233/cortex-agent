@@ -1,5 +1,5 @@
-// input:  native build command, child_process, /proc, fixtures
-// output: real supervisor runners and independent leak checks
+// input:  native build, control transport, /proc and fixtures
+// output: supervisor runners, teardown triggers and leak checks
 // pos:    Integration harness for the Linux containment supervisor
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -164,12 +164,7 @@ export async function runEscapeScenario(
   if (trigger === 'sigterm') running.child.kill('SIGTERM');
   if (trigger === 'cancel-close') running.cancel?.end();
   if (trigger === 'cancel-byte') running.cancel?.write('cancel');
-  if (trigger === 'control-failure') {
-    running.control.destroy();
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    assert.equal(running.child.exitCode, null, 'control-fd closure acted as cancellation');
-    running.child.kill('SIGTERM');
-  }
+  if (trigger === 'control-failure') running.control.destroy();
   const result = await running.result;
   const mutationAtExit = readMutation(workspace);
   await new Promise((resolve) => setTimeout(resolve, 120));

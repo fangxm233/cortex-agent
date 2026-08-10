@@ -1,6 +1,6 @@
-// input:  compiled trial policies, pinned trial paths, fake spawners
-// output: per-trial Claude construction, guard transport, MCP budget and reach proofs
-// pos:    Regression suite for the Gate-2 trial adapter seam
+// input:  compiled policies, pinned paths and fake spawners
+// output: Claude construction, admission and route proofs
+// pos:    Trial-adapter factory regression suite
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -188,10 +188,11 @@ it('returns the declared trial adapter shape built from the policy alone', () =>
   const trial = createTrialAdapter(spec());
   assert.deepEqual(
     Object.keys(trial).sort(),
-    ['adapter', 'backend', 'close', 'roleSurface', 'spawnConfig'],
+    ['adapter', 'admit', 'backend', 'close', 'roleSurface', 'spawnConfig'],
   );
   assert.equal(trial.backend, 'claude');
   assert.equal(trial.adapter.backend, 'claude');
+  assert.equal(typeof trial.admit, 'function');
   assert.equal(typeof trial.close, 'function');
 });
 

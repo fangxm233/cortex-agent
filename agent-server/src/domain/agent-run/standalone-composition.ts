@@ -1,5 +1,5 @@
-// input:  public arm resolution, explicit trial/output roots and supervisor
-// output: validated fresh policy, stores, runtime deps and output adapter
+// input:  public arm resolution, physical trial/workspace roots
+// output: fresh policy, admission evidence, stores and adapters
 // pos:    Standalone container-side agent-run composition root
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -16,6 +16,7 @@ import {
 import { createPolicyBackedResolutionDeps } from '../benchmark/policy-backed-runtime-deps.js';
 import {
   createTrialAdapter, trialDirective, trialRunOptions, type TrialAdapter,
+  type TrialProcessAdmissionInput,
 } from '../benchmark/trial-adapter-factory.js';
 import type { RunAgentOptions } from '../agents/spawn-config.js';
 import {
@@ -53,12 +54,38 @@ export interface StandaloneCompositionOptions {
   requireFresh: boolean;
 }
 
+export interface StandaloneStateAdmissionEvidence {
+  schema_version: 'cortex-standalone-state-admission/1';
+  empty_before_projection: boolean;
+  roots: {
+    project: string; task: string; thread: string; session: string; execution: string;
+    cache: string; temp: string; backend: string;
+  };
+}
+
+export interface StandaloneAdmissionBoundary {
+  evidence: StandaloneStateAdmissionEvidence;
+  assertInitial(input: TrialProcessAdmissionInput): void;
+  assertRuntime(input: TrialProcessAdmissionInput): void;
+  isInitialVerified(): boolean;
+}
+
+export class StandaloneAdmissionError extends Error {
+  readonly reason = 'containment_failure' as const;
+
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'StandaloneAdmissionError';
+  }
+}
+
 export interface StandaloneAgentRunComposition {
   policy: ResolvedTrialPolicy;
   config: ResolvedAgentRunConfig;
   profile: ResolvedProfileConfig;
   paths: PinnedTrialPaths;
   stores: StandaloneStoreBundle;
+  admission: StandaloneAdmissionBoundary;
   taskRepository: ReturnType<typeof createTrialTaskRepository>;
   coordinator: LocalThreadRuntimeDeps & { portScope: 'fail-closed' };
   output: BenchmarkOutputAdapter;
@@ -311,6 +338,7 @@ interface CoordinatorInputs {
   stores: StandaloneStoreBundle;
   config: ResolvedAgentRunConfig;
   supervisor: StandaloneCompositionOptions['supervisor'];
+  admission: StandaloneAdmissionBoundary;
 }
 
 const runStandaloneThread: LocalThreadRuntimeDeps['runThread'] = async (...args) => {
@@ -321,13 +349,14 @@ const runStandaloneThread: LocalThreadRuntimeDeps['runThread'] = async (...args)
 function coordinatorDeps(
   input: CoordinatorInputs,
 ): LocalThreadRuntimeDeps & { portScope: 'fail-closed' } {
-  const { policy, source, profile, paths, stores, config, supervisor } = input;
+  const { policy, source, profile, paths, stores, config, supervisor, admission } = input;
   const resolution = createPolicyBackedResolutionDeps(
     policy, runtimeSnapshot(source, policy, profile),
   );
   const liveExecutions = new RunningExecutions();
   const adapterInput: TrialThreadAdapterInput = {
     policy, config, paths, supervisor, leaseState: readActiveLeaseState,
+    admission: value => admission.assertRuntime(value),
   };
   return failClosedRuntimeDeps({
     runAgent: createBenchmarkTrialRunAgent(adapterInput),
@@ -431,6 +460,121 @@ function assertPhysicalRoots(
   }
 }
 
+function stableDirectory(directory: string, expected: string): void {
+  const stat = fs.lstatSync(directory);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || fs.realpathSync(directory) !== expected) {
+    throw new Error(`Standalone directory changed after physical resolution: ${directory}`);
+  }
+}
+
+function assertPinnedRootsStable(paths: PinnedTrialPaths, stores: StandaloneStoreBundle): void {
+  stableDirectory(paths.root, paths.root);
+  for (const candidate of Object.values(paths).slice(1)) stableDirectory(candidate, candidate);
+  stableDirectory(stores.root, stores.root);
+}
+
+function assertEmptyDirectory(directory: string): void {
+  if (fs.readdirSync(directory).length > 0) {
+    throw new Error(`Standalone admission root is not empty: ${directory}`);
+  }
+}
+
+function assertEmptyStore(file: string): void {
+  const stat = fs.lstatSync(file);
+  const record = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown;
+  if (!stat.isFile() || stat.isSymbolicLink() || !record || typeof record !== 'object'
+      || Array.isArray(record) || Object.keys(record).length > 0) {
+    throw new Error(`Standalone admission store is not empty: ${file}`);
+  }
+}
+
+function assertFreshStores(stores: StandaloneStoreBundle): void {
+  const expected = Object.values(stores.files).map(file => path.basename(file)).sort();
+  if (JSON.stringify(fs.readdirSync(stores.root).sort()) !== JSON.stringify(expected)) {
+    throw new Error(`Standalone admission state inventory changed: ${stores.root}`);
+  }
+  for (const file of Object.values(stores.files)) assertEmptyStore(file);
+}
+
+function assertInitialBackend(paths: PinnedTrialPaths, backend: string): void {
+  if (backend === 'claude') return assertEmptyDirectory(paths.claudeConfigDir);
+  const agentDir = path.join(paths.root, 'pi-agent');
+  const sessionDir = path.join(paths.root, 'pi-sessions');
+  stableDirectory(agentDir, agentDir);
+  stableDirectory(sessionDir, sessionDir);
+  if (JSON.stringify(fs.readdirSync(agentDir).sort()) !== JSON.stringify(['auth.json', 'models.json'])) {
+    throw new Error(`Standalone PI backend inventory changed: ${agentDir}`);
+  }
+  assertEmptyDirectory(sessionDir);
+}
+
+function stateEvidence(
+  paths: PinnedTrialPaths, stores: StandaloneStoreBundle,
+  profile: ResolvedProfileConfig, requireFresh: boolean,
+): StandaloneStateAdmissionEvidence {
+  const relative = (target: string) => path.relative(paths.root, target);
+  return {
+    schema_version: 'cortex-standalone-state-admission/1',
+    empty_before_projection: requireFresh,
+    roots: {
+      project: relative(paths.projectsDir), task: relative(stores.files.tasks),
+      thread: relative(stores.files.threads), session: relative(stores.files.sessions),
+      execution: relative(stores.files.executions), cache: relative(paths.xdgCacheHome),
+      temp: relative(paths.tempDir),
+      backend: relative(profile.backend === 'pi' ? path.join(paths.root, 'pi-agent')
+        : paths.claudeConfigDir),
+    },
+  };
+}
+
+function assertRuntimeBoundary(
+  paths: PinnedTrialPaths, stores: StandaloneStoreBundle,
+  workspace: string, input: TrialProcessAdmissionInput,
+): void {
+  assertPinnedRootsStable(paths, stores);
+  const cwd = fs.realpathSync(input.cwd);
+  if (cwd !== workspace && !isWithin(paths.root, cwd)) {
+    throw new Error(`Standalone workspace changed after physical resolution: ${input.cwd}`);
+  }
+}
+
+function assertInitialState(
+  paths: PinnedTrialPaths, stores: StandaloneStoreBundle, profile: ResolvedProfileConfig,
+): void {
+  for (const directory of [
+    paths.home, paths.projectsDir, paths.xdgConfigHome, paths.xdgCacheHome,
+    paths.tempDir, paths.logsDir,
+  ]) assertEmptyDirectory(directory);
+  assertFreshStores(stores);
+  assertInitialBackend(paths, profile.backend);
+}
+
+function createAdmissionBoundary(
+  options: StandaloneCompositionOptions, paths: PinnedTrialPaths,
+  stores: StandaloneStoreBundle, profile: ResolvedProfileConfig,
+): StandaloneAdmissionBoundary {
+  const workspace = fs.realpathSync(options.cwd);
+  let initialVerified = false;
+  const assertRuntime = (input: TrialProcessAdmissionInput): void => {
+    try { assertRuntimeBoundary(paths, stores, workspace, input); }
+    catch (cause) {
+      throw new StandaloneAdmissionError('Standalone runtime admission failed', { cause });
+    }
+  };
+  const assertInitial = (input: TrialProcessAdmissionInput): void => {
+    assertRuntime(input);
+    try { assertInitialState(paths, stores, profile); }
+    catch (cause) {
+      throw new StandaloneAdmissionError('Standalone initial state admission failed', { cause });
+    }
+    initialVerified = true;
+  };
+  return {
+    evidence: stateEvidence(paths, stores, profile, options.requireFresh),
+    assertRuntime, assertInitial, isInitialVerified: () => initialVerified,
+  };
+}
+
 function profileIdentityMatches(file: string, profile: ResolvedProfileConfig): boolean {
   try {
     const document = JSON.parse(fs.readFileSync(file, 'utf8')) as {
@@ -481,16 +625,20 @@ export function createStandaloneAgentRunComposition(
   assertPhysicalRoots(options, paths, output);
   materializeProfile(paths, profile);
   const stores = createStandaloneStores(path.join(paths.cortexHome, 'state'), options.requireFresh);
+  const admission = createAdmissionBoundary(options, paths, stores, profile);
   const coordinator = coordinatorDeps({
-    ...loaded, source, profile, paths, stores, supervisor: options.supervisor,
+    ...loaded, source, profile, paths, stores, admission, supervisor: options.supervisor,
   });
   const parentSpec = {
     policy: loaded.policy, slot: options.agentSlot, config: loaded.config,
     paths, supervisor: options.supervisor, cwd: options.cwd,
+    admission: options.requireFresh
+      ? (value: TrialProcessAdmissionInput) => admission.assertInitial(value)
+      : (value: TrialProcessAdmissionInput) => admission.assertRuntime(value),
   };
   const parentTrial = createTrialAdapter(parentSpec);
   return {
-    ...loaded, profile, paths, stores, coordinator, output, parentTrial,
+    ...loaded, profile, paths, stores, admission, coordinator, output, parentTrial,
     taskRepository: createTrialTaskRepository(stores.tasks),
     parentRunOptions: trialRunOptions(parentSpec),
   };

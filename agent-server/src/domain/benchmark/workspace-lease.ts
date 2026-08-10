@@ -1,6 +1,6 @@
-// input:  shared writable root, optional trial snapshot root, admission counters
-// output: lease state, per-step workspace placement and step-boundary settlement
-// pos:    Single-writer workspace lease for in-trial benchmark threads
+// input:  physical workspace/temp roots and admission counters
+// output: confined lease, step placement and boundary settlement
+// pos:    Single-writer workspace lease for benchmark threads
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -147,14 +147,40 @@ function describe(identity: WriterIdentity): string {
   return `${identity.agentSlotId} step ${identity.stepIndex}`;
 }
 
+function physicalDirectory(directory: string, label: string): string {
+  try {
+    const physical = fs.realpathSync(directory);
+    if (fs.statSync(physical).isDirectory()) return physical;
+  } catch {}
+  throw new Error(`${label} is not an existing physical directory: ${directory}`);
+}
+
+function isWithin(root: string, target: string): boolean {
+  const relative = path.relative(root, target);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`)
+    && relative !== '..' && !path.isAbsolute(relative));
+}
+
+function assertStableDirectory(directory: string, expected: string, label: string): void {
+  if (physicalDirectory(directory, label) !== expected) {
+    throw new Error(`${label} changed after lease creation: ${directory}`);
+  }
+}
+
 interface ArmedStep {
   identity: WriterIdentity;
   placement: WorkspacePlacement;
   cwd: string;
+  physicalCwd: string;
   grant: WriterGrant | null;
 }
 
 export function createWorkspaceLease(input: WorkspaceLeaseInput): WorkspaceLease {
+  const sharedPhysical = physicalDirectory(input.sharedRoot, 'Shared workspace root');
+  const trialPhysical = input.trialPaths
+    ? physicalDirectory(input.trialPaths.root, 'Trial root') : null;
+  const tempPhysical = input.trialPaths
+    ? physicalDirectory(input.trialPaths.tempDir, 'Trial temp root') : null;
   let state: LeaseState = 'parent-writable';
   let writer: WriterIdentity | null = null;
   let writerEpoch = -1;
@@ -172,17 +198,20 @@ export function createWorkspaceLease(input: WorkspaceLeaseInput): WorkspaceLease
 
   function snapshotRoot(stepIndex: number): string {
     const trial = input.trialPaths;
-    if (!trial) {
+    if (!trial || !trialPhysical || !tempPhysical) {
       throw new Error('A disposable workspace snapshot needs a trial root; this run declares none');
     }
-    const root = path.join(trial.tempDir, SNAPSHOT_DIR, input.threadId, String(stepIndex));
-    if (!root.startsWith(trial.root)) {
-      throw new Error(`A workspace snapshot must be placed under the trial root: ${root}`);
+    assertStableDirectory(trial.root, trialPhysical, 'Trial root');
+    assertStableDirectory(trial.tempDir, tempPhysical, 'Trial temp root');
+    assertStableDirectory(input.sharedRoot, sharedPhysical, 'Shared workspace root');
+    const physical = path.join(tempPhysical, SNAPSHOT_DIR, input.threadId, String(stepIndex));
+    if (!isWithin(trialPhysical, physical)) {
+      throw new Error(`A workspace snapshot must be placed under the physical trial root: ${physical}`);
     }
-    if (root.startsWith(input.sharedRoot)) {
-      throw new Error(`A workspace snapshot must be placed outside the shared workspace: ${root}`);
+    if (isWithin(sharedPhysical, physical)) {
+      throw new Error(`A workspace snapshot must be placed outside the shared workspace: ${physical}`);
     }
-    return root;
+    return path.join(trial.tempDir, SNAPSHOT_DIR, input.threadId, String(stepIndex));
   }
 
   function createSnapshot(stepIndex: number): string {
@@ -243,14 +272,17 @@ export function createWorkspaceLease(input: WorkspaceLeaseInput): WorkspaceLease
         );
       }
       const step: ArmedStep = {
-        identity, placement: request.placement, cwd: input.sharedRoot, grant: issueGrant(identity),
+        identity, placement: request.placement, cwd: input.sharedRoot,
+        physicalCwd: sharedPhysical, grant: issueGrant(identity),
       };
       armed.set(key, step);
       current = step;
       return { cwd: step.cwd, grant: step.grant };
     }
+    const cwd = createSnapshot(identity.stepIndex);
     const step: ArmedStep = {
-      identity, placement: request.placement, cwd: createSnapshot(identity.stepIndex), grant: null,
+      identity, placement: request.placement, cwd,
+      physicalCwd: physicalDirectory(cwd, 'Workspace snapshot'), grant: null,
     };
     armed.set(key, step);
     current = step;
@@ -268,6 +300,13 @@ export function createWorkspaceLease(input: WorkspaceLeaseInput): WorkspaceLease
       throw new WorkspaceLeaseError(
         'cwd_outside_grant',
         `${cwd || 'An empty cwd'} is not the workspace armed for ${describe(current.identity)}`,
+      );
+    }
+    try {
+      assertStableDirectory(current.cwd, current.physicalCwd, 'Armed workspace');
+    } catch (error) {
+      throw new WorkspaceLeaseError(
+        'cwd_outside_grant', (error as Error).message,
       );
     }
     if (current.placement === 'shared-writable'
@@ -353,6 +392,22 @@ export interface WorkspaceStepBoundaryInput {
   artifactPath: string;
 }
 
+function physicalFile(file: string): string {
+  try {
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('not a regular file');
+    return fs.realpathSync(file);
+  } catch {
+    throw new Error(`Physical artifact file is unavailable: ${file}`);
+  }
+}
+
+function assertStableArtifact(file: string, expected: string): void {
+  if (physicalFile(file) !== expected) {
+    throw new Error(`Physical artifact file changed after boundary creation: ${file}`);
+  }
+}
+
 /** One line naming the slot, the stage and the step index. Convergence markers are bracketed
  *  literals matched over the whole accumulated artifact, so a header that carries no bracket can
  *  neither contain a marker nor complete one. */
@@ -382,12 +437,19 @@ function discardSnapshot(root: string): void {
 export function createWorkspaceStepBoundary(
   input: WorkspaceStepBoundaryInput,
 ): WorkspaceStepBoundary {
-  const arms = new Map<string, { placement: WorkspacePlacement; cwd: string; grant: WriterGrant | null }>();
+  const artifactPhysical = physicalFile(input.artifactPath);
+  const arms = new Map<string, {
+    placement: WorkspacePlacement; cwd: string; physicalCwd: string; grant: WriterGrant | null;
+  }>();
   return {
     resolveStepWorkspace(identity: WriterIdentity): string {
       const placement = input.placement(identity.agentSlotId);
       const armedStep = input.lease.armStep({ ...identity, placement });
-      arms.set(armKey(identity), { placement, cwd: armedStep.cwd, grant: armedStep.grant });
+      arms.set(armKey(identity), {
+        placement, cwd: armedStep.cwd,
+        physicalCwd: physicalDirectory(armedStep.cwd, 'Armed step workspace'),
+        grant: armedStep.grant,
+      });
       return armedStep.cwd;
     },
     settleStepWorkspace(settlement: StepSettlement): void {
@@ -395,8 +457,12 @@ export function createWorkspaceStepBoundary(
       const step = arms.get(key);
       if (!step) return;
       arms.delete(key);
+      let physicallyStable = false;
       try {
+        assertStableDirectory(step.cwd, step.physicalCwd, 'Armed step workspace');
+        physicallyStable = true;
         if (step.placement === 'disposable-snapshot' && settlement.terminalText) {
+          assertStableArtifact(input.artifactPath, artifactPhysical);
           fs.appendFileSync(
             input.artifactPath,
             `\n${stepHeader(settlement)}\n${settlement.terminalText}\n`,
@@ -405,7 +471,9 @@ export function createWorkspaceStepBoundary(
         }
       } finally {
         if (step.grant) step.grant.release();
-        if (step.placement === 'disposable-snapshot') discardSnapshot(step.cwd);
+        if (step.placement === 'disposable-snapshot' && physicallyStable) {
+          discardSnapshot(step.cwd);
+        }
       }
     },
   };

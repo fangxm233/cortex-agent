@@ -1,5 +1,5 @@
-// input:  parsed options, resolved config/policy, cost metadata
-// output: supervised turn, journal, nullable accounting, manifest
+// input:  parsed options, resolved policy, state/process admission
+// output: supervised turn, journal, terminal and composite truth
 // pos:    Agent-run lifecycle coordinator
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -46,7 +46,7 @@ import {
   type AccountingRecord, type JournalTotals, type ProxyExport, type Tagged,
 } from '../benchmark/accounting-reconciliation.js';
 import {
-  createStandaloneAgentRunComposition, isStandaloneArmResolution,
+  createStandaloneAgentRunComposition, isStandaloneArmResolution, StandaloneAdmissionError,
   type StandaloneAgentRunComposition,
 } from './standalone-composition.js';
 import {
@@ -593,11 +593,17 @@ function oneShotOptions(
   sink: RunObserver,
   spawner: AgentProcessSpawner,
 ): RunAgentOptions {
-  run.spawnConfig.processSpawner = spawner;
+  const admitted: AgentProcessSpawner = run.trial
+    ? (command, args, options) => {
+        run.trial!.admit({ cwd: options.cwd?.toString() ?? '', env: options.env ?? {} });
+        return spawner(command, args, options);
+      }
+    : spawner;
+  run.spawnConfig.processSpawner = admitted;
   return {
     ...run.baseOptions,
     requiredSinks: [sink],
-    processSpawner: spawner,
+    processSpawner: admitted,
     preparedSpawnConfig: run.spawnConfig,
   };
 }
@@ -757,6 +763,9 @@ function terminalManifest(
   classified: ClassifiedOutcome,
 ): Record<string, unknown> | null {
   if (!outcome.quiescent) return null;
+  if (run.composition && !run.composition.admission.isInitialVerified()) {
+    throw new StandaloneAdmissionError('Standalone state admission was not verified');
+  }
   const input = terminalInput(run, journal, stats, outcome, classified);
   run.output.writeTerminal(input);
   return buildTerminalManifest(input);
@@ -824,8 +833,9 @@ function compositeApplicability(
   if (!run.policy) return { applicable: false };
   // G4-PB4: `terminalManifest` returns null the moment the run is not quiescent (`:715`), and
   // §9.5's corollary 2 rules that a containment failure publishes no terminal manifest, "so F7/F8
-  // cannot run and the grader is never admitted". A guard on the F6 result, not a `try`.
-  if (terminal === null) return { applicable: false };
+  // cannot run and the grader is never admitted". Cancellation and timeout are durable inner
+  // outcomes, but they are not successful grader admissions and therefore publish no composite.
+  if (terminal === null || terminal.state !== 'completed') return { applicable: false };
   return { applicable: true, policy: run.policy };
 }
 

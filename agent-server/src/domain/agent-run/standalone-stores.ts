@@ -1,5 +1,5 @@
-// input:  explicit trial state root and thread/task/session records
-// output: fresh file-backed task, thread, session and execution stores
+// input:  physical trial state root, task/thread/session records
+// output: root-confined task, thread, session and execution stores
 // pos:    Trial-local persistence owned by standalone agent-run
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -39,16 +39,40 @@ interface StandaloneExecutionRecord extends LocalExecutionStartInput {
 }
 
 class DurableRecordStore<T> {
+  readonly filePath: string;
+  private readonly rootPath: string;
   private values: Record<string, T>;
   private pending: Promise<void> = Promise.resolve();
 
-  constructor(readonly filePath: string) {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  constructor(filePath: string) {
+    const requestedRoot = path.resolve(path.dirname(filePath));
+    fs.mkdirSync(requestedRoot, { recursive: true });
+    this.rootPath = fs.realpathSync(requestedRoot);
+    if (this.rootPath !== requestedRoot) {
+      throw new Error(`Standalone store root must be physical: ${requestedRoot}`);
+    }
+    this.filePath = path.join(this.rootPath, path.basename(filePath));
     this.values = this.readFile();
-    if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, '{}\n', { flag: 'wx' });
+    if (!fs.existsSync(this.filePath)) fs.writeFileSync(this.filePath, '{}\n', { flag: 'wx' });
+    this.assertBoundary();
+  }
+
+  private assertBoundary(): void {
+    const root = fs.lstatSync(this.rootPath);
+    if (!root.isDirectory() || root.isSymbolicLink()
+        || fs.realpathSync(this.rootPath) !== this.rootPath) {
+      throw new Error(`Standalone store root changed after resolution: ${this.rootPath}`);
+    }
+    if (!fs.existsSync(this.filePath)) return;
+    const file = fs.lstatSync(this.filePath);
+    if (!file.isFile() || file.isSymbolicLink()
+        || fs.realpathSync(this.filePath) !== this.filePath) {
+      throw new Error(`Standalone store file escaped its physical root: ${this.filePath}`);
+    }
   }
 
   private readFile(): Record<string, T> {
+    this.assertBoundary();
     if (!fs.existsSync(this.filePath)) return {};
     const value = JSON.parse(fs.readFileSync(this.filePath, 'utf8')) as unknown;
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -87,9 +111,10 @@ class DurableRecordStore<T> {
 
   private queuePersist(): Promise<void> {
     const snapshot = structuredClone(this.values);
-    this.pending = this.pending.then(
-      () => atomicWrite(this.filePath, `${JSON.stringify(snapshot)}\n`),
-    );
+    this.pending = this.pending.then(() => {
+      this.assertBoundary();
+      return atomicWrite(this.filePath, `${JSON.stringify(snapshot)}\n`);
+    });
     // Sync runtime ports may intentionally defer this write; flush still observes the rejection.
     void this.pending.catch(() => {});
     return this.pending;

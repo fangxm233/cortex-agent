@@ -1,5 +1,5 @@
-// input:  workspace lease port, a shared root, a trial root and an admission probe
-// output: state, placement, grant, snapshot and append contracts
+// input:  workspace lease, physical roots and admission probes
+// output: state, placement, snapshot and replacement refusals
 // pos:    Workspace lease unit contract tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -290,12 +290,27 @@ it('places the snapshot under the trial root and strictly outside the shared roo
   assert.equal(cwd.startsWith(trialRoot), true);
   assert.equal(cwd.startsWith(sharedRoot), false);
 
+  fs.mkdirSync(path.join(sharedRoot, 'tmp'));
   const inside = ownedLease({ trialPaths: { root: sharedRoot, tempDir: path.join(sharedRoot, 'tmp') } });
   const error = catchError(() => inside.armStep({
     agentSlotId: 'benchmark-reviewer', stepIndex: 2, placement: 'disposable-snapshot',
   }));
   assert.ok(error instanceof Error);
   assert.match((error as Error).message, /shared/);
+});
+
+it('refuses a snapshot when the physical temp root was replaced outside the trial', () => {
+  const lease = ownedLease();
+  const original = path.join(root, 'original-temp');
+  const outside = path.join(root, 'outside-trial');
+  fs.renameSync(tempDir, original);
+  fs.mkdirSync(outside);
+  fs.symlinkSync(outside, tempDir);
+
+  assert.throws(() => lease.armStep({
+    agentSlotId: 'benchmark-reviewer', stepIndex: 2, placement: 'disposable-snapshot',
+  }), /physical trial root|changed after lease creation/i);
+  assert.deepEqual(fs.readdirSync(outside), []);
 });
 
 it('refuses a snapshot placement when the run declares no trial root', () => {
@@ -364,6 +379,23 @@ it('admits only the cwd the lease armed for the current step', () => {
   lease.assertAdmissible(snapshot.cwd);
 });
 
+it('refuses a writable admission after the physical workspace root is replaced', () => {
+  const lease = ownedLease();
+  const armed = lease.armStep({
+    agentSlotId: 'benchmark-coder', stepIndex: 0, placement: 'shared-writable',
+  });
+  const original = path.join(root, 'original-workspace');
+  const outside = path.join(root, 'replacement-workspace');
+  fs.renameSync(sharedRoot, original);
+  fs.mkdirSync(outside);
+  fs.symlinkSync(outside, sharedRoot);
+
+  assert.equal(
+    leaseDetail(catchError(() => lease.assertAdmissible(armed.cwd))),
+    'cwd_outside_grant',
+  );
+});
+
 it('refuses a shared-writable spawn whose writer grant was already released', () => {
   const lease = ownedLease();
   const armed = lease.armStep({ agentSlotId: 'benchmark-coder', stepIndex: 0, placement: 'shared-writable' });
@@ -410,6 +442,21 @@ it('appends a snapshot step terminal message under a header that cannot carry a 
   assert.ok(artifact.startsWith('# artifact\n'), 'nothing is rewritten');
 });
 
+it('refuses to append after the physical artifact file is replaced', () => {
+  const { artifactPath, boundary } = boundaryFixture();
+  const outside = path.join(root, 'outside-artifact.md');
+  const original = path.join(root, 'original-artifact.md');
+  fs.writeFileSync(outside, 'outside\n');
+  boundary.resolveStepWorkspace({ agentSlotId: 'benchmark-reviewer', stepIndex: 1 });
+  fs.renameSync(artifactPath, original);
+  fs.symlinkSync(outside, artifactPath);
+
+  assert.throws(() => boundary.settleStepWorkspace({
+    agentSlotId: 'benchmark-reviewer', stepIndex: 1, stage: 'audit', terminalText: 'verdict',
+  }), /artifact.*changed|physical artifact/i);
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'outside\n');
+});
+
 it('refuses to append under a header a slot id could turn into a marker', () => {
   const artifactPath = path.join(root, 'hostile-artifact.md');
   fs.writeFileSync(artifactPath, '');
@@ -451,6 +498,25 @@ it('discards the snapshot at the step boundary and prunes its parents', () => {
   assert.equal(fs.existsSync(path.join(tempDir, 'review-snapshot')), false);
   assert.equal(fs.existsSync(path.join(sharedRoot, 'new-file.txt')), false);
   assert.equal(fs.readFileSync(path.join(sharedRoot, 'kept.txt'), 'utf8'), 'original\n');
+});
+
+it('does not discard through a replaced physical snapshot parent', () => {
+  const { boundary } = boundaryFixture();
+  const cwd = boundary.resolveStepWorkspace({ agentSlotId: 'benchmark-reviewer', stepIndex: 1 });
+  const originalTemp = path.join(root, 'original-snapshot-temp');
+  const outside = path.join(root, 'outside-snapshot-temp');
+  fs.renameSync(tempDir, originalTemp);
+  fs.mkdirSync(outside);
+  fs.symlinkSync(outside, tempDir);
+
+  assert.throws(() => boundary.settleStepWorkspace({
+    agentSlotId: 'benchmark-reviewer', stepIndex: 1, stage: 'audit', terminalText: 'done',
+  }), /Armed step workspace/i);
+  assert.deepEqual(fs.readdirSync(outside), []);
+  assert.equal(fs.existsSync(path.join(
+    originalTemp, 'review-snapshot', 'T-lease', '1', 'kept.txt',
+  )), true);
+  assert.equal(fs.existsSync(cwd), false);
 });
 
 it('discards the snapshot even when the append throws', () => {

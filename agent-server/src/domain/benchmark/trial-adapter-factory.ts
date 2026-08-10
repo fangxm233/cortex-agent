@@ -1,5 +1,5 @@
-// input:  a frozen trial policy, its slot, pinned trial paths and the trial cwd
-// output: a per-trial adapter, spawn surface and role surface built from the policy alone
+// input:  frozen trial policy, pinned roots and process admission
+// output: credential-pinned adapter, spawn and role surfaces
 // pos:    Backend-neutral per-trial adapter construction seam
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -21,6 +21,11 @@ import { PolicyCompilationError, type ResolvedTrialPolicy } from './resolved-pol
 
 /** S1: the closed input list. It carries no spawner — S6.1 makes `spawnConfig.processSpawner` the
  *  single supervisor injection point, applied by the caller after construction. */
+export interface TrialProcessAdmissionInput {
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+}
+
 export interface TrialAdapterSpec {
   policy: ResolvedTrialPolicy;
   slot: AgentSlot;
@@ -29,6 +34,7 @@ export interface TrialAdapterSpec {
   paths: PinnedTrialPaths;
   supervisor: { binary: string; graceMs: number; deadlineMs?: number };
   cwd: string;
+  admission?: (input: TrialProcessAdmissionInput) => void;
 }
 
 export interface TrialAdapter {
@@ -36,6 +42,7 @@ export interface TrialAdapter {
   spawnConfig: AgentSpawnConfig;
   roleSurface: RoleToolSurfaceInput;
   backend: Backend;
+  admit(input: TrialProcessAdmissionInput): void;
   close(): Promise<void>;
 }
 
@@ -56,11 +63,20 @@ function writeTrialAuth(agentDir: string, policy: ResolvedTrialPolicy): void {
   const provider = policy.arm.provider;
   if (provider === null || provider === undefined) return;
   fs.mkdirSync(agentDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(agentDir, 'auth.json'),
-    `${JSON.stringify({ [provider]: { type: 'api', key: policy.credential.dummy_token_ref } }, null, 2)}\n`,
-    { mode: 0o600 },
-  );
+  const authPath = path.join(agentDir, 'auth.json');
+  if (fs.existsSync(authPath)) {
+    const stat = fs.lstatSync(authPath);
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      throw new Error(`PI trial auth projection is not a regular file: ${authPath}`);
+    }
+  }
+  const temporary = `${authPath}.${process.pid}.${Date.now()}.tmp`;
+  const content = `${JSON.stringify({
+    [provider]: { type: 'api', key: policy.credential.dummy_token_ref },
+  }, null, 2)}\n`;
+  fs.writeFileSync(temporary, content, { flag: 'wx', mode: 0o600 });
+  try { fs.renameSync(temporary, authPath); }
+  finally { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
 }
 
 /** P4/P5: every PI state directory the trial needs, under `spec.paths.root` and nowhere else. */
@@ -69,13 +85,18 @@ function piTrialAdapter(spec: TrialAdapterSpec): AgentAdapter {
   const sessionDir = path.join(spec.paths.root, 'pi-sessions');
   fs.mkdirSync(agentDir, { recursive: true });
   fs.mkdirSync(sessionDir, { recursive: true });
+  assertPhysicalDirectory(spec.paths.root, agentDir);
+  assertPhysicalDirectory(spec.paths.root, sessionDir);
   return new PIAdapter(
     // S6.1: no spawner here. The supervisor is injected onto the spawn config after the factory
     // returns, and `assertBenchmarkSpawn` refuses the spawn if it never arrives.
     undefined,
     sessionDir,
     fixedProviderDiscovery(spec.policy.arm.provider ?? null),
-    { agentDir, prepareAgentDir: dir => writeTrialAuth(dir, spec.policy) },
+    { agentDir, prepareAgentDir: (dir) => {
+      assertPhysicalDirectory(spec.paths.root, dir);
+      writeTrialAuth(dir, spec.policy);
+    } },
   );
 }
 
@@ -91,6 +112,110 @@ export function trialSessionKey(policy: ResolvedTrialPolicy): string {
 
 function refuse(detail: string): never {
   throw new PolicyCompilationError('backend_unsupported_for_kind', detail);
+}
+
+const CREDENTIAL_ENV = /(?:API_KEY|AUTH_TOKEN|ACCESS_TOKEN|APP_SECRET|SECRET_ACCESS_KEY|CREDENTIALS)$/;
+const AMBIENT_CAPABILITY_ENV = new Set([
+  'AWS_PROFILE', 'AZURE_CLIENT_SECRET', 'CORTEX_DAEMON_URL', 'CORTEX_REMOTE_TOKEN',
+  'CORTEX_SERVER_URL', 'DOCKER_HOST', 'FEISHU_APP_SECRET', 'GPG_AGENT_INFO',
+  'KUBECONFIG', 'NPM_TOKEN', 'SLACK_BOT_TOKEN', 'SSH_AUTH_SOCK',
+]);
+const PINNED_PATH_MEMBERS: Array<keyof PinnedTrialPaths> = [
+  'home', 'cortexHome', 'projectsDir', 'xdgConfigHome', 'xdgCacheHome',
+  'claudeConfigDir', 'tempDir', 'logsDir',
+];
+
+function assertPhysicalDirectory(root: string, directory: string): void {
+  let physical: string;
+  try { physical = fs.realpathSync(directory); }
+  catch { throw new Error(`Trial directory is unavailable before admission: ${directory}`); }
+  const relative = path.relative(root, physical);
+  if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {
+    throw new Error(`Trial directory escaped before admission: ${directory}`);
+  }
+}
+
+function assertPinnedEnvironment(spec: TrialAdapterSpec, env: NodeJS.ProcessEnv): void {
+  for (const member of PINNED_PATH_MEMBERS) {
+    const key = ({
+      home: 'HOME', cortexHome: 'CORTEX_HOME', projectsDir: 'CORTEX_PROJECTS_DIR',
+      xdgConfigHome: 'XDG_CONFIG_HOME', xdgCacheHome: 'XDG_CACHE_HOME',
+      claudeConfigDir: 'CLAUDE_CONFIG_DIR', tempDir: 'TMPDIR', logsDir: null,
+    } as const)[member];
+    assertPhysicalDirectory(spec.paths.root, spec.paths[member]);
+    if (key && env[key] !== spec.paths[member]) {
+      throw new Error(`Trial process changed pinned ${key} before admission`);
+    }
+  }
+  if (env.TMP !== spec.paths.tempDir || env.TEMP !== spec.paths.tempDir) {
+    throw new Error('Trial process changed pinned temporary roots before admission');
+  }
+}
+
+function assertNoCredentialFallback(env: NodeJS.ProcessEnv, allowed: string[]): void {
+  const allowedKeys = new Set(allowed);
+  const forbidden = Object.keys(env).filter(key => (
+    CREDENTIAL_ENV.test(key) || AMBIENT_CAPABILITY_ENV.has(key)
+  ) && !allowedKeys.has(key));
+  if (forbidden.length > 0) {
+    throw new Error(`Trial process contains forbidden credential environment: ${forbidden.sort().join(',')}`);
+  }
+}
+
+function readJson(file: string): Record<string, unknown> {
+  const stat = fs.lstatSync(file);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new Error(`Trial credential projection is not a regular file: ${file}`);
+  }
+  const value = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Trial credential projection is not an object: ${file}`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
+}
+
+function assertPiProjection(spec: TrialAdapterSpec, env: NodeJS.ProcessEnv): void {
+  const provider = spec.policy.arm.provider;
+  const agentDir = path.join(spec.paths.root, 'pi-agent');
+  if (!provider || env.PI_CODING_AGENT_DIR !== agentDir) {
+    throw new Error('PI trial agent directory or provider is missing before admission');
+  }
+  assertPhysicalDirectory(spec.paths.root, agentDir);
+  assertPhysicalDirectory(spec.paths.root, path.join(spec.paths.root, 'pi-sessions'));
+  const auth = readJson(path.join(agentDir, 'auth.json'));
+  const models = readJson(path.join(agentDir, 'models.json'));
+  const providers = objectValue(models.providers);
+  const selected = objectValue(providers[provider]);
+  if (JSON.stringify(auth) !== JSON.stringify({
+    [provider]: { type: 'api', key: spec.policy.credential.dummy_token_ref },
+  })) throw new Error('PI trial auth differs from the fixed dummy credential');
+  const selectedKeys = Object.keys(selected);
+  const allowedSelected = selectedKeys.every(key => key === 'baseUrl' || key === 'compat');
+  if (selected.baseUrl !== spec.policy.credential.proxy_base_url
+      || Object.keys(providers).length !== 1 || Object.keys(models).length !== 1
+      || !allowedSelected) {
+    throw new Error('PI trial provider catalog differs from the scoped proxy');
+  }
+}
+
+function assertCredentialProjection(
+  spec: TrialAdapterSpec, backend: Backend, env: NodeJS.ProcessEnv,
+): void {
+  if (backend === 'claude') {
+    assertNoCredentialFallback(env, ['ANTHROPIC_AUTH_TOKEN']);
+    if (env.ANTHROPIC_AUTH_TOKEN !== spec.policy.credential.dummy_token_ref
+        || env.ANTHROPIC_BASE_URL !== spec.policy.credential.proxy_base_url) {
+      throw new Error('Claude trial credential differs from the fixed dummy/scoped proxy');
+    }
+    return;
+  }
+  assertNoCredentialFallback(env, []);
+  assertPiProjection(spec, env);
 }
 
 function trialBackend(policy: ResolvedTrialPolicy): Backend {
@@ -212,6 +337,11 @@ export function createTrialAdapter(spec: TrialAdapterSpec): TrialAdapter {
       spawnConfig, directive, spawnConfig.benchmarkPolicyGuard,
     ),
     backend,
+    admit: (input): void => {
+      assertPinnedEnvironment(spec, input.env);
+      assertCredentialProjection(spec, backend, input.env);
+      spec.admission?.(input);
+    },
     close: async (): Promise<void> => {
       if (closed) return;
       closed = true;

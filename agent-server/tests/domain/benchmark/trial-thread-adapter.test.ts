@@ -1,6 +1,6 @@
-// input:  a compiled coder-review policy, per-step thread options and a capturing spawner
-// output: field-by-field proof of which values survive the prepared-spawn-config fork
-// pos:    Regression suite for the per-step trial adapter on the benchmark thread path
+// input:  compiled child policy, step options and admission spawner
+// output: pinned spawn fields and pre-supervisor admission proof
+// pos:    Per-step trial adapter regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 // SEAM NOTE. The seam under test is the adapter/options boundary, so nothing stands in for it: the
@@ -173,7 +173,8 @@ it('carries every trial-isolation field and the step\'s own resume, cwd and spaw
   assert.equal(config.sessionId, 'resume-me');
   assert.equal(config.resume, true);
   assert.equal(config.cwd, options.cwd);
-  assert.equal(config.processSpawner, spawner, 'the lease-checking spawner did not survive the fork');
+  assert.equal(typeof config.processSpawner, 'function');
+  assert.notEqual(config.processSpawner, spawner, 'the trial admission wrapper was not installed');
   // The per-slot surface is the compiled role's, never the template's projection.
   assert.equal(config.systemPrompt, fs.readFileSync(built.systemPromptOf('benchmark-reviewer'), 'utf8'));
   assert.equal(config.rawTools, role.tools.join(','));
@@ -181,6 +182,19 @@ it('carries every trial-isolation field and the step\'s own resume, cwd and spaw
   assert.equal(record.command, config.cliPath);
   assert.equal(record.cwd, options.cwd);
   assert.equal(record.env!.CORTEX_HOME, config.pinnedEnv!.CORTEX_HOME);
+});
+
+it('runs child process admission before delegating to the supervisor spawner', () => {
+  const built = fixture('child-admission');
+  const admission = vi.fn(() => { throw new Error('runtime root changed'); });
+  const record: SpawnRecord = {};
+  const runAgent = createBenchmarkTrialRunAgent({ ...trialInput(built), admission });
+  assert.throws(() => runAgent('review the change', {
+    ...stepOptions(), processSpawner: respondingSpawner(record, 'must not run'),
+  }), /runtime root changed/);
+
+  assert.equal(admission.mock.calls.length, 1);
+  assert.equal(record.command, undefined);
 });
 
 it('loses every trial-isolation field when the step options build the spawn config instead', () => {

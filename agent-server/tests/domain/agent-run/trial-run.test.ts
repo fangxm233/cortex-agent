@@ -1,6 +1,6 @@
-// input:  compiled arm, real supervisor, generated Claude CLI
-// output: supervised isolated runs and fresh-root refusal proofs
-// pos:    Run-level battery for the Gate-2 trial adapter seam
+// input:  compiled arm, physical roots and generated Claude CLI
+// output: supervised runs, swap refusals and publication gates
+// pos:    Run-level battery for the trial adapter seam
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -434,6 +434,9 @@ it('classifies an interrupted trial as cancelled with exit 130 (T4)', async () =
   assert.equal(outcome.terminal.state, 'cancelled');
   assert.equal(outcome.terminal.terminal_reason, 'cancelled');
   assert.equal(outcome.terminal.manifest.supervisor.quiescent, true);
+  assert.equal(fs.existsSync(path.join(
+    built.options.trajectoryRoot, 'composite-manifest.json',
+  )), false, 'a cancelled run must not admit the grader');
   assert.equal(process.listenerCount('SIGINT'), harness.length);
 }, 60_000);
 
@@ -445,9 +448,79 @@ it('classifies a trial that outlives its deadline as a timeout (T5)', async () =
   assert.equal(outcome.exitCode, 124, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
   assert.equal(outcome.terminal.state, 'timeout');
   assert.equal(outcome.terminal.terminal_reason, 'deadline');
+  assert.equal(fs.existsSync(path.join(
+    built.options.trajectoryRoot, 'composite-manifest.json',
+  )), false, 'a timed-out run must not admit the grader');
 }, 60_000);
 
 // --- T11: trial-local state ---
+
+async function preAdmissionListener(action: () => void): Promise<http.Server> {
+  const server = http.createServer((request, response) => {
+    request.resume();
+    request.once('end', () => {
+      action();
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({
+        ok: true, lease_state: 'reconciled', armed_remaining_ms: 60_000,
+      }));
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  return server;
+}
+
+async function closeServer(server: http.Server): Promise<void> {
+  await new Promise<void>(resolve => server.close(() => resolve()));
+}
+
+it('refuses a physically replaced state root before backend admission', async () => {
+  let built!: Fixture;
+  const outside = path.join(root, 'outside-state');
+  const original = path.join(root, 'original-state');
+  fs.mkdirSync(outside);
+  const listener = await preAdmissionListener(() => {
+    const state = path.join(built.trialRoot, 'cortex-home', 'state');
+    fs.renameSync(state, original);
+    fs.symlinkSync(outside, state);
+  });
+  proxyBaseUrl = `http://127.0.0.1:${(listener.address() as AddressInfo).port}`;
+  built = fixture();
+  let outcome: RunOutcome;
+  try { outcome = await runTrial(built); }
+  finally { await closeServer(listener); }
+
+  assert.equal(outcome.exitCode, 125, outcome.stderr);
+  assert.equal(outcome.terminal.terminal_reason, 'containment_failure');
+  assert.equal(outcome.terminal.manifest, null);
+  assert.equal(fs.existsSync(built.observation), false);
+  assert.deepEqual(fs.readdirSync(outside), []);
+  assert.equal(fs.existsSync(path.join(
+    built.options.trajectoryRoot, 'composite-manifest.json',
+  )), false);
+}, 60_000);
+
+it('refuses a physically replaced workspace before backend admission', async () => {
+  let built!: Fixture;
+  const outside = path.join(root, 'outside-workspace');
+  const original = path.join(root, 'original-workspace');
+  fs.mkdirSync(outside);
+  const listener = await preAdmissionListener(() => {
+    fs.renameSync(built.workspace, original);
+    fs.symlinkSync(outside, built.workspace);
+  });
+  proxyBaseUrl = `http://127.0.0.1:${(listener.address() as AddressInfo).port}`;
+  built = fixture();
+  let outcome: RunOutcome;
+  try { outcome = await runTrial(built); }
+  finally { await closeServer(listener); }
+
+  assert.equal(outcome.exitCode, 125, outcome.stderr);
+  assert.equal(outcome.terminal.terminal_reason, 'containment_failure');
+  assert.equal(outcome.terminal.manifest, null);
+  assert.equal(fs.existsSync(built.observation), false);
+  assert.deepEqual(fs.readdirSync(outside), []);
+}, 60_000);
 
 it('confines the backend to the trial root and drops host leaks (T11, C5, C7)', async () => {
   const saved = { ...process.env };

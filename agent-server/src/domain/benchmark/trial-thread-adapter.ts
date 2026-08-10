@@ -1,6 +1,6 @@
-// input:  a frozen trial policy, its pinned paths and one thread step's run options
-// output: a per-step trial adapter run whose spawn config is the trial's own
-// pos:    Per-step trial adapter route for an in-trial benchmark thread
+// input:  frozen trial policy, pinned paths and step admission
+// output: admitted per-step adapter run with trial-owned spawn config
+// pos:    Per-step trial adapter route for benchmark threads
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import type { AgentProcessSpawner } from '../../agent-adapter/types.js';
@@ -12,7 +12,7 @@ import { runWithAdapter } from '../agents/facade.js';
 import type { RunAgentOptions } from '../agents/spawn-config.js';
 import type { ResolvedTrialPolicy } from './resolved-policy.js';
 import {
-  createTrialAdapter, trialAgentConfig, type TrialAdapter,
+  createTrialAdapter, trialAgentConfig, type TrialAdapter, type TrialProcessAdmissionInput,
 } from './trial-adapter-factory.js';
 import type { LeaseState } from './workspace-lease.js';
 
@@ -27,6 +27,7 @@ export interface TrialThreadAdapterInput {
    *  runs once per step, so a `LeaseState` value member would be read at construction and frozen
    *  for the whole thread — the staleness the rule exists to forbid (design section 16 (16.1) LS3). */
   leaseState: () => LeaseState;
+  admission?: (input: TrialProcessAdmissionInput) => void;
 }
 
 function requireSlot(options: RunAgentOptions): AgentSlot {
@@ -57,6 +58,13 @@ function requireSpawner(options: RunAgentOptions): AgentProcessSpawner {
   return spawner;
 }
 
+function admittedSpawner(trial: TrialAdapter, delegate: AgentProcessSpawner): AgentProcessSpawner {
+  return (command, args, options) => {
+    trial.admit({ cwd: options.cwd?.toString() ?? '', env: options.env ?? {} });
+    return delegate(command, args, options);
+  };
+}
+
 /**
  * Take the trial's own prepared spawn config and overlay only what the policy cannot know: the
  * step's resume target and its admission boundary. The alternative — letting the step's options
@@ -73,7 +81,7 @@ function stepSpawnConfig(
   leaseState: () => LeaseState,
 ): TrialAdapter['spawnConfig'] {
   const spawnConfig = trial.spawnConfig;
-  spawnConfig.processSpawner = requireSpawner(options);
+  spawnConfig.processSpawner = admittedSpawner(trial, requireSpawner(options));
   spawnConfig.sessionId = options.sessionId ?? null;
   spawnConfig.resume = !!options.sessionId;
   // Read here and nowhere earlier: the step has been armed, so this is the state it executes under
@@ -129,6 +137,7 @@ export function createBenchmarkTrialRunAgent(
       paths: input.paths,
       supervisor: input.supervisor,
       cwd: requireWorkspace(options),
+      admission: input.admission,
     });
     try {
       const handle = runWithAdapter(
