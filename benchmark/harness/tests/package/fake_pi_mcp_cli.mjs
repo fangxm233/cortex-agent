@@ -31,6 +31,7 @@ const bridge = await import(pathToFileURL(bridgePath).href);
 await bridge.default(pi);
 await handlers.get('before_agent_start')?.({}, {});
 const policyPath = process.env.CORTEX_BENCHMARK_THREAD_POLICY_PATH;
+const policy = policyPath ? JSON.parse(fs.readFileSync(policyPath, 'utf8')) : null;
 const policyGuard = JSON.parse(process.env.CORTEX_PI_POLICY_GUARD ?? '{}');
 const leaseState = process.env.CORTEX_PI_LEASE_STATE;
 const runConfigBytes = fs.readFileSync(RUN_CONFIG_PATH);
@@ -44,9 +45,9 @@ const observation = {
   runConfigSha256: createHash('sha256').update(runConfigBytes).digest('hex'),
   cwd: process.cwd(), argv,
   tools: leaseState ? policyGuard[leaseState] ?? [] : [],
-  strictMcpConfig: orchestration.mode === 'coder-review',
+  strictMcpConfig: policyPath !== undefined && registered.includes('thread_run'),
   mcpConfigPaths: [], bridgePath,
-  policyPath: policyPath ?? null,
+  policyPath: policyPath ?? null, policyTemplate: policy?.template ?? null,
   policyWritableBits: policyPath && fs.existsSync(policyPath)
     ? fs.statSync(policyPath).mode & 0o222 : null,
   registered,

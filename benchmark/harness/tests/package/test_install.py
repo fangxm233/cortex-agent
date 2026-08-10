@@ -330,11 +330,15 @@ def assert_production_agent(agent: CortexBenchAgent) -> None:
 
 
 def assert_coder_review_observation(
-    observation: dict[str, object], backend: str,
+    observation: dict[str, object], backend: str, variant: str | None,
 ) -> None:
     assert observation["strictMcpConfig"] is True
     assert observation["policyPath"] == POLICY_PATH
     assert observation["policyWritableBits"] == 0
+    assert observation["policyTemplate"] == (
+        "benchmark-coder-review" if variant == "audit-retry"
+        else "benchmark-coder-review-fix"
+    )
     assert observation["registered"] == ["thread_run"]
     if backend == "claude":
         assert observation["mcpConfigPaths"] == [
@@ -364,10 +368,11 @@ def assert_s1_observation(
     assert observation["tools"] == resolution["roles"]["parent"]["tools"]
     if mode == "direct":
         assert observation["policyPath"] is None
+        assert observation["policyTemplate"] is None
         assert "thread_run" not in observation["registered"]
         assert observation["mcpConfigPaths"] == []
         return
-    assert_coder_review_observation(observation, backend)
+    assert_coder_review_observation(observation, backend, variant)
 
 
 async def assert_s1_terminal(

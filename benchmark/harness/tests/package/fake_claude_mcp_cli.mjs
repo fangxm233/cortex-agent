@@ -121,8 +121,10 @@ async function inspectStrictServer(configPath) {
     send(connection.server, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
     const listed = await responseWithId(connection.iterator, 2);
     if (listed.error) throw new Error(JSON.stringify(listed.error));
+    const policyPath = connection.entry.env?.CORTEX_BENCHMARK_THREAD_POLICY_PATH ?? null;
+    const policy = policyPath ? JSON.parse(fs.readFileSync(policyPath, 'utf8')) : null;
     return {
-      policyPath: connection.entry.env?.CORTEX_BENCHMARK_THREAD_POLICY_PATH ?? null,
+      policyPath, policyTemplate: policy?.template ?? null,
       tools: (listed.result?.tools ?? []).map(tool => tool.name),
     };
   } finally {
@@ -159,7 +161,8 @@ async function main() {
   const orchestration = config.document.arm.orchestration;
   const paths = mcpConfigPaths();
   const strict = orchestration.mode === 'coder-review'
-    ? await inspectStrictServer(paths[0]) : { policyPath: null, tools: [] };
+    ? await inspectStrictServer(paths[0])
+    : { policyPath: null, policyTemplate: null, tools: [] };
   const requestLine = await withTimeout(new Promise((resolve, reject) => {
     const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
     let received = false;
@@ -181,6 +184,7 @@ async function main() {
     tools: (argumentValue('--tools') ?? '').split(',').filter(Boolean),
     strictMcpConfig: argv.includes('--strict-mcp-config'),
     mcpConfigPaths: paths, policyPath: strict.policyPath,
+    policyTemplate: strict.policyTemplate,
     policyWritableBits: strict.policyPath && fs.existsSync(strict.policyPath)
       ? fs.statSync(strict.policyPath).mode & 0o222 : null,
     registered: strict.tools,

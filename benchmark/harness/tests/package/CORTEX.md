@@ -4,8 +4,8 @@ Package tests cover cwd resolution, manifests, and Harbor adapter behavior.
 
 | filename | role | function |
 |---|---|---|
-| fake_claude_mcp_cli.mjs | fixture | Probes installed Claude MCP and answers one turn |
-| fake_pi_mcp_cli.mjs | fixture | Loads installed PI MCP and answers one turn |
+| fake_claude_mcp_cli.mjs | fixture | Probes Claude MCP policy and answers one turn |
+| fake_pi_mcp_cli.mjs | fixture | Loads PI MCP policy and answers one turn |
 | test_build_wheel.py | test | Verifies the fixed build epoch ignores ambient input |
 | test_cwd.py | test | Verifies dynamic container cwd resolution |
 | test_manifest.py | test | Verifies H3 digests and installed CLI version |
