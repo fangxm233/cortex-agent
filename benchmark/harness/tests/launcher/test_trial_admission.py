@@ -575,6 +575,23 @@ def test_sensitive_host_mounts_fail_closed(
         asyncio.run(Trial.create(config))
 
 
+def test_an_unrelated_cortex_checkout_cannot_be_admitted_as_task_input(
+    tmp_path: Path,
+) -> None:
+    checkout = tmp_path / "unrelated-cortex"
+    (checkout / ".git").mkdir(parents=True)
+    (checkout / "agent-server").mkdir()
+    (checkout / "agent-server/package.json").write_text("{}")
+    (checkout / "benchmark/harness").mkdir(parents=True)
+    (checkout / "benchmark/harness/pyproject.toml").write_text("")
+    task = write_task(checkout)
+    config = build_harbor_trial_config(**launch_kwargs(tmp_path / "launch", task))
+    append_mount(config, task, "/harbor/input", read_only=True)
+
+    with pytest.raises(HarborTrialAdmissionError, match="sensitive host path"):
+        asyncio.run(Trial.create(config))
+
+
 def test_cloud_credential_mount_from_host_env_fails_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

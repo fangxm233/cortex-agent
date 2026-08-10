@@ -445,7 +445,8 @@ def _reject_socket_or_credential(source: Path) -> None:
 def _reject_sensitive_source(source: Path) -> None:
     _reject_socket_or_credential(source)
     home = Path.home().resolve()
-    if source == home or home.is_relative_to(source):
+    source_checkout = _cortex_checkout_root(source)
+    if source == home or home.is_relative_to(source) or source_checkout is not None:
         raise HarborTrialAdmissionError(f"mount exposes a sensitive host path: {source}")
     if any(_overlaps(source, root) for root in _sensitive_roots()):
         raise HarborTrialAdmissionError(f"mount exposes a sensitive host path: {source}")
