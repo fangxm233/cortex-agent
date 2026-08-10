@@ -34,9 +34,12 @@ from harbor.utils.trajectory_validator import TrajectoryValidator
 
 from cortex_bench_harness import CortexBenchAgent
 from cortex_bench_harness.launcher import ARM_RESOLUTION_CONTAINER_PATH, ARM_RESOLUTION_SOURCE
+from offline_package import build_offline_npm_artifact
 from cortex_bench_harness.launcher.arm_resolution import (
+    BENCHMARK_THREAD_MCP_CONTAINER_PATH,
     BENCHMARK_THREAD_MCP_SOURCE,
     BENCHMARK_THREAD_POLICY_SOURCE,
+    DIRECT_CLAUDE_TOOLS,
     ArmResolutionInputs,
     ContainerFacts,
     build_arm_resolution,
@@ -61,7 +64,7 @@ FINAL_METRIC_KEYS = (
     "total_cost_usd", "total_steps",
 )
 POLICY_PATH = "/cortex-home/config/benchmark-thread-policy.json"
-BENCHMARK_MCP_CONFIG_PATH = "/cortex-home/config/mcp-config-benchmark-thread.json"
+BENCHMARK_MCP_CONFIG_PATH = str(BENCHMARK_THREAD_MCP_CONTAINER_PATH)
 
 
 @dataclass(frozen=True)
@@ -212,11 +215,7 @@ def build_node_runtime(root: Path) -> Path:
 def build_npm_artifact(root: Path, repo_root: Path) -> Path:
     output = root / "npm-artifact"
     output.mkdir()
-    run_command(["pnpm", "--filter", "@cortex-agent/web...", "run", "build"], repo_root)
-    run_command(["npm", "pack", "--pack-destination", str(output)], repo_root / "agent-server")
-    artifacts = list(output.glob("cortex-agent-server-*.tgz"))
-    assert len(artifacts) == 1
-    return artifacts[0]
+    return build_offline_npm_artifact(repo_root, output)
 
 
 def profile_document() -> dict[str, object]:
@@ -348,7 +347,7 @@ def role_asset(slot: str, parent: bool = False) -> dict[str, object]:
     return {
         "system_prompt_path": f"/cortex-home/config/{slot}-system.txt",
         "directive_path": f"/cortex-home/config/{slot}-directive.txt",
-        "tools": (["mcp__cortex-benchmark-thread__thread_run"] if parent else ["Read", "Write"]),
+        "tools": (list(DIRECT_CLAUDE_TOOLS) if parent else ["Read", "Write"]),
         "plugin_dirs": [],
         "mcp_composition": "benchmark-thread-run" if parent else "none",
         "mcp_config_paths": [
@@ -406,7 +405,7 @@ def arm_resolution_document(image: dict[str, object]) -> dict[str, object]:
         trial_id=TRIAL_ID, root_run_id=ROOT_RUN_ID, task=trial_task(image),
         profile_name="benchmark", paid_run=False,
         credential=trial_credential(),
-        cli_artifact={"path": "/opt/fake-bin/claude", "version": "2.1.999"},
+        cli_artifact={"path": "/opt/fake-bin/claude", "version": "2.1.220 (Claude Code)"},
         model_alias_policy=None,
         roles={
             "parent": role_asset("parent", True),
@@ -452,16 +451,6 @@ async def provision_runtime(environment: DockerEnvironment) -> None:
     assert result.return_code == 0, result.stderr
 
 
-def benchmark_mcp_config_script() -> str:
-    return (
-        "const fs=await import('node:fs');const path=await import('node:path');"
-        "const root=process.argv[1];const entry={command:'node',"
-        "args:[path.join(root,'dist/domain/mcp/benchmark-thread-server.js')],cwd:root};"
-        f"fs.writeFileSync('{BENCHMARK_MCP_CONFIG_PATH}',"
-        "JSON.stringify({mcpServers:{'cortex-benchmark-thread':entry}},null,2));"
-    )
-
-
 async def provision_dynamic_runtime(environment: DockerEnvironment) -> None:
     target = "/cortex-home/config/thread-templates"
     package = (
@@ -480,8 +469,6 @@ async def provision_dynamic_runtime(environment: DockerEnvironment) -> None:
         )
     commands.append('cp "$package_root/defaults/config/mcp-config-empty.json" '
                     "/cortex-home/config/mcp-config-empty.json")
-    script = shlex.quote(benchmark_mcp_config_script())
-    commands.append(f'node --input-type=module -e {script} "$package_root"')
     result = await environment.exec(command=" && ".join(commands))
     assert result.return_code == 0, result.stderr
 
@@ -651,7 +638,7 @@ def parse_fake_usage(layout: Layout) -> dict[str, int]:
     result = json.loads(output[-1])
     request = json.loads((artifacts / "fake-claude-stdin.json").read_text())
     argv = (artifacts / "fake-claude-argv.txt").read_text().splitlines()
-    assert (artifacts / "fake-claude-version.txt").read_text().strip() == "2.1.999 (Cortex benchmark fake)"
+    assert (artifacts / "fake-claude-version.txt").read_text().strip() == "2.1.220 (Claude Code)"
     assert (artifacts / "claude-path.txt").read_text().strip() == "/opt/fake-bin/claude"
     assert (artifacts / "fake-claude-cwd.txt").read_text().strip() == "/app"
     assert request["type"] == "user" and request["session_id"] == result["session_id"]
@@ -663,7 +650,11 @@ def parse_fake_usage(layout: Layout) -> dict[str, int]:
 def parse_fake_roles(layout: Layout) -> tuple[str, ...]:
     path = layout.trial_paths.artifacts_dir / "fake-claude-invocations.jsonl"
     rows = [json.loads(line) for line in path.read_text().splitlines()]
-    assert all(row["cwd"] == "/app" for row in rows)
+    by_role = {str(row["role"]): str(row["cwd"]) for row in rows}
+    assert by_role["parent"] == by_role["benchmark-coder"] == "/app"
+    assert by_role["benchmark-reviewer"].startswith(
+        "/logs/agent/trial-home/tmp/review-snapshot/"
+    )
     return tuple(str(row["role"]) for row in rows)
 
 
@@ -673,7 +664,7 @@ def parent_mcp_composition(
     assert agent.run_command is not None
     assert f"--run-config {ARM_RESOLUTION_CONTAINER_PATH}" in agent.run_command
     mcp_config = json.loads(
-        (layout.cortex_home / "config/mcp-config-benchmark-thread.json").read_text()
+        (layout.trial_paths.agent_dir / BENCHMARK_THREAD_MCP_CONTAINER_PATH.name).read_text()
     )
     assert list(mcp_config["mcpServers"]) == ["cortex-benchmark-thread"]
     arm_resolution = json.loads(
@@ -769,6 +760,10 @@ def result_surface_files(layout: Layout) -> list[Path]:
 def whole_tree_scan(layout: Layout, secrets: dict[str, str]) -> bool:
     findings: list[str] = []
     literals = [value.encode() for value in secrets.values()]
+    declared_endpoints = [
+        str(trial_credential()[key]).encode()
+        for key in ("upstream_base_url", "proxy_base_url")
+    ]
     total_bytes = 0
     files = result_surface_files(layout)
     for path in files:
@@ -776,7 +771,11 @@ def whole_tree_scan(layout: Layout, secrets: dict[str, str]) -> bool:
         total_bytes += len(data)
         if any(literal in data for literal in literals):
             findings.append(f"secret:{path.relative_to(layout.root)}")
-        if HOME_PATH.search(data) or URI_HOST.search(data) or IPV4.search(data):
+        host_scan_data = data
+        for endpoint in declared_endpoints:
+            host_scan_data = host_scan_data.replace(endpoint, b"")
+        if (HOME_PATH.search(host_scan_data) or URI_HOST.search(host_scan_data)
+                or IPV4.search(host_scan_data)):
             findings.append(f"host:{path.relative_to(layout.root)}")
     report = {"clean": not findings, "files_scanned": len(files),
               "bytes_scanned": total_bytes, "matches": findings}

@@ -19,12 +19,8 @@
 #    prebuilt document. That injection has NOT been deleted. This module takes
 #    the other admissible route — it constructs the agent independently of that
 #    helper. `test_composition_owes_nothing_to_the_stub_trial_helper` asserts
-#    the helper module is absent from the interpreter and that the composition
-#    hook on the object under test is still the shipped function. That is
-#    sufficient because the injection has exactly two seams — importing the
-#    helper, or replacing the composition hook on the instance — and both are
-#    asserted absent in the same process that produced the argv and the document
-#    every other test here reads.
+#    the object has the exact shipped class and composition methods. This remains
+#    independent when pytest collection imports the component fixture elsewhere.
 #
 # 3. The fake container answers only what the container must answer: the workdir
 #    probes, the installed bundle root, and the backend CLI real path and
@@ -40,7 +36,6 @@ import os
 import shlex
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 from harbor.agents.factory import AgentFactory
@@ -458,15 +453,12 @@ def test_shipped_cli_parser_accepts_the_argv_the_entry_builds(tmp_path: Path) ->
 
 
 def test_composition_owes_nothing_to_the_stub_trial_helper(tmp_path: Path) -> None:
-    assert not any(name.endswith("stub_trial") for name in sys.modules)
-
     agent, _ = completed_agent(tmp_path)
 
     assert type(agent) is CortexBenchAgent
     assert CortexBenchAgent.__mro__[1].__name__ == "BaseInstalledAgent"
     for method in ("install", "setup", "run", "preview_run_argv", "_compose_arm_resolution"):
         assert getattr(agent, method).__func__ is getattr(CortexBenchAgent, method)
-    assert not any(name.endswith("stub_trial") for name in sys.modules)
 
     document = json.loads((agent.logs_dir / "arm-resolution.json").read_text())
     assert document["cli_artifact"] == {
@@ -479,8 +471,6 @@ def test_composition_owes_nothing_to_the_stub_trial_helper(tmp_path: Path) -> No
 def test_the_thread_policy_is_the_shipped_writers_output_not_a_fixtures(tmp_path: Path) -> None:
     """P1, with its scope extended from the arm resolution to the thread policy. This module hands
     the entry no document of any kind; the one read below exists because the shipped writer ran."""
-    assert not any(name.endswith("stub_trial") for name in sys.modules)
-
     agent, _ = completed_coder_review(tmp_path)
 
     for method in ("install", "setup", "run", "preview_run_argv",
@@ -495,7 +485,6 @@ def test_the_thread_policy_is_the_shipped_writers_output_not_a_fixtures(tmp_path
     assert document["workspace_cwd"] == CONTAINER_CWD
     # PW3-NEG on the produced bytes, not only on the reading schema.
     assert set(document) == THREAD_POLICY_MEMBERS
-    assert not any(name.endswith("stub_trial") for name in sys.modules)
 
 
 def test_no_profile_borne_policy_path_injection_reaches_the_trial(tmp_path: Path) -> None:

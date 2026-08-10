@@ -8,10 +8,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 
-const VERSION = '2.1.999 (Cortex benchmark fake)';
+const VERSION = '2.1.220 (Claude Code)';
 const TOOL_ID = 'benchmark-thread-call-1';
 const args = process.argv.slice(2);
-const artifactDir = process.env.FAKE_CLAUDE_ARTIFACT_DIR;
+const artifactDir = process.env.FAKE_CLAUDE_ARTIFACT_DIR ?? '/logs/artifacts';
 
 function requireArtifactDir() {
   if (!artifactDir) throw new Error('FAKE_CLAUDE_ARTIFACT_DIR is required');
@@ -24,11 +24,15 @@ function argumentValue(name) {
 }
 
 function invocationRole() {
-  const tools = argumentValue('--tools') ?? '';
-  if (tools.includes('cortex-benchmark-thread')) return 'parent';
+  const mcpConfig = argumentValue('--mcp-config') ?? '';
+  if (mcpConfig.includes('benchmark-thread')) return 'parent';
   const prompt = argumentValue('--system-prompt') ?? '';
-  if (prompt.includes('implementation auditor')) return 'benchmark-reviewer';
-  if (prompt.includes('code implementer')) return 'benchmark-coder';
+  if (prompt.includes('implementation auditor') || prompt.includes('benchmark-reviewer')) {
+    return 'benchmark-reviewer';
+  }
+  if (prompt.includes('code implementer') || prompt.includes('benchmark-coder')) {
+    return 'benchmark-coder';
+  }
   throw new Error('Unable to classify fake Claude invocation');
 }
 
@@ -98,7 +102,9 @@ function resultMessage(role, sessionId, usage, text) {
 }
 
 async function waitForParentToolEvent() {
-  const policy = JSON.parse(fs.readFileSync(process.env.CORTEX_BENCHMARK_THREAD_POLICY_PATH, 'utf8'));
+  const policyPath = process.env.CORTEX_BENCHMARK_THREAD_POLICY_PATH
+    ?? '/logs/agent/benchmark-thread-policy.json';
+  const policy = JSON.parse(fs.readFileSync(policyPath, 'utf8'));
   const journal = path.join(policy.trajectory_root, 'events.jsonl');
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
@@ -168,7 +174,7 @@ async function closeServer(server) {
 function openMcpServer() {
   const entry = mcpServerEntry();
   const server = spawn(entry.command, entry.args ?? [], {
-    cwd: entry.cwd, env: process.env, stdio: ['pipe', 'pipe', 'pipe'],
+    cwd: entry.cwd, env: { ...process.env, ...(entry.env ?? {}) }, stdio: ['pipe', 'pipe', 'pipe'],
   });
   let stderr = '';
   server.stderr.on('data', chunk => { stderr += chunk.toString(); });

@@ -122,7 +122,7 @@ def test_component_fixture_supplies_its_document_through_the_hook(tmp_path: Path
     )
 
     agent = stub_trial.create_agent(layout, image)
-    facts = ContainerFacts("/bundle", "/opt/fake-bin/claude", "2.1.999")
+    facts = ContainerFacts("/bundle", "/opt/fake-bin/claude", "2.1.220 (Claude Code)")
 
     assert not {"roles", "thread_templates", "thread_agents", "cli_artifact"} & set(
         stub_trial.trial_seed(image),
@@ -136,7 +136,7 @@ def test_fake_claude_reports_its_version_without_a_trial_artifact_dir() -> None:
         text=True, capture_output=True, check=True, env={"PATH": os.environ["PATH"]},
     )
 
-    assert result.stdout.strip() == "2.1.999 (Cortex benchmark fake)"
+    assert result.stdout.strip() == "2.1.220 (Claude Code)"
 
 
 def test_fake_claude_emits_canonical_assistant_role(tmp_path: Path) -> None:
