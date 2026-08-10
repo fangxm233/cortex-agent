@@ -81,7 +81,7 @@ CREDENTIAL_ENV_KEYS = (
     "CONTAINER_HOST",
 )
 SENSITIVE_HOME_PATHS = (
-    ".cortex", ".claude", ".anthropic", ".ssh", ".gnupg", ".aws",
+    ".cortex", ".claude", ".anthropic", ".pi", ".ssh", ".gnupg", ".aws",
     ".azure", ".docker", ".kube", ".config/gcloud", ".config/gh",
 )
 

@@ -589,6 +589,19 @@ def test_cloud_credential_mount_from_host_env_fails_closed(
         asyncio.run(Trial.create(config))
 
 
+def test_pi_auth_root_cannot_be_admitted_as_task_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host_home = tmp_path / "host-home"
+    task = write_task(host_home / ".pi")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: host_home))
+    config = build_harbor_trial_config(**launch_kwargs(tmp_path / "launch", task))
+    append_mount(config, task, "/harbor/input", read_only=True)
+
+    with pytest.raises(HarborTrialAdmissionError, match="sensitive host path"):
+        asyncio.run(Trial.create(config))
+
+
 def test_socket_mount_fails_closed(tmp_path: Path) -> None:
     socket_path = tmp_path / "daemon.sock"
     listener = socket.socket(socket.AF_UNIX)
