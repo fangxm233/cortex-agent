@@ -57,6 +57,20 @@ LIVE_PROXY_HANDLES: list[object] = []
 def admitted_fake_proxy(monkeypatch: pytest.MonkeyPatch):
     admit_capability(monkeypatch, "claude-api-key")
     monkeypatch.setenv("CORTEX_BENCH_TEST_CREDENTIAL", "fake-host-credential")
+    result = subprocess.CompletedProcess(
+        args=["docker", "image", "inspect"], returncode=0,
+        stdout=json.dumps({
+            "Env": ["PATH=/image/path", "LANG=C"], "Volumes": None,
+        }) + "\n", stderr="",
+    )
+    module = importlib.import_module(
+        "cortex_bench_harness.launcher.trial_admission_io",
+    )
+    monkeypatch.setattr(
+        module, "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: result), raising=False,
+    )
+    monkeypatch.setattr(DockerEnvironment, "start", AsyncMock())
     yield
     for handle in LIVE_PROXY_HANDLES:
         handle.stop()
@@ -172,13 +186,27 @@ def launch_kwargs(root: Path, task: Path | None = None) -> dict[str, object]:
 def create_trial(root: Path, task: Path | None = None) -> Trial:
     trial = asyncio.run(create_harbor_trial(**launch_kwargs(root, task)))
     assert isinstance(trial.agent, CortexBenchAgent)
+    assert trial.agent.proxy_session is None
+    return trial
+
+
+def start_trial(trial: Trial) -> None:
+    asyncio.run(trial.agent_environment.start(force_build=False))
     assert trial.agent.proxy_session is not None
     LIVE_PROXY_HANDLES.append(trial.agent.proxy_session.handle)
-    return trial
 
 
 def evidence_path(trial: Trial) -> Path:
     return trial.paths.artifacts_dir / ADMISSION_EVIDENCE_FILENAME
+
+
+def proxy_route_is_dead(session: object) -> bool:
+    port = urlsplit(session.handle.base_url).port
+    try:
+        socket.create_connection(("127.0.0.1", port), 2).close()
+    except OSError:
+        return True
+    return False
 
 
 def test_public_entry_builds_the_sealed_trial_config(tmp_path: Path) -> None:
@@ -275,12 +303,13 @@ def test_trial_id_cannot_collapse_the_isolated_trial_root(tmp_path: Path) -> Non
     unsafe_seed["trial_id"] = "."
     kwargs["trial_seed"] = unsafe_seed
 
-    with pytest.raises(HarborTrialAdmissionError, match="path-safe"):
+    with pytest.raises(HarborTrialAdmissionError, match="DNS label"):
         build_harbor_trial_config(**kwargs)
 
 
 def test_exact_public_entry_reaches_harbor_environment_factory(tmp_path: Path) -> None:
     trial = create_trial(tmp_path)
+    start_trial(trial)
 
     assert type(trial.agent) is CortexBenchAgent
     assert type(trial.agent_environment) is AdmittedDockerEnvironment
@@ -294,6 +323,7 @@ def test_launch_evidence_is_atomic_secret_free_and_complete(tmp_path: Path) -> N
     os.environ["AWS_SECRET_ACCESS_KEY"] = "ambient-must-not-appear"
     try:
         trial = create_trial(tmp_path)
+        start_trial(trial)
     finally:
         os.environ.pop("AWS_SECRET_ACCESS_KEY", None)
 
@@ -315,6 +345,7 @@ def test_launch_evidence_is_atomic_secret_free_and_complete(tmp_path: Path) -> N
 
 def test_launch_evidence_records_physical_harbor_mounts(tmp_path: Path) -> None:
     trial = create_trial(tmp_path)
+    start_trial(trial)
 
     document = json.loads(evidence_path(trial).read_text())
     mounts = {entry["target"]: entry for entry in document["mounts"]}
@@ -338,6 +369,7 @@ def test_launch_evidence_records_physical_harbor_mounts(tmp_path: Path) -> None:
 
 def test_launch_evidence_records_default_deny_proxy_only_network(tmp_path: Path) -> None:
     trial = create_trial(tmp_path)
+    start_trial(trial)
 
     network = json.loads(evidence_path(trial).read_text())["network"]
     phase_hosts = {
@@ -350,7 +382,10 @@ def test_launch_evidence_records_default_deny_proxy_only_network(tmp_path: Path)
         "allowed_hosts": [],
     }
     assert phase_hosts == {PROXY_HOST}
-    assert network["proxy_route"] == {
+    assert {
+        key: network["proxy_route"][key]
+        for key in ("host", "scope", "trial_id")
+    } == {
         "host": PROXY_HOST,
         "scope": "current-trial",
         "trial_id": "trial-one",
@@ -392,13 +427,16 @@ def test_exec_time_environment_cannot_override_the_sealed_values(
 
 def patch_image_inspect(
     monkeypatch: pytest.MonkeyPatch, image_environment: list[str],
+    volumes: dict[str, object] | None = None,
 ) -> AsyncMock:
     result = subprocess.CompletedProcess(
         args=["docker", "image", "inspect"], returncode=0,
-        stdout=json.dumps(image_environment) + "\n", stderr="",
+        stdout=json.dumps({
+            "Env": image_environment, "Volumes": volumes,
+        }) + "\n", stderr="",
     )
     module = importlib.import_module(
-        "cortex_bench_harness.launcher.trial_admission",
+        "cortex_bench_harness.launcher.trial_admission_io",
     )
     monkeypatch.setattr(
         module, "subprocess",
@@ -429,6 +467,7 @@ def test_container_start_accepts_only_keys_overridden_by_the_sealed_environment(
     start = patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
 
     asyncio.run(trial.agent_environment.start(force_build=False))
+    LIVE_PROXY_HANDLES.append(trial.agent.proxy_session.handle)
 
     start.assert_awaited_once_with(force_build=False)
 
@@ -532,9 +571,8 @@ def test_symlinked_harbor_mount_cannot_escape_the_trial_root(tmp_path: Path) -> 
     outside.mkdir()
     original_mode = outside.stat().st_mode & 0o7777
     trial_dir = tmp_path / "trials/trial-one"
-    trial_dir.mkdir(parents=True)
-    (trial_dir / "agent").symlink_to(outside, target_is_directory=True)
     config = build_harbor_trial_config(**launch_kwargs(tmp_path))
+    (trial_dir / "agent").symlink_to(outside, target_is_directory=True)
 
     with pytest.raises(HarborTrialAdmissionError, match="escapes trial root"):
         asyncio.run(Trial.create(config))
@@ -558,6 +596,8 @@ def test_read_only_task_input_mount_is_admitted(tmp_path: Path) -> None:
     )
 
     trial = asyncio.run(Trial.create(config))
+    trial.agent_environment.bind_proxy_controller(trial.agent)
+    start_trial(trial)
 
     document = json.loads(evidence_path(trial).read_text())
     task_input = next(
@@ -588,3 +628,154 @@ def test_task_compose_and_unknown_policy_fields_fail_closed(tmp_path: Path) -> N
 
     with pytest.raises(HarborTrialAdmissionError, match="Docker Compose"):
         create_trial(tmp_path, task)
+
+
+def test_builder_reserves_a_fresh_trial_root(tmp_path: Path) -> None:
+    (tmp_path / "trials/trial-one").mkdir(parents=True)
+
+    with pytest.raises(HarborTrialAdmissionError, match="fresh trial root"):
+        build_harbor_trial_config(**launch_kwargs(tmp_path))
+
+
+def test_trial_id_is_an_injective_network_label(tmp_path: Path) -> None:
+    kwargs = launch_kwargs(tmp_path)
+    unsafe_seed = dict(kwargs["trial_seed"])
+    unsafe_seed["trial_id"] = "trial_one"
+    kwargs["trial_seed"] = unsafe_seed
+
+    with pytest.raises(HarborTrialAdmissionError, match="DNS label"):
+        build_harbor_trial_config(**kwargs)
+
+
+def test_docker_consumes_the_physically_resolved_mount_source(tmp_path: Path) -> None:
+    kwargs = launch_kwargs(tmp_path)
+    task = Path(kwargs["task_path"])
+    physical = task / "input"
+    physical.mkdir()
+    alias = task / "input-alias"
+    alias.symlink_to(physical, target_is_directory=True)
+    config = build_harbor_trial_config(**kwargs)
+    append_mount(config, alias, "/harbor/input", read_only=True)
+
+    trial = asyncio.run(Trial.create(config))
+
+    task_mount = next(
+        mount for mount in trial.agent_environment._mounts
+        if mount["target"] == "/harbor/input"
+    )
+    assert task_mount["source"] == str(physical.resolve())
+
+
+def test_proxy_is_deferred_until_environment_start(tmp_path: Path) -> None:
+    trial = asyncio.run(create_harbor_trial(**launch_kwargs(tmp_path)))
+
+    assert trial.agent.proxy_session is None
+
+
+def test_launch_evidence_waits_for_final_image_and_route_admission(
+    tmp_path: Path,
+) -> None:
+    trial = asyncio.run(create_harbor_trial(**launch_kwargs(tmp_path)))
+
+    assert not evidence_path(trial).exists()
+
+
+def test_force_build_mutation_fails_before_docker_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trial = create_trial(tmp_path)
+    start = patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
+
+    with pytest.raises(HarborTrialAdmissionError, match="force_build"):
+        asyncio.run(trial.agent_environment.start(force_build=True))
+    start.assert_not_awaited()
+
+
+def test_image_declared_volumes_fail_before_docker_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trial = create_trial(tmp_path)
+    result = subprocess.CompletedProcess(
+        args=["docker", "image", "inspect"], returncode=0,
+        stdout=json.dumps({
+            "Env": ["PATH=/image/path", "LANG=C"],
+            "Volumes": {"/host-cache": {}},
+        }) + "\n", stderr="",
+    )
+    module = importlib.import_module(
+        "cortex_bench_harness.launcher.trial_admission_io",
+    )
+    monkeypatch.setattr(
+        module, "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: result), raising=False,
+    )
+    start = AsyncMock()
+    monkeypatch.setattr(DockerEnvironment, "start", start)
+
+    with pytest.raises(HarborTrialAdmissionError, match="image volumes"):
+        asyncio.run(trial.agent_environment.start(force_build=False))
+    start.assert_not_awaited()
+
+
+def test_environment_start_failure_revokes_the_deferred_proxy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trial = create_trial(tmp_path)
+    patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
+    monkeypatch.setattr(
+        DockerEnvironment, "start", AsyncMock(side_effect=RuntimeError("start failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="start failed"):
+        asyncio.run(trial.agent_environment.start(force_build=False))
+
+    session = trial.agent.proxy_session
+    assert session is not None
+    assert proxy_route_is_dead(session)
+    assert not evidence_path(trial).exists()
+
+
+def test_environment_stop_revokes_before_agent_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trial = create_trial(tmp_path)
+    stop = AsyncMock()
+    monkeypatch.setattr(DockerEnvironment, "stop", stop)
+    start_trial(trial)
+    session = trial.agent.proxy_session
+
+    asyncio.run(trial.agent_environment.stop(delete=True))
+
+    stop.assert_awaited_once_with(delete=True)
+    assert proxy_route_is_dead(session)
+
+
+def test_launch_evidence_records_the_actual_proxy_endpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trial = create_trial(tmp_path)
+    patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
+
+    asyncio.run(trial.agent_environment.start(force_build=False))
+
+    session = trial.agent.proxy_session
+    LIVE_PROXY_HANDLES.append(session.handle)
+    route = json.loads(evidence_path(trial).read_text())["network"]["proxy_route"]
+    parsed = urlsplit(session.handle.base_url)
+    assert route["scheme"] == parsed.scheme
+    assert route["host"] == parsed.hostname
+    assert route["port"] == parsed.port
+    assert route["bound_source_ip"] == (
+        session.handle.manifest_block["source_binding"]["value"]
+    )
+
+
+def test_separate_verifier_environment_is_rejected_before_launch(
+    tmp_path: Path,
+) -> None:
+    task = write_task(tmp_path)
+    with (task / "task.toml").open("a") as handle:
+        handle.write("\n[verifier]\nenvironment_mode = \"separate\"\n")
+
+    with pytest.raises(HarborTrialAdmissionError, match="separate verifier"):
+        asyncio.run(create_harbor_trial(**launch_kwargs(tmp_path, task)))
