@@ -180,6 +180,9 @@ export function trialAgentConfig(policy: ResolvedTrialPolicy, backend: Backend):
     // Gate 2 runs one supervised print-mode turn; TUI has no trial surface.
     claudeBackend: 'print',
     thinking: policy.model_execution.reasoning_effort,
+    extraEnv: backend === 'claude'
+      ? { ANTHROPIC_AUTH_TOKEN: policy.credential.dummy_token_ref }
+      : undefined,
   };
 }
 

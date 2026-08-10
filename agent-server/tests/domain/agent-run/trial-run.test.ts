@@ -451,10 +451,9 @@ it('classifies a trial that outlives its deadline as a timeout (T5)', async () =
 
 it('confines the backend to the trial root and drops host leaks (T11, C5, C7)', async () => {
   const saved = { ...process.env };
-  process.env.SLACK_BOT_TOKEN = 'xoxb-host-secret';
-  process.env.ANTHROPIC_API_KEY = 'sk-host-secret';
-  let built: Fixture;
-  let outcome: RunOutcome;
+  Object.assign(process.env, { SLACK_BOT_TOKEN: 'xoxb-host-secret',
+    ANTHROPIC_API_KEY: 'sk-host-secret' });
+  let built: Fixture; let outcome: RunOutcome;
   try {
     built = fixture();
     outcome = await runTrial(built);
@@ -465,23 +464,19 @@ it('confines the backend to the trial root and drops host leaks (T11, C5, C7)', 
     }
   }
   assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
-  const { env } = observed(built);
-  const trialRoot = fs.realpathSync(built.trialRoot);
+  const { env } = observed(built); const trialRoot = fs.realpathSync(built.trialRoot);
   for (const key of ['HOME', 'CORTEX_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME',
     'CLAUDE_CONFIG_DIR', 'TMPDIR', 'CORTEX_PROJECTS_DIR']) {
-    assert.equal(
-      path.resolve(env[key]).startsWith(`${trialRoot}${path.sep}`), true,
-      `${key}=${env[key]} escaped ${trialRoot}`,
-    );
+    const confined = path.resolve(env[key]).startsWith(`${trialRoot}${path.sep}`);
+    assert.equal(confined, true, `${key}=${env[key]} escaped ${trialRoot}`);
   }
   assert.equal(env.PATH, PINNED_RUNTIME_PATH);
-  assert.equal(env.SLACK_BOT_TOKEN, undefined);
-  assert.equal(env.ANTHROPIC_API_KEY, undefined);
-  assert.equal(env.SLACK_CHANNEL, undefined);
-  assert.equal(env.FEISHU_CHANNEL, undefined);
-  // C6 far side: the child is routed at the policy proxy, never the host profile's base URL.
+  assert.deepEqual(
+    [env.SLACK_BOT_TOKEN, env.ANTHROPIC_API_KEY, env.SLACK_CHANNEL, env.FEISHU_CHANNEL],
+    [undefined, undefined, undefined, undefined],
+  );
   assert.equal(env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:49152');
-  // The write the backend really performed landed inside the trial root.
+  assert.equal(env.ANTHROPIC_AUTH_TOKEN, 'trial-token-handle');
   assert.equal(fs.existsSync(path.join(built.trialRoot, 'home', 'backend-wrote-here')), true);
 }, 60_000);
 

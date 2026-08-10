@@ -27,7 +27,8 @@ BACKEND_CLI_VERSION = "1.2.3 (Claude Code)"
 DIGEST = f"sha256:{'a' * 64}"
 INSTALL_COMMAND = (
     "set -o pipefail; npm install --global --prefix /installed-agent/npm "
-    f"--no-audit --no-fund /installed-agent/{ARTIFACT_NAME}"
+    f"--cache /installed-agent/npm-cache --offline --no-audit --no-fund "
+    f"/installed-agent/{ARTIFACT_NAME}"
     " && ln -sfn /installed-agent/npm/bin/cortex /usr/local/bin/cortex"
 )
 VERIFY_COMMANDS = [
@@ -36,7 +37,8 @@ VERIFY_COMMANDS = [
 ]
 DISCOVERY_COMMANDS = [
     "set -o pipefail; npm ls --global --parseable --depth=0 "
-    "--prefix /installed-agent/npm @cortex-agent/server",
+    "--prefix /installed-agent/npm --cache /installed-agent/npm-cache "
+    "--offline @cortex-agent/server",
     f"set -o pipefail; test -x {BUNDLE_ROOT}/native/cortex-supervisor/dist/cortex-supervisor",
     'set -o pipefail; realpath -- "$(command -v claude)"',
     "set -o pipefail; claude --version",

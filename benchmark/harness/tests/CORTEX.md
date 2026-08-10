@@ -6,6 +6,7 @@ Tests for the Python benchmark harness distribution.
 |---|---|---|
 | capability_admission.py | fixture | Admits or refuses capability rows for one test without writing the registry |
 | docker_gate.py | fixture | Skips container modules unless explicitly opted in |
+| offline_package.py | fixture | Packs built Cortex dependencies for offline install |
 | launcher/ | tests | Verifies arm routing and credential projections |
 | package/ | tests | Verifies package-level contracts |
 | proxy/ | tests | Proves credential and network containment |
