@@ -642,6 +642,17 @@ def test_sibling_trial_and_extra_bind_mounts_fail_closed(tmp_path: Path) -> None
         asyncio.run(Trial.create(config))
 
 
+def test_task_input_cannot_contain_the_trials_root(tmp_path: Path) -> None:
+    kwargs = launch_kwargs(tmp_path)
+    task = Path(kwargs["task_path"])
+    kwargs["trials_dir"] = task / "trials"
+    config = build_harbor_trial_config(**kwargs)
+    append_mount(config, task, "/harbor/input", read_only=True)
+
+    with pytest.raises(HarborTrialAdmissionError, match="sibling trial root"):
+        asyncio.run(Trial.create(config))
+
+
 def test_symlinked_harbor_mount_cannot_escape_the_trial_root(tmp_path: Path) -> None:
     outside = tmp_path / "outside-agent"
     outside.mkdir()

@@ -492,7 +492,7 @@ def _mount_record(
     owner, read_only = _mount_owner(mount, source, target, standard, task_root)
     if owner == "harbor-output-handoff" and not source.is_relative_to(trial_root):
         raise HarborTrialAdmissionError(f"Harbor mount escapes trial root: {source}")
-    if owner == "harbor-task-input" and source.is_relative_to(trial_root.parent):
+    if owner == "harbor-task-input" and _overlaps(source, trial_root.parent):
         raise HarborTrialAdmissionError(f"Harbor input exposes a sibling trial root: {source}")
     info = source.stat()
     return {
