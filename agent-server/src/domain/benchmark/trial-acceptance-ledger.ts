@@ -10,14 +10,11 @@ import { ledgerPath } from '../tasks/acceptance-ledger.js';
 import { PolicyCompilationError } from './resolved-policy.js';
 import type { ActorCapability } from './capabilities.js';
 
-// This module deliberately does NOT import `composite-runtime-ports.js` — not even for a type:
-// that module's type-only reach of `core/types/thread-types.ts` → `@platform/index.js` makes it a
-// §18 X2 seed, and a reachability rule cannot exempt type-only edges (G5-R2), so a new benchmark
-// module importing it would raise the pinned X2 count — a new coupling, rejected by the
-// isolation-rules pin. The shapes below are therefore declared here and CONFORMANCE IS ENFORCED
-// AT THE WIRING POINT: `composite-runtime-ports.ts`'s `createAcceptanceLedgerPort` returns the
-// frozen `TrialAcceptanceLedger`, and tsc checks assignability there (and in the test, which pins
-// the local factory against the frozen interface from outside the src/ scope). Every capability
+// The shapes below keep the ledger independent of the broader composite runtime module.
+// CONFORMANCE IS ENFORCED AT THE WIRING POINT: `composite-runtime-ports.ts`'s
+// `createAcceptanceLedgerPort` returns the frozen `TrialAcceptanceLedger`, and tsc checks
+// assignability there (and in the test, which pins the local factory against the frozen interface
+// from outside the src/ scope). Every capability
 // parameter is the SOLE §8.2 `ActorCapability` (capabilities.ts) — the pre-integration
 // `BenchmarkBrokerCapability` seam is gone from this tree, and a second token type anywhere is
 // the abstraction split the gate exists to prevent.

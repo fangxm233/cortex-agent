@@ -46,6 +46,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
 | role-surface.test.ts | test | verifies directives, guards, tools and argv alignment |
 | run-config.test.ts | test | proves schema dispatch, roles, argv and MCP inputs |
+| standalone-architecture.test.ts | test | rejects forbidden standalone root composition |
 | standalone-composition.test.ts | test | proves fresh standalone dependency construction |
 | standalone-public-cli.test.ts | e2e | executes the packed standalone public CLI path |
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |

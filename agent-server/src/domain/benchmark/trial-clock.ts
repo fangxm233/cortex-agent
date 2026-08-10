@@ -3,9 +3,9 @@
 // pos:    §7.2 P17. Zero-dependency time port for the composite path
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 //
-// Zero-dependency by construction: this module imports nothing, so it can never be the module that
-// drags an ambient home or a daemon singleton into the benchmark reach graph (§7.3 X1-X13). The
-// injection shape follows the shipped trajectory-layer precedent `openJournal({..., now?})`
+// Zero-dependency by construction: this factory cannot explicitly compose an ambient home or
+// daemon singleton. The injection shape follows the shipped trajectory-layer precedent
+// `openJournal({..., now?})`
 // (agent-run/journal.ts:278-282) rather than inventing one. Everything else on the composite path
 // calls `Date.now()` / `new Date()` directly — acceptance-ledger.ts:68,86-93, task-lock.ts:81-98,
 // thread-callback.ts:309-316 — and each of those is a site the extraction reroutes through here.

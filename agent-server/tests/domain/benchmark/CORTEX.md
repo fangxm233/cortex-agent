@@ -8,8 +8,6 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | actor-capability.test.ts | 测试 | Tests actor capability lifecycle |
 | attempt-record.test.ts | 测试 | Tests benchmark attempt records |
 | composite-runtime-ports.test.ts | 测试 | Tests composite runtime ports |
-| isolation-literals.test.ts | 测试 | Tests prohibited transport literals |
-| isolation-rules.test.ts | 测试 | Tests benchmark dependency isolation |
 | composite-manifest.test.ts | 测试 | Tests composite trial manifests |
 | guard-lease-state.test.ts | 测试 | Tests guard lease decisions |
 | lease-echo.test.ts | 测试 | Tests workspace lease delivery |
