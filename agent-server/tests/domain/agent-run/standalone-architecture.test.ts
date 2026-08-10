@@ -1,5 +1,5 @@
 // input:  dependency-cruiser config, standalone source graph
-// output: standalone direct-runtime architecture assertions
+// output: standalone direct-runtime shared-state assertions
 // pos:    Static contract for production standalone wiring
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -23,10 +23,13 @@ const STANDALONE_RULES = [
 
 const FORBIDDEN_EXAMPLES: ReadonlyArray<readonly [typeof STANDALONE_RULES[number], string]> = [
   ['standalone-root-no-daemon', 'src/entry/daemon.ts'],
+  ['standalone-root-no-daemon', 'src/domain/scheduling/scheduler.ts'],
   ['standalone-root-no-platform', 'src/platform/slack/adapter.ts'],
   ['standalone-root-no-remote', 'src/domain/remote/client-manager.ts'],
   ['standalone-root-no-update', 'src/domain/system/server-update-check.ts'],
   ['standalone-root-no-host-stores', 'src/store/task-repo.ts'],
+  ['standalone-root-no-host-stores', 'src/store/profile-repo.ts'],
+  ['standalone-root-no-host-stores', 'src/store/schedule-repo.ts'],
   ['standalone-root-no-outbound', 'src/store/outbound-queue.ts'],
   ['standalone-root-no-ambient-roots', 'src/core/paths.ts'],
 ];
@@ -63,7 +66,7 @@ describe('standalone production composition architecture', () => {
     }
   });
 
-  it.each(FORBIDDEN_EXAMPLES)('rejects explicit %s composition', (name, target) => {
+  it.each(FORBIDDEN_EXAMPLES)('rejects explicit %s composition of %s', (name, target) => {
     expect(new RegExp(rule(name).to.path!).test(target)).toBe(true);
   });
 
