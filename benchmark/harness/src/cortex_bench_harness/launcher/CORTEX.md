@@ -6,7 +6,7 @@ Host launcher modules select immutable arms and project non-secret trial configu
 |---|---|---|
 | __init__.py | export | Exposes launcher construction, seed and registry values |
 | arm_resolution.py | core | Composes and writes phase-A compiler input, thread policy and MCP config |
-| arms.py | core | Binds selected arms to seeds and builds AgentConfig |
+| arms.py | core | Builds native or Cortex AgentConfig from selected arms |
 | credential_capabilities.py | registry | Projects host-authoritative capability metadata |
 | lease_bound.py | policy | Computes the provisional credential-lease bound |
 | trial_proxy.py | core | Arms, produces, declares and revokes the trial route |
