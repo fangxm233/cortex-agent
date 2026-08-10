@@ -44,6 +44,7 @@ EXPECTED_ENVIRONMENT = {
     "CORTEX_HOME": "/logs/agent/trial-home/cortex-home",
     "CORTEX_PROJECTS_DIR": "/logs/agent/trial-home/projects",
     "HOME": "/logs/agent/trial-home/home",
+    "HOSTNAME": "trial-one",
     "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
     "PATH": "/installed-agent/npm/bin:/usr/local/bin:/usr/bin:/bin",
     "TEMP": "/logs/agent/trial-home/tmp", "TMP": "/logs/agent/trial-home/tmp",

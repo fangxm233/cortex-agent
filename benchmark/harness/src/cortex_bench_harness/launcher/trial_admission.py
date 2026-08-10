@@ -164,6 +164,7 @@ def _trial_environment(seed: TrialSeed, backend: str) -> dict[str, str]:
         "CORTEX_HOME": str(root / "cortex-home"),
         "CORTEX_PROJECTS_DIR": str(root / "projects"),
         "HOME": str(root / "home"),
+        "HOSTNAME": seed.trial_id,
         "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "PATH": FIXED_PATH,
         "TEMP": str(root / "tmp"), "TMP": str(root / "tmp"),
         "TMPDIR": str(root / "tmp"), "TZ": "UTC",
