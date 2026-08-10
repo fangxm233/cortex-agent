@@ -31,6 +31,7 @@ import pytest
 from harbor.utils.container_cache import docker_build_context_hash
 
 from capability_admission import admit_capability
+from offline_package import build_offline_npm_artifact
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
 from cortex_bench_harness.launcher.trial_admission import (
@@ -52,7 +53,6 @@ ROOT_RUN_ID = f"{TRIAL_ID}.cortex-direct"
 REAL_FIXTURE_CREDENTIAL = "sk-ant-SYNTHETIC-HARBOR-CONTAINMENT"
 CREDENTIAL_ENV = "CORTEX_BENCH_CONTAINMENT_CREDENTIAL"
 REPO_ROOT = Path(__file__).resolve().parents[4]
-SERVER_ROOT = REPO_ROOT / "agent-server"
 FIXTURE_SCRIPT = Path(__file__).with_name("fake_containment_claude.mjs")
 EXPECTED_PROBES = {
     "arbitrary-egress", "container-environment", "container-mounts",
@@ -145,73 +145,6 @@ def build_node_runtime(root: Path) -> Path:
     return runtime
 
 
-def copy_package_inputs(stage: Path) -> None:
-    files = ("package.json", "package-lock.json", "README.md")
-    directories = ("dist", "defaults", "native/cortex-supervisor/dist", "web/dist")
-    for relative in files:
-        shutil.copy2(SERVER_ROOT / relative, stage / relative)
-    package = json.loads((stage / "package.json").read_text())
-    package["scripts"].pop("prepare", None)
-    package["scripts"].pop("prepack", None)
-    package["bundleDependencies"] = True
-    (stage / "package.json").write_text(json.dumps(package, indent=2) + "\n")
-    for relative in directories:
-        shutil.copytree(SERVER_ROOT / relative, stage / relative, symlinks=True)
-    script = "scripts/postinstall-restart-trigger.mjs"
-    (stage / "scripts").mkdir()
-    shutil.copy2(SERVER_ROOT / script, stage / script)
-
-
-def merge_dependency_tree(source: Path, destination: Path) -> None:
-    destination.mkdir(parents=True, exist_ok=True)
-    for entry in os.scandir(source):
-        target = destination / entry.name
-        if target.exists() or target.is_symlink():
-            if entry.is_dir(follow_symlinks=False) and target.is_dir() and not target.is_symlink():
-                merge_dependency_tree(Path(entry.path), target)
-            continue
-        if entry.is_symlink():
-            target.symlink_to(os.readlink(entry.path), target_is_directory=entry.is_dir())
-        elif entry.is_dir(follow_symlinks=False):
-            shutil.copytree(entry.path, target, copy_function=shutil.copy2, symlinks=True)
-        else:
-            shutil.copy2(entry.path, target)
-
-
-def copy_local_dependencies(stage: Path) -> None:
-    destination = stage / "node_modules"
-    shutil.copytree(
-        SERVER_ROOT / "node_modules", destination, copy_function=shutil.copy2, symlinks=True,
-    )
-    merge_dependency_tree(REPO_ROOT / "node_modules", destination)
-
-
-def build_npm_artifact(root: Path) -> Path:
-    environment = {**os.environ, "npm_config_offline": "true",
-                   "npm_config_update_notifier": "false"}
-    environment.pop("PYTHONPATH", None)
-    for command in (
-        ["pnpm", "--filter", "@cortex-agent/web...", "run", "build"],
-        ["npm", "run", "build:supervisor"],
-        ["node", "scripts/copy-web-dist.js"],
-    ):
-        cwd = REPO_ROOT if command[0] == "pnpm" else SERVER_ROOT
-        subprocess.run(command, cwd=cwd, env=environment, check=True,
-                       capture_output=True, text=True)
-    stage = root / "package-stage"
-    stage.mkdir()
-    copy_package_inputs(stage)
-    copy_local_dependencies(stage)
-    subprocess.run(
-        ["npm", "pack", "--offline", "--ignore-scripts",
-         "--pack-destination", str(root)],
-        cwd=stage, env=environment, check=True, capture_output=True, text=True,
-    )
-    artifacts = list(root.glob("cortex-agent-server-*.tgz"))
-    assert len(artifacts) == 1
-    return artifacts[0]
-
-
 def fixture_dockerfile(context: Path) -> Path:
     path = context / "Dockerfile"
     path.write_text(
@@ -268,7 +201,7 @@ def ensure_offline_sidecar() -> tuple[str, str]:
 def offline_assets(tmp_path_factory: pytest.TempPathFactory) -> OfflineAssets:
     root = tmp_path_factory.mktemp("harbor-containment-assets")
     runtime = build_node_runtime(root)
-    artifact = build_npm_artifact(root)
+    artifact = build_offline_npm_artifact(REPO_ROOT, root)
     image_ref, image = build_runtime_image(root, runtime)
     sidecar_name, sidecar_id = ensure_offline_sidecar()
     image_id = str(image["Id"])

@@ -26,13 +26,13 @@ from harbor.models.trial.config import ServiceVolumeConfig
 from harbor.models.trial.paths import TrialPaths
 
 from cortex_bench_harness import CortexBenchAgent
+from offline_package import build_offline_npm_artifact
 
 IMAGE_DIGEST = "sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818"
 IMAGE_REF = f"debian@{IMAGE_DIGEST}"
 AGENT_USER = "cortex-agent"
 MINIMUM_FREE_BYTES = 10 * 1024**3
 REPO_ROOT = Path(__file__).resolve().parents[4]
-SERVER_ROOT = REPO_ROOT / "agent-server"
 CODER_REVIEW_VARIANTS = ("audit-retry", "reviewer-fix")
 S1_ROWS = (
     *((backend, "direct", None) for backend in ("claude", "pi")),
@@ -77,22 +77,6 @@ def build_node_runtime(root: Path) -> Path:
     shutil.copytree(npm.parents[1], runtime / "lib/node_modules/npm", symlinks=True)
     (runtime / "bin/npm").symlink_to("../lib/node_modules/npm/bin/npm-cli.js")
     return runtime
-
-
-def build_npm_artifact(output_dir: Path) -> Path:
-    environment = os.environ.copy()
-    environment.pop("PYTHONPATH", None)
-    subprocess.run(
-        ["pnpm", "--filter", "@cortex-agent/web...", "run", "build"],
-        cwd=REPO_ROOT, env=environment, check=True, capture_output=True, text=True,
-    )
-    subprocess.run(
-        ["npm", "pack", "--pack-destination", str(output_dir)],
-        cwd=SERVER_ROOT, env=environment, check=True, capture_output=True, text=True,
-    )
-    artifacts = list(output_dir.glob("cortex-agent-server-*.tgz"))
-    assert len(artifacts) == 1, f"expected one npm artifact, found {artifacts}"
-    return artifacts[0]
 
 
 def create_environment(root: Path, node_runtime: Path, suffix: str) -> DockerEnvironment:
@@ -459,7 +443,7 @@ def installed_bundle(
     assert image["image_size_bytes"] == 28_242_677
     artifact_dir = root / "npm-artifact"
     artifact_dir.mkdir()
-    artifact = build_npm_artifact(artifact_dir)
+    artifact = build_offline_npm_artifact(REPO_ROOT, artifact_dir)
     node_runtime = build_node_runtime(root)
     return root, node_runtime, artifact, image
 
