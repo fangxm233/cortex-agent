@@ -64,6 +64,10 @@ it('constructs the public projection without reading ambient profiles or stores'
 
   const composition = createComposition(input);
 
+  assert.deepEqual(Object.keys(composition).sort(), [
+    'config', 'coordinator', 'output', 'parentRunOptions', 'parentTrial', 'paths', 'policy',
+    'profile', 'stores', 'taskRepository',
+  ]);
   assert.equal(composition.policy.arm.backend, 'claude');
   assert.deepEqual(composition.profile, {
     name: FIXTURE_PROFILE,

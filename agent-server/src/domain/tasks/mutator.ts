@@ -353,8 +353,8 @@ export const taskMutator = new TaskMutator();
 
 // ── §19.12.7 the trial capability-aware mutator factory (additive, shipped → benchmark) ────────
 // The import direction is shipped → benchmark: this module imports the structural P3 factory
-// (`benchmark/trial-task-mutator.ts`), never the reverse, so the live X4/X9 rules stay at zero —
-// the benchmark P3 module itself imports only Node builtins and `./capabilities.js`. The factory
+// (`benchmark/trial-task-mutator.ts`), never the reverse, so the standalone composition never
+// needs to construct this host mutator or its commit-and-push dependency. The factory
 // binds the SAME shipped lifecycle functions this class already imports (claimTask, unclaimTask,
 // decomposeTask, editTask) plus the P2 read/refresh surface, the P4 lock port, the exact
 // registry, the shipped proposal store entry and the coordinator's release authority, and returns

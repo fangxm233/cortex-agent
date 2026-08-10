@@ -3,11 +3,9 @@
 // pos:    Daemon-side defaults for the local thread runtime bundle
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 //
-// Split out of `./local-runtime-deps.js` by design §18 G5-P1. That module declares the interface
-// and is reachable from `src/domain/benchmark/`; this one owns the daemon singletons the defaults
-// are built from, so the singleton imports leave the benchmark-reachable graph and the §7.3 X4
-// host-store rule can be green. The split is mechanical: no behaviour change, no signature change
-// to `createLocalThreadRuntimeDeps`, and its callers change their import path and nothing else.
+// Split from `./local-runtime-deps.js` so this module alone owns the daemon singleton defaults.
+// Standalone composition imports only the structural dependency interface and injects trial-local
+// stores; daemon callers continue to construct the same defaults through this module.
 
 import { RunningExecutions } from '../../core/running-executions.js';
 import { executionRepo } from '../../store/execution-repo.js';

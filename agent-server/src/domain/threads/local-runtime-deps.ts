@@ -4,12 +4,9 @@
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 //
 // This module holds the interface and the scope only. The daemon-side default factory lives in
-// `./local-runtime-defaults.js` — design §18 G5-P1 partitions them because this module is reachable
-// from `src/domain/benchmark/` (through `CompositeRuntimePorts extends LocalThreadRuntimeDeps`) and
-// a dependency-cruiser reachability rule cannot exempt type-only edges (§18 G5-R2). While the store
-// singletons were reached from here, by value for the defaults and by `typeof` for the field types,
-// the X4 host-store rule stayed red. Hence G5-P2: every field is typed structurally or from a module
-// that reaches no prohibited target, and this module imports no store singleton at all.
+// `./local-runtime-defaults.js`; standalone composition supplies structural ports here without
+// importing host singleton stores. Reusable type contracts may cross domain boundaries, while an
+// absent runtime scope still fails closed instead of selecting daemon defaults.
 
 import type { RunningExecutions } from '../../core/running-executions.js';
 import type { AgentHandle } from '../../core/types/agent-types.js';
@@ -97,9 +94,8 @@ export interface ExecutionOutcomeMetrics {
   error?: string | null;
 }
 
-/** §7.2 P7. The execution record itself stays opaque to the interface: its declaration lives in
- *  `src/store/execution-repo.ts`, which is an X4 target, and no port method needs to read it —
- *  `local-runtime-defaults.ts` handles records against the concrete repo type. */
+/** §7.2 P7. The execution record stays opaque because no port method reads its concrete host
+ *  store type; `local-runtime-defaults.ts` adapts daemon records behind this interface. */
 export interface ExecutionStorePort {
   startLocalExecution(input: LocalExecutionStartInput): unknown;
   completeExecution(id: string, metrics?: ExecutionOutcomeMetrics): unknown;
