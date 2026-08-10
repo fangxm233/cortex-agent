@@ -1,4 +1,4 @@
-// input:  production run config, sealed process environment, probe instruction
+// input:  run config, sealed environment, distinct probe endpoints
 // output: deterministic Claude reply and containment probe evidence
 // pos:    Container-side fixture for the exact Harbor boundary trial
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -18,6 +18,9 @@ const DECLARED_MOUNTS = ['/logs/agent', '/logs/artifacts', '/logs/verifier'];
 const FORBIDDEN_MOUNTS = ['/opt/node', '/var/run/docker.sock', '/workspace/Cortex'];
 const FORBIDDEN_KEYS = /^(AWS_|AZURE_|GOOGLE_|KUBECONFIG$|SLACK_|FEISHU_|SSH_|GPG_|DOCKER_|CONTAINER_|NODE_OPTIONS$|NODE_PATH$|NPM_TOKEN$)/;
 const PROVIDER_SECRET_KEYS = new Set(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN']);
+const NETWORK_DENIAL_CODES = new Set([
+  'ECONNREFUSED', 'ECONNRESET', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT',
+]);
 const argv = process.argv.slice(2);
 
 if (argv.includes('--version')) {
@@ -114,20 +117,38 @@ function outcome(name, passed, boundary, observation) {
   };
 }
 
+async function siblingProxyOutcome(url, token, body) {
+  try {
+    const response = await postJson(url, token, body);
+    return outcome(
+      'sibling-proxy-route', response.status === 403,
+      'proxy-source', { status: response.status },
+    );
+  } catch (error) {
+    const reason = error?.code ?? 'unknown';
+    return outcome(
+      'sibling-proxy-route', NETWORK_DENIAL_CODES.has(reason),
+      'network', { reason, target_sha256: sha256(url) },
+    );
+  }
+}
+
 async function networkOutcomes(input, credential) {
   const body = { model: input.model, prompt: 'synthetic containment request' };
   const proxyUrl = process.env.ANTHROPIC_BASE_URL;
   const proxyToken = process.env.ANTHROPIC_AUTH_TOKEN;
   const proxy = await postJson(proxyUrl, proxyToken, body);
-  const sibling = await postJson(input.sibling_proxy_url, proxyToken, body);
+  const sibling = await siblingProxyOutcome(input.sibling_proxy_url, proxyToken, body);
   const blocked = await Promise.all(Object.entries(input.denied_tcp)
-    .map(async ([name, target]) => [name, await connectProbe(target)]));
+    .map(async ([name, target]) => [name, {
+      ...await connectProbe(target), target_sha256: sha256(JSON.stringify(target)),
+    }]));
   return [
     outcome('trial-fake-proxy', proxy.status === 200
       && proxyUrl === credential.proxy_base_url
       && proxyToken === credential.dummy_token_ref,
     'scoped-proxy', { status: proxy.status, production_environment: true }),
-    outcome('sibling-proxy-route', sibling.status === 403, 'proxy-source', { status: sibling.status }),
+    sibling,
     ...blocked.map(([name, result]) => outcome(name, result.blocked, 'network', result)),
   ];
 }

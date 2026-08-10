@@ -1,5 +1,5 @@
 # input:  image metadata, env values, launch evidence, Docker runtime
-# output: image config, isolated commands, pull-disabled Docker mixin
+# output: isolated commands and pull/endpoint-confined Docker mixin
 # pos:    Admission IO and deterministic serialization primitives
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -14,6 +14,10 @@ from pathlib import Path
 from typing import Any, override
 
 from harbor.environments.docker.docker import DockerEnvironment
+
+
+ENDPOINT_FILTER_MARK = 114514
+ENDPOINT_FILTER_TABLE = "cortex_proxy_endpoint"
 
 
 class HarborTrialAdmissionError(ValueError):
@@ -35,6 +39,21 @@ class PullDisabledDockerEnvironment(DockerEnvironment):
     @override
     def _docker_compose_paths(self) -> list[Path]:
         return [*super()._docker_compose_paths, self._pull_policy_path]
+
+    async def _install_proxy_endpoint_filter(self, port: int) -> None:
+        rules = (
+            f"table inet {ENDPOINT_FILTER_TABLE} {{\n"
+            "  chain output {\n"
+            "    type filter hook output priority 1; policy accept;\n"
+            f"    meta mark {ENDPOINT_FILTER_MARK} tcp dport {port} accept\n"
+            f"    meta mark {ENDPOINT_FILTER_MARK} reject\n"
+            "  }\n"
+            "}\n"
+        )
+        await self._run_docker_compose_command(
+            ["exec", "--no-TTY", self._EGRESS_CONTROL_SERVICE_NAME,
+             "nft", "--file", "-"], stdin_data=rules.encode(),
+        )
 
     @override
     async def stop(self, delete: bool) -> None:

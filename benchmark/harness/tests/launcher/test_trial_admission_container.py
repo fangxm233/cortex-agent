@@ -1,5 +1,5 @@
-# input:  production Harbor trial builder, offline fixture image, local fake proxies
-# output: exact-container environment, mount, canary, network and digest evidence
+# input:  production trial builder, offline image, fake endpoints
+# output: endpoint-scoped container and containment evidence
 # pos:    Black-box production Harbor containment regression
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -10,14 +10,12 @@ require_docker_opt_in()
 import asyncio
 import base64
 import hashlib
-import ipaddress
 import json
 import os
 import select
 import shutil
 import subprocess
 import threading
-import time
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -26,6 +24,7 @@ from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Iterator
+from urllib.parse import urlsplit
 
 import pytest
 from harbor.utils.container_cache import docker_build_context_hash
@@ -57,8 +56,8 @@ FIXTURE_SCRIPT = Path(__file__).with_name("fake_containment_claude.mjs")
 EXPECTED_PROBES = {
     "arbitrary-egress", "container-environment", "container-mounts",
     "direct-provider", "host-canary-isolation", "host-daemon-socket",
-    "host-daemon-tcp", "instance-metadata", "sibling-canary-isolation",
-    "sibling-proxy-route", "trial-fake-proxy",
+    "host-daemon-tcp", "instance-metadata", "proxy-host-other-port",
+    "sibling-canary-isolation", "sibling-proxy-route", "trial-fake-proxy",
 }
 
 
@@ -241,19 +240,27 @@ def create_trial_network() -> NetworkFacts:
 
 
 @contextmanager
-def provider_server() -> Iterator[tuple[FakeProviderServer, str]]:
-    name = f"cortex-containment-provider-{uuid.uuid4().hex[:10]}"
-    docker("network", "create", "--driver", "bridge", name)
-    gateway = json.loads(docker("network", "inspect", name).stdout)[0]["IPAM"]["Config"][0]["Gateway"]
-    server = FakeProviderServer(gateway)
+def running_server(host: str) -> Iterator[tuple[FakeProviderServer, str]]:
+    server = FakeProviderServer(host)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        yield server, f"http://{gateway}:{server.server_address[1]}"
+        yield server, f"http://{host}:{server.server_address[1]}"
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+@contextmanager
+def provider_server() -> Iterator[tuple[FakeProviderServer, str]]:
+    name = f"cortex-containment-provider-{uuid.uuid4().hex[:10]}"
+    docker("network", "create", "--driver", "bridge", name)
+    gateway = json.loads(docker("network", "inspect", name).stdout)[0]["IPAM"]["Config"][0]["Gateway"]
+    try:
+        with running_server(gateway) as server:
+            yield server
+    finally:
         docker("network", "rm", name, check=False)
 
 
@@ -362,20 +369,45 @@ def start_sibling(assets: OfflineAssets, network: NetworkFacts, proxy) -> tuple[
     return name, process
 
 
-def probe_instruction(upstream: str, sibling_url: str, network: NetworkFacts, host_canary: Path) -> str:
-    provider = upstream.removeprefix("http://").split(":")
+def tcp_target(url: str) -> dict[str, object]:
+    parsed = urlsplit(url)
+    assert parsed.hostname is not None and parsed.port is not None
+    return {"host": parsed.hostname, "port": parsed.port}
+
+
+def probe_instruction(
+    upstream: str, sibling_url: str, host_canary: Path,
+    daemon_url: str, arbitrary_url: str, other_proxy_port_url: str,
+) -> str:
+    denied_tcp = {
+        "direct-provider": tcp_target(upstream),
+        "host-daemon-tcp": tcp_target(daemon_url),
+        "arbitrary-egress": tcp_target(arbitrary_url),
+        "proxy-host-other-port": tcp_target(other_proxy_port_url),
+        "instance-metadata": {"host": "169.254.169.254", "port": 80},
+    }
+    assert len({(item["host"], item["port"]) for item in denied_tcp.values()}) == 5
     payload = {
         "model": MODEL, "host_canary_path": str(host_canary),
         "sibling_canary_path": "/tmp/sibling-canary", "sibling_proxy_url": sibling_url,
-        "denied_tcp": {
-            "direct-provider": {"host": provider[0], "port": int(provider[1])},
-            "host-daemon-tcp": {"host": provider[0], "port": int(provider[1])},
-            "arbitrary-egress": {"host": provider[0], "port": int(provider[1])},
-            "instance-metadata": {"host": "169.254.169.254", "port": 80},
-        },
+        "denied_tcp": denied_tcp,
     }
     encoded = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
     return f"Run the exact production containment trial.\nPROBE_INPUT_B64={encoded}\n"
+
+
+def write_probe_instruction(
+    inputs: dict[str, object], root: Path, upstream: str, sibling_url: str,
+    daemon_url: str, arbitrary_url: str, other_proxy_port_url: str,
+) -> Path:
+    host_canary = root / "host-canary"
+    host_canary.write_text("host-canary")
+    instruction = probe_instruction(
+        upstream, sibling_url, host_canary,
+        daemon_url, arbitrary_url, other_proxy_port_url,
+    )
+    (Path(inputs["task_path"]) / "instruction.md").write_text(instruction)
+    return host_canary
 
 
 async def wait_for_probe(path: Path, run_task: asyncio.Task) -> None:
@@ -471,6 +503,14 @@ def assert_probe_evidence(path: Path) -> None:
     assert all(set(entry) == {"name", "status", "boundary", "observation"}
                for entry in outcomes.values())
     assert all(entry["status"] == "passed" for entry in outcomes.values())
+    denied_names = {
+        "arbitrary-egress", "direct-provider", "host-daemon-tcp",
+        "instance-metadata", "proxy-host-other-port",
+    }
+    assert {outcomes[name]["boundary"] for name in denied_names} == {"network"}
+    assert len({
+        outcomes[name]["observation"]["target_sha256"] for name in denied_names
+    }) == len(denied_names)
     environment = outcomes["container-environment"]["observation"]
     assert environment["pid_one"]["forbidden_keys"] == []
     assert environment["agent"]["forbidden_keys"] == []
@@ -539,6 +579,18 @@ def verify_completed_trial(trial, assets: OfflineAssets, result, inspection,
     assert_no_host_or_secret_leak(trial)
 
 
+def verify_running_trial(
+    trial, assets: OfflineAssets, publish: Path, upstream: FakeProviderServer,
+    host_canary: Path, sibling_name: str, sibling_before: str,
+) -> None:
+    result, inspection, probe_path = asyncio.run(run_and_inspect(trial, publish))
+    sibling_after = canary_digest(sibling_name, "/tmp/sibling-canary")
+    verify_completed_trial(
+        trial, assets, result, inspection, probe_path, upstream,
+        host_canary.read_text() == "host-canary", sibling_before == sibling_after,
+    )
+
+
 def test_exact_production_harbor_trial_enforces_the_real_boundary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, offline_assets: OfflineAssets,
 ) -> None:
@@ -547,24 +599,25 @@ def test_exact_production_harbor_trial_enforces_the_real_boundary(
     network = create_trial_network()
     sibling_name = sibling_process = sibling = None
     try:
-        with provider_server() as (upstream_server, upstream):
+        with (
+            provider_server() as (upstream_server, upstream),
+            provider_server() as (_, arbitrary),
+            running_server(network.gateway) as (_, daemon),
+            running_server(network.gateway) as (_, other_proxy_port),
+        ):
             sibling = sibling_proxy(upstream, network, tmp_path)
             sibling_name, sibling_process = start_sibling(offline_assets, network, sibling)
             sibling_before = canary_digest(sibling_name, "/tmp/sibling-canary")
             inputs = trial_inputs(tmp_path, offline_assets, upstream, network)
-            host_canary = tmp_path / "host-canary"
-            host_canary.write_text("host-canary")
-            instruction = probe_instruction(upstream, sibling.base_url, network, host_canary)
-            (Path(inputs["task_path"]) / "instruction.md").write_text(instruction)
+            host_canary = write_probe_instruction(
+                inputs, tmp_path, upstream, sibling.base_url,
+                daemon, arbitrary, other_proxy_port,
+            )
             trial = asyncio.run(create_harbor_trial(**inputs))
-            assert type(trial.agent) is CortexBenchAgent
-            assert type(trial.agent_environment) is AdmittedDockerEnvironment
+            assert type(trial.agent) is CortexBenchAgent and type(trial.agent_environment) is AdmittedDockerEnvironment
             publish = trial.paths.host_artifact_path("main", "/logs/artifacts")
-            result, inspection, probe_path = asyncio.run(run_and_inspect(trial, publish))
-            sibling_after = canary_digest(sibling_name, "/tmp/sibling-canary")
-            verify_completed_trial(
-                trial, offline_assets, result, inspection, probe_path, upstream_server,
-                host_canary.read_text() == "host-canary", sibling_before == sibling_after,
+            verify_running_trial(
+                trial, offline_assets, publish, upstream_server, host_canary, sibling_name, sibling_before,
             )
     finally:
         cleanup_runtime(network, sibling_name, sibling_process, sibling)

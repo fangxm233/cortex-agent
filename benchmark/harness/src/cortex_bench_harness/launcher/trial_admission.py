@@ -1,5 +1,5 @@
-# input:  trial seed, Harbor task/config, final environment factory inputs
-# output: sealed TrialConfig, async-admitted Docker environment
+# input:  trial seed, Harbor task/config, final environment and proxy
+# output: sealed TrialConfig and endpoint-confined Docker environment
 # pos:    Production Harbor container admission boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -48,9 +48,7 @@ from .trial_admission_io import (
 
 ADMISSION_SCHEMA_VERSION = "cortex-harbor-launch-admission/1"
 ADMISSION_EVIDENCE_FILENAME = "harbor-launch-admission.json"
-ADMISSION_ENVIRONMENT_IMPORT_PATH = (
-    "cortex_bench_harness.launcher.trial_admission:AdmittedDockerEnvironment"
-)
+ADMISSION_ENVIRONMENT_IMPORT_PATH = "cortex_bench_harness.launcher.trial_admission:AdmittedDockerEnvironment"
 TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 FIXED_PATH = "/installed-agent/npm/bin:/usr/local/bin:/usr/bin:/bin"
 TRIAL_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
@@ -747,6 +745,7 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         return {
             "scheme": parsed.scheme, "host": parsed.hostname, "port": parsed.port,
             "bound_source_ip": _required_text(source, "value"),
+            "enforcement": {"host": "harbor-allowlist", "port": "marked-egress-nftables"},
             "scope": "current-trial", "trial_id": session.handle.trial_id,
         }
 
@@ -761,11 +760,13 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         contract, records, network = self._current_admission()
         await asyncio.to_thread(self._validate_image_configuration)
         try:
-            network["proxy_route"] = self._arm_proxy_route(contract)
+            route = self._arm_proxy_route(contract)
+            network["proxy_route"] = route
+            await super().start(force_build=False)
+            await self._install_proxy_endpoint_filter(int(route["port"]))
             atomic_write_json(
                 self._evidence_path, _evidence_document(contract, records, network),
             )
-            await super().start(force_build=False)
         except BaseException:
             self._evidence_path.unlink(missing_ok=True)
             self._revoke_proxy()

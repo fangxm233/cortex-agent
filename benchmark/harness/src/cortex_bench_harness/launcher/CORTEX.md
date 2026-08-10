@@ -10,6 +10,6 @@ Host launcher modules select immutable arms and project non-secret trial configu
 | comparison_report.py | report | Pins campaign inputs and comparison semantics |
 | credential_capabilities.py | registry | Projects host-authoritative capability metadata |
 | lease_bound.py | policy | Computes the provisional credential-lease bound |
-| trial_admission.py | boundary | Offloads image checks and seals launch evidence |
-| trial_admission_io.py | IO | Serializes facts and enforces pull-disabled Docker |
+| trial_admission.py | boundary | Seals launch inputs and proxy endpoint egress |
+| trial_admission_io.py | IO | Enforces pull and proxy endpoint Docker policy |
 | trial_proxy.py | core | Arms, produces, declares and revokes the trial route |

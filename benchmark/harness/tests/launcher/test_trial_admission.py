@@ -1,5 +1,5 @@
-# input:  public Harbor trial builder, local synthetic task, hostile host inputs
-# output: construction, refusals, concurrency and launch evidence
+# input:  Harbor trial builder, synthetic task, hostile inputs
+# output: construction, endpoint enforcement and launch evidence
 # pos:    Synthetic proof for the production Harbor admission boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -73,6 +73,9 @@ def admitted_fake_proxy(monkeypatch: pytest.MonkeyPatch):
         SimpleNamespace(run=lambda *args, **kwargs: result), raising=False,
     )
     monkeypatch.setattr(DockerEnvironment, "start", AsyncMock())
+    monkeypatch.setattr(
+        AdmittedDockerEnvironment, "_install_proxy_endpoint_filter", AsyncMock(),
+    )
     yield
     for handle in LIVE_PROXY_HANDLES:
         handle.stop()
@@ -825,6 +828,12 @@ def test_launch_evidence_records_the_actual_proxy_endpoint(
     assert route["scheme"] == parsed.scheme
     assert route["host"] == parsed.hostname
     assert route["port"] == parsed.port
+    assert route["enforcement"] == {
+        "host": "harbor-allowlist", "port": "marked-egress-nftables",
+    }
+    trial.agent_environment._install_proxy_endpoint_filter.assert_awaited_once_with(
+        parsed.port,
+    )
     assert route["bound_source_ip"] == (
         session.handle.manifest_block["source_binding"]["value"]
     )
