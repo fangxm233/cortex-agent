@@ -111,6 +111,18 @@ def test_baseline_rejects_cortex_composition_fields(field: str) -> None:
         build_agent_config(arm, cli_version="1.2.3")
 
 
+@pytest.mark.parametrize("key", [
+    "CORTEX_HOME", "CORTEX_PROJECTS_DIR", "CORTEX_BENCH_TRIAL_ID",
+])
+def test_baseline_rejects_cortex_environment(key: str) -> None:
+    arm = baseline_arm("codex", "openai", "gpt-5")
+
+    with pytest.raises(ValueError, match="Cortex environment"):
+        build_agent_config(
+            arm, cli_version="1.2.3", env={key: "/tmp/cortex-state"},
+        )
+
+
 def test_baseline_launcher_import_does_not_import_cortex_agent() -> None:
     source_root = Path(__file__).parents[2] / "src"
     script = """
@@ -119,7 +131,14 @@ import sys
 from cortex_bench_harness.launcher.arms import build_agent_config
 arm = json.loads(sys.argv[1])
 build_agent_config(arm, cli_version='1.2.3')
-assert 'cortex_bench_harness.harbor_agent' not in sys.modules
+forbidden = {
+    'cortex_bench_harness.harbor_agent',
+    'cortex_bench_harness.launcher.arm_resolution',
+    'cortex_bench_harness.launcher.trial_admission',
+    'cortex_bench_harness.launcher.trial_proxy',
+}
+loaded = sorted(forbidden.intersection(sys.modules))
+assert not loaded, loaded
 """
     arm = baseline_arm("claude-code", None, "claude-sonnet")
     environment = {**os.environ, "PYTHONPATH": str(source_root)}
