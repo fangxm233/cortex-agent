@@ -27,6 +27,7 @@ import {
   BENCHMARK_THREAD_SERVER_NAME, buildServerStates,
 } from '../../../src/agent-adapter/pi/mcp-bridge.js';
 import { PI_BENCHMARK_DEADLINE_ENV, remainingTrialMs } from '../../../src/agent-adapter/pi/mcp-duration.js';
+import { PI_BENCHMARK_THREAD_POLICY_ENV } from '../../../src/agent-adapter/pi/spawn-args.js';
 import {
   GATE2_LEASE_STATE, PI_LEASE_STATE_ENV, PI_MCP_COMPOSITION_ENV, PI_POLICY_GUARD_ENV,
   resolvePiToolGate,
@@ -414,8 +415,12 @@ it('lands the strict none composition rather than merely not throwing (P13, T10)
 });
 
 it('lands exactly cortex-benchmark-thread for the thread-run composition (P13, T10)', () => {
+  const policyPath = path.join(root, 'benchmark-thread-policy.json');
   const mcp = writeAsset('mcp-benchmark.json', JSON.stringify({
-    mcpServers: { 'cortex-benchmark-thread': { command: 'cortex', args: ['mcp'] } },
+    mcpServers: { 'cortex-benchmark-thread': {
+      command: 'cortex', args: ['mcp'],
+      env: { [PI_BENCHMARK_THREAD_POLICY_ENV]: policyPath },
+    } },
   }));
   const loaded = piPolicy(input => {
     input.roles.parent.mcp_composition = 'benchmark-thread-run';
@@ -426,6 +431,7 @@ it('lands exactly cortex-benchmark-thread for the thread-run composition (P13, T
   }, 'thread-run');
   const { record } = spawnPi(spec({ policy: loaded.policy, config: loaded.config }, 'thread-run'));
   assert.equal(record.env![PI_MCP_COMPOSITION_ENV], 'benchmark-thread-run');
+  assert.equal(record.env![PI_BENCHMARK_THREAD_POLICY_ENV], policyPath);
   assert.deepEqual(
     buildServerStates(record.env!).map(state => state.name),
     [BENCHMARK_THREAD_SERVER_NAME],

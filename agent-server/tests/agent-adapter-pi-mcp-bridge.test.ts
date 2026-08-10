@@ -30,6 +30,7 @@ import {
   shouldLoadWeb,
 } from '../src/agent-adapter/pi/mcp-bridge-logic.js';
 import { PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/policy-guard.js';
+import { PI_BENCHMARK_THREAD_POLICY_ENV } from '../src/agent-adapter/pi/spawn-args.js';
 import type { ExtensionAPI, ToolDefinition } from '../src/agent-adapter/pi/pi-ext-types.js';
 import type { McpServerConfig } from '../src/agent-adapter/types.js';
 
@@ -364,10 +365,17 @@ test('restricted compositions and subagents suppress plugin config reads before 
     [PI_MCP_COMPOSITION_ENV]: 'none',
     [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
   }, { loadPluginConfig }), []);
-  assert.deepEqual(buildServerStates({
+  const policyPath = '/logs/agent/benchmark-thread-policy.json';
+  const benchmark = buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'benchmark-thread-run',
     [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
-  }, { loadPluginConfig }).map(state => state.name), ['cortex-benchmark-thread']);
+    [PI_BENCHMARK_THREAD_POLICY_ENV]: policyPath,
+  }, { loadPluginConfig });
+  assert.deepEqual(benchmark.map(state => state.name), ['cortex-benchmark-thread']);
+  const benchmarkConfig = benchmark[0].config;
+  assert.equal(benchmarkConfig.type, 'stdio');
+  if (benchmarkConfig.type !== 'stdio') throw new Error('benchmark server must use stdio');
+  assert.equal(benchmarkConfig.env[PI_BENCHMARK_THREAD_POLICY_ENV], policyPath);
   assert.deepEqual(buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct',
     CORTEX_PI_SUBAGENT: '1',

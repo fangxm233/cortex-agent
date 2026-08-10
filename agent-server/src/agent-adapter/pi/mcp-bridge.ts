@@ -1,4 +1,4 @@
-// input:  PI API, plugin MCP config, privilege context
+// input:  PI API, plugin MCP config, restricted process env
 // output: retryable built-in and plugin MCP tools
 // pos:    PI MCP process and tool bridge
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -106,22 +106,24 @@ const DEFAULT_TRANSPORT_CONSTRUCTORS: McpTransportConstructors = {
   sse: (url, options) => new SSEClientTransport(url, options),
 };
 
-function builtinEnv(): Record<string, string> {
+function builtinEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   return {
-    ...process.env,
-    SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN || '',
-    SLACK_CHANNEL: process.env.SLACK_CHANNEL || '',
-    FEISHU_CHANNEL: process.env.FEISHU_CHANNEL || '',
+    ...env,
+    SLACK_BOT_TOKEN: env.SLACK_BOT_TOKEN || '',
+    SLACK_CHANNEL: env.SLACK_CHANNEL || '',
+    FEISHU_CHANNEL: env.FEISHU_CHANNEL || '',
   } as Record<string, string>;
 }
 
-function builtinServerConfig(name: string, serverPath: string): McpServerConfig {
+function builtinServerConfig(
+  name: string, serverPath: string, env: NodeJS.ProcessEnv,
+): McpServerConfig {
   return {
     name,
     type: 'stdio',
     command: 'node',
     args: [serverPath],
-    env: builtinEnv(),
+    env: builtinEnv(env),
     cwd: process.cwd(),
   };
 }
@@ -148,11 +150,11 @@ function assertUniqueServerStateNames(states: ServerState[]): ServerState[] {
 function optionalBuiltins(env: NodeJS.ProcessEnv): ServerState[] {
   const channel = env.SLACK_CHANNEL;
   const optional: Array<[boolean, ServerState]> = [
-    [shouldLoadThreadControl(env.CORTEX_THREAD_ID), createState('thread', builtinServerConfig('thread', THREAD_SERVER_PATH))],
-    [true, createState('ext', builtinServerConfig('ext', EXT_SERVER_PATH))],
-    [shouldLoadSlack(channel), createState('slack', builtinServerConfig('slack', SLACK_SERVER_PATH))],
-    [shouldLoadFeishu(channel), createState('feishu', builtinServerConfig('feishu', FEISHU_SERVER_PATH))],
-    [shouldLoadWeb(channel), createState('web', builtinServerConfig('web', WEB_SERVER_PATH))],
+    [shouldLoadThreadControl(env.CORTEX_THREAD_ID), createState('thread', builtinServerConfig('thread', THREAD_SERVER_PATH, env))],
+    [true, createState('ext', builtinServerConfig('ext', EXT_SERVER_PATH, env))],
+    [shouldLoadSlack(channel), createState('slack', builtinServerConfig('slack', SLACK_SERVER_PATH, env))],
+    [shouldLoadFeishu(channel), createState('feishu', builtinServerConfig('feishu', FEISHU_SERVER_PATH, env))],
+    [shouldLoadWeb(channel), createState('web', builtinServerConfig('web', WEB_SERVER_PATH, env))],
   ];
   return optional.filter(([enabled]) => enabled).map(([, state]) => state);
 }
@@ -227,14 +229,14 @@ export function buildServerStates(
   if (composition === 'benchmark-thread-run') {
     return [createState(
       BENCHMARK_THREAD_SERVER_NAME,
-      builtinServerConfig(BENCHMARK_THREAD_SERVER_NAME, BENCHMARK_THREAD_SERVER_PATH),
+      builtinServerConfig(BENCHMARK_THREAD_SERVER_NAME, BENCHMARK_THREAD_SERVER_PATH, env),
     )];
   }
-  const states = [createState('core', builtinServerConfig('core', CORE_SERVER_PATH))];
+  const states = [createState('core', builtinServerConfig('core', CORE_SERVER_PATH, env))];
   if (env.CORTEX_PI_SUBAGENT === '1') return states;
   states.push(
-    createState('tasks', builtinServerConfig('tasks', TASKS_SERVER_PATH)),
-    createState('manager-qa', builtinServerConfig('manager-qa', MANAGER_QA_SERVER_PATH)),
+    createState('tasks', builtinServerConfig('tasks', TASKS_SERVER_PATH, env)),
+    createState('manager-qa', builtinServerConfig('manager-qa', MANAGER_QA_SERVER_PATH, env)),
     ...optionalBuiltins(env),
     ...loadPluginStates(
       env,

@@ -18,13 +18,13 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |
 | agent-adapter-pi-mcp-config.test.ts | test | PI MCP config privacy and reloads |
-| agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP surfaces, isolation and retry policy |
+| agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP surfaces, restricted env, and retry policy |
 | agent-adapter-pi-quota-probe.test.ts | test | PI provider quota from child probe to throttle |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
-| agent-adapter-pi.test.ts | test | PI spawn quality, resume, context and lifecycle |
+| agent-adapter-pi.test.ts | test | PI spawn policy, resume, context and lifecycle |
 | agent-adapter.test.ts | test | adapter dispatch, PI path wiring and capabilities |
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
@@ -134,7 +134,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |
 | spawn-seam-direct.golden.json | golden | pins ordinary direct argv and environment |
 | spawn-seam-thread.golden.json | golden | pins ordinary thread argv and environment |
-| spawn-seam.test.ts | test | Proves context, projection, and spawn policy |
+| spawn-seam.test.ts | test | Proves context, restricted policy, and spawn seams |
 | status-helpers.test.ts | test | status sealing and reset-isolated buttons |
 | status-md-guard.test.ts | test | STATUS.md size-guard allow/deny/warn hook |
 | store/ | subdir | JSON repository and store concurrency tests |
