@@ -40,7 +40,9 @@ import {
 import { safeNativeComposite } from '../src/domain/plugins/native-name.js';
 import { PI_PLUGIN_MCP_CONFIG_ENV } from '../src/agent-adapter/pi/mcp-config.js';
 import { PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/policy-guard.js';
-import { buildPiEnv } from '../src/agent-adapter/pi/spawn-args.js';
+import {
+  buildPiEnv, PI_BENCHMARK_THREAD_POLICY_ENV,
+} from '../src/agent-adapter/pi/spawn-args.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
 import { CONFIG_DIR, DATA_DIR } from '../src/core/paths.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
@@ -493,23 +495,32 @@ function stubPiChild(): ChildProcessWithoutNullStreams {
 // longer throws" but the strict composition itself: the restricted value reaches the child, and the
 // bridge on the far side of that variable yields exactly the composition's servers (§5.6 P1).
 test('PI accepts the restricted MCP compositions and carries them strictly', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'pi-strict-'));
+  const policyPath = path.join(root, 'benchmark-thread-policy.json');
+  const mcpConfigPath = path.join(root, 'benchmark-thread-mcp.json');
+  writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: {
+    'cortex-benchmark-thread': {
+      command: 'node', args: ['/installed/benchmark-thread-server.js'],
+      cwd: '/installed', env: { [PI_BENCHMARK_THREAD_POLICY_ENV]: policyPath },
+    },
+  } }));
   const spawned: NodeJS.ProcessEnv[] = [];
   const adapter = new PIAdapter((_cmd, _args, opts) => {
     spawned.push(opts.env ?? {});
     return { process: stubPiChild() };
-  }, mkdtempSync(path.join(tmpdir(), 'pi-strict-')));
+  }, root);
 
   for (const composition of ['none', 'benchmark-thread-run'] as const) {
     adapter.spawn({
-      sessionId: null,
-      sessionKey: `pi-${composition}`,
-      resume: false,
+      sessionId: null, sessionKey: `pi-${composition}`, resume: false,
       mcpComposition: composition,
+      mcpConfigPaths: composition === 'benchmark-thread-run' ? [mcpConfigPath] : undefined,
     });
   }
   assert.equal(spawned.length, 2);
   assert.equal(spawned[0][PI_MCP_COMPOSITION_ENV], 'none');
   assert.equal(spawned[1][PI_MCP_COMPOSITION_ENV], 'benchmark-thread-run');
+  assert.equal(spawned[1][PI_BENCHMARK_THREAD_POLICY_ENV], policyPath);
 
   // The far side of the env seam: the same values decide the bridge's server set.
   assert.deepEqual(buildServerStates(spawned[0]), []);
@@ -517,6 +528,7 @@ test('PI accepts the restricted MCP compositions and carries them strictly', () 
     buildServerStates(spawned[1]).map(state => state.name),
     [BENCHMARK_THREAD_SERVER_NAME],
   );
+  rmSync(root, { recursive: true, force: true });
 });
 
 interface PiSpawnCapture {

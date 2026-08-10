@@ -134,7 +134,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |
 | spawn-seam-direct.golden.json | golden | pins ordinary direct argv and environment |
 | spawn-seam-thread.golden.json | golden | pins ordinary thread argv and environment |
-| spawn-seam.test.ts | test | Proves context, projection, and spawn policy |
+| spawn-seam.test.ts | test | Proves context, restricted policy, and spawn seams |
 | status-helpers.test.ts | test | status sealing and reset-isolated buttons |
 | status-md-guard.test.ts | test | STATUS.md size-guard allow/deny/warn hook |
 | store/ | subdir | JSON repository and store concurrency tests |

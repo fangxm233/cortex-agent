@@ -25,7 +25,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | trial-task-dispatcher.test.ts | 测试 | Tests trial task dispatch |
 | trial-clock.test.ts | 测试 | Tests deterministic trial time |
 | trial-adapter-factory.test.ts | 测试 | Tests trial adapter construction |
-| trial-adapter-pi.test.ts | 测试 | Tests PI trial adapter construction |
+| trial-adapter-pi.test.ts | 测试 | Tests PI trial policy propagation |
 | trial-thread-adapter.test.ts | 测试 | Tests trial thread adapter steps |
 | trial-thread-policy-fixture.ts | 夹具 | Provides trial thread policy fixtures |
 | variant-proposal.test.ts | 测试 | Tests variant proposal classification |
