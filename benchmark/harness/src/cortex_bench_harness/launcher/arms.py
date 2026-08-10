@@ -1,5 +1,5 @@
 # input:  parsed arm set, task selection, trial seed
-# output: bound arm/seed selection, composability refusal, AgentConfig
+# output: isolated vendor/Cortex AgentConfig and refusals
 # pos:    Host arm-selection and Harbor construction boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -244,6 +244,13 @@ def _vendor_config(
     if cortex_fields:
         raise ValueError(
             f"vendor baseline cannot declare Cortex composition fields: {cortex_fields}"
+        )
+    cortex_environment = sorted(
+        key for key in common["env"] if key.casefold().startswith("cortex_")
+    )
+    if cortex_environment:
+        raise ValueError(
+            f"vendor baseline cannot declare Cortex environment: {cortex_environment}"
         )
     vendor_agent = _required_text(arm, "vendor_agent")
     if vendor_agent not in VENDOR_AGENTS:
