@@ -18,8 +18,9 @@ const DECLARED_MOUNTS = ['/logs/agent', '/logs/artifacts', '/logs/verifier'];
 const FORBIDDEN_MOUNTS = ['/opt/node', '/var/run/docker.sock', '/workspace/Cortex'];
 const FORBIDDEN_KEYS = /^(AWS_|AZURE_|GOOGLE_|KUBECONFIG$|SLACK_|FEISHU_|SSH_|GPG_|DOCKER_|CONTAINER_|NODE_OPTIONS$|NODE_PATH$|NPM_TOKEN$)/;
 const PROVIDER_SECRET_KEYS = new Set(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN']);
-const NETWORK_DENIAL_CODES = new Set([
-  'ECONNREFUSED', 'ECONNRESET', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT',
+const NETWORK_DENIAL_REASONS = new Set([
+  'closed', 'timeout', 'EACCES', 'ECONNREFUSED', 'ECONNRESET',
+  'EHOSTUNREACH', 'ENETUNREACH', 'EPERM', 'ETIMEDOUT',
 ]);
 const argv = process.argv.slice(2);
 
@@ -121,13 +122,13 @@ async function siblingProxyOutcome(url, token, body) {
   try {
     const response = await postJson(url, token, body);
     return outcome(
-      'sibling-proxy-route', response.status === 403,
-      'proxy-source', { status: response.status },
+      'sibling-proxy-route', false,
+      'proxy-source', { status: response.status, target_sha256: sha256(url) },
     );
   } catch (error) {
     const reason = error?.code ?? 'unknown';
     return outcome(
-      'sibling-proxy-route', NETWORK_DENIAL_CODES.has(reason),
+      'sibling-proxy-route', NETWORK_DENIAL_REASONS.has(reason),
       'network', { reason, target_sha256: sha256(url) },
     );
   }
@@ -149,7 +150,10 @@ async function networkOutcomes(input, credential) {
       && proxyToken === credential.dummy_token_ref,
     'scoped-proxy', { status: proxy.status, production_environment: true }),
     sibling,
-    ...blocked.map(([name, result]) => outcome(name, result.blocked, 'network', result)),
+    ...blocked.map(([name, result]) => outcome(
+      name, result.blocked && NETWORK_DENIAL_REASONS.has(result.reason),
+      'network', result,
+    )),
   ];
 }
 

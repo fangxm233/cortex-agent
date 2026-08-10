@@ -59,6 +59,10 @@ EXPECTED_PROBES = {
     "host-daemon-tcp", "instance-metadata", "proxy-host-other-port",
     "sibling-canary-isolation", "sibling-proxy-route", "trial-fake-proxy",
 }
+NETWORK_DENIAL_REASONS = {
+    "closed", "timeout", "EACCES", "ECONNREFUSED", "ECONNRESET",
+    "EHOSTUNREACH", "ENETUNREACH", "EPERM", "ETIMEDOUT",
+}
 
 
 @dataclass(frozen=True)
@@ -505,9 +509,12 @@ def assert_probe_evidence(path: Path) -> None:
     assert all(entry["status"] == "passed" for entry in outcomes.values())
     denied_names = {
         "arbitrary-egress", "direct-provider", "host-daemon-tcp",
-        "instance-metadata", "proxy-host-other-port",
+        "instance-metadata", "proxy-host-other-port", "sibling-proxy-route",
     }
     assert {outcomes[name]["boundary"] for name in denied_names} == {"network"}
+    assert {
+        outcomes[name]["observation"]["reason"] for name in denied_names
+    }.issubset(NETWORK_DENIAL_REASONS)
     assert len({
         outcomes[name]["observation"]["target_sha256"] for name in denied_names
     }) == len(denied_names)
