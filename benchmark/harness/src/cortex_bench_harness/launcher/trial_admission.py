@@ -14,7 +14,6 @@ from typing import Any, override
 from urllib.parse import urlsplit
 
 from harbor.environments.base import ExecResult
-from harbor.environments.docker.docker import DockerEnvironment
 from harbor.models.task.config import (
     EnvironmentConfig as TaskEnvironmentConfig,
     NetworkMode,
@@ -40,7 +39,7 @@ from harbor.trial.trial import Trial
 from .arm_resolution import TrialSeed, parse_trial_seed
 from .arms import arm_backend, build_agent_config, require_pinned_image
 from .trial_admission_io import (
-    HarborTrialAdmissionError,
+    HarborTrialAdmissionError, PullDisabledDockerEnvironment,
     atomic_write_json,
     environment_digest,
     inspect_image_configuration,
@@ -54,9 +53,7 @@ ADMISSION_ENVIRONMENT_IMPORT_PATH = (
 )
 TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 FIXED_PATH = "/installed-agent/npm/bin:/usr/local/bin:/usr/bin:/bin"
-TRIAL_ID_PATTERN = re.compile(
-    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
-)
+TRIAL_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 DENIED_NETWORK_CATEGORIES = (
     "arbitrary-egress",
     "direct-provider",
@@ -164,7 +161,8 @@ def _trial_environment(seed: TrialSeed, backend: str) -> dict[str, str]:
         "CORTEX_HOME": str(root / "cortex-home"),
         "CORTEX_PROJECTS_DIR": str(root / "projects"),
         "HOME": str(root / "home"), "HOSTNAME": seed.trial_id,
-        "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "PATH": FIXED_PATH,
+        "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
+        "NODE_DISABLE_COMPILE_CACHE": "1", "PATH": FIXED_PATH,
         "TEMP": str(root / "tmp"), "TMP": str(root / "tmp"),
         "TMPDIR": str(root / "tmp"), "TZ": "UTC",
         "XDG_CACHE_HOME": str(root / "xdg-cache"),
@@ -662,7 +660,7 @@ def _admit_final_inputs(
     return contract, records, network, canonical_mounts
 
 
-class AdmittedDockerEnvironment(DockerEnvironment):
+class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
     def __init__(
         self, environment_dir: Path, environment_name: str, session_id: str,
         trial_paths: TrialPaths, task_env_config: TaskEnvironmentConfig,

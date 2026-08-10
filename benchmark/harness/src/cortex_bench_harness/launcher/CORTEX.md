@@ -11,5 +11,5 @@ Host launcher modules select immutable arms and project non-secret trial configu
 | credential_capabilities.py | registry | Projects host-authoritative capability metadata |
 | lease_bound.py | policy | Computes the provisional credential-lease bound |
 | trial_admission.py | boundary | Offloads image checks and seals launch evidence |
-| trial_admission_io.py | IO | Serializes env/image facts and admission evidence |
+| trial_admission_io.py | IO | Serializes facts and enforces pull-disabled Docker |
 | trial_proxy.py | core | Arms, produces, declares and revokes the trial route |

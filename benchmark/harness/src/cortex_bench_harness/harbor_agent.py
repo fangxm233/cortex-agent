@@ -231,7 +231,8 @@ class CortexBenchAgent(BaseInstalledAgent):
         package = shlex.quote(str(artifact))
         binary = shlex.quote(str(NPM_INSTALL_PREFIX / "bin" / "cortex"))
         return (
-            f"npm install --global --prefix {prefix} --no-audit --no-fund {package}"
+            f"npm install --global --prefix {prefix} --cache /installed-agent/npm-cache"
+            f" --offline --no-audit --no-fund {package}"
             f" && ln -sfn {binary} /usr/local/bin/cortex"
         )
 
@@ -244,7 +245,8 @@ class CortexBenchAgent(BaseInstalledAgent):
     def _bundle_root_command(self) -> str:
         prefix = shlex.quote(str(NPM_INSTALL_PREFIX))
         return (
-            f"npm ls --global --parseable --depth=0 --prefix {prefix} {BUNDLE_PACKAGE}"
+            f"npm ls --global --parseable --depth=0 --prefix {prefix}"
+            f" --cache /installed-agent/npm-cache --offline {BUNDLE_PACKAGE}"
         )
 
     async def _probe(

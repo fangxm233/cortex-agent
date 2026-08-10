@@ -25,6 +25,7 @@
   "publishConfig": {
     "access": "public"
   },
+  "bundleDependencies": true,
   "scripts": {
     "prepare": "cp ../README.md . && npm run build",
     "prepack": "npm run build:supervisor && node scripts/copy-web-dist.js",

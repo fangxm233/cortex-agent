@@ -1,5 +1,5 @@
-# input:  image metadata, env values, launch evidence
-# output: image config, env digest/command, atomic evidence
+# input:  image metadata, env values, launch evidence, Docker runtime
+# output: image config, isolated commands, pull-disabled Docker mixin
 # pos:    Admission IO and deterministic serialization primitives
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -11,10 +11,37 @@ import subprocess
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any, override
+
+from harbor.environments.docker.docker import DockerEnvironment
 
 
 class HarborTrialAdmissionError(ValueError):
     """The final Harbor construction cannot enforce the standalone boundary."""
+
+
+class PullDisabledDockerEnvironment(DockerEnvironment):
+    def __init__(self, *args: object, **kwargs: Any) -> None:
+        self._pull_policy_directory = tempfile.TemporaryDirectory()
+        self._pull_policy_path = Path(self._pull_policy_directory.name) / "pull-policy.json"
+        document = {"services": {
+            "main": {"pull_policy": "never"},
+            self._EGRESS_CONTROL_SERVICE_NAME: {"pull_policy": "never"},
+        }}
+        self._pull_policy_path.write_text(json.dumps(document))
+        super().__init__(*args, **kwargs)
+
+    @property
+    @override
+    def _docker_compose_paths(self) -> list[Path]:
+        return [*super()._docker_compose_paths, self._pull_policy_path]
+
+    @override
+    async def stop(self, delete: bool) -> None:
+        try:
+            await super().stop(delete=delete)
+        finally:
+            self._pull_policy_directory.cleanup()
 
 
 def environment_digest(environment: Mapping[str, str]) -> str:
