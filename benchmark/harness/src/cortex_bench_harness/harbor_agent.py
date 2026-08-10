@@ -186,6 +186,9 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._revoked = True
         revoke_trial_proxy(self._proxy_session, capture_inventory=self._capture_inventory)
 
+    def revoke_admitted_proxy(self) -> None:
+        self._revoke_proxy()
+
     def _capture_inventory(self) -> ArtifactInventory:
         self._captured_inventory = capture_trial_inventory(
             sources={"manifest": self._artifact_dir / MANIFEST_FILENAME},

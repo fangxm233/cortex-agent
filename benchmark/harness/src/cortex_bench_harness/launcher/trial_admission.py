@@ -3,14 +3,10 @@
 # pos:    Production Harbor container admission boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
-import hashlib
 import json
 import os
 import re
-import shlex
 import stat
-import subprocess
-import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Any, override
@@ -23,6 +19,12 @@ from harbor.models.task.config import (
     NetworkMode,
     NetworkPolicy,
     TaskOS,
+    VerifierEnvironmentMode,
+)
+from harbor.models.task.task import Task
+from harbor.models.task.verifier_mode import (
+    resolve_step_verifier_mode,
+    resolve_task_verifier_mode,
 )
 from harbor.models.trial.config import (
     AgentConfig,
@@ -36,6 +38,13 @@ from harbor.trial.trial import Trial
 
 from .arm_resolution import TrialSeed, parse_trial_seed
 from .arms import arm_backend, build_agent_config, require_pinned_image
+from .trial_admission_io import (
+    HarborTrialAdmissionError,
+    atomic_write_json,
+    environment_digest,
+    inspect_image_configuration,
+    isolated_command,
+)
 
 ADMISSION_SCHEMA_VERSION = "cortex-harbor-launch-admission/1"
 ADMISSION_EVIDENCE_FILENAME = "harbor-launch-admission.json"
@@ -44,7 +53,9 @@ ADMISSION_ENVIRONMENT_IMPORT_PATH = (
 )
 TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 FIXED_PATH = "/installed-agent/npm/bin:/usr/local/bin:/usr/bin:/bin"
-TRIAL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+TRIAL_ID_PATTERN = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+)
 DENIED_NETWORK_CATEGORIES = (
     "arbitrary-egress",
     "direct-provider",
@@ -74,17 +85,6 @@ SENSITIVE_HOME_PATHS = (
 )
 
 
-class HarborTrialAdmissionError(ValueError):
-    """The final Harbor construction cannot enforce the standalone boundary."""
-
-
-def environment_digest(environment: Mapping[str, str]) -> str:
-    payload = json.dumps(
-        dict(sorted(environment.items())), sort_keys=True, separators=(",", ":"),
-    )
-    return hashlib.sha256(payload.encode()).hexdigest()
-
-
 def _required_text(values: Mapping[str, object], field: str) -> str:
     value = values.get(field)
     if not isinstance(value, str) or not value:
@@ -93,8 +93,10 @@ def _required_text(values: Mapping[str, object], field: str) -> str:
 
 
 def _safe_trial_id(value: str) -> str:
-    if not TRIAL_ID_PATTERN.fullmatch(value) or ".." in value:
-        raise HarborTrialAdmissionError("trial_id must be one path-safe component")
+    if not TRIAL_ID_PATTERN.fullmatch(value):
+        raise HarborTrialAdmissionError(
+            "trial_id must be one lowercase DNS label and path component"
+        )
     return value
 
 
@@ -122,15 +124,14 @@ def _provider(arm: Mapping[str, object]) -> str:
 def _validate_proxy_destination(seed: TrialSeed, hostname: str) -> None:
     if hostname in _forbidden_network_hosts(seed):
         raise HarborTrialAdmissionError("proxy route cannot name a forbidden destination")
-    trial_label = re.sub(r"[^a-z0-9-]", "-", seed.trial_id.lower()).strip("-")
-    if hostname.split(".", 1)[0] != trial_label:
+    if hostname.split(".", 1)[0] != _safe_trial_id(seed.trial_id):
         raise HarborTrialAdmissionError("proxy hostname must be trial-scoped")
 
 
 def _proxy_host(seed: TrialSeed) -> str:
     proxy_url = _required_text(seed.credential, "proxy_base_url")
     parsed = urlsplit(proxy_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+    if parsed.scheme != "http" or not parsed.hostname:
         raise HarborTrialAdmissionError("proxy_base_url must be an absolute HTTP URL")
     if parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise HarborTrialAdmissionError("proxy_base_url cannot contain credentials or metadata")
@@ -211,6 +212,28 @@ def _trial_paths(trials_dir: Path | str, trial_id: str) -> tuple[Path, Path]:
     return root, root / _safe_trial_id(trial_id)
 
 
+def _validate_task_topology(task_root: Path) -> None:
+    task = Task(task_dir=task_root)
+    modes = (
+        [resolve_step_verifier_mode(task.config, step) for step in task.config.steps]
+        if task.config.steps else [resolve_task_verifier_mode(task.config)]
+    )
+    if VerifierEnvironmentMode.SEPARATE in modes:
+        raise HarborTrialAdmissionError(
+            "separate verifier environments bypass the admitted Docker boundary"
+        )
+
+
+def _reserve_trial_root(trials_root: Path, trial_root: Path) -> None:
+    trials_root.mkdir(parents=True, exist_ok=True)
+    try:
+        trial_root.mkdir()
+    except FileExistsError as error:
+        raise HarborTrialAdmissionError(
+            f"fresh trial root already exists: {trial_root}"
+        ) from error
+
+
 def _sealed_trial_proxy(
     trial_proxy: Mapping[str, object] | None, proxy_host: str,
 ) -> Mapping[str, object] | None:
@@ -258,6 +281,7 @@ def build_harbor_trial_config(
 ) -> TrialConfig:
     seed = parse_trial_seed(trial_seed)
     task_root = Path(task_path).expanduser().resolve(strict=True)
+    _validate_task_topology(task_root)
     trials_root, trial_root = _trial_paths(trials_dir, seed.trial_id)
     proxy_host = _proxy_host(seed)
     environment = _trial_environment(seed, arm_backend(seed.arm))
@@ -273,10 +297,12 @@ def build_harbor_trial_config(
         import_path=ADMISSION_ENVIRONMENT_IMPORT_PATH,
         env=environment, kwargs={"admission": contract},
     )
-    return TrialConfig(
+    config = TrialConfig(
         task=TaskConfig(path=task_root), trial_name=seed.trial_id,
         trials_dir=trials_root, agent=agent, environment=trial_environment,
     )
+    _reserve_trial_root(trials_root, trial_root)
+    return config
 
 
 async def create_harbor_trial(
@@ -292,14 +318,7 @@ async def create_harbor_trial(
     trial = await Trial.create(config)
     if type(trial.agent_environment) is not AdmittedDockerEnvironment:
         raise HarborTrialAdmissionError("Harbor did not construct the admitted environment")
-    if not (trial.paths.artifacts_dir / ADMISSION_EVIDENCE_FILENAME).is_file():
-        raise HarborTrialAdmissionError("Harbor launch admission evidence is missing")
-    session = trial.agent.arm_admitted_proxy()
-    actual_host = urlsplit(session.handle.base_url).hostname
-    expected_host = config.environment.kwargs["admission"]["proxy_host"]
-    if actual_host != expected_host:
-        session.handle.stop()
-        raise HarborTrialAdmissionError("armed proxy differs from admitted network route")
+    trial.agent_environment.bind_proxy_controller(trial.agent)
     return trial
 
 
@@ -471,6 +490,8 @@ def _mount_record(
     owner, read_only = _mount_owner(mount, source, target, standard, task_root)
     if owner == "harbor-output-handoff" and not source.is_relative_to(trial_root):
         raise HarborTrialAdmissionError(f"Harbor mount escapes trial root: {source}")
+    if owner == "harbor-task-input" and source.is_relative_to(trial_root.parent):
+        raise HarborTrialAdmissionError(f"Harbor input exposes a sibling trial root: {source}")
     info = source.stat()
     return {
         "type": "bind", "source": str(source), "target": target,
@@ -513,10 +534,19 @@ def _refresh_mount_records(records: Sequence[dict[str, object]]) -> None:
         record["source_mode"] = oct(stat.S_IMODE(info.st_mode))
 
 
+def _canonical_mount(record: Mapping[str, object]) -> ServiceVolumeConfig:
+    mount = ServiceVolumeConfig(
+        type="bind", source=str(record["source"]), target=str(record["target"]),
+    )
+    if record["access"] == "read-only":
+        mount["read_only"] = True
+    return mount
+
+
 def _mount_records(
     mounts: Sequence[ServiceVolumeConfig] | None, trial_paths: TrialPaths,
     contract: Mapping[str, object],
-) -> list[dict[str, object]]:
+) -> tuple[list[dict[str, object]], list[ServiceVolumeConfig]]:
     task_root = _contract_path(contract, "task_root")
     trial_root = _contract_path(contract, "trial_root")
     actual_trial_root = trial_paths.trial_dir.resolve(strict=True)
@@ -530,7 +560,8 @@ def _mount_records(
     targets = [str(record["target"]) for record in records]
     if len(targets) != len(set(targets)) or not set(standard).issubset(targets):
         raise HarborTrialAdmissionError("Harbor final mount list is incomplete or duplicated")
-    return sorted(records, key=lambda record: str(record["target"]))
+    ordered = sorted(records, key=lambda record: str(record["target"]))
+    return ordered, [_canonical_mount(record) for record in ordered]
 
 
 def _policy_record(policy: NetworkPolicy) -> dict[str, object]:
@@ -604,70 +635,6 @@ def _evidence_document(
     }
 
 
-def _atomic_write_json(path: Path, document: Mapping[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(
-        dir=path.parent, prefix=f".{path.name}.", text=True,
-    )
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(document, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-        directory = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
-
-
-def _isolated_command(command: str, environment: Mapping[str, str]) -> str:
-    assignments = " ".join(
-        f"{key}={shlex.quote(value)}" for key, value in sorted(environment.items())
-    )
-    return f"exec env -i {assignments} /bin/bash -c {shlex.quote(command)}"
-
-
-def _parse_image_environment_entry(entry: object) -> tuple[str, str]:
-    if not isinstance(entry, str) or "=" not in entry:
-        raise HarborTrialAdmissionError("image environment is not a KEY=value list")
-    key, value = entry.split("=", 1)
-    if not key:
-        raise HarborTrialAdmissionError("image environment contains an empty key")
-    return key, value
-
-
-def _parse_image_environment(source: str) -> dict[str, str]:
-    try:
-        document = json.loads(source)
-    except json.JSONDecodeError as error:
-        raise HarborTrialAdmissionError("image environment probe returned invalid JSON") from error
-    if not isinstance(document, list):
-        raise HarborTrialAdmissionError("image environment probe did not return a list")
-    entries = dict(_parse_image_environment_entry(entry) for entry in document)
-    if len(entries) != len(document):
-        raise HarborTrialAdmissionError("image environment contains duplicate keys")
-    return entries
-
-
-def _inspect_image_environment(image_ref: str) -> dict[str, str]:
-    try:
-        result = subprocess.run(
-            ["docker", "image", "inspect", "--format", "{{json .Config.Env}}", image_ref],
-            check=True, capture_output=True, text=True, timeout=10,
-        )
-    except Exception as error:
-        raise HarborTrialAdmissionError(
-            "pinned image environment cannot be inspected without pulling"
-        ) from error
-    return _parse_image_environment(result.stdout)
-
-
 def _admit_final_inputs(
     environment_dir: Path, task_env_config: TaskEnvironmentConfig,
     trial_paths: TrialPaths, admission: Mapping[str, object],
@@ -676,18 +643,21 @@ def _admit_final_inputs(
     network_policy: NetworkPolicy | None,
     phase_network_policies: Sequence[NetworkPolicy],
     extra_docker_compose: Sequence[Path | str],
-) -> tuple[Mapping[str, object], list[dict[str, object]], dict[str, object]]:
+) -> tuple[
+    Mapping[str, object], list[dict[str, object]], dict[str, object],
+    list[ServiceVolumeConfig],
+]:
     contract = _parse_contract(admission)
     _validate_task_environment(
         environment_dir, task_env_config, _required_text(contract, "image_ref"),
         extra_docker_compose,
     )
     _validate_persistent_environment(persistent_env, contract)
-    records = _mount_records(mounts, trial_paths, contract)
+    records, canonical_mounts = _mount_records(mounts, trial_paths, contract)
     _prepare_harbor_mount_modes(trial_paths)
     _refresh_mount_records(records)
     network = _network_record(network_policy, phase_network_policies, contract)
-    return contract, records, network
+    return contract, records, network, canonical_mounts
 
 
 class AdmittedDockerEnvironment(DockerEnvironment):
@@ -701,24 +671,25 @@ class AdmittedDockerEnvironment(DockerEnvironment):
         phase_network_policies: Sequence[NetworkPolicy] = (),
         extra_docker_compose: Sequence[Path | str] = (), **kwargs: Any,
     ) -> None:
-        contract, records, network = _admit_final_inputs(
+        contract, _, _, canonical_mounts = _admit_final_inputs(
             environment_dir, task_env_config, trial_paths, admission,
             persistent_env, mounts, network_policy, phase_network_policies,
             extra_docker_compose,
         )
         super().__init__(
             environment_dir, environment_name, session_id, trial_paths,
-            task_env_config, *args, persistent_env=persistent_env, mounts=mounts,
-            network_policy=network_policy,
+            task_env_config, *args, persistent_env=persistent_env,
+            mounts=canonical_mounts, network_policy=network_policy,
             phase_network_policies=phase_network_policies,
             extra_docker_compose=extra_docker_compose, **kwargs,
         )
-        self._record_admission(contract, records, network, trial_paths)
+        self._seal_admission(contract, canonical_mounts, trial_paths)
 
-    def _record_admission(
-        self, contract: Mapping[str, object], records: list[dict[str, object]],
-        network: Mapping[str, object], trial_paths: TrialPaths,
+    def _seal_admission(
+        self, contract: Mapping[str, object],
+        mounts: Sequence[ServiceVolumeConfig], trial_paths: TrialPaths,
     ) -> None:
+        self._admission_contract = dict(contract)
         self._admitted_environment_keys = _contract_keys(
             contract, "admitted_environment_keys",
         )
@@ -726,20 +697,86 @@ class AdmittedDockerEnvironment(DockerEnvironment):
             contract, "environment_digest",
         )
         self._admitted_image_ref = _required_text(contract, "image_ref")
-        evidence = _evidence_document(contract, records, network)
-        _atomic_write_json(
-            trial_paths.artifacts_dir / ADMISSION_EVIDENCE_FILENAME, evidence,
-        )
+        self._sealed_mounts = [dict(mount) for mount in mounts]
+        self._evidence_path = trial_paths.artifacts_dir / ADMISSION_EVIDENCE_FILENAME
+        self._proxy_controller: Any | None = None
 
-    @override
-    async def start(self, force_build: bool) -> None:
-        image_environment = _inspect_image_environment(self._admitted_image_ref)
-        unknown = sorted(set(image_environment) - self._admitted_environment_keys)
+    def bind_proxy_controller(self, controller: object) -> None:
+        if self._proxy_controller is not None:
+            raise HarborTrialAdmissionError("trial proxy controller is already bound")
+        self._proxy_controller = controller
+
+    def _current_admission(
+        self,
+    ) -> tuple[Mapping[str, object], list[dict[str, object]], dict[str, object]]:
+        contract, records, network, mounts = _admit_final_inputs(
+            self.environment_dir, self.task_env_config, self.trial_paths,
+            self._admission_contract, self._persistent_env, self._mounts,
+            self.network_policy, self._phase_network_policies,
+            self.extra_docker_compose_paths,
+        )
+        if mounts != self._sealed_mounts:
+            raise HarborTrialAdmissionError("Docker mounts differ from the sealed paths")
+        return contract, records, network
+
+    def _validate_image_configuration(self) -> None:
+        environment, volumes = inspect_image_configuration(self._admitted_image_ref)
+        if volumes:
+            raise HarborTrialAdmissionError(
+                f"image volumes are not admitted: {sorted(volumes)}"
+            )
+        unknown = sorted(set(environment) - self._admitted_environment_keys)
         if unknown:
             raise HarborTrialAdmissionError(
                 f"image environment contains unadmitted keys: {unknown}"
             )
-        await super().start(force_build=force_build)
+
+    def _arm_proxy_route(self, contract: Mapping[str, object]) -> dict[str, object]:
+        if self._proxy_controller is None:
+            raise HarborTrialAdmissionError("trial proxy controller is not bound")
+        session = self._proxy_controller.arm_admitted_proxy()
+        parsed = urlsplit(session.handle.base_url)
+        expected_host = _required_text(contract, "proxy_host")
+        if parsed.scheme != "http" or parsed.hostname != expected_host or parsed.port is None:
+            raise HarborTrialAdmissionError("armed proxy differs from admitted network route")
+        if session.handle.trial_id != _required_text(contract, "trial_id"):
+            raise HarborTrialAdmissionError("armed proxy differs from admitted trial identity")
+        source = session.handle.manifest_block.get("source_binding")
+        if not isinstance(source, Mapping) or source.get("kind") != "ip":
+            raise HarborTrialAdmissionError("armed proxy source binding is unsupported")
+        return {
+            "scheme": parsed.scheme, "host": parsed.hostname, "port": parsed.port,
+            "bound_source_ip": _required_text(source, "value"),
+            "scope": "current-trial", "trial_id": session.handle.trial_id,
+        }
+
+    def _revoke_proxy(self) -> None:
+        if self._proxy_controller is not None:
+            self._proxy_controller.revoke_admitted_proxy()
+
+    @override
+    async def start(self, force_build: bool) -> None:
+        if force_build:
+            raise HarborTrialAdmissionError("force_build bypasses the admitted pinned image")
+        contract, records, network = self._current_admission()
+        self._validate_image_configuration()
+        try:
+            network["proxy_route"] = self._arm_proxy_route(contract)
+            atomic_write_json(
+                self._evidence_path, _evidence_document(contract, records, network),
+            )
+            await super().start(force_build=False)
+        except BaseException:
+            self._evidence_path.unlink(missing_ok=True)
+            self._revoke_proxy()
+            raise
+
+    @override
+    async def stop(self, delete: bool) -> None:
+        try:
+            await super().stop(delete=delete)
+        finally:
+            self._revoke_proxy()
 
     @override
     async def exec(
@@ -755,7 +792,7 @@ class AdmittedDockerEnvironment(DockerEnvironment):
                 "process environment differs from the sealed values"
             )
         return await self._compose_exec(
-            _isolated_command(command, merged), service="main",
+            isolated_command(command, merged), service="main",
             cwd=cwd or self.task_env_config.workdir, env=None,
             timeout_sec=timeout_sec, user=self._resolve_user(user),
         )
