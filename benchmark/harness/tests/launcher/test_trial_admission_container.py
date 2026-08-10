@@ -153,6 +153,7 @@ def copy_package_inputs(stage: Path) -> None:
     package = json.loads((stage / "package.json").read_text())
     package["scripts"].pop("prepare", None)
     package["scripts"].pop("prepack", None)
+    package["bundleDependencies"] = True
     (stage / "package.json").write_text(json.dumps(package, indent=2) + "\n")
     for relative in directories:
         shutil.copytree(SERVER_ROOT / relative, stage / relative, symlinks=True)

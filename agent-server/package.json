@@ -25,28 +25,6 @@
   "publishConfig": {
     "access": "public"
   },
-  "bundleDependencies": [
-    "@clack/prompts",
-    "@larksuiteoapi/node-sdk",
-    "@modelcontextprotocol/sdk",
-    "@sinclair/typebox",
-    "@slack/bolt",
-    "@slack/web-api",
-    "@trpc/server",
-    "aistatus",
-    "dotenv",
-    "ink",
-    "ink-text-input",
-    "jose",
-    "react",
-    "sharp",
-    "string-width",
-    "turndown",
-    "turndown-plugin-gfm",
-    "ws",
-    "yaml",
-    "zod"
-  ],
   "scripts": {
     "prepare": "cp ../README.md . && npm run build",
     "prepack": "npm run build:supervisor && node scripts/copy-web-dist.js",
