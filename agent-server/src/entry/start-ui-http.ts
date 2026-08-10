@@ -1,5 +1,5 @@
 // input:  UiService, runtime settings, HTTP/auth/static dependencies
-// output: optional Web UI HTTP/SSE server with live CORS wiring
+// output: Web UI HTTP/SSE server and authenticated file routes
 // pos:    Entry-layer Web UI transport composition
 // >>> If I am updated, update CORTEX.md <<<
 
@@ -94,9 +94,44 @@ function classifyMime(mimeType: string): 'image' | 'video' | 'file' {
   return 'file';
 }
 
-/** Sanitize a filename: keep alphanumeric, dot, hyphen, underscore; replace rest with underscore. */
-function sanitizeFilename(name: string): string {
-  return name.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^_+/, '').substring(0, 200) || 'file';
+const MAX_FILENAME_BYTES = 200;
+
+/** Bound a Unicode display filename without splitting code points. */
+function truncateDisplayFilename(name: string): string {
+  if (Buffer.byteLength(name) <= MAX_FILENAME_BYTES) return name;
+  const ext = path.extname(name);
+  const keptExt = Buffer.byteLength(ext) <= 32 ? ext : '';
+  const stem = keptExt ? name.slice(0, -keptExt.length) : name;
+  let result = '';
+  let bytes = Buffer.byteLength(keptExt);
+  for (const char of stem) {
+    const charBytes = Buffer.byteLength(char);
+    if (bytes + charBytes > MAX_FILENAME_BYTES) break;
+    result += char;
+    bytes += charBytes;
+  }
+  return `${result || 'file'}${keptExt}`;
+}
+
+/** Decode the browser header and preserve a safe Unicode leaf name for display. */
+function sanitizeDisplayFilename(encodedName: string): string {
+  let decoded = encodedName;
+  try { decoded = decodeURIComponent(encodedName); } catch { /* keep malformed input literal */ }
+  const leaf = decoded.replace(/\\/g, '/').split('/').pop() ?? '';
+  const cleaned = leaf.replace(/[\u0000-\u001F\u007F]/g, '_').trim();
+  if (!cleaned || cleaned === '.' || cleaned === '..') return 'file';
+  return truncateDisplayFilename(cleaned);
+}
+
+/** Derive an ASCII-only basename used solely for internal workspace storage. */
+function sanitizeStorageFilename(displayName: string): string {
+  const ext = path.extname(displayName);
+  const safeExt = /^\.[A-Za-z0-9]{1,16}$/.test(ext) ? ext : '';
+  const stem = safeExt ? displayName.slice(0, -ext.length) : displayName;
+  const asciiStem = stem
+    .replace(/[^A-Za-z0-9._-]/g, '_')
+    .replace(/^[._-]+|[._-]+$/g, '');
+  return `${(asciiStem || 'file').slice(0, MAX_FILENAME_BYTES - safeExt.length)}${safeExt}`;
 }
 
 /** Find an available filename in `dir`: if `name` exists, try `name_1`, `name_2`, …
@@ -127,32 +162,29 @@ function jsonReply(res: ServerResponse, status: number, body: unknown): void {
   }
 }
 
-/** File upload handler: reads raw file bytes from the body, saves the file physically under
- *  WORKSPACE_DIR/attachments/<sessionId>/<filename> (WORKSPACE_DIR = <DATA_DIR>/tmp), and returns
- *  AttachmentMeta whose `path` is the UI-relative `workspace/attachments/...` alias (resolved back to
- *  the absolute path via resolveWorkspaceRelPath by both the download route and the agent-runner).
- *  Auto-renames on name collision (file.png → file_1.png, file_2.png, …). */
-async function handleUpload(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const sessionId = (req.headers['x-session-id'] as string | undefined)?.trim();
-  const rawName = (req.headers['x-file-name'] as string | undefined)?.trim();
-  const mimeType = (req.headers['content-type'] || 'application/octet-stream').split(';')[0].trim();
+interface UploadHeaders {
+  sessionId: string;
+  encodedName: string;
+  mimeType: string;
+}
 
+function parseUploadHeaders(req: IncomingMessage, res: ServerResponse): UploadHeaders | null {
+  const sessionId = (req.headers['x-session-id'] as string | undefined)?.trim();
+  const encodedName = (req.headers['x-file-name'] as string | undefined)?.trim();
+  const mimeType = (req.headers['content-type'] || 'application/octet-stream').split(';')[0].trim();
   if (!sessionId) {
     jsonReply(res, 400, { ok: false, code: 'missing-session', message: 'X-Session-Id header required' });
-    return;
+    return null;
   }
-  if (!rawName) {
+  if (!encodedName) {
     jsonReply(res, 400, { ok: false, code: 'missing-name', message: 'X-File-Name header required' });
-    return;
+    return null;
   }
+  return { sessionId, encodedName, mimeType };
+}
 
-  const baseName = sanitizeFilename(rawName);
-  const dir = path.join(ATTACHMENTS_DIR, sessionId);
-  await fs.promises.mkdir(dir, { recursive: true });
-
-  const { destPath, finalName } = await resolveAvailablePath(dir, baseName);
+async function receiveUpload(req: IncomingMessage, destPath: string): Promise<{ size: number; error?: Error }> {
   const writeStream = createWriteStream(destPath, { flags: 'wx' });
-
   let size = 0;
   req.on('data', (chunk: Buffer) => {
     size += chunk.length;
@@ -161,28 +193,38 @@ async function handleUpload(req: IncomingMessage, res: ServerResponse): Promise<
       req.destroy();
     }
   });
-
   try {
     await pipeline(req, writeStream);
-    // UI-relative alias: `workspace/` maps to WORKSPACE_DIR's contents (the file physically lives at
-    // WORKSPACE_DIR/attachments/…, i.e. <DATA_DIR>/tmp/attachments/…). Consumers resolve it via
-    // resolveWorkspaceRelPath — never by treating `workspace` as a literal <DATA_DIR> subdirectory.
-    const relPath = `workspace/attachments/${sessionId}/${finalName}`;
-    jsonReply(res, 200, {
-      ok: true,
-      data: { name: finalName, path: relPath, size, mimeType, type: classifyMime(mimeType) },
-    });
-  } catch (err: any) {
-    // Clean up partial file on error (e.g. size exceeded).
+    return { size };
+  } catch (error) {
     try { await fs.promises.unlink(destPath); } catch {}
-    if (!res.headersSent) {
-      if (size > MAX_UPLOAD_BYTES) {
-        jsonReply(res, 413, { ok: false, code: 'too-large', message: `File exceeds ${MAX_UPLOAD_BYTES / 1024 / 1024}MB limit` });
-      } else {
-        jsonReply(res, 500, { ok: false, code: 'upload-failed', message: err.message });
-      }
-    }
+    return { size, error: error as Error };
   }
+}
+
+/** Store an upload under an ASCII path while returning its decoded Unicode display name. */
+async function handleUpload(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const headers = parseUploadHeaders(req, res);
+  if (!headers) return;
+  const displayName = sanitizeDisplayFilename(headers.encodedName);
+  const storageName = sanitizeStorageFilename(displayName);
+  const dir = path.join(ATTACHMENTS_DIR, headers.sessionId);
+  await fs.promises.mkdir(dir, { recursive: true });
+  const { destPath, finalName } = await resolveAvailablePath(dir, storageName);
+  const upload = await receiveUpload(req, destPath);
+  if (upload.error) {
+    if (!res.headersSent && upload.size > MAX_UPLOAD_BYTES) {
+      jsonReply(res, 413, { ok: false, code: 'too-large', message: `File exceeds ${MAX_UPLOAD_BYTES / 1024 / 1024}MB limit` });
+    } else if (!res.headersSent) {
+      jsonReply(res, 500, { ok: false, code: 'upload-failed', message: upload.error.message });
+    }
+    return;
+  }
+  const relPath = `workspace/attachments/${headers.sessionId}/${finalName}`;
+  jsonReply(res, 200, {
+    ok: true,
+    data: { name: displayName, path: relPath, size: upload.size, mimeType: headers.mimeType, type: classifyMime(headers.mimeType) },
+  });
 }
 
 // ── File download route (15a user uploads + 20a agent-sent files) ─────────────

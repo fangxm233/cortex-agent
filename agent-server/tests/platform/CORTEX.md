@@ -16,6 +16,6 @@ gateway and wire protocol, and the Web UI HTTP transport.
 | ui-http-lazy-driver.mjs | util | Drives the transport lazy-load check |
 | ui-http-lazy-hooks.mjs | util | Records resolved module specifiers |
 | ui-http-lazy-load.test.ts | test | Covers lazy loading of the UI transport |
-| ui-http-server.test.ts | test | Covers HTTP transport, auth, live CORS, SPA and OTA |
+| ui-http-server.test.ts | test | Covers HTTP transport, auth, file routes, SPA and OTA |
 | ui-ota.test.ts | test | Covers desktop UI OTA manifest and bundle |
 | zip-writer.test.ts | test | Covers deterministic ZIP encoding |

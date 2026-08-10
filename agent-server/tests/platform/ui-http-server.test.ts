@@ -1,5 +1,5 @@
 // input:  UI HTTP host, entry wiring, mutable settings, auth fakes
-// output: transport, auth, CORS, SPA, OTA, and download regressions
+// output: transport, auth, CORS, SPA, OTA, upload/download regressions
 // pos:    Web UI HTTP transport integration tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -299,7 +299,7 @@ async function bootWiring(env: Record<string, string>, spaDir?: string, corsOrig
   return { inst: inst!, port };
 }
 
-describe('entry wiring: env gate, AppRouter binding, live CORS, OTA, download', () => {
+describe('entry wiring: env gate, AppRouter binding, live CORS, OTA, file routes', () => {
   const CORS_ORIGIN = 'tauri://localhost';
   // Shared read-only servers.
   let w: { port: number };     // plain wiring server (empty settings allow-list)
@@ -464,10 +464,31 @@ describe('entry wiring: env gate, AppRouter binding, live CORS, OTA, download', 
     assert.equal(statusCode, 401);
   });
 
-  // ── File download route (15a uploads + 20a agent-sent files) ────────────────
-  // Serves a file stored under WORKSPACE_DIR by its UI-relative `workspace/…` path, auth-gated,
-  // confined to the workspace root by a traversal guard.
+  // ── File upload/download routes (15a uploads + 20a agent-sent files) ─────────
 
+  test('upload: preserves an encoded Unicode filename for display', async () => {
+    const name = 'report_中文文件名.md';
+    const { statusCode, body } = await req(
+      w.port, 'POST', '/api/attachments/upload',
+      {
+        'x-cortex-token': TOKEN,
+        'x-session-id': 'unicode-upload',
+        'x-file-name': encodeURIComponent(name),
+        'content-type': 'text/markdown',
+      },
+      'paper',
+    );
+    assert.equal(statusCode, 200);
+    assert.deepEqual(JSON.parse(body).data, {
+      name,
+      path: 'workspace/attachments/unicode-upload/report.md',
+      size: 5,
+      mimeType: 'text/markdown',
+      type: 'file',
+    });
+  });
+
+  // Downloads are auth-gated and confined to the workspace root by a traversal guard.
   test('resolveWorkspacePath: confines to WORKSPACE_DIR and rejects traversal / wrong prefix', () => {
     const ok = resolveWorkspacePath('workspace/outputs/s1/a.txt');
     assert.ok(ok && ok.startsWith(path.resolve(WORKSPACE_DIR) + path.sep));
