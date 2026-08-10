@@ -11,7 +11,8 @@ import { createInterface } from 'node:readline';
 const VERSION = '2.1.220 (Claude Code)';
 const TOOL_ID = 'benchmark-thread-call-1';
 const args = process.argv.slice(2);
-const artifactDir = process.env.FAKE_CLAUDE_ARTIFACT_DIR ?? '/logs/artifacts';
+const configuredArtifactDir = process.env.FAKE_CLAUDE_ARTIFACT_DIR;
+const artifactDir = configuredArtifactDir ?? '/logs/artifacts';
 
 function requireArtifactDir() {
   if (!artifactDir) throw new Error('FAKE_CLAUDE_ARTIFACT_DIR is required');
@@ -254,8 +255,9 @@ async function main() {
     process.stdout.write(`${VERSION}\n`);
     // The setup-time probe runs before the trial env exists; only the in-trial
     // probe, which carries the artifact dir, leaves evidence behind.
-    if (artifactDir) {
-      fs.writeFileSync(path.join(artifactDir, 'fake-claude-version.txt'), `${VERSION}\n`);
+    const evidenceDir = configuredArtifactDir ?? (fs.existsSync(artifactDir) ? artifactDir : null);
+    if (evidenceDir) {
+      fs.writeFileSync(path.join(evidenceDir, 'fake-claude-version.txt'), `${VERSION}\n`);
     }
     return;
   }
