@@ -1,5 +1,5 @@
-// input:  public arm resolution, hostile ambient home, trial-local roots
-// output: fresh standalone stores, assets, coordinator and output-only adapter proofs
+// input:  public arm resolution, hostile ambient/stale trial roots
+// output: fresh composition and pre-mutation stale-root rejection
 // pos:    Construction contract for the installed benchmark agent-run root
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -269,6 +269,23 @@ it('refuses a non-fresh state root instead of resuming ambient trial state', () 
     () => createComposition(input),
     /standalone trial root must be fresh/i,
   );
+});
+
+it('rejects stale Claude settings before creating trial state or output', () => {
+  const input = fixture();
+  const settings = path.join(input.trialRoot, 'claude-config', 'settings.json');
+  const stale = '{"autoCompactWindow":100000}\n';
+  fs.mkdirSync(path.dirname(settings), { recursive: true });
+  fs.writeFileSync(settings, stale);
+
+  assert.throws(
+    () => createComposition(input),
+    /standalone trial root must be fresh: claude-config[/\\]settings\.json/i,
+  );
+  assert.equal(fs.readFileSync(settings, 'utf8'), stale);
+  assert.deepEqual(fs.readdirSync(input.trialRoot), ['claude-config']);
+  assert.deepEqual(fs.readdirSync(path.dirname(settings)), ['settings.json']);
+  assert.deepEqual(fs.readdirSync(input.trajectoryRoot), []);
 });
 
 it('refuses physical state and output roots that escape through symlinks', () => {

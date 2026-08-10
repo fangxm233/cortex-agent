@@ -1,5 +1,5 @@
-// input:  a compiled arm resolution, the real supervisor and a generated backend CLI
-// output: end-to-end proof that a trial run is supervised, isolated, normalized and composite-published
+// input:  compiled arm, real supervisor, generated Claude CLI
+// output: supervised isolated runs and fresh-root refusal proofs
 // pos:    Run-level battery for the Gate-2 trial adapter seam
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -485,31 +485,24 @@ it('confines the backend to the trial root and drops host leaks (T11, C5, C7)', 
   assert.equal(fs.existsSync(path.join(built.trialRoot, 'home', 'backend-wrote-here')), true);
 }, 60_000);
 
-// --- A15: settings the session reads come from the trial config dir, not the host ---
+// --- A15: stale trial settings fail before Claude can consume them ---
 
-it('resolves the context window from the trial config dir, not the host (A15)', async () => {
+it('rejects stale autoCompactWindow before Claude execution or output mutation (A15)', async () => {
   const built = fixture({ reportUsage: true });
-  // Both values are in the CLI's accepted range and below the model window, so whichever file the
-  // session read is legible in the window it reports.
-  write(path.join(built.trialRoot, 'claude-config', 'settings.json'),
-    JSON.stringify({ autoCompactWindow: 150_000 }));
-  const hostConfig = path.join(root, 'host-claude-config');
-  write(path.join(hostConfig, 'settings.json'), JSON.stringify({ autoCompactWindow: 100_000 }));
-  const saved = process.env.CLAUDE_CONFIG_DIR;
-  let outcome: RunOutcome;
-  try {
-    process.env.CLAUDE_CONFIG_DIR = hostConfig;
-    outcome = await runTrial(built);
-  } finally {
-    if (saved === undefined) delete process.env.CLAUDE_CONFIG_DIR;
-    else process.env.CLAUDE_CONFIG_DIR = saved;
-  }
-  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
-  const usage = journalRecords(built)
-    .map(record => record.event).filter(event => event?.type === 'context_usage');
-  assert.equal(usage.length > 0, true, 'no context_usage event was journalled');
-  // 100_000 here would mean the session fell through to the ambient CLAUDE_CONFIG_DIR.
-  assert.deepEqual([...new Set(usage.map(record => record.contextWindow))], [150_000]);
+  const settings = path.join(built.trialRoot, 'claude-config', 'settings.json');
+  const stale = JSON.stringify({ autoCompactWindow: 100_000 });
+  write(settings, stale);
+
+  const outcome = await runTrial(built);
+
+  assert.equal(outcome.exitCode, 1);
+  assert.equal(outcome.terminal.state, 'failed');
+  assert.equal(outcome.terminal.terminal_reason, 'protocol_violation');
+  assert.match(outcome.stderr, /trial root must be fresh: claude-config[/\\]settings\.json/i);
+  assert.equal(fs.existsSync(built.observation), false);
+  assert.equal(fs.readFileSync(settings, 'utf8'), stale);
+  assert.deepEqual(fs.readdirSync(built.trialRoot), ['claude-config']);
+  assert.deepEqual(fs.readdirSync(built.options.trajectoryRoot), []);
 }, 60_000);
 
 // --- T13: normalized identity ---

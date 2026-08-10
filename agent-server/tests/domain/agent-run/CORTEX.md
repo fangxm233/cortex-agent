@@ -47,11 +47,11 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | role-surface.test.ts | test | verifies directives, guards, tools and argv alignment |
 | run-config.test.ts | test | proves schema dispatch, roles, argv and MCP inputs |
 | standalone-architecture.test.ts | test | rejects forbidden standalone root composition |
-| standalone-composition.test.ts | test | proves fresh standalone dependency construction |
+| standalone-composition.test.ts | test | proves fresh wiring and stale Claude refusal |
 | standalone-public-cli.test.ts | e2e | executes the packed standalone public CLI path |
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
 | trial-run-pi.test.ts | test | proves PI supervision, cancel, deadline and run identity |
-| trial-run.test.ts | test | proves supervised, isolated and normalized trial runs, that the composite manifest and the merged ATIF are published from inside the production runner as one all-or-nothing pair, that nodes, edges and the §9.3 M1 link map are derived from the observed lifecycle pairs, that an underivable §9.1 template refuses, that the journal side has one producer, and that an unattested native subagent call fails the checklist on code 41 |
+| trial-run.test.ts | test | proves supervised Claude runs and stale-root refusal |
 | trajectory-merge-cli.test.ts | test | verifies context-free accounting and typed failures |
 | transport-teardown-e2e.test.ts | e2e | proves finalization survives sidecar teardown |
 | trajectory-merge-fixtures.ts | fixture | writes print-mode accounted fragment events |
