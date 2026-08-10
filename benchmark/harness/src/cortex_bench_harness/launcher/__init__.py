@@ -1,5 +1,5 @@
-# input:  launcher admission, arm, and credential modules
-# output: public trial construction, seed and projection symbols
+# input:  launcher admission, arm, credential, comparison modules
+# output: public trial construction, seed, projection, report symbols
 # pos:    Import surface for host benchmark launching
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -27,6 +27,11 @@ from .arms import (
     require_pinned_image,
     select_arm,
     select_task,
+)
+from .comparison_report import (
+    COMPARISON_REPORT_SCHEMA_VERSION,
+    build_comparison_report,
+    render_comparison_report,
 )
 from .credential_capabilities import (
     CAPABILITY_REGISTRY,
@@ -62,6 +67,7 @@ __all__ = [
     "BENCHMARK_THREAD_POLICY_SOURCE",
     "CAPABILITY_REGISTRY",
     "CAPABILITY_STATES",
+    "COMPARISON_REPORT_SCHEMA_VERSION",
     "PROXY_ARTIFACT_SOURCES",
     "TrialProxySession",
     "TrialProxySpec",
@@ -76,6 +82,7 @@ __all__ = [
     "backend_cli_binary",
     "build_agent_config",
     "build_benchmark_thread_policy",
+    "build_comparison_report",
     "build_harbor_trial_config",
     "capability_key_for",
     "capture_trial_inventory",
@@ -86,6 +93,7 @@ __all__ = [
     "project_credential_capabilities",
     "require_composable_arm",
     "require_pinned_image",
+    "render_comparison_report",
     "revoke_trial_proxy",
     "select_arm",
     "select_task",

@@ -13,6 +13,10 @@ from harbor.models.trial.config import AgentConfig
 
 CORTEX_IMPORT_PATH = "cortex_bench_harness:CortexBenchAgent"
 VENDOR_AGENTS = frozenset({"claude-code", "pi", "codex"})
+VENDOR_CORTEX_FIELDS = frozenset({
+    "artifact_inventory_spec", "backend", "coordinator", "orchestration",
+    "plugin_dirs", "task_store",
+})
 IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 BACKEND_CLI_BINARIES = {"claude": "claude", "pi": "pi"}
 # A backend composes only once its per-trial adapter is proven; until then it names the gate that
@@ -236,6 +240,11 @@ def _vendor_config(
     common: dict[str, Any],
     version: str,
 ) -> AgentConfig:
+    cortex_fields = sorted(VENDOR_CORTEX_FIELDS.intersection(arm))
+    if cortex_fields:
+        raise ValueError(
+            f"vendor baseline cannot declare Cortex composition fields: {cortex_fields}"
+        )
     vendor_agent = _required_text(arm, "vendor_agent")
     if vendor_agent not in VENDOR_AGENTS:
         raise ValueError(f"unsupported vendor agent: {vendor_agent}")
