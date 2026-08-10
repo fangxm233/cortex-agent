@@ -1,5 +1,5 @@
-// input:  npm pack lifecycle, clean/broken fixtures, native builder, empty cache
-// output: offline package proof plus failed dependency-staging rollback
+// input:  npm pack, package fixtures, native builder
+// output: offline package and staging rollback proofs
 // pos:    Verifies production packing and staging cleanup
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -76,6 +76,10 @@ test('failed dependency staging removes every partial package copy', () => {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   manifest.bundleDependencies = ['@fixture/package'];
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
+  const lockPath = path.join(server, 'package-lock.json');
+  const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+  lock.packages = {'': {}, 'node_modules/@fixture/package': {}};
+  fs.writeFileSync(lockPath, `${JSON.stringify(lock)}\n`);
   const workspaceModules = path.join(root, 'node_modules');
   fs.rmSync(workspaceModules);
   const fixturePackage = path.join(workspaceModules, '@fixture/package');

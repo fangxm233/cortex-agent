@@ -1,4 +1,4 @@
-// input:  package manifest and hoisted workspace dependencies
+// input:  package manifests and hoisted dependencies
 // output: recoverable dependency staging for npm pack
 // pos:    Bridges hoisted installs to bundledDependencies
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -46,6 +46,26 @@ function bundledDependencies() {
   return manifest.bundleDependencies;
 }
 
+function packageName(location) {
+  const parts = location.slice('node_modules/'.length).split('/');
+  return parts[0].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+}
+
+function runtimeDependencies() {
+  const lock = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package-lock.json'), 'utf8'));
+  const dependencies = new Map();
+  for (const [location, metadata] of Object.entries(lock.packages ?? {})) {
+    if (!location.startsWith('node_modules/') || metadata.dev === true) continue;
+    const name = packageName(location);
+    const optional = metadata.optional === true;
+    dependencies.set(name, (dependencies.get(name) ?? true) && optional);
+  }
+  for (const name of bundledDependencies()) {
+    if (!dependencies.has(name)) throw new Error(`package-lock.json omitted ${name}`);
+  }
+  return [...dependencies].sort(([left], [right]) => left.localeCompare(right));
+}
+
 function copyTree(source, destination) {
   const stat = fs.lstatSync(source);
   if (stat.isSymbolicLink()) {
@@ -68,11 +88,16 @@ function stageDependencies() {
   const staged = [];
   try {
     writeMarker(staged);
-    for (const entry of bundledDependencies()) {
+    for (const [entry, optional] of runtimeDependencies()) {
+      const source = path.join(workspaceModules, entry);
+      if (!fs.existsSync(source)) {
+        if (optional) continue;
+        throw new Error(`workspace node_modules omitted ${entry}`);
+      }
       if (fs.existsSync(path.join(packageModules, entry))) continue;
       staged.push(entry);
       writeMarker(staged);
-      copyTree(path.join(workspaceModules, entry), path.join(packageModules, entry));
+      copyTree(source, path.join(packageModules, entry));
     }
   } catch (error) {
     removeStaged();
