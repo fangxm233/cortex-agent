@@ -1,6 +1,6 @@
-// input:  npm pack lifecycle, clean package fixture, native builder, empty npm cache
-// output: offline-installable package with a packed 0755 supervisor and manifest digest
-// pos:    Verifies the production package artifact from a clean tree
+// input:  npm pack lifecycle, clean/broken fixtures, native builder, empty cache
+// output: offline package proof plus failed dependency-staging rollback
+// pos:    Verifies production packing and staging cleanup
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -66,6 +66,32 @@ function extract(tarball: string, destination: string): string {
 
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('failed dependency staging removes every partial package copy', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-package-staging-'));
+  roots.push(root);
+  const server = copyCleanPackage(root);
+  const manifestPath = path.join(server, 'package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  manifest.bundleDependencies = ['@fixture/package'];
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
+  const workspaceModules = path.join(root, 'node_modules');
+  fs.rmSync(workspaceModules);
+  const fixturePackage = path.join(workspaceModules, '@fixture/package');
+  fs.mkdirSync(fixturePackage, { recursive: true });
+  fs.writeFileSync(path.join(fixturePackage, 'package.json'), '{"name":"@fixture/package"}\n');
+  fs.symlinkSync(
+    path.join(root, 'missing-dependency-target'), path.join(fixturePackage, 'broken-link'),
+  );
+
+  const result = spawnSync(process.execPath, ['scripts/stage-bundled-dependencies.mjs'], {
+    cwd: server, encoding: 'utf8',
+  });
+
+  assert.notEqual(result.status, 0, 'broken dependency fixture must fail staging');
+  assert.equal(fs.existsSync(path.join(server, 'node_modules/@fixture')), false);
+  assert.equal(fs.existsSync(path.join(server, 'node_modules/.cortex-bundled-staging.json')), false);
 });
 
 test('npm pack produces an offline-installable package with a 0755 supervisor', () => {

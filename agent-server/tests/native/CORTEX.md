@@ -6,5 +6,5 @@ Real-process integration coverage for Linux native helpers and containment bound
 |---|---|---|
 | fixtures/ | fixtures | Provides hostile process-tree test programs |
 | integration-supervisor.test.ts | test | Verifies static supervisor lifecycle contracts |
-| package-supervisor.test.ts | test | Verifies offline production package install, packed binary mode, and manifest digest |
+| package-supervisor.test.ts | test | Verifies offline package install, staging rollback, binary mode, and digest |
 | supervisor-harness.ts | helper | Builds and drives the real supervisor binary |
