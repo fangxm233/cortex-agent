@@ -1,8 +1,9 @@
 # input:  trial seed, Harbor task/config, final environment factory inputs
-# output: sealed TrialConfig, admitted Docker environment, launch evidence
+# output: sealed TrialConfig, async-admitted Docker environment
 # pos:    Production Harbor container admission boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import asyncio
 import json
 import os
 import re
@@ -759,7 +760,7 @@ class AdmittedDockerEnvironment(DockerEnvironment):
         if force_build:
             raise HarborTrialAdmissionError("force_build bypasses the admitted pinned image")
         contract, records, network = self._current_admission()
-        self._validate_image_configuration()
+        await asyncio.to_thread(self._validate_image_configuration)
         try:
             network["proxy_route"] = self._arm_proxy_route(contract)
             atomic_write_json(
