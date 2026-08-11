@@ -1,6 +1,6 @@
-// input:  mounted LoginFlowModal, auth tRPC fakes, notice/settings targets
-// output: Target prefill, reuse, prompt, and non-echo regressions
-// pos:    Mounted Web backend login flow specification
+// input:  mounted login overlay, tRPC/navigation fakes, targets
+// output: responsive layout, flow, prompt, and non-echo regressions
+// pos:    Mounted Web authentication workflow specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
@@ -22,12 +22,17 @@ const harness = vi.hoisted(() => ({
   startError: null as string | null,
   startPromise: null as Promise<LoginFlowState> | null,
   respondPromise: null as Promise<LoginFlowState> | null,
+  externalUrls: [] as string[],
   mobile: false,
 }));
 
 vi.mock('@/design', () => ({
-  Modal: ({ open, title, children, footer }: any) => open
-    ? <div data-auth-modal="true"><h1>{title}</h1>{children}<footer>{footer}</footer></div>
+  Modal: ({ open, title, description, hideDescription, children, footer }: any) => open
+    ? <div data-auth-modal="true" data-description-hidden={hideDescription}>
+      <h1>{title}</h1>
+      {description ? <p hidden={hideDescription}>{description}</p> : null}
+      {children}<footer>{footer}</footer>
+    </div>
     : null,
   Button: (props: any) => <button {...props}>{props.children}</button>,
   Select: ({ options, value, ...props }: any) => (
@@ -42,6 +47,14 @@ vi.mock('@/design', () => ({
 vi.mock('@/lib/desktop-config', async importOriginal => ({
   ...await importOriginal<typeof import('@/lib/desktop-config')>(),
   isMobileShell: () => harness.mobile,
+}));
+
+vi.mock('@/lib/external-navigation', () => ({
+  openExternalUrl: async (url: string) => { harness.externalUrls.push(url); },
+}));
+
+vi.mock('@/mobile/ui/kit', () => ({
+  MBottomSheet: ({ children }: any) => <div data-mobile-bottom-sheet>{children}</div>,
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -232,6 +245,7 @@ beforeEach(() => {
   harness.startError = null;
   harness.startPromise = null;
   harness.respondPromise = null;
+  harness.externalUrls = [];
   harness.mobile = false;
 });
 
@@ -243,6 +257,77 @@ const NOTICE_CASES: Array<[LoginFlowNotice, LoginFlowNotice['kind']]> = [
 ];
 
 describe('LoginFlowModal', () => {
+  it('uses the selected backend and provider names as the flow title', () => {
+    const login = state('prompt', {
+      authType: 'oauth',
+      pendingPrompt: { kind: 'manual_code', message: 'Paste authorization code' },
+    });
+    const renderer = mount({
+      target: { backend: 'claude', provider: 'anthropic', authType: 'oauth' },
+      initialState: login,
+    });
+
+    expect(renderer.root.findByType('h1').children.join('')).toBe('Claude Code · Anthropic');
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Backend login');
+  });
+
+  it('renders OAuth as open-page then code-entry without duplicate prompt copy', async () => {
+    const message = 'Paste code here if prompted.';
+    const login = state('prompt', {
+      authType: 'oauth',
+      notice: {
+        kind: 'auth_url', url: 'https://login.example.test/authorize?state=fixture',
+        instructions: message,
+      },
+      pendingPrompt: { kind: 'manual_code', message },
+    });
+    harness.queryState = login;
+    const renderer = mount({ initialState: login });
+    const ordered = renderer.root.findAll(node => (
+      node.props['data-auth-open-step'] !== undefined
+      || node.props['data-auth-code-step'] !== undefined
+    )).map(node => node.props['data-auth-open-step'] !== undefined ? 'open' : 'code');
+
+    expect(ordered).toEqual(['open', 'code']);
+    expect(renderer.root.findAllByProps({ 'data-auth-prompt-copy': true })).toHaveLength(1);
+    const input = renderer.root.findByProps({ 'data-auth-secret': true });
+    expect(input.props.type).toBe('text');
+    expect(input.props.autoComplete).toBe('one-time-code');
+    expect(input.props.placeholder).toBe('Paste authorization code');
+    expect(input.props.className).toContain('border-proto-line-3');
+    expect(input.props.className).toContain('bg-surface-canvas-alt');
+    const description = renderer.root.findByProps({ hidden: true });
+    expect(description.children.join('')).toBe(
+      'Open the authorization page. Paste the authorization code.',
+    );
+
+    await clickAsync(renderer, 'auth-open-url');
+    expect(harness.externalUrls).toEqual(['https://login.example.test/authorize?state=fixture']);
+  });
+
+  it('renders terminal success and long failures once inside bounded content', () => {
+    const done = mount({ initialState: state('done') });
+    expect(done.root.findAllByProps({ 'data-auth-success': true })).toHaveLength(1);
+    expect(done.root.findAllByProps({ 'data-auth-flow-step': 'done' })).toHaveLength(1);
+
+    const failed = mount({ initialState: state('failed', {
+      error: `Failure ${'unbroken'.repeat(80)}`,
+      errorCode: 'fixture_failure',
+    }) });
+    const error = failed.root.findByProps({ 'data-auth-error': true });
+    expect(error.props.className).toContain('break-words');
+    expect(error.props.className).toContain('overflow-y-auto');
+  });
+
+  it('uses a bottom sheet rather than a centered modal on mobile', () => {
+    harness.mobile = true;
+    const renderer = mount();
+
+    expect(renderer.root.findAllByProps({ 'data-auth-sheet': true })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-auth-modal': 'true' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-mobile-bottom-sheet': true })).toHaveLength(1);
+  });
+
   it('keeps native authentication selectors on the mobile shell', () => {
     harness.mobile = true;
     const renderer = mount();
@@ -367,7 +452,7 @@ describe('LoginFlowModal', () => {
     expect(renderer.root.findByProps({ id: 'auth-login-prompt-label' }).children.join('')).toContain('API key');
   });
 
-  it('renders manual-code prompts as password inputs', async () => {
+  it('renders manual-code prompts as visible one-time-code inputs', async () => {
     harness.startState = state('prompt', {
       authType: 'oauth',
       pendingPrompt: { kind: 'manual_code', message: 'Paste authorization code' },
@@ -376,7 +461,9 @@ describe('LoginFlowModal', () => {
     const renderer = mount();
     await clickAsync(renderer, 'auth-start');
 
-    expect(renderer.root.findByProps({ 'data-auth-secret': true }).props.type).toBe('password');
+    const input = renderer.root.findByProps({ 'data-auth-secret': true });
+    expect(input.props.type).toBe('text');
+    expect(input.props.autoComplete).toBe('one-time-code');
   });
 
   it('submits the exact id selected by an interactive login prompt', async () => {
@@ -468,17 +555,22 @@ describe('LoginFlowModal', () => {
     expect(renderer.root.findAllByProps({ 'data-auth-secret': true })).toHaveLength(0);
     const html = JSON.stringify(renderer.toJSON());
     if (kind === 'info') {
-      expect(renderer.root.findByType('a').props.href).toBe('https://help.example.test');
+      expect(renderer.root.findByProps({
+        'data-auth-external-url': 'https://help.example.test',
+      })).toBeTruthy();
     }
     if (kind === 'auth_url') {
-      expect(renderer.root.findByType('a').props.href).toContain('https://login.example.test/authorize');
+      expect(renderer.root.findByProps({
+        'data-auth-external-url': 'https://login.example.test/authorize?state=fixture',
+      })).toBeTruthy();
     }
     if (kind === 'device_code') {
       expect(html).toContain('ABCD-EFGH');
       expect(html).toContain('600');
-      expect(renderer.root.findByType('a').children.join('')).toBe(
-        'https://verify.example.test',
-      );
+      expect(html.match(/Open verification page/g)).toHaveLength(1);
+      expect(renderer.root.findByProps({
+        'data-auth-external-url': 'https://verify.example.test',
+      })).toBeTruthy();
     }
     if (kind === 'progress') {
       expect(renderer.root.findAllByProps({ 'data-auth-progress': true })).toHaveLength(1);

@@ -9,6 +9,8 @@ Builds the tRPC client, reads native-shell credentials and moves workspace files
 | trpc.test.ts | test | Unit tests for URL and headers per transport mode |
 | desktop-config.ts | util | Detects native shells and supplies auth details |
 | desktop-config.test.ts | test | Unit tests for shell detection and auth headers |
+| external-navigation.ts | util | Opens HTTP links in browser and native shells |
+| external-navigation.test.ts | test | Tests native opener and legacy fallback paths |
 | shell-connection.ts | util | Clears credentials and reopens the connect screen |
 | shell-connection.test.ts | test | Unit tests for the disconnect path |
 | files.ts | util | Downloads, previews and reveals workspace files |

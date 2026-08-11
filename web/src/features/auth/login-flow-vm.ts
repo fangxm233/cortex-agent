@@ -31,7 +31,7 @@ export interface LoginFlowVm {
 }
 
 function promptInput(kind: NonNullable<LoginFlowState['pendingPrompt']>['kind']): LoginInputType {
-  if (kind === 'secret' || kind === 'manual_code') return 'password';
+  if (kind === 'secret') return 'password';
   return kind === 'select' ? 'select' : 'text';
 }
 

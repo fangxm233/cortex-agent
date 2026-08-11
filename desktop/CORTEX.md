@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Native app package: wraps the Cortex web SPA in a Tauri v2 shell for desktop and Android.
-Serves the SPA locally, stores the server credentials, and keeps the frontend and shell up to date.
+Serves the SPA, stores credentials, opens system URLs, and updates the frontend and shell.
 
 | filename | role | function |
 |---|---|---|
