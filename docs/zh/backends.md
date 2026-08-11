@@ -91,10 +91,13 @@ API key、授权码或 provider 专用 OAuth 参数。
 因此只支持 API key 的 provider 不会显示无法使用的 OAuth 选项。Claude Code 的 API key
 与订阅登录也通过选择器提供。
 
-Claude Code 订阅登录由 Cortex 在受控 tmux 会话中驱动 `claude setup-token`：授权 URL
-发送到发起渠道，用户通过渠道表单提交返回的 code。生成的长效 token 以
-`CLAUDE_CODE_OAUTH_TOKEN` 存入 `~/.cortex/config/.env`；状态输出和 transcript
-都不会打印它。
+Claude Code 订阅登录由 Cortex 启动 `claude auth login --claudeai`：命令输出的授权 URL
+发送到发起渠道，用户通过渠道表单提交返回的 code，Cortex 再把 code 写入该命令的标准输入。
+OAuth 交换和凭据持久化完全由 Claude Code 负责。只有在清空认证相关环境变量后执行
+`claude auth status --json` 并得到 `loggedIn: true`，Cortex 才会把流程标记为成功；
+Cortex 不读取也不保存最终 token。订阅登出同样交给 `claude auth logout`，并验证登出状态。
+旧版 Cortex-managed subscription token 仅在 Claude Code 尚未登录时作为可删除的 runtime
+credential 保持兼容；它不会让账号显示为已登录，并会在 CC 拥有凭据后被抑制。
 
 运行中的 backend 报告认证过期时，Cortex 会发送点名 backend/provider 的通知卡，卡片上的
 一键重登按钮会预填已有选择。每日过期扫描只检查使用中的账号，并对即将过期、已过期或缺失
