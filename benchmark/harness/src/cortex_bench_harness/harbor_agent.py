@@ -534,6 +534,8 @@ class CortexBenchAgent(BaseInstalledAgent):
         ])
         try:
             await self.exec_as_agent(environment, command, cwd=self._resolved_cwd.realpath)
+            readable = shlex.join(["chmod", "-R", "a+rX", str(EnvironmentPaths().agent_dir)])
+            await self.exec_as_agent(environment, readable)
         except Exception as error:
             raise HostFinalizationError("trial_output_collection_failed") from error
 

@@ -416,6 +416,7 @@ def test_production_run_publishes_and_rereads_one_outer_admission(
     assert any(file["classification"] == "optional-classified"
                for file in envelope["classification"]["files"])
     assert any("cortex-bench-workspace-evidence/1" in call for call in environment.calls)
+    assert any(call.endswith("chmod -R a+rX /logs/agent") for call in environment.calls)
 
 
 def corrupt_self_consistent_journal(

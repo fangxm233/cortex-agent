@@ -583,9 +583,11 @@ it('attributes the run to the policy identities it was compiled with (T13, R1, R
   const slot = built.policy.identity;
   assert.equal(header.role_tool_surface_hash, slot.role_tool_surface_hash.parent);
   assert.equal(header.model_execution_identity_hash, slot.model_execution_identity_hash.parent);
+  assert.equal(header.bundle_manifest_hash, slot.bundle_manifest_hash);
   const manifest = terminalManifest(built);
   assert.equal(manifest.role_tool_surface_hash, slot.role_tool_surface_hash.parent);
   assert.equal(manifest.model_execution_identity_hash, slot.model_execution_identity_hash.parent);
+  assert.equal(manifest.bundle_manifest_hash, slot.bundle_manifest_hash);
   const events = journalRecords(built).filter(record => record.type === 'event');
   assert.ok(events.length > 0);
   assert.deepEqual([...new Set(events.map(record => record.backend))], ['claude']);
@@ -785,8 +787,10 @@ it('publishes a valid composite manifest from inside runOneShotAgent (T16)', asy
   // The observed identity scalars are the run's own, and the frozen expectation is the policy's map.
   assert.equal(node.model_execution_identity_hash,
     built.policy.identity.model_execution_identity_hash.parent);
+  assert.equal(node.bundle_manifest_hash, built.policy.identity.bundle_manifest_hash);
   assert.deepEqual(manifest.identity.model_execution_identity_hash,
     built.policy.identity.model_execution_identity_hash);
+  assert.equal(manifest.identity.bundle_manifest_hash, built.policy.identity.bundle_manifest_hash);
 
   // O-G4-ACCT: the shipped nine-member record, `checks` included.
   assert.equal(Object.keys(manifest.accounting).length, 9);

@@ -212,12 +212,15 @@ function freezeRunIdentity(
     thinking: execution.reasoning_effort,
     fallback: [],
   } : profile;
-  return freezeIdentity({
+  const frozen = freezeIdentity({
     resolvedProfile,
     modelExecution: config.modelExecution,
     roleToolSurface: roleSurface,
     bundleManifest: bundleIdentity(options, config),
   });
+  return policy
+    ? { ...frozen, bundleManifestHash: policy.identity.bundle_manifest_hash }
+    : frozen;
 }
 
 function assertClaudeProfile(profile: PreparedRun['profile']): void {
