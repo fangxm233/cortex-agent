@@ -18,6 +18,7 @@ const AUTH_CASES: Array<[message: string, kind: AuthErrorKind]> = [
   ['Please run /login', 'login_required'],
   ['login_required: sign in again', 'login_required'],
   ['OAuth token has expired', 'oauth_expired'],
+  ['Failed to authenticate: OAuth session expired and could not be refreshed', 'oauth_expired'],
   ['oauth_expired', 'oauth_expired'],
   ['authentication_error', 'invalid_api_key'],
   ['invalid x-api-key', 'invalid_api_key'],
