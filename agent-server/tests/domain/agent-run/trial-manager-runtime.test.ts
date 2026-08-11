@@ -121,6 +121,12 @@ it('runs dependencies, rejection/rework, nested managers, acceptance, and root c
       ] }));
     }
     if (input.task.text === 'nested' && count === 1) {
+      return completed(input, JSON.stringify({ actions: [
+        { type: 'ask', question: 'which nested path?' },
+      ] }));
+    }
+    if (input.task.text === 'nested' && count === 2) {
+      assert.equal(input.context.parentAnswer, 'use the verified path');
       return completed(input, JSON.stringify({ actions: [{ type: 'decompose', subtasks: [
         { key: 'nested-leaf', text: 'nested leaf', done_when: 'done',
           template: 'benchmark-coder-review' },
@@ -130,6 +136,13 @@ it('runs dependencies, rejection/rework, nested managers, acceptance, and root c
       return completed(input, JSON.stringify({ actions: [
         { type: 'accept', task_id: input.context.children[0].id, note: 'accepted' },
         { type: 'complete', note: 'nested complete' },
+      ] }));
+    }
+    if (input.task.text === 'root manager task' && input.context.pendingQuestions.length > 0) {
+      return completed(input, JSON.stringify({ actions: [
+        { type: 'answer', question_id: input.context.pendingQuestions[0].questionId,
+          answer: 'use the verified path' },
+        { type: 'wait' },
       ] }));
     }
     if (input.task.text === 'root manager task') {
@@ -153,9 +166,9 @@ it('runs dependencies, rejection/rework, nested managers, acceptance, and root c
   assert.equal(result.attempts.every(attempt => attempt.manifestCommitted && attempt.quiescent), true);
 });
 
-it('returns a typed nonterminal root question and resumes only after the matching answer', async () => {
+it('rehydrates a typed root question and resumes only after the matching answer', async () => {
   let turns = 0;
-  const { runtime } = harness(async (input) => {
+  const runAttempt = async (input: TrialManagerAttemptInput) => {
     turns += 1;
     if (turns === 1) {
       return completed(input, JSON.stringify({ actions: [
@@ -166,20 +179,33 @@ it('returns a typed nonterminal root question and resumes only after the matchin
     return completed(input, JSON.stringify({ actions: [
       { type: 'complete', note: 'answered root complete' },
     ] }));
-  });
-
+  };
+  const { runtime, tree } = harness(runAttempt);
   const pending = await runtime.run();
   assert.equal(pending.state, 'needs_parent_answer');
   assert.equal(pending.parentQuestion?.question, 'choose A or B');
-  assert.deepEqual(runtime.answerParent({
+
+  const clock = createTrialClock({ deadlineEpochMs: NOW + 120_000, now: () => NOW });
+  const rehydrated = createTrialManagerRuntime({
+    tree,
+    parentQuestions: createTrialParentQuestionBridge({
+      trialId: 'trial-runtime', root, clock, maxQuestions: 2,
+    }),
+    runAttempt, signal: new AbortController().signal,
+    rootTask: { text: 'root manager task', doneWhen: 'all descendants accepted' },
+  });
+  const rehydratedPending = await rehydrated.run();
+  assert.equal(rehydratedPending.state, 'needs_parent_answer');
+  assert.equal(turns, 1);
+  assert.deepEqual(rehydrated.answerParent({
     questionId: pending.parentQuestion!.questionId,
     attemptId: 'wrong-attempt', answer: 'wrong',
   }), { success: false, message: 'answer_stale' });
-  assert.equal(runtime.answerParent({
+  assert.equal(rehydrated.answerParent({
     questionId: pending.parentQuestion!.questionId,
     attemptId: pending.parentQuestion!.attemptId, answer: 'choose A',
   }).success, true);
-  const resumed = await runtime.run();
+  const resumed = await rehydrated.run();
   assert.equal(resumed.state, 'completed');
 });
 

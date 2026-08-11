@@ -68,11 +68,18 @@ export interface AcceptanceState {
   reworkRound: number;
 }
 
+export interface ManagerQuestion {
+  questionId: string;
+  fromTaskId: string;
+  question: string;
+}
+
 interface ManagerState {
   phase: 'ready' | 'running' | 'waiting' | 'question' | 'completed' | 'cancelled';
   artifact: string;
   rotations: number;
   parentAnswer: string | null;
+  pendingQuestions: ManagerQuestion[];
 }
 
 interface AttemptState extends Omit<TrialAttemptEvidence, 'threadId' | 'kind' | 'note' | 'quiescent' | 'manifestCommitted' | 'disposition'> {
@@ -119,6 +126,7 @@ export interface TrialTaskStorePort {
   getAll(project?: string): Task[];
   flush(): Promise<void>;
   set(task: Task): Promise<void>;
+  refresh?(): void;
 }
 
 export interface TrialTaskTreeInput {
@@ -149,6 +157,10 @@ export interface TrialTaskTreeCoordinator {
   resumeReadyManagers(): Promise<string[]>;
   completeManager(capability: ActorCapability, note: string): Promise<void>;
   checkpointManager(capability: ActorCapability, artifact: string): Promise<void>;
+  askManager(capability: ActorCapability, question: string): Promise<{ questionId: string }>;
+  answerManager(
+    capability: ActorCapability, questionId: string, answer: string,
+  ): Promise<void>;
   setParentAnswer(taskId: string, answer: string): Promise<void>;
   consumeParentAnswer(taskId: string): string | null;
   withWriter<T>(capability: ActorCapability, action: () => Promise<T>): Promise<T>;
@@ -185,6 +197,53 @@ function writeState(root: string, state: TreeState): void {
   atomicWriteSync(file, `${JSON.stringify(state, null, 2)}\n`);
 }
 
+interface FileLockOwner {
+  pid: number;
+  token: string;
+  attemptId: string | null;
+}
+
+function lockPath(root: string, name: string): string {
+  return path.join(root, 'coordinator', `${name}.lock`);
+}
+
+function processIsLive(pid: number): boolean {
+  try { process.kill(pid, 0); return true; }
+  catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM'; }
+}
+
+function readLockOwner(file: string): FileLockOwner | null {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')) as FileLockOwner; }
+  catch { return null; }
+}
+
+function acquireFileLock(file: string, attemptId: string | null): FileLockOwner {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const owner = { pid: process.pid, token: crypto.randomUUID(), attemptId };
+  for (let pass = 0; pass < 2; pass += 1) {
+    try {
+      fs.writeFileSync(file, JSON.stringify(owner), { flag: 'wx', mode: 0o600 });
+      return owner;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      const current = readLockOwner(file);
+      if (pass === 0 && current && current.pid !== process.pid && !processIsLive(current.pid)) {
+        fs.unlinkSync(file);
+        continue;
+      }
+      throw new Error(attemptId
+        ? `workspace writer already held by ${current?.attemptId ?? 'unknown'}`
+        : 'trial coordinator mutation already in progress');
+    }
+  }
+  throw new Error('trial lock acquisition failed');
+}
+
+function releaseFileLock(file: string, owner: FileLockOwner): void {
+  const current = readLockOwner(file);
+  if (current?.token === owner.token) fs.unlinkSync(file);
+}
+
 function taskId(state: TreeState): string {
   const id = state.nextTask.toString(16).padStart(4, '0');
   state.nextTask += 1;
@@ -216,9 +275,11 @@ function rootTask(input: TrialTaskTreeInput, root: RootTaskInput): Task {
 }
 
 function managerState(state: TreeState, id: string): ManagerState {
-  return state.managers[id] ?? (state.managers[id] = {
-    phase: 'ready', artifact: '', rotations: 0, parentAnswer: null,
+  const manager = state.managers[id] ?? (state.managers[id] = {
+    phase: 'ready', artifact: '', rotations: 0, parentAnswer: null, pendingQuestions: [],
   });
+  manager.pendingQuestions ??= [];
+  return manager;
 }
 
 function taskAncestors(tasks: TrialTaskStorePort, task: Task): string[] {
@@ -400,9 +461,39 @@ async function persist(input: TrialTaskTreeInput, state: TreeState): Promise<voi
 export function createTrialTaskTreeCoordinator(
   input: TrialTaskTreeInput,
 ): TrialTaskTreeCoordinator {
-  const state = readState(input.root);
+  let state = readState(input.root);
   const registry = createActorCapabilityRegistry(input.trialId);
-  let writer: string | null = null;
+  const mutationFile = lockPath(input.root, 'mutation');
+  const writerFile = lockPath(input.root, 'workspace-writer');
+
+  function refresh(): void {
+    input.tasks.refresh?.();
+    state = readState(input.root);
+  }
+
+  async function withMutation<T>(action: () => T | Promise<T>): Promise<T> {
+    const owner = acquireFileLock(mutationFile, null);
+    try {
+      refresh();
+      return await action();
+    } finally {
+      releaseFileLock(mutationFile, owner);
+    }
+  }
+
+  function withMutationSync<T>(action: () => T): T {
+    const owner = acquireFileLock(mutationFile, null);
+    try {
+      refresh();
+      return action();
+    } finally {
+      releaseFileLock(mutationFile, owner);
+    }
+  }
+
+  function writerAttempt(): string | null {
+    return readLockOwner(writerFile)?.attemptId ?? null;
+  }
 
   async function initializeRootTask(root: RootTaskInput): Promise<Task> {
     if (state.rootTaskId) return input.tasks.getById(state.rootTaskId)!;
@@ -622,6 +713,47 @@ export function createTrialTaskTreeCoordinator(
     await persist(input, state);
   }
 
+  async function askManager(
+    capability: ActorCapability,
+    question: string,
+  ): Promise<{ questionId: string }> {
+    requireCurrent(state, registry, capability);
+    requireManager(capability);
+    requireAction(capability, 'qa.ask');
+    const task = input.tasks.getById(capability.task_id)!;
+    if (!task.parent) throw new Error('root manager has no task-local parent');
+    const questionId = `mq-${crypto.randomUUID()}`;
+    managerState(state, task.parent).pendingQuestions.push({
+      questionId, fromTaskId: task.id, question,
+    });
+    managerState(state, task.parent).phase = 'ready';
+    managerState(state, task.id).phase = 'question';
+    await persist(input, state);
+    return { questionId };
+  }
+
+  async function answerManager(
+    capability: ActorCapability,
+    questionId: string,
+    answer: string,
+  ): Promise<void> {
+    requireCurrent(state, registry, capability);
+    requireManager(capability);
+    requireAction(capability, 'qa.answer');
+    const manager = managerState(state, capability.task_id);
+    const index = manager.pendingQuestions.findIndex(
+      question => question.questionId === questionId,
+    );
+    if (index < 0) throw new Error('manager question is stale');
+    const [question] = manager.pendingQuestions.splice(index, 1);
+    const child = input.tasks.getById(question.fromTaskId);
+    if (!child || child.parent !== capability.task_id) throw new Error('manager question is stale');
+    const asker = managerState(state, child.id);
+    asker.parentAnswer = answer;
+    asker.phase = 'ready';
+    await persist(input, state);
+  }
+
   async function setParentAnswer(taskIdValue: string, answer: string): Promise<void> {
     const manager = managerState(state, taskIdValue);
     manager.parentAnswer = answer;
@@ -630,30 +762,32 @@ export function createTrialTaskTreeCoordinator(
   }
 
   function consumeParentAnswer(taskIdValue: string): string | null {
-    const manager = managerState(state, taskIdValue);
-    const answer = manager.parentAnswer;
-    manager.parentAnswer = null;
-    writeState(input.root, state);
-    return answer;
+    return withMutationSync(() => {
+      const manager = managerState(state, taskIdValue);
+      const answer = manager.parentAnswer;
+      manager.parentAnswer = null;
+      writeState(input.root, state);
+      return answer;
+    });
   }
 
   async function withWriter<T>(
     capability: ActorCapability,
     action: () => Promise<T>,
   ): Promise<T> {
-    requireCurrent(state, registry, capability);
-    requireAction(capability, 'artifact.write');
-    if (writer !== null) throw new Error(`workspace writer already held by ${writer}`);
-    writer = capability.attempt_id;
+    const owner = await withMutation(() => {
+      requireCurrent(state, registry, capability);
+      requireAction(capability, 'artifact.write');
+      return acquireFileLock(writerFile, capability.attempt_id);
+    });
     try { return await action(); }
-    finally { writer = null; }
+    finally { releaseFileLock(writerFile, owner); }
   }
 
   async function cancel(reason: string): Promise<void> {
     state.terminal = 'cancelled';
     state.cancelReason = reason;
     registry.invalidateTrial();
-    writer = null;
     for (const attempt of state.attempts) {
       if (attempt.status === 'active') {
         attempt.status = 'invalidated';
@@ -682,11 +816,12 @@ export function createTrialTaskTreeCoordinator(
       rootCompleted: root?.status === 'done',
       descendantsQuiescent: attempts.every(attempt => attempt.quiescent),
       liveCapabilities: registry.liveCount(),
-      writer,
+      writer: writerAttempt(),
     };
   }
 
   function snapshot(): TreeSnapshot {
+    refresh();
     const attempts = state.attempts.map(evidenceOf).filter(Boolean) as TrialAttemptEvidence[];
     return {
       rootTaskId: state.rootTaskId,
@@ -694,15 +829,41 @@ export function createTrialTaskTreeCoordinator(
       attempts: structuredClone(attempts),
       acceptance: structuredClone(state.acceptance),
       managers: structuredClone(state.managers),
-      writer,
+      writer: writerAttempt(),
       terminal: state.terminal,
     };
   }
 
   return {
-    initializeRoot: initializeRootTask, startAttempt, decompose, wait, actionable,
-    finishAttempt, recordVerdict, resumeReadyManagers, completeManager, checkpointManager,
-    setParentAnswer, consumeParentAnswer, withWriter, cancel, finalize, snapshot,
+    initializeRoot: value => withMutation(() => initializeRootTask(value)),
+    startAttempt: (taskIdValue, role) => withMutation(() => startAttempt(taskIdValue, role)),
+    decompose: (capability, subtasks) => withMutation(() => decompose(capability, subtasks)),
+    wait: capability => withMutation(() => wait(capability)),
+    actionable: () => { refresh(); return actionable(); },
+    finishAttempt: (capability, finish) => withMutation(() => finishAttempt(capability, finish)),
+    recordVerdict: (capability, childId, verdict, note) => withMutation(
+      () => recordVerdict(capability, childId, verdict, note),
+    ),
+    resumeReadyManagers: () => withMutation(() => resumeReadyManagers()),
+    completeManager: (capability, note) => withMutation(
+      () => completeManager(capability, note),
+    ),
+    checkpointManager: (capability, artifact) => withMutation(
+      () => checkpointManager(capability, artifact),
+    ),
+    askManager: (capability, question) => withMutation(
+      () => askManager(capability, question),
+    ),
+    answerManager: (capability, questionId, answer) => withMutation(
+      () => answerManager(capability, questionId, answer),
+    ),
+    setParentAnswer: (taskIdValue, answer) => withMutation(
+      () => setParentAnswer(taskIdValue, answer),
+    ),
+    consumeParentAnswer, withWriter,
+    cancel: reason => withMutation(() => cancel(reason)),
+    finalize: terminal => withMutation(() => finalize(terminal)),
+    snapshot,
     capabilityRegistry: () => registry,
   };
 }

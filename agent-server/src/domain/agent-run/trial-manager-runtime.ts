@@ -29,6 +29,9 @@ const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('wait') }).strict(),
   z.object({ type: z.literal('complete'), note: z.string() }).strict(),
   z.object({ type: z.literal('ask'), question: z.string().min(1) }).strict(),
+  z.object({
+    type: z.literal('answer'), question_id: z.string().min(1), answer: z.string().min(1),
+  }).strict(),
 ]);
 
 const managerOutputSchema = z.object({ actions: z.array(actionSchema).min(1) }).strict();
@@ -49,6 +52,7 @@ export interface TrialManagerContext {
   artifact: string;
   rotation: number;
   parentAnswer: string | null;
+  pendingQuestions: Array<{ questionId: string; fromTaskId: string; question: string }>;
   children: ManagerChildContext[];
 }
 
@@ -120,6 +124,7 @@ function managerContext(tree: TrialTaskTreeCoordinator, task: Task): TrialManage
     artifact: manager?.artifact ?? '',
     rotation: manager?.rotations ?? 0,
     parentAnswer: tree.consumeParentAnswer(task.id),
+    pendingQuestions: [...(manager?.pendingQuestions ?? [])],
     children,
   };
 }
@@ -199,8 +204,12 @@ async function applyAction(
   }
   if (action.type === 'wait') return tree.wait(capability);
   if (action.type === 'complete') return tree.completeManager(capability, action.note);
+  if (action.type === 'answer') {
+    return tree.answerManager(capability, action.question_id, action.answer);
+  }
   if (capability.ancestry.length > 0) {
-    throw new Error('Nested manager Q&A requires a live direct-manager mailbox');
+    await tree.askManager(capability, action.question);
+    return;
   }
   rootQuestion(context, capability, action.question);
   await tree.wait(capability);
@@ -280,6 +289,7 @@ async function canceledResult(
 }
 
 async function installResumeAnswers(context: RuntimeContext): Promise<void> {
+  if (context.resumeAnswers.size === 0) return;
   for (const [taskId, answer] of context.resumeAnswers) {
     await context.input.tree.setParentAnswer(taskId, answer);
     context.resumeAnswers.delete(taskId);
@@ -288,9 +298,45 @@ async function installResumeAnswers(context: RuntimeContext): Promise<void> {
   context.parentQuestionTaskId = null;
 }
 
+function pendingResult(
+  context: RuntimeContext,
+  rootTaskId: string,
+): TrialManagerRuntimeResult {
+  const snapshot = context.input.tree.snapshot();
+  return {
+    state: 'needs_parent_answer', rootTaskId, attempts: [...context.attempts],
+    taskAttempts: snapshot.attempts,
+    parentQuestion: context.parentQuestion,
+    finalization: {
+      terminal: 'failed',
+      rootCompleted: snapshot.tasks.find(row => row.id === rootTaskId)?.status === 'done',
+      descendantsQuiescent: snapshot.attempts.every(attempt => attempt.quiescent),
+      liveCapabilities: context.input.tree.capabilityRegistry().liveCount(),
+      writer: snapshot.writer,
+    },
+  };
+}
+
+function hydrateParentQuestion(context: RuntimeContext): void {
+  const records = context.input.parentQuestions.open();
+  if (records.length === 0) return;
+  if (records.length > 1) throw new Error('multiple unresolved parent questions');
+  const record = records[0];
+  context.parentQuestionTaskId = record.taskId;
+  if (record.state === 'answered') {
+    const answer = context.input.parentQuestions.poll(record.questionId);
+    if (answer.answered && answer.answer !== null) {
+      context.resumeAnswers.set(record.taskId, answer.answer);
+    }
+    return;
+  }
+  context.parentQuestion = context.input.parentQuestions.resolveOuterCall(record.questionId);
+}
+
 async function runLoop(context: RuntimeContext): Promise<TrialManagerRuntimeResult> {
   const root = await context.input.tree.initializeRoot(context.input.rootTask);
   await installResumeAnswers(context);
+  if (context.parentQuestion) return pendingResult(context, root.id);
   for (let cycle = 0; cycle < 100; cycle += 1) {
     if (context.input.signal.aborted) return canceledResult(context, root.id);
     await context.input.tree.resumeReadyManagers();
@@ -302,21 +348,7 @@ async function runLoop(context: RuntimeContext): Promise<TrialManagerRuntimeResu
     const outcome = task.template === 'benchmark-manager'
       ? await runManagerAttempt(context, task) : await runLeafAttempt(context, task);
     if (outcome === 'failed') return finalResult(context, 'failed', root.id);
-    if (outcome === 'question') {
-      const snapshot = context.input.tree.snapshot();
-      return {
-        state: 'needs_parent_answer', rootTaskId: root.id, attempts: [...context.attempts],
-        taskAttempts: snapshot.attempts,
-        parentQuestion: context.parentQuestion,
-        finalization: {
-          terminal: 'failed',
-          rootCompleted: snapshot.tasks.find(row => row.id === root.id)?.status === 'done',
-          descendantsQuiescent: snapshot.attempts.every(attempt => attempt.quiescent),
-          liveCapabilities: context.input.tree.capabilityRegistry().liveCount(),
-          writer: snapshot.writer,
-        },
-      };
-    }
+    if (outcome === 'question') return pendingResult(context, root.id);
   }
   return finalResult(context, 'failed', root.id);
 }
@@ -328,16 +360,21 @@ export function createTrialManagerRuntime(
     input, attempts: [], parentQuestion: null, parentQuestionTaskId: null,
     resumeAnswers: new Map(),
   };
+  hydrateParentQuestion(context);
   return {
     run: () => runLoop(context),
     answerParent(answer) {
+      const record = input.parentQuestions.open().find(
+        candidate => candidate.questionId === answer.questionId,
+      );
       const result = input.parentQuestions.accept(answer);
       if (!result.success) return result;
       const polled = input.parentQuestions.poll(answer.questionId);
-      if (!polled.answered || polled.answer === null || context.parentQuestionTaskId === null) {
+      if (!record || !polled.answered || polled.answer === null) {
         return { success: false, message: 'answer_stale' };
       }
-      context.resumeAnswers.set(context.parentQuestionTaskId, polled.answer);
+      context.parentQuestionTaskId = record.taskId;
+      context.resumeAnswers.set(record.taskId, polled.answer);
       return result;
     },
   };

@@ -26,9 +26,9 @@ beforeEach(() => {
 });
 afterEach(() => { fs.rmSync(root, { recursive: true, force: true }); });
 
-function coordinator() {
+function coordinator(taskStore = tasks) {
   return createTrialTaskTreeCoordinator({
-    trialId: TRIAL, project: PROJECT, root, tasks,
+    trialId: TRIAL, project: PROJECT, root, tasks: taskStore,
     clock: createTrialClock({ deadlineEpochMs: NOW + 60_000, now: () => NOW }),
     limits: { maxTasks: 12, maxDepth: 4 },
     qaEnabled: true,
@@ -126,6 +126,39 @@ it('supports nested managers, acceptance, wait/resume, and strict root completio
     terminal: 'completed', rootCompleted: true, descendantsQuiescent: true,
     liveCapabilities: 0, writer: null,
   });
+});
+
+it('durably fences duplicate dispatch and writers across coordinator instances', async () => {
+  const first = coordinator();
+  const rootTask = await first.initializeRoot({ text: 'root', doneWhen: 'done' });
+  const secondStore = new StandaloneTaskStore(path.join(root, 'tasks.json'));
+  const second = coordinator(secondStore);
+  const rootAttempt = await first.startAttempt(rootTask.id, 'manager');
+  const children = await first.decompose(rootAttempt.capability, [
+    { key: 'one', text: 'one', doneWhen: 'done', template: 'benchmark-coder-review' },
+    { key: 'two', text: 'two', doneWhen: 'done', template: 'benchmark-coder-review' },
+  ]);
+  await assert.rejects(second.startAttempt(rootTask.id, 'manager'), /not actionable/i);
+
+  const firstChild = await first.startAttempt(children[0].id, 'coder');
+  const secondChild = await second.startAttempt(children[1].id, 'coder');
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const held = first.withWriter(firstChild.capability, () => gate);
+  await Promise.resolve();
+  await assert.rejects(
+    second.withWriter(secondChild.capability, async () => {}),
+    /workspace writer already held/i,
+  );
+  release();
+  await held;
+
+  const rehydratedStore = new StandaloneTaskStore(path.join(root, 'tasks.json'));
+  const rehydrated = coordinator(rehydratedStore);
+  assert.equal(rehydrated.snapshot().attempts.length, 0);
+  assert.equal(JSON.parse(fs.readFileSync(
+    path.join(root, 'coordinator', 'task-tree.json'), 'utf8',
+  )).attempts.length, 3);
 });
 
 it('serializes one workspace writer and releases it after failure', async () => {
