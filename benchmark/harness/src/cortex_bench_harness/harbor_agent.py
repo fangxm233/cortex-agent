@@ -1,5 +1,5 @@
-# input:  Harbor lifecycle, inner truth, proxy evidence, scan policy
-# output: installed run plus reread-validated outer grader admission
+# input:  Harbor lifecycle, inner/proxy evidence, workspace
+# output: installed run and validated grader admission
 # pos:    Production Harbor lifecycle wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -67,6 +67,51 @@ NPM_INSTALL_PREFIX = PurePosixPath("/installed-agent/npm")
 BUNDLE_PACKAGE = "@cortex-agent/server"
 SUPERVISOR_PATH = PurePosixPath("native/cortex-supervisor/dist/cortex-supervisor")
 VERSION_COMMAND = "cortex daemon --version"
+WORKSPACE_EVIDENCE_FILENAME = "workspace.diff"
+WORKSPACE_COLLECTOR = r"""
+const fs = require('node:fs');
+const path = require('node:path');
+const schema = 'cortex-bench-workspace-evidence/1';
+const root = fs.realpathSync(process.argv[1]);
+const output = process.argv[2];
+const descriptor = fs.openSync(output, 'wx', 0o600);
+let closed = false;
+function write(bytes) {
+  const payload = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  let offset = 0;
+  while (offset < payload.length) offset += fs.writeSync(descriptor, payload, offset);
+}
+function visit(directory) {
+  for (const name of fs.readdirSync(directory).sort()) {
+    const target = path.join(directory, name);
+    const info = fs.lstatSync(target);
+    if (info.isDirectory()) {
+      visit(target);
+      continue;
+    }
+    if (!info.isFile() && !info.isSymbolicLink()) throw new Error('unsupported workspace entry');
+    const kind = info.isSymbolicLink() ? 'symlink' : 'file';
+    const payload = kind === 'symlink'
+      ? fs.readlinkSync(target, {encoding: 'buffer'}) : fs.readFileSync(target);
+    write(JSON.stringify({path: path.relative(root, target), kind, size_bytes: payload.length}) + '\n');
+    write(payload);
+    write('\n');
+  }
+}
+try {
+  write(JSON.stringify({schema_version: schema}) + '\n');
+  visit(root);
+  fs.fsyncSync(descriptor);
+  fs.closeSync(descriptor);
+  closed = true;
+  const directory = fs.openSync(path.dirname(output), 'r');
+  try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
+} catch (error) {
+  if (!closed) try { fs.closeSync(descriptor); } catch {}
+  try { fs.unlinkSync(output); } catch {}
+  throw error;
+}
+"""
 
 
 class CortexBenchAgent(BaseInstalledAgent):
@@ -92,6 +137,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             admission_environment_digest, defer_proxy_arm, extra_env,
         )
         super().__init__(logs_dir, *args, version=version, extra_env=extra_env, **kwargs)
+        self._verifier_dir = Path(logs_dir).parent / EnvironmentPaths().verifier_dir.name
         # The sealed path defers arming until EnvironmentFactory admits Harbor's final inputs.
         self._proxy_session = None if defer_proxy_arm else self._arm_proxy(trial_proxy)
 
@@ -436,10 +482,18 @@ class CortexBenchAgent(BaseInstalledAgent):
         # renamed one is a TypeError raised before the body runs, taking the revoke with it.
         context: AgentContext,
     ) -> None:
+        execution_error: Exception | None = None
         try:
             await self._execute_run(instruction, environment)
+        except Exception as error:
+            execution_error = error
         finally:
             revocation = self._revoke_after_run()
+        if execution_error is not None:
+            if self._host_scan_policy is None:
+                raise execution_error
+            raise HostFinalizationError("inner_execution_failed") from execution_error
+        await self._collect_trial_outputs(environment)
         self._finalize_outer(revocation)
 
     async def _execute_run(self, instruction: str, environment: BaseEnvironment) -> None:
@@ -469,13 +523,28 @@ class CortexBenchAgent(BaseInstalledAgent):
         (self.logs_dir / "stdout.txt").write_text(stdout or "", encoding="utf-8")
         (self.logs_dir / "stderr.txt").write_text(stderr or "", encoding="utf-8")
 
+    async def _collect_trial_outputs(self, environment: BaseEnvironment) -> None:
+        if self._host_scan_policy is None:
+            return
+        assert self._resolved_cwd is not None
+        output = EnvironmentPaths().agent_dir / WORKSPACE_EVIDENCE_FILENAME
+        command = shlex.join([
+            "node", "-e", WORKSPACE_COLLECTOR,
+            self._resolved_cwd.realpath, str(output),
+        ])
+        try:
+            await self.exec_as_agent(environment, command, cwd=self._resolved_cwd.realpath)
+        except Exception as error:
+            raise HostFinalizationError("trial_output_collection_failed") from error
+
     def _finalize_outer(self, revocation: TrialRevocation | None) -> None:
         if self._host_scan_policy is None:
             return
         if self._staged_npm_artifact is None:
             raise RuntimeError("CortexBenchAgent.install() must complete before finalization")
         publication = finalize_host_trial(
-            logs_dir=self.logs_dir, artifact_dir=self._artifact_dir,
+            logs_dir=self.logs_dir, verifier_dir=self._verifier_dir,
+            artifact_dir=self._artifact_dir,
             root_run_id=self._trial_seed.root_run_id, trial_id=self._trial_seed.trial_id,
             arm=self._trial_seed.arm, staged_npm_artifact=self._staged_npm_artifact,
             revocation=revocation, scan_policy=self._host_scan_policy,

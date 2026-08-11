@@ -1,6 +1,6 @@
-# input:  inner manifests, revoked proxy evidence, trial roots, scan policy
-# output: atomically published and reread outer grader envelope
-# pos:    Fail-closed host finalizer for Cortex benchmark trials
+# input:  inner/proxy evidence, trial roots, scan policy
+# output: durable reread-validated outer grader envelope
+# pos:    Host-side benchmark finalization gate
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import hashlib
@@ -15,6 +15,9 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from .host_evidence_validation import validate_host_owned_identity
+from .inner_validation import valid_composite_structure
+from .launcher.trial_admission import ADMISSION_EVIDENCE_FILENAME
 from .launcher.trial_proxy import (
     ADAPTER_SELECTION_RECORD_SOURCE,
     ADAPTER_SELECTION_FILENAME,
@@ -44,6 +47,11 @@ COMPOSITE_KEYS = frozenset({
     "identity", "nodes", "edges", "roots", "accounting", "predicate",
 })
 FORBIDDEN_FILENAMES = frozenset({".env", "credentials.json", "auth.json", "secrets.json"})
+OPTIONAL_TRIAL_STATE_PREFIXES = (
+    "trial-home/home/", "trial-home/projects/", "trial-home/xdg-config/",
+    "trial-home/xdg-cache/", "trial-home/claude-config/", "trial-home/pi-agent/",
+    "trial-home/pi-sessions/", "trial-home/tmp/", "trial-home/logs/",
+)
 
 
 class HostFinalizationError(RuntimeError):
@@ -132,17 +140,19 @@ def _environment_mapping(
 
 
 def finalize_host_trial(
-    *, logs_dir: Path, artifact_dir: Path, root_run_id: str, trial_id: str,
-    arm: Mapping[str, object], staged_npm_artifact: Path,
-    revocation: TrialRevocation | None, scan_policy: ScanPolicy,
+    *, logs_dir: Path, verifier_dir: Path, artifact_dir: Path,
+    root_run_id: str, trial_id: str, arm: Mapping[str, object],
+    staged_npm_artifact: Path, revocation: TrialRevocation | None,
+    scan_policy: ScanPolicy,
 ) -> HostFinalizationResult:
     try:
+        roots = _trial_roots(logs_dir, verifier_dir, artifact_dir)
+        discovered = _discover_roots(roots)
         inner = _validate_inner(logs_dir, root_run_id, trial_id, arm)
+        validate_host_owned_identity(artifact_dir, trial_id, root_run_id, arm.get("name"))
         usage = _reconcile_proxy(revocation, inner, trial_id)
-        classified = _classify_outputs(
-            logs_dir, artifact_dir, staged_npm_artifact, inner, arm,
-        )
-        scan = _scan_outputs(classified, logs_dir, artifact_dir, scan_policy)
+        classified = _classify_outputs(roots, discovered, staged_npm_artifact, inner, arm)
+        scan = _scan_outputs(classified, roots, scan_policy)
         envelope = _outer_envelope(inner, usage, revocation, classified, scan, trial_id, arm)
         return _publish_outer(artifact_dir / OUTER_ENVELOPE_FILENAME, envelope)
     except HostFinalizationError:
@@ -240,9 +250,7 @@ def _validate_composite(
         composite.get("trial_id") == trial_id, composite.get("root_run_id") == root_run_id,
         composite.get("arm_name") == arm.get("name"),
         composite.get("arm_canonical_sha256") == _canonical_sha256(arm),
-        _valid_composite_identity(composite.get("identity"), terminal),
-        _valid_predicate(composite.get("predicate"), arm),
-        _valid_composite_shape(composite, arm, root_run_id),
+        valid_composite_structure(composite, terminal, root_run_id, trial_id, arm),
         _parent_terminal_link(composite, terminal, terminal_bytes, root_run_id),
     )
     if not all(expected):
@@ -252,48 +260,6 @@ def _validate_composite(
 def _canonical_sha256(value: object) -> str:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(payload.encode()).hexdigest()
-
-
-def _valid_composite_identity(identity: object, terminal: Mapping[str, object]) -> bool:
-    if not isinstance(identity, Mapping):
-        return False
-    model = identity.get("model_execution_identity_hash")
-    role = identity.get("role_tool_surface_hash")
-    return (
-        isinstance(model, Mapping) and model.get("parent") == terminal.get(
-            "model_execution_identity_hash")
-        and isinstance(role, Mapping) and role.get("parent") == terminal.get(
-            "role_tool_surface_hash")
-        and identity.get("bundle_manifest_hash") == terminal.get("bundle_manifest_hash")
-    )
-
-
-def _valid_predicate(predicate: object, arm: Mapping[str, object]) -> bool:
-    if not isinstance(predicate, Mapping):
-        return False
-    orchestration = arm.get("orchestration")
-    mode = orchestration.get("mode") if isinstance(orchestration, Mapping) else None
-    checks = predicate.get("checks")
-    return (
-        predicate.get("mode") == mode and isinstance(checks, list) and bool(checks)
-        and all(isinstance(check, Mapping) and check.get("result") == "pass"
-                and check.get("detail") is None for check in checks)
-    )
-
-
-def _valid_composite_shape(
-    composite: Mapping[str, object], arm: Mapping[str, object], root_run_id: str,
-) -> bool:
-    nodes = composite.get("nodes")
-    edges = composite.get("edges")
-    roots = composite.get("roots")
-    if not isinstance(nodes, list) or not nodes or not isinstance(edges, list):
-        return False
-    if not isinstance(roots, Mapping) or roots.get("parent_attempt_id") != f"run-{root_run_id}":
-        return False
-    orchestration = arm.get("orchestration")
-    mode = orchestration.get("mode") if isinstance(orchestration, Mapping) else None
-    return mode != "direct" or (len(nodes) == 1 and not edges and roots.get("root_task_id") is None)
 
 
 def _parent_terminal_link(
@@ -323,6 +289,7 @@ def _attempt_files(root: Path, composite: Mapping[str, object]) -> dict[str, str
         required[terminal] = f"attempt_{attempt}_terminal"
         required[terminal.replace(".terminal.json", ".started.json")] = f"attempt_{attempt}_started"
         required[journal] = "parent_journal" if journal == "events.jsonl" else f"attempt_{attempt}_journal"
+        _add_attempt_artifact(root, node, attempt, required)
     return required
 
 
@@ -335,30 +302,98 @@ def _safe_relative(value: object) -> str:
     return candidate.as_posix()
 
 
+def _add_attempt_artifact(
+    root: Path, node: Mapping[str, object], attempt: object, required: dict[str, str],
+) -> None:
+    value = node.get("artifact_path")
+    if value is None:
+        return
+    artifact = _safe_relative(value)
+    if _sha256_file(root / artifact) != node.get("artifact_sha256"):
+        raise HostFinalizationError("inner_digest_mismatch")
+    required[artifact] = f"attempt_{attempt}_artifact"
+
+
 def _validate_attempt_bytes(
     root: Path, node: Mapping[str, object], terminal_name: str, journal_name: str,
 ) -> None:
     terminal_bytes, terminal = _read_json(root / terminal_name)
     _validate_terminal(terminal)
-    if hashlib.sha256(terminal_bytes).hexdigest() != node.get("terminal_manifest_sha256"):
+    terminal_digest = hashlib.sha256(terminal_bytes).hexdigest()
+    journal_digest = _validate_journal(root / journal_name, node, terminal)
+    if terminal_digest != node.get("terminal_manifest_sha256"):
         raise HostFinalizationError("inner_digest_mismatch")
-    journal_path = root / journal_name
-    if _sha256_file(journal_path) != node.get("journal_sha256"):
+    if journal_digest != node.get("journal_sha256"):
         raise HostFinalizationError("inner_digest_mismatch")
-    if terminal.get("journal_sha256") != node.get("journal_sha256"):
-        raise HostFinalizationError("inner_digest_mismatch")
-    _validate_attempt_identity(node, terminal)
+    _validate_attempt_projection(node, terminal, journal_name)
     _validate_started(root, terminal_name, journal_name)
 
 
-def _validate_attempt_identity(
-    node: Mapping[str, object], terminal: Mapping[str, object],
-) -> None:
-    keys = (
-        "model_execution_identity_hash", "role_tool_surface_hash", "bundle_manifest_hash",
+def _validate_journal(
+    path: Path, node: Mapping[str, object], terminal: Mapping[str, object],
+) -> str:
+    try:
+        digest, header, event_count = _read_journal(path)
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        raise HostFinalizationError("inner_manifest_invalid") from error
+    checks = (
+        header.get("schema_version") == "cortex-bench-journal/1",
+        header.get("type") == "run_header",
+        header.get("root_run_id") == node.get("root_run_id"),
+        header.get("thread_id") == node.get("thread_id"),
+        header.get("agent_slot") == node.get("role"),
+        event_count == terminal.get("event_count") == node.get("event_count"),
+        _identity_matches(node, header),
     )
-    if any(node.get(key) != terminal.get(key) for key in keys):
+    if not all(checks):
+        raise HostFinalizationError("inner_manifest_invalid")
+    return digest
+
+
+def _read_journal(path: Path) -> tuple[str, Mapping[str, object], int]:
+    digest = hashlib.sha256()
+    documents: list[Mapping[str, object]] = []
+    with path.open("rb") as handle:
+        for line in handle:
+            digest.update(line)
+            value = json.loads(line)
+            if not isinstance(value, Mapping):
+                raise ValueError("journal record must be an object")
+            documents.append(value)
+    if not documents:
+        raise ValueError("journal is empty")
+    event_count = sum(record.get("type") != "state_admission" for record in documents[1:])
+    return digest.hexdigest(), documents[0], event_count
+
+
+def _validate_attempt_projection(
+    node: Mapping[str, object], terminal: Mapping[str, object], journal_name: str,
+) -> None:
+    checks = (
+        terminal.get("journal_path") == journal_name,
+        terminal.get("journal_sha256") == node.get("journal_sha256"),
+        node.get("terminal_state") == terminal.get("state"),
+        node.get("terminal_reason") == terminal.get("terminal_reason"),
+        node.get("started_at") == terminal.get("started_at"),
+        node.get("ended_at") == terminal.get("ended_at"),
+        node.get("steps") == terminal.get("steps"),
+        node.get("cost_usd") == terminal.get("cost_usd"),
+        node.get("tokens") == _node_tokens(terminal.get("tokens")),
+        _identity_matches(node, terminal),
+    )
+    if not all(checks):
         raise HostFinalizationError("inner_identity_mismatch")
+
+
+def _node_tokens(value: object) -> dict[str, object] | None:
+    if not isinstance(value, Mapping):
+        return None
+    return {key: value.get(key) for key in ("input", "output", "cache_read", "cache_creation")}
+
+
+def _identity_matches(left: Mapping[str, object], right: Mapping[str, object]) -> bool:
+    keys = ("model_execution_identity_hash", "role_tool_surface_hash", "bundle_manifest_hash")
+    return all(left.get(key) == right.get(key) for key in keys)
 
 
 def _validate_started(root: Path, terminal_name: str, journal_name: str) -> None:
@@ -425,7 +460,9 @@ def _valid_proxy_export(
     cost = _available(export.get("cost_usd"), str)
     durable = audit.get("durable_requests") == requests and audit.get("durable_cost_usd") == cost
     return durable and audit.get("agrees_with_counters") is True and (
-        lease.get("trial_id") == trial_id and lease.get("lease_echo") == export.get("lease_echo")
+        lease.get("schema_version") == "cortex-bench-lease-echo-record/1"
+        and lease.get("trial_id") == trial_id
+        and lease.get("lease_echo") == export.get("lease_echo")
         and isinstance(export.get("lease_echo"), Mapping)
         and export["lease_echo"].get("status") == "available"
     )
@@ -448,24 +485,38 @@ def _cost_reconciled(proxy: object, journal: str) -> bool:
     return observed >= 0 and expected >= 0 and abs(observed - expected) <= tolerance
 
 
+def _trial_roots(
+    logs_dir: Path, verifier_dir: Path, artifact_dir: Path,
+) -> dict[str, Path]:
+    return {"agent": logs_dir, "verifier": verifier_dir, "artifacts": artifact_dir}
+
+
 def _classify_outputs(
-    logs_dir: Path, artifact_dir: Path, staged: Path,
-    inner: InnerEvidence, arm: Mapping[str, object],
+    roots: Mapping[str, Path], discovered: Mapping[tuple[str, str], Path],
+    staged: Path, inner: InnerEvidence, arm: Mapping[str, object],
 ) -> tuple[ClassifiedFile, ...]:
-    roots = {"agent": logs_dir, "artifacts": artifact_dir}
-    discovered = _discover_roots(roots)
-    required = _required_files(logs_dir, staged, inner, arm)
-    optional = {("artifacts", "workspace.diff"): "workspace_diff"}
+    required = _required_files(roots["agent"], staged, inner, arm)
     classified: list[ClassifiedFile] = []
     for key, path in discovered.items():
-        source, disposition = _classification(key, required, optional)
+        source, disposition = _classification(key, required)
         digest = _sha256_file(path)
         classified.append(ClassifiedFile(
             source, key[0], key[1], disposition, path.stat().st_size, digest,
         ))
     if set(required) - set(discovered):
         raise HostFinalizationError("required_output_missing")
+    _validate_workspace_evidence(roots["agent"] / "workspace.diff")
     return tuple(sorted(classified, key=lambda item: (item.root, item.relative_path)))
+
+
+def _validate_workspace_evidence(path: Path) -> None:
+    try:
+        with path.open("rb") as handle:
+            header = json.loads(handle.readline())
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        raise HostFinalizationError("collected_output_invalid") from error
+    if header != {"schema_version": "cortex-bench-workspace-evidence/1"}:
+        raise HostFinalizationError("collected_output_invalid")
 
 
 def _required_files(
@@ -476,7 +527,9 @@ def _required_files(
         ("agent", "arm-resolution.json"): "arm_resolution",
         ("agent", "instruction.md"): "instruction",
         ("agent", "stdout.txt"): "stdout", ("agent", "stderr.txt"): "stderr",
+        ("agent", "workspace.diff"): "workspace_diff",
         ("agent", staged_relative): "setup_artifact",
+        ("artifacts", ADMISSION_EVIDENCE_FILENAME): "harbor_launch_admission",
         ("artifacts", MANIFEST_FILENAME): "manifest",
         ("artifacts", f"proxy/{AUDIT_LOG_FILENAME}"): PROXY_AUDIT_LOG_SOURCE,
         ("artifacts", f"proxy/{EXPORT_FILENAME}"): PROXY_EXPORT_SOURCE,
@@ -486,7 +539,20 @@ def _required_files(
     required.update({("agent", f"trajectory/{path}"): source
                      for path, source in inner.required_agent_files.items()})
     _add_mode_files(required, arm)
+    _add_trial_state_files(required, arm)
     return required
+
+
+def _add_trial_state_files(
+    required: dict[tuple[str, str], str], arm: Mapping[str, object],
+) -> None:
+    state = "trial-home/cortex-home/state"
+    required[("agent", "trial-home/cortex-home/config/profiles.json")] = "trial_profile"
+    for name in ("tasks", "threads", "sessions", "executions"):
+        required[("agent", f"{state}/{name}.json")] = f"trial_{name}_state"
+    if arm.get("backend") == "pi":
+        required[("agent", "trial-home/pi-agent/auth.json")] = "pi_dummy_auth"
+        required[("agent", "trial-home/pi-agent/models.json")] = "pi_model_catalog"
 
 
 def _add_mode_files(required: dict[tuple[str, str], str], arm: Mapping[str, object]) -> None:
@@ -560,14 +626,17 @@ def _admit_discovered(
 
 def _classification(
     key: tuple[str, str], required: Mapping[tuple[str, str], str],
-    optional: Mapping[tuple[str, str], str],
 ) -> tuple[str, str]:
     if key in required:
         return required[key], "required"
-    if key in optional:
-        return optional[key], "optional-classified"
     if Path(key[1]).name in FORBIDDEN_FILENAMES or key[1] == OUTER_ENVELOPE_FILENAME:
         raise HostFinalizationError("forbidden_output_present")
+    return _optional_classification(key)
+
+
+def _optional_classification(key: tuple[str, str]) -> tuple[str, str]:
+    if key[0] == "agent" and key[1].startswith(OPTIONAL_TRIAL_STATE_PREFIXES):
+        return f"trial_state:{key[1]}", "optional-classified"
     raise HostFinalizationError("unknown_output_present")
 
 
@@ -583,10 +652,8 @@ def _sha256_file(path: Path) -> str:
 
 
 def _scan_outputs(
-    classified: Sequence[ClassifiedFile], logs_dir: Path, artifact_dir: Path,
-    policy: ScanPolicy,
+    classified: Sequence[ClassifiedFile], roots: Mapping[str, Path], policy: ScanPolicy,
 ) -> dict[str, object]:
-    roots = {"agent": logs_dir, "artifacts": artifact_dir}
     sources = {item.source: roots[item.root] / item.relative_path for item in classified}
     if len(sources) != len(classified):
         raise HostFinalizationError("duplicate_output_classification")
