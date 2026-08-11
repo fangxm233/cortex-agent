@@ -1,6 +1,6 @@
 # input:  production trial builder, offline image, fake endpoints
-# output: endpoint-scoped container and containment evidence
-# pos:    Black-box production Harbor containment regression
+# output: concurrent trial isolation and complete boundary evidence
+# pos:    Black-box concurrent Harbor containment regression
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 from docker_gate import require_docker_opt_in
@@ -12,15 +12,12 @@ import base64
 import hashlib
 import json
 import os
-import select
 import shutil
 import subprocess
 import threading
 import uuid
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Iterator
@@ -32,23 +29,18 @@ from harbor.utils.container_cache import docker_build_context_hash
 from capability_admission import admit_capability
 from offline_package import build_offline_npm_artifact
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
-from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
+from cortex_bench_harness.host_finalization import OUTER_ENVELOPE_FILENAME
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
     AdmittedDockerEnvironment,
     create_harbor_trial,
 )
-from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
-from cortex_bench_harness.proxy.adapters import select_adapter
-from cortex_bench_harness.proxy.lease import LeaseTerms
 
 BASE_DIGEST = "sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818"
 BASE_IMAGE = f"debian@{BASE_DIGEST}"
 ALPINE_DIGEST = "sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11"
 GOST_DIGEST = "sha256:afc0137758ab4ce399d47a299f9abbacbf522b52a17e59cbb4b4e7a1a66e9196"
-MODEL = "claude-synthetic-1"
-TRIAL_ID = "172"
-ROOT_RUN_ID = f"{TRIAL_ID}.cortex-direct"
+TRIAL_IDS = ("10", "172")
 REAL_FIXTURE_CREDENTIAL = "sk-ant-SYNTHETIC-HARBOR-CONTAINMENT"
 CREDENTIAL_ENV = "CORTEX_BENCH_CONTAINMENT_CREDENTIAL"
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -56,8 +48,17 @@ FIXTURE_SCRIPT = Path(__file__).with_name("fake_containment_claude.mjs")
 EXPECTED_PROBES = {
     "arbitrary-egress", "container-environment", "container-mounts",
     "direct-provider", "host-canary-isolation", "host-daemon-socket",
-    "host-daemon-tcp", "instance-metadata", "proxy-host-other-port",
-    "sibling-canary-isolation", "sibling-proxy-route", "trial-fake-proxy",
+    "host-daemon-tcp", "instance-metadata", "own-process-tree",
+    "own-state-root", "own-workspace", "proxy-host-other-port",
+    "sibling-canary-isolation", "sibling-capability-replay",
+    "sibling-control-callback", "sibling-identifier-replay",
+    "sibling-process-signal", "sibling-proxy-route",
+    "sibling-state-enumeration", "sibling-workspace-isolation",
+    "trial-fake-proxy",
+}
+REQUIRED_EVIDENCE_ROWS = {
+    "environment", "mount", "filesystem", "network", "state",
+    "process", "credential", "artifact",
 }
 NETWORK_DENIAL_REASONS = {
     "closed", "timeout", "EACCES", "ECONNREFUSED", "ECONNRESET",
@@ -79,7 +80,6 @@ class OfflineAssets:
 class NetworkFacts:
     gateway: str
     name: str
-    sibling_ip: str
     trial_ip: str
 
 
@@ -94,10 +94,10 @@ class FakeProviderServer(ThreadingHTTPServer):
 class FakeProviderHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         length = int(self.headers.get("content-length", "0"))
-        self.rfile.read(length)
+        request = json.loads(self.rfile.read(length))
         self.server.request_count += 1
         payload = json.dumps({
-            "id": "msg_containment", "type": "message", "model": MODEL,
+            "id": "msg_containment", "type": "message", "model": request["model"],
             "usage": {"input_tokens": 2, "output_tokens": 3}, "content": [],
         }).encode()
         self.send_response(200)
@@ -227,19 +227,19 @@ def offline_assets(tmp_path_factory: pytest.TempPathFactory) -> OfflineAssets:
     )
 
 
-def create_trial_network() -> NetworkFacts:
-    project = f"{TRIAL_ID}__env"
+def create_trial_network(trial_id: str) -> NetworkFacts:
+    project = f"{trial_id}__env"
     name = f"{project}_default"
     for suffix in range(200, 240):
-        subnet = f"172.30.{suffix}.0/24"
+        subnet = f"{trial_id}.30.{suffix}.0/24"
         result = docker(
             "network", "create", "--driver", "bridge", "--subnet", subnet,
             "--label", f"com.docker.compose.project={project}",
             "--label", "com.docker.compose.network=default", name, check=False,
         )
         if result.returncode == 0:
-            gateway = f"172.30.{suffix}.1"
-            return NetworkFacts(gateway, name, f"172.30.{suffix}.3", f"172.30.{suffix}.2")
+            gateway = f"{trial_id}.30.{suffix}.1"
+            return NetworkFacts(gateway, name, f"{trial_id}.30.{suffix}.2")
     raise AssertionError("no isolated Docker subnet was available")
 
 
@@ -268,11 +268,19 @@ def provider_server() -> Iterator[tuple[FakeProviderServer, str]]:
         docker("network", "rm", name, check=False)
 
 
-def arm() -> dict[str, object]:
+def model_for(trial_id: str) -> str:
+    return f"claude-synthetic-{trial_id}"
+
+
+def root_run_id(trial_id: str) -> str:
+    return f"{trial_id}.cortex-direct"
+
+
+def arm(model: str) -> dict[str, object]:
     return {
         "schema_version": "cortex-benchmark-arm/2", "kind": "cortex",
         "name": "cortex-direct", "backend": "claude", "provider": "anthropic",
-        "model": MODEL, "credential_capability": "claude-api-key",
+        "model": model, "credential_capability": "claude-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
             "max_thread_starts": 0, "max_parent_questions": 0, "max_task_depth": 0,
@@ -300,12 +308,13 @@ def write_task(root: Path, assets: OfflineAssets) -> Path:
     return task
 
 
-def trial_inputs(root: Path, assets: OfflineAssets, upstream: str, network: NetworkFacts) -> dict[str, object]:
-    wheel = root / "harness.whl"
-    wheel.write_bytes(b"synthetic harness fixture")
-    seed = {
-        "arm": arm(), "arm_path": "arm://cortex-direct", "trial_id": TRIAL_ID,
-        "root_run_id": ROOT_RUN_ID,
+def trial_seed(
+    assets: OfflineAssets, upstream: str, network: NetworkFacts, trial_id: str,
+) -> dict[str, object]:
+    model = model_for(trial_id)
+    return {
+        "arm": arm(model), "arm_path": "arm://cortex-direct", "trial_id": trial_id,
+        "root_run_id": root_run_id(trial_id),
         "task": {"task_id": "synthetic-containment", "image_ref": assets.image_ref,
                  "image_digest": assets.image_digest},
         "profile_name": "benchmark", "paid_run": False,
@@ -315,13 +324,26 @@ def trial_inputs(root: Path, assets: OfflineAssets, upstream: str, network: Netw
                        "dummy_token_ref": "offline-token-handle"},
         "model_alias_policy": {"kind": "exact"},
     }
-    manifest = {
-        "root_run_id": ROOT_RUN_ID, "trial_id": TRIAL_ID, "arm": "cortex-direct",
+
+
+def manifest_seed(
+    root: Path, assets: OfflineAssets, trial_id: str,
+) -> dict[str, object]:
+    wheel = root / "harness.whl"
+    wheel.write_bytes(b"synthetic harness fixture")
+    return {
+        "root_run_id": root_run_id(trial_id), "trial_id": trial_id, "arm": "cortex-direct",
         "wheel_path": str(wheel), "lockfile_path": str(REPO_ROOT / "benchmark/harness/uv.lock"),
         "lockfile_manifest_path": "benchmark/harness/uv.lock",
         "npm_artifact_path": str(assets.artifact), "image_ref": assets.image_ref,
         "image_digest": assets.image_digest, "image_size_bytes": assets.image_size,
     }
+
+
+def trial_inputs(
+    root: Path, assets: OfflineAssets, upstream: str,
+    network: NetworkFacts, trial_id: str,
+) -> dict[str, object]:
     proxy = {
         "credential_env": CREDENTIAL_ENV, "bound_source_ip": network.trial_ip,
         "max_request_cost_usd": "1.00", "input_cost_per_million_usd": "3",
@@ -333,51 +355,11 @@ def trial_inputs(root: Path, assets: OfflineAssets, upstream: str, network: Netw
         "repository_checkout_environment": "PWD",
         "host_identity_environment": {"user": "USER"},
     }
-    return {"arm": arm(), "task_path": write_task(root, assets),
-            "trials_dir": root / "trials", "manifest": manifest,
-            "trial_seed": seed, "cli_version": "2026.8.10",
-            "host_scan_policy": scan_policy, "trial_proxy": proxy}
-
-
-def sibling_proxy(upstream: str, network: NetworkFacts, root: Path):
-    key = CredentialCapabilityKey(
-        "claude", "anthropic", "anthropic-messages", "api-key-bearer",
-    )
-    return start_trial_proxy(
-        trial_id="sibling", upstream_base_url=upstream,
-        adapter=select_adapter(key, upstream_base_url=upstream,
-                               credential=REAL_FIXTURE_CREDENTIAL, frozen_model=MODEL),
-        bound_source_ip=network.sibling_ip,
-        absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-        budget=ProxyBudget(Decimal("2.50"), Decimal("1"), Decimal("3"), Decimal("15")),
-        log_path=root / "sibling-proxy.jsonl",
-        lease_terms=LeaseTerms(budget_ms=300_000, teardown_grace_ms=6_000),
-        listen_host="0.0.0.0", advertised_host=network.gateway,
-    )
-
-
-def start_sibling(assets: OfflineAssets, network: NetworkFacts, proxy) -> tuple[str, subprocess.Popen[str]]:
-    name = f"cortex-containment-sibling-{os.getpid()}"
-    script = (
-        "const fs=require('fs'),http=require('http');"
-        "fs.writeFileSync(process.env.CANARY,'sibling-canary');"
-        "const body=JSON.stringify({model:process.env.MODEL,prompt:'sibling'});"
-        "const r=http.request(process.env.PROXY+'/v1/messages?beta=true',{method:'POST',headers:"
-        "{authorization:'Bearer '+process.env.TOKEN,'content-type':'application/json',"
-        "'content-length':Buffer.byteLength(body)}},x=>{console.log('READY '+x.statusCode);x.resume();});"
-        "r.end(body);setInterval(()=>{},1000);"
-    )
-    command = [
-        "docker", "run", "--rm", "--pull=never", "--network", network.name,
-        "--ip", network.sibling_ip, "--name", name,
-        "--env", "CANARY=/tmp/sibling-canary", "--env", f"MODEL={MODEL}",
-        "--env", f"PROXY={proxy.base_url}", "--env", f"TOKEN={proxy.dummy_token}",
-        assets.image_ref, "node", "-e", script,
-    ]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    readable, _, _ = select.select([process.stdout], [], [], 10)
-    assert readable and process.stdout.readline().strip() == "READY 200"
-    return name, process
+    return {"arm": arm(model_for(trial_id)), "task_path": write_task(root, assets),
+            "trials_dir": root / "trials", "manifest": manifest_seed(root, assets, trial_id),
+            "trial_seed": trial_seed(assets, upstream, network, trial_id),
+            "cli_version": "2026.8.10", "host_scan_policy": scan_policy,
+            "trial_proxy": proxy}
 
 
 def tcp_target(url: str) -> dict[str, object]:
@@ -387,7 +369,7 @@ def tcp_target(url: str) -> dict[str, object]:
 
 
 def probe_instruction(
-    upstream: str, sibling_url: str, host_canary: Path,
+    model: str, upstream: str, host_canary: Path,
     daemon_url: str, arbitrary_url: str, other_proxy_port_url: str,
 ) -> str:
     denied_tcp = {
@@ -398,43 +380,39 @@ def probe_instruction(
         "instance-metadata": {"host": "169.254.169.254", "port": 80},
     }
     assert len({(item["host"], item["port"]) for item in denied_tcp.values()}) == 5
-    payload = {
-        "model": MODEL, "host_canary_path": str(host_canary),
-        "sibling_canary_path": "/tmp/sibling-canary", "sibling_proxy_url": sibling_url,
-        "denied_tcp": denied_tcp,
-    }
+    payload = {"model": model, "host_canary_path": str(host_canary),
+               "denied_tcp": denied_tcp}
     encoded = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
     return f"Run the exact production containment trial.\nPROBE_INPUT_B64={encoded}\n"
 
 
 def write_probe_instruction(
-    inputs: dict[str, object], root: Path, upstream: str, sibling_url: str,
+    inputs: dict[str, object], root: Path, model: str, upstream: str,
     daemon_url: str, arbitrary_url: str, other_proxy_port_url: str,
 ) -> Path:
     host_canary = root / "host-canary"
     host_canary.write_text("host-canary")
     instruction = probe_instruction(
-        upstream, sibling_url, host_canary,
-        daemon_url, arbitrary_url, other_proxy_port_url,
+        model, upstream, host_canary, daemon_url, arbitrary_url, other_proxy_port_url,
     )
     (Path(inputs["task_path"]) / "instruction.md").write_text(instruction)
     return host_canary
 
 
-async def wait_for_probe(path: Path, run_task: asyncio.Task) -> None:
+async def wait_for_file(path: Path, run_task: asyncio.Task, label: str) -> None:
     deadline = asyncio.get_running_loop().time() + 120
     while asyncio.get_running_loop().time() < deadline:
         if path.is_file():
             return
         if run_task.done():
             result = run_task.result()
-            raise AssertionError(f"trial ended before probe evidence: {result.exception_info}")
+            raise AssertionError(f"trial ended before {label}: {result.exception_info}")
         await asyncio.sleep(0.1)
-    raise AssertionError("timed out waiting for containment probe evidence")
+    raise AssertionError(f"timed out waiting for {label}")
 
 
-async def inspect_running_trial(trial, publish_dir: Path) -> dict[str, object]:
-    project = f"{TRIAL_ID}__env"
+async def inspect_running_trial(trial, trial_id: str) -> dict[str, object]:
+    project = f"{trial_id}__env"
     container_id = docker(
         "ps", "--filter", f"label=com.docker.compose.project={project}",
         "--filter", "label=com.docker.compose.service=main", "--format", "{{.ID}}",
@@ -444,87 +422,127 @@ async def inspect_running_trial(trial, publish_dir: Path) -> dict[str, object]:
     compose = await trial.agent_environment._run_docker_compose_command(
         ["config", "--format", "json"],
     )
-    (publish_dir / "host-inspection-complete").write_text("ok\n")
     services = json.loads(compose.stdout or "{}")["services"]
     return {
+        "container_id": container_id, "process_id": inspected["State"]["Pid"],
         "container_image": inspected["Image"], "mounts": inspected["Mounts"],
         "pull_policy": {name: services[name].get("pull_policy")
                         for name in ("main", "harbor-docker-egress-control-sidecar")},
     }
 
 
-async def run_and_inspect(trial, publish: Path):
-    running = asyncio.create_task(trial.run())
-    probe_path = publish / "containment-probes.json"
-    await wait_for_probe(probe_path, running)
-    inspection = await inspect_running_trial(trial, publish)
-    return await running, inspection, probe_path
+def coordination_dir(trial) -> Path:
+    return trial.paths.host_artifact_path("main", "/logs/artifacts")
 
 
-def canary_digest(container: str, path: str) -> str:
-    result = docker("exec", container, "sha256sum", path)
-    return result.stdout.split()[0]
+def probe_evidence_path(trial) -> Path:
+    return trial.paths.agent_dir / "trial-home/logs/containment-probes.json"
 
 
-def write_machine_evidence(trial, assets: OfflineAssets, inspection: dict[str, object],
-                           host_unchanged: bool, sibling_unchanged: bool) -> None:
-    artifact_root = trial.paths.artifacts_dir
-    (artifact_root / "fixture-build-evidence.json").write_text(
-        json.dumps(assets.build_evidence, indent=2, sort_keys=True) + "\n",
-    )
-    document = {
-        "schema_version": "cortex-harbor-host-containment/1",
-        "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID,
-        "container_image": inspection["container_image"],
-        "mounts": [{"source": mount["Source"], "target": mount["Destination"],
-                    "read_write": mount["RW"], "type": mount["Type"]}
-                   for mount in inspection["mounts"]],
-        "pull_policy": inspection["pull_policy"],
-        "probe_outcomes": {
-            "host-canary-read-write": "passed" if host_unchanged else "failed",
-            "sibling-canary-read-write": "passed" if sibling_unchanged else "failed",
-        },
-    }
-    (artifact_root / "host-containment-probes.json").write_text(
-        json.dumps(document, indent=2, sort_keys=True) + "\n",
-    )
+def container_digest(container: str, path: str) -> str:
+    return docker("exec", container, "sha256sum", path).stdout.split()[0]
 
 
-def assert_launch_evidence(trial, assets: OfflineAssets) -> None:
-    document = json.loads(
-        (trial.paths.artifacts_dir / ADMISSION_EVIDENCE_FILENAME).read_text(),
-    )
+def container_text(container: str, path: str) -> str:
+    return docker("exec", container, "cat", path).stdout.strip()
+
+
+def write_cross_inputs(trials, fixtures, inspections) -> None:
+    for index, trial in enumerate(trials):
+        peer = 1 - index
+        session = trials[peer].agent.proxy_session
+        assert session is not None
+        sibling_state = trials[peer].paths.agent_dir / "trial-home/cortex-home/state"
+        document = {
+            "sibling": {
+                "trial_id": fixtures[peer]["trial_id"],
+                "root_run_id": root_run_id(fixtures[peer]["trial_id"]),
+                "model": model_for(fixtures[peer]["trial_id"]),
+                "state_directory": str(sibling_state),
+                "state_file": str(sibling_state / "tasks.json"),
+                "workspace_file": (
+                    f"/proc/{inspections[peer]['process_id']}/root/app/trial-canary"
+                ),
+                "process_pid": inspections[peer]["process_id"],
+                "proxy_url": session.handle.base_url,
+                "dummy_token": session.handle.dummy_token,
+            },
+        }
+        path = coordination_dir(trial) / "cross-trial-input.json"
+        path.write_text(json.dumps(document))
+
+
+async def cancel_running_trials(running: list[asyncio.Task]) -> None:
+    for task in running:
+        if not task.done():
+            task.cancel()
+    await asyncio.gather(*running, return_exceptions=True)
+
+
+async def exercise_concurrent_trials(fixtures):
+    trials = await asyncio.gather(*(
+        create_harbor_trial(**fixture["inputs"]) for fixture in fixtures
+    ))
+    assert all(type(trial.agent) is CortexBenchAgent for trial in trials)
+    assert all(type(trial.agent_environment) is AdmittedDockerEnvironment for trial in trials)
+    running = [asyncio.create_task(trial.run()) for trial in trials]
+    try:
+        ready = [coordination_dir(trial) / "containment-ready.json" for trial in trials]
+        await asyncio.gather(*(wait_for_file(path, task, "probe readiness")
+                               for path, task in zip(ready, running)))
+        inspections = await asyncio.gather(*(
+            inspect_running_trial(trial, fixture["trial_id"])
+            for trial, fixture in zip(trials, fixtures)
+        ))
+        state_path = "/logs/agent/trial-home/cortex-home/state/tasks.json"
+        before = [container_digest(item["container_id"], state_path) for item in inspections]
+        write_cross_inputs(trials, fixtures, inspections)
+        evidence = [probe_evidence_path(trial) for trial in trials]
+        await asyncio.gather(*(wait_for_file(path, task, "probe evidence")
+                               for path, task in zip(evidence, running)))
+        after = [container_digest(item["container_id"], state_path) for item in inspections]
+        workspace = [container_text(item["container_id"], "/app/trial-canary")
+                     for item in inspections]
+        for trial in trials:
+            (coordination_dir(trial) / "host-inspection-complete").write_text("ok\n")
+        results = await asyncio.gather(*running)
+        return trials, results, inspections, evidence, before, after, workspace
+    finally:
+        await cancel_running_trials(running)
+
+
+def read_json(path: Path) -> dict[str, object]:
+    return json.loads(path.read_text())
+
+
+def assert_launch_evidence(trial, assets: OfflineAssets, trial_id: str) -> dict[str, object]:
+    document = read_json(trial.paths.artifacts_dir / ADMISSION_EVIDENCE_FILENAME)
     assert set(document) == {
         "schema_version", "trial_id", "root_run_id", "image",
         "environment", "mounts", "network",
     }
-    assert document["trial_id"] == TRIAL_ID and document["root_run_id"] == ROOT_RUN_ID
+    assert (document["trial_id"], document["root_run_id"]) == (
+        trial_id, root_run_id(trial_id),
+    )
     assert document["image"] == {"reference": assets.image_ref, "pinned": True}
-    assert document["environment"]["inheritance"] == "none"
-    assert document["network"]["default"] == "deny"
+    return document
 
 
-def assert_probe_evidence(path: Path) -> None:
-    document = json.loads(path.read_text())
+def assert_probe_evidence(path: Path, trial_id: str) -> dict[str, dict[str, object]]:
+    document = read_json(path)
     assert set(document) == {"schema_version", "trial_id", "root_run_id", "probe_outcomes"}
     assert document["schema_version"] == "cortex-harbor-containment-probes/1"
-    assert (document["trial_id"], document["root_run_id"]) == (TRIAL_ID, ROOT_RUN_ID)
+    assert (document["trial_id"], document["root_run_id"]) == (
+        trial_id, root_run_id(trial_id),
+    )
     outcomes = {entry["name"]: entry for entry in document["probe_outcomes"]}
     assert set(outcomes) == EXPECTED_PROBES
     assert all(set(entry) == {"name", "status", "boundary", "observation"}
                for entry in outcomes.values())
     assert all(entry["status"] == "passed" for entry in outcomes.values())
-    denied_names = {
-        "arbitrary-egress", "direct-provider", "host-daemon-tcp",
-        "instance-metadata", "proxy-host-other-port", "sibling-proxy-route",
-    }
-    assert {outcomes[name]["boundary"] for name in denied_names} == {"network"}
-    assert {
-        outcomes[name]["observation"]["reason"] for name in denied_names
-    }.issubset(NETWORK_DENIAL_REASONS)
-    assert len({
-        outcomes[name]["observation"]["target_sha256"] for name in denied_names
-    }) == len(denied_names)
+    denied = {name for name, entry in outcomes.items() if entry["boundary"] == "network"}
+    assert all(outcomes[name]["observation"]["reason"] in NETWORK_DENIAL_REASONS
+               for name in denied)
     environment = outcomes["container-environment"]["observation"]
     assert environment["pid_one"]["forbidden_keys"] == []
     assert environment["agent"]["forbidden_keys"] == []
@@ -534,28 +552,92 @@ def assert_probe_evidence(path: Path) -> None:
     mounts = outcomes["container-mounts"]["observation"]
     assert mounts["declared_targets"] == ["/logs/agent", "/logs/artifacts", "/logs/verifier"]
     assert mounts["forbidden_targets"] == []
+    return outcomes
 
 
-def assert_host_evidence(trial, assets: OfflineAssets) -> None:
-    document = json.loads((trial.paths.artifacts_dir / "host-containment-probes.json").read_text())
-    assert set(document) == {
-        "schema_version", "trial_id", "root_run_id", "container_image",
-        "mounts", "pull_policy", "probe_outcomes",
+def journal_state_admission(trial) -> dict[str, object]:
+    path = trial.paths.agent_dir / "trajectory/events.jsonl"
+    records = [json.loads(line) for line in path.read_text().splitlines()]
+    admitted = [record["evidence"] for record in records if record["type"] == "state_admission"]
+    assert len(admitted) == 1
+    return admitted[0]
+
+
+def classified_sources(outer: dict[str, object]) -> dict[str, str]:
+    return {entry["source"]: entry["classification"]
+            for entry in outer["classification"]["files"]}
+
+
+def runtime_evidence_rows(
+    launch, probes, state, terminal, fixture, before: str, after: str, workspace: str,
+) -> dict[str, bool]:
+    trial_id = fixture["trial_id"]
+    expected_roots = {"project", "task", "thread", "session",
+                      "execution", "cache", "temp", "backend"}
+    return {
+        "environment": launch["environment"]["inheritance"] == "none",
+        "filesystem": fixture["host_canary"].read_text() == "host-canary"
+        and probes["sibling-canary-isolation"]["status"] == "passed"
+        and probes["sibling-workspace-isolation"]["status"] == "passed"
+        and before == after and workspace == trial_id,
+        "network": launch["network"]["default"] == "deny"
+        and launch["network"]["proxy_route"]["trial_id"] == trial_id
+        and probes["sibling-proxy-route"]["status"] == "passed"
+        and probes["sibling-control-callback"]["status"] == "passed",
+        "state": state["schema_version"] == "cortex-standalone-state-admission/1"
+        and state["empty_before_projection"] is True
+        and set(state["roots"]) == expected_roots,
+        "process": terminal["supervisor"] == {"quiescent": True, "descendants": 0}
+        and probes["sibling-process-signal"]["status"] == "passed",
     }
-    assert document["container_image"] == assets.image_id
-    launch = json.loads((trial.paths.artifacts_dir / ADMISSION_EVIDENCE_FILENAME).read_text())
-    expected = {entry["target"]: entry for entry in launch["mounts"]}
-    actual = {entry["target"]: entry for entry in document["mounts"]}
-    assert set(actual) == {"/logs/agent", "/logs/artifacts", "/logs/verifier"}
-    assert all(actual[target]["source"] == expected[target]["source"] for target in actual)
-    assert all(actual[target]["read_write"] is True for target in actual)
-    assert document["pull_policy"] == {
-        "main": "never", "harbor-docker-egress-control-sidecar": "never",
+
+
+def host_evidence_rows(launch, outer, resolution, inspection) -> dict[str, bool]:
+    live_mounts = {item["Destination"]: item for item in inspection["mounts"]}
+    launch_mounts = {item["target"]: item for item in launch["mounts"]}
+    selected = next(item for item in resolution["credential_capabilities"]
+                    if item["id"] == "claude-api-key")
+    sources = classified_sources(outer)
+    return {
+        "mount": set(live_mounts) == set(launch_mounts)
+        and all(hashlib.sha256(live_mounts[key]["Source"].encode()).hexdigest()
+                == launch_mounts[key]["source_sha256"] for key in live_mounts)
+        and inspection["pull_policy"] == {"main": "never",
+                                          "harbor-docker-egress-control-sidecar": "never"},
+        "credential": selected["state"] == "offline-contract-passed"
+        and outer["proxy_usage"]["reconciled"] is True
+        and outer["revocation"]["route_active"] is False,
+        "artifact": outer["classification"]["ok"] is True
+        and outer["leak_scan"]["ok"] is True
+        and outer["leak_scan"]["missing_sources"] == []
+        and outer["leak_scan"]["unclassified_files"] == []
+        and sources["trial_state:trial-home/logs/containment-probes.json"]
+            == "optional-classified"
+        and outer["publication"]["post_publication_reread"] is True
+        and outer["grader_admission"] == {"admitted": True},
     }
-    assert set(document["probe_outcomes"]) == {
-        "host-canary-read-write", "sibling-canary-read-write",
-    }
-    assert set(document["probe_outcomes"].values()) == {"passed"}
+
+
+def production_evidence_rows(
+    trial, assets: OfflineAssets, fixture, inspection, probe_path: Path,
+    before: str, after: str, workspace: str,
+) -> dict[str, bool]:
+    trial_id = fixture["trial_id"]
+    launch = assert_launch_evidence(trial, assets, trial_id)
+    probes = assert_probe_evidence(probe_path, trial_id)
+    state = journal_state_admission(trial)
+    path = trial.paths.agent_dir / f"trajectory/run-{root_run_id(trial_id)}.terminal.json"
+    terminal = read_json(path)
+    outer = read_json(trial.paths.artifacts_dir / OUTER_ENVELOPE_FILENAME)
+    resolution = read_json(trial.paths.agent_dir / "arm-resolution.json")
+    runtime = runtime_evidence_rows(
+        launch, probes, state, terminal, fixture, before, after, workspace,
+    )
+    host = host_evidence_rows(launch, outer, resolution, inspection)
+    host["credential"] = host["credential"] \
+        and probes["sibling-capability-replay"]["status"] == "passed" \
+        and probes["sibling-identifier-replay"]["status"] == "passed"
+    return {**runtime, **host}
 
 
 def assert_no_host_or_secret_leak(trial) -> None:
@@ -568,70 +650,89 @@ def assert_no_host_or_secret_leak(trial) -> None:
                 assert all(value.encode() not in data for value in forbidden)
 
 
-def cleanup_runtime(network: NetworkFacts, sibling_name: str | None,
-                    sibling_process: subprocess.Popen[str] | None, proxy) -> None:
-    if sibling_name:
-        docker("stop", "--time", "1", sibling_name, check=False)
-    if sibling_process:
-        sibling_process.wait(timeout=10)
-    if proxy:
-        proxy.stop()
-    docker("network", "rm", network.name, check=False)
+def cleanup_networks(networks: list[NetworkFacts]) -> None:
+    for network in networks:
+        docker("network", "rm", network.name, check=False)
 
 
-def verify_completed_trial(trial, assets: OfflineAssets, result, inspection,
-                           probe_path: Path, upstream: FakeProviderServer,
-                           host_unchanged: bool, sibling_unchanged: bool) -> None:
-    write_machine_evidence(
-        trial, assets, inspection, host_unchanged, sibling_unchanged,
+def prepare_fixture(
+    stack: ExitStack, root: Path, assets: OfflineAssets,
+    trial_id: str, network: NetworkFacts,
+) -> dict[str, object]:
+    upstream_server, upstream = stack.enter_context(provider_server())
+    _, arbitrary = stack.enter_context(provider_server())
+    _, daemon = stack.enter_context(running_server(network.gateway))
+    _, other_proxy_port = stack.enter_context(running_server(network.gateway))
+    trial_root = root / trial_id
+    trial_root.mkdir()
+    inputs = trial_inputs(trial_root, assets, upstream, network, trial_id)
+    host_canary = write_probe_instruction(
+        inputs, trial_root, model_for(trial_id), upstream,
+        daemon, arbitrary, other_proxy_port,
     )
-    assert result.exception_info is None
-    assert upstream.request_count == 2
-    assert_launch_evidence(trial, assets)
-    assert_probe_evidence(probe_path)
-    assert_host_evidence(trial, assets)
-    assert_no_host_or_secret_leak(trial)
+    return {"trial_id": trial_id, "network": network, "inputs": inputs,
+            "upstream": upstream_server, "host_canary": host_canary}
 
 
-def verify_running_trial(
-    trial, assets: OfflineAssets, publish: Path, upstream: FakeProviderServer,
-    host_canary: Path, sibling_name: str, sibling_before: str,
-) -> None:
-    result, inspection, probe_path = asyncio.run(run_and_inspect(trial, publish))
-    sibling_after = canary_digest(sibling_name, "/tmp/sibling-canary")
-    verify_completed_trial(
-        trial, assets, result, inspection, probe_path, upstream,
-        host_canary.read_text() == "host-canary", sibling_before == sibling_after,
-    )
+def assert_exact_public_entry(trial, trial_id: str) -> None:
+    argv = trial.agent.preview_run_argv()
+    assert argv[:2] == ["cortex", "agent-run"]
+    assert argv[argv.index("--run-config") + 1] == "/logs/agent/arm-resolution.json"
+    assert argv[argv.index("--root-run-id") + 1] == root_run_id(trial_id)
+    assert "--prompt-file" in argv and "--events-file" in argv
 
 
-def test_exact_production_harbor_trial_enforces_the_real_boundary(
+def assert_pair_isolation(trials, fixtures, inspections) -> None:
+    roots = [trial.paths.agent_dir.parent.resolve() for trial in trials]
+    assert len(set(roots)) == len(trials)
+    state_files = [trial.paths.agent_dir / "trial-home/cortex-home/state/tasks.json"
+                   for trial in trials]
+    assert len({path.resolve() for path in state_files}) == len(trials)
+    assert all(path.resolve().is_relative_to(root) for path, root in zip(state_files, roots))
+    mount_sources = [{item["Source"] for item in inspection["mounts"]}
+                     for inspection in inspections]
+    assert mount_sources[0].isdisjoint(mount_sources[1])
+    assert len({item["container_id"] for item in inspections}) == len(trials)
+    assert len({item["process_id"] for item in inspections}) == len(trials)
+    sessions = [trial.agent.proxy_session for trial in trials]
+    assert all(session is not None for session in sessions)
+    assert len({session.handle.base_url for session in sessions}) == len(trials)
+    assert len({session.handle.dummy_token for session in sessions}) == len(trials)
+    for trial, fixture in zip(trials, fixtures):
+        resolution = read_json(trial.paths.agent_dir / "arm-resolution.json")
+        assert resolution["trial_id"] == fixture["trial_id"]
+        assert resolution["arm"]["limits"]["max_parent_questions"] == 0
+        assert resolution["roles"]["parent"]["mcp_composition"] == "none"
+        assert resolution["roles"]["parent"]["mcp_config_paths"] == []
+
+
+def test_concurrent_exact_production_trials_cannot_cross_boundaries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, offline_assets: OfflineAssets,
 ) -> None:
     admit_capability(monkeypatch, "claude-api-key")
     monkeypatch.setenv(CREDENTIAL_ENV, REAL_FIXTURE_CREDENTIAL)
-    network = create_trial_network()
-    sibling_name = sibling_process = sibling = None
+    networks: list[NetworkFacts] = []
     try:
-        with (
-            provider_server() as (upstream_server, upstream),
-            provider_server() as (_, arbitrary),
-            running_server(network.gateway) as (_, daemon),
-            running_server(network.gateway) as (_, other_proxy_port),
-        ):
-            sibling = sibling_proxy(upstream, network, tmp_path)
-            sibling_name, sibling_process = start_sibling(offline_assets, network, sibling)
-            sibling_before = canary_digest(sibling_name, "/tmp/sibling-canary")
-            inputs = trial_inputs(tmp_path, offline_assets, upstream, network)
-            host_canary = write_probe_instruction(
-                inputs, tmp_path, upstream, sibling.base_url,
-                daemon, arbitrary, other_proxy_port,
-            )
-            trial = asyncio.run(create_harbor_trial(**inputs))
-            assert type(trial.agent) is CortexBenchAgent and type(trial.agent_environment) is AdmittedDockerEnvironment
-            publish = trial.paths.host_artifact_path("main", "/logs/artifacts")
-            verify_running_trial(
-                trial, offline_assets, publish, upstream_server, host_canary, sibling_name, sibling_before,
-            )
+        networks = [create_trial_network(trial_id) for trial_id in TRIAL_IDS]
+        with ExitStack() as stack:
+            fixtures = [prepare_fixture(stack, tmp_path, offline_assets, trial_id, network)
+                        for trial_id, network in zip(TRIAL_IDS, networks)]
+            observed = asyncio.run(exercise_concurrent_trials(fixtures))
+            trials, results, inspections, evidence, before, after, workspace = observed
+            assert_pair_isolation(trials, fixtures, inspections)
+            assert offline_assets.build_evidence["build"] == {"network": "none", "pull": "disabled"}
+            for values in zip(trials, results, inspections, evidence, before, after,
+                              workspace, fixtures):
+                trial, result, inspection, probe, old, new, canary, fixture = values
+                assert result.exception_info is None
+                assert fixture["upstream"].request_count == 1
+                assert inspection["container_image"] == offline_assets.image_id
+                assert_exact_public_entry(trial, fixture["trial_id"])
+                rows = production_evidence_rows(
+                    trial, offline_assets, fixture, inspection, probe, old, new, canary,
+                )
+                assert set(rows) == REQUIRED_EVIDENCE_ROWS
+                assert all(rows.values()), {name: value for name, value in rows.items() if not value}
+                assert_no_host_or_secret_leak(trial)
     finally:
-        cleanup_runtime(network, sibling_name, sibling_process, sibling)
+        cleanup_networks(networks)

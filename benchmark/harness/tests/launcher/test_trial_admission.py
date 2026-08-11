@@ -4,6 +4,7 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
+import hashlib
 import importlib
 import json
 import os
@@ -354,6 +355,17 @@ def test_exact_public_entry_reaches_harbor_environment_factory(tmp_path: Path) -
     assert evidence_path(trial).is_file()
 
 
+def test_admitted_environment_pins_the_precreated_network_as_external(tmp_path: Path) -> None:
+    trial = create_trial(tmp_path)
+    overlays = [json.loads(path.read_text())
+                for path in trial.agent_environment._docker_compose_paths
+                if path.suffix == ".json"]
+
+    assert {"networks": {"default": {
+        "external": True, "name": "trial-one__env_default",
+    }}} in overlays
+
+
 def test_launch_evidence_is_atomic_secret_free_and_complete(tmp_path: Path) -> None:
     os.environ["AWS_SECRET_ACCESS_KEY"] = "ambient-must-not-appear"
     try:
@@ -393,7 +405,10 @@ def test_launch_evidence_records_physical_harbor_mounts(tmp_path: Path) -> None:
     }
     assert set(mounts) == set(expected)
     for target, source in expected.items():
-        assert mounts[target]["source"] == str(source)
+        assert "source" not in mounts[target]
+        assert mounts[target]["source_sha256"] == hashlib.sha256(
+            str(source).encode(),
+        ).hexdigest()
         assert mounts[target]["type"] == "bind"
         assert mounts[target]["access"] == "read-write"
         assert mounts[target]["owner"] == "harbor-output-handoff"
@@ -696,7 +711,9 @@ def test_read_only_task_input_mount_is_admitted(tmp_path: Path) -> None:
     task_input = next(
         mount for mount in document["mounts"] if mount["target"] == "/harbor/input"
     )
-    assert task_input["source"] == str(Path(kwargs["task_path"]).resolve())
+    assert task_input["source_sha256"] == hashlib.sha256(
+        str(Path(kwargs["task_path"]).resolve()).encode(),
+    ).hexdigest()
     assert task_input["access"] == "read-only"
     assert task_input["owner"] == "harbor-task-input"
 

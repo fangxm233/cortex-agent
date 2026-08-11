@@ -1,5 +1,5 @@
 # input:  image metadata, env values, launch evidence, Docker runtime
-# output: isolated commands and pull/endpoint-confined Docker mixin
+# output: isolated commands and sealed Docker policy overlays
 # pos:    Admission IO and deterministic serialization primitives
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -25,20 +25,33 @@ class HarborTrialAdmissionError(ValueError):
 
 
 class PullDisabledDockerEnvironment(DockerEnvironment):
-    def __init__(self, *args: object, **kwargs: Any) -> None:
+    def __init__(
+        self, *args: object, external_network_name: str | None = None, **kwargs: Any,
+    ) -> None:
         self._pull_policy_directory = tempfile.TemporaryDirectory()
-        self._pull_policy_path = Path(self._pull_policy_directory.name) / "pull-policy.json"
+        root = Path(self._pull_policy_directory.name)
+        self._pull_policy_path = root / "pull-policy.json"
+        self._external_network_path = root / "external-network.json"
         document = {"services": {
             "main": {"pull_policy": "never"},
             self._EGRESS_CONTROL_SERVICE_NAME: {"pull_policy": "never"},
         }}
         self._pull_policy_path.write_text(json.dumps(document))
+        if external_network_name is not None:
+            self._external_network_path.write_text(json.dumps({
+                "networks": {"default": {
+                    "external": True, "name": external_network_name,
+                }},
+            }))
         super().__init__(*args, **kwargs)
 
     @property
     @override
     def _docker_compose_paths(self) -> list[Path]:
-        return [*super()._docker_compose_paths, self._pull_policy_path]
+        paths = [*super()._docker_compose_paths, self._pull_policy_path]
+        if self._external_network_path.is_file():
+            paths.append(self._external_network_path)
+        return paths
 
     async def _install_proxy_endpoint_filter(self, port: int) -> None:
         rules = (
@@ -61,6 +74,20 @@ class PullDisabledDockerEnvironment(DockerEnvironment):
             await super().stop(delete=delete)
         finally:
             self._pull_policy_directory.cleanup()
+
+
+def redact_mount_sources(
+    mounts: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    evidence = []
+    for mount in mounts:
+        source = mount.get("source")
+        if not isinstance(source, str) or not source:
+            raise HarborTrialAdmissionError("mount source must be a non-empty string")
+        record = {key: value for key, value in mount.items() if key != "source"}
+        record["source_sha256"] = hashlib.sha256(source.encode()).hexdigest()
+        evidence.append(record)
+    return evidence
 
 
 def environment_digest(environment: Mapping[str, str]) -> str:

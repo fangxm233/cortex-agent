@@ -1,5 +1,5 @@
 # input:  trial seed, task/config, proxy and host scan policy
-# output: sealed TrialConfig and endpoint-confined Docker environment
+# output: sealed TrialConfig, redacted evidence and Docker boundary
 # pos:    Production Harbor container admission boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -44,6 +44,7 @@ from .trial_admission_io import (
     environment_digest,
     inspect_image_configuration,
     isolated_command,
+    redact_mount_sources,
 )
 
 ADMISSION_SCHEMA_VERSION = "cortex-harbor-launch-admission/1"
@@ -610,16 +611,13 @@ def _network_record(
 
 
 def _evidence_document(
-    contract: Mapping[str, object], mounts: list[dict[str, object]],
-    network: Mapping[str, object],
+    contract: Mapping[str, object], mounts: list[dict[str, object]], network: Mapping[str, object],
 ) -> dict[str, object]:
     return {
         "schema_version": ADMISSION_SCHEMA_VERSION,
         "trial_id": _required_text(contract, "trial_id"),
         "root_run_id": _required_text(contract, "root_run_id"),
-        "image": {
-            "reference": _required_text(contract, "image_ref"), "pinned": True,
-        },
+        "image": {"reference": _required_text(contract, "image_ref"), "pinned": True},
         "environment": {
             "admitted_keys": sorted(_contract_keys(
                 contract, "admitted_environment_keys",
@@ -629,7 +627,7 @@ def _evidence_document(
             )),
             "inheritance": "none",
         },
-        "mounts": mounts,
+        "mounts": redact_mount_sources(mounts),
         "network": dict(network),
     }
 
@@ -680,7 +678,8 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             task_env_config, *args, persistent_env=persistent_env,
             mounts=canonical_mounts, network_policy=network_policy,
             phase_network_policies=phase_network_policies,
-            extra_docker_compose=extra_docker_compose, **kwargs,
+            extra_docker_compose=extra_docker_compose,
+            external_network_name=f"{session_id}_default", **kwargs,
         )
         self._seal_admission(contract, canonical_mounts, trial_paths)
 
