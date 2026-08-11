@@ -69,12 +69,14 @@ def _root_location(root: Path) -> Path:
         raise OSError("trial root is a symlink")
     if root.exists():
         return root.resolve(strict=True)
-    return root.parent.resolve(strict=True) / root.name
+    return root.resolve(strict=False)
 
 
 def _source_location(source: Path) -> Path:
-    if source.is_symlink() or not source.exists():
-        return source.parent.resolve(strict=True) / source.name
+    if source.is_symlink():
+        return source.parent.resolve(strict=False) / source.name
+    if not source.exists():
+        return source.resolve(strict=False)
     return source.resolve(strict=True)
 
 
