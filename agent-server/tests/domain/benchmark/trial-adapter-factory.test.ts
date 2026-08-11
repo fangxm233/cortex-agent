@@ -361,7 +361,7 @@ it('pins the child environment to the trial paths and drops host leaks (C5, C7)'
     const env = buildClaudeEnv(
       'channel', 'session-id', undefined, undefined,
       trial.spawnConfig.anthropicBaseUrl, trial.spawnConfig.env, undefined,
-      trial.spawnConfig.pinnedEnv,
+      { ...trial.spawnConfig.pinnedEnv, CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-host-leak' },
     );
     assert.equal(env.HOME, built.paths.home);
     assert.equal(env.CLAUDE_CONFIG_DIR, built.paths.claudeConfigDir);
@@ -373,6 +373,7 @@ it('pins the child environment to the trial paths and drops host leaks (C5, C7)'
     assert.equal(env.SLACK_BOT_TOKEN, undefined);
     assert.equal(env.SLACK_CHANNEL, undefined);
     assert.equal(env.FEISHU_CHANNEL, undefined);
+    assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, undefined);
     assert.equal(env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:49152');
   } finally {
     if (saved === undefined) delete process.env.SLACK_BOT_TOKEN;

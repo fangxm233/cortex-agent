@@ -1241,12 +1241,15 @@ test('buildHooksSettings — return value includes SessionStart key', () => {
 
 // --- buildClaudeEnv extraEnv merge ---
 
-test('buildClaudeEnv — baseline strips CLAUDE_CODE_* from parent and sets DISABLE_AUTO_MEMORY', () => {
-  const prev = process.env.CLAUDE_CODE_ATTRIBUTION_HEADER;
+test('buildClaudeEnv — strips non-auth CLAUDE_CODE_* and preserves the managed OAuth token', () => {
+  const prevAttribution = process.env.CLAUDE_CODE_ATTRIBUTION_HEADER;
+  const prevOAuthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
   process.env.CLAUDE_CODE_ATTRIBUTION_HEADER = '1';
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = 'sk-ant-oat01-fixture-token';
   try {
     const env = buildClaudeEnv('C1', 'sid-1');
     assert.equal(env.CLAUDE_CODE_ATTRIBUTION_HEADER, undefined);
+    assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, 'sk-ant-oat01-fixture-token');
     assert.equal(env.CLAUDE_CODE_DISABLE_AUTO_MEMORY, '1');
     assert.equal(env.CORTEX_SESSION_ID, 'sid-1');
     assert.equal(env.SLACK_CHANNEL, 'C1');
@@ -1261,8 +1264,10 @@ test('buildClaudeEnv — baseline strips CLAUDE_CODE_* from parent and sets DISA
     assert.equal(env.DISABLE_TELEMETRY, undefined);
     assert.equal(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, undefined);
   } finally {
-    if (prev === undefined) delete process.env.CLAUDE_CODE_ATTRIBUTION_HEADER;
-    else process.env.CLAUDE_CODE_ATTRIBUTION_HEADER = prev;
+    if (prevAttribution === undefined) delete process.env.CLAUDE_CODE_ATTRIBUTION_HEADER;
+    else process.env.CLAUDE_CODE_ATTRIBUTION_HEADER = prevAttribution;
+    if (prevOAuthToken === undefined) delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    else process.env.CLAUDE_CODE_OAUTH_TOKEN = prevOAuthToken;
   }
 });
 

@@ -278,10 +278,12 @@ export function buildClaudeEnv(
   // inherits nothing from the host, so no denylist can leak a host credential or platform
   // surface into the trial (design §13 C5/C7).
   const env: NodeJS.ProcessEnv = pinnedEnv ? { ...pinnedEnv } : { ...process.env };
+  const oauthToken = pinnedEnv ? undefined : env.CLAUDE_CODE_OAUTH_TOKEN;
   delete env.CLAUDECODE;
   for (const key of Object.keys(env)) {
     if (key.startsWith('CLAUDE_CODE')) delete env[key];
   }
+  if (oauthToken) env.CLAUDE_CODE_OAUTH_TOKEN = oauthToken;
   env.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
   // Startup-latency trims — kill network round-trips and first-run/IDE checks that Claude performs
   // at launch but Cortex never benefits from (headless tmux/-p, plugin-loaded skills, no IDE). These
