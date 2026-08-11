@@ -1,5 +1,5 @@
 // input:  accounted C2/C3 fixtures and trajectory merge module
-// output: exact-once tree, documented aggregate and byte tests
+// output: standalone admission, exact-once tree and aggregate tests
 // pos:    Happy-path trajectory merge contract suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -19,10 +19,24 @@ import {
   truncateTerminalJournal,
   writeParentOnlyFixture,
   writeTreeFixture,
+  type FixtureJournal,
 } from './trajectory-merge-fixtures.js';
 
 const AGENT_SERVER_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const roots: string[] = [];
+const STATE_ADMISSION = {
+  schema_version: 'cortex-standalone-state-admission/1' as const,
+  empty_before_projection: true,
+  roots: {
+    project: 'projects', task: 'cortex-home/state/tasks.json',
+    thread: 'cortex-home/state/threads.json', session: 'cortex-home/state/sessions.json',
+    execution: 'cortex-home/state/executions.json', cache: 'xdg-cache', temp: 'tmp',
+    backend: 'claude-config',
+  },
+};
+
+type StateAdmissionFailure =
+  | 'missing' | 'duplicate' | 'malformed' | 'identity-mismatched' | 'late' | 'digest-unlinked';
 
 function makeRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'trajectory-merge-'));
@@ -32,6 +46,58 @@ function makeRoot(): string {
 
 function readJson(filePath: string): any {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function readJournal(journal: FixtureJournal): Array<Record<string, any>> {
+  return fs.readFileSync(journal.journalPath, 'utf8').trimEnd().split('\n')
+    .map(line => JSON.parse(line));
+}
+
+function persistJournal(
+  journal: FixtureJournal,
+  records: Array<Record<string, any>>,
+  linkTerminal = true,
+): void {
+  const bytes = `${records.map(record => JSON.stringify(record)).join('\n')}\n`;
+  fs.writeFileSync(journal.journalPath, bytes);
+  if (!linkTerminal) return;
+  const terminal = readJson(journal.terminalPath);
+  terminal.journal_sha256 = createHash('sha256').update(bytes).digest('hex');
+  terminal.event_count = records.filter(record => record.type === 'event').length;
+  fs.writeFileSync(journal.terminalPath, `${JSON.stringify(terminal)}\n`);
+}
+
+function addStateAdmission(journal: FixtureJournal): void {
+  const records = readJournal(journal);
+  const header = records[0];
+  records.slice(1).forEach((record, index) => { record.seq = index + 2; });
+  records.splice(1, 0, {
+    schema_version: 'cortex-bench-journal/1', type: 'state_admission',
+    root_run_id: header.root_run_id, thread_id: null, agent_slot: 'parent', seq: 1,
+    ts: '2026-08-01T00:00:00.500Z',
+    model_execution_identity_hash: header.model_execution_identity_hash,
+    role_tool_surface_hash: header.role_tool_surface_hash,
+    bundle_manifest_hash: header.bundle_manifest_hash,
+    evidence: structuredClone(STATE_ADMISSION),
+  });
+  persistJournal(journal, records);
+}
+
+function applyStateAdmissionFailure(
+  journal: FixtureJournal,
+  failure: StateAdmissionFailure,
+): void {
+  if (failure === 'missing') return;
+  addStateAdmission(journal);
+  const records = readJournal(journal);
+  const admission = records[1];
+  if (failure === 'duplicate') records.splice(2, 0, structuredClone(admission));
+  if (failure === 'malformed') admission.evidence.roots.temp = '../outside';
+  if (failure === 'identity-mismatched') admission.model_execution_identity_hash = '9'.repeat(64);
+  if (failure === 'late') records.splice(2, 0, records.splice(1, 1)[0]);
+  if (failure === 'digest-unlinked') admission.ts = '2026-08-01T00:00:00.600Z';
+  records.slice(1).forEach((record, index) => { record.seq = index + 1; });
+  persistJournal(journal, records, failure !== 'digest-unlinked');
 }
 
 function sourceEvents(trajectory: any): any[] {
@@ -97,6 +163,41 @@ function assertChildLinks(trajectory: any): void {
 
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+});
+
+it('requires one linked standalone parent admission at the trajectory handoff', () => {
+  const root = makeRoot();
+  const fixture = writeParentOnlyFixture(root);
+  addStateAdmission(fixture.parent);
+  const outputPath = path.join(root, 'trajectory.json');
+  mergeTrajectory({
+    trajectoryRoot: root, outputPath, parentStateAdmission: STATE_ADMISSION,
+  });
+  assert.equal(fs.existsSync(outputPath), true);
+});
+
+it.each([
+  'missing', 'duplicate', 'malformed', 'identity-mismatched', 'late', 'digest-unlinked',
+] as const)('rejects %s standalone parent admission at the trajectory handoff', (failure) => {
+  const root = makeRoot();
+  const fixture = writeParentOnlyFixture(root);
+  applyStateAdmissionFailure(fixture.parent, failure);
+  const outputPath = path.join(root, 'trajectory.json');
+  assert.throws(
+    () => mergeTrajectory({
+      trajectoryRoot: root, outputPath, parentStateAdmission: STATE_ADMISSION,
+    }),
+    (error: any) => error.reason === 'malformed_fragment',
+  );
+  assert.equal(fs.existsSync(outputPath), false);
+});
+
+it('keeps non-standalone trajectory consumers valid without state admission', () => {
+  const root = makeRoot();
+  writeParentOnlyFixture(root);
+  const outputPath = path.join(root, 'trajectory.json');
+  mergeTrajectory({ trajectoryRoot: root, outputPath });
+  assert.equal(fs.existsSync(outputPath), true);
 });
 
 it('merges interleaved parent and child events exactly once into one ATIF tree', () => {

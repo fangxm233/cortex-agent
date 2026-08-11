@@ -1,5 +1,5 @@
 // input:  parsed options, resolved policy, state/process admission
-// output: supervised turn, journal, terminal and composite truth
+// output: supervised turn and state-gated terminal/composite truth
 // pos:    Agent-run lifecycle coordinator
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -1178,6 +1178,9 @@ function stageAtifTrajectory(
       trajectoryRoot: run.options.trajectoryRoot,
       outputPath,
       attemptDag: dag,
+      ...(run.composition
+        ? { parentStateAdmission: run.composition.admission.evidence }
+        : {}),
       // §9.3 M1: the in-trial link map is the DAG's, so `collectThreadLinks` is not consulted.
       ...(links && links.length > 0 ? { subagentLinks: [...links] } : {}),
     });

@@ -1,5 +1,5 @@
 // input:  canonical roots, lifecycle metadata and admission journals
-// output: relocatable lifecycle files and fail-closed validation
+// output: relocatable lifecycle files and state-gated validation
 // pos:    Lifecycle truth and validator for one-shot agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -1084,7 +1084,14 @@ export function validateTrajectoryLifecycle(input: {
   return { ok: problems.length === 0, problems };
 }
 
-export function validateTrajectoryRoot(root: string): { ok: boolean; problems: string[] } {
+export interface TrajectoryRootValidationOptions {
+  parentStateAdmission?: StateAdmissionEvidence;
+}
+
+export function validateTrajectoryRoot(
+  root: string,
+  options: TrajectoryRootValidationOptions = {},
+): { ok: boolean; problems: string[] } {
   let startedFiles: string[];
   try {
     startedFiles = fs.readdirSync(root).filter(name => name.endsWith('.started.json')).sort();
@@ -1093,6 +1100,15 @@ export function validateTrajectoryRoot(root: string): { ok: boolean; problems: s
     return { ok: false, problems };
   }
   const problems: string[] = [];
-  for (const name of startedFiles) validateStarted(root, path.join(root, name), problems);
+  for (const name of startedFiles) {
+    validateStarted(
+      root,
+      path.join(root, name),
+      problems,
+      undefined,
+      false,
+      name.startsWith('run-') ? options.parentStateAdmission : undefined,
+    );
+  }
   return { ok: problems.length === 0, problems };
 }

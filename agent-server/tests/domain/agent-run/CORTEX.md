@@ -40,7 +40,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | long-mcp-hold-server.mjs | fixture | holds one stdio MCP call for a chosen duration |
 | long-mcp-trial-fixture.ts | fixture | compiles a trial whose declared MCP server holds |
 | journal.test.ts | test | verifies durable events and relocatable lifecycle paths |
-| manifest-contract.test.ts | test | verifies lifecycle, state admission and identity linkage |
+| manifest-contract.test.ts | test | verifies lifecycle and required parent state admission |
 | pi-rpc-cli.mjs | fixture | answers one PI rpc turn and records its env |
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
@@ -56,4 +56,4 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | transport-teardown-e2e.test.ts | e2e | proves journal-linked finalization survives teardown |
 | trajectory-merge-fixtures.ts | fixture | writes print-mode accounted fragment events |
 | trajectory-merge-subagent.test.ts | test | proves the native-subagent census key, the derived subagent turn total, the zero-census refusal and the surviving named refusals |
-| trajectory-merge.test.ts | test | verifies documented aggregate ATIF conversion |
+| trajectory-merge.test.ts | test | verifies standalone admission and aggregate ATIF output |

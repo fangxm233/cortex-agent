@@ -1,5 +1,5 @@
 // input:  lifecycle journals with control records and output path
-// output: event-only ATIF metrics or typed fail-closed errors
+// output: state-gated ATIF metrics or typed fail-closed errors
 // pos:    Parent-plus-child journal merge boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { StateAdmissionEvidence } from './journal.js';
 import { validateTrajectoryRoot } from './manifest.js';
 import {
   mintAttemptId, type AttemptEdge, type AttemptRecord, type EndpointRef,
@@ -81,6 +82,7 @@ export interface MergeTrajectoryOptions {
   trajectoryRoot: string;
   outputPath: string;
   subagentLinks?: ThreadLink[];
+  parentStateAdmission?: StateAdmissionEvidence;
   /**
    * §9.2's attempt DAG. When supplied, the merge partitions at `roots.parent_attempt_id` and
    * recurses over the authoritative edges (§9.3 M2/M3) and indexes identity by role (M4). Without
@@ -224,11 +226,14 @@ function writeValidationInput(root: string, input: LifecycleInput, index: number
   fs.writeFileSync(path.join(root, path.basename(input.terminalPath)), `${JSON.stringify(terminal)}\n`);
 }
 
-function validateSnapshot(inputs: LifecycleInput[]): void {
+function validateSnapshot(
+  inputs: LifecycleInput[],
+  parentStateAdmission?: StateAdmissionEvidence,
+): void {
   const validationRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'trajectory-merge-validate-'));
   try {
     inputs.forEach((input, index) => writeValidationInput(validationRoot, input, index));
-    const validation = validateTrajectoryRoot(validationRoot);
+    const validation = validateTrajectoryRoot(validationRoot, { parentStateAdmission });
     if (!validation.ok) mergeError('malformed_fragment', validation.problems.join('\n'));
   } finally {
     fs.rmSync(validationRoot, { recursive: true, force: true });
@@ -897,7 +902,7 @@ function mergeBytes(
   assertContainment(inputs);
   const fragments = inputs.map(parseJournal);
   assertMetricsDerivable(fragments);
-  validateSnapshot(inputs);
+  validateSnapshot(inputs, options.parentStateAdmission);
   const plan = buildPlan(fragments, options);
   const finalMetrics = aggregateFinalMetrics(plan.root);
   const trajectory = buildAtifTree(plan.root, plan.source, finalMetrics);

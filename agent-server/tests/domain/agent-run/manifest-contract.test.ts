@@ -1,5 +1,5 @@
 // input:  lifecycle manifests, journals and state admission evidence
-// output: lifecycle linkage and fail-closed admission-record proofs
+// output: lifecycle linkage and required parent-admission proofs
 // pos:    Agent-run manifest contract regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -249,6 +249,22 @@ it('publishes and independently validates one linked state admission', async () 
     const validation = validateTrajectoryLifecycle({
       trajectoryRoot: root, rootRunId: 'run-001', threadId: null,
       stateAdmission: STATE_ADMISSION,
+    });
+    assert.equal(validation.ok, false);
+    assert.equal(validation.problems.some(problem => problem.includes('state_admission')), true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('requires parent admission only for standalone root validation', async () => {
+  const root = makeRoot();
+  try {
+    await createTrajectory(root);
+    assert.deepEqual(validateTrajectoryRoot(root), { ok: true, problems: [] });
+
+    const validation = validateTrajectoryRoot(root, {
+      parentStateAdmission: STATE_ADMISSION,
     });
     assert.equal(validation.ok, false);
     assert.equal(validation.problems.some(problem => problem.includes('state_admission')), true);
