@@ -1,5 +1,5 @@
-# input:  trial policy, HTTP requests, one provider adapter, one fixed upstream
-# output: per-trial proxy handle with revocable route
+# input:  trial policy, requests, provider adapter, fixed upstream
+# output: proxy handle with usage and proven revocation evidence
 # pos:    Proxy admission and lifecycle core
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -493,6 +493,7 @@ class TrialProxyHandle:
         # The lease owns the lock, so a re-arm and a stop cannot interleave.
         self._stop_lock = lease.lock
         self._stopped = False
+        self._revocation_evidence: dict[str, object] | None = None
 
     @property
     def manifest_block(self) -> dict[str, object]:
@@ -504,27 +505,76 @@ class TrialProxyHandle:
 
     @property
     def accounting_export(self) -> dict[str, object]:
-        """The A1 side of the accounting reconciliation. Read before `stop()`: the live registers
-        go with the process, while the audit log stays on disk."""
+        """The A1 side of the accounting reconciliation after handler freeze."""
         return build_proxy_export(
             trial_id=self._metadata.trial_id, adapter_id=self._metadata.adapter_id,
             counters=self._server.state, log_path=self._server.state.log_path,
             lease_echo=self.lease_echo_record,
         )
 
+    @property
+    def final_accounting_export(self) -> dict[str, object]:
+        with self._stop_lock:
+            if self._stopped:
+                raise RuntimeError("proxy was stopped before final accounting")
+            self._lease.stop()
+            self._server.state.deactivate()
+            self._server.shutdown()
+            self._thread.join(timeout=2)
+            self._server.close_active_clients()
+            if self._thread.is_alive() or not self._server.wait_for_no_clients(2):
+                raise RuntimeError("proxy handlers did not quiesce for final accounting")
+            if self._server.body_client_count != 0:
+                raise RuntimeError("proxy body handlers did not quiesce for final accounting")
+            return self.accounting_export
+
+    @property
+    def revocation_evidence(self) -> dict[str, object]:
+        if self._revocation_evidence is None:
+            raise RuntimeError("proxy revocation has not been proven")
+        return dict(self._revocation_evidence)
+
     def stop(self) -> None:
         with self._stop_lock:
             if self._stopped:
                 return
-            self._lease.stop()
-            self._server.state.deactivate()
-            self._server.close_active_clients()
-            self._server.shutdown()
-            self._server.server_close()
-            self._thread.join(timeout=2)
-            if not self._server.wait_for_no_clients(2):
-                raise RuntimeError("proxy client handlers did not stop")
+            self._stop_route()
+            evidence = self._revocation_record()
+            if not self._revocation_proven(evidence):
+                raise RuntimeError("proxy revocation could not prove every handler absent")
+            self._revocation_evidence = evidence
             self._stopped = True
+
+    def _stop_route(self) -> None:
+        self._lease.stop()
+        self._server.state.deactivate()
+        self._server.close_active_clients()
+        self._server.shutdown()
+        self._server.server_close()
+        self._thread.join(timeout=2)
+        if not self._server.wait_for_no_clients(2):
+            raise RuntimeError("proxy client handlers did not stop")
+
+    def _revocation_record(self) -> dict[str, object]:
+        return {
+            "schema_version": "cortex-bench-proxy-revocation/1",
+            "trial_id": self.trial_id,
+            "route_active": self._server.state.active,
+            "listener_present": self._server.socket.fileno() >= 0,
+            "serving_thread_alive": self._thread.is_alive(),
+            "active_handlers": self._server.active_client_count,
+            "body_handlers": self._server.body_client_count,
+        }
+
+    @staticmethod
+    def _revocation_proven(evidence: Mapping[str, object]) -> bool:
+        return (
+            evidence.get("route_active") is False
+            and evidence.get("listener_present") is False
+            and evidence.get("serving_thread_alive") is False
+            and evidence.get("active_handlers") == 0
+            and evidence.get("body_handlers") == 0
+        )
 
 
 def start_trial_proxy(

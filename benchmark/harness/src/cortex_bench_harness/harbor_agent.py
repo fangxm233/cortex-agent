@@ -1,6 +1,6 @@
-# input:  Harbor lifecycle, bundle, manifest, admission seed
-# output: identity/env admission, container facts, phase-A input
-# pos:    Harbor BaseInstalledAgent wrapper for Cortex
+# input:  Harbor lifecycle, inner truth, proxy evidence, scan policy
+# output: installed run plus reread-validated outer grader admission
+# pos:    Production Harbor lifecycle wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import shlex
@@ -37,8 +37,15 @@ from .launcher.trial_admission import (
     HarborTrialAdmissionError,
     environment_digest,
 )
+from .host_finalization import (
+    HostFinalizationError,
+    HostFinalizationResult,
+    finalize_host_trial,
+    parse_host_scan_policy,
+)
 from .launcher.trial_proxy import (
     TrialProxySession,
+    TrialRevocation,
     arm_trial_proxy,
     capture_trial_inventory,
     parse_trial_proxy_spec,
@@ -52,7 +59,7 @@ from .manifest import (
     write_harness_manifest,
 )
 from .proxy.manifest import fill_proxy_manifest
-from .scan.models import ArtifactInventory
+from .scan.models import ArtifactInventory, ScanPolicy
 
 PACKAGE_VERSION = "0.1.0"
 PROFILE_NAME = "benchmark"
@@ -73,6 +80,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         trial_seed: Mapping[str, object],
         *args: object,
         trial_proxy: Mapping[str, object] | None = None,
+        host_scan_policy: Mapping[str, object] | None = None,
         admission_environment_digest: str | None = None,
         defer_proxy_arm: bool = False,
         extra_env: dict[str, str] | None = None,
@@ -80,7 +88,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         **kwargs: Any,
     ) -> None:
         self._initialize_trial_state(
-            artifact_dir, manifest, trial_seed, trial_proxy,
+            artifact_dir, manifest, trial_seed, trial_proxy, host_scan_policy,
             admission_environment_digest, defer_proxy_arm, extra_env,
         )
         super().__init__(logs_dir, *args, version=version, extra_env=extra_env, **kwargs)
@@ -90,6 +98,7 @@ class CortexBenchAgent(BaseInstalledAgent):
     def _initialize_trial_state(
         self, artifact_dir: Path | str, manifest: Mapping[str, object],
         trial_seed: Mapping[str, object], trial_proxy: Mapping[str, object] | None,
+        host_scan_policy: Mapping[str, object] | None,
         environment_hash: str | None, defer_proxy_arm: bool,
         extra_env: Mapping[str, str] | None,
     ) -> None:
@@ -105,10 +114,23 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._cortex_cli_version: str | None = None
         self._container_facts: ContainerFacts | None = None
         self._captured_inventory: ArtifactInventory | None = None
-        self._revoked = False
-        self._requires_admitted_proxy = environment_hash is not None
+        self._revocation: TrialRevocation | None = None
+        self._initialize_finalization(host_scan_policy, environment_hash)
         self._proxy_arm_deferred = defer_proxy_arm
         self._deferred_proxy = dict(trial_proxy) if trial_proxy is not None else None
+
+    def _initialize_finalization(
+        self, policy: Mapping[str, object] | None, environment_hash: str | None,
+    ) -> None:
+        self._host_scan_policy: ScanPolicy | None = (
+            parse_host_scan_policy(policy) if policy is not None else None
+        )
+        if environment_hash is not None and self._host_scan_policy is None:
+            raise HarborTrialAdmissionError("sealed trials require a host scan policy")
+        self._revoked = False
+        self._grader_admitted = False
+        self._outer_publication: HostFinalizationResult | None = None
+        self._requires_admitted_proxy = environment_hash is not None
 
     @staticmethod
     def _validate_admission_environment(
@@ -150,9 +172,17 @@ class CortexBenchAgent(BaseInstalledAgent):
 
     @property
     def captured_inventory(self) -> ArtifactInventory | None:
-        """The artifact-dir inventory captured at revocation. A trial runner extends it with the
-        log-dir sources it owns; the proxy's four sources are already declared expected here."""
+        """The artifact-dir inventory captured at proxy revocation."""
         return self._captured_inventory
+
+    @property
+    def grader_admitted(self) -> bool:
+        return self._grader_admitted
+
+    @property
+    def outer_envelope_sha256(self) -> str | None:
+        publication = self._outer_publication
+        return publication.sha256 if publication is not None else None
 
     def _arm_proxy(
         self, trial_proxy: Mapping[str, object] | None,
@@ -173,18 +203,15 @@ class CortexBenchAgent(BaseInstalledAgent):
             trial_roots=(self._artifact_dir,),
         )
 
-    def _revoke_proxy(self) -> None:
-        """Revoke from whichever lifecycle point ends the trial first, and only once.
-
-        Harbor gives an installed agent no teardown hook and stops calling it the moment one of its
-        methods raises, so every method that can be the last one entered has to be able to take the
-        route down. The flag is set before the revoke, not after: a revoke that raises has already
-        published what it could and must not be re-run by an outer handler.
-        """
+    def _revoke_proxy(self) -> TrialRevocation | None:
+        """Revoke from whichever lifecycle point ends the trial first, and only once."""
         if self._proxy_session is None or self._revoked:
-            return
+            return self._revocation
         self._revoked = True
-        revoke_trial_proxy(self._proxy_session, capture_inventory=self._capture_inventory)
+        self._revocation = revoke_trial_proxy(
+            self._proxy_session, capture_inventory=self._capture_inventory,
+        )
+        return self._revocation
 
     def revoke_admitted_proxy(self) -> None:
         self._revoke_proxy()
@@ -410,23 +437,48 @@ class CortexBenchAgent(BaseInstalledAgent):
         context: AgentContext,
     ) -> None:
         try:
-            self._require_admitted_proxy()
-            if self._resolved_cwd is None:
-                raise RuntimeError("CortexBenchAgent.setup() must complete before run")
-            self.logs_dir.mkdir(parents=True, exist_ok=True)
-            (self.logs_dir / "instruction.md").write_text(instruction)
-            self._write_thread_policy(instruction)
-            _, _, trajectory_root, _ = self._agent_paths()
-            await self.exec_as_agent(
-                environment, f"mkdir -p {shlex.quote(str(trajectory_root))}")
-            await self.exec_as_agent(
-                environment,
-                shlex.join(self.preview_run_argv()),
-                cwd=self._resolved_cwd.realpath,
-            )
+            await self._execute_run(instruction, environment)
         finally:
-            # Inventory capture, then the proxy export, then the stop. A stop that cannot prove
-            # its handlers are gone raises out of here: it is a trial failure, not a cleanup note.
-            # The whole body is inside the try, so no statement of ours can end the trial with the
-            # route still armed.
-            self._revoke_proxy()
+            revocation = self._revoke_after_run()
+        self._finalize_outer(revocation)
+
+    async def _execute_run(self, instruction: str, environment: BaseEnvironment) -> None:
+        self._require_admitted_proxy()
+        if self._resolved_cwd is None:
+            raise RuntimeError("CortexBenchAgent.setup() must complete before run")
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        (self.logs_dir / "instruction.md").write_text(instruction)
+        self._write_thread_policy(instruction)
+        _, _, trajectory_root, _ = self._agent_paths()
+        await self.exec_as_agent(environment, f"mkdir -p {shlex.quote(str(trajectory_root))}")
+        result = await self.exec_as_agent(
+            environment, shlex.join(self.preview_run_argv()), cwd=self._resolved_cwd.realpath,
+        )
+        self._write_collected_streams(result.stdout, result.stderr)
+
+    def _revoke_after_run(self) -> TrialRevocation | None:
+        try:
+            return self._revoke_proxy()
+        except Exception as error:
+            if self._host_scan_policy is None:
+                raise
+            raise HostFinalizationError("proxy_revocation_uncertain") from error
+
+    def _write_collected_streams(self, stdout: str | None, stderr: str | None) -> None:
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        (self.logs_dir / "stdout.txt").write_text(stdout or "", encoding="utf-8")
+        (self.logs_dir / "stderr.txt").write_text(stderr or "", encoding="utf-8")
+
+    def _finalize_outer(self, revocation: TrialRevocation | None) -> None:
+        if self._host_scan_policy is None:
+            return
+        if self._staged_npm_artifact is None:
+            raise RuntimeError("CortexBenchAgent.install() must complete before finalization")
+        publication = finalize_host_trial(
+            logs_dir=self.logs_dir, artifact_dir=self._artifact_dir,
+            root_run_id=self._trial_seed.root_run_id, trial_id=self._trial_seed.trial_id,
+            arm=self._trial_seed.arm, staged_npm_artifact=self._staged_npm_artifact,
+            revocation=revocation, scan_policy=self._host_scan_policy,
+        )
+        self._outer_publication = publication
+        self._grader_admitted = True

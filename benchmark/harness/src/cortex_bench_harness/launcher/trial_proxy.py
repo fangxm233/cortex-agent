@@ -1,5 +1,5 @@
-# input:  the arm's capability key and limits, a host proxy spec, and the trial's roots
-# output: an armed per-trial route, its credential block, its artifact sources and its revoke
+# input:  arm capability, limits, host proxy spec, trial roots
+# output: armed route, accounting sources and proven revocation
 # pos:    Production start and revoke boundary for the credential proxy
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -153,7 +153,7 @@ class TrialProxySession:
         before the route is stopped.
         """
         lease_echo = self.handle.lease_echo_record
-        export = self.handle.accounting_export
+        export = self.handle.final_accounting_export
         _write_json(self.lease_echo_path, {
             "schema_version": LEASE_ECHO_RECORD_SCHEMA_VERSION,
             "trial_id": self.handle.trial_id,
@@ -168,6 +168,7 @@ class TrialRevocation:
     inventory: object
     export_path: Path
     lease_echo_path: Path
+    revocation: Mapping[str, object]
 
 
 class CapabilityStateRefused(Exception):
@@ -258,7 +259,9 @@ def revoke_trial_proxy(
         export_path, lease_echo_path = session.write_accounting()
     finally:
         session.handle.stop()
-    return TrialRevocation(inventory, export_path, lease_echo_path)
+    return TrialRevocation(
+        inventory, export_path, lease_echo_path, session.handle.revocation_evidence,
+    )
 
 
 def capture_trial_inventory(

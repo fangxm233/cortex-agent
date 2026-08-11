@@ -8,7 +8,7 @@ Per-trial host proxy modules enforce credential, budget, deadline, and source bo
 | models.py | types | Defines budgets, usage, and safe metadata |
 | adapters/ | adapters | Carries one provider protocol per capability key |
 | upstream.py | adapter | Forwards requests to one fixed upstream |
-| server.py | core | Enforces admission and proxy lifecycle |
+| server.py | core | Enforces admission, final usage freeze, and revocation |
 | lease.py | core | Arms, clamps and records the credential lease |
 | export.py | core | Builds the proxy-authoritative accounting export |
 | manifest.py | persistence | Fills the H3 proxy manifest block |

@@ -1,5 +1,5 @@
-# input:  the shipped agent class, an arm, a trial seed and a host proxy spec
-# output: proofs that the production entry arms, produces, fills and revokes
+# input:  shipped agent, arm, trial seed and host proxy spec
+# output: route production, accounting and proven revocation tests
 # pos:    Production start/revoke boundary tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -324,6 +324,7 @@ class RecordingHandle:
         self.dummy_token = "dummy-recording"
         self.trial_id = TRIAL_ID
         self._stop_error = stop_error
+        self._stopped = False
 
     @property
     def lease_echo_record(self) -> dict[str, object]:
@@ -334,10 +335,26 @@ class RecordingHandle:
         self.calls.append("export")
         return {"schema_version": "cortex-bench-proxy-export/1", "trial_id": TRIAL_ID}
 
+    @property
+    def final_accounting_export(self) -> dict[str, object]:
+        self.calls.append("freeze_handlers")
+        return self.accounting_export
+
+    @property
+    def revocation_evidence(self) -> dict[str, object]:
+        if not self._stopped:
+            raise RuntimeError("proxy revocation has not been proven")
+        return {
+            "schema_version": "cortex-bench-proxy-revocation/1", "trial_id": TRIAL_ID,
+            "route_active": False, "listener_present": False,
+            "serving_thread_alive": False, "active_handlers": 0, "body_handlers": 0,
+        }
+
     def stop(self) -> None:
         self.calls.append("stop")
         if self._stop_error:
             raise RuntimeError("proxy client handlers did not stop")
+        self._stopped = True
 
 
 def recording_session(tmp_path: Path, calls: list[str], *, stop_error: bool = False):
@@ -360,7 +377,7 @@ def test_revoke_captures_the_inventory_then_exports_then_stops(tmp_path: Path) -
         session, capture_inventory=lambda: calls.append("inventory") or "captured",
     )
 
-    assert calls == ["inventory", "export", "stop"]
+    assert calls == ["inventory", "freeze_handlers", "export", "stop"]
     assert revocation.inventory == "captured"
     assert revocation.export_path.is_file()
     assert revocation.lease_echo_path.is_file()
@@ -373,7 +390,7 @@ def test_stop_failure_propagates_after_the_export_is_written(tmp_path: Path) -> 
     with pytest.raises(RuntimeError, match="did not stop"):
         revoke_trial_proxy(session, capture_inventory=lambda: calls.append("inventory"))
 
-    assert calls == ["inventory", "export", "stop"]
+    assert calls == ["inventory", "freeze_handlers", "export", "stop"]
     assert session.export_path.is_file()
 
 
@@ -389,7 +406,7 @@ def test_an_accounting_failure_still_takes_the_route_down(tmp_path: Path) -> Non
     with pytest.raises(OSError):
         revoke_trial_proxy(session, capture_inventory=lambda: calls.append("inventory"))
 
-    assert calls == ["inventory", "export", "stop"]
+    assert calls == ["inventory", "freeze_handlers", "export", "stop"]
 
 
 def test_public_entry_revokes_the_route_when_the_run_returns(

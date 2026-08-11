@@ -327,9 +327,16 @@ def trial_inputs(root: Path, assets: OfflineAssets, upstream: str, network: Netw
         "max_request_cost_usd": "1.00", "input_cost_per_million_usd": "3",
         "output_cost_per_million_usd": "15", "listen_host": "0.0.0.0",
     }
+    scan_policy = {
+        "secret_environment": {"provider_credential": CREDENTIAL_ENV},
+        "forbidden_environment": {}, "forbidden_argv_environment": {},
+        "repository_checkout_environment": "PWD",
+        "host_identity_environment": {"user": "USER"},
+    }
     return {"arm": arm(), "task_path": write_task(root, assets),
             "trials_dir": root / "trials", "manifest": manifest,
-            "trial_seed": seed, "cli_version": "2026.8.10", "trial_proxy": proxy}
+            "trial_seed": seed, "cli_version": "2026.8.10",
+            "host_scan_policy": scan_policy, "trial_proxy": proxy}
 
 
 def sibling_proxy(upstream: str, network: NetworkFacts, root: Path):

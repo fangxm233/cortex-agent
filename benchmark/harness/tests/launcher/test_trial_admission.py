@@ -58,7 +58,14 @@ LIVE_PROXY_HANDLES: list[object] = []
 @pytest.fixture(autouse=True)
 def admitted_fake_proxy(monkeypatch: pytest.MonkeyPatch):
     admit_capability(monkeypatch, "claude-api-key")
-    monkeypatch.setenv("CORTEX_BENCH_TEST_CREDENTIAL", "fake-host-credential")
+    for name, value in {
+        "CORTEX_BENCH_TEST_CREDENTIAL": "fake-host-credential",
+        "CORTEX_BENCH_TEST_FORBIDDEN": "ambient-forbidden-value",
+        "CORTEX_BENCH_TEST_ARGV": "argv-forbidden-value",
+        "CORTEX_BENCH_TEST_CHECKOUT": "/srv/private/cortex-checkout",
+        "CORTEX_BENCH_TEST_IDENTITY": "private-machine-id",
+    }.items():
+        monkeypatch.setenv(name, value)
     result = subprocess.CompletedProcess(
         args=["docker", "image", "inspect"], returncode=0,
         stdout=json.dumps({
@@ -170,6 +177,16 @@ def seed() -> dict[str, object]:
     }
 
 
+def host_scan_policy() -> dict[str, object]:
+    return {
+        "secret_environment": {"provider_credential": "CORTEX_BENCH_TEST_CREDENTIAL"},
+        "forbidden_environment": {"forbidden": "CORTEX_BENCH_TEST_FORBIDDEN"},
+        "forbidden_argv_environment": {"forbidden": "CORTEX_BENCH_TEST_ARGV"},
+        "repository_checkout_environment": "CORTEX_BENCH_TEST_CHECKOUT",
+        "host_identity_environment": {"machine": "CORTEX_BENCH_TEST_IDENTITY"},
+    }
+
+
 def launch_kwargs(root: Path, task: Path | None = None) -> dict[str, object]:
     manifest = {
         "root_run_id": "trial-one.cortex-direct",
@@ -183,7 +200,7 @@ def launch_kwargs(root: Path, task: Path | None = None) -> dict[str, object]:
         "trials_dir": root / "trials",
         "manifest": manifest,
         "trial_seed": seed(),
-        "cli_version": "2026.8.10",
+        "cli_version": "2026.8.10", "host_scan_policy": host_scan_policy(),
         "trial_proxy": trial_proxy_spec(),
     }
 
@@ -212,6 +229,19 @@ def proxy_route_is_dead(session: object) -> bool:
     except OSError:
         return True
     return False
+
+
+def test_serialized_trial_config_contains_no_host_scan_literals(tmp_path: Path) -> None:
+    config = build_harbor_trial_config(**launch_kwargs(tmp_path))
+
+    serialized = config.model_dump_json()
+
+    for literal in (
+        "fake-host-credential", "ambient-forbidden-value", "argv-forbidden-value",
+        "/srv/private/cortex-checkout", "/private/host-home", "private-host",
+        "private-machine-id",
+    ):
+        assert literal not in serialized
 
 
 def test_public_entry_builds_the_sealed_trial_config(tmp_path: Path) -> None:

@@ -5,7 +5,7 @@
 
 import os
 import re
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 from ..manifest import MANIFEST_FILENAME
@@ -52,13 +52,30 @@ def _validate_inventory_shape(inventory: ArtifactInventory) -> None:
 
 
 def _validate_source_roots(inventory: ArtifactInventory) -> None:
-    roots = tuple(_normalized_path(root) for root in inventory.trial_roots)
-    outside_root = any(
-        not any(_normalized_path(path).is_relative_to(root) for root in roots)
-        for path in inventory.sources.values()
-    )
+    try:
+        roots = tuple(_root_location(root) for root in inventory.trial_roots)
+        outside_root = any(
+            not any(_source_location(source).is_relative_to(root) for root in roots)
+            for source in inventory.sources.values()
+        )
+    except OSError as error:
+        raise ArtifactReadError("artifact_inventory") from error
     if outside_root:
-        raise ValueError("artifact sources must be contained by trial roots")
+        raise ValueError("artifact sources must be physically contained by trial roots")
+
+
+def _root_location(root: Path) -> Path:
+    if root.is_symlink():
+        raise OSError("trial root is a symlink")
+    if root.exists():
+        return root.resolve(strict=True)
+    return root.parent.resolve(strict=True) / root.name
+
+
+def _source_location(source: Path) -> Path:
+    if source.is_symlink() or not source.exists():
+        return source.parent.resolve(strict=True) / source.name
+    return source.resolve(strict=True)
 
 
 def _normalized_path(path: Path) -> Path:
@@ -67,9 +84,18 @@ def _normalized_path(path: Path) -> Path:
 
 def _validate_source_names(inventory: ArtifactInventory, policy: ScanPolicy) -> None:
     names = set(inventory.sources) | inventory.expected_sources
-    literals = (*policy.secrets.values(), policy.repository_checkout, policy.hostname)
+    literals = _policy_literals(policy)
     if any(_contains_sensitive(name, literals) for name in names):
         raise ValueError("artifact source names must not contain sensitive literals")
+
+
+def _policy_literals(policy: ScanPolicy) -> tuple[str, ...]:
+    return (
+        *policy.secrets.values(), *policy.forbidden_environment.values(),
+        *policy.forbidden_argv.values(), policy.repository_checkout,
+        *(tuple([policy.home_path]) if policy.home_path else ()),
+        policy.hostname, *policy.host_identities.values(),
+    )
 
 
 def _contains_sensitive(value: str, literals: tuple[str, ...]) -> bool:
@@ -100,9 +126,7 @@ def _unclassified_files(
         _normalized_path(path) for source, path in inventory.sources.items()
         if source in inventory.expected_sources and _source_is_present(path)
     }
-    redactions = (
-        *policy.secrets.values(), policy.repository_checkout, policy.hostname,
-    )
+    redactions = _policy_literals(policy)
     discovered: set[Path] = set()
     unclassified: list[UnclassifiedFile] = []
     for root_index, root in enumerate(inventory.trial_roots):
@@ -152,7 +176,7 @@ def _root_candidates(
     root: Path, root_index: int, missing_source: str | None,
 ) -> tuple[Path, ...]:
     error_source = missing_source or f"trial_root:{root_index}"
-    if not root.is_dir():
+    if root.is_symlink() or not root.is_dir():
         raise ArtifactReadError(error_source)
     candidates: list[Path] = []
     try:
@@ -186,15 +210,26 @@ def _scan_present_sources(
 
 
 def _literal_rules(policy: ScanPolicy) -> tuple[Rule, ...]:
-    secrets = tuple(
-        (f"secret:{name}", "secret", value.encode())
-        for name, value in policy.secrets.items()
-    )
-    hosts = (
+    rules = [
+        *_named_rules("secret", "secret", policy.secrets),
+        *_named_rules("environment", "environment", policy.forbidden_environment),
+        *_named_rules("argv", "argv", policy.forbidden_argv),
         ("host:repository_checkout", "host", policy.repository_checkout.encode()),
         ("host:hostname", "host", policy.hostname.encode()),
+        *_named_rules("host_identity", "host", policy.host_identities),
+    ]
+    if policy.home_path is not None:
+        rules.append(("host:home_path_literal", "host", policy.home_path.encode()))
+    return tuple(rules)
+
+
+def _named_rules(
+    prefix: str, category: str, values: Mapping[str, str],
+) -> tuple[Rule, ...]:
+    return tuple(
+        (f"{prefix}:{name}", category, value.encode())
+        for name, value in values.items()
     )
-    return secrets + hosts
 
 
 def _scan_source(source: str, path: Path, rules: tuple[Rule, ...]) -> tuple[list[Finding], int]:

@@ -1,9 +1,9 @@
-# input:  named artifact paths, expected names, roots, and leak literals
-# output: immutable scan inventory, policy, findings, and report values
+# input:  artifact paths, roots, credential and host leak literals
+# output: immutable scan inventory, policy, findings, and reports
 # pos:    Artifact scanner value contracts
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Mapping
 
@@ -26,11 +26,20 @@ class ScanPolicy:
     secrets: Mapping[str, str]
     repository_checkout: str
     hostname: str
+    forbidden_environment: Mapping[str, str] = field(default_factory=dict)
+    forbidden_argv: Mapping[str, str] = field(default_factory=dict)
+    home_path: str | None = None
+    host_identities: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        _validate_secrets(self.secrets)
+        _validate_literals("secrets", self.secrets, required=True)
+        _validate_literals("forbidden_environment", self.forbidden_environment)
+        _validate_literals("forbidden_argv", self.forbidden_argv)
+        _validate_literals("host_identities", self.host_identities)
         _validate_literal("repository_checkout", self.repository_checkout)
         _validate_literal("hostname", self.hostname)
+        if self.home_path is not None:
+            _validate_literal("home_path", self.home_path)
 
 
 @dataclass(frozen=True)
@@ -82,13 +91,15 @@ class ArtifactReadError(RuntimeError):
         self.source = source
 
 
-def _validate_secrets(secrets: Mapping[str, str]) -> None:
-    if not secrets:
-        raise ValueError("secrets must contain at least one named literal")
-    for name, value in secrets.items():
+def _validate_literals(
+    label: str, values: Mapping[str, str], *, required: bool = False,
+) -> None:
+    if required and not values:
+        raise ValueError(f"{label} must contain at least one named literal")
+    for name, value in values.items():
         if not isinstance(name, str) or not name:
-            raise ValueError("secret rule names must be non-empty strings")
-        _validate_literal(f"secret:{name}", value)
+            raise ValueError(f"{label} rule names must be non-empty strings")
+        _validate_literal(label, value)
 
 
 def _validate_literal(name: str, value: str) -> None:
