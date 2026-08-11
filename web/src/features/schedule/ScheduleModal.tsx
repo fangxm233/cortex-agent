@@ -40,7 +40,11 @@ const CELL_BOX: CSSProperties = {
   padding: '7px 10px',
 };
 
-const SELECT_CELL_BOX: CSSProperties = { ...CELL_BOX, padding: '5px 8px' };
+const SELECT_CELL_BOX: CSSProperties = {
+  ...CELL_BOX,
+  borderRadius: 6,
+  padding: '2px 7px',
+};
 
 // Shared Select trigger styled to disappear into the prototype's value-cell chrome.
 function bareSelectStyle(font: string): CSSProperties {

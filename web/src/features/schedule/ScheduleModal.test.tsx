@@ -72,7 +72,10 @@ describe('ScheduleModal custom selections', () => {
     ))[0];
 
     expect(interval.props.density).toBe('bare');
-    expect(intervalHost.parent?.parent?.props.style.padding).toBe('5px 8px');
+    expect(intervalHost.parent?.parent?.props.style).toMatchObject({
+      padding: '2px 7px',
+      borderRadius: 6,
+    });
     pick(renderer, 'intervalUnit', 'hr');
     pick(renderer, 'profile', 'review');
     pick(renderer, 'target', 'project');
