@@ -738,12 +738,29 @@ function managerRequest(
   };
 }
 
-function managerProposal(result: BenchmarkThreadResult): TrialManagerAttemptResult['proposal'] {
+function finalAssistantText(journalPath: string): string | null {
+  let captured: string | null = null;
+  for (const line of fs.readFileSync(journalPath, 'utf8').split('\n')) {
+    if (!line) continue;
+    const record = JSON.parse(line) as Record<string, unknown>;
+    if (record.type !== 'event') continue;
+    const event = record.event as Partial<NormalizedEvent> | undefined;
+    if (event?.type === 'assistant_text' && typeof event.text === 'string') {
+      captured = event.text;
+    }
+  }
+  return captured?.trim() || null;
+}
+
+function managerProposal(
+  result: BenchmarkThreadResult,
+  summary: string | null,
+): TrialManagerAttemptResult['proposal'] {
   if (result.proposal?.kind === 'block') {
     return { kind: 'block', reason: result.proposal.reason };
   }
   return result.proposal?.kind === 'complete'
-    ? { kind: 'complete', note: result.summary }
+    ? { kind: 'complete', note: summary }
     : null;
 }
 
@@ -751,14 +768,15 @@ function managerAttemptResult(
   input: TrialManagerAttemptInput,
   result: BenchmarkThreadResult,
 ): TrialManagerAttemptResult {
+  const summary = finalAssistantText(result.journalPath) ?? result.summary;
   return {
     taskId: input.task.id,
     threadId: result.threadId,
     state: result.state,
-    summary: result.assistantText ?? result.summary,
+    summary,
     manifestCommitted: result.manifestCommitted,
     quiescent: result.manifestCommitted,
-    proposal: managerProposal(result),
+    proposal: managerProposal(result, summary),
   };
 }
 

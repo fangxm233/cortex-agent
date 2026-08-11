@@ -104,8 +104,6 @@ export interface BenchmarkThreadResult {
   costUsd: number;
   durationMs: number;
   summary: string;
-  /** Captured normalized final assistant text, independent of backend-native result summaries. */
-  assistantText?: string | null;
   /** What this pipeline concluded, decided and never applied. Null for a run that declares no
    *  coder-review variant and therefore has no verdict-speaking role. */
   proposal: ProposalIntent | null;
@@ -928,16 +926,6 @@ function truncateSummary(thread: ThreadRecord): string {
   return boundedSummary(thread.steps.at(-1)?.output ?? '');
 }
 
-function capturedAssistantText(
-  prepared: PreparedThreadRun,
-  thread: ThreadRecord,
-): string | null {
-  const finalStep = thread.steps.at(-1);
-  if (!finalStep) return null;
-  const captured = prepared.terminalAssistantText.get(finalStep.stepIndex);
-  return captured === undefined ? null : boundedSummary(captured);
-}
-
 /** The step loop's own account of why it stopped. Absent → this run's admission boundary closed
  *  it, or it left for a reason nobody recorded; either way it is not an approval to propose on. */
 function proposalStopReason(control: RunControl, outcome: RunOutcome): ProposalStopReason {
@@ -987,7 +975,6 @@ function buildResult(
     costUsd: thread.totalCostUsd,
     durationMs: Math.max(0, Date.now() - new Date(prepared.startedAt).getTime()),
     summary: truncateSummary(thread),
-    assistantText: capturedAssistantText(prepared, thread),
     proposal,
   };
 }
