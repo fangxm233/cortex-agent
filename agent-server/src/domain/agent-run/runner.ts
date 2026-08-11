@@ -50,6 +50,14 @@ import {
   type StandaloneAgentRunComposition,
 } from './standalone-composition.js';
 import {
+  runStandaloneBenchmarkThread,
+  type BenchmarkThreadRequest, type BenchmarkThreadResult,
+} from './benchmark-local-thread-orchestrator.js';
+import type {
+  TrialManagerAttemptInput, TrialManagerAttemptResult, TrialManagerRuntimeResult,
+} from './trial-manager-runtime.js';
+import type { TrialAttemptEvidence } from '../benchmark/trial-task-tree-coordinator.js';
+import {
   createBenchmarkOutputAdapter, type BenchmarkOutputAdapter,
 } from './benchmark-output-adapter.js';
 import {
@@ -102,6 +110,8 @@ interface PreparedRun {
   baseOptions: RunAgentOptions;
   hashes: ReturnType<typeof promptHashes>;
   startedAt: string;
+  managerResult: TrialManagerRuntimeResult | null;
+  stateAdmissionWritten: boolean;
 }
 
 interface RunStats {
@@ -112,6 +122,7 @@ interface RunStats {
   /** The backend's own model self-report, retained for AttemptRecord field 18. Stays `null` when
    * the backend reported none — it is NEVER defaulted to `requested_model` (§9.6 A5). */
   reportedModel: string | null;
+  lastAssistantText: string | null;
 }
 
 interface ExecutionOutcome {
@@ -459,7 +470,7 @@ function prepareRun(options: AgentRunCliOptions, rootRunId: string): PreparedRun
     modelPrompt: prompt.modelVisible,
     identity: freezeRunIdentity(options, profile, config, spawn.roleSurface, loaded.policy),
     hashes: promptHashes(prompt, spawn.roleSurface),
-    startedAt: new Date().toISOString(),
+    startedAt: new Date().toISOString(), managerResult: null, stateAdmissionWritten: false,
   };
   assertPolicyRoleSurface(run);
   return run;
@@ -488,6 +499,7 @@ function reportedModel(event: NormalizedEvent): string | null {
 }
 
 function collectStats(stats: RunStats, event: NormalizedEvent): void {
+  if (event.type === 'assistant_text') stats.lastAssistantText = event.text;
   if (event.type !== 'cost_record') return;
   if (event.tokens_in !== null) {
     stats.sawInput = true;
@@ -512,6 +524,7 @@ function trajectorySink(
   journal: Journal,
   stats: RunStats,
   io: AgentRunIo,
+  closeJournal: boolean,
 ): RunObserver {
   return {
     onEvent(event): void {
@@ -530,7 +543,7 @@ function trajectorySink(
       collectStats(stats, event);
       writeJsonLine(io, record);
     },
-    onClose: () => journal.close(),
+    onClose: () => closeJournal ? journal.close() : undefined,
   };
 }
 
@@ -600,8 +613,9 @@ function oneShotOptions(
   const admitted: AgentProcessSpawner = run.trial
     ? (command, args, options) => {
         run.trial!.admit({ cwd: options.cwd?.toString() ?? '', env: options.env ?? {} });
-        if (run.composition) {
+        if (run.composition && !run.stateAdmissionWritten) {
           journal.writeStateAdmission(run.composition.admission.evidence);
+          run.stateAdmissionWritten = true;
         }
         return spawner(command, args, options);
       }
@@ -662,6 +676,8 @@ async function settledOutcome(
 
 async function executeTurn(
   run: PreparedRun, journal: Journal, io: AgentRunIo, stats: RunStats,
+  prompt = run.modelPrompt,
+  closeJournal = true,
 ): Promise<ExecutionOutcome> {
   const adapter = run.trial?.adapter ?? new ClaudeAdapter();
   let supervision: SupervisorSession | null = null;
@@ -675,14 +691,215 @@ async function executeTurn(
   const removeSignals = installSignals(requestCancel);
   const spawner = supervisedSpawner(run, value => { supervision = value; }, () => cancelled);
   try {
-    const options = oneShotOptions(run, journal, trajectorySink(run, journal, stats, io), spawner);
+    const sink = trajectorySink(run, journal, stats, io, closeJournal);
+    const options = oneShotOptions(run, journal, sink, spawner);
     const config = run.policy ? trialAgentConfig(run.policy, run.backend) : agentConfig(run.profile);
-    handle = runWithAdapter(adapter, run.modelPrompt, options, config, undefined);
+    handle = runWithAdapter(adapter, prompt, options, config, undefined);
     if (cancelled) handle.kill();
     return await settledOutcome(adapter, run, handle, supervision, () => cancelled);
   } finally {
     removeSignals();
     await supervision?.dispose();
+  }
+}
+
+function managerInstruction(input: TrialManagerAttemptInput): string {
+  if (input.role === 'manager') return JSON.stringify(input.context);
+  return [
+    `Task: ${input.task.text}`,
+    `Done when: ${input.task.done_when}`,
+    `Task id: ${input.task.id}`,
+  ].join('\n');
+}
+
+function managerRequest(
+  run: PreparedRun,
+  input: TrialManagerAttemptInput,
+  remainingSteps: number,
+): BenchmarkThreadRequest {
+  const composition = run.composition!;
+  return {
+    workspaceCwd: run.options.cwd,
+    template: input.task.template,
+    instruction: managerInstruction(input),
+    profileName: run.options.profile,
+    rootRunId: run.rootRunId,
+    trajectoryRoot: run.options.trajectoryRoot,
+    runConfigPath: run.options.runConfigFile,
+    trialRoot: composition.paths.root,
+    coderReviewVariant: input.role === 'coder' ? 'audit-retry' : undefined,
+    trialPolicy: composition.policy,
+    limits: {
+      maxSteps: Math.max(1, remainingSteps),
+      maxCostUsd: Number(composition.policy.limits.max_cost_usd),
+      deadlineEpochMs: composition.policy.deadline.absolute_epoch_ms,
+    },
+    signal: input.signal,
+  };
+}
+
+function managerProposal(result: BenchmarkThreadResult): TrialManagerAttemptResult['proposal'] {
+  if (result.proposal?.kind === 'block') {
+    return { kind: 'block', reason: result.proposal.reason };
+  }
+  return result.proposal?.kind === 'complete'
+    ? { kind: 'complete', note: result.summary }
+    : null;
+}
+
+function managerAttemptResult(
+  input: TrialManagerAttemptInput,
+  result: BenchmarkThreadResult,
+): TrialManagerAttemptResult {
+  return {
+    taskId: input.task.id,
+    threadId: result.threadId,
+    state: result.state,
+    summary: result.summary,
+    manifestCommitted: result.manifestCommitted,
+    quiescent: result.manifestCommitted,
+    proposal: managerProposal(result),
+  };
+}
+
+function managerAbortSignal(run: PreparedRun, outcome: ExecutionOutcome): {
+  signal: AbortSignal;
+  dispose(): void;
+} {
+  const controller = new AbortController();
+  if (outcome.cancelled) controller.abort(new Error('parent cancelled'));
+  const remaining = Math.max(0, run.policy!.deadline.absolute_epoch_ms - Date.now());
+  const timer = setTimeout(() => controller.abort(new Error('manager deadline')), remaining);
+  timer.unref?.();
+  return { signal: controller.signal, dispose: () => clearTimeout(timer) };
+}
+
+function combinedCount(left: number | null, right: number | null): number | null {
+  return left === null || right === null ? null : left + right;
+}
+
+function combineExecutionOutcomes(
+  left: ExecutionOutcome,
+  right: ExecutionOutcome,
+): ExecutionOutcome {
+  const result = left.result && right.result ? {
+    ...right.result,
+    total_cost_usd: combinedCount(left.result.total_cost_usd, right.result.total_cost_usd),
+    num_turns: combinedCount(left.result.num_turns, right.result.num_turns),
+    rateLimited: left.result.rateLimited || right.result.rateLimited,
+    rateLimitMessage: right.result.rateLimitMessage ?? left.result.rateLimitMessage,
+  } : null;
+  return {
+    result,
+    error: left.error ?? right.error,
+    childExit: right.childExit,
+    supervisorExit: right.supervisorExit,
+    quiescent: left.quiescent && right.quiescent,
+    cancelled: left.cancelled || right.cancelled,
+  };
+}
+
+function parentQuestionPrompt(question: NonNullable<TrialManagerRuntimeResult['parentQuestion']>): string {
+  return JSON.stringify({
+    type: 'manager_parent_question',
+    question_id: question.questionId,
+    attempt_id: question.attemptId,
+    question: question.question,
+    instruction: 'Answer this trial-local manager question directly. Do not escalate it.',
+  });
+}
+
+async function executeParentAnswerTurn(
+  run: PreparedRun,
+  journal: Journal,
+  io: AgentRunIo,
+  stats: RunStats,
+  question: NonNullable<TrialManagerRuntimeResult['parentQuestion']>,
+): Promise<ExecutionOutcome> {
+  run.trial = run.composition!.createRuntimeParentTrial();
+  return executeTurn(run, journal, io, stats, parentQuestionPrompt(question), false);
+}
+
+async function executeManagerLifecycle(
+  run: PreparedRun,
+  outcome: ExecutionOutcome,
+  journal: Journal,
+  io: AgentRunIo,
+  stats: RunStats,
+): Promise<ExecutionOutcome> {
+  const authority = run.composition?.manager;
+  if (!authority || outcome.error || outcome.cancelled) return outcome;
+  const abort = managerAbortSignal(run, outcome);
+  let combined = outcome;
+  let remainingSteps = run.policy!.limits.max_provider_requests
+    - (outcome.result?.num_turns ?? 0);
+  let remainingCost = Number(run.policy!.limits.max_cost_usd)
+    - (outcome.result?.total_cost_usd ?? 0);
+  const runtime = authority.createRuntime({
+    signal: abort.signal,
+    rootTask: { text: run.modelPrompt, doneWhen: run.modelPrompt },
+    runAttempt: async (input) => {
+      if (remainingSteps <= 0 || remainingCost < 0) {
+        throw new Error('manager provider budget exhausted');
+      }
+      const request = managerRequest(run, input, remainingSteps);
+      request.limits.maxCostUsd = remainingCost;
+      const result = await runStandaloneBenchmarkThread(
+        request,
+        run.composition!.coordinator,
+        run.output,
+        () => run.composition!.stores.flush(),
+      );
+      remainingSteps -= result.steps;
+      remainingCost -= result.costUsd;
+      return managerAttemptResult(input, result);
+    },
+  });
+  try {
+    for (;;) {
+      run.managerResult = await runtime.run();
+      if (run.managerResult.state === 'completed') return combined;
+      if (run.managerResult.state !== 'needs_parent_answer' || !run.managerResult.parentQuestion) {
+        return { ...combined, error: new Error(`manager runtime ${run.managerResult.state}`) };
+      }
+      if (remainingSteps <= 0 || remainingCost < 0) {
+        authority.parentQuestions.invalidate(run.managerResult.parentQuestion.attemptId);
+        await authority.tree.cancel('manager parent-answer budget exhausted');
+        return { ...combined, error: new Error('manager parent-answer budget exhausted') };
+      }
+      stats.lastAssistantText = null;
+      const answerOutcome = await executeParentAnswerTurn(
+        run, journal, io, stats, run.managerResult.parentQuestion,
+      );
+      combined = combineExecutionOutcomes(combined, answerOutcome);
+      remainingSteps -= answerOutcome.result?.num_turns ?? 0;
+      remainingCost -= answerOutcome.result?.total_cost_usd ?? 0;
+      if (classify(answerOutcome).state !== 'completed') {
+        authority.parentQuestions.invalidate(run.managerResult.parentQuestion.attemptId);
+        await authority.tree.cancel('manager parent answer failed');
+        return combined;
+      }
+      const answer = (answerOutcome.result?.finalOutput ?? stats.lastAssistantText)?.trim();
+      if (!answer) {
+        authority.parentQuestions.invalidate(run.managerResult.parentQuestion.attemptId);
+        await authority.tree.cancel('manager parent answer was empty');
+        return { ...combined, error: new Error('manager parent answer was empty') };
+      }
+      const accepted = runtime.answerParent({
+        questionId: run.managerResult.parentQuestion.questionId,
+        attemptId: run.managerResult.parentQuestion.attemptId,
+        answer,
+      });
+      if (!accepted.success) {
+        authority.parentQuestions.invalidate(run.managerResult.parentQuestion.attemptId);
+        await authority.tree.cancel('manager parent answer refused');
+        return { ...combined, error: new Error(accepted.message ?? 'manager parent answer refused') };
+      }
+    }
+  } catch (error) {
+    return { ...combined, error };
+  } finally {
+    abort.dispose();
   }
 }
 
@@ -914,7 +1131,11 @@ function scanAttemptJournal(trajectoryRoot: string, journalPath: string): Attemp
  * admits exactly one thread — so the singleton IS the admitted thread's template. Any other
  * cardinality is underivable, and underivable is a refusal, not a guess.
  */
-function threadAttemptTemplate(policy: ResolvedTrialPolicy): string {
+function threadAttemptTemplate(
+  policy: ResolvedTrialPolicy,
+  descriptor: TrialAttemptEvidence | null,
+): string {
+  if (descriptor) return descriptor.template;
   const whitelist = policy.child_template_whitelist;
   if (whitelist.length !== 1) {
     throw new CompositeManifestError(
@@ -956,6 +1177,29 @@ function promoteThreadArtifact(
   }
 }
 
+function managerDescriptor(
+  run: PreparedRun,
+  threadId: string,
+): TrialAttemptEvidence | null {
+  return run.managerResult?.taskAttempts.find(attempt => attempt.threadId === threadId) ?? null;
+}
+
+function managerAncestry(
+  run: PreparedRun,
+  descriptor: TrialAttemptEvidence,
+): string[] {
+  const parents = new Map(
+    run.managerResult!.taskAttempts.map(attempt => [attempt.taskId, attempt.parentTaskId]),
+  );
+  const ancestry = [descriptor.taskId];
+  let parent = descriptor.parentTaskId;
+  while (parent) {
+    ancestry.unshift(parent);
+    parent = parents.get(parent) ?? null;
+  }
+  return ancestry;
+}
+
 function threadAttemptRecord(
   run: PreparedRun,
   policy: ResolvedTrialPolicy,
@@ -969,6 +1213,7 @@ function threadAttemptRecord(
   const journal = scanAttemptJournal(run.options.trajectoryRoot, terminal.journal_path as string);
   const tokens = (terminal.tokens ?? {}) as Record<string, number | null | undefined>;
   const artifact = promoteThreadArtifact(run, stem, threadId, owned);
+  const descriptor = managerDescriptor(run, threadId);
   return {
     journal,
     record: {
@@ -976,9 +1221,9 @@ function threadAttemptRecord(
       root_run_id: run.rootRunId,
       // G4-CM11: a taskless mode RE-USES `trial_id`; §1.3 rule 7 forces `max_tasks = 0` for every
       // mode but `manager`, so a thread of a `coder-review` trial carries the same re-used id.
-      task_id: policy.trial_id,
-      parent_task_id: null,
-      dispatch_generation: null,
+      task_id: descriptor?.taskId ?? policy.trial_id,
+      parent_task_id: descriptor?.parentTaskId ?? null,
+      dispatch_generation: descriptor?.dispatchGeneration ?? null,
       attempt_id: stem,
       thread_id: threadId,
       // G4-N16: no benchmark writer produces `metadata.parentThreadId`.
@@ -986,8 +1231,8 @@ function threadAttemptRecord(
       // Every lifecycle pair under this root is a DIRECT child of the parent process, so the thread
       // IS its own root thread — the depth-1 case in which G4-N15's `?? t.id` is correct.
       root_thread_id: threadId,
-      task_ancestry: [policy.trial_id],
-      template: threadAttemptTemplate(policy),
+      task_ancestry: descriptor ? managerAncestry(run, descriptor) : [policy.trial_id],
+      template: threadAttemptTemplate(policy, descriptor),
       // G4-AI8: verbatim the journal header's `agent_slot`, the fragment's ENTRY role.
       role: journal.agentSlot as AttemptRecord['role'],
       stage: null,
@@ -1001,7 +1246,8 @@ function threadAttemptRecord(
       terminal_state: terminal.state as AttemptRecord['terminal_state'],
       terminal_reason: terminal.terminal_reason as AttemptRecord['terminal_reason'],
       // §9.4 C8: a standalone pipeline thread has no ledger, so no verdict has been recorded.
-      disposition: 'none',
+      disposition: descriptor?.disposition === 'pending'
+        ? 'none' : descriptor?.disposition ?? 'none',
       superseded_by: null,
       artifact_path: artifact?.relativePath ?? null,
       artifact_sha256: artifact?.sha256 ?? null,
@@ -1298,14 +1544,14 @@ function parentAttemptRecord(
     root_run_id: run.rootRunId,
     // G4-CM11: a taskless mode RE-USES `trial_id` as `task_id` — an existing authoritative
     // identifier rather than a mint, which is the distinction that makes it legal under §9.6 A5.
-    task_id: policy.trial_id,
+    task_id: run.managerResult?.rootTaskId ?? policy.trial_id,
     parent_task_id: null,
     dispatch_generation: null,
     attempt_id: attemptId,
     thread_id: null,
     parent_thread_id: null,
     root_thread_id: null,
-    task_ancestry: [policy.trial_id],
+    task_ancestry: [run.managerResult?.rootTaskId ?? policy.trial_id],
     template: null,
     // G4-AI8: verbatim the journal header's `agentSlot` (written from this same value at `:727`).
     role: run.options.agentSlot,
@@ -1475,7 +1721,10 @@ function publishCompositeManifest(
       identity: policy.identity,
       nodes: graph.nodes,
       edges: graph.edges,
-      roots: { parent_attempt_id: parent.attempt_id, root_task_id: null },
+      roots: {
+        parent_attempt_id: parent.attempt_id,
+        root_task_id: run.managerResult?.rootTaskId ?? null,
+      },
       mode: mode as OrchestrationModeName,
     };
     // Built twice from the same pure inputs, published once. The first build exists only to give
@@ -1584,9 +1833,13 @@ export async function runOneShotAgent(
     // Before any model process is admitted.
     await echoTrialLease(run, io);
     const stats: RunStats = {
-      input: 0, output: 0, sawInput: false, sawOutput: false, reportedModel: null,
+      input: 0, output: 0, sawInput: false, sawOutput: false,
+      reportedModel: null, lastAssistantText: null,
     };
-    const outcome = await executeTurn(run, journal, io, stats);
+    const manager = run.composition?.manager !== null && run.composition?.manager !== undefined;
+    const parentOutcome = await executeTurn(run, journal, io, stats, run.modelPrompt, !manager);
+    const outcome = await executeManagerLifecycle(run, parentOutcome, journal, io, stats);
+    if (manager) await journal.close();
     const classified = classify(outcome);
     const manifest = terminalManifest(run, journal, stats, outcome, classified);
     // F7 + F8 (§9.5): build the attempt DAG, then publish the composite manifest atomically.

@@ -22,6 +22,7 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | runner.ts | core | gates terminal/composite on state and artifacts |
 | standalone-composition.ts | wiring | builds fresh roots and admission evidence |
 | standalone-stores.ts | store | confines trial task, thread and session state |
+| trial-manager-runtime.ts | runtime | schedules standalone manager task trees |
 | supervisor.ts | core | resolves the binary and gates process containment |
 | trajectory-merge-cli.ts | cli | publishes one merged trajectory with typed failures |
 | trajectory-merge.ts | core | merges attempt DAG events with available metrics |

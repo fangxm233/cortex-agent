@@ -66,7 +66,7 @@ import {
   type SupervisorSession,
 } from './supervisor.js';
 
-interface BenchmarkThreadRequest {
+export interface BenchmarkThreadRequest {
   workspaceCwd: string;
   template: string;
   instruction: string;
@@ -180,7 +180,7 @@ type ManifestClassifiedRun = { state: TerminalState; reason: TerminalReason };
 type ClassifiedRun = ManifestClassifiedRun | { state: 'failed'; reason: NonQuiescentReason };
 
 const BENCHMARK_SLOTS = new Set<AgentSlotId>([
-  'benchmark-coder', 'benchmark-reviewer', 'benchmark-fixer',
+  'benchmark-manager', 'benchmark-coder', 'benchmark-reviewer', 'benchmark-fixer',
 ]);
 const SUMMARY_LIMIT = 2000;
 const MAX_TIMER_MS = 2_147_483_647;
@@ -246,7 +246,9 @@ function trialSnapshotPaths(request: BenchmarkThreadRequest): TrialSnapshotPaths
 function validateWorkspacePlacement(request: BenchmarkThreadRequest): void {
   if (!expectedVariant(request) || request.trialRoot) return;
   const placement = stepPlacement(request);
-  const snapshotRoles = ['parent', 'benchmark-coder', 'benchmark-reviewer', 'benchmark-fixer']
+  const snapshotRoles = [
+    'parent', 'benchmark-manager', 'benchmark-coder', 'benchmark-reviewer', 'benchmark-fixer',
+  ]
     .filter((slot) => {
       try { return placement(slot) === 'disposable-snapshot'; }
       catch { return false; }
@@ -914,10 +916,17 @@ function truncatedSummary(characters: string[]): string {
   return '';
 }
 
-function truncateSummary(thread: ThreadRecord): string {
-  const text = (thread.steps.at(-1)?.output ?? '').replace(/\r\n?/g, '\n').trim();
-  const characters = Array.from(text);
-  return characters.length > SUMMARY_LIMIT ? truncatedSummary(characters) : text;
+function boundedSummary(text: string): string {
+  const normalized = text.replace(/\r\n?/g, '\n').trim();
+  const characters = Array.from(normalized);
+  return characters.length > SUMMARY_LIMIT ? truncatedSummary(characters) : normalized;
+}
+
+function attemptSummary(prepared: PreparedThreadRun, thread: ThreadRecord): string {
+  const finalStep = thread.steps.at(-1);
+  const captured = finalStep
+    ? prepared.terminalAssistantText.get(finalStep.stepIndex) : undefined;
+  return boundedSummary(captured ?? finalStep?.output ?? '');
 }
 
 /** The step loop's own account of why it stopped. Absent → this run's admission boundary closed
@@ -968,7 +977,7 @@ function buildResult(
     steps: thread.steps.length,
     costUsd: thread.totalCostUsd,
     durationMs: Math.max(0, Date.now() - new Date(prepared.startedAt).getTime()),
-    summary: truncateSummary(thread),
+    summary: attemptSummary(prepared, thread),
     proposal,
   };
 }

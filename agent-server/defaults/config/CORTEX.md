@@ -7,4 +7,4 @@ Shipped configuration scaffold for budgets, registry hooks, and thread templates
 | budget.json | config | Seeds budget limits |
 | hooks/ | subdir | Declares managed registry hooks |
 | mcp-config-empty.json | config | Provides immutable strict empty MCP surface |
-| thread-templates/ | subdir | Defines reviewer-gated loops and revision re-review |
+| thread-templates/ | subdir | Defines reviewer loops and standalone manager turns |

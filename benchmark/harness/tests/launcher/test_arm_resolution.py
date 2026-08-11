@@ -20,11 +20,7 @@ from cortex_bench_harness.launcher.arm_resolution import (
     parse_trial_seed,
     write_arm_resolution,
 )
-from cortex_bench_harness.launcher.arms import (
-    ArmCompositionUnsupportedError,
-    BackendUnsupportedForKindError,
-    select_arm,
-)
+from cortex_bench_harness.launcher.arms import BackendUnsupportedForKindError, select_arm
 
 DIGEST = f"sha256:{'a' * 64}"
 BASE_ARM: dict[str, object] = {
@@ -280,16 +276,40 @@ def test_parse_trial_seed_carries_the_optional_host_authorisations() -> None:
     assert document["pi_benchmark_capability_proven"] is False
 
 
-def test_composition_fails_closed_for_every_other_combination() -> None:
-    # coder-review composes now that its variant role sets exist; the manager mode does not, and
-    # its refusal still names the gate that owes it a role set.
+@pytest.mark.parametrize("ask_manager", [False, True])
+def test_composes_manager_roles_and_assets_for_qa_off_and_on(ask_manager: bool) -> None:
     manager = copy.deepcopy(seed_document())
-    manager["arm"] = {**BASE_ARM, "orchestration": {"mode": "manager", "ask_manager": False}}
+    manager["arm"] = {
+        **BASE_ARM,
+        "name": f"cortex-manager-qa-{'on' if ask_manager else 'off'}",
+        "orchestration": {"mode": "manager", "ask_manager": ask_manager},
+        "limits": {
+            **BASE_ARM["limits"], "max_thread_starts": 1,
+            "max_parent_questions": 2 if ask_manager else 0,
+            "max_task_depth": 3, "max_tasks": 12,
+            "max_resident_agent_processes": 4,
+        },
+    }
+
+    document = compose_arm_resolution(parse_trial_seed(manager), FACTS)
+
+    assert set(document["roles"]) == {
+        "parent", "benchmark-manager", "benchmark-coder", "benchmark-reviewer",
+    }
+    assert set(document["thread_templates"]) == {
+        "benchmark-manager", "benchmark-coder-review",
+    }
+    assert set(document["thread_agents"]) == {
+        "benchmark-manager", "benchmark-coder", "benchmark-reviewer",
+    }
+    assert document["roles"]["benchmark-manager"]["mcp_composition"] == "none"
+    assert document["artifact_inventory_spec"] == {"expected": [ARM_RESOLUTION_SOURCE]}
+
+
+def test_composition_fails_closed_for_an_undeclared_backend() -> None:
     undeclared_backend = copy.deepcopy(seed_document())
     undeclared_backend["arm"] = {**BASE_ARM, "backend": "unknown-backend"}
 
-    with pytest.raises(ArmCompositionUnsupportedError, match="gate 6"):
-        compose_arm_resolution(parse_trial_seed(manager), FACTS)
     with pytest.raises(BackendUnsupportedForKindError, match="its owning gate"):
         compose_arm_resolution(parse_trial_seed(undeclared_backend), FACTS)
 

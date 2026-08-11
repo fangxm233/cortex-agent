@@ -120,6 +120,13 @@ CODER_REVIEW_TEMPLATE: dict[str, str] = {
     "audit-retry": "benchmark-coder-review",
     "reviewer-fix": "benchmark-coder-review-fix",
 }
+MANAGER_MODE = "manager"
+MANAGER_CHILD_SLOTS = ("benchmark-manager", "benchmark-coder", "benchmark-reviewer")
+MANAGER_TEMPLATES = ("benchmark-manager", "benchmark-coder-review")
+MANAGER_TOOLS = {
+    "claude": ("Read", "Write"),
+    "pi": ("read", "write"),
+}
 
 
 @dataclass(frozen=True)
@@ -362,6 +369,40 @@ def _thread_assets(bundle_root: str, variant: str) -> tuple[dict[str, str], dict
     return templates, agents
 
 
+def _manager_role(bundle_root: str, backend: str) -> dict[str, object]:
+    root = PurePosixPath(bundle_root)
+    slot = "benchmark-manager"
+    return {
+        "system_prompt_path": str(root / SYSTEM_PROMPTS_DIR / f"{slot}.md"),
+        "directive_path": str(root / DIRECTIVES_DIR / f"{slot}.md"),
+        "tools": list(MANAGER_TOOLS[backend]),
+        "plugin_dirs": [], "mcp_composition": "none",
+        "mcp_config_paths": [], "disable_hooks": True,
+    }
+
+
+def _manager_roles(bundle_root: str, backend: str) -> dict[str, object]:
+    return {
+        "parent": _direct_parent_role(bundle_root, backend),
+        "benchmark-manager": _manager_role(bundle_root, backend),
+        "benchmark-coder": _coder_review_child_role(bundle_root, backend, "benchmark-coder"),
+        "benchmark-reviewer": _coder_review_child_role(
+            bundle_root, backend, "benchmark-reviewer",
+        ),
+    }
+
+
+def _manager_assets(bundle_root: str) -> tuple[dict[str, str], dict[str, str]]:
+    root = PurePosixPath(bundle_root) / THREAD_TEMPLATES_DIR
+    templates = {
+        name: str(root / "templates" / f"{name}.json") for name in MANAGER_TEMPLATES
+    }
+    agents = {
+        slot: str(root / "agents" / f"{slot}.json") for slot in MANAGER_CHILD_SLOTS
+    }
+    return templates, agents
+
+
 def build_benchmark_thread_mcp_config(bundle_root: str) -> dict[str, object]:
     """The declaration a coder-review parent's `mcp_config_paths` names. Exactly one server: the
     compile refuses any other set for a `benchmark-thread-run` role. Carries the coordinator's
@@ -465,7 +506,8 @@ def compose_arm_resolution(
     require_composable_arm(seed.arm)
     backend = arm_backend(seed.arm)
     inventory = [ARM_RESOLUTION_SOURCE]
-    if arm_orchestration_mode(seed.arm) == CODER_REVIEW_MODE:
+    mode = arm_orchestration_mode(seed.arm)
+    if mode == CODER_REVIEW_MODE:
         variant = arm_coder_review_variant(seed.arm)
         roles = _coder_review_roles(facts.bundle_root, backend, variant)
         thread_templates, thread_agents = _thread_assets(facts.bundle_root, variant)
@@ -474,6 +516,9 @@ def compose_arm_resolution(
         # the inventory default.
         inventory.append(BENCHMARK_THREAD_MCP_SOURCE)
         inventory.append(BENCHMARK_THREAD_POLICY_SOURCE)
+    elif mode == MANAGER_MODE:
+        roles = _manager_roles(facts.bundle_root, backend)
+        thread_templates, thread_agents = _manager_assets(facts.bundle_root)
     else:
         roles = {"parent": _direct_parent_role(facts.bundle_root, backend)}
         thread_templates, thread_agents = {}, {}

@@ -163,6 +163,70 @@ function armResolution(
   return write(path.join(base, 'agent', 'arm-resolution.json'), JSON.stringify(document));
 }
 
+function managerArmResolution(
+  cli: string,
+  bundleRoot: string,
+  base: string,
+  trialId: string,
+  backend: 'claude' | 'pi',
+  askManager: boolean,
+): string {
+  const file = armResolution(cli, bundleRoot, base, trialId, backend);
+  const document = JSON.parse(fs.readFileSync(file, 'utf8'));
+  document.arm.name = `cortex-${backend}-manager-qa-${askManager ? 'on' : 'off'}`;
+  document.root_run_id = `${trialId}.${document.arm.name}`;
+  document.arm.orchestration = { mode: 'manager', ask_manager: askManager };
+  document.arm.limits = {
+    ...document.arm.limits, max_thread_starts: 1, max_provider_requests: 16,
+    max_parent_questions: askManager ? 2 : 0,
+    max_task_depth: 3, max_tasks: 12, max_resident_agent_processes: 4,
+  };
+  const defaults = path.join(bundleRoot, 'defaults');
+  const role = (slot: string, tools: string[]) => ({
+    system_prompt_path: path.join(defaults, 'prompts/systemPrompts', `${slot}.md`),
+    directive_path: path.join(defaults, 'prompts/directives', `${slot}.md`),
+    tools, plugin_dirs: [], mcp_composition: 'none', mcp_config_paths: [],
+    disable_hooks: true,
+  });
+  const tools = backend === 'claude' ? {
+    manager: ['Read', 'Write'],
+    coder: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'TodoWrite', 'Skill'],
+    reviewer: ['Bash', 'Read', 'Glob', 'Grep', 'TodoWrite', 'Skill'],
+  } : {
+    manager: ['read', 'write'],
+    coder: ['bash', 'read', 'write', 'edit', 'glob', 'grep', 'todo_write', 'skill'],
+    reviewer: ['bash', 'read', 'glob', 'grep', 'todo_write', 'skill'],
+  };
+  document.roles['benchmark-manager'] = role('benchmark-manager', tools.manager);
+  document.roles['benchmark-coder'] = role('benchmark-coder', tools.coder);
+  document.roles['benchmark-reviewer'] = role('benchmark-reviewer', tools.reviewer);
+  const templates = path.join(defaults, 'config/thread-templates');
+  document.thread_templates = {
+    'benchmark-manager': path.join(templates, 'templates/benchmark-manager.json'),
+    'benchmark-coder-review': path.join(templates, 'templates/benchmark-coder-review.json'),
+  };
+  document.thread_agents = {
+    'benchmark-manager': path.join(templates, 'agents/benchmark-manager.json'),
+    'benchmark-coder': path.join(templates, 'agents/benchmark-coder.json'),
+    'benchmark-reviewer': path.join(templates, 'agents/benchmark-reviewer.json'),
+  };
+  fs.writeFileSync(file, JSON.stringify(document));
+  return file;
+}
+
+function fakeManagerBackend(
+  base: string,
+  backend: 'claude' | 'pi',
+): { cli: string; observation: string } {
+  const observation = path.join(base, 'manager-observation.json');
+  const script = path.join(serverRoot, 'tests/domain/agent-run',
+    backend === 'claude' ? 'fake-manager-claude.mjs' : 'fake-manager-pi.mjs');
+  const cli = write(path.join(base, 'bundle', backend),
+    `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(script)} `
+      + `--observation ${JSON.stringify(observation)} "$@"\n`, 0o755);
+  return { cli, observation };
+}
+
 interface PackedBundle {
   root: string;
   cortex: string;
@@ -357,6 +421,61 @@ it('runs packed PI with only the trial dummy auth file and scoped proxy catalog'
     providers: { anthropic: { baseUrl: 'http://127.0.0.1:1' } },
   });
 }, 180_000);
+
+it.each([
+  ['claude', false], ['claude', true], ['pi', false], ['pi', true],
+] as const)(
+  'runs packed %s manager with Q&A=%s through fresh trial-local authority',
+  (backend, askManager) => {
+    const label = `${backend}-manager-${askManager ? 'qa-on' : 'qa-off'}`;
+    const base = path.join(root, label);
+    const fake = fakeManagerBackend(base, backend);
+    const trialId = `trial-${label}`;
+    const runConfig = managerArmResolution(
+      fake.cli, installed.root, base, trialId, backend, askManager,
+    );
+    const workspace = path.join(base, 'workspace');
+    const trajectory = path.join(base, 'agent', 'trajectory');
+    fs.mkdirSync(workspace, { recursive: true });
+    fs.mkdirSync(trajectory, { recursive: true });
+    const result = spawnSync(installed.cortex, ['agent-run',
+      '--prompt-file', write(path.join(base, 'agent', 'instruction.md'), 'Complete the task.'),
+      '--agent-slot', 'parent', '--profile', 'benchmark', '--cwd', workspace,
+      '--output-format', 'jsonl', '--events-file', path.join(trajectory, 'events.jsonl'),
+      '--trajectory-root', trajectory,
+      '--root-run-id', JSON.parse(fs.readFileSync(runConfig, 'utf8')).root_run_id,
+      '--run-config', runConfig, '--supervisor-binary', installed.supervisor,
+    ], { cwd: workspace, encoding: 'utf8', timeout: 120_000 });
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const terminal = result.stdout.trim().split('\n').map(line => JSON.parse(line)).at(-1);
+    assert.equal(terminal.state, 'completed');
+    const stateRoot = path.join(base, 'agent', 'trial-home', 'coordinator');
+    const tree = JSON.parse(fs.readFileSync(path.join(stateRoot, 'task-tree.json'), 'utf8'));
+    const tasks = JSON.parse(fs.readFileSync(path.join(
+      base, 'agent', 'trial-home', 'cortex-home', 'state', 'tasks.json',
+    ), 'utf8'));
+    assert.equal(tasks.root.status, 'done');
+    assert.equal(Object.values(tasks).every((task: any) => task.status === 'done'), true);
+    assert.equal(tree.attempts.length >= 3, true);
+    assert.equal(tree.attempts.every((attempt: any) => attempt.status === 'terminal'), true);
+    const observations = JSON.parse(fs.readFileSync(fake.observation, 'utf8'));
+    assert.equal(observations.some((entry: any) => entry.role === 'manager'), true);
+    assert.equal(observations.some((entry: any) => entry.role === 'coder'), true);
+    assert.equal(observations.some((entry: any) => entry.role === 'reviewer'), true);
+    if (askManager) {
+      assert.equal(observations.filter((entry: any) => entry.role === 'parent').length, 2);
+      const parentQuestions = JSON.parse(fs.readFileSync(path.join(
+        stateRoot, 'manager-qa', 'parent-questions.json',
+      ), 'utf8'));
+      assert.equal(parentQuestions.length, 1);
+      assert.equal(parentQuestions[0].state, 'consumed');
+      assert.equal(parentQuestions[0].answer, 'trial parent answer');
+    }
+    assert.equal(fs.existsSync(path.join(root, 'host-cortex', 'data', 'threads.json')), false);
+  },
+  180_000,
+);
 
 function procTokenPids(token: string): number[] {
   return fs.readdirSync('/proc').filter(entry => /^\d+$/.test(entry)).flatMap((entry) => {

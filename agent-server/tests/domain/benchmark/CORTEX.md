@@ -15,7 +15,9 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | task-broker-arguments.test.ts | 测试 | Tests broker argument validation |
 | task-broker.test.ts | 测试 | Tests benchmark task authorization |
 | trial-acceptance-ledger.test.ts | 测试 | Tests trial acceptance verdicts |
+| trial-manager-qa.test.ts | 测试 | Tests trial-local manager Q&A routing |
 | trial-task-mutator.test.ts | 测试 | Tests capability-fenced task mutations |
+| trial-task-tree-coordinator.test.ts | 测试 | Tests standalone task-tree lifecycle |
 | port-scope-fence.test.ts | 测试 | Tests fail-closed runtime scope |
 | trial-task-ports.test.ts | 测试 | Tests trial task state ports |
 | policy-backed-runtime-deps.test.ts | 测试 | Tests frozen runtime dependency lookup |

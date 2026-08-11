@@ -27,6 +27,18 @@ import type { ArmResolution } from '../benchmark/policy-compiler.js';
 import type { ResolvedTrialPolicy } from '../benchmark/resolved-policy.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import { readActiveLeaseState } from '../benchmark/workspace-lease.js';
+import { createTrialClock } from '../benchmark/trial-clock.js';
+import {
+  createTrialManagerQaMailbox, createTrialParentQuestionBridge,
+  type TrialManagerQaMailbox, type TrialParentQuestionBridge,
+} from '../benchmark/trial-manager-qa.js';
+import {
+  createTrialTaskTreeCoordinator, type TrialTaskTreeCoordinator,
+} from '../benchmark/trial-task-tree-coordinator.js';
+import {
+  createTrialManagerRuntime, type TrialManagerAttemptInput, type TrialManagerAttemptResult,
+  type TrialManagerRuntime,
+} from './trial-manager-runtime.js';
 import {
   failClosedRuntimeDeps, type ExecutionLedgerPort, type LocalThreadRuntimeDeps,
 } from '../threads/local-runtime-deps.js';
@@ -74,6 +86,19 @@ export class StandaloneAdmissionError extends Error {
   }
 }
 
+export interface StandaloneManagerAuthority {
+  root: string;
+  qaEnabled: boolean;
+  tree: TrialTaskTreeCoordinator;
+  managerQa: TrialManagerQaMailbox;
+  parentQuestions: TrialParentQuestionBridge;
+  createRuntime(input: {
+    runAttempt(value: TrialManagerAttemptInput): Promise<TrialManagerAttemptResult>;
+    signal: AbortSignal;
+    rootTask: { text: string; doneWhen: string };
+  }): TrialManagerRuntime;
+}
+
 export interface StandaloneAgentRunComposition {
   policy: ResolvedTrialPolicy;
   config: ResolvedAgentRunConfig;
@@ -85,7 +110,9 @@ export interface StandaloneAgentRunComposition {
   coordinator: LocalThreadRuntimeDeps & { portScope: 'fail-closed' };
   output: BenchmarkOutputAdapter;
   parentTrial: TrialAdapter;
+  createRuntimeParentTrial(): TrialAdapter;
   parentRunOptions: RunAgentOptions;
+  manager: StandaloneManagerAuthority | null;
 }
 
 function readResolution(file: string): ArmResolution {
@@ -608,6 +635,41 @@ function materializeProfile(paths: PinnedTrialPaths, profile: ResolvedProfileCon
   }
 }
 
+function createManagerAuthority(input: {
+  policy: ResolvedTrialPolicy;
+  paths: PinnedTrialPaths;
+  stores: StandaloneStoreBundle;
+  taskRepository: ReturnType<typeof createTrialTaskRepository>;
+}): StandaloneManagerAuthority | null {
+  if (input.policy.arm.orchestration?.mode !== 'manager') return null;
+  const root = path.join(input.paths.root, 'coordinator');
+  fs.mkdirSync(root, { recursive: true });
+  const clock = createTrialClock({ deadlineEpochMs: input.policy.deadline.absolute_epoch_ms });
+  const qaEnabled = input.policy.arm.orchestration.ask_manager;
+  const tree = createTrialTaskTreeCoordinator({
+    trialId: input.policy.trial_id, project: 'benchmark', root: input.paths.root,
+    tasks: input.stores.tasks, clock,
+    limits: {
+      maxTasks: input.policy.limits.max_tasks,
+      maxDepth: input.policy.limits.max_task_depth,
+    },
+    qaEnabled,
+  });
+  const terminal = (status: string) => ['completed', 'failed', 'cancelled', 'aborted'].includes(status);
+  const managerQa = createTrialManagerQaMailbox({
+    trialId: input.policy.trial_id, root, threads: input.stores.threads,
+    tasks: input.taskRepository, clock, isTerminalStatus: terminal,
+  });
+  const parentQuestions = createTrialParentQuestionBridge({
+    trialId: input.policy.trial_id, root, clock,
+    maxQuestions: input.policy.limits.max_parent_questions,
+  });
+  return {
+    root, qaEnabled, tree, managerQa, parentQuestions,
+    createRuntime: value => createTrialManagerRuntime({ tree, parentQuestions, ...value }),
+  };
+}
+
 export function createStandaloneAgentRunComposition(
   options: StandaloneCompositionOptions,
 ): StandaloneAgentRunComposition {
@@ -632,9 +694,18 @@ export function createStandaloneAgentRunComposition(
       : (value: TrialProcessAdmissionInput) => admission.assertRuntime(value),
   };
   const parentTrial = createTrialAdapter(parentSpec);
+  const runtimeParentSpec = {
+    ...parentSpec,
+    admission: (value: TrialProcessAdmissionInput) => admission.assertRuntime(value),
+  };
+  const taskRepository = createTrialTaskRepository(stores.tasks);
+  const manager = createManagerAuthority({
+    policy: loaded.policy, paths, stores, taskRepository,
+  });
   return {
     ...loaded, profile, paths, stores, admission, coordinator, output, parentTrial,
-    taskRepository: createTrialTaskRepository(stores.tasks),
+    createRuntimeParentTrial: () => createTrialAdapter(runtimeParentSpec),
+    taskRepository, manager,
     parentRunOptions: trialRunOptions(parentSpec),
   };
 }

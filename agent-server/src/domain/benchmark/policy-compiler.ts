@@ -397,6 +397,7 @@ const LEASE_STATES: ReadonlySet<string> = new Set([
 // ever armed while the lease is `thread-owned`, so a second key would name a state no step reaches.
 const ROLE_CLASS_LEASE_STATE: Record<string, string> = {
   parent: GATE2_LEASE_STATE,
+  'benchmark-manager': 'thread-owned',
   'benchmark-coder': 'thread-owned',
   'benchmark-reviewer': 'thread-owned',
   'benchmark-fixer': 'thread-owned',

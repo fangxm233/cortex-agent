@@ -23,8 +23,10 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | task-broker-arguments.ts | 核心 | Validates broker request arguments |
 | task-broker.ts | 核心 | Authorizes benchmark task actions |
 | trial-acceptance-ledger.ts | 核心 | Records trial acceptance verdicts |
+| trial-manager-qa.ts | 核心 | Routes durable trial-local manager questions |
 | terminal-predicate.ts | 核心 | Evaluates trial structure and terminal state |
 | trial-task-dispatcher.ts | 核心 | Selects and claims trial tasks |
+| trial-task-tree-coordinator.ts | 核心 | Owns standalone manager task-tree lifecycle |
 | trial-clock.ts | 类型 | Provides deterministic trial time |
 | trial-adapter-factory.ts | 核心 | Creates credential-pinned admitted adapters |
 | trial-thread-adapter.ts | 核心 | Admits trial thread adapter steps |

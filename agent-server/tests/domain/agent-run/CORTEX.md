@@ -28,6 +28,8 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | benchmark-thread-backend-neutral.test.ts | test | proves per-step trial adapters, widened pins and artifact convergence on both backends |
 | benchmark-thread-workspace.test.ts | test | proves per-step placement, writer refusal, discard and append |
 | fake-backend-cli.ts | fixture | answers, hangs on or prices one queued step per invocation in either backend's wire shape, recording its prompts, lifecycle and declared writes through baked-in paths |
+| fake-manager-claude.mjs | fixture | drives packed Claude manager turns |
+| fake-manager-pi.mjs | fixture | drives packed PI manager turns |
 | fake-run-agent-loader.mjs | fixture | redirects current runtime agent imports to a fake |
 | fake-run-agent-module.mjs | fixture | returns one deterministic no-model result |
 | fake-run-agent-register.mjs | fixture | installs the fake agent loader before import |
@@ -51,6 +53,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | standalone-public-cli.test.ts | e2e | proves packed state handoff and process containment |
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
 | trial-run-pi.test.ts | test | proves PI state admission, supervision and run identity |
+| trial-manager-runtime.test.ts | test | proves standalone nested manager lifecycle |
 | trial-run.test.ts | test | proves Claude state admission, swaps and publication gates |
 | trajectory-merge-cli.test.ts | test | verifies optional metrics and typed failures |
 | transport-teardown-e2e.test.ts | e2e | proves journal-linked finalization survives teardown |

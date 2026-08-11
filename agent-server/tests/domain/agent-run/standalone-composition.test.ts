@@ -58,6 +58,33 @@ function createComposition(input: ReturnType<typeof fixture>) {
   });
 }
 
+function managerFixture() {
+  const input = fixture();
+  const resolution = JSON.parse(fs.readFileSync(input.runConfigFile, 'utf8'));
+  resolution.arm.name = 'cortex-claude-manager';
+  resolution.arm.orchestration = { mode: 'manager', ask_manager: true };
+  resolution.arm.limits = {
+    ...resolution.arm.limits, max_parent_questions: 2,
+    max_task_depth: 3, max_tasks: 12, max_resident_agent_processes: 4,
+  };
+  const defaults = path.resolve('defaults');
+  const emptyMcp = writeFixtureAsset(root, 'manager-empty-mcp.json', '{"mcpServers":{}}\n');
+  resolution.roles['benchmark-manager'] = {
+    system_prompt_path: path.join(defaults, 'prompts/systemPrompts/benchmark-manager.md'),
+    directive_path: path.join(defaults, 'prompts/directives/benchmark-manager.md'),
+    tools: ['Read', 'Write'], plugin_dirs: [], mcp_composition: 'none',
+    mcp_config_paths: [emptyMcp], disable_hooks: true,
+  };
+  resolution.thread_templates['benchmark-manager'] = path.join(
+    defaults, 'config/thread-templates/templates/benchmark-manager.json',
+  );
+  resolution.thread_agents['benchmark-manager'] = path.join(
+    defaults, 'config/thread-templates/agents/benchmark-manager.json',
+  );
+  fs.writeFileSync(input.runConfigFile, JSON.stringify(resolution));
+  return input;
+}
+
 it('constructs the public projection without reading ambient profiles or stores', async () => {
   const input = fixture();
   writeTrialProfile('pi');
@@ -65,9 +92,10 @@ it('constructs the public projection without reading ambient profiles or stores'
   const composition = createComposition(input);
 
   assert.deepEqual(Object.keys(composition).sort(), [
-    'admission', 'config', 'coordinator', 'output', 'parentRunOptions', 'parentTrial', 'paths',
-    'policy', 'profile', 'stores', 'taskRepository',
+    'admission', 'config', 'coordinator', 'createRuntimeParentTrial', 'manager', 'output',
+    'parentRunOptions', 'parentTrial', 'paths', 'policy', 'profile', 'stores', 'taskRepository',
   ]);
+  assert.equal(composition.manager, null);
   assert.equal(composition.policy.arm.backend, 'claude');
   assert.deepEqual(composition.profile, {
     name: FIXTURE_PROFILE,
@@ -154,6 +182,18 @@ it('constructs the public projection without reading ambient profiles or stores'
   assert.equal(fs.existsSync(path.join(
     process.env.CORTEX_HOME as string, 'data', 'threads.json',
   )), false);
+});
+
+it('constructs manager authority only for a compiled manager arm', () => {
+  const input = managerFixture();
+  const composition = createComposition(input);
+
+  assert.ok(composition.manager);
+  assert.equal(composition.manager.root, path.join(input.trialRoot, 'coordinator'));
+  assert.equal(composition.manager.tree.snapshot().tasks.length, 0);
+  assert.equal(composition.manager.qaEnabled, true);
+  assert.equal(composition.manager.parentQuestions.open().length, 0);
+  assert.equal(composition.manager.root.startsWith(input.trialRoot), true);
 });
 
 type Composition = ReturnType<typeof createComposition>;

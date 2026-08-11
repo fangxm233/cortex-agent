@@ -503,8 +503,8 @@ function isNullableInteger(value: unknown): boolean {
 }
 
 function isAgentSlot(value: unknown): boolean {
-  return value === 'parent' || value === 'benchmark-coder' || value === 'benchmark-reviewer'
-    || value === 'benchmark-fixer';
+  return value === 'parent' || value === 'benchmark-manager' || value === 'benchmark-coder'
+    || value === 'benchmark-reviewer' || value === 'benchmark-fixer';
 }
 
 function isBackend(value: unknown): boolean {
