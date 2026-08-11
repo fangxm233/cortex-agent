@@ -12,8 +12,7 @@ const JOURNAL_SCHEMA = 'cortex-bench-journal/1';
 const READ_BUFFER_BYTES = 64 * 1024;
 
 export type AgentSlot =
-  | 'parent' | 'benchmark-manager'
-  | 'benchmark-coder' | 'benchmark-reviewer' | 'benchmark-fixer';
+  | 'parent' | 'benchmark-manager' | 'benchmark-coder' | 'benchmark-reviewer' | 'benchmark-fixer';
 
 export class TrajectoryWriteFailedError extends Error {
   readonly reason = 'trajectory_write_failed' as const;

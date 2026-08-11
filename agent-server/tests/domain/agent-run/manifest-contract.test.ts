@@ -531,7 +531,7 @@ it('reads back the fixer slot and still refuses a slot nothing declares', async 
     assert.deepEqual(validateTrajectoryRoot(root), { ok: true, problems: [] });
 
     rewriteJournal(trajectory.journalPath, records => {
-      records[1].agent_slot = 'benchmark-manager';
+      records[1].agent_slot = 'benchmark-unknown';
     });
     syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
     assert.deepEqual(validateTrajectoryRoot(root).problems, [

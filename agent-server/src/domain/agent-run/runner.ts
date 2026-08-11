@@ -755,7 +755,7 @@ function managerAttemptResult(
     taskId: input.task.id,
     threadId: result.threadId,
     state: result.state,
-    summary: result.summary,
+    summary: result.assistantText ?? result.summary,
     manifestCommitted: result.manifestCommitted,
     quiescent: result.manifestCommitted,
     proposal: managerProposal(result),

@@ -16,7 +16,6 @@ from harbor.environments.base import ExecResult
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.arm_resolution import ContainerFacts
 from cortex_bench_harness.launcher.arms import (
-    ArmCompositionUnsupportedError,
     BackendUnsupportedForKindError,
 )
 
@@ -113,14 +112,6 @@ def direct_arm() -> dict[str, object]:
             "deadline_seconds": 90,
         },
     }
-
-
-def manager_arm() -> dict[str, object]:
-    """A mode whose role set no gate has authored yet, so composition still refuses it."""
-    value = direct_arm()
-    value["name"] = "cortex-manager"
-    value["orchestration"] = {"mode": "manager", "ask_manager": False}
-    return value
 
 
 def coder_review_arm() -> dict[str, object]:
@@ -357,7 +348,6 @@ def test_constructor_rejects_launcher_owned_seed_fields(
 @pytest.mark.parametrize(
     ("variant", "error_type", "reason"),
     [
-        ("manager", ArmCompositionUnsupportedError, "arm_composition_unsupported"),
         ("unknown-backend", BackendUnsupportedForKindError, "backend_unsupported_for_kind"),
         ("vendor-baseline", ValueError, None),
     ],
@@ -370,9 +360,7 @@ def test_public_constructor_refuses_uncomposable_seed_before_setup(
 ) -> None:
     arm = direct_arm()
     arm["name"] = f"cortex-{variant}"
-    if variant == "manager":
-        arm["orchestration"] = {"mode": variant, "ask_manager": False}
-    elif variant == "unknown-backend":
+    if variant == "unknown-backend":
         arm["backend"] = variant
     else:
         arm.update({"kind": "vendor-baseline", "vendor_agent": "claude-code"})
@@ -393,13 +381,16 @@ def test_public_constructor_refuses_uncomposable_seed_before_setup(
 
 
 def test_public_constructor_has_no_unsupported_seed_opt_out(tmp_path: Path) -> None:
-    # Anchored on `manager`, the mode that still refuses: coder-review composes now, so using it
-    # here would let the flag become an opt-out again without any test noticing.
-    seed = trial_seed({"arm": manager_arm()})
+    # All declared orchestration modes compose; an undeclared backend remains a hard refusal even
+    # when the component-fixture-only hook is enabled.
+    arm = direct_arm()
+    arm["name"] = "cortex-unknown-backend"
+    arm["backend"] = "unknown-backend"
+    seed = trial_seed({"arm": arm})
     manifest = manifest_seed(tmp_path)
-    manifest["arm"] = "cortex-manager"
+    manifest["arm"] = arm["name"]
 
-    with pytest.raises(ArmCompositionUnsupportedError):
+    with pytest.raises(BackendUnsupportedForKindError):
         CortexBenchAgent(
             logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
             version="0.1.0", trial_seed=seed, manifest=manifest,
