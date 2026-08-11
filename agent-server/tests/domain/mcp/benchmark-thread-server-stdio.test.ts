@@ -1,5 +1,5 @@
-// input:  MCP config, stdio transport, queue-driven fake backend, relative journal
-// output: benchmark thread policy, lifecycle and cancellation proof
+// input:  MCP stdio config, fake backend and verdict records
+// output: policy, verdict, lifecycle and cancellation proof
 // pos:    End-to-end benchmark-only thread MCP integration test
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -64,6 +64,12 @@ const STEP_QUEUES: Record<Fixture['mode'], FakeStepScript[]> = {
       appendsToArtifact: `\n${APPROVAL_MARKER}\n`,
     },
   ],
+  unresolved: [
+    { text: 'implementation complete', costUsd: STEP_COST_USD },
+    { text: 'review complete: one blocker remains', costUsd: STEP_COST_USD },
+    { text: 'retry complete', costUsd: STEP_COST_USD },
+    { text: 'final audit: one blocker remains', costUsd: STEP_COST_USD },
+  ],
   hang: [{ text: null, hang: true }],
 };
 
@@ -84,7 +90,7 @@ interface Fixture {
   parentModelHash: string;
   queue: string;
   observations: string;
-  mode: 'success' | 'hang' | 'long-summary';
+  mode: 'success' | 'unresolved' | 'hang' | 'long-summary';
 }
 
 interface ConnectedServer {
@@ -483,6 +489,24 @@ test('thread_run obeys outer policy, returns a bounded summary, and admits once'
     await closeServer(server);
   }
 }, 45_000);
+
+test('a withheld reviewer verdict returns a typed tool error after durable completion', async () => {
+  const fixture = await createFixture('unresolved');
+  const server = await connectServer(fixture);
+  try {
+    const result = await server.client.callTool({ name: 'thread_run', arguments: {} });
+
+    assert.equal(result.isError, true, server.stderr());
+    assert.deepEqual(textPayload(result), {
+      code: 'benchmark_thread_proposal_blocked',
+      status: 'completed',
+      block_reason: 'verdict_marker_absent',
+    });
+    assert.equal(threadTerminal(fixture).state, 'completed');
+  } finally {
+    await closeServer(server);
+  }
+}, 30_000);
 
 test.each([
   {

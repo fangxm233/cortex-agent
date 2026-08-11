@@ -1,5 +1,5 @@
-// input:  parent lifecycle, resolved benchmark profile and roles
-// output: per-role C4 identity and child journal header hashes
+// input:  parent lifecycle, projected and compiled trial roles
+// output: per-role identity and child journal header hashes
 // pos:    Identity freezer for daemon-free benchmark threads
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -166,6 +166,7 @@ function toolsProblem(
   if (projected.length !== compiled.length) {
     return `role ${slot} tools differ in length: ${projected.length} projected, ${compiled.length} compiled`;
   }
+  if (projected.every((name, index) => name === compiled[index])) return null;
   for (const [index, name] of projected.entries()) {
     const canonical = toCanonical('claude', name);
     const image = canonical === null ? null : fromCanonical(backend, canonical);

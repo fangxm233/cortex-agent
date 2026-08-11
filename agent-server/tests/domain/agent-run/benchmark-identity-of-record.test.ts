@@ -1,5 +1,5 @@
-// input:  a compiled coder-review policy, the shipped thread documents and the real orchestrator
-// output: which byte source the journal records for an in-trial step, and what refuses it
+// input:  compiled roles, thread documents and orchestrator
+// output: native identity record and pre-spawn drift refusals
 // pos:    Identity-of-record proof for the in-trial benchmark thread
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -256,6 +256,20 @@ for (const backend of ['claude', 'pi'] as const) {
     }));
   }, 60_000);
 }
+
+it('accepts a standalone PI projection that already carries compiled native tool names', async () => {
+  const run = prepareTrial('native-pi-projection', 'pi', TWO_STEPS);
+  for (const slot of ['benchmark-coder', 'benchmark-reviewer']) {
+    perturbAgentDocument(slot, (document) => {
+      document.tools = run.fixture.policy.roles[slot].tools.join(',');
+    });
+  }
+
+  const result = await runBenchmarkThread(run.request, run.overrides);
+
+  assert.equal(result.state, 'completed', String(result.terminalReason ?? result.error));
+  assert.equal(result.steps, 2);
+}, 60_000);
 
 // --- ID7(ii): the template perturbation refuses before any spawn, on both backends (ID3-NS (b)) ---
 

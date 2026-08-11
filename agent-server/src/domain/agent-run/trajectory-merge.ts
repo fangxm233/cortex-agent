@@ -1,5 +1,5 @@
-// input:  lifecycle journals with control records and output path
-// output: state-gated ATIF metrics or typed fail-closed errors
+// input:  lifecycle journals, attempt links and output path
+// output: structural ATIF with honest optional metrics
 // pos:    Parent-plus-child journal merge boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -849,8 +849,46 @@ function addFragmentMetrics(total: MetricAccumulator, fragment: SourceFragment):
   };
 }
 
-function assertMetricsDerivable(fragments: SourceFragment[]): void {
-  for (const fragment of fragments) fragmentMetrics(fragment);
+function tokenUnavailable(value: unknown, field: string): boolean {
+  if (value === null) return true;
+  tokenMetric(value, field);
+  return false;
+}
+
+function costUnavailable(value: unknown): boolean {
+  if (value === null) return true;
+  costMetric(value);
+  return false;
+}
+
+function costRecordUnavailable(record: SourceJournalEvent): boolean {
+  const event = record.event;
+  if (event.type !== 'cost_record') return false;
+  const tokens = [
+    tokenUnavailable(event.prompt_tokens, 'prompt_tokens'),
+    tokenUnavailable(event.tokens_out, 'tokens_out'),
+    tokenUnavailable(event.cached_tokens, 'cached_tokens'),
+  ];
+  const cost = costUnavailable(event.cost_usd);
+  return tokens.includes(true) || cost;
+}
+
+function fragmentHasUnavailableMetrics(fragment: SourceFragment): boolean {
+  const records = fragment.events.filter(record => record.event.type === 'cost_record');
+  if (records.length === 0) return underivable('Fragment has no cost_record event');
+  let unavailable = false;
+  for (const record of records) unavailable = costRecordUnavailable(record) || unavailable;
+  fragmentSteps(fragment);
+  assertSubagentCensus(fragment);
+  return unavailable;
+}
+
+function metricsAvailable(fragments: SourceFragment[]): boolean {
+  let available = true;
+  for (const fragment of fragments) {
+    if (fragmentHasUnavailableMetrics(fragment)) available = false;
+  }
+  return available;
 }
 
 /** §9.3 M6 — summed RECURSIVELY over the DAG, keeping the safe-integer guards. A sum over the root
@@ -901,10 +939,10 @@ function mergeBytes(
   // M5 and M8 hold for every node of the DAG because every node is one of these inputs.
   assertContainment(inputs);
   const fragments = inputs.map(parseJournal);
-  assertMetricsDerivable(fragments);
+  const includeMetrics = metricsAvailable(fragments);
   validateSnapshot(inputs, options.parentStateAdmission);
   const plan = buildPlan(fragments, options);
-  const finalMetrics = aggregateFinalMetrics(plan.root);
+  const finalMetrics = includeMetrics ? aggregateFinalMetrics(plan.root) : null;
   const trajectory = buildAtifTree(plan.root, plan.source, finalMetrics);
   return {
     bytes: Buffer.from(`${JSON.stringify(trajectory, null, 2)}\n`),

@@ -4,7 +4,7 @@ MCP domain — one stdio server per privilege or platform surface, composed by t
 
 | filename | role | function |
 |---|---|---|
-| benchmark-thread-server.ts | entry | Serves one bounded benchmark thread tool |
+| benchmark-thread-server.ts | entry | Serves one bounded thread on clean MCP stdio |
 | core-server.ts | entry | Serves remote execution and time tools |
 | feishu-server.ts | entry | Serves Feishu file tools |
 | manager-qa-server.ts | entry | Serves shared subtask-answer tools |

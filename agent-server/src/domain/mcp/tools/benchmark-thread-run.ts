@@ -1,5 +1,5 @@
-// input:  immutable benchmark policy, MCP request signal/progress, local orchestrator
-// output: one bounded blocking thread_run tool with progress heartbeats
+// input:  benchmark policy, MCP signal/progress, local orchestrator
+// output: one verdict-gated thread_run tool with heartbeats
 // pos:    Benchmark-only thread admission and result boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -228,8 +228,19 @@ async function runComposedThread(
   }
 }
 
+function blockedProposalResult(result: BenchmarkThreadResult) {
+  if (result.proposal?.kind !== 'block') return null;
+  return textResult({
+    code: 'benchmark_thread_proposal_blocked',
+    status: result.state,
+    block_reason: result.proposal.reason,
+  }, true);
+}
+
 function completedRunResult(result: BenchmarkThreadResult) {
   if (result.state !== 'completed' || !result.manifestCommitted) return failedRunResult(result);
+  const blocked = blockedProposalResult(result);
+  if (blocked) return blocked;
   const payload = successPayload(result);
   return { ...textResult(payload), structuredContent: payload };
 }

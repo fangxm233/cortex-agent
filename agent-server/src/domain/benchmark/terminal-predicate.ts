@@ -1,5 +1,5 @@
-// input:  the orchestration mode, the built attempt DAG, per-attempt journal events, published ATIF facts
-// output: §9.4's evaluated checklist rows and the shipped code-41 refusal
+// input:  mode, attempt DAG, journals and structural ATIF facts
+// output: evaluated terminal checklist and code-41 refusal
 // pos:    §9.4 per-mode terminal success checklist, evaluated at F7
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -92,15 +92,15 @@ export interface PublishedAtifFacts {
   /** `atif.ts:366` — `'explicit'` iff F8 supplied §9.3 M1's link map; `'tool_result'` means the
    *  merge fell back to parsing model-produced tool text, which M1 forbids in-trial. */
   readonly linkSource: string;
-  /** §9.6 A2's journal side, as the SHIPPED accumulator computed it. There is no second producer:
-   *  when the accumulator refused, this whole record is absent along with the tree. */
+  /** §9.6 A2's journal side when every backend metric is available. Null preserves an honest
+   *  unavailable value without suppressing the structural ATIF tree. */
   readonly finalMetrics: {
     readonly total_prompt_tokens: number;
     readonly total_completion_tokens: number;
     readonly total_cached_tokens: number;
     readonly total_cost_usd: number;
     readonly total_steps: number;
-  };
+  } | null;
 }
 
 export interface TerminalCheckInput {

@@ -8,10 +8,10 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | access-probe-policy.ts | policy | classifies root metadata, file and network traces |
 | access-probe.ts | process | probes through the fail-closed supervisor path |
 | agent-run-cli.ts | cli | parses flags and resolves the supervisor path |
-| atif.ts | format | converts print-mode fragment batches and metrics to a recursively nested ATIF tree |
+| atif.ts | format | builds nested ATIF with optional honest metrics |
 | benchmark-local-thread-orchestrator.ts | runtime | runs one bounded thread with injected standalone deps |
 | benchmark-output-adapter.ts | output | confines lifecycle output without platform delivery |
-| benchmark-thread-identity.ts | identity | projects parent, role and prompt hashes |
+| benchmark-thread-identity.ts | identity | compares projected and compiled role surfaces |
 | identity.ts | core | hashes routed model, guarded role and bundle identities |
 | journal.ts | core | appends identity-bound state and run event records |
 | manifest-contract.ts | types | serializes root-relative terminal journal paths |
@@ -19,9 +19,9 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | pinned-node-process.ts | process | launches Node with canonical trial-pinned paths |
 | role-surface.ts | identity | hashes exact spawn defaults, directives and guards |
 | run-config.ts | config | dispatches legacy and injected benchmark configs |
-| runner.ts | core | gates terminal/composite on state and containment |
+| runner.ts | core | gates terminal/composite on state and artifacts |
 | standalone-composition.ts | wiring | builds fresh roots and admission evidence |
 | standalone-stores.ts | store | confines trial task, thread and session state |
 | supervisor.ts | core | resolves the binary and gates process containment |
 | trajectory-merge-cli.ts | cli | publishes one merged trajectory with typed failures |
-| trajectory-merge.ts | core | merges state-gated events across an attempt DAG |
+| trajectory-merge.ts | core | merges attempt DAG events with available metrics |

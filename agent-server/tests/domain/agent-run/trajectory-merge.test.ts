@@ -1,5 +1,5 @@
-// input:  accounted C2/C3 fixtures and trajectory merge module
-// output: standalone admission, exact-once tree and aggregate tests
+// input:  available and unavailable metric journal fixtures
+// output: admission, exact-once tree and honest metric tests
 // pos:    Happy-path trajectory merge contract suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -65,6 +65,15 @@ function persistJournal(
   terminal.journal_sha256 = createHash('sha256').update(bytes).digest('hex');
   terminal.event_count = records.filter(record => record.type === 'event').length;
   fs.writeFileSync(journal.terminalPath, `${JSON.stringify(terminal)}\n`);
+}
+
+function makeMetricsUnavailable(journal: FixtureJournal): void {
+  const records = readJournal(journal);
+  for (const record of records.filter(row => row.event?.type === 'cost_record')) {
+    record.event.prompt_tokens = null;
+    record.event.cached_tokens = null;
+  }
+  persistJournal(journal, records);
 }
 
 function addStateAdmission(journal: FixtureJournal): void {
@@ -246,6 +255,19 @@ it('sums non-null final metrics across parent and every child fragment', () => {
   assert.equal(treeStepCount(trajectory), 7 + 8 + 8);
   assert.match(trajectory.notes, /turn_complete\.numTurns/);
   assert.match(trajectory.notes, /6.*23|23.*6/);
+});
+
+it('publishes structural ATIF while preserving unavailable backend metrics', () => {
+  const root = makeRoot();
+  const fixture = writeTreeFixture(root);
+  for (const journal of [fixture.parent, ...fixture.children]) makeMetricsUnavailable(journal);
+  const outputPath = path.join(root, 'trajectory.json');
+
+  mergeTrajectory({ trajectoryRoot: root, outputPath });
+
+  const trajectory = readJson(outputPath);
+  assert.equal(trajectory.subagent_trajectories.length, 2);
+  assert.equal(Object.hasOwn(trajectory, 'final_metrics'), false);
 });
 
 it('writes byte-identical output for identical input', () => {

@@ -1,5 +1,5 @@
 // input:  parsed options, resolved policy, state/process admission
-// output: supervised turn and fail-closed terminal/composite truth
+// output: supervised turn, promoted artifacts and terminal truth
 // pos:    Agent-run lifecycle coordinator
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -929,17 +929,46 @@ function threadAttemptTemplate(policy: ResolvedTrialPolicy): string {
  * A child thread's attempt record, built from the evidence F6 published: its terminal manifest, its
  * journal and the frozen policy. Nothing here is minted.
  */
+interface PromotedArtifact {
+  relativePath: string;
+  sha256: string;
+}
+
+function promoteThreadArtifact(
+  run: PreparedRun, stem: string, threadId: string, owned: string[],
+): PromotedArtifact | null {
+  if (!run.composition) return null;
+  const source = path.join(run.composition.paths.root, 'workspaces', 'threads', threadId, 'artifact.md');
+  if (!fs.existsSync(source)) return null;
+  const relativePath = `${stem}.artifact.md`;
+  const target = path.join(run.options.trajectoryRoot, relativePath);
+  try {
+    const stat = fs.lstatSync(source);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('source is not a regular file');
+    fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL);
+    owned.push(target);
+    fs.unlinkSync(source);
+    return { relativePath, sha256: createHash('sha256').update(fs.readFileSync(target)).digest('hex') };
+  } catch (error) {
+    throw new CompositeManifestError(
+      'composite_manifest_invalid', `thread artifact publication failed: ${(error as Error).message}`,
+    );
+  }
+}
+
 function threadAttemptRecord(
   run: PreparedRun,
   policy: ResolvedTrialPolicy,
   stem: string,
   threadId: string,
+  owned: string[],
 ): { record: Omit<AttemptRecord, 'attempt_ordinal'>; journal: AttemptJournalScan } {
   const terminalRelative = `${stem}.terminal.json`;
   const terminalBytes = fs.readFileSync(path.join(run.options.trajectoryRoot, terminalRelative));
   const terminal = JSON.parse(terminalBytes.toString('utf8')) as Record<string, unknown>;
   const journal = scanAttemptJournal(run.options.trajectoryRoot, terminal.journal_path as string);
   const tokens = (terminal.tokens ?? {}) as Record<string, number | null | undefined>;
+  const artifact = promoteThreadArtifact(run, stem, threadId, owned);
   return {
     journal,
     record: {
@@ -974,8 +1003,8 @@ function threadAttemptRecord(
       // §9.4 C8: a standalone pipeline thread has no ledger, so no verdict has been recorded.
       disposition: 'none',
       superseded_by: null,
-      artifact_path: null,
-      artifact_sha256: null,
+      artifact_path: artifact?.relativePath ?? null,
+      artifact_sha256: artifact?.sha256 ?? null,
       journal_path: terminal.journal_path as string,
       journal_sha256: terminal.journal_sha256 as string,
       event_count: terminal.event_count as number,
@@ -1091,6 +1120,7 @@ function attemptGraph(
   policy: ResolvedTrialPolicy,
   parent: Omit<AttemptRecord, 'attempt_ordinal'>,
   parentJournal: AttemptJournalScan,
+  owned: string[],
 ): AttemptGraph {
   const built = observedLifecycleStems(run.options.trajectoryRoot)
     .filter(stem => stem !== parent.attempt_id)
@@ -1101,7 +1131,7 @@ function attemptGraph(
           'composite_manifest_invalid', `lifecycle stem ${stem} names no attempt`,
         );
       }
-      return threadAttemptRecord(run, policy, stem, threadId);
+      return threadAttemptRecord(run, policy, stem, threadId, owned);
     });
   const unordered = [{ record: parent, journal: parentJournal }, ...built]
     .sort((left, right) => (
@@ -1197,7 +1227,7 @@ function stageAtifTrajectory(
   return {
     subagentLevels: atifSubagentLevels(merged),
     linkSource: String(extra.subagent_link_source),
-    finalMetrics: merged.final_metrics as PublishedAtifFacts['finalMetrics'],
+    finalMetrics: (merged.final_metrics ?? null) as PublishedAtifFacts['finalMetrics'],
   };
 }
 
@@ -1231,10 +1261,8 @@ function commitStagedAtif(run: PreparedRun, owned: string[]): void {
 
 /**
  * Sweeps every path F8 took responsibility for, and NOTHING else. `owned` is the whole record:
- * the staging name unconditionally, because no other writer in the system produces it (G4-PB6
- * keeps exactly one production writer), and `trajectory.json` only once the link that published it
- * returned — which is why a trial refused BEFORE the commit leaves a pre-existing `trajectory.json`
- * untouched instead of destroying an artifact this run did not create.
+ * promoted attempt artifacts, the staging name, and `trajectory.json` only once its publication
+ * returned. A refusal therefore leaves no collectable output that its manifest never admitted.
  *
  * A removal that fails for anything other than `ENOENT` (which `force` already suppresses) leaves
  * the orphan this whole staging dance exists to prevent, so it is REPORTED rather than swallowed —
@@ -1243,7 +1271,7 @@ function commitStagedAtif(run: PreparedRun, owned: string[]): void {
  * echo reports its own non-fatal plumbing fault: a plain diagnostic line, deliberately NOT a typed
  * `reason` record, because no §8.7 code covers it and inventing one is forbidden.
  */
-function discardAtif(owned: readonly string[], io: AgentRunIo): void {
+function discardCompositeOutputs(owned: readonly string[], io: AgentRunIo): void {
   for (const target of owned) {
     try {
       fs.rmSync(target, { force: true });
@@ -1437,7 +1465,7 @@ function publishCompositeManifest(
     }
     const parent = parentAttemptRecord(run, policy, terminal!, stats);
     const parentJournal = scanAttemptJournal(run.options.trajectoryRoot, parent.journal_path);
-    const graph = attemptGraph(run, policy, parent, parentJournal);
+    const graph = attemptGraph(run, policy, parent, parentJournal, owned);
     const shape = {
       trial_id: policy.trial_id,
       root_run_id: run.rootRunId,
@@ -1505,7 +1533,7 @@ function publishCompositeManifest(
     // the staged half nor, if the manifest write itself failed, the committed one. An orphaned
     // `trajectory.json` is a collectable interchange document for a trial that was never admitted,
     // and it turns the merge's `output_path_exists` into the reason a re-run reports.
-    discardAtif(owned, io);
+    discardCompositeOutputs(owned, io);
     if (error instanceof CompositeManifestError || error instanceof TerminalPredicateError) {
       io.stderr.write(`${JSON.stringify(error.record())}\n`);
     }

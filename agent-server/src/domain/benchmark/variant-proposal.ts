@@ -1,5 +1,5 @@
-// input:  a coder-review variant and the five facts its pipeline thread ended with
-// output: a complete or typed-block proposal intent, decided and never applied
+// input:  coder-review variant and bounded terminal facts
+// output: complete or typed-block proposal intent
 // pos:    The coder-review variant proposal decision
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -85,7 +85,10 @@ export function variantProposal(input: ProposalDecisionInput): ProposalIntent {
   if (!input.finalAssistantText.includes(verdict.marker)) {
     return { kind: 'block', reason: 'verdict_marker_absent' };
   }
-  if (!COMPLETABLE_STOP_REASONS.has(input.stopReason)) {
+  const boundedFinalAudit = input.variant === 'audit-retry'
+    && input.finalStep.stage === 'finalAudit' && input.finalStep.index === 3
+    && input.stopReason === 'max_iterations';
+  if (!boundedFinalAudit && !COMPLETABLE_STOP_REASONS.has(input.stopReason)) {
     return { kind: 'block', reason: 'iterations_exhausted' };
   }
   return { kind: 'complete' };

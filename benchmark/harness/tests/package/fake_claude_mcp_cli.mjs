@@ -1,15 +1,18 @@
-// input:  Claude stream-json request and launcher-emitted run config
-// output: deterministic reply and strict MCP/run-config observation
+// input:  Claude stream-json, MCP server and frozen run config
+// output: deterministic direct and coder-review turns
 // pos:    Installed-form Claude fixture for the six-row package matrix
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 import { createInterface } from 'node:readline';
 
 const RUN_CONFIG_PATH = '/logs/agent/arm-resolution.json';
 const OBSERVATION_PATH = '/app/s1-backend-observation.json';
+const WORKSPACE_STATE = 'matrix-workspace-state.json';
+const THREAD_CALL_ID = 's3-thread-run';
 const argv = process.argv.slice(2);
 
 if (argv.includes('--version')) {
@@ -106,26 +109,46 @@ function openDeclaredServer(configPath) {
   return { entry, server, lines, iterator: lines[Symbol.asyncIterator]() };
 }
 
-async function inspectStrictServer(configPath) {
+async function initializeServer(connection) {
+  send(connection.server, {
+    jsonrpc: '2.0', id: 1, method: 'initialize', params: {
+      protocolVersion: '2025-06-18', capabilities: {},
+      clientInfo: { name: 'cortex-s3-fake-claude', version: '1.0.0' },
+    },
+  });
+  const response = await responseWithId(connection.iterator, 1);
+  if (response.error) throw new Error(JSON.stringify(response.error));
+  send(connection.server, { jsonrpc: '2.0', method: 'notifications/initialized' });
+}
+
+async function listServerTools(connection) {
+  send(connection.server, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
+  const response = await responseWithId(connection.iterator, 2);
+  if (response.error) throw new Error(JSON.stringify(response.error));
+  return response.result?.tools ?? [];
+}
+
+async function callThreadRun(connection) {
+  send(connection.server, {
+    jsonrpc: '2.0', id: 3, method: 'tools/call',
+    params: { name: 'thread_run', arguments: { handoff: 'execute the fixed matrix fixture' } },
+  });
+  const response = await responseWithId(connection.iterator, 3);
+  if (response.error || response.result?.isError) throw new Error(JSON.stringify(response));
+  return response.result;
+}
+
+async function inspectAndRunStrictServer(configPath) {
   const connection = openDeclaredServer(configPath);
   try {
-    send(connection.server, {
-      jsonrpc: '2.0', id: 1, method: 'initialize', params: {
-        protocolVersion: '2025-06-18', capabilities: {},
-        clientInfo: { name: 'cortex-s1-fake-claude', version: '1.0.0' },
-      },
-    });
-    const initialized = await responseWithId(connection.iterator, 1);
-    if (initialized.error) throw new Error(JSON.stringify(initialized.error));
-    send(connection.server, { jsonrpc: '2.0', method: 'notifications/initialized' });
-    send(connection.server, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
-    const listed = await responseWithId(connection.iterator, 2);
-    if (listed.error) throw new Error(JSON.stringify(listed.error));
+    await initializeServer(connection);
+    const tools = await listServerTools(connection);
+    const result = await callThreadRun(connection);
     const policyPath = connection.entry.env?.CORTEX_BENCHMARK_THREAD_POLICY_PATH ?? null;
     const policy = policyPath ? JSON.parse(fs.readFileSync(policyPath, 'utf8')) : null;
     return {
       policyPath, policyTemplate: policy?.template ?? null,
-      tools: (listed.result?.tools ?? []).map(tool => tool.name),
+      tools: tools.map(tool => tool.name), result,
     };
   } finally {
     connection.lines.close();
@@ -133,21 +156,61 @@ async function inspectStrictServer(configPath) {
   }
 }
 
-function emitReply(request) {
+function childReply(orchestration) {
+  const statePath = path.join(process.cwd(), WORKSPACE_STATE);
+  if (!fs.existsSync(statePath)) {
+    fs.writeFileSync(statePath, JSON.stringify({ attempt: 1, final: 'coded' }));
+    return 'implemented the fixed matrix fixture';
+  }
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  if (orchestration.coder_review_variant === 'reviewer-fix') {
+    fs.writeFileSync(statePath, JSON.stringify({ attempt: 1, final: 'fixed' }));
+    return 'fixed and verified the matrix fixture. [FIX-VERIFIED]';
+  }
+  if (process.cwd() === '/app') {
+    fs.writeFileSync(statePath, JSON.stringify({ attempt: 2, final: 'retried' }));
+    return 'retried the fixed matrix fixture';
+  }
+  return state.attempt === 1
+    ? 'audit found one blocker' : 'the final audit is correct. [IMPL-APPROVED]';
+}
+
+function emitThreadResult(threadResult) {
+  if (!threadResult) return;
   process.stdout.write(`${JSON.stringify({
-    type: 'assistant',
-    message: {
-      id: 's1-claude-message', role: 'assistant', model: 's1-fake-claude',
-      content: [{ type: 'text', text: 'deterministic installed reply' }],
+    type: 'assistant', message: {
+      id: 's3-claude-tool', role: 'assistant', model: 's3-fake-claude',
+      content: [{
+        type: 'tool_use', id: THREAD_CALL_ID,
+        name: 'mcp__cortex-benchmark-thread__thread_run', input: {},
+      }],
+    },
+  })}\n`);
+  process.stdout.write(`${JSON.stringify({
+    type: 'user', message: { role: 'user', content: [{
+      type: 'tool_result', tool_use_id: THREAD_CALL_ID,
+      content: JSON.stringify(threadResult), is_error: false,
+    }] },
+  })}\n`);
+}
+
+function emitAssistantText(text) {
+  process.stdout.write(`${JSON.stringify({
+    type: 'assistant', message: {
+      id: 's3-claude-message', role: 'assistant', model: 's3-fake-claude',
+      content: [{ type: 'text', text }],
       usage: {
         input_tokens: 3, output_tokens: 2,
         cache_creation_input_tokens: 0, cache_read_input_tokens: 0,
       },
     },
   })}\n`);
+}
+
+function emitTerminalResult(request, text) {
   process.stdout.write(`${JSON.stringify({
     type: 'result', subtype: 'success', is_error: false,
-    session_id: request.session_id, result: 'deterministic installed reply',
+    session_id: request.session_id, result: text,
     total_cost_usd: 0, num_turns: 1,
     usage: {
       input_tokens: 3, output_tokens: 2,
@@ -156,14 +219,14 @@ function emitReply(request) {
   })}\n`);
 }
 
-async function main() {
-  const config = readRunConfig();
-  const orchestration = config.document.arm.orchestration;
-  const paths = mcpConfigPaths();
-  const strict = orchestration.mode === 'coder-review'
-    ? await inspectStrictServer(paths[0])
-    : { policyPath: null, policyTemplate: null, tools: [] };
-  const requestLine = await withTimeout(new Promise((resolve, reject) => {
+function emitReply(request, text, threadResult = null) {
+  emitThreadResult(threadResult);
+  emitAssistantText(text);
+  emitTerminalResult(request, text);
+}
+
+function readRequestLine() {
+  return withTimeout(new Promise((resolve, reject) => {
     const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
     let received = false;
     lines.once('line', (line) => {
@@ -175,6 +238,9 @@ async function main() {
       if (!received) reject(new Error('Claude fixture received no request'));
     });
   }), 'Claude request');
+}
+
+function writeObservation(config, orchestration, paths, strict) {
   fs.writeFileSync(OBSERVATION_PATH, JSON.stringify({
     backend: 'claude', mode: orchestration.mode,
     variant: orchestration.coder_review_variant ?? null,
@@ -189,7 +255,20 @@ async function main() {
       ? fs.statSync(strict.policyPath).mode & 0o222 : null,
     registered: strict.tools,
   }));
-  emitReply(JSON.parse(requestLine));
+}
+
+async function main() {
+  const config = readRunConfig();
+  const orchestration = config.document.arm.orchestration;
+  const paths = mcpConfigPaths();
+  const requestLine = await readRequestLine();
+  const parent = orchestration.mode === 'direct' || paths.length > 0;
+  const strict = paths.length > 0
+    ? await inspectAndRunStrictServer(paths[0])
+    : { policyPath: null, policyTemplate: null, tools: [], result: null };
+  if (parent) writeObservation(config, orchestration, paths, strict);
+  const text = parent ? 'deterministic installed reply' : childReply(orchestration);
+  emitReply(JSON.parse(requestLine), text, strict.result);
   setTimeout(() => process.exit(0), 10);
 }
 

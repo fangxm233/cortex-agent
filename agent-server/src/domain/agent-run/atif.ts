@@ -1,5 +1,5 @@
-// input:  fragments, links, metrics, print-mode tool progress
-// output: deterministic ATIF-v1.7 tree with documented metrics
+// input:  fragments, links, optional metrics, tool progress
+// output: deterministic ATIF-v1.7 tree with honest metrics
 // pos:    Journal-to-ATIF conversion boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -364,9 +364,9 @@ function attachFinalMetrics(root: AtifTrajectory, metrics: AtifFinalMetrics): At
 export function buildAtifTree(
   root: AtifNode,
   linkSource: 'tool_result' | 'explicit',
-  finalMetrics: AtifFinalMetrics,
+  finalMetrics: AtifFinalMetrics | null,
 ): AtifTrajectory {
   const trajectory = buildTrajectory(root);
   trajectory.extra.subagent_link_source = linkSource;
-  return attachFinalMetrics(trajectory, finalMetrics);
+  return finalMetrics === null ? trajectory : attachFinalMetrics(trajectory, finalMetrics);
 }

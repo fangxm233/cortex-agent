@@ -1,5 +1,5 @@
-// input:  the closed five-member proposal decision record, both variants
-// output: the per-variant verdict table, the four-conjunct complete guard and five typed blocks
+// input:  bounded proposal records for both coder-review variants
+// output: variant verdict table and typed completion guards
 // pos:    Variant proposal decision tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -121,6 +121,20 @@ it('blocks an approval the loop only reached by exhausting its iterations', () =
       variantProposal({ ...approving('audit-retry'), stopReason }), { kind: 'complete' }, stopReason,
     );
   }
+});
+
+it('accepts an approving audit-retry final audit after its single bounded retry', () => {
+  const input = approving('audit-retry');
+  assert.deepEqual(variantProposal({
+    ...input,
+    finalStep: { agentSlotId: 'benchmark-reviewer', stage: 'finalAudit', index: 3 },
+    stopReason: 'max_iterations',
+  }), { kind: 'complete' });
+  assert.deepEqual(variantProposal({
+    ...approving('reviewer-fix'),
+    finalStep: { agentSlotId: 'benchmark-fixer', stage: 'finalAudit', index: 3 },
+    stopReason: 'max_iterations',
+  }), { kind: 'block', reason: 'iterations_exhausted' });
 });
 
 it('reports the missing verdict before the exhausted iterations that caused it', () => {

@@ -1,5 +1,5 @@
-// input:  the shipped four-stage audit-retry template, a compiled arm and real child CLIs
-// output: this variant's own stage count, placement, convergence rule and proposal decision
+// input:  four-stage audit-retry policy and fake child CLIs
+// output: bounded retry, placement and final-audit verdict proof
 // pos:    Audit-retry variant path proof for the in-trial benchmark thread
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -322,9 +322,9 @@ for (const backend of ['claude', 'pi'] as const) {
 }
 
 for (const backend of ['claude', 'pi'] as const) {
-  it(`blocks an approval that only arrived once the step budget was spent on backend=${backend}`, async () => {
-    // The final audit approves, but the loop stopped because the template's four stages were
-    // used up rather than because the pipeline converged. That is not an approval to propose on.
+  it(`accepts a final audit approval after the bounded retry on backend=${backend}`, async () => {
+    // The final audit is the declared terminal audit after exactly one bounded retry. Reaching the
+    // template's fourth stage is the expected path, so its explicit verdict remains authoritative.
     const run = prepareTrial(`late-approval-${backend}`, backend, [
       { text: 'implemented' },
       { text: 'audit: one blocker remains' },
@@ -337,7 +337,7 @@ for (const backend of ['claude', 'pi'] as const) {
     assert.equal(result.state, 'completed');
     assert.equal(result.steps, 4);
     assert.ok(artifactOf(result).includes(APPROVAL_MARKER));
-    assert.deepEqual(result.proposal, { kind: 'block', reason: 'iterations_exhausted' });
+    assert.deepEqual(result.proposal, { kind: 'complete' });
   }, 60_000);
 }
 

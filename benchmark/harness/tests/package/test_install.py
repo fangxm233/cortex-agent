@@ -1,5 +1,5 @@
-# input:  npm artifact, Docker environment, S1 arm seeds, opt-in gate
-# output: installed six-row execution matrix and corrupt-artifact failure
+# input:  npm artifact, Docker environment, fresh arm seeds
+# output: installed direct/coder-review matrix and artifact proof
 # pos:    Opt-in container proof for the installed Harbor path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -26,6 +26,7 @@ from harbor.models.trial.config import ServiceVolumeConfig
 from harbor.models.trial.paths import TrialPaths
 
 from cortex_bench_harness import CortexBenchAgent
+from cortex_bench_harness.inner_validation import valid_composite_structure
 from offline_package import build_offline_npm_artifact
 
 IMAGE_DIGEST = "sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818"
@@ -368,15 +369,118 @@ async def assert_s1_terminal(
     with environment.with_default_user(AGENT_USER):
         result = await environment.exec(command=f"cat {shlex.quote(terminal_path)}")
         composite = await environment.exec(command=f"test -f {composite_path}")
-        child = await environment.exec(
-            command=f"set -- {child_terminals}; test ! -e \"$1\"",
-        )
+        child = await environment.exec(command=(
+            f"set -- {child_terminals}; "
+            + ("test ! -e \"$1\"" if mode == "direct" else "test -e \"$1\" && test \"$#\" -eq 1")
+        ))
     assert result.return_code == 0, result.stderr
     terminal = json.loads(result.stdout)
     assert (terminal["state"], terminal["terminal_reason"]) == ("completed", "ok")
     assert terminal["supervisor"] == {"quiescent": True, "descendants": 0}
-    assert child.return_code == 0, "the fake parent must not start a child thread"
-    assert (composite.return_code == 0) is (mode == "direct")
+    assert child.return_code == 0
+    assert composite.return_code == 0
+
+
+def read_json(path: Path) -> dict[str, object]:
+    return json.loads(path.read_text())
+
+
+def assert_attempt_files(trajectory: Path, node: dict[str, object]) -> None:
+    for path_key, hash_key in (
+        ("journal_path", "journal_sha256"),
+        ("terminal_manifest_path", "terminal_manifest_sha256"),
+    ):
+        relative = node[path_key]
+        assert isinstance(relative, str)
+        data = (trajectory / relative).read_bytes()
+        assert hashlib.sha256(data).hexdigest() == node[hash_key]
+
+
+def assert_matrix_accounting(
+    composite: dict[str, object], backend: str, mode: str,
+) -> None:
+    journal = composite["accounting"]["journal"]
+    proxy = composite["accounting"]["proxy"]
+    assert proxy["requests"] == {"status": "unavailable", "reason": "counter_unreadable"}
+    if backend == "pi":
+        assert journal["steps"] == {"status": "unavailable", "reason": "journal_underivable"}
+        assert journal["tokens"]["input"]["status"] == "unavailable"
+        return
+    variant = composite["arm_name"].removeprefix(f"cortex-{backend}-coder-review-")
+    turns = 1 if mode == "direct" else (5 if variant == "audit-retry" else 3)
+    assert journal["steps"] == {"status": "available", "value": turns}
+    assert journal["tokens"]["input"] == {"status": "available", "value": turns * 3}
+    assert journal["tokens"]["output"] == {"status": "available", "value": turns * 2}
+
+
+def assert_coder_review_artifacts(
+    root: Path, trajectory: Path, composite: dict[str, object],
+    backend: str, variant: str,
+) -> None:
+    nodes = composite["nodes"]
+    child = next(node for node in nodes if node["thread_id"] is not None)
+    assert child["artifact_path"] is not None
+    artifact = trajectory / child["artifact_path"]
+    assert hashlib.sha256(artifact.read_bytes()).hexdigest() == child["artifact_sha256"]
+    roles = {
+        json.loads(line)["agent_slot"]
+        for line in (trajectory / child["journal_path"]).read_text().splitlines()[1:]
+    }
+    verdict_role = "benchmark-reviewer" if variant == "audit-retry" else "benchmark-fixer"
+    assert {"benchmark-coder", verdict_role}.issubset(roles)
+    assert not (root / "trial/agent/trial-home/tmp/review-snapshot").exists()
+    assert not any((root / "trial/agent/trial-home/workspaces").rglob("artifact.md"))
+    state = read_json(root / "task-root/matrix-workspace-state.json")
+    assert child["steps"] == (4 if variant == "audit-retry" else 2)
+    assert state["final"] == ("retried" if variant == "audit-retry" else "fixed")
+    if backend == "pi":
+        assert state["coderLease"] == "thread-owned"
+        if variant == "audit-retry":
+            assert state["retryLease"] == "thread-owned"
+        else:
+            assert state["fixerLease"] == "thread-owned"
+
+
+def assert_trial_state(root: Path, backend: str) -> None:
+    trial_home = root / "trial/agent/trial-home"
+    state = trial_home / "cortex-home/state"
+    for name in ("tasks", "threads", "sessions", "executions"):
+        assert (state / f"{name}.json").is_file()
+    if backend == "pi":
+        assert (trial_home / "pi-agent/auth.json").is_file()
+        assert (trial_home / "pi-agent/models.json").is_file()
+        assert (trial_home / "pi-sessions").is_dir()
+    else:
+        assert (trial_home / "claude-config").is_dir()
+
+
+def assert_s1_artifacts(
+    root: Path, resolution: dict[str, object], suffix: str,
+    backend: str, mode: str, variant: str | None,
+) -> None:
+    trajectory = root / "trial/agent/trajectory"
+    terminal = read_json(trajectory / f"run-root-{suffix}.terminal.json")
+    composite = read_json(trajectory / "composite-manifest.json")
+    assert valid_composite_structure(
+        composite, terminal, f"root-{suffix}", f"trial-{suffix}", resolution["arm"],
+    )
+    assert_trial_state(root, backend)
+    expected_roles = set(resolution["roles"])
+    assert set(composite["identity"]["role_tool_surface_hash"]) == expected_roles
+    assert len(composite["nodes"]) == (1 if mode == "direct" else 2)
+    for node in composite["nodes"]:
+        assert node["backend"] == backend
+        assert node["terminal_state"] == "completed"
+        assert_attempt_files(trajectory, node)
+    assert_matrix_accounting(composite, backend, mode)
+    atif = read_json(trajectory / "trajectory.json")
+    if backend == "pi":
+        assert "final_metrics" not in atif
+    else:
+        turns = 1 if mode == "direct" else (5 if variant == "audit-retry" else 3)
+        assert atif["final_metrics"]["total_steps"] == turns
+    if mode == "coder-review":
+        assert_coder_review_artifacts(root, trajectory, composite, backend, str(variant))
 
 
 async def execute_s1_public_cli(
@@ -397,17 +501,9 @@ async def execute_s1_public_cli(
             await agent.run("Solve the task.", environment, AgentContext())
         except NonZeroAgentExitCodeError as error:
             run_error = error
-    if mode == "direct":
-        observation = root / "task-root/s1-backend-observation.json"
-        detail = observation.read_text() if observation.is_file() else "no observation"
-        assert run_error is None, f"{run_error}\n{detail}"
-    else:
-        assert run_error is not None, "coder-review must fail without thread_run"
-        refusal = str(run_error)
-        assert "Command failed (exit 1): cortex agent-run" in refusal
-        assert '"state":"failed"' in refusal
-        assert '"manifest":null' in refusal
-        assert '"terminal_reason":"protocol_violation"' in refusal
+    observation = root / "task-root/s1-backend-observation.json"
+    detail = observation.read_text() if observation.is_file() else "no observation"
+    assert run_error is None, f"{run_error}\n{detail}"
 
 
 async def run_s1_path(
@@ -430,6 +526,11 @@ async def run_s1_path(
         assert resolution["arm"]["orchestration"]["mode"] == mode
         assert_s1_observation(root, resolution_bytes, backend, mode, variant)
         await assert_s1_terminal(environment, suffix, mode)
+        readable = await environment.exec(
+            command="chmod -R a+rX /logs/agent", user="root",
+        )
+        assert readable.return_code == 0, readable.stderr
+        assert_s1_artifacts(root, resolution, suffix, backend, mode, variant)
     finally:
         await environment.stop(delete=True)
 
@@ -457,7 +558,7 @@ def test_real_container_installs_bundle_and_aborts_corrupt_artifact(
 
 
 @pytest.mark.parametrize(("backend", "mode", "variant"), S1_ROWS)
-def test_installed_exact_production_agent_executes_all_six_s1_rows(
+def test_installed_exact_production_agent_executes_fresh_direct_and_coder_review_matrix(
     installed_bundle: tuple[Path, Path, Path, dict[str, object]],
     backend: str, mode: str, variant: str | None,
 ) -> None:

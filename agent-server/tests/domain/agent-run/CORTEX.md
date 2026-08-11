@@ -15,7 +15,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | agent-run-e2e.test.ts | e2e | proves containment, cleanup and completion |
 | agent-run-protocol-e2e.test.ts | e2e | proves stdin, cache-inclusive accounting and failures |
 | benchmark-audit-retry.test.ts | test | proves audit-retry's own stage count, placement, convergence rule and proposal |
-| benchmark-identity-of-record.test.ts | test | proves the compiled policy role is the recorded identity and that a diverging template refuses before any spawn |
+| benchmark-identity-of-record.test.ts | test | proves native role identity and pre-spawn drift refusal |
 | benchmark-local-thread-entry.ts | fixture | bootstraps MCP and runs one pinned orchestrator |
 | benchmark-local-thread-orchestrator.test.ts | test | proves bounds, identity and supervisor gating |
 | benchmark-local-thread-process.test.ts | e2e | proves full-run journal and C8 confinement |
@@ -56,4 +56,4 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | transport-teardown-e2e.test.ts | e2e | proves journal-linked finalization survives teardown |
 | trajectory-merge-fixtures.ts | fixture | writes print-mode accounted fragment events |
 | trajectory-merge-subagent.test.ts | test | proves the native-subagent census key, the derived subagent turn total, the zero-census refusal and the surviving named refusals |
-| trajectory-merge.test.ts | test | verifies standalone admission and aggregate ATIF output |
+| trajectory-merge.test.ts | test | verifies admission and optional-metric ATIF output |
