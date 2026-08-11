@@ -19,7 +19,7 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | pinned-node-process.ts | process | launches Node with canonical trial-pinned paths |
 | role-surface.ts | identity | hashes exact spawn defaults, directives and guards |
 | run-config.ts | config | dispatches legacy and injected benchmark configs |
-| runner.ts | core | gates terminal/composite truth on state and containment |
+| runner.ts | core | gates terminal/composite on state and containment |
 | standalone-composition.ts | wiring | builds fresh roots and admission evidence |
 | standalone-stores.ts | store | confines trial task, thread and session state |
 | supervisor.ts | core | resolves the binary and gates process containment |

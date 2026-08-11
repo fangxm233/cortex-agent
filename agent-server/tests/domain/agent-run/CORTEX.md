@@ -48,7 +48,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | run-config.test.ts | test | proves schema dispatch, roles, argv and MCP inputs |
 | standalone-architecture.test.ts | test | rejects shared-state standalone composition |
 | standalone-composition.test.ts | test | proves fresh roots and admission evidence |
-| standalone-public-cli.test.ts | e2e | proves repeatable packed state and process containment |
+| standalone-public-cli.test.ts | e2e | proves packed state handoff and process containment |
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
 | trial-run-pi.test.ts | test | proves PI state admission, supervision and run identity |
 | trial-run.test.ts | test | proves Claude state admission, swaps and publication gates |

@@ -1,5 +1,5 @@
 // input:  parsed options, resolved policy, state/process admission
-// output: supervised turn and state-gated terminal/composite truth
+// output: supervised turn and fail-closed terminal/composite truth
 // pos:    Agent-run lifecycle coordinator
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -1157,12 +1157,11 @@ function atifPaths(run: PreparedRun): { staged: string; published: string } {
  * (`trajectory-merge.ts:648-653`), would turn any second attempt in the same artifacts root into
  * that refusal instead of its real outcome. Staging keeps both halves all-or-nothing.
  *
- * A merge REFUSAL is recorded, not thrown, and the distinction is load-bearing. §9.5's instrument
- * for "this trial is not gradable" is the §9.4 checklist, NOT the exit code, which §5.2 gives to
- * the terminal classification. Throwing here would relabel a `completed` run whose backend simply
- * reported no cost as `protocol_violation`, destroying the terminal truth F6 published. The refusal
- * instead leaves its typed reason on stderr and returns `null`, which is decisive for C7 and for
- * §9.6 A2's totals.
+ * A merge REFUSAL is normally recorded, not thrown, because §9.5's instrument for "this trial is
+ * not gradable" is its checklist rather than the exit code. Standalone `malformed_fragment` is the
+ * fail-closed exception: its state-admission failures must propagate so direct mode cannot publish
+ * a composite after D2 accepts a missing ATIF. Other refusals retain the typed stderr record and
+ * `null` result used by C7 and §9.6 A2's totals.
  */
 function stageAtifTrajectory(
   run: PreparedRun,
@@ -1187,6 +1186,7 @@ function stageAtifTrajectory(
   } catch (error) {
     if (!(error instanceof TrajectoryMergeError)) throw error;
     io.stderr.write(`${JSON.stringify({ reason: error.reason, detail: error.message })}\n`);
+    if (run.composition && error.reason === 'malformed_fragment') throw error;
     return null;
   }
   const merged = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as Record<string, unknown>;

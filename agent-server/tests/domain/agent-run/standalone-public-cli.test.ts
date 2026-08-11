@@ -1,5 +1,5 @@
 // input:  packed CLI, Claude/PI fakes and hostile descendants
-// output: exact-public state, credential and transport containment
+// output: exact-public state handoff, credential and process containment
 // pos:    Packed cortex agent-run standalone regression
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -49,9 +49,9 @@ function write(file: string, content: string, mode?: number): string {
   return file;
 }
 
-function fakeBackend(): { cli: string; observation: string } {
-  const observation = path.join(root, 'backend-observation.json');
-  const script = write(path.join(root, 'bundle', 'fake-claude.mjs'), `
+function fakeBackend(base = root): { cli: string; observation: string } {
+  const observation = path.join(base, 'backend-observation.json');
+  const script = write(path.join(base, 'bundle', 'fake-claude.mjs'), `
 import fs from 'node:fs';
 import { createInterface } from 'node:readline';
 fs.writeFileSync(${JSON.stringify(observation)}, JSON.stringify({ env: process.env }));
@@ -79,11 +79,35 @@ lines.once('line', (line) => {
 });
 `);
   const cli = write(
-    path.join(root, 'bundle', 'claude'),
+    path.join(base, 'bundle', 'claude'),
     `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(script)} "$@"\n`,
     0o755,
   );
   return { cli, observation };
+}
+
+function tamperStateAdmissionAfterTerminal(base: string): string {
+  const marker = path.join(base, 'admission-tampered');
+  return write(path.join(base, 'tamper-state-admission.cjs'), `
+const { createHash } = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const renameSync = fs.renameSync;
+fs.renameSync = function (source, target) {
+  renameSync(source, target);
+  if (!target.endsWith('.terminal.json') || !path.basename(target).startsWith('run-')) return;
+  const terminal = JSON.parse(fs.readFileSync(target, 'utf8'));
+  const journalPath = path.resolve(path.dirname(target), terminal.journal_path);
+  const records = fs.readFileSync(journalPath, 'utf8').trimEnd().split('\\n')
+    .map(line => JSON.parse(line)).filter(record => record.type !== 'state_admission');
+  records.slice(1).forEach((record, index) => { record.seq = index + 1; });
+  const bytes = records.map(record => JSON.stringify(record)).join('\\n') + '\\n';
+  fs.writeFileSync(journalPath, bytes);
+  terminal.journal_sha256 = createHash('sha256').update(bytes).digest('hex');
+  fs.writeFileSync(target, JSON.stringify(terminal) + '\\n');
+  fs.writeFileSync(${JSON.stringify(marker)}, '');
+};
+`);
 }
 
 function armResolution(
@@ -253,6 +277,32 @@ it('executes the packed package bin from the public projection with no ambient f
   assert.equal(observed.env.ANTHROPIC_AUTH_TOKEN, 'offline-token');
   assert.equal(observed.env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:1');
   assert.equal(fs.existsSync(path.join(root, 'host-cortex', 'data', 'threads.json')), false);
+}, 180_000);
+
+it('withholds packed handoff when state admission disappears after terminal publication', () => {
+  const base = path.join(root, 'missing-admission-handoff');
+  const backend = fakeBackend(base);
+  const trialId = 'trial-missing-admission';
+  const runConfig = armResolution(backend.cli, installed.root, base, trialId);
+  const workspace = path.join(base, 'workspace');
+  const trajectory = path.join(base, 'agent', 'trajectory');
+  fs.mkdirSync(workspace, { recursive: true }); fs.mkdirSync(trajectory, { recursive: true });
+  const preload = tamperStateAdmissionAfterTerminal(base);
+  const result = spawnSync(installed.cortex, ['agent-run',
+    '--prompt-file', write(path.join(base, 'agent', 'instruction.md'), 'Complete the task.'),
+    '--agent-slot', 'parent', '--profile', 'benchmark', '--cwd', workspace,
+    '--output-format', 'jsonl', '--events-file', path.join(trajectory, 'events.jsonl'),
+    '--trajectory-root', trajectory, '--root-run-id', `${trialId}.cortex-direct`,
+    '--run-config', runConfig, '--supervisor-binary', installed.supervisor,
+  ], { cwd: workspace, encoding: 'utf8', timeout: 60_000,
+    env: { ...process.env, NODE_OPTIONS: `--require=${preload}` } });
+  assert.equal(fs.existsSync(path.join(base, 'admission-tampered')), true);
+  assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  const terminal = result.stdout.trim().split('\n').map(line => JSON.parse(line)).at(-1);
+  assert.equal(terminal.state, 'failed'); assert.equal(terminal.manifest, null);
+  assert.match(result.stderr, /malformed_fragment/);
+  assert.equal(fs.existsSync(path.join(trajectory, 'trajectory.json')), false);
+  assert.equal(fs.existsSync(path.join(trajectory, 'composite-manifest.json')), false);
 }, 180_000);
 
 it('runs packed PI with only the trial dummy auth file and scoped proxy catalog', () => {
