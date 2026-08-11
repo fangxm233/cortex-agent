@@ -1,4 +1,4 @@
-// input:  mode/profile, atomic env writes, auth errors
+// input:  mode/profile, Claude auth files, atomic env writes
 // output: modes, expiring Claude credentials, retry policy
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -6,6 +6,7 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
 import { mutateFileAtomically } from '@core/atomic-write.js';
+import * as os from 'node:os';
 import * as path from 'path';
 import * as http from 'http';
 import { STORE_DIR, CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
@@ -229,7 +230,24 @@ function applySavedApiEnv(): void {
   } else delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
 }
 
+function hasClaudeOwnedOAuthCredential(): boolean {
+  const home = process.env.HOME || os.homedir();
+  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(home, '.claude');
+  try {
+    const parsed = JSON.parse(readFileSync(path.join(configDir, '.credentials.json'), 'utf8'));
+    const oauth = parsed?.claudeAiOauth;
+    return Boolean(oauth?.accessToken || oauth?.refreshToken);
+  } catch {
+    return false;
+  }
+}
+
 function applySavedOAuthToken(): void {
+  if (hasClaudeOwnedOAuthCredential()) {
+    delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    delete process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT;
+    return;
+  }
   const token = getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN;
   if (token) process.env.CLAUDE_CODE_OAUTH_TOKEN = token;
   else delete process.env.CLAUDE_CODE_OAUTH_TOKEN;

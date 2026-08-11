@@ -1241,7 +1241,7 @@ test('buildHooksSettings — return value includes SessionStart key', () => {
 
 // --- buildClaudeEnv extraEnv merge ---
 
-test('buildClaudeEnv — strips non-auth CLAUDE_CODE_* and preserves the managed OAuth token', () => {
+test('buildClaudeEnv — strips non-auth CLAUDE_CODE_* and preserves an admitted OAuth token', () => {
   const prevAttribution = process.env.CLAUDE_CODE_ATTRIBUTION_HEADER;
   const prevOAuthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
   process.env.CLAUDE_CODE_ATTRIBUTION_HEADER = '1';

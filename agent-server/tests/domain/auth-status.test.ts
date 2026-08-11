@@ -1,5 +1,5 @@
 // input:  temporary auth files, PI fixtures, locale
-// output: auth states, expiry, capability, summaries
+// output: CLI-owned auth states, expiry, capability, summaries
 // pos:    Backend authentication status regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -14,6 +14,7 @@ import {
   getAuthStatus,
   preferredAuthType,
   type AuthStatusSnapshot,
+  type GetAuthStatusOptions,
 } from '../../src/domain/auth/auth-status.js';
 import { getLocale, setLocale } from '../../src/core/i18n.js';
 import { loadPiRuntime, type PiRuntimeLoadResult } from '../../src/domain/auth/pi-runtime.js';
@@ -149,6 +150,9 @@ function baseStatusOptions(
       { name: 'claude', model: 'fixture-claude' },
     ],
     getActiveProfileConfig: () => ({ backend: 'pi' as const, provider: 'expired' }),
+    readClaudeAuthStatus: async () => ({
+      loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
+    }),
   };
 }
 
@@ -175,6 +179,9 @@ async function savedClaudeOAuthAccount(expiresAt?: string) {
     getClaudeMode: () => 'plan',
     getActiveBackend: () => 'claude',
     listProfiles: () => [],
+    readClaudeAuthStatus: async () => ({
+      loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
+    }),
   });
   return account(snapshot, 'anthropic');
 }
@@ -332,6 +339,36 @@ test('getAuthStatus exposes both Claude credentials and mirrors the mode-selecte
   }
 });
 
+test('Claude status reads expiry metadata from a custom CLAUDE_CONFIG_DIR', async () => {
+  const fixture = createPiFixture();
+  const configDir = path.join(fixture.root, 'custom-claude');
+  const expiry = NOW_MS + 30 * DAY_MS;
+  writeJson(fixture.authPath, {});
+  writeJson(path.join(configDir, '.credentials.json'), { claudeAiOauth: {
+    accessToken: '\uE12A\uE12B', refreshToken: '\uE12C\uE12D',
+    expiresAt: NOW_MS + DAY_MS, refreshTokenExpiresAt: expiry,
+  } });
+  try {
+    const claude = account(await getAuthStatus({
+      now: () => new Date(NOW_MS),
+      claudeConfigDir: configDir,
+      piAuthPath: fixture.authPath,
+      loadPiRuntime: async () => await loadFixture(fixture),
+      getSavedApiEnv: () => ({ ANTHROPIC_API_KEY: undefined, ANTHROPIC_BASE_URL: undefined }),
+      getClaudeMode: () => 'plan',
+      getActiveBackend: () => 'claude',
+      listProfiles: () => [],
+      readClaudeAuthStatus: async () => ({
+        loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
+      }),
+    } as GetAuthStatusOptions), 'anthropic');
+    assert.equal(claude.source, 'credentials.json');
+    assert.equal(claude.expiresAt, new Date(expiry).toISOString());
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test('Claude OAuth lifetime is the refresh token, not the auto-refreshed access token', async () => {
   const fixture = createPiFixture();
   const claudePath = path.join(fixture.root, 'claude', '.credentials.json');
@@ -358,7 +395,56 @@ test('Claude OAuth lifetime is the refresh token, not the auto-refreshed access 
   }
 });
 
-test('getAuthStatus projects saved Claude subscription expiry into the F2 state', async () => {
+test('Claude OAuth account follows scrubbed CLI status instead of a saved env token', async () => {
+  const fixture = createPiFixture();
+  const savedEnv = {
+    ANTHROPIC_API_KEY: undefined,
+    ANTHROPIC_BASE_URL: undefined,
+    CLAUDE_CODE_OAUTH_TOKEN: '\uE13A\uE13B-legacy-token',
+    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: new Date(NOW_MS + DAY_MS).toISOString(),
+  };
+  writeJson(fixture.authPath, {});
+  try {
+    const options = baseStatusOptions(
+      fixture,
+      await loadFixture(fixture),
+      path.join(fixture.root, 'missing-claude.json'),
+    );
+    const loggedOut = account(await getAuthStatus({
+      ...options,
+      getSavedApiEnv: () => savedEnv,
+      getClaudeMode: () => 'plan',
+      readClaudeAuthStatus: async () => ({
+        loggedIn: false, authMethod: 'none', apiProvider: 'firstParty',
+      }),
+    } as GetAuthStatusOptions), 'anthropic');
+    assert.equal(loggedOut.state, 'logged-out');
+    assert.equal(loggedOut.authType, null);
+    assert.deepEqual(loggedOut.credentials, [{
+      authType: 'oauth', state: 'unknown', source: 'legacy-env',
+      expiresAt: null, refreshExpiresAt: null, manageable: true,
+      detail: 'legacy_runtime_token',
+    }]);
+
+    const loggedIn = account(await getAuthStatus({
+      ...options,
+      getSavedApiEnv: () => savedEnv,
+      getClaudeMode: () => 'plan',
+      readClaudeAuthStatus: async () => ({
+        loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
+      }),
+    } as GetAuthStatusOptions), 'anthropic');
+    assert.equal(loggedIn.state, 'logged-in');
+    assert.equal(loggedIn.authType, 'oauth');
+    assert.equal(loggedIn.source, 'claude-cli');
+    assert.equal(loggedIn.expiresAt, null);
+    assert.equal(JSON.stringify(loggedIn).includes(savedEnv.CLAUDE_CODE_OAUTH_TOKEN), false);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('getAuthStatus ignores legacy saved Claude subscription expiry', async () => {
   const fixture = createPiFixture();
   const expiry = new Date(NOW_MS + DAY_MS).toISOString();
   const savedEnv = {
@@ -382,8 +468,9 @@ test('getAuthStatus projects saved Claude subscription expiry into the F2 state'
       listProfiles: () => [],
     }), 'anthropic');
 
-    assert.equal(claude.state, 'expiring');
-    assert.equal(claude.expiresAt, expiry);
+    assert.equal(claude.state, 'logged-in');
+    assert.equal(claude.source, 'claude-cli');
+    assert.equal(claude.expiresAt, null);
     assert.equal(JSON.stringify(claude).includes(savedEnv.CLAUDE_CODE_OAUTH_TOKEN), false);
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
@@ -407,6 +494,9 @@ test('getAuthStatus never falls back across Claude auth slots', async () => {
     assert.deepEqual(apiAccount.credentials.map(item => item.authType), ['oauth']);
     const planAccount = account(await getAuthStatus({
       ...options, claudeCredentialsPath: path.join(fixture.root, 'missing'), getClaudeMode: () => 'plan',
+      readClaudeAuthStatus: async () => ({
+        loggedIn: false, authMethod: 'none', apiProvider: 'firstParty',
+      }),
     }), 'anthropic');
     assert.equal(planAccount.authType, null);
     assert.deepEqual(planAccount.credentials.map(item => item.authType), ['api_key']);
@@ -415,26 +505,16 @@ test('getAuthStatus never falls back across Claude auth slots', async () => {
   }
 });
 
-test('saved Claude OAuth expiry projects valid metadata and fails open otherwise', async () => {
-  const validExpiry = new Date(NOW_MS + 6 * DAY_MS).toISOString();
-  const validIsoVariant = '2030-01-07T00:00:00Z';
-  const cases = [
-    { expiry: undefined, state: 'logged-in', projected: null },
-    { expiry: 'not-an-expiry', state: 'logged-in', projected: null },
-    { expiry: 'January 7, 2030 00:00:00 GMT', state: 'logged-in', projected: null },
-    { expiry: validExpiry, state: 'expiring', projected: validExpiry },
-    { expiry: validIsoVariant, state: 'expiring', projected: validIsoVariant },
-  ] as const;
-
-  for (const expected of cases) {
-    const result = await savedClaudeOAuthAccount(expected.expiry);
+test('legacy saved Claude OAuth expiry never overrides CLI-owned status', async () => {
+  for (const expiry of [
+    undefined,
+    'not-an-expiry',
+    new Date(NOW_MS + 6 * DAY_MS).toISOString(),
+  ]) {
+    const result = await savedClaudeOAuthAccount(expiry);
     assert.deepEqual(
-      { state: result.state, expiresAt: result.expiresAt },
-      { state: expected.state, expiresAt: expected.projected },
-    );
-    assert.deepEqual(
-      { state: result.credentials[0]?.state, expiresAt: result.credentials[0]?.expiresAt },
-      { state: expected.state, expiresAt: expected.projected },
+      { state: result.state, source: result.source, expiresAt: result.expiresAt },
+      { state: 'logged-in', source: 'claude-cli', expiresAt: null },
     );
   }
 });

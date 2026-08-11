@@ -1,6 +1,6 @@
-// input:  temp saved env, auth status, expiry scan
-// output: saved Claude expiry scan end-to-end proof
-// pos:    Saved subscription expiry scan regression
+// input:  temp Claude credentials, auth status, expiry scan
+// output: Claude-owned expiry scan end-to-end proof
+// pos:    Claude credential expiry scan regression
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -58,25 +58,32 @@ function unavailablePi(): PiRuntimeLoadResult {
   };
 }
 
-function writeSavedSubscription(): void {
+function writeClaudeSubscription(): string {
   assert.notEqual(path.resolve(TEST_HOME), path.join(os.homedir(), '.cortex'));
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  fs.writeFileSync(path.join(CONFIG_DIR, '.env'), [
-    `CLAUDE_CODE_OAUTH_TOKEN=${JSON.stringify(TOKEN)}`,
-    `CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT=${JSON.stringify(EXPIRES_AT)}`,
-    '',
-  ].join('\n'), { mode: 0o600 });
+  const credentialsPath = path.join(TEST_HOME, '.claude', '.credentials.json');
+  fs.mkdirSync(path.dirname(credentialsPath), { recursive: true });
+  fs.writeFileSync(credentialsPath, JSON.stringify({ claudeAiOauth: {
+    accessToken: TOKEN,
+    refreshToken: `${TOKEN}-refresh`,
+    expiresAt: NOW_MS + 24 * 60 * 60 * 1000,
+    refreshTokenExpiresAt: Date.parse(EXPIRES_AT),
+  } }), { mode: 0o600 });
+  return credentialsPath;
 }
 
-async function readRealSnapshot(): Promise<AuthStatusSnapshot> {
+async function readRealSnapshot(credentialsPath: string): Promise<AuthStatusSnapshot> {
   return getAuthStatus({
     now: () => new Date(NOW_MS),
-    claudeCredentialsPath: path.join(TEST_HOME, '.claude', '.credentials.json'),
+    claudeCredentialsPath: credentialsPath,
     piAuthPath: path.join(TEST_HOME, '.pi', 'agent', 'auth.json'),
     loadPiRuntime: async () => unavailablePi(),
     getActiveBackend: () => 'claude',
     listProfiles: () => [],
     getClaudeMode: () => 'plan',
+    readClaudeAuthStatus: async () => ({
+      loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
+    }),
   });
 }
 
@@ -106,11 +113,11 @@ function assertTokenFree(value: unknown): void {
   for (const fragment of [...TOKEN]) assert.equal(serialized.includes(fragment), false);
 }
 
-test('saved Claude subscription expiry reaches the daily warning scan', async () => {
+test('Claude-owned subscription expiry reaches the daily warning scan', async () => {
   const liveBefore = liveFileStamps();
   try {
-    writeSavedSubscription();
-    const snapshot = await readRealSnapshot();
+    const credentialsPath = writeClaudeSubscription();
+    const snapshot = await readRealSnapshot(credentialsPath);
     const claude = snapshot.accounts.find(account => account.backend === 'claude');
     assert.deepEqual(
       { state: claude?.state, inUse: claude?.inUse, expiresAt: claude?.expiresAt },

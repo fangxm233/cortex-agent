@@ -1,4 +1,4 @@
-// input:  auth status, PI runtime, saved Claude env, discovery
+// input:  auth status, Claude auth CLI, PI runtime, discovery
 // output: structured account logout results without credential data
 // pos:    Authentication credential logout service
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -13,6 +13,7 @@ import {
   removeAnthropicApiKey,
   removeClaudeCodeOAuthToken,
 } from '../agents/config.js';
+import { logoutClaudeAuth } from './cc-auth-cli.js';
 import {
   getAuthStatus,
   type AuthCredentialStatus,
@@ -59,6 +60,7 @@ export interface LogoutAccountDependencies {
   getSavedApiEnv?: typeof getSavedApiEnv;
   removeAnthropicApiKey?: typeof removeAnthropicApiKey;
   removeClaudeCodeOAuthToken?: typeof removeClaudeCodeOAuthToken;
+  logoutClaudeAuth?: typeof logoutClaudeAuth;
   configureClaudeEnv?: () => void;
   refreshProviders?: () => void;
   piAuthPath?: string;
@@ -66,7 +68,7 @@ export interface LogoutAccountDependencies {
 
 const ERROR_MESSAGES: Record<AuthLogoutErrorCode, string> = {
   not_manageable: 'Credential is not manageable by Cortex.',
-  external_credential: 'OAuth credential is managed by Anthropic. Run `claude /logout` in a terminal.',
+  external_credential: 'OAuth credential is managed by Anthropic. Run `claude auth logout` in a terminal.',
   runtime_unavailable: 'PI runtime is unavailable.',
   logout_failed: 'Account logout failed.',
 };
@@ -124,18 +126,6 @@ function reloadClaude(dependencies: LogoutAccountDependencies): void {
   reload();
 }
 
-function hasExternalClaudeOAuth(
-  snapshot: AuthStatusSnapshot,
-  input: LogoutAccountInput,
-): boolean {
-  const account = snapshot.accounts.find(item => (
-    item.backend === input.backend && item.provider === input.provider
-  ));
-  return account?.credentials.some(item => (
-    item.authType === 'oauth' && item.source === 'credentials.json'
-  )) ?? false;
-}
-
 async function removeClaudeSavedCredential(
   input: LogoutAccountInput,
   remove: () => Promise<void>,
@@ -150,22 +140,35 @@ async function removeClaudeSavedCredential(
   }
 }
 
+async function clearLegacyClaudeOAuth(
+  dependencies: LogoutAccountDependencies,
+): Promise<void> {
+  const saved = (dependencies.getSavedApiEnv ?? getSavedApiEnv)();
+  if (!saved.CLAUDE_CODE_OAUTH_TOKEN) return;
+  await (dependencies.removeClaudeCodeOAuthToken ?? removeClaudeCodeOAuthToken)();
+}
+
 async function logoutClaude(
   input: LogoutAccountInput,
-  snapshot: AuthStatusSnapshot,
+  credential: AuthCredentialStatus,
   dependencies: LogoutAccountDependencies,
 ): Promise<AuthLogoutResult> {
   if (input.authType === 'api_key') {
     const remove = dependencies.removeAnthropicApiKey ?? removeAnthropicApiKey;
     return removeClaudeSavedCredential(input, remove, dependencies);
   }
-  const saved = (dependencies.getSavedApiEnv ?? getSavedApiEnv)();
-  if (!saved.CLAUDE_CODE_OAUTH_TOKEN) return failed(input, 'external_credential');
-  const remove = dependencies.removeClaudeCodeOAuthToken ?? removeClaudeCodeOAuthToken;
-  const result = await removeClaudeSavedCredential(input, remove, dependencies);
-  return result.ok && hasExternalClaudeOAuth(snapshot, input)
-    ? failed(input, 'external_credential')
-    : result;
+  if (credential.source === 'legacy-env') {
+    const remove = dependencies.removeClaudeCodeOAuthToken ?? removeClaudeCodeOAuthToken;
+    return removeClaudeSavedCredential(input, remove, dependencies);
+  }
+  try {
+    await (dependencies.logoutClaudeAuth ?? logoutClaudeAuth)();
+    await clearLegacyClaudeOAuth(dependencies);
+    reloadClaude(dependencies);
+    return succeeded(input);
+  } catch {
+    return failed(input, 'logout_failed');
+  }
 }
 
 async function loadRuntime(
@@ -215,5 +218,5 @@ export async function logoutAccount(
   if (!credential?.manageable) return failed(input, 'not_manageable');
   return input.backend === 'pi'
     ? logoutPi(input, dependencies)
-    : logoutClaude(input, snapshot, dependencies);
+    : logoutClaude(input, credential, dependencies);
 }
