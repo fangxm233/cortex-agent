@@ -1,5 +1,5 @@
 // input:  compiled arm, physical roots and generated Claude CLI
-// output: supervised runs, swap refusals and publication gates
+// output: supervised runs, state admission, swap and publication gates
 // pos:    Run-level battery for the trial adapter seam
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -586,7 +586,7 @@ it('attributes the run to the policy identities it was compiled with (T13, R1, R
   const manifest = terminalManifest(built);
   assert.equal(manifest.role_tool_surface_hash, slot.role_tool_surface_hash.parent);
   assert.equal(manifest.model_execution_identity_hash, slot.model_execution_identity_hash.parent);
-  const events = journalRecords(built).slice(1);
+  const events = journalRecords(built).filter(record => record.type === 'event');
   assert.ok(events.length > 0);
   assert.deepEqual([...new Set(events.map(record => record.backend))], ['claude']);
   assert.deepEqual([...new Set(events.map(record => record.requested_model))], ['claude-sonnet']);
@@ -616,7 +616,7 @@ it('uses policy identity and event metadata when the pre-compile profile disagre
     outcome.stdout[0].model_execution_identity_hash,
     built.policy.identity.model_execution_identity_hash.parent,
   );
-  const events = journalRecords(built).slice(1);
+  const events = journalRecords(built).filter(record => record.type === 'event');
   assert.deepEqual([...new Set(events.map(record => record.provider))], ['anthropic']);
   assert.deepEqual([...new Set(events.map(record => record.requested_model))], ['claude-sonnet']);
 }, 60_000);

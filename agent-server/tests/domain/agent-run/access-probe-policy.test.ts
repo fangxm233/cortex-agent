@@ -1,5 +1,5 @@
 // input:  synthetic strace streams and C8 policy roots
-// output: process, path, count, socket, stream proofs
+// output: process, path, root-metadata, socket and stream proofs
 // pos:    Pure access-probe policy regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -58,6 +58,29 @@ it('allows workspace and trial state writes plus install reads', () => {
     assert.equal(result.violations.length, 0);
     assert.equal(result.counts.fileCalls, 4);
   assert.equal(result.counts.allowed, 4);
+});
+
+it('allows only physical-resolution metadata on declared writable-root ancestors', () => {
+  const declaredWorkspace = path.join(policy.workspace, 'declared');
+  fs.mkdirSync(declaredWorkspace);
+  const scopedPolicy = { ...policy, workspace: declaredWorkspace };
+  const ancestor = policy.workspace;
+  const sibling = path.join(policy.workspace, 'unrelated');
+  const result = classifyTraceLines([
+    `1.4 statx(AT_FDCWD<${declaredWorkspace}>, "${ancestor}", AT_STATX_SYNC_AS_STAT, STATX_ALL, {}) = 0`,
+    `1.5 readlink("${ancestor}", 0x0, 1024) = -1 EINVAL (Invalid argument)`,
+    `1.6 openat(AT_FDCWD<${declaredWorkspace}>, "${ancestor}", O_RDONLY|O_DIRECTORY) = 6`,
+    `1.7 statx(AT_FDCWD<${declaredWorkspace}>, "${sibling}", AT_STATX_SYNC_AS_STAT, STATX_ALL, {}) = 0`,
+  ], {
+    policy: scopedPolicy, initialCwd: declaredWorkspace, pid: 321, traceFile: 'trace.321',
+  });
+
+  assert.deepEqual(result.violations.map(({ syscall, path: offender, reason }) => ({
+    syscall, path: offender, reason,
+  })), [
+    { syscall: 'openat', path: ancestor, reason: 'unclassified_path' },
+    { syscall: 'statx', path: sibling, reason: 'unclassified_path' },
+  ]);
 });
 
 it('denies a failed host Cortex access and names the offender', () => {

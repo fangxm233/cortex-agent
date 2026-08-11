@@ -33,7 +33,9 @@ import {
 import {
   createBenchmarkOutputAdapter, type BenchmarkOutputAdapter,
 } from './benchmark-output-adapter.js';
-import type { AgentSlot as JournalAgentSlot } from './journal.js';
+import type {
+  AgentSlot as JournalAgentSlot, StateAdmissionEvidence,
+} from './journal.js';
 import { preparePinnedTrialPaths, type PinnedTrialPaths } from './pinned-node-process.js';
 import {
   loadAgentRunConfigWithPolicy, type ResolvedAgentRunConfig,
@@ -54,14 +56,7 @@ export interface StandaloneCompositionOptions {
   requireFresh: boolean;
 }
 
-export interface StandaloneStateAdmissionEvidence {
-  schema_version: 'cortex-standalone-state-admission/1';
-  empty_before_projection: boolean;
-  roots: {
-    project: string; task: string; thread: string; session: string; execution: string;
-    cache: string; temp: string; backend: string;
-  };
-}
+export type StandaloneStateAdmissionEvidence = StateAdmissionEvidence;
 
 export interface StandaloneAdmissionBoundary {
   evidence: StandaloneStateAdmissionEvidence;

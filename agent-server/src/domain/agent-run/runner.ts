@@ -590,12 +590,16 @@ async function settleSupervisor(session: SupervisorSession | null): Promise<{
 
 function oneShotOptions(
   run: PreparedRun,
+  journal: Journal,
   sink: RunObserver,
   spawner: AgentProcessSpawner,
 ): RunAgentOptions {
   const admitted: AgentProcessSpawner = run.trial
     ? (command, args, options) => {
         run.trial!.admit({ cwd: options.cwd?.toString() ?? '', env: options.env ?? {} });
+        if (run.composition) {
+          journal.writeStateAdmission(run.composition.admission.evidence);
+        }
         return spawner(command, args, options);
       }
     : spawner;
@@ -668,7 +672,7 @@ async function executeTurn(
   const removeSignals = installSignals(requestCancel);
   const spawner = supervisedSpawner(run, value => { supervision = value; }, () => cancelled);
   try {
-    const options = oneShotOptions(run, trajectorySink(run, journal, stats, io), spawner);
+    const options = oneShotOptions(run, journal, trajectorySink(run, journal, stats, io), spawner);
     const config = run.policy ? trialAgentConfig(run.policy, run.backend) : agentConfig(run.profile);
     handle = runWithAdapter(adapter, run.modelPrompt, options, config, undefined);
     if (cancelled) handle.kill();
@@ -767,7 +771,10 @@ function terminalManifest(
     throw new StandaloneAdmissionError('Standalone state admission was not verified');
   }
   const input = terminalInput(run, journal, stats, outcome, classified);
-  run.output.writeTerminal(input);
+  run.output.writeTerminal(
+    input,
+    run.composition ? { stateAdmission: run.composition.admission.evidence } : undefined,
+  );
   return buildTerminalManifest(input);
 }
 
@@ -878,7 +885,9 @@ function scanAttemptJournal(trajectoryRoot: string, journalPath: string): Attemp
     throw new CompositeManifestError('composite_manifest_invalid', `empty journal ${journalPath}`);
   }
   const header = JSON.parse(lines[0]) as Record<string, unknown>;
-  const records = lines.slice(1).map(line => JSON.parse(line) as Record<string, unknown>);
+  const records = lines.slice(1)
+    .map(line => JSON.parse(line) as Record<string, unknown>)
+    .filter(record => record.type === 'event');
   const reported = records
     .map(record => record.reported_model)
     .filter((value): value is string => typeof value === 'string');

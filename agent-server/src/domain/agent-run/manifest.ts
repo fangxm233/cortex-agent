@@ -1,5 +1,5 @@
-// input:  canonical roots, lifecycle metadata, journal contracts
-// output: relocatable lifecycle files and journal validation
+// input:  canonical roots, lifecycle metadata and admission journals
+// output: relocatable lifecycle files and fail-closed validation
 // pos:    Lifecycle truth and validator for one-shot agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -7,7 +7,9 @@ import { createHash, type Hash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
-import { TrajectoryWriteFailedError } from './journal.js';
+import {
+  TrajectoryWriteFailedError, type StateAdmissionEvidence,
+} from './journal.js';
 import {
   buildTerminalManifest, recordedJournalPath, terminalManifestProblem, TERMINAL_IDENTITY_KEYS,
   type StartedMarkerInput, type TerminalManifestInput,
@@ -46,6 +48,7 @@ interface JournalScanState {
   lineNumber: number;
   eventCount: number;
   header: JournalHeaderRecord | null;
+  stateAdmission: StateAdmissionEvidence | null;
   modelObservation: JournalModelObservation | null;
   roleIdentities: Map<string, JournalRoleIdentity>;
   expectedRoleIdentities?: ReadonlyMap<string, JournalRoleIdentity>;
@@ -57,6 +60,7 @@ interface JournalScanResult {
   sha256: string | null;
   eventCount: number;
   header: JournalHeaderRecord | null;
+  stateAdmission: StateAdmissionEvidence | null;
   modelObservation: JournalModelObservation | null;
   problems: string[];
 }
@@ -88,6 +92,15 @@ const EVENT_KEYS = [
   'schema_version', 'type', 'root_run_id', 'thread_id', 'step', 'agent_slot', 'seq', 'ts',
   'backend', 'provider', 'requested_model', 'reported_model',
   'model_execution_identity_hash', 'role_tool_surface_hash', 'bundle_manifest_hash', 'event',
+];
+
+const STATE_ADMISSION_KEYS = [
+  'schema_version', 'type', 'root_run_id', 'thread_id', 'agent_slot', 'seq', 'ts',
+  'model_execution_identity_hash', 'role_tool_surface_hash', 'bundle_manifest_hash', 'evidence',
+];
+
+const STATE_ROOT_KEYS = [
+  'project', 'task', 'thread', 'session', 'execution', 'cache', 'temp', 'backend',
 ];
 
 const HEADER_HASH_KEYS = [
@@ -405,9 +418,23 @@ function flushJournal(filePath: string): void {
   if (failures.length > 0) throw trajectoryFailure('journal flush', failures);
 }
 
+function sameStateAdmission(
+  observed: StateAdmissionEvidence | null,
+  expected: StateAdmissionEvidence | undefined,
+): boolean {
+  if (!expected) return true;
+  if (!observed || observed.schema_version !== expected.schema_version
+      || observed.empty_before_projection !== expected.empty_before_projection) return false;
+  return STATE_ROOT_KEYS.every(key => (
+    observed.roots[key as keyof StateAdmissionEvidence['roots']]
+      === expected.roots[key as keyof StateAdmissionEvidence['roots']]
+  ));
+}
+
 function journalLinkageProblem(
   input: TerminalManifestInput,
   scan: JournalScanResult,
+  expectedStateAdmission?: StateAdmissionEvidence,
 ): string | null {
   const header = scan.header;
   const checks: Array<[boolean, string]> = [
@@ -420,12 +447,14 @@ function journalLinkageProblem(
     [header?.modelExecutionIdentityHash === input.modelExecutionIdentityHash, 'model_execution_identity_hash'],
     [header?.roleToolSurfaceHash === input.roleToolSurfaceHash, 'role_tool_surface_hash'],
     [header?.bundleManifestHash === input.bundleManifestHash, 'bundle_manifest_hash'],
+    [sameStateAdmission(scan.stateAdmission, expectedStateAdmission), 'state_admission'],
   ];
   return checks.find(([passes]) => !passes)?.[1] ?? null;
 }
 
 export interface TerminalManifestValidationOptions {
   roleIdentities?: ReadonlyMap<string, JournalRoleIdentity>;
+  stateAdmission?: StateAdmissionEvidence;
 }
 
 function assertManifestLinkage(
@@ -440,7 +469,7 @@ function assertManifestLinkage(
   if (!journalPath) throw trajectoryFailure('terminal linkage', [new Error('journal_outside_root')]);
   flushJournal(journalPath);
   const scan = scanJournal(journalPath, options.roleIdentities);
-  const problem = journalLinkageProblem(input, scan);
+  const problem = journalLinkageProblem(input, scan, options.stateAdmission);
   if (problem) throw trajectoryFailure('terminal linkage', [new Error(problem)]);
 }
 
@@ -553,6 +582,42 @@ function headerRecord(value: Record<string, unknown>): JournalHeaderRecord {
   };
 }
 
+function confinedRelativePath(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || path.isAbsolute(value)) return false;
+  const normalized = path.normalize(value);
+  return normalized !== '..' && !normalized.startsWith(`..${path.sep}`);
+}
+
+function validStateAdmissionEvidence(value: unknown): value is StateAdmissionEvidence {
+  if (!isObject(value) || !exactKeys(value, [
+    'schema_version', 'empty_before_projection', 'roots',
+  ]) || !isObject(value.roots) || !exactKeys(value.roots, STATE_ROOT_KEYS)) return false;
+  return value.schema_version === 'cortex-standalone-state-admission/1'
+    && value.empty_before_projection === true
+    && STATE_ROOT_KEYS.every(key => confinedRelativePath(value.roots[key]));
+}
+
+function validStateAdmissionRecord(
+  value: unknown,
+  header: JournalHeaderRecord | null,
+): value is Record<string, unknown> {
+  if (!isObject(value) || !header) return false;
+  return all([
+    exactKeys(value, STATE_ADMISSION_KEYS),
+    value.schema_version === JOURNAL_SCHEMA,
+    value.type === 'state_admission',
+    value.seq === 1,
+    value.root_run_id === header.rootRunId,
+    value.thread_id === null && header.threadId === null,
+    value.agent_slot === 'parent' && header.agentSlot === 'parent',
+    isTimestamp(value.ts),
+    value.model_execution_identity_hash === header.modelExecutionIdentityHash,
+    value.role_tool_surface_hash === header.roleToolSurfaceHash,
+    value.bundle_manifest_hash === header.bundleManifestHash,
+    validStateAdmissionEvidence(value.evidence),
+  ]);
+}
+
 function validEventRecord(
   value: unknown,
   expectedSeq: number,
@@ -653,6 +718,17 @@ function trackRoleIdentity(state: JournalScanState, value: Record<string, unknow
     && expected.bundleManifestHash === observed.bundleManifestHash;
 }
 
+function validateStateAdmissionLine(
+  state: JournalScanState, filePath: string, value: unknown,
+): void {
+  if (state.lineNumber === 2 && state.stateAdmission === null
+      && validStateAdmissionRecord(value, state.header)) {
+    state.stateAdmission = (value as Record<string, unknown>).evidence as StateAdmissionEvidence;
+    return;
+  }
+  state.problems.push(malformedRecord(filePath, state.lineNumber, 'invalid_state_admission'));
+}
+
 function validateEventLine(state: JournalScanState, filePath: string, value: unknown): void {
   state.eventCount += 1;
   const valid = validEventRecord(value, state.lineNumber - 1, state.header);
@@ -669,7 +745,9 @@ function validateJournalLine(state: JournalScanState, filePath: string, line: st
     return;
   }
   if (state.lineNumber === 1) validateHeaderLine(state, filePath, parsed.value);
-  else validateEventLine(state, filePath, parsed.value);
+  else if (isObject(parsed.value) && parsed.value.type === 'state_admission') {
+    validateStateAdmissionLine(state, filePath, parsed.value);
+  } else validateEventLine(state, filePath, parsed.value);
 }
 
 function consumeDecoded(state: JournalScanState, filePath: string, text: string): void {
@@ -687,8 +765,9 @@ function newScanState(
   expectedRoleIdentities?: ReadonlyMap<string, JournalRoleIdentity>,
 ): JournalScanState {
   return {
-    pending: '', lineNumber: 0, eventCount: 0, header: null, modelObservation: null,
-    roleIdentities: new Map(), expectedRoleIdentities, problems: [], hash: createHash('sha256'),
+    pending: '', lineNumber: 0, eventCount: 0, header: null, stateAdmission: null,
+    modelObservation: null, roleIdentities: new Map(), expectedRoleIdentities,
+    problems: [], hash: createHash('sha256'),
   };
 }
 
@@ -699,7 +778,8 @@ function finishScan(state: JournalScanState, filePath: string): JournalScanResul
   if (state.lineNumber === 0) state.problems.push(malformedRecord(filePath, 1, 'missing_header'));
   return {
     sha256: state.hash.digest('hex'), eventCount: state.eventCount,
-    header: state.header, modelObservation: state.modelObservation, problems: state.problems,
+    header: state.header, stateAdmission: state.stateAdmission,
+    modelObservation: state.modelObservation, problems: state.problems,
   };
 }
 
@@ -744,7 +824,7 @@ function scanJournal(
 
 function unreadableScan(filePath: string, operation: string): JournalScanResult {
   return {
-    sha256: null, eventCount: 0, header: null, modelObservation: null,
+    sha256: null, eventCount: 0, header: null, stateAdmission: null, modelObservation: null,
     problems: [`journal_unreadable:${filePath}:${operation}`],
   };
 }
@@ -847,6 +927,7 @@ function validateScan(
   terminal: Record<string, unknown>,
   journalPath: string,
   problems: string[],
+  expectedStateAdmission?: StateAdmissionEvidence,
 ): void {
   problems.push(...scan.problems);
   if (scan.sha256 !== terminal.journal_sha256) {
@@ -854,6 +935,9 @@ function validateScan(
   }
   if (scan.eventCount !== terminal.event_count) {
     problems.push(`event_count_mismatch:${journalPath}`);
+  }
+  if (!sameStateAdmission(scan.stateAdmission, expectedStateAdmission)) {
+    problems.push(`state_admission_mismatch:${journalPath}`);
   }
 }
 
@@ -907,6 +991,7 @@ function validateStarted(
   problems: string[],
   expectedRoleIdentities?: ReadonlyMap<string, JournalRoleIdentity>,
   canonicalRoot = false,
+  expectedStateAdmission?: StateAdmissionEvidence,
 ): void {
   const startedResult = readStartedMarker(startedPath);
   if (!startedResult.record) {
@@ -927,7 +1012,7 @@ function validateStarted(
     return;
   }
   const scan = scanJournal(journalPath, expectedRoleIdentities);
-  validateScan(scan, terminal, journalPath, problems);
+  validateScan(scan, terminal, journalPath, problems, expectedStateAdmission);
   validateMarkerIdentity(started, scan.header, journalPath, problems);
   validateTerminalIdentities(terminal, scan.header, journalPath, problems);
 }
@@ -983,6 +1068,7 @@ export function validateTrajectoryLifecycle(input: {
   rootRunId: string;
   threadId: string | null;
   roleIdentities?: ReadonlyMap<string, JournalRoleIdentity>;
+  stateAdmission?: StateAdmissionEvidence;
 }): { ok: boolean; problems: string[] } {
   const started = resolveLifecyclePaths(input).started;
   if (!fs.existsSync(started)) return { ok: false, problems: [`missing_started_marker:${started}`] };
@@ -993,6 +1079,7 @@ export function validateTrajectoryLifecycle(input: {
     problems,
     input.roleIdentities,
     input.canonicalTrajectoryRoot === true,
+    input.stateAdmission,
   );
   return { ok: problems.length === 0, problems };
 }

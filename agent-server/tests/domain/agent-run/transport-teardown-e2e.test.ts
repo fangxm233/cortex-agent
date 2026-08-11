@@ -1,5 +1,5 @@
 // input:  a supervised trial whose declared MCP sidecar dies, or outlives, its call
-// output: proof that no transport teardown shortens finalization, success or fail-closed
+// output: journal-linked proof teardown cannot shorten finalization
 // pos:    Independent Gate-2 proving suite for design §13 (13.6) T16
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -47,7 +47,10 @@ function assertFinalized(trial: ClaudeTrial, outcome: TrialOutcome): void {
   // F4 — the journal is closed and its digest and event count are the ones the manifest carries.
   const records = journalRecords(trial);
   assert.ok(records.length > 0, 'the journal holds no records');
-  assert.equal(outcome.terminal.manifest.event_count, records.length - 1);
+  assert.equal(
+    outcome.terminal.manifest.event_count,
+    records.filter(record => record.type === 'event').length,
+  );
 
   // F6 — the manifest is on disk, re-readable, and identical to the one reported on stdout.
   const manifestFile = terminalManifestFile(trial);

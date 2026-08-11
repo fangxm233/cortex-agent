@@ -8,7 +8,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | atif-dag-fixtures.ts | fixture | writes manager- and coder-review-shaped attempt DAGs with their lifecycle pairs |
 | atif-recursive-merge.test.ts | test | proves recursion past one level, role-indexed identity, DAG partition and named refusals |
 | access-probe-fixture.mjs | fixture | emits tamper, timeout and forbidden syscalls |
-| access-probe-policy.test.ts | test | proves process, path, count and stream policy |
+| access-probe-policy.test.ts | test | proves path, root-metadata, count and stream policy |
 | access-probe.test.ts | e2e | proves evidence isolation and containment |
 | agent-run-cli.test.ts | test | verifies required flags, stdin ownership and help |
 | agent-run-e2e-fixture.ts | fixture | builds and cleans process-level run fixtures |
@@ -40,7 +40,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | long-mcp-hold-server.mjs | fixture | holds one stdio MCP call for a chosen duration |
 | long-mcp-trial-fixture.ts | fixture | compiles a trial whose declared MCP server holds |
 | journal.test.ts | test | verifies durable events and relocatable lifecycle paths |
-| manifest-contract.test.ts | test | verifies lifecycle, linkage and child identity contracts |
+| manifest-contract.test.ts | test | verifies lifecycle, state admission and identity linkage |
 | pi-rpc-cli.mjs | fixture | answers one PI rpc turn and records its env |
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
@@ -48,12 +48,12 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | run-config.test.ts | test | proves schema dispatch, roles, argv and MCP inputs |
 | standalone-architecture.test.ts | test | rejects shared-state standalone composition |
 | standalone-composition.test.ts | test | proves fresh roots and admission evidence |
-| standalone-public-cli.test.ts | e2e | proves packed state and process containment |
+| standalone-public-cli.test.ts | e2e | proves repeatable packed state and process containment |
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
-| trial-run-pi.test.ts | test | proves PI supervision, cancel, deadline and run identity |
-| trial-run.test.ts | test | proves Claude root swaps and publication gates |
+| trial-run-pi.test.ts | test | proves PI state admission, supervision and run identity |
+| trial-run.test.ts | test | proves Claude state admission, swaps and publication gates |
 | trajectory-merge-cli.test.ts | test | verifies context-free accounting and typed failures |
-| transport-teardown-e2e.test.ts | e2e | proves finalization survives sidecar teardown |
+| transport-teardown-e2e.test.ts | e2e | proves journal-linked finalization survives teardown |
 | trajectory-merge-fixtures.ts | fixture | writes print-mode accounted fragment events |
 | trajectory-merge-subagent.test.ts | test | proves the native-subagent census key, the derived subagent turn total, the zero-census refusal and the surviving named refusals |
 | trajectory-merge.test.ts | test | verifies documented aggregate ATIF conversion |

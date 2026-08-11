@@ -1,5 +1,5 @@
-// input:  relocatable C2/C3 files, output path, filesystem
-// output: exclusive ATIF metrics or typed fail-closed errors
+// input:  lifecycle journals with control records and output path
+// output: event-only ATIF metrics or typed fail-closed errors
 // pos:    Parent-plus-child journal merge boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -243,7 +243,7 @@ function parseJournal(input: LifecycleInput): SourceFragment {
   if (records.length < 1) return mergeError('malformed_fragment', 'Journal has no header');
   return {
     header: records[0] as SourceJournalHeader,
-    events: records.slice(1) as SourceJournalEvent[],
+    events: records.slice(1).filter(record => record.type === 'event') as SourceJournalEvent[],
     terminal: input.terminal,
   };
 }

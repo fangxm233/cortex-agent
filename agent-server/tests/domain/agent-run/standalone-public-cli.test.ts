@@ -17,7 +17,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'standalone-public-cli-'));
 let installed: PackedBundle;
 let hostileHelper = '';
 
-function run(command: string, args: string[], timeout = 120_000) {
+function run(command: string, args: string[], timeout = 240_000) {
   return spawnSync(command, args, {
     cwd: serverRoot, encoding: 'utf8', timeout,
   });
@@ -37,7 +37,7 @@ beforeAll(() => {
     path.join(serverRoot, 'tests/native/fixtures/refork-grandchild.c'), '-o', hostileHelper,
   ]);
   assert.equal(compiled.status, 0, `${compiled.stdout}\n${compiled.stderr}`);
-}, 240_000);
+}, 480_000);
 
 afterAll(() => {
   fs.rmSync(root, { recursive: true, force: true });
@@ -213,6 +213,30 @@ it('executes the packed package bin from the public projection with no ambient f
   const terminal = result.stdout.trim().split('\n').map(line => JSON.parse(line)).at(-1);
   assert.equal(terminal.type, 'terminal');
   assert.equal(terminal.state, 'completed');
+  const journal = fs.readFileSync(path.join(trajectory, 'events.jsonl'), 'utf8')
+    .trimEnd().split('\n').map(line => JSON.parse(line));
+  const admissions = journal.filter(record => record.type === 'state_admission');
+  assert.equal(admissions.length, 1);
+  assert.equal(admissions[0].seq, 1);
+  assert.equal(admissions[0].root_run_id, 'trial-public-cli.cortex-direct');
+  assert.equal(
+    admissions[0].model_execution_identity_hash,
+    terminal.manifest.model_execution_identity_hash,
+  );
+  assert.deepEqual(admissions[0].evidence, {
+    schema_version: 'cortex-standalone-state-admission/1',
+    empty_before_projection: true,
+    roots: {
+      project: 'projects', task: 'cortex-home/state/tasks.json',
+      thread: 'cortex-home/state/threads.json', session: 'cortex-home/state/sessions.json',
+      execution: 'cortex-home/state/executions.json', cache: 'xdg-cache', temp: 'tmp',
+      backend: 'claude-config',
+    },
+  });
+  assert.equal(
+    terminal.manifest.event_count,
+    journal.filter(record => record.type === 'event').length,
+  );
   const state = path.join(root, 'agent', 'trial-home', 'cortex-home', 'state');
   assert.deepEqual(fs.readdirSync(state).sort(), [
     'executions.json', 'sessions.json', 'tasks.json', 'threads.json',

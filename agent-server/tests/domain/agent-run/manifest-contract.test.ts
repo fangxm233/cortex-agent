@@ -1,5 +1,5 @@
-// input:  lifecycle manifest module, journals, filesystem fixtures
-// output: frozen lifecycle and cross-record contract tests
+// input:  lifecycle manifests, journals and state admission evidence
+// output: lifecycle linkage and fail-closed admission-record proofs
 // pos:    Agent-run manifest contract regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -17,6 +17,7 @@ import {
 } from '../../../src/domain/agent-run/journal.js';
 import {
   readStartedJournalIdentity,
+  validateTrajectoryLifecycle,
   validateTrajectoryRoot,
   writeStartedMarker,
   writeTerminalManifest,
@@ -30,6 +31,17 @@ const HASHES = {
   modelExecutionIdentityHash: '1'.repeat(64),
   roleToolSurfaceHash: '2'.repeat(64),
   bundleManifestHash: '3'.repeat(64),
+};
+
+const STATE_ADMISSION = {
+  schema_version: 'cortex-standalone-state-admission/1' as const,
+  empty_before_projection: true,
+  roots: {
+    project: 'projects', task: 'cortex-home/state/tasks.json',
+    thread: 'cortex-home/state/threads.json', session: 'cortex-home/state/sessions.json',
+    execution: 'cortex-home/state/executions.json', cache: 'xdg-cache', temp: 'tmp',
+    backend: 'claude-config',
+  },
 };
 
 function makeRoot(): string {
@@ -135,6 +147,115 @@ function mutateInput(
   (input as unknown as Record<string, unknown>)[key] = value;
   return input;
 }
+
+async function createAdmissionJournal(root: string): Promise<{
+  journalPath: string; journalSha256: string;
+}> {
+  const journalPath = path.join(root, 'run.ndjson');
+  const journal = openJournal({ path: journalPath, header: header() });
+  (journal as any).writeStateAdmission(STATE_ADMISSION);
+  journal.writeEvent(event());
+  await journal.close();
+  return { journalPath, journalSha256: journal.sha256() };
+}
+
+function requiredAdmission(): any {
+  return { stateAdmission: STATE_ADMISSION };
+}
+
+it('writes one identity-bound state admission before the first backend event', async () => {
+  const root = makeRoot();
+  try {
+    const journalPath = path.join(root, 'run.ndjson');
+    const journal = openJournal({ path: journalPath, header: header() });
+    assert.equal(typeof (journal as any).writeStateAdmission, 'function');
+    const admission = (journal as any).writeStateAdmission(STATE_ADMISSION);
+    assert.throws(() => (journal as any).writeStateAdmission(STATE_ADMISSION));
+    const backend = journal.writeEvent(event());
+    await journal.close();
+
+    assert.equal(admission.type, 'state_admission');
+    assert.equal(admission.seq, 1);
+    assert.equal(backend.seq, 2);
+    assert.equal(admission.root_run_id, 'run-001');
+    assert.equal(admission.model_execution_identity_hash, HASHES.modelExecutionIdentityHash);
+    assert.deepEqual(admission.evidence, STATE_ADMISSION);
+    assert.equal(journal.eventCount, 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it.each(['missing', 'duplicate', 'malformed', 'identity-mismatched', 'late'] as const)(
+  'withholds terminal publication for a %s standalone state admission',
+  async (failure) => {
+    const root = makeRoot();
+    try {
+      const journal = failure === 'missing'
+        ? await createJournal(root) : await createAdmissionJournal(root);
+      if (failure !== 'missing') {
+        rewriteJournal(journal.journalPath, records => {
+          const admission = records[1];
+          const backend = records[2];
+          if (failure === 'duplicate') {
+            records.splice(2, 0, { ...admission, seq: 2 });
+            backend.seq = 3;
+          } else if (failure === 'malformed') {
+            (admission.evidence as any).roots.temp = '../outside';
+          } else if (failure === 'identity-mismatched') {
+            admission.model_execution_identity_hash = '9'.repeat(64);
+          } else {
+            backend.seq = 1;
+            admission.seq = 2;
+            records.splice(1, 2, backend, admission);
+          }
+        });
+      }
+      const input = manifestInput(root, journal.journalPath, digest(journal.journalPath));
+      assert.throws(
+        () => writeTerminalManifest(input, requiredAdmission()),
+        expectTrajectoryError,
+      );
+      assert.equal(fs.existsSync(terminalPath(root)), false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it('publishes and independently validates one linked state admission', async () => {
+  const root = makeRoot();
+  try {
+    const journal = await createAdmissionJournal(root);
+    writeStartedMarker({
+      trajectoryRoot: root, rootRunId: 'run-001', threadId: null,
+      journalPath: journal.journalPath,
+    });
+    const input = manifestInput(root, journal.journalPath, journal.journalSha256);
+    const finalPath = writeTerminalManifest(input, requiredAdmission());
+    assert.equal(readObject(finalPath).journal_sha256, journal.journalSha256);
+    assert.deepEqual(validateTrajectoryLifecycle({
+      trajectoryRoot: root, rootRunId: 'run-001', threadId: null,
+      stateAdmission: STATE_ADMISSION,
+    }), { ok: true, problems: [] });
+
+    rewriteJournal(journal.journalPath, records => {
+      records.splice(1, 1);
+      records[1].seq = 1;
+    });
+    const terminal = readObject(finalPath);
+    terminal.journal_sha256 = digest(journal.journalPath);
+    writeObject(finalPath, terminal);
+    const validation = validateTrajectoryLifecycle({
+      trajectoryRoot: root, rootRunId: 'run-001', threadId: null,
+      stateAdmission: STATE_ADMISSION,
+    });
+    assert.equal(validation.ok, false);
+    assert.equal(validation.problems.some(problem => problem.includes('state_admission')), true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 it('preserves caller-supplied non-quiescent evidence for a failed run', async () => {
   const root = makeRoot();

@@ -1,5 +1,5 @@
 // input:  a PI-labelled trial policy, the real supervisor binary and a real PI-shaped child
-// output: supervised spawn, quiescence, cancellation and deadline parity for the PI backend
+// output: PI state admission, supervision, cancellation and deadline parity
 // pos:    Run-level battery rows T1-T5 for the PI trial adapter
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -490,7 +490,7 @@ it('labels a PI trial\'s journal and terminal manifest with its own backend (T13
   assert.ok(record.argv.includes('--mode') && record.argv.includes('rpc'), record.argv.join(' '));
   assert.equal(outcome.terminal.manifest.supervisor.quiescent, true);
   // The producer half of R1: the run — not a relabelled fixture — wrote these records.
-  const events = piJournalRecords(built).slice(1);
+  const events = piJournalRecords(built).filter(record => record.type === 'event');
   assert.ok(events.length > 0, 'the PI run journalled no events');
   assert.deepEqual([...new Set(events.map(record => record.backend))], ['pi']);
   assert.deepEqual([...new Set(events.map(record => record.provider))], ['anthropic']);

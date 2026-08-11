@@ -1,5 +1,5 @@
 // input:  strace stream, initial cwd, and C8 policy roots
-// output: bounded counts and fail-closed access violations
+// output: bounded counts, root-metadata allowances and violations
 // pos:    Stateful classifier for benchmark access traces
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -134,6 +134,10 @@ const WRITE_SYSCALLS = new Set([
   'chmod', 'chown', 'creat', 'fchmodat', 'fchownat', 'lchown', 'link', 'linkat', 'mkdir',
   'mkdirat', 'mknod', 'mknodat', 'mount', 'rename', 'renameat', 'renameat2', 'rmdir', 'symlink',
   'symlinkat', 'truncate', 'umount', 'umount2', 'unlink', 'unlinkat', 'utime', 'utimensat', 'utimes',
+]);
+const PHYSICAL_RESOLUTION_SYSCALLS = new Set([
+  'access', 'faccessat', 'faccessat2', 'lstat', 'newfstatat', 'readlink', 'readlinkat', 'stat',
+  'statx',
 ]);
 const PROCESS_METADATA = new Set([
   'clone', 'clone3', 'exit', 'exit_group', 'fork', 'kill', 'setpgid', 'tgkill', 'vfork', 'wait4',
@@ -339,6 +343,11 @@ function isAllowedRootAncestor(candidate: string, policy: AccessProbePolicy): bo
   return roots.some(root => isWithin(root, candidate));
 }
 
+function isDeclaredWritableRootAncestor(candidate: string, policy: AccessProbePolicy): boolean {
+  return [policy.workspace, policy.cortexHome, policy.logsDir]
+    .some(root => isWithin(root, candidate));
+}
+
 interface PathDecision {
   offender: string;
   reason: string | null;
@@ -349,7 +358,7 @@ function pathDecision(reason: string | null, offender: string): PathDecision {
 }
 
 function classifyPath(
-  candidate: string, access: AccessMode, policy: AccessProbePolicy, pid: number,
+  candidate: string, access: AccessMode, syscall: string, policy: AccessProbePolicy, pid: number,
   symlinks: ReadonlyMap<string, string>, followFinal: boolean,
 ): PathDecision {
   const traced = resolveKnownSymlinks(candidate, symlinks, followFinal);
@@ -361,6 +370,10 @@ function classifyPath(
   if (isHostDotfile(candidate, policy)) return pathDecision('host_home_dotfile', candidate);
   if (isHostDotfile(canonical, policy)) return pathDecision('host_home_dotfile',
     traced === candidate ? candidate : canonical);
+  if (access === 'read' && PHYSICAL_RESOLUTION_SYSCALLS.has(syscall)
+      && isDeclaredWritableRootAncestor(canonical, policy)) {
+    return pathDecision(null, candidate);
+  }
   const writable = [policy.workspace, policy.cortexHome, policy.logsDir];
   if (writable.some(root => isWithin(canonical, root))) return pathDecision(null, candidate);
   if (isAllowedRootAncestor(canonical, policy) && access === 'read') {
@@ -480,11 +493,15 @@ function pathViolation(
   if (!candidate) return [violation(call.syscall, raw, 'unclassifiable_path', 'unknown',
     options, line, raw)];
   const followFinal = followsFinalSymlink(call);
-  const attempted = classifyPath(candidate, access, options.policy, options.pid, symlinks, followFinal);
+  const attempted = classifyPath(
+    candidate, access, call.syscall, options.policy, options.pid, symlinks, followFinal,
+  );
   if (attempted.reason) return [violation(call.syscall, attempted.offender, attempted.reason,
     access, options, line, raw)];
   if (!observed || canonicalPath(observed) === canonicalPath(candidate, symlinks, followFinal)) return [];
-  const actual = classifyPath(observed, access, options.policy, options.pid, symlinks, true);
+  const actual = classifyPath(
+    observed, access, call.syscall, options.policy, options.pid, symlinks, true,
+  );
   return actual.reason ? [violation(call.syscall, actual.offender, actual.reason, access,
     options, line, raw)] : [];
 }
