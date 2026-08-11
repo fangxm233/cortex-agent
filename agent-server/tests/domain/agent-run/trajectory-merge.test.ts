@@ -268,6 +268,7 @@ it('publishes structural ATIF while preserving unavailable backend metrics', () 
   const trajectory = readJson(outputPath);
   assert.equal(trajectory.subagent_trajectories.length, 2);
   assert.equal(Object.hasOwn(trajectory, 'final_metrics'), false);
+  assert.equal(trajectory.extra.final_metrics_status, 'unavailable');
 });
 
 it('writes byte-identical output for identical input', () => {

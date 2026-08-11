@@ -1,5 +1,5 @@
-// input:  merge CLI, context-free fragments, filesystem faults
-// output: atomic accounting and typed fail-closed tests
+// input:  merge CLI, optional metrics and filesystem faults
+// output: honest metric publication and typed fail-closed tests
 // pos:    Trajectory merge failure-boundary regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -249,14 +249,23 @@ it.each([
 });
 
 it.each([
-  ['cost_record', 'prompt_tokens'],
-  ['cost_record', 'cached_tokens'],
-  ['cost_record', 'tokens_out'],
-  ['cost_record', 'cost_usd'],
-  ['turn_complete', 'numTurns'],
-] as const)('fails closed when %s.%s is null', (eventType, field) => {
+  'prompt_tokens',
+  'cached_tokens',
+  'tokens_out',
+  'cost_usd',
+] as const)('publishes without final metrics when cost_record.%s is null', field => {
   const fixture = makeFixture();
-  setFirstEventField(fixture.parent, eventType, field, null);
+  setFirstEventField(fixture.parent, 'cost_record', field, null);
+  const result = invoke(fixture);
+  assert.equal(result.code, 0, result.stderr);
+  const trajectory = JSON.parse(fs.readFileSync(result.outputPath, 'utf8'));
+  assert.equal(trajectory.final_metrics, undefined);
+  assert.equal(trajectory.extra.final_metrics_status, 'unavailable');
+});
+
+it('fails closed when turn_complete.numTurns is null', () => {
+  const fixture = makeFixture();
+  setFirstEventField(fixture.parent, 'turn_complete', 'numTurns', null);
   assertFailedClosed(invoke(fixture), 'aggregate_metrics_underivable');
 });
 

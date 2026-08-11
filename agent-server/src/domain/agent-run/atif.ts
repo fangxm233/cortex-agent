@@ -368,5 +368,9 @@ export function buildAtifTree(
 ): AtifTrajectory {
   const trajectory = buildTrajectory(root);
   trajectory.extra.subagent_link_source = linkSource;
-  return finalMetrics === null ? trajectory : attachFinalMetrics(trajectory, finalMetrics);
+  if (finalMetrics === null) {
+    trajectory.extra.final_metrics_status = 'unavailable';
+    return trajectory;
+  }
+  return attachFinalMetrics(trajectory, finalMetrics);
 }

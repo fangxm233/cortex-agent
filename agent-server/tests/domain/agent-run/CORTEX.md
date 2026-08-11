@@ -52,7 +52,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
 | trial-run-pi.test.ts | test | proves PI state admission, supervision and run identity |
 | trial-run.test.ts | test | proves Claude state admission, swaps and publication gates |
-| trajectory-merge-cli.test.ts | test | verifies context-free accounting and typed failures |
+| trajectory-merge-cli.test.ts | test | verifies optional metrics and typed failures |
 | transport-teardown-e2e.test.ts | e2e | proves journal-linked finalization survives teardown |
 | trajectory-merge-fixtures.ts | fixture | writes print-mode accounted fragment events |
 | trajectory-merge-subagent.test.ts | test | proves the native-subagent census key, the derived subagent turn total, the zero-census refusal and the surviving named refusals |
