@@ -1,5 +1,5 @@
-# input:  npm artifact, Docker environment, fresh arm seeds
-# output: installed direct/coder-review matrix and artifact proof
+# input:  npm artifact, Docker environment, production matrix seeds
+# output: installed Cortex arm matrix and artifact proof
 # pos:    Opt-in container proof for the installed Harbor path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -35,12 +35,20 @@ AGENT_USER = "cortex-agent"
 MINIMUM_FREE_BYTES = 10 * 1024**3
 REPO_ROOT = Path(__file__).resolve().parents[4]
 CODER_REVIEW_VARIANTS = ("audit-retry", "reviewer-fix")
-S1_ROWS = (
+PRODUCTION_ROWS = (
     *((backend, "direct", None) for backend in ("claude", "pi")),
     *((backend, "coder-review", variant)
       for backend in ("claude", "pi") for variant in CODER_REVIEW_VARIANTS),
+    *((backend, "manager", ask_manager)
+      for backend in ("claude", "pi") for ask_manager in (False, True)),
 )
 POLICY_PATH = "/logs/agent/benchmark-thread-policy.json"
+
+
+def row_suffix(backend: str, mode: str, detail: str | bool | None) -> str:
+    if mode == "manager":
+        detail = "qa-on" if detail is True else "qa-off"
+    return "-".join(str(part) for part in (backend, mode, detail) if part is not None)
 
 
 class RunTrackingAgent(CortexBenchAgent):
@@ -152,19 +160,25 @@ def create_agent(
 
 def s1_seed(
     image: dict[str, object], suffix: str, backend: str,
-    mode: str, variant: str | None,
+    mode: str, detail: str | bool | None,
 ) -> dict[str, object]:
     seed = trial_seed(image, suffix)
     arm = dict(seed["arm"])
     arm.update({"name": f"cortex-{suffix}", "backend": backend})
+    limits = dict(arm["limits"])
     if mode == "coder-review":
         arm["orchestration"] = {
-            "mode": mode, "coder_review_variant": variant, "ask_manager": False,
+            "mode": mode, "coder_review_variant": detail, "ask_manager": False,
         }
-        arm["limits"] = {
-            **arm["limits"], "max_thread_starts": 1,
-            "max_resident_agent_processes": 3,
-        }
+        limits.update(max_thread_starts=1, max_resident_agent_processes=3)
+    elif mode == "manager":
+        arm["orchestration"] = {"mode": mode, "ask_manager": detail is True}
+        limits.update(
+            max_thread_starts=1, max_parent_questions=2 if detail is True else 0,
+            max_task_depth=3, max_tasks=12, max_provider_requests=16,
+            max_resident_agent_processes=4,
+        )
+    arm["limits"] = limits
     seed.update({"arm": arm, "arm_path": f"arm://{arm['name']}"})
     if backend == "pi":
         seed["pi_benchmark_capability_proven"] = True
@@ -173,12 +187,12 @@ def s1_seed(
 
 def create_s1_agent(
     root: Path, artifact: Path, image: dict[str, object],
-    backend: str, mode: str, variant: str | None,
+    backend: str, mode: str, detail: str | bool | None,
 ) -> CortexBenchAgent:
-    suffix = "-".join(part for part in (backend, mode, variant) if part)
+    suffix = row_suffix(backend, mode, detail)
     wheel = root / "cortex_bench_harness-0.1.0-py3-none-any.whl"
     wheel.write_bytes(b"harness wheel fixture")
-    seed = s1_seed(image, suffix, backend, mode, variant)
+    seed = s1_seed(image, suffix, backend, mode, detail)
     return CortexBenchAgent(
         logs_dir=root / "trial/agent", artifact_dir=root / "trial/artifacts",
         manifest={
@@ -211,8 +225,12 @@ async def provision_agent_user(environment: DockerEnvironment) -> None:
 
 async def provision_s1_agent_user(
     environment: DockerEnvironment, backend: str,
+    mode: str, detail: str | bool | None,
 ) -> None:
     script = "fake-pi.mjs" if backend == "pi" else "fake-claude.mjs"
+    observation = ""
+    if mode == "manager":
+        observation = f" --observation /app/manager-observation-{'qa-on' if detail else 'qa-off'}.json"
     command = (
         "printf 'update-notifier=false\\n' > /etc/npmrc"
         " && ln -s /opt/node/bin/node /usr/local/bin/node"
@@ -220,17 +238,24 @@ async def provision_s1_agent_user(
         f" && useradd --create-home --shell /bin/bash {AGENT_USER}"
         f" && printf 'update-notifier=false\\n' > /home/{AGENT_USER}/.npmrc"
         f" && chown {AGENT_USER}:{AGENT_USER} /home/{AGENT_USER}/.npmrc"
-        f" && printf '#!/bin/sh\\nexec /opt/node/bin/node /app/{script} \"$@\"\\n'"
+        f" && printf '#!/bin/sh\\nexec /opt/node/bin/node /app/{script}{observation} \"$@\"\\n'"
         f" > /usr/local/bin/{backend} && chmod +x /usr/local/bin/{backend}"
     )
     result = await environment.exec(command=command, user="root")
     assert result.return_code == 0, result.stderr
 
 
-def write_fake_s1_cli(task_root: Path, backend: str) -> Path:
-    name = "fake_pi_mcp_cli.mjs" if backend == "pi" else "fake_claude_mcp_cli.mjs"
+def write_fake_s1_cli(
+    task_root: Path, backend: str, mode: str,
+) -> Path:
+    if mode == "manager":
+        name = f"fake-manager-{backend}.mjs"
+        source = REPO_ROOT / "agent-server/tests/domain/agent-run" / name
+    else:
+        name = "fake_pi_mcp_cli.mjs" if backend == "pi" else "fake_claude_mcp_cli.mjs"
+        source = Path(__file__).with_name(name)
     script = task_root / ("fake-pi.mjs" if backend == "pi" else "fake-claude.mjs")
-    shutil.copy2(Path(__file__).with_name(name), script)
+    shutil.copy2(source, script)
     return script
 
 
@@ -335,17 +360,31 @@ def assert_coder_review_observation(
         )
 
 
+def assert_manager_observation(
+    root: Path, backend: str, ask_manager: bool,
+) -> None:
+    label = "qa-on" if ask_manager else "qa-off"
+    records = read_json(root / f"task-root/manager-observation-{label}.json")
+    roles = [record["role"] for record in records]
+    assert {"parent", "manager", "coder", "reviewer"}.issubset(roles)
+    assert roles.count("parent") == (2 if ask_manager else 1)
+    assert all(record["cwd"] == "/app" for record in records if record["role"] != "reviewer")
+    assert all(record["args"] for record in records)
+    assert backend in {"claude", "pi"}
+
+
 def assert_s1_observation(
     root: Path, resolution_bytes: bytes, backend: str,
-    mode: str, variant: str | None,
+    mode: str, detail: str | bool | None,
 ) -> None:
+    if mode == "manager":
+        assert_manager_observation(root, backend, detail is True)
+        return
     resolution = json.loads(resolution_bytes)
-    observation = json.loads(
-        (root / "task-root/s1-backend-observation.json").read_text()
-    )
+    observation = read_json(root / "task-root/s1-backend-observation.json")
     assert observation["backend"] == backend
     assert observation["mode"] == mode
-    assert observation["variant"] == variant
+    assert observation["variant"] == detail
     assert observation["armName"] == resolution["arm"]["name"]
     assert observation["runConfigPath"] == "/logs/agent/arm-resolution.json"
     assert observation["runConfigSha256"] == hashlib.sha256(resolution_bytes).hexdigest()
@@ -357,7 +396,7 @@ def assert_s1_observation(
         assert "thread_run" not in observation["registered"]
         assert observation["mcpConfigPaths"] == []
         return
-    assert_coder_review_observation(observation, backend, variant)
+    assert_coder_review_observation(observation, backend, str(detail))
 
 
 async def assert_s1_terminal(
@@ -369,10 +408,12 @@ async def assert_s1_terminal(
     with environment.with_default_user(AGENT_USER):
         result = await environment.exec(command=f"cat {shlex.quote(terminal_path)}")
         composite = await environment.exec(command=f"test -f {composite_path}")
-        child = await environment.exec(command=(
-            f"set -- {child_terminals}; "
-            + ("test ! -e \"$1\"" if mode == "direct" else "test -e \"$1\" && test \"$#\" -eq 1")
-        ))
+        child_count = {
+            "direct": "test ! -e \"$1\"",
+            "coder-review": "test -e \"$1\" && test \"$#\" -eq 1",
+            "manager": "test -e \"$1\" && test \"$#\" -ge 3",
+        }[mode]
+        child = await environment.exec(command=f"set -- {child_terminals}; {child_count}")
     assert result.return_code == 0, result.stderr
     terminal = json.loads(result.stdout)
     assert (terminal["state"], terminal["terminal_reason"]) == ("completed", "ok")
@@ -397,7 +438,7 @@ def assert_attempt_files(trajectory: Path, node: dict[str, object]) -> None:
 
 
 def assert_matrix_accounting(
-    composite: dict[str, object], backend: str, mode: str,
+    composite: dict[str, object], backend: str,
 ) -> None:
     journal = composite["accounting"]["journal"]
     proxy = composite["accounting"]["proxy"]
@@ -406,8 +447,7 @@ def assert_matrix_accounting(
         assert journal["steps"] == {"status": "unavailable", "reason": "journal_underivable"}
         assert journal["tokens"]["input"]["status"] == "unavailable"
         return
-    variant = composite["arm_name"].removeprefix(f"cortex-{backend}-coder-review-")
-    turns = 1 if mode == "direct" else (5 if variant == "audit-retry" else 3)
+    turns = sum(node["steps"] for node in composite["nodes"])
     assert journal["steps"] == {"status": "available", "value": turns}
     assert journal["tokens"]["input"] == {"status": "available", "value": turns * 3}
     assert journal["tokens"]["output"] == {"status": "available", "value": turns * 2}
@@ -441,6 +481,36 @@ def assert_coder_review_artifacts(
             assert state["fixerLease"] == "thread-owned"
 
 
+def assert_manager_artifacts(root: Path, ask_manager: bool) -> None:
+    trial_home = root / "trial/agent/trial-home"
+    tree = read_json(trial_home / "coordinator/task-tree.json")
+    tasks = read_json(trial_home / "cortex-home/state/tasks.json")
+    assert tasks["root"]["status"] == "done"
+    assert all(task["status"] == "done" for task in tasks.values())
+    assert len(tree["attempts"]) >= 3
+    assert all(attempt["status"] == "terminal" for attempt in tree["attempts"])
+    questions = trial_home / "coordinator/manager-qa/parent-questions.json"
+    if ask_manager:
+        records = read_json(questions)
+        assert len(records) == 1
+        assert (records[0]["state"], records[0]["answer"]) == (
+            "consumed", "trial parent answer",
+        )
+    else:
+        assert not questions.exists()
+
+
+def assert_zero_paid_run(
+    resolution: dict[str, object], composite: dict[str, object],
+) -> None:
+    assert resolution["paid_run"] is False
+    states = {entry["state"] for entry in resolution["credential_capabilities"]}
+    assert "live-handshake-passed" not in states
+    assert resolution["credential"]["dummy_token_ref"] == "offline-token-handle"
+    assert all(node["cost_usd"] == 0 for node in composite["nodes"])
+    assert all(node["provider_requests"] is None for node in composite["nodes"])
+
+
 def assert_trial_state(root: Path, backend: str) -> None:
     trial_home = root / "trial/agent/trial-home"
     state = trial_home / "cortex-home/state"
@@ -454,9 +524,19 @@ def assert_trial_state(root: Path, backend: str) -> None:
         assert (trial_home / "claude-config").is_dir()
 
 
+def assert_mode_artifacts(
+    root: Path, trajectory: Path, composite: dict[str, object],
+    backend: str, mode: str, detail: str | bool | None,
+) -> None:
+    if mode == "coder-review":
+        assert_coder_review_artifacts(root, trajectory, composite, backend, str(detail))
+    elif mode == "manager":
+        assert_manager_artifacts(root, detail is True)
+
+
 def assert_s1_artifacts(
     root: Path, resolution: dict[str, object], suffix: str,
-    backend: str, mode: str, variant: str | None,
+    backend: str, mode: str, detail: str | bool | None,
 ) -> None:
     trajectory = root / "trial/agent/trajectory"
     terminal = read_json(trajectory / f"run-root-{suffix}.terminal.json")
@@ -465,22 +545,23 @@ def assert_s1_artifacts(
         composite, terminal, f"root-{suffix}", f"trial-{suffix}", resolution["arm"],
     )
     assert_trial_state(root, backend)
+    assert_zero_paid_run(resolution, composite)
     expected_roles = set(resolution["roles"])
     assert set(composite["identity"]["role_tool_surface_hash"]) == expected_roles
-    assert len(composite["nodes"]) == (1 if mode == "direct" else 2)
+    minimum_nodes = {"direct": 1, "coder-review": 2, "manager": 4}[mode]
+    assert len(composite["nodes"]) >= minimum_nodes
     for node in composite["nodes"]:
         assert node["backend"] == backend
         assert node["terminal_state"] == "completed"
         assert_attempt_files(trajectory, node)
-    assert_matrix_accounting(composite, backend, mode)
+    assert_matrix_accounting(composite, backend)
     atif = read_json(trajectory / "trajectory.json")
     if backend == "pi":
         assert "final_metrics" not in atif
     else:
-        turns = 1 if mode == "direct" else (5 if variant == "audit-retry" else 3)
+        turns = sum(node["steps"] for node in composite["nodes"])
         assert atif["final_metrics"]["total_steps"] == turns
-    if mode == "coder-review":
-        assert_coder_review_artifacts(root, trajectory, composite, backend, str(variant))
+    assert_mode_artifacts(root, trajectory, composite, backend, mode, detail)
 
 
 async def execute_s1_public_cli(
@@ -508,29 +589,29 @@ async def execute_s1_public_cli(
 
 async def run_s1_path(
     root: Path, node_runtime: Path, artifact: Path, image: dict[str, object],
-    backend: str, mode: str, variant: str | None,
+    backend: str, mode: str, detail: str | bool | None,
 ) -> None:
-    suffix = "-".join(part for part in (backend, mode, variant) if part)
+    suffix = row_suffix(backend, mode, detail)
     environment = create_environment(root, node_runtime, suffix)
-    write_fake_s1_cli(root / "task-root", backend)
-    agent = create_s1_agent(root, artifact, image, backend, mode, variant)
+    write_fake_s1_cli(root / "task-root", backend, mode)
+    agent = create_s1_agent(root, artifact, image, backend, mode, detail)
     assert_production_agent(agent)
     try:
         await environment.start(force_build=False)
-        await provision_s1_agent_user(environment, backend)
+        await provision_s1_agent_user(environment, backend, mode, detail)
         await assert_fresh_container(environment)
         await execute_s1_public_cli(agent, environment, root, mode)
         resolution_bytes = (root / "trial/agent/arm-resolution.json").read_bytes()
         resolution = json.loads(resolution_bytes)
         assert resolution["arm"]["backend"] == backend
         assert resolution["arm"]["orchestration"]["mode"] == mode
-        assert_s1_observation(root, resolution_bytes, backend, mode, variant)
+        assert_s1_observation(root, resolution_bytes, backend, mode, detail)
         await assert_s1_terminal(environment, suffix, mode)
         readable = await environment.exec(
             command="chmod -R a+rX /logs/agent", user="root",
         )
         assert readable.return_code == 0, readable.stderr
-        assert_s1_artifacts(root, resolution, suffix, backend, mode, variant)
+        assert_s1_artifacts(root, resolution, suffix, backend, mode, detail)
     finally:
         await environment.stop(delete=True)
 
@@ -557,13 +638,13 @@ def test_real_container_installs_bundle_and_aborts_corrupt_artifact(
     asyncio.run(run_negative_path(root / "negative", node_runtime, image))
 
 
-@pytest.mark.parametrize(("backend", "mode", "variant"), S1_ROWS)
-def test_installed_exact_production_agent_executes_fresh_direct_and_coder_review_matrix(
+@pytest.mark.parametrize(("backend", "mode", "detail"), PRODUCTION_ROWS)
+def test_installed_exact_production_agent_executes_every_declared_cortex_arm(
     installed_bundle: tuple[Path, Path, Path, dict[str, object]],
-    backend: str, mode: str, variant: str | None,
+    backend: str, mode: str, detail: str | bool | None,
 ) -> None:
     root, node_runtime, artifact, image = installed_bundle
-    suffix = "-".join(part for part in (backend, mode, variant) if part)
+    suffix = row_suffix(backend, mode, detail)
     asyncio.run(run_s1_path(
-        root / suffix, node_runtime, artifact, image, backend, mode, variant,
+        root / suffix, node_runtime, artifact, image, backend, mode, detail,
     ))

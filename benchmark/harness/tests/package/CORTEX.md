@@ -10,4 +10,4 @@ Package tests cover cwd resolution, manifests, and Harbor adapter behavior.
 | test_cwd.py | test | Verifies dynamic container cwd resolution |
 | test_manifest.py | test | Verifies H3 digests and installed CLI version |
 | test_harbor_agent.py | test | Verifies admission, identity binding, and run argv |
-| test_install.py | integration | Proves installed fresh arm matrix and corrupt abort |
+| test_install.py | integration | Proves every installed Cortex arm and corrupt abort |

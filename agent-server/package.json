@@ -19,6 +19,8 @@
     "defaults/",
     "native/cortex-supervisor/dist/",
     "web/dist/",
+    "bundled-dependencies/",
+    "scripts/install-bundled-dependencies.mjs",
     "scripts/postinstall-restart-trigger.mjs",
     "README.md"
   ],
@@ -51,7 +53,7 @@
     "prepare": "cp ../README.md . && npm run build",
     "prepack": "node scripts/stage-bundled-dependencies.mjs && npm run build:supervisor && node scripts/copy-web-dist.js",
     "postpack": "node scripts/stage-bundled-dependencies.mjs --cleanup",
-    "postinstall": "node scripts/postinstall-restart-trigger.mjs",
+    "postinstall": "node scripts/install-bundled-dependencies.mjs && node scripts/postinstall-restart-trigger.mjs",
     "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && node scripts/copy-assets.js",
     "build:supervisor": "bash native/cortex-supervisor/build.sh",
     "benchmark:pi-provider-discovery": "node --import tsx scripts/benchmark-pi-provider-discovery.ts",

@@ -1,6 +1,6 @@
-// input:  package manifests and hoisted dependencies
-// output: recoverable dependency staging for npm pack
-// pos:    Bridges hoisted installs to bundledDependencies
+// input:  package lock and hoisted runtime dependencies
+// output: recoverable bundled-dependencies package asset
+// pos:    Stages the locked runtime closure for npm pack
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import fs from 'node:fs';
@@ -8,43 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const packageModules = path.join(packageRoot, 'node_modules');
 const workspaceModules = path.resolve(packageRoot, '..', 'node_modules');
-const marker = path.join(packageModules, '.cortex-bundled-staging.json');
-const markerTemporary = `${marker}.tmp`;
-
-function removeEntry(entry) {
-  const destination = path.join(packageModules, entry);
-  fs.rmSync(destination, { recursive: true, force: true });
-  const parent = path.dirname(destination);
-  if (parent !== packageModules && fs.existsSync(parent) && fs.readdirSync(parent).length === 0) {
-    fs.rmdirSync(parent);
-  }
-}
-
-function removeStaged() {
-  if (!fs.existsSync(marker)) {
-    fs.rmSync(markerTemporary, { force: true });
-    return;
-  }
-  const entries = JSON.parse(fs.readFileSync(marker, 'utf8'));
-  for (const entry of entries) removeEntry(entry);
-  fs.rmSync(marker, { force: true });
-  fs.rmSync(markerTemporary, { force: true });
-}
-
-function writeMarker(entries) {
-  fs.writeFileSync(markerTemporary, `${JSON.stringify(entries)}\n`);
-  fs.renameSync(markerTemporary, marker);
-}
-
-function bundledDependencies() {
-  const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
-  if (!Array.isArray(manifest.bundleDependencies)) {
-    throw new Error('package.json bundleDependencies must be an array');
-  }
-  return manifest.bundleDependencies;
-}
+const stagingRoot = path.join(packageRoot, 'bundled-dependencies');
 
 function packageName(location) {
   const parts = location.slice('node_modules/'.length).split('/');
@@ -59,9 +24,6 @@ function runtimeDependencies() {
     const name = packageName(location);
     const optional = metadata.optional === true;
     dependencies.set(name, (dependencies.get(name) ?? true) && optional);
-  }
-  for (const name of bundledDependencies()) {
-    if (!dependencies.has(name)) throw new Error(`package-lock.json omitted ${name}`);
   }
   return [...dependencies].sort(([left], [right]) => left.localeCompare(right));
 }
@@ -83,27 +45,24 @@ function copyTree(source, destination) {
 }
 
 function stageDependencies() {
-  removeStaged();
-  fs.mkdirSync(packageModules, { recursive: true });
-  const staged = [];
+  fs.rmSync(stagingRoot, { recursive: true, force: true });
   try {
-    writeMarker(staged);
     for (const [entry, optional] of runtimeDependencies()) {
       const source = path.join(workspaceModules, entry);
       if (!fs.existsSync(source)) {
         if (optional) continue;
         throw new Error(`workspace node_modules omitted ${entry}`);
       }
-      if (fs.existsSync(path.join(packageModules, entry))) continue;
-      staged.push(entry);
-      writeMarker(staged);
-      copyTree(source, path.join(packageModules, entry));
+      copyTree(source, path.join(stagingRoot, entry));
     }
   } catch (error) {
-    removeStaged();
+    fs.rmSync(stagingRoot, { recursive: true, force: true });
     throw error;
   }
 }
 
-if (process.argv.includes('--cleanup')) removeStaged();
-else stageDependencies();
+if (process.argv.includes('--cleanup')) {
+  fs.rmSync(stagingRoot, { recursive: true, force: true });
+} else {
+  stageDependencies();
+}
