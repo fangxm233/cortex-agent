@@ -23,6 +23,7 @@ from ..proxy.lease import LeaseTerms
 from ..proxy.models import PROXY_SCHEMA_VERSION, ProxyBudget
 from ..proxy.server import TrialProxyHandle, host_now_ms, start_trial_proxy
 from ..scan.models import ArtifactInventory
+from .capability_ceilings import load_capability_ceilings
 from .credential_capabilities import (
     CAPABILITY_REGISTRY,
     CredentialCapabilityKey,
@@ -51,11 +52,25 @@ LEASE_ECHO_RECORD_SCHEMA_VERSION = "cortex-bench-lease-echo-record/1"
 SPEC_REQUIRED_FIELDS = frozenset({
     "credential_env", "bound_source_ip", "max_request_cost_usd",
     "input_cost_per_million_usd", "output_cost_per_million_usd",
+    # Declared, never defaulted: an absent body limit means *unlimited*, which is the wrong
+    # default for a bounded run on either side of the route.
+    "request_body_limit_bytes", "response_body_limit_bytes",
 })
-SPEC_OPTIONAL_FIELDS = frozenset({
-    "listen_host", "advertised_host", "request_body_limit_bytes",
-    "response_body_limit_bytes",
-})
+SPEC_OPTIONAL_FIELDS = frozenset({"listen_host", "advertised_host"})
+
+# The paid envelope: what a run declares it may spend, wait for, and carry. Four fields are the
+# arm's own limits and three are host proxy facts, but they are validated as one document — a
+# per-request cost bound means nothing beside a per-trial one it contradicts.
+PAID_ENVELOPE_ARM_INTEGER_FIELDS = (
+    "max_provider_requests", "deadline_seconds", "max_output_tokens",
+)
+PAID_ENVELOPE_SPEC_INTEGER_FIELDS = (
+    "request_body_limit_bytes", "response_body_limit_bytes",
+)
+PAID_ENVELOPE_FIELDS = frozenset(
+    PAID_ENVELOPE_ARM_INTEGER_FIELDS + PAID_ENVELOPE_SPEC_INTEGER_FIELDS
+    + ("max_cost_usd", "max_request_cost_usd"),
+)
 
 
 @dataclass(frozen=True)
@@ -71,10 +86,10 @@ class TrialProxySpec:
     max_request_cost_usd: Decimal
     input_cost_per_million_usd: Decimal
     output_cost_per_million_usd: Decimal
+    request_body_limit_bytes: int
+    response_body_limit_bytes: int
     listen_host: str = "127.0.0.1"
     advertised_host: str | None = None
-    request_body_limit_bytes: int | None = None
-    response_body_limit_bytes: int | None = None
 
 
 def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
@@ -94,12 +109,10 @@ def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
         max_request_cost_usd=_decimal(source, "max_request_cost_usd"),
         input_cost_per_million_usd=_decimal(source, "input_cost_per_million_usd"),
         output_cost_per_million_usd=_decimal(source, "output_cost_per_million_usd"),
+        request_body_limit_bytes=_positive_int(source, "request_body_limit_bytes"),
+        response_body_limit_bytes=_positive_int(source, "response_body_limit_bytes"),
         listen_host=_optional_text(source, "listen_host", "127.0.0.1"),
         advertised_host=advertised,
-        request_body_limit_bytes=_optional_positive_int(
-            source, "request_body_limit_bytes"),
-        response_body_limit_bytes=_optional_positive_int(
-            source, "response_body_limit_bytes"),
     )
 
 
@@ -184,6 +197,10 @@ class CapabilityStateRefused(Exception):
     """A route was asked for on behalf of a capability row no authority admits."""
 
 
+class PaidEnvelopeRefused(Exception):
+    """A paid run declared an envelope field that is absent, non-positive, or above its ceiling."""
+
+
 def _admitted_capability_key(
     capability_id: str, *, paid_run: bool = False,
 ) -> CredentialCapabilityKey:
@@ -254,13 +271,16 @@ def arm_trial_proxy(
     _require_contained(proxy_dir, trial_roots)
     capability_id = _text(arm, "credential_capability")
     key = require_capability_admission(arm, paid_run=paid_run)
-    if paid_run and capability_id == "pi-deepseek-api-key":
-        _validate_paid_deepseek_contract(arm, spec)
+    if paid_run:
+        validate_paid_envelope(arm, spec, capability_id)
     credential = host_credential or _host_credential(spec.credential_env, environ)
     adapter = select_adapter(
         key, upstream_base_url=upstream_base_url,
         credential=credential,
         frozen_model=_text(arm, "model"),
+        # The declared cap, frozen per trial: the same number the envelope validated is the one
+        # the adapter admits, so nothing downstream re-derives it from the capability id.
+        frozen_completion_cap=_declared_positive_int(_limits(arm), "max_output_tokens"),
     )
     session = _start_proxy_session(
         arm, trial_id, upstream_base_url, spec, proxy_dir, adapter, now_ms,
@@ -333,26 +353,71 @@ def _validate_arm_capability(
             "arm backend/provider differs from credential capability key")
 
 
-def _validate_paid_deepseek_contract(
+def validate_paid_envelope(
+    arm: Mapping[str, object], spec: TrialProxySpec, capability_id: str,
+    *, ceilings_path: Path | None = None,
+) -> dict[str, int | Decimal]:
+    """Check the run's declared paid envelope against the ceilings committed for its capability.
+
+    The envelope is a run parameter — the run says what it needs. The only code-side fact is the
+    comparison: every field must be declared, positive, and at or below its ceiling. A capability
+    the policy does not name has no approved envelope, so a paid run on it is refused outright
+    rather than run unbounded.
+    """
+    ceilings = load_capability_ceilings(ceilings_path).get(capability_id)
+    if ceilings is None:
+        raise PaidEnvelopeRefused(
+            f"no paid envelope ceiling is declared for credential capability "
+            f"{capability_id!r}; a paid run is never armed without one")
+    declared = _declared_envelope(arm, spec)
+    for field, value in declared.items():
+        ceiling = ceilings.get(field)
+        if ceiling is None:
+            raise PaidEnvelopeRefused(
+                f"the {capability_id} ceiling policy declares no bound for paid envelope field "
+                f"{field}; a paid run is never armed on an unbounded field")
+        if value > ceiling:
+            raise PaidEnvelopeRefused(
+                f"paid envelope {field}={value} exceeds the {capability_id} ceiling {ceiling}")
+    return declared
+
+
+def _declared_envelope(
     arm: Mapping[str, object], spec: TrialProxySpec,
-) -> None:
+) -> dict[str, int | Decimal]:
     limits = _limits(arm)
-    exact = {
-        "model": "deepseek-v4-flash",
-        "max_provider_requests": 1,
-        "max_thread_starts": 0,
-        "max_resident_agent_processes": 1,
-        "max_cost_usd": "0.05",
-        "deadline_seconds": 120,
+    declared: dict[str, int | Decimal] = {
+        field: _envelope_int(limits.get(field), field)
+        for field in PAID_ENVELOPE_ARM_INTEGER_FIELDS
     }
-    values = {"model": arm.get("model"), **limits}
-    proxy_exact = (
-        spec.max_request_cost_usd == Decimal("0.05")
-        and spec.request_body_limit_bytes == 64 * 1024
-        and spec.response_body_limit_bytes == 1024 * 1024
-    )
-    if any(values.get(field) != value for field, value in exact.items()) or not proxy_exact:
-        raise CapabilityStateRefused("paid DeepSeek contract differs from live capability")
+    declared["max_cost_usd"] = _envelope_decimal(limits.get("max_cost_usd"), "max_cost_usd")
+    declared["max_request_cost_usd"] = _envelope_decimal(
+        spec.max_request_cost_usd, "max_request_cost_usd")
+    declared.update({
+        field: _envelope_int(getattr(spec, field), field)
+        for field in PAID_ENVELOPE_SPEC_INTEGER_FIELDS
+    })
+    return declared
+
+
+def _envelope_int(value: object, field: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise PaidEnvelopeRefused(
+            f"paid envelope {field} must be declared as a positive integer; got {value!r}")
+    return value
+
+
+def _envelope_decimal(value: object, field: str) -> Decimal:
+    parsed = value
+    if isinstance(parsed, str):
+        try:
+            parsed = Decimal(parsed)
+        except InvalidOperation:
+            parsed = None
+    if not isinstance(parsed, Decimal) or not parsed.is_finite() or parsed <= 0:
+        raise PaidEnvelopeRefused(
+            f"paid envelope {field} must be declared as a positive decimal; got {value!r}")
+    return parsed
 
 
 def _host_credential(name: str, environ: Mapping[str, str] | None) -> str:
@@ -416,13 +481,18 @@ def _optional_text(values: Mapping[str, Any], key: str, default: str) -> str:
     return value
 
 
-def _optional_positive_int(values: Mapping[str, Any], key: str) -> int | None:
+def _positive_int(values: Mapping[str, Any], key: str) -> int:
     value = values.get(key)
-    if value is None:
-        return None
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise ValueError(f"{key} must be a positive integer")
     return value
+
+
+def _declared_positive_int(values: Mapping[str, Any], key: str) -> int | None:
+    value = values.get(key)
+    if value is None:
+        return None
+    return _positive_int(values, key)
 
 
 def _decimal(values: Mapping[str, Any], key: str) -> Decimal:

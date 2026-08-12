@@ -348,6 +348,8 @@ def trial_inputs(
         "credential_env": CREDENTIAL_ENV, "bound_source_ip": network.trial_ip,
         "max_request_cost_usd": "1.00", "input_cost_per_million_usd": "3",
         "output_cost_per_million_usd": "15", "listen_host": "0.0.0.0",
+        "request_body_limit_bytes": 16 * 1024 * 1024,
+        "response_body_limit_bytes": 16 * 1024 * 1024,
     }
     scan_policy = {
         "secret_environment": {"provider_credential": CREDENTIAL_ENV},

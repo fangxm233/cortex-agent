@@ -13,7 +13,9 @@
 import asyncio
 import json
 import socket
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -22,6 +24,7 @@ from harbor.models.agent.context import AgentContext
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher import trial_proxy
+from cortex_bench_harness.launcher.capability_ceilings import load_capability_ceilings
 from cortex_bench_harness.launcher.credential_capabilities import (
     CAPABILITY_REGISTRY,
     CredentialCapability,
@@ -30,6 +33,7 @@ from cortex_bench_harness.launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN
 from cortex_bench_harness.launcher.trial_proxy import (
     PROXY_ARTIFACT_SOURCES,
     CapabilityStateRefused,
+    PaidEnvelopeRefused,
     TrialProxySession,
     arm_trial_proxy,
     parse_trial_proxy_spec,
@@ -49,6 +53,8 @@ MODEL = "claude-sonnet"
 DEADLINE_SECONDS = 90
 CREDENTIAL_ENV = "CORTEX_BENCH_WIRING_CREDENTIAL"
 REAL_CREDENTIAL = "sk-ant-WIRING-BOUNDARY-UNIQUE"
+REQUEST_BODY_LIMIT_BYTES = 16 * 1024 * 1024
+RESPONSE_BODY_LIMIT_BYTES = 16 * 1024 * 1024
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
 CLI_PATH = "/usr/local/bin/claude"
 CLI_VERSION = "1.2.3 (Claude Code)"
@@ -129,7 +135,10 @@ def proxy_spec(**overrides: object) -> dict[str, object]:
     return {
         "credential_env": CREDENTIAL_ENV, "bound_source_ip": "127.0.0.1",
         "max_request_cost_usd": "1.00", "input_cost_per_million_usd": "3",
-        "output_cost_per_million_usd": "15", **overrides,
+        "output_cost_per_million_usd": "15",
+        "request_body_limit_bytes": REQUEST_BODY_LIMIT_BYTES,
+        "response_body_limit_bytes": RESPONSE_BODY_LIMIT_BYTES,
+        **overrides,
     }
 
 
@@ -214,32 +223,196 @@ def test_refuses_arm_provider_drift_from_capability_key(tmp_path: Path) -> None:
         arm_session(tmp_path, closed_upstream(), arm=drifted)
 
 
-def test_refuses_paid_deepseek_contract_drift_before_credential_read(
+# The declared paid envelope, and its refusals against the committed ceilings.
+#
+# Nothing here is a literal comparison against one approved operation: the envelope is whatever
+# the run declared, and the only code-side fact is that each field sits at or below the ceiling
+# the committed policy names for that capability.
+
+DEEPSEEK_CAPABILITY = "pi-deepseek-api-key"
+DEEPSEEK_MODEL = "deepseek-v4-flash"
+DEEPSEEK_CEILINGS = load_capability_ceilings()[DEEPSEEK_CAPABILITY]
+# One lawful envelope, well inside every ceiling.
+DECLARED_LIMITS = {
+    "max_provider_requests": 200, "max_cost_usd": "2.00",
+    "deadline_seconds": 1800, "max_output_tokens": 32768,
+}
+DECLARED_SPEC = {
+    "max_request_cost_usd": "0.50",
+    "request_body_limit_bytes": REQUEST_BODY_LIMIT_BYTES,
+    "response_body_limit_bytes": RESPONSE_BODY_LIMIT_BYTES,
+}
+ARM_ENVELOPE_FIELDS = tuple(DECLARED_LIMITS)
+SPEC_ENVELOPE_FIELDS = tuple(DECLARED_SPEC)
+
+
+def deepseek_arm(**limits: object) -> dict[str, object]:
+    arm = cortex_arm(DEEPSEEK_CAPABILITY)
+    arm.update(backend="pi", provider="deepseek", model=DEEPSEEK_MODEL)
+    arm["limits"].update({**DECLARED_LIMITS, **limits})
+    return arm
+
+
+def paid_spec(**overrides: object):
+    return parse_trial_proxy_spec(proxy_spec(**{**DECLARED_SPEC, **overrides}))
+
+
+def arm_paid(
+    tmp_path: Path, *, arm: dict[str, object] | None = None, spec=None,
+    environ: dict[str, str] | None = None,
+) -> TrialProxySession:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    return arm_trial_proxy(
+        arm=arm if arm is not None else deepseek_arm(), trial_id=TRIAL_ID,
+        upstream_base_url=closed_upstream(),
+        spec=paid_spec() if spec is None else spec,
+        proxy_dir=artifacts / "proxy", trial_roots=(artifacts,),
+        environ={CREDENTIAL_ENV: REAL_CREDENTIAL} if environ is None else environ,
+        now_ms=lambda: H0_EPOCH_MS, paid_run=True,
+    )
+
+
+def over_ceiling(field: str) -> object:
+    ceiling = DEEPSEEK_CEILINGS[field]
+    if isinstance(ceiling, Decimal):
+        return str(ceiling + Decimal("0.01"))
+    return ceiling + 1
+
+
+def at_ceiling(field: str) -> object:
+    ceiling = DEEPSEEK_CEILINGS[field]
+    return str(ceiling) if isinstance(ceiling, Decimal) else ceiling
+
+
+def chat_completions_body(max_completion_tokens: int) -> bytes:
+    return json.dumps({
+        "model": DEEPSEEK_MODEL, "stream": True,
+        "stream_options": {"include_usage": True},
+        "max_completion_tokens": max_completion_tokens,
+    }).encode()
+
+
+def test_paid_arming_admits_a_declared_envelope_inside_every_ceiling(tmp_path: Path) -> None:
+    session = arm_paid(tmp_path)
+    try:
+        record = json.loads(session.adapter_selection_path.read_text())
+    finally:
+        session.handle.stop()
+
+    assert record["adapter_id"] == "deepseek-chat-completions/api-key"
+    assert record["capability_id"] == DEEPSEEK_CAPABILITY
+
+
+@pytest.mark.parametrize("field", sorted(DEEPSEEK_CEILINGS))
+def test_paid_arming_admits_a_field_sitting_exactly_on_its_ceiling(
+    tmp_path: Path, field: str,
+) -> None:
+    """`envelope <= ceiling` is the rule, so the ceiling value itself is a lawful declaration."""
+    value = at_ceiling(field)
+    arm = deepseek_arm(**{field: value}) if field in ARM_ENVELOPE_FIELDS else deepseek_arm()
+    spec = paid_spec(**{field: value}) if field in SPEC_ENVELOPE_FIELDS else paid_spec()
+
+    session = arm_paid(tmp_path, arm=arm, spec=spec)
+    session.handle.stop()
+
+
+@pytest.mark.parametrize("field", sorted(DEEPSEEK_CEILINGS))
+def test_refuses_a_paid_envelope_field_above_its_ceiling_before_the_credential_is_read(
+    tmp_path: Path, field: str,
+) -> None:
+    value = over_ceiling(field)
+    arm = deepseek_arm(**{field: value}) if field in ARM_ENVELOPE_FIELDS else deepseek_arm()
+    spec = paid_spec(**{field: value}) if field in SPEC_ENVELOPE_FIELDS else paid_spec()
+
+    with pytest.raises(PaidEnvelopeRefused, match=field):
+        arm_paid(tmp_path, arm=arm, spec=spec, environ={})
+
+    assert not (tmp_path / "artifacts" / "proxy").exists()
+
+
+@pytest.mark.parametrize("field", ARM_ENVELOPE_FIELDS)
+def test_refuses_an_arm_envelope_field_that_is_absent_or_not_positive(
+    tmp_path: Path, field: str,
+) -> None:
+    absent = deepseek_arm()
+    del absent["limits"][field]
+    zero = deepseek_arm(**{field: "0.00" if field.endswith("_usd") else 0})
+
+    for arm in (absent, zero):
+        with pytest.raises(PaidEnvelopeRefused, match=field):
+            arm_paid(tmp_path, arm=arm, environ={})
+
+    assert not (tmp_path / "artifacts" / "proxy").exists()
+
+
+@pytest.mark.parametrize("field", SPEC_ENVELOPE_FIELDS)
+def test_refuses_a_spec_envelope_field_that_is_absent_or_not_positive(
+    tmp_path: Path, field: str,
+) -> None:
+    """The parse gate already requires these, so the refusal is proven on a spec value that
+    reached the validator undeclared anyway: the envelope is checked, not merely parsed."""
+    absent = replace(paid_spec(), **{field: None})
+    zero = paid_spec(**{field: "0.00" if field.endswith("_usd") else 0}) if field.endswith(
+        "_usd") else replace(paid_spec(), **{field: 0})
+
+    for spec in (absent, zero):
+        with pytest.raises(PaidEnvelopeRefused, match=field):
+            arm_paid(tmp_path, spec=spec, environ={})
+
+    assert not (tmp_path / "artifacts" / "proxy").exists()
+
+
+def test_refuses_a_paid_run_for_a_capability_with_no_declared_ceilings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A capability the policy file does not name has no approved envelope at all, so a paid run
+    on it is refused rather than run unbounded."""
     rows = dict(CAPABILITY_REGISTRY)
-    key = next(key for key, row in rows.items() if row.id == "pi-deepseek-api-key")
-    rows[key] = CredentialCapability(
-        "pi-deepseek-api-key", "live-handshake-passed", "e" * 64,
-    )
+    key = next(key for key, row in rows.items() if row.id == "claude-api-key")
+    rows[key] = CredentialCapability("claude-api-key", "live-handshake-passed")
     monkeypatch.setattr(trial_proxy, "CAPABILITY_REGISTRY", rows)
-    arm = cortex_arm("pi-deepseek-api-key")
-    arm.update(backend="pi", provider="deepseek", model="deepseek-v4-pro")
-    arm["limits"].update(
-        max_provider_requests=1, max_thread_starts=0,
-        max_resident_agent_processes=1, max_cost_usd="0.05", deadline_seconds=120,
-    )
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir()
-    with pytest.raises(CapabilityStateRefused, match="paid DeepSeek"):
-        arm_trial_proxy(
-            arm=arm, trial_id=TRIAL_ID, upstream_base_url=closed_upstream(),
-            spec=parse_trial_proxy_spec(proxy_spec(
-                max_request_cost_usd="0.05", request_body_limit_bytes=64 * 1024,
-                response_body_limit_bytes=1024 * 1024,
-            )), proxy_dir=artifacts / "proxy", trial_roots=(artifacts,),
-            environ={}, paid_run=True,
-        )
+
+    with pytest.raises(PaidEnvelopeRefused, match="claude-api-key"):
+        arm_paid(tmp_path, arm=cortex_arm(), environ={})
+
+    assert not (tmp_path / "artifacts" / "proxy").exists()
+
+
+def test_arming_freezes_the_declared_completion_cap_on_the_selected_adapter(
+    tmp_path: Path,
+) -> None:
+    """The same declared number the envelope validated is the one the adapter admits: nothing
+    downstream re-derives it from the capability id."""
+    session = arm_paid(tmp_path)
+    try:
+        adapter = session.handle._server.upstream._adapter
+        admitted = adapter.validate_body(
+            "chat_completions", chat_completions_body(DECLARED_LIMITS["max_output_tokens"]))
+        drifted = adapter.validate_body("chat_completions", chat_completions_body(256))
+    finally:
+        session.handle.stop()
+
+    assert admitted.allow is True
+    assert (drifted.allow, drifted.reason) == (False, "request_completion_cap_mismatch")
+
+
+def test_an_unpaid_arm_that_declares_no_cap_leaves_the_adapter_unfrozen(
+    tmp_path: Path,
+) -> None:
+    """An unpaid trial is not envelope-validated, so a missing cap must still fail closed at the
+    adapter rather than admit a request under a shipped default."""
+    arm = deepseek_arm()
+    del arm["limits"]["max_output_tokens"]
+
+    session = arm_session(tmp_path, closed_upstream(), arm=arm, spec=proxy_spec())
+    try:
+        adapter = session.handle._server.upstream._adapter
+        decision = adapter.validate_body("chat_completions", chat_completions_body(32768))
+    finally:
+        session.handle.stop()
+
+    assert (decision.allow, decision.reason) == (False, "request_completion_cap_unfrozen")
 
 
 def test_records_the_selected_adapter_at_arm_time(tmp_path: Path) -> None:
@@ -709,6 +882,26 @@ def test_spec_accepts_trial_scoped_body_limits() -> None:
 
     assert spec.request_body_limit_bytes == 64 * 1024
     assert spec.response_body_limit_bytes == 1024 * 1024
+
+
+@pytest.mark.parametrize("field", ["request_body_limit_bytes", "response_body_limit_bytes"])
+def test_spec_requires_both_body_limits(field: str) -> None:
+    """Unlimited is the wrong default for a bounded run, so an undeclared body limit is a spec
+    error rather than a route with no ceiling on either side."""
+    source = proxy_spec()
+    del source[field]
+
+    with pytest.raises(ValueError, match=field):
+        parse_trial_proxy_spec(source)
+
+
+@pytest.mark.parametrize("field", ["request_body_limit_bytes", "response_body_limit_bytes"])
+@pytest.mark.parametrize("value", [0, -1, True, "65536", None])
+def test_spec_refuses_a_body_limit_that_is_not_a_positive_integer(
+    field: str, value: object,
+) -> None:
+    with pytest.raises(ValueError, match=field):
+        parse_trial_proxy_spec(proxy_spec(**{field: value}))
 
 
 def test_spec_rejects_an_unknown_member(tmp_path: Path) -> None:

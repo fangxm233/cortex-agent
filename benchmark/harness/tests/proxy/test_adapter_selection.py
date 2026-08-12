@@ -3,6 +3,7 @@
 # pos:    Adapter selection contract tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import json
 from types import MappingProxyType
 
 import pytest
@@ -167,3 +168,41 @@ def test_selection_binds_the_frozen_upstream_credential_and_model() -> None:
 
 def test_unbound_adapter_declares_no_upstream_host() -> None:
     assert select_adapter(ROW_ONE).upstream_hosts == ()
+
+
+def deepseek_body(max_completion_tokens: int) -> bytes:
+    return json.dumps({
+        "model": "deepseek-v4-flash", "stream": True,
+        "stream_options": {"include_usage": True},
+        "max_completion_tokens": max_completion_tokens,
+    }).encode()
+
+
+def test_selection_binds_the_frozen_completion_cap_to_the_row_that_carries_one() -> None:
+    adapter = select_adapter(
+        DEEPSEEK_ROW, frozen_model="deepseek-v4-flash", frozen_completion_cap=32768,
+    )
+
+    assert adapter.validate_body("chat_completions", deepseek_body(32768)).allow is True
+    assert adapter.validate_body("chat_completions", deepseek_body(256)).reason == (
+        "request_completion_cap_mismatch"
+    )
+
+
+def test_selection_without_a_cap_leaves_the_deepseek_row_unfrozen() -> None:
+    adapter = select_adapter(DEEPSEEK_ROW, frozen_model="deepseek-v4-flash")
+
+    assert adapter.validate_body("chat_completions", deepseek_body(32768)).reason == (
+        "request_completion_cap_unfrozen"
+    )
+
+
+def test_a_row_that_binds_no_completion_cap_is_selected_unchanged() -> None:
+    """Only the DeepSeek protocol admits a request-side completion cap. A declared cap must not
+    turn selection for another row into a start-time refusal — its cap is enforced elsewhere."""
+    adapter = select_adapter(
+        ROW_ONE, frozen_model="claude-synthetic-1", frozen_completion_cap=32768,
+    )
+
+    assert isinstance(adapter, AnthropicMessagesApiKeyAdapter)
+    assert adapter.validate_body("messages_beta", b'{"model":"claude-synthetic-1"}').allow is True
