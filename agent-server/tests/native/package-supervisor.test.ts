@@ -1,5 +1,5 @@
 // input:  npm pack, package fixtures, native builder
-// output: offline package and staging rollback proofs
+// output: offline package closure and staging rollback proofs
 // pos:    Verifies production packing and staging cleanup
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -95,6 +95,7 @@ test('failed dependency staging removes every partial package copy', () => {
 
   assert.notEqual(result.status, 0, 'broken dependency fixture must fail staging');
   assert.equal(fs.existsSync(path.join(server, 'node_modules/@fixture')), false);
+  assert.equal(fs.existsSync(path.join(server, 'bundled-dependencies')), false);
   assert.equal(fs.existsSync(path.join(server, 'node_modules/.cortex-bundled-staging.json')), false);
 });
 
@@ -124,6 +125,12 @@ test('npm pack produces an offline-installable package with a 0755 supervisor', 
       `production tarball omitted ${dependency}`,
     );
   }
+  for (const dependency of ['@clack/core', 'cross-spawn']) {
+    assert.equal(
+      entries.has(`package/bundled-dependencies/${dependency}/package.json`), true,
+      `production tarball omitted runtime dependency ${dependency}`,
+    );
+  }
   const packedDist = extract(tarball, path.join(root, 'extracted'));
   const binary = path.join(packedDist, 'cortex-supervisor');
   const manifest = JSON.parse(fs.readFileSync(path.join(packedDist, 'build-manifest.json'), 'utf8'));
@@ -145,6 +152,11 @@ test('npm pack produces an offline-installable package with a 0755 supervisor', 
     env: { ...process.env, npm_config_update_notifier: 'false' },
   });
   assert.equal(install.status, 0, `${install.stdout}\n${install.stderr}`);
+  const installedPackage = path.join(
+    prefix, 'lib/node_modules/@cortex-agent/server/node_modules',
+  );
+  assert.equal(fs.existsSync(path.join(installedPackage, '@clack/core/package.json')), true);
+  assert.equal(fs.existsSync(path.join(installedPackage, 'cross-spawn/package.json')), true);
   const cliEnvironment = { ...process.env, NODE_DISABLE_COMPILE_CACHE: '1' };
   delete cliEnvironment.NODE_PATH;
   const cli = spawnSync(path.join(prefix, 'bin/cortex'), ['agent-run', '--help'], {
