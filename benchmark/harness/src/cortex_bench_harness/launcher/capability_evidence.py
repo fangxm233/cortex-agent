@@ -14,6 +14,16 @@ from .credential_capabilities import CapabilityState, CredentialCapabilityKey
 CAPABILITY_EVIDENCE_SCHEMA_VERSION = "cortex-bench-capability-evidence/1"
 HEX_LENGTHS = {"implementation_commit": 40, "pi_tree_sha256": 64,
                "model_metadata_sha256": 64}
+DEEPSEEK_OFFLINE_CONTRACT = {
+    "implementation_commit": "4893c331d8e2ba5c5c61f2682963f7613be8f8ee",
+    "pi_version": "0.82.1",
+    "pi_tree_sha256": "2fd2a1a0bbbe8f86a4e54be91fa2fc7dd49fdbdabb3c77c649b2c42b6bf07e1b",
+    "model_metadata_sha256": "0dcc807a4e5827b488c6ceac87884ff6e735e01cf4f2ddfec9dd812e6fde041b",
+    "request_limit_bytes": 65536,
+    "response_limit_bytes": 1048576,
+    "max_output_tokens": 256,
+    "mutation_manifest_sha256": "c4d59826cb31bb79b92e0019793cfed670378df0c01113be08d492f0f57457ba",
+}
 COMMON_FIELDS = frozenset({
     "schema_version", "capability_id", "state", "capability_key", "adapter_id",
     "implementation_commit", "pi_version", "pi_tree_sha256", "model_metadata_sha256",
@@ -87,6 +97,7 @@ def _validate_state(document: Mapping[str, Any], state: CapabilityState) -> None
         _positive_ints(document, "mutations_total", "mutations_killed")
         if document["mutations_total"] != document["mutations_killed"]:
             raise ValueError("capability evidence mutations were not all killed")
+        _validate_deepseek_offline_contract(document)
         return
     _hex(document.get("run_config_sha256"), "run_config_sha256", 64)
     _hex(document.get("request_sha256"), "request_sha256", 64)
@@ -99,6 +110,12 @@ def _validate_state(document: Mapping[str, Any], state: CapabilityState) -> None
         raise ValueError("capability evidence request_count must be one")
     if not isinstance(document.get("upstream_identity"), str):
         raise ValueError("capability evidence upstream_identity must be text")
+
+
+def _validate_deepseek_offline_contract(document: Mapping[str, Any]) -> None:
+    for field, expected in DEEPSEEK_OFFLINE_CONTRACT.items():
+        if document.get(field) != expected:
+            raise ValueError(f"capability evidence {field} differs from frozen contract")
 
 
 def _positive_ints(document: Mapping[str, Any], *fields: str) -> None:

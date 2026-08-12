@@ -547,6 +547,28 @@ it('rejects schema, malformed role assets, and non-object guard inputs as typed 
   expectFailure(invalidLimit, 'limit_out_of_range', 5);
 });
 
+it('requires the evidence-pinned PI version for paid DeepSeek compilation', () => {
+  const input = piResolution();
+  Object.assign(input.arm as ReturnType<typeof arm>, {
+    provider: 'deepseek', model: 'deepseek-v4-flash',
+    credential_capability: 'pi-deepseek-api-key',
+  });
+  input.paid_run = true;
+  input.cli_artifact.version = '0.82.2';
+  input.credential_capabilities = [{
+    id: 'pi-deepseek-api-key', state: 'live-handshake-passed',
+    evidence_sha256: 'e'.repeat(64),
+    key: {
+      runner_or_backend: 'pi', provider: 'deepseek', protocol: 'openai-completions',
+      credential_kind: 'api-key', proxy_adapter_version: 'cortex-bench-trial-proxy/2',
+    },
+  }];
+  expectFailure(input, 'credential_capability_state_insufficient', 10, dependencies(profile({
+    backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash',
+  })));
+});
+
+
 it('uses lossless monotonic time for the remaining-deadline accessor', () => {
   const policy = compileResolvedTrialPolicy(resolution(), dependencies());
   assert.equal(policy.deadline.monotonic_origin_ns, FIXED_MONOTONIC_NS);

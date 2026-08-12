@@ -229,7 +229,11 @@ function resolveCredential(context: CompileContext): CredentialCapabilityProject
   const credential = context.input.credential_capabilities.find(candidate => candidate.id === id);
   if (!credential) fail('credential_capability_unknown', id);
   if (credential.state === 'unsupported') fail('credential_capability_unsupported', id);
-  if (context.input.paid_run && credential.state !== 'live-handshake-passed') {
+  const paidStateInsufficient = context.input.paid_run
+    && credential.state !== 'live-handshake-passed';
+  const paidDeepseekVersionMismatch = context.input.paid_run
+    && id === 'pi-deepseek-api-key' && context.input.cli_artifact.version !== '0.82.1';
+  if (paidStateInsufficient || paidDeepseekVersionMismatch) {
     fail('credential_capability_state_insufficient', id);
   }
   appendInventory(

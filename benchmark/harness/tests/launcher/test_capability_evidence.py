@@ -11,6 +11,7 @@ import pytest
 
 from cortex_bench_harness.launcher.capability_evidence import (
     CAPABILITY_EVIDENCE_SCHEMA_VERSION,
+    DEEPSEEK_OFFLINE_CONTRACT,
     validate_capability_evidence,
 )
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
@@ -28,14 +29,19 @@ def document(state: str = "offline-contract-passed") -> dict[str, object]:
             "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
         "adapter_id": "deepseek-chat-completions/api-key",
-        "implementation_commit": "a" * 40, "pi_version": "0.82.1",
-        "pi_tree_sha256": "b" * 64, "model_metadata_sha256": "c" * 64,
-        "request_limit_bytes": 65536, "response_limit_bytes": 1048576,
-        "max_output_tokens": 256,
+        "implementation_commit": DEEPSEEK_OFFLINE_CONTRACT["implementation_commit"],
+        "pi_version": DEEPSEEK_OFFLINE_CONTRACT["pi_version"],
+        "pi_tree_sha256": DEEPSEEK_OFFLINE_CONTRACT["pi_tree_sha256"],
+        "model_metadata_sha256": DEEPSEEK_OFFLINE_CONTRACT["model_metadata_sha256"],
+        "request_limit_bytes": DEEPSEEK_OFFLINE_CONTRACT["request_limit_bytes"],
+        "response_limit_bytes": DEEPSEEK_OFFLINE_CONTRACT["response_limit_bytes"],
+        "max_output_tokens": DEEPSEEK_OFFLINE_CONTRACT["max_output_tokens"],
     }
     if state == "offline-contract-passed":
-        common.update(mutation_manifest_sha256="d" * 64, mutations_total=20,
-                      mutations_killed=20)
+        common.update(
+            mutation_manifest_sha256=DEEPSEEK_OFFLINE_CONTRACT["mutation_manifest_sha256"],
+            mutations_total=20, mutations_killed=20,
+        )
     else:
         common.update(
             run_config_sha256="d" * 64, request_sha256="e" * 64,
@@ -74,6 +80,29 @@ def test_validates_the_shipped_deepseek_offline_evidence() -> None:
         adapter_id="deepseek-chat-completions/api-key",
     )
     assert evidence["mutations_total"] == evidence["mutations_killed"] == 29
+
+
+def test_deepseek_offline_evidence_requires_exact_runtime_contract(tmp_path: Path) -> None:
+    mutations = [
+        ("pi_version", "0.82.2"),
+        ("request_limit_bytes", 65535),
+        ("response_limit_bytes", 1048575),
+        ("max_output_tokens", 257),
+        ("model_metadata_sha256", "0" * 64),
+        ("pi_tree_sha256", "0" * 64),
+        ("mutation_manifest_sha256", "0" * 64),
+        ("implementation_commit", "0" * 40),
+    ]
+    for field, value in mutations:
+        record = document()
+        record[field] = value
+        file = tmp_path / f"{field}.json"
+        digest = write(file, record)
+        with pytest.raises(ValueError, match=field):
+            validate_capability_evidence(
+                file, digest, capability_id="pi-deepseek-api-key", key=KEY,
+                state="offline-contract-passed", adapter_id="deepseek-chat-completions/api-key",
+            )
 
 
 def test_rejects_unknown_fields_key_drift_and_hash_drift(tmp_path: Path) -> None:

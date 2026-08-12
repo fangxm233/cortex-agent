@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from cortex_bench_harness.launcher import deepseek_paid_smoke
+from cortex_bench_harness.launcher import deepseek_paid_smoke, run_deepseek_paid_smoke
 from cortex_bench_harness.launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 
 SECRET = "synthetic-relay-secret-UNIQUE"
@@ -92,6 +92,10 @@ def test_refuses_deadline_drift_before_loading_a_credential(
             gateway_path=tmp_path / "missing.yaml", trial_kwargs=inputs,
         ))
     assert called is False
+
+
+def test_launcher_public_surface_exports_the_exact_paid_entry() -> None:
+    assert run_deepseek_paid_smoke is deepseek_paid_smoke.run_deepseek_paid_smoke
 
 
 def test_hands_only_an_opaque_handle_to_harbor_and_purges_it(

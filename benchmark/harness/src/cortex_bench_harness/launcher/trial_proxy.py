@@ -254,6 +254,8 @@ def arm_trial_proxy(
     _require_contained(proxy_dir, trial_roots)
     capability_id = _text(arm, "credential_capability")
     key = require_capability_admission(arm, paid_run=paid_run)
+    if paid_run and capability_id == "pi-deepseek-api-key":
+        _validate_paid_deepseek_contract(arm, spec)
     credential = host_credential or _host_credential(spec.credential_env, environ)
     adapter = select_adapter(
         key, upstream_base_url=upstream_base_url,
@@ -329,6 +331,28 @@ def _validate_arm_capability(
     if backend != key.runner_or_backend or provider != key.provider:
         raise CapabilityStateRefused(
             "arm backend/provider differs from credential capability key")
+
+
+def _validate_paid_deepseek_contract(
+    arm: Mapping[str, object], spec: TrialProxySpec,
+) -> None:
+    limits = _limits(arm)
+    exact = {
+        "model": "deepseek-v4-flash",
+        "max_provider_requests": 1,
+        "max_thread_starts": 0,
+        "max_resident_agent_processes": 1,
+        "max_cost_usd": "0.05",
+        "deadline_seconds": 120,
+    }
+    values = {"model": arm.get("model"), **limits}
+    proxy_exact = (
+        spec.max_request_cost_usd == Decimal("0.05")
+        and spec.request_body_limit_bytes == 64 * 1024
+        and spec.response_body_limit_bytes == 1024 * 1024
+    )
+    if any(values.get(field) != value for field, value in exact.items()) or not proxy_exact:
+        raise CapabilityStateRefused("paid DeepSeek contract differs from live capability")
 
 
 def _host_credential(name: str, environ: Mapping[str, str] | None) -> str:
