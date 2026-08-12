@@ -1,5 +1,5 @@
 // input:  plugin queries, writes, and settings controls
-// output: plugin catalog, assignments, and MCP confirm
+// output: bounded plugin assignments and MCP confirmation
 // pos:    Desktop plugin settings view and container
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -33,14 +33,14 @@ const PANEL: CSSProperties = {
 };
 const CARDS: CSSProperties = {
   display: 'flex', gap: 12, flex: 1, minHeight: 0,
-  alignItems: 'stretch', flexWrap: 'wrap',
+  alignItems: 'stretch', flexWrap: 'nowrap',
 };
 const LEFT_CARD: CSSProperties = {
-  flex: '1 1 320px', minWidth: 290, maxWidth: '100%', minHeight: 0,
+  flex: '1 1 320px', minWidth: 0, maxWidth: '100%', minHeight: 0,
   display: 'flex', flexDirection: 'column', overflow: 'hidden',
 };
 const RIGHT_CARD: CSSProperties = {
-  flex: '999 1 420px', minWidth: 320, maxWidth: '100%', minHeight: 0,
+  flex: '999 1 420px', minWidth: 0, maxWidth: '100%', minHeight: 0,
   display: 'flex', flexDirection: 'column', overflow: 'hidden',
 };
 const SCROLLER: CSSProperties = {

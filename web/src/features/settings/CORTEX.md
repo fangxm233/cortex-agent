@@ -33,10 +33,10 @@ Panels read snapshots; accounts, budget, runtime, profiles, hooks, templates, an
 | TemplatesPanel.test.tsx | test | Tests detail-pane tabs, guards and save gating |
 | templates-panel-vm.ts | vm | Filters, parses editor JSON and builds template mutation args |
 | templates-panel-vm.test.ts | test | Unit tests for the templates panel view model |
-| PluginsPanel.tsx | view | Edits plugin targets and ack flow |
+| PluginsPanel.tsx | view | Bounds plugin cards and edits assignments |
 | PluginsPanel.test.tsx | test | Covers plugin view and stale states |
 | PluginsPanel.keyboard.test.tsx | test | Covers plugin mode keyboard access |
-| PluginsPanel.container.test.tsx | test | Covers mounted query and native controls |
+| PluginsPanel.container.test.tsx | test | Covers layout, query and native controls |
 | plugins-panel-vm.ts | vm | Syncs drafts and detects conflicts |
 | plugins-panel-vm.test.ts | test | Covers plugin VM conflict rules |
 | platform-env.ts | vm | Defines env indexes, settings, and durations |

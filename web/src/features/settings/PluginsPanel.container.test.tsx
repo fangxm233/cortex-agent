@@ -1,5 +1,5 @@
 // input:  mounted plugin panel, tRPC mocks, toast capture
-// output: MCP ack, refresh, and conflict container tests
+// output: plugin layout, MCP ack, refresh, and conflict tests
 // pos:    Plugin panel React Query integration regressions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -242,6 +242,38 @@ describe('Plugins Settings shell integration', () => {
       expect(renderer.root.findAllByProps({ 'data-settings-panel': 'plugins' })).toHaveLength(1);
     });
     expect(renderer.root.findAllByProps({ 'data-plugins-error': '' })).toHaveLength(0);
+    await cleanup(renderer, queryClient);
+  });
+
+  it('bounds both plugin cards while their content regions scroll independently', async () => {
+    const queryClient = testQueryClient();
+    const renderer = mountSettings(queryClient);
+
+    await click(renderer.root.findByProps({ 'data-settings-nav': 'plugins' }));
+    await ready(renderer);
+
+    const panel = renderer.root.findByProps({ 'data-settings-panel': 'plugins' });
+    const cardsRow = panel.findByProps({ 'data-plugin-cards': '' });
+    expect(cardsRow.props.style).toMatchObject({ flexWrap: 'nowrap', minHeight: 0 });
+
+    const cards = cardsRow.findAll(node => (
+      node.type === 'div'
+      && node.props.style?.border === '1px solid var(--proto-line)'
+      && node.props.style?.flexDirection === 'column'
+      && node.props.style?.overflow === 'hidden'
+    ));
+    expect(cards).toHaveLength(2);
+    expect(cards.every(card => (
+      card.props.style.minWidth === 0
+      && card.props.style.minHeight === 0
+    ))).toBe(true);
+    expect(cards.map(card => card.findAll(node => node.props.style?.overflow === 'auto').length)).toEqual([1, 1]);
+
+    const targetScroller = cards[0].find(node => node.props.style?.overflow === 'auto');
+    expect(targetScroller.findAllByProps({ 'data-action': 'save' })).toHaveLength(0);
+    expect(cards[0].findAll(node => (
+      node.type === 'button' && node.props['data-action'] === 'save'
+    ))).toHaveLength(1);
     await cleanup(renderer, queryClient);
   });
 });
