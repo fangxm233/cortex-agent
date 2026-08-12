@@ -67,7 +67,9 @@ function AuthSelect<T extends string>(props: AuthSelectProps<T>): JSX.Element {
   const isMobile = useIsMobile();
   const dataProps = { [`data-auth-${props.field}`]: true };
   if (!isMobile) {
-    return <Select {...dataProps} aria-label={props.ariaLabel}
+    // `bare` so the class below — shared with the plain text prompt input — owns the whole box; the
+    // default compact density is inline and would shrink the selection out of line with it.
+    return <Select {...dataProps} density="bare" aria-label={props.ariaLabel}
       aria-labelledby={props.ariaLabelledBy} value={props.value} options={props.options}
       onValueChange={props.onValueChange} placeholder={props.placeholder} className={props.className} />;
   }

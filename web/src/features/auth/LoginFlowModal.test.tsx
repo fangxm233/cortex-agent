@@ -428,6 +428,17 @@ describe('LoginFlowModal', () => {
     }]);
   });
 
+  it('sizes every desktop selection from its own class so it matches the prompt input', () => {
+    const renderer = mount();
+    pick(renderer, 'backend', 'pi');
+    const selects = renderer.root.findAllByProps({ 'data-select-control': true });
+
+    // Bare density: the compact chip padding the Select applies by default is inline, so it would
+    // beat these classes and leave a selection shorter than the input sitting under it.
+    expect(selects.map(node => node.props.density)).toEqual(selects.map(() => 'bare'));
+    expect(selects.every(node => String(node.props.className).includes('px-2g'))).toBe(true);
+  });
+
   it('skips auth selection and starts OAuth for an OAuth-only provider', async () => {
     const renderer = mount();
     pick(renderer, 'backend', 'pi');

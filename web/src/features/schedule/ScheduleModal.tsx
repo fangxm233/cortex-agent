@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useEffect, type CSSProperties } from 'react';
-import { Select } from '@/design';
+import { CONTROL_HEIGHT, Select } from '@/design';
 import { useVocab } from '@/i18n';
 import {
   visibleFields,
@@ -32,25 +32,28 @@ const LABEL: CSSProperties = {
   color: 'var(--proto-muted-3)',
 };
 
+// Every field of the form — the time input, the interval pair, and the four selects — sits in this
+// one cell. A select used to get a shorter, rounder box than the input beside it; sharing the cell
+// (and fixing its height rather than inferring one from padding) keeps the row aligned whatever the
+// control inside it is.
 const CELL_BOX: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
+  gap: 6,
+  height: CONTROL_HEIGHT.md,
+  boxSizing: 'border-box',
   border: '1px solid var(--proto-line)',
   borderRadius: 8,
-  padding: '7px 10px',
+  padding: '0 10px',
 };
 
-const SELECT_CELL_BOX: CSSProperties = {
-  ...CELL_BOX,
-  borderRadius: 6,
-  padding: '2px 7px',
-};
-
-// Shared Select trigger styled to disappear into the prototype's value-cell chrome.
+// Shared Select trigger styled to disappear into the prototype's value-cell chrome. `bare` density
+// adds nothing of its own, so the cell above owns the whole box and the trigger just fills it.
 function bareSelectStyle(font: string): CSSProperties {
   return {
     flex: 1,
     minWidth: 0,
+    alignSelf: 'stretch',
     border: 'none',
     background: 'transparent',
     cursor: 'pointer',
@@ -215,7 +218,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
               {vis.interval && (
                 <>
                   <div style={{ ...LABEL, marginBottom: 5 }}>{L.scEvery}</div>
-                  <div style={SELECT_CELL_BOX}>
+                  <div style={CELL_BOX}>
                     <input
                       type="number"
                       min={1}
@@ -245,7 +248,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
               {vis.delay && (
                 <>
                   <div style={{ ...LABEL, marginBottom: 5 }}>{L.scIn}</div>
-                  <div style={SELECT_CELL_BOX}>
+                  <div style={CELL_BOX}>
                     <input
                       type="number"
                       min={1}
@@ -278,7 +281,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
             {vis.dayOfWeek && (
               <div>
                 <div style={{ ...LABEL, marginBottom: 5 }}>{L.scDay}</div>
-                <div style={SELECT_CELL_BOX}>
+                <div style={CELL_BOX}>
                   <Select
                     data-schedule-select="dayOfWeek"
                     density="bare"
@@ -298,7 +301,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
             {/* PROFILE (prototype L1445) */}
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scProfile}</div>
-              <div style={SELECT_CELL_BOX}>
+              <div style={CELL_BOX}>
                 <Select
                   data-schedule-select="profile"
                   density="bare"
@@ -339,7 +342,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12, opacity: editing ? 0.55 : 1 }}>
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scTarget}</div>
-              <div style={SELECT_CELL_BOX}>
+              <div style={CELL_BOX}>
                 <Select
                   data-schedule-select="target"
                   density="bare"
@@ -357,7 +360,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
             </div>
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scFallback}</div>
-              <div style={SELECT_CELL_BOX}>
+              <div style={CELL_BOX}>
                 <Select
                   data-schedule-select="fallback"
                   density="bare"

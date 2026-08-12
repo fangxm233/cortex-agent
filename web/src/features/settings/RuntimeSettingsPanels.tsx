@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ConfigSetArgs, ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
-import { Select, useToast } from '@/design';
+import { CONTROL_HEIGHT, Select, useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { PlatformAvatar, PresencePill } from './SettingsPanels';
@@ -83,17 +83,22 @@ const KEY: CSSProperties = {
   color: 'var(--proto-faint)',
   flex: 'none',
 };
+// The cadence editor is one strip of three controls — number, unit, save. They only read as a strip
+// when all three take the same height, radius and type, so they are cut from one base rather than
+// each carrying its own padding.
+const DURATION_CONTROL: CSSProperties = {
+  height: CONTROL_HEIGHT.sm, boxSizing: 'border-box', padding: '0 8px',
+  border: '1px solid var(--proto-line)', borderRadius: 6,
+  background: 'var(--proto-card)', font: `500 10px ${MONO}`,
+};
 const DURATION_INPUT: CSSProperties = {
-  width: 54, padding: '4px 6px', border: '1px solid var(--proto-line)', borderRadius: 6,
-  background: 'var(--proto-card)', color: 'var(--proto-ink)', font: `500 10px ${MONO}`,
+  ...DURATION_CONTROL, width: 54, color: 'var(--proto-ink)',
 };
 const DURATION_SELECT: CSSProperties = {
-  padding: '4px 5px', border: '1px solid var(--proto-line)', borderRadius: 6,
-  background: 'var(--proto-card)', color: 'var(--proto-ink)', font: `500 10px ${MONO}`,
+  ...DURATION_CONTROL, color: 'var(--proto-ink)', cursor: 'pointer',
 };
 const DURATION_BUTTON: CSSProperties = {
-  padding: '4px 8px', border: '1px solid var(--proto-line)', borderRadius: 6,
-  background: 'var(--proto-card)', color: 'var(--proto-muted)', font: `500 10px ${MONO}`,
+  ...DURATION_CONTROL, color: 'var(--proto-muted)',
 };
 
 export interface RuntimeSettingWriter {

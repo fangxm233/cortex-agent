@@ -43,6 +43,7 @@ vi.mock('@/design', async (importOriginal) => {
   };
 });
 
+import { CONTROL_HEIGHT } from '@/design';
 import {
   AdvancedPanel,
   AdvancedPanelView,
@@ -175,6 +176,17 @@ describe('runtime settings panel reads', () => {
     expect(advanced).not.toContain('role="button"');
     expect(notifications).not.toContain('••••••••');
     expect(advanced).toContain('data-env-key="DEBUG" data-env-present="true" data-writable="false"');
+  });
+
+  it('gives the interval input, unit select and save button of a job row one height', () => {
+    const cadence = renderAdvanced().split('data-setting-key="taskDispatchIntervalMs"')[1]
+      .split('data-setting-key=')[0];
+    const sized = cadence.match(/height:\d+(\.\d+)?px/g) ?? [];
+
+    // number input · unit select · save button — one height each, and the same one.
+    expect(sized).toHaveLength(3);
+    expect(new Set(sized)).toEqual(new Set([`height:${CONTROL_HEIGHT.sm}px`]));
+    expect(cadence.match(/box-sizing:border-box/g) ?? []).toHaveLength(3);
   });
 
   it('renders nullable channels as absent and nullable concurrency as localized auto', () => {

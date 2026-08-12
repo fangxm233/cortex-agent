@@ -6,9 +6,11 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
+import { CONTROL_HEIGHT } from '@/design/controls';
 import { defaultScheduleForm, type ScheduleForm } from './schedule-modal-vm';
 
-vi.mock('@/design', () => ({
+vi.mock('@/design', async () => ({
+  ...(await vi.importActual<typeof import('@/design/controls')>('@/design/controls')),
   Select: ({ options, value, ...props }: any) => (
     <div data-select-control data-select-value={String(value)} data-option-count={options.length} {...props} />
   ),
@@ -73,8 +75,8 @@ describe('ScheduleModal custom selections', () => {
 
     expect(interval.props.density).toBe('bare');
     expect(intervalHost.parent?.parent?.props.style).toMatchObject({
-      padding: '2px 7px',
-      borderRadius: 6,
+      height: CONTROL_HEIGHT.md,
+      borderRadius: 8,
     });
     pick(renderer, 'intervalUnit', 'hr');
     pick(renderer, 'profile', 'review');
@@ -101,6 +103,22 @@ describe('ScheduleModal custom selections', () => {
       { delayUnit: 'min' },
       { dayOfWeek: 5 },
     ]);
+  });
+
+  it('cuts every field cell from one box so the time input and the selects line up', () => {
+    const renderer = mount({ ...defaultScheduleForm(null), type: 'weekly' });
+    const cell = (field: string) => renderer.root.findAll((node) => (
+      node.type === 'div' && node.props['data-schedule-select'] === field
+    ))[0].parent?.parent?.props.style;
+    const timeCell = renderer.root.findAll((node) => (
+      node.type === 'input' && node.props.placeholder === '09:00'
+    ))[0].parent?.props.style;
+
+    expect(timeCell).toMatchObject({ height: CONTROL_HEIGHT.md, borderRadius: 8 });
+    expect(cell('dayOfWeek')).toEqual(timeCell);
+    expect(cell('profile')).toEqual(timeCell);
+    expect(cell('target')).toEqual(timeCell);
+    expect(cell('fallback')).toEqual(timeCell);
   });
 
   it('locks target and fallback selections while editing', () => {

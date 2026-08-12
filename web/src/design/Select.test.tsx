@@ -1,5 +1,5 @@
 // input:  Select with mocked Radix parts and typed option fixtures
-// output: value mapping, trigger forwarding and option-state regressions
+// output: value mapping, trigger forwarding, option-state and sizing regressions
 // pos:    Verifies the shared custom selection adapter
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -26,12 +26,14 @@ vi.mock('@radix-ui/react-select', () => {
   };
 });
 
-import { Select, type SelectOption } from './Select';
+import { Select, type SelectDensity, type SelectOption } from './Select';
+import type { CSSProperties } from 'react';
 
 function mount<T extends string | number>(
   value: T,
   options: readonly SelectOption<T>[],
   onValueChange = vi.fn(),
+  chrome: { density?: SelectDensity; style?: CSSProperties } = {},
 ): ReactTestRenderer {
   return create(
     <Select
@@ -40,6 +42,7 @@ function mount<T extends string | number>(
       value={value}
       options={options}
       onValueChange={onValueChange}
+      {...chrome}
     />,
   );
 }
@@ -107,8 +110,6 @@ describe('Select', () => {
     const renderer = mount('active', [{ value: 'active', label: 'Active' }]);
     const trigger = part(renderer, 'trigger');
     const content = part(renderer, 'content');
-    const item = part(renderer, 'item');
-    const itemText = part(renderer, 'item-text');
 
     expect(trigger.props.style).toMatchObject({
       fontFamily: "'IBM Plex Mono',monospace",
@@ -124,7 +125,44 @@ describe('Select', () => {
     expect(content.props.style.minWidth).toBe(
       'max(160px, var(--radix-select-trigger-width))',
     );
+  });
+
+  // Radix 2.3.2 drops `className`/`style` from ItemText (it forwards only the remaining props to a
+  // span), so a size set there renders nothing and the row falls back to the inherited body size.
+  // The popup row size therefore has to live on the Item, matching the profile menu: 10px semibold
+  // label, 9px description, 5px/8px padding.
+  it('sizes popup rows on the item so they match the profile menu', () => {
+    const renderer = mount('active', [
+      { value: 'active', label: 'Active', description: 'current backend' },
+    ]);
+    const item = part(renderer, 'item');
+
+    expect(part(renderer, 'content').props.className).toContain('text-[10px]');
+    expect(item.props.className).toContain('font-semibold');
     expect(item.props.className).toContain('px-1g');
-    expect(itemText.props.className).toContain('text-[10px]');
+    expect(item.props.className).toContain('py-menu-row-y');
+    expect(part(renderer, 'item-text').props.className).toBeUndefined();
+  });
+
+  it('lets a call site override the density so a select matches its neighbouring input', () => {
+    const style = {
+      padding: '5px 9px',
+      borderRadius: 7,
+      height: 24,
+      font: "400 11px 'IBM Plex Mono',monospace",
+    } satisfies CSSProperties;
+    const trigger = part(mount('active', [{ value: 'active', label: 'Active' }], vi.fn(), { style }), 'trigger');
+    const keys = Object.keys(trigger.props.style);
+
+    expect(trigger.props.style).toMatchObject(style);
+    // The `font` shorthand resets fontSize/lineHeight, so it must be written after the density
+    // longhands or the call site's size is silently discarded.
+    expect(keys.indexOf('font')).toBeGreaterThan(keys.indexOf('fontSize'));
+  });
+
+  it('leaves every visual to the call site at bare density', () => {
+    const bare = mount('active', [{ value: 'active', label: 'Active' }], vi.fn(), { density: 'bare' });
+
+    expect(part(bare, 'trigger').props.style).toEqual({});
   });
 });

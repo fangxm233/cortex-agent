@@ -16,7 +16,7 @@ Panels read snapshots; accounts, budget, runtime, profiles, hooks, templates, an
 | custom-provider-vm.test.ts | test | Unit tests for the custom provider view model |
 | AuthLoginEntry.test.tsx | test | Tests shell, login, and save placement |
 | RuntimeSettingsPanels.tsx | view | Edits runtime switches and job cadence selections |
-| RuntimeSettingsPanels.test.tsx | test | Tests runtime selections and production writes |
+| RuntimeSettingsPanels.test.tsx | test | Tests runtime selections, control sizing and production writes |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |
 | BudgetPanel.tsx | view | Writes global and per-project daily/monthly spend limits |
 | budget-vm.ts | vm | Resolves budget scope and builds chips, payload and spend bar |
