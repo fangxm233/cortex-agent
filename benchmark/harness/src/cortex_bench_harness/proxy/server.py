@@ -205,11 +205,12 @@ class TrialHttpServer(ThreadingHTTPServer):
 
     def __init__(
         self, address: tuple[str, int], state: ProxyState, upstream: FixedUpstream,
-        adapter: ProviderAdapter,
+        adapter: ProviderAdapter, request_body_limit_bytes: int | None,
     ) -> None:
         self.state = state
         self.upstream = upstream
         self.adapter = adapter
+        self.request_body_limit_bytes = request_body_limit_bytes
         self._client_condition = threading.Condition()
         self._clients: set[socket.socket] = set()
         self._body_clients: set[socket.socket] = set()
@@ -418,7 +419,7 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         length = self._content_length()
         if length is None:
             return None
-        limit = getattr(server.adapter, "request_body_limit_bytes", None)
+        limit = server.request_body_limit_bytes
         if limit is not None and length > limit:
             self._send_error(413, "request_body_too_large")
             return None
@@ -589,6 +590,8 @@ def start_trial_proxy(
     bound_source_ip: str, absolute_deadline: datetime, budget: ProxyBudget,
     log_path: Path, lease_terms: LeaseTerms, listen_host: str = "127.0.0.1",
     advertised_host: str | None = None, now_ms: Callable[[], int] = host_now_ms,
+    request_body_limit_bytes: int | None = None,
+    response_body_limit_bytes: int | None = None,
 ) -> TrialProxyHandle:
     """Start one per-trial proxy. `absolute_deadline` is the provisional bound `P`: the container
     may shorten the lease from it by echoing back a duration, and may never lengthen it past it."""
@@ -599,8 +602,12 @@ def start_trial_proxy(
     state = ProxyState(
         bound_source_ip, dummy_token, provisional_bound_ms, budget, log_path, now_ms,
     )
-    upstream = FixedUpstream(upstream_base_url, adapter)
-    server = TrialHttpServer((listen_host, 0), state, upstream, adapter)
+    upstream = FixedUpstream(
+        upstream_base_url, adapter, response_body_limit_bytes=response_body_limit_bytes,
+    )
+    server = TrialHttpServer(
+        (listen_host, 0), state, upstream, adapter, request_body_limit_bytes,
+    )
     host = advertised_host or cast(tuple[str, int], server.server_address)[0]
     port = cast(tuple[str, int], server.server_address)[1]
     metadata = ProxyMetadata(

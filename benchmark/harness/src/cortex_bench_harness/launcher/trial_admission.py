@@ -37,6 +37,7 @@ from harbor.models.trial.paths import EnvironmentPaths, TrialPaths
 from harbor.trial.trial import Trial
 
 from .arm_resolution import TrialSeed, parse_trial_seed
+from .host_credential_vault import HOST_CREDENTIAL_VAULT
 from .arms import arm_backend, build_agent_config, require_pinned_image
 from .trial_admission_io import (
     HarborTrialAdmissionError, PullDisabledDockerEnvironment,
@@ -63,6 +64,7 @@ DENIED_NETWORK_CATEGORIES = (
 )
 PROVIDER_ENV_KEYS = {
     "anthropic": frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"}),
+    "deepseek": frozenset({"DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"}),
     "openai": frozenset({"OPENAI_API_KEY", "OPENAI_BASE_URL"}),
 }
 CREDENTIAL_ENV_KEYS = (
@@ -312,16 +314,21 @@ async def create_harbor_trial(
     host_scan_policy: Mapping[str, object], trial_proxy: Mapping[str, object] | None = None,
     credential_handle: str | None = None,
 ) -> Trial:
-    config = build_harbor_trial_config(
-        arm, task_path=task_path, trials_dir=trials_dir, manifest=manifest,
-        trial_seed=trial_seed, cli_version=cli_version, host_scan_policy=host_scan_policy,
-        trial_proxy=trial_proxy, credential_handle=credential_handle,
-    )
-    trial = await Trial.create(config)
-    if type(trial.agent_environment) is not AdmittedDockerEnvironment:
-        raise HarborTrialAdmissionError("Harbor did not construct the admitted environment")
-    trial.agent_environment.bind_proxy_controller(trial.agent)
-    return trial
+    try:
+        config = build_harbor_trial_config(
+            arm, task_path=task_path, trials_dir=trials_dir, manifest=manifest,
+            trial_seed=trial_seed, cli_version=cli_version,
+            host_scan_policy=host_scan_policy, trial_proxy=trial_proxy,
+            credential_handle=credential_handle,
+        )
+        trial = await Trial.create(config)
+        if type(trial.agent_environment) is not AdmittedDockerEnvironment:
+            raise HarborTrialAdmissionError("Harbor did not construct the admitted environment")
+        trial.agent_environment.bind_proxy_controller(trial.agent)
+        return trial
+    finally:
+        if credential_handle is not None:
+            HOST_CREDENTIAL_VAULT.purge(credential_handle)
 
 
 def _parse_contract(source: object) -> Mapping[str, object]:

@@ -801,6 +801,9 @@ function resolvedCredential(
   return {
     capability_key: selected.id,
     capability_state: selected.state,
+    ...(selected.evidence_sha256 === undefined ? {} : {
+      evidence_sha256: selected.evidence_sha256,
+    }),
     ...context.input.credential,
   };
 }

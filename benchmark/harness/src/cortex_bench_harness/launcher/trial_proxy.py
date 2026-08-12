@@ -52,7 +52,10 @@ SPEC_REQUIRED_FIELDS = frozenset({
     "credential_env", "bound_source_ip", "max_request_cost_usd",
     "input_cost_per_million_usd", "output_cost_per_million_usd",
 })
-SPEC_OPTIONAL_FIELDS = frozenset({"listen_host", "advertised_host"})
+SPEC_OPTIONAL_FIELDS = frozenset({
+    "listen_host", "advertised_host", "request_body_limit_bytes",
+    "response_body_limit_bytes",
+})
 
 
 @dataclass(frozen=True)
@@ -70,6 +73,8 @@ class TrialProxySpec:
     output_cost_per_million_usd: Decimal
     listen_host: str = "127.0.0.1"
     advertised_host: str | None = None
+    request_body_limit_bytes: int | None = None
+    response_body_limit_bytes: int | None = None
 
 
 def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
@@ -91,6 +96,10 @@ def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
         output_cost_per_million_usd=_decimal(source, "output_cost_per_million_usd"),
         listen_host=_optional_text(source, "listen_host", "127.0.0.1"),
         advertised_host=advertised,
+        request_body_limit_bytes=_optional_positive_int(
+            source, "request_body_limit_bytes"),
+        response_body_limit_bytes=_optional_positive_int(
+            source, "response_body_limit_bytes"),
     )
 
 
@@ -223,7 +232,8 @@ def _start_proxy_session(
             budget_ms=budget_ms, teardown_grace_ms=TEARDOWN_GRACE_MS,
         ),
         listen_host=spec.listen_host, advertised_host=spec.advertised_host,
-        now_ms=now_ms,
+        now_ms=now_ms, request_body_limit_bytes=spec.request_body_limit_bytes,
+        response_body_limit_bytes=spec.response_body_limit_bytes,
     )
     return TrialProxySession(
         handle=handle, upstream_base_url=upstream_base_url,
@@ -379,6 +389,15 @@ def _optional_text(values: Mapping[str, Any], key: str, default: str) -> str:
     value = values.get(key, default)
     if not isinstance(value, str) or not value:
         raise ValueError(f"{key} must be a non-empty string")
+    return value
+
+
+def _optional_positive_int(values: Mapping[str, Any], key: str) -> int | None:
+    value = values.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{key} must be a positive integer")
     return value
 
 

@@ -1,5 +1,5 @@
 # input:  DeepSeek request targets, JSON bodies, and SSE payloads
-# output: bounded route, auth, usage, and billable decisions
+# output: route, auth, usage, and billable decisions
 # pos:    DeepSeek OpenAI chat-completions API-key adapter
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -14,16 +14,12 @@ ADAPTER_ID = "deepseek-chat-completions/api-key"
 CHAT_COMPLETIONS_ROUTE = "chat_completions"
 CHAT_COMPLETIONS_PATHS = frozenset({"/chat/completions", "/v1/chat/completions"})
 MAX_COMPLETION_TOKENS = 256
-MAX_REQUEST_BYTES = 64 * 1024
-MAX_RESPONSE_BYTES = 1024 * 1024
 FORWARDED_HEADERS = frozenset({"accept", "content-type"})
 
 
 class DeepSeekChatCompletionsApiKeyAdapter:
     adapter_id = ADAPTER_ID
     schema_version = PROXY_SCHEMA_VERSION
-    request_body_limit_bytes = MAX_REQUEST_BYTES
-    response_body_limit_bytes = MAX_RESPONSE_BYTES
 
     def __init__(
         self, upstream_base_url: str | None = None, credential: str | None = None,

@@ -291,7 +291,6 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._revocation = revoke_trial_proxy(
             self._proxy_session, capture_inventory=self._capture_inventory,
         )
-        self._proxy_session = None
         return self._revocation
 
     def revoke_admitted_proxy(self) -> None:

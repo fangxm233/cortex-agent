@@ -58,8 +58,6 @@ class ProviderAdapter(Protocol):
     # from host-side inputs and is never learned from a container request or an
     # upstream response, which is what makes host-set closure assertable.
     upstream_hosts: tuple[str, ...]
-    request_body_limit_bytes: int | None
-    response_body_limit_bytes: int | None
 
     def validate_route(self, method: str, path: str) -> RouteDecision: ...
 

@@ -661,6 +661,16 @@ def test_unpaid_trial_without_a_proxy_keeps_the_shipped_behaviour(tmp_path: Path
     assert agent.captured_inventory is None
 
 
+def test_spec_accepts_trial_scoped_body_limits() -> None:
+    spec = parse_trial_proxy_spec(proxy_spec(
+        request_body_limit_bytes=64 * 1024,
+        response_body_limit_bytes=1024 * 1024,
+    ))
+
+    assert spec.request_body_limit_bytes == 64 * 1024
+    assert spec.response_body_limit_bytes == 1024 * 1024
+
+
 def test_spec_rejects_an_unknown_member(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="credential_value"):
         parse_trial_proxy_spec(proxy_spec(credential_value="sk-ant-nope"))

@@ -55,7 +55,10 @@ def complete_stream(*, model: str = MODEL) -> bytes:
     )
 
 
-def start_proxy(tmp_path: Path, upstream: SyntheticUpstream):
+def start_proxy(
+    tmp_path: Path, upstream: SyntheticUpstream, *, request_limit: int | None = 64 * 1024,
+    response_limit: int | None = 1024 * 1024,
+):
     return start_trial_proxy(
         trial_id="trial-deepseek", upstream_base_url=upstream.base_url,
         adapter=adapter(upstream.base_url), bound_source_ip="127.0.0.1",
@@ -64,6 +67,7 @@ def start_proxy(tmp_path: Path, upstream: SyntheticUpstream):
             Decimal("0.05"), Decimal("0.05"), Decimal("0.14"), Decimal("0.28"),
         ),
         log_path=tmp_path / "deepseek.jsonl", lease_terms=LEASE_TERMS,
+        request_body_limit_bytes=request_limit, response_body_limit_bytes=response_limit,
     )
 
 
@@ -139,7 +143,9 @@ def test_rejects_partial_duplicate_conflicting_and_nonstream_usage() -> None:
     assert all(not bound.extract_usage(body, kind).accounted for body, kind in payloads)
 
 
-def test_proxy_rejects_declared_request_over_64_kib_before_upstream(tmp_path: Path) -> None:
+def test_trial_policy_rejects_declared_request_over_64_kib_before_upstream(
+    tmp_path: Path,
+) -> None:
     with SyntheticUpstream() as upstream:
         upstream.server.content_type = "text/event-stream"
         upstream.server.raw_body = complete_stream()
@@ -151,6 +157,20 @@ def test_proxy_rejects_declared_request_over_64_kib_before_upstream(tmp_path: Pa
     assert status == 413
     assert json.loads(payload) == {"error": "request_body_too_large"}
     assert upstream.requests == []
+
+
+def test_deepseek_protocol_does_not_impose_the_smoke_request_limit(tmp_path: Path) -> None:
+    large = request_body(messages=[{"role": "user", "content": "x" * (70 * 1024)}])
+    with SyntheticUpstream() as upstream:
+        upstream.server.content_type = "text/event-stream"
+        upstream.server.raw_body = complete_stream()
+        handle = start_proxy(tmp_path, upstream, request_limit=None)
+        try:
+            status, _ = post(handle, large)
+        finally:
+            handle.stop()
+    assert status == 200
+    assert len(upstream.requests) == 1
 
 
 def test_proxy_accounts_one_complete_stream_and_replaces_auth(tmp_path: Path) -> None:

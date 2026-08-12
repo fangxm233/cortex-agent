@@ -39,9 +39,13 @@ class UpstreamAttemptError(OSError):
 
 
 class FixedUpstream:
-    def __init__(self, base_url: str, adapter: ProviderAdapter) -> None:
+    def __init__(
+        self, base_url: str, adapter: ProviderAdapter,
+        response_body_limit_bytes: int | None = None,
+    ) -> None:
         self._target = validate_upstream(base_url)
         self._adapter = adapter
+        self._response_body_limit_bytes = response_body_limit_bytes
         self._lock = threading.Lock()
         self._active: HTTPConnection | None = None
         self._revoked = False
@@ -57,7 +61,10 @@ class FixedUpstream:
         try:
             self._connect(connection)
             connection.request("POST", self._path(path), body, outbound)
-            return read_response(connection.getresponse(), expires_at, self._adapter)
+            return read_response(
+                connection.getresponse(), expires_at, self._adapter,
+                self._response_body_limit_bytes,
+            )
         except UpstreamAttemptError:
             raise
         except (HTTPException, OSError) as error:
@@ -132,9 +139,9 @@ def validate_upstream(base_url: str) -> SplitResult:
 
 def read_response(
     response: HTTPResponse, expires_at: float, adapter: ProviderAdapter,
+    response_body_limit_bytes: int | None = None,
 ) -> UpstreamResult:
-    limit = getattr(adapter, "response_body_limit_bytes", None)
-    body = _read_until_deadline(response, expires_at, limit)
+    body = _read_until_deadline(response, expires_at, response_body_limit_bytes)
     headers = tuple(response.getheaders())
     content_type = response.getheader("content-type", "")
     usage = adapter.extract_usage(body, content_type)

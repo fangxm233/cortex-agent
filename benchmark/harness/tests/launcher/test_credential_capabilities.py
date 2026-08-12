@@ -5,7 +5,11 @@
 
 import json
 import re
+from dataclasses import replace
 
+import pytest
+
+from cortex_bench_harness.launcher import credential_capabilities
 from cortex_bench_harness.launcher.credential_capabilities import (
     CAPABILITY_REGISTRY,
     CAPABILITY_STATES,
@@ -92,6 +96,18 @@ def test_registry_has_the_six_stateful_capability_rows() -> None:
     }
     assert len(CAPABILITY_REGISTRY) == 6
     assert project_credential_capabilities() == EXPECTED_PROJECTION
+
+
+def test_deepseek_promotion_requires_bound_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = dict(CAPABILITY_REGISTRY)
+    key = next(key for key, row in rows.items() if row.id == "pi-deepseek-api-key")
+    rows[key] = replace(rows[key], state="offline-contract-passed")
+    monkeypatch.setattr(credential_capabilities, "CAPABILITY_REGISTRY", rows)
+
+    with pytest.raises(ValueError, match="evidence"):
+        credential_capabilities.project_credential_capabilities()
 
 
 def test_registry_projection_contains_no_credential_shaped_value() -> None:

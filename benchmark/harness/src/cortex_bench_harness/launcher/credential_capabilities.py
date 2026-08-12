@@ -4,6 +4,7 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from types import MappingProxyType
 from typing import Literal, Mapping
 
@@ -30,6 +31,7 @@ class CredentialCapabilityKey:
 class CredentialCapability:
     id: str
     state: CapabilityState
+    evidence_sha256: str | None = None
 
 
 def _key(
@@ -94,7 +96,37 @@ def _project_row(
     key: CredentialCapabilityKey,
     capability: CredentialCapability,
 ) -> dict[str, object]:
-    return {"id": capability.id, "state": capability.state, "key": asdict(key)}
+    _validate_evidence_binding(key, capability)
+    row: dict[str, object] = {
+        "id": capability.id, "state": capability.state, "key": asdict(key),
+    }
+    if capability.evidence_sha256 is not None:
+        row["evidence_sha256"] = capability.evidence_sha256
+    return row
+
+
+def _validate_evidence_binding(
+    key: CredentialCapabilityKey, capability: CredentialCapability,
+) -> None:
+    required = capability.state == "live-handshake-passed" or (
+        capability.id == "pi-deepseek-api-key"
+        and capability.state == "offline-contract-passed"
+    )
+    if not required:
+        return
+    digest = capability.evidence_sha256
+    if digest is None:
+        raise ValueError(f"credential capability {capability.id} requires evidence")
+    from .capability_evidence import validate_capability_evidence
+    validate_capability_evidence(
+        _evidence_path(capability.id, capability.state), digest,
+        capability_id=capability.id, key=key, state=capability.state,
+        adapter_id="deepseek-chat-completions/api-key",
+    )
+
+
+def _evidence_path(capability_id: str, state: CapabilityState) -> Path:
+    return Path(__file__).with_name("evidence") / f"{capability_id}.{state}.json"
 
 
 def project_credential_capabilities() -> list[dict[str, object]]:

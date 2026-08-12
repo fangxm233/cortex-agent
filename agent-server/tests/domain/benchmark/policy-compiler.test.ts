@@ -485,6 +485,15 @@ it('reports ArmDefinition failures before malformed phase-resolution assets', ()
   expectFailure(input, 'limit_out_of_range', 5);
 });
 
+it('preserves capability evidence in the resolved credential identity', () => {
+  const input = resolution();
+  input.credential_capabilities[0].evidence_sha256 = 'b'.repeat(64);
+
+  const policy = compileResolvedTrialPolicy(input, dependencies());
+
+  assert.equal(policy.credential.evidence_sha256, 'b'.repeat(64));
+});
+
 it('reports credential rule 9 before provider rule 10 when both fail', () => {
   const input = resolution();
   const value = input.arm as Record<string, unknown>;
