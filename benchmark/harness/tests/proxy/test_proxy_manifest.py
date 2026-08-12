@@ -91,6 +91,8 @@ def _start_proxy(tmp_path: Path, upstream_url: str, deadline: datetime):
         absolute_deadline=deadline, budget=budget,
         log_path=tmp_path / "proxy.jsonl",
         lease_terms=LEASE_TERMS,
+        request_body_limit_bytes=16 * 1024 * 1024,
+        response_body_limit_bytes=8 * 1024 * 1024,
     )
 
 
@@ -108,5 +110,9 @@ def _expected_block(handle, upstream_url: str) -> dict[str, object]:
             "output_cost_per_million_usd": "2000000",
         },
         "absolute_deadline": "2099-01-02T03:04:05Z",
+        # The declared byte envelope belongs to the run, not to the capability's evidence: the
+        # manifest is where a reader learns which limits this trial actually ran under.
+        "request_body_limit_bytes": 16 * 1024 * 1024,
+        "response_body_limit_bytes": 8 * 1024 * 1024,
         "log_filename": "proxy.jsonl",
     }

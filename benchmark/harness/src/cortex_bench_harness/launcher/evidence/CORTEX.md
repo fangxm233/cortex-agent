@@ -1,6 +1,7 @@
 Update this file whenever this directory changes
 
-Immutable records bind credential capability states to verified implementation evidence.
+Immutable records bind credential capability states to verified implementation mechanism; the
+numbers a run declares live in that run's own records, never here.
 
 | filename | role | function |
 |---|---|---|

@@ -64,6 +64,11 @@ class ProxyMetadata:
     budget: ProxyBudget
     log_filename: str
     adapter_id: str
+    # The two byte limits the run declared. They are per-run parameters rather than properties of
+    # the adapter, so this block — not the capability's promotion evidence — is where they are
+    # recorded. `None` means the route was armed unlimited on that side.
+    request_body_limit_bytes: int | None = None
+    response_body_limit_bytes: int | None = None
 
     def manifest_block(self, base_url: str) -> dict[str, object]:
         return {
@@ -74,6 +79,8 @@ class ProxyMetadata:
             "source_binding": {"kind": "ip", "value": self.bound_source_ip},
             "budget": self.budget.as_manifest(),
             "absolute_deadline": utc_text(self.absolute_deadline),
+            "request_body_limit_bytes": self.request_body_limit_bytes,
+            "response_body_limit_bytes": self.response_body_limit_bytes,
             "log_filename": self.log_filename,
         }
 
