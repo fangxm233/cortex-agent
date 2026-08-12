@@ -157,7 +157,9 @@ def test_rejects_invalid_tokens_malformed_sse_and_data_after_done() -> None:
         for usage in invalid_usage
     ]
     payloads.extend([
-        b'data: {not-json}\n\ndata: [DONE]\n\n',
+        (b'data: {"model":"deepseek-v4-flash","choices":[],"usage":'
+         b'{"prompt_tokens":9,"completion_tokens":2}}\n\n'
+         b'data: {not-json}\n\ndata: [DONE]\n\n'),
         sse({"model": MODEL, "choices": [],
              "usage": {"prompt_tokens": 9, "completion_tokens": 2}})
         + b'data: {"model":"deepseek-v4-flash"}\n\n',
