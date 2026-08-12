@@ -12,12 +12,24 @@ import pytest
 from cortex_bench_harness.launcher.capability_evidence import (
     CAPABILITY_EVIDENCE_SCHEMA_VERSION,
     DEEPSEEK_OFFLINE_CONTRACT,
+    MUTATION_MANIFEST_SCHEMA_VERSION,
     validate_capability_evidence,
     validate_offline_supporting_artifacts,
 )
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
 
 KEY = CredentialCapabilityKey("pi", "deepseek", "openai-completions", "api-key")
+# The three numbers the run declares per trial. Evidence attests the mechanism that enforces a
+# declared envelope, never one run's choice of values, so none of these may appear in it.
+NUMERIC_ENVELOPE_FIELDS = ("max_output_tokens", "request_limit_bytes", "response_limit_bytes")
+MECHANISM_FIELDS = (
+    "adapter_id", "capability_key", "implementation_commit", "pi_version", "pi_tree_sha256",
+    "model_metadata_sha256",
+)
+EVIDENCE_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "src/cortex_bench_harness/launcher/evidence"
+)
 
 
 def document(state: str = "offline-contract-passed") -> dict[str, object]:
@@ -34,9 +46,6 @@ def document(state: str = "offline-contract-passed") -> dict[str, object]:
         "pi_version": DEEPSEEK_OFFLINE_CONTRACT["pi_version"],
         "pi_tree_sha256": DEEPSEEK_OFFLINE_CONTRACT["pi_tree_sha256"],
         "model_metadata_sha256": DEEPSEEK_OFFLINE_CONTRACT["model_metadata_sha256"],
-        "request_limit_bytes": DEEPSEEK_OFFLINE_CONTRACT["request_limit_bytes"],
-        "response_limit_bytes": DEEPSEEK_OFFLINE_CONTRACT["response_limit_bytes"],
-        "max_output_tokens": DEEPSEEK_OFFLINE_CONTRACT["max_output_tokens"],
     }
     if state == "offline-contract-passed":
         common.update(
@@ -87,9 +96,6 @@ def test_validates_the_shipped_deepseek_live_evidence() -> None:
 def test_deepseek_offline_evidence_requires_exact_runtime_contract(tmp_path: Path) -> None:
     mutations = [
         ("pi_version", "0.82.2"),
-        ("request_limit_bytes", 65535),
-        ("response_limit_bytes", 1048575),
-        ("max_output_tokens", 257),
         ("model_metadata_sha256", "0" * 64),
         ("pi_tree_sha256", "0" * 64),
         ("mutation_manifest_sha256", "0" * 64),
@@ -150,3 +156,114 @@ def test_live_evidence_requires_one_request_clean_scan_and_revocation(tmp_path: 
                 file, digest, capability_id="pi-deepseek-api-key", key=KEY,
                 state="live-handshake-passed", adapter_id="deepseek-chat-completions/api-key",
             )
+
+
+# --- mechanism-only evidence ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("state", ["offline-contract-passed", "live-handshake-passed"])
+def test_shipped_evidence_attests_mechanism_and_carries_no_declared_envelope(state: str) -> None:
+    shipped = json.loads((EVIDENCE_DIR / f"pi-deepseek-api-key.{state}.json").read_bytes())
+    assert [field for field in NUMERIC_ENVELOPE_FIELDS if field in shipped] == []
+    assert all(shipped[field] for field in MECHANISM_FIELDS)
+    assert shipped["capability_key"]["proxy_adapter_version"] == "cortex-bench-trial-proxy/2"
+
+
+@pytest.mark.parametrize("state", ["offline-contract-passed", "live-handshake-passed"])
+@pytest.mark.parametrize("field", NUMERIC_ENVELOPE_FIELDS)
+def test_evidence_carrying_a_declared_envelope_number_is_refused(
+    tmp_path: Path, state: str, field: str,
+) -> None:
+    record = document(state)
+    record[field] = 256
+    file = tmp_path / f"{state}-{field}.json"
+    digest = write(file, record)
+    with pytest.raises(ValueError, match="fields"):
+        validate_capability_evidence(
+            file, digest, capability_id="pi-deepseek-api-key", key=KEY,
+            state=state, adapter_id="deepseek-chat-completions/api-key",
+        )
+
+
+# --- mutation manifest ---------------------------------------------------------------------------
+
+
+def manifest(**overrides: object) -> dict[str, object]:
+    return {
+        "schema_version": MUTATION_MANIFEST_SCHEMA_VERSION,
+        "implementation_commit": DEEPSEEK_OFFLINE_CONTRACT["implementation_commit"],
+        "mutations": [
+            {
+                "id": 1, "name": "route_path", "file": "proxy/adapters/deepseek.py",
+                "test_file": "tests/proxy/test_deepseek_adapter.py",
+                "test_selector": "admits_only_exact", "mutation_sha256": "a" * 64,
+                "killed": True, "return_code": 1,
+            },
+            {
+                "id": 2, "name": "cap_value", "file": "proxy/adapters/deepseek.py",
+                "test_file": "tests/proxy/test_deepseek_adapter.py",
+                "test_selector": "rejects_model_stream", "mutation_sha256": "b" * 64,
+                "killed": True, "return_code": 1,
+            },
+        ],
+        **overrides,
+    }
+
+
+def supporting(directory: Path, manifest_document: dict[str, object], **overrides: object):
+    """Write a manifest beside the shipped model metadata and return the evidence naming it."""
+    payload = json.dumps(manifest_document, sort_keys=True, separators=(",", ":")).encode()
+    (directory / "pi-deepseek-api-key.mutation-manifest.json").write_bytes(payload)
+    (directory / "pi-deepseek-api-key.model-metadata.json").write_bytes(
+        (EVIDENCE_DIR / "pi-deepseek-api-key.model-metadata.json").read_bytes())
+    evidence = document()
+    evidence["mutation_manifest_sha256"] = hashlib.sha256(payload).hexdigest()
+    evidence["mutations_total"] = evidence["mutations_killed"] = 2
+    evidence.update(overrides)
+    return evidence
+
+
+def test_shipped_mutation_manifest_kills_every_listed_mutation() -> None:
+    shipped = json.loads(
+        (EVIDENCE_DIR / "pi-deepseek-api-key.mutation-manifest.json").read_bytes())
+    evidence = json.loads(
+        (EVIDENCE_DIR / "pi-deepseek-api-key.offline-contract-passed.json").read_bytes())
+    mutations = shipped["mutations"]
+    assert [mutation["id"] for mutation in mutations] == list(range(1, len(mutations) + 1))
+    assert all(mutation["killed"] is True for mutation in mutations)
+    assert all(mutation["return_code"] != 0 for mutation in mutations)
+    assert len(mutations) == evidence["mutations_total"] == evidence["mutations_killed"]
+    assert shipped["implementation_commit"] == evidence["implementation_commit"]
+
+
+def test_accepts_an_internally_valid_supporting_manifest(tmp_path: Path) -> None:
+    validate_offline_supporting_artifacts(tmp_path, supporting(tmp_path, manifest()))
+
+
+def test_refuses_a_manifest_whose_counts_kills_or_binding_do_not_hold(tmp_path: Path) -> None:
+    surviving = manifest()
+    surviving["mutations"][1]["killed"] = False  # type: ignore[index]
+    unproven = manifest()
+    unproven["mutations"][1]["return_code"] = 0  # type: ignore[index]
+    duplicated = manifest()
+    duplicated["mutations"][1]["id"] = 1  # type: ignore[index]
+    unhashed = manifest()
+    unhashed["mutations"][1]["mutation_sha256"] = "not-a-digest"  # type: ignore[index]
+    widened = manifest()
+    widened["mutations"][1]["extra"] = "drift"  # type: ignore[index]
+    cases = (
+        (manifest(schema_version="cortex-bench-mutation-manifest/0"), {}, "schema"),
+        (manifest(implementation_commit="0" * 40), {}, "implementation_commit"),
+        (surviving, {}, "was not killed"),
+        (unproven, {}, "return_code"),
+        (duplicated, {}, "ids must be"),
+        (unhashed, {}, "mutation_sha256"),
+        (widened, {}, "fields"),
+        (manifest(), {"mutations_total": 3, "mutations_killed": 3}, "mutations_total"),
+    )
+    for index, (manifest_document, overrides, message) in enumerate(cases):
+        directory = tmp_path / str(index)
+        directory.mkdir()
+        evidence = supporting(directory, manifest_document, **overrides)
+        with pytest.raises(ValueError, match=message):
+            validate_offline_supporting_artifacts(directory, evidence)

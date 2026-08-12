@@ -304,6 +304,22 @@ def test_paid_arming_admits_a_declared_envelope_inside_every_ceiling(tmp_path: P
     assert record["capability_id"] == DEEPSEEK_CAPABILITY
 
 
+def test_the_armed_manifest_block_records_the_declared_byte_envelope(tmp_path: Path) -> None:
+    """The numbers a run declares live in the run's own records, never in capability evidence.
+
+    `request_limit_bytes` and `response_limit_bytes` were dropped from the promotion evidence, so
+    the proxy block is where a reader learns which limits this trial was actually armed with.
+    """
+    session = arm_paid(tmp_path, spec=paid_spec(response_body_limit_bytes=8 * 1024 * 1024))
+    try:
+        block = session.handle.manifest_block
+    finally:
+        session.handle.stop()
+
+    assert block["request_body_limit_bytes"] == REQUEST_BODY_LIMIT_BYTES
+    assert block["response_body_limit_bytes"] == 8 * 1024 * 1024
+
+
 @pytest.mark.parametrize("field", sorted(DEEPSEEK_CEILINGS))
 def test_paid_arming_admits_a_field_sitting_exactly_on_its_ceiling(
     tmp_path: Path, field: str,

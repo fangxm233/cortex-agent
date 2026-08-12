@@ -613,6 +613,7 @@ def start_trial_proxy(
     metadata = ProxyMetadata(
         trial_id, upstream_base_url, bound_source_ip, absolute_deadline,
         budget, log_path.name, adapter.adapter_id,
+        request_body_limit_bytes, response_body_limit_bytes,
     )
     lease = TrialLease(
         trial_id=trial_id, state=state, server=server,

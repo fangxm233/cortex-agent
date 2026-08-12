@@ -174,6 +174,25 @@ def test_builds_exact_non_secret_arm_resolution() -> None:
     assert "sk-ant-" not in encoded_capabilities
 
 
+def test_writes_the_declared_output_cap_into_the_per_run_record() -> None:
+    """The run record, not the capability evidence, is what carries the declared number.
+
+    `max_output_tokens` was dropped from promotion evidence, so a reader of one trial learns the
+    cap it ran under from this document — and two trials that declare different caps produce two
+    different records.
+    """
+    declared = arm()
+    declared["limits"]["max_output_tokens"] = 32_768
+    raised = arm()
+    raised["limits"]["max_output_tokens"] = 4_096
+
+    document = build_arm_resolution(replace(inputs(), arm=declared))
+    other = build_arm_resolution(replace(inputs(), arm=raised))
+
+    assert document["arm"]["limits"]["max_output_tokens"] == 32_768
+    assert other["arm"]["limits"]["max_output_tokens"] == 4_096
+
+
 def test_accepts_the_immutable_arm_returned_by_selection() -> None:
     selected = select_arm([arm()], "cortex-direct")
     document = build_arm_resolution(replace(inputs(), arm=selected))

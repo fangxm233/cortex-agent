@@ -5,7 +5,7 @@ Per-trial host proxy modules enforce credential, budget, deadline, and source bo
 | filename | role | function |
 |---|---|---|
 | __init__.py | export | Exposes the trial proxy API |
-| models.py | types | Defines budgets, usage, and safe metadata |
+| models.py | types | Defines budgets, usage, and the declared-envelope manifest block |
 | adapters/ | adapters | Carries one provider protocol per capability key |
 | upstream.py | adapter | Forwards requests to one fixed upstream |
 | server.py | core | Enforces admission, final usage freeze, and revocation |

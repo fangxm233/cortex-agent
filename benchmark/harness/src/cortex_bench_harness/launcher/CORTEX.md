@@ -9,7 +9,7 @@ Host launcher modules select immutable arms and project non-secret trial configu
 | arms.py | core | Builds isolated agents with host-only scan references |
 | capability_ceilings.py | policy | Reads the committed per-capability envelope ceilings |
 | comparison_report.py | report | Pins campaign inputs and comparison semantics |
-| capability_evidence.py | boundary | Validates capability promotion provenance |
+| capability_evidence.py | boundary | Validates mechanism-only promotion provenance and its mutation manifest |
 | credential_capabilities.py | registry | Projects host-authoritative capability metadata |
 | deepseek_paid_smoke.py | boundary | Runs the exact bounded DeepSeek paid contract |
 | evidence/ | evidence | Binds immutable capability promotion records |
