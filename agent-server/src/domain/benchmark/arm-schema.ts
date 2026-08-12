@@ -22,6 +22,9 @@ export interface ArmLimits {
   max_resident_agent_processes: number;
   max_cost_usd: string;
   deadline_seconds: number;
+  /** Declared per-response output cap. A run parameter of the arm, never derived from the
+   *  credential capability, so an undeclared or non-positive value refuses the arm. */
+  max_output_tokens: number;
 }
 
 export interface ArmOrchestration {
@@ -74,6 +77,7 @@ const limitsSchema = z.object({
   max_resident_agent_processes: z.number(),
   max_cost_usd: z.string(),
   deadline_seconds: z.number(),
+  max_output_tokens: z.number(),
 }).strict();
 
 const orchestrationSchema = z.object({
@@ -166,9 +170,13 @@ function validatePositiveLimits(limits: ArmLimits): void {
     limits.max_provider_requests,
     limits.max_resident_agent_processes,
     limits.deadline_seconds,
+    limits.max_output_tokens,
   ];
   if (!positive.every(value => Number.isSafeInteger(value) && value > 0)) {
-    fail('limit_out_of_range', 'provider, resident, and deadline limits must be positive integers');
+    fail(
+      'limit_out_of_range',
+      'provider, resident, deadline, and output-token limits must be positive integers',
+    );
   }
 }
 

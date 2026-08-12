@@ -93,6 +93,7 @@ function arm() {
       max_resident_agent_processes: 3,
       max_cost_usd: '2.50',
       deadline_seconds: 90,
+      max_output_tokens: 4096,
     },
   };
 }
@@ -568,6 +569,44 @@ it('requires the evidence-pinned PI version for paid DeepSeek compilation', () =
   })));
 });
 
+// The output cap is a declared run parameter, not a property of the credential's identity: an arm
+// carrying any capability compiles the number it declares, and two arms that differ only in that
+// number compile two different caps.
+it('compiles the output cap declared by the arm, not one keyed off the capability id', () => {
+  const declared = compileResolvedTrialPolicy(resolution(), dependencies());
+  assert.equal(declared.model_execution.max_output_tokens, 4096);
+  assert.equal(declared.limits.max_output_tokens, 4096);
+
+  const raised = resolution();
+  (raised.arm as ReturnType<typeof arm>).limits.max_output_tokens = 32_768;
+  const compiled = compileResolvedTrialPolicy(raised, dependencies());
+  assert.equal(compiled.model_execution.max_output_tokens, 32_768);
+  assert.notEqual(
+    compiled.identity.model_execution_identity_hash.parent,
+    declared.identity.model_execution_identity_hash.parent,
+  );
+});
+
+it('fails closed on a missing or out-of-range declared output cap', () => {
+  const missing = resolution();
+  delete (
+    (missing.arm as ReturnType<typeof arm>).limits as Partial<ReturnType<typeof arm>['limits']>
+  ).max_output_tokens;
+  expectFailure(missing, 'arm_schema_invalid', 1);
+
+  // A non-finite cap never reaches the range check: the closed schema refuses it first.
+  for (const value of [Number.NaN, Number.POSITIVE_INFINITY]) {
+    const input = resolution();
+    (input.arm as ReturnType<typeof arm>).limits.max_output_tokens = value;
+    expectFailure(input, 'arm_schema_invalid', 1);
+  }
+
+  for (const value of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 2]) {
+    const input = resolution();
+    (input.arm as ReturnType<typeof arm>).limits.max_output_tokens = value;
+    expectFailure(input, 'limit_out_of_range', 5);
+  }
+});
 
 it('uses lossless monotonic time for the remaining-deadline accessor', () => {
   const policy = compileResolvedTrialPolicy(resolution(), dependencies());

@@ -116,7 +116,7 @@ function armResolution(cli: string): Record<string, unknown> {
       limits: {
         max_thread_starts: 0, max_parent_questions: 0, max_task_depth: 0, max_tasks: 0,
         max_provider_requests: 8, max_resident_agent_processes: 3, max_cost_usd: '2.50',
-        deadline_seconds: 90,
+        deadline_seconds: 90, max_output_tokens: 4096,
       },
     },
     arm_path: '/harness/arms/cortex-direct.yaml',
@@ -376,7 +376,7 @@ function piRunResolution(
       limits: {
         max_thread_starts: 0, max_parent_questions: 0, max_task_depth: 0, max_tasks: 0,
         max_provider_requests: 8, max_resident_agent_processes: 3, max_cost_usd: '2.50',
-        deadline_seconds: 90,
+        deadline_seconds: 90, max_output_tokens: 4096,
       },
     },
     arm_path: '/harness/arms/cortex-pi-direct.yaml',
@@ -514,7 +514,7 @@ it('labels a PI trial\'s journal and terminal manifest with its own backend (T13
 it('carries the compiled output cap into the PI run identity', async () => {
   const built = piRunFixture(true);
   const expected = built.policy.identity.model_execution_identity_hash.parent;
-  assert.equal(built.policy.model_execution.max_output_tokens, 256);
+  assert.equal(built.policy.model_execution.max_output_tokens, 4096);
 
   const outcome = await runPiTrial(built);
 
@@ -544,6 +544,8 @@ it('carries a non-null neutral CLI name and version into the PI run identity (T1
     configuredRouteBaseHost: execution.configured_route_base_host,
     claudeCliVersion: execution.claude_cli_version,
     reasoningEffort: execution.reasoning_effort,
+    // The declared output cap is part of the frozen identity, so reconstructing the hash needs it.
+    maxOutputTokens: execution.max_output_tokens,
     fallbackEmpty: true as const,
   };
   assert.equal(

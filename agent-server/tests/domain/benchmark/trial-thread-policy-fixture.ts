@@ -154,7 +154,7 @@ export function armResolution(input: TrialPolicyInput): Record<string, unknown> 
       limits: {
         max_thread_starts: 1, max_parent_questions: 0, max_task_depth: 0, max_tasks: 0,
         max_provider_requests: 8, max_resident_agent_processes: 3, max_cost_usd: '2.50',
-        deadline_seconds: 90,
+        deadline_seconds: 90, max_output_tokens: 4096,
       },
     },
     arm_path: `/harness/arms/cortex-${backend}-coder-review.yaml`,

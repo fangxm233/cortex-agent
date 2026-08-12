@@ -39,7 +39,8 @@
         "max_provider_requests": 8,
         "max_resident_agent_processes": 3,
         "max_cost_usd": "2.50",
-        "deadline_seconds": 90
+        "deadline_seconds": 90,
+        "max_output_tokens": 4096
       }
     },
     "limits": {
@@ -50,7 +51,8 @@
       "max_provider_requests": 8,
       "max_resident_agent_processes": 3,
       "max_cost_usd": "2.50",
-      "deadline_seconds": 90
+      "deadline_seconds": 90,
+      "max_output_tokens": 4096
     },
     "adapter_hashes": [
       {
@@ -88,7 +90,7 @@
       {
         "kind": "arm",
         "logical_name": "cortex-direct",
-        "content_sha256": "28ba52ca67fa9ce1f8e623ba26298701942a2f02332ac1e348f2cce9f20b89a7"
+        "content_sha256": "48cbe6e1725bb7c003c4e90ddb27abda57d2529c8e691eb8beaa4ee0e90b562f"
       },
       {
         "kind": "credential_capability",
@@ -103,7 +105,7 @@
       {
         "kind": "limits",
         "logical_name": "cortex-direct",
-        "content_sha256": "b42770901f1e6cd7ffaeb56c693e1259ee73a34e1c58b27c666b5b6f5068459d"
+        "content_sha256": "c8df11c10e32a2b2d8ff36f18c733d485932f74858d73440b01d11bc361f3a06"
       }
     ]
   }
