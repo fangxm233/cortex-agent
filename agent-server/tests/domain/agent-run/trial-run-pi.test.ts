@@ -334,12 +334,13 @@ it('confines the running PI process to the trial root (T11)', async () => {
 // a Claude policy. That distinction is the whole point: the journal records, the terminal manifest
 // and the role-surface equality are written by the runner, so only a real run produces them.
 
-function writePiRunProfile(): void {
+function writePiRunProfile(deepseek = false): void {
   write(path.join(process.env.CORTEX_HOME as string, 'config', 'profiles.json'), JSON.stringify({
     defaultProfile: 'pi-benchmark-profile',
     profiles: {
       'pi-benchmark-profile': {
-        model: 'pi-trial-model', backend: 'pi', provider: 'anthropic',
+        model: deepseek ? 'deepseek-v4-flash' : 'pi-trial-model', backend: 'pi',
+        provider: deepseek ? 'deepseek' : 'anthropic',
         extraEnv: {}, extraOption: {}, claudeBackend: 'print', fallback: [],
       },
     },
@@ -359,13 +360,18 @@ function writePiRpcCli(observation: string): string {
   );
 }
 
-function piRunResolution(cli: string, label: string): Record<string, unknown> {
+function piRunResolution(
+  cli: string, label: string, deepseek = false,
+): Record<string, unknown> {
+  const provider = deepseek ? 'deepseek' : 'anthropic';
+  const model = deepseek ? 'deepseek-v4-flash' : 'pi-trial-model';
+  const capability = deepseek ? 'pi-deepseek-api-key' : 'pi-api-key';
   return {
     schema_version: 'cortex-benchmark-arm-resolution/1',
     arm: {
       schema_version: 'cortex-benchmark-arm/2',
-      kind: 'cortex', name: 'cortex-pi-direct', backend: 'pi', provider: 'anthropic',
-      model: 'pi-trial-model', credential_capability: 'pi-api-key',
+      kind: 'cortex', name: 'cortex-pi-direct', backend: 'pi', provider,
+      model, credential_capability: capability,
       orchestration: { mode: 'direct', ask_manager: false },
       limits: {
         max_thread_starts: 0, max_parent_questions: 0, max_task_depth: 0, max_tasks: 0,
@@ -382,14 +388,17 @@ function piRunResolution(cli: string, label: string): Record<string, unknown> {
     profile_name: 'pi-benchmark-profile', paid_run: false,
     pi_benchmark_capability_proven: true,
     credential_capabilities: [{
-      id: 'pi-api-key', state: 'offline-contract-passed',
+      id: capability, state: 'offline-contract-passed',
       key: {
-        runner_or_backend: 'pi', provider: 'anthropic', protocol: 'anthropic-messages',
-        credential_kind: 'api-key-bearer', proxy_adapter_version: 'cortex-bench-trial-proxy/2',
+        runner_or_backend: 'pi', provider,
+        protocol: deepseek ? 'openai-completions' : 'anthropic-messages',
+        credential_kind: deepseek ? 'api-key' : 'api-key-bearer',
+        proxy_adapter_version: 'cortex-bench-trial-proxy/2',
       },
     }],
     credential: {
-      upstream_base_url: 'https://api.anthropic.com', route_identity_host: 'api.anthropic.com',
+      upstream_base_url: deepseek ? 'https://api.deepseek.com' : 'https://api.anthropic.com',
+      route_identity_host: deepseek ? 'api.deepseek.com' : 'api.anthropic.com',
       proxy_base_url: 'http://127.0.0.1:49152', dummy_token_ref: 'trial-token-handle',
     },
     cli_artifact: { path: cli, version: CLI_VERSION },
@@ -421,11 +430,11 @@ interface RunFixture {
  *  second run into an existing one, and the R4 case below needs two runs in one test. */
 let piFixtures = 0;
 
-function piRunFixture(): RunFixture {
-  writePiRunProfile();
+function piRunFixture(deepseek = false): RunFixture {
+  writePiRunProfile(deepseek);
   const label = `pi-run-${++piFixtures}`;
   const observation = path.join(root, `${label}-observation.json`);
-  const resolution = piRunResolution(writePiRpcCli(observation), label);
+  const resolution = piRunResolution(writePiRpcCli(observation), label, deepseek);
   const runConfigFile = write(path.join(root, `${label}-resolution.json`), JSON.stringify(resolution));
   const workspace = path.join(root, `${label}-workspace`);
   fs.mkdirSync(workspace, { recursive: true });
@@ -501,6 +510,17 @@ it('labels a PI trial\'s journal and terminal manifest with its own backend (T13
   assert.equal(piTerminalManifest(built).event_count, events.length);
   assert.deepEqual(validateTrajectoryRoot(built.options.trajectoryRoot), { ok: true, problems: [] });
 }, 60_000);
+
+it('carries the compiled output cap into the PI run identity', async () => {
+  const built = piRunFixture(true);
+  const expected = built.policy.identity.model_execution_identity_hash.parent;
+  assert.equal(built.policy.model_execution.max_output_tokens, 256);
+
+  const outcome = await runPiTrial(built);
+
+  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
+  assert.equal(piTerminalManifest(built).model_execution_identity_hash, expected);
+});
 
 it('carries a non-null neutral CLI name and version into the PI run identity (T13, R2)', async () => {
   const built = piRunFixture();

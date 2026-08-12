@@ -20,6 +20,8 @@ interface PIAgentEndSummary extends PIPendingCompletion {
   model: string;
   tokensIn: number;
   tokensOut: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
 }
 
 export interface PIEventParserState {
@@ -319,6 +321,8 @@ function emptyAgentEndSummary(): PIAgentEndSummary {
     model: '',
     tokensIn: 0,
     tokensOut: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
   };
 }
 
@@ -336,8 +340,8 @@ function handleAgentEnd(
     model: summary.model,
     tokens_in: summary.tokensIn,
     tokens_out: summary.tokensOut,
-    prompt_tokens: null,
-    cached_tokens: null,
+    prompt_tokens: summary.tokensIn + summary.cacheReadTokens + summary.cacheWriteTokens,
+    cached_tokens: summary.cacheReadTokens,
     cost_usd: summary.totalCostUsd,
   }];
 }
@@ -400,8 +404,16 @@ function captureAssistantUsage(
   const usageRecord = usage as Record<string, unknown>;
   const input = usageRecord['input'];
   const output = usageRecord['output'];
+  const cacheRead = usageRecord['cacheRead'];
+  const cacheWrite = usageRecord['cacheWrite'];
   if (typeof input === 'number' && isFinite(input)) summary.tokensIn += input;
   if (typeof output === 'number' && isFinite(output)) summary.tokensOut += output;
+  if (typeof cacheRead === 'number' && isFinite(cacheRead)) {
+    summary.cacheReadTokens += cacheRead;
+  }
+  if (typeof cacheWrite === 'number' && isFinite(cacheWrite)) {
+    summary.cacheWriteTokens += cacheWrite;
+  }
   const cost = asRecord(usageRecord['cost'])['total'];
   if (typeof cost === 'number' && isFinite(cost)) {
     summary.totalCostUsd = (summary.totalCostUsd ?? 0) + cost;

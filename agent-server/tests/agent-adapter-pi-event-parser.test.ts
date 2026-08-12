@@ -606,10 +606,11 @@ test('turn_complete: successful turn has no error field', () => {
 test('cost_record: provider/model/usage precedes settled turn_complete', () => {
   const events = agentEndThenSettle(freshState(), { type: 'agent_end', messages: [{
     role: 'assistant', provider: 'anthropic', model: 'claude-opus-4',
-    usage: { input: 100, output: 50, cost: { total: 0.001 } },
+    usage: { input: 100, output: 50, cacheRead: 20, cacheWrite: 10,
+      cost: { total: 0.001 } },
   }] });
   assert.deepEqual(events, [
-    { type: 'cost_record', provider: 'anthropic', model: 'claude-opus-4', tokens_in: 100, tokens_out: 50, prompt_tokens: null, cached_tokens: null, cost_usd: 0.001 },
+    { type: 'cost_record', provider: 'anthropic', model: 'claude-opus-4', tokens_in: 100, tokens_out: 50, prompt_tokens: 130, cached_tokens: 20, cost_usd: 0.001 },
     { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.001 },
   ]);
 });
@@ -623,7 +624,7 @@ test('cost_record: multiple messages sum tokens and use the first identity', () 
   assert.deepEqual(events[0], {
     type: 'cost_record', provider: 'anthropic', model: 'claude-opus-4',
     tokens_in: 350, tokens_out: 140,
-    prompt_tokens: null, cached_tokens: null, cost_usd: 0.005,
+    prompt_tokens: 350, cached_tokens: 0, cost_usd: 0.005,
   });
   assert.deepEqual(events[1], { type: 'turn_complete', numTurns: 2, totalCostUsd: 0.005 });
 });
@@ -652,7 +653,7 @@ test('cost_record: absent token counts default to zero', () => {
   assert.deepEqual(events, [{
     type: 'cost_record', provider: 'openai', model: 'gpt-4o',
     tokens_in: 0, tokens_out: 0,
-    prompt_tokens: null, cached_tokens: null, cost_usd: 0.002,
+    prompt_tokens: 0, cached_tokens: 0, cost_usd: 0.002,
   }]);
 });
 
