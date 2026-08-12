@@ -386,9 +386,11 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         self, state: ProxyState, failure: UpstreamAttemptError,
     ) -> None:
         lifecycle_error = state.lifecycle_error()
-        outcome = lifecycle_error[1] if lifecycle_error else "upstream_unavailable"
+        outcome = lifecycle_error[1] if lifecycle_error else failure.reason
         audit_error = state.record_attempt(
             outcome, failure.may_have_reached_upstream)
+        if failure.reason == "upstream_response_too_large":
+            state.deactivate()
         if audit_error is not None:
             self._send_error(500, audit_error)
             return
@@ -415,6 +417,10 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
     def _read_body(self, server: TrialHttpServer) -> bytes | None:
         length = self._content_length()
         if length is None:
+            return None
+        limit = getattr(server.adapter, "request_body_limit_bytes", None)
+        if limit is not None and length > limit:
+            self._send_error(413, "request_body_too_large")
             return None
         server.mark_body_read(self.connection, True)
         self.connection.settimeout(server.state.remaining_seconds())
