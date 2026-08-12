@@ -130,7 +130,7 @@ function armResolution(
       limits: {
         max_thread_starts: 0, max_parent_questions: 0, max_task_depth: 0, max_tasks: 0,
         max_provider_requests: 4, max_resident_agent_processes: 1,
-        max_cost_usd: '1.00', deadline_seconds: 30,
+        max_cost_usd: '1.00', deadline_seconds: 30, max_output_tokens: 4096,
       },
     },
     arm_path: pi ? 'arm://cortex-pi-direct' : 'arm://cortex-direct', trial_id: trialId,

@@ -89,7 +89,7 @@ function armResolution(): Record<string, unknown> {
       limits: {
         max_thread_starts: 0, max_parent_questions: 0, max_task_depth: 0, max_tasks: 0,
         max_provider_requests: 8, max_resident_agent_processes: 3, max_cost_usd: '2.50',
-        deadline_seconds: 90,
+        deadline_seconds: 90, max_output_tokens: 4096,
       },
     },
     arm_path: '/harness/arms/cortex-direct.yaml',
@@ -360,6 +360,18 @@ it('writes exactly the arm provider routed at the policy proxy (P8, P12, A7, A8)
   );
 });
 
+it('pins the declared output cap of a non-DeepSeek arm in the one-provider catalog', () => {
+  const built = piPolicy();
+  const { trial, record } = spawnPi(spec(built, 'declared-cap'));
+  assert.equal(trial.spawnConfig.piModelMaxTokens, 4096);
+  const catalog = JSON.parse(
+    fs.readFileSync(path.join(record.env!.PI_CODING_AGENT_DIR!, 'models.json'), 'utf8'),
+  );
+  assert.deepEqual(catalog.providers.anthropic.modelOverrides, {
+    'claude-sonnet': { maxTokens: 4096 },
+  });
+});
+
 it('pins the DeepSeek benchmark model output cap in the one-provider catalog', () => {
   const built = piPolicy(input => {
     writeProfile({
@@ -367,6 +379,7 @@ it('pins the DeepSeek benchmark model output cap in the one-provider catalog', (
     });
     input.arm.model = 'deepseek-v4-flash';
     input.arm.provider = 'deepseek';
+    input.arm.limits.max_output_tokens = 32_768;
     input.arm.credential_capability = 'pi-deepseek-api-key';
     input.credential_capabilities = [{
       id: 'pi-deepseek-api-key', state: 'offline-contract-passed',
@@ -383,7 +396,7 @@ it('pins the DeepSeek benchmark model output cap in the one-provider catalog', (
     fs.readFileSync(path.join(record.env!.PI_CODING_AGENT_DIR!, 'models.json'), 'utf8'),
   );
   assert.deepEqual(catalog.providers.deepseek.modelOverrides, {
-    'deepseek-v4-flash': { maxTokens: 256 },
+    'deepseek-v4-flash': { maxTokens: 32_768 },
   });
   assert.equal(catalog.providers.deepseek.baseUrl, built.policy.credential.proxy_base_url);
   assert.deepEqual(JSON.parse(fs.readFileSync(

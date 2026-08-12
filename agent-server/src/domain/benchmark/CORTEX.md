@@ -6,7 +6,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 |---|---|---|
 | accounting-reconciliation.ts | 核心 | Reconciles benchmark usage accounting |
 | actor-capability-scope.ts | 核心 | Registers actor capabilities |
-| arm-schema.ts | 类型 | Validates benchmark arm definitions |
+| arm-schema.ts | 类型 | Validates benchmark arm definitions and declared limits |
 | attempt-record.ts | 类型 | Defines benchmark attempt records |
 | capabilities.ts | 策略 | Defines benchmark capability grants |
 | composite-runtime-ports.ts | 类型 | Defines composite runtime ports |
@@ -16,7 +16,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | decimal-text.ts | 工具 | Parses exact decimal values |
 | lease-echo.ts | 核心 | Delivers workspace lease state |
 | policy-backed-runtime-deps.ts | 策略 | Resolves frozen runtime dependencies |
-| policy-compiler.ts | 核心 | Compiles benchmark trial policy |
+| policy-compiler.ts | 核心 | Compiles benchmark trial policy from declared arm limits |
 | proposal-seal.ts | 核心 | Stores and seals task proposals |
 | resolved-policy.ts | 类型 | Defines resolved trial policy |
 | settings-snapshot.ts | 类型 | Captures immutable trial settings |

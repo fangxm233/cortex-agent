@@ -669,8 +669,11 @@ function compileAssets(context: CompileContext): CompilationAssets {
   return { credential, profile, roles, deadline };
 }
 
-function maxOutputTokens(context: CompileContext): number | null {
-  return context.arm.credential_capability === 'pi-deepseek-api-key' ? 256 : null;
+// The output cap is a declared run parameter of the arm, validated positive by the arm schema
+// (`limit_out_of_range`) before it reaches here. Keying it off the credential capability id made
+// one capability mean one fixed number, which is an authorization ratchet rather than a limit.
+function maxOutputTokens(context: CompileContext): number {
+  return context.arm.limits.max_output_tokens;
 }
 
 function modelExecution(
