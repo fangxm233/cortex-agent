@@ -63,7 +63,7 @@ EXPECTED_PROJECTION = [
     },
     {
         "id": "pi-deepseek-api-key",
-        "state": "offline-contract-passed",
+        "state": "live-handshake-passed",
         "key": {
             "runner_or_backend": "pi",
             "provider": "deepseek",
@@ -72,7 +72,7 @@ EXPECTED_PROJECTION = [
             "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
         "evidence_sha256":
-            "cf69aedd2283245b33dd98b0e0845b28e833fc7c8b33866bfeafe1b7b98cc210",
+            "1fe356a1812407ea9115a8fc3eba9a830ed14cbae239bf9f01465150f4a1378b",
     },
     {
         "id": "pi-openai-codex-oauth",

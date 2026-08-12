@@ -59,12 +59,11 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
         CredentialCapability("claude-subscription", "unsupported"),
     _key("pi", "??", "??", "api-key"):
         CredentialCapability("pi-api-key", "unsupported"),
-    # Exact DeepSeek transport row. This state proves only the synthetic upstream contract;
-    # paid arming still requires a separately evidenced live handshake.
+    # Exact DeepSeek transport row, promoted only after one bounded production-PI handshake.
     _key("pi", "deepseek", "openai-completions", "api-key"):
         CredentialCapability(
-            "pi-deepseek-api-key", "offline-contract-passed",
-            "cf69aedd2283245b33dd98b0e0845b28e833fc7c8b33866bfeafe1b7b98cc210",
+            "pi-deepseek-api-key", "live-handshake-passed",
+            "1fe356a1812407ea9115a8fc3eba9a830ed14cbae239bf9f01465150f4a1378b",
         ),
     # This `??` is no longer the interlock it once was: the arming point now refuses an
     # unadmitted row outright, before it reads a credential, so this row fails closed by

@@ -68,7 +68,7 @@ def test_validates_strict_offline_evidence_and_hash(tmp_path: Path) -> None:
     )["mutations_killed"] == 20
 
 
-def test_validates_the_shipped_deepseek_offline_evidence() -> None:
+def test_validates_the_shipped_deepseek_live_evidence() -> None:
     import cortex_bench_harness.launcher.credential_capabilities as registry
 
     key = next(key for key, row in registry.CAPABILITY_REGISTRY.items()
@@ -80,7 +80,8 @@ def test_validates_the_shipped_deepseek_offline_evidence() -> None:
         capability_id=row.id, key=key, state=row.state,
         adapter_id="deepseek-chat-completions/api-key",
     )
-    assert evidence["mutations_total"] == evidence["mutations_killed"] == 32
+    assert evidence["request_count"] == 1
+    assert evidence["conservative_cost_usd"] == "0.00082558"
 
 
 def test_deepseek_offline_evidence_requires_exact_runtime_contract(tmp_path: Path) -> None:
@@ -111,15 +112,13 @@ def test_shipped_offline_evidence_resolves_immutable_supporting_artifacts() -> N
 
     key = next(key for key, row in registry.CAPABILITY_REGISTRY.items()
                if row.id == "pi-deepseek-api-key")
-    row = registry.CAPABILITY_REGISTRY[key]
+    path = registry._evidence_path("pi-deepseek-api-key", "offline-contract-passed")
     evidence = validate_capability_evidence(
-        registry._evidence_path(row.id, row.state), row.evidence_sha256,
-        capability_id=row.id, key=key, state=row.state,
-        adapter_id="deepseek-chat-completions/api-key",
+        path, hashlib.sha256(path.read_bytes()).hexdigest(),
+        capability_id="pi-deepseek-api-key", key=key,
+        state="offline-contract-passed", adapter_id="deepseek-chat-completions/api-key",
     )
-    validate_offline_supporting_artifacts(
-        registry._evidence_path(row.id, row.state).parent, evidence,
-    )
+    validate_offline_supporting_artifacts(path.parent, evidence)
 
 
 def test_rejects_unknown_fields_key_drift_and_hash_drift(tmp_path: Path) -> None:
