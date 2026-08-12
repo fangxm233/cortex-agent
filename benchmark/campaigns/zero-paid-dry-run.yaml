@@ -37,7 +37,11 @@ credential:
   # RUN-LOCAL: the synthetic upstream. A ZERO-PAID run must never name a provider or a gateway.
   upstream_base_url: http://127.0.0.1:9099
   route_identity_host: api.deepseek.com
-  proxy_base_url: http://trial-proxy.invalid
+  # Each trial gets its OWN route at `http://<trial-id>.<proxy_host_suffix>`, because admission
+  # refuses any proxy hostname whose first label is not that trial's id. RUN-LOCAL: the container
+  # has to resolve that name to the host route, so point the suffix at whatever does that in the
+  # run environment (a wildcard record, or an entry the operator publishes for the trial network).
+  proxy_host_suffix: proxy.invalid
   dummy_token_ref: zero-paid-dummy-token
 
 host_scan_policy:
