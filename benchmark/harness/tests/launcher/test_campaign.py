@@ -1,0 +1,833 @@
+# input:  campaign configs, a recording production trial path and published envelopes
+# output: routing, refusal, serial-order, hard-stop, resume and report proofs
+# pos:    Campaign runner behaviour tests
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# The driver is proven black-box: a campaign document goes in, trial roots and one comparison
+# report come out. The production trial path is replaced by a recorder that reserves a fresh root
+# exactly as the real one does, so "the driver never clobbers an existing root" is proven by the
+# same failure the production path would raise rather than by a mock's politeness.
+
+import hashlib
+import json
+import tomllib
+from decimal import Decimal
+from pathlib import Path
+
+import pytest
+import yaml
+
+from cortex_bench_harness import campaign
+from cortex_bench_harness.campaign_config import (
+    CAMPAIGN_SCHEMA_VERSION,
+    CampaignConfigError,
+    load_campaign_config,
+)
+from cortex_bench_harness.host_finalization import (
+    OUTER_ENVELOPE_FILENAME,
+    OUTER_ENVELOPE_SCHEMA_VERSION,
+    parse_host_scan_policy,
+)
+from cortex_bench_harness.launcher.comparison_report import (
+    COMPARISON_REPORT_SCHEMA_VERSION,
+)
+from cortex_bench_harness.launcher.trial_proxy import parse_trial_proxy_spec
+
+DIGEST = f"sha256:{'a' * 64}"
+IMAGE_REF = f"registry.invalid/task@{DIGEST}"
+HARNESS_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = HARNESS_ROOT.parents[1]
+COMMITTED_ZERO_PAID_CONFIG = REPO_ROOT / "benchmark" / "campaigns" / "zero-paid-dry-run.yaml"
+
+
+def arm_document(name: str, **overrides: object) -> dict[str, object]:
+    return {
+        "name": name, "kind": "cortex", "backend": "pi", "provider": "deepseek",
+        "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
+        "orchestration": {"mode": "direct", "ask_manager": False},
+        "limits": {
+            "max_thread_starts": 0, "max_parent_questions": 0, "max_task_depth": 0,
+            "max_tasks": 0, "max_provider_requests": 200, "max_resident_agent_processes": 1,
+            "max_cost_usd": "2.00", "deadline_seconds": 1800, "max_output_tokens": 32768,
+        },
+        **overrides,
+    }
+
+
+def campaign_document(root: Path, **overrides: object) -> dict[str, object]:
+    return {
+        "schema_version": CAMPAIGN_SCHEMA_VERSION,
+        "campaign": "camp-01",
+        "paid": False,
+        "cost_ceiling_usd": "10.00",
+        "trials_dir": str(root / "trials"),
+        "cli_version": "2026.8.12",
+        "manifest": {
+            "wheel_path": str(root / "harness.whl"),
+            "lockfile_path": str(root / "uv.lock"),
+            "lockfile_manifest_path": "benchmark/harness/uv.lock",
+            "npm_artifact_path": str(root / "server.tgz"),
+        },
+        "credential": {
+            "upstream_base_url": "http://127.0.0.1:9880/m/deepseek/deepseek",
+            "route_identity_host": "api.deepseek.com",
+            "proxy_base_url": "http://trial-proxy.invalid",
+            "dummy_token_ref": "offline-token-handle",
+        },
+        "host_scan_policy": {
+            "secret_environment": {"provider_credential": "CORTEX_BENCH_TEST_CREDENTIAL"},
+            "forbidden_environment": {"forbidden": "CORTEX_BENCH_TEST_FORBIDDEN"},
+            "forbidden_argv_environment": {"forbidden": "CORTEX_BENCH_TEST_ARGV"},
+            "repository_checkout_environment": "CORTEX_BENCH_TEST_CHECKOUT",
+            "host_identity_environment": {"machine": "CORTEX_BENCH_TEST_IDENTITY"},
+        },
+        "proxy": {
+            "credential_env": "CORTEX_BENCH_TEST_CREDENTIAL",
+            "bound_source_ip": "172.19.0.2",
+            "max_request_cost_usd": "0.50",
+            "input_cost_per_million_usd": "0.14",
+            "output_cost_per_million_usd": "0.28",
+            "request_body_limit_bytes": 16777216,
+            "response_body_limit_bytes": 16777216,
+            "listen_host": "0.0.0.0",
+        },
+        "arms": [arm_document("cortex-a"), arm_document("cortex-b")],
+        "tasks": [
+            {"task_id": "task-one", "path": str(root / "tasks" / "one"),
+             "image_ref": IMAGE_REF},
+            {"task_id": "task-two", "path": str(root / "tasks" / "two"),
+             "image_ref": IMAGE_REF},
+        ],
+        "comparisons": [
+            {"left_arm": "cortex-a", "right_arm": "cortex-b",
+             "difference_class": "orchestration"},
+        ],
+        **overrides,
+    }
+
+
+def write_campaign(root: Path, document: dict[str, object] | None = None) -> Path:
+    path = root / "campaign.yaml"
+    path.write_text(yaml.safe_dump(document or campaign_document(root)), encoding="utf-8")
+    return path
+
+
+def envelope_document(
+    trial_id: str, arm_name: str, cost_usd: str,
+) -> dict[str, object]:
+    return {
+        "schema_version": OUTER_ENVELOPE_SCHEMA_VERSION,
+        "identity": {"trial_id": trial_id, "root_run_id": f"{trial_id}.{arm_name}",
+                     "arm_name": arm_name},
+        "proxy_usage": {"cost_usd": cost_usd, "requests": 2, "input_tokens": 11,
+                        "output_tokens": 7, "reconciled": True},
+        "grader_admission": {"admitted": True},
+    }
+
+
+def write_envelope(
+    trials_dir: Path, trial_id: str, document: dict[str, object],
+) -> Path:
+    artifacts = trials_dir / trial_id / "artifacts"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    path = artifacts / OUTER_ENVELOPE_FILENAME
+    path.write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def publish_envelope(
+    trials_dir: Path, trial_id: str, arm_name: str, cost_usd: str,
+) -> Path:
+    return write_envelope(
+        trials_dir, trial_id, envelope_document(trial_id, arm_name, cost_usd))
+
+
+class RecordingTrial:
+    def __init__(self, path: "RecordingTrialPath", kwargs: dict[str, object]) -> None:
+        self.path = path
+        self.kwargs = kwargs
+        self.trial_id = str(kwargs["trial_seed"]["trial_id"])
+
+    async def run(self) -> object:
+        if self.trial_id in self.path.failures:
+            raise RuntimeError(f"container refused trial {self.trial_id}")
+        arm_name = str(self.kwargs["arm"]["name"])
+        document = envelope_document(
+            self.trial_id, arm_name,
+            self.path.costs.get(self.trial_id, self.path.default_cost),
+        )
+        write_envelope(
+            Path(str(self.kwargs["trials_dir"])), self.trial_id,
+            self.path.envelope_mutation(document),
+        )
+        self.path.events.append(("finished", self.trial_id))
+        return {"state": "completed"}
+
+
+class RecordingTrialPath:
+    """Stands in for `create_harbor_trial`, including its fresh-root reservation."""
+
+    def __init__(
+        self, *, default_cost: str = "0.60", costs: dict[str, str] | None = None,
+        failures: tuple[str, ...] = (),
+        envelope_mutation: object = None,
+    ) -> None:
+        self.default_cost = default_cost
+        self.costs = costs or {}
+        self.failures = set(failures)
+        self.envelope_mutation = envelope_mutation or (lambda document: document)
+        self.calls: list[dict[str, object]] = []
+        self.events: list[tuple[str, str]] = []
+
+    def install(self, monkeypatch: pytest.MonkeyPatch) -> "RecordingTrialPath":
+        monkeypatch.setattr(campaign, "create_harbor_trial", self._create)
+        return self
+
+    @property
+    def armed(self) -> list[str]:
+        return [trial_id for state, trial_id in self.events if state == "armed"]
+
+    async def _create(self, **kwargs: object) -> RecordingTrial:
+        trial_id = str(kwargs["trial_seed"]["trial_id"])
+        (Path(str(kwargs["trials_dir"])) / trial_id).mkdir(parents=True)
+        self.calls.append(kwargs)
+        self.events.append(("armed", trial_id))
+        return RecordingTrial(self, kwargs)
+
+
+def run_cli(
+    capsys: pytest.CaptureFixture[str], *arguments: str,
+) -> tuple[int, dict[str, object], str]:
+    status = campaign.main(list(arguments))
+    captured = capsys.readouterr()
+    document = json.loads(captured.out) if captured.out.strip() else {}
+    return status, document, captured.err
+
+
+def failure_document(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
+    captured = capsys.readouterr()
+    return json.loads(captured.err)
+
+
+# --- routing and help ---------------------------------------------------------------------------
+
+
+def test_help_documents_the_run_subcommand_and_copyable_examples(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        campaign.main(["--help"])
+
+    assert exit_info.value.code == 0
+    help_text = capsys.readouterr().out
+    assert "run" in help_text
+    assert "cortex-bench run --config" in help_text
+
+
+def test_run_help_lists_the_config_flag_and_an_example(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        campaign.main(["run", "--help"])
+
+    assert exit_info.value.code == 0
+    help_text = capsys.readouterr().out
+    assert "--config" in help_text
+    assert "--dry-run" in help_text
+    assert "cortex-bench run --config" in help_text
+
+
+def test_no_subcommand_is_a_structured_refusal_naming_the_commands(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    status = campaign.main([])
+
+    assert status == 1
+    error = failure_document(capsys)
+    assert error["ok"] is False
+    assert "run" in error["error"]
+
+
+def test_an_unknown_subcommand_is_a_structured_refusal(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    status = campaign.main(["ruk", "--config", "x.yaml"])
+
+    assert status == 1
+    error = failure_document(capsys)
+    assert error["ok"] is False
+    assert "ruk" in error["error"] and "run" in error["error"]
+
+
+def test_run_without_a_config_is_a_structured_refusal(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    status = campaign.main(["run"])
+
+    assert status == 1
+    assert "--config" in failure_document(capsys)["error"]
+
+
+def test_an_unreadable_config_is_a_structured_refusal(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    status = campaign.main(["run", "--config", str(tmp_path / "absent.yaml")])
+
+    assert status == 1
+    assert "absent.yaml" in failure_document(capsys)["error"]
+
+
+def test_the_package_declares_the_public_console_script() -> None:
+    project = tomllib.loads(
+        (HARNESS_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert project["project"]["scripts"] == {
+        "cortex-bench": "cortex_bench_harness.campaign:main",
+    }
+
+
+# --- strict configuration validation ------------------------------------------------------------
+
+
+def test_a_valid_config_parses_into_the_declared_campaign(tmp_path: Path) -> None:
+    config = load_campaign_config(write_campaign(tmp_path))
+
+    assert config.campaign == "camp-01"
+    assert config.paid is False
+    assert config.cost_ceiling_usd == Decimal("10.00")
+    assert config.trials_dir == tmp_path / "trials"
+    assert [arm["name"] for arm in config.arms] == ["cortex-a", "cortex-b"]
+    assert [task.task_id for task in config.tasks] == ["task-one", "task-two"]
+
+
+def test_the_parsed_arm_carries_the_pinned_arm_schema_version(tmp_path: Path) -> None:
+    config = load_campaign_config(write_campaign(tmp_path))
+
+    assert config.arms[0]["schema_version"] == "cortex-benchmark-arm/2"
+    assert config.arms[0]["limits"]["max_output_tokens"] == 32768
+
+
+def test_the_parsed_proxy_and_scan_policy_satisfy_their_existing_parsers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in ("CREDENTIAL", "FORBIDDEN", "ARGV", "CHECKOUT", "IDENTITY"):
+        monkeypatch.setenv(f"CORTEX_BENCH_TEST_{name}", f"value-{name.lower()}")
+    config = load_campaign_config(write_campaign(tmp_path))
+
+    spec = parse_trial_proxy_spec(config.proxy)
+    policy = parse_host_scan_policy(config.host_scan_policy)
+
+    assert spec.request_body_limit_bytes == 16777216
+    assert policy.secrets == {"provider_credential": "value-credential"}
+
+
+def test_the_task_image_digest_is_derived_from_the_pinned_reference(tmp_path: Path) -> None:
+    config = load_campaign_config(write_campaign(tmp_path))
+
+    assert config.tasks[0].image_digest == DIGEST
+    assert config.tasks[0].path == tmp_path / "tasks" / "one"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "fragment"),
+    [
+        ({"trials_root": "/tmp/x"}, "trials_root"),
+        ({"schema_version": "cortex-bench-campaign/9"}, "schema_version"),
+        ({"campaign": ""}, "campaign"),
+        ({"campaign": "Camp 01"}, "campaign"),
+        ({"paid": "false"}, "paid"),
+        ({"cost_ceiling_usd": 10.0}, "cost_ceiling_usd"),
+        ({"cost_ceiling_usd": "0"}, "cost_ceiling_usd"),
+        ({"cost_ceiling_usd": "not-a-number"}, "cost_ceiling_usd"),
+        ({"cli_version": ""}, "cli_version"),
+        ({"arms": []}, "arms"),
+        ({"tasks": []}, "tasks"),
+    ],
+)
+def test_a_malformed_campaign_document_is_refused(
+    tmp_path: Path, mutation: dict[str, object], fragment: str,
+) -> None:
+    path = write_campaign(tmp_path, campaign_document(tmp_path, **mutation))
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(path)
+
+    assert fragment in str(error.value)
+
+
+def test_a_missing_top_level_field_is_refused(tmp_path: Path) -> None:
+    document = campaign_document(tmp_path)
+    del document["proxy"]
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "proxy" in str(error.value)
+
+
+def test_duplicate_arm_names_are_refused(tmp_path: Path) -> None:
+    document = campaign_document(
+        tmp_path, arms=[arm_document("cortex-a"), arm_document("cortex-a")])
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "cortex-a" in str(error.value)
+
+
+def test_duplicate_task_ids_are_refused(tmp_path: Path) -> None:
+    document = campaign_document(tmp_path)
+    document["tasks"][1]["task_id"] = "task-one"
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "task-one" in str(error.value)
+
+
+def test_a_vendor_baseline_arm_is_refused_by_this_schema(tmp_path: Path) -> None:
+    document = campaign_document(
+        tmp_path, arms=[arm_document("vendor", kind="vendor-baseline")])
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "cortex" in str(error.value)
+
+
+def test_an_arm_missing_a_declared_limit_is_refused(tmp_path: Path) -> None:
+    document = campaign_document(tmp_path)
+    del document["arms"][0]["limits"]["max_output_tokens"]
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "max_output_tokens" in str(error.value)
+
+
+def test_an_unpinned_task_image_is_refused(tmp_path: Path) -> None:
+    document = campaign_document(tmp_path)
+    document["tasks"][0]["image_ref"] = "registry.invalid/task:latest"
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "image_ref" in str(error.value)
+
+
+def test_a_comparison_naming_an_undeclared_arm_is_refused(tmp_path: Path) -> None:
+    document = campaign_document(
+        tmp_path,
+        comparisons=[{"left_arm": "cortex-a", "right_arm": "cortex-z",
+                      "difference_class": "orchestration"}],
+    )
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "cortex-z" in str(error.value)
+
+
+def test_relative_paths_resolve_against_the_config_directory(tmp_path: Path) -> None:
+    document = campaign_document(tmp_path)
+    document["trials_dir"] = "trials"
+    document["tasks"][0]["path"] = "tasks/one"
+
+    config = load_campaign_config(write_campaign(tmp_path, document))
+
+    assert config.trials_dir == tmp_path / "trials"
+    assert config.tasks[0].path == tmp_path / "tasks" / "one"
+
+
+def test_a_config_read_from_stdin_resolves_relative_paths_against_the_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    document = campaign_document(tmp_path)
+    document["trials_dir"] = "trials"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        campaign.sys, "stdin", _StringStdin(yaml.safe_dump(document)), raising=False)
+    recorder = RecordingTrialPath().install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", "-")
+
+    assert status == 0
+    assert result["trials_dir"] == str(tmp_path / "trials")
+    assert len(recorder.armed) == 4
+
+
+class _StringStdin:
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    def read(self) -> str:
+        return self._text
+
+
+# --- serial execution through the production trial path -----------------------------------------
+
+
+def test_trials_run_one_at_a_time_in_declared_task_then_arm_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    config_path = write_campaign(tmp_path)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(config_path))
+
+    assert status == 0
+    assert recorder.events == [
+        ("armed", "camp-01-task-one-cortex-a"), ("finished", "camp-01-task-one-cortex-a"),
+        ("armed", "camp-01-task-one-cortex-b"), ("finished", "camp-01-task-one-cortex-b"),
+        ("armed", "camp-01-task-two-cortex-a"), ("finished", "camp-01-task-two-cortex-a"),
+        ("armed", "camp-01-task-two-cortex-b"), ("finished", "camp-01-task-two-cortex-b"),
+    ]
+    assert [trial["trial_id"] for trial in result["trials"]] == recorder.armed
+
+
+def test_each_trial_is_armed_through_the_production_path_with_the_declared_documents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    document = campaign_document(tmp_path)
+    document["tasks"] = [document["tasks"][0]]
+    document["arms"] = [document["arms"][0]]
+    document["comparisons"] = []
+
+    status, _, stderr = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert (status, stderr) == (0, "")
+    kwargs = recorder.calls[0]
+    seed = kwargs["trial_seed"]
+    assert kwargs["arm"] == seed["arm"]
+    assert kwargs["arm"]["name"] == "cortex-a"
+    assert kwargs["cli_version"] == "2026.8.12"
+    assert kwargs["task_path"] == tmp_path / "tasks" / "one"
+    assert kwargs["trials_dir"] == tmp_path / "trials"
+    assert kwargs["trial_proxy"] == document["proxy"]
+    assert kwargs["host_scan_policy"] == document["host_scan_policy"]
+    assert seed["paid_run"] is False
+    assert seed["trial_id"] == "camp-01-task-one-cortex-a"
+    assert seed["root_run_id"] == "camp-01-task-one-cortex-a.cortex-a"
+    assert seed["task"] == {"task_id": "task-one", "image_ref": IMAGE_REF,
+                            "image_digest": DIGEST}
+    assert seed["credential"] == document["credential"]
+    assert kwargs["manifest"]["wheel_path"] == str(tmp_path / "harness.whl")
+    assert kwargs["manifest"]["image_digest"] == DIGEST
+    assert kwargs["manifest"]["trial_id"] == "camp-01-task-one-cortex-a"
+
+
+def test_a_paid_campaign_marks_every_trial_seed_paid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    document = campaign_document(tmp_path, paid=True)
+
+    run_cli(capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert all(call["trial_seed"]["paid_run"] is True for call in recorder.calls)
+
+
+# --- the campaign cost ceiling ------------------------------------------------------------------
+
+
+def test_the_campaign_stops_arming_once_the_ceiling_is_exceeded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath(default_cost="0.60").install(monkeypatch)
+    document = campaign_document(tmp_path, cost_ceiling_usd="1.00")
+
+    status, result, _ = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert status == 0
+    assert recorder.armed == ["camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b"]
+    assert result["state"] == "cost-ceiling-reached"
+    assert result["cost_usd"] == "1.20"
+    assert [trial["state"] for trial in result["trials"]] == ["ran", "ran", "not-armed",
+                                                              "not-armed"]
+
+
+def test_the_ceiling_is_exact_at_the_declared_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath(default_cost="0.50").install(monkeypatch)
+    document = campaign_document(tmp_path, cost_ceiling_usd="1.00")
+
+    status, result, _ = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert status == 0
+    assert len(recorder.armed) == 2
+    assert result["cost_usd"] == "1.00"
+    assert result["state"] == "cost-ceiling-reached"
+
+
+def test_a_campaign_below_its_ceiling_arms_every_declared_trial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 0
+    assert len(recorder.armed) == 4
+    assert result["state"] == "completed"
+    assert result["cost_usd"] == "0.40"
+
+
+def drop_cost(document: dict[str, object]) -> dict[str, object]:
+    del document["proxy_usage"]["cost_usd"]
+    return document
+
+
+def test_a_published_envelope_without_a_cost_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    RecordingTrialPath(envelope_mutation=drop_cost).install(monkeypatch)
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+
+    error = failure_document(capsys)
+    assert status == 1
+    assert "cost_usd" in error["error"]
+
+
+# --- resume, idempotency and non-clobbering -----------------------------------------------------
+
+
+def test_an_existing_completed_trial_root_is_skipped_and_its_cost_still_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+    trials_dir = tmp_path / "trials"
+    publish_envelope(trials_dir, "camp-01-task-one-cortex-a", "cortex-a", "0.70")
+    marker = trials_dir / "camp-01-task-one-cortex-a" / "artifacts" / "keep-me.txt"
+    marker.write_text("prior evidence", encoding="utf-8")
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 0
+    assert "camp-01-task-one-cortex-a" not in recorder.armed
+    assert marker.read_text(encoding="utf-8") == "prior evidence"
+    assert result["trials"][0]["state"] == "skipped"
+    assert result["cost_usd"] == "1.00"
+
+
+def test_re_running_a_finished_campaign_arms_nothing_and_is_idempotent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    config_path = write_campaign(tmp_path)
+    first = RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+    first_status, first_result, _ = run_cli(capsys, "run", "--config", str(config_path))
+    report = Path(str(first_result["report_path"])).read_bytes()
+
+    second = RecordingTrialPath(default_cost="0.99").install(monkeypatch)
+    second_status, second_result, _ = run_cli(capsys, "run", "--config", str(config_path))
+
+    assert (first_status, second_status) == (0, 0)
+    assert len(first.armed) == 4 and second.armed == []
+    assert [trial["state"] for trial in second_result["trials"]] == ["skipped"] * 4
+    assert second_result["cost_usd"] == first_result["cost_usd"]
+    assert Path(str(second_result["report_path"])).read_bytes() == report
+
+
+def test_an_envelope_from_another_trial_is_not_counted_as_this_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    RecordingTrialPath().install(monkeypatch)
+    trials_dir = tmp_path / "trials"
+    write_envelope(
+        trials_dir, "camp-01-task-one-cortex-a",
+        envelope_document("camp-01-task-two-cortex-b", "cortex-b", "0.10"))
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+
+    assert status == 1
+    assert "camp-01-task-one-cortex-a" in failure_document(capsys)["error"]
+
+
+def test_an_unadmitted_envelope_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    def refuse_admission(document: dict[str, object]) -> dict[str, object]:
+        document["grader_admission"] = {"admitted": False}
+        return document
+
+    RecordingTrialPath(envelope_mutation=refuse_admission).install(monkeypatch)
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+
+    assert status == 1
+    assert "grader_admission" in failure_document(capsys)["error"]
+
+
+def test_an_existing_trial_root_without_a_published_envelope_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    RecordingTrialPath().install(monkeypatch)
+    incomplete = tmp_path / "trials" / "camp-01-task-one-cortex-a"
+    incomplete.mkdir(parents=True)
+    (incomplete / "partial.log").write_text("half a trial", encoding="utf-8")
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+
+    error = failure_document(capsys)
+    assert status == 1
+    assert error["ok"] is False
+    assert "camp-01-task-one-cortex-a" in error["error"]
+    assert (incomplete / "partial.log").read_text(encoding="utf-8") == "half a trial"
+
+
+# --- the comparison report ----------------------------------------------------------------------
+
+
+def test_completion_writes_the_existing_comparison_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    report_path = Path(str(result["report_path"]))
+    assert status == 0
+    assert report_path == tmp_path / "trials" / "comparison-report.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["schema_version"] == COMPARISON_REPORT_SCHEMA_VERSION
+    assert report["campaign_id"] == "camp-01"
+    assert report["run_order"] == [
+        "camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b",
+        "camp-01-task-two-cortex-a", "camp-01-task-two-cortex-b",
+    ]
+    assert report["comparisons"] == [
+        {"left_arm": "cortex-a", "right_arm": "cortex-b",
+         "difference_class": "orchestration"},
+    ]
+    first = report["runs"][0]
+    assert first["arm"] == "cortex-a"
+    assert first["cli"] == {"name": "pi", "version": "2026.8.12"}
+    assert first["task"] == {"task_id": "task-one", "image_digest": DIGEST}
+    assert first["limits"] == {"wall_clock_seconds": 1800, "provider_requests": 200,
+                               "cost_usd": "2.00"}
+    assert result["report_sha256"] == hashlib.sha256(report_path.read_bytes()).hexdigest()
+
+
+def test_the_report_telemetry_is_read_from_each_published_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    RecordingTrialPath(default_cost="0.35").install(monkeypatch)
+
+    _, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
+    envelope_path = (tmp_path / "trials" / "camp-01-task-one-cortex-a" / "artifacts"
+                     / OUTER_ENVELOPE_FILENAME)
+    assert report["runs"][0]["cortex_telemetry"] == {
+        "trial_id": "camp-01-task-one-cortex-a",
+        "root_run_id": "camp-01-task-one-cortex-a.cortex-a",
+        "cost_usd": "0.35", "requests": 2, "input_tokens": 11, "output_tokens": 7,
+        "outer_envelope_sha256": hashlib.sha256(envelope_path.read_bytes()).hexdigest(),
+    }
+
+
+def test_a_ceiling_stopped_campaign_still_reports_the_trials_it_ran(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    RecordingTrialPath(default_cost="0.60").install(monkeypatch)
+    document = campaign_document(tmp_path, cost_ceiling_usd="1.00")
+
+    _, result, _ = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
+    assert report["run_order"] == ["camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b"]
+
+
+# --- structured success, failure and dry run ----------------------------------------------------
+
+
+def test_a_successful_campaign_returns_structured_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+
+    status, result, stderr = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert (status, stderr) == (0, "")
+    assert result["ok"] is True
+    assert result["campaign"] == "camp-01"
+    assert result["cost_ceiling_usd"] == "10.00"
+    assert result["started_at"].endswith("Z") and result["ended_at"].endswith("Z")
+    assert result["trials"][0] == {
+        "trial_id": "camp-01-task-one-cortex-a", "arm": "cortex-a", "task_id": "task-one",
+        "state": "ran", "cost_usd": "0.10",
+        "outer_envelope_path": str(
+            tmp_path / "trials" / "camp-01-task-one-cortex-a" / "artifacts"
+            / OUTER_ENVELOPE_FILENAME),
+    }
+
+
+def test_a_failing_trial_stops_the_campaign_with_a_structured_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath(
+        failures=("camp-01-task-one-cortex-b",)).install(monkeypatch)
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+
+    error = failure_document(capsys)
+    assert status == 1
+    assert error["ok"] is False
+    assert "camp-01-task-one-cortex-b" in error["error"]
+    assert recorder.armed == ["camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b"]
+    assert not (tmp_path / "trials" / "comparison-report.json").exists()
+
+
+def test_a_dry_run_plans_every_trial_without_arming_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+
+    status, result, _ = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path)), "--dry-run")
+
+    assert status == 0
+    assert result["dry_run"] is True
+    assert recorder.events == []
+    assert [trial["trial_id"] for trial in result["trials"]] == [
+        "camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b",
+        "camp-01-task-two-cortex-a", "camp-01-task-two-cortex-b",
+    ]
+    assert not (tmp_path / "trials").exists()
+
+
+# --- the committed ZERO-PAID campaign -----------------------------------------------------------
+
+
+def test_the_committed_zero_paid_campaign_config_is_valid_and_unpaid() -> None:
+    config = load_campaign_config(COMMITTED_ZERO_PAID_CONFIG)
+
+    assert config.paid is False
+    assert config.arms and len(config.tasks) >= 2
+    assert all(arm["credential_capability"] for arm in config.arms)
+    assert config.cost_ceiling_usd > 0
+    assert all(not str(task.path).startswith("/var") for task in config.tasks)
+
+
+def test_the_committed_zero_paid_campaign_names_no_provider_or_gateway_endpoint() -> None:
+    config = load_campaign_config(COMMITTED_ZERO_PAID_CONFIG)
+
+    upstream = str(config.credential["upstream_base_url"])
+    assert upstream.startswith("http://127.0.0.1:")
+    assert ":9880" not in upstream
+
+
+def test_the_committed_zero_paid_tasks_load_and_pin_the_declared_image() -> None:
+    from harbor.models.task.task import Task
+
+    config = load_campaign_config(COMMITTED_ZERO_PAID_CONFIG)
+
+    for task in config.tasks:
+        loaded = Task(task_dir=task.path)
+        assert loaded.config.environment.docker_image == task.image_ref
+        assert task.image_ref.endswith(f"@{task.image_digest}")
