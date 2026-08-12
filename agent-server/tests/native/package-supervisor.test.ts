@@ -68,6 +68,19 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
+test('closure installer is a no-op in a checkout without the pack-time asset', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-package-install-'));
+  roots.push(root);
+  const server = copyCleanPackage(root);
+
+  const result = spawnSync(process.execPath, ['scripts/install-bundled-dependencies.mjs'], {
+    cwd: server, encoding: 'utf8',
+  });
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.equal(fs.existsSync(path.join(server, 'node_modules/@clack/core')), false);
+});
+
 test('failed dependency staging removes every partial package copy', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-package-staging-'));
   roots.push(root);

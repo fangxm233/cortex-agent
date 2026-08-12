@@ -19,6 +19,10 @@ function packageEntries() {
 }
 
 function installDependencies() {
+  // A source checkout has no pack-time closure asset (it is staged only by
+  // prepack); the hoisted workspace install already provides the runtime
+  // closure there, so the copy is only needed for packaged installs.
+  if (!fs.existsSync(sourceRoot)) return;
   if (!fs.statSync(sourceRoot).isDirectory()) {
     throw new Error('installed package omitted bundled-dependencies');
   }
