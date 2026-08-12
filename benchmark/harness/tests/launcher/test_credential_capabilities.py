@@ -72,7 +72,7 @@ EXPECTED_PROJECTION = [
             "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
         "evidence_sha256":
-            "9ba4d8860773e59fcdd5cad47f165e9591760c0ea24996b3069555f2391148e9",
+            "cf69aedd2283245b33dd98b0e0845b28e833fc7c8b33866bfeafe1b7b98cc210",
     },
     {
         "id": "pi-openai-codex-oauth",

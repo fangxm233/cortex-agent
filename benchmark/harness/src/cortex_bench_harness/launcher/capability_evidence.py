@@ -15,14 +15,14 @@ CAPABILITY_EVIDENCE_SCHEMA_VERSION = "cortex-bench-capability-evidence/1"
 HEX_LENGTHS = {"implementation_commit": 40, "pi_tree_sha256": 64,
                "model_metadata_sha256": 64}
 DEEPSEEK_OFFLINE_CONTRACT = {
-    "implementation_commit": "4893c331d8e2ba5c5c61f2682963f7613be8f8ee",
+    "implementation_commit": "331bedd51000ec2976d161bee805c010fa2d6cb9",
     "pi_version": "0.82.1",
     "pi_tree_sha256": "2fd2a1a0bbbe8f86a4e54be91fa2fc7dd49fdbdabb3c77c649b2c42b6bf07e1b",
     "model_metadata_sha256": "0dcc807a4e5827b488c6ceac87884ff6e735e01cf4f2ddfec9dd812e6fde041b",
     "request_limit_bytes": 65536,
     "response_limit_bytes": 1048576,
     "max_output_tokens": 256,
-    "mutation_manifest_sha256": "c4d59826cb31bb79b92e0019793cfed670378df0c01113be08d492f0f57457ba",
+    "mutation_manifest_sha256": "691846ca7a3e447680f75086b8811f3d126a881c147838b3fd6fe249a26895f9",
 }
 COMMON_FIELDS = frozenset({
     "schema_version", "capability_id", "state", "capability_key", "adapter_id",
@@ -53,6 +53,18 @@ def validate_capability_evidence(
     _validate_common(document, capability_id, key, state, adapter_id)
     _validate_state(document, state)
     return document
+
+
+def validate_offline_supporting_artifacts(
+    directory: Path, document: Mapping[str, Any],
+) -> None:
+    artifacts = {
+        "model_metadata_sha256": directory / "pi-deepseek-api-key.model-metadata.json",
+        "mutation_manifest_sha256": directory / "pi-deepseek-api-key.mutation-manifest.json",
+    }
+    for field, path in artifacts.items():
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != document[field]:
+            raise ValueError(f"capability evidence {field} supporting artifact mismatch")
 
 
 def _document(payload: bytes) -> dict[str, object]:

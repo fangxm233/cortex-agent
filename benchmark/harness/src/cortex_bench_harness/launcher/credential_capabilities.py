@@ -64,7 +64,7 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
     _key("pi", "deepseek", "openai-completions", "api-key"):
         CredentialCapability(
             "pi-deepseek-api-key", "offline-contract-passed",
-            "9ba4d8860773e59fcdd5cad47f165e9591760c0ea24996b3069555f2391148e9",
+            "cf69aedd2283245b33dd98b0e0845b28e833fc7c8b33866bfeafe1b7b98cc210",
         ),
     # This `??` is no longer the interlock it once was: the arming point now refuses an
     # unadmitted row outright, before it reads a credential, so this row fails closed by
@@ -120,12 +120,18 @@ def _validate_evidence_binding(
     digest = capability.evidence_sha256
     if digest is None:
         raise ValueError(f"credential capability {capability.id} requires evidence")
-    from .capability_evidence import validate_capability_evidence
-    validate_capability_evidence(
-        _evidence_path(capability.id, capability.state), digest,
+    from .capability_evidence import (
+        validate_capability_evidence,
+        validate_offline_supporting_artifacts,
+    )
+    path = _evidence_path(capability.id, capability.state)
+    document = validate_capability_evidence(
+        path, digest,
         capability_id=capability.id, key=key, state=capability.state,
         adapter_id="deepseek-chat-completions/api-key",
     )
+    if capability.state == "offline-contract-passed":
+        validate_offline_supporting_artifacts(path.parent, document)
 
 
 def _evidence_path(capability_id: str, state: CapabilityState) -> Path:
