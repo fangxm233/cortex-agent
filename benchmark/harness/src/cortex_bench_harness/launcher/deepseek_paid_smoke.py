@@ -15,6 +15,7 @@ from .trial_admission import create_harbor_trial
 CAPABILITY_ID = "pi-deepseek-api-key"
 MODEL = "deepseek-v4-flash"
 UPSTREAM = "http://127.0.0.1:9880/m/deepseek/deepseek"
+MAX_OUTPUT_TOKENS = 256
 REQUEST_LIMIT_BYTES = 64 * 1024
 RESPONSE_LIMIT_BYTES = 1024 * 1024
 CREDENTIAL_TTL_SECONDS = 30.0
@@ -78,6 +79,9 @@ def _validate_execution(
         "max_provider_requests": 1, "max_thread_starts": 0,
         "max_resident_agent_processes": 1, "max_cost_usd": "0.05",
         "deadline_seconds": 120,
+        # The completion cap is a declared per-trial limit rather than an adapter constant, so
+        # this one-shot contract has to name the value it was approved for like any other run.
+        "max_output_tokens": MAX_OUTPUT_TOKENS,
     }
     if any(limits.get(key) != value for key, value in limits_exact.items()):
         raise ValueError("DeepSeek paid smoke contract limits differ")

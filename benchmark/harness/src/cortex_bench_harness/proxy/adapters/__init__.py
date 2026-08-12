@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 UNKNOWN_MEMBER = "??"
 
-AdapterFactory = Callable[[str | None, str | None, str | None], ProviderAdapter]
+AdapterFactory = Callable[..., ProviderAdapter]
 
 ADAPTER_REGISTRY: Mapping[tuple[str, ...], AdapterFactory] = MappingProxyType({
     ("claude", "anthropic", "anthropic-messages", "api-key-bearer", PROXY_SCHEMA_VERSION):
@@ -36,8 +36,18 @@ ADAPTER_REGISTRY: Mapping[tuple[str, ...], AdapterFactory] = MappingProxyType({
         OpenAICodexResponsesOAuthAdapter,
 })
 
+# The adapters whose protocol carries a request-side completion cap, and which therefore take the
+# trial's frozen cap. It is declared here rather than discovered by reflection, so which rows bind
+# a cap is one readable fact. A row that is not listed enforces its output bound elsewhere — the
+# cap is dropped at selection rather than silently rewritten into a protocol that has no field
+# for it.
+CAP_BINDING_ADAPTERS: frozenset[AdapterFactory] = frozenset({
+    DeepSeekChatCompletionsApiKeyAdapter,
+})
+
 __all__ = [
     "ADAPTER_REGISTRY",
+    "CAP_BINDING_ADAPTERS",
     "UNKNOWN_MEMBER",
     "AdapterUnavailable",
     "AdapterVersionMismatch",
@@ -55,6 +65,7 @@ __all__ = [
 def select_adapter(
     key: "CredentialCapabilityKey", *, upstream_base_url: str | None = None,
     credential: str | None = None, frozen_model: str | None = None,
+    frozen_completion_cap: int | None = None,
 ) -> ProviderAdapter:
     members = (
         key.runner_or_backend, key.provider, key.protocol,
@@ -73,7 +84,11 @@ def select_adapter(
         raise AdapterUnavailable(
             f"no provider adapter for capability key {members}; "
             f"adapted keys: {sorted(ADAPTER_REGISTRY)}")
-    adapter = factory(upstream_base_url, credential, frozen_model)
+    cap = (
+        {"frozen_completion_cap": frozen_completion_cap}
+        if factory in CAP_BINDING_ADAPTERS else {}
+    )
+    adapter = factory(upstream_base_url, credential, frozen_model, **cap)
     if adapter.schema_version != key.proxy_adapter_version:
         raise AdapterVersionMismatch(
             f"adapter {adapter.adapter_id} is {adapter.schema_version}; "

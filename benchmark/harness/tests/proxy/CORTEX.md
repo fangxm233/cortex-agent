@@ -10,9 +10,9 @@ Proxy tests prove host credential isolation, policy enforcement, and Docker egre
 | test_container_boundary.py | test | Proves source and egress containment in Docker |
 | test_proxy_manifest.py | test | Verifies the credential-free proxy manifest block |
 | test_cli.py | test | Verifies the module command interface |
-| test_adapter_selection.py | test | Verifies exact-key selection and refusals |
+| test_adapter_selection.py | test | Verifies exact-key selection, the frozen cap binding, and refusals |
 | test_anthropic_adapter.py | test | Verifies the row-1 adapter duties |
-| test_deepseek_adapter.py | test | Verifies bounded DeepSeek chat completions |
+| test_deepseek_adapter.py | test | Verifies DeepSeek chat completions under a frozen per-trial cap |
 | test_adapter_seam.py | test | Verifies duty order, refusals, and audit |
 | test_offline_containment.py | test | Proves H7 and host-set properties offline |
 | test_openai_codex_adapter.py | test | Verifies the Codex responses adapter duties |

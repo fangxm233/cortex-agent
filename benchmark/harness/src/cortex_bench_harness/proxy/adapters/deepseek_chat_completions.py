@@ -13,7 +13,6 @@ from .base import AuthInjectionUnavailable, Billable, BodyDecision, RouteDecisio
 ADAPTER_ID = "deepseek-chat-completions/api-key"
 CHAT_COMPLETIONS_ROUTE = "chat_completions"
 CHAT_COMPLETIONS_PATHS = frozenset({"/chat/completions", "/v1/chat/completions"})
-MAX_COMPLETION_TOKENS = 256
 FORWARDED_HEADERS = frozenset({"accept", "content-type"})
 
 
@@ -23,11 +22,15 @@ class DeepSeekChatCompletionsApiKeyAdapter:
 
     def __init__(
         self, upstream_base_url: str | None = None, credential: str | None = None,
-        frozen_model: str | None = None,
+        frozen_model: str | None = None, frozen_completion_cap: int | None = None,
     ) -> None:
         self.upstream_hosts = _upstream_hosts(upstream_base_url)
         self._credential = _validated_credential(credential)
         self._frozen_model = frozen_model
+        # The completion cap has the same shape as the frozen model: it is a per-trial datum the
+        # launcher hands in, never a value compiled into this module. Absent means no request is
+        # admitted, rather than a shipped default the trial never declared.
+        self._frozen_completion_cap = _validated_completion_cap(frozen_completion_cap)
 
     def validate_route(self, method: str, path: str) -> RouteDecision:
         target = urlsplit(path)
@@ -54,7 +57,23 @@ class DeepSeekChatCompletionsApiKeyAdapter:
             return "request_model_unfrozen"
         if model != self._frozen_model:
             return "request_model_mismatch"
-        return _request_policy_reason(document)
+        return self._request_policy_reason(document)
+
+    def _request_policy_reason(self, document: dict[str, object]) -> str | None:
+        if document.get("stream") is not True:
+            return "request_stream_required"
+        options = document.get("stream_options")
+        if not isinstance(options, dict) or options.get("include_usage") is not True:
+            return "request_stream_usage_required"
+        # A body defect is named before the adapter's own missing cap, so the conflict refusal
+        # keeps its meaning whether or not a cap was frozen.
+        if "max_tokens" in document:
+            return "request_completion_cap_conflict"
+        if self._frozen_completion_cap is None:
+            return "request_completion_cap_unfrozen"
+        if document.get("max_completion_tokens") != self._frozen_completion_cap:
+            return "request_completion_cap_mismatch"
+        return None
 
     def inject_auth(self, headers: Mapping[str, str], route_id: str) -> dict[str, str]:
         if route_id != CHAT_COMPLETIONS_ROUTE:
@@ -99,19 +118,6 @@ class _ParsedStream:
         self.done = done
         self.malformed = malformed
         self.data_after_done = data_after_done
-
-
-def _request_policy_reason(document: dict[str, object]) -> str | None:
-    if document.get("stream") is not True:
-        return "request_stream_required"
-    options = document.get("stream_options")
-    if not isinstance(options, dict) or options.get("include_usage") is not True:
-        return "request_stream_usage_required"
-    if "max_tokens" in document:
-        return "request_completion_cap_conflict"
-    if document.get("max_completion_tokens") != MAX_COMPLETION_TOKENS:
-        return "request_completion_cap_mismatch"
-    return None
 
 
 def _parse_stream(body: bytes) -> _ParsedStream:
@@ -187,6 +193,18 @@ def _upstream_hosts(upstream_base_url: str | None) -> tuple[str, ...]:
     if not host:
         raise ValueError("upstream_base_url must name a host")
     return (host,)
+
+
+def _validated_completion_cap(frozen_completion_cap: object) -> int | None:
+    if frozen_completion_cap is None:
+        return None
+    if (
+        not isinstance(frozen_completion_cap, int)
+        or isinstance(frozen_completion_cap, bool)
+        or frozen_completion_cap <= 0
+    ):
+        raise ValueError("frozen_completion_cap must be a positive integer")
+    return frozen_completion_cap
 
 
 def _validated_credential(credential: str | None) -> str | None:

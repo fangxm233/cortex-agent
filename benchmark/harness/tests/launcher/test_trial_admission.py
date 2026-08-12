@@ -302,6 +302,8 @@ def trial_proxy_spec(**overrides: object) -> dict[str, object]:
         "max_request_cost_usd": "1.00",
         "input_cost_per_million_usd": "3",
         "output_cost_per_million_usd": "15",
+        "request_body_limit_bytes": 16 * 1024 * 1024,
+        "response_body_limit_bytes": 16 * 1024 * 1024,
         "listen_host": "0.0.0.0",
         **overrides,
     }

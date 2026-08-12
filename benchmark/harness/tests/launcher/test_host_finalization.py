@@ -117,6 +117,8 @@ def proxy_spec() -> dict[str, object]:
         "credential_env": CREDENTIAL_ENV, "bound_source_ip": "127.0.0.1",
         "max_request_cost_usd": "1.00", "input_cost_per_million_usd": "3",
         "output_cost_per_million_usd": "15",
+        "request_body_limit_bytes": 16 * 1024 * 1024,
+        "response_body_limit_bytes": 16 * 1024 * 1024,
     }
 
 

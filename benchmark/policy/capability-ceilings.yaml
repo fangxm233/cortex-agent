@@ -1,0 +1,40 @@
+# input:  the approved per-capability ceiling for every paid envelope field
+# output: the upper bound a declared run envelope is validated against
+# pos:    Committed capability ceiling policy
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# These are configuration, not code. A run declares its own envelope; the launcher only checks
+# `envelope <= ceiling` for the capability the run names. Editing this file is a normal reviewable
+# diff whose audit trail is git history — it needs no source change and no release.
+#
+# What a ceiling does: it catches a typo (30.00 where 3.00 was meant) and stops silent drift in a
+# campaign config an agent authored. What it does not do: act as an adversarial control, since
+# anything that can write a campaign config can write this file too. The real control is that a
+# paid run is an approval-gated action and both files are reviewable artifacts.
+#
+# A capability absent from this document has no approved envelope at all, so a paid run naming it
+# is refused rather than run unbounded.
+#
+# Sizing (measured 2026-08-12; ~/.aistatus/usage gateway records, n=10,999 DeepSeek flash requests,
+# and ~/.cortex/data/costs.jsonl, n=566 flash sessions — see
+# context/projects/cortex-self/plans/benchmark-paid-envelope-design.md §3.1-3.2). Ceilings sit well
+# above measured usage on purpose: a trial truncated at its cap still costs money and yields no
+# result, so a cap below the work's natural size converts spend into waste rather than preventing it.
+
+schema_version: cortex-bench-capability-ceilings/1
+capabilities:
+  pi-deepseek-api-key:
+    # p90 task-dispatch session $2.49, max $15.65; suggested campaign default 2.00
+    max_cost_usd: "10.00"
+    # per-request p99 $0.060, max $0.0749; suggested campaign default 0.50
+    max_request_cost_usd: "2.00"
+    # per-request latency median ~1.1 s, max 58 s; a multi-turn task needs room for commands
+    deadline_seconds: 7200
+    # median session ~12k output tokens at ~268 tokens/response ~ 45 responses
+    max_provider_requests: 1000
+    # per-response median 268, p99.9 14.5k, max 28.2k; the model supports 384k
+    max_output_tokens: 131072
+    # input median ~0.40 MiB, max ~2.04 MiB; 64 MiB
+    request_body_limit_bytes: 67108864
+    # streamed SSE framing multiplies raw output text several times over; 64 MiB
+    response_body_limit_bytes: 67108864

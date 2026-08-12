@@ -7,6 +7,7 @@ Launcher tests cover arm routing, credential projections, and vendor isolation.
 | trial_fixtures.py | fixture | Builds arm, seed and spec documents and admits a row |
 | test_arm_resolution.py | test | Verifies seed parsing and frozen phase-A composition |
 | test_arms.py | test | Verifies selection, seed binding, routing, and refusals |
+| test_capability_ceilings.py | test | Proves the committed ceiling policy and its refusals |
 | test_capability_evidence.py | test | Proves strict promotion evidence binding |
 | test_capability_state_gate.py | test | Proves an unadmitted row never reaches an armed route |
 | test_comparison_report.py | test | Verifies campaign pins and comparison semantics |
@@ -20,6 +21,6 @@ Launcher tests cover arm routing, credential projections, and vendor isolation.
 | test_trial_admission.py | test | Proves sealed admission and host scan reference safety |
 | test_trial_admission_container.py | test | Proves concurrent production trial isolation in Docker |
 | fake_containment_claude.mjs | fixture | Probes sibling state, process and route denial |
-| test_trial_proxy_wiring.py | test | Proves final accounting and handler-free revocation |
+| test_trial_proxy_wiring.py | test | Proves declared-envelope refusals, final accounting and handler-free revocation |
 | test_variant_role_sets.py | test | Verifies both coder-review variant role sets on both backends |
 | test_vendor_baseline_isolation.py | test | Proves native baselines exclude Cortex imports and config |
