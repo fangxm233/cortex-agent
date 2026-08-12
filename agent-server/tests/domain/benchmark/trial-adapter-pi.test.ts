@@ -388,7 +388,7 @@ it('pins the DeepSeek benchmark model output cap in the one-provider catalog', (
   assert.equal(catalog.providers.deepseek.baseUrl, built.policy.credential.proxy_base_url);
   assert.deepEqual(JSON.parse(fs.readFileSync(
     path.join(record.env!.PI_CODING_AGENT_DIR!, 'auth.json'), 'utf8',
-  )), { deepseek: { type: 'api', key: built.policy.credential.dummy_token_ref } });
+  )), { deepseek: { type: 'api_key', key: built.policy.credential.dummy_token_ref } });
 });
 
 it('never routes a PI trial at the host gateway (P12)', () => {

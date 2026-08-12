@@ -72,7 +72,7 @@ function writeTrialAuth(agentDir: string, policy: ResolvedTrialPolicy): void {
   }
   const temporary = `${authPath}.${process.pid}.${Date.now()}.tmp`;
   const content = `${JSON.stringify({
-    [provider]: { type: 'api', key: policy.credential.dummy_token_ref },
+    [provider]: { type: 'api_key', key: policy.credential.dummy_token_ref },
   }, null, 2)}\n`;
   fs.writeFileSync(temporary, content, { flag: 'wx', mode: 0o600 });
   try { fs.renameSync(temporary, authPath); }
@@ -192,7 +192,7 @@ function assertPiProjection(spec: TrialAdapterSpec, env: NodeJS.ProcessEnv): voi
   const providers = objectValue(models.providers);
   const selected = objectValue(providers[provider]);
   if (JSON.stringify(auth) !== JSON.stringify({
-    [provider]: { type: 'api', key: spec.policy.credential.dummy_token_ref },
+    [provider]: { type: 'api_key', key: spec.policy.credential.dummy_token_ref },
   })) throw new Error('PI trial auth differs from the fixed dummy credential');
   const selectedKeys = Object.keys(selected);
   const allowedSelected = selectedKeys.every(

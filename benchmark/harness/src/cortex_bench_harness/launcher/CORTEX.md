@@ -10,6 +10,7 @@ Host launcher modules select immutable arms and project non-secret trial configu
 | comparison_report.py | report | Pins campaign inputs and comparison semantics |
 | capability_evidence.py | boundary | Validates capability promotion provenance |
 | credential_capabilities.py | registry | Projects host-authoritative capability metadata |
+| deepseek_paid_smoke.py | boundary | Runs the exact bounded DeepSeek paid contract |
 | host_credential_vault.py | boundary | Transfers one host credential by opaque handle |
 | lease_bound.py | policy | Computes the provisional credential-lease bound |
 | trial_admission.py | boundary | Seals launch evidence, mounts and proxy egress |
