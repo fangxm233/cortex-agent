@@ -52,7 +52,10 @@ SPEC_REQUIRED_FIELDS = frozenset({
     "credential_env", "bound_source_ip", "max_request_cost_usd",
     "input_cost_per_million_usd", "output_cost_per_million_usd",
 })
-SPEC_OPTIONAL_FIELDS = frozenset({"listen_host", "advertised_host"})
+SPEC_OPTIONAL_FIELDS = frozenset({
+    "listen_host", "advertised_host", "request_body_limit_bytes",
+    "response_body_limit_bytes",
+})
 
 
 @dataclass(frozen=True)
@@ -70,6 +73,8 @@ class TrialProxySpec:
     output_cost_per_million_usd: Decimal
     listen_host: str = "127.0.0.1"
     advertised_host: str | None = None
+    request_body_limit_bytes: int | None = None
+    response_body_limit_bytes: int | None = None
 
 
 def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
@@ -91,6 +96,10 @@ def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
         output_cost_per_million_usd=_decimal(source, "output_cost_per_million_usd"),
         listen_host=_optional_text(source, "listen_host", "127.0.0.1"),
         advertised_host=advertised,
+        request_body_limit_bytes=_optional_positive_int(
+            source, "request_body_limit_bytes"),
+        response_body_limit_bytes=_optional_positive_int(
+            source, "response_body_limit_bytes"),
     )
 
 
@@ -175,7 +184,9 @@ class CapabilityStateRefused(Exception):
     """A route was asked for on behalf of a capability row no authority admits."""
 
 
-def _admitted_capability_key(capability_id: str) -> CredentialCapabilityKey:
+def _admitted_capability_key(
+    capability_id: str, *, paid_run: bool = False,
+) -> CredentialCapabilityKey:
     """The key an admitted row names, or a refusal.
 
     The registry is host-authoritative and is readable right here, while the compiler that enforces
@@ -189,6 +200,19 @@ def _admitted_capability_key(capability_id: str) -> CredentialCapabilityKey:
         raise CapabilityStateRefused(
             f"credential capability {capability_id!r} is {state}; a route is never armed for a "
             "capability row no authority admits")
+    if paid_run and state != "live-handshake-passed":
+        raise CapabilityStateRefused(
+            f"credential capability {capability_id!r} is {state}; paid routes require "
+            "live-handshake-passed")
+    return key
+
+
+def require_capability_admission(
+    arm: Mapping[str, object], *, paid_run: bool = False,
+) -> CredentialCapabilityKey:
+    capability_id = _text(arm, "credential_capability")
+    key = _admitted_capability_key(capability_id, paid_run=paid_run)
+    _validate_arm_capability(arm, key)
     return key
 
 
@@ -208,7 +232,8 @@ def _start_proxy_session(
             budget_ms=budget_ms, teardown_grace_ms=TEARDOWN_GRACE_MS,
         ),
         listen_host=spec.listen_host, advertised_host=spec.advertised_host,
-        now_ms=now_ms,
+        now_ms=now_ms, request_body_limit_bytes=spec.request_body_limit_bytes,
+        response_body_limit_bytes=spec.response_body_limit_bytes,
     )
     return TrialProxySession(
         handle=handle, upstream_base_url=upstream_base_url,
@@ -222,14 +247,19 @@ def arm_trial_proxy(
     spec: TrialProxySpec, proxy_dir: Path, trial_roots: Sequence[Path],
     environ: Mapping[str, str] | None = None,
     now_ms: Callable[[], int] = host_now_ms,
+    host_credential: str | None = None,
+    paid_run: bool = False,
 ) -> TrialProxySession:
     """Arm the trial's credential route. Called before the container is created."""
     _require_contained(proxy_dir, trial_roots)
     capability_id = _text(arm, "credential_capability")
-    key = _admitted_capability_key(capability_id)
+    key = require_capability_admission(arm, paid_run=paid_run)
+    if paid_run and capability_id == "pi-deepseek-api-key":
+        _validate_paid_deepseek_contract(arm, spec)
+    credential = host_credential or _host_credential(spec.credential_env, environ)
     adapter = select_adapter(
         key, upstream_base_url=upstream_base_url,
-        credential=_host_credential(spec.credential_env, environ),
+        credential=credential,
         frozen_model=_text(arm, "model"),
     )
     session = _start_proxy_session(
@@ -293,6 +323,38 @@ def _adapter_selection_record(
     }
 
 
+def _validate_arm_capability(
+    arm: Mapping[str, object], key: CredentialCapabilityKey,
+) -> None:
+    backend = _text(arm, "backend")
+    provider = _text(arm, "provider")
+    if backend != key.runner_or_backend or provider != key.provider:
+        raise CapabilityStateRefused(
+            "arm backend/provider differs from credential capability key")
+
+
+def _validate_paid_deepseek_contract(
+    arm: Mapping[str, object], spec: TrialProxySpec,
+) -> None:
+    limits = _limits(arm)
+    exact = {
+        "model": "deepseek-v4-flash",
+        "max_provider_requests": 1,
+        "max_thread_starts": 0,
+        "max_resident_agent_processes": 1,
+        "max_cost_usd": "0.05",
+        "deadline_seconds": 120,
+    }
+    values = {"model": arm.get("model"), **limits}
+    proxy_exact = (
+        spec.max_request_cost_usd == Decimal("0.05")
+        and spec.request_body_limit_bytes == 64 * 1024
+        and spec.response_body_limit_bytes == 1024 * 1024
+    )
+    if any(values.get(field) != value for field, value in exact.items()) or not proxy_exact:
+        raise CapabilityStateRefused("paid DeepSeek contract differs from live capability")
+
+
 def _host_credential(name: str, environ: Mapping[str, str] | None) -> str:
     values = os.environ if environ is None else environ
     credential = values.get(name)
@@ -351,6 +413,15 @@ def _optional_text(values: Mapping[str, Any], key: str, default: str) -> str:
     value = values.get(key, default)
     if not isinstance(value, str) or not value:
         raise ValueError(f"{key} must be a non-empty string")
+    return value
+
+
+def _optional_positive_int(values: Mapping[str, Any], key: str) -> int | None:
+    value = values.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{key} must be a positive integer")
     return value
 
 

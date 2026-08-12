@@ -52,6 +52,7 @@ export { PolicyCompilationError } from './resolved-policy.js';
 export interface CredentialCapabilityProjection {
   id: string;
   state: CredentialCapabilityState;
+  evidence_sha256?: string;
   key: {
     runner_or_backend: string;
     provider: string;
@@ -228,7 +229,11 @@ function resolveCredential(context: CompileContext): CredentialCapabilityProject
   const credential = context.input.credential_capabilities.find(candidate => candidate.id === id);
   if (!credential) fail('credential_capability_unknown', id);
   if (credential.state === 'unsupported') fail('credential_capability_unsupported', id);
-  if (context.input.paid_run && credential.state !== 'live-handshake-passed') {
+  const paidStateInsufficient = context.input.paid_run
+    && credential.state !== 'live-handshake-passed';
+  const paidDeepseekVersionMismatch = context.input.paid_run
+    && id === 'pi-deepseek-api-key' && context.input.cli_artifact.version !== '0.82.1';
+  if (paidStateInsufficient || paidDeepseekVersionMismatch) {
     fail('credential_capability_state_insufficient', id);
   }
   appendInventory(
@@ -664,6 +669,10 @@ function compileAssets(context: CompileContext): CompilationAssets {
   return { credential, profile, roles, deadline };
 }
 
+function maxOutputTokens(context: CompileContext): number | null {
+  return context.arm.credential_capability === 'pi-deepseek-api-key' ? 256 : null;
+}
+
 function modelExecution(
   context: CompileContext,
   profile: ResolvedProfileConfig,
@@ -678,6 +687,7 @@ function modelExecution(
     cli_name: profile.backend,
     cli_version: context.input.cli_artifact.version,
     reasoning_effort: profile.thinking,
+    max_output_tokens: maxOutputTokens(context),
     fallback_empty: true,
   };
 }
@@ -693,6 +703,7 @@ function modelExecutionHash(value: ResolvedPolicyModelExecution): string {
     cliName: value.cli_name,
     cliVersion: value.cli_version,
     reasoningEffort: value.reasoning_effort,
+    maxOutputTokens: value.max_output_tokens,
     fallbackEmpty: true,
   });
 }
@@ -794,6 +805,9 @@ function resolvedCredential(
   return {
     capability_key: selected.id,
     capability_state: selected.state,
+    ...(selected.evidence_sha256 === undefined ? {} : {
+      evidence_sha256: selected.evidence_sha256,
+    }),
     ...context.input.credential,
   };
 }

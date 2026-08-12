@@ -23,6 +23,7 @@ from harbor.trial.trial import Trial
 
 from capability_admission import admit_capability
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
+from cortex_bench_harness.launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
     ADMISSION_ENVIRONMENT_IMPORT_PATH,
@@ -155,6 +156,17 @@ def arm() -> dict[str, object]:
     }
 
 
+def deepseek_arm() -> dict[str, object]:
+    value = arm()
+    value.update(
+        name="cortex-deepseek-direct", backend="pi", provider="deepseek",
+        model="deepseek-v4-flash", credential_capability="pi-deepseek-api-key",
+    )
+    value["limits"] = {**value["limits"], "max_provider_requests": 1,
+                       "max_cost_usd": "0.05"}
+    return value
+
+
 def seed() -> dict[str, object]:
     return {
         "arm": arm(),
@@ -261,6 +273,28 @@ def test_public_entry_builds_the_sealed_trial_config(tmp_path: Path) -> None:
     assert config.agent.env == EXPECTED_ENVIRONMENT
 
 
+def test_deepseek_identity_is_admitted_without_container_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    admit_capability(monkeypatch, "pi-deepseek-api-key")
+    kwargs = launch_kwargs(tmp_path)
+    deepseek = deepseek_arm()
+    deepseek_seed = dict(kwargs["trial_seed"])
+    deepseek_seed.update(arm=deepseek, arm_path="arm://cortex-deepseek-direct",
+                         pi_benchmark_capability_proven=True)
+    credential = dict(deepseek_seed["credential"])
+    credential.update(upstream_base_url="https://api.deepseek.com",
+                      route_identity_host="api.deepseek.com")
+    deepseek_seed["credential"] = credential
+    kwargs.update(arm=deepseek, trial_seed=deepseek_seed)
+
+    config = build_harbor_trial_config(**kwargs)
+
+    assert "DEEPSEEK_API_KEY" not in config.agent.env
+    assert "DEEPSEEK_BASE_URL" not in config.agent.env
+    assert "CLAUDE_CONFIG_DIR" not in config.agent.env
+
+
 def trial_proxy_spec(**overrides: object) -> dict[str, object]:
     return {
         "credential_env": "CORTEX_BENCH_TEST_CREDENTIAL",
@@ -341,6 +375,21 @@ def test_trial_id_cannot_collapse_the_isolated_trial_root(tmp_path: Path) -> Non
 
     with pytest.raises(HarborTrialAdmissionError, match="DNS label"):
         build_harbor_trial_config(**kwargs)
+
+
+def test_create_harbor_trial_purges_an_unconsumed_credential_on_build_failure(
+    tmp_path: Path,
+) -> None:
+    handle = HOST_CREDENTIAL_VAULT.store("synthetic-secret", ttl_seconds=30)
+    kwargs = launch_kwargs(tmp_path)
+    kwargs["credential_handle"] = handle
+    kwargs["trial_proxy"] = None
+
+    with pytest.raises(HarborTrialAdmissionError, match="current trial proxy"):
+        asyncio.run(create_harbor_trial(**kwargs))
+
+    with pytest.raises(LookupError, match="unavailable"):
+        HOST_CREDENTIAL_VAULT.consume(handle)
 
 
 def test_exact_public_entry_reaches_harbor_environment_factory(tmp_path: Path) -> None:

@@ -37,6 +37,7 @@ if TYPE_CHECKING:
         build_comparison_report,
         render_comparison_report,
     )
+    from .deepseek_paid_smoke import run_deepseek_paid_smoke
     from .credential_capabilities import (
         CAPABILITY_REGISTRY,
         CAPABILITY_STATES,
@@ -92,6 +93,7 @@ _EXPORT_MODULES = {
         "build_comparison_report",
         "render_comparison_report",
     ], ".comparison_report"),
+    "run_deepseek_paid_smoke": ".deepseek_paid_smoke",
     **dict.fromkeys([
         "CAPABILITY_REGISTRY",
         "CAPABILITY_STATES",

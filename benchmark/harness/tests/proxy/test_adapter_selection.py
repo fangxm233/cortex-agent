@@ -22,6 +22,9 @@ from cortex_bench_harness.proxy.models import PROXY_SCHEMA_VERSION
 ROW_ONE = CredentialCapabilityKey(
     "claude", "anthropic", "anthropic-messages", "api-key-bearer",
 )
+DEEPSEEK_ROW = CredentialCapabilityKey(
+    "pi", "deepseek", "openai-completions", "api-key",
+)
 SKEWED_VERSION = "cortex-bench-trial-proxy/999"
 
 
@@ -47,6 +50,12 @@ def test_selects_row_one_adapter_for_the_exact_key() -> None:
     adapter = select_adapter(ROW_ONE)
     assert isinstance(adapter, AnthropicMessagesApiKeyAdapter)
     assert adapter.adapter_id == "anthropic-messages/api-key-bearer"
+    assert adapter.schema_version == PROXY_SCHEMA_VERSION
+
+
+def test_selects_the_exact_deepseek_openai_completions_key() -> None:
+    adapter = select_adapter(DEEPSEEK_ROW)
+    assert adapter.adapter_id == "deepseek-chat-completions/api-key"
     assert adapter.schema_version == PROXY_SCHEMA_VERSION
 
 

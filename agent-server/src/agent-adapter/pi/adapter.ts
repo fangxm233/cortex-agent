@@ -1018,13 +1018,16 @@ export class PIAdapter implements AgentAdapter {
   }
 
   private gatewayOverrides(
-    discovered: string[],
-    currentProvider: string | null,
-    gatewayPath: string | null,
+    discovered: string[], currentProvider: string | null,
+    gatewayPath: string | null, model: string | undefined, maxTokens?: number,
   ): ProviderOverride[] {
     if (currentProvider) {
       const [current] = buildProviderOverrides([], currentProvider, gatewayPath);
-      this.configuredProviderOverrides.set(currentProvider, current);
+      const modelOverrides = model && maxTokens !== undefined
+        ? { [model]: { maxTokens } } : undefined;
+      this.configuredProviderOverrides.set(currentProvider, {
+        ...current, ...(modelOverrides ? { modelOverrides } : {}),
+      });
     }
     const byName = new Map(
       buildProviderOverrides(discovered, null, null).map((override) => [override.name, override]),
@@ -1075,6 +1078,8 @@ export class PIAdapter implements AgentAdapter {
         this.providerDiscovery.getProviders(),
         config.piProvider ?? null,
         config.piGatewayPath ?? null,
+        config.model,
+        config.piModelMaxTokens,
       ),
       this.userModelsPath ? readCustomProviderEntries(this.userModelsPath) : {},
     );

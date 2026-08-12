@@ -27,6 +27,8 @@ export interface ProviderOverride {
    * the static table covers the known cases.
    */
   compat?: Record<string, unknown>;
+  /** Exact built-in model metadata overrides for this spawn. */
+  modelOverrides?: Record<string, { maxTokens: number }>;
   /**
    * Complete provider block for a user-defined provider, written verbatim. PI knows nothing about
    * such a provider, so a `baseUrl`-only override would strip the protocol (`api`) and the model
@@ -76,13 +78,16 @@ export function writeProvidersConfig(
       continue;
     }
     const basePath = p.basePath ?? `/${p.name}`;
-    const entry: { baseUrl: string; compat?: Record<string, unknown> } = {
-      baseUrl: `${gatewayUrl}${basePath}`,
-    };
+    const entry: {
+      baseUrl: string;
+      compat?: Record<string, unknown>;
+      modelOverrides?: Record<string, { maxTokens: number }>;
+    } = { baseUrl: `${gatewayUrl}${basePath}` };
     // Re-assert compat flags PI can no longer auto-detect now that baseUrl is the gateway.
     // Static table first, then per-override compat (explicit wins).
     const compat = { ...PROVIDER_COMPAT_OVERRIDES[p.name], ...p.compat };
     if (Object.keys(compat).length > 0) entry.compat = compat;
+    if (p.modelOverrides) entry.modelOverrides = p.modelOverrides;
     providersBlock[p.name] = entry;
   }
 

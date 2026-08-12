@@ -297,6 +297,7 @@ function observedRunConfig(
       claudeCliVersion: policy.model_execution.claude_cli_version,
       cliName: policy.model_execution.cli_name,
       cliVersion: policy.model_execution.cli_version,
+      maxOutputTokens: policy.model_execution.max_output_tokens,
     }
     : {
       configuredRouteBaseHost: resolvedRouteHost(profile),

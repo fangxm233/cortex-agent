@@ -58,9 +58,11 @@ def refuse_capability(
 
 
 def admit_every_capability(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Admit every row, so a test about adapter selection or wiring is not answered by the state
-    gate before it reaches the behaviour it names."""
+    """Admit legacy rows for wiring tests while preserving evidence-gated rows as shipped."""
     _install(monkeypatch, {
-        key: CredentialCapability(row.id, ADMITTED)
+        key: (
+            row if row.id == "pi-deepseek-api-key"
+            else CredentialCapability(row.id, ADMITTED)
+        )
         for key, row in CAPABILITY_REGISTRY.items()
     })

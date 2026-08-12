@@ -143,6 +143,27 @@ test('writeProvidersConfig: non-deepseek provider has NO compat field (no regres
   }
 });
 
+test('writeProvidersConfig: emits an exact per-model output cap without an api key', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
+  try {
+    const modelsPath = path.join(tmpDir, 'models.json');
+    writeProvidersConfig(
+      [{ name: 'deepseek', modelOverrides: {
+        'deepseek-v4-flash': { maxTokens: 256 },
+      } }],
+      'http://127.0.0.1:9880',
+      { modelsPath },
+    );
+    const data = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
+    assert.deepEqual(data.providers.deepseek.modelOverrides, {
+      'deepseek-v4-flash': { maxTokens: 256 },
+    });
+    assert.equal(data.providers.deepseek.apiKey, undefined);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test('writeProvidersConfig: explicit per-override compat merges over the static table', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
   try {

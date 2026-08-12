@@ -61,7 +61,7 @@ function writeAsset(name: string, content: string, mode?: number): string {
   return file;
 }
 
-function writeProfile(): void {
+function writeProfile(value: Record<string, unknown> = {}): void {
   const configDir = path.join(process.env.CORTEX_HOME as string, 'config');
   fs.mkdirSync(configDir, { recursive: true });
   fs.writeFileSync(path.join(configDir, 'profiles.json'), JSON.stringify({
@@ -71,6 +71,7 @@ function writeProfile(): void {
         model: 'claude-sonnet', backend: 'pi', mode: 'api', provider: 'anthropic',
         extraEnv: { ANTHROPIC_BASE_URL: 'http://host-profile.invalid:1234' },
         extraOption: {}, claudeBackend: 'print', thinking: 'high', fallback: [],
+        ...value,
       },
     },
   }));
@@ -357,6 +358,37 @@ it('writes exactly the arm provider routed at the policy proxy (P8, P12, A7, A8)
     catalog.providers.anthropic.baseUrl,
     built.policy.credential.proxy_base_url,
   );
+});
+
+it('pins the DeepSeek benchmark model output cap in the one-provider catalog', () => {
+  const built = piPolicy(input => {
+    writeProfile({
+      model: 'deepseek-v4-flash', provider: 'deepseek', mode: 'deepseek', thinking: 'off',
+    });
+    input.arm.model = 'deepseek-v4-flash';
+    input.arm.provider = 'deepseek';
+    input.arm.credential_capability = 'pi-deepseek-api-key';
+    input.credential_capabilities = [{
+      id: 'pi-deepseek-api-key', state: 'offline-contract-passed',
+      key: {
+        runner_or_backend: 'pi', provider: 'deepseek', protocol: 'openai-completions',
+        credential_kind: 'api-key', proxy_adapter_version: 'cortex-bench-trial-proxy/2',
+      },
+    }];
+    input.credential.upstream_base_url = 'https://api.deepseek.com';
+    input.credential.route_identity_host = 'api.deepseek.com';
+  }, 'deepseek');
+  const { record } = spawnPi(spec(built, 'deepseek'));
+  const catalog = JSON.parse(
+    fs.readFileSync(path.join(record.env!.PI_CODING_AGENT_DIR!, 'models.json'), 'utf8'),
+  );
+  assert.deepEqual(catalog.providers.deepseek.modelOverrides, {
+    'deepseek-v4-flash': { maxTokens: 256 },
+  });
+  assert.equal(catalog.providers.deepseek.baseUrl, built.policy.credential.proxy_base_url);
+  assert.deepEqual(JSON.parse(fs.readFileSync(
+    path.join(record.env!.PI_CODING_AGENT_DIR!, 'auth.json'), 'utf8',
+  )), { deepseek: { type: 'api_key', key: built.policy.credential.dummy_token_ref } });
 });
 
 it('never routes a PI trial at the host gateway (P12)', () => {

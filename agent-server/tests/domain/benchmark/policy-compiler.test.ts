@@ -485,6 +485,15 @@ it('reports ArmDefinition failures before malformed phase-resolution assets', ()
   expectFailure(input, 'limit_out_of_range', 5);
 });
 
+it('preserves capability evidence in the resolved credential identity', () => {
+  const input = resolution();
+  input.credential_capabilities[0].evidence_sha256 = 'b'.repeat(64);
+
+  const policy = compileResolvedTrialPolicy(input, dependencies());
+
+  assert.equal(policy.credential.evidence_sha256, 'b'.repeat(64));
+});
+
 it('reports credential rule 9 before provider rule 10 when both fail', () => {
   const input = resolution();
   const value = input.arm as Record<string, unknown>;
@@ -537,6 +546,28 @@ it('rejects schema, malformed role assets, and non-object guard inputs as typed 
   (invalidLimit.arm as ReturnType<typeof arm>).limits.max_provider_requests = 0;
   expectFailure(invalidLimit, 'limit_out_of_range', 5);
 });
+
+it('requires the evidence-pinned PI version for paid DeepSeek compilation', () => {
+  const input = piResolution();
+  Object.assign(input.arm as ReturnType<typeof arm>, {
+    provider: 'deepseek', model: 'deepseek-v4-flash',
+    credential_capability: 'pi-deepseek-api-key',
+  });
+  input.paid_run = true;
+  input.cli_artifact.version = '0.82.2';
+  input.credential_capabilities = [{
+    id: 'pi-deepseek-api-key', state: 'live-handshake-passed',
+    evidence_sha256: 'e'.repeat(64),
+    key: {
+      runner_or_backend: 'pi', provider: 'deepseek', protocol: 'openai-completions',
+      credential_kind: 'api-key', proxy_adapter_version: 'cortex-bench-trial-proxy/2',
+    },
+  }];
+  expectFailure(input, 'credential_capability_state_insufficient', 10, dependencies(profile({
+    backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash',
+  })));
+});
+
 
 it('uses lossless monotonic time for the remaining-deadline accessor', () => {
   const policy = compileResolvedTrialPolicy(resolution(), dependencies());

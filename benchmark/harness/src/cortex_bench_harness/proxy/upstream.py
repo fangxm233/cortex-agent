@@ -30,15 +30,22 @@ class UpstreamResult:
 
 
 class UpstreamAttemptError(OSError):
-    def __init__(self, may_have_reached_upstream: bool) -> None:
+    def __init__(
+        self, may_have_reached_upstream: bool, reason: str = "upstream_unavailable",
+    ) -> None:
         super().__init__("fixed upstream request failed")
         self.may_have_reached_upstream = may_have_reached_upstream
+        self.reason = reason
 
 
 class FixedUpstream:
-    def __init__(self, base_url: str, adapter: ProviderAdapter) -> None:
+    def __init__(
+        self, base_url: str, adapter: ProviderAdapter,
+        response_body_limit_bytes: int | None = None,
+    ) -> None:
         self._target = validate_upstream(base_url)
         self._adapter = adapter
+        self._response_body_limit_bytes = response_body_limit_bytes
         self._lock = threading.Lock()
         self._active: HTTPConnection | None = None
         self._revoked = False
@@ -54,7 +61,10 @@ class FixedUpstream:
         try:
             self._connect(connection)
             connection.request("POST", self._path(path), body, outbound)
-            return read_response(connection.getresponse(), expires_at, self._adapter)
+            return read_response(
+                connection.getresponse(), expires_at, self._adapter,
+                self._response_body_limit_bytes,
+            )
         except UpstreamAttemptError:
             raise
         except (HTTPException, OSError) as error:
@@ -74,6 +84,9 @@ class FixedUpstream:
             self._revoked = True
             if self._active is not None:
                 self._active.close()
+
+    def clear_credential(self) -> None:
+        self._adapter.clear_credential()
 
     def _activate(self, connection: HTTPConnection) -> None:
         with self._lock:
@@ -126,16 +139,20 @@ def validate_upstream(base_url: str) -> SplitResult:
 
 def read_response(
     response: HTTPResponse, expires_at: float, adapter: ProviderAdapter,
+    response_body_limit_bytes: int | None = None,
 ) -> UpstreamResult:
-    body = _read_until_deadline(response, expires_at)
+    body = _read_until_deadline(response, expires_at, response_body_limit_bytes)
     headers = tuple(response.getheaders())
     content_type = response.getheader("content-type", "")
     usage = adapter.extract_usage(body, content_type)
     return UpstreamResult(response.status, response.reason, headers, body, usage)
 
 
-def _read_until_deadline(response: HTTPResponse, expires_at: float) -> bytes:
+def _read_until_deadline(
+    response: HTTPResponse, expires_at: float, limit: int | None,
+) -> bytes:
     chunks: list[bytes] = []
+    total = 0
     while True:
         remaining = expires_at - time.monotonic()
         if remaining <= 0:
@@ -144,6 +161,9 @@ def _read_until_deadline(response: HTTPResponse, expires_at: float) -> bytes:
         chunk = response.read1(64 * 1024)
         if not chunk:
             return b"".join(chunks)
+        total += len(chunk)
+        if limit is not None and total > limit:
+            raise UpstreamAttemptError(True, "upstream_response_too_large")
         chunks.append(chunk)
 
 

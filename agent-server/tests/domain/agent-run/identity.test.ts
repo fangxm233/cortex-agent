@@ -23,7 +23,7 @@ import {
   type RoleToolSurfaceInput,
 } from '../../../src/domain/agent-run/identity.js';
 
-const DOCUMENTED_MODEL_BYTES = '{"backend":"claude","claude_cli_version":"1.2.3","cli_name":"claude","cli_version":"1.2.3","configured_route_base_host":"gateway.invalid","fallback_empty":true,"model_alias_policy":{"aliases":{"stable":"claude-sonnet"},"policy":"exact"},"provider_protocol":"anthropic","reasoning_effort":"high","requested_model":"claude-sonnet"}';
+const DOCUMENTED_MODEL_BYTES = '{"backend":"claude","claude_cli_version":"1.2.3","cli_name":"claude","cli_version":"1.2.3","configured_route_base_host":"gateway.invalid","fallback_empty":true,"max_output_tokens":null,"model_alias_policy":{"aliases":{"stable":"claude-sonnet"},"policy":"exact"},"provider_protocol":"anthropic","reasoning_effort":"high","requested_model":"claude-sonnet"}';
 const SHA_A = 'a'.repeat(64);
 const SHA_B = 'b'.repeat(64);
 const SHA_C = 'c'.repeat(64);
@@ -151,6 +151,7 @@ it('projects exactly the model identity keys', () => {
     cli_version: '1.2.3',
     configured_route_base_host: 'gateway.invalid',
     fallback_empty: true,
+    max_output_tokens: null,
     model_alias_policy: { aliases: { stable: 'claude-sonnet' }, policy: 'exact' },
     provider_protocol: 'anthropic',
     reasoning_effort: 'high',

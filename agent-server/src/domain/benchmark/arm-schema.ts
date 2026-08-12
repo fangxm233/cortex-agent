@@ -99,6 +99,7 @@ const namedStrings = z.record(z.string(), z.string().min(1));
 const credentialProjectionSchema = z.object({
   id: z.string().min(1),
   state: z.enum(['unsupported', 'offline-contract-passed', 'live-handshake-passed']),
+  evidence_sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   key: z.object({
     runner_or_backend: z.string().min(1),
     provider: z.string(),

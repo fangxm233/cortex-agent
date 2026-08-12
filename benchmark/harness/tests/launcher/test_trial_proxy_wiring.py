@@ -21,9 +21,15 @@ from harbor.environments.base import ExecResult
 from harbor.models.agent.context import AgentContext
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
+from cortex_bench_harness.launcher import trial_proxy
+from cortex_bench_harness.launcher.credential_capabilities import (
+    CAPABILITY_REGISTRY,
+    CredentialCapability,
+)
 from cortex_bench_harness.launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN_GRACE_MS
 from cortex_bench_harness.launcher.trial_proxy import (
     PROXY_ARTIFACT_SOURCES,
+    CapabilityStateRefused,
     TrialProxySession,
     arm_trial_proxy,
     parse_trial_proxy_spec,
@@ -199,6 +205,41 @@ def test_arms_the_provisional_bound_and_not_a_container_derived_instant(tmp_path
         assert armed == utc_text(epoch_datetime(expected))
     finally:
         session.handle.stop()
+
+
+def test_refuses_arm_provider_drift_from_capability_key(tmp_path: Path) -> None:
+    drifted = cortex_arm()
+    drifted["provider"] = "deepseek"
+    with pytest.raises(CapabilityStateRefused, match="backend/provider"):
+        arm_session(tmp_path, closed_upstream(), arm=drifted)
+
+
+def test_refuses_paid_deepseek_contract_drift_before_credential_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = dict(CAPABILITY_REGISTRY)
+    key = next(key for key, row in rows.items() if row.id == "pi-deepseek-api-key")
+    rows[key] = CredentialCapability(
+        "pi-deepseek-api-key", "live-handshake-passed", "e" * 64,
+    )
+    monkeypatch.setattr(trial_proxy, "CAPABILITY_REGISTRY", rows)
+    arm = cortex_arm("pi-deepseek-api-key")
+    arm.update(backend="pi", provider="deepseek", model="deepseek-v4-pro")
+    arm["limits"].update(
+        max_provider_requests=1, max_thread_starts=0,
+        max_resident_agent_processes=1, max_cost_usd="0.05", deadline_seconds=120,
+    )
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    with pytest.raises(CapabilityStateRefused, match="paid DeepSeek"):
+        arm_trial_proxy(
+            arm=arm, trial_id=TRIAL_ID, upstream_base_url=closed_upstream(),
+            spec=parse_trial_proxy_spec(proxy_spec(
+                max_request_cost_usd="0.05", request_body_limit_bytes=64 * 1024,
+                response_body_limit_bytes=1024 * 1024,
+            )), proxy_dir=artifacts / "proxy", trial_roots=(artifacts,),
+            environ={}, paid_run=True,
+        )
 
 
 def test_records_the_selected_adapter_at_arm_time(tmp_path: Path) -> None:
@@ -577,7 +618,7 @@ def test_a_route_already_revoked_is_not_revoked_a_second_time(
 def test_refuses_to_start_when_no_adapter_matches_the_capability_key(
     tmp_path: Path, capability: str,
 ) -> None:
-    with pytest.raises(AdapterUnavailable):
+    with pytest.raises((AdapterUnavailable, CapabilityStateRefused)):
         arm_session(tmp_path, closed_upstream(), arm=cortex_arm(capability))
 
     # Nothing was started and nothing was written: an unadapted route is never opened.
@@ -658,6 +699,16 @@ def test_unpaid_trial_without_a_proxy_keeps_the_shipped_behaviour(tmp_path: Path
 
     assert agent.proxy_session is None
     assert agent.captured_inventory is None
+
+
+def test_spec_accepts_trial_scoped_body_limits() -> None:
+    spec = parse_trial_proxy_spec(proxy_spec(
+        request_body_limit_bytes=64 * 1024,
+        response_body_limit_bytes=1024 * 1024,
+    ))
+
+    assert spec.request_body_limit_bytes == 64 * 1024
+    assert spec.response_body_limit_bytes == 1024 * 1024
 
 
 def test_spec_rejects_an_unknown_member(tmp_path: Path) -> None:

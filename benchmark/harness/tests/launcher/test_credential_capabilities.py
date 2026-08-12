@@ -5,7 +5,11 @@
 
 import json
 import re
+from dataclasses import replace
 
+import pytest
+
+from cortex_bench_harness.launcher import credential_capabilities
 from cortex_bench_harness.launcher.credential_capabilities import (
     CAPABILITY_REGISTRY,
     CAPABILITY_STATES,
@@ -58,6 +62,19 @@ EXPECTED_PROJECTION = [
         },
     },
     {
+        "id": "pi-deepseek-api-key",
+        "state": "live-handshake-passed",
+        "key": {
+            "runner_or_backend": "pi",
+            "provider": "deepseek",
+            "protocol": "openai-completions",
+            "credential_kind": "api-key",
+            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
+        },
+        "evidence_sha256":
+            "1fe356a1812407ea9115a8fc3eba9a830ed14cbae239bf9f01465150f4a1378b",
+    },
+    {
         "id": "pi-openai-codex-oauth",
         "state": "unsupported",
         "key": {
@@ -75,12 +92,24 @@ SECRET_VALUE = re.compile(
 )
 
 
-def test_registry_has_the_five_stateful_capability_rows() -> None:
+def test_registry_has_the_six_stateful_capability_rows() -> None:
     assert CAPABILITY_STATES == {
         "unsupported", "offline-contract-passed", "live-handshake-passed",
     }
-    assert len(CAPABILITY_REGISTRY) == 5
+    assert len(CAPABILITY_REGISTRY) == 6
     assert project_credential_capabilities() == EXPECTED_PROJECTION
+
+
+def test_deepseek_promotion_requires_bound_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = dict(CAPABILITY_REGISTRY)
+    key = next(key for key, row in rows.items() if row.id == "pi-deepseek-api-key")
+    rows[key] = replace(rows[key], state="offline-contract-passed", evidence_sha256=None)
+    monkeypatch.setattr(credential_capabilities, "CAPABILITY_REGISTRY", rows)
+
+    with pytest.raises(ValueError, match="evidence"):
+        credential_capabilities.project_credential_capabilities()
 
 
 def test_registry_projection_contains_no_credential_shaped_value() -> None:
@@ -89,7 +118,7 @@ def test_registry_projection_contains_no_credential_shaped_value() -> None:
 
     assert SECRET_VALUE.search(encoded) is None
     assert all(
-        set(row) == {"id", "state", "key"}
+        set(row) in ({"id", "state", "key"}, {"id", "state", "key", "evidence_sha256"})
         and set(row["key"]) == {
             "runner_or_backend", "provider", "protocol", "credential_kind",
             "proxy_adapter_version",
