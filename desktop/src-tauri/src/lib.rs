@@ -1,25 +1,7 @@
-// Cortex Desktop — Tauri v2 shell
-//
-// Connection flow
-// ───────────────
-// First run (no stored credentials):
-//   Tauri opens connect.html (the connection config screen).
-//   User enters serverUrl + clientToken, tests, then clicks Connect.
-//   JS calls the `connect` Tauri command → credentials saved to OS keychain
-//   and AppState updated. Page navigates to index.html (the SPA workbench).
-//
-// Subsequent runs (credentials in keychain):
-//   Rust loads credentials at startup, opens index.html directly.
-//   initialization_script (injected into every page) runs an async Tauri IPC
-//   call to get_connection_config() — resolves in microseconds, before the
-//   React bundle finishes downloading/parsing. providers.tsx reads
-//   window.__CORTEX_DESKTOP_CONFIG and passes it to createTrpcClient().
-//
-// Disconnect:
-//   The SPA's daemon interface (desktop DaemonStatusModal, mobile 1r Daemon
-//   screen) offers a Disconnect action that calls the `disconnect` Tauri command
-//   (clears keychain + AppState) then navigates to connect.html — the escape hatch
-//   back to the connect screen when a saved server is stale/dead.
+// input:  app config, credential store, OTA modules, native plugins
+// output: Tauri commands, custom scheme, desktop/mobile window
+// pos:    Cortex native shell composition root
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -527,6 +509,8 @@ pub fn run() {
         // this plugin's commands; it is the only path to a real OS notification inside the Android
         // WebView, which has no web Notifications API.
         .plugin(tauri_plugin_notification::init())
+        // Open external authorization URLs in the system browser on every native platform.
+        .plugin(tauri_plugin_opener::init())
         // Android public-Downloads bridge (DownloadManager). Desktop registers a stub; the desktop
         // download path stays the `save_download` command below.
         .plugin(tauri_plugin_cortex_download::init())

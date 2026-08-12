@@ -8,10 +8,11 @@ It routes required/recovered events into debounced user notices.
 | auth-events.ts | events | Classifies failures and publishes auth lifecycle |
 | auth-format.ts | format | Formats secret-free account status summaries |
 | auth-status.ts | core | Projects credential states, expiry, and capabilities |
-| logout.ts | service | Removes Cortex-managed account credentials |
+| logout.ts | service | Delegates account logout to credential owners |
 | auth-watch.ts | notify | Routes retryable notices and exposes reminder state |
+| cc-auth-cli.ts | adapter | Runs scrubbed Claude auth CLI commands |
 | cc-login.ts | adapter | Persists Claude API keys and reloads auth |
-| cc-subscription.ts | adapter | Drives abortable Claude subscription login |
+| cc-subscription.ts | adapter | Bridges Claude auth CLI into LoginFlow |
 | index.ts | entry | Exports the authentication domain API |
 | login-flow.ts | core | Coordinates login outcomes, aborts, and safe errors |
 | login-service.ts | service | Selects consumers and binds notice flow identity |

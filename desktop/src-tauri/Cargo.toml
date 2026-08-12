@@ -25,6 +25,8 @@ serde_json = "1"
 # reaches the OS only through this plugin's `sendNotification` command (JS side:
 # @tauri-apps/plugin-notification). Works on both desktop and Android.
 tauri-plugin-notification = "2"
+# Opens OAuth and verification URLs in the system browser on desktop and Android.
+tauri-plugin-opener = "2"
 
 # Local plugin: saves agent-sent files to the PUBLIC Android Downloads folder via the system
 # DownloadManager (public Downloads + native "download complete" notification). Android does the real

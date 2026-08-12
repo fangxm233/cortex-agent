@@ -129,11 +129,16 @@ criterion was true for 7 of 39 providers; the list is discovered dynamically,
 so API-key-only providers never show a non-functional OAuth option. Claude Code
 similarly offers API-key and subscription choices through the selector.
 
-For a Claude Code subscription, Cortex drives `claude setup-token` in a
-controlled tmux session, sends the authorization URL to the initiating channel,
-and accepts the returned code through the channel form. The resulting long-lived
-token is stored as `CLAUDE_CODE_OAUTH_TOKEN` in
-`~/.cortex/config/.env`; it is never printed in status output or transcripts.
+For a Claude Code subscription, Cortex starts `claude auth login --claudeai`,
+sends the command's authorization URL to the initiating channel, and writes the
+returned code to that command's standard input. Claude Code owns the OAuth
+exchange and credential persistence. Cortex marks the flow complete only after
+an authentication-environment-scrubbed `claude auth status --json` reports
+`loggedIn: true`; it never reads or stores the resulting token. Subscription
+logout similarly delegates to `claude auth logout` and verifies the logged-out
+postcondition. A legacy Cortex-managed subscription token remains a removable
+runtime credential while Claude Code is logged out, but it does not make the
+account appear logged in and is suppressed as soon as Claude owns a credential.
 
 When a running backend reports expired authentication, Cortex posts a card that
 names the backend/provider and offers one-click re-login with the selection

@@ -14,7 +14,7 @@ Splits into shared layers (design, i18n, theme, lib) and screen layers (features
 | design/ | subdir | Token-driven shared UI primitives |
 | features/ | subdir | One folder per product feature or overlay |
 | i18n/ | subdir | Language state, vocabulary and viewport hook |
-| lib/ | subdir | Transport, shell bridge and file helpers |
+| lib/ | subdir | Transport, shell, file and external-link helpers |
 | mobile/ | subdir | Mobile shell, routes and phone screens |
 | shell/ | subdir | Persistent desktop layout frame |
 | theme/ | subdir | Light and dark theme state |

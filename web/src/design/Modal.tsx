@@ -1,6 +1,6 @@
-// input:  Radix Dialog, React nodes, semantic size and layer
-// output: accessible modal primitives with width and stack mapping
-// pos:    token-styled centered dialog primitive
+// input:  Radix Dialog, React nodes, visibility flags
+// output: accessible modal with width, stack, and hidden description
+// pos:    Token-styled centered dialog primitive
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as RadixDialog from '@radix-ui/react-dialog';
@@ -51,6 +51,7 @@ export interface ModalProps {
   title: ReactNode;
   description?: ReactNode;
   hideTitle?: boolean;
+  hideDescription?: boolean;
   children?: ReactNode;
   footer?: ReactNode;
   trigger?: ReactNode;
@@ -76,13 +77,18 @@ function ModalHeader({ title, hideTitle }: Pick<ModalProps, 'title' | 'hideTitle
   );
 }
 
-function ModalPanel({ title, description, hideTitle, children, footer, size = 'default', layer = 'default' }: ModalProps): JSX.Element {
+function ModalPanel({
+  title, description, hideTitle, hideDescription, children, footer,
+  size = 'default', layer = 'default',
+}: ModalProps): JSX.Element {
   return (
     <RadixDialog.Content className={modalContentClass(size, layer)}>
       <ModalHeader title={title} hideTitle={hideTitle} />
-      {description ? <RadixDialog.Description className="text-ui text-state-ink/70">{description}</RadixDialog.Description> : null}
-      {children ? <div className="overflow-y-auto text-ui text-state-ink/80">{children}</div> : null}
-      {footer ? <div className="flex items-center justify-end gap-1g pt-1g">{footer}</div> : null}
+      {description ? <RadixDialog.Description
+        className={hideDescription ? 'sr-only' : 'min-w-0 break-words text-ui text-state-ink/70 [overflow-wrap:anywhere]'}
+      >{description}</RadixDialog.Description> : null}
+      {children ? <div className="min-w-0 overflow-x-hidden overflow-y-auto text-ui text-state-ink/80">{children}</div> : null}
+      {footer ? <div className="flex flex-wrap items-center justify-end gap-1g pt-1g">{footer}</div> : null}
     </RadixDialog.Content>
   );
 }

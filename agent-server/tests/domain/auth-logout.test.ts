@@ -82,13 +82,24 @@ function unavailablePi(): PiRuntimeLoadResult {
 }
 
 function claudeStatusOptions(root: string, mode: 'api' | 'plan'): GetAuthStatusOptions {
+  const claudeCredentialsPath = path.join(root, '.claude', '.credentials.json');
   return {
-    claudeCredentialsPath: path.join(root, '.claude', '.credentials.json'),
+    claudeCredentialsPath,
     piAuthPath: path.join(root, '.pi', 'agent', 'auth.json'),
     loadPiRuntime: async () => unavailablePi(),
     getClaudeMode: () => mode,
     getActiveBackend: () => 'claude',
     listProfiles: () => [],
+    readClaudeAuthStatus: async () => {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(claudeCredentialsPath, 'utf8'));
+        const oauth = parsed.claudeAiOauth;
+        const loggedIn = Boolean(oauth?.accessToken || oauth?.refreshToken);
+        return { loggedIn, authMethod: loggedIn ? 'claude.ai' : 'none', apiProvider: 'firstParty' };
+      } catch {
+        return { loggedIn: false, authMethod: 'none', apiProvider: 'firstParty' };
+      }
+    },
   };
 }
 
@@ -325,22 +336,6 @@ async function assertGatewayPlaceholderIgnored(
   return result;
 }
 
-async function assertOAuthLogoutEffects(
-  options: GetAuthStatusOptions,
-  credentialsPath: string,
-  credentialsBefore: string,
-  credentialsStamp: FileStamp,
-  result: unknown,
-): Promise<void> {
-  assert.equal((result as { ok: boolean }).ok, true);
-  assert.equal((await accountStatus(options)).state, 'logged-out');
-  assert.doesNotMatch(fs.readFileSync(ENV_FILE, 'utf8'), /CLAUDE_CODE_OAUTH_TOKEN/);
-  assert.equal(fs.statSync(ENV_FILE).mode & 0o777, 0o600);
-  assert.equal(fs.readFileSync(credentialsPath, 'utf8'), credentialsBefore);
-  assert.deepEqual(fileStamp(credentialsPath), credentialsStamp);
-  expectSecretFree([result, consoleCalls], [OAUTH_TOKEN]);
-}
-
 test('Claude credential removal failures are structured and skip environment reload', async () => {
   const liveBefore = liveFileStamps();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-logout-cc-failure-'));
@@ -393,38 +388,35 @@ test('Claude API-key logout removes only the saved key and ignores the gateway p
   }
 });
 
-test('Claude OAuth logout removes only saved env and leaves credentials.json untouched', async () => {
+test('legacy Claude OAuth env remains removable without invoking Claude logout', async () => {
   const liveBefore = liveFileStamps();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-logout-cc-oauth-'));
   const options = claudeStatusOptions(root, 'plan');
-  const credentialsPath = options.claudeCredentialsPath!;
-  writeFile(credentialsPath, '{"owner":"anthropic"}\n');
-  const credentialsBefore = fs.readFileSync(credentialsPath, 'utf8');
-  const credentialsStamp = fileStamp(credentialsPath);
   const config = await resetSavedEnv();
-  writeFile(ENV_FILE, 'OTHER_SETTING=keep\n');
   await config.saveClaudeCodeOAuthToken(OAUTH_TOKEN, {
     expiresAt: '2031-01-01T00:00:00.000Z',
   });
-  assert.match(fs.readFileSync(ENV_FILE, 'utf8'), /CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT/);
+  const cliLogout = vi.fn(async () => {});
   const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
   try {
-    const before = await accountStatus(options);
-    assert.equal(before.source, 'env');
+    const account = await accountStatus(options);
+    assert.equal(account.state, 'logged-out');
+    assert.equal(account.credentials[0]?.source, 'legacy-env');
     const result = await logoutAccount(
       { backend: 'claude', provider: 'anthropic', authType: 'oauth' },
-      { getAuthStatusOptions: options },
+      { getAuthStatusOptions: options, logoutClaudeAuth: cliLogout },
     );
-    await assertOAuthLogoutEffects(
-      options, credentialsPath, credentialsBefore, credentialsStamp, result,
-    );
+    assert.equal(result.ok, true);
+    assert.equal(cliLogout.mock.calls.length, 0);
+    assert.doesNotMatch(fs.readFileSync(ENV_FILE, 'utf8'), /CLAUDE_CODE_OAUTH_TOKEN/);
+    expectSecretFree([result, consoleCalls], [OAUTH_TOKEN]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     assertLiveFilesUnchanged(liveBefore);
   }
 });
 
-test('Claude OAuth logout reports the remaining external credential after clearing saved env', async () => {
+test('Claude CLI logout clears its credential and the legacy Cortex token', async () => {
   const liveBefore = liveFileStamps();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-logout-mixed-oauth-'));
   const options = claudeStatusOptions(root, 'plan');
@@ -432,27 +424,21 @@ test('Claude OAuth logout reports the remaining external credential after cleari
   writeFile(credentialsPath, JSON.stringify({ claudeAiOauth: {
     accessToken: EXTERNAL_ACCESS, refreshToken: EXTERNAL_REFRESH,
   } }));
-  const credentialsBefore = fs.readFileSync(credentialsPath, 'utf8');
-  const credentialsStamp = fileStamp(credentialsPath);
   const config = await resetSavedEnv();
   await config.saveClaudeCodeOAuthToken(OAUTH_TOKEN);
+  const cliLogout = vi.fn(async () => { writeFile(credentialsPath, '{}\n'); });
   const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
   try {
     const before = await accountStatus(options);
-    assert.equal(before.source, 'env');
-    assert.equal(before.credentials.some(item => item.source === 'credentials.json'), true);
+    assert.equal(before.source, 'credentials.json');
     const result = await logoutAccount(
       { backend: 'claude', provider: 'anthropic', authType: 'oauth' },
-      { getAuthStatusOptions: options },
+      { getAuthStatusOptions: options, logoutClaudeAuth: cliLogout },
     );
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.equal(result.error.code, 'external_credential');
-    assert.match(result.error.message, /claude \/logout/);
+    assert.equal(result.ok, true);
+    assert.equal(cliLogout.mock.calls.length, 1);
     assert.doesNotMatch(fs.readFileSync(ENV_FILE, 'utf8'), /CLAUDE_CODE_OAUTH_TOKEN/);
-    assert.equal(fs.readFileSync(credentialsPath, 'utf8'), credentialsBefore);
-    assert.deepEqual(fileStamp(credentialsPath), credentialsStamp);
-    assert.equal((await accountStatus(options)).source, 'credentials.json');
+    assert.equal((await accountStatus(options)).state, 'logged-out');
     expectSecretFree([result, consoleCalls], [OAUTH_TOKEN, EXTERNAL_ACCESS, EXTERNAL_REFRESH]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -460,7 +446,7 @@ test('Claude OAuth logout reports the remaining external credential after cleari
   }
 });
 
-test('Claude credentials.json-only OAuth returns external_credential with terminal guidance', async () => {
+test('Claude credentials.json-only OAuth delegates logout to the official CLI', async () => {
   const liveBefore = liveFileStamps();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-logout-external-'));
   const options = claudeStatusOptions(root, 'plan');
@@ -468,21 +454,16 @@ test('Claude credentials.json-only OAuth returns external_credential with termin
   writeFile(credentialsPath, JSON.stringify({ claudeAiOauth: {
     accessToken: EXTERNAL_ACCESS, refreshToken: EXTERNAL_REFRESH,
   } }));
-  const credentialsBefore = fs.readFileSync(credentialsPath, 'utf8');
-  const credentialsStamp = fileStamp(credentialsPath);
+  const cliLogout = vi.fn(async () => { writeFile(credentialsPath, '{}\n'); });
   const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
   try {
     const result = await logoutAccount(
       { backend: 'claude', provider: 'anthropic', authType: 'oauth' },
-      { getAuthStatusOptions: options },
+      { getAuthStatusOptions: options, logoutClaudeAuth: cliLogout } as any,
     );
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.equal(result.error.code, 'external_credential');
-    assert.match(result.error.message, /claude \/logout/);
-    assert.equal(fs.readFileSync(credentialsPath, 'utf8'), credentialsBefore);
-    assert.deepEqual(fileStamp(credentialsPath), credentialsStamp);
-    assert.equal((await accountStatus(options)).state, 'logged-in');
+    assert.equal(result.ok, true);
+    assert.equal(cliLogout.mock.calls.length, 1);
+    assert.equal((await accountStatus(options)).state, 'logged-out');
     expectSecretFree([result, consoleCalls], [EXTERNAL_ACCESS, EXTERNAL_REFRESH]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

@@ -9,9 +9,10 @@ Domain-layer tests, one folder per business capability of the agent server.
 | benchmark/ | subdir | benchmark arm and policy compilation |
 | auth-logout.test.ts | test | Auth logout ownership, state, and privacy |
 | auth-login-service.test.ts | test | Auth selection, notice reuse and cancel fencing |
-| auth-status.test.ts | test | Auth state, managed expiry, capabilities and output |
+| auth-status.test.ts | test | Auth state, CLI authority, capabilities and output |
+| cc-auth-cli.test.ts | test | Claude auth command I/O, privacy and lifecycle |
 | cc-login.test.ts | test | Claude API-key persistence, concurrency and recovery |
-| cc-subscription.test.ts | test | Claude subscription security, expiry, and cancellation |
+| cc-subscription.test.ts | test | Claude subscription relay, cleanup and recovery |
 | login-flow.test.ts | test | Covers login outcomes, safe errors, and abort scopes |
 | pi-custom-providers.test.ts | test | Custom PI provider validation, storage and rollback |
 | pi-login.test.ts | test | PI login receipts and safe failure payloads |

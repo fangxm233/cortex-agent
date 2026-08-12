@@ -1,6 +1,6 @@
-// input:  auth tRPC, LoginFlow metadata and shared Select/Modal
-// output: accessible targeted OAuth/API-key login dialog
-// pos:    Shared desktop/mobile Web authentication workflow
+// input:  auth tRPC, LoginFlow metadata, Modal/MBottomSheet
+// output: responsive targeted OAuth/API-key login overlay
+// pos:    Shared desktop/mobile authentication workflow
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import {
@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -20,7 +21,9 @@ import type {
 } from '@cortex-agent/ui-contract';
 import { Button, Modal, Select, type SelectOption } from '@/design';
 import { useIsMobile, useVocab, type Vocab } from '@/i18n';
+import { openExternalUrl } from '@/lib/external-navigation';
 import { useTRPC, useTRPCClient } from '@/lib/trpc';
+import { MBottomSheet } from '@/mobile/ui/kit';
 import { buildLoginFlowVm, type LoginFlowVm } from './login-flow-vm';
 
 const FLOW_POLL_MS = 500;
@@ -87,6 +90,8 @@ interface LoginController {
   noticeId?: string;
   authTypes: AuthType[];
   provider: string;
+  providerLabel: string;
+  backendLabel: string;
   providers: ProviderOption[];
   latest: LoginFlowState | null;
   response: string;
@@ -128,50 +133,62 @@ function isStateRegression(
   return responseSent && current.step === 'running' && incoming.step === 'prompt';
 }
 
-function NoticeLink({ href, children }: { href: string; children: string }) {
+function OpenUrlButton({ href, children, action }: {
+  href: string;
+  children: string;
+  action?: string;
+}) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="text-state-run underline">
-      {children}
-    </a>
+    <Button
+      data-action={action} data-auth-external-url={href} variant="secondary"
+      onClick={() => openExternalUrl(href)}
+    >
+      {children}<span aria-hidden="true">↗</span>
+    </Button>
   );
 }
 
-function InfoNotice({
-  notice,
-  L,
-}: {
+function InfoNotice({ notice, L }: {
   notice: Extract<LoginFlowNotice, { kind: 'info' }>;
   L: Vocab;
 }) {
   return (
-    <div data-auth-notice="info" className="space-y-1g">
+    <div data-auth-notice="info" className="min-w-0 space-y-1g break-words">
       <p>{notice.message}</p>
       {(notice.links ?? []).map(link => (
-        <NoticeLink key={link.url} href={link.url}>{link.label ?? L.authLoginOpenLink}</NoticeLink>
+        <OpenUrlButton key={link.url} href={link.url}>
+          {link.label ?? L.authLoginOpenLink}
+        </OpenUrlButton>
       ))}
     </div>
   );
 }
 
-function AuthUrlNotice({
-  notice,
-  L,
-}: {
+function AuthUrlNotice({ notice, L, hideInstructions }: {
   notice: Extract<LoginFlowNotice, { kind: 'auth_url' }>;
   L: Vocab;
+  hideInstructions: boolean;
 }) {
   return (
-    <div data-auth-notice="auth_url" className="space-y-1g">
-      {notice.instructions ? <p>{notice.instructions}</p> : null}
-      <NoticeLink href={notice.url}>{L.authLoginOpenAuthorization}</NoticeLink>
-    </div>
+    <section
+      data-auth-notice="auth_url" data-auth-open-step
+      className="min-w-0 rounded-card border border-proto-line-2 bg-surface-canvas-alt p-2g"
+    >
+      <div className="flex min-w-0 items-start gap-1.5g">
+        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-state-run text-caption font-semibold text-surface-card">1</span>
+        <div className="min-w-0 flex-1 space-y-1g break-words">
+          <p className="font-medium text-state-ink">{L.authLoginOpenStep}</p>
+          {!hideInstructions && notice.instructions ? <p>{notice.instructions}</p> : null}
+          <OpenUrlButton href={notice.url} action="auth-open-url">
+            {L.authLoginOpenAuthorization}
+          </OpenUrlButton>
+        </div>
+      </div>
+    </section>
   );
 }
 
-function DeviceCodeNotice({
-  notice,
-  L,
-}: {
+function DeviceCodeNotice({ notice, L }: {
   notice: Extract<LoginFlowNotice, { kind: 'device_code' }>;
   L: Vocab;
 }) {
@@ -179,14 +196,11 @@ function DeviceCodeNotice({
     ? null
     : L.authLoginExpiresIn.replace('{seconds}', String(notice.expiresInSeconds));
   return (
-    <div data-auth-notice="device_code" className="space-y-1g">
+    <div data-auth-notice="device_code" className="min-w-0 space-y-1g break-words">
       <div data-auth-device-code className="font-mono text-xl font-semibold tracking-wider text-state-ink">
         {notice.userCode}
       </div>
-      <div className="space-y-1g">
-        <p>{L.authLoginOpenVerification}</p>
-        <NoticeLink href={notice.verificationUri}>{notice.verificationUri}</NoticeLink>
-      </div>
+      <OpenUrlButton href={notice.verificationUri}>{L.authLoginOpenVerification}</OpenUrlButton>
       {expiry ? <p className="text-caption text-state-muted">{expiry}</p> : null}
     </div>
   );
@@ -197,54 +211,52 @@ function NoticeBody({ state }: { state: LoginFlowState }) {
   const notice = state.notice;
   if (!notice) return null;
   if (notice.kind === 'info') return <InfoNotice notice={notice} L={L} />;
-  if (notice.kind === 'auth_url') return <AuthUrlNotice notice={notice} L={L} />;
+  if (notice.kind === 'auth_url') {
+    return <AuthUrlNotice notice={notice} L={L}
+      hideInstructions={notice.instructions === state.pendingPrompt?.message} />;
+  }
   if (notice.kind === 'device_code') return <DeviceCodeNotice notice={notice} L={L} />;
   return (
-    <div data-auth-notice="progress" data-auth-progress className="text-state-run" role="status">
+    <div data-auth-notice="progress" data-auth-progress className="min-w-0 break-words text-state-run" role="status">
       {notice.message}
     </div>
   );
 }
 
-function PromptSelect({
-  state, value, onChange,
-}: {
+const PROMPT_CONTROL_CLASS =
+  'box-border min-h-11 w-full rounded-card border border-proto-line-3 ' +
+  'bg-surface-canvas-alt px-2g py-1.5g text-ui text-state-ink shadow-sm ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
+
+function PromptSelect({ state, value, onChange }: {
   state: LoginFlowState; value: string; onChange: (value: string) => void;
 }) {
   const options = (state.pendingPrompt?.options ?? []).map(option => ({
-    value: option.id,
-    label: option.label,
-    description: option.description,
+    value: option.id, label: option.label, description: option.description,
   }));
   return (
-    <AuthSelect
-      field="secret"
-      ariaLabelledBy="auth-login-prompt-label"
-      value={value}
-      options={options}
-      onValueChange={onChange}
-      className="w-full rounded-card border border-card bg-surface-card px-2g py-1g text-ui"
-    />
+    <AuthSelect field="secret" ariaLabelledBy="auth-login-prompt-label"
+      value={value} options={options} onValueChange={onChange}
+      className={PROMPT_CONTROL_CLASS} />
   );
 }
 
-function PromptControl({
-  state, value, onChange,
-}: {
+function PromptControl({ state, value, onChange }: {
   state: LoginFlowState; value: string; onChange: (value: string) => void;
 }) {
+  const L = useVocab();
   const prompt = state.pendingPrompt;
   if (!prompt) return null;
   if (prompt.kind === 'select') {
     return <PromptSelect state={state} value={value} onChange={onChange} />;
   }
-  const type = prompt.kind === 'secret' || prompt.kind === 'manual_code' ? 'password' : 'text';
+  const manual = prompt.kind === 'manual_code';
   return (
-    <input
-      data-auth-secret aria-labelledby="auth-login-prompt-label" type={type}
-      value={value} autoComplete="off" onChange={event => onChange(event.target.value)}
-      className="w-full rounded-card border border-card bg-surface-card px-2g py-1g text-ui"
-    />
+    <input data-auth-secret aria-labelledby="auth-login-prompt-label"
+      type={prompt.kind === 'secret' ? 'password' : 'text'} value={value}
+      autoComplete={manual ? 'one-time-code' : 'off'}
+      placeholder={manual ? L.authLoginCodePlaceholder : undefined}
+      onChange={event => onChange(event.target.value)} className={PROMPT_CONTROL_CLASS} />
   );
 }
 
@@ -336,6 +348,20 @@ function selectedAuthTypes(
   return selected?.capabilities ?? [];
 }
 
+function selectedProviderLabel(
+  accounts: AuthAccountStatus[],
+  providers: ProviderOption[],
+  backend: 'claude' | 'pi',
+  provider: string,
+): string {
+  if (backend === 'claude') {
+    return accounts.find(account => (
+      account.backend === 'claude' && account.provider === provider
+    ))?.label ?? provider;
+  }
+  return providers.find(option => option.provider === provider)?.label ?? provider;
+}
+
 function useTargetSelection(
   open: boolean,
   target: LoginFlowTarget | null | undefined,
@@ -380,6 +406,8 @@ function useLoginSelection(open: boolean, target?: LoginFlowTarget | null) {
   const accounts = status.data?.accounts ?? [];
   const providers = useMemo(() => piProviderOptions(accounts), [accounts]);
   const authTypes = selectedAuthTypes(accounts, providers, backend, provider);
+  const providerLabel = selectedProviderLabel(accounts, providers, backend, provider);
+  const backendLabel = backend === 'claude' ? 'Claude Code' : 'PI';
   useTargetSelection(open, target, setBackend, setProvider, setAuthType);
   useAvailableSelection(
     backend, provider, providers, authType, authTypes, setProvider, setAuthType,
@@ -388,8 +416,8 @@ function useLoginSelection(open: boolean, target?: LoginFlowTarget | null) {
     setBackend(next);
     setProvider(next === 'claude' ? 'anthropic' : (providers[0]?.provider ?? ''));
   };
-  return { backend, authType, authTypes, provider, providers, chooseBackend,
-    chooseProvider: setProvider, chooseAuthType: setAuthType,
+  return { backend, backendLabel, authType, authTypes, provider, providerLabel,
+    providers, chooseBackend, chooseProvider: setProvider, chooseAuthType: setAuthType,
     ...(target ? { noticeId: target.noticeId } : {}) };
 }
 
@@ -592,63 +620,147 @@ function useLoginController(
     canStart, setResponse, ...actions };
 }
 
-function modalBody(controller: LoginController, vm: LoginFlowVm) {
-  if (vm.kind === 'selection') {
-    return (
-      <div className="space-y-2g">
-        <SelectionBody controller={controller} />
-        {controller.error ? <p role="alert" className="text-state-fail">{controller.error}</p> : null}
-      </div>
-    );
-  }
+function FlowError({ children }: { children: string }) {
   return (
-    <div className="space-y-2g" data-auth-flow-step={vm.kind}>
-      {vm.kind === 'notice' ? null : (
-        <p id={vm.kind === 'prompt' ? 'auth-login-prompt-label' : undefined}>{vm.message}</p>
-      )}
-      {controller.error ? <p role="alert" className="text-state-fail">{controller.error}</p> : null}
-      {controller.latest ? <NoticeBody state={controller.latest} /> : null}
-      {controller.latest ? (
-        <PromptControl state={controller.latest} value={controller.response} onChange={controller.setResponse} />
-      ) : null}
-    </div>
+    <p data-auth-error role="alert"
+      className="max-h-48 min-w-0 overflow-y-auto break-words rounded-card border border-state-fail/20 bg-pill-failed-bg p-1.5g text-state-fail [overflow-wrap:anywhere]">
+      {children}
+    </p>
   );
 }
 
-function modalFooter(
+function PromptSection({ controller, vm, L }: {
+  controller: LoginController;
+  vm: LoginFlowVm;
+  L: Vocab;
+}) {
+  const state = controller.latest!;
+  const stepped = state.notice?.kind === 'auth_url';
+  const copy = stepped ? L.authLoginCodeStep : vm.message;
+  return (
+    <section data-auth-code-step className="min-w-0">
+      <div className="flex min-w-0 items-start gap-1.5g">
+        {stepped ? <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-state-run text-caption font-semibold text-surface-card">2</span> : null}
+        <label className="min-w-0 flex-1 space-y-1g">
+          <span id="auth-login-prompt-label" data-auth-prompt-copy
+            className="block break-words font-medium text-state-ink">{copy}</span>
+          <PromptControl state={state} value={controller.response}
+            onChange={controller.setResponse} />
+        </label>
+      </div>
+    </section>
+  );
+}
+
+function LoginBody({ controller, vm, L }: {
+  controller: LoginController;
+  vm: LoginFlowVm;
+  L: Vocab;
+}): JSX.Element {
+  if (vm.kind === 'selection') {
+    return <div className="min-w-0 space-y-2g"><SelectionBody controller={controller} />
+      {controller.error ? <FlowError>{controller.error}</FlowError> : null}</div>;
+  }
+  const latest = controller.latest;
+  const content: Record<Exclude<LoginFlowVm['kind'], 'selection'>, ReactNode> = {
+    prompt: latest ? <><NoticeBody state={latest} />
+      <PromptSection controller={controller} vm={vm} L={L} /></> : null,
+    notice: latest ? <NoticeBody state={latest} /> : null,
+    running: <p role="status" className="break-words text-state-run">{vm.message}</p>,
+    done: <p data-auth-success role="status"
+      className="rounded-card bg-pill-done-bg p-2g font-medium text-state-done">{vm.message}</p>,
+    failed: <FlowError>{vm.message}</FlowError>,
+    cancelled: <p className="break-words text-state-muted">{vm.message}</p>,
+  };
+  return <div className="min-w-0 space-y-2g overflow-x-hidden"
+    data-auth-flow-step={vm.kind}>
+    {controller.error ? <FlowError>{controller.error}</FlowError> : null}
+    {content[vm.kind]}
+  </div>;
+}
+
+function loginFooter(
   controller: LoginController,
   vm: LoginFlowVm,
   onClose: () => void,
   L: Vocab,
-) {
-  if (vm.kind === 'selection') {
-    return <Button data-action="auth-start" variant="primary" disabled={!controller.canStart} onClick={controller.start}>{L.authLoginStart}</Button>;
-  }
-  if (vm.kind === 'prompt') {
-    return <>{controller.canCancel ? <Button data-action="auth-cancel" onClick={controller.cancel}>{L.cancel}</Button> : null}<Button data-action="auth-submit" variant="primary" disabled={!controller.response} onClick={controller.submit}>{L.authLoginSubmit}</Button></>;
-  }
-  if (vm.terminal) return <Button data-action="auth-close" onClick={onClose}>{L.authLoginClose}</Button>;
-  if (controller.canCancel) {
-    return <Button data-action="auth-cancel" onClick={controller.cancel}>{L.cancel}</Button>;
-  }
-  return null;
+): ReactNode {
+  const cancel = controller.canCancel
+    ? <Button data-action="auth-cancel" onClick={controller.cancel}>{L.cancel}</Button>
+    : null;
+  const close = <Button data-action="auth-close" onClick={onClose}>{L.authLoginClose}</Button>;
+  const footer: Record<LoginFlowVm['kind'], ReactNode> = {
+    selection: <Button data-action="auth-start" variant="primary"
+      disabled={!controller.canStart} onClick={controller.start}>{L.authLoginStart}</Button>,
+    prompt: <>{cancel}<Button data-action="auth-submit" variant="primary"
+      disabled={!controller.response} onClick={controller.submit}>{L.authLoginSubmit}</Button></>,
+    running: cancel, notice: cancel,
+    done: close, failed: close, cancelled: close,
+  };
+  return footer[vm.kind];
+}
+
+function flowTitle(controller: LoginController): string {
+  return controller.providerLabel
+    ? `${controller.backendLabel} · ${controller.providerLabel}`
+    : controller.backendLabel;
+}
+
+function flowDescription(controller: LoginController, vm: LoginFlowVm, L: Vocab): string {
+  return vm.kind === 'prompt' && controller.latest?.notice?.kind === 'auth_url'
+    ? L.authLoginAuthorizationSequence
+    : vm.message;
+}
+
+function MobileLoginSheet({
+  open, title, description, closeLabel, body, footer, onClose,
+}: {
+  open: boolean;
+  title: string;
+  description: string;
+  closeLabel: string;
+  body: ReactNode;
+  footer: ReactNode;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <MBottomSheet onClose={onClose}>
+      <section data-auth-sheet role="dialog" aria-modal="true"
+        aria-labelledby="auth-sheet-title" aria-describedby="auth-sheet-description"
+        className="flex max-h-[78dvh] min-h-[18rem] min-w-0 flex-col">
+        <p id="auth-sheet-description" className="sr-only">{description}</p>
+        <header className="flex flex-none items-center justify-between gap-2g pb-2g">
+          <h2 id="auth-sheet-title" className="min-w-0 break-words text-body font-semibold text-state-ink">{title}</h2>
+          <button type="button" aria-label={closeLabel} onClick={onClose}
+            className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-surface-card text-state-ink/70">✕</button>
+        </header>
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-2g">{body}</div>
+        {footer ? <footer className="flex flex-none flex-wrap gap-1g border-t border-card pt-2g [&>*]:flex-1">{footer}</footer> : null}
+      </section>
+    </MBottomSheet>
+  );
 }
 
 export function LoginFlowModal({
   open, onClose, target, initialState, onFlowStateChange,
 }: LoginFlowModalProps) {
   const L = useVocab();
+  const isMobile = useIsMobile();
   const controller = useLoginController(open, target, initialState, onFlowStateChange);
   const vm = buildLoginFlowVm(controller.latest, L);
+  const title = flowTitle(controller);
+  const description = flowDescription(controller, vm, L);
+  const body = <LoginBody controller={controller} vm={vm} L={L} />;
+  const footer = loginFooter(controller, vm, onClose, L);
+  if (isMobile) {
+    return <MobileLoginSheet open={open} title={title} description={description}
+      closeLabel={L.authLoginClose} body={body} footer={footer} onClose={onClose} />;
+  }
   return (
-    <Modal
-      open={open}
-      onOpenChange={next => { if (!next) onClose(); }}
-      title={vm.title}
-      description={vm.message}
-      footer={modalFooter(controller, vm, onClose, L)}
-    >
-      {modalBody(controller, vm)}
+    <Modal open={open} onOpenChange={next => { if (!next) onClose(); }}
+      title={title} description={description} hideDescription footer={footer}>
+      {body}
     </Modal>
   );
 }

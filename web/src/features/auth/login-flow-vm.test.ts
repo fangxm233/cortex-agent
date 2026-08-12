@@ -25,7 +25,7 @@ describe('buildLoginFlowVm', () => {
 
   it.each([
     ['secret', 'password'],
-    ['manual_code', 'password'],
+    ['manual_code', 'text'],
     ['text', 'text'],
     ['select', 'select'],
   ] as const)('maps %s prompts to a %s control', (kind, inputType) => {

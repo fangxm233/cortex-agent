@@ -1,4 +1,4 @@
-// input:  Claude/PI auth, saved expiry, profiles, runtime
+// input:  Claude auth CLI/metadata, PI auth, profiles
 // output: auth status snapshot and preferred login type
 // pos:    Backend authentication status snapshot producer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -22,6 +22,10 @@ import {
   type ProfileEntry,
   type ResolvedProfile,
 } from '../agents/profile-manager.js';
+import {
+  readClaudeAuthStatus as readInstalledClaudeAuthStatus,
+  type ClaudeAuthStatus,
+} from './cc-auth-cli.js';
 import {
   loadPiRuntime as loadInstalledPiRuntime,
   type LoadPiRuntimeOptions,
@@ -85,6 +89,7 @@ interface ActiveProfileReference {
 
 export interface GetAuthStatusOptions {
   now?: () => Date;
+  claudeConfigDir?: string;
   claudeCredentialsPath?: string;
   piAuthPath?: string;
   loadPiRuntime?: (options?: LoadPiRuntimeOptions) => Promise<PiRuntimeLoadResult>;
@@ -98,6 +103,7 @@ export interface GetAuthStatusOptions {
   getActiveBackend?: () => Backend;
   listProfiles?: () => ResolvedProfile[];
   getActiveProfileConfig?: () => ActiveProfileReference;
+  readClaudeAuthStatus?: () => Promise<ClaudeAuthStatus>;
 }
 
 interface ClaudeOAuthMetadata {
@@ -116,7 +122,6 @@ interface InUseAccounts {
 }
 
 const EXPIRING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-const ISO_8601_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 const PI_API_KEY_SOURCES = new Set<PiProviderAuthStatus['source']>([
   'runtime',
   'environment',
@@ -163,12 +168,6 @@ function toIso(value: number | null): string | null {
   return value === null ? null : new Date(value).toISOString();
 }
 
-function isoEpoch(value: string | undefined): number | null {
-  if (!value || !ISO_8601_INSTANT_PATTERN.test(value)) return null;
-  const epoch = Date.parse(value);
-  return Number.isFinite(epoch) ? epoch : null;
-}
-
 function claudeOAuthCredential(
   oauth: ClaudeOAuthMetadata,
   nowMs: number,
@@ -186,18 +185,18 @@ function claudeOAuthCredential(
   };
 }
 
-function claudeSavedOAuthCredential(
-  expiresAt: string | undefined,
-  nowMs: number,
-): AuthCredentialStatus {
-  const expiry = isoEpoch(expiresAt);
+function claudeCliCredential(): AuthCredentialStatus {
   return {
-    authType: 'oauth',
-    state: stateFromExpiry(nowMs, [expiry]),
-    source: 'env',
-    expiresAt: expiry === null ? null : expiresAt ?? null,
-    refreshExpiresAt: null,
-    manageable: true,
+    authType: 'oauth', state: 'logged-in', source: 'claude-cli',
+    expiresAt: null, refreshExpiresAt: null, manageable: true,
+  };
+}
+
+function claudeLegacyOAuthCredential(): AuthCredentialStatus {
+  return {
+    authType: 'oauth', state: 'unknown', source: 'legacy-env',
+    expiresAt: null, refreshExpiresAt: null, manageable: true,
+    detail: 'legacy_runtime_token',
   };
 }
 
@@ -215,16 +214,15 @@ function claudeApiKeyCredential(): AuthCredentialStatus {
 function claudeCredentials(
   oauth: ClaudeOAuthMetadata | null,
   apiKey: string | undefined,
-  oauthToken: string | undefined,
-  oauthTokenExpiresAt: string | undefined,
+  cliLoggedIn: boolean,
+  legacyToken: string | undefined,
   nowMs: number,
 ): AuthCredentialStatus[] {
   const credentials: AuthCredentialStatus[] = [];
   if (apiKey) credentials.push(claudeApiKeyCredential());
-  if (oauthToken) {
-    credentials.push(claudeSavedOAuthCredential(oauthTokenExpiresAt, nowMs));
-  }
-  if (oauth) credentials.push(claudeOAuthCredential(oauth, nowMs));
+  if (cliLoggedIn) {
+    credentials.push(oauth ? claudeOAuthCredential(oauth, nowMs) : claudeCliCredential());
+  } else if (legacyToken) credentials.push(claudeLegacyOAuthCredential());
   return credentials;
 }
 
@@ -257,24 +255,25 @@ function emptyClaudeAccount(
 function buildClaudeAccount(
   credentialRead: ClaudeCredentialRead,
   apiKey: string | undefined,
-  oauthToken: string | undefined,
-  oauthTokenExpiresAt: string | undefined,
+  cliLoggedIn: boolean | null,
+  legacyToken: string | undefined,
   mode: string,
   nowMs: number,
   inUse: boolean,
 ): AuthAccountStatus {
   const credentials = claudeCredentials(
-    credentialRead.oauth, apiKey, oauthToken, oauthTokenExpiresAt, nowMs,
+    credentialRead.oauth, apiKey, cliLoggedIn === true, legacyToken, nowMs,
   );
   if (mode === 'api') {
     const current = credentials.find(item => item.authType === 'api_key');
     return current ? claudeAccountFromCredential(current, credentials, inUse)
       : emptyClaudeAccount('logged-out', credentials, inUse);
   }
-  const current = credentials.find(item => item.authType === 'oauth');
+  const current = cliLoggedIn === true
+    ? credentials.find(item => item.authType === 'oauth')
+    : undefined;
   if (current) return claudeAccountFromCredential(current, credentials, inUse);
-  const state = credentialRead.kind === 'invalid' ? 'unknown' : 'logged-out';
-  return emptyClaudeAccount(state, credentials, inUse);
+  return emptyClaudeAccount(cliLoggedIn === null ? 'unknown' : 'logged-out', credentials, inUse);
 }
 
 function providerCapabilities(provider: PiProvider): AuthType[] {
@@ -455,20 +454,35 @@ function appendPiAccounts(
   }
 }
 
+async function resolveClaudeLogin(options: GetAuthStatusOptions): Promise<boolean | null> {
+  try {
+    const status = await (options.readClaudeAuthStatus ?? readInstalledClaudeAuthStatus)();
+    return status.loggedIn;
+  } catch {
+    return null;
+  }
+}
+
 export async function getAuthStatus(options: GetAuthStatusOptions = {}): Promise<AuthStatusSnapshot> {
   const now = (options.now ?? (() => new Date()))();
   const home = os.homedir();
-  const claudePath = options.claudeCredentialsPath ?? path.join(home, '.claude', '.credentials.json');
+  const claudeConfigDir = options.claudeConfigDir
+    ?? process.env.CLAUDE_CONFIG_DIR
+    ?? path.join(home, '.claude');
+  const claudePath = options.claudeCredentialsPath
+    ?? path.join(claudeConfigDir, '.credentials.json');
   const piAuthPath = options.piAuthPath ?? path.join(home, '.pi', 'agent', 'auth.json');
   const usage = collectInUse(options);
   const apiEnv = { ...(options.getSavedApiEnv ?? readSavedApiEnv)() };
+  const loader = options.loadPiRuntime ?? loadInstalledPiRuntime;
+  const [cliLoggedIn, pi] = await Promise.all([
+    resolveClaudeLogin(options), loader({ authPath: piAuthPath }),
+  ]);
   const claude = buildClaudeAccount(
-    readClaudeOAuth(claudePath), apiEnv.ANTHROPIC_API_KEY,
-    apiEnv.CLAUDE_CODE_OAUTH_TOKEN, apiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT,
+    readClaudeOAuth(claudePath), apiEnv.ANTHROPIC_API_KEY, cliLoggedIn,
+    apiEnv.CLAUDE_CODE_OAUTH_TOKEN,
     (options.getClaudeMode ?? readClaudeMode)(), now.getTime(), usage.claude,
   );
-  const loader = options.loadPiRuntime ?? loadInstalledPiRuntime;
-  const pi = await loader({ authPath: piAuthPath });
   const accounts = [claude];
   if (pi.available) appendPiAccounts(accounts, pi, piAuthPath, now.getTime(), usage.pi);
   return { generatedAt: now.toISOString(), accounts, piRuntime: piRuntimeSnapshot(pi) };
