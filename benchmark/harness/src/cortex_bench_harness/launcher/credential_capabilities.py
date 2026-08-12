@@ -59,10 +59,13 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
         CredentialCapability("claude-subscription", "unsupported"),
     _key("pi", "??", "??", "api-key"):
         CredentialCapability("pi-api-key", "unsupported"),
-    # Exact DeepSeek transport row. It remains unsupported until the adapter and PI projection
-    # complete the offline mutation gate; adding a complete key does not itself admit a route.
+    # Exact DeepSeek transport row. This state proves only the synthetic upstream contract;
+    # paid arming still requires a separately evidenced live handshake.
     _key("pi", "deepseek", "openai-completions", "api-key"):
-        CredentialCapability("pi-deepseek-api-key", "unsupported"),
+        CredentialCapability(
+            "pi-deepseek-api-key", "offline-contract-passed",
+            "9ba4d8860773e59fcdd5cad47f165e9591760c0ea24996b3069555f2391148e9",
+        ),
     # This `??` is no longer the interlock it once was: the arming point now refuses an
     # unadmitted row outright, before it reads a credential, so this row fails closed by
     # mechanism rather than by an unfilled member. The protocol's value IS established from the

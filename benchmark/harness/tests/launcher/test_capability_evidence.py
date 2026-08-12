@@ -61,6 +61,21 @@ def test_validates_strict_offline_evidence_and_hash(tmp_path: Path) -> None:
     )["mutations_killed"] == 20
 
 
+def test_validates_the_shipped_deepseek_offline_evidence() -> None:
+    import cortex_bench_harness.launcher.credential_capabilities as registry
+
+    key = next(key for key, row in registry.CAPABILITY_REGISTRY.items()
+               if row.id == "pi-deepseek-api-key")
+    row = registry.CAPABILITY_REGISTRY[key]
+    assert row.evidence_sha256 is not None
+    evidence = validate_capability_evidence(
+        registry._evidence_path(row.id, row.state), row.evidence_sha256,
+        capability_id=row.id, key=key, state=row.state,
+        adapter_id="deepseek-chat-completions/api-key",
+    )
+    assert evidence["mutations_total"] == evidence["mutations_killed"] == 29
+
+
 def test_rejects_unknown_fields_key_drift_and_hash_drift(tmp_path: Path) -> None:
     value = document()
     value["unknown"] = "drift"

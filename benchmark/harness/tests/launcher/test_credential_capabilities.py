@@ -63,7 +63,7 @@ EXPECTED_PROJECTION = [
     },
     {
         "id": "pi-deepseek-api-key",
-        "state": "unsupported",
+        "state": "offline-contract-passed",
         "key": {
             "runner_or_backend": "pi",
             "provider": "deepseek",
@@ -71,6 +71,8 @@ EXPECTED_PROJECTION = [
             "credential_kind": "api-key",
             "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
+        "evidence_sha256":
+            "9ba4d8860773e59fcdd5cad47f165e9591760c0ea24996b3069555f2391148e9",
     },
     {
         "id": "pi-openai-codex-oauth",
@@ -103,7 +105,7 @@ def test_deepseek_promotion_requires_bound_evidence(
 ) -> None:
     rows = dict(CAPABILITY_REGISTRY)
     key = next(key for key, row in rows.items() if row.id == "pi-deepseek-api-key")
-    rows[key] = replace(rows[key], state="offline-contract-passed")
+    rows[key] = replace(rows[key], state="offline-contract-passed", evidence_sha256=None)
     monkeypatch.setattr(credential_capabilities, "CAPABILITY_REGISTRY", rows)
 
     with pytest.raises(ValueError, match="evidence"):
