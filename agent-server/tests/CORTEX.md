@@ -11,7 +11,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |
-| agent-adapter-claude.test.ts | test | Claude CLI, hooks, settings, MCP proxy |
+| agent-adapter-claude.test.ts | test | Claude CLI, fallback, hooks and MCP proxy |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-custom-catalog.test.ts | test | user-defined providers reaching the spawn catalog |
 | agent-adapter-pi-event-parser.test.ts | test | PI events with nullable exact accounting |
@@ -25,7 +25,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
 | agent-adapter-pi.test.ts | test | PI spawn policy, resume, context and lifecycle |
-| agent-adapter.test.ts | test | adapter dispatch, PI path wiring and capabilities |
+| agent-adapter.test.ts | test | adapter dispatch, events and capabilities |
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
 | auth-events.test.ts | test | auth case, boundary, privacy and recovery events |
@@ -59,7 +59,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | disk-monitor.test.ts | test | disk path, toggle, alerts and byte formatting |
 | dispatch-utils-watcher.test.ts | test | machine config polling after watcher failure |
 | dispatch-utils.test.ts | test | device registry, task id and session names |
-| domain/ | subdir | domain service, MCP tool and UI-service tests |
+| domain/ | subdir | domain service, agent-run, MCP and UI tests |
 | entry/ | subdir | Runtime wiring and CLI entry-point tests |
 | events/ | subdir | event bus tests |
 | execution-lock-release.test.ts | test | task lock release on execution end |
@@ -113,7 +113,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
-| run-with-adapter.test.ts | test | tests event order, accounting and background waits |
+| run-with-adapter.test.ts | test | tests events, notices, accounting and waits |
 | schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |
@@ -166,7 +166,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | thread-manager.test.ts | test | thread prompt variables and transitions |
 | thread-resume-statusmsg.test.ts | test | Covers persisted thread resume options |
 | thread-resume-task-loop.test.ts | test | Resumed task provenance and empty-wait recovery |
-| thread-runner.test.ts | test | thread lifecycle, snapshot buffering and wait control |
+| thread-runner.test.ts | test | thread lifecycle, notices, buffering and waits |
 | thread-stages.test.ts | test | stage parsing and step prompt building |
 | thread-statusmsg-seal.test.ts | test | stale suspended status message refresh |
 | thread-task-bridge.test.ts | test | Generation-fenced results wake waiting managers |

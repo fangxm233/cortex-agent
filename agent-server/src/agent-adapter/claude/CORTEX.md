@@ -5,15 +5,15 @@ Translates Claude stream and transcript events into the normalized event schema.
 
 | filename | role | function |
 |---|---|---|
-| adapter.ts | adapter | emits cache-inclusive prompt accounting |
+| adapter.ts | adapter | emits fallback and prompt accounting events |
 | adapter-tui.ts | adapter | runs declared Claude TUI sessions under tmux |
 | spawn-args.ts | core | Builds isolated Claude args and environment |
 | mcp-config.ts | core | Writes private MCP and proxy configs |
 | remote-mcp-proxy.ts | core | Proxies remote MCP without redirects |
 | defaults.ts | config | Claude timeout, MCP composition and tool constants |
 | hooks-builder.ts | core | selects and compiles Claude hooks from settings |
-| event-parser.ts | parser | tracks Claude stream blocks and reported models |
-| jsonl-tail.ts | core | normalizes transcript events and cache reads |
+| event-parser.ts | parser | parses stream blocks and model fallbacks |
+| jsonl-tail.ts | core | normalizes transcript, fallback and cache events |
 | tmux-control.ts | util | Runs tmux with secure paste buffers and launchers |
 | bg-task-tracker.ts | core | tracks background tasks and continuations |
 | context-usage.ts | core | tracks context window usage per session |

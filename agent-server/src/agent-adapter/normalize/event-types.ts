@@ -1,5 +1,5 @@
 // input:  core agent types
-// output: NormalizedEvent with documented accounting fields
+// output: normalized agent event union
 // pos:    Backend-neutral event schema
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -35,6 +35,7 @@ export type NormalizedEvent =
   | { type: 'plan_mode_entered'; toolUseId: string; planFilePath: string }
   | { type: 'plan_written'; toolUseId: string; path: string; content: string }
   | { type: 'context_compacted'; trigger: string; preTokens?: number }
+  | { type: 'model_fallback'; originalModel: string; fallbackModel: string }
   | ({ type: 'context_usage' } & ContextUsage)
   | { type: 'rate_limit'; raw: unknown }
   | CostRecordEvent

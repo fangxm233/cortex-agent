@@ -1,18 +1,19 @@
-// input:  conversation history, DEBUG gate, thread step's normalized id-correlated events
-// output: incremental transcript recorder with optional lossless prompt/tool result persistence
-// pos:    thread-step transcript writes/live hints keyed by the slot's stable track sessionId
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  history writer, DEBUG gate, step events
+// output: persisted step messages, notices, and tools
+// pos:    Thread-step transcript recorder
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
+import type { ChatNoticeLevel } from '@core/types/agent-types.js';
 
 const log = createLogger('thread-transcript');
 
 /** The subset of ConversationHistoryRepo the recorder needs — injectable for tests. */
 export interface HistoryWriter {
   appendUser(sessionId: string, opts: { text: string; ts?: string; agentMessage?: string }): Promise<void>;
-  appendAssistant(sessionId: string, opts: { text: string; ts?: string }): Promise<void>;
+  appendAssistant(sessionId: string, opts: { text: string; ts?: string; noticeLevel?: ChatNoticeLevel }): Promise<void>;
   appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string; toolUseId?: string; fullInput?: unknown }): Promise<void>;
   appendToolResult(sessionId: string, opts: { toolUseId: string; content: string; isError: boolean }): Promise<void>;
 }
@@ -25,11 +26,12 @@ export interface PersistedTranscriptEvent {
   text?: string;
   toolName?: string;
   toolInput?: string;
+  noticeLevel?: ChatNoticeLevel;
 }
 
 export interface StepTranscriptRecorder {
   recordUser(text: string): void;
-  recordAssistant(text: string): void;
+  recordAssistant(text: string, noticeLevel?: ChatNoticeLevel): void;
   recordTool(name: string, input: any, toolUseId?: string): void;
   /** DEBUG-only result sidecar; no-op when the process-wide mode was disabled at creation. */
   recordToolResult(toolUseId: string, content: string, isError: boolean): void;
@@ -71,9 +73,13 @@ export function createStepTranscriptRecorder(
         ...(debugEnabled ? { agentMessage: text } : {}),
       }));
     },
-    recordAssistant(text: string): void {
+    recordAssistant(text: string, noticeLevel?: ChatNoticeLevel): void {
       const ts = new Date().toISOString();
-      push({ role: 'assistant', ts, text }, () => history.appendAssistant(sessionId, { text, ts }));
+      const notice = noticeLevel ? { noticeLevel } : {};
+      push(
+        { role: 'assistant', ts, text, ...notice },
+        () => history.appendAssistant(sessionId, { text, ts, ...notice }),
+      );
     },
     recordTool(name: string, input: any, toolUseId = ''): void {
       const ts = new Date().toISOString();

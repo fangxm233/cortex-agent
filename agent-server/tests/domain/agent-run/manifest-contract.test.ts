@@ -1,7 +1,7 @@
-// input:  lifecycle manifests, journals and state admission evidence
-// output: lifecycle linkage and required parent-admission proofs
-// pos:    Agent-run manifest contract regression suite
-// >>> If I am updated, update my header and folder CORTEX.md <<<
+// input:  manifests, journals, state admission evidence
+// output: lifecycle, event, and parent-admission proofs
+// pos:    Agent-run manifest contract tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -460,6 +460,23 @@ it('accepts every declared backend and reports the exact code for any other', as
     assert.deepEqual(validateTrajectoryRoot(root).problems, [
       `malformed_record:${trajectory.journalPath}:2:invalid_envelope`,
     ]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('accepts model fallback events in the normalized journal contract', async () => {
+  const root = makeRoot();
+  try {
+    const trajectory = await createTrajectory(root);
+    rewriteJournal(trajectory.journalPath, records => {
+      records[1].event = {
+        type: 'model_fallback',
+        originalModel: 'claude-fable-5[1m]', fallbackModel: 'claude-opus-4-8[1m]',
+      };
+    });
+    syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
+    assert.deepEqual(validateTrajectoryRoot(root).problems, []);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -5,7 +5,7 @@ Shared by the Claude and PI adapters and by Cortex orchestration.
 
 | filename | role | function |
 |---|---|---|
-| event-types.ts | types | defines cache-inclusive input accounting |
+| event-types.ts | types | defines accounting and model fallback events |
 | event-stream.ts | core | queues events for a single producer |
 | hooks.ts | types | backend-neutral hook specification |
 | tool-names.ts | core | maps canonical and native tool names |

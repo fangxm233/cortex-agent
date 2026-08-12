@@ -1,5 +1,5 @@
 // input:  Claude complete and partial stream events
-// output: prompt helpers and stream cursors
+// output: prompt, stream, and fallback parsers
 // pos:    Claude stream event parser
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,6 +7,19 @@ import { readFileSync } from 'fs';
 import { CancelledError, DEFAULT_PLAN_DIRS, PROJECT_SETTINGS } from './defaults.js';
 import { summarizeToolInput } from './tool-summarizers.js';
 import { buildPrompt as sharedBuildPrompt } from '../normalize/prompt-builder.js';
+import type { NormalizedEvent } from '../normalize/event-types.js';
+
+export type ModelFallbackEvent = Extract<NormalizedEvent, { type: 'model_fallback' }>;
+
+/** Parse both Claude transcript camelCase and stdout snake_case fallback events. */
+export function parseModelFallbackEvent(raw: any): ModelFallbackEvent | null {
+  if (raw?.type !== 'system' || raw.subtype !== 'model_refusal_fallback') return null;
+  const originalModel = raw.originalModel ?? raw.original_model;
+  const fallbackModel = raw.fallbackModel ?? raw.fallback_model;
+  if (typeof originalModel !== 'string' || originalModel.length === 0) return null;
+  if (typeof fallbackModel !== 'string' || fallbackModel.length === 0) return null;
+  return { type: 'model_fallback', originalModel, fallbackModel };
+}
 
 // ── Token-level streaming (`--include-partial-messages`) ────────────────────────────────────────
 //

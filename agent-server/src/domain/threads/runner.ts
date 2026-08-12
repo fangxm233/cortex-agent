@@ -1,7 +1,7 @@
-// input:  thread state, buffered-input readiness, throttle, hooks
-// output: isolated runs with exact accounting and transcripts
-// pos:    Runs thread steps, controls, hooks, and resumes
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  thread state, buffered input, throttle, hooks
+// output: isolated runs, notices, and transcripts
+// pos:    Thread step runtime and lifecycle
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as path from 'node:path';
 import { threadStore as daemonThreadStore } from '@store/thread-repo.js';
@@ -46,6 +46,7 @@ import { closeSessionsByPrefix } from '../agents/index.js';
 import * as daemonExecutionRegistry from '../executions/registry.js';
 import { sessionStore as daemonSessionStore } from '@store/session-registry-repo.js';
 import { formatDurationCompact } from '@core/utils.js';
+import type { ChatNoticeLevel } from '@core/types/agent-types.js';
 import { buildThreadStatusMessage } from '@core/status-format.js';
 import type { OutputStream } from '@platform/output-stream.js';
 import { runningExecutions as daemonRunningExecutions } from '../../core/running-executions.js';
@@ -206,7 +207,7 @@ interface StepContext {
 
 /** Per-step callbacks resolved from opts/vm by setupStepCallbacks. */
 interface StepCallbacks {
-  onAssistantMessage: ((text: string) => void) | null | undefined;
+  onAssistantMessage: ((text: string, blockId?: string, noticeLevel?: ChatNoticeLevel) => void) | null | undefined;
   onProgress: ((progress: any) => void) | null;
   onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
   onToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
@@ -440,7 +441,8 @@ async function buildStepConfig(
         type: 'session.message', sessionId: trackSessionId, channel: opts.channel,
         role: ev.role, text: ev.text ?? '',
         ...(ev.toolName !== undefined ? { toolName: ev.toolName } : {}),
-        ...(ev.toolInput !== undefined ? { toolInput: ev.toolInput } : {}), ts: ev.ts,
+        ...(ev.toolInput !== undefined ? { toolInput: ev.toolInput } : {}),
+        ...(ev.noticeLevel !== undefined ? { noticeLevel: ev.noticeLevel } : {}), ts: ev.ts,
       });
     },
     () => jobCtx.bus?.publish({
@@ -502,13 +504,11 @@ function setupStepCallbacks(
   // shows everything so far. Recording wraps (never replaces) the display callbacks, so
   // streaming/tool-trace behaviour is unchanged.
   const recorder = stepCtx.recorder;
-  const onAssistantMessage = (text: string) => {
-    if (text) {
-      stepCtx.sawActivity = true;
-      stepCtx.terminalAssistantText = text;
-    }
+  const onAssistantMessage = (text: string, _blockId?: string, noticeLevel?: ChatNoticeLevel) => {
+    if (text) stepCtx.sawActivity = true;
+    if (text && !noticeLevel) stepCtx.terminalAssistantText = text;
     streamAssistantMessage(text);
-    if (text) recorder.recordAssistant(text);
+    if (text) recorder.recordAssistant(text, noticeLevel);
   };
   const onToolUse = (name: string, input: any, toolUseId: string) => {
     stepCtx.sawActivity = true;

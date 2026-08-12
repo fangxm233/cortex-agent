@@ -1,6 +1,6 @@
-// input:  Claude modules, compositions, hooks, settings
-// output: CLI args, composition, compact regressions
-// pos:    Covers Claude adapter spawn behavior
+// input:  Claude modules, hooks, config, settings
+// output: Claude spawn, fallback, and compact tests
+// pos:    Claude adapter behavior tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { afterAll, beforeAll, test } from 'vitest';
@@ -1460,6 +1460,30 @@ test('Claude print compact rejects an unconfirmed result', async (t) => {
   const promise = session.compact();
   session.handleLine(claudeResult());
   await assert.rejects(promise, /did not confirm compaction/i);
+});
+
+test('Claude print surfaces one valid model_refusal_fallback event from snake_case stdout', async (t) => {
+  const { session, cleanup } = compactTestSession();
+  t.onTestFinished(cleanup);
+  const fallbacks: Array<{ originalModel: string; fallbackModel: string }> = [];
+  const promise = session.sendMessage('hello', {
+    onModelFallback: (event: { originalModel: string; fallbackModel: string }) => fallbacks.push(event),
+  });
+
+  session.handleLine(JSON.stringify({
+    type: 'system', subtype: 'model_refusal_fallback',
+    original_model: 'claude-fable-5[1m]', fallback_model: 'claude-opus-4-8[1m]',
+  }));
+  session.handleLine(JSON.stringify({
+    type: 'system', subtype: 'model_refusal_fallback', original_model: 'claude-fable-5[1m]',
+  }));
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started' }));
+  session.handleLine(claudeResult());
+  await promise;
+
+  assert.deepEqual(fallbacks, [{
+    originalModel: 'claude-fable-5[1m]', fallbackModel: 'claude-opus-4-8[1m]',
+  }]);
 });
 
 // --- ClaudeAdapter.spawn — AgentSpawnConfig → CLI args parity (Blocker fix from Plan Review iter 1) ---

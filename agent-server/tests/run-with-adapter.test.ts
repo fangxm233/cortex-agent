@@ -1,6 +1,6 @@
-// input:  fake adapters, observers, continuations, settings
-// output: ordered events, exact accounting, and wait regressions
-// pos:    Covers backend-neutral run event semantics
+// input:  fake adapters, observers, continuations
+// output: event, notice, accounting, and wait tests
+// pos:    Backend-neutral run event tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test, vi } from 'vitest';
@@ -190,6 +190,44 @@ test('runWithAdapter: context_usage reaches the backend-neutral callback before 
   ).promise;
 
   assert.deepEqual(seen, ['context:60000/200000', 'progress']);
+});
+
+test('runWithAdapter: model fallback emits one warning and the turn continues', async (t) => {
+  const previousLocale = getLocale();
+  t.onTestFinished(() => setLocale(previousLocale));
+  setLocale('en');
+
+  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+  const adapter = makeFakeAdapter('claude', {
+    events: [
+      {
+        type: 'model_fallback',
+        originalModel: 'claude-fable-5[1m]', fallbackModel: 'claude-opus-4-8[1m]',
+      },
+      { type: 'assistant_text', text: 'continued' },
+      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
+    ],
+    resultOnResolve: defaultAgentResult('s-fallback'),
+    recorded,
+  });
+  const notices: Array<{ text: string; level?: string }> = [];
+
+  const result = await runWithAdapter(
+    adapter,
+    'msg',
+    {
+      channel: 'web:session',
+      onAssistantMessage: (text: string, _blockId?: string, level?: string) => notices.push({ text, level }),
+    },
+    { model: 'claude-fable-5', backend: 'claude', mode: null },
+    undefined,
+  ).promise;
+
+  assert.equal(result.sessionId, 's-fallback');
+  assert.deepEqual(notices, [
+    { text: 'Model fallback: claude-fable-5[1m] → claude-opus-4-8[1m].', level: 'warning' },
+    { text: 'continued', level: undefined },
+  ]);
 });
 
 test('runWithAdapter: context compaction emits one concise info notice', async (t) => {

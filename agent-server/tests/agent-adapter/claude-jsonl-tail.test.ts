@@ -1,6 +1,6 @@
-// input:  transcript normalizer and temporary files
-// output: transcript events and cache-read accounting tests
-// pos:    Covers Claude transcript normalization
+// input:  transcript normalizer and temp files
+// output: transcript, fallback, and accounting tests
+// pos:    Claude transcript normalization tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -349,6 +349,35 @@ test('Normalizer returns [] for malformed input (no type)', () => {
   const n = new JsonlEventNormalizer();
   assert.deepEqual(n.consume({}), []);
   assert.deepEqual(n.consume(null), []);
+});
+
+test('Normalizer emits model_fallback for both observed Claude wire shapes', () => {
+  const n = new JsonlEventNormalizer();
+  assert.deepEqual(n.consume({
+    type: 'system', subtype: 'model_refusal_fallback',
+    originalModel: 'claude-fable-5[1m]', fallbackModel: 'claude-opus-4-8[1m]',
+  }), [{
+    type: 'model_fallback',
+    originalModel: 'claude-fable-5[1m]', fallbackModel: 'claude-opus-4-8[1m]',
+  }]);
+  assert.deepEqual(n.consume({
+    type: 'system', subtype: 'model_refusal_fallback',
+    original_model: 'claude-opus-5[1m]', fallback_model: 'claude-opus-4-8[1m]',
+  }), [{
+    type: 'model_fallback',
+    originalModel: 'claude-opus-5[1m]', fallbackModel: 'claude-opus-4-8[1m]',
+  }]);
+});
+
+test('Normalizer ignores malformed model_refusal_fallback events', () => {
+  const n = new JsonlEventNormalizer();
+  assert.deepEqual(n.consume({
+    type: 'system', subtype: 'model_refusal_fallback', originalModel: 'claude-fable-5[1m]',
+  }), []);
+  assert.deepEqual(n.consume({
+    type: 'system', subtype: 'other',
+    originalModel: 'claude-fable-5[1m]', fallbackModel: 'claude-opus-4-8[1m]',
+  }), []);
 });
 
 // --- JsonlTail: integration with real tempfile ---

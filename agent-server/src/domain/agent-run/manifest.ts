@@ -1,7 +1,7 @@
-// input:  canonical roots, lifecycle metadata and admission journals
-// output: relocatable lifecycle files and state-gated validation
-// pos:    Lifecycle truth and validator for one-shot agent runs
-// >>> If I am updated, update my header and folder CORTEX.md <<<
+// input:  roots, lifecycle metadata, admission journals
+// output: lifecycle files and normalized event validation
+// pos:    One-shot run lifecycle validator
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { createHash, type Hash } from 'node:crypto';
 import fs from 'node:fs';
@@ -170,6 +170,9 @@ const EVENT_SCHEMAS: Record<string, EventSchema> = {
   },
   context_compacted: {
     required: { trigger: isString }, optional: { preTokens: isNumber },
+  },
+  model_fallback: {
+    required: { originalModel: isString, fallbackModel: isString },
   },
   context_usage: {
     required: {

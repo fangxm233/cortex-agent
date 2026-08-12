@@ -1,5 +1,5 @@
-// input:  session streams, spawn config, accounting
-// output: Claude turns with cache-aware accounting
+// input:  Claude streams, spawn config, accounting
+// output: Claude turns, fallback events, and accounting
 // pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -50,6 +50,8 @@ import {
   createStreamDeltaState,
   parseStreamEvent,
   takeTextBlockId,
+  parseModelFallbackEvent,
+  type ModelFallbackEvent,
   type StreamDeltaState,
 } from './event-parser.js';
 import { BgTaskTracker, routeLine } from './bg-task-tracker.js';
@@ -100,6 +102,7 @@ interface PendingTurn {
   onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
   onToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   onCompact: ((info: { trigger: string; preTokens?: number }) => void) | null;
+  onModelFallback: ((event: Omit<ModelFallbackEvent, 'type'>) => void) | null;
   onContextUsage: ((usage: ContextUsage) => void) | null;
   /** OC-11 / §17 G4-SA5: one census call per native-subagent line, carrying only the linkage. */
   onSubagentActivity: ((
@@ -575,6 +578,7 @@ class ClaudeSession {
       onToolUse: options.onToolUse || null,
       onToolResult: options.onToolResult || null,
       onCompact: options.onCompact || null,
+      onModelFallback: options.onModelFallback || null,
       onContextUsage: options.onContextUsage || null,
       onSubagentActivity: options.onSubagentActivity || null,
       rawStream: streams.rawStream,
@@ -689,6 +693,7 @@ class ClaudeSession {
         this.deliverContinuation(sink => sink.onToolResult?.(id, content, isError)),
       onContextUsage: (usage: ContextUsage) =>
         this.deliverContinuation(sink => sink.onContextUsage?.(usage)),
+      onModelFallback: null,
     };
   }
 
@@ -747,6 +752,7 @@ class ClaudeSession {
     onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
     onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
     onCompact?: ((info: { trigger: string; preTokens?: number }) => void) | null;
+    onModelFallback?: ((event: Omit<ModelFallbackEvent, 'type'>) => void) | null;
     onContextUsage?: ((usage: ContextUsage) => void) | null;
     onSubagentActivity?: ((
       parentToolUseId: string, subagentType: string | null, kind: SubagentActivityKind,
@@ -972,6 +978,15 @@ class ClaudeSession {
     catch (e) { log.warn('onSubagentActivity threw:', (e as Error).message); }
   }
 
+  private emitModelFallback(data: any): void {
+    const event = parseModelFallbackEvent(data);
+    const callback = this.currentTurn?.onModelFallback;
+    if (!event || !callback) return;
+    try {
+      callback({ originalModel: event.originalModel, fallbackModel: event.fallbackModel });
+    } catch (e) { log.warn('onModelFallback threw:', (e as Error).message); }
+  }
+
   private handleLine(line: string) {
     if (!line) return;
     this.resetIdleTimer();
@@ -1013,6 +1028,7 @@ class ClaudeSession {
           });
         } catch (e) { log.warn('onCompact threw:', (e as Error).message); }
       }
+      this.emitModelFallback(data);
       if (data.type === 'rate_limit_event' && data.rate_limit_info) {
         const mode = this.anthropicBaseUrl?.match(/\/m\/([^/]+)\//)?.[1] || undefined;
         handleRateLimitEvent(data.rate_limit_info, {
@@ -1517,6 +1533,8 @@ export class ClaudeAdapter implements AgentAdapter {
               stream.push({ type: 'tool_result', toolUseId, content, ok: !isError }),
             onCompact: (info: { trigger: string; preTokens?: number }) =>
               stream.push({ type: 'context_compacted', trigger: info.trigger, preTokens: info.preTokens }),
+            onModelFallback: (event: Omit<ModelFallbackEvent, 'type'>) =>
+              stream.push({ type: 'model_fallback', ...event }),
             onContextUsage: (usage: ContextUsage) =>
               stream.push({ type: 'context_usage', ...usage }),
             onProgress: (p: { num_turns?: number } | null) => {

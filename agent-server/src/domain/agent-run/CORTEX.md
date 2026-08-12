@@ -15,7 +15,7 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | identity.ts | core | hashes routed model, guarded role and bundle identities |
 | journal.ts | core | appends identity-bound state and run event records |
 | manifest-contract.ts | types | serializes root-relative terminal journal paths |
-| manifest.ts | core | validates lifecycle truth and required state admission |
+| manifest.ts | core | validates lifecycle, state and normalized events |
 | pinned-node-process.ts | process | launches Node with canonical trial-pinned paths |
 | role-surface.ts | identity | hashes exact spawn defaults, directives and guards |
 | run-config.ts | config | dispatches legacy and injected benchmark configs |

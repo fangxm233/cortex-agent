@@ -1,5 +1,5 @@
-// input:  run config, adapters, profiles, task/cost events
-// output: attributed runs with exact continuation accounting
+// input:  run config, adapters, profiles, task events
+// output: attributed runs, accounting, and notices
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -210,6 +210,7 @@ class LegacyEventDispatcher {
       turn_complete: (event) => this.turnComplete(event),
       cost_record: (event) => this.costRecord(event),
       context_compacted: () => this.contextCompacted(),
+      model_fallback: (event) => this.modelFallback(event),
       plan_written: (event) => this.planWritten(event),
       ask_user_question: (event) => this.askUserQuestion(event),
     };
@@ -285,6 +286,13 @@ class LegacyEventDispatcher {
     if (!this.options.onAssistantMessage) return;
     if (!getSettings().notifyCompaction) return;
     this.options.onAssistantMessage(t('notify.contextCompacted'), undefined, 'info');
+  }
+
+  private modelFallback(event: Extract<NormalizedEvent, { type: 'model_fallback' }>): void {
+    this.options.onAssistantMessage?.(t('notify.agentFallback', {
+      from: event.originalModel,
+      to: event.fallbackModel,
+    }), undefined, 'warning');
   }
 
   private planWritten(event: Extract<NormalizedEvent, { type: 'plan_written' }>): void {

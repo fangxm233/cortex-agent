@@ -1,7 +1,7 @@
-// input:  thread transcript recorder, fake history writer, DEBUG environment gate
-// output: ordered live append and lossless prompt/tool/result correlation regression coverage
-// pos:    thread-step transcript recorder specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  transcript recorder, fake history, DEBUG gate
+// output: notice, prompt, tool, and result tests
+// pos:    Thread-step transcript recorder tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -62,6 +62,21 @@ test('DEBUG recorder preserves the complete step prompt, tool input, result, and
   assert.equal(calls[1].arg.toolUseId, 'toolu-thread');
   assert.deepEqual(calls[2].arg, { toolUseId: 'toolu-thread', content: 'complete\nresult', isError: true });
   assert.deepEqual(debugUpdates, ['updated', 'updated', 'updated'], 'prompt, tool input, and result refresh only after each DEBUG append settles');
+});
+
+test('recorder preserves warning level in history and live publish', async () => {
+  const { writer, calls } = makeFakeHistory();
+  const published: PersistedTranscriptEvent[] = [];
+  const rec = createStepTranscriptRecorder(writer, 'track-warning', (ev) => published.push(ev));
+
+  rec.recordAssistant('Model fallback: from → to.', 'warning');
+  rec.recordAssistant('continued');
+  await rec.settle();
+
+  assert.equal(calls[0].arg.noticeLevel, 'warning');
+  assert.equal(calls[1].arg.noticeLevel, undefined);
+  assert.equal(published[0].noticeLevel, 'warning');
+  assert.equal(published[1].noticeLevel, undefined);
 });
 
 test('recorder shares one ts per event between the history append and the live publish (web de-dup contract)', async () => {

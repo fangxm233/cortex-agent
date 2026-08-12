@@ -1,7 +1,7 @@
-// input:  thread runner, prompt readiness, store, mock adapter
-// output: lifecycle, snapshot buffering, and wait-control regressions
-// pos:    Verifies thread runtime helpers in isolation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  thread runner, stores, mock adapter
+// output: lifecycle, notice, buffering, and wait tests
+// pos:    Thread runtime helper tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
@@ -13,6 +13,7 @@ import { threadStore } from '../src/store/thread-repo.js';
 import {
   buildThreadSummary,
   initThreadContext,
+  setupStepCallbacks,
   evaluateAndTransition,
   finalizeThread,
   consumeWaitControl,
@@ -486,4 +487,30 @@ test('evictPendingUserInput releases a waiter even if the download never settles
   evictPendingUserInput(id, 'buf_slow');
   await waiting;
   assert.equal(released, true);
+});
+
+test('setupStepCallbacks preserves assistant warning level for the thread transcript', () => {
+  const id = uniqueThreadId('assistant-warning');
+  const channel = 'web:thread-warning';
+  registerTestThread(makeThreadRecord({ id, channel }));
+  const recorded: any[][] = [];
+  const streamed: string[] = [];
+  const recorder = {
+    recordUser() {},
+    recordAssistant(...args: any[]) { recorded.push(args); },
+    recordTool() {},
+    recordToolResult() {},
+    settle: async () => {},
+  };
+  const stepCtx = {
+    agentSlotId: 'main', multiAgent: false, stage: null,
+    recorder, sawActivity: false, terminalAssistantText: null,
+  } as any;
+  const ctx = { stream: { emitText: (text: string) => streamed.push(text) } } as any;
+
+  const callbacks = setupStepCallbacks(id, stepCtx, ctx, makeRunOpts(channel));
+  (callbacks.onAssistantMessage as any)?.('Model fallback: from → to.', undefined, 'warning');
+
+  assert.deepEqual(streamed, ['Model fallback: from → to.']);
+  assert.deepEqual(recorded, [['Model fallback: from → to.', 'warning']]);
 });

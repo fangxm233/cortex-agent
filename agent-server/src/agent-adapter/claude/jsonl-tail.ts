@@ -1,12 +1,12 @@
-// input:  Claude transcript paths and JSONL records
-// output: transcript events with cache-read accounting
+// input:  Claude transcript path and JSONL records
+// output: transcript, fallback, and accounting events
 // pos:    Claude transcript event normalizer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { EventEmitter } from 'node:events';
 import * as fs from 'fs';
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
-import { isPlanFilePath } from './event-parser.js';
+import { isPlanFilePath, parseModelFallbackEvent } from './event-parser.js';
 import { usageToCost, type ClaudeUsage } from './cost-from-usage.js';
 
 // =====================================================================================
@@ -94,9 +94,11 @@ export class JsonlEventNormalizer {
     switch (raw.type) {
       case 'assistant': return this.handleAssistant(raw);
       case 'user': return this.handleUser(raw);
-      case 'system':
+      case 'system': {
         if (raw.subtype === 'turn_duration') return this.handleTurnDuration(raw);
-        return [];
+        const fallback = parseModelFallbackEvent(raw);
+        return fallback ? [fallback] : [];
+      }
       // Known non-translatable types — pass through silently.
       case 'permission-mode':
       case 'file-history-snapshot':

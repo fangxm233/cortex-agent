@@ -12,7 +12,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | claude-compact-window.test.ts | test | Claude auto-compact window settings lookup |
 | claude-context-usage.test.ts | test | Claude context and cache-read accounting |
 | claude-cost-from-usage.test.ts | test | Claude TUI cost reconstruction from usage |
-| claude-jsonl-tail.test.ts | test | Claude transcript and cache-read events |
+| claude-jsonl-tail.test.ts | test | Claude transcript, fallback and cache events |
 | claude-mid-turn-inject.test.ts | test | Claude mid-turn user message injection |
 | claude-print-resume.test.ts | test | print-mode resume guard on fresh sessions |
 | claude-stream-deltas.test.ts | test | Claude delta and reported model parsing |

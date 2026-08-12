@@ -17,12 +17,12 @@ Consumed by the orchestration and UI layers through the index barrel.
 | prompt-builder.ts | build | assembles prompts from scoped runtime state |
 | pending-user-inputs.ts | state | gates asynchronous buffered-input preparation |
 | state-machine.ts | state | drives lifecycle against scoped thread state |
-| runner.ts | runtime | Runs scoped steps after buffered inputs are ready |
+| runner.ts | runtime | Runs scoped steps and preserves chat notices |
 | local-runtime-deps.ts | runtime | Declares the injected port bundle and fails closed off-scope |
 | local-runtime-defaults.ts | runtime | Builds the daemon-side defaults for that bundle |
 | local-runtime-scope.ts | runtime | Propagates local event policy across async callbacks |
 | hook-runner.ts | hook | Adapts lifecycle hooks to HookBus and hook agents |
-| thread-transcript.ts | record | records each step's conversation to history |
+| thread-transcript.ts | record | records step messages, notices and tools |
 | tree.ts | tree | tracks thread trees and spawn resource guards |
 | contract.ts | contract | builds delegation contracts and goal chains |
 | auto-thread.ts | util | decides auto compound and merges final outputs |

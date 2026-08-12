@@ -1,7 +1,7 @@
-// input:  adapter exports, PI transcript fixtures, Node test runner
-// output: dispatch, session-path, capability and event contracts
-// pos:    agent-adapter abstraction layer contract lock-down test
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  adapters, PI fixtures, normalized events
+// output: adapter and event contract tests
+// pos:    Agent adapter abstraction tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -169,6 +169,7 @@ void function _normalizedEventExhaustive(e: NormalizedEvent): string {
     case 'plan_mode_entered': return e.planFilePath;
     case 'plan_written': return e.path;
     case 'context_compacted': return e.trigger;
+    case 'model_fallback': return `${e.originalModel}:${e.fallbackModel}`;
     case 'context_usage': return String(e.contextWindow);
     case 'rate_limit': return 'rate_limit';
     case 'cost_record': return e.provider;
