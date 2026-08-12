@@ -189,6 +189,7 @@ def _cortex_kwargs(
     host_scan_policy: Mapping[str, object] | None,
     admission_environment_digest: str | None,
     defer_proxy_arm: bool,
+    credential_handle: str | None,
 ) -> dict[str, object]:
     if artifact_dir is None or manifest is None or trial_seed is None:
         raise ValueError("cortex arms require artifact_dir, manifest, and trial_seed")
@@ -207,6 +208,8 @@ def _cortex_kwargs(
         kwargs["admission_environment_digest"] = admission_environment_digest
     if defer_proxy_arm:
         kwargs["defer_proxy_arm"] = True
+    if credential_handle is not None:
+        kwargs["credential_handle"] = credential_handle
     return kwargs
 
 
@@ -221,11 +224,13 @@ def _cortex_config(
     host_scan_policy: Mapping[str, object] | None,
     admission_environment_digest: str | None,
     defer_proxy_arm: bool,
+    credential_handle: str | None,
 ) -> AgentConfig:
     require_composable_arm(arm)
     kwargs = _cortex_kwargs(
         arm, artifact_dir, manifest, trial_seed, version, trial_proxy,
         host_scan_policy, admission_environment_digest, defer_proxy_arm,
+        credential_handle,
     )
     return AgentConfig(import_path=CORTEX_IMPORT_PATH, kwargs=kwargs, **common)
 
@@ -277,6 +282,7 @@ def build_agent_config(
     host_scan_policy: Mapping[str, object] | None = None,
     admission_environment_digest: str | None = None,
     defer_proxy_arm: bool = False,
+    credential_handle: str | None = None,
 ) -> AgentConfig:
     if not cli_version:
         raise ValueError("cli_version must be non-empty")
@@ -288,6 +294,7 @@ def build_agent_config(
         return _cortex_config(
             arm, common, artifact_dir, manifest, trial_seed, cli_version,
             trial_proxy, host_scan_policy, admission_environment_digest, defer_proxy_arm,
+            credential_handle,
         )
     if arm.get("kind") == "vendor-baseline":
         return _vendor_config(arm, common, cli_version)

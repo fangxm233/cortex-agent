@@ -181,6 +181,13 @@ class OpenAICodexResponsesOAuthAdapter:
         # cache-aware split.
         return Billable(usage.input_tokens, usage.output_tokens)
 
+    def clear_credential(self) -> None:
+        with self._lock:
+            self._access_token = None
+            self._account_id = None
+            self._refresh_token = None
+            self._client_id = None
+
     def _current_credential(self) -> tuple[str, str]:
         with self._lock:
             if self._access_token is None or self._account_id is None:

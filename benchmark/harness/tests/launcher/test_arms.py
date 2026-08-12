@@ -188,6 +188,17 @@ def test_cortex_config_uses_public_import_and_launcher_inputs(tmp_path: Path) ->
     assert config.max_timeout_sec == 120
 
 
+def test_cortex_config_carries_only_a_nonsecret_credential_handle(tmp_path: Path) -> None:
+    manifest_value = manifest(tmp_path)
+    seed = trial_seed()
+    config = build_agent_config(
+        cortex_arm(), cli_version="2026.8.3", artifact_dir=tmp_path / "artifacts",
+        manifest=manifest_value, trial_seed=seed, credential_handle="vault-handle-1",
+    )
+    assert config.kwargs["credential_handle"] == "vault-handle-1"
+    assert "credential" not in config.kwargs
+
+
 def test_harbor_factory_constructs_the_public_cortex_agent(tmp_path: Path) -> None:
     config, _, _ = cortex_config(tmp_path)
     agent = AgentFactory.create_agent_from_config(config, logs_dir=tmp_path / "logs")

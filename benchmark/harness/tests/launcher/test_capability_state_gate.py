@@ -126,6 +126,21 @@ def test_the_public_entry_refuses_before_the_container_could_exist(
         )
 
 
+def test_an_offline_admitted_row_cannot_arm_a_paid_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    admit_capability(monkeypatch, ADAPTED_ROW)
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir(parents=True)
+    with pytest.raises(CapabilityStateRefused, match="live-handshake-passed"):
+        arm_trial_proxy(
+            arm=cortex_arm(ADAPTED_ROW, model="claude-sonnet"),
+            trial_id="trial-paid-state-gate", upstream_base_url=closed_upstream(),
+            spec=parse_trial_proxy_spec(proxy_spec()), proxy_dir=artifacts / "proxy",
+            trial_roots=(artifacts,), environ={}, paid_run=True,
+        )
+
+
 def test_an_admitted_row_still_arms(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

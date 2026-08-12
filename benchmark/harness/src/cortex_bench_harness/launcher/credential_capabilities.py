@@ -57,6 +57,10 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
         CredentialCapability("claude-subscription", "unsupported"),
     _key("pi", "??", "??", "api-key"):
         CredentialCapability("pi-api-key", "unsupported"),
+    # Exact DeepSeek transport row. It remains unsupported until the adapter and PI projection
+    # complete the offline mutation gate; adding a complete key does not itself admit a route.
+    _key("pi", "deepseek", "openai-completions", "api-key"):
+        CredentialCapability("pi-deepseek-api-key", "unsupported"),
     # This `??` is no longer the interlock it once was: the arming point now refuses an
     # unadmitted row outright, before it reads a credential, so this row fails closed by
     # mechanism rather than by an unfilled member. The protocol's value IS established from the

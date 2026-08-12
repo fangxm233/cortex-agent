@@ -52,6 +52,7 @@ export { PolicyCompilationError } from './resolved-policy.js';
 export interface CredentialCapabilityProjection {
   id: string;
   state: CredentialCapabilityState;
+  evidence_sha256?: string;
   key: {
     runner_or_backend: string;
     provider: string;
@@ -664,6 +665,10 @@ function compileAssets(context: CompileContext): CompilationAssets {
   return { credential, profile, roles, deadline };
 }
 
+function maxOutputTokens(context: CompileContext): number | null {
+  return context.arm.credential_capability === 'pi-deepseek-api-key' ? 256 : null;
+}
+
 function modelExecution(
   context: CompileContext,
   profile: ResolvedProfileConfig,
@@ -678,6 +683,7 @@ function modelExecution(
     cli_name: profile.backend,
     cli_version: context.input.cli_artifact.version,
     reasoning_effort: profile.thinking,
+    max_output_tokens: maxOutputTokens(context),
     fallback_empty: true,
   };
 }
@@ -693,6 +699,7 @@ function modelExecutionHash(value: ResolvedPolicyModelExecution): string {
     cliName: value.cli_name,
     cliVersion: value.cli_version,
     reasoningEffort: value.reasoning_effort,
+    maxOutputTokens: value.max_output_tokens,
     fallbackEmpty: true,
   });
 }

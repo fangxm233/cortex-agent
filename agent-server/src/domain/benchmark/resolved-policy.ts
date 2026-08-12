@@ -165,6 +165,7 @@ export interface ResolvedPolicyModelExecution {
   cli_name: Backend | null;
   cli_version: string | null;
   reasoning_effort: string | null;
+  max_output_tokens: number | null;
   fallback_empty: true;
 }
 
@@ -203,6 +204,7 @@ export interface ResolvedTrialPolicy {
   credential: {
     capability_key: string;
     capability_state: CredentialCapabilityState;
+    evidence_sha256?: string;
     upstream_base_url: string;
     route_identity_host: string;
     proxy_base_url: string;

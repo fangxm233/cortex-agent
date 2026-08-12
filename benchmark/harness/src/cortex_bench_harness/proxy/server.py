@@ -560,6 +560,7 @@ class TrialProxyHandle:
         self._thread.join(timeout=2)
         if not self._server.wait_for_no_clients(2):
             raise RuntimeError("proxy client handlers did not stop")
+        self._server.upstream.clear_credential()
 
     def _revocation_record(self) -> dict[str, object]:
         return {

@@ -195,8 +195,16 @@ function assertPiProjection(spec: TrialAdapterSpec, env: NodeJS.ProcessEnv): voi
     [provider]: { type: 'api', key: spec.policy.credential.dummy_token_ref },
   })) throw new Error('PI trial auth differs from the fixed dummy credential');
   const selectedKeys = Object.keys(selected);
-  const allowedSelected = selectedKeys.every(key => key === 'baseUrl' || key === 'compat');
+  const allowedSelected = selectedKeys.every(
+    key => key === 'baseUrl' || key === 'compat' || key === 'modelOverrides',
+  );
+  const expectedOverrides = spec.policy.model_execution.max_output_tokens === null ? undefined : {
+    [spec.policy.model_execution.requested_model]: {
+      maxTokens: spec.policy.model_execution.max_output_tokens,
+    },
+  };
   if (selected.baseUrl !== spec.policy.credential.proxy_base_url
+      || JSON.stringify(selected.modelOverrides) !== JSON.stringify(expectedOverrides)
       || Object.keys(providers).length !== 1 || Object.keys(models).length !== 1
       || !allowedSelected) {
     throw new Error('PI trial provider catalog differs from the scoped proxy');
@@ -325,6 +333,7 @@ export function createTrialAdapter(spec: TrialAdapterSpec): TrialAdapter {
   if (backend === 'pi') {
     spawnConfig.piGatewayPath = '';
     spawnConfig.piGatewayBaseUrl = spec.policy.credential.proxy_base_url;
+    spawnConfig.piModelMaxTokens = spec.policy.model_execution.max_output_tokens ?? undefined;
   }
   spawnConfig.preserveUnreportedAccounting = true;
   const sessionKey = spawnConfig.sessionKey;

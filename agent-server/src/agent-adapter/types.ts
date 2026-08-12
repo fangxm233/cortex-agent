@@ -141,6 +141,8 @@ export interface AgentSpawnConfig {
    *  multi-provider models.json overriding every discovered provider's baseUrl to land on this
    *  gateway, so PI traffic is monitored / cost-tracked rather than going direct to upstreams. */
   piGatewayBaseUrl?: string;
+  /** Trial-scoped built-in model output cap, committed by benchmark policy. */
+  piModelMaxTokens?: number;
 
   /** DR-0012: Claude adapter mode. 'print' (default, -p stream-json) or 'tui' (interactive tmux + jsonl tail).
    *  Ignored for non-claude backends. Sourced from the active profile's claudeBackend field. */

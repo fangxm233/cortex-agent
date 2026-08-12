@@ -258,6 +258,7 @@ def _build_trial_agent_config(
     manifest: Mapping[str, object], trial_seed: Mapping[str, object],
     cli_version: str, environment: Mapping[str, str], proxy_host: str,
     trial_proxy: Mapping[str, object] | None, host_scan_policy: Mapping[str, object],
+    credential_handle: str | None,
 ) -> AgentConfig:
     return build_agent_config(
         arm, cli_version=cli_version, artifact_dir=trial_root / "artifacts",
@@ -268,7 +269,7 @@ def _build_trial_agent_config(
         trial_proxy=_sealed_trial_proxy(trial_proxy, proxy_host),
         host_scan_policy=host_scan_policy,
         admission_environment_digest=environment_digest(environment),
-        defer_proxy_arm=True,
+        defer_proxy_arm=True, credential_handle=credential_handle,
     )
 
 
@@ -277,6 +278,7 @@ def build_harbor_trial_config(
     trials_dir: Path | str, manifest: Mapping[str, object],
     trial_seed: Mapping[str, object], cli_version: str,
     host_scan_policy: Mapping[str, object], trial_proxy: Mapping[str, object] | None = None,
+    credential_handle: str | None = None,
 ) -> TrialConfig:
     seed = parse_trial_seed(trial_seed)
     task_root = Path(task_path).expanduser().resolve(strict=True)
@@ -290,7 +292,7 @@ def build_harbor_trial_config(
     )
     agent = _build_trial_agent_config(
         arm, seed, trial_root, manifest, trial_seed, cli_version,
-        environment, proxy_host, trial_proxy, host_scan_policy,
+        environment, proxy_host, trial_proxy, host_scan_policy, credential_handle,
     )
     trial_environment = TrialEnvironmentConfig(
         import_path=ADMISSION_ENVIRONMENT_IMPORT_PATH,
@@ -308,11 +310,12 @@ async def create_harbor_trial(
     trials_dir: Path | str, manifest: Mapping[str, object],
     trial_seed: Mapping[str, object], cli_version: str,
     host_scan_policy: Mapping[str, object], trial_proxy: Mapping[str, object] | None = None,
+    credential_handle: str | None = None,
 ) -> Trial:
     config = build_harbor_trial_config(
         arm, task_path=task_path, trials_dir=trials_dir, manifest=manifest,
         trial_seed=trial_seed, cli_version=cli_version, host_scan_policy=host_scan_policy,
-        trial_proxy=trial_proxy,
+        trial_proxy=trial_proxy, credential_handle=credential_handle,
     )
     trial = await Trial.create(config)
     if type(trial.agent_environment) is not AdmittedDockerEnvironment:

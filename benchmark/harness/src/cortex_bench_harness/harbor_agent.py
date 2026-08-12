@@ -37,6 +37,7 @@ from .launcher.trial_admission import (
     HarborTrialAdmissionError,
     environment_digest,
 )
+from .launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 from .host_finalization import (
     HostFinalizationError,
     HostFinalizationResult,
@@ -49,6 +50,7 @@ from .launcher.trial_proxy import (
     arm_trial_proxy,
     capture_trial_inventory,
     parse_trial_proxy_spec,
+    require_capability_admission,
     revoke_trial_proxy,
 )
 from .manifest import (
@@ -128,6 +130,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         host_scan_policy: Mapping[str, object] | None = None,
         admission_environment_digest: str | None = None,
         defer_proxy_arm: bool = False,
+        credential_handle: str | None = None,
         extra_env: dict[str, str] | None = None,
         version: str = PACKAGE_VERSION,
         **kwargs: Any,
@@ -135,18 +138,23 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._initialize_trial_state(
             artifact_dir, manifest, trial_seed, trial_proxy, host_scan_policy,
             admission_environment_digest, defer_proxy_arm, extra_env,
+            credential_handle,
         )
         super().__init__(logs_dir, *args, version=version, extra_env=extra_env, **kwargs)
         self._verifier_dir = Path(logs_dir).parent / EnvironmentPaths().verifier_dir.name
         # The sealed path defers arming until EnvironmentFactory admits Harbor's final inputs.
-        self._proxy_session = None if defer_proxy_arm else self._arm_proxy(trial_proxy)
+        try:
+            self._proxy_session = None if defer_proxy_arm else self._arm_proxy(trial_proxy)
+        finally:
+            if not defer_proxy_arm:
+                self._host_credential = None
 
     def _initialize_trial_state(
         self, artifact_dir: Path | str, manifest: Mapping[str, object],
         trial_seed: Mapping[str, object], trial_proxy: Mapping[str, object] | None,
         host_scan_policy: Mapping[str, object] | None,
         environment_hash: str | None, defer_proxy_arm: bool,
-        extra_env: Mapping[str, str] | None,
+        extra_env: Mapping[str, str] | None, credential_handle: str | None,
     ) -> None:
         self._artifact_dir = Path(artifact_dir)
         self._manifest_seed = parse_manifest_seed(manifest)
@@ -154,6 +162,27 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._validate_trial_seed_binding()
         if not self._allow_unsupported_fixture_seed:
             require_composable_arm(self._trial_seed.arm)
+        self._host_credential = None
+        if credential_handle is not None:
+            require_capability_admission(
+                self._trial_seed.arm, paid_run=self._trial_seed.paid_run,
+            )
+            self._host_credential = HOST_CREDENTIAL_VAULT.consume(credential_handle)
+        try:
+            self._initialize_admitted_state(
+                trial_proxy, host_scan_policy, environment_hash,
+                defer_proxy_arm, extra_env,
+            )
+        except BaseException:
+            self._host_credential = None
+            raise
+
+    def _initialize_admitted_state(
+        self, trial_proxy: Mapping[str, object] | None,
+        host_scan_policy: Mapping[str, object] | None,
+        environment_hash: str | None, defer_proxy_arm: bool,
+        extra_env: Mapping[str, str] | None,
+    ) -> None:
         self._validate_admission_environment(extra_env, environment_hash)
         self._resolved_cwd: ResolvedCwd | None = None
         self._staged_npm_artifact: Path | None = None
@@ -202,7 +231,10 @@ class CortexBenchAgent(BaseInstalledAgent):
     def arm_admitted_proxy(self) -> TrialProxySession:
         if not self._proxy_arm_deferred or self._deferred_proxy is None:
             raise HarborTrialAdmissionError("current trial proxy is not awaiting admission")
-        session = self._arm_proxy(self._deferred_proxy)
+        try:
+            session = self._arm_proxy(self._deferred_proxy)
+        finally:
+            self._host_credential = None
         if session is None:
             raise HarborTrialAdmissionError("current trial proxy could not be armed")
         self._proxy_session = session
@@ -247,6 +279,8 @@ class CortexBenchAgent(BaseInstalledAgent):
             spec=parse_trial_proxy_spec(trial_proxy),
             proxy_dir=self._artifact_dir / "proxy",
             trial_roots=(self._artifact_dir,),
+            host_credential=self._host_credential,
+            paid_run=self._trial_seed.paid_run,
         )
 
     def _revoke_proxy(self) -> TrialRevocation | None:
@@ -257,6 +291,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._revocation = revoke_trial_proxy(
             self._proxy_session, capture_inventory=self._capture_inventory,
         )
+        self._proxy_session = None
         return self._revocation
 
     def revoke_admitted_proxy(self) -> None:

@@ -175,7 +175,9 @@ class CapabilityStateRefused(Exception):
     """A route was asked for on behalf of a capability row no authority admits."""
 
 
-def _admitted_capability_key(capability_id: str) -> CredentialCapabilityKey:
+def _admitted_capability_key(
+    capability_id: str, *, paid_run: bool = False,
+) -> CredentialCapabilityKey:
     """The key an admitted row names, or a refusal.
 
     The registry is host-authoritative and is readable right here, while the compiler that enforces
@@ -189,6 +191,19 @@ def _admitted_capability_key(capability_id: str) -> CredentialCapabilityKey:
         raise CapabilityStateRefused(
             f"credential capability {capability_id!r} is {state}; a route is never armed for a "
             "capability row no authority admits")
+    if paid_run and state != "live-handshake-passed":
+        raise CapabilityStateRefused(
+            f"credential capability {capability_id!r} is {state}; paid routes require "
+            "live-handshake-passed")
+    return key
+
+
+def require_capability_admission(
+    arm: Mapping[str, object], *, paid_run: bool = False,
+) -> CredentialCapabilityKey:
+    capability_id = _text(arm, "credential_capability")
+    key = _admitted_capability_key(capability_id, paid_run=paid_run)
+    _validate_arm_capability(arm, key)
     return key
 
 
@@ -222,14 +237,17 @@ def arm_trial_proxy(
     spec: TrialProxySpec, proxy_dir: Path, trial_roots: Sequence[Path],
     environ: Mapping[str, str] | None = None,
     now_ms: Callable[[], int] = host_now_ms,
+    host_credential: str | None = None,
+    paid_run: bool = False,
 ) -> TrialProxySession:
     """Arm the trial's credential route. Called before the container is created."""
     _require_contained(proxy_dir, trial_roots)
     capability_id = _text(arm, "credential_capability")
-    key = _admitted_capability_key(capability_id)
+    key = require_capability_admission(arm, paid_run=paid_run)
+    credential = host_credential or _host_credential(spec.credential_env, environ)
     adapter = select_adapter(
         key, upstream_base_url=upstream_base_url,
-        credential=_host_credential(spec.credential_env, environ),
+        credential=credential,
         frozen_model=_text(arm, "model"),
     )
     session = _start_proxy_session(
@@ -291,6 +309,16 @@ def _adapter_selection_record(
         "upstream_hosts": list(adapter.upstream_hosts),
         "proxy_schema_version": PROXY_SCHEMA_VERSION,
     }
+
+
+def _validate_arm_capability(
+    arm: Mapping[str, object], key: CredentialCapabilityKey,
+) -> None:
+    backend = _text(arm, "backend")
+    provider = _text(arm, "provider")
+    if backend != key.runner_or_backend or provider != key.provider:
+        raise CapabilityStateRefused(
+            "arm backend/provider differs from credential capability key")
 
 
 def _host_credential(name: str, environ: Mapping[str, str] | None) -> str:

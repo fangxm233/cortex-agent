@@ -24,6 +24,7 @@ from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN_GRACE_MS
 from cortex_bench_harness.launcher.trial_proxy import (
     PROXY_ARTIFACT_SOURCES,
+    CapabilityStateRefused,
     TrialProxySession,
     arm_trial_proxy,
     parse_trial_proxy_spec,
@@ -577,7 +578,7 @@ def test_a_route_already_revoked_is_not_revoked_a_second_time(
 def test_refuses_to_start_when_no_adapter_matches_the_capability_key(
     tmp_path: Path, capability: str,
 ) -> None:
-    with pytest.raises(AdapterUnavailable):
+    with pytest.raises((AdapterUnavailable, CapabilityStateRefused)):
         arm_session(tmp_path, closed_upstream(), arm=cortex_arm(capability))
 
     # Nothing was started and nothing was written: an unadapted route is never opened.

@@ -27,6 +27,7 @@ export interface ModelExecutionIdentityInput {
   cliName: ResolvedProfileConfig['backend'] | null;
   cliVersion: string | null;
   reasoningEffort: string | null;
+  maxOutputTokens?: number | null;
   fallbackEmpty: true;
 }
 
@@ -151,6 +152,7 @@ export function computeModelExecutionIdentityHash(input: ModelExecutionIdentityI
     cli_name: input.cliName,
     cli_version: input.cliVersion,
     reasoning_effort: input.reasoningEffort,
+    max_output_tokens: input.maxOutputTokens ?? null,
     fallback_empty: input.fallbackEmpty,
   });
 }
@@ -194,6 +196,7 @@ export function freezeIdentity(input: FrozenIdentityInput): FrozenIdentity {
     requestedModel: input.resolvedProfile.model,
     providerProtocol: input.resolvedProfile.provider,
     reasoningEffort: input.resolvedProfile.thinking,
+    maxOutputTokens: input.modelExecution.maxOutputTokens ?? null,
     fallbackEmpty: true,
   });
   const roleToolSurfaceHash = computeRoleToolSurfaceHash(input.roleToolSurface);

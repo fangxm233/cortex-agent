@@ -78,6 +78,9 @@ class FixedUpstream:
             if self._active is not None:
                 self._active.close()
 
+    def clear_credential(self) -> None:
+        self._adapter.clear_credential()
+
     def _activate(self, connection: HTTPConnection) -> None:
         with self._lock:
             if self._revoked:

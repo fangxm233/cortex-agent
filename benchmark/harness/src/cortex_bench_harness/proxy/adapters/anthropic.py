@@ -106,6 +106,9 @@ class AnthropicMessagesApiKeyAdapter:
             raise ValueError("billable is never called on an unaccounted usage")
         return Billable(usage.input_tokens, usage.output_tokens)
 
+    def clear_credential(self) -> None:
+        self._credential = None
+
 
 def _upstream_hosts(upstream_base_url: str | None) -> tuple[str, ...]:
     if upstream_base_url is None:
