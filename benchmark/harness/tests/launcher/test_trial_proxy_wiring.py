@@ -202,6 +202,13 @@ def test_arms_the_provisional_bound_and_not_a_container_derived_instant(tmp_path
         session.handle.stop()
 
 
+def test_refuses_arm_provider_drift_from_capability_key(tmp_path: Path) -> None:
+    drifted = cortex_arm()
+    drifted["provider"] = "deepseek"
+    with pytest.raises(CapabilityStateRefused, match="backend/provider"):
+        arm_session(tmp_path, closed_upstream(), arm=drifted)
+
+
 def test_records_the_selected_adapter_at_arm_time(tmp_path: Path) -> None:
     session = arm_session(tmp_path, closed_upstream())
     try:

@@ -10,9 +10,11 @@ from http.client import HTTPConnection
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import pytest
+
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
 from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
-from cortex_bench_harness.proxy.adapters import select_adapter
+from cortex_bench_harness.proxy.adapters import AuthInjectionUnavailable, select_adapter
 from synthetic import LEASE_TERMS, SyntheticUpstream, proxy_request
 
 MODEL = "deepseek-v4-flash"
@@ -141,6 +143,37 @@ def test_rejects_partial_duplicate_conflicting_and_nonstream_usage() -> None:
         (json.dumps({"model": MODEL, "usage": usage}).encode(), "application/json"),
     ]
     assert all(not bound.extract_usage(body, kind).accounted for body, kind in payloads)
+
+
+def test_rejects_invalid_tokens_malformed_sse_and_data_after_done() -> None:
+    bound = adapter("https://api.deepseek.test")
+    invalid_usage = [
+        {"prompt_tokens": True, "completion_tokens": 2},
+        {"prompt_tokens": -1, "completion_tokens": 2},
+        {"prompt_tokens": 9, "completion_tokens": 2.5},
+    ]
+    payloads = [
+        sse({"model": MODEL, "choices": [], "usage": usage})
+        for usage in invalid_usage
+    ]
+    payloads.extend([
+        b'data: {not-json}\n\ndata: [DONE]\n\n',
+        sse({"model": MODEL, "choices": [],
+             "usage": {"prompt_tokens": 9, "completion_tokens": 2}})
+        + b'data: {"model":"deepseek-v4-flash"}\n\n',
+    ])
+    assert all(
+        not bound.extract_usage(payload, "text/event-stream").accounted
+        for payload in payloads
+    )
+
+
+def test_stop_clears_the_adapter_credential(tmp_path: Path) -> None:
+    with SyntheticUpstream() as upstream:
+        handle = start_proxy(tmp_path, upstream)
+        handle.stop()
+        with pytest.raises(AuthInjectionUnavailable, match="no api key"):
+            handle._server.upstream._adapter.inject_auth({}, "chat_completions")
 
 
 def test_trial_policy_rejects_declared_request_over_64_kib_before_upstream(

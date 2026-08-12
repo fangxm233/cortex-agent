@@ -77,6 +77,7 @@ def _validate_execution(
     limits_exact = {
         "max_provider_requests": 1, "max_thread_starts": 0,
         "max_resident_agent_processes": 1, "max_cost_usd": "0.05",
+        "deadline_seconds": 120,
     }
     if any(limits.get(key) != value for key, value in limits_exact.items()):
         raise ValueError("DeepSeek paid smoke contract limits differ")

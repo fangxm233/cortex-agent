@@ -74,6 +74,26 @@ def test_refuses_contract_drift_before_loading_a_credential(
     assert called is False
 
 
+def test_refuses_deadline_drift_before_loading_a_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inputs = exact_inputs()
+    inputs["arm"]["limits"]["deadline_seconds"] = 121
+    called = False
+
+    def forbidden_loader(_path: Path) -> str:
+        nonlocal called
+        called = True
+        return SECRET
+
+    monkeypatch.setattr(deepseek_paid_smoke, "load_deepseek_relay_credential", forbidden_loader)
+    with pytest.raises(ValueError, match="contract"):
+        asyncio.run(deepseek_paid_smoke.run_deepseek_paid_smoke(
+            gateway_path=tmp_path / "missing.yaml", trial_kwargs=inputs,
+        ))
+    assert called is False
+
+
 def test_hands_only_an_opaque_handle_to_harbor_and_purges_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
