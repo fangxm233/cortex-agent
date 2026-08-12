@@ -12,6 +12,9 @@ dependencies = [
   "zstandard==0.25.0",
 ]
 
+[project.scripts]
+cortex-bench = "cortex_bench_harness.campaign:main"
+
 [dependency-groups]
 dev = [
   "pytest==8.4.1",
