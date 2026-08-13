@@ -28,6 +28,14 @@ UNAVAILABLE = {
     "status": "unavailable",
     "reason": "not_exposed_by_vendor_runner",
 }
+NO_ENVELOPE = {
+    "status": "unavailable",
+    "reason": "vendor_runner_publishes_no_outer_envelope",
+}
+ADMITTED = {
+    "admitted": True, "reason": "ok",
+    "terminal_state": "completed", "terminal_reason": "ok",
+}
 
 
 def arm(name: str, kind: str, selector: str) -> dict[str, object]:
@@ -44,7 +52,7 @@ def arm(name: str, kind: str, selector: str) -> dict[str, object]:
 
 def run(
     run_id: str, arm_value: dict[str, object], cli_version: str,
-    telemetry: object | None = None,
+    telemetry: object | None = None, admission: dict[str, object] | None = None,
 ) -> dict[str, object]:
     value: dict[str, object] = {
         "run_id": run_id,
@@ -54,11 +62,13 @@ def run(
     }
     if telemetry is not None:
         value["cortex_telemetry"] = telemetry
+        value["grader_admission"] = admission or ADMITTED
     return value
 
 
 def expected_run(
     run_id: str, name: str, kind: str, cli: str, telemetry: object,
+    admission: object = ADMITTED,
 ) -> dict[str, object]:
     return {
         "run_id": run_id, "arm": name, "arm_kind": kind,
@@ -68,6 +78,7 @@ def expected_run(
         "limits": {"wall_clock_seconds": 90, "provider_requests": 8,
                    "cost_usd": "2.50"},
         "cortex_telemetry": telemetry,
+        "grader_admission": admission,
     }
 
 
@@ -88,10 +99,11 @@ def test_report_pins_inputs_order_and_difference_classes() -> None:
     )
 
     assert report == {
-        "schema_version": "cortex-benchmark-comparison-report/1",
+        "schema_version": "cortex-benchmark-comparison-report/2",
         "campaign_id": "campaign-001",
         "run_order": ["run-vendor", "run-manager", "run-direct"],
-        "runs": [expected_run("run-vendor", "pure-claude-code", "vendor-baseline", "claude-code", UNAVAILABLE),
+        "runs": [expected_run("run-vendor", "pure-claude-code", "vendor-baseline", "claude-code",
+                              UNAVAILABLE, NO_ENVELOPE),
                  expected_run("run-manager", "cortex-manager", "cortex", "claude", available),
                  expected_run("run-direct", "cortex-direct", "cortex", "claude", available)],
         "comparisons": comparisons,
@@ -120,6 +132,36 @@ def test_each_vendor_reports_native_cli_and_unavailable_cortex_telemetry(
 
     assert report["runs"][0]["cli"] == {"name": vendor, "version": "1.2.3"}
     assert report["runs"][0]["cortex_telemetry"] == UNAVAILABLE
+    assert report["runs"][0]["grader_admission"] == NO_ENVELOPE
+
+
+def test_a_report_says_of_every_cortex_run_whether_it_is_comparable() -> None:
+    """A campaign can now finish holding runs that did not end the same way.
+
+    Nothing here averages rewards across them, and this field is what lets a reader refuse to.
+    """
+    failed = {"admitted": False, "reason": "inner_terminal_not_ok",
+              "terminal_state": "failed", "terminal_reason": "provider_error"}
+    available = {"status": "available", "value": {"thread_starts": 0}}
+
+    report = build_comparison_report(
+        campaign_id="campaign-001",
+        runs=[run("run-ok", arm("cortex-direct", "cortex", "claude"), "1.2.3", available),
+              run("run-failed", arm("cortex-manager", "cortex", "claude"), "1.2.3", available,
+                  failed)],
+        comparisons=[],
+    )
+
+    assert [item["grader_admission"] for item in report["runs"]] == [ADMITTED, failed]
+
+
+def test_a_cortex_run_that_will_not_say_whether_it_is_comparable_is_refused() -> None:
+    available = {"status": "available", "value": {"thread_starts": 0}}
+    silent = run("run-ok", arm("cortex-direct", "cortex", "claude"), "1.2.3", available)
+    del silent["grader_admission"]
+
+    with pytest.raises(ValueError, match="grader_admission"):
+        build_comparison_report(campaign_id="campaign-001", runs=[silent], comparisons=[])
 
 
 def test_vendor_comparison_cannot_be_labeled_as_orchestration() -> None:

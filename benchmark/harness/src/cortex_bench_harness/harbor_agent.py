@@ -552,13 +552,40 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._write_thread_policy(instruction)
         _, _, trajectory_root, _ = self._agent_paths()
         await self.exec_as_agent(environment, f"mkdir -p {shlex.quote(str(trajectory_root))}")
-        result = await self._await_inner_run(self.exec_as_agent(
-            environment, shlex.join(self.preview_run_argv()), cwd=self._resolved_cwd.realpath,
-        ))
+        try:
+            result = await self._await_inner_run(self.exec_as_agent(
+                environment, shlex.join(self.preview_run_argv()),
+                cwd=self._resolved_cwd.realpath,
+            ))
+        except Exception as error:
+            self._settle_non_zero_inner_run(error)
+            return
         if result is None:
             self._write_collected_streams("", self._inner_run_stall)
             return
         self._write_collected_streams(result.stdout, result.stderr)
+
+    def _settle_non_zero_inner_run(self, error: Exception) -> None:
+        """A non-zero `cortex agent-run` is not by itself a stage failure.
+
+        Harbor's `exec_as_agent` raises on any non-zero exit (`agents/installed/base.py:550`),
+        and a run whose agent failed exits non-zero — so the ordinary shape of a failed agent
+        could not be finalized at all: the phase raised, the verifier never ran, and the campaign
+        stopped. Which of the two happened was decided by a race, since a run that published its
+        marker before its process returned took the other path instead.
+
+        The marker settles it. With one, the exit code only restates what the run already said
+        under the inner contract, and `host_finalization` grades the marker — publishing a
+        non-admitted envelope if it is not `completed`/`ok`. Without one, the process died
+        without stating an outcome, which is a stage failure and still raises.
+        """
+        if not self._terminal_marker_path().exists():
+            raise error
+        self._write_collected_streams("", (
+            f"`cortex agent-run` exited non-zero after publishing "
+            f"{self._terminal_marker_path().name}; the run's own terminal marker is the outcome "
+            f"of record. Reported by Harbor as: {error}"
+        ))
 
     def _terminal_marker_path(self) -> Path:
         """The run's own terminal marker, written atomically into the shared trajectory root.
@@ -667,4 +694,4 @@ class CortexBenchAgent(BaseInstalledAgent):
             revocation=revocation, scan_policy=self._host_scan_policy,
         )
         self._outer_publication = publication
-        self._grader_admitted = True
+        self._grader_admitted = publication.admitted

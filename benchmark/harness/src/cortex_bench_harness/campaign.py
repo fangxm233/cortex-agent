@@ -37,7 +37,7 @@ from .host_finalization import OUTER_ENVELOPE_FILENAME, OUTER_ENVELOPE_SCHEMA_VE
 from .launcher.comparison_report import build_comparison_report, render_comparison_report
 from .launcher.trial_admission import create_harbor_trial
 
-CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/1"
+CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/2"
 COMPARISON_REPORT_FILENAME = "comparison-report.json"
 STATE_COMPLETED = "completed"
 STATE_COST_CEILING_REACHED = "cost-ceiling-reached"
@@ -94,6 +94,16 @@ class TrialOutcome:
     envelope_path: Path | None = None
     envelope_sha256: str | None = None
 
+    @property
+    def admission(self) -> Mapping[str, object] | None:
+        """What the trial's own envelope said about being gradable, or None if it never ran."""
+        admission = (self.envelope or {}).get("grader_admission")
+        return admission if isinstance(admission, Mapping) else None
+
+    @property
+    def admitted(self) -> bool:
+        return (self.admission or {}).get("admitted") is True
+
     def as_dict(self) -> dict[str, object]:
         record: dict[str, object] = {
             "trial_id": self.plan.trial_id, "arm": self.plan.arm_name,
@@ -103,6 +113,8 @@ class TrialOutcome:
             record["cost_usd"] = str(self.cost_usd)
         if self.envelope_path is not None:
             record["outer_envelope_path"] = str(self.envelope_path)
+        if self.admission is not None:
+            record["grader_admission"] = dict(self.admission)
         return record
 
 
@@ -311,7 +323,14 @@ def _require_published_success(plan: TrialPlan, trial_root: Path) -> None:
 def _validate_identity(
     plan: TrialPlan, path: Path, envelope: Mapping[str, object],
 ) -> None:
-    """A resumed root is trusted only for the trial it says it is, and only if it was admitted."""
+    """A resumed root is trusted only for the trial it says it is.
+
+    Admission used to be checked here too, and a non-admitted envelope ended the campaign. It is
+    now read and carried instead: an inner run that failed is a result about the agent, and the
+    reward beside it came from the authentic verifier scoring what the agent actually left
+    behind. What still ends a campaign is a harness fault, which never reaches this function —
+    it raises during finalization and publishes no envelope at all.
+    """
     identity = envelope.get("identity")
     identity = identity if isinstance(identity, Mapping) else {}
     declared = (identity.get("trial_id"), identity.get("arm_name"))
@@ -321,10 +340,10 @@ def _validate_identity(
             f"expects {plan.trial_id!r} on {plan.arm_name!r}")
     admission = envelope.get("grader_admission")
     admitted = admission.get("admitted") if isinstance(admission, Mapping) else None
-    if admitted is not True:
+    if not isinstance(admitted, bool):
         raise CampaignError(
             f"trial {plan.trial_id} published {path} with grader_admission.admitted "
-            f"{admitted!r}; only an admitted trial is counted or reported")
+            f"{admitted!r}; an envelope must state whether its result is gradable")
 
 
 def _envelope_cost(
@@ -401,6 +420,7 @@ def _report_run(config: CampaignConfig, outcome: TrialOutcome) -> dict[str, obje
             "output_tokens": usage.get("output_tokens"),
             "outer_envelope_sha256": outcome.envelope_sha256,
         },
+        "grader_admission": dict(outcome.admission) if outcome.admission else None,
     }
 
 

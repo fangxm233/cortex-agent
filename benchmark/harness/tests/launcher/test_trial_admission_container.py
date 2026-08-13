@@ -616,7 +616,10 @@ def host_evidence_rows(launch, outer, resolution, inspection) -> dict[str, bool]
         and sources["trial_state:trial-home/logs/containment-probes.json"]
             == "optional-classified"
         and outer["publication"]["post_publication_reread"] is True
-        and outer["grader_admission"] == {"admitted": True},
+        and outer["grader_admission"] == {
+            "admitted": True, "reason": "ok",
+            "terminal_state": "completed", "terminal_reason": "ok",
+        },
     }
 
 

@@ -1,5 +1,5 @@
 # input:  inner/proxy evidence, trial roots, scan policy
-# output: durable reread-validated outer grader envelope
+# output: durable reread-validated outer envelope, admitting or declining the run for grading
 # pos:    Host-side benchmark finalization gate
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -33,7 +33,19 @@ from .manifest import MANIFEST_FILENAME
 from .scan import ArtifactInventory, ScanPolicy, scan_trial_artifacts
 
 OUTER_ENVELOPE_FILENAME = "cortex-bench-outer-envelope.json"
-OUTER_ENVELOPE_SCHEMA_VERSION = "cortex-bench-outer-envelope/1"
+OUTER_ENVELOPE_SCHEMA_VERSION = "cortex-bench-outer-envelope/2"
+# The inner contract's own state -> reason table (`manifest-contract.ts:70-78`), mirrored so a
+# terminal that is merely *not ok* can be told apart from one that is malformed. The first is an
+# outcome of the run and is gradable; the second is evidence that cannot be trusted and is not.
+TERMINAL_REASONS: Mapping[str, frozenset[str]] = {
+    "completed": frozenset({"ok"}),
+    "failed": frozenset({
+        "child_failure", "trajectory_write_failed", "containment_failure", "rate_limited",
+        "protocol_violation", "step_limit_exceeded", "cost_limit_exceeded", "provider_error",
+    }),
+    "cancelled": frozenset({"cancelled"}),
+    "timeout": frozenset({"deadline", "deadline_exceeded"}),
+}
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 TERMINAL_KEYS = frozenset({
@@ -61,11 +73,25 @@ class HostFinalizationError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class TerminalOutcome:
+    """How the inner run ended, and whether that makes it gradable."""
+
+    admitted: bool
+    state: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class InnerEvidence:
     terminal_sha256: str
-    composite_sha256: str
-    composite: Mapping[str, object]
+    #: Absent exactly when the run did not complete: `runner.ts:compositeApplicability` publishes
+    #: no composite for a non-completed terminal, by design.
+    composite_sha256: str | None
+    composite: Mapping[str, object] | None
     required_agent_files: Mapping[str, str]
+    terminal: TerminalOutcome
+    root_run_id: str
+    terminal_cost_usd: float | int | None
 
 
 @dataclass(frozen=True)
@@ -89,6 +115,9 @@ class ClassifiedFile:
 class HostFinalizationResult:
     path: Path
     sha256: str
+    #: The published envelope's own judgement. A non-admitted trial is finalized and published
+    #: exactly like an admitted one; what differs is that its result is not offered for grading.
+    admitted: bool
 
 
 def parse_host_scan_policy(
@@ -154,7 +183,8 @@ def finalize_host_trial(
         classified = _classify_outputs(roots, discovered, staged_npm_artifact, inner, arm)
         scan = _scan_outputs(classified, roots, scan_policy)
         envelope = _outer_envelope(inner, usage, revocation, classified, scan, trial_id, arm)
-        return _publish_outer(artifact_dir / OUTER_ENVELOPE_FILENAME, envelope)
+        return _publish_outer(
+            artifact_dir / OUTER_ENVELOPE_FILENAME, envelope, inner.terminal.admitted)
     except HostFinalizationError:
         raise
     except Exception as error:
@@ -168,18 +198,54 @@ def _validate_inner(
     terminal_name = f"run-{root_run_id}.terminal.json"
     terminal_path = root / terminal_name
     terminal_bytes, terminal = _read_json(terminal_path)
-    _validate_terminal(terminal)
-    composite_bytes, composite = _read_json(root / "composite-manifest.json")
-    _validate_composite(composite, terminal, terminal_bytes, root_run_id, trial_id, arm)
-    required = _attempt_files(root, composite)
+    outcome = _classify_terminal(terminal)
+    composite_sha256: str | None = None
+    composite: Mapping[str, object] | None = None
+    if outcome.admitted:
+        composite_bytes, composite = _read_json(root / "composite-manifest.json")
+        _validate_composite(composite, terminal, terminal_bytes, root_run_id, trial_id, arm)
+        composite_sha256 = hashlib.sha256(composite_bytes).hexdigest()
+        required = _attempt_files(root, composite)
+        required["composite-manifest.json"] = "composite_manifest"
+    else:
+        required = _non_admitted_files(root, terminal, root_run_id)
     required[terminal_name] = "run_terminal"
     required[f"run-{root_run_id}.started.json"] = "run_started"
     required["trajectory.json"] = "merged_trajectory"
-    required["composite-manifest.json"] = "composite_manifest"
     return InnerEvidence(
-        hashlib.sha256(terminal_bytes).hexdigest(), hashlib.sha256(composite_bytes).hexdigest(),
-        composite, required,
+        hashlib.sha256(terminal_bytes).hexdigest(), composite_sha256, composite, required,
+        outcome, root_run_id, terminal.get("cost_usd"),
     )
+
+
+def _non_admitted_files(
+    root: Path, terminal: Mapping[str, object], root_run_id: str,
+) -> dict[str, str]:
+    """Check the run against the only witness a failed run has: its own terminal marker.
+
+    The admitted path validates every attempt through the composite's nodes. With no composite
+    there are no nodes, so the terminal is checked directly against the journal it names — same
+    digest, same event count, same identity hashes — and the started marker must agree on the
+    path. What is genuinely lost is the composite's attestation of `trial_id` and the arm; that
+    binding survives only host-side (`validate_host_owned_identity`) and via the terminal's
+    filename, which is one reason such a trial is not admitted for grading.
+    """
+    journal = _safe_relative(terminal.get("journal_path"))
+    try:
+        digest, header, event_count = _read_journal(root / journal)
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        raise HostFinalizationError("inner_manifest_invalid") from error
+    if digest != terminal.get("journal_sha256"):
+        raise HostFinalizationError("inner_digest_mismatch")
+    checks = (
+        header.get("schema_version") == "cortex-bench-journal/1",
+        header.get("type") == "run_header", header.get("root_run_id") == root_run_id,
+        event_count == terminal.get("event_count"), _identity_matches(header, terminal),
+    )
+    if not all(checks):
+        raise HostFinalizationError("inner_manifest_invalid")
+    _validate_started(root, f"run-{root_run_id}.terminal.json", journal)
+    return {journal: "parent_journal" if journal == "events.jsonl" else "run_journal"}
 
 
 def _read_json(path: Path) -> tuple[bytes, Mapping[str, object]]:
@@ -194,17 +260,39 @@ def _read_json(path: Path) -> tuple[bytes, Mapping[str, object]]:
 
 
 def _validate_terminal(terminal: Mapping[str, object]) -> None:
+    """Admission. Its predicate is unchanged: completed/ok, or nothing.
+
+    Every node of an admitted composite is still held to exactly this
+    (`_validate_attempt_bytes`), so a DAG cannot carry a failed attempt.
+    """
+    if not _classify_terminal(terminal).admitted:
+        raise HostFinalizationError("inner_terminal_invalid")
+
+
+def _classify_terminal(terminal: Mapping[str, object]) -> TerminalOutcome:
+    """Split "this run failed" from "this evidence is not trustworthy".
+
+    A structurally sound marker naming a legal non-ok pair is the run's own outcome, and the
+    verifier is entitled to score the attempt on its merits. Anything else — a wrong key set, a
+    bad digest, a supervisor that did not quiesce, a state and reason that the inner contract
+    does not admit together — is a harness fault and still refuses.
+    """
     checks = (
         set(terminal) == TERMINAL_KEYS,
         terminal.get("schema_version") == "cortex-bench-manifest/1",
-        terminal.get("state") == "completed", terminal.get("terminal_reason") == "ok",
         _valid_timestamp(terminal.get("started_at")), _valid_timestamp(terminal.get("ended_at")),
         _valid_sha(terminal.get("journal_sha256")),
         _valid_count(terminal.get("event_count")), _valid_supervisor(terminal.get("supervisor")),
         _valid_identity_values(terminal), _valid_tokens(terminal.get("tokens")),
     )
-    if not all(checks):
+    state, reason = terminal.get("state"), terminal.get("terminal_reason")
+    legal_pair = (
+        isinstance(state, str) and isinstance(reason, str)
+        and reason in TERMINAL_REASONS.get(state, frozenset())
+    )
+    if not all(checks) or not legal_pair:
         raise HostFinalizationError("inner_terminal_invalid")
+    return TerminalOutcome(state == "completed", str(state), str(reason))
 
 
 def _valid_timestamp(value: object) -> bool:
@@ -416,8 +504,8 @@ def _reconcile_proxy(
     echo = export.get("lease_echo")
     if not _valid_proxy_export(export, lease, audit, trial_id):
         raise HostFinalizationError("proxy_reconciliation_failed")
-    journal_cost = _journal_cost(inner.composite)
-    if not _cost_reconciled(cost, journal_cost):
+    journal_cost = _journal_cost(inner)
+    if journal_cost is not None and not _cost_reconciled(cost, journal_cost):
         raise HostFinalizationError("proxy_reconciliation_failed")
     return {
         "schema_version": export["schema_version"], "trial_id": trial_id,
@@ -425,7 +513,7 @@ def _reconcile_proxy(
         "input_tokens": _available(export.get("input_tokens"), int),
         "output_tokens": _available(export.get("output_tokens"), int),
         "audit_entries": audit.get("entries"), "lease_echo": echo,
-        "journal_cost_usd": journal_cost, "reconciled": True,
+        "journal_cost_usd": journal_cost, "reconciled": journal_cost is not None,
     }
 
 
@@ -468,12 +556,28 @@ def _valid_proxy_export(
     )
 
 
-def _journal_cost(inner: Mapping[str, object]) -> str:
-    accounting = inner.get("accounting")
-    journal = accounting.get("journal") if isinstance(accounting, Mapping) else None
-    tagged = journal.get("cost_usd") if isinstance(journal, Mapping) else None
-    value = _available(tagged, str)
-    return str(value)
+def _journal_cost(inner: InnerEvidence) -> str | None:
+    """The run's own view of what it spent, to be met against what the proxy metered.
+
+    An admitted trial must state one: the composite carries it as a tagged value and an
+    unavailable tag is an accounting fault. A non-admitted trial has no composite, so the
+    terminal marker answers instead — and it is allowed to answer `null`, because a run that died
+    before a single turn settled truthfully knows of no cost. The envelope then reports
+    `reconciled: false` rather than claiming a cross-check that was never performed. A terminal
+    that *does* state a cost is still held to it: disagreement there is an accounting fault, not
+    an agent outcome, and still refuses.
+    """
+    if inner.composite is not None:
+        accounting = inner.composite.get("accounting")
+        journal = accounting.get("journal") if isinstance(accounting, Mapping) else None
+        tagged = journal.get("cost_usd") if isinstance(journal, Mapping) else None
+        return str(_available(tagged, str))
+    cost = inner.terminal_cost_usd
+    if cost is None:
+        return None
+    if isinstance(cost, bool) or not isinstance(cost, (int, float)):
+        raise HostFinalizationError("proxy_reconciliation_failed")
+    return format(Decimal(str(cost)), "f")
 
 
 def _cost_reconciled(proxy: object, journal: str) -> bool:
@@ -684,7 +788,7 @@ def _outer_envelope(
 ) -> dict[str, object]:
     return {
         "schema_version": OUTER_ENVELOPE_SCHEMA_VERSION,
-        "identity": {"trial_id": trial_id, "root_run_id": inner.composite["root_run_id"],
+        "identity": {"trial_id": trial_id, "root_run_id": inner.root_run_id,
                      "arm_name": arm["name"]},
         "inner": {"terminal_sha256": inner.terminal_sha256,
                   "composite_sha256": inner.composite_sha256},
@@ -695,11 +799,27 @@ def _outer_envelope(
             "relative_path": OUTER_ENVELOPE_FILENAME, "classification": "required",
             "atomic": True, "post_publication_reread": True,
         },
-        "leak_scan": dict(scan), "grader_admission": {"admitted": True},
+        "leak_scan": dict(scan), "grader_admission": _grader_admission(inner.terminal),
     }
 
 
-def _publish_outer(path: Path, document: Mapping[str, object]) -> HostFinalizationResult:
+def _grader_admission(terminal: TerminalOutcome) -> dict[str, object]:
+    """A judgement, where this used to be the literal `True`.
+
+    It was true by construction — reaching that line meant every gate had passed, including the
+    one that refused a failed run outright. Now that a failed run gets this far, the envelope has
+    to say so, and say why, instead of being silent about the outcome it carries.
+    """
+    return {
+        "admitted": terminal.admitted,
+        "reason": "ok" if terminal.admitted else "inner_terminal_not_ok",
+        "terminal_state": terminal.state, "terminal_reason": terminal.reason,
+    }
+
+
+def _publish_outer(
+    path: Path, document: Mapping[str, object], admitted: bool,
+) -> HostFinalizationResult:
     payload = (json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n").encode()
     temporary = path.with_name(f"{path.name}.tmp.{os.getpid()}.{secrets.token_hex(8)}")
     if path.exists() or path.is_symlink():
@@ -714,7 +834,7 @@ def _publish_outer(path: Path, document: Mapping[str, object]) -> HostFinalizati
             raise HostFinalizationError("outer_reread_failed")
     except (ValueError, UnicodeDecodeError) as error:
         raise HostFinalizationError("outer_reread_failed") from error
-    return HostFinalizationResult(path, expected)
+    return HostFinalizationResult(path, expected, admitted)
 
 
 def _write_publication(temporary: Path, final: Path, payload: bytes) -> None:

@@ -816,14 +816,48 @@ def test_an_envelope_from_another_trial_is_not_counted_as_this_one(
     assert "camp-01-task-one-cortex-a" in failure_document(capsys)["error"]
 
 
-def test_an_unadmitted_envelope_is_refused(
+def test_a_trial_whose_inner_run_failed_is_recorded_and_the_campaign_continues(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    def refuse_admission(document: dict[str, object]) -> dict[str, object]:
-        document["grader_admission"] = {"admitted": False}
+    """The change that lets a benchmark be a benchmark.
+
+    A campaign used to end at the first trial whose agent failed, so one bad task cost every
+    later task's measurement. A failed agent is now a result: it is recorded with the reason it
+    failed, and the remaining trials still run.
+    """
+    def not_admitted(document: dict[str, object]) -> dict[str, object]:
+        document["grader_admission"] = {
+            "admitted": False, "reason": "inner_terminal_not_ok",
+            "terminal_state": "failed", "terminal_reason": "provider_error",
+        }
         return document
 
-    RecordingTrialPath(envelope_mutation=refuse_admission).install(monkeypatch)
+    recorder = RecordingTrialPath(
+        default_cost="0.10", envelope_mutation=not_admitted).install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 0
+    assert recorder.armed == [
+        "camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b",
+        "camp-01-task-two-cortex-a", "camp-01-task-two-cortex-b",
+    ], "every later trial still ran"
+    assert result["trials"][0]["grader_admission"] == {
+        "admitted": False, "reason": "inner_terminal_not_ok",
+        "terminal_state": "failed", "terminal_reason": "provider_error",
+    }
+    assert result["trials"][0]["cost_usd"] == "0.10", "a failed trial still spent money"
+
+
+def test_an_envelope_that_will_not_say_whether_it_is_gradable_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Non-admitted is an answer; silence is not."""
+    def no_admission(document: dict[str, object]) -> dict[str, object]:
+        document["grader_admission"] = {"reason": "inner_terminal_not_ok"}
+        return document
+
+    RecordingTrialPath(envelope_mutation=no_admission).install(monkeypatch)
 
     status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
 
@@ -948,6 +982,7 @@ def test_a_successful_campaign_returns_structured_state(
         "outer_envelope_path": str(
             tmp_path / "trials" / "camp-01-task-one-cortex-a" / "artifacts"
             / OUTER_ENVELOPE_FILENAME),
+        "grader_admission": {"admitted": True},
     }
 
 

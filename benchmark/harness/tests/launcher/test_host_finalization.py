@@ -276,6 +276,7 @@ class FinalizationEnvironment:
         self.mutation = mutation
         self.calls: list[str] = []
         self.run_return_code = 0
+        self.publish_terminal_on_failure = False
         self.workspace_return_code = 0
         self.workspace_payload = "clean collected workspace output\n"
 
@@ -292,7 +293,7 @@ class FinalizationEnvironment:
         if command.endswith("claude --version"):
             return ExecResult(stdout="1.2.3 (Claude Code)\n", return_code=0)
         if "cortex agent-run" in command and "--prompt-file" in command:
-            if self.run_return_code == 0:
+            if self.run_return_code == 0 or self.publish_terminal_on_failure:
                 write_inner_outputs(self.logs_dir, self.mutation)
             return ExecResult(
                 stdout="clean stdout\n", stderr="clean stderr\n",
@@ -381,7 +382,7 @@ def assert_refused(
 
 
 def assert_outer_evidence(envelope: Mapping[str, object]) -> None:
-    assert envelope["schema_version"] == "cortex-bench-outer-envelope/1"
+    assert envelope["schema_version"] == "cortex-bench-outer-envelope/2"
     assert envelope["identity"] == {
         "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "arm_name": ARM_NAME,
     }
@@ -397,7 +398,10 @@ def assert_outer_evidence(envelope: Mapping[str, object]) -> None:
         "relative_path": OUTER_ENVELOPE_FILENAME, "classification": "required",
         "atomic": True, "post_publication_reread": True,
     }
-    assert envelope["grader_admission"] == {"admitted": True}
+    assert envelope["grader_admission"] == {
+        "admitted": True, "reason": "ok",
+        "terminal_state": "completed", "terminal_reason": "ok",
+    }
 
 
 def test_production_run_publishes_and_rereads_one_outer_admission(
@@ -419,6 +423,118 @@ def test_production_run_publishes_and_rereads_one_outer_admission(
                for file in envelope["classification"]["files"])
     assert any("cortex-bench-workspace-evidence/1" in call for call in environment.calls)
     assert any(call.endswith("chmod -R a+rX /logs/agent") for call in environment.calls)
+
+
+def fail_inner_run(
+    reason: str = "child_failure", cost_usd: object = None, state: str = "failed",
+) -> Callable[[Path], None]:
+    """The shape a run leaves behind when its agent did not finish.
+
+    `runner.ts` publishes no composite manifest for a non-completed terminal, by design, so the
+    absence of that file is part of the fixture rather than a defect in it.
+    """
+    def mutation(root: Path) -> None:
+        (root / "composite-manifest.json").unlink()
+        path = root / f"run-{ROOT_RUN_ID}.terminal.json"
+        document = json.loads(path.read_text())
+        document.update({"state": state, "terminal_reason": reason, "cost_usd": cost_usd})
+        write_json(path, document)
+    return mutation
+
+
+def test_a_failed_inner_run_publishes_an_envelope_that_says_it_is_not_gradable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Why option A exists.
+
+    This trial used to raise `inner_terminal_invalid` inside the agent phase, which meant Harbor
+    never ran the verifier, no reward existed for the task, and the campaign stopped. The run is
+    now finalized and published like any other — the difference is that the envelope states, in
+    its own words, that its result must not be graded.
+    """
+    agent, environment = make_agent(
+        tmp_path, monkeypatch, fail_inner_run("provider_error"))
+
+    run_agent(agent, environment)
+    envelope = json.loads(envelope_path(tmp_path).read_bytes())
+
+    assert not agent.grader_admitted
+    assert envelope["grader_admission"] == {
+        "admitted": False, "reason": "inner_terminal_not_ok",
+        "terminal_state": "failed", "terminal_reason": "provider_error",
+    }
+    assert envelope["identity"] == {
+        "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "arm_name": ARM_NAME,
+    }
+    assert envelope["inner"]["composite_sha256"] is None
+    assert envelope["inner"]["terminal_sha256"]
+    assert envelope["revocation"]["route_active"] is False
+    assert envelope["classification"]["ok"] is True and envelope["leak_scan"]
+
+
+def test_a_failed_run_that_knows_of_no_cost_does_not_claim_a_reconciliation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The composite is where the journal-side cost lives, and a failed run has none.
+
+    Reporting `reconciled: true` here would assert a cross-check that never happened, so the
+    envelope says what is true instead: the proxy's own metering, and no counterpart to meet it.
+    """
+    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run())
+
+    run_agent(agent, environment)
+    usage = json.loads(envelope_path(tmp_path).read_bytes())["proxy_usage"]
+
+    assert usage["journal_cost_usd"] is None and usage["reconciled"] is False
+    assert usage["cost_usd"] == "0" and usage["trial_id"] == TRIAL_ID
+
+
+def test_a_failed_run_whose_own_cost_contradicts_the_proxy_is_still_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Not being gradable does not make a trial's accounting optional."""
+    agent, environment = make_agent(
+        tmp_path, monkeypatch, fail_inner_run(cost_usd=5))
+
+    assert_refused(tmp_path, agent, environment)
+
+
+@pytest.mark.parametrize(("state", "reason"), [
+    ("failed", "child_failure"), ("failed", "containment_failure"),
+    ("failed", "trajectory_write_failed"), ("failed", "cost_limit_exceeded"),
+    ("cancelled", "cancelled"), ("timeout", "deadline_exceeded"),
+])
+def test_every_terminal_state_the_inner_contract_admits_is_finalized(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str, reason: str,
+) -> None:
+    agent, environment = make_agent(
+        tmp_path, monkeypatch, fail_inner_run(reason, state=state))
+
+    run_agent(agent, environment)
+    admission = json.loads(envelope_path(tmp_path).read_bytes())["grader_admission"]
+
+    assert admission == {
+        "admitted": False, "reason": "inner_terminal_not_ok",
+        "terminal_state": state, "terminal_reason": reason,
+    }
+
+
+@pytest.mark.parametrize(("state", "reason"), [
+    ("failed", "ok"), ("completed", "child_failure"), ("cancelled", "deadline"),
+    ("aborted", "child_failure"), ("failed", "made_up_reason"),
+])
+def test_a_terminal_pair_the_inner_contract_never_writes_is_not_an_agent_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str, reason: str,
+) -> None:
+    """A forged marker must not become a gradable failure.
+
+    The whole split rests on a non-ok terminal being the run's own truthful statement. A pair the
+    inner contract cannot produce is evidence of something else, and still refuses.
+    """
+    agent, environment = make_agent(
+        tmp_path, monkeypatch, fail_inner_run(reason, state=state))
+
+    assert_refused(tmp_path, agent, environment)
 
 
 def corrupt_self_consistent_journal(
@@ -585,6 +701,29 @@ def test_verifier_root_output_cannot_escape_closed_world_classification(
     assert_refused(tmp_path, agent, environment)
 
 
+def test_a_non_zero_inner_exit_is_graded_from_the_marker_it_published(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shape a failed agent actually has, and the one that used to be unreachable.
+
+    Harbor raises on any non-zero exit, so this run's phase ended before finalization could look
+    at anything. Which of the two paths a failure took was decided by a race — a run that
+    published its marker before its process returned was settled by the poll instead. The marker
+    now decides it: the exit code restates what the run already said, and the envelope is
+    published saying it must not be graded.
+    """
+    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run("provider_error"))
+    environment.run_return_code = 1
+    environment.publish_terminal_on_failure = True
+
+    run_agent(agent, environment)
+    envelope = json.loads(envelope_path(tmp_path).read_bytes())
+
+    assert not agent.grader_admitted
+    assert envelope["grader_admission"]["terminal_reason"] == "provider_error"
+    assert "exited non-zero" in (tmp_path / "agent" / "stderr.txt").read_text()
+
+
 @pytest.mark.parametrize("stage", ["inner_run", "workspace_collection"])
 def test_pre_envelope_stage_failure_is_not_a_gradeable_agent_outcome(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stage: str,
@@ -597,6 +736,8 @@ def test_pre_envelope_stage_failure_is_not_a_gradeable_agent_outcome(
 
     with pytest.raises(HostFinalizationError):
         run_agent(agent, environment)
+    # The inner-run case dies without publishing a terminal marker, so nothing states an outcome
+    # and there is nothing to grade. That is what separates it from a failed agent.
     assert not agent.grader_admitted and not envelope_path(tmp_path).exists()
     assert agent.proxy_session.handle.revocation_evidence["listener_present"] is False
 

@@ -1,5 +1,5 @@
 # input:  ordered campaign runs, arm/task pins, contrast declarations
-# output: deterministic comparison report with explicit telemetry states
+# output: deterministic comparison report with explicit telemetry and admission states
 # pos:    Host-side comparison provenance and classification builder
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -9,11 +9,15 @@ from decimal import Decimal, InvalidOperation
 
 from .arms import IMAGE_DIGEST, VENDOR_AGENTS
 
-COMPARISON_REPORT_SCHEMA_VERSION = "cortex-benchmark-comparison-report/1"
+COMPARISON_REPORT_SCHEMA_VERSION = "cortex-benchmark-comparison-report/2"
 DIFFERENCE_CLASSES = frozenset({"bundle-level", "orchestration"})
 VENDOR_TELEMETRY_UNAVAILABLE = {
     "status": "unavailable",
     "reason": "not_exposed_by_vendor_runner",
+}
+VENDOR_ADMISSION_UNAVAILABLE = {
+    "status": "unavailable",
+    "reason": "vendor_runner_publishes_no_outer_envelope",
 }
 
 
@@ -87,6 +91,23 @@ def _telemetry(run: Mapping[str, object], kind: str) -> object:
     return json.loads(json.dumps(telemetry))
 
 
+def _admission(run: Mapping[str, object], kind: str) -> object:
+    """Whether this run's result may be compared with the others, carried per run.
+
+    A campaign no longer stops at the first inner run that failed, so a report can hold runs that
+    did not end comparably. Nothing here averages across them — this field is what makes such an
+    average refusable rather than accidental.
+    """
+    admission = run.get("grader_admission")
+    if kind == "vendor-baseline":
+        if admission is not None:
+            raise ValueError("vendor baseline grader admission must be unavailable")
+        return dict(VENDOR_ADMISSION_UNAVAILABLE)
+    if not isinstance(admission, Mapping) or not isinstance(admission.get("admitted"), bool):
+        raise ValueError("Cortex runs must state grader_admission.admitted")
+    return json.loads(json.dumps(admission))
+
+
 def _build_run(run: Mapping[str, object]) -> dict[str, object]:
     arm = run.get("arm")
     if not isinstance(arm, Mapping):
@@ -103,6 +124,7 @@ def _build_run(run: Mapping[str, object]) -> dict[str, object]:
         "task": _task(run),
         "limits": _limits(arm),
         "cortex_telemetry": _telemetry(run, kind),
+        "grader_admission": _admission(run, kind),
     }
 
 
