@@ -89,8 +89,9 @@ def test_validates_the_shipped_deepseek_live_evidence() -> None:
         capability_id=row.id, key=key, state=row.state,
         adapter_id="deepseek-chat-completions/api-key",
     )
+    assert evidence["implementation_commit"] == "9c6ebf542d06326cbf8aec20c65ac3eb058c081f"
     assert evidence["request_count"] == 1
-    assert evidence["conservative_cost_usd"] == "0.00082558"
+    assert evidence["conservative_cost_usd"] == "0.00058086"
 
 
 def test_deepseek_offline_evidence_requires_exact_runtime_contract(tmp_path: Path) -> None:
