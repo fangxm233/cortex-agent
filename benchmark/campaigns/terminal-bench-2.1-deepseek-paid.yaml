@@ -1,0 +1,88 @@
+# input:  the approved paid Cortex-direct campaign over authentic Terminal-Bench 2.1 tasks
+# output: three serial production trials and one campaign report under a $10.00 hard ceiling
+# pos:    Committed first real Terminal-Bench paid campaign
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# The three task directories and runtime images are byte/digest pinned to upstream commit
+# 7131e4375048a0e408a8fb404b5f499d726b695b by
+# ../harness/scripts/terminal-bench-2.1-images.json. Admission is pull-disabled.
+# The provider credential remains host-only and is read from the named environment variable.
+# Run only through: cortex-bench run --config <this-file>
+
+schema_version: cortex-bench-campaign/1
+campaign: tb21-paid
+paid: true
+cost_ceiling_usd: "10.00"
+trials_dir: /var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf
+cli_version: "2026.8.6"
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: http://127.0.0.1:9880/m/deepseek/deepseek
+  route_identity_host: api.deepseek.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: paid-trial-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_DEEPSEEK_CREDENTIAL
+  forbidden_environment:
+    host_forbidden: CORTEX_BENCH_PAID_FORBIDDEN
+  forbidden_argv_environment:
+    host_argv: CORTEX_BENCH_PAID_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_PAID_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_PAID_IDENTITY
+
+docker_network:
+  subnet: 172.30.240.0/24
+  gateway: 172.30.240.1
+
+proxy:
+  credential_env: CORTEX_BENCH_DEEPSEEK_CREDENTIAL
+  bound_source_ip: 172.30.240.2
+  max_request_cost_usd: "0.50"
+  input_cost_per_million_usd: "0.14"
+  output_cost_per_million_usd: "0.28"
+  request_body_limit_bytes: 16777216
+  response_body_limit_bytes: 16777216
+  listen_host: 0.0.0.0
+
+arms:
+  - name: cortex-direct
+    kind: cortex
+    backend: pi
+    provider: deepseek
+    model: deepseek-v4-flash
+    credential_capability: pi-deepseek-api-key
+    orchestration:
+      mode: direct
+      ask_manager: false
+    limits:
+      max_thread_starts: 0
+      max_parent_questions: 0
+      max_task_depth: 0
+      max_tasks: 0
+      max_provider_requests: 200
+      max_resident_agent_processes: 1
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 32768
+
+tasks:
+  - task_id: chess-best-move
+    path: tasks/terminal-bench-2.1/chess-best-move
+    image_ref: cortex-terminal-bench-2.1@sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b
+  - task_id: constraints-scheduling
+    path: tasks/terminal-bench-2.1/constraints-scheduling
+    image_ref: cortex-terminal-bench-2.1@sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c
+  - task_id: db-wal-recovery
+    path: tasks/terminal-bench-2.1/db-wal-recovery
+    image_ref: cortex-terminal-bench-2.1@sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a
+
+comparisons: []

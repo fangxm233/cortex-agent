@@ -1,0 +1,119 @@
+{
+  "schema_version": "cortex-bench-campaign-attempt-summary/1",
+  "campaign": "tb21-paid",
+  "executed_at": "2026-08-13",
+  "paid": true,
+  "execution": {
+    "entrypoint": "cortex-bench run --config benchmark/campaigns/terminal-bench-2.1-deepseek-paid.yaml",
+    "source_commit": "d968290b63928b1cd27a0343a9b7804859a6f9d3",
+    "state": "stopped-after-first-trial-failure",
+    "exit_code": 1,
+    "attempted_trial_count": 1,
+    "unattempted_trial_count": 2,
+    "outer_envelope_count": 0,
+    "comparison_report_written": false,
+    "serial_execution_evidence": "Only the chess-best-move trial root existed when the runner exited; constraints-scheduling and db-wal-recovery roots were absent."
+  },
+  "reproducibility": {
+    "campaign_config": "benchmark/campaigns/terminal-bench-2.1-deepseek-paid.yaml",
+    "campaign_config_sha256": "a82ca8afa270bef3824bf6269b1fbf14307acfe186f206b63f2165185d1d65b6",
+    "harness_lockfile": "benchmark/harness/uv.lock",
+    "harness_lockfile_sha256": "45b7c8ff4adfa856aea2c874592ccc5a84da559824d8ee6aa36f9b9eee4b8e90",
+    "wheel_sha256": "2c874654ee098ba26c4228b9e0ea086b6ddbafa64d03549e0c70255e9a363b71",
+    "npm_artifact_sha256": "da32bdd0ad64ddec2d87c873edeaab1a478780ea55f05b7500355b4f25b7ad54",
+    "capability_evidence_sha256": "f11e82fd0efecfda60490de953f3af39833cda1adce0e2b87e0f078bafa289d5",
+    "task_source_commit": "7131e4375048a0e408a8fb404b5f499d726b695b"
+  },
+  "declared_limits": {
+    "arm": "cortex-direct",
+    "backend": "pi",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "orchestration_mode": "direct",
+    "max_cost_usd_per_trial": "2.00",
+    "campaign_cost_ceiling_usd": "10.00",
+    "max_request_cost_usd": "0.50",
+    "max_provider_requests_per_trial": 200,
+    "deadline_seconds_per_trial": 1800,
+    "max_output_tokens_per_response": 32768,
+    "request_body_limit_bytes": 16777216,
+    "response_body_limit_bytes": 16777216
+  },
+  "attempted_trials": [
+    {
+      "trial_id": "tb21-paid-chess-best-move-cortex-direct",
+      "task_id": "chess-best-move",
+      "image_digest": "sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b",
+      "harbor_result_path": "/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf/tb21-paid-chess-best-move-cortex-direct/result.json",
+      "harbor_result_sha256": "0ca9ce30c35a59a94ba7d9719a9728ce5c9c8a2d8ecc9f0bdaae519f02651dd3",
+      "reward": 0.0,
+      "reward_finite": true,
+      "failure_type": "AgentTimeoutError",
+      "failure_message": "Agent execution timed out after 1800.0 seconds",
+      "failure_evidence_path": "/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf/tb21-paid-chess-best-move-cortex-direct/exception.txt",
+      "failure_evidence_sha256": "d35db958ae58b8f653939859a3fd3c25b7b1c051d22277dd6d2f75941f4ccb05",
+      "launch_admission_path": "/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf/tb21-paid-chess-best-move-cortex-direct/artifacts/harbor-launch-admission.json",
+      "launch_admission_sha256": "5623b57a15fbb0703ebe0a6a7eeb56e1d80d5a701143a6d1b3ec31c5b8ca4a31",
+      "outer_envelope_path": "/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf/tb21-paid-chess-best-move-cortex-direct/artifacts/cortex-bench-outer-envelope.json",
+      "outer_envelope_published": false,
+      "outer_envelope_sha256": null,
+      "grader_admitted": null,
+      "proxy_export_path": "/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf/tb21-paid-chess-best-move-cortex-direct/artifacts/proxy/proxy-export.json",
+      "proxy_export_sha256": "e9b023ecb8f4c3b8a2e049a47e110d3f2ab46813d6b9556e8e09ed9e604281f8",
+      "proxy_audit_path": "/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf/tb21-paid-chess-best-move-cortex-direct/artifacts/proxy/proxy-audit.jsonl",
+      "proxy_audit_sha256": "bdebb3b5440300fed1eb6723c9bb1ffd78f07cd984ed645e94a5502b96ccaab0",
+      "provider_requests": 4,
+      "turn_count_measure": "maximum numTurns in trajectory turn_progress events",
+      "turn_count": 15,
+      "input_tokens": 19741,
+      "output_tokens": 1612,
+      "cost_usd": "0.0032151",
+      "trial_started_at": "2026-08-13T07:29:34.328362Z",
+      "trial_finished_at": "2026-08-13T08:00:49.238948Z",
+      "trial_latency_seconds": "1874.910586",
+      "trial_latency_arithmetic": "2026-08-13T08:00:49.238948Z - 2026-08-13T07:29:34.328362Z",
+      "agent_execution_started_at": "2026-08-13T07:30:31.267118Z",
+      "agent_execution_finished_at": "2026-08-13T08:00:36.068718Z",
+      "agent_execution_seconds": "1804.801600",
+      "trajectory_path": "/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf/tb21-paid-chess-best-move-cortex-direct/agent/trajectory/events.jsonl",
+      "trajectory_sha256": "6970c901409d079ec36de1cc4d42fec64245e262e34b72a8c216f5adc7cac0b4",
+      "terminal_marker_path": "/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf/tb21-paid-chess-best-move-cortex-direct/agent/trajectory/run-tb21-paid-chess-best-move-cortex-direct.cortex-direct.terminal.json",
+      "terminal_marker_sha256": "ba9241c7e4fee6775cf2fca7579c4fd9363e4d861875273eba0a89ec9563a5be",
+      "terminal_marker_state": "failed",
+      "terminal_marker_reason": "child_failure"
+    }
+  ],
+  "unattempted_trials": [
+    {
+      "task_id": "constraints-scheduling",
+      "image_digest": "sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c",
+      "reason": "campaign stopped after the first trial failure"
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "image_digest": "sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a",
+      "reason": "campaign stopped after the first trial failure"
+    }
+  ],
+  "totals": {
+    "provider_requests": 4,
+    "input_tokens": 19741,
+    "output_tokens": 1612,
+    "cost_usd": "0.0032151",
+    "within_campaign_ceiling": true,
+    "remaining_campaign_ceiling_usd": "9.9967849"
+  },
+  "stop_reason": "The first Harbor trial timed out after its admitted agent process had already published a failed child_failure terminal marker; no outer envelope was published, so cortex-bench exited 1 and did not arm later tasks.",
+  "credential_handling_observation": {
+    "private_runtime_metadata_path": "/home/fangxin/.cortex/tmp/cortex-run/tb21-paid-37cf/meta.json",
+    "finding": "cortex-run persisted the passed-through credential value in private run metadata; the value is intentionally omitted here and no cleanup or rotation was performed."
+  },
+  "prohibitions_observed": {
+    "admission_bypassed": false,
+    "task_replaced": false,
+    "vendor_baseline_run": false,
+    "extra_handshake_run": false,
+    "push_release_deployment_or_daemon_restart": false,
+    "retry_run": false
+  }
+}
