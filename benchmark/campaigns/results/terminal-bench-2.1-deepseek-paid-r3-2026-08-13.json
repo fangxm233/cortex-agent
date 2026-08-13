@@ -1,0 +1,137 @@
+{
+  "schema_version": "cortex-bench-campaign-attempt-summary/1",
+  "campaign": "tb21-paid-r3",
+  "executed_at": "2026-08-13",
+  "paid": true,
+  "execution": {
+    "entrypoint": "cortex-run --name tb21-paid-r3-fe89 --task-project cortex-self --task-id fe89 -- env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --offline --frozen python scripts/launch-paid-campaign.py --config ../campaigns/terminal-bench-2.1-deepseek-paid.yaml --run",
+    "source_commit": "c54c2f45",
+    "state": "stopped-after-first-trial-finalization-failure",
+    "exit_code": 1,
+    "attempted_trial_count": 1,
+    "unattempted_trial_count": 2,
+    "outer_envelope_count": 0,
+    "comparison_report_written": false,
+    "serial_execution_evidence": "Only the chess-best-move trial root exists; the constraints-scheduling and db-wal-recovery roots are absent.",
+    "credential_handling": "The committed launcher strict-loaded the credential at execution time from the configured gateway file. cortex-run metadata records an empty env mapping and credential-free argv; no credential value is included here."
+  },
+  "path_aliases": {
+    "$R3_ROOT": "/var/tmp/cortex-bench/tb21-paid-r3-2026-08-13-4e25",
+    "$TRIAL_ROOT": "$R3_ROOT/tb21-paid-r3-chess-best-move-cortex-direct",
+    "$CORTEX_RUN_RESULT": "~/.cortex/tmp/cortex-run/tb21-paid-r3-fe89/result.json"
+  },
+  "reproducibility": {
+    "campaign_config": "benchmark/campaigns/terminal-bench-2.1-deepseek-paid.yaml",
+    "campaign_config_sha256": "b508eb0e070bba599dca23bce5583219391e3001874b2c7d0db7253450a878e2",
+    "harness_lockfile": "benchmark/harness/uv.lock",
+    "harness_lockfile_sha256": "45b7c8ff4adfa856aea2c874592ccc5a84da559824d8ee6aa36f9b9eee4b8e90",
+    "wheel_sha256": "7407cd6348e80e14338dc4b3e1319dbf0ea0fd8cd07cf45f8c998fff6738a3cf",
+    "npm_artifact_sha256": "da32bdd0ad64ddec2d87c873edeaab1a478780ea55f05b7500355b4f25b7ad54",
+    "capability_evidence_sha256": "f11e82fd0efecfda60490de953f3af39833cda1adce0e2b87e0f078bafa289d5",
+    "task_source_commit": "7131e4375048a0e408a8fb404b5f499d726b695b"
+  },
+  "declared_limits": {
+    "arm": "cortex-direct",
+    "backend": "pi",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "orchestration_mode": "direct",
+    "max_cost_usd_per_trial": "2.00",
+    "campaign_cost_ceiling_usd": "10.00",
+    "max_request_cost_usd": "0.02",
+    "max_provider_requests_per_trial": 100,
+    "deadline_seconds_per_trial": 1800,
+    "max_output_tokens_per_response": 8192,
+    "request_body_limit_bytes": 16777216,
+    "response_body_limit_bytes": 16777216
+  },
+  "attempted_trials": [
+    {
+      "trial_id": "tb21-paid-r3-chess-best-move-cortex-direct",
+      "task_id": "chess-best-move",
+      "task_path": "benchmark/campaigns/tasks/terminal-bench-2.1/chess-best-move",
+      "task_checksum": "2509a1fde3e8582c6dc2458a208e215b3aa3614250998d5eecf938c2d2fd7505",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b",
+      "harbor_result_path": "$TRIAL_ROOT/result.json",
+      "harbor_result_sha256": "191cc47cf0aeb4057b165547c2bfafb9b4936a768b2e28181ad83f54cbfee173",
+      "reward": null,
+      "reward_finite": false,
+      "reward_status": "unavailable: Harbor verifier_result is null because host finalization raised before verifier execution",
+      "failure_type": "HostFinalizationError",
+      "failure_message": "inner_terminal_invalid",
+      "failure_evidence_path": "$TRIAL_ROOT/exception.txt",
+      "launch_admission_path": "$TRIAL_ROOT/artifacts/harbor-launch-admission.json",
+      "launch_admission_sha256": "90d3c78a8e34e7a51ffd8bfa3075e1e02e2b6f236b36bde909d87c672d62c735",
+      "outer_envelope_path": "$TRIAL_ROOT/artifacts/cortex-bench-outer-envelope.json",
+      "outer_envelope_published": false,
+      "outer_envelope_sha256": null,
+      "grader_admitted": null,
+      "envelope_cost_usd": null,
+      "proxy_export_path": "$TRIAL_ROOT/artifacts/proxy/proxy-export.json",
+      "proxy_export_sha256": "0db29d8d18d17ee800849ea19b4b8a922f8b0186627e2051ebc9490ff2901030",
+      "proxy_audit_path": "$TRIAL_ROOT/artifacts/proxy/proxy-audit.jsonl",
+      "proxy_audit_sha256": "0ca2fbe33934596c9ec6b93493724f066fc7772c3e184e5a2bec2e6e499c63a9",
+      "provider_requests": 16,
+      "turn_count_measure": "maximum numTurns in trajectory turn_progress events",
+      "turn_count": 26,
+      "input_tokens": 147919,
+      "output_tokens": 24047,
+      "proxy_cost_usd": "0.02744182",
+      "trial_started_at": "2026-08-13T09:34:03.265990Z",
+      "trial_finished_at": "2026-08-13T09:40:22.138208Z",
+      "trial_latency_seconds": "378.872218",
+      "trial_latency_arithmetic": "2026-08-13T09:40:22.138208Z - 2026-08-13T09:34:03.265990Z",
+      "agent_execution_started_at": "2026-08-13T09:35:03.420566Z",
+      "agent_execution_finished_at": "2026-08-13T09:40:09.819437Z",
+      "agent_execution_seconds": "306.398871",
+      "inner_started_at": "2026-08-13T09:35:06.294Z",
+      "inner_ended_at": "2026-08-13T09:38:06.140Z",
+      "inner_latency_seconds": "179.846000",
+      "trajectory_path": "$TRIAL_ROOT/agent/trajectory/events.jsonl",
+      "trajectory_sha256": "1104d54964f7be8b9be0f2468d413eb3166123f92e182f6f41062c9c3ff045cb",
+      "terminal_marker_path": "$TRIAL_ROOT/agent/trajectory/run-tb21-paid-r3-chess-best-move-cortex-direct.cortex-direct.terminal.json",
+      "terminal_marker_sha256": "29eeec60e3c2e07f1f16a08fee5e31c36210b0d121720a03c6c741c30258967a",
+      "terminal_marker_state": "failed",
+      "terminal_marker_reason": "child_failure",
+      "model_failure_mode": "The PI session recorded repeated provider Connection error responses and terminated child_failure without producing /app/move.txt; host finalization rejects failed/non-ok inner terminal markers as inner_terminal_invalid."
+    }
+  ],
+  "unattempted_trials": [
+    {
+      "task_id": "constraints-scheduling",
+      "task_path": "benchmark/campaigns/tasks/terminal-bench-2.1/constraints-scheduling",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c",
+      "reason": "campaign stopped after the first trial infrastructure failure"
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "task_path": "benchmark/campaigns/tasks/terminal-bench-2.1/db-wal-recovery",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a",
+      "reason": "campaign stopped after the first trial infrastructure failure"
+    }
+  ],
+  "comparison_report": {
+    "path": "$R3_ROOT/comparison-report.json",
+    "written": false,
+    "sha256": null,
+    "reason": "campaign exited before report construction"
+  },
+  "paid_spend": {
+    "r1_cost_usd": "0.00321510",
+    "r2_cost_usd": "0",
+    "r3_proxy_cost_usd": "0.02744182",
+    "total_paid_spend_usd": "0.03065692",
+    "arithmetic": "0.00321510 + 0 + 0.02744182 = 0.03065692",
+    "within_campaign_ceiling": true,
+    "remaining_to_10_usd": "9.96934308"
+  },
+  "stop_reason": "The sole authorized r3 attempt stopped after the first trial: the inner marker was state=failed/terminal_reason=child_failure, and host finalization requires state=completed/terminal_reason=ok, so it raised inner_terminal_invalid. No outer envelope, finite Harbor reward, later trial, or comparison report was produced.",
+  "prohibitions_observed": {
+    "admission_bypassed": false,
+    "task_replaced": false,
+    "vendor_baseline_run": false,
+    "extra_handshake_run": false,
+    "push_release_deployment_or_daemon_restart": false,
+    "additional_retry_run": false
+  }
+}
