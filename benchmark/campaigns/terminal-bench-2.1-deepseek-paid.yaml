@@ -90,6 +90,15 @@ host_scan_policy:
   host_identity_environment:
     machine: CORTEX_BENCH_PAID_IDENTITY
 
+# Harbor bounds the agent and verifier phases; the arm's `deadline_seconds` bounds the inner run.
+# Declaring them here overrides the digest-pinned task.toml without editing it, which is what
+# Harbor's `override_timeout_sec` fields exist for. The credential lease is armed for
+# min(deadline_seconds, agent_seconds), because whichever fires first ends the request stream, so
+# lengthening the verifier phase never lengthens the window in which the key is live.
+timeouts:
+  agent_seconds: 1800
+  verifier_seconds: 1800
+
 docker_network:
   subnet: 172.30.240.0/24
   gateway: 172.30.240.1

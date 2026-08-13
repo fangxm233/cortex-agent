@@ -273,6 +273,42 @@ def test_public_entry_builds_the_sealed_trial_config(tmp_path: Path) -> None:
     assert config.agent.env == EXPECTED_ENVIRONMENT
 
 
+def test_agent_phase_defaults_to_the_arm_deadline_and_leases_for_it(tmp_path: Path) -> None:
+    """An undeclared phase timeout keeps the arm's deadline as the whole trial window."""
+    config = build_harbor_trial_config(**launch_kwargs(tmp_path))
+    deadline = float(arm()["limits"]["deadline_seconds"])
+
+    assert config.agent.override_timeout_sec == deadline
+    assert config.agent.max_timeout_sec == deadline
+    assert config.verifier.override_timeout_sec is None
+    assert config.agent.kwargs["trial_proxy"]["lease_seconds"] == int(deadline)
+
+
+def test_declared_phase_timeouts_supersede_the_task_without_editing_it(
+    tmp_path: Path,
+) -> None:
+    """Harbor's override fields are how a digest-pinned task.toml is retimed.
+
+    The verifier phase makes no provider request, so lengthening it must not lengthen the
+    credential lease; the lease follows min(deadline_seconds, agent_seconds) alone.
+    """
+    lengthened = build_harbor_trial_config(
+        **launch_kwargs(tmp_path / "long"),
+        agent_timeout_seconds=3600, verifier_timeout_seconds=7200)
+    shortened = build_harbor_trial_config(
+        **launch_kwargs(tmp_path / "short"), agent_timeout_seconds=30)
+
+    assert (lengthened.agent.override_timeout_sec, lengthened.agent.max_timeout_sec) == (
+        3600.0, 3600.0)
+    assert (lengthened.verifier.override_timeout_sec, lengthened.verifier.max_timeout_sec) == (
+        7200.0, 7200.0)
+    # The arm still stops itself at 90, so an hour-long agent phase and a two-hour verifier
+    # phase leave the credential live for 90 seconds and not one second more.
+    assert lengthened.agent.kwargs["trial_proxy"]["lease_seconds"] == 90
+    assert shortened.agent.override_timeout_sec == 30.0
+    assert shortened.agent.kwargs["trial_proxy"]["lease_seconds"] == 30
+
+
 def test_deepseek_identity_is_admitted_without_container_credentials(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

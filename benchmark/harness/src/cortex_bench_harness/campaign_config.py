@@ -33,7 +33,12 @@ CAMPAIGN_REQUIRED_FIELDS = frozenset({
     "schema_version", "campaign", "paid", "cost_ceiling_usd", "trials_dir", "cli_version",
     "manifest", "credential", "host_scan_policy", "docker_network", "proxy", "arms", "tasks",
 })
-CAMPAIGN_OPTIONAL_FIELDS = frozenset({"comparisons"})
+CAMPAIGN_OPTIONAL_FIELDS = frozenset({"comparisons", "timeouts"})
+# Harbor bounds the agent and verifier phases separately from the arm's own deadline. Absent
+# means today's behaviour: the agent phase is cut at `limits.deadline_seconds`, and the verifier
+# at whatever the task's own `[verifier] timeout_sec` declares. Declaring them here overrides a
+# digest-pinned task.toml without editing one, which is what Harbor's override fields are for.
+TIMEOUT_FIELDS = frozenset({"agent_seconds", "verifier_seconds"})
 MANIFEST_FIELDS = frozenset({
     "wheel_path", "lockfile_path", "lockfile_manifest_path", "npm_artifact_path",
 })
@@ -127,6 +132,7 @@ class CampaignConfig:
     host_scan_policy: Mapping[str, object]
     docker_network: Mapping[str, object]
     proxy: Mapping[str, object]
+    timeouts: Mapping[str, int]
     arms: tuple[Mapping[str, object], ...]
     tasks: tuple[CampaignTask, ...]
     comparisons: tuple[Mapping[str, object], ...]
@@ -214,6 +220,7 @@ def parse_campaign_config(
         host_scan_policy=_host_scan_policy(document["host_scan_policy"]),
         docker_network=_docker_network(document["docker_network"]),
         proxy=_proxy(document["proxy"]),
+        timeouts=_timeouts(document.get("timeouts")),
         arms=arms,
         tasks=_tasks(document["tasks"], base_dir),
         comparisons=_comparisons(document.get("comparisons", []), arms),
@@ -221,6 +228,16 @@ def parse_campaign_config(
     _validate_trial_routes(config)
     _validate_request_budget(config)
     return config
+
+
+def _timeouts(value: object) -> Mapping[str, int]:
+    """Read the optional Harbor phase timeouts, closed-world and positive."""
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise CampaignConfigError("campaign timeouts must be a mapping")
+    _require_fields(value, frozenset(), TIMEOUT_FIELDS, "campaign timeouts")
+    return {field: _positive_int(value, field) for field in TIMEOUT_FIELDS if field in value}
 
 
 def _host_suffix(value: str) -> str:
@@ -367,6 +384,15 @@ def _boolean(document: Mapping[str, object], field: str, label: str = "campaign"
     value = document.get(field)
     if not isinstance(value, bool):
         raise CampaignConfigError(f"{label} {field} must be true or false")
+    return value
+
+
+def _positive_int(
+    document: Mapping[str, object], field: str, label: str = "campaign",
+) -> int:
+    value = document.get(field)
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise CampaignConfigError(f"{label} {field} must be a positive integer")
     return value
 
 

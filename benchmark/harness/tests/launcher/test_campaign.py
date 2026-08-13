@@ -23,6 +23,7 @@ from cortex_bench_harness.campaign_config import (
     CAMPAIGN_SCHEMA_VERSION,
     CampaignConfigError,
     load_campaign_config,
+    parse_campaign_config,
 )
 from cortex_bench_harness.host_finalization import (
     OUTER_ENVELOPE_FILENAME,
@@ -1172,6 +1173,38 @@ def test_an_output_cap_one_reservation_cannot_pay_for_is_refused(tmp_path: Path)
 
 
 # --- the committed paid campaign ----------------------------------------------------------------
+
+
+def test_the_committed_paid_campaign_declares_both_harbor_phase_timeouts() -> None:
+    config = load_campaign_config(COMMITTED_PAID_CONFIG)
+
+    assert config.timeouts == {"agent_seconds": 1800, "verifier_seconds": 1800}
+
+
+@pytest.mark.parametrize("block, message", [
+    ({"agent_seconds": 0}, "positive integer"),
+    ({"agent_seconds": 1800.5}, "positive integer"),
+    ({"agent_seconds": "true"}, "positive integer"),
+    ({"wall_clock_seconds": 1800}, "unknown"),
+])
+def test_a_malformed_timeouts_block_is_refused(block: dict, message: str) -> None:
+    text = COMMITTED_PAID_CONFIG.read_text(encoding="utf-8").replace(
+        "timeouts:\n  agent_seconds: 1800\n  verifier_seconds: 1800\n",
+        "timeouts:\n" + "".join(f"  {k}: {v}\n" for k, v in block.items()))
+
+    with pytest.raises(CampaignConfigError, match=message):
+        parse_campaign_config(
+            text, base_dir=COMMITTED_PAID_CONFIG.parent, source="timeouts-test")
+
+
+def test_an_absent_timeouts_block_leaves_every_phase_at_its_default() -> None:
+    text = COMMITTED_PAID_CONFIG.read_text(encoding="utf-8").replace(
+        "timeouts:\n  agent_seconds: 1800\n  verifier_seconds: 1800\n", "")
+
+    config = parse_campaign_config(
+        text, base_dir=COMMITTED_PAID_CONFIG.parent, source="timeouts-test")
+
+    assert config.timeouts == {}
 
 
 def test_the_committed_paid_campaign_config_declares_the_approved_envelope() -> None:

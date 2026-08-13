@@ -56,7 +56,7 @@ SPEC_REQUIRED_FIELDS = frozenset({
     # default for a bounded run on either side of the route.
     "request_body_limit_bytes", "response_body_limit_bytes",
 })
-SPEC_OPTIONAL_FIELDS = frozenset({"listen_host", "advertised_host"})
+SPEC_OPTIONAL_FIELDS = frozenset({"listen_host", "advertised_host", "lease_seconds"})
 
 # The paid envelope: what a run declares it may spend, wait for, and carry. Four fields are the
 # arm's own limits and three are host proxy facts, but they are validated as one document — a
@@ -90,6 +90,8 @@ class TrialProxySpec:
     response_body_limit_bytes: int
     listen_host: str = "127.0.0.1"
     advertised_host: str | None = None
+    #: Sealed by admission: the credential window, min(deadline_seconds, agent timeout).
+    lease_seconds: int | None = None
 
 
 def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
@@ -113,6 +115,8 @@ def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
         response_body_limit_bytes=_positive_int(source, "response_body_limit_bytes"),
         listen_host=_optional_text(source, "listen_host", "127.0.0.1"),
         advertised_host=advertised,
+        lease_seconds=(
+            _positive_int(source, "lease_seconds") if "lease_seconds" in source else None),
     )
 
 
@@ -238,7 +242,7 @@ def _start_proxy_session(
     spec: TrialProxySpec, proxy_dir: Path, adapter: ProviderAdapter,
     now_ms: Callable[[], int],
 ) -> TrialProxySession:
-    budget_ms = _deadline_budget_ms(arm)
+    budget_ms = _deadline_budget_ms(arm, spec)
     bound_ms = provisional_lease_bound_ms(now_ms(), budget_ms)
     absolute_deadline = _epoch_datetime(bound_ms)
     handle = start_trial_proxy(
@@ -449,10 +453,19 @@ def _budget(arm: Mapping[str, object], spec: TrialProxySpec) -> ProxyBudget:
     )
 
 
-def _deadline_budget_ms(arm: Mapping[str, object]) -> int:
+def _deadline_budget_ms(arm: Mapping[str, object], spec: TrialProxySpec) -> int:
+    """The credential lease budget: the window in which a request can still be made.
+
+    Admission computes it as min(deadline_seconds, Harbor's agent-phase timeout) and seals it
+    into the spec, because whichever of the two fires first ends the request stream. A spec
+    without one is a caller that declared no separate agent timeout, so the arm's own deadline
+    is the whole window.
+    """
     seconds = _limits(arm).get("deadline_seconds")
     if not isinstance(seconds, int) or isinstance(seconds, bool) or seconds <= 0:
         raise ValueError("arm limits require a positive deadline_seconds")
+    if spec.lease_seconds is not None:
+        seconds = min(seconds, spec.lease_seconds)
     return seconds * 1000
 
 

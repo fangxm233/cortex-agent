@@ -186,6 +186,8 @@ async def _arm_trial(config: CampaignConfig, plan: TrialPlan) -> None:
             manifest=config.trial_manifest(plan), trial_seed=config.trial_seed(plan),
             cli_version=config.cli_version, host_scan_policy=dict(config.host_scan_policy),
             trial_proxy=dict(config.proxy),
+            agent_timeout_seconds=config.timeouts.get("agent_seconds"),
+            verifier_timeout_seconds=config.timeouts.get("verifier_seconds"),
         )
         result = await trial.run()
         _require_completed_trial(plan, result)

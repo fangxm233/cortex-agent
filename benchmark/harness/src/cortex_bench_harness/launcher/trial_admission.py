@@ -32,6 +32,7 @@ from harbor.models.trial.config import (
     ServiceVolumeConfig,
     TaskConfig,
     TrialConfig,
+    VerifierConfig,
 )
 from harbor.models.trial.paths import EnvironmentPaths, TrialPaths
 from harbor.trial.trial import Trial
@@ -234,8 +235,18 @@ def _reserve_trial_root(trials_root: Path, trial_root: Path) -> None:
         ) from error
 
 
+def _lease_seconds(arm: Mapping[str, object], agent_timeout_seconds: int) -> int:
+    """The window in which the container may still make a request.
+
+    Whichever fires first ends the request stream: the inner run stops itself at its own
+    `deadline_seconds`, and Harbor cuts the agent phase at its timeout. The credential must
+    outlive neither, so the lease budget is the smaller of the two.
+    """
+    return min(_deadline_seconds(arm), agent_timeout_seconds)
+
+
 def _sealed_trial_proxy(
-    trial_proxy: Mapping[str, object] | None, proxy_host: str,
+    trial_proxy: Mapping[str, object] | None, proxy_host: str, lease_seconds: int,
 ) -> Mapping[str, object] | None:
     if trial_proxy is None:
         raise HarborTrialAdmissionError(
@@ -252,6 +263,7 @@ def _sealed_trial_proxy(
             "trial proxy advertised host differs from the admitted host"
         )
     sealed["advertised_host"] = proxy_host
+    sealed["lease_seconds"] = lease_seconds
     return sealed
 
 
@@ -260,15 +272,19 @@ def _build_trial_agent_config(
     manifest: Mapping[str, object], trial_seed: Mapping[str, object],
     cli_version: str, environment: Mapping[str, str], proxy_host: str,
     trial_proxy: Mapping[str, object] | None, host_scan_policy: Mapping[str, object],
-    credential_handle: str | None,
+    credential_handle: str | None, agent_timeout_seconds: int,
 ) -> AgentConfig:
     return build_agent_config(
         arm, cli_version=cli_version, artifact_dir=trial_root / "artifacts",
         manifest=manifest, trial_seed=trial_seed, env=environment,
-        override_timeout_sec=float(_deadline_seconds(seed.arm)),
-        max_timeout_sec=float(_deadline_seconds(seed.arm)),
+        # Harbor resolves the agent phase as min(override, max) * multiplier, so declaring both
+        # pins it exactly and supersedes the task's own `[agent] timeout_sec` without editing a
+        # digest-pinned task.toml.
+        override_timeout_sec=float(agent_timeout_seconds),
+        max_timeout_sec=float(agent_timeout_seconds),
         extra_allowed_hosts=[proxy_host],
-        trial_proxy=_sealed_trial_proxy(trial_proxy, proxy_host),
+        trial_proxy=_sealed_trial_proxy(
+            trial_proxy, proxy_host, _lease_seconds(seed.arm, agent_timeout_seconds)),
         host_scan_policy=host_scan_policy,
         admission_environment_digest=environment_digest(environment),
         defer_proxy_arm=True, credential_handle=credential_handle,
@@ -281,6 +297,8 @@ def build_harbor_trial_config(
     trial_seed: Mapping[str, object], cli_version: str,
     host_scan_policy: Mapping[str, object], trial_proxy: Mapping[str, object] | None = None,
     credential_handle: str | None = None,
+    agent_timeout_seconds: int | None = None,
+    verifier_timeout_seconds: int | None = None,
 ) -> TrialConfig:
     seed = parse_trial_seed(trial_seed)
     task_root = Path(task_path).expanduser().resolve(strict=True)
@@ -295,6 +313,7 @@ def build_harbor_trial_config(
     agent = _build_trial_agent_config(
         arm, seed, trial_root, manifest, trial_seed, cli_version,
         environment, proxy_host, trial_proxy, host_scan_policy, credential_handle,
+        agent_timeout_seconds or _deadline_seconds(seed.arm),
     )
     trial_environment = TrialEnvironmentConfig(
         import_path=ADMISSION_ENVIRONMENT_IMPORT_PATH,
@@ -303,9 +322,19 @@ def build_harbor_trial_config(
     config = TrialConfig(
         task=TaskConfig(path=task_root), trial_name=seed.trial_id,
         trials_dir=trials_root, agent=agent, environment=trial_environment,
+        **_verifier_config(verifier_timeout_seconds),
     )
     _reserve_trial_root(trials_root, trial_root)
     return config
+
+def _verifier_config(verifier_timeout_seconds: int | None) -> dict[str, object]:
+    """An undeclared verifier timeout leaves the task's own `[verifier] timeout_sec` in force."""
+    if verifier_timeout_seconds is None:
+        return {}
+    seconds = float(verifier_timeout_seconds)
+    return {"verifier": VerifierConfig(
+        override_timeout_sec=seconds, max_timeout_sec=seconds)}
+
 
 async def create_harbor_trial(
     arm: Mapping[str, object], *, task_path: Path | str,
@@ -313,6 +342,8 @@ async def create_harbor_trial(
     trial_seed: Mapping[str, object], cli_version: str,
     host_scan_policy: Mapping[str, object], trial_proxy: Mapping[str, object] | None = None,
     credential_handle: str | None = None,
+    agent_timeout_seconds: int | None = None,
+    verifier_timeout_seconds: int | None = None,
 ) -> Trial:
     try:
         config = build_harbor_trial_config(
@@ -320,6 +351,8 @@ async def create_harbor_trial(
             trial_seed=trial_seed, cli_version=cli_version,
             host_scan_policy=host_scan_policy, trial_proxy=trial_proxy,
             credential_handle=credential_handle,
+            agent_timeout_seconds=agent_timeout_seconds,
+            verifier_timeout_seconds=verifier_timeout_seconds,
         )
         trial = await Trial.create(config)
         if type(trial.agent_environment) is not AdmittedDockerEnvironment:
