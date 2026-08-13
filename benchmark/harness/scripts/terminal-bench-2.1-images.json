@@ -1,0 +1,92 @@
+{
+  "schema_version": "cortex-terminal-bench-images/1",
+  "source": {
+    "repository": "https://github.com/harbor-framework/terminal-bench-2-1.git",
+    "commit": "7131e4375048a0e408a8fb404b5f499d726b695b"
+  },
+  "runtime_inputs": "zero-paid-runtime-inputs.json",
+  "build_epoch": 1786481201,
+  "verifier": {
+    "python_version": "3.12",
+    "packages": [
+      {
+        "requirement": "iniconfig==2.3.0",
+        "filename": "iniconfig-2.3.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl",
+        "sha256": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"
+      },
+      {
+        "requirement": "packaging==26.3",
+        "filename": "packaging-26.3-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl",
+        "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+      },
+      {
+        "requirement": "pluggy==1.6.0",
+        "filename": "pluggy-1.6.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl",
+        "sha256": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"
+      },
+      {
+        "requirement": "pygments==2.20.0",
+        "filename": "pygments-2.20.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl",
+        "sha256": "81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176"
+      },
+      {
+        "requirement": "pytest==8.4.1",
+        "filename": "pytest-8.4.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/29/16/c8a903f4c4dffe7a12843191437d7cd8e32751d5de349d45d3fe69544e87/pytest-8.4.1-py3-none-any.whl",
+        "sha256": "539c70ba6fcead8e78eebbf1115e8b589e7565830d7d006a8723f19ac8a0afb7"
+      },
+      {
+        "requirement": "pytest-json-ctrf==0.3.5",
+        "filename": "pytest_json_ctrf-0.3.5-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/51/a8/d58637d10f70ae14a1ad18cb37f4aa32d5593510213d5f929892cb1c9c6d/pytest_json_ctrf-0.3.5-py3-none-any.whl",
+        "sha256": "e82fd1d69be2f92385bc33540063e5ad7b17b36de67764c84f3ceb9815a895e9"
+      }
+    ],
+    "tree_sha256": "f4de1f90f0f2b373502e29c62c78da916dc1d31829e18d9544082b01778afa93"
+  },
+  "tasks": [
+    {
+      "task_id": "chess-best-move",
+      "source_image_ref": "alexgshaw/chess-best-move:20251031",
+      "source_image_digest": "sha256:bb447f94d9e2a8ed879f85c85a514b213b7418f9fe11fd7b2428a0b0e436e647",
+      "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-pi-0.82.1",
+      "final_image_digest": "sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b",
+      "source_files": {
+        "instruction.md": "6ba25be4e291a4ad04ae42b2dddefcdaef67ca45ca9d5dce661a2e517b19ce7a",
+        "task.toml": "d8f01d3c84ed5836edbb49c6c3b3cc7b5b96d951cf01a0987467c9206fb22f9e",
+        "tests/test.sh": "4770437ea96c3cc84684b4f99d55fb148fcac09f9ea1e8ef49de487716e6c334",
+        "tests/test_outputs.py": "a540714e0156fc14564badedcb48d1f7b69a4b457d876036535439b30cb8f286"
+      }
+    },
+    {
+      "task_id": "constraints-scheduling",
+      "source_image_ref": "alexgshaw/constraints-scheduling:20251031",
+      "source_image_digest": "sha256:567ce5a189f8d11ac461790876e934cc7af38391baf89a78f95f4dafc1fec3b0",
+      "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-pi-0.82.1",
+      "final_image_digest": "sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c",
+      "source_files": {
+        "instruction.md": "342def78177f9bc41bea4d11af679bc385a9dda2ac8a1e425be384a5b7f937b6",
+        "task.toml": "7b9842de16d74e8faf8c7c0aa03b0b81145941cb12dd322d81ae23fc48607250",
+        "tests/test.sh": "4770437ea96c3cc84684b4f99d55fb148fcac09f9ea1e8ef49de487716e6c334",
+        "tests/test_outputs.py": "1422b345ba3aacdfc4184e962811b6379988435896c50d8cf62903e70990c5d1"
+      }
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "source_image_ref": "alexgshaw/db-wal-recovery:20251031",
+      "source_image_digest": "sha256:0e33ea5ec823975d1bd6c3778395c9f94251dd88f571146057bff6adb7e4594e",
+      "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-pi-0.82.1",
+      "final_image_digest": "sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a",
+      "source_files": {
+        "instruction.md": "5a20375162921b8911c67035d1905df7fd335d1bed03044271e608b2c3c93b26",
+        "task.toml": "1cdc2c615e259bc10265efbe71b518332070c1c002e226566399e9788f18d0aa",
+        "tests/test.sh": "4770437ea96c3cc84684b4f99d55fb148fcac09f9ea1e8ef49de487716e6c334",
+        "tests/test_outputs.py": "88dc5c2a3abba75bca0e0f9136223ae5bb585d5984b8d9eba51a7829c1d2ba49"
+      }
+    }
+  ]
+}
