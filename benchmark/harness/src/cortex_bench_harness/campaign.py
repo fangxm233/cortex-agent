@@ -59,6 +59,16 @@ class CampaignError(RuntimeError):
     """A campaign could not be run to a reportable end."""
 
 
+class TrialCleanupError(CampaignError):
+    """A trial and its mandatory network cleanup both failed."""
+
+    def __init__(self, trial_error: CampaignError, cleanup_error: Exception) -> None:
+        self.trial_error = trial_error
+        self.cleanup_error = cleanup_error
+        super().__init__(
+            f"{trial_error}; Docker network cleanup also failed: {cleanup_error}")
+
+
 class CliInputError(ValueError):
     pass
 
@@ -168,6 +178,7 @@ async def _run_campaign(
 async def _arm_trial(config: CampaignConfig, plan: TrialPlan) -> None:
     """One trial, through the production trial path and nothing else."""
     network_id = ""
+    trial_error: CampaignError | None = None
     try:
         network_id = _create_trial_network(config, plan)
         trial = await create_harbor_trial(
@@ -178,13 +189,20 @@ async def _arm_trial(config: CampaignConfig, plan: TrialPlan) -> None:
         )
         result = await trial.run()
         _require_completed_trial(plan, result)
-    except CampaignError:
-        raise
+    except CampaignError as error:
+        trial_error = error
     except Exception as error:
-        raise CampaignError(f"trial {plan.trial_id} failed: {error}") from error
-    finally:
-        if network_id:
+        trial_error = CampaignError(f"trial {plan.trial_id} failed: {error}")
+        trial_error.__cause__ = error
+    if network_id:
+        try:
             _remove_trial_network(network_id)
+        except Exception as cleanup_error:
+            if trial_error is not None:
+                raise TrialCleanupError(trial_error, cleanup_error) from trial_error
+            raise
+    if trial_error is not None:
+        raise trial_error
 
 
 def _require_completed_trial(plan: TrialPlan, result: object) -> None:

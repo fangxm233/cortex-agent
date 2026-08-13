@@ -8,6 +8,7 @@
 # exactly as the real one does, so "the driver never clobbers an existing root" is proven by the
 # same failure the production path would raise rather than by a mock's politeness.
 
+import asyncio
 import hashlib
 import json
 import tomllib
@@ -552,6 +553,31 @@ def test_each_serial_trial_gets_a_fresh_declared_external_network(
         ["remove", "network-camp-01-task-two-cortex-a"],
     ]
     assert len(recorder.armed) == 2
+
+
+def test_trial_and_network_cleanup_failures_are_both_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trial_id = "camp-01-task-one-cortex-a"
+    RecordingTrialPath(failures=(trial_id,)).install(monkeypatch)
+    cleanup_error = campaign.CampaignError("network cleanup failed")
+    monkeypatch.setattr(
+        campaign, "_remove_trial_network",
+        lambda _network_id: (_ for _ in ()).throw(cleanup_error),
+    )
+    config = load_campaign_config(write_campaign(tmp_path))
+
+    with pytest.raises(campaign.CampaignError) as caught:
+        asyncio.run(campaign._arm_trial(config, config.trials()[0]))
+
+    assert f"container refused trial {trial_id}" in str(caught.value)
+    assert "network cleanup failed" in str(caught.value)
+    assert isinstance(caught.value.trial_error, campaign.CampaignError)
+    assert "container refused trial" in str(caught.value.trial_error)
+    assert isinstance(caught.value.trial_error.__cause__, RuntimeError)
+    assert f"container refused trial {trial_id}" in str(caught.value.trial_error.__cause__)
+    assert caught.value.cleanup_error is cleanup_error
+    assert caught.value.__cause__ is caught.value.trial_error
 
 
 def test_each_trial_is_armed_through_the_production_path_with_the_declared_documents(
