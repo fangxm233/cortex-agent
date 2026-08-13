@@ -1224,11 +1224,22 @@ def test_the_committed_paid_campaign_stays_within_every_capability_ceiling() -> 
     assert declared and all(value <= ceilings[field] for field, value in declared.items())
 
 
+# The 2026-08-13 attempts whose roots are preserved as immutable evidence: `tb21-paid` (four
+# funded requests, then `429 budget_exhausted`) and `tb21-paid-r2` (refused before admission).
+PRESERVED_ATTEMPT_ROOTS = {
+    "tb21-paid": Path("/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf"),
+    "tb21-paid-r2": Path("/var/tmp/cortex-bench/tb21-paid-r2-2026-08-13-46b6"),
+}
+
+
 def test_the_committed_paid_campaign_uses_a_fresh_identity() -> None:
-    """A campaign never writes into an existing trial root, and the failed attempt's roots are
-    immutable evidence."""
+    """The committed document never names a preserved attempt's identity or root. Whether a root
+    exists yet is host state, not a property of the document -- an existing root without a
+    published envelope is refused at run time (see the refusal test above), so this test stays
+    true once the campaign has actually run."""
     config = load_campaign_config(COMMITTED_PAID_CONFIG)
 
-    assert config.campaign != "tb21-paid"
-    assert not config.trials_dir.exists()
-    assert all(not (config.trials_dir / plan.trial_id).exists() for plan in config.trials())
+    assert config.campaign not in PRESERVED_ATTEMPT_ROOTS
+    for root in PRESERVED_ATTEMPT_ROOTS.values():
+        assert config.trials_dir != root and root not in config.trials_dir.parents
+    assert all(plan.trial_id.startswith(f"{config.campaign}-") for plan in config.trials())
