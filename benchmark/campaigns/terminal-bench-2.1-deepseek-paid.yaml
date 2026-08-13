@@ -31,18 +31,21 @@
 #       1,000,000-token context * $0.14/1e6 + 65,536 * $0.28/1e6 = $0.15835008  <  $0.20
 #     so `budget_accounting_exceeded` cannot occur, from either the input or the output side
 #     (a reservation leaves room for 1,297,499 prompt tokens against a 1,000,000-token window).
-#   - 500 funded turns exceeds what 900 seconds of agent time can physically issue.
+#   - 500 funded turns exceeds what 1800 seconds of agent time can physically issue.
 #   - 65,536 output tokens is 14x the largest response of the r3 trial and 2.3x the historical
 #     max of 28.2k; the model supports 384k.
 #   - 64 MiB bodies are 31x the largest observed request.
 #
 # The bounds that remain real, deliberately:
 #
-#   - the authentic task's own `[agent] timeout_sec = 900.0`, which is upstream benchmark
-#     definition and not ours to raise. It, not any field here, is what ends a trial.
-#   - `deadline_seconds` stays at 1800: already twice that agent timeout, and raising it further
-#     buys no headroom while widening the credential lease window
-#     (P = H0 + 900s setup + deadline + 120s teardown).
+#   - `deadline_seconds`, which is what ends a trial. It is already Harbor's agent-phase timeout:
+#     `trial_admission._build_trial_agent_config` passes it as both `override_timeout_sec` and
+#     `max_timeout_sec`, and Harbor resolves `min(override, max) * timeout_multiplier(1.0)`
+#     (`harbor/trial/trial.py:1040-1051`), so the task's own `[agent] timeout_sec = 900.0` is
+#     superseded and the digest-pinned task.toml is never edited. The same field is also the inner
+#     run's deadline and the credential lease budget (P = H0 + 900s setup + deadline + 120s
+#     teardown), so raising it widens the credential window too. 1800 stands until those three
+#     duties are separated.
 #   - `cost_ceiling_usd`, checked by the driver against accumulated *actual* cost between trials.
 #     At the r3 burn rate (16 requests, $0.02744182) three completed trials cost single-digit
 #     dollars; $25.00 leaves an order of magnitude of margin and is the only money stop left.
