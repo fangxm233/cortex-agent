@@ -1,5 +1,5 @@
 // input:  project cost, schedules, executions, issues and notes
-// output: desktop project Overview with quick note entry
+// output: desktop project Overview with note and schedule actions
 // pos:    Project dashboard center pane
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -82,7 +82,7 @@ export function OverviewView(): JSX.Element {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { open: openExecutionLog } = useExecutionLogDrawer();
-  const { open: openScheduleModal } = useScheduleModal();
+  const { open: openScheduleModal, openEdit: openScheduleEditor } = useScheduleModal();
   const { open: openIssues } = useIssues();
   const notes = useNotes();
   const now = Date.now();
@@ -505,14 +505,26 @@ export function OverviewView(): JSX.Element {
                       {scheduleProfileLabel(s)}
                     </span>
                   )}
-                  {s.paused && (
-                    <span
-                      onClick={() => !resume.isPending && resume.mutate({ scheduleId: s.id })}
-                      style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
+                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                    <button
+                      type="button"
+                      data-schedule-edit={s.id}
+                      onClick={() => openScheduleEditor(s)}
+                      style={{ padding: 0, border: 0, background: 'none', fontSize: 10.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
                     >
-                      {L.resume}
-                    </span>
-                  )}
+                      {L.scEditSchedule}
+                    </button>
+                    {s.paused && (
+                      <button
+                        type="button"
+                        data-schedule-resume={s.id}
+                        onClick={() => !resume.isPending && resume.mutate({ scheduleId: s.id })}
+                        style={{ padding: 0, border: 0, background: 'none', fontSize: 10.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
+                      >
+                        {L.resume}
+                      </button>
+                    )}
+                  </span>
                 </div>
               </div>
             ))}
