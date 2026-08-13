@@ -4,7 +4,10 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import hashlib
+import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -27,10 +30,9 @@ MECHANISM_FIELDS = (
     "model_metadata_sha256",
 )
 UNVERIFIABLE_TREE_IDENTITY_FIELDS = ("pi_tree_sha256",)
-EVIDENCE_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "src/cortex_bench_harness/launcher/evidence"
-)
+HARNESS_DIR = Path(__file__).resolve().parents[2]
+EVIDENCE_DIR = HARNESS_DIR / "src/cortex_bench_harness/launcher/evidence"
+MIGRATION_SCRIPT = HARNESS_DIR / "scripts/migrate-capability-evidence.py"
 
 
 def document(state: str = "offline-contract-passed") -> dict[str, object]:
@@ -92,6 +94,68 @@ def test_validates_the_shipped_deepseek_live_evidence() -> None:
     assert evidence["implementation_commit"] == "9c6ebf542d06326cbf8aec20c65ac3eb058c081f"
     assert evidence["request_count"] == 1
     assert evidence["conservative_cost_usd"] == "0.00058086"
+
+
+@pytest.mark.parametrize("state", ["offline-contract-passed", "live-handshake-passed"])
+def test_rejects_old_schema_with_old_or_new_field_shape(
+    tmp_path: Path, state: str,
+) -> None:
+    old_shape = document(state)
+    old_shape.update(schema_version="cortex-bench-capability-evidence/1", pi_tree_sha256="0" * 64)
+    new_shape = document(state)
+    new_shape["schema_version"] = "cortex-bench-capability-evidence/1"
+    for name, record, message in (
+        ("old-shape", old_shape, "fields"),
+        ("new-shape", new_shape, "identity"),
+    ):
+        file = tmp_path / f"{state}-{name}.json"
+        digest = write(file, record)
+        with pytest.raises(ValueError, match=message):
+            validate_capability_evidence(
+                file, digest, capability_id="pi-deepseek-api-key", key=KEY,
+                state=state, adapter_id="deepseek-chat-completions/api-key",
+            )
+
+
+def test_committed_migration_reproduces_evidence_and_bound_digests() -> None:
+    from cortex_bench_harness.launcher import credential_capabilities as registry
+
+    result = subprocess.run(
+        [sys.executable, str(MIGRATION_SCRIPT), "--check"],
+        cwd=HARNESS_DIR, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    row = next(row for row in registry.CAPABILITY_REGISTRY.values()
+               if row.id == "pi-deepseek-api-key")
+    assert report == {
+        "ok": True,
+        "mode": "check",
+        "schema_version": CAPABILITY_EVIDENCE_SCHEMA_VERSION,
+        "offline_evidence_sha256": hashlib.sha256(
+            (EVIDENCE_DIR / "pi-deepseek-api-key.offline-contract-passed.json").read_bytes()
+        ).hexdigest(),
+        "registry_evidence_sha256": row.evidence_sha256,
+        "supporting_sha256": {
+            "model_metadata_sha256": DEEPSEEK_OFFLINE_CONTRACT["model_metadata_sha256"],
+            "mutation_manifest_sha256": DEEPSEEK_OFFLINE_CONTRACT[
+                "mutation_manifest_sha256"
+            ],
+        },
+    }
+
+
+def test_migration_refuses_malformed_pinned_records(tmp_path: Path) -> None:
+    spec = importlib.util.spec_from_file_location("capability_evidence_migration", MIGRATION_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    malformed = json.loads(migration.MIGRATION_PATH.read_bytes())
+    malformed["records"] = None
+    migration.MIGRATION_PATH = tmp_path / "malformed.json"
+    migration.MIGRATION_PATH.write_text(json.dumps(malformed), encoding="utf-8")
+    with pytest.raises(ValueError, match="records"):
+        migration.migrate(write=False)
 
 
 def test_deepseek_offline_evidence_requires_exact_runtime_contract(tmp_path: Path) -> None:

@@ -63,7 +63,7 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
     _key("pi", "deepseek", "openai-completions", "api-key"):
         CredentialCapability(
             "pi-deepseek-api-key", "live-handshake-passed",
-            "db58b908b2c484d0e5f054501c9dddec4d8e191248ed8c63468174eabbcfecb0",
+            "f11e82fd0efecfda60490de953f3af39833cda1adce0e2b87e0f078bafa289d5",
         ),
     # This `??` is no longer the interlock it once was: the arming point now refuses an
     # unadmitted row outright, before it reads a credential, so this row fails closed by

@@ -11,7 +11,9 @@ from typing import Any, Mapping
 
 from .credential_capabilities import CapabilityState, CredentialCapabilityKey
 
-CAPABILITY_EVIDENCE_SCHEMA_VERSION = "cortex-bench-capability-evidence/1"
+# Removing a field changes compatibility even when all remaining claims retain their meaning.
+# Schema /2 is therefore a breaking field-set migration: /1 documents are never accepted as /2.
+CAPABILITY_EVIDENCE_SCHEMA_VERSION = "cortex-bench-capability-evidence/2"
 MUTATION_MANIFEST_SCHEMA_VERSION = "cortex-bench-mutation-manifest/1"
 HEX_LENGTHS = {"implementation_commit": 40, "model_metadata_sha256": 64}
 DEEPSEEK_OFFLINE_CONTRACT = {
