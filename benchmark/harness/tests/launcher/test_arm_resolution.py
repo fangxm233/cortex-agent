@@ -122,7 +122,7 @@ EXPECTED_CAPABILITIES = [
             "credential_kind": "api-key",
             "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
-        "evidence_sha256": "3173d3a322299ce626bd8cc63524e80e679db045fe23f3bb0c731f23222cea05",
+        "evidence_sha256": "03280402517e8ae0359deb9e1ebcbf095dc3e5ec885671c365a5763a6cc359fb",
     },
     {
         "id": "pi-openai-codex-oauth",
