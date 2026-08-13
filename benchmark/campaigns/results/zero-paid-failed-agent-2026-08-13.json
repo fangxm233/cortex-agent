@@ -6,7 +6,7 @@
   "purpose": "The end-to-end verification of the failed-task grading design: a trial whose inner agent run ends in a terminal state other than completed/ok is finalized, published as not gradable, scored by the authentic Terminal-Bench verifier on what it actually left behind, and followed by the next trial instead of ending the campaign.",
   "execution": {
     "entrypoint": "cortex-bench run --config",
-    "source_commit": "PENDING",
+    "source_commit": "eee29dc6",
     "state": "completed",
     "trial_count": 2,
     "comparison_count": 0,
