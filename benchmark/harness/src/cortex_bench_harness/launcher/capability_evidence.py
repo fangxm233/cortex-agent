@@ -13,22 +13,19 @@ from .credential_capabilities import CapabilityState, CredentialCapabilityKey
 
 CAPABILITY_EVIDENCE_SCHEMA_VERSION = "cortex-bench-capability-evidence/1"
 MUTATION_MANIFEST_SCHEMA_VERSION = "cortex-bench-mutation-manifest/1"
-HEX_LENGTHS = {"implementation_commit": 40, "pi_tree_sha256": 64,
-               "model_metadata_sha256": 64}
+HEX_LENGTHS = {"implementation_commit": 40, "model_metadata_sha256": 64}
 DEEPSEEK_OFFLINE_CONTRACT = {
     "implementation_commit": "29159ec452b5eefafff4e3cf1cece93748c0df9f",
     "pi_version": "0.82.1",
-    "pi_tree_sha256": "2fd2a1a0bbbe8f86a4e54be91fa2fc7dd49fdbdabb3c77c649b2c42b6bf07e1b",
     "model_metadata_sha256": "0dcc807a4e5827b488c6ceac87884ff6e735e01cf4f2ddfec9dd812e6fde041b",
     "mutation_manifest_sha256": "f4e1b94852d7b4cbd7a2a4863c11850e6eeea779bb89410c405b60af501b27c3",
 }
-# Evidence attests the mechanism, never one run's numbers: `max_output_tokens`,
-# `request_limit_bytes` and `response_limit_bytes` are declared per run and recorded in the run's
-# own arm-resolution and proxy manifest block, so a numeric change no longer demotes the capability
-# while a mechanism change still does.
+# Evidence attests only independently auditable claims. The historical `pi_tree_sha256` had no
+# committed canonical producer, so version checks remain while that unverifiable digest is refused.
+# Run envelope numbers are recorded in each run's arm-resolution and proxy manifest instead.
 COMMON_FIELDS = frozenset({
     "schema_version", "capability_id", "state", "capability_key", "adapter_id",
-    "implementation_commit", "pi_version", "pi_tree_sha256", "model_metadata_sha256",
+    "implementation_commit", "pi_version", "model_metadata_sha256",
 })
 MUTATION_FIELDS = frozenset({
     "id", "name", "file", "test_file", "test_selector", "mutation_sha256",

@@ -23,9 +23,10 @@ KEY = CredentialCapabilityKey("pi", "deepseek", "openai-completions", "api-key")
 # declared envelope, never one run's choice of values, so none of these may appear in it.
 NUMERIC_ENVELOPE_FIELDS = ("max_output_tokens", "request_limit_bytes", "response_limit_bytes")
 MECHANISM_FIELDS = (
-    "adapter_id", "capability_key", "implementation_commit", "pi_version", "pi_tree_sha256",
+    "adapter_id", "capability_key", "implementation_commit", "pi_version",
     "model_metadata_sha256",
 )
+UNVERIFIABLE_TREE_IDENTITY_FIELDS = ("pi_tree_sha256",)
 EVIDENCE_DIR = (
     Path(__file__).resolve().parents[2]
     / "src/cortex_bench_harness/launcher/evidence"
@@ -44,7 +45,6 @@ def document(state: str = "offline-contract-passed") -> dict[str, object]:
         "adapter_id": "deepseek-chat-completions/api-key",
         "implementation_commit": DEEPSEEK_OFFLINE_CONTRACT["implementation_commit"],
         "pi_version": DEEPSEEK_OFFLINE_CONTRACT["pi_version"],
-        "pi_tree_sha256": DEEPSEEK_OFFLINE_CONTRACT["pi_tree_sha256"],
         "model_metadata_sha256": DEEPSEEK_OFFLINE_CONTRACT["model_metadata_sha256"],
     }
     if state == "offline-contract-passed":
@@ -98,7 +98,6 @@ def test_deepseek_offline_evidence_requires_exact_runtime_contract(tmp_path: Pat
     mutations = [
         ("pi_version", "0.82.2"),
         ("model_metadata_sha256", "0" * 64),
-        ("pi_tree_sha256", "0" * 64),
         ("mutation_manifest_sha256", "0" * 64),
         ("implementation_commit", "0" * 40),
     ]
@@ -166,8 +165,25 @@ def test_live_evidence_requires_one_request_clean_scan_and_revocation(tmp_path: 
 def test_shipped_evidence_attests_mechanism_and_carries_no_declared_envelope(state: str) -> None:
     shipped = json.loads((EVIDENCE_DIR / f"pi-deepseek-api-key.{state}.json").read_bytes())
     assert [field for field in NUMERIC_ENVELOPE_FIELDS if field in shipped] == []
+    assert [field for field in UNVERIFIABLE_TREE_IDENTITY_FIELDS if field in shipped] == []
     assert all(shipped[field] for field in MECHANISM_FIELDS)
     assert shipped["capability_key"]["proxy_adapter_version"] == "cortex-bench-trial-proxy/2"
+
+
+@pytest.mark.parametrize("state", ["offline-contract-passed", "live-handshake-passed"])
+@pytest.mark.parametrize("field", UNVERIFIABLE_TREE_IDENTITY_FIELDS)
+def test_evidence_carrying_an_unverifiable_tree_identity_is_refused(
+    tmp_path: Path, state: str, field: str,
+) -> None:
+    record = document(state)
+    record[field] = "0" * 64
+    file = tmp_path / f"{state}-{field}.json"
+    digest = write(file, record)
+    with pytest.raises(ValueError, match="fields"):
+        validate_capability_evidence(
+            file, digest, capability_id="pi-deepseek-api-key", key=KEY,
+            state=state, adapter_id="deepseek-chat-completions/api-key",
+        )
 
 
 @pytest.mark.parametrize("state", ["offline-contract-passed", "live-handshake-passed"])
