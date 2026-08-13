@@ -1,7 +1,7 @@
 Update this file whenever this directory changes
 
-Immutable records bind credential capability states to verified implementation mechanism; the
-numbers a run declares live in that run's own records, never here.
+Immutable records bind capability states only to independently auditable mechanism and handshake
+claims; run envelope numbers and unverifiable runtime-tree digests are excluded.
 
 | filename | role | function |
 |---|---|---|

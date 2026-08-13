@@ -45,7 +45,7 @@ ACCOUNTED = (
 COMMON_FIELDS = (
     'COMMON_FIELDS = frozenset({\n'
     '    "schema_version", "capability_id", "state", "capability_key", "adapter_id",\n'
-    '    "implementation_commit", "pi_version", "pi_tree_sha256", "model_metadata_sha256",\n'
+    '    "implementation_commit", "pi_version", "model_metadata_sha256",\n'
     '})'
 )
 
@@ -175,13 +175,11 @@ MUTATIONS: tuple[tuple[str, str, list[tuple[str, str]], str, str], ...] = (
     ("evidence_numeric_envelope", EVIDENCE_MODULE, [(
         COMMON_FIELDS,
         COMMON_FIELDS.replace(
-            '    "implementation_commit", "pi_version", "pi_tree_sha256", '
-            '"model_metadata_sha256",\n',
-            '    "implementation_commit", "pi_version", "pi_tree_sha256", '
-            '"model_metadata_sha256",\n'
+            '    "implementation_commit", "pi_version", "model_metadata_sha256",\n',
+            '    "implementation_commit", "pi_version", "model_metadata_sha256",\n'
             '    "max_output_tokens", "request_limit_bytes", "response_limit_bytes",\n',
         ),
-    )], "tests/launcher/test_capability_evidence.py", "shipped_deepseek_live_evidence"),
+    )], "tests/launcher/test_capability_evidence.py", "carrying_a_declared_envelope_number"),
     ("evidence_manifest_counts", EVIDENCE_MODULE, [(
         '    if len(mutations) != document["mutations_total"]:', "    if False:",
     )], "tests/launcher/test_capability_evidence.py", "counts_kills_or_binding"),
