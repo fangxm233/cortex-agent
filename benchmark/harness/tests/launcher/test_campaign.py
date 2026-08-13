@@ -48,9 +48,6 @@ CAMPAIGNS_DIR = REPO_ROOT / "benchmark" / "campaigns"
 COMMITTED_ZERO_PAID_CONFIG = CAMPAIGNS_DIR / "zero-paid-dry-run.yaml"
 COMMITTED_PAID_CONFIG = CAMPAIGNS_DIR / "terminal-bench-2.1-deepseek-paid.yaml"
 LAUNCH_SCRIPT = HARNESS_ROOT / "scripts" / "launch-paid-campaign.py"
-# The 2026-08-13 attempts, preserved as immutable evidence: `tb21-paid` spent $0.00321510 and
-# published no envelope, `tb21-paid-r2` was refused before arming and spent nothing.
-PRESERVED_PAID_CAMPAIGNS = ("tb21-paid", "tb21-paid-r2")
 
 
 def arm_document(name: str, **overrides: object) -> dict[str, object]:
@@ -1228,37 +1225,40 @@ def test_the_committed_paid_campaign_stays_within_every_capability_ceiling() -> 
     assert declared and all(value <= ceilings[field] for field, value in declared.items())
 
 
-def test_the_committed_paid_campaign_is_separated_from_every_preserved_attempt() -> None:
-    """Freshness is a property of the committed identity, not of host state.
+# The 2026-08-13 attempts whose roots are preserved as immutable evidence: `tb21-paid` (four
+# funded requests, then `429 budget_exhausted`) and `tb21-paid-r2` (refused before admission).
+PRESERVED_ATTEMPT_ROOTS = {
+    "tb21-paid": Path("/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf"),
+    "tb21-paid-r2": Path("/var/tmp/cortex-bench/tb21-paid-r2-2026-08-13-46b6"),
+}
 
-    An earlier version of this test asserted `not config.trials_dir.exists()`, which the intended
-    campaign necessarily falsifies the moment it runs: any successful attempt creates that
-    directory, so the suite would fail for the one reason it exists to allow. What must hold
-    durably is separation — this campaign's id, root and composed trial ids collide with neither
-    preserved attempt — while what happens when a root does exist is the runner's contract, proven
-    by `test_an_existing_trial_root_without_a_published_envelope_is_refused`,
+
+def test_the_committed_paid_campaign_uses_a_fresh_identity() -> None:
+    """The committed document never names a preserved attempt's identity, root or trial ids.
+
+    Whether a root exists yet is host state, not a property of the document: the earlier
+    `not config.trials_dir.exists()` assertion was falsified by the very campaign it guards, since
+    any attempt materialises that directory. An existing root without a published envelope is
+    refused at run time by `test_an_existing_trial_root_without_a_published_envelope_is_refused`,
+    and one with an envelope is resumed rather than rewritten by
     `test_an_existing_completed_trial_root_is_skipped_and_its_cost_still_counts` and
-    `test_re_running_a_finished_campaign_arms_nothing_and_is_idempotent`.
+    `test_re_running_a_finished_campaign_arms_nothing_and_is_idempotent`, so this test stays true
+    once the campaign has actually run.
     """
     config = load_campaign_config(COMMITTED_PAID_CONFIG)
-    preserved_trials_dirs = {
-        Path("/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf"),
-        Path("/var/tmp/cortex-bench/tb21-paid-r2-2026-08-13-46b6"),
-    }
 
-    assert config.campaign not in PRESERVED_PAID_CAMPAIGNS
-    assert config.trials_dir not in preserved_trials_dirs
-    # No preserved root is this campaign's root, an ancestor of it or a directory inside it, so a
-    # run can neither write into preserved evidence nor be resumed from it.
-    assert all(
-        preserved != config.trials_dir
-        and preserved not in config.trials_dir.parents
-        and config.trials_dir not in preserved.parents
-        for preserved in preserved_trials_dirs)
+    assert config.campaign not in PRESERVED_ATTEMPT_ROOTS
+    for root in PRESERVED_ATTEMPT_ROOTS.values():
+        # Neither the same root, nor a root this campaign would write inside of, nor one that
+        # would contain it: preserved evidence cannot be written into or resumed from.
+        assert config.trials_dir != root
+        assert root not in config.trials_dir.parents
+        assert config.trials_dir not in root.parents
     assert config.trials_dir.name.startswith(f"{config.campaign}-")
+    assert all(plan.trial_id.startswith(f"{config.campaign}-") for plan in config.trials())
     preserved_trial_ids = {
         f"{preserved}-{task.task_id}-{arm['name']}"
-        for preserved in PRESERVED_PAID_CAMPAIGNS
+        for preserved in PRESERVED_ATTEMPT_ROOTS
         for task in config.tasks for arm in config.arms
     }
     assert {plan.trial_id for plan in config.trials()}.isdisjoint(preserved_trial_ids)
