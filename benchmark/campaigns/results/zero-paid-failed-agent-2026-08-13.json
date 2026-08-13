@@ -6,17 +6,17 @@
   "purpose": "The end-to-end verification of the failed-task grading design: a trial whose inner agent run ends in a terminal state other than completed/ok is finalized, published as not gradable, scored by the authentic Terminal-Bench verifier on what it actually left behind, and followed by the next trial instead of ending the campaign.",
   "execution": {
     "entrypoint": "cortex-bench run --config",
-    "source_commit": "f0598af7",
+    "source_commit": "PENDING",
     "state": "completed",
     "trial_count": 2,
     "comparison_count": 0,
-    "started_at": "2026-08-13T19:06:51.478Z",
-    "ended_at": "2026-08-13T19:11:33.485Z"
+    "started_at": "2026-08-13T20:08:04.789Z",
+    "ended_at": "2026-08-13T20:13:18.122Z"
   },
   "reproducibility": {
     "campaign_config": "benchmark/campaigns/zero-paid-failed-agent.yaml",
     "campaign_config_sha256": "efc57db4c63df719790fa727a78efccc47826fcf8e9093a8e463a4bc09d0ac41",
-    "executed_run_config_sha256": "ffbd1a6ddb7959e07bb74b1083ddcec45bf8d38904d7094b02b4903171a792ca",
+    "executed_run_config_sha256": "46413a52e80da132ba3d440324794657cc30c31b43ebebe0d85f27252167e908",
     "run_local_fields": [
       "trials_dir",
       "credential.upstream_base_url"
@@ -27,7 +27,7 @@
     "runtime_inputs_sha256": "c54875c48c33ee08e84345248f77da4cf0670d88ddc6639a760d9cf6411f1fd2",
     "runtime_image_digest": "sha256:8b075847d21e55633a0f2bc2f3d7f9920f91d8aaf47b0778cb1d528a7dbedf55",
     "npm_artifact_sha256": "0e8881f1b44c9b006790aa84b865f044baa51f76eeffc010f70ac2cb2a3a74fa",
-    "wheel_sha256": "a19edbffc8eb2b29721222ef1447acaa5b626e8cc22173d8e98399d7a939049c"
+    "wheel_sha256": "5b63059d6b899134ae76bf6d0bd09e84fae1afa36908b391096616e42ef16dc9"
   },
   "trials": [
     {
@@ -43,7 +43,7 @@
         "terminal_state": "failed",
         "terminal_reason": "provider_error"
       },
-      "outer_envelope_sha256": "32286f758e2834992fb35e1034b2092547fca18be874d2b08062524d514f5673",
+      "outer_envelope_sha256": "ee798587421fedd11199886700f3c7683bfa3dd204b8b42e1efc6d25a8eff398",
       "inner_composite_sha256": null,
       "requests": 1,
       "input_tokens": 0,
@@ -53,10 +53,24 @@
       "proxy_reconciliation_note": "The journal-side cost lives in the composite manifest, which a non-completed run does not publish, and the terminal marker states cost_usd: null. The envelope reports reconciled: false rather than claiming a cross-check that never ran; the proxy export itself was validated in full.",
       "leak_scan_clean": true,
       "revocation_closed": true,
-      "inner_started_at": "2026-08-13T19:07:50.592Z",
-      "inner_ended_at": "2026-08-13T19:07:53.799Z",
+      "inner_started_at": "2026-08-13T20:09:15.548Z",
+      "inner_ended_at": "2026-08-13T20:09:18.806Z",
       "inner_event_count": 9,
-      "failure_mode": "The synthetic model answers 400 to an instruction outside the shape it recognizes. The PI backend surfaced the provider failure, the run settled as failed/provider_error after one request, and no answer file was written."
+      "failure_mode": "The synthetic model answers 400 with a plain-text body to an instruction outside the shape it recognizes. The adapter reads no usage from that answer, so the proxy refused a response it could not account for and closed the route; the PI backend surfaced the provider failure and the run settled as failed/provider_error. No answer file was written.",
+      "audit_entries": 2,
+      "audit_outcomes": {
+        "budget_accounting_unavailable": 1
+      },
+      "cause": {
+        "terminal_state": "failed",
+        "terminal_reason": "provider_error",
+        "proxy_observed": [
+          "unaccountable_response"
+        ],
+        "audit_outcomes": {
+          "budget_accounting_unavailable": 1
+        }
+      }
     },
     {
       "trial_id": "zero-paid-failed-agent-zero-paid-one-zero-paid-pi-direct",
@@ -71,7 +85,7 @@
         "terminal_state": "completed",
         "terminal_reason": "ok"
       },
-      "outer_envelope_sha256": "1d38efa561d95be6ab8c3203dce211d85a8d74389d0980ec1bd553b905ebbd7d",
+      "outer_envelope_sha256": "81ec8cdf2d1672892211030e102f19f7a5d92d2b1c56c8df44995eb3738b793c",
       "requests": 2,
       "input_tokens": 2,
       "output_tokens": 2,
@@ -79,15 +93,18 @@
       "proxy_reconciled": true,
       "leak_scan_clean": true,
       "revocation_closed": true,
-      "inner_started_at": "2026-08-13T19:11:09.678Z",
-      "inner_ended_at": "2026-08-13T19:11:11.447Z",
-      "inner_event_count": 12
+      "inner_started_at": "2026-08-13T20:12:52.782Z",
+      "inner_ended_at": "2026-08-13T20:12:54.000Z",
+      "inner_event_count": 12,
+      "audit_entries": 3,
+      "audit_outcomes": {},
+      "cause": null
     }
   ],
   "comparison_report": {
     "path": "$TRIALS_DIR/comparison-report.json",
     "written": true,
-    "sha256": "1d1cd6f6fba8d7128d158c2bddd5bc35c71d98a4fbe074dd545988e48ed02711",
+    "sha256": "28e7aa5a32567246fb3ba49e49f08abc5ff72e644b6e123f579bc385d0f2afec",
     "schema_version": "cortex-benchmark-comparison-report/2",
     "carries_per_run_admission": true
   },
@@ -96,7 +113,8 @@
     "The reward for it is a measurement, not a convention: Harbor ran the task's own verifier and it returned 0.0 because the agent left nothing behind.",
     "The campaign continued: the second trial ran and returned 1.0, which the previous behaviour could not reach.",
     "The composite manifest and the merged trajectory are legitimately absent together, and neither is required on that path.",
-    "Every non-outcome gate still held on the non-admitted trial: revocation closed, closed-world classification complete, leak scan clean, proxy export validated."
+    "Every non-outcome gate still held on the non-admitted trial: revocation closed, closed-world classification complete, leak scan clean, proxy export validated.",
+    "The envelope says which side the evidence points to: cause.proxy_observed reads [\"unaccountable_response\"], distinguishing a provider answer the proxy could not bill from a policy refusal — and, decisively, from the r3 shape where a provider_error run is paired with a proxy that recorded nothing wrong at all."
   ],
   "prior_run_contrast": {
     "run": "terminal-bench-2.1-deepseek-paid-r3-2026-08-13.json",

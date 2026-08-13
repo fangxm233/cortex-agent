@@ -1,5 +1,6 @@
 # input:  one trial proxy's live counters, its JSONL audit log and its lease record
-# output: the proxy-authoritative accounting export, every figure tagged, never defaulted
+# output: the proxy-authoritative accounting export, every figure tagged, never defaulted,
+#         with a tally of the outcomes the audit log recorded
 # pos:    Proxy-authoritative accounting export
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -143,7 +144,25 @@ def _durable_totals(
         "durable_requests": tail["request_count"] if tail else 0,
         "durable_cost_usd": tail["cost_usd"] if tail else "0",
         "agrees_with_counters": _agrees(tail, counters),
+        "outcomes": _outcomes(entries),
     }
+
+
+def _outcomes(entries: list[dict[str, Any]]) -> dict[str, int]:
+    """How many rows carry each outcome, and none for a run where nothing went wrong.
+
+    The totals above answer "how much", which is what the accounting reconciliation needs. They
+    cannot answer "and did anything go wrong on the way", so a trial could reconcile to the cent
+    while every one of its responses failed to reach the client. This is the smallest thing that
+    makes such a run legible: a tally, sorted, of the outcomes the log already recorded one by
+    one. It is a summary of durable rows, never a new source of truth.
+    """
+    tally: dict[str, int] = {}
+    for entry in entries:
+        outcome = entry.get("outcome")
+        if isinstance(outcome, str) and outcome:
+            tally[outcome] = tally.get(outcome, 0) + 1
+    return dict(sorted(tally.items()))
 
 
 def _agrees(tail: dict[str, Any] | None, counters: ProxyCounters | None) -> bool:

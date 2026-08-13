@@ -6,7 +6,8 @@
       "agrees_with_counters": true,
       "durable_cost_usd": "0.000102",
       "durable_requests": 2,
-      "entries": 2
+      "entries": 2,
+      "outcomes": {}
     }
   },
   "cost_usd": {

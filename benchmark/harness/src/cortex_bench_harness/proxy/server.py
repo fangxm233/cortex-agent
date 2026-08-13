@@ -1,5 +1,5 @@
 # input:  trial policy, requests, provider adapter, fixed upstream
-# output: proxy handle with usage and proven revocation evidence
+# output: proxy handle with usage, delivery outcomes and proven revocation evidence
 # pos:    Proxy admission and lifecycle core
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -85,6 +85,21 @@ class ProxyState:
 
     def record_lease(self, entry: Mapping[str, object]) -> bool:
         return self._persist(entry)
+
+    def record_delivery(self, outcome: str) -> bool:
+        """Record what became of a response the trial was already billed for.
+
+        Deliberately NOT a metered row: it carries no `request_count`, so it never touches the
+        request or cost totals the reconciliation meets against the journal — exactly as lease
+        rows do not. The request happened, was billed, and is already counted; what this adds is
+        whether the client was still there to receive it. It is also not a lifecycle event: a
+        client that gave up on one turn may well ask for the next, and revoking the route here
+        would turn one lost response into the end of the run.
+        """
+        return self._persist({
+            "event": "delivery", "outcome": outcome,
+            "request_count_at": self.request_count,
+        })
 
     def reserve(self) -> None:
         self.budget_consumed_usd += self.budget.max_request_cost_usd
@@ -469,7 +484,22 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
             self._refuse_response(sink, *lifecycle_error)
             return
         sink.finish()
+        self._record_delivery(state, sink)
         self.close_connection = True
+
+    def _record_delivery(self, state: ProxyState, sink: RelaySink) -> None:
+        """A response can be generated, billed, and still never reach the client.
+
+        The 2026-08-13 paid run lost 7 of 16 responses that way — $0.011662 of $0.02744182, 42.5%
+        of the spend — because the proxy withheld each body until the upstream finished and the
+        client's own read deadline fired first. Streaming removed the cause; this removes the
+        blindness. Without it the proxy's record and the provider's bill agree perfectly while
+        saying nothing about whether the trial ever got what it paid for.
+        """
+        # `_forward_reserved` holds `request_lock` across the whole forward, and the lock is not
+        # reentrant, so this records under the caller's lock exactly as `state.record` does.
+        if sink.client_failed:
+            state.record_delivery("client_gone_after_billing")
 
     def _refuse_response(self, sink: RelaySink, status: int, reason: str) -> None:
         """Refuse a request whose response may already be on the wire.

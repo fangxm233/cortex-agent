@@ -4,6 +4,8 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import json
+import socket
+import struct
 import threading
 import time
 from dataclasses import dataclass
@@ -174,6 +176,39 @@ def streamed_proxy_request(
     result = _drain(response, started)
     connection.close()
     return result
+
+
+def abandoned_proxy_request(
+    base_url: str, token: str, prompt: str, *, target: str = MESSAGES_TARGET,
+    model: str | None = SYNTHETIC_MODEL, timeout: float = 3,
+) -> int:
+    """Ask, read the status line, then vanish — what a client with its own deadline does.
+
+    The connection is reset rather than closed politely, so the proxy's next relay write fails
+    exactly as it does when a real client gives up mid-generation.
+    """
+    payload = json.dumps({"model": model, "prompt": prompt}).encode()
+    listener = urlsplit(base_url)
+    # A raw socket, because `HTTPConnection` closes its own socket the moment it reads a
+    # `connection: close` response header, which is too early to choose how the close happens.
+    sock = socket.create_connection((listener.hostname, listener.port), timeout=timeout)
+    request = (
+        f"POST {target} HTTP/1.1\r\nhost: {listener.netloc}\r\n"
+        f"authorization: Bearer {token}\r\ncontent-type: application/json\r\n"
+        f"content-length: {len(payload)}\r\n\r\n"
+    ).encode() + payload
+    try:
+        sock.sendall(request)
+        status_line = b""
+        while not status_line.endswith(b"\r\n"):
+            byte = sock.recv(1)
+            if not byte:
+                break
+            status_line += byte
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    finally:
+        sock.close()
+    return int(status_line.split()[1])
 
 
 def _drain(response: object, started: float) -> StreamedResponse:

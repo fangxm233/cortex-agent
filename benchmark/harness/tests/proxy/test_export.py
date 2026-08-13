@@ -237,7 +237,7 @@ def test_a_log_holding_only_lease_lines_reports_a_read_zero(tmp_path: Path) -> N
 
     assert export["audit_log"]["value"] == {
         "entries": 1, "durable_requests": 0, "durable_cost_usd": "0",
-        "agrees_with_counters": True,
+        "agrees_with_counters": True, "outcomes": {},
     }
 
 

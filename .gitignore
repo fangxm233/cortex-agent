@@ -93,3 +93,6 @@ data/client-pids.json
 data/client-version.json
 agent-server/.env.client
 agent-server/src/data/
+
+# Run-local campaign configs: a committed campaign plus the operator's own paths and ports
+benchmark/campaigns/.run-local-*.yaml

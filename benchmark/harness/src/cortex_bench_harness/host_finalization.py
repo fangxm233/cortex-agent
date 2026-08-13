@@ -1,5 +1,6 @@
 # input:  inner/proxy evidence, trial roots, scan policy
 # output: durable reread-validated outer envelope, admitting or declining the run for grading
+#         and, when it declines, saying which side the evidence points to
 # pos:    Host-side benchmark finalization gate
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -45,6 +46,20 @@ TERMINAL_REASONS: Mapping[str, frozenset[str]] = {
     }),
     "cancelled": frozenset({"cancelled"}),
     "timeout": frozenset({"deadline", "deadline_exceeded"}),
+}
+# What a proxy audit outcome says about *where* a trial's trouble was. The mapping is total: an
+# outcome this table does not name is still reported, as a refusal the proxy itself made, so a new
+# outcome can never make a failure invisible here.
+PROXY_OBSERVATIONS: Mapping[str, str] = {
+    "upstream_unavailable": "upstream_failure",
+    "upstream_response_too_large": "upstream_failure",
+    "client_gone_after_billing": "undelivered_response",
+    # The provider answered, but not in a shape the adapter could bill, so the proxy refused a
+    # response it could not account for. Distinct from a policy refusal: the cause is what came
+    # back, not what we would allow.
+    "budget_accounting_unavailable": "unaccountable_response",
+    # The host credential could not be injected. Never the provider, and never the trial.
+    "auth_injection_unavailable": "credential_unavailable",
 }
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
@@ -514,9 +529,28 @@ def _reconcile_proxy(
         "requests": requests, "cost_usd": cost,
         "input_tokens": _available(export.get("input_tokens"), int),
         "output_tokens": _available(export.get("output_tokens"), int),
-        "audit_entries": audit.get("entries"), "lease_echo": echo,
+        "audit_entries": audit.get("entries"), "audit_outcomes": _audit_outcomes(audit),
+        "lease_echo": echo,
         "journal_cost_usd": journal_cost, "reconciled": journal_cost is not None,
     }
+
+
+def _audit_outcomes(audit: Mapping[str, object]) -> dict[str, int]:
+    """The tally of what the proxy recorded going wrong, request by request.
+
+    Required, not optional: an export without it comes from a proxy that could not have observed
+    these things at all, and reading its silence as "nothing went wrong" is the mistake this
+    field exists to prevent.
+    """
+    value = audit.get("outcomes")
+    valid = isinstance(value, Mapping) and all(
+        isinstance(key, str) and key and isinstance(count, int)
+        and not isinstance(count, bool) and count > 0
+        for key, count in value.items()
+    )
+    if not valid:
+        raise HostFinalizationError("proxy_reconciliation_failed")
+    return dict(sorted(value.items()))
 
 
 def _valid_revocation(value: object, trial_id: str) -> bool:
@@ -802,6 +836,29 @@ def _outer_envelope(
             "atomic": True, "post_publication_reread": True,
         },
         "leak_scan": dict(scan), "grader_admission": _grader_admission(inner.terminal),
+        "cause": _cause(inner.terminal, usage),
+    }
+
+
+def _cause(terminal: TerminalOutcome, usage: Mapping[str, object]) -> dict[str, object] | None:
+    """Why this trial is not gradable, in the one place a reader would look.
+
+    It exists to keep two failures apart that look identical from the outside. A run that ends
+    `provider_error` while the proxy recorded upstream failures was failed by the provider. A run
+    that ends `provider_error` while the proxy answered every request and recorded nothing wrong
+    was failed on our side of the proxy — which is exactly what the 2026-08-13 paid run was, and
+    it was read as a model failure for a day. The terminal reason alone cannot tell those apart;
+    the pairing can.
+    """
+    if terminal.admitted:
+        return None
+    outcomes = usage.get("audit_outcomes")
+    outcomes = outcomes if isinstance(outcomes, Mapping) else {}
+    return {
+        "terminal_state": terminal.state, "terminal_reason": terminal.reason,
+        "proxy_observed": sorted({
+            PROXY_OBSERVATIONS.get(str(name), "proxy_refusal") for name in outcomes}),
+        "audit_outcomes": dict(outcomes),
     }
 
 

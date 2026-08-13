@@ -601,6 +601,129 @@ def test_inner_truth_failure_never_admits_grading(
     assert_refused(tmp_path, agent, environment)
 
 
+def install_audit_outcomes(
+    monkeypatch: pytest.MonkeyPatch, outcomes: object,
+) -> None:
+    """Rewrite the tally the proxy exported, so a trial can be finalized against one it never had.
+
+    The fixture's proxy answers no requests, so its audit is silent by construction; every
+    interesting pairing of a failed run with what the proxy saw has to be planted here.
+    """
+    original = TrialProxySession.write_accounting
+
+    def write(self: TrialProxySession) -> tuple[Path, Path]:
+        paths = original(self)
+        document = json.loads(self.export_path.read_text())
+        audit = document["audit_log"]["value"]
+        if outcomes is None:
+            del audit["outcomes"]
+        else:
+            audit["outcomes"] = outcomes
+        write_json(self.export_path, document)
+        return paths
+
+    monkeypatch.setattr(TrialProxySession, "write_accounting", write)
+
+
+def test_a_completed_trial_states_no_cause(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+
+    run_agent(agent, environment)
+
+    assert json.loads(envelope_path(tmp_path).read_bytes())["cause"] is None
+
+
+def test_a_failed_run_the_proxy_saw_nothing_wrong_in_says_exactly_that(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The r3 signature, and the reason `cause` exists.
+
+    A run that ends `provider_error` while the proxy answered every request and recorded nothing
+    wrong was not failed by the provider — it was failed on our side of the proxy. r3 looked like
+    a model failure for a day because nothing in the evidence made that pairing visible.
+    """
+    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run("provider_error"))
+
+    run_agent(agent, environment)
+    cause = json.loads(envelope_path(tmp_path).read_bytes())["cause"]
+
+    assert cause == {
+        "terminal_state": "failed", "terminal_reason": "provider_error",
+        "proxy_observed": [], "audit_outcomes": {},
+    }
+
+
+def test_a_failed_run_the_proxy_corroborates_names_the_upstream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_audit_outcomes(monkeypatch, {"upstream_unavailable": 3})
+    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run("provider_error"))
+
+    run_agent(agent, environment)
+    cause = json.loads(envelope_path(tmp_path).read_bytes())["cause"]
+
+    assert cause["proxy_observed"] == ["upstream_failure"]
+    assert cause["audit_outcomes"] == {"upstream_unavailable": 3}
+
+
+def test_a_response_that_was_billed_and_never_delivered_is_named_in_the_cause(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_audit_outcomes(
+        monkeypatch, {"client_gone_after_billing": 7, "upstream_unavailable": 1})
+    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run())
+
+    run_agent(agent, environment)
+    cause = json.loads(envelope_path(tmp_path).read_bytes())["cause"]
+
+    assert cause["proxy_observed"] == ["undelivered_response", "upstream_failure"]
+
+
+def test_a_provider_answer_that_could_not_be_billed_is_not_filed_as_a_policy_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """What the ZERO-PAID verification actually produces, and it is its own diagnosis.
+
+    The synthetic model answers 400 with a plain-text body, the adapter reads no usage from it,
+    and the proxy refuses a response it cannot account for. Calling that a policy refusal would
+    point the reader at our rules when the cause was what came back.
+    """
+    install_audit_outcomes(monkeypatch, {"budget_accounting_unavailable": 1})
+    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run("provider_error"))
+
+    run_agent(agent, environment)
+    cause = json.loads(envelope_path(tmp_path).read_bytes())["cause"]
+
+    assert cause["proxy_observed"] == ["unaccountable_response"]
+
+
+def test_an_outcome_the_table_does_not_name_is_still_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Totality: a new audit outcome must not be able to make a failure invisible."""
+    install_audit_outcomes(monkeypatch, {"some_future_outcome": 1})
+    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run())
+
+    run_agent(agent, environment)
+    cause = json.loads(envelope_path(tmp_path).read_bytes())["cause"]
+
+    assert cause["proxy_observed"] == ["proxy_refusal"]
+    assert cause["audit_outcomes"] == {"some_future_outcome": 1}
+
+
+@pytest.mark.parametrize("outcomes", [None, {"upstream_unavailable": 0}, {"x": "many"}, []])
+def test_an_export_that_cannot_state_its_outcomes_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcomes: object,
+) -> None:
+    """Silence must not be readable as "nothing went wrong"."""
+    install_audit_outcomes(monkeypatch, outcomes)
+    agent, environment = make_agent(tmp_path, monkeypatch)
+
+    assert_refused(tmp_path, agent, environment)
+
+
 def install_accounting_leak(
     monkeypatch: pytest.MonkeyPatch, target: str, value: str,
 ) -> None:

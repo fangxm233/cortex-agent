@@ -20,6 +20,7 @@ from synthetic import (
     LEASE_TERMS,
     MESSAGES_TARGET,
     SyntheticUpstream,
+    abandoned_proxy_request,
     proxy_request,
     row_one_adapter,
     streamed_proxy_request,
@@ -67,6 +68,80 @@ def test_injects_host_credential_without_forwarding_dummy(tmp_path: Path) -> Non
     assert "authorization" not in headers
     assert handle.dummy_token not in json.dumps(headers)
     assert REAL_CREDENTIAL not in repr(handle)
+
+
+def audit_rows(tmp_path: Path) -> list[dict]:
+    path = tmp_path / "proxy.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def await_delivery_row(tmp_path: Path, timeout: float = 10) -> list[dict]:
+    """The proxy keeps draining the upstream after the client leaves — the request was billed
+    and its usage still has to be read — so the delivery row lands after the last byte, not at
+    the moment the client vanished."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        rows = [row for row in audit_rows(tmp_path) if row.get("event") == "delivery"]
+        if rows:
+            return rows
+        time.sleep(0.05)
+    raise AssertionError("no delivery row was recorded")
+
+
+def test_a_response_the_client_never_received_is_still_recorded_as_billed_and_lost(
+    tmp_path: Path,
+) -> None:
+    """Reconciling to the cent says nothing about whether the trial got what it paid for.
+
+    The 2026-08-13 paid trial's proxy record and the provider's bill agreed exactly while 42.5%
+    of the spend bought responses the client had already stopped waiting for. Streaming removed
+    that cause; without this row the proxy would still have no way to say it had happened.
+    """
+    with SyntheticUpstream() as upstream:
+        upstream.server.raw_body = json.dumps(upstream.server.response).encode()
+        upstream.server.response_chunk_delay_seconds = 0.01
+        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        try:
+            status = abandoned_proxy_request(handle.base_url, handle.dummy_token, "abandoned")
+            delivery = await_delivery_row(tmp_path)
+            export = handle.accounting_export
+        finally:
+            handle.stop()
+
+    assert status == 200
+    assert delivery == [{
+        "event": "delivery", "outcome": "client_gone_after_billing", "request_count_at": 1,
+    }]
+    assert export["audit_log"]["value"]["outcomes"] == {"client_gone_after_billing": 1}
+    # The lost response is NOT a second request, and the money is counted exactly once.
+    assert export["requests"]["value"] == 1
+    assert export["audit_log"]["value"]["durable_requests"] == 1
+    assert export["audit_log"]["value"]["agrees_with_counters"] is True
+
+
+def test_a_client_that_gave_up_on_one_turn_may_still_ask_for_the_next(
+    tmp_path: Path,
+) -> None:
+    """Losing a response is not a lifecycle event.
+
+    Revoking the route here would turn one abandoned turn into the end of the run — which is the
+    opposite of what the observation is for.
+    """
+    with SyntheticUpstream() as upstream:
+        upstream.server.raw_body = json.dumps(upstream.server.response).encode()
+        upstream.server.response_chunk_delay_seconds = 0.01
+        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        try:
+            abandoned_proxy_request(handle.base_url, handle.dummy_token, "abandoned")
+            await_delivery_row(tmp_path)
+            upstream.server.response_chunk_delay_seconds = 0
+            result = streamed_proxy_request(handle.base_url, handle.dummy_token, "next")
+        finally:
+            handle.stop()
+
+    assert (result.status, result.complete) == (200, True)
 
 
 def test_slow_response_reaches_the_client_while_it_is_still_being_produced(
