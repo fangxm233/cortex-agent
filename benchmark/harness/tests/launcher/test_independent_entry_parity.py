@@ -73,8 +73,8 @@ EXPECTED_PARENT_TOOLS = [
 TOOLS_THE_PARENT_MUST_NOT_CARRY = [
     "AskUserQuestion", "EnterPlanMode", "ExitPlanMode", "TaskStop", "WebFetch", "WebSearch",
 ]
-SYSTEM_PROMPT_RELPATH = "defaults/prompts/systemPrompts/direct.md"
-DIRECTIVE_RELPATH = "defaults/prompts/directives/executor.md"
+SYSTEM_PROMPT_RELPATH = "defaults/prompts/systemPrompts/benchmark-direct.md"
+DIRECTIVE_RELPATH = "defaults/prompts/directives/benchmark-direct.md"
 PLUGIN_RELPATHS = ["defaults/plugins/cortex-common", "defaults/plugins/cortex-coder"]
 
 # Runs the SHIPPED loader twice in one process: once on the document the public

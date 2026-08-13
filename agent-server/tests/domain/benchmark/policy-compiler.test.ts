@@ -695,6 +695,77 @@ it('enforces credential, profile, image, and asset failure codes', () => {
   expectFailure(mismatch, 'asset_hash_mismatch', 17);
 });
 
+// The two shipped assets the launcher names for a direct parent, and the bytes they must have.
+// The launcher composes paths it cannot read; this is the side that reads them, so the freeze
+// lives here. Regenerate with `sha256sum` only alongside a deliberate rewrite of the asset.
+const BENCHMARK_DIRECT_PROMPTS = {
+  'parent:system_prompt': {
+    path: 'defaults/prompts/systemPrompts/benchmark-direct.md',
+    sha256: '4f8f28a5b66d2eb29fd2132c08c4f9c02dde1e6334dde43c61b98f39ddad824a',
+  },
+  'parent:directive': {
+    path: 'defaults/prompts/directives/benchmark-direct.md',
+    sha256: '9a2f347f9639bb6bb7817f9f43bb93e655371f098806c91bfc8de777e962a317',
+  },
+} as const;
+// A trial container has none of these: naming one can only send the model after something that is
+// not there. Lower-cased substrings, so 'Thread'/'Slack' are caught too.
+const SURFACE_A_TRIAL_HAS_NOT = [
+  'thread', 'slack', 'artifact', 'project', 'roadmap', 'mission.md',
+  'status.md', 'cortex.md', 'tasks.yaml', 'cortex-task', '[approved]',
+];
+
+function benchmarkDirectResolution(): ArmResolution {
+  const input = resolution();
+  input.roles.parent.system_prompt_path =
+    path.resolve(BENCHMARK_DIRECT_PROMPTS['parent:system_prompt'].path);
+  input.roles.parent.directive_path =
+    path.resolve(BENCHMARK_DIRECT_PROMPTS['parent:directive'].path);
+  return input;
+}
+
+it('compiles the direct parent from the shipped benchmark-direct pair at its hashes', () => {
+  const input = benchmarkDirectResolution();
+  input.expected_asset_hashes = Object.fromEntries(
+    Object.entries(BENCHMARK_DIRECT_PROMPTS).map(([name, asset]) => [
+      `prompt:${name}`, asset.sha256,
+    ]),
+  );
+
+  const policy = compileResolvedTrialPolicy(input, dependencies());
+
+  assert.deepEqual(
+    policy.asset_inventory.filter(entry => entry.kind === 'prompt').map(entry => ({
+      logical_name: entry.logical_name,
+      resolved_path: entry.resolved_path,
+      content_sha256: entry.content_sha256,
+    })),
+    Object.entries(BENCHMARK_DIRECT_PROMPTS).map(([name, asset]) => ({
+      logical_name: name,
+      resolved_path: path.resolve(asset.path),
+      content_sha256: asset.sha256,
+    })),
+  );
+  // The bytes the compiler just admitted are the bytes the model reads, so the removed surface is
+  // asserted over those same files rather than over a fixture standing in for them.
+  for (const asset of Object.values(BENCHMARK_DIRECT_PROMPTS)) {
+    const text = fs.readFileSync(path.resolve(asset.path), 'utf8').toLowerCase();
+    for (const term of SURFACE_A_TRIAL_HAS_NOT) {
+      assert.equal(text.includes(term), false, `${asset.path} names ${term}`);
+    }
+  }
+  assert.equal(
+    policy.roles.parent.systemPrompt,
+    fs.readFileSync(path.resolve(BENCHMARK_DIRECT_PROMPTS['parent:system_prompt'].path), 'utf8'),
+  );
+});
+
+it('refuses a benchmark-direct prompt whose bytes drifted from the expected hash', () => {
+  const drifted = benchmarkDirectResolution();
+  drifted.expected_asset_hashes = { 'prompt:parent:system_prompt': '0'.repeat(64) };
+  expectFailure(drifted, 'asset_hash_mismatch', 17);
+});
+
 it('rejects duplicate skills, invalid MCP surfaces, and unfreezable policy values', () => {
   const duplicate = resolution();
   const first = path.join(root, 'plugin-a', 'skills', 'inspect');

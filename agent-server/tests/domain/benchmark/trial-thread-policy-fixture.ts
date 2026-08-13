@@ -93,10 +93,13 @@ export function writeTrialProfile(backend: Backend): void {
 /**
  * The prompt files each slot compiles from, named exactly as the launcher names them: a benchmark
  * slot takes the shipped `<slot>.md` pair its agent document also resolves to, and the parent takes
- * the frozen direct pair. A fixture that wrote prompts of its own would compile a role whose bytes
+ * the frozen `benchmark-direct.md` pair the launcher composes for a direct parent on either
+ * backend. A fixture that wrote prompts of its own would compile a role whose bytes
  * no thread agent document can ever produce, and the identity check would then measure the fixture.
  */
-const PARENT_PROMPTS = { systemPrompt: 'direct.md', directive: 'executor.md' };
+const PARENT_PROMPTS = {
+  systemPrompt: 'benchmark-direct.md', directive: 'benchmark-direct.md',
+};
 
 function promptPath(kind: 'systemPrompts' | 'directives', file: string): string {
   return path.resolve('defaults/prompts', kind, file);

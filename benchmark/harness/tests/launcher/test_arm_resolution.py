@@ -4,6 +4,7 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import copy
+import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -236,6 +237,8 @@ FACTS = ContainerFacts(BUNDLE_ROOT, "/usr/local/bin/claude", "1.2.3 (Claude Code
 FORBIDDEN_TOOLS = frozenset({
     "AskUserQuestion", "EnterPlanMode", "ExitPlanMode", "TaskStop", "WebFetch", "WebSearch",
 })
+BENCHMARK_DIRECT_SYSTEM_PROMPT = "defaults/prompts/systemPrompts/benchmark-direct.md"
+BENCHMARK_DIRECT_DIRECTIVE = "defaults/prompts/directives/benchmark-direct.md"
 
 
 def seed_document(kind: str = "cortex") -> dict[str, object]:
@@ -254,8 +257,8 @@ def test_composes_the_frozen_direct_parent_from_container_facts() -> None:
         **EXPECTED_RESOLUTION,
         "cli_artifact": {"path": "/usr/local/bin/claude", "version": "1.2.3 (Claude Code)"},
         "roles": {"parent": {
-            "system_prompt_path": f"{BUNDLE_ROOT}/defaults/prompts/systemPrompts/direct.md",
-            "directive_path": f"{BUNDLE_ROOT}/defaults/prompts/directives/executor.md",
+            "system_prompt_path": f"{BUNDLE_ROOT}/{BENCHMARK_DIRECT_SYSTEM_PROMPT}",
+            "directive_path": f"{BUNDLE_ROOT}/{BENCHMARK_DIRECT_DIRECTIVE}",
             "tools": ["Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill",
                       "TodoWrite", "Write"],
             "plugin_dirs": [
@@ -365,6 +368,52 @@ def test_composition_admits_a_pi_backed_direct_arm() -> None:
         key: value for key, value in claude_parent.items() if key != "tools"
     }
     assert "benchmark_policy_guard" not in parent
+
+
+# The bytes of the two assets, frozen. The composer only names paths, so nothing downstream of it
+# can notice that a file at the right path grew the wrong surface back; this row is where that
+# fails. Regenerate with `sha256sum` only together with a deliberate rewrite of the asset.
+BENCHMARK_DIRECT_ASSET_SHA256 = {
+    BENCHMARK_DIRECT_SYSTEM_PROMPT:
+        "4f8f28a5b66d2eb29fd2132c08c4f9c02dde1e6334dde43c61b98f39ddad824a",
+    BENCHMARK_DIRECT_DIRECTIVE:
+        "9a2f347f9639bb6bb7817f9f43bb93e655371f098806c91bfc8de777e962a317",
+}
+# A trial container holds a shell, a task statement and a filesystem — none of these five surfaces
+# exists inside one, so naming any of them can only send the model looking for something that is
+# not there. Lower-cased substrings, so "Thread"/"Slack" are caught too.
+FORBIDDEN_PROMPT_SURFACE = (
+    "thread", "slack", "artifact", "project", "roadmap", "mission.md",
+    "status.md", "cortex.md", "tasks.yaml", "cortex-task", "[approved]",
+)
+
+
+def server_root() -> Path:
+    """The shipped @cortex-agent/server tree the bundle root points at inside a trial."""
+    return Path(__file__).resolve().parents[4] / "agent-server"
+
+
+@pytest.mark.parametrize("backend", ["claude", "pi"])
+def test_direct_parent_reads_the_benchmark_direct_prompt_pair(backend: str) -> None:
+    """A direct trial is a container, a shell and one task statement, so its parent takes the
+    purpose-written benchmark pair on BOTH lifted backends — never the shipped product prompt
+    (`direct.md`) or the executor directive (`executor.md`), whose subject matter is the Cortex
+    product rather than the trial. Paths AND bytes are pinned: the composer names files it cannot
+    read, so only a proof over the shipped bytes keeps the removed surface removed.
+    """
+    seed = copy.deepcopy(seed_document())
+    seed["arm"] = {**BASE_ARM, "backend": backend}
+
+    document = compose_arm_resolution(parse_trial_seed(seed), FACTS)
+
+    parent = document["roles"]["parent"]  # type: ignore[index]
+    assert parent["system_prompt_path"] == f"{BUNDLE_ROOT}/{BENCHMARK_DIRECT_SYSTEM_PROMPT}"
+    assert parent["directive_path"] == f"{BUNDLE_ROOT}/{BENCHMARK_DIRECT_DIRECTIVE}"
+    for relative_path, expected_sha256 in BENCHMARK_DIRECT_ASSET_SHA256.items():
+        body = (server_root() / relative_path).read_bytes()
+        assert hashlib.sha256(body).hexdigest() == expected_sha256, relative_path
+        named = [term for term in FORBIDDEN_PROMPT_SURFACE if term in body.decode().lower()]
+        assert named == [], f"{relative_path} names {named}"
 
 
 def test_rejects_a_credential_value_field_before_writing_projection() -> None:
