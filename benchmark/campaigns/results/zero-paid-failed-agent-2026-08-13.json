@@ -1,0 +1,116 @@
+{
+  "schema_version": "cortex-bench-campaign-result-summary/1",
+  "campaign": "zero-paid-failed-agent",
+  "executed_at": "2026-08-13",
+  "paid": false,
+  "purpose": "The end-to-end verification of the failed-task grading design: a trial whose inner agent run ends in a terminal state other than completed/ok is finalized, published as not gradable, scored by the authentic Terminal-Bench verifier on what it actually left behind, and followed by the next trial instead of ending the campaign.",
+  "execution": {
+    "entrypoint": "cortex-bench run --config",
+    "source_commit": "f0598af7",
+    "state": "completed",
+    "trial_count": 2,
+    "comparison_count": 0,
+    "started_at": "2026-08-13T19:06:51.478Z",
+    "ended_at": "2026-08-13T19:11:33.485Z"
+  },
+  "reproducibility": {
+    "campaign_config": "benchmark/campaigns/zero-paid-failed-agent.yaml",
+    "campaign_config_sha256": "efc57db4c63df719790fa727a78efccc47826fcf8e9093a8e463a4bc09d0ac41",
+    "executed_run_config_sha256": "ffbd1a6ddb7959e07bb74b1083ddcec45bf8d38904d7094b02b4903171a792ca",
+    "run_local_fields": [
+      "trials_dir",
+      "credential.upstream_base_url"
+    ],
+    "harness_lockfile": "benchmark/harness/uv.lock",
+    "harness_lockfile_sha256": "45b7c8ff4adfa856aea2c874592ccc5a84da559824d8ee6aa36f9b9eee4b8e90",
+    "runtime_inputs": "benchmark/harness/scripts/zero-paid-runtime-inputs.json",
+    "runtime_inputs_sha256": "c54875c48c33ee08e84345248f77da4cf0670d88ddc6639a760d9cf6411f1fd2",
+    "runtime_image_digest": "sha256:8b075847d21e55633a0f2bc2f3d7f9920f91d8aaf47b0778cb1d528a7dbedf55",
+    "npm_artifact_sha256": "0e8881f1b44c9b006790aa84b865f044baa51f76eeffc010f70ac2cb2a3a74fa",
+    "wheel_sha256": "a19edbffc8eb2b29721222ef1447acaa5b626e8cc22173d8e98399d7a939049c"
+  },
+  "trials": [
+    {
+      "trial_id": "zero-paid-failed-agent-zero-paid-refused-zero-paid-pi-direct",
+      "task_id": "zero-paid-refused",
+      "order": 1,
+      "reward": 0.0,
+      "reward_source": "authentic task verifier (tests/test.sh) read no /tmp/answer.txt and wrote 0",
+      "grader_admitted": false,
+      "grader_admission": {
+        "admitted": false,
+        "reason": "inner_terminal_not_ok",
+        "terminal_state": "failed",
+        "terminal_reason": "provider_error"
+      },
+      "outer_envelope_sha256": "32286f758e2834992fb35e1034b2092547fca18be874d2b08062524d514f5673",
+      "inner_composite_sha256": null,
+      "requests": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "synthetic_accounting_cost_usd": "0",
+      "proxy_reconciled": false,
+      "proxy_reconciliation_note": "The journal-side cost lives in the composite manifest, which a non-completed run does not publish, and the terminal marker states cost_usd: null. The envelope reports reconciled: false rather than claiming a cross-check that never ran; the proxy export itself was validated in full.",
+      "leak_scan_clean": true,
+      "revocation_closed": true,
+      "inner_started_at": "2026-08-13T19:07:50.592Z",
+      "inner_ended_at": "2026-08-13T19:07:53.799Z",
+      "inner_event_count": 9,
+      "failure_mode": "The synthetic model answers 400 to an instruction outside the shape it recognizes. The PI backend surfaced the provider failure, the run settled as failed/provider_error after one request, and no answer file was written."
+    },
+    {
+      "trial_id": "zero-paid-failed-agent-zero-paid-one-zero-paid-pi-direct",
+      "task_id": "zero-paid-one",
+      "order": 2,
+      "reward": 1.0,
+      "reward_source": "authentic task verifier (tests/test.sh) read /tmp/answer.txt and wrote 1",
+      "grader_admitted": true,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "ok",
+        "terminal_state": "completed",
+        "terminal_reason": "ok"
+      },
+      "outer_envelope_sha256": "1d38efa561d95be6ab8c3203dce211d85a8d74389d0980ec1bd553b905ebbd7d",
+      "requests": 2,
+      "input_tokens": 2,
+      "output_tokens": 2,
+      "synthetic_accounting_cost_usd": "0.00000084",
+      "proxy_reconciled": true,
+      "leak_scan_clean": true,
+      "revocation_closed": true,
+      "inner_started_at": "2026-08-13T19:11:09.678Z",
+      "inner_ended_at": "2026-08-13T19:11:11.447Z",
+      "inner_event_count": 12
+    }
+  ],
+  "comparison_report": {
+    "path": "$TRIALS_DIR/comparison-report.json",
+    "written": true,
+    "sha256": "1d1cd6f6fba8d7128d158c2bddd5bc35c71d98a4fbe074dd545988e48ed02711",
+    "schema_version": "cortex-benchmark-comparison-report/2",
+    "carries_per_run_admission": true
+  },
+  "what_this_proves": [
+    "A failed inner run is finalized and published: outer envelope cortex-bench-outer-envelope/2 with grader_admission.admitted false and a named reason.",
+    "The reward for it is a measurement, not a convention: Harbor ran the task's own verifier and it returned 0.0 because the agent left nothing behind.",
+    "The campaign continued: the second trial ran and returned 1.0, which the previous behaviour could not reach.",
+    "The composite manifest and the merged trajectory are legitimately absent together, and neither is required on that path.",
+    "Every non-outcome gate still held on the non-admitted trial: revocation closed, closed-world classification complete, leak scan clean, proxy export validated."
+  ],
+  "prior_run_contrast": {
+    "run": "terminal-bench-2.1-deepseek-paid-r3-2026-08-13.json",
+    "outcome": "The same shape of inner failure raised inner_terminal_invalid inside the agent phase, so the verifier never ran, no reward existed, no envelope was published, and the campaign stopped on its first trial."
+  },
+  "safety": {
+    "paid_provider_requests": 0,
+    "real_credential_used": false,
+    "upstream": "loopback synthetic endpoint only",
+    "prohibitions_observed": {
+      "admission_bypassed": false,
+      "task_replaced": false,
+      "vendor_baseline_run": false,
+      "push_release_deployment_or_daemon_restart": false
+    }
+  }
+}
