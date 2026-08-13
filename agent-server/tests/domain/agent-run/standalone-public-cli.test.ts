@@ -1,5 +1,5 @@
-// input:  packed CLI, checkout-link-safe dependency staging, Claude/PI fakes and hostile descendants
-// output: valid exact-public package, state handoff, credential and process containment
+// input:  packed CLI, physical package-local dependency closure, Claude/PI fakes and hostile descendants
+// output: self-contained exact-public package, state handoff, credential and process containment
 // pos:    Packed cortex agent-run standalone regression
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -261,9 +261,22 @@ function installPackedBundle(): PackedBundle {
   const untarred = run('tar', ['-xzf', tarball, '-C', extracted]);
   assert.equal(untarred.status, 0, untarred.stderr);
   const bundleRoot = path.join(extracted, 'package');
+  const installedDependencies = run(
+    process.execPath, ['scripts/install-bundled-dependencies.mjs'], 240_000, bundleRoot,
+  );
+  assert.equal(
+    installedDependencies.status, 0,
+    `${installedDependencies.stdout}\n${installedDependencies.stderr}`,
+  );
   const bundledModules = path.join(bundleRoot, 'node_modules');
-  fs.rmSync(bundledModules, { recursive: true, force: true });
-  fs.symlinkSync(path.resolve(serverRoot, '..', 'node_modules'), bundledModules);
+  assert.equal(
+    fs.lstatSync(bundledModules).isSymbolicLink(), false,
+    'packed CLI must use physical package-local dependencies',
+  );
+  assert.equal(
+    fs.existsSync(path.join(bundledModules, 'cross-spawn', 'package.json')), true,
+    'packed CLI omitted a transitive runtime dependency',
+  );
   const bin = path.join(extracted, 'bin');
   fs.mkdirSync(bin);
   const cortex = path.join(bin, 'cortex');
