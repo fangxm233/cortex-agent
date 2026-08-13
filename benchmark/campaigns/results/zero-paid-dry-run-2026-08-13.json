@@ -1,0 +1,77 @@
+{
+  "schema_version": "cortex-bench-campaign-result-summary/1",
+  "campaign": "zero-paid-dry-run",
+  "executed_at": "2026-08-13",
+  "paid": false,
+  "execution": {
+    "entrypoint": "cortex-bench run --config",
+    "source_commit": "b8f6ca75a1ef4f218ea3ea11b00acef66bbb5c36",
+    "state": "completed",
+    "trial_count": 2,
+    "comparison_count": 0
+  },
+  "reproducibility": {
+    "campaign_config": "benchmark/campaigns/zero-paid-dry-run.yaml",
+    "campaign_config_sha256": "d2001524194a9c17a63087b6fa18ffb52f0ea8723459398cdfb67e8ed60a47dd",
+    "executed_run_config_sha256": "ac8e2482d327abd8193b6c3e632eefd4ab00f13d2f84f8d32db9f8a792e81932",
+    "run_local_fields": [
+      "trials_dir",
+      "manifest.wheel_path",
+      "manifest.npm_artifact_path",
+      "manifest.lockfile_path",
+      "credential.upstream_base_url",
+      "proxy.bound_source_ip",
+      "tasks[].path"
+    ],
+    "harness_lockfile": "benchmark/harness/uv.lock",
+    "harness_lockfile_sha256": "45b7c8ff4adfa856aea2c874592ccc5a84da559824d8ee6aa36f9b9eee4b8e90",
+    "runtime_inputs": "benchmark/harness/scripts/zero-paid-runtime-inputs.json",
+    "runtime_inputs_sha256": "c54875c48c33ee08e84345248f77da4cf0670d88ddc6639a760d9cf6411f1fd2",
+    "runtime_image_digest": "sha256:8b075847d21e55633a0f2bc2f3d7f9920f91d8aaf47b0778cb1d528a7dbedf55",
+    "npm_artifact_sha256": "0ca07454504e591bee0b12c78e7aea5f53cf2e89a1f6bbe7a680c3883307b4dd",
+    "wheel_sha256": "7326d711487c704a31a76546e4b549a1743a7a8206b88c3d4b69e6bc9d362f97"
+  },
+  "trials": [
+    {
+      "trial_id": "zero-paid-dry-run-zero-paid-one-zero-paid-pi-direct",
+      "task_id": "zero-paid-one",
+      "reward": 1,
+      "grader_admitted": true,
+      "outer_envelope_sha256": "3e02a5ed4b171e0e59d9f5442ffa750d5de126b3b8ce048053f6d26274737fe7",
+      "requests": 2,
+      "input_tokens": 2,
+      "output_tokens": 2,
+      "synthetic_accounting_cost_usd": "0.00000084",
+      "proxy_reconciled": true,
+      "leak_scan_clean": true,
+      "revocation_closed": true
+    },
+    {
+      "trial_id": "zero-paid-dry-run-zero-paid-two-zero-paid-pi-direct",
+      "task_id": "zero-paid-two",
+      "reward": 1,
+      "grader_admitted": true,
+      "outer_envelope_sha256": "779e4553241d2cdb8b7962cb7c274bbea3c5bd357bec0a4f51ec0966a89f9a6e",
+      "requests": 2,
+      "input_tokens": 2,
+      "output_tokens": 2,
+      "synthetic_accounting_cost_usd": "0.00000084",
+      "proxy_reconciled": true,
+      "leak_scan_clean": true,
+      "revocation_closed": true
+    }
+  ],
+  "totals": {
+    "requests": 4,
+    "input_tokens": 4,
+    "output_tokens": 4,
+    "synthetic_accounting_cost_usd": "0.00000168"
+  },
+  "comparison_report_sha256": "495a126738c6b713a7a4accca3f04dae181a5fbf76dc2fe56959ae76129cc019",
+  "safety": {
+    "upstream_scope": "loopback-only synthetic server",
+    "paid_provider_requests": 0,
+    "real_credentials_used": false,
+    "live_handshake_performed": false
+  }
+}

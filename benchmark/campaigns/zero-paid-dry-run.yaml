@@ -8,8 +8,10 @@
 # token prices to synthetic traffic as deterministic accounting; it is not provider spend.
 #
 # Three groups of values are RUN-LOCAL and must be confirmed before a dry run, because no committed
-# document can know them: the build artefacts under `manifest` (produce them with
-# `benchmark/harness/scripts/build-wheel.sh` and `npm pack` in `agent-server/`), the container
+# document can know them: the build artefacts under `manifest` (produce them from the repository
+# root with `benchmark/harness/scripts/build-wheel.sh` and
+# `mkdir -p benchmark/harness/dist && (cd agent-server && npm pack
+# --pack-destination ../benchmark/harness/dist)`), the container
 # address in `proxy.bound_source_ip`, and `credential.upstream_base_url`, which must point at the
 # synthetic upstream the operator started. Build the pinned task runtime with
 # `benchmark/harness/scripts/build-zero-paid-runtime-image.sh`. Every other value is committed.
