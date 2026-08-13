@@ -1,6 +1,7 @@
-# input:  inner/proxy evidence, trial roots, scan policy
-# output: durable reread-validated outer envelope, admitting or declining the run for grading
-#         and, when it declines, saying which side the evidence points to
+# input:  inner/proxy evidence, trial roots, the pinned bundle, scan policy
+# output: the trial's own copy of the assets the model was given, and a durable reread-validated
+#         outer envelope, admitting or declining the run for grading and, when it declines,
+#         saying which side the evidence points to
 # pos:    Host-side benchmark finalization gate
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -32,9 +33,16 @@ from .launcher.trial_proxy import (
 )
 from .manifest import MANIFEST_FILENAME
 from .scan import ArtifactInventory, ScanPolicy, scan_trial_artifacts
+from .trial_assets import (
+    ASSET_MANIFEST_PATH,
+    PublishedAssets,
+    TrialAssetError,
+    canonical_sha256,
+    publish_trial_assets,
+)
 
 OUTER_ENVELOPE_FILENAME = "cortex-bench-outer-envelope.json"
-OUTER_ENVELOPE_SCHEMA_VERSION = "cortex-bench-outer-envelope/2"
+OUTER_ENVELOPE_SCHEMA_VERSION = "cortex-bench-outer-envelope/3"
 # The inner contract's own state -> reason table (`manifest-contract.ts:70-78`), mirrored so a
 # terminal that is merely *not ok* can be told apart from one that is malformed. The first is an
 # outcome of the run and is gradable; the second is evidence that cannot be trusted and is not.
@@ -97,6 +105,16 @@ class TerminalOutcome:
 
 
 @dataclass(frozen=True)
+class RootJournal:
+    """The root run's journal, as the terminal marker names it."""
+
+    name: str
+    digest: str
+    header: Mapping[str, object]
+    event_count: int
+
+
+@dataclass(frozen=True)
 class InnerEvidence:
     terminal_sha256: str
     #: Absent exactly when the run did not complete: `runner.ts:compositeApplicability` publishes
@@ -107,6 +125,10 @@ class InnerEvidence:
     terminal: TerminalOutcome
     root_run_id: str
     terminal_cost_usd: float | int | None
+    #: The run's own first-class record of what it compiled: prompt, tool and plugin digests. It is
+    #: written before the first step and survives every terminal state, so the assets can be
+    #: witnessed on the failed path exactly as on the completed one.
+    journal_header: Mapping[str, object]
 
 
 @dataclass(frozen=True)
@@ -186,24 +208,56 @@ def _environment_mapping(
 def finalize_host_trial(
     *, logs_dir: Path, verifier_dir: Path, artifact_dir: Path,
     root_run_id: str, trial_id: str, arm: Mapping[str, object],
-    staged_npm_artifact: Path, revocation: TrialRevocation | None,
+    npm_artifact: Path, bundle_root: str, revocation: TrialRevocation | None,
     scan_policy: ScanPolicy,
 ) -> HostFinalizationResult:
     try:
         roots = _trial_roots(logs_dir, verifier_dir, artifact_dir)
+        # The physical inventory stays the first thing that touches the trial: a required output
+        # that is a symlink has to be refused before any read can follow it.
         discovered = _discover_roots(roots)
         inner = _validate_inner(logs_dir, root_run_id, trial_id, arm)
+        assets = _publish_assets(logs_dir, npm_artifact, bundle_root, inner)
+        discovered = _rediscover(roots, discovered, assets)
         validate_host_owned_identity(artifact_dir, trial_id, root_run_id, arm.get("name"))
         usage = _reconcile_proxy(revocation, inner, trial_id)
-        classified = _classify_outputs(roots, discovered, staged_npm_artifact, inner, arm)
+        classified = _classify_outputs(roots, discovered, assets, inner, arm)
         scan = _scan_outputs(classified, roots, scan_policy)
-        envelope = _outer_envelope(inner, usage, revocation, classified, scan, trial_id, arm)
+        envelope = _outer_envelope(
+            inner, usage, revocation, classified, scan, trial_id, arm, assets)
         return _publish_outer(
             artifact_dir / OUTER_ENVELOPE_FILENAME, envelope, inner.terminal.admitted)
     except HostFinalizationError:
         raise
     except Exception as error:
         raise HostFinalizationError("host_finalization_failed") from error
+
+
+def _rediscover(
+    roots: Mapping[str, Path], discovered: Mapping[tuple[str, str], Path],
+    assets: PublishedAssets,
+) -> dict[tuple[str, str], Path]:
+    """Walk again now that the assets are on disk, and hold the difference to exactly what this
+    host wrote. The closed world still closes over a real walk rather than over the writer's word,
+    so anything else that appeared while finalization ran is still refused.
+    """
+    rediscovered = _discover_roots(roots)
+    written = {("agent", path) for path in assets.files}
+    if set(rediscovered) - set(discovered) - written or set(discovered) - set(rediscovered):
+        raise HostFinalizationError("unknown_output_present")
+    return rediscovered
+
+
+def _publish_assets(
+    logs_dir: Path, npm_artifact: Path, bundle_root: str, inner: InnerEvidence,
+) -> PublishedAssets:
+    try:
+        return publish_trial_assets(
+            logs_dir=logs_dir, npm_artifact=npm_artifact, bundle_root=bundle_root,
+            header=inner.journal_header,
+        )
+    except TrialAssetError as error:
+        raise HostFinalizationError(error.reason) from error
 
 
 def _validate_inner(
@@ -214,6 +268,7 @@ def _validate_inner(
     terminal_path = root / terminal_name
     terminal_bytes, terminal = _read_json(terminal_path)
     outcome = _classify_terminal(terminal)
+    journal = _read_root_journal(root, terminal)
     composite_sha256: str | None = None
     composite: Mapping[str, object] | None = None
     if outcome.admitted:
@@ -226,17 +281,29 @@ def _validate_inner(
         required["composite-manifest.json"] = "composite_manifest"
         required["trajectory.json"] = "merged_trajectory"
     else:
-        required = _non_admitted_files(root, terminal, root_run_id)
+        required = _non_admitted_files(root, terminal, root_run_id, journal)
     required[terminal_name] = "run_terminal"
     required[f"run-{root_run_id}.started.json"] = "run_started"
     return InnerEvidence(
         hashlib.sha256(terminal_bytes).hexdigest(), composite_sha256, composite, required,
-        outcome, root_run_id, terminal.get("cost_usd"),
+        outcome, root_run_id, terminal.get("cost_usd"), journal.header,
     )
 
 
+def _read_root_journal(root: Path, terminal: Mapping[str, object]) -> RootJournal:
+    """The journal the root run wrote, read once for both duties it serves: the non-admitted path
+    validates the terminal against it, and the asset lift is held against its header.
+    """
+    name = _safe_relative(terminal.get("journal_path"))
+    try:
+        digest, header, event_count = _read_journal(root / name)
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        raise HostFinalizationError("inner_manifest_invalid") from error
+    return RootJournal(name, digest, header, event_count)
+
+
 def _non_admitted_files(
-    root: Path, terminal: Mapping[str, object], root_run_id: str,
+    root: Path, terminal: Mapping[str, object], root_run_id: str, journal: RootJournal,
 ) -> dict[str, str]:
     """Check the run against the only witness a failed run has: its own terminal marker.
 
@@ -247,22 +314,20 @@ def _non_admitted_files(
     binding survives only host-side (`validate_host_owned_identity`) and via the terminal's
     filename, which is one reason such a trial is not admitted for grading.
     """
-    journal = _safe_relative(terminal.get("journal_path"))
-    try:
-        digest, header, event_count = _read_journal(root / journal)
-    except (OSError, ValueError, UnicodeDecodeError) as error:
-        raise HostFinalizationError("inner_manifest_invalid") from error
-    if digest != terminal.get("journal_sha256"):
+    if journal.digest != terminal.get("journal_sha256"):
         raise HostFinalizationError("inner_digest_mismatch")
     checks = (
-        header.get("schema_version") == "cortex-bench-journal/1",
-        header.get("type") == "run_header", header.get("root_run_id") == root_run_id,
-        event_count == terminal.get("event_count"), _identity_matches(header, terminal),
+        journal.header.get("schema_version") == "cortex-bench-journal/1",
+        journal.header.get("type") == "run_header",
+        journal.header.get("root_run_id") == root_run_id,
+        journal.event_count == terminal.get("event_count"),
+        _identity_matches(journal.header, terminal),
     )
     if not all(checks):
         raise HostFinalizationError("inner_manifest_invalid")
-    _validate_started(root, f"run-{root_run_id}.terminal.json", journal)
-    return {journal: "parent_journal" if journal == "events.jsonl" else "run_journal"}
+    _validate_started(root, f"run-{root_run_id}.terminal.json", journal.name)
+    return {journal.name: (
+        "parent_journal" if journal.name == "events.jsonl" else "run_journal")}
 
 
 def _read_json(path: Path) -> tuple[bytes, Mapping[str, object]]:
@@ -354,17 +419,12 @@ def _validate_composite(
         composite.get("schema_version") == "cortex-bench-composite-manifest/1",
         composite.get("trial_id") == trial_id, composite.get("root_run_id") == root_run_id,
         composite.get("arm_name") == arm.get("name"),
-        composite.get("arm_canonical_sha256") == _canonical_sha256(arm),
+        composite.get("arm_canonical_sha256") == canonical_sha256(arm),
         valid_composite_structure(composite, terminal, root_run_id, trial_id, arm),
         _parent_terminal_link(composite, terminal, terminal_bytes, root_run_id),
     )
     if not all(expected):
         raise HostFinalizationError("inner_composite_invalid")
-
-
-def _canonical_sha256(value: object) -> str:
-    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 def _parent_terminal_link(
@@ -633,9 +693,9 @@ def _trial_roots(
 
 def _classify_outputs(
     roots: Mapping[str, Path], discovered: Mapping[tuple[str, str], Path],
-    staged: Path, inner: InnerEvidence, arm: Mapping[str, object],
+    assets: PublishedAssets, inner: InnerEvidence, arm: Mapping[str, object],
 ) -> tuple[ClassifiedFile, ...]:
-    required = _required_files(roots["agent"], staged, inner, arm)
+    required = _required_files(assets, inner, arm)
     classified: list[ClassifiedFile] = []
     for key, path in discovered.items():
         source, disposition = _classification(key, required)
@@ -660,15 +720,13 @@ def _validate_workspace_evidence(path: Path) -> None:
 
 
 def _required_files(
-    logs_dir: Path, staged: Path, inner: InnerEvidence, arm: Mapping[str, object],
+    assets: PublishedAssets, inner: InnerEvidence, arm: Mapping[str, object],
 ) -> dict[tuple[str, str], str]:
-    staged_relative = _relative_to(staged, logs_dir)
     required = {
         ("agent", "arm-resolution.json"): "arm_resolution",
         ("agent", "instruction.md"): "instruction",
         ("agent", "stdout.txt"): "stdout", ("agent", "stderr.txt"): "stderr",
         ("agent", "workspace.diff"): "workspace_diff",
-        ("agent", staged_relative): "setup_artifact",
         ("artifacts", ADMISSION_EVIDENCE_FILENAME): "harbor_launch_admission",
         ("artifacts", MANIFEST_FILENAME): "manifest",
         ("artifacts", f"proxy/{AUDIT_LOG_FILENAME}"): PROXY_AUDIT_LOG_SOURCE,
@@ -678,6 +736,7 @@ def _required_files(
     }
     required.update({("agent", f"trajectory/{path}"): source
                      for path, source in inner.required_agent_files.items()})
+    required.update({("agent", path): source for path, source in assets.files.items()})
     _add_mode_files(required, arm)
     _add_trial_state_files(required, arm)
     return required
@@ -702,13 +761,6 @@ def _add_mode_files(required: dict[tuple[str, str], str], arm: Mapping[str, obje
         return
     required[("agent", "mcp-config-benchmark-thread.json")] = "benchmark_thread_mcp"
     required[("agent", "benchmark-thread-policy.json")] = "benchmark_thread_policy"
-
-
-def _relative_to(path: Path, root: Path) -> str:
-    try:
-        return path.resolve(strict=True).relative_to(root.resolve(strict=True)).as_posix()
-    except (OSError, ValueError) as error:
-        raise HostFinalizationError("output_escape") from error
 
 
 def _discover_roots(roots: Mapping[str, Path]) -> dict[tuple[str, str], Path]:
@@ -820,7 +872,7 @@ def _verify_stable_hashes(
 def _outer_envelope(
     inner: InnerEvidence, usage: Mapping[str, object], revocation: TrialRevocation | None,
     classified: Sequence[ClassifiedFile], scan: Mapping[str, object], trial_id: str,
-    arm: Mapping[str, object],
+    arm: Mapping[str, object], assets: PublishedAssets,
 ) -> dict[str, object]:
     return {
         "schema_version": OUTER_ENVELOPE_SCHEMA_VERSION,
@@ -828,6 +880,7 @@ def _outer_envelope(
                      "arm_name": arm["name"]},
         "inner": {"terminal_sha256": inner.terminal_sha256,
                   "composite_sha256": inner.composite_sha256},
+        "assets": _asset_evidence(assets),
         "proxy_usage": dict(usage), "revocation": dict(revocation.revocation),
         "classification": {"ok": True, "files": [item.as_dict() for item in classified]},
         "publication": {
@@ -837,6 +890,21 @@ def _outer_envelope(
         },
         "leak_scan": dict(scan), "grader_admission": _grader_admission(inner.terminal),
         "cause": _cause(inner.terminal, usage),
+    }
+
+
+def _asset_evidence(assets: PublishedAssets) -> dict[str, object]:
+    """What the trial can now answer out of its own directory: which bytes the model was given, and
+    on whose word. The files themselves are in `classification`, each with its digest; this block is
+    the part that is a claim rather than an inventory.
+    """
+    manifest = assets.manifest
+    return {
+        "manifest_path": f"agent/{ASSET_MANIFEST_PATH}",
+        "npm_artifact": manifest["npm_artifact"],
+        "witnessed_slot": manifest["witnessed_slot"],
+        "witnesses": manifest["witnesses"],
+        "file_count": len(assets.files),
     }
 
 

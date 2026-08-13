@@ -179,9 +179,12 @@ def test_setup_installs_bundle_and_discovers_container_facts(tmp_path: Path) -> 
         *((command, None) for command in DISCOVERY_COMMANDS),
         (VERSION_COMMAND, None),
     ]
-    staged = tmp_path / "agent/setup" / ARTIFACT_NAME
-    assert staged.read_bytes() == b"npm artifact"
-    assert environment.uploads == [(staged, f"/installed-agent/{ARTIFACT_NAME}")]
+    # Uploaded from where the campaign pinned it. Nothing copies it into the trial's log dir,
+    # which is collected as trial output: `trial_assets` lifts the few files the model was given
+    # out of it instead of shipping 55.8 MB of bundle per trial.
+    source = tmp_path / ARTIFACT_NAME
+    assert environment.uploads == [(source, f"/installed-agent/{ARTIFACT_NAME}")]
+    assert not list((tmp_path / "agent").rglob("*.tgz"))
     manifest = tmp_path / "artifacts/cortex-bench-harness-manifest.json"
     assert manifest.is_file()
     assert '"version": "2026.7.31"' in manifest.read_text()

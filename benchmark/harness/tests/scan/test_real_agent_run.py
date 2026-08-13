@@ -72,22 +72,22 @@ def test_workspace_diff_captures_added_workspace_bytes(tmp_path: Path) -> None:
     assert b"planted-workspace-value" in output.read_bytes()
 
 
-def test_whole_tree_file_list_includes_staged_setup_artifact(tmp_path: Path) -> None:
+def test_whole_tree_file_list_reaches_nested_agent_outputs(tmp_path: Path) -> None:
     agent = tmp_path / "trial" / "agent"
     verifier = tmp_path / "trial" / "verifier"
     artifacts = tmp_path / "trial" / "artifacts"
-    staged = agent / "setup" / "cortex.tgz"
-    staged.parent.mkdir(parents=True)
+    nested = agent / "assets" / "bundle" / "defaults" / "prompts" / "systemPrompts" / "x.md"
+    nested.parent.mkdir(parents=True)
     verifier.mkdir(parents=True)
     artifacts.mkdir(parents=True)
-    staged.write_bytes(b"package")
+    nested.write_bytes(b"# system prompt\n")
     layout = SimpleNamespace(
         trial_paths=SimpleNamespace(
             agent_dir=agent, verifier_dir=verifier, artifacts_dir=artifacts,
         ),
     )
 
-    assert staged in result_surface_files(layout)
+    assert nested in result_surface_files(layout)
 
 
 def test_partial_environment_start_is_cleaned_up(monkeypatch) -> None:

@@ -6,7 +6,6 @@
 import asyncio
 import contextlib
 import shlex
-import shutil
 import time
 from collections.abc import Coroutine
 from pathlib import Path, PurePosixPath
@@ -195,7 +194,7 @@ class CortexBenchAgent(BaseInstalledAgent):
     ) -> None:
         self._validate_admission_environment(extra_env, environment_hash)
         self._resolved_cwd: ResolvedCwd | None = None
-        self._staged_npm_artifact: Path | None = None
+        self._npm_artifact: Path | None = None
         self._cortex_cli_version: str | None = None
         self._container_facts: ContainerFacts | None = None
         self._captured_inventory: ArtifactInventory | None = None
@@ -337,14 +336,15 @@ class CortexBenchAgent(BaseInstalledAgent):
             if actual[field] != value:
                 raise ValueError(f"TrialSeed {field} must equal {value}")
 
-    def _stage_npm_artifact(self) -> tuple[Path, PurePosixPath]:
+    def _npm_artifact_upload(self) -> tuple[Path, PurePosixPath]:
+        """The bundle is uploaded from where the campaign pinned it, not through a copy inside the
+        trial's log dir. A copy there would be collected as a trial output — 55.8 MB per trial, of
+        which the model saw nothing but the prompts and skills that `trial_assets` now lifts out by
+        name. The bundle's identity is kept the way it always was, by digest, in the manifest.
+        """
         source = self._manifest_seed.npm_artifact_path
-        setup_dir = self.logs_dir / "setup"
-        setup_dir.mkdir(parents=True, exist_ok=True)
-        staged = setup_dir / source.name
-        shutil.copy2(source, staged)
-        self._staged_npm_artifact = staged
-        return staged, PurePosixPath("/installed-agent") / source.name
+        self._npm_artifact = source
+        return source, PurePosixPath("/installed-agent") / source.name
 
     def _install_command(self, artifact: PurePosixPath) -> str:
         prefix = shlex.quote(str(NPM_INSTALL_PREFIX))
@@ -409,8 +409,8 @@ class CortexBenchAgent(BaseInstalledAgent):
             raise
 
     async def _install(self, environment: BaseEnvironment) -> None:
-        staged, artifact = self._stage_npm_artifact()
-        await environment.upload_file(staged, str(artifact))
+        artifact_path, artifact = self._npm_artifact_upload()
+        await environment.upload_file(artifact_path, str(artifact))
         await self.exec_as_root(environment, command=self._install_command(artifact))
         for command in self._verification_commands():
             await self.exec_as_agent(environment, command=command)
@@ -445,11 +445,11 @@ class CortexBenchAgent(BaseInstalledAgent):
     async def _setup(self, environment: BaseEnvironment) -> None:
         resolved_cwd = await resolve_task_workdir(environment)
         await super().setup(environment)
-        assert self._staged_npm_artifact is not None
+        assert self._npm_artifact is not None
         assert self._cortex_cli_version is not None
         assert self._container_facts is not None
         inputs = self._manifest_seed.with_cwd(
-            resolved_cwd, self._staged_npm_artifact, self._cortex_cli_version,
+            resolved_cwd, self._npm_artifact, self._cortex_cli_version,
         )
         manifest_path = write_harness_manifest(
             self._artifact_dir, build_harness_manifest(inputs),
@@ -684,13 +684,14 @@ class CortexBenchAgent(BaseInstalledAgent):
     def _finalize_outer(self, revocation: TrialRevocation | None) -> None:
         if self._host_scan_policy is None:
             return
-        if self._staged_npm_artifact is None:
+        if self._npm_artifact is None or self._container_facts is None:
             raise RuntimeError("CortexBenchAgent.install() must complete before finalization")
         publication = finalize_host_trial(
             logs_dir=self.logs_dir, verifier_dir=self._verifier_dir,
             artifact_dir=self._artifact_dir,
             root_run_id=self._trial_seed.root_run_id, trial_id=self._trial_seed.trial_id,
-            arm=self._trial_seed.arm, staged_npm_artifact=self._staged_npm_artifact,
+            arm=self._trial_seed.arm, npm_artifact=self._npm_artifact,
+            bundle_root=self._container_facts.bundle_root,
             revocation=revocation, scan_policy=self._host_scan_policy,
         )
         self._outer_publication = publication

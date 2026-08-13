@@ -5,8 +5,10 @@
 
 import asyncio
 import hashlib
+import io
 import json
 import socket
+import tarfile
 from collections.abc import Callable, Mapping
 from http.client import HTTPConnection
 from pathlib import Path
@@ -21,6 +23,12 @@ from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.host_finalization import (
     OUTER_ENVELOPE_FILENAME,
     HostFinalizationError,
+)
+from cortex_bench_harness.launcher.arm_resolution import (
+    DIRECT_CLAUDE_DIRECTIVE,
+    DIRECT_CLAUDE_PLUGIN_DIRS,
+    DIRECT_CLAUDE_SYSTEM_PROMPT,
+    DIRECT_CLAUDE_TOOLS,
 )
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
@@ -53,6 +61,7 @@ HOST_HOME = "/private/host-home/fangxin"
 HOSTNAME = "private-hostname-unique"
 HOST_IDENTITY = "machine-identity-unique"
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
+COMMON_PLUGIN, CODER_PLUGIN = DIRECT_CLAUDE_PLUGIN_DIRS
 DIRECT_CHECK_IDS = (
     "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8",
     "D1", "D2", "D3", "D4", "D5", "D6",
@@ -96,6 +105,64 @@ def trial_seed(upstream: str) -> dict[str, object]:
     }
 
 
+def bundle_members() -> dict[str, bytes]:
+    """A bundle shaped like the shipped one: the composition's prompts and plugin trees, plus the
+    product code that dwarfs them and that no trial has any reason to carry a copy of.
+    """
+    return {
+        DIRECT_CLAUDE_SYSTEM_PROMPT: b"# benchmark direct system prompt\nfixture body\n",
+        DIRECT_CLAUDE_DIRECTIVE: b"# benchmark direct directive\nfixture body\n",
+        f"{COMMON_PLUGIN}/.claude-plugin/plugin.json": b'{"name":"cortex-common"}\n',
+        f"{COMMON_PLUGIN}/skills/compound/SKILL.md": b"# compound\nfixture skill\n",
+        f"{CODER_PLUGIN}/.claude-plugin/plugin.json": b'{"name":"cortex-coder"}\n',
+        f"{CODER_PLUGIN}/skills/develop/SKILL.md": b"# develop\nfixture skill\n",
+        "dist/index.js": b"// product code the model never reads\n" * 64,
+        "node_modules/left-pad/index.js": b"// a dependency, likewise\n" * 64,
+    }
+
+
+def write_npm_artifact(path: Path) -> None:
+    with tarfile.open(path, "w:gz") as tar:
+        for relative, payload in sorted(bundle_members().items()):
+            info = tarfile.TarInfo(f"package/{relative}")
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+
+
+def sha256_hex(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
+
+
+def tree_sha256(prefix: str) -> str:
+    """`directoryContentSha256` restated: every file under the directory, keyed by its path
+    relative to that directory, hashed as one canonical document.
+    """
+    return canonical_sha256(sorted(
+        (
+            {"path": relative[len(prefix) + 1:], "type": "file", "sha256": sha256_hex(payload)}
+            for relative, payload in bundle_members().items()
+            if relative.startswith(f"{prefix}/")
+        ),
+        key=lambda entry: entry["path"],
+    ))
+
+
+def plugin_manifest_sha256() -> str:
+    return canonical_sha256({
+        "plugin_dirs": [
+            {"path": f"{BUNDLE_ROOT}/{plugin}", "content_sha256": tree_sha256(plugin)}
+            for plugin in sorted((COMMON_PLUGIN, CODER_PLUGIN))
+        ],
+        "skills": sorted(
+            (
+                {"name": skill, "content_sha256": tree_sha256(f"{plugin}/skills/{skill}")}
+                for plugin, skill in ((COMMON_PLUGIN, "compound"), (CODER_PLUGIN, "develop"))
+            ),
+            key=lambda entry: entry["name"],
+        ),
+    })
+
+
 def manifest_seed(tmp_path: Path) -> dict[str, object]:
     files = {
         "wheel_path": tmp_path / "harness.whl", "lockfile_path": tmp_path / "uv.lock",
@@ -103,6 +170,7 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
     }
     for file in files.values():
         file.write_bytes(b"finalization fixture")
+    write_npm_artifact(files["npm_artifact_path"])
     return {
         "root_run_id": ROOT_RUN_ID, "trial_id": TRIAL_ID, "arm": ARM_NAME,
         **{name: str(file) for name, file in files.items()},
@@ -137,14 +205,26 @@ def canonical_sha256(value: object) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def journal_bytes() -> bytes:
+def journal_bytes(assets: Mapping[str, str] | None = None) -> bytes:
+    """The header the inner run publishes before its first step, including the three digests it
+    computed from the files it opened. They are what the host holds the extracted assets against.
+    """
     header = {
         "schema_version": "cortex-bench-journal/1", "type": "run_header",
         "root_run_id": ROOT_RUN_ID, "thread_id": None, "agent_slot": "parent",
         "model_execution_identity_hash": MODEL_HASH,
         "role_tool_surface_hash": ROLE_HASH, "bundle_manifest_hash": BUNDLE_HASH,
+        **(dict(asset_witnesses()) | dict(assets or {})),
     }
     return (json.dumps(header, sort_keys=True) + "\n").encode()
+
+
+def asset_witnesses() -> dict[str, str]:
+    return {
+        "system_prompt_sha256": sha256_hex(bundle_members()[DIRECT_CLAUDE_SYSTEM_PROMPT]),
+        "tool_manifest_sha256": canonical_sha256(list(DIRECT_CLAUDE_TOOLS)),
+        "plugin_manifest_sha256": plugin_manifest_sha256(),
+    }
 
 
 def terminal_document(journal: bytes) -> dict[str, object]:
@@ -198,8 +278,8 @@ def production_predicate(*, all_pass: bool = False) -> dict[str, object]:
     return {"mode": "direct", "checks": checks}
 
 
-def attempt_node(terminal_sha256: str) -> dict[str, object]:
-    terminal = terminal_document(journal_bytes())
+def attempt_node(terminal_sha256: str, journal: bytes | None = None) -> dict[str, object]:
+    terminal = terminal_document(journal if journal is not None else journal_bytes())
     return {
         "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "task_id": TRIAL_ID,
         "parent_task_id": None, "dispatch_generation": None,
@@ -221,7 +301,9 @@ def attempt_node(terminal_sha256: str) -> dict[str, object]:
     }
 
 
-def composite_document(terminal_sha256: str) -> dict[str, object]:
+def composite_document(
+    terminal_sha256: str, journal: bytes | None = None,
+) -> dict[str, object]:
     return {
         "schema_version": "cortex-bench-composite-manifest/1", "trial_id": TRIAL_ID,
         "root_run_id": ROOT_RUN_ID, "arm_name": ARM_NAME,
@@ -229,7 +311,7 @@ def composite_document(terminal_sha256: str) -> dict[str, object]:
         "identity": {"model_execution_identity_hash": {"parent": MODEL_HASH},
                      "role_tool_surface_hash": {"parent": ROLE_HASH},
                      "bundle_manifest_hash": BUNDLE_HASH},
-        "nodes": [attempt_node(terminal_sha256)], "edges": [],
+        "nodes": [attempt_node(terminal_sha256, journal)], "edges": [],
         "roots": {"parent_attempt_id": f"run-{ROOT_RUN_ID}", "root_task_id": None},
         "accounting": accounting(), "predicate": production_predicate(),
     }
@@ -382,7 +464,7 @@ def assert_refused(
 
 
 def assert_outer_evidence(envelope: Mapping[str, object]) -> None:
-    assert envelope["schema_version"] == "cortex-bench-outer-envelope/2"
+    assert envelope["schema_version"] == "cortex-bench-outer-envelope/3"
     assert envelope["identity"] == {
         "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "arm_name": ARM_NAME,
     }
@@ -423,6 +505,86 @@ def test_production_run_publishes_and_rereads_one_outer_admission(
                for file in envelope["classification"]["files"])
     assert any("cortex-bench-workspace-evidence/1" in call for call in environment.calls)
     assert any(call.endswith("chmod -R a+rX /logs/agent") for call in environment.calls)
+
+
+def asset_files(envelope: Mapping[str, object]) -> dict[str, str]:
+    return {
+        file["relative_path"]: file["sha256"] for file in envelope["classification"]["files"]
+        if file["root"] == "agent" and file["relative_path"].startswith("assets/")
+    }
+
+
+def test_trial_carries_the_assets_it_used_and_not_the_bundle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    run_agent(agent, environment)
+    envelope = json.loads(envelope_path(tmp_path).read_bytes())
+    published = asset_files(envelope)
+    prompt = f"assets/bundle/{DIRECT_CLAUDE_SYSTEM_PROMPT}"
+
+    # Every model-visible asset the composition named, and nothing else the bundle carries.
+    assert set(published) == {"assets/manifest.json"} | {
+        f"assets/bundle/{relative}" for relative in bundle_members()
+        if relative.startswith(("defaults/prompts/", "defaults/plugins/"))
+    }
+    assert (tmp_path / "agent" / prompt).read_bytes() == (
+        bundle_members()[DIRECT_CLAUDE_SYSTEM_PROMPT])
+    assert published[prompt] == asset_witnesses()["system_prompt_sha256"]
+    assert not (tmp_path / "agent" / "assets/bundle/dist").exists()
+    assert not list((tmp_path / "agent").rglob("*.tgz"))
+
+    manifest = json.loads((tmp_path / "agent" / "assets/manifest.json").read_bytes())
+    assert manifest["witnessed_slot"] == "parent"
+    assert manifest["npm_artifact"]["sha256"] == hashlib.sha256(
+        (tmp_path / "server.tgz").read_bytes()).hexdigest()
+    assert manifest["roles"]["parent"] == {
+        "system_prompt": prompt,
+        "directive": f"assets/bundle/{DIRECT_CLAUDE_DIRECTIVE}",
+        "tools": list(DIRECT_CLAUDE_TOOLS),
+        "plugin_dirs": [f"assets/bundle/{plugin}" for plugin in DIRECT_CLAUDE_PLUGIN_DIRS],
+        "bound_by": "run_header_and_bundle_digest",
+    }
+    assert envelope["assets"] == {
+        "manifest_path": "agent/assets/manifest.json",
+        "npm_artifact": manifest["npm_artifact"],
+        "witnessed_slot": "parent",
+        "witnesses": {
+            name: {"value": value, "witness": f"run_header.{name}"}
+            for name, value in asset_witnesses().items()
+        },
+        "file_count": len(published),
+    }
+
+
+def tamper_witness(field: str) -> Callable[[Path], None]:
+    """Rewrite the run's own header so it disagrees with the bundle about one asset, keeping every
+    other binding intact — the digest chain still closes, so the only thing that can refuse is the
+    asset check itself.
+    """
+    def mutation(root: Path) -> None:
+        journal = journal_bytes({field: "f" * 64})
+        (root / "events.jsonl").write_bytes(journal)
+        terminal_path = root / f"run-{ROOT_RUN_ID}.terminal.json"
+        write_json(terminal_path, terminal_document(journal))
+        terminal_sha = hashlib.sha256(terminal_path.read_bytes()).hexdigest()
+        write_json(root / "composite-manifest.json", composite_document(terminal_sha, journal))
+    return mutation
+
+
+@pytest.mark.parametrize(
+    "field", ("system_prompt_sha256", "tool_manifest_sha256", "plugin_manifest_sha256"),
+)
+def test_assets_the_run_does_not_vouch_for_refuse_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch, tamper_witness(field))
+
+    with pytest.raises(HostFinalizationError) as raised:
+        run_agent(agent, environment)
+
+    assert raised.value.reason == "trial_asset_mismatch"
+    assert not envelope_path(tmp_path).exists()
 
 
 def fail_inner_run(
