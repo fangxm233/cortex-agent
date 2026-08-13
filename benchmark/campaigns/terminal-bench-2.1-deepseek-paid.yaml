@@ -14,25 +14,38 @@
 # COST ARITHMETIC (the pairing this campaign turns on; `campaign_config._validate_request_budget`
 # refuses the document if any of it stops holding).
 #
-# The proxy reserves one whole `proxy.max_request_cost_usd` per admitted request and then answers
-# `429 budget_exhausted` once the remainder of `limits.max_cost_usd` is below one reservation, so
-# the pair of costs — never `max_provider_requests` — is what bounds a trial's turns:
+# `limits.max_cost_usd` is a turn counter, not a spend authorization. Admission is decided purely
+# on reservations: the proxy reserves one whole `proxy.max_request_cost_usd` per admitted request
+# and answers `429 budget_exhausted` once the remainder is below one reservation, while what the
+# request actually cost is recorded separately and never reconciled against the reservation. So
 #
 #   requests per trial = floor(max_cost_usd / max_request_cost_usd)
-#                      = floor($2.00 / $0.02) = 100        (the 2026-08-13 attempt declared
-#                        $0.50, which funded floor($2.00 / $0.50) = 4 turns and exhausted the route
-#                        on the fifth; see results/terminal-bench-2.1-deepseek-paid-2026-08-13.json)
+#                      = floor($100.00 / $0.20) = 500
 #
-# One reservation must also cover a full-length response, or the first one is refused as
-# `budget_accounting_exceeded` and the route is deactivated mid-trial:
+# Every declared bound is now placed beyond what a trial can reach, because a run truncated at a
+# limit still costs money and yields no measurement (the 2026-08-13 r1 attempt declared $0.50
+# against a $2.00 trial, bought four turns and exhausted the route on the fifth; see
+# results/terminal-bench-2.1-deepseek-paid-2026-08-13.json).
 #
-#   response at the cap = 8192 * $0.28 / 1e6 = $0.00229376  <=  $0.02 reservation
-#   input room left     = ($0.02 - $0.00229376) / $0.14 * 1e6 = 126,473 prompt tokens per request
+#   - one reservation exceeds the arithmetic maximum cost of any request the model can accept:
+#       1,000,000-token context * $0.14/1e6 + 65,536 * $0.28/1e6 = $0.15835008  <  $0.20
+#     so `budget_accounting_exceeded` cannot occur, from either the input or the output side
+#     (a reservation leaves room for 1,297,499 prompt tokens against a 1,000,000-token window).
+#   - 500 funded turns exceeds what 900 seconds of agent time can physically issue.
+#   - 65,536 output tokens is 14x the largest response of the r3 trial and 2.3x the historical
+#     max of 28.2k; the model supports 384k.
+#   - 64 MiB bodies are 31x the largest observed request.
 #
-# Trial and campaign bounds, unchanged from the approved envelope:
+# The bounds that remain real, deliberately:
 #
-#   per trial    <= $2.00                    (limits.max_cost_usd, the paid ceiling is $10.00)
-#   whole run    <= 3 * $2.00 = $6.00        <= cost_ceiling_usd $10.00, enforced by the driver
+#   - the authentic task's own `[agent] timeout_sec = 900.0`, which is upstream benchmark
+#     definition and not ours to raise. It, not any field here, is what ends a trial.
+#   - `deadline_seconds` stays at 1800: already twice that agent timeout, and raising it further
+#     buys no headroom while widening the credential lease window
+#     (P = H0 + 900s setup + deadline + 120s teardown).
+#   - `cost_ceiling_usd`, checked by the driver against accumulated *actual* cost between trials.
+#     At the r3 burn rate (16 requests, $0.02744182) three completed trials cost single-digit
+#     dollars; $25.00 leaves an order of magnitude of margin and is the only money stop left.
 #
 # Every field also stays at or below its committed row in ../policy/capability-ceilings.yaml.
 
@@ -41,10 +54,10 @@ schema_version: cortex-bench-campaign/1
 # `tb21-paid-r2` (refused before admission, zero requests) roots are immutable evidence, and a
 # campaign never writes into an existing trial root -- `campaign._resume` refuses one that carries
 # no published envelope. Rotate both fields together whenever an attempt has materialised this root.
-campaign: tb21-paid-r3
+campaign: tb21-paid-r4
 paid: true
-cost_ceiling_usd: "10.00"
-trials_dir: /var/tmp/cortex-bench/tb21-paid-r3-2026-08-13-4e25
+cost_ceiling_usd: "25.00"
+trials_dir: /var/tmp/cortex-bench/tb21-paid-r4-2026-08-13-ebe7
 cli_version: "2026.8.6"
 
 manifest:
@@ -81,13 +94,13 @@ docker_network:
 proxy:
   credential_env: CORTEX_BENCH_DEEPSEEK_CREDENTIAL
   bound_source_ip: 172.30.240.2
-  # One reservation: covers a full 8192-token response plus ~126k prompt tokens, and $2.00 of them
-  # funds the 100 requests the arm declares.
-  max_request_cost_usd: "0.02"
+  # One reservation exceeds the most any admissible request can cost, so no response can be
+  # refused as budget_accounting_exceeded; $100.00 of them funds the 500 turns the arm declares.
+  max_request_cost_usd: "0.20"
   input_cost_per_million_usd: "0.14"
   output_cost_per_million_usd: "0.28"
-  request_body_limit_bytes: 16777216
-  response_body_limit_bytes: 16777216
+  request_body_limit_bytes: 67108864
+  response_body_limit_bytes: 67108864
   listen_host: 0.0.0.0
 
 arms:
@@ -105,14 +118,14 @@ arms:
       max_parent_questions: 0
       max_task_depth: 0
       max_tasks: 0
-      # Exactly what floor($2.00 / $0.02) funds: the declared turn count and the funded one agree.
-      max_provider_requests: 100
+      # Exactly what floor($100.00 / $0.20) funds: the declared turn count and the funded one
+      # agree, and both sit above what 900 seconds of agent time can issue.
+      max_provider_requests: 500
       max_resident_agent_processes: 1
-      max_cost_usd: "2.00"
+      max_cost_usd: "100.00"
+      # Twice the authentic task's own 900-second agent timeout, which is the real bound.
       deadline_seconds: 1800
-      # Well above the 4096 a real tool-call turn needs, and cheap enough ($0.00229376) that one
-      # reservation still leaves 126k prompt tokens for a long multi-turn context.
-      max_output_tokens: 8192
+      max_output_tokens: 65536
 
 tasks:
   - task_id: chess-best-move

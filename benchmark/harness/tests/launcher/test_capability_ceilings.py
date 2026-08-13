@@ -22,7 +22,7 @@ from cortex_bench_harness.launcher.trial_proxy import PAID_ENVELOPE_FIELDS
 
 APPROVED_DEEPSEEK_CEILINGS = {
     "max_provider_requests": 1000,
-    "max_cost_usd": Decimal("10.00"),
+    "max_cost_usd": Decimal("100.00"),
     "deadline_seconds": 7200,
     "max_output_tokens": 131072,
     "max_request_cost_usd": Decimal("2.00"),
@@ -39,7 +39,7 @@ def policy_document(**overrides: object) -> str:
     lines = [f"schema_version: {CAPABILITY_CEILINGS_SCHEMA_VERSION}", "capabilities:",
              "  pi-deepseek-api-key:"]
     values = {
-        "max_provider_requests": 1000, "max_cost_usd": '"10.00"', "deadline_seconds": 7200,
+        "max_provider_requests": 1000, "max_cost_usd": '"100.00"', "deadline_seconds": 7200,
         "max_output_tokens": 131072, "max_request_cost_usd": '"2.00"',
         "request_body_limit_bytes": 67108864, "response_body_limit_bytes": 67108864,
         **overrides,

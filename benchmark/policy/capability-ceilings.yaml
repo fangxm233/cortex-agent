@@ -24,8 +24,14 @@
 schema_version: cortex-bench-capability-ceilings/1
 capabilities:
   pi-deepseek-api-key:
-    # p90 task-dispatch session $2.49, max $15.65; suggested campaign default 2.00
-    max_cost_usd: "10.00"
+    # Not a spend authorization. Admission is decided purely on reservations — `reserve()` adds one
+    # whole max_request_cost_usd per admitted request and `record()` never reconciles it against
+    # what the request actually cost — so this field is exactly a turn counter:
+    # turns = floor(max_cost_usd / max_request_cost_usd). Raised 2026-08-13 from 10.00 so that a
+    # per-request reservation large enough to be arithmetically unreachable can still fund more
+    # turns than a trial can physically take. Real spend is bounded by the task's own agent
+    # timeout and by the campaign driver's between-trial stop on accumulated actual cost.
+    max_cost_usd: "100.00"
     # per-request p99 $0.060, max $0.0749. A campaign default is NOT read off this line: the proxy
     # reserves one whole max_request_cost_usd per admitted request, so the declared pair fixes the
     # trial's turn count at floor(max_cost_usd / max_request_cost_usd) — the 2026-08-13 paid

@@ -1179,12 +1179,13 @@ def test_the_committed_paid_campaign_config_declares_the_approved_envelope() -> 
     (arm,) = config.arms
     limits = arm["limits"]
 
-    assert (config.paid, config.cost_ceiling_text) == (True, "10.00")
+    # The driver's stop on accumulated actual cost is the campaign's only money bound, because
+    # limits.max_cost_usd funds turns rather than authorizing spend.
+    assert (config.paid, config.cost_ceiling_text) == (True, "25.00")
     assert (arm["kind"], arm["backend"], arm["provider"], arm["model"]) == (
         "cortex", "pi", "deepseek", "deepseek-v4-flash")
     assert arm["orchestration"] == {"mode": "direct", "ask_manager": False}
-    assert Decimal(str(limits["max_cost_usd"])) <= Decimal("2.00")
-    assert int(limits["max_output_tokens"]) >= 4096
+    assert int(limits["max_output_tokens"]) >= 32768
     assert [task.task_id for task in config.tasks] == [
         "chess-best-move", "constraints-scheduling", "db-wal-recovery"]
     assert [task.image_digest for task in config.tasks] == [
@@ -1208,11 +1209,18 @@ def test_the_committed_paid_campaign_funds_a_multi_turn_trial() -> None:
     )
     cap = int(arm["limits"]["max_output_tokens"])
 
-    assert budget.funded_request_count() == 100
-    assert budget.output_cap_cost_usd(cap) == Decimal("0.00229376")
-    assert int(arm["limits"]["max_provider_requests"]) == 100
-    # Worst case: every trial spends its whole ceiling and the campaign still fits.
-    assert len(config.tasks) * budget.max_cost_usd <= config.cost_ceiling_usd
+    assert budget.funded_request_count() == 500
+    assert budget.output_cap_cost_usd(cap) == Decimal("0.01835008")
+    assert int(arm["limits"]["max_provider_requests"]) == 500
+    # One reservation exceeds what any request the model can accept could possibly cost, so
+    # `budget_accounting_exceeded` cannot be reached from either the input or the output side.
+    # A limit a run can reach is a limit that can end a run without producing a measurement.
+    context_window_tokens = 1_000_000
+    dearest_admissible_request = (
+        context_window_tokens * budget.input_cost_per_million_usd / 1_000_000
+        + budget.output_cap_cost_usd(cap)
+    )
+    assert dearest_admissible_request < budget.max_request_cost_usd
 
 
 def test_the_committed_paid_campaign_stays_within_every_capability_ceiling() -> None:
