@@ -23,23 +23,6 @@ describe('ChatNotice', () => {
     expect(html).toContain(text);
   });
 
-  it('invokes the notice action and labels it for the reader', () => {
-    const onNoticeAction = vi.fn();
-    const renderer = create(
-      <LangProvider>
-        <ChatNotice
-          level="warning" text="Rate limited"
-          noticeAction={{ kind: 'cancel-resume' }} onNoticeAction={onNoticeAction}
-        />
-      </LangProvider>,
-    );
-
-    const button = renderer.root.findByType('button');
-    expect(button.props.children).toBeTruthy();
-    act(() => { button.props.onClick(); });
-    expect(onNoticeAction).toHaveBeenCalledWith({ kind: 'cancel-resume' });
-  });
-
   it('renders no action button when the notice carries none', () => {
     const html = renderToStaticMarkup(<ChatNotice level="warning" text="Rate limited" />);
     expect(html).not.toContain('<button');

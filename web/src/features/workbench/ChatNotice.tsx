@@ -1,11 +1,11 @@
-// input:  ChatNoticeLevel, text, and optional auth action
-// output: semantic notice box, auth CTA, and noticeTone tokens
+// input:  ChatNoticeLevel, text, actions, and active Web language
+// output: localized semantic notice, auth CTA, and noticeTone tokens
 // pos:    Shared semantic notice renderer for desktop and mobile chat
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { CSSProperties } from 'react';
 import type { AuthNoticeAction, ChatNoticeLevel, NoticeAction } from '@cortex-agent/ui-contract';
 import { useOptionalLoginFlow } from '@/features/auth/LoginFlowProvider';
-import { useVocab } from '@/i18n';
+import { useVocab, useVocabOptional, type Vocab } from '@/i18n';
 
 export interface NoticeTone {
   bg: string;
@@ -104,11 +104,16 @@ function AuthActionButton({
   );
 }
 
+function localizedNoticeText(text: string, action: NoticeAction | undefined, vocab: Vocab): string {
+  return action?.kind === 'cancel-resume' ? vocab.noticeRateLimitAutoResume : text;
+}
+
 export function ChatNotice({
   level, text, authAction, authActionLabel, onAuthAction,
   noticeAction, onNoticeAction, noticeActionDone = false,
 }: ChatNoticeProps): JSX.Element {
   const tone = TONES[level];
+  const localizedText = localizedNoticeText(text, noticeAction, useVocabOptional());
   const style: CSSProperties = {
     display: 'flex', alignItems: 'flex-start', gap: 9, width: '100%',
     margin: '0 auto', padding: '9px 12px', boxSizing: 'border-box', borderRadius: 9,
@@ -127,7 +132,7 @@ export function ChatNotice({
       >
         {tone.icon}
       </span>
-      <span style={{ flex: 1 }}>{text}</span>
+      <span style={{ flex: 1 }}>{localizedText}</span>
       {authAction ? (
         <AuthActionButton action={authAction} label={authActionLabel} onAction={onAuthAction} />
       ) : null}

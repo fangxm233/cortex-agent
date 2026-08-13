@@ -215,6 +215,7 @@ export const enExtra = {
   authLoginProvider: 'Provider',
   authLoginStart: 'Start login',
   authLoginAgain: 'Log in again',
+  noticeRateLimitAutoResume: 'Rate limited — this chat will resume automatically when the limit resets.',
   noticeCancelResume: "Don't resume",
   noticeCancelResumeDone: 'Resume cancelled',
   authLoginSubmit: 'Submit',
