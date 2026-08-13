@@ -1,6 +1,6 @@
 // input:  PI transcript filename selector
-// output: canonical, exact timestamp-prefixed, and backup-near-miss selection tests
-// pos:    guards exact PI filename parsing
+// output: timestamp, millisecond, and backup-near-miss tests
+// pos:    Guards exact PI filename parsing
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -23,6 +23,12 @@ test('selectPISessionFilename accepts only exact timestamp-prefixed matches', ()
     `2026-08-01T01-02-03Z_${sessionId}.jsonl.turn-7.bak`,
   ], sessionId);
   assert.equal(filename, `2026-08-01T01-02-03Z_${sessionId}.jsonl`);
+});
+
+test('selectPISessionFilename accepts PI timestamps with milliseconds', () => {
+  const sessionId = '01234567-89ab-7cde-8fab-0123456789ab';
+  const filename = `2026-08-12T16-54-26-759Z_${sessionId}.jsonl`;
+  assert.equal(selectPISessionFilename([filename], sessionId), filename);
 });
 
 test('selectPISessionFilename ignores backups when a primary transcript is absent', () => {

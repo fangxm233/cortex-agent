@@ -21,7 +21,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | json-repository.ts | core | reads and writes cached JSON stores |
 | log.ts | core | creates loggers with process-scoped sink policy |
 | paths.ts | config | defines install, data, and config paths |
-| pi-session-filename.ts | util | selects deterministic PI transcript filenames |
+| pi-session-filename.ts | util | parses and selects PI transcript filenames |
 | profile-generator.ts | config | generates the agent profiles file |
 | resilient-watch.ts | util | falls back from filesystem watchers to polling |
 | resume-reminder.ts | data | continuation prompt for interrupted work |

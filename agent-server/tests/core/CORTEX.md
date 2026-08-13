@@ -12,6 +12,7 @@ Core infrastructure tests: paths, config and profile generation, auth, locks, i1
 | gateway-generator.test.ts | test | model discovery parsing and gateway yaml |
 | i18n.test.ts | test | locale lookup, fallback, and table parity |
 | paths.test.ts | test | install, data, project, and workspace paths |
+| pi-session-filename.test.ts | test | PI transcript filename parsing and selection |
 | profile-generator.test.ts | test | profile generation and default choices |
 | resilient-watch.test.ts | test | watcher failure, registration race, and cleanup |
 | runtime-env.test.ts | test | excludes file-only metadata from runtime env |
