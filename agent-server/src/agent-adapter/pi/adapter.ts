@@ -611,7 +611,11 @@ class PISession {
     const terminal: PiTurnComplete = error
       ? { type: 'turn_complete', numTurns: turn.numTurns, totalCostUsd: turn.totalCostUsd, error }
       : { type: 'turn_complete', numTurns: turn.numTurns, totalCostUsd: turn.totalCostUsd };
-    if (error) turn.reject(new Error(error));
+    // `turn_complete.error` is PI reporting its own turn ended with `stopReason: "error"` --
+    // a provider- or model-side failure, not a Cortex fault. Tagging the rejection lets the
+    // runner classify it instead of reading only the process exit code, which cannot tell a
+    // provider outage apart from a crash. The message is PI's own and is preserved verbatim.
+    if (error) turn.reject(Object.assign(new Error(error), { reason: 'provider_error' }));
     else turn.resolve(this.buildAgentResult(turn));
     return terminal;
   }

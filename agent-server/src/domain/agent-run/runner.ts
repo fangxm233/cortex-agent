@@ -125,7 +125,7 @@ interface RunStats {
   lastAssistantText: string | null;
 }
 
-interface ExecutionOutcome {
+export interface ExecutionOutcome {
   result: AgentResult | null;
   error: unknown;
   childExit: { code: number | null; signal: string | null } | null;
@@ -647,8 +647,13 @@ function errorReason(error: unknown): string | null {
   return typeof reason === 'string' ? reason : null;
 }
 
+// A run error that names its own reason is more specific than whatever the supervisor saw, so
+// it survives the merge. Anything unlabelled still defers to the supervisor.
+const NAMED_RUN_ERROR_REASONS = new Set(['trajectory_write_failed', 'provider_error']);
+
 function executionError(runError: unknown, supervisorError: unknown): unknown {
-  return errorReason(runError) === 'trajectory_write_failed'
+  const reason = errorReason(runError);
+  return reason !== null && NAMED_RUN_ERROR_REASONS.has(reason)
     ? runError
     : supervisorError ?? runError;
 }
@@ -951,7 +956,10 @@ function classifyAgent(outcome: ExecutionOutcome): ClassifiedOutcome {
   return failedOutcome('child_failure', 'child_failure', code ?? undefined);
 }
 
-function classify(outcome: ExecutionOutcome): ClassifiedOutcome {
+/** Terminal classification of one settled run. Pure over the outcome, and exported because its
+ *  precedence — containment before cancellation before provider before exit code — is the part
+ *  that is easy to get wrong and worth pinning directly. */
+export function classify(outcome: ExecutionOutcome): ClassifiedOutcome {
   const reason = errorReason(outcome.error);
   if (reason === 'trajectory_write_failed') return failedOutcome(reason, reason);
   if (!outcome.quiescent || reason === 'containment_failure') {
@@ -959,6 +967,12 @@ function classify(outcome: ExecutionOutcome): ClassifiedOutcome {
   }
   if (outcome.cancelled) return classifySupervisor(outcome)!;
   const childCode = outcome.childExit?.code;
+  // Before the blanket non-zero-exit rule: an agent that exhausted its provider retries exits
+  // non-zero too, and collapsing both into `child_failure` loses the one fact that says whether
+  // the run failed on its own work or on the model being unreachable.
+  if (reason === 'provider_error') {
+    return failedOutcome('provider_error', 'child_failure', childCode ?? undefined);
+  }
   if (childCode !== null && childCode !== undefined && childCode !== 0) {
     return failedOutcome('child_failure', 'child_failure', childCode);
   }

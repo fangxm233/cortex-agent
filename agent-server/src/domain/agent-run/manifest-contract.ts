@@ -13,7 +13,7 @@ export type TerminalState = 'completed' | 'failed' | 'cancelled' | 'timeout';
 export type TerminalReason = 'ok' | 'child_failure' | 'deadline' | 'deadline_exceeded' | 'cancelled'
   | 'containment_failure' | 'containment_failed' | 'missing_quiescent'
   | 'trajectory_write_failed' | 'rate_limited' | 'protocol_violation'
-  | 'step_limit_exceeded' | 'cost_limit_exceeded';
+  | 'step_limit_exceeded' | 'cost_limit_exceeded' | 'provider_error';
 
 export interface SupervisorEvidence {
   quiescent: boolean;
@@ -72,6 +72,7 @@ const TERMINAL_REASONS: Record<TerminalState, readonly TerminalReason[]> = {
   failed: [
     'child_failure', 'trajectory_write_failed', 'containment_failure',
     'rate_limited', 'protocol_violation', 'step_limit_exceeded', 'cost_limit_exceeded',
+    'provider_error',
   ],
   cancelled: ['cancelled'],
   timeout: ['deadline', 'deadline_exceeded'],

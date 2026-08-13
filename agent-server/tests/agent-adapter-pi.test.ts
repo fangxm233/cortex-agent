@@ -700,6 +700,34 @@ test('PI turn emits live context_usage during streaming without flushing partial
   await proc.close();
 });
 
+test('a PI turn that ends in a provider error rejects with a classified reason', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'provider-error', resume: false });
+  const child = stub.children[0];
+  const iterator = proc.events[Symbol.asyncIterator]();
+
+  emitBootstrap(child, 'provider-error-session');
+  assert.equal((await iterator.next()).value.type, 'session_started');
+
+  const turn = proc.send({ text: 'hello' });
+  child.stdout.emit('data', Buffer.from(`${JSON.stringify({
+    type: 'agent_end',
+    messages: [{
+      role: 'assistant', provider: 'deepseek', model: 'deepseek-v4-flash',
+      stopReason: 'error', errorMessage: 'Connection error.',
+    }],
+  })}\n`));
+  child.stdout.emit('data', Buffer.from('{"type":"agent_settled"}\n'));
+
+  const failure = await turn.then(
+    () => null, (error: unknown) => error as Error & { reason?: string });
+  // The message alone cannot tell a provider outage from a crash; the reason is what lets the
+  // run classify itself as `provider_error` rather than a blanket `child_failure`.
+  assert.equal(failure?.message, 'Connection error.');
+  assert.equal(failure?.reason, 'provider_error');
+});
+
 test('settled PI turn emits context_usage before its terminal event', async () => {
   const stub = makeStubSpawner();
   const adapter = new PIAdapter(stub.spawn);

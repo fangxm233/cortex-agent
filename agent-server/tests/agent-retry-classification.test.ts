@@ -141,6 +141,9 @@ for (const message of [
   'getaddrinfo EAI_AGAIN api.deepseek.com',
   'network request timed out',
   'Codex error: An error occurred while processing your request. You can retry your request. Request ID: req_123',
+  // PI's own wording for a failed provider round trip. It matched nothing before, so a paid
+  // benchmark trial recorded seven of these as ordinary failures and retried none of them.
+  'Connection error.',
 ]) {
   test(`isRetryableError accepts transient failure: ${message}`, () => {
     assert.equal(isRetryableError(new Error(message)), true);

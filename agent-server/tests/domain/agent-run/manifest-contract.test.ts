@@ -314,6 +314,7 @@ const VALID_REASON_CASES: Array<[TerminalState, TerminalReason, SupervisorEviden
   ['failed', 'protocol_violation', { quiescent: true, descendants: 0 }],
   ['failed', 'step_limit_exceeded', { quiescent: true, descendants: 0 }],
   ['failed', 'cost_limit_exceeded', { quiescent: true, descendants: 0 }],
+  ['failed', 'provider_error', { quiescent: true, descendants: 0 }],
 ];
 
 for (const [state, terminalReason, supervisor] of VALID_REASON_CASES) {
@@ -335,6 +336,7 @@ for (const [state, terminalReason, supervisor] of VALID_REASON_CASES) {
 const INVALID_REASON_CASES: Array<[TerminalState, TerminalReason]> = [
   ['completed', 'child_failure'], ['failed', 'ok'],
   ['cancelled', 'deadline'], ['timeout', 'cancelled'],
+  ['completed', 'provider_error'], ['timeout', 'provider_error'],
 ];
 
 for (const [state, terminalReason] of INVALID_REASON_CASES) {
