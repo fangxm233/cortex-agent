@@ -60,6 +60,37 @@ def clean_environment(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
     return dict(os.environ)
 
 
+@pytest.fixture
+def hermetic_campaign(tmp_path: Path) -> Path:
+    """The committed document with its trial roots moved into `tmp_path`, and nothing else changed.
+
+    Whether the committed root exists is host state — the campaign this document describes creates
+    it — so a test that plans against the real `trials_dir` reports `would-skip` the moment the
+    campaign has run, which is the coupling this task removed from `test_campaign.py`. Everything
+    the launcher is being proven on (the five references, the arm, the pairing, the three pinned
+    tasks) is still the committed declaration; only the roots the plan is read against are local.
+    The copy keeps the `<checkout>/benchmark/campaigns/` shape so the checkout literal is derived
+    exactly as it is in production, and the manifest and task paths are pinned to the committed
+    checkout before the move, because they resolve against the document's own directory.
+    """
+    import yaml
+
+    document = yaml.safe_load(COMMITTED_PAID_CONFIG.read_text(encoding="utf-8"))
+    document["manifest"] = {
+        key: value if key == "lockfile_manifest_path"
+        else str((COMMITTED_PAID_CONFIG.parent / value).resolve())
+        for key, value in document["manifest"].items()
+    }
+    for task in document["tasks"]:
+        task["path"] = str((COMMITTED_PAID_CONFIG.parent / task["path"]).resolve())
+    document["trials_dir"] = str(tmp_path / "trials")
+    campaigns = tmp_path / "benchmark" / "campaigns"
+    campaigns.mkdir(parents=True)
+    path = campaigns / COMMITTED_PAID_CONFIG.name
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+    return path
+
+
 def committed_config() -> object:
     return launcher.load_campaign_config(COMMITTED_PAID_CONFIG)
 
@@ -262,10 +293,12 @@ def test_a_campaign_whose_proxy_and_scan_credential_disagree_is_refused(
 
 
 def test_preflight_plans_every_declared_trial_and_arms_none(
-    gateway: Path, clean_environment: dict[str, str], capsys: pytest.CaptureFixture[str],
+    gateway: Path, clean_environment: dict[str, str], hermetic_campaign: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """Roots of their own, so `would-arm` and "nothing was created" mean what they say."""
     code = launcher.main(
-        ["--config", str(COMMITTED_PAID_CONFIG), "--gateway", str(gateway)])
+        ["--config", str(hermetic_campaign), "--gateway", str(gateway)])
 
     captured = capsys.readouterr()
     document = json.loads(captured.out)
@@ -274,6 +307,31 @@ def test_preflight_plans_every_declared_trial_and_arms_none(
     assert document["host_scan_policy_resolved"] is True
     assert [trial["state"] for trial in document["dry_run"]["trials"]] == ["would-arm"] * 3
     assert not Path(document["trials_dir"]).exists()
+    assert FAKE_CREDENTIAL not in captured.out + captured.err
+    assert "CORTEX_BENCH_DEEPSEEK_CREDENTIAL" not in os.environ
+
+
+def test_the_committed_document_preflights_whatever_state_its_roots_are_in(
+    gateway: Path, clean_environment: dict[str, str], capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The committed document itself, asserted only on what the document decides.
+
+    A trial's planned state is host state — `would-skip` once its root exists — so this pins the
+    plan's shape and the launcher's own output, and leaves what happens to an existing root to the
+    runner's refusal and resume tests. It therefore stays true before, during and after a campaign.
+    """
+    code = launcher.main(
+        ["--config", str(COMMITTED_PAID_CONFIG), "--gateway", str(gateway)])
+
+    captured = capsys.readouterr()
+    document = json.loads(captured.out)
+    assert (code, document["ok"], document["mode"]) == (0, True, "preflight")
+    assert document["campaign"] == committed_config().campaign
+    assert document["host_scan_policy_resolved"] is True
+    assert [trial["trial_id"] for trial in document["dry_run"]["trials"]] == [
+        plan.trial_id for plan in committed_config().trials()]
+    assert {trial["state"] for trial in document["dry_run"]["trials"]} <= {
+        "would-arm", "would-skip"}
     assert FAKE_CREDENTIAL not in captured.out + captured.err
     assert "CORTEX_BENCH_DEEPSEEK_CREDENTIAL" not in os.environ
 
