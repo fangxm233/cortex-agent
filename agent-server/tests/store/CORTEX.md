@@ -6,6 +6,7 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | filename | role | function |
 |---|---|---|
 | conversation-history-repo.test.ts | test | Covers history append, rewind and idempotency |
+| conversation-ledger-repo.test.ts | test | Covers bulk clearing by tracked session ids |
 | cost-repo.test.ts | test | Covers cost entry writes, pruning and budget |
 | execution-repo.test.ts | test | Covers execution records, staleness and archival |
 | hook-registry.test.ts | test | Covers capabilities, sources, defaults and TTL |
@@ -22,9 +23,10 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | prompt-migrations.test.ts | test | Covers coder assets, prompt migrations and customization |
 | provider-state-repo.test.ts | test | Covers provider persistence and guarded migration |
 | schedule-repo.test.ts | test | Covers scheduled tasks and channel migration |
+| retention-candidate-repo.test.ts | test | Covers orphan candidate persistence and clearing |
 | session-hook-migration.test.ts | test | Covers legacy migration and destination collisions |
-| session-registry-repo.test.ts | test | Covers session lookup, prune and migration |
-| session-store.test.ts | test | Covers session migration and prune references |
+| session-registry-repo.test.ts | test | Covers session JSONL journal replay, delete-intent guards, malformed-line fail-closed behavior, and append rollback |
+| session-store.test.ts | test | Covers session migration, conflict-safe backups, replacement cleanup, and prune references |
 | task-repo.test.ts | test | Covers task store locking, flush and round-trip |
 | thread-repo.test.ts | test | Covers thread cleanup archival to JSONL |
 | version-migrations.test.ts | test | Covers config, text migrations and version clocks |

@@ -1,188 +1,243 @@
-// input:  Node test runner, assert, tmp filesystem
-// output: Gap tests for SessionRegistryRepo: fixture migration + idempotency, registerSession projectId, GC eligibility with executionRepo/threadStore references
-// pos:    verifies store/session-registry-repo.ts M2 contract per plan/refactor-m1m2-project-session.md
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  ../_test-home, vitest, tmp fs, and session registry repo/journal helpers
+// output: Legacy migration, coexistence, backup, prune, and replacement failure tests
+// pos:    Session registry migration and reference behavior coverage
+// >>> If I am updated, update my header comment and the parent folder CORTEX.md <<<
 
-import { test, beforeAll, afterAll } from 'vitest';
+import '../_test-home.js';
+import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import path from 'node:path';
 import os from 'node:os';
-import { SessionRegistryRepo } from '../../src/store/session-registry-repo.js';
+import path from 'node:path';
+import { SessionRegistryRepo, type Session } from '../../src/store/session-registry-repo.js';
+import { compactSessionRegistry } from '../../src/store/session-registry-journal.js';
+import { STORE_DIR } from '../../src/core/paths.js';
 import { executionRepo } from '../../src/store/execution-repo.js';
 import { threadStore } from '../../src/store/thread-repo.js';
 import type { ThreadRecord } from '../../src/core/types/thread-types.js';
 
-// ── Shared tmp directory ───────────────────────────────────────
-
-let tmpDir: string;
+let tmpDir = '';
+let testId = 0;
 
 beforeAll(async () => {
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-session-store-test-'));
+  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-session-store-jsonl-'));
 });
 
 afterAll(async () => {
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
 
-// ── Helper ──────────────────────────────────────────────────────
-
-let _testIdx = 0;
-
-// ── Test 1: Migration fixture + idempotency ────────────────────
-
-test('sessionStore - migrate old fixture: re-key, projectId backfill, dedup, idempotent second read', async () => {
-  const idx = _testIdx++;
-  const filePath = path.join(tmpDir, `session-registry-${idx}.json`);
-
-  // Old-format fixture: name-keyed, no name/projectId fields; includes duplicate sessionId
-  const oldFormat = {
-    'cortex-abc': { sessionId: 'sess-abc', channel: 'C001', backend: 'claude', kind: 'local', createdAt: '2025-01-01T00:00:00.000Z', lastUsedAt: '2025-06-01T00:00:00.000Z', label: 'first', profileName: null },
-    'cortex-def': { sessionId: 'sess-def', channel: 'C002', backend: 'pi', kind: 'scheduled', createdAt: '2025-02-01T00:00:00.000Z', lastUsedAt: '2025-06-02T00:00:00.000Z', label: null, profileName: 'dev' },
-    // Duplicate sessionId — should be deduped keeping the newer one
-    'cortex-dup-old': { sessionId: 'sess-dup', channel: 'C001', backend: 'claude', kind: 'local', createdAt: '2025-01-01T00:00:00.000Z', lastUsedAt: '2025-01-01T00:00:00.000Z', label: 'old', profileName: null },
-    'cortex-dup-new': { sessionId: 'sess-dup', channel: 'C001', backend: 'claude', kind: 'local', createdAt: '2025-06-01T00:00:00.000Z', lastUsedAt: '2025-06-01T00:00:00.000Z', label: 'new', profileName: null },
+function nextPaths() {
+  const id = testId++;
+  const filePath = path.join(tmpDir, `session-registry-${id}.jsonl`);
+  return {
+    filePath,
+    legacyPath: filePath.replace(/\.jsonl$/, '.json'),
+    backupPath: filePath.replace(/\.jsonl$/, '.json.bak'),
   };
-  await fs.writeFile(filePath, JSON.stringify(oldFormat, null, 2));
+}
 
-  const repo = new SessionRegistryRepo(filePath);
-
-  // ── First read: triggers migration ──
-  const firstRead = await repo.listRecentSessions(10);
-  assert.equal(firstRead.length, 3, '4 entries → 3 after dedup (sess-dup deduped)');
-
-  // Verify re-key: getById uses sessionId key
-  const abc = await repo.getById('sess-abc');
-  assert.ok(abc !== null);
-  assert.equal(abc.name, 'cortex-abc', 'name preserved from old key');
-  assert.equal(abc.sessionId, 'sess-abc');
-  assert.equal(abc.projectId, 'general', 'projectId defaulted to general (no channel-registry)');
-  assert.equal(abc.channel, 'C001');
-
-  // Verify dedup: kept the newer entry
-  const dup = await repo.getById('sess-dup');
-  assert.ok(dup !== null);
-  assert.equal(dup.name, 'cortex-dup-new', 'kept newer entry name');
-  assert.equal(dup.label, 'new', 'kept newer entry fields');
-
-  // ── Second read: idempotent — no duplicate entries ──
-  const secondRead = await repo.listRecentSessions(10);
-  assert.equal(secondRead.length, 3, 'second read produces same count (idempotent)');
-
-  // Verify individual records match
-  const abc2 = await repo.getById('sess-abc');
-  assert.deepEqual(abc2, abc);
-});
-
-// ── Test 2: registerSession projectId defaults ────────────────
-
-test('sessionStore - registerSession defaults projectId to general when omitted or undefined', async () => {
-  const idx = _testIdx++;
-  const filePath = path.join(tmpDir, `session-registry-${idx}.json`);
-  const repo = new SessionRegistryRepo(filePath);
-
-  // No projectId passed — should default to 'general'
-  await repo.registerSession('cortex-noproj', {
-    sessionId: 'sess-noproj',
+function oldRecord(sessionId: string, extra: Record<string, unknown> = {}) {
+  return {
+    sessionId,
     channel: 'C001',
     backend: 'claude',
     kind: 'local',
-  });
+    createdAt: '2025-01-01T00:00:00.000Z',
+    lastUsedAt: '2025-06-01T00:00:00.000Z',
+    label: null,
+    profileName: null,
+    ...extra,
+  };
+}
 
-  const record = await repo.getById('sess-noproj');
-  assert.ok(record !== null);
-  assert.equal(record.projectId, 'general', 'projectId should default to general when omitted');
+async function readMaybe(filePath: string): Promise<string | null> {
+  try {
+    return await fs.readFile(filePath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+}
 
-  // Explicit undefined projectId — should also default to 'general'
-  await repo.registerSession('cortex-undef', {
-    sessionId: 'sess-undef',
+function liveSession(id: string, name: string): Session {
+  return {
+    name,
+    sessionId: id,
+    projectId: 'proj',
     channel: 'C001',
     backend: 'claude',
     kind: 'local',
-    projectId: undefined,
-  });
+    origin: 'direct',
+    createdAt: '2025-01-01T00:00:00.000Z',
+    lastUsedAt: '2025-01-01T00:00:00.000Z',
+    label: null,
+    profileName: null,
+    backendSessionId: null,
+    scheduleId: null,
+  };
+}
 
-  const record2 = await repo.getById('sess-undef');
-  assert.ok(record2 !== null);
-  assert.equal(record2.projectId, 'general', 'explicit undefined projectId should default to general');
+test('session store migrates legacy JSON into temp JSONL and keeps a backup', async () => {
+  const { filePath, legacyPath, backupPath } = nextPaths();
+  await fs.writeFile(legacyPath, JSON.stringify({
+    'cortex-a': oldRecord('sess-a'),
+    'cortex-b': oldRecord('sess-b', { kind: 'scheduled' }),
+  }, null, 2));
+
+  const repo = new SessionRegistryRepo(filePath);
+  const sessions = await repo.listRecentSessions(10);
+
+  assert.deepEqual(new Set(sessions.map(session => session.sessionId)), new Set(['sess-a', 'sess-b']));
+  assert.equal((await repo.getById('sess-a'))?.name, 'cortex-a');
+  assert.equal((await repo.getById('sess-b'))?.origin, 'scheduled');
+  assert.equal(await fs.readFile(backupPath, 'utf8'), await fs.readFile(legacyPath, 'utf8'));
+  assert.ok((await fs.readFile(filePath, 'utf8')).includes('"op":"put"'));
 });
 
-// ── Test 3: registerSession persists projectId to disk ─────────
+test('session store migration does not overwrite a conflicting legacy backup path', async () => {
+  const { filePath, legacyPath, backupPath } = nextPaths();
+  await fs.writeFile(legacyPath, JSON.stringify({ 'cortex-a': oldRecord('sess-a') }, null, 2));
+  await fs.writeFile(backupPath, 'keep-existing-backup\n');
 
-test('sessionStore - registerSession persists projectId to disk', async () => {
-  const idx = _testIdx++;
-  const filePath = path.join(tmpDir, `session-registry-${idx}.json`);
   const repo = new SessionRegistryRepo(filePath);
+  await repo.listRecentSessions(10);
 
-  await repo.registerSession('cortex-proj', {
-    sessionId: 'sess-proj',
-    channel: 'C001',
-    backend: 'claude',
-    kind: 'local',
-    projectId: 'my-project',
-  });
-
-  // Read the file directly from disk
-  const raw = await fs.readFile(filePath, 'utf8');
-  const data = JSON.parse(raw);
-  assert.ok(data['sess-proj'] !== undefined, 'session should exist in persisted JSON');
-  assert.equal(data['sess-proj'].projectId, 'my-project', 'projectId should be persisted to disk');
-  assert.equal(data['sess-proj'].name, 'cortex-proj', 'name should be persisted');
+  assert.equal(await fs.readFile(backupPath, 'utf8'), 'keep-existing-backup\n');
+  const backups = (await fs.readdir(path.dirname(filePath)))
+    .filter(name => name.startsWith(path.basename(backupPath)));
+  assert.ok(backups.length >= 2, `expected conflict-safe backup copy, got ${backups.join(', ')}`);
 });
 
-// ── Test 4: GC eligibility — referenced sessions survive ───────
+test('session store migration fails closed for malformed legacy shapes and never writes partial jsonl or backup', async () => {
+  const badCases: Array<{ label: string; raw: unknown; message: RegExp }> = [
+    { label: 'top-level array', raw: [], message: /legacy|object|format/i },
+    { label: 'entry not object', raw: { 'cortex-a': 'nope' }, message: /legacy|object/i },
+    { label: 'missing sessionId', raw: { 'cortex-a': { channel: 'C001', backend: 'claude', kind: 'local', createdAt: '2025-01-01T00:00:00.000Z', lastUsedAt: '2025-01-01T00:00:00.000Z' } }, message: /string field|sessionid|unrecognizable/i },
+    { label: 'new-format key mismatch', raw: { 'sess-a': { ...liveSession('sess-b', 'cortex-a') } }, message: /id mismatch/i },
+    { label: 'new-format duplicate names', raw: { 'sess-a': { ...liveSession('sess-a', 'cortex-dup') }, 'sess-b': { ...liveSession('sess-b', 'cortex-dup') } }, message: /duplicate live session name/i },
+    { label: 'unrecognizable mixed format', raw: { 'cortex-old': oldRecord('sess-old'), 'sess-new': { ...liveSession('sess-new', 'cortex-new') } }, message: /invalid session registry|string field|format/i },
+  ];
 
-test('sessionStore - pruneStale keeps expired sessions referenced by executionRepo or threadStore', async () => {
-  const idx = _testIdx++;
-  const filePath = path.join(tmpDir, `session-registry-${idx}.json`);
+  for (const badCase of badCases) {
+    const { filePath, legacyPath, backupPath } = nextPaths();
+    await fs.writeFile(legacyPath, JSON.stringify(badCase.raw, null, 2));
+
+    const repo = new SessionRegistryRepo(filePath);
+    await assert.rejects(repo.listRecentSessions(10), badCase.message, badCase.label);
+    assert.equal(await readMaybe(filePath), null, `${badCase.label}: jsonl must not be written`);
+    assert.equal(await readMaybe(backupPath), null, `${badCase.label}: backup must not be written`);
+  }
+});
+
+// Known-legal legacy semantics: multiple names may point at the same sessionId; migration keeps the
+// most recent lastUsedAt record.
+test('session store migration dedups old-format duplicate session ids by latest lastUsedAt', async () => {
+  const { filePath, legacyPath } = nextPaths();
+  await fs.writeFile(legacyPath, JSON.stringify({
+    'cortex-old': oldRecord('sess-a', { lastUsedAt: '2025-01-01T00:00:00.000Z' }),
+    'cortex-new': oldRecord('sess-a', { lastUsedAt: '2025-06-01T00:00:00.000Z' }),
+  }, null, 2));
+
   const repo = new SessionRegistryRepo(filePath);
+  const sessions = await repo.listRecentSessions(10);
 
-  // Register 4 sessions
+  assert.deepEqual(sessions.map((session) => session.name), ['cortex-new']);
+  assert.equal((await repo.getById('sess-a'))?.lastUsedAt, '2025-06-01T00:00:00.000Z');
+});
+
+test('session store old-format migration backfills projectId from reverse channel map without sync fs io', async () => {
+  const { filePath, legacyPath } = nextPaths();
+  const channelRegistryPath = path.join(STORE_DIR, 'channel-registry.json');
+  const priorChannelRegistry = await readMaybe(channelRegistryPath);
+  await fs.mkdir(STORE_DIR, { recursive: true });
+  await fs.writeFile(channelRegistryPath, JSON.stringify({ projMapped: 'C001' }, null, 2));
+  await fs.writeFile(legacyPath, JSON.stringify({ 'cortex-a': oldRecord('sess-a') }, null, 2));
+
+  try {
+    const repo = new SessionRegistryRepo(filePath);
+    const sessions = await repo.listRecentSessions(10);
+    assert.equal(sessions[0]?.projectId, 'projMapped');
+    assert.equal((await repo.getById('sess-a'))?.projectId, 'projMapped');
+
+    const source = await fs.readFile(new URL('../../src/store/session-registry-journal.ts', import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /\breadFileSync\b|\breaddirSync\b|\bstatSync\b|\bwriteFileSync\b/);
+  } finally {
+    if (priorChannelRegistry === null) await fs.rm(channelRegistryPath, { force: true });
+    else await fs.writeFile(channelRegistryPath, priorChannelRegistry);
+  }
+});
+test('session store rejects empty JSONL when a non-empty legacy JSON still exists', async () => {
+  const { filePath, legacyPath } = nextPaths();
+  await fs.writeFile(filePath, '');
+  await fs.writeFile(legacyPath, JSON.stringify({ 'cortex-a': oldRecord('sess-a') }, null, 2));
+
+  const repo = new SessionRegistryRepo(filePath);
+  await assert.rejects(repo.listRecentSessions(10), /empty jsonl.*legacy/i);
+});
+
+test('session store treats existing JSONL as authoritative when JSONL and legacy JSON coexist', async () => {
+  const { filePath, legacyPath } = nextPaths();
+  await fs.writeFile(filePath, `${JSON.stringify({
+    v: 1, op: 'put', id: 'sess-jsonl', record: liveSession('sess-jsonl', 'cortex-jsonl'),
+  })}\n`);
+  await fs.writeFile(legacyPath, JSON.stringify({ 'cortex-legacy': oldRecord('sess-legacy') }, null, 2));
+
+  const repo = new SessionRegistryRepo(filePath);
+  const sessions = await repo.listRecentSessions(10);
+  assert.deepEqual(sessions.map(session => session.sessionId), ['sess-jsonl']);
+  assert.equal(await repo.getById('sess-legacy'), null);
+});
+
+test('session store does not fall back to legacy JSON when JSONL exists but is malformed', async () => {
+  const { filePath, legacyPath } = nextPaths();
+  await fs.writeFile(filePath, '{bad json}\n');
+  await fs.writeFile(legacyPath, JSON.stringify({ 'cortex-legacy': oldRecord('sess-legacy') }, null, 2));
+
+  const repo = new SessionRegistryRepo(filePath);
+  await assert.rejects(repo.listRecentSessions(10), /malformed/i);
+  await assert.rejects(repo.registerSession('cortex-new', {
+    sessionId: 'sess-new', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'proj',
+  }), /malformed/i);
+  assert.equal(await fs.readFile(filePath, 'utf8'), '{bad json}\n');
+});
+
+test('session store pruneStale returns committed deletions and preserves referenced sessions', async () => {
+  const { filePath } = nextPaths();
+  const repo = new SessionRegistryRepo(filePath);
   await repo.registerSession('cortex-exec-ref', {
-    sessionId: 'sess-exec-ref', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'p1',
+    sessionId: 'sess-exec-ref', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'proj',
   });
   await repo.registerSession('cortex-thread-ref', {
-    sessionId: 'sess-thread-ref', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'p1',
+    sessionId: 'sess-thread-ref', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'proj',
   });
   await repo.registerSession('cortex-unref', {
-    sessionId: 'sess-unref', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'p1',
+    sessionId: 'sess-unref', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'proj',
   });
-  await repo.registerSession('cortex-fresh', {
-    sessionId: 'sess-fresh', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'p1',
+  await repo.registerSession('cortex-invalid-date', {
+    sessionId: 'sess-invalid-date', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'proj',
   });
+  await repo.updateSession('cortex-exec-ref', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.updateSession('cortex-thread-ref', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.updateSession('cortex-unref', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.updateSession('cortex-invalid-date', { lastUsedAt: 'not-a-date' });
 
-  // Backdate 3 sessions to be stale (30 days old)
-  const registry = await (repo as any)._repo.read();
-  registry['sess-exec-ref'].lastUsedAt = new Date(Date.now() - 86_400_000 * 30).toISOString();
-  registry['sess-thread-ref'].lastUsedAt = new Date(Date.now() - 86_400_000 * 30).toISOString();
-  registry['sess-unref'].lastUsedAt = new Date(Date.now() - 86_400_000 * 30).toISOString();
-  await (repo as any)._repo.write(registry);
-  repo.invalidate();
-
-  // Seed executionRepo with a reference to sess-exec-ref
-  executionRepo.startLocalExecution({ sessionId: 'sess-exec-ref', channel: 'C001', project: 'p1' });
-
-  // Seed threadStore with a reference to sess-thread-ref (via agents[].sessionId)
+  executionRepo.startLocalExecution({ sessionId: 'sess-exec-ref', channel: 'C001', project: 'proj' });
   const threadRecord: ThreadRecord = {
     id: 'thr_gc_test',
     templateName: null,
     status: 'running',
     channel: 'C001',
-    projectId: 'p1',
+    projectId: 'proj',
     platformThreadId: null,
     userMessage: 'test',
-    userMessageTs: Date.now().toString(),
-    workspacePath: '/tmp/test-workspace',
-    artifactPath: '/tmp/test-workspace/artifact.md',
+    userMessageTs: '1',
+    workspacePath: '/tmp/workspace',
+    artifactPath: '/tmp/workspace/artifact.md',
     agents: {
       agent1: {
-        slotId: 'agent1',
-        profile: 'default',
-        sessionId: 'sess-thread-ref',
-        sessionName: null,
-        status: 'completed',
-        lastOutput: null,
-        persistSession: false,
+        slotId: 'agent1', profile: 'default', sessionId: 'sess-thread-ref', sessionName: null,
+        status: 'completed', lastOutput: null, persistSession: false,
       },
     },
     activeAgent: 'agent1',
@@ -191,30 +246,35 @@ test('sessionStore - pruneStale keeps expired sessions referenced by executionRe
     steps: [],
     iterationCounts: {},
     totalCostUsd: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z',
     endedAt: null,
     error: null,
     abortReason: null,
   };
   await threadStore.set(threadRecord);
 
-  // Prune with 7-day TTL — should remove only sess-unref
   const removed = await repo.pruneStale(86_400_000 * 7);
-  assert.equal(removed, 1, 'only 1 unreferenced stale session should be removed');
+  assert.equal(removed, 1);
+  assert.ok(await repo.getById('sess-exec-ref'));
+  assert.ok(await repo.getById('sess-thread-ref'));
+  assert.ok(await repo.getById('sess-invalid-date'));
+  assert.equal(await repo.getById('sess-unref'), null);
+});
 
-  // Referenced sessions survive pruning
-  const execRef = await repo.getById('sess-exec-ref');
-  assert.ok(execRef !== null, 'executionRepo-referenced session should survive pruning');
+test('session store replacement failure cleans temporary files', async () => {
+  const targetDir = path.join(tmpDir, `session-registry-dir-${testId++}`);
+  await fs.mkdir(targetDir, { recursive: true });
 
-  const threadRef = await repo.getById('sess-thread-ref');
-  assert.ok(threadRef !== null, 'threadStore-referenced session should survive pruning');
+  await assert.rejects(() => compactSessionRegistry(targetDir, {
+    live: new Map([['sess-a', liveSession('sess-a', 'cortex-a')]]),
+    pending: new Map(),
+    nameIndex: new Map([['cortex-a', 'sess-a']]),
+    eventCount: 1,
+    fileSize: 0,
+  }), /directory|dir|eisdir|eperm|access/i);
 
-  // Unreferenced stale session is removed
-  const unref = await repo.getById('sess-unref');
-  assert.equal(unref, null, 'unreferenced stale session should be removed');
-
-  // Fresh session survives
-  const fresh = await repo.getById('sess-fresh');
-  assert.ok(fresh !== null, 'fresh session should survive');
+  const leftovers = (await fs.readdir(path.dirname(targetDir)))
+    .filter(name => name.startsWith(`${path.basename(targetDir)}.tmp.`));
+  assert.deepEqual(leftovers, []);
 });

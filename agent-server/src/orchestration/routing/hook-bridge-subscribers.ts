@@ -33,10 +33,9 @@ export function registerHookBridgeSubscribers(
       // the create() publishes session.interaction and the frontend renders the card
       // from the transcript (web-interactions-redesign).
       if (ev.channel.startsWith('web:')) {
-        const webSessionId = ev.channel.slice(4);
         await interactions.create({
           id: ev.requestId,
-          sessionId: webSessionId,
+          sessionId: ev.sessionId,
           channel: ev.channel,
           kind: 'ask-user',
           payload: {
@@ -96,11 +95,10 @@ export function registerHookBridgeSubscribers(
       // Web UI: persist the interaction entity with a FULL plan-content snapshot (no
       // PlatformAdapter for web: conduits). planApprovals stays the live resolver map.
       if (ev.channel.startsWith('web:')) {
-        const webSessionId = ev.channel.slice(4);
-        planApprovals.register(ev.requestId, { channel: ev.channel, sessionId: webSessionId, extensionUiId: ev.extensionUiId ?? null, threadId: ev.threadId ?? null });
+        planApprovals.register(ev.requestId, { channel: ev.channel, sessionId: ev.sessionId, extensionUiId: ev.extensionUiId ?? null, threadId: ev.threadId ?? null });
         await interactions.create({
           id: ev.requestId,
-          sessionId: webSessionId,
+          sessionId: ev.sessionId,
           channel: ev.channel,
           kind: 'plan-approval',
           payload: {

@@ -1,6 +1,6 @@
 // input:  sessions.json + JsonRepository
-// output: SessionRepo (async getSessionAsync / setSessionAsync / deleteSessionAsync)
-// pos:    Session persistence layer. Based on JsonRepository abstraction, AsyncMutex serializes reads/writes of sessions.json.
+// output: SessionRepo class and sessionRepo singleton
+// pos:    Channel binding store for stable track session ids
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
@@ -56,12 +56,16 @@ function removeLegacyKey(sessions: SessionsData, channel: string): void {
   }
 }
 
-class SessionRepo {
-  private _repo = new JsonRepository<SessionsData>({
-    filePath: SESSIONS_FILE,
-    defaultValue: () => ({}),
-    migrate: (raw) => (typeof raw === 'object' && raw !== null ? (raw as SessionsData) : ({})),
-  });
+export class SessionRepo {
+  private _repo: JsonRepository<SessionsData>;
+
+  constructor(filePath: string = SESSIONS_FILE) {
+    this._repo = new JsonRepository<SessionsData>({
+      filePath,
+      defaultValue: () => ({}),
+      migrate: (raw) => (typeof raw === 'object' && raw !== null ? (raw as SessionsData) : ({})),
+    });
+  }
 
   async getSessionAsync(channel: string, backend: string): Promise<string | undefined> {
     // Try conduit providers first (TUI in-memory state, etc.)
@@ -85,6 +89,33 @@ class SessionRepo {
       delete sessions[sessionKey(backend, channel)];
       removeLegacyKey(sessions, channel);
       return { next: sessions, result: undefined };
+    });
+  }
+
+  async deleteManyBySessionIds(sessionIds: Iterable<string>): Promise<number> {
+    const targets = new Set(sessionIds);
+    if (targets.size === 0) return 0;
+    return this._repo.mutate((sessions) => {
+      let removed = 0;
+      for (const [key, value] of Object.entries(sessions)) {
+        if (!targets.has(value)) continue;
+        delete sessions[key];
+        removed += 1;
+      }
+      return { next: sessions, result: removed };
+    });
+  }
+
+  async deleteExceptSessionIds(sessionIds: Iterable<string>): Promise<number> {
+    const live = new Set(sessionIds);
+    return this._repo.mutate((sessions) => {
+      let removed = 0;
+      for (const [key, value] of Object.entries(sessions)) {
+        if (live.has(value)) continue;
+        delete sessions[key];
+        removed += 1;
+      }
+      return { next: sessions, result: removed };
     });
   }
 

@@ -15,8 +15,8 @@ Panels read snapshots; accounts, budget, runtime, profiles, hooks, templates, an
 | custom-provider-vm.ts | vm | Validates custom provider drafts and builds mutation args |
 | custom-provider-vm.test.ts | test | Unit tests for the custom provider view model |
 | AuthLoginEntry.test.tsx | test | Tests shell, login, and save placement |
-| RuntimeSettingsPanels.tsx | view | Edits runtime switches and job cadence selections |
-| RuntimeSettingsPanels.test.tsx | test | Tests runtime selections, control sizing and production writes |
+| RuntimeSettingsPanels.tsx | view | Edits runtime switches, retention days, and job cadence selections |
+| RuntimeSettingsPanels.test.tsx | test | Tests runtime selections, retention writes, control sizing and production writes |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |
 | BudgetPanel.tsx | view | Writes global and per-project daily/monthly spend limits |
 | budget-vm.ts | vm | Resolves budget scope and builds chips, payload and spend bar |
@@ -39,8 +39,8 @@ Panels read snapshots; accounts, budget, runtime, profiles, hooks, templates, an
 | PluginsPanel.container.test.tsx | test | Covers mounted query and native controls |
 | plugins-panel-vm.ts | vm | Syncs drafts and detects conflicts |
 | plugins-panel-vm.test.ts | test | Covers plugin VM conflict rules |
-| platform-env.ts | vm | Defines env indexes, settings, and durations |
-| platform-env.test.ts | test | Tests env redaction, settings, and durations |
+| platform-env.ts | vm | Defines env indexes, writable settings, and durations |
+| platform-env.test.ts | test | Tests env redaction, writable settings, and durations |
 | settings-nav.ts | vm | Lists settings sections and descriptions |
 | settings-ui.tsx | view | Shared native controls and cards |
 | settings-ui.test.tsx | test | Covers shared control semantics |

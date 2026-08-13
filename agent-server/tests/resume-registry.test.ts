@@ -40,6 +40,23 @@ test('recordResume dedupes direct entries by channel (latest wins)', async (t) =
   assert.equal((all[0] as any).userMessage, 'second');
 });
 
+test('init backfills and persists stable ids for legacy direct resumes before liveness reads them', async (t) => {
+  const mod = await freshModuleWithCleanup(t);
+  const persistence = makePersistenceStub([
+    { kind: 'direct', channel: 'legacy', userMessage: 'legacy', recordedAt: 1 },
+    { kind: 'direct', channel: 'tracked', trackSessionId: 'track-1', userMessage: 'tracked', recordedAt: 2 },
+    { kind: 'thread', threadId: 'thr-a', channel: 'thread', userMessage: 'thread', recordedAt: 3 },
+  ]);
+  await mod.initResumeRegistry(
+    persistence as any,
+    undefined,
+    async entry => entry.channel === 'legacy' ? 'track-legacy' : null,
+  );
+
+  assert.deepEqual(new Set(mod.pendingDirectTrackSessionIds()), new Set(['track-legacy', 'track-1']));
+  assert.equal(persistence.getSaved()[0].trackSessionId, 'track-legacy');
+});
+
 test('recordResume keeps multiple thread entries by threadId', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   await mod.initResumeRegistry(makePersistenceStub() as any);

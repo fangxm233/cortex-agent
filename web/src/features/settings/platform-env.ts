@@ -6,6 +6,8 @@
 import type { ConfigEnvEntry, ConfigSettingEntry } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
+export const MAX_SESSION_RETENTION_DAYS = Math.floor(Number.MAX_SAFE_INTEGER / 86_400_000);
+
 // Pure helpers for the redacted .env view (Platform / Notifications / Advanced panels).
 // SECURITY: config.get NEVER returns a .env value — only { key, present, masked }. These helpers
 // therefore only ever surface the fixed mask or an em dash; no cleartext can be reconstructed.
@@ -86,12 +88,15 @@ export const WRITABLE_INTERVAL_SETTING_KEYS = [
   'taskArchiveIntervalMs',
   'memoryIndexRegenIntervalMs',
 ] as const;
+export const WRITABLE_NUMBER_SETTING_KEYS = ['sessionRetentionDays'] as const;
 export const WRITABLE_SETTING_KEYS = [
   ...WRITABLE_BOOLEAN_SETTING_KEYS,
   ...WRITABLE_INTERVAL_SETTING_KEYS,
+  ...WRITABLE_NUMBER_SETTING_KEYS,
 ] as const;
 export type WritableBooleanSettingKey = (typeof WRITABLE_BOOLEAN_SETTING_KEYS)[number];
 export type WritableIntervalSettingKey = (typeof WRITABLE_INTERVAL_SETTING_KEYS)[number];
+export type WritableNumberSettingKey = (typeof WRITABLE_NUMBER_SETTING_KEYS)[number];
 export type WritableSettingKey = (typeof WRITABLE_SETTING_KEYS)[number];
 
 export interface SettingToggleDescriptor {
@@ -145,6 +150,20 @@ export const ADVANCED_FLAGS: AdvancedFlag[] = [
     setting: 'serverUpdateDisable',
     titleKey: 'stAdvDisableUpdateTitle',
     descKey: 'stAdvDisableUpdateDesc',
+  },
+];
+
+export interface NumberSettingDescriptor {
+  setting: WritableNumberSettingKey;
+  titleKey: keyof Vocab;
+  descKey: keyof Vocab;
+}
+
+export const ADVANCED_NUMBER_SETTINGS: NumberSettingDescriptor[] = [
+  {
+    setting: 'sessionRetentionDays',
+    titleKey: 'stAdvRetentionTitle',
+    descKey: 'stAdvRetentionDesc',
   },
 ];
 

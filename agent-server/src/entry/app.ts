@@ -3,6 +3,7 @@
 // pos:    Agent-server composition root
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { mkdirSync } from 'fs';
+import * as os from 'node:os';
 import * as path from 'path';
 import { extractTuiAdapter } from '@platform/index.js';
 import type { PlatformAdapter } from '@platform/index.js';
@@ -55,11 +56,13 @@ import { setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
 
 // Extracted modules
-import { cleanupLogs, ensureMcpConfig } from './startup-helpers.js';
+import { ensureMcpConfig } from './startup-helpers.js';
 import { createLogger } from '@core/log.js';
 import { ensureAuthTokens } from '@core/auth.js';
 import { runningExecutions } from '@core/running-executions.js';
+import { getSettings, onSettingsChange } from '@core/settings.js';
 import { bgHeldSessions } from '@core/bg-held-sessions.js';
+import { buildSessionRetentionLiveness } from '@core/session-retention-liveness.js';
 import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';
@@ -76,7 +79,7 @@ import { CommandActionRouter } from '@orch/interactions/command-action-router.js
 import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
 import { registerMessageHandler } from '@orch/routing/message-router.js';
 import { initRateLimitThrottle, clearThrottle, RATE_LIMIT_CLEAR_ACTION_ID } from '@domain/costs/rate-limit-throttle.js';
-import { initResumeRegistry, getResumeCount, recordResume } from '@domain/costs/resume-registry.js';
+import { initResumeRegistry, getResumeCount, pendingDirectTrackSessionIds, recordResume } from '@domain/costs/resume-registry.js';
 import {
   dispatchPendingResumes,
   registerResumeWakeOnAgentSettle,
@@ -92,8 +95,10 @@ import { syncManagedPlugins } from '@store/plugin-sync.js';
 import { costRepo } from '@store/cost-repo.js';
 import { PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
-import { cleanupAllBackups } from '@domain/sessions/session-backup.js';
+import { retentionCandidateRepo } from '@store/retention-candidate-repo.js';
 import { createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
+import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
+import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
 import { isSessionCompactionSupported, resolveBackendForChannel, switchChannelProfile } from '@domain/agents/index.js';
 import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
@@ -104,6 +109,7 @@ import { startDispatchReconciler } from '@orch/dispatch-reconciler.js';
 import { ensurePIAgentDirs } from '../agent-adapter/pi/agent-dir.js';
 import { initOutboundQueue, getOutboundQueue } from '@store/outbound-queue.js';
 import { createUiService } from '@domain/ui-service/index.js';
+import { activeClaudeCaptureRegistry } from '../agent-adapter/claude/active-capture-registry.js';
 import { sendWebUserMessage } from '../orchestration/session-send.js';
 import { rewindWebSession } from '../orchestration/session-rewind.js';
 import { compactActiveSessionContext, compactSessionContext } from '../orchestration/session-compact.js';
@@ -113,6 +119,7 @@ import { enqueue, conduitQueues } from '@orch/conduit-queue.js';
 import { getCostSummary } from '@domain/costs/cost-tracker.js';
 import { initAuthEvents } from '@domain/auth/auth-events.js';
 import { registerAuthWatch } from '@domain/auth/auth-watch.js';
+import { createSessionRetentionController } from '@orch/session-retention-controller.js';
 
 loadRuntimeDotenv(path.join(CONFIG_DIR, '.env'));
 await migrateEnvToSettings();
@@ -133,6 +140,45 @@ configureEnvForMode(loadMode());
 setLocale(process.env.CORTEX_LANG ? normalizeLocale(process.env.CORTEX_LANG) : loadLang());
 
 const log = createLogger('app');
+
+function retentionLiveness(): RetentionLivenessSnapshot {
+  return buildSessionRetentionLiveness({
+    runningExecutions,
+    bgHeldSessions,
+    interactionRecords,
+    pendingDirectResumeSessionIds: pendingDirectTrackSessionIds(),
+    threads: threadStore.getAll(),
+    activeClaudeCapturePaths: activeClaudeCaptureRegistry.listPaths(),
+    activeClaudeCapturePairs: activeClaudeCaptureRegistry.listPairs(),
+  });
+}
+
+async function runRetentionSweep(retentionDays: number): Promise<void> {
+  const result = await runSessionRetentionSweep({
+    retentionDays,
+    registry: sessionStore,
+    sessionRepo,
+    ledgerRepo: conversationLedger,
+    historyRepo: conversationHistory,
+    candidateRepo: retentionCandidateRepo,
+    liveness: retentionLiveness(),
+    paths: {
+      historyDir: path.join(STORE_DIR, 'conversation-history'),
+      piSessionsDir: path.join(DATA_DIR, 'logs', 'sessions-pi'),
+      claudeCaptureDir: path.join(DATA_DIR, 'logs', 'sessions'),
+      claudeProjectDir: path.join(os.homedir(), '.claude', 'projects', DATA_DIR.replace(/[\/.]/g, '-')),
+    },
+    syncClaudeUserCleanupPeriodDays,
+  });
+  log.info(`Retention sweep: registry=${result.registryCommitted} history=${result.historyOrphanDeleted} pi=${result.piOrphanDeleted} capture=${result.claudeCaptureDeleted} errors=${result.errors.length}`);
+}
+
+const retentionController = createSessionRetentionController({
+  getRetentionDays: () => getSettings().sessionRetentionDays,
+  onSettingsChange,
+  runSweep: runRetentionSweep,
+  onError: (error) => log.error(`Retention sweep failed: ${error.message}`),
+});
 
 function initConfiguredHooks(): void {
   let entries: HookEntry[] = [];
@@ -329,6 +375,7 @@ process.on('SIGTERM', async () => {
     reason: 'SIGTERM',
   }).catch(() => {});
   await stopBuiltinJobs();
+  await retentionController.stop().catch(() => {});
   closeAllSessions(); closeAllAdapters().catch(() => {}); stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
   await _uiHttpServer?.close().catch(() => {});
   stopDiskMonitor();
@@ -348,7 +395,6 @@ process.on('SIGTERM', async () => {
 
 // --- Start ---
 (async () => {
-  cleanupLogs();
   ensureMcpConfig();
   // Migrate old aistatus config from wrong location (CORTEX_HOME/config) to correct location (~/.aistatus)
   await migrateAistatusConfigLocation(DATA_DIR);
@@ -598,7 +644,11 @@ process.on('SIGTERM', async () => {
   await initResumeRegistry({
     save: (entries) => providerStateRepo.setResumeQueue(entries),
     load: () => providerStateRepo.getResumeQueue(),
-  }, () => { bus.publish({ type: 'rate-limit.changed' }); });
+  }, () => { bus.publish({ type: 'rate-limit.changed' }); }, async (entry) => {
+    const backend = resolveBackendForChannel(entry.channel);
+    const bound = await sessionRepo.getSessionAsync(entry.channel, backend);
+    return bound && await sessionStore.getById(bound) ? bound : null;
+  });
   let reQueuedRateLimited = 0;
   for (const t of threadStore.getAll()) {
     if (t.status === 'rate_limited') {
@@ -635,17 +685,10 @@ process.on('SIGTERM', async () => {
   });
   if (getResumeCount() > 0) {
     log.info(`Startup: evaluating ${getResumeCount()} pending provider resume(s)`);
-    void dispatchPendingResumes(adapter);
+    await dispatchPendingResumes(adapter);
   }
 
-  // GC: prune stale sessions (older than 7 days, unreferenced by running executions or active threads)
-  sessionStore.setOnPruneSession(cleanupAllBackups);
-  try {
-    const pruned = await sessionStore.pruneStale(7 * 24 * 60 * 60 * 1000);
-    if (pruned > 0) log.info(`Startup GC: pruned ${pruned} stale session(s)`);
-  } catch (e) {
-    log.warn(`Startup GC: pruneStale failed: ${(e as Error).message}`);
-  }
+  await retentionController.start();
 
   // M1: Initialize project registry (scaffolds general/, scans PROJECTS_DIR, starts fs.watch watcher)
   await projectStore.initialize();
@@ -695,17 +738,6 @@ process.on('SIGTERM', async () => {
       await scheduler.resume(t.id);
     }
   }
-
-  // Periodic GC for stale sessions (every 6 hours)
-  const PRUNE_STALE_INTERVAL = 6 * 60 * 60 * 1000;
-  setInterval(async () => {
-    try {
-      const removed = await sessionStore.pruneStale(7 * 24 * 60 * 60 * 1000);
-      if (removed > 0) log.info(`Periodic GC: pruned ${removed} stale session(s)`);
-    } catch (e) {
-      log.error(`Periodic GC: pruneStale failed: ${(e as Error).message}`);
-    }
-  }, PRUNE_STALE_INTERVAL);
 
   // Daily store archival: move week-old terminal execution/thread records to data/archive/*.jsonl.
   // Keeps the hot stores small — their full-map sync stringify on every persist is the main

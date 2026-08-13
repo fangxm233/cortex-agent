@@ -66,7 +66,7 @@ All write operations are serialized through `AsyncMutex` to prevent corruption f
 | `thread-repo.ts` | `ThreadRepo` — in-memory `Map<string, ThreadRecord>` + async persist. Queries: `findByChannel`, `findActive`, `findByPlatformThread`. Startup recovery: `markRunningAsFailedOnStartup`. Cleanup: 7-day old threads (24h for auto-records) |
 | `session-repo.ts` | `SessionRepo` — `Record<string, string>` mapping `backend:channel → sessionId` |
 | `conversation-ledger-repo.ts` | Per-channel turn tracking: `initConversation`, `beginTurn`, `addResponseTs`, `completeTurn`, `rollbackTo` |
-| `session-registry-repo.ts` | `cortex-XXXX` short name registry. `generateSessionName`, `registerSession`, `lookupSession` |
+| `session-registry-repo.ts` | JSONL-backed `cortex-XXXX` short-name registry. Replays an append-only journal, admits sessions, writes `delete-intent`/`delete-commit` guards, and compacts snapshots when the log grows |
 | `execution-repo.ts` | Pattern B repository. Full CRUD: `startLocalExecution`, `registerDispatchExecution`, `completeExecution`, `failExecution`. Async stale detection via `reconcileStaleDispatches` |
 | `channel-repo.ts` | `projectName → channelId` mapping |
 | `project-dir-repo.ts` | `projectName → machineName → dirPath` with reverse channel lookup |
@@ -206,7 +206,7 @@ The EventBus is wired in `app.ts` via a singleton-then-inject pattern. Component
 
 ## State Storage
 
-Cortex stores all state on the filesystem under `~/.cortex/`. There is no database — everything is JSON files with atomic writes (`tmp + rename`).
+Cortex stores all state on the filesystem under `~/.cortex/`. There is no database — everything is JSON or JSONL on disk, with the session registry and history paths intentionally append-oriented.
 
 | Path | Purpose |
 |------|---------|
@@ -214,12 +214,21 @@ Cortex stores all state on the filesystem under `~/.cortex/`. There is no databa
 | `profiles.json` | Named agent profile list |
 | `schedules.json` | Persistent scheduled task list |
 | `sessions.json` | Channel-to-agent session mapping |
+| `session-registry.jsonl` | Append-only compact JSONL session registry journal. Each line is a full-record `put`, `delete-intent`, or `delete-commit` event; startup replays the stream to rebuild live and pending state |
+| `retention-candidates.json` | Two-sweep orphan retention candidates for history and PI cleanup |
+| `conversation-history/` | Per-session transcript/history JSONL keyed by stable Cortex session id |
 | `executions.json` | Unified execution registry |
 | `config/thread-templates/` | Agent definitions and orchestration templates — one JSON file per entity under `agents/`, `templates/`, `shells/` |
 | `threads.json` | Active and historical thread state |
 | `tasks/` | Project task queues (TASKS.yaml per project) |
 | `costs.jsonl` | Per-call cost records (90-day rolling) |
-| `logs/` | Daemon and LLM logs |
+| `logs/sessions/` | Claude capture logs used for retention protection/cleanup |
+| `logs/sessions-pi/` | PI transcript bundles keyed by backend session id |
+| `logs/` | Daemon and backend logs |
+
+The session registry is no longer a single mutable JSON blob. `session-registry-journal.ts` owns an append-only JSONL file whose events carry the full session record for `put` and `delete-intent`, plus a final `delete-commit`. A delete intent also freezes the validated Claude turn-backup cleanup manifest, so a later retry does not depend on a ledger that an earlier partial cleanup already removed. Startup first migrates any legacy `session-registry.json` file into the journal, writes a backup of that legacy file, truncates any unterminated tail, and then stream-replays the journal line by line into in-memory `live` and `pending` maps. When the journal grows too large, compaction rewrites a minimal snapshot consisting of one full-record event per live session plus one `delete-intent` event per pending deletion.
+
+Session retention is coordinated separately from registry mutation. `session-retention.ts` runs at app startup and then every 6 hours via `session-retention-controller.ts`, with an immediate debounced rerun when `sessionRetentionDays` hot-reloads. Startup first awaits any ready provider-resume dispatch, and queued direct resumes retain their stable tracking id as a liveness guard. The coordinator retries pending delete commits, begins new registry delete intents for expired idle sessions, commits cleanup after session/ledger/history deletion, prunes orphan `conversation-history`, prunes orphan PI transcript bundles, prunes inactive Claude capture logs, and syncs Claude user `cleanupPeriodDays`.
 
 ## Naming Conventions
 

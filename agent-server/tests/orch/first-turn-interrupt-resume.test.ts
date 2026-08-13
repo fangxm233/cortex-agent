@@ -155,3 +155,18 @@ test('cancelChannelRuns keeps the channel bound to the stable track id', async (
   assert.equal(n, 1);
   assert.equal(await getSessionAsync('slack:C-keep', backend), 'TRACK-3');
 });
+
+test('runConversation registers both track and backend ids on the live execution handle', async () => {
+  mockRunAgent.mockReturnValueOnce(makeCancelledHandle('B-live-1'));
+  const before = new Set(runningExecutions.getAll().map((entry) => entry.registryKey));
+  const pending = runConversation(baseOpts({
+    trackSessionId: 'TRACK-LIVE',
+    backendSessionId: 'B-prev',
+    sessionName: 'cortex-live',
+  }));
+  await Promise.resolve();
+  const live = runningExecutions.getAll().find((entry) => !before.has(entry.registryKey));
+  assert.equal(live?.trackSessionId, 'TRACK-LIVE');
+  assert.equal(live?.backendSessionId, 'B-live-1');
+  await expect(pending).rejects.toMatchObject({ cancelled: true });
+});

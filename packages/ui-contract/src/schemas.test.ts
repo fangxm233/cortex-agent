@@ -6,6 +6,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { queryInputSchemas, mutateInputSchemas } from './schemas.js';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const serverSchemasUrl = pathToFileURL(
+  path.resolve(import.meta.dirname, '../../../agent-server/dist/domain/ui-service/input-schemas.js'),
+).href;
+let reloadedSchemasPromise: Promise<typeof import('./schemas.js')> | null = null;
+
+async function reloadSchemas(): Promise<typeof import('./schemas.js')> {
+  if (!reloadedSchemasPromise) {
+    const imported = import(`${serverSchemasUrl}?sessionRetentionDays=${Date.now()}`);
+    reloadedSchemasPromise = imported as Promise<typeof import('./schemas.js')>;
+  }
+  return reloadedSchemasPromise;
+}
 
 const QUERY_SCOPES = [
   'projects.list', 'sessions.list', 'sessions.transcript', 'sessions.pendingInteraction', 'threads.list',
@@ -210,38 +225,50 @@ test('config.get accepts an empty object', () => {
   assert.deepEqual(queryInputSchemas['config.get'].parse({}), {});
 });
 
-test('config.set accepts valid budget / profiles sections and rejects illegal values / sections', () => {
+test('config.set accepts valid budget / profiles sections and rejects illegal values / sections', async () => {
+  const liveSchemas = await reloadSchemas();
+  const configSet = liveSchemas.mutateInputSchemas['config.set'];
   assert.deepEqual(
-    mutateInputSchemas['config.set'].parse({ section: 'budget', value: { daily_usd: 100, monthly_usd: 2000 } }),
+    configSet.parse({ section: 'budget', value: { daily_usd: 100, monthly_usd: 2000 } }),
     { section: 'budget', value: { daily_usd: 100, monthly_usd: 2000 } },
   );
   // profiles section: a non-empty defaultProfile name
   assert.deepEqual(
-    mutateInputSchemas['config.set'].parse({ section: 'profiles', value: { defaultProfile: 'plan' } }),
+    configSet.parse({ section: 'profiles', value: { defaultProfile: 'plan' } }),
     { section: 'profiles', value: { defaultProfile: 'plan' } },
   );
   const settings = {
     section: 'settings',
-    value: { turnNotify: false, taskDispatchMaxConcurrent: null, uiCorsOrigins: ['https://ui.example'] },
+    value: {
+      turnNotify: false,
+      sessionRetentionDays: 30,
+      taskDispatchMaxConcurrent: null,
+      uiCorsOrigins: ['https://ui.example'],
+    },
   };
-  assert.deepEqual(mutateInputSchemas['config.set'].parse(settings), settings);
-  assert.throws(() => mutateInputSchemas['config.set'].parse({
+  assert.deepEqual(configSet.parse(settings), settings);
+  assert.throws(() => configSet.parse({
     section: 'settings', value: { unknownSetting: true },
   }));
-  assert.throws(() => mutateInputSchemas['config.set'].parse({
+  assert.throws(() => configSet.parse({
     section: 'settings', value: { turnNotify: 'false' },
   }));
-  assert.throws(() => mutateInputSchemas['config.set'].parse({
+  assert.throws(() => configSet.parse({
     section: 'settings', value: { turnNotify: undefined },
   }));
+  for (const value of [0, 1.5, Number.MAX_SAFE_INTEGER]) {
+    assert.throws(() => configSet.parse({
+      section: 'settings', value: { sessionRetentionDays: value },
+    }));
+  }
   // negative / zero rejected
-  assert.throws(() => mutateInputSchemas['config.set'].parse({ section: 'budget', value: { daily_usd: -1, monthly_usd: 2000 } }));
+  assert.throws(() => configSet.parse({ section: 'budget', value: { daily_usd: -1, monthly_usd: 2000 } }));
   // missing field rejected
-  assert.throws(() => mutateInputSchemas['config.set'].parse({ section: 'budget', value: { daily_usd: 100 } }));
+  assert.throws(() => configSet.parse({ section: 'budget', value: { daily_usd: 100 } }));
   // profiles: empty defaultProfile rejected
-  assert.throws(() => mutateInputSchemas['config.set'].parse({ section: 'profiles', value: { defaultProfile: '' } }));
+  assert.throws(() => configSet.parse({ section: 'profiles', value: { defaultProfile: '' } }));
   // unknown section rejected
-  assert.throws(() => mutateInputSchemas['config.set'].parse({ section: 'mcp', value: {} }));
+  assert.throws(() => configSet.parse({ section: 'mcp', value: {} }));
 });
 
 test('approvals.request enforces per-kind required fields', () => {

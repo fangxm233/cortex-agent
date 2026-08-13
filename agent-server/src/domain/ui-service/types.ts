@@ -2106,6 +2106,9 @@ export interface UiServiceDeps {
     listByOrigin(origin: 'direct' | 'thread' | 'scheduled', projectId?: string): Promise<Session[]>;
     listResumable(projectId?: string): Promise<Session[]>;
     getById(sessionId: string): Promise<Session | null>;
+    /** Admission-only liveness touch for fire-and-forget send. Updates lastUsedAt and returns false
+     *  when the session is already pending deletion or missing. Optional for legacy fixtures. */
+    touchForUse?(sessionId: string): Promise<boolean>;
     /** Stamp lastReadAt=now (unread tracking; backs `sessions.markRead`). Optional so existing
      *  facade/test fixtures need not provide it (the handler no-ops when absent). */
     markRead?(sessionId: string): Promise<void>;

@@ -42,7 +42,7 @@ const log = createLogger('lifecycle');
 
 // --- Agent success handler ---
 
-export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger = 'user', sessionName = null, threadAnchorId = null, userMessageTs = null, projectId = 'general', onAssistantMessage = null, onToolUse = null, onToolResult = null, onContextUsage = null, registerContinuationSink = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; userMessage: string; executionId: string | null; trigger?: string; sessionName?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; projectId?: string; onAssistantMessage?: ((text: string) => void) | null; onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null; onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null; onContextUsage?: ((usage: ContextUsage) => void) | null; registerContinuationSink?: ((sink: ContinuationSink) => void) | null }): Promise<void> {
+export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger = 'user', sessionName = null, trackSessionId = null, threadAnchorId = null, userMessageTs = null, projectId = 'general', onAssistantMessage = null, onToolUse = null, onToolResult = null, onContextUsage = null, registerContinuationSink = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; userMessage: string; executionId: string | null; trigger?: string; sessionName?: string | null; trackSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; projectId?: string; onAssistantMessage?: ((text: string) => void) | null; onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null; onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null; onContextUsage?: ((usage: ContextUsage) => void) | null; registerContinuationSink?: ((sink: ContinuationSink) => void) | null }): Promise<void> {
   // Decoupling: `result.sessionId` is the BACKEND's own session id (Claude self-generated / PI
   // bootstrap id), not the tracking id. Store it as the resume target on the STABLE track record
   // (keyed by sessionName) — do NOT rebind the channel or the registry key to it. The channel stays
@@ -122,7 +122,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
         // Record for auto-resume when the rate-limit window resets.
         const provider = contResult.rateLimitProvider ?? result?.rateLimitProvider ?? null;
         if (isProviderRateLimited(provider)) {
-          recordResume({ kind: 'direct', provider, channel, userMessage, recordedAt: Date.now() });
+          recordResume({ kind: 'direct', provider, channel, trackSessionId, userMessage, recordedAt: Date.now() });
         }
         const { elapsedStr: fullElapsed } = computeElapsed(startTime);
         const metrics = formatMetricsSuffix({ costUsd: (result?.total_cost_usd ?? 0) + (contResult?.total_cost_usd ?? 0), numTurns: (result?.num_turns ?? 0) + (contResult?.num_turns ?? 0) });
@@ -283,7 +283,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
     finalizeLocalExecution({ executionId, status: 'failed', error: { message: 'Rate limited' }, durationS: elapsedS });
     recordResume({
       kind: 'direct', provider: error.rateLimitProvider ?? null,
-      channel, userMessage, recordedAt: Date.now(),
+      channel, trackSessionId: sessionId, userMessage, recordedAt: Date.now(),
     });
     const rateLimitText = `${Icons.warning} ${sessionTag}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
     await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
@@ -319,12 +319,19 @@ async function persistErrorSession(resolvedSessionId: string | null, sessionName
 // --- AskUserQuestion resume ---
 
 export async function resumeAskUserQuestionGroup({ adapter, group, responseText }: { adapter: PlatformAdapter; group: { channel: string; sessionId: string; groupId: string; threadId?: string | null }; responseText: string }): Promise<void> {
-  const askDest: Destination = { type: 'interactive-reply', conduit: group.channel, sessionId: group.sessionId };
-  const statusMsg = await adapter.postMessage(askDest, { text: `${Icons.processing} ${t('status.processingAskResponse')}` });
+  let sessionRelease: (() => void) | null = null;
+  let statusMsg: MessageRef | null = null;
   const startTime = Date.now();
   let executionId = null;
   let handle;
   try {
+    sessionRelease = await sessionStore.acquireSessionUse(group.sessionId);
+    if (!sessionRelease) {
+      log.warn(`AskUserQuestion resume skipped for missing or deleting session: ${group.sessionId}`);
+      return;
+    }
+    const askDest: Destination = { type: 'interactive-reply', conduit: group.channel, sessionId: group.sessionId };
+    statusMsg = await adapter.postMessage(askDest, { text: `${Icons.processing} ${t('status.processingAskResponse')}` });
     const askBackend = resolveBackendForChannel(group.channel);
     // group.sessionId is the stable track id; resolve the backend resume target + name + project
     // from its registry record. Cost/execution attribution uses the session's bound project, NOT a
@@ -345,13 +352,30 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
     const askDurable = askQueue ? buildDurableHooks(askQueue) : null;
     const onAssistantMsg = makeStreamingMessageCallback(adapter, askDest, null, null, askDurable);
     handle = runAgent(responseText, { channel: group.channel, sessionId: askBackendSessionId, trackSessionId: group.sessionId, files: [], project: askProjectId, trigger: 'ask-user-question', onAssistantMessage: onAssistantMsg });
-    runningExecutions.register({ threadId: group.threadId ?? null, channel: group.channel, agentSlotId: null, executionId, kill: () => handle.kill(), backend: askBackend });
+    runningExecutions.register({
+      threadId: group.threadId ?? null,
+      channel: group.channel,
+      agentSlotId: null,
+      executionId,
+      kill: () => handle.kill(),
+      backend: askBackend,
+      trackSessionId: group.sessionId,
+      backendSessionId: handle.sessionId ?? askBackendSessionId,
+      sessionId: handle.sessionId,
+    });
+    sessionRelease();
+    sessionRelease = null;
     const result = await handle.promise;
     runningExecutions.complete(executionId, result?.total_cost_usd ?? 0);
-    await handleAgentSuccess({ result, channel: group.channel, adapter, statusMsg, startTime, userMessage: responseText, executionId, trigger: 'ask-user-question', sessionName: askSessionName, projectId: askProjectId, onAssistantMessage: onAssistantMsg });
+    await handleAgentSuccess({ result, channel: group.channel, adapter, statusMsg, startTime, userMessage: responseText, executionId, trigger: 'ask-user-question', sessionName: askSessionName, trackSessionId: group.sessionId, projectId: askProjectId, onAssistantMessage: onAssistantMsg });
   } catch (error) {
-    await handleAgentError({ error: error as { message: string; cancelled?: boolean }, channel: group.channel, adapter, statusMsg, startTime, executionId, effectiveSessionId: handle?.sessionId });
+    if (statusMsg) {
+      await handleAgentError({ error: error as { message: string; cancelled?: boolean }, channel: group.channel, adapter, statusMsg, startTime, executionId, effectiveSessionId: handle?.sessionId });
+    } else {
+      log.error(`AskUserQuestion resume failed before status creation: ${(error as Error).message}`);
+    }
   } finally {
+    sessionRelease?.();
     askUserQuestion.deleteGroup(group.groupId);
   }
 }
@@ -406,11 +430,16 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
   });
 }
 
-async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted, retryDest, turnTrackingToken }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; projectId: string; userMessageTs: string; retryPrefix: string; onMessagePosted: (ref: MessageRef) => void; retryDest: Destination; turnTrackingToken: TurnTrackingToken }): Promise<void> {
+export async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted, retryDest, turnTrackingToken }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; projectId: string; userMessageTs: string; retryPrefix: string; onMessagePosted: (ref: MessageRef) => void; retryDest: Destination; turnTrackingToken: TurnTrackingToken }): Promise<void> {
   const agentMessage = normalizeSkillCommandPrefix(text || '');
   let executionId = null;
   let handle;
+  let sessionRelease: (() => void) | null = null;
   try {
+    if (sessionId) {
+      sessionRelease = await sessionStore.acquireSessionUse(sessionId);
+      if (!sessionRelease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
+    }
     const retryBackend = resolveBackendForChannel(channel);
     executionId = executionRegistry.startLocalExecution({
       kind: 'local', channel, project: projectId,
@@ -427,7 +456,19 @@ async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, ses
       isUserInitiated: true, onAssistantMessage: onAssistantMsg,
       onProgress: buildRetryProgressUpdater(adapter, channel, statusMsg, retryPrefix, startTime, sessionName, sessionId),
     });
-    runningExecutions.register({ threadId: null /* A5: edit-retry — threadId not yet wired; Cancel button will warn */, channel, agentSlotId: null, executionId, kill: () => handle.kill(), backend: retryBackend });
+    runningExecutions.register({
+      threadId: null /* A5: edit-retry — threadId not yet wired; Cancel button will warn */,
+      channel,
+      agentSlotId: null,
+      executionId,
+      kill: () => handle.kill(),
+      backend: retryBackend,
+      trackSessionId: sessionId,
+      backendSessionId: handle.sessionId ?? backendSessionId,
+      sessionId: handle.sessionId,
+    });
+    sessionRelease?.();
+    sessionRelease = null;
     finishTurnTracking(channel, turnTrackingToken);
     const result = await handle.promise;
     runningExecutions.complete(executionId, result?.total_cost_usd ?? 0);
@@ -438,19 +479,20 @@ async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, ses
       if (isProviderRateLimited(result.rateLimitProvider)) {
         recordResume({
           kind: 'direct', provider: result.rateLimitProvider ?? null,
-          channel, userMessage: text, recordedAt: Date.now(),
+          channel, trackSessionId: sessionId, userMessage: text, recordedAt: Date.now(),
         });
       }
       const { elapsedStr } = computeElapsed(startTime);
       const rateLimitText = `${Icons.warning} ${buildSessionTag(sessionName, sessionId)}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
       await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     } else {
-      await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage: text, executionId, trigger: 'edit-retry', sessionName, projectId, userMessageTs, onAssistantMessage: onAssistantMsg });
+      await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage: text, executionId, trigger: 'edit-retry', sessionName, trackSessionId: sessionId, projectId, userMessageTs, onAssistantMessage: onAssistantMsg });
     }
   } catch (error) {
     clearStreamingCallback(channel);
     await handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName, sessionId, effectiveSessionId: handle?.sessionId, userMessageTs });
   } finally {
+    sessionRelease?.();
     finishTurnTracking(channel, turnTrackingToken);
   }
 }

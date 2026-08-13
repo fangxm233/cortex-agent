@@ -67,7 +67,7 @@ L5  entry/         → 所有层（组合根）
 | `thread-repo.ts` | `ThreadRepo` — 内存 `Map<string, ThreadRecord>` + 异步持久化。查询：`findByChannel`、`findActive`、`findByPlatformThread`。启动恢复：`markRunningAsFailedOnStartup`。清理：7 天前的线程（auto-records 为 24 小时） |
 | `session-repo.ts` | `SessionRepo` — `Record<string, string>` 映射 `backend:channel → sessionId` |
 | `conversation-ledger-repo.ts` | 每频道轮次追踪：`initConversation`、`beginTurn`、`addResponseTs`、`completeTurn`、`rollbackTo` |
-| `session-registry-repo.ts` | `cortex-XXXX` 短名称注册表。`generateSessionName`、`registerSession`、`lookupSession` |
+| `session-registry-repo.ts` | 基于 JSONL 的 `cortex-XXXX` 短名称注册表。回放仅追加日志、接纳会话、写入 `delete-intent`/`delete-commit` 防护，并在日志膨胀后压缩快照 |
 | `execution-repo.ts` | 模式 B 仓库。完整 CRUD：`startLocalExecution`、`registerDispatchExecution`、`completeExecution`、`failExecution`。通过 `reconcileStaleDispatches` 进行异步陈旧检测 |
 | `channel-repo.ts` | `projectName → channelId` 映射 |
 | `project-dir-repo.ts` | `projectName → machineName → dirPath` 带反向频道查找 |
@@ -206,7 +206,7 @@ EventBus 通过单例-注入模式在 `app.ts` 中连接。组件在构造时没
 
 ## 状态存储 {#state-storage}
 
-Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数据库——所有内容都是带原子写入（`tmp + rename`）的 JSON 文件。
+Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数据库——所有内容都落在磁盘上的 JSON 或 JSONL 文件里，其中 session registry 和 history 路径明确采用 append-oriented 设计。
 
 | 路径 | 用途 |
 |------|---------|
@@ -214,12 +214,21 @@ Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数�
 | `profiles.json` | 命名智能体配置列表 |
 | `schedules.json` | 持久化调度任务列表 |
 | `sessions.json` | 频道到智能体会话的映射 |
+| `session-registry.jsonl` | 仅追加的紧凑 JSONL 会话注册表日志。每行都是完整记录的 `put`、`delete-intent` 或 `delete-commit` 事件；启动时通过流式回放重建 live/pending 状态 |
+| `retention-candidates.json` | history 与 PI 清理用的两轮确认孤儿候选表 |
+| `conversation-history/` | 以稳定 Cortex session id 为键的分会话 transcript/history JSONL |
 | `executions.json` | 统一执行注册表 |
 | `config/thread-templates/` | 智能体定义和编排模板——`agents/`、`templates/`、`shells/` 下每个实体一个 JSON 文件 |
 | `threads.json` | 活跃和历史线程状态 |
 | `tasks/` | 项目任务队列（每项目 TASKS.yaml） |
 | `costs.jsonl` | 每次调用的费用记录（90 天滚动） |
-| `logs/` | 守护进程和 LLM 日志 |
+| `logs/sessions/` | 保留保护/清理使用的 Claude capture 日志 |
+| `logs/sessions-pi/` | 以 backend session id 归组的 PI transcript bundle |
+| `logs/` | 守护进程和后端日志 |
+
+session registry 不再是一个可变的单 JSON blob。`session-registry-journal.ts` 维护一个仅追加 JSONL 文件：`put` 和 `delete-intent` 事件都携带完整 session record，最后再以 `delete-commit` 完成删除。delete intent 还会固化通过校验的 Claude turn-backup 清理 manifest，因此部分清理已经删除 ledger 后，下一轮重试仍然保有完整清理信息。启动时会先把遗留的 `session-registry.json` 迁移成 journal、为旧文件写备份、截断任何未结束的尾行，然后按行流式回放 journal，恢复内存中的 `live` 和 `pending` map。日志过大时，compaction 会重写最小快照：每个 live session 一条完整记录事件，每个 pending deletion 一条 `delete-intent` 事件。
+
+session retention 与 registry mutation 分开协调。`session-retention.ts` 在 app 启动时运行一次，之后由 `session-retention-controller.ts` 每 6 小时运行一次；`sessionRetentionDays` 热重载后还会经去抖立即再跑一轮。启动时会先等待已经 ready 的 provider resume dispatch，排队中的 direct resume 也会保留 stable tracking id 作为 liveness guard。这个协调器会重试 pending delete commit、为过期空闲 session 新建 registry delete intent、在 session/ledger/history 删除后提交清理、清理孤儿 `conversation-history`、清理孤儿 PI transcript bundle、清理非活跃 Claude capture 日志，并同步 Claude 用户 `cleanupPeriodDays`。
 
 ## 命名约定 {#naming-conventions}
 

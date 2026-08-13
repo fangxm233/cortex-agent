@@ -340,3 +340,31 @@ test('setBus after construction: events not published until bus is wired', () =>
   assert.equal(events.length, 1);
   assert.equal(events[0].type, 'agent.completed');
 });
+
+test('track/backend ids are stored separately on running executions', () => {
+  const exec = new RunningExecutions();
+  exec.register(makeInput({
+    executionId: 'E1',
+    channel: 'C1',
+    trackSessionId: 'track-1',
+    backendSessionId: 'backend-1',
+  }));
+
+  assert.equal(exec.getById('E1')!.trackSessionId, 'track-1');
+  assert.equal(exec.getById('E1')!.backendSessionId, 'backend-1');
+  assert.equal(exec.getById('E1')!.sessionId, 'track-1');
+});
+
+test('legacy sessionId field falls back to backendSessionId when trackSessionId is absent', () => {
+  const exec = new RunningExecutions();
+  exec.register(makeInput({ executionId: 'E1', backendSessionId: 'backend-only' }));
+  assert.equal(exec.getById('E1')!.sessionId, 'backend-only');
+});
+
+test('legacy sessionId is not copied into backendSessionId when a trackSessionId is also present', () => {
+  const exec = new RunningExecutions();
+  exec.register(makeInput({ executionId: 'E1', trackSessionId: 'track-1', sessionId: 'legacy-backend' }));
+  assert.equal(exec.getById('E1')!.trackSessionId, 'track-1');
+  assert.equal(exec.getById('E1')!.backendSessionId, 'legacy-backend');
+  assert.equal(exec.getById('E1')!.sessionId, 'track-1');
+});

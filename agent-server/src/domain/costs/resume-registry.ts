@@ -22,7 +22,7 @@ interface ResumeEntryBase {
 }
 
 export type ResumeEntry =
-  | (ResumeEntryBase & { kind: 'direct' })
+  | (ResumeEntryBase & { kind: 'direct'; trackSessionId?: string | null })
   | (ResumeEntryBase & { kind: 'thread'; threadId: string });
 
 export interface ProviderResumeCounts {
@@ -75,15 +75,29 @@ function takeReadyFrom(map: Map<string, ResumeEntry>, active: Set<string>): Resu
 
 // --- Public API ---
 
-async function initResumeRegistry(persistence: ResumePersistence, onChange?: () => void): Promise<void> {
+async function initResumeRegistry(
+  persistence: ResumePersistence,
+  onChange?: () => void,
+  resolveLegacyDirectTrackSessionId?: (entry: Extract<ResumeEntry, { kind: 'direct' }>) => Promise<string | null>,
+): Promise<void> {
   _persistence = persistence;
   _onChange = onChange ?? null;
   try {
     const persisted = await persistence.load();
+    let migrated = false;
     for (const entry of persisted ?? []) {
-      if (entry.kind === 'direct') _direct.set(entry.channel, entry);
-      else if (entry.kind === 'thread') _threads.set(entry.threadId, entry);
+      if (entry.kind === 'direct') {
+        if (!entry.trackSessionId && resolveLegacyDirectTrackSessionId) {
+          const trackSessionId = await resolveLegacyDirectTrackSessionId(entry);
+          if (trackSessionId) {
+            entry.trackSessionId = trackSessionId;
+            migrated = true;
+          }
+        }
+        _direct.set(entry.channel, entry);
+      } else if (entry.kind === 'thread') _threads.set(entry.threadId, entry);
     }
+    if (migrated) await persistence.save(snapshot());
     log.info(`Initialized — ${_direct.size + _threads.size} pending resume(s) restored`);
   } catch (e) {
     log.error(`Failed to load resume queue: ${(e as Error).message}`);
@@ -154,6 +168,13 @@ function getResumeCount(): number {
   return _direct.size + _threads.size;
 }
 
+function pendingDirectTrackSessionIds(): string[] {
+  return Array.from(_direct.values()).flatMap(entry =>
+    entry.kind === 'direct' && entry.trackSessionId ? [entry.trackSessionId] : [],
+  );
+}
+
+
 // --- Test helpers ---
 function _testReset(): void {
   _direct.clear();
@@ -171,5 +192,6 @@ export {
   takeReadyResumes,
   getResumeCountsByProvider,
   getResumeCount,
+  pendingDirectTrackSessionIds,
   _testReset,
 };

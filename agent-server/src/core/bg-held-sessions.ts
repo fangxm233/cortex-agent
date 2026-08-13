@@ -43,6 +43,11 @@ export class BgHeldSessions {
     return this.held.has(sessionId);
   }
 
+  /** Sessions currently held anywhere. */
+  listIds(): string[] {
+    return [...this.held.keys()];
+  }
+
   /** Sessions currently bg-held on a channel — the reverse lookup the channel-keyed Stop path
    *  needs (`cancelChannelRuns`). Empty for an unheld/unknown channel. */
   sessionsOnChannel(channel: string): string[] {

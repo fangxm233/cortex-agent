@@ -29,16 +29,21 @@ $CORTEX_HOME/
 │   ├── schedules.json            # 持久化的调度任务列表
 │   ├── executions.json           # 统一执行注册表
 │   ├── costs.jsonl               # 90 天滚动费用记录
-│   └── sessions.json             # 频道到智能体会话的映射
+│   ├── sessions.json             # 频道到智能体会话的映射
+│   ├── session-registry.jsonl    # 仅追加的会话注册表日志
+│   ├── retention-candidates.json # 两轮确认的孤儿保留标记
+│   └── conversation-history/     # 按会话分文件的 transcript/history JSONL
 ├── .claude/
-│   └── settings.json             # Claude Code 钩子和权限
+│   └── settings.json             # Cortex 脚手架生成的 Claude Code 项目设置
 ├── hooks/                        # 钩子脚本（.mjs）
 ├── plugins/                      # 角色限定技能插件
 ├── prompts/                      # 系统提示、指令、模板
 ├── rules/                        # 智能体会话的上下文规则
 ├── context/                      # Dense Context 知识库
 │   └── projects/                 # 研究项目文件
-├── logs/                         # 守护进程和 LLM 会话日志
+├── logs/                         # 守护进程和后端会话日志
+│   ├── sessions/                 # Claude capture 日志
+│   └── sessions-pi/              # PI transcript bundle
 └── tmp/                          # 临时工作区（线程等）
 ```
 
@@ -48,7 +53,7 @@ $CORTEX_HOME/
 2. **`$CORTEX_HOME/config/.env`** 在守护进程启动时通过 `dotenv` 加载。这些会覆盖守护进程和所有 fork 子进程的进程环境变量。
 3. **`$CORTEX_HOME/config/settings.json`** 保存运行时行为设置。它在使用点按需读取，改动热更新生效；对它显式声明的每个键，它的优先级高于同一设置的旧环境变量。
 4. **`$CORTEX_HOME/config/profiles.json`** 在每次生成智能体时读取，用于解析模型、后端和额外环境变量。
-5. **`$CORTEX_HOME/.claude/settings.json`** 由 Claude Code 读取（不是由 Cortex 直接读取），用于配置编程智能体后端的钩子和权限。
+5. **`$CORTEX_HOME/.claude/settings.json`** 是 Cortex 脚手架生成的 Claude Code 项目设置文件。Claude Code 还可能读取 `<spawn cwd>/.claude/settings.local.json`、`<spawn cwd>/.claude/settings.json`，以及用户设置文件 `$CLAUDE_CONFIG_DIR/settings.json`（或 `~/.claude/settings.json`）。Cortex 只脚手架 `$CORTEX_HOME` 这一份；保留期助手会单独同步用户文件里的 `cleanupPeriodDays`。
 
 `.env` 文件支持标准的 `KEY=VALUE` 语法和 `#` 注释。已在 shell 中设置的环境变量优先于 `.env` 文件（dotenv 默认行为）。
 
@@ -241,13 +246,18 @@ $CORTEX_HOME/
 | `taskArchiveIntervalMs` | number | `21600000` | 已完成任务归档的执行间隔，单位为整数毫秒 | — |
 | `memoryIndexRegenEnabled` | boolean | `true` | 运行内置实验、知识和模式索引重建；从 `false` 切换为 `true` 时立即执行一次 | — |
 | `memoryIndexRegenIntervalMs` | number | `86400000` | 记忆索引重建的执行间隔，单位为整数毫秒 | — |
+| `sessionRetentionDays` | number | `30` | 以天为单位的整型保留窗口，必须落在安全范围 `1` 到 `104249991`。保留协调器会在 daemon 启动时运行一次、之后每 6 小时运行一次，并在该键热重载后立即再跑一轮；它会清理过期的 session registry 条目、孤儿 `conversation-history`、孤儿 PI transcript bundle、孤儿 Claude capture 日志，并同步 Claude 用户设置里的 `cleanupPeriodDays`，同时跳过活跃会话/活跃 capture | — |
 | `uiCorsOrigins` | string[] | `[]` | Web UI HTTP 宿主为哪些 origin 返回 CORS header。参见 [desktop-app.md](./desktop-app.md) | `CORTEX_UI_CORS_ORIGINS`（逗号分隔） |
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | 同类通知的飞书 admin `chat_id`（`oc_...`）。与 `adminChannel` 相互独立——Slack 的频道 id 在飞书上不可用 | `FEISHU_ADMIN_CHANNEL` |
 
-Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）与**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`，以及内置任务的开关和间隔）。其余键都靠手工编辑该文件。
+Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）与**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`sessionRetentionDays`，以及内置任务的开关和间隔）。其余键都靠手工编辑该文件。
 
 内置任务间隔必须是 `1000` 到 `2147483647` 之间的整数毫秒，这是 Node timer 的安全范围。启用的任务会在 daemon 启动时执行一次。任务归档和记忆索引重建不会重叠运行；运行期间修改间隔会在本轮结束后生效。
+
+`sessionRetentionDays` 是 **设置 → 高级** 中唯一的数值型保留控制项。桌面 Web UI 通过与布尔运行时开关相同的 `config.set { section: 'settings' }` 路径写入它，客户端也会执行与服务端相同的上界校验。
+
+这个保留时钟覆盖五类 housekeeping surface：live session-registry 过期删除（先写 `delete-intent`，再写 `delete-commit`）、孤儿 `data/conversation-history/*.jsonl`、`logs/sessions-pi/` 下的孤儿 PI transcript bundle、`logs/sessions/` 下的孤儿 Claude capture 文件，以及同步后的 Claude 用户 `cleanupPeriodDays` helper。孤儿 history 与 PI 文件采用两轮确认后才删除。活跃直接会话、运行中的 execution 与 thread step、待响应 interaction/bg-held session、仍在使用的 PI backend session id，以及活跃 Claude capture pair 都会被保护。
 
 ### 热更新 {#hot-reload}
 
@@ -289,7 +299,11 @@ config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读�
 
 ## .claude/settings.json（Claude Code） {#claudesettingsjson-claude-code}
 
-位于 `$CORTEX_HOME/.claude/settings.json`。此文件配置 Claude Code 的钩子和权限系统。Cortex 在 `cortex init` 期间从 `defaults/.claude/settings.json` 初始化它，并且在后续运行中从不覆盖它。
+位于 `$CORTEX_HOME/.claude/settings.json`。这是 Cortex 数据根目录下由 Cortex 脚手架生成的 Claude Code 项目设置文件。`cortex init` 会从 `defaults/.claude/settings.json` 为它做一次初始化，之后 Cortex 不会再覆盖这个路径。
+
+但 Claude Code 自己还可能读取 spawn cwd 下更高优先级的项目文件（`.claude/settings.local.json`，然后 `.claude/settings.json`），以及用户设置文件 `$CLAUDE_CONFIG_DIR/settings.json` 或 `~/.claude/settings.json`。Cortex 完全不会脚手架、同步或覆盖这些 cwd 下的项目级 `.claude` 文件；这里说的“从不覆盖”只针对上面这个 `$CORTEX_HOME/.claude/settings.json` 种子路径。
+
+会话保留协调器另有一项独立的 Claude housekeeping 写入：它会用 guarded read-merge-temp-sync-rename 流程，把 `cleanupPeriodDays` 合并到用户设置文件（`$CLAUDE_CONFIG_DIR/settings.json` 或 `~/.claude/settings.json`）里。这个 helper 只拥有那一个键，保留其它所有 Claude 设置原样，不会接管 hooks/permissions 的归属，也不会改任何项目级 `.claude` 文件。
 
 文件遵循 Claude Code 的设置格式，包含 `hooks` 和 `permissions` 部分。钩子系统文档参见 [hooks.md](./hooks.md)。它与 [`config/settings.json`](#configsettingsjson) 中的 Cortex 运行时设置毫无关系。
 
@@ -301,7 +315,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 |---|---|---|
 | `defaults/CORTEX.md` | `$CORTEX_HOME/CORTEX.md` | 从不 |
 | `defaults/gitignore` | `$CORTEX_HOME/.gitignore` | 从不 |
-| `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | 从不 |
+| `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | 从不——这里只指 `$CORTEX_HOME/.claude/settings.json` 这个脚手架路径；任意仓库内的本地 `.claude/settings.json` 都不在 Cortex 的 copy/sync 回路里 |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | 仅 `--force` |
 | `defaults/config/thread-templates/` | `$CORTEX_HOME/config/thread-templates/` | 逐文件 copy-if-missing，init 时与之后每次服务器启动时各执行一次：你尚未拥有的 agent/template/shell 文件会被拷入；你已有的文件绝不被覆盖——`--force` 对这棵树不生效 |
 | `defaults/config/hooks/` | `$CORTEX_HOME/config/hooks/` | 每次服务器启动时逐文件按 CalVer 同步：缺失则添加，发布的 `version` 更新则刷新。没有 `version` 的声明（你自己的）永不被覆盖 |
@@ -342,4 +356,9 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `.claude/settings.json` | Claude Code 钩子/权限（不是 Cortex 的设置文件） | `$CORTEX_HOME/.claude/settings.json` |
 | `mode.json` | 运行时模式 | `$CORTEX_HOME/data/mode.json` |
 | `schedules.json` | 调度任务 | `$CORTEX_HOME/data/schedules.json` |
+| `session-registry.jsonl` | 仅追加的 session registry 日志 | `$CORTEX_HOME/data/session-registry.jsonl` |
+| `retention-candidates.json` | 两轮确认的孤儿清理候选表 | `$CORTEX_HOME/data/retention-candidates.json` |
+| `conversation-history/` | 按会话分文件的 transcript/history JSONL | `$CORTEX_HOME/data/conversation-history/` |
+| `logs/sessions/` | Claude capture 日志 | `$CORTEX_HOME/logs/sessions/` |
+| `logs/sessions-pi/` | PI transcript bundle | `$CORTEX_HOME/logs/sessions-pi/` |
 | `hooks/*.json` | 钩子声明 | `$CORTEX_HOME/config/hooks/` |

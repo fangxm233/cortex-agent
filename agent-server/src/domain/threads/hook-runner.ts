@@ -105,6 +105,7 @@ async function runHookAgent(
   let sessionKey: string;
   let sessionId: string | null;
   let profileName: string;
+  let trackSessionId: string | null = null;
 
   if (isTargetMode) {
     // targetAgent mode: send prompt to existing agent's session
@@ -119,6 +120,7 @@ async function runHookAgent(
     // slot.sessionId fallback, else the slot's most recent step. claude-bridge: the id does not
     // matter while the process is alive (found by sessionKey, stdin write); when dead → --resume.
     sessionId = resolveTargetResumeId(targetSlot, thread.steps);
+    trackSessionId = targetSlot.sessionId ?? null;
     profileName = hookResult.profile
       ? (hookResult.profile === '__active__' ? getActiveProfile(opts.channel) : hookResult.profile)
       : (targetSlot.profile === '__active__' ? getActiveProfile(opts.channel) : targetSlot.profile);
@@ -191,6 +193,9 @@ async function runHookAgent(
     kind: execution.kind,
     kill: () => handle.kill(),
     backend: getActiveBackend(),
+    trackSessionId,
+    backendSessionId: handle.sessionId ?? sessionId,
+    sessionId: handle.sessionId ?? sessionId,
   });
 
   let result: any;

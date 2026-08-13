@@ -29,6 +29,7 @@ export interface Settings {
   taskArchiveIntervalMs: number;
   memoryIndexRegenEnabled: boolean;
   memoryIndexRegenIntervalMs: number;
+  sessionRetentionDays: number;
   uiCorsOrigins: string[];
   adminChannel: string | null;
   feishuAdminChannel: string | null;
@@ -56,11 +57,21 @@ export interface SettingSpecEntry<T> {
 type SettingsSpec = { [K in SettingKey]: SettingSpecEntry<Settings[K]> };
 
 export const MAX_TIMER_DELAY_MS = 2_147_483_647;
+export const MAX_SESSION_RETENTION_DAYS = Math.floor(Number.MAX_SAFE_INTEGER / 86_400_000);
 
 function validateJobInterval(value: number): string | null {
   if (!Number.isInteger(value)) return 'must be an integer number of milliseconds';
   if (value < 1_000) return 'must be at least 1000 milliseconds';
   if (value > MAX_TIMER_DELAY_MS) return `must be at most ${MAX_TIMER_DELAY_MS} milliseconds`;
+  return null;
+}
+
+function validateSessionRetentionDays(value: number): string | null {
+  if (!Number.isSafeInteger(value)) return 'must be a safe integer number of days';
+  if (value < 1) return 'must be at least 1 day';
+  if (value > MAX_SESSION_RETENTION_DAYS) {
+    return `must be at most ${MAX_SESSION_RETENTION_DAYS} days`;
+  }
   return null;
 }
 
@@ -217,6 +228,11 @@ export const SETTINGS_SPEC = {
     type: 'number',
     default: 24 * 60 * 60 * 1000,
     validate: validateJobInterval,
+  },
+  sessionRetentionDays: {
+    type: 'number',
+    default: 30,
+    validate: validateSessionRetentionDays,
   },
   uiCorsOrigins: {
     envVar: 'CORTEX_UI_CORS_ORIGINS',
