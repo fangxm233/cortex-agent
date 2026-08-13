@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 import re
 
 import yaml
@@ -29,7 +30,7 @@ IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 CAMPAIGN_REQUIRED_FIELDS = frozenset({
     "schema_version", "campaign", "paid", "cost_ceiling_usd", "trials_dir", "cli_version",
-    "manifest", "credential", "host_scan_policy", "proxy", "arms", "tasks",
+    "manifest", "credential", "host_scan_policy", "docker_network", "proxy", "arms", "tasks",
 })
 CAMPAIGN_OPTIONAL_FIELDS = frozenset({"comparisons"})
 MANIFEST_FIELDS = frozenset({
@@ -39,6 +40,7 @@ MANIFEST_PATH_FIELDS = ("wheel_path", "lockfile_path", "npm_artifact_path")
 CREDENTIAL_FIELDS = frozenset({
     "upstream_base_url", "route_identity_host", "proxy_base_url", "dummy_token_ref",
 })
+DOCKER_NETWORK_FIELDS = frozenset({"subnet", "gateway"})
 HOST_SCAN_POLICY_MAPPING_FIELDS = (
     "secret_environment", "forbidden_environment", "forbidden_argv_environment",
     "host_identity_environment",
@@ -109,6 +111,7 @@ class CampaignConfig:
     manifest: Mapping[str, object]
     credential: Mapping[str, object]
     host_scan_policy: Mapping[str, object]
+    docker_network: Mapping[str, object]
     proxy: Mapping[str, object]
     arms: tuple[Mapping[str, object], ...]
     tasks: tuple[CampaignTask, ...]
@@ -130,11 +133,15 @@ class CampaignConfig:
         }
 
     def trial_seed(self, plan: TrialPlan) -> dict[str, object]:
+        credential = dict(self.credential)
+        credential["proxy_base_url"] = _trial_proxy_base_url(
+            str(credential["proxy_base_url"]), plan.trial_id)
         return {
             "arm": dict(plan.arm), "arm_path": f"arm://{plan.arm_name}",
             "trial_id": plan.trial_id, "root_run_id": plan.root_run_id,
             "task": plan.task.as_seed_task(), "profile_name": PROFILE_NAME,
-            "paid_run": self.paid, "credential": dict(self.credential),
+            "paid_run": self.paid, "pi_benchmark_capability_proven": True,
+            "credential": credential,
             "model_alias_policy": dict(MODEL_ALIAS_POLICY),
         }
 
@@ -143,6 +150,19 @@ class CampaignConfig:
 # campaign makes: the agent refuses any other profile name and an alias would unfreeze the model.
 PROFILE_NAME = "benchmark"
 MODEL_ALIAS_POLICY = {"kind": "exact"}
+
+
+def _trial_proxy_base_url(declared: str, trial_id: str) -> str:
+    parsed = urlsplit(declared)
+    if parsed.scheme != "http" or not parsed.hostname:
+        raise CampaignConfigError(
+            "campaign credential proxy_base_url must be an absolute HTTP URL")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise CampaignConfigError(
+            "campaign credential proxy_base_url cannot contain credentials or metadata")
+    port = f":{parsed.port}" if parsed.port is not None else ""
+    authority = f"{trial_id}.{parsed.hostname}{port}"
+    return urlunsplit((parsed.scheme, authority, parsed.path, "", ""))
 
 
 def load_campaign_config(path: Path | str) -> CampaignConfig:
@@ -185,6 +205,7 @@ def parse_campaign_config(
         manifest=_manifest(document["manifest"], base_dir),
         credential=_exact_text_mapping(document["credential"], CREDENTIAL_FIELDS, "credential"),
         host_scan_policy=_host_scan_policy(document["host_scan_policy"]),
+        docker_network=_docker_network(document["docker_network"]),
         proxy=_proxy(document["proxy"]),
         arms=arms,
         tasks=_tasks(document["tasks"], base_dir),
@@ -315,6 +336,10 @@ def _rule_name(field: str, rule: object) -> str:
         raise CampaignConfigError(
             f"campaign host_scan_policy {field} rule names must be non-empty strings")
     return rule
+
+
+def _docker_network(source: object) -> dict[str, object]:
+    return _exact_text_mapping(source, DOCKER_NETWORK_FIELDS, "docker_network")
 
 
 def _proxy(source: object) -> dict[str, object]:

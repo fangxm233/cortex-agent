@@ -1,0 +1,15 @@
+{
+  "schema_version": "cortex-bench-zero-paid-runtime-inputs/1",
+  "node": {
+    "version": "v22.19.0",
+    "sha256": "596b5144ff242737f1c1be6a5f0ccb3907dbba2482344143cb1a6898633402a9"
+  },
+  "npm": {
+    "version": "10.9.3",
+    "tree_sha256": "8bedb5d7c88e5ca6466963944a826f20bc9ffee3783001366122ab0d918e5af8"
+  },
+  "pi": {
+    "version": "0.82.1",
+    "tree_sha256": "6bc5e821c034136ad52ae104fe3bc51f954950bc895ce35abc1e64a25f2375d8"
+  }
+}

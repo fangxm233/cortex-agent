@@ -325,6 +325,22 @@ def test_builder_binds_proxy_advertisement_to_the_admitted_host(
         build_harbor_trial_config(**kwargs)
 
 
+def test_admitted_environment_maps_only_its_proxy_host_to_the_docker_host_gateway(
+    tmp_path: Path,
+) -> None:
+    trial = create_trial(tmp_path)
+    environment = trial.agent_environment
+
+    document = json.loads(environment._proxy_host_path.read_text())
+
+    assert document == {"services": {
+        "harbor-docker-egress-control-sidecar": {
+            "extra_hosts": [f"{PROXY_HOST}:host-gateway"],
+        },
+    }}
+    assert environment._proxy_host_path in environment._docker_compose_paths
+
+
 def test_builder_refuses_a_proxy_not_listening_on_the_container_route(
     tmp_path: Path,
 ) -> None:

@@ -1,5 +1,5 @@
-// input:  packed CLI, Claude/PI fakes and hostile descendants
-// output: exact-public state handoff, credential and process containment
+// input:  packed CLI, checkout-link-safe dependency staging, Claude/PI fakes and hostile descendants
+// output: valid exact-public package, state handoff, credential and process containment
 // pos:    Packed cortex agent-run standalone regression
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -17,10 +17,8 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'standalone-public-cli-'));
 let installed: PackedBundle;
 let hostileHelper = '';
 
-function run(command: string, args: string[], timeout = 240_000) {
-  return spawnSync(command, args, {
-    cwd: serverRoot, encoding: 'utf8', timeout,
-  });
+function run(command: string, args: string[], timeout = 240_000, cwd = serverRoot) {
+  return spawnSync(command, args, { cwd, encoding: 'utf8', timeout });
 }
 
 beforeAll(() => {
@@ -234,9 +232,28 @@ interface PackedBundle {
 }
 
 function installPackedBundle(): PackedBundle {
+  const sourceRoot = path.join(root, 'pack-source');
+  const packageRoot = path.join(sourceRoot, 'agent-server');
+  fs.cpSync(serverRoot, packageRoot, {
+    recursive: true,
+    filter: source => {
+      const relative = path.relative(serverRoot, source);
+      return relative !== 'node_modules' && relative !== 'bundled-dependencies'
+        && !relative.endsWith('.tgz');
+    },
+  });
+  fs.copyFileSync(path.resolve(serverRoot, '..', 'README.md'), path.join(sourceRoot, 'README.md'));
+  fs.symlinkSync(path.resolve(serverRoot, '..', 'node_modules'), path.join(sourceRoot, 'node_modules'));
+  fs.mkdirSync(path.join(packageRoot, 'node_modules'));
   const destination = path.join(root, 'packed');
   fs.mkdirSync(destination, { recursive: true });
-  const packed = run('npm', ['pack', '--ignore-scripts', '--pack-destination', destination]);
+  const staged = run(
+    process.execPath, ['scripts/stage-bundled-dependencies.mjs'], 240_000, packageRoot,
+  );
+  assert.equal(staged.status, 0, `${staged.stdout}\n${staged.stderr}`);
+  const packed = run('npm', [
+    'pack', '--ignore-scripts', '--loglevel=error', '--pack-destination', destination,
+  ], 240_000, packageRoot);
   assert.equal(packed.status, 0, `${packed.stdout}\n${packed.stderr}`);
   const tarball = path.join(destination, packed.stdout.trim().split('\n').at(-1) as string);
   const extracted = path.join(root, 'installed');
@@ -415,10 +432,13 @@ it('runs packed PI with only the trial dummy auth file and scoped proxy catalog'
   assert.equal(observed.env.ANTHROPIC_AUTH_TOKEN, undefined);
   assert.equal(observed.env.CORTEX_DAEMON_URL, undefined);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(agentDir, 'auth.json'), 'utf8')), {
-    anthropic: { type: 'api', key: 'offline-token' },
+    anthropic: { type: 'api_key', key: 'offline-token' },
   });
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(agentDir, 'models.json'), 'utf8')), {
-    providers: { anthropic: { baseUrl: 'http://127.0.0.1:1' } },
+    providers: { anthropic: {
+      baseUrl: 'http://127.0.0.1:1',
+      modelOverrides: { 'pi-trial-model': { maxTokens: 4096 } },
+    } },
   });
 }, 180_000);
 

@@ -1,5 +1,5 @@
 [environment]
-docker_image = "debian@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818"
+docker_image = "cortex-bench-zero-paid-runtime@sha256:8b075847d21e55633a0f2bc2f3d7f9920f91d8aaf47b0778cb1d528a7dbedf55"
 network_mode = "allowlist"
 allowed_hosts = []
 os = "linux"

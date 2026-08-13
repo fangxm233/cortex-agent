@@ -689,7 +689,8 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             mounts=canonical_mounts, network_policy=network_policy,
             phase_network_policies=phase_network_policies,
             extra_docker_compose=extra_docker_compose,
-            external_network_name=f"{session_id}_default", **kwargs,
+            external_network_name=f"{session_id}_default",
+            proxy_host=_required_text(contract, "proxy_host"), **kwargs,
         )
         self._seal_admission(contract, canonical_mounts, trial_paths)
 

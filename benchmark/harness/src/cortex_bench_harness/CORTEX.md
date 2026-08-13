@@ -6,7 +6,7 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 |---|---|---|
 | __init__.py | export | Lazily exposes the Harbor wrapper class |
 | campaign.py | CLI | Runs one campaign serially under its cost ceiling and writes the report |
-| campaign_config.py | boundary | Reads one campaign document strictly into its ordered trial plan |
+| campaign_config.py | boundary | Reads campaign input and scopes each trial proxy host |
 | cwd.py | core | Resolves the live container workdir |
 | manifest.py | core | Records artifacts and the installed CLI version |
 | harbor_agent.py | adapter | Runs the production Harbor lifecycle and admission gate |
@@ -16,3 +16,4 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | launcher/ | core | Selects arms and builds non-secret Harbor inputs |
 | proxy/ | network | Injects credentials through a bounded trial route |
 | scan/ | audit | Finds credential and host-identity leaks |
+| synthetic_deepseek.py | fixture | Serves deterministic loopback tool turns |
