@@ -38,29 +38,47 @@
 #
 # The bounds that remain real, deliberately:
 #
-#   - `deadline_seconds`, which is what ends a trial. It is already Harbor's agent-phase timeout:
+#   - `deadline_seconds`, which is what ends the model's working time, and with it the credential
+#     lease: `trial_admission._lease_seconds` arms the route for min(deadline_seconds,
+#     agent_seconds), so the window in which the container may still make a request is 1800s.
+#   - `timeouts.agent_seconds`, which is when Harbor cuts the agent phase.
 #     `trial_admission._build_trial_agent_config` passes it as both `override_timeout_sec` and
 #     `max_timeout_sec`, and Harbor resolves `min(override, max) * timeout_multiplier(1.0)`
 #     (`harbor/trial/trial.py:1040-1051`), so the task's own `[agent] timeout_sec = 900.0` is
-#     superseded and the digest-pinned task.toml is never edited. The same field is also the inner
-#     run's deadline and the credential lease budget (P = H0 + 900s setup + deadline + 120s
-#     teardown), so raising it widens the credential window too. 1800 stands until those three
-#     duties are separated.
+#     superseded and the digest-pinned task.toml is never edited.
+#
+#     These two were both 1800 in r4, and that is why r4 stopped on its first trial. A task that
+#     uses its whole budget then has NO time in which to end itself: the inner run's deadline and
+#     Harbor's axe fall in the same instant, Harbor cancels the run coroutine
+#     (`AgentTimeoutError`), no terminal marker is ever published, so finalization cannot run and
+#     no envelope exists — and the failed-task grading semantics never get to apply, because they
+#     answer "the inner run ended badly", not "the inner run was cut off". chess-best-move was
+#     still writing journal events at 30:00 (654 KB, last event 16:01:32) after 43 requests and
+#     $0.3359384; see results/terminal-bench-2.1-deepseek-paid-r4-2026-08-13.json.
+#
+#     The 300s gap is what the inner run needs to stop itself, publish its terminal marker and let
+#     the host collect and finalize: `harbor_agent.INNER_RUN_TERMINAL_GRACE_SECONDS` is 120s of
+#     waiting AFTER the marker appears, and that grace has to fit inside Harbor's phase budget.
+#     Raising the phase does not widen the credential window, because the lease takes the min of
+#     the two and `deadline_seconds` is unchanged; nor does it lengthen a trial that finishes.
 #   - `cost_ceiling_usd`, checked by the driver against accumulated *actual* cost between trials.
-#     At the r3 burn rate (16 requests, $0.02744182) three completed trials cost single-digit
-#     dollars; $25.00 leaves an order of magnitude of margin and is the only money stop left.
+#     At the r4 burn rate a full 1800s trial cost $0.3359384 (43 requests, 2,221,644 input and
+#     88,958 output tokens); $25.00 leaves two orders of magnitude of margin and is the only money
+#     stop left.
 #
 # Every field also stays at or below its committed row in ../policy/capability-ceilings.yaml.
 
 schema_version: cortex-bench-campaign/1
-# Fresh identity: the 2026-08-13 `tb21-paid` (four paid requests, then exhaustion) and
-# `tb21-paid-r2` (refused before admission, zero requests) roots are immutable evidence, and a
-# campaign never writes into an existing trial root -- `campaign._resume` refuses one that carries
-# no published envelope. Rotate both fields together whenever an attempt has materialised this root.
-campaign: tb21-paid-r4
+# Fresh identity: the 2026-08-13 `tb21-paid` (four paid requests, then exhaustion), `tb21-paid-r2`
+# (refused before admission, zero requests), `tb21-paid-r3` (first-trial inner-terminal rejection)
+# and `tb21-paid-r4` (first-trial agent-phase timeout, 43 requests) roots are immutable evidence,
+# and a campaign never writes into an existing trial root -- `campaign._resume` refuses one that
+# carries no published envelope. Rotate both fields together whenever an attempt has materialised
+# this root.
+campaign: tb21-paid-r5
 paid: true
 cost_ceiling_usd: "25.00"
-trials_dir: /var/tmp/cortex-bench/tb21-paid-r4-2026-08-13-ebe7
+trials_dir: /var/tmp/cortex-bench/tb21-paid-r5-2026-08-13-d3df
 cli_version: "2026.8.6"
 
 manifest:
@@ -95,8 +113,12 @@ host_scan_policy:
 # Harbor's `override_timeout_sec` fields exist for. The credential lease is armed for
 # min(deadline_seconds, agent_seconds), because whichever fires first ends the request stream, so
 # lengthening the verifier phase never lengthens the window in which the key is live.
+#
+# agent_seconds MUST stay strictly greater than the arm's `deadline_seconds`, by more than the
+# 120s terminal grace. Equal values are what ended r4 on its first trial: they leave the inner run
+# no interval in which to publish the terminal marker every downstream gate reads.
 timeouts:
-  agent_seconds: 1800
+  agent_seconds: 2100
   verifier_seconds: 1800
 
 docker_network:

@@ -1,0 +1,168 @@
+{
+  "schema_version": "cortex-bench-campaign-attempt-summary/1",
+  "campaign": "tb21-paid-r4",
+  "executed_at": "2026-08-13",
+  "paid": true,
+  "execution": {
+    "entrypoint": "env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --offline --frozen python scripts/launch-paid-campaign.py --config ../campaigns/terminal-bench-2.1-deepseek-paid.yaml --run",
+    "source_commit": "c4774b59",
+    "state": "stopped-after-first-trial-agent-phase-timeout",
+    "exit_code": 1,
+    "attempted_trial_count": 1,
+    "unattempted_trial_count": 2,
+    "outer_envelope_count": 0,
+    "comparison_report_written": false,
+    "serial_execution_evidence": "Only the chess-best-move trial root exists; the constraints-scheduling and db-wal-recovery roots are absent.",
+    "credential_handling": "The committed launcher strict-loaded the credential at execution time from the configured gateway file, kept it in the launching process only, and removed it from the environment when the campaign returned. No credential value is included here."
+  },
+  "path_aliases": {
+    "$R4_ROOT": "/var/tmp/cortex-bench/tb21-paid-r4-2026-08-13-ebe7",
+    "$TRIAL_ROOT": "$R4_ROOT/tb21-paid-r4-chess-best-move-cortex-direct"
+  },
+  "reproducibility": {
+    "campaign_config": "benchmark/campaigns/terminal-bench-2.1-deepseek-paid.yaml",
+    "campaign_config_sha256": "86e55b23b27faceafac5eb517ee491651a749bad6407177b6b9b9dcc2bf4eb97",
+    "campaign_config_note": "The document was edited after this attempt (timeouts.agent_seconds 1800 -> 2100, identity rotated to tb21-paid-r5); this digest is the executed revision, at commit c4774b59.",
+    "harness_lockfile": "benchmark/harness/uv.lock",
+    "harness_lockfile_sha256": "45b7c8ff4adfa856aea2c874592ccc5a84da559824d8ee6aa36f9b9eee4b8e90",
+    "wheel_sha256": "e8899403362d2aa2880a32641aee3d2caef76eadb2ea1b3c1d5a31119fff55f8",
+    "npm_artifact_sha256": "0e8881f1b44c9b006790aa84b865f044baa51f76eeffc010f70ac2cb2a3a74fa",
+    "task_source_commit": "7131e4375048a0e408a8fb404b5f499d726b695b"
+  },
+  "declared_limits": {
+    "arm": "cortex-direct",
+    "backend": "pi",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "orchestration_mode": "direct",
+    "max_cost_usd_per_trial": "100.00",
+    "campaign_cost_ceiling_usd": "25.00",
+    "max_request_cost_usd": "0.20",
+    "max_provider_requests_per_trial": 500,
+    "deadline_seconds_per_trial": 1800,
+    "harbor_agent_seconds": 1800,
+    "max_output_tokens_per_response": 65536,
+    "request_body_limit_bytes": 67108864,
+    "response_body_limit_bytes": 67108864
+  },
+  "attempted_trials": [
+    {
+      "trial_id": "tb21-paid-r4-chess-best-move-cortex-direct",
+      "task_id": "chess-best-move",
+      "task_path": "benchmark/campaigns/tasks/terminal-bench-2.1/chess-best-move",
+      "task_checksum": "2509a1fde3e8582c6dc2458a208e215b3aa3614250998d5eecf938c2d2fd7505",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b",
+      "harbor_result_path": "$TRIAL_ROOT/result.json",
+      "harbor_result_sha256": "0c950b6826f160e7d275db127f274e3103f4762e467ae92de0d4d737a826c544",
+      "reward": 0.0,
+      "reward_finite": true,
+      "reward_status": "available: Harbor ran the task's own verifier after the agent phase was cut, and it found no /app/move.txt",
+      "failure_type": "AgentTimeoutError",
+      "failure_message": "Agent execution timed out after 1800.0 seconds",
+      "failure_evidence_path": "$TRIAL_ROOT/exception.txt",
+      "launch_admission_path": "$TRIAL_ROOT/artifacts/harbor-launch-admission.json",
+      "launch_admission_sha256": "4a0df466041bfbeb1bf29cae8a8d2d2aaf41d82460225d0a6fa09262c0f0944e",
+      "outer_envelope_path": "$TRIAL_ROOT/artifacts/cortex-bench-outer-envelope.json",
+      "outer_envelope_published": false,
+      "outer_envelope_sha256": null,
+      "grader_admitted": null,
+      "envelope_cost_usd": null,
+      "proxy_export_path": "$TRIAL_ROOT/artifacts/proxy/proxy-export.json",
+      "proxy_export_sha256": "090d7c25a15c1dcca0d8f1d5bf35dd15764eb39dc8a0c7bb99733bb84ef904fd",
+      "proxy_audit_path": "$TRIAL_ROOT/artifacts/proxy/proxy-audit.jsonl",
+      "proxy_audit_sha256": "2336e5bfc9704bcca2890b489ae92e3afe2fdffd152125c31a54ec6d630d5035",
+      "provider_requests": 43,
+      "turn_count_measure": "maximum numTurns in trajectory turn_progress events",
+      "turn_count": 87,
+      "input_tokens": 2221644,
+      "output_tokens": 88958,
+      "proxy_cost_usd": "0.3359384",
+      "largest_single_request_cost_usd": "0.01764476",
+      "largest_single_request_note": "Per-request cost is the delta between consecutive cumulative audit rows. It stayed 11x under the 0.20 reservation, so the campaign's reservation arithmetic held on real traffic.",
+      "trial_started_at": "2026-08-13T21:30:23.585819Z",
+      "trial_finished_at": "2026-08-13T22:02:13.776366Z",
+      "trial_latency_seconds": "1910.190547",
+      "inner_started_at": "2026-08-13T21:31:58.555Z",
+      "inner_last_event_at": "2026-08-13T22:01:32.163Z",
+      "inner_ended_at": null,
+      "trajectory_path": "$TRIAL_ROOT/agent/trajectory/events.jsonl",
+      "trajectory_sha256": "8beacd5d8c359bea780a10b39475ddb344eaba54fd233c01f38fc54ec563b10b",
+      "trajectory_bytes": 654035,
+      "trajectory_events": 631,
+      "terminal_marker_path": "$TRIAL_ROOT/agent/trajectory/run-tb21-paid-r4-chess-best-move-cortex-direct.cortex-direct.terminal.json",
+      "terminal_marker_published": false,
+      "terminal_marker_state": null,
+      "terminal_marker_reason": null,
+      "harness_failure_mode": "timeouts.agent_seconds and the arm's deadline_seconds were both 1800, so Harbor's agent-phase timeout cancelled the run coroutine at the same instant the inner run's own deadline would have fired. The inner run never published a terminal marker, so host finalization never ran and no outer envelope exists. This is not the failed-task grading path: that path answers 'the inner run ended badly', and this run did not end, it was cut off.",
+      "model_failure_mode": "The task supplies the position as a PNG and this route has no vision: `read /app/chess_board.png` returned 'Current model does not support images. The image will be omitted from this request.' The model recognised that in its first minute and reconstructed the board by writing pixel classifiers — 38 bash calls over 13 minutes, ending on a hypothesis rather than a confirmed position. It then wrote its own chess engine (/app/engine.py) and ran it in one bash call that blocked for 889.5 seconds, half the trial. That call returned at 22:01:13 ranking e2g4 at 999.99 on the reconstructed FEN; the model spotted move-generation bugs, edited the engine at 22:01:28 and re-ran it at 22:01:32. Harbor cut the phase at 22:01:58, before anything was written to /app/move.txt.",
+      "time_accounting": {
+        "wall_clock_seconds": 1800,
+        "tool_execution_seconds": 898,
+        "single_longest_tool_call_seconds": 889.5,
+        "single_longest_tool_call_started_at": "2026-08-13T21:46:23Z",
+        "remainder_note": "The ~900s not spent in tools is provider latency across 43 requests."
+      },
+      "non_constraints": {
+        "context_window_used_tokens": 118802,
+        "context_window_tokens": 1000000,
+        "context_window_percent": 11.88,
+        "provider_requests_used_of_funded": "43 of 500",
+        "trial_cost_of_ceiling_usd": "0.3359384 of 25.00"
+      }
+    }
+  ],
+  "unattempted_trials": [
+    {
+      "task_id": "constraints-scheduling",
+      "task_path": "benchmark/campaigns/tasks/terminal-bench-2.1/constraints-scheduling",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c",
+      "reason": "campaign stopped after the first trial's agent-phase timeout"
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "task_path": "benchmark/campaigns/tasks/terminal-bench-2.1/db-wal-recovery",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a",
+      "reason": "campaign stopped after the first trial's agent-phase timeout"
+    }
+  ],
+  "comparison_report": {
+    "path": "$R4_ROOT/comparison-report.json",
+    "written": false,
+    "sha256": null,
+    "reason": "campaign exited before report construction"
+  },
+  "containment": {
+    "route_revoked": true,
+    "proxy_export_written": true,
+    "lease_echo_state": "reconciled",
+    "lease_consumed_ms": 72,
+    "listeners_after_teardown": 0,
+    "trial_container_removed": true,
+    "docker_network_removed": true
+  },
+  "paid_spend": {
+    "r1_cost_usd": "0.00321510",
+    "r2_cost_usd": "0",
+    "r3_cost_usd": "0.02744182",
+    "r4_cost_usd": "0.3359384",
+    "total_paid_spend_usd": "0.36659532",
+    "arithmetic": "0.00321510 + 0 + 0.02744182 + 0.3359384 = 0.36659532",
+    "within_campaign_ceiling": true,
+    "remaining_to_25_usd": "24.63340468"
+  },
+  "stop_reason": "The r4 attempt stopped after its first trial. Harbor's agent phase and the inner run's deadline were both 1800 seconds, so the phase was cancelled at the moment the inner run would have ended itself; with no terminal marker there was no finalization and no envelope, and the campaign driver treats a Harbor trial exception as a campaign stop. Harbor's own verifier still ran and returned 0.0.",
+  "corrective_action": {
+    "committed_at": "the commit that carries this file",
+    "change": "timeouts.agent_seconds raised from 1800 to 2100 while the arm's deadline_seconds stays 1800, and the campaign identity rotated to tb21-paid-r5.",
+    "why_it_does_not_widen_the_credential_window": "trial_admission._lease_seconds arms the route for min(deadline_seconds, agent_seconds), which is still 1800.",
+    "what_it_does_not_fix": "It does not make chess-best-move passable on a text-only route, and it does not bound a single blocking tool call. It makes a trial that uses its whole budget end itself, publish a terminal marker, be finalized as not gradable, be scored by its own verifier, and be followed by the next trial."
+  },
+  "prohibitions_observed": {
+    "admission_bypassed": false,
+    "task_replaced": false,
+    "vendor_baseline_run": false,
+    "extra_handshake_run": false,
+    "push_release_deployment_or_daemon_restart": false,
+    "additional_retry_run": false
+  }
+}

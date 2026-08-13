@@ -6,5 +6,6 @@ Committed campaign result summaries preserve path-sanitized reproducibility evid
 |---|---|---|
 | terminal-bench-2.1-deepseek-paid-2026-08-13.json | evidence | Records the stopped r1 paid attempt, first-trial timeout evidence, exact accounting and unattempted tasks |
 | terminal-bench-2.1-deepseek-paid-r3-2026-08-13.json | evidence | Records the sole r3 attempt, first-trial inner-terminal rejection, exact paid accounting and unattempted tasks |
+| terminal-bench-2.1-deepseek-paid-r4-2026-08-13.json | evidence | Records the r4 attempt, its first-trial agent-phase timeout, why the agent did not finish, and the timeout separation that followed |
 | zero-paid-dry-run-2026-08-13.json | evidence | Records the accepted two-trial ZERO-PAID campaign hashes, counts and safety facts |
 | zero-paid-failed-agent-2026-08-13.json | evidence | Records the ZERO-PAID run proving a failed agent is published, scored 0 by its own verifier, followed by the next trial, and that each trial carries its own witnessed asset record instead of the bundle |
