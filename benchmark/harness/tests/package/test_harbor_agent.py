@@ -198,7 +198,7 @@ def test_setup_composes_the_resolution_from_the_discovered_facts(tmp_path: Path)
         "path": BACKEND_CLI_PATH, "version": BACKEND_CLI_VERSION,
     }
     assert parent["system_prompt_path"] == (
-        f"{BUNDLE_ROOT}/defaults/prompts/systemPrompts/direct.md"
+        f"{BUNDLE_ROOT}/defaults/prompts/systemPrompts/benchmark-direct.md"
     )
     assert parent["plugin_dirs"] == [
         f"{BUNDLE_ROOT}/defaults/plugins/cortex-common",

@@ -26,8 +26,13 @@ ARM_RESOLUTION_FILENAME = "arm-resolution.json"
 ARM_RESOLUTION_CONTAINER_PATH: PurePosixPath = (
     EnvironmentPaths().agent_dir / ARM_RESOLUTION_FILENAME
 )
-DIRECT_CLAUDE_SYSTEM_PROMPT = "defaults/prompts/systemPrompts/direct.md"
-DIRECT_CLAUDE_DIRECTIVE = "defaults/prompts/directives/executor.md"
+# The direct parent speaks to a standalone trial and nothing else, so it takes the purpose-written
+# benchmark pair rather than the shipped product prompt (`direct.md`) and executor directive
+# (`executor.md`): those two carry thread, task-store, project, Slack and artifact-file surface that
+# names nothing a trial container contains. The pair is backend-neutral — both lifted backends read
+# these same bytes, and only `tools` differs by backend below.
+DIRECT_CLAUDE_SYSTEM_PROMPT = "defaults/prompts/systemPrompts/benchmark-direct.md"
+DIRECT_CLAUDE_DIRECTIVE = "defaults/prompts/directives/benchmark-direct.md"
 DIRECT_CLAUDE_TOOLS = (
     "Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill", "TodoWrite", "Write",
 )

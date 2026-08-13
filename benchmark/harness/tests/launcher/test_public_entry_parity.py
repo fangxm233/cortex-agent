@@ -380,9 +380,10 @@ def test_public_entry_argv_loads_the_frozen_direct_composition(tmp_path: Path) -
     assert ROLE_TOOL_SURFACE_HASH.match(loaded.pop("roleToolSurfaceHash"))
 
     server = server_root()
+    system_prompt = server / "defaults/prompts/systemPrompts/benchmark-direct.md"
     assert loaded == {
         "role": {
-            "systemPrompt": (server / "defaults/prompts/systemPrompts/direct.md").read_text(),
+            "systemPrompt": system_prompt.read_text(),
             "tools": FROZEN_TOOLS,
             "pluginDirs": [
                 str(server / "defaults/plugins/cortex-common"),
@@ -428,7 +429,7 @@ def test_public_entry_sources_container_facts_not_the_caller(tmp_path: Path) -> 
         "path": backend_cli_path(), "version": BACKEND_CLI_VERSION,
     }
     assert document["roles"]["parent"]["directive_path"] == str(
-        server_root() / "defaults/prompts/directives/executor.md",
+        server_root() / "defaults/prompts/directives/benchmark-direct.md",
     )
     assert document["thread_templates"] == {}
     assert document["thread_agents"] == {}
