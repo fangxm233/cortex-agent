@@ -209,6 +209,8 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     kill: () => handle.kill(),
     backend: channelBackend,
     agentProcess: handle.agentProcess,
+    trackSessionId: opts.trackSessionId,
+    backendSessionId: handle.sessionId ?? opts.backendSessionId,
     sessionId: handle.sessionId,
   }, opts.onExecutionRegistered);
 

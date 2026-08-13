@@ -1,6 +1,6 @@
 // input:  session JSONL, notice metadata, interactions, DEBUG sidecars
-// output: grouped history with notice and source-id preservation
-// pos:    Append-only canonical transcript store
+// output: ConversationHistoryRepo and grouped transcript reads
+// pos:    Canonical per-session transcript file store
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
@@ -154,9 +154,9 @@ function isPrefixRelated(a: string, b: string): boolean {
 }
 
 /** UUID sessionIds are filename-safe; sanitize defensively all the same. */
-function sessionFile(sessionId: string): string {
+function sessionFilePath(historyDir: string, sessionId: string): string {
   const safe = sessionId.replace(/[^A-Za-z0-9._-]/g, '_');
-  return path.join(HISTORY_DIR, `${safe}.jsonl`);
+  return path.join(historyDir, `${safe}.jsonl`);
 }
 
 // --- Repo ---
@@ -166,9 +166,11 @@ export class ConversationHistoryRepo {
   private writeChains = new Map<string, Promise<void>>();
   private dirReady = false;
 
+  constructor(private readonly historyDir: string = HISTORY_DIR) {}
+
   private async ensureDir(): Promise<void> {
     if (this.dirReady) return;
-    await fs.mkdir(HISTORY_DIR, { recursive: true });
+    await fs.mkdir(this.historyDir, { recursive: true });
     this.dirReady = true;
   }
 
@@ -178,7 +180,7 @@ export class ConversationHistoryRepo {
       .catch(() => {})
       .then(async () => {
         await this.ensureDir();
-        await fs.appendFile(sessionFile(sessionId), JSON.stringify(ev) + '\n', 'utf8');
+        await fs.appendFile(sessionFilePath(this.historyDir, sessionId), JSON.stringify(ev) + '\n', 'utf8');
       });
     this.writeChains.set(sessionId, next);
     return next;
@@ -271,7 +273,7 @@ export class ConversationHistoryRepo {
       .then(async () => {
         let raw: string;
         try {
-          raw = await fs.readFile(sessionFile(sessionId), 'utf8');
+          raw = await fs.readFile(sessionFilePath(this.historyDir, sessionId), 'utf8');
         } catch {
           return; // no history — nothing to truncate
         }
@@ -300,7 +302,7 @@ export class ConversationHistoryRepo {
           } catch { /* keep as is */ }
         }
         const kept = lines.slice(0, keepEnd);
-        await fs.writeFile(sessionFile(sessionId), kept.length ? kept.join('\n') + '\n' : '', 'utf8');
+        await fs.writeFile(sessionFilePath(this.historyDir, sessionId), kept.length ? kept.join('\n') + '\n' : '', 'utf8');
       });
     this.writeChains.set(sessionId, next);
     await next;
@@ -315,7 +317,7 @@ export class ConversationHistoryRepo {
   async getHistory(sessionId: string): Promise<SessionHistory | null> {
     let raw: string;
     try {
-      raw = await fs.readFile(sessionFile(sessionId), 'utf8');
+      raw = await fs.readFile(sessionFilePath(this.historyDir, sessionId), 'utf8');
     } catch {
       return null;
     }
@@ -442,7 +444,7 @@ export class ConversationHistoryRepo {
     await (this.writeChains.get(sessionId) ?? Promise.resolve()).catch(() => {});
     let raw: string;
     try {
-      raw = await fs.readFile(sessionFile(sessionId), 'utf8');
+      raw = await fs.readFile(sessionFilePath(this.historyDir, sessionId), 'utf8');
     } catch {
       return false;
     }
@@ -464,7 +466,7 @@ export class ConversationHistoryRepo {
   async getFirstUserText(sessionId: string): Promise<string | null> {
     let raw: string;
     try {
-      raw = await fs.readFile(sessionFile(sessionId), 'utf8');
+      raw = await fs.readFile(sessionFilePath(this.historyDir, sessionId), 'utf8');
     } catch {
       return null;
     }
@@ -484,7 +486,23 @@ export class ConversationHistoryRepo {
     // Wait for any in-flight append to this session, then remove the file.
     await (this.writeChains.get(sessionId) ?? Promise.resolve()).catch(() => {});
     this.writeChains.delete(sessionId);
-    try { await fs.unlink(sessionFile(sessionId)); } catch { /* already gone */ }
+    try { await fs.unlink(sessionFilePath(this.historyDir, sessionId)); } catch { /* already gone */ }
+  }
+
+  async clearBySessionIds(sessionIds: Iterable<string>): Promise<number> {
+    let removed = 0;
+    for (const sessionId of sessionIds) {
+      const filePath = sessionFilePath(this.historyDir, sessionId);
+      await (this.writeChains.get(sessionId) ?? Promise.resolve()).catch(() => {});
+      this.writeChains.delete(sessionId);
+      try {
+        await fs.unlink(filePath);
+        removed += 1;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    }
+    return removed;
   }
 
   /** Wait for all in-flight appends to land (graceful SIGTERM drain). */

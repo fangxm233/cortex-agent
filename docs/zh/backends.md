@@ -45,6 +45,8 @@ Cortex 定义了后端可能支持的十种能力。编排层在尝试后端特�
 
 Claude Code 适配器会话池按键频道以重用会话。费用报告从 `message.usage` 令牌计数逆向推导 USD 费用，使用 Anthropic 发布的定价。
 
+session-retention 协调器还会把 Claude 用户级 `cleanupPeriodDays` 同步到 `$CLAUDE_CONFIG_DIR/settings.json`（或 `~/.claude/settings.json`）里，值来源于 Cortex 运行时设置中的 `sessionRetentionDays`。这次写入只会 merge 进用户设置文件：保留所有其它 Claude 键，不会碰 spawn cwd 下的项目级 `.claude/settings.local.json` 或 `.claude/settings.json`，也不会借此接管 hook/permission 配置的归属。若用户文件里已是相同的 `cleanupPeriodDays`，则不会重写文件。
+
 ## PI
 
 与 Claude Code 功能完全对等。PI 的适配器在 PI 原生功能集不同的地方弥补差距：
@@ -55,6 +57,8 @@ Claude Code 适配器会话池按键频道以重用会话。费用报告从 `mes
 - **插件** — PI 原生的 `--skill` 标志映射到 Cortex 的插件系统。
 
 PI 会话使用 `--session <path>` 进行恢复，使用 `--system-prompt` 覆盖系统提示。适配器处理 PI 事件流的 LF-only NDJSON 帧格式。
+
+PI transcript retention 走文件系统扫描：仍在使用的 PI backend session id 会在保留扫描中被保护，而 `$CORTEX_HOME/logs/sessions-pi/` 下失去引用的 transcript bundle 只有在超过保留截止线且连续两轮确认后才会删除。
 
 PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是受支持的 PI provider（包括 `openai-codex-responses` API kind）；使用它的 profile 仍须设置 `"backend": "pi"`。
 

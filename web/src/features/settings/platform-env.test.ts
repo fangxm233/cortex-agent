@@ -15,6 +15,8 @@ import {
   SLACK_KEYS,
   FEISHU_KEYS,
   BUILTIN_JOB_SETTINGS,
+  WRITABLE_NUMBER_SETTING_KEYS,
+  MAX_SESSION_RETENTION_DAYS,
   durationDraftFromMs,
   durationDraftToMs,
 } from './platform-env';
@@ -62,6 +64,7 @@ describe('platform-env', () => {
     const settings: ConfigSettingEntry[] = [
       { key: 'turnNotify', value: false, source: 'file' },
       { key: 'eventLog', value: true, source: 'default' },
+      { key: 'sessionRetentionDays', value: 30, source: 'default' },
       { key: 'adminChannel', value: 'C0123', source: 'env' },
       { key: 'taskDispatchMaxConcurrent', value: null, source: 'default' },
     ];
@@ -69,8 +72,9 @@ describe('platform-env', () => {
 
     expect(getSetting(idx, 'turnNotify')).toEqual(settings[0]);
     expect(getSetting(idx, 'eventLog')).toEqual(settings[1]);
-    expect(getSetting(idx, 'adminChannel')).toEqual(settings[2]);
-    expect(getSetting(idx, 'taskDispatchMaxConcurrent')).toEqual(settings[3]);
+    expect(getSetting(idx, 'sessionRetentionDays')).toEqual(settings[2]);
+    expect(getSetting(idx, 'adminChannel')).toEqual(settings[3]);
+    expect(getSetting(idx, 'taskDispatchMaxConcurrent')).toEqual(settings[4]);
     expect(getSetting(idx, 'notifyCompaction')).toBeUndefined();
   });
 
@@ -89,6 +93,15 @@ describe('platform-env', () => {
       ['taskArchiveEnabled', 'taskArchiveIntervalMs'],
       ['memoryIndexRegenEnabled', 'memoryIndexRegenIntervalMs'],
     ]);
+  });
+
+  it('lists writable number settings separately from interval controls', () => {
+    expect(WRITABLE_NUMBER_SETTING_KEYS).toEqual(['sessionRetentionDays']);
+  });
+
+  it('re-exports the shared retention upper bound for the client save gate', () => {
+    expect(MAX_SESSION_RETENTION_DAYS).toBeGreaterThan(30);
+    expect(Number.isSafeInteger(MAX_SESSION_RETENTION_DAYS)).toBe(true);
   });
 
   it('does not list migrated admin channels as .env credential rows', () => {

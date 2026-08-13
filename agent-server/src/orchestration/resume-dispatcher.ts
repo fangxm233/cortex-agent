@@ -3,7 +3,7 @@
 // pos:    Re-enters work after its provider clears
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import type { PlatformAdapter, IncomingMessage } from '@platform/index.js';
+import { SYNTHETIC_CALLBACK_SENDER, type PlatformAdapter, type IncomingMessage } from '@platform/index.js';
 import { getSettings } from '@core/settings.js';
 import type { EventBus } from '@events/index.js';
 import type { ThreadRecord, RunThreadOptions } from '@core/types/thread-types.js';
@@ -14,6 +14,7 @@ import { resumeRateLimitedThread } from '@domain/threads/runner.js';
 import { buildResumeOptions, sealSuspendedStatusMsg, fireThreadCallback, closeResumedTaskLoop } from './thread-callback.js';
 import { trackPendingTask } from './busy-tracker.js';
 import { threadStore } from '@store/thread-repo.js';
+import { sessionStore } from '@store/session-registry-repo.js';
 import { runningExecutions } from '@core/running-executions.js';
 import { createLogger } from '@core/log.js';
 
@@ -53,6 +54,7 @@ export interface ResumeDeps {
    *  interleave two assistant turns). Threads are channel-parallel-safe, so a rate-limited thread
    *  only needs to avoid a live direct session, not other threads. */
   directSessionBusy: (channel: string) => boolean;
+  acquireSessionUse: (sessionId: string) => Promise<(() => void) | null>;
   /** Daemon busy-gate bracket (busyTracker.trackPendingTask). The fire-and-forget thread resume
    *  must hold the gate for its ENTIRE run + settle — without it the resumed thread is invisible
    *  to the busy/idle IPC, and a pending .restart fires mid-stream and SIGKILLs app.ts
@@ -81,6 +83,7 @@ function defaultDeps(): ResumeDeps {
     getThread: (id) => threadStore.get(id),
     channelBusy: (ch) => runningExecutions.hasChannel(ch),
     directSessionBusy: (ch) => runningExecutions.getByChannel(ch).some(e => !e.threadId),
+    acquireSessionUse: (sessionId) => sessionStore.acquireSessionUse(sessionId),
     track: trackPendingTask,
     delay: (ms) => new Promise((r) => setTimeout(r, ms)),
   };
@@ -193,13 +196,22 @@ async function resumeDirect(entry: Extract<ResumeEntry, { kind: 'direct' }>, ada
   const message: IncomingMessage = {
     ref: { conduit: entry.channel, messageId: `resume_${Date.now()}` },
     text: notice,
-    senderId: 'cortex-rate-limit-resume',
+    senderId: SYNTHETIC_CALLBACK_SENDER,
     isBot: false,
     kind: 'user',
     raw: { source: 'rate-limit-resume', originalMessage: entry.userMessage },
   };
   log.info(`Resuming direct session on ${entry.channel}`);
-  await deps.route({ message, channel: entry.channel, adapter, threadAnchorId: null, hasFiles: false, userMessage: notice, agentMessage: notice });
+  const release = entry.trackSessionId ? await deps.acquireSessionUse(entry.trackSessionId) : null;
+  if (entry.trackSessionId && !release) {
+    log.warn(`Resume skip (direct ${entry.channel}): session is missing or pending deletion`);
+    return;
+  }
+  try {
+    await deps.route({ message, channel: entry.channel, adapter, threadAnchorId: null, hasFiles: false, userMessage: notice, agentMessage: notice });
+  } finally {
+    release?.();
+  }
 }
 
 async function resumeThread(entry: Extract<ResumeEntry, { kind: 'thread' }>, thread: ThreadRecord, _adapter: PlatformAdapter, deps: ResumeDeps): Promise<void> {

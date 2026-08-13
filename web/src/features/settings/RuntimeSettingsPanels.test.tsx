@@ -6,6 +6,7 @@
 import { Children, isValidElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
@@ -56,6 +57,7 @@ import {
   type RuntimeSettingWriter,
   type WritableBooleanSettingKey,
 } from './RuntimeSettingsPanels';
+import { MAX_SESSION_RETENTION_DAYS } from './platform-env';
 
 const settings: ConfigSettingEntry[] = [
   { key: 'turnNotify', value: false, source: 'file' },
@@ -67,6 +69,7 @@ const settings: ConfigSettingEntry[] = [
   { key: 'showToolCalls', value: false, source: 'file' },
   { key: 'disableUserContext', value: true, source: 'env' },
   { key: 'serverUpdateDisable', value: false, source: 'default' },
+  { key: 'sessionRetentionDays', value: 30, source: 'env' },
   { key: 'taskDispatchMaxConcurrent', value: 6, source: 'file' },
   { key: 'taskDispatchEnabled', value: false, source: 'file' },
   { key: 'taskDispatchIntervalMs', value: 30_000, source: 'file' },
@@ -151,6 +154,8 @@ describe('runtime settings panel reads', () => {
     expect(html).toContain('data-setting-key="showToolCalls" data-setting-value="false"');
     expect(html).toContain('data-setting-key="disableUserContext" data-setting-value="true"');
     expect(html).toContain('data-setting-key="serverUpdateDisable" data-setting-value="false"');
+    expect(html).toContain('data-setting-key="sessionRetentionDays" data-setting-value="30"');
+    expect(html).toContain('data-setting-source="env"');
     expect(html).toContain('data-setting-key="taskDispatchMaxConcurrent" data-setting-value="6"');
     expect(html).toContain('data-setting-key="taskDispatchEnabled" data-setting-value="false"');
     expect(html).toContain('data-setting-key="taskDispatchIntervalMs" data-setting-value="30000"');
@@ -160,6 +165,11 @@ describe('runtime settings panel reads', () => {
     expect(html).toContain('data-duration-unit="taskDispatchIntervalMs"');
     expect(html).toContain('data-select-value="sec"');
     expect(html).toContain('value="6"');
+    expect(html).toContain('data-setting-key="sessionRetentionDays" data-setting-value="30"');
+    expect(html).toContain('data-number-input="sessionRetentionDays"');
+    expect(html).toContain('data-number-save="sessionRetentionDays"');
+    expect(html).toContain('value="30"');
+    expect(html).toContain('disabled=""');
     expect(html).toContain('data-duration-unit="taskArchiveIntervalMs"');
     expect(html).toContain('data-select-value="hr"');
     expect(html).toContain('data-env-key="DEBUG" data-env-present="true" data-writable="false"');
@@ -213,6 +223,29 @@ describe('runtime settings panel reads', () => {
     expect(notifications).not.toContain('••••••••');
     expect(advanced).toContain('data-setting-key="taskDispatchMaxConcurrent" data-setting-value="null"');
     expect(advanced).toContain('>auto<');
+  });
+
+  it('gates session retention save on the same max bound the server validates', () => {
+    let renderer: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <LangProvider>
+          <AdvancedPanelView snapshot={snapshot} pending={false} onToggle={() => {}} onSet={() => {}} />
+        </LangProvider>,
+      );
+    });
+
+    const input = renderer!.root.findByProps({ 'data-number-input': 'sessionRetentionDays' });
+    const save = renderer!.root.findByProps({ 'data-number-save': 'sessionRetentionDays' });
+    expect(save.props.disabled).toBe(true);
+
+    act(() => { input.props.onChange({ target: { value: String(MAX_SESSION_RETENTION_DAYS) } }); });
+    expect(renderer!.root.findByProps({ 'data-number-save': 'sessionRetentionDays' }).props.disabled).toBe(false);
+
+    act(() => { input.props.onChange({ target: { value: String(MAX_SESSION_RETENTION_DAYS + 1) } }); });
+    const blocked = renderer!.root.findByProps({ 'data-number-save': 'sessionRetentionDays' });
+    expect(blocked.props.disabled).toBe(true);
+    expect(blocked.props.title).toContain(String(MAX_SESSION_RETENTION_DAYS));
   });
 });
 
@@ -268,6 +301,18 @@ describe('runtime setting writes', () => {
 
     expect(set).toHaveBeenCalledWith({
       section: 'settings', value: { taskArchiveIntervalMs: 3_600_000 },
+    });
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it('writes a validated integer day value through the generic settings path', async () => {
+    const set = vi.fn().mockResolvedValue({ written: true, section: 'settings' });
+    const refresh = vi.fn().mockResolvedValue(undefined);
+
+    await commitSettingValue({ set, refresh, onError: vi.fn() }, 'sessionRetentionDays', 45);
+
+    expect(set).toHaveBeenCalledWith({
+      section: 'settings', value: { sessionRetentionDays: 45 },
     });
     expect(refresh).toHaveBeenCalledOnce();
   });

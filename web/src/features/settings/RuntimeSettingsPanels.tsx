@@ -13,6 +13,7 @@ import { PlatformAvatar, PresencePill } from './SettingsPanels';
 import { SCard, SCardHeader, Toggle } from './settings-ui';
 import {
   ADVANCED_FLAGS,
+  ADVANCED_NUMBER_SETTINGS,
   BUILTIN_JOB_SETTINGS,
   NOTIFY_SETTINGS,
   durationDraftFromMs,
@@ -24,12 +25,14 @@ import {
   type BuiltinJobSettingDescriptor,
   type DurationDraft,
   type DurationUnit,
+  type NumberSettingDescriptor,
   type SettingsIndex,
   type WritableBooleanSettingKey,
   type WritableSettingKey,
+  MAX_SESSION_RETENTION_DAYS,
 } from './platform-env';
 
-export type { WritableBooleanSettingKey, WritableSettingKey } from './platform-env';
+export type { WritableBooleanSettingKey, WritableNumberSettingKey, WritableSettingKey } from './platform-env';
 
 type SettingsSetArgs = Extract<ConfigSetArgs, { section: 'settings' }>;
 type WritableSettingValue = boolean | number;
@@ -99,6 +102,9 @@ const DURATION_SELECT: CSSProperties = {
 };
 const DURATION_BUTTON: CSSProperties = {
   ...DURATION_CONTROL, color: 'var(--proto-muted)',
+};
+const NUMBER_INPUT: CSSProperties = {
+  ...DURATION_CONTROL, width: 70, color: 'var(--proto-ink)',
 };
 
 export interface RuntimeSettingWriter {
@@ -361,6 +367,61 @@ function ConcurrencyRow({ settings }: { settings: SettingsIndex }) {
   );
 }
 
+function parseWholeNumber(input: string): number | null {
+  if (!/^[0-9]+$/.test(input)) return null;
+  const value = Number(input);
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+function NumberSettingRow(props: {
+  descriptor: NumberSettingDescriptor;
+  settings: SettingsIndex;
+  pending: boolean;
+  onSet: RuntimeSettingWriter['onSet'];
+}) {
+  const L = useVocab();
+  const entry = getSetting(props.settings, props.descriptor.setting);
+  const current = typeof entry?.value === 'number' ? entry.value : null;
+  const [draft, setDraft] = useState(() => (current === null ? '' : String(current)));
+  useEffect(() => {
+    setDraft(current === null ? '' : String(current));
+  }, [current]);
+  const nextValue = parseWholeNumber(draft);
+  const withinRange = nextValue !== null && nextValue >= 1 && nextValue <= MAX_SESSION_RETENTION_DAYS;
+  const canSave = current !== null && withinRange && nextValue !== current && !props.pending;
+  return (
+    <div data-setting-key={props.descriptor.setting}
+      data-setting-value={current === null ? 'missing' : String(current)}
+      data-setting-source={entry?.source ?? 'missing'} style={ROW}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={TITLE}>{L[props.descriptor.titleKey]}</div>
+        <div style={DESC}>{L[props.descriptor.descKey]}</div>
+      </div>
+      <input
+        data-number-input={props.descriptor.setting}
+        type="number"
+        min={1}
+        max={MAX_SESSION_RETENTION_DAYS}
+        step={1}
+        value={draft}
+        style={NUMBER_INPUT}
+        onChange={(event) => setDraft(event.target.value)}
+      />
+      <button
+        data-number-save={props.descriptor.setting}
+        type="button"
+        disabled={!canSave}
+        style={DURATION_BUTTON}
+        title={!withinRange ? `${L.stAdvRetentionInvalid} (1–${MAX_SESSION_RETENTION_DAYS})` : undefined}
+        onClick={() => { if (withinRange) props.onSet(props.descriptor.setting, nextValue); }}
+      >
+        {L.stBuiltinSave}
+      </button>
+      <span style={KEY}>{`settings.${props.descriptor.setting} · ${entry?.source ?? '—'}`}</span>
+    </div>
+  );
+}
+
 function DurationFields(props: {
   settingKey: WritableSettingKey;
   draft: DurationDraft;
@@ -500,6 +561,10 @@ export function AdvancedPanelView({
     <>
       <SCard style={{ marginTop: 12, maxWidth: 760 }}>
         <AdvancedToggleList snapshot={snapshot} settings={settings} pending={pending} onToggle={onToggle} />
+        {ADVANCED_NUMBER_SETTINGS.map((descriptor) => (
+          <NumberSettingRow key={descriptor.setting} descriptor={descriptor} settings={settings}
+            pending={pending} onSet={onSet} />
+        ))}
         <ConcurrencyRow settings={settings} />
         <GpuMockRow snapshot={snapshot} />
       </SCard>

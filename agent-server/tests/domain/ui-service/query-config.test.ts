@@ -86,7 +86,7 @@ test('readConfigSnapshot surfaces per-project budgets and drops half-pair entrie
 
 test('readConfigSnapshot reports file, env, and default setting sources with plaintext values', async () => {
   const { configDir } = await makeFixture();
-  await fs.writeFile(path.join(configDir, 'settings.json'), JSON.stringify({ turnNotify: false }));
+  await fs.writeFile(path.join(configDir, 'settings.json'), JSON.stringify({ turnNotify: false, sessionRetentionDays: 31 }));
   const previousShowToolCalls = process.env.CORTEX_SHOW_TOOL_CALLS;
   const previousManagerRotateSteps = process.env.CORTEX_MANAGER_ROTATE_STEPS;
   process.env.CORTEX_SHOW_TOOL_CALLS = 'yes';
@@ -105,6 +105,10 @@ test('readConfigSnapshot reports file, env, and default setting sources with pla
     assert.deepEqual(
       snap.settings.find((entry) => entry.key === 'managerRotateSteps'),
       { key: 'managerRotateSteps', value: 10, source: 'default' },
+    );
+    assert.deepEqual(
+      snap.settings.find((entry) => entry.key === 'sessionRetentionDays'),
+      { key: 'sessionRetentionDays', value: 31, source: 'file' },
     );
   } finally {
     if (previousShowToolCalls === undefined) delete process.env.CORTEX_SHOW_TOOL_CALLS;

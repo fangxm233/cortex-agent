@@ -56,6 +56,7 @@ import {
 } from './event-parser.js';
 import { BgTaskTracker, routeLine } from './bg-task-tracker.js';
 import { ClaudeContextUsageTracker } from './context-usage.js';
+import { activeClaudeCaptureRegistry } from './active-capture-registry.js';
 import { resolveAutoCompactWindow } from './compact-window.js';
 import {
   validateClaudeSupplementalMcpConfig,
@@ -92,6 +93,8 @@ interface PendingTurn {
   finalOutput: string | null;
   longestOutput: string | null;
   turnCount: number;
+  capturePairKey?: string | null;
+  releaseCapture?: (() => void) | null;
   onProgress: ((progress: any) => void) | null;
   /** Complete assistant text block. `blockId` ties it to the deltas that streamed it (absent when
    *  nothing streamed — kill switch, older CLI, or a reply that produced no partial messages). */
@@ -546,21 +549,24 @@ class ClaudeSession {
     this.armProcessTimers();
   }
 
-  private createTurnStreams(userMessage: string): { rawStream: Writable; txtStream: Writable } {
+  private createTurnStreams(userMessage: string): { rawStream: Writable; txtStream: Writable; pairKey: string | null; releaseCapture: (() => void) | null } {
     if (!this.captureTranscriptLogs) {
       const sink = () => new Writable({ write(_chunk, _encoding, done) { done(); } });
-      return { rawStream: sink(), txtStream: sink() };
+      return { rawStream: sink(), txtStream: sink(), pairKey: null, releaseCapture: null };
     }
     mkdirSync(LOGS_DIR, { recursive: true });
     const ts = readableTimestamp();
-    const rawStream = createWriteStream(path.join(LOGS_DIR, `claude-output-${ts}.jsonl`), { flags: 'a' });
-    const txtStream = createWriteStream(path.join(LOGS_DIR, `claude-output-${ts}.txt`), { flags: 'a' });
+    const rawPath = path.join(LOGS_DIR, `claude-output-${ts}.jsonl`);
+    const txtPath = path.join(LOGS_DIR, `claude-output-${ts}.txt`);
+    const rawStream = createWriteStream(rawPath, { flags: 'a' });
+    const txtStream = createWriteStream(txtPath, { flags: 'a' });
+    const releaseCapture = activeClaudeCaptureRegistry.register(ts, [rawPath, txtPath]);
     txtStream.write(`=== Cortex session started at ${new Date().toISOString()} ===\n=== channel=${this.channel}, session=${this.sessionId} ===\n\n`);
     txtStream.write(`[user-input] ${userMessage}\n\n`);
-    return { rawStream, txtStream };
+    return { rawStream, txtStream, pairKey: ts, releaseCapture };
   }
 
-  private registerTurn(resolve: any, reject: any, streams: { rawStream: Writable; txtStream: Writable }, options: any): void {
+  private registerTurn(resolve: any, reject: any, streams: { rawStream: Writable; txtStream: Writable; pairKey: string | null; releaseCapture: (() => void) | null }, options: any): void {
     clearActivePlanFile(this.sessionId);
     this.currentTurn = {
       resolve, reject,
@@ -572,6 +578,8 @@ class ClaudeSession {
       finalOutput: null,
       longestOutput: null,
       turnCount: 0,
+      capturePairKey: streams.pairKey,
+      releaseCapture: streams.releaseCapture,
       onProgress: options.onProgress || null,
       onAssistantMessage: options.onAssistantMessage || null,
       onAssistantDelta: options.onAssistantDelta || null,
@@ -707,6 +715,8 @@ class ClaudeSession {
       resultData: null, planFilePath: null,
       enteredPlanMode: false, exitedPlanMode: false,
       askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0,
+      capturePairKey: streams.pairKey,
+      releaseCapture: streams.releaseCapture,
       onProgress: null, onAssistantDelta: null, onCompact: null, onSubagentActivity: null,
       rawStream: streams.rawStream, txtStream: streams.txtStream,
       killed: false, spontaneous: true,
@@ -879,6 +889,8 @@ class ClaudeSession {
     turn.txtStream.write(`\n=== Turn finished at ${new Date().toISOString()} ===\n`);
     turn.rawStream.end();
     turn.txtStream.end();
+    turn.releaseCapture?.();
+    turn.releaseCapture = null;
     if (result.resolved) turn.resolve(result.value);
     else turn.reject(result.error);
   }
@@ -1078,6 +1090,8 @@ class ClaudeSession {
       turn.rawStream.end();
       turn.txtStream.end();
     } catch {}
+    turn.releaseCapture?.();
+    turn.releaseCapture = null;
   }
 
   private resetIdleTimer() {

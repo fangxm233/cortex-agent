@@ -31,16 +31,21 @@ $CORTEX_HOME/
 │   ├── schedules.json            # Persistent scheduled task list
 │   ├── executions.json           # Unified execution registry
 │   ├── costs.jsonl               # 90-day rolling cost records
-│   └── sessions.json             # Channel-to-agent session mapping
+│   ├── sessions.json             # Channel-to-agent session mapping
+│   ├── session-registry.jsonl    # Append-only session registry journal
+│   ├── retention-candidates.json # Two-sweep orphan retention markers
+│   └── conversation-history/     # Per-session transcript/history JSONL
 ├── .claude/
-│   └── settings.json             # Claude Code hooks and permissions
+│   └── settings.json             # Cortex-scaffolded Claude Code project settings
 ├── hooks/                        # Hook scripts (.mjs)
 ├── plugins/                      # Role-scoped skill plugins
 ├── prompts/                      # System prompts, directives, templates
 ├── rules/                        # Context rules for agent sessions
 ├── context/                      # Dense Context knowledge repository
 │   └── projects/                 # Research project files
-├── logs/                         # Daemon and LLM session logs
+├── logs/                         # Daemon and backend session logs
+│   ├── sessions/                 # Claude capture logs
+│   └── sessions-pi/              # PI transcript bundles
 └── tmp/                          # Temporary workspaces (threads, etc.)
 ```
 
@@ -57,9 +62,13 @@ $CORTEX_HOME/
    variable of the same setting.
 4. **`$CORTEX_HOME/config/profiles.json`** is read on every agent
    spawn to resolve model, backend, and extra environment.
-5. **`$CORTEX_HOME/.claude/settings.json`** is read by Claude Code
-   (not by Cortex directly) to configure hooks and permissions for the
-   coding-agent backend.
+5. **`$CORTEX_HOME/.claude/settings.json`** is the Cortex-scaffolded
+   Claude Code project settings file. Claude Code may also read
+   `<spawn cwd>/.claude/settings.local.json`, `<spawn cwd>/.claude/settings.json`,
+   and the user settings file at `$CLAUDE_CONFIG_DIR/settings.json`
+   (or `~/.claude/settings.json`). Cortex only scaffolds the `$CORTEX_HOME`
+   file; the retention helper separately syncs `cleanupPeriodDays` in the
+   user file.
 
 The `.env` file supports standard `KEY=VALUE` syntax and `#` comments.
 Environment variables already set in the shell take precedence over the
@@ -289,6 +298,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `taskArchiveIntervalMs` | number | `21600000` | Interval between completed-task archive runs, in integer milliseconds | — |
 | `memoryIndexRegenEnabled` | boolean | `true` | Run the built-in experiment/knowledge/pattern index rebuild. Switching from `false` to `true` runs it immediately | — |
 | `memoryIndexRegenIntervalMs` | number | `86400000` | Interval between memory-index rebuilds, in integer milliseconds | — |
+| `sessionRetentionDays` | number | `30` | Whole safe-integer retention window in days (valid range `1` through `104249991`). The retention coordinator runs once at daemon startup, every 6 hours, and again after a hot-reload change; it prunes expired session-registry entries, orphan `conversation-history`, orphan PI transcript bundles, orphan Claude capture logs, and syncs Claude user `cleanupPeriodDays`, while skipping active sessions/captures | — |
 | `uiCorsOrigins` | string[] | `[]` | Origins that receive CORS headers from the Web UI HTTP host. See [desktop-app.md](./desktop-app.md) | `CORTEX_UI_CORS_ORIGINS` (comma-separated) |
 | `adminChannel` | string \| null | `null` | Slack channel for system notices (startup, rate-limit, disk alerts). The first DM to the bot is auto-detected and persisted here | `SLACK_ADMIN_CHANNEL`, then `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | Feishu admin `chat_id` (`oc_...`) for the same notices. Independent of `adminChannel` — Slack channel ids are not usable on Feishu | `FEISHU_ADMIN_CHANNEL` |
@@ -296,12 +306,27 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`) and **Settings → Advanced**
 (`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
-`serverUpdateDisable`, and the built-in job switches and intervals). Every other key is edited by hand in the file.
+`serverUpdateDisable`, `sessionRetentionDays`, and the built-in job switches
+and intervals). Every other key is edited by hand in the file.
 
 Built-in job intervals must be integer milliseconds from `1000` through
 `2147483647`, the safe range for Node timers. Enabled jobs run once at daemon
 startup. Archive and memory-index runs never overlap; a changed interval takes
 effect after an active run finishes.
+
+`sessionRetentionDays` is the one numeric retention control in **Settings →
+Advanced**. The desktop Web UI writes it through the same
+`config.set { section: 'settings' }` path as the boolean runtime toggles, and
+the client enforces the same upper bound the server validates.
+
+The retention coordinator has five housekeeping surfaces on that clock: live
+session-registry expiry (via `delete-intent` then `delete-commit`), orphan
+`data/conversation-history/*.jsonl`, orphan PI transcript bundles under
+`logs/sessions-pi/`, orphan Claude capture files under `logs/sessions/`, and
+the synced Claude user `cleanupPeriodDays` helper. Orphan history and PI files
+use a two-sweep confirmation before deletion. Active direct sessions, running
+executions and thread steps, pending interaction/bg-held sessions, live PI
+backend session ids, and active Claude capture pairs are protected.
 
 ### Hot reload
 
@@ -393,10 +418,24 @@ section.
 
 ## .claude/settings.json (Claude Code)
 
-Located at `$CORTEX_HOME/.claude/settings.json`. This file configures
-Claude Code's hook and permission system. Cortex seeds it from
-`defaults/.claude/settings.json` during `cortex init` and never
-overwrites it on subsequent runs.
+Located at `$CORTEX_HOME/.claude/settings.json`. This is the
+Cortex-scaffolded Claude Code project settings file under the Cortex data root.
+`cortex init` seeds it from `defaults/.claude/settings.json` once and Cortex
+never overwrites that path on later runs.
+
+Claude Code itself can also read higher-precedence project files in the spawn
+cwd (`.claude/settings.local.json`, then `.claude/settings.json`) and the user
+settings file at `$CLAUDE_CONFIG_DIR/settings.json` or `~/.claude/settings.json`.
+Cortex does not scaffold, sync, or overwrite those project-local cwd files at
+all; "never overwrite" here applies only to the `$CORTEX_HOME/.claude/settings.json`
+seed path above.
+
+The session-retention coordinator has one separate Claude housekeeping write:
+it merges `cleanupPeriodDays` into the user settings file
+(`$CLAUDE_CONFIG_DIR/settings.json` or `~/.claude/settings.json`) with a
+guarded read-merge-temp-sync-rename flow. That helper owns exactly one key,
+preserves every other Claude setting verbatim, and does not rewrite
+hook/permission ownership or any project-local `.claude` files.
 
 The file follows Claude Code's settings format with `hooks` and
 `permissions` sections. See [hooks.md](./hooks.md) for the hook
@@ -414,7 +453,7 @@ server on every startup:
 |---|---|---|
 | `defaults/CORTEX.md` | `$CORTEX_HOME/CORTEX.md` | Never |
 | `defaults/gitignore` | `$CORTEX_HOME/.gitignore` | Never |
-| `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | Never |
+| `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | Never — this applies only to the `$CORTEX_HOME/.claude/settings.json` scaffolded path; arbitrary repository-local `.claude/settings.json` files are outside Cortex's copy/sync loop |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | Only with `--force` |
 | `defaults/config/thread-templates/` | `$CORTEX_HOME/config/thread-templates/` | Per-file copy-if-missing, at init and again at every server start: a shipped agent/template/shell file you do not have yet is added; a file you already have is never overwritten — `--force` does not apply to this tree |
 | `defaults/config/hooks/` | `$CORTEX_HOME/config/hooks/` | Per-file CalVer sync at every server start: added when missing, refreshed when the shipped `version` is newer. A declaration with no `version` — yours — is never overwritten |
@@ -479,4 +518,9 @@ polling mode as it uses with filesystem events.
 | `.claude/settings.json` | Claude Code hooks/permissions (not the Cortex settings file) | `$CORTEX_HOME/.claude/settings.json` |
 | `mode.json` | Runtime mode | `$CORTEX_HOME/data/mode.json` |
 | `schedules.json` | Scheduled tasks | `$CORTEX_HOME/data/schedules.json` |
+| `session-registry.jsonl` | Append-only session registry journal | `$CORTEX_HOME/data/session-registry.jsonl` |
+| `retention-candidates.json` | Two-sweep orphan cleanup candidates | `$CORTEX_HOME/data/retention-candidates.json` |
+| `conversation-history/` | Per-session transcript/history JSONL | `$CORTEX_HOME/data/conversation-history/` |
+| `logs/sessions/` | Claude capture logs | `$CORTEX_HOME/logs/sessions/` |
+| `logs/sessions-pi/` | PI transcript bundles | `$CORTEX_HOME/logs/sessions-pi/` |
 | `hooks/*.json` | Hook declarations | `$CORTEX_HOME/config/hooks/` |

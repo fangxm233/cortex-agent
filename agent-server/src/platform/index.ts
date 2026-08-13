@@ -4,6 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 export type { PlatformAdapter } from './adapter.js';
+export { SYNTHETIC_CALLBACK_SENDER } from './types.js';
 export type {
   MessageRef,
   MessageContent,

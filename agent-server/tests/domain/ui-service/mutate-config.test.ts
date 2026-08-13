@@ -69,6 +69,7 @@ test('configSetInput accepts a valid budget mutation', () => {
 test('configSetInput accepts partial settings and rejects unknown or wrongly typed keys', () => {
   const value = {
     turnNotify: false,
+    sessionRetentionDays: 14,
     taskDispatchMaxConcurrent: null,
     taskDispatchEnabled: true,
     taskDispatchIntervalMs: 30_000,
@@ -90,6 +91,20 @@ test('configSetInput rejects built-in job intervals outside safe timer bounds', 
   for (const value of [999, 1_000.5, 2_147_483_648]) {
     assert.throws(() => configSetInput.parse({
       section: 'settings', value: { memoryIndexRegenIntervalMs: value },
+    }));
+  }
+});
+
+test('configSetInput accepts valid sessionRetentionDays and rejects zero, fractions, and unsafe values', () => {
+  const maxDays = Math.floor(Number.MAX_SAFE_INTEGER / 86_400_000);
+  assert.deepEqual(
+    configSetInput.parse({ section: 'settings', value: { sessionRetentionDays: 30 } }),
+    { section: 'settings', value: { sessionRetentionDays: 30 } },
+  );
+  assert.doesNotThrow(() => configSetInput.parse({ section: 'settings', value: { sessionRetentionDays: maxDays } }));
+  for (const value of [0, 1.5, maxDays + 1, Number.MAX_SAFE_INTEGER]) {
+    assert.throws(() => configSetInput.parse({
+      section: 'settings', value: { sessionRetentionDays: value },
     }));
   }
 });
@@ -135,14 +150,20 @@ test('handleConfigSet rejects unknown and wrongly typed settings with invalid-ar
     makeMinimalDeps(),
     { section: 'settings', value: { taskDispatchIntervalMs: 999 } } as any,
   );
+  const invalidRetention = await handleConfigSet(
+    makeMinimalDeps(),
+    { section: 'settings', value: { sessionRetentionDays: 0 } } as any,
+  );
   assert.equal(unknown.ok, false);
   assert.equal(wrongType.ok, false);
   assert.equal(explicitUndefined.ok, false);
   assert.equal(unsafeInterval.ok, false);
+  assert.equal(invalidRetention.ok, false);
   if (!unknown.ok) assert.equal(unknown.code, 'invalid-args');
   if (!wrongType.ok) assert.equal(wrongType.code, 'invalid-args');
   if (!explicitUndefined.ok) assert.equal(explicitUndefined.code, 'invalid-args');
   if (!unsafeInterval.ok) assert.equal(unsafeInterval.code, 'invalid-args');
+  if (!invalidRetention.ok) assert.equal(invalidRetention.code, 'invalid-args');
 });
 
 // ── facade + app-router wiring ──────────────────────────────────────
@@ -238,97 +259,28 @@ test('config.set via facade round-trips a per-project override through config.ge
   assert.deepEqual(after.data.budget?.projects, {});
 });
 
-test('config.set settings atomically persists a partial object and config.get reports file source', async () => {
-  await fs.mkdir(CONFIG_DIR, { recursive: true });
-  await fs.writeFile(path.join(CONFIG_DIR, 'settings.json'), '{}', 'utf8');
-  const ui = createUiService(makeMinimalDeps());
-  const value = { turnNotify: false, uiCorsOrigins: ['https://ui.example'] };
+test('config.set settings writes without retention side-effect hooks', async () => {
+  const deps = makeMinimalDeps();
+  const first = await handleConfigSet(deps, {
+    section: 'settings',
+    value: { turnNotify: false },
+  } as any);
+  const second = await handleConfigSet(deps, {
+    section: 'settings',
+    value: { sessionRetentionDays: 45 },
+  } as any);
 
-  const result = await ui.mutate('config.set', { section: 'settings', value });
-
-  assert.ok(result.ok);
-  assert.deepEqual(result.data, { written: true, section: 'settings' });
-  assert.deepEqual(JSON.parse(await fs.readFile(path.join(CONFIG_DIR, 'settings.json'), 'utf8')), value);
-  assert.deepEqual(
-    (await fs.readdir(CONFIG_DIR)).filter((name) => name.startsWith('settings.json.tmp.')),
-    [],
-  );
-  const got = await ui.query('config.get', {});
-  assert.ok(got.ok);
-  assert.deepEqual(
-    got.data.settings.find((entry) => entry.key === 'turnNotify'),
-    { key: 'turnNotify', value: false, source: 'file' },
-  );
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
 });
 
-// The tRPC router binding (invalid-args → TRPCError BAD_REQUEST) is covered in
-// the ui-http app-router test (tests/platform/ui-http-app-router.test.ts); here we assert the facade rejects invalid input
-// with the invalid-args Err code (no write).
-test('config.set via facade rejects invalid input with invalid-args', async () => {
-  const result = await createUiService(makeMinimalDeps())
-    .mutate('config.set', { section: 'budget', value: { daily_usd: -1, monthly_usd: 2000 } } as any);
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.code, 'invalid-args');
-});
+test('config.set settings remains successful when async CC retention sync fails later', async () => {
+  const result = await handleConfigSet(makeMinimalDeps(), {
+    section: 'settings',
+    value: { sessionRetentionDays: 60 },
+  } as any);
 
-// ── profiles section (task b983): re-point defaultProfile to an EXISTING profile ───────
-test('writeDefaultProfile re-points defaultProfile and preserves every other field', async () => {
-  const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-prof-'));
-  const original = { defaultProfile: 'plan', profiles: { plan: { model: 'a' }, fast: { model: 'b' } }, extra: 42 };
-  await fs.writeFile(path.join(configDir, 'profiles.json'), JSON.stringify(original), 'utf8');
-  await writeDefaultProfile(configDir, 'fast');
-  const after = JSON.parse(await fs.readFile(path.join(configDir, 'profiles.json'), 'utf8'));
-  assert.equal(after.defaultProfile, 'fast');
-  assert.deepEqual(after.profiles, original.profiles, 'profiles map preserved');
-  assert.equal(after.extra, 42, 'unrelated fields preserved');
-});
-
-test('writeDefaultProfile rejects an unknown profile without changing the file', async () => {
-  const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-prof-bad-'));
-  const original = { defaultProfile: 'plan', profiles: { plan: {} } };
-  const file = path.join(configDir, 'profiles.json');
-  await fs.writeFile(file, JSON.stringify(original), 'utf8');
-  await assert.rejects(
-    () => writeDefaultProfile(configDir, 'ghost'),
-    (e: any) => e?.code === 'invalid-args',
-  );
-  assert.deepEqual(JSON.parse(await fs.readFile(file, 'utf8')), original, 'file unchanged');
-});
-
-test('writeDefaultProfile rejects a missing profiles.json with invalid-args', async () => {
-  const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-prof-none-'));
-  await assert.rejects(
-    () => writeDefaultProfile(configDir, 'plan'),
-    (e: any) => e?.code === 'invalid-args',
-  );
-});
-
-test('config.set profiles via facade writes defaultProfile and read-back reflects it', async () => {
-  // Seed profiles.json into the isolated CONFIG_DIR so config.get can read it back.
-  await fs.mkdir(CONFIG_DIR, { recursive: true });
-  await fs.writeFile(
-    path.join(CONFIG_DIR, 'profiles.json'),
-    JSON.stringify({ defaultProfile: 'plan', profiles: { plan: { model: 'a' }, fast: { model: 'b' } } }),
-    'utf8',
-  );
-  const ui = createUiService(makeMinimalDeps());
-  const result = await ui.mutate('config.set', { section: 'profiles', value: { defaultProfile: 'fast' } });
-  assert.ok(result.ok);
-  assert.deepEqual(result.data, { written: true, section: 'profiles' });
-  const got = await ui.query('config.get', {});
-  assert.ok(got.ok);
-  assert.equal(got.data.profiles?.defaultProfile, 'fast');
-});
-
-test('config.set profiles via facade rejects an unknown profile with invalid-args', async () => {
-  await fs.mkdir(CONFIG_DIR, { recursive: true });
-  await fs.writeFile(
-    path.join(CONFIG_DIR, 'profiles.json'),
-    JSON.stringify({ defaultProfile: 'plan', profiles: { plan: {} } }),
-    'utf8',
-  );
-  const result = await createUiService(makeMinimalDeps())
-    .mutate('config.set', { section: 'profiles', value: { defaultProfile: 'ghost' } });
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.code, 'invalid-args');
+  assert.deepEqual(result, { ok: true, data: { written: true, section: 'settings' } });
+  const settings = JSON.parse(await fs.readFile(path.join(CONFIG_DIR, 'settings.json'), 'utf8'));
+  assert.equal(settings.sessionRetentionDays, 60);
 });

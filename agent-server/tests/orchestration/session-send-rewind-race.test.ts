@@ -75,7 +75,7 @@ function makeRewindDeps(channel: string, overrides: Partial<RewindDeps> = {}): R
 
 function acceptSend(channel: string, text: string, adapter: MockAdapter, runner: AgentRunner) {
   return handleSendSession({
-    sessionStore: { getById: async () => ({ channel }) },
+    sessionStore: { getById: async () => ({ channel }), touchForUse: async () => true },
     sendSessionMessage: (opts: { channel: string; text: string }) => {
       sendWebUserMessage({
         channel: opts.channel, text: opts.text, adapter,

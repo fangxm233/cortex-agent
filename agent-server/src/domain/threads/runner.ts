@@ -649,7 +649,10 @@ function registerStepHandle(
     threadId, channel: opts.channel, agentSlotId: stepCtx.agentSlotId,
     executionId: stepCtx.execution.id, kind: stepCtx.execution.kind,
     kill: () => handle.kill(), backend: stepCtx.profileBackend,
-    agentProcess: handle.agentProcess, sessionId: handle.sessionId,
+    agentProcess: handle.agentProcess,
+    trackSessionId: stepCtx.trackSessionId,
+    backendSessionId: handle.sessionId ?? stepCtx.resumeSessionId,
+    sessionId: handle.sessionId,
   });
 }
 

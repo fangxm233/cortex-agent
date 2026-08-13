@@ -1,7 +1,8 @@
 // input:  AgentHandle-like kill function, EventBus
-// output: RunningExecutions singleton — executionId-keyed registry with channel/thread secondary indices
-// pos:    orch/ layer, encapsulates the in-memory live-execution registry + publishes agent.* lifecycle events
-//
+// output: RunningExecutions singleton and execution registry types
+// pos:    Live execution index shared by orchestration and queries
+// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+
 // Primary key is the executionId (globally unique), so multiple live executions can coexist on one
 // channel without evicting each other (the P3 fix). channel and threadId are secondary lookup indices.
 // An ad-hoc string registryKey is supported for executions with no executionId (rare).
@@ -22,8 +23,11 @@ export interface RunningExecution {
   backend: string;
   /** Agent process reference — used by PI backend to route extension_ui_response for plan/ask interactions. */
   agentProcess?: unknown;
-  /** Backend session id snapshot from spawn time (informational; resume-target persistence on an
-   *  interrupted turn is handled by runConversation's settle hook, keyed on the track record). */
+  /** Stable Cortex track session id used by registry/history/query surfaces. */
+  trackSessionId?: string | null;
+  /** Backend resume target snapshot from spawn time. */
+  backendSessionId?: string | null;
+  /** Legacy compatibility alias. Prefers trackSessionId, falls back to backendSessionId. */
   sessionId?: string | null;
   /** Live agent-turn count of the in-flight run (adapter `turn_progress`/`turn_complete`), updated
    *  in-memory via setNumTurns. Null until the first progress event. Read by sessions.list as the
@@ -77,7 +81,9 @@ export class RunningExecutions {
       startTime: Date.now(),
       backend: exec.backend,
       agentProcess: exec.agentProcess,
-      sessionId: exec.sessionId,
+      trackSessionId: exec.trackSessionId ?? null,
+      backendSessionId: exec.backendSessionId ?? exec.sessionId ?? null,
+      sessionId: exec.trackSessionId ?? exec.backendSessionId ?? exec.sessionId ?? null,
       numTurns: exec.numTurns ?? null,
     };
 

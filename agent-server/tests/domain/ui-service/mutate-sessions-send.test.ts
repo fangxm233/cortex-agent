@@ -33,9 +33,24 @@ test('sessions.send returns not-found when the session does not exist', async ()
   assert.equal(sink.length, 0, 'no send is dispatched for a missing session');
 });
 
-test('sessions.send accepts + routes to the session channel, fire-and-forget', async () => {
+test('sessions.send awaits admission touch before routing to the session channel', async () => {
   const sink: SendCall[] = [];
-  const res = await handleSendSession(makeDeps(session('C123'), sink), { sessionId: 'sess-1', text: 'run it' });
+  const touched: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const pending = handleSendSession(makeDeps(session('C123'), sink, {
+    sessionStore: {
+      listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session('C123'),
+      touchForUse: async (sessionId: string) => { touched.push(sessionId); await gate; return true; },
+    } as any,
+  }), { sessionId: 'sess-1', text: 'run it' });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(touched, ['sess-1']);
+  assert.equal(sink.length, 0);
+  release();
+
+  const res = await pending;
   assert.equal(res.ok, true);
   if (res.ok) assert.deepEqual(res.data, { accepted: true });
   assert.equal(sink.length, 1);
@@ -67,6 +82,20 @@ test('sessions.send on a scheduled session is not-available when adoption is not
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(res.code, 'not-available');
   assert.equal(sink.length, 0, 'no send is dispatched to the shared project channel');
+});
+
+test('sessions.send maps a failed admission touch to not-found without sending', async () => {
+  const sink: SendCall[] = [];
+  const deps = makeDeps(session('C123'), sink, {
+    sessionStore: {
+      listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session('C123'),
+      touchForUse: async () => false,
+    } as any,
+  });
+  const res = await handleSendSession(deps, { sessionId: 'sess-1', text: 'hi' });
+  assert.equal(res.ok, false);
+  if (!res.ok) assert.equal(res.code, 'not-found');
+  assert.equal(sink.length, 0);
 });
 
 test('sessions.send maps a failed adoption to not-found without sending', async () => {

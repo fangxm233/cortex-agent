@@ -13,6 +13,7 @@ import {
 } from '../../src/orchestration/resume-dispatcher.js';
 import { EventBus } from '../../src/events/index.js';
 import { MockAdapter } from '../../src/platform/testing.js';
+import { SYNTHETIC_CALLBACK_SENDER } from '../../src/platform/index.js';
 import type { ResumeEntry } from '../../src/domain/costs/resume-registry.js';
 import { resetSettingsForTests } from '../../src/core/settings.js';
 
@@ -37,6 +38,7 @@ function baseDeps(entries: ResumeEntry[], overrides: any = {}) {
     getThread: (_id: string) => ({ id: _id, status: 'rate_limited', channel: 'C1', projectId: 'proj' }) as any,
     channelBusy: (_c: string) => false,
     directSessionBusy: (_c: string) => false,
+    acquireSessionUse: async (_sessionId: string) => () => {},
     now: () => NOW,
     delay: async (_ms: number) => {},
     ...overrides,
@@ -98,9 +100,27 @@ test('direct entry routes a synthetic system-reminder message', async () => {
   assert.equal(ctx.threadAnchorId, null);
   assert.equal(ctx.hasFiles, false);
   assert.equal(ctx.message.kind, 'user');
-  assert.equal(ctx.message.senderId, 'cortex-rate-limit-resume');
+  assert.equal(ctx.message.senderId, SYNTHETIC_CALLBACK_SENDER);
   assert.ok(ctx.message.text.includes('<system-reminder>'));
   assert.equal(ctx.message.ref.conduit, 'C1');
+});
+
+test('direct resume holds the stable session lease until route has enqueued the turn', async () => {
+  const adapter = new MockAdapter({ adminChannel: 'admin' });
+  const order: string[] = [];
+  const { deps } = baseDeps(
+    [{ kind: 'direct', provider: 'provider-a', channel: 'C1', trackSessionId: 'track-1', userMessage: 'orig', recordedAt: NOW }],
+    {
+      acquireSessionUse: async (sessionId: string) => {
+        order.push(`acquire:${sessionId}`);
+        return () => { order.push('release'); };
+      },
+      route: async () => { order.push('route'); },
+    },
+  );
+
+  await dispatchPendingResumes(adapter as any, deps);
+  assert.deepEqual(order, ['acquire:track-1', 'route', 'release']);
 });
 
 test('dispatcher asks the registry for entries ready against the active provider set', async () => {

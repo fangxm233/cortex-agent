@@ -109,6 +109,7 @@ const expectedKeys = [
   'taskArchiveIntervalMs',
   'memoryIndexRegenEnabled',
   'memoryIndexRegenIntervalMs',
+  'sessionRetentionDays',
   'uiCorsOrigins',
   'adminChannel',
   'feishuAdminChannel',
@@ -140,6 +141,7 @@ const expectedDefaults = {
   taskArchiveIntervalMs: 6 * 60 * 60 * 1000,
   memoryIndexRegenEnabled: true,
   memoryIndexRegenIntervalMs: 24 * 60 * 60 * 1000,
+  sessionRetentionDays: 30,
   uiCorsOrigins: [],
   adminChannel: null,
   feishuAdminChannel: null,
@@ -178,6 +180,7 @@ describe.sequential('core settings', () => {
         taskArchiveIntervalMs: undefined,
         memoryIndexRegenEnabled: undefined,
         memoryIndexRegenIntervalMs: undefined,
+        sessionRetentionDays: undefined,
         uiCorsOrigins: 'CORTEX_UI_CORS_ORIGINS',
         adminChannel: ['SLACK_ADMIN_CHANNEL', 'CORTEX_ADMIN_CHANNEL'],
         feishuAdminChannel: 'FEISHU_ADMIN_CHANNEL',
@@ -374,6 +377,19 @@ describe.sequential('core settings', () => {
     assert.doesNotThrow(() => resolveSettingsSnapshot(valid));
     for (const value of [999, 1_000.5, 2_147_483_648]) {
       assert.throws(() => resolveSettingsSnapshot({ taskArchiveIntervalMs: value }));
+    }
+  });
+
+  test('sessionRetentionDays defaults to 30 and enforces safe integer day bounds', () => {
+    const maxDays = Math.floor(Number.MAX_SAFE_INTEGER / 86_400_000);
+    const retention = SETTINGS_SPEC.sessionRetentionDays as SettingSpecEntry<number>;
+    assert.equal(retention.default, 30);
+    assert.equal(retention.envVar, undefined);
+    assert.equal(retention.type, 'number');
+    assert.doesNotThrow(() => resolveSettingsSnapshot({ sessionRetentionDays: 1 }));
+    assert.doesNotThrow(() => resolveSettingsSnapshot({ sessionRetentionDays: maxDays }));
+    for (const value of [0, -1, 1.5, Number.MAX_SAFE_INTEGER, maxDays + 1]) {
+      assert.throws(() => resolveSettingsSnapshot({ sessionRetentionDays: value }));
     }
   });
 
