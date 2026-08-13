@@ -6,8 +6,10 @@
 # The three task directories and runtime images are byte/digest pinned to upstream commit
 # 7131e4375048a0e408a8fb404b5f499d726b695b by
 # ../harness/scripts/terminal-bench-2.1-images.json. Admission is pull-disabled.
-# The provider credential remains host-only and is read from the named environment variable.
-# Run only through: cortex-bench run --config <this-file>
+# The provider credential remains host-only and is read from the named environment variable; the
+# committed launcher loads it into that variable at execution time and nothing else may set it.
+# Run only through: ../harness/scripts/launch-paid-campaign.py --config <this-file> --run
+# (it supplies every `host_scan_policy` reference below, which a bare `cortex-bench run` does not).
 #
 # COST ARITHMETIC (the pairing this campaign turns on; `campaign_config._validate_request_budget`
 # refuses the document if any of it stops holding).
@@ -35,10 +37,10 @@
 # Every field also stays at or below its committed row in ../policy/capability-ceilings.yaml.
 
 schema_version: cortex-bench-campaign/1
-# Fresh identity: the 2026-08-13 `tb21-paid` (four-request exhaustion) and `tb21-paid-r2`
-# (refused before admission) roots are immutable evidence, and a campaign never writes into an
-# existing trial root -- `campaign._resume` refuses one that carries no published envelope.
-# Rotate both fields together whenever an attempt has materialised this root.
+# Fresh identity: the 2026-08-13 `tb21-paid` (four paid requests, then exhaustion) and
+# `tb21-paid-r2` (refused before admission, zero requests) roots are immutable evidence, and a
+# campaign never writes into an existing trial root -- `campaign._resume` refuses one that carries
+# no published envelope. Rotate both fields together whenever an attempt has materialised this root.
 campaign: tb21-paid-r3
 paid: true
 cost_ceiling_usd: "10.00"
@@ -57,6 +59,10 @@ credential:
   proxy_host_suffix: proxy.invalid
   dummy_token_ref: paid-trial-dummy-token
 
+# Five references, and `host_finalization.parse_host_scan_policy` resolves every one of them while
+# the agent is constructed — before the proxy is armed. A launch that exports only the credential
+# is refused there as `host scan policy environment reference is unavailable` (the r2 attempt), so
+# ../harness/scripts/launch-paid-campaign.py exports all five and preflights this exact resolution.
 host_scan_policy:
   secret_environment:
     provider_credential: CORTEX_BENCH_DEEPSEEK_CREDENTIAL

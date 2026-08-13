@@ -47,6 +47,7 @@ REPO_ROOT = HARNESS_ROOT.parents[1]
 CAMPAIGNS_DIR = REPO_ROOT / "benchmark" / "campaigns"
 COMMITTED_ZERO_PAID_CONFIG = CAMPAIGNS_DIR / "zero-paid-dry-run.yaml"
 COMMITTED_PAID_CONFIG = CAMPAIGNS_DIR / "terminal-bench-2.1-deepseek-paid.yaml"
+LAUNCH_SCRIPT = HARNESS_ROOT / "scripts" / "launch-paid-campaign.py"
 
 
 def arm_document(name: str, **overrides: object) -> dict[str, object]:
@@ -1233,13 +1234,54 @@ PRESERVED_ATTEMPT_ROOTS = {
 
 
 def test_the_committed_paid_campaign_uses_a_fresh_identity() -> None:
-    """The committed document never names a preserved attempt's identity or root. Whether a root
-    exists yet is host state, not a property of the document -- an existing root without a
-    published envelope is refused at run time (see the refusal test above), so this test stays
-    true once the campaign has actually run."""
+    """The committed document never names a preserved attempt's identity, root or trial ids.
+
+    Whether a root exists yet is host state, not a property of the document: the earlier
+    `not config.trials_dir.exists()` assertion was falsified by the very campaign it guards, since
+    any attempt materialises that directory. An existing root without a published envelope is
+    refused at run time by `test_an_existing_trial_root_without_a_published_envelope_is_refused`,
+    and one with an envelope is resumed rather than rewritten by
+    `test_an_existing_completed_trial_root_is_skipped_and_its_cost_still_counts` and
+    `test_re_running_a_finished_campaign_arms_nothing_and_is_idempotent`, so this test stays true
+    once the campaign has actually run.
+    """
     config = load_campaign_config(COMMITTED_PAID_CONFIG)
 
     assert config.campaign not in PRESERVED_ATTEMPT_ROOTS
     for root in PRESERVED_ATTEMPT_ROOTS.values():
-        assert config.trials_dir != root and root not in config.trials_dir.parents
+        # Neither the same root, nor a root this campaign would write inside of, nor one that
+        # would contain it: preserved evidence cannot be written into or resumed from.
+        assert config.trials_dir != root
+        assert root not in config.trials_dir.parents
+        assert config.trials_dir not in root.parents
+    assert config.trials_dir.name.startswith(f"{config.campaign}-")
     assert all(plan.trial_id.startswith(f"{config.campaign}-") for plan in config.trials())
+    preserved_trial_ids = {
+        f"{preserved}-{task.task_id}-{arm['name']}"
+        for preserved in PRESERVED_ATTEMPT_ROOTS
+        for task in config.tasks for arm in config.arms
+    }
+    assert {plan.trial_id for plan in config.trials()}.isdisjoint(preserved_trial_ids)
+
+
+def test_the_committed_paid_campaign_names_the_launch_procedure_that_supplies_its_references(
+) -> None:
+    """Every host reference the campaign declares is one the committed launcher resolves; a bare
+    `cortex-bench run` supplies none of them, which is what refused the r2 attempt."""
+    config = load_campaign_config(COMMITTED_PAID_CONFIG)
+    policy = config.host_scan_policy
+
+    declared = {str(policy["repository_checkout_environment"])}
+    for field in (
+        "secret_environment", "forbidden_environment", "forbidden_argv_environment",
+        "host_identity_environment",
+    ):
+        declared.update(str(name) for name in policy[field].values())
+    assert declared == {
+        "CORTEX_BENCH_DEEPSEEK_CREDENTIAL", "CORTEX_BENCH_PAID_CHECKOUT",
+        "CORTEX_BENCH_PAID_FORBIDDEN", "CORTEX_BENCH_PAID_FORBIDDEN_ARGV",
+        "CORTEX_BENCH_PAID_IDENTITY",
+    }
+    assert str(config.proxy["credential_env"]) == "CORTEX_BENCH_DEEPSEEK_CREDENTIAL"
+    assert LAUNCH_SCRIPT.is_file()
+    assert str(LAUNCH_SCRIPT.name) in COMMITTED_PAID_CONFIG.read_text(encoding="utf-8")
