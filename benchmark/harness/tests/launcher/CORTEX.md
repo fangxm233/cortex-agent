@@ -9,7 +9,7 @@ Launcher tests cover arm routing, credential projections, and vendor isolation.
 | test_arms.py | test | Verifies selection, seed binding, routing, and refusals |
 | test_campaign.py | test | Proves campaign routing, refusals, serial order, hard stop and resume |
 | test_capability_ceilings.py | test | Proves the committed ceiling policy and its refusals |
-| test_capability_evidence.py | test | Proves mechanism-only evidence binding and manifest validity |
+| test_capability_evidence.py | test | Proves schema migration, evidence binding and manifest validity |
 | test_capability_state_gate.py | test | Proves an unadmitted row never reaches an armed route |
 | test_comparison_report.py | test | Verifies campaign pins and comparison semantics |
 | test_credential_capabilities.py | test | Verifies non-secret capability projections |

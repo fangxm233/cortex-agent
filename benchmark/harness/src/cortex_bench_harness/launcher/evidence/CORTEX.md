@@ -1,7 +1,7 @@
 Update this file whenever this directory changes
 
-Immutable records bind capability states only to independently auditable mechanism and handshake
-claims; run envelope numbers and unverifiable runtime-tree digests are excluded.
+Schema-v2 records bind independently auditable mechanism and handshake claims; their v1 field-set
+migration is pinned by the harness regeneration command.
 
 | filename | role | function |
 |---|---|---|
