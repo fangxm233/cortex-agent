@@ -40,6 +40,7 @@ from synthetic import (
     SyntheticUpstream,
     proxy_request,
     row_one_adapter,
+    streamed_proxy_request,
 )
 
 CODEX_MODEL = "gpt-synthetic-codex"
@@ -140,6 +141,12 @@ def codex_request(handle, **kwargs) -> tuple[int, bytes]:
     kwargs.setdefault("target", RESPONSES_PATH)
     kwargs.setdefault("model", CODEX_MODEL)
     return proxy_request(handle.base_url, handle.dummy_token, "codex", **kwargs)
+
+
+def codex_request_streamed(handle, **kwargs):
+    kwargs.setdefault("target", RESPONSES_PATH)
+    kwargs.setdefault("model", CODEX_MODEL)
+    return streamed_proxy_request(handle.base_url, handle.dummy_token, "codex", **kwargs)
 
 
 def codex_request_from(handle, source_ip: str) -> tuple[int, bytes]:
@@ -636,12 +643,12 @@ def test_a_cancelled_call_is_reported_unmetered_and_revokes_the_route(
         ], done=False))
         handle = start_proxy(tmp_path, upstream.base_url)
         try:
-            status, payload = codex_request(handle)
+            result = codex_request_streamed(handle)
             after, _ = codex_request(handle)
         finally:
             handle.stop()
-    assert (status, after) == (502, 410)
-    assert json.loads(payload) == {"error": "budget_accounting_unavailable"}
+    assert result.complete is False
+    assert after == 410
     records = [json.loads(line) for line in log_path.read_text().splitlines()]
     assert records[0]["outcome"] == "budget_accounting_unavailable"
     assert records[0]["tokens"] == {"input": 0, "output": 0, "total": 0}
@@ -684,12 +691,14 @@ def test_a_priced_call_beyond_the_per_request_limit_is_refused(tmp_path: Path) -
             log_path=tmp_path / "codex-limit.jsonl", lease_terms=LEASE_TERMS,
         )
         try:
-            status, payload = codex_request(handle)
+            result = codex_request_streamed(handle)
             after, _ = codex_request(handle)
         finally:
             handle.stop()
-    assert (status, after) == (502, 410)
-    assert json.loads(payload) == {"error": "budget_accounting_exceeded"}
+    # A response priced above one reservation is still relayed as far as it got, because the
+    # price is only known once it is complete. It ends unterminated and the route is dead.
+    assert result.complete is False
+    assert after == 410
 
 
 # --- R5: H7 properties 1, 2, 3 and 6 re-executed against this adapter ---

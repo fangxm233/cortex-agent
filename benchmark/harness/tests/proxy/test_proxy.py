@@ -22,6 +22,7 @@ from synthetic import (
     SyntheticUpstream,
     proxy_request,
     row_one_adapter,
+    streamed_proxy_request,
 )
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-PROXY-UNIQUE"
@@ -66,6 +67,33 @@ def test_injects_host_credential_without_forwarding_dummy(tmp_path: Path) -> Non
     assert "authorization" not in headers
     assert handle.dummy_token not in json.dumps(headers)
     assert REAL_CREDENTIAL not in repr(handle)
+
+
+def test_slow_response_reaches_the_client_while_it_is_still_being_produced(
+    tmp_path: Path,
+) -> None:
+    """A response must not be withheld until the upstream has finished producing it.
+
+    The 2026-08-13 paid trial lost 7 of 16 billed responses to this: every admitted route
+    requires `stream: true`, the proxy read the whole stream before writing anything, and the
+    client's read deadline fired mid-generation. Each abandoned turn was generated and billed
+    in full, then retried against an unchanged prompt.
+    """
+    with SyntheticUpstream() as upstream:
+        upstream.server.raw_body = json.dumps(upstream.server.response).encode()
+        upstream.server.response_chunk_delay_seconds = 0.004
+        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        try:
+            result = streamed_proxy_request(
+                handle.base_url, handle.dummy_token, "slow", timeout=30)
+        finally:
+            handle.stop()
+    assert result.complete is True
+    assert result.body == upstream.server.raw_body
+    assert result.total_seconds > 0.3
+    # The client is reading long before the upstream is done, so an idle deadline anywhere in
+    # the client cannot expire on a response that is in fact arriving.
+    assert result.first_byte_seconds < result.total_seconds / 2
 
 
 def test_rejects_request_without_enough_budget_for_maximum_call(tmp_path: Path) -> None:
@@ -140,12 +168,15 @@ def test_missing_upstream_usage_revokes_budget_route(tmp_path: Path) -> None:
         }
         handle = start_proxy(tmp_path, upstream, max_cost="20")
         try:
-            first, payload = proxy_request(handle.base_url, handle.dummy_token, "unknown")
+            first = streamed_proxy_request(
+                handle.base_url, handle.dummy_token, "unknown")
             second, _ = proxy_request(handle.base_url, handle.dummy_token, "retry")
         finally:
             handle.stop()
-    assert first == 502
-    assert json.loads(payload) == {"error": "budget_accounting_unavailable"}
+    # The refusal is decided only after the body has been read for usage, by which time the
+    # response is already on the wire, so it is delivered as a truncated stream rather than
+    # as a status the client can no longer be sent.
+    assert first.complete is False
     assert second == 410
     assert len(upstream.requests) == 1
 
@@ -186,12 +217,12 @@ def test_empty_upstream_model_identity_revokes_budget_route(tmp_path: Path) -> N
         upstream.server.response["model"] = "  "
         handle = start_proxy(tmp_path, upstream, max_cost="20")
         try:
-            first, payload = proxy_request(handle.base_url, handle.dummy_token, "unknown")
+            first = streamed_proxy_request(
+                handle.base_url, handle.dummy_token, "unknown")
             second, _ = proxy_request(handle.base_url, handle.dummy_token, "retry")
         finally:
             handle.stop()
-    assert first == 502
-    assert json.loads(payload) == {"error": "budget_accounting_unavailable"}
+    assert first.complete is False
     assert second == 410
     assert len(upstream.requests) == 1
 
@@ -218,15 +249,17 @@ def test_trickled_upstream_is_cut_at_absolute_deadline(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
         upstream.server.response_chunk_delay_seconds = 0.02
         handle = start_proxy(tmp_path, upstream, deadline=deadline, max_cost="20")
-        started = time.monotonic()
         try:
-            status, payload = proxy_request(handle.base_url, handle.dummy_token, "trickle")
-            response_elapsed = time.monotonic() - started
+            result = streamed_proxy_request(
+                handle.base_url, handle.dummy_token, "trickle")
+            retry, _ = proxy_request(handle.base_url, handle.dummy_token, "retry")
         finally:
             handle.stop()
-    assert status == 410
-    assert json.loads(payload) == {"error": "deadline_expired"}
-    assert response_elapsed < 1.0
+    # A trickle is relayed as it arrives, so the deadline now cuts a stream the client has
+    # already begun reading: it ends unterminated, and the route is dead behind it.
+    assert result.complete is False
+    assert result.total_seconds < 1.0
+    assert retry == 410
     assert len(upstream.requests) == 1
 
 
@@ -379,12 +412,12 @@ def test_log_persistence_failure_revokes_route(
             budget=budget("20", "5"), log_path=log_path, lease_terms=LEASE_TERMS,
         )
         try:
-            first, payload = proxy_request(handle.base_url, handle.dummy_token, "logged")
+            first = streamed_proxy_request(
+                handle.base_url, handle.dummy_token, "logged")
             second, _ = proxy_request(handle.base_url, handle.dummy_token, "blocked")
         finally:
             handle.stop()
-    assert first == 500
-    assert json.loads(payload) == {"error": "audit_log_unavailable"}
+    assert first.complete is False
     assert second == 410
     assert len(upstream.requests) == 1
     assert handle._server.state.request_count == 0

@@ -271,6 +271,60 @@ class TrialHttpServer(ThreadingHTTPServer):
         return
 
 
+class RelaySink:
+    """Writes one upstream response to the client while the upstream is still producing it.
+
+    Every admitted route requires `stream: true`, so a response withheld until the upstream
+    finished gave the client no byte for the whole generation window; a client read deadline
+    then aborted a turn that was generated and billed in full. This sink emits chunked
+    framing as chunks arrive.
+
+    The terminating zero chunk is written only after accounting has accepted the response.
+    A refusal that used to replace the body — unaccounted usage, a per-request cost above one
+    reservation, an expired or revoked lease — can no longer do so once bytes are out, so it
+    withholds the terminator instead: the client sees a truncated stream and raises, exactly
+    as it did for the refusal status, and never mistakes a refused response for an answer.
+    """
+
+    def __init__(self, handler: "TrialProxyHandler") -> None:
+        self._handler = handler
+        self.started = False
+        # A write that fails because the client vanished is a client fact. It must not be
+        # raised through the upstream read, where it would be audited as an upstream failure
+        # and make the proxy's own record disagree with what the provider billed.
+        self.client_failed = False
+
+    def begin(
+        self, status: int, reason: str, headers: tuple[tuple[str, str], ...],
+    ) -> None:
+        self.started = True
+        try:
+            self._handler.send_response(status, reason)
+            for key, value in headers:
+                if key.lower() not in HOP_HEADERS:
+                    self._handler.send_header(key, value)
+            self._handler.send_header("transfer-encoding", "chunked")
+            self._handler.send_header("connection", "close")
+            self._handler.end_headers()
+        except OSError:
+            self.client_failed = True
+
+    def relay(self, chunk: bytes) -> None:
+        self._write(b"%x\r\n" % len(chunk) + chunk + b"\r\n")
+
+    def finish(self) -> None:
+        self._write(b"0\r\n\r\n")
+
+    def _write(self, payload: bytes) -> None:
+        if self.client_failed:
+            return
+        try:
+            self._handler.wfile.write(payload)
+            self._handler.wfile.flush()
+        except OSError:
+            self.client_failed = True
+
+
 class TrialProxyHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -360,31 +414,32 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
                 self.client_address[0], self.headers.get("authorization"))
 
     def _forward(self, server: TrialHttpServer, body: bytes, route_id: str) -> None:
+        sink = RelaySink(self)
         try:
             response = server.upstream.request(
                 self.path, dict(self.headers.items()), body,
-                server.state.remaining_seconds(), route_id,
+                server.state.remaining_seconds(), route_id, sink,
             )
         except AuthInjectionUnavailable:
-            self._handle_auth_failure(server.state)
+            self._handle_auth_failure(server.state, sink)
             return
         except UpstreamAttemptError as error:
-            self._handle_upstream_failure(server.state, error)
+            self._handle_upstream_failure(server.state, error, sink)
             return
         except ValueError:
-            self._handle_upstream_failure(server.state, UpstreamAttemptError(False))
+            self._handle_upstream_failure(
+                server.state, UpstreamAttemptError(False), sink)
             return
-        self._finish_response(server, response)
+        self._finish_response(server, response, sink)
 
-    def _handle_auth_failure(self, state: ProxyState) -> None:
+    def _handle_auth_failure(self, state: ProxyState, sink: RelaySink) -> None:
         audit_error = state.record_attempt("auth_injection_unavailable", False)
-        if audit_error is not None:
-            self._send_error(500, audit_error)
-            return
-        self._send_error(502, "auth_injection_unavailable")
+        self._refuse_response(
+            sink, 500 if audit_error else 502,
+            audit_error or "auth_injection_unavailable")
 
     def _handle_upstream_failure(
-        self, state: ProxyState, failure: UpstreamAttemptError,
+        self, state: ProxyState, failure: UpstreamAttemptError, sink: RelaySink,
     ) -> None:
         lifecycle_error = state.lifecycle_error()
         outcome = lifecycle_error[1] if lifecycle_error else failure.reason
@@ -393,12 +448,12 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         if failure.reason == "upstream_response_too_large":
             state.deactivate()
         if audit_error is not None:
-            self._send_error(500, audit_error)
+            self._refuse_response(sink, 500, audit_error)
             return
-        self._send_error(*(lifecycle_error or (502, "upstream_unavailable")))
+        self._refuse_response(sink, *(lifecycle_error or (502, "upstream_unavailable")))
 
     def _finish_response(
-        self, server: TrialHttpServer, response: UpstreamResult,
+        self, server: TrialHttpServer, response: UpstreamResult, sink: RelaySink,
     ) -> None:
         state = server.state
         billable = (
@@ -407,13 +462,26 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         accounting_error = state.record(response.usage, billable)
         if accounting_error is not None:
             status = 500 if accounting_error == "audit_log_unavailable" else 502
-            self._send_error(status, accounting_error)
+            self._refuse_response(sink, status, accounting_error)
             return
         lifecycle_error = state.lifecycle_error()
         if lifecycle_error is not None:
-            self._send_error(*lifecycle_error)
+            self._refuse_response(sink, *lifecycle_error)
             return
-        self._send_upstream(response)
+        sink.finish()
+        self.close_connection = True
+
+    def _refuse_response(self, sink: RelaySink, status: int, reason: str) -> None:
+        """Refuse a request whose response may already be on the wire.
+
+        A refusal that arrives before the first byte keeps its exact status and reason. One
+        that arrives after keeps only its effect: the audit row, any route deactivation, and
+        an unterminated stream the client cannot read as a complete answer.
+        """
+        if sink.started:
+            self.close_connection = True
+            return
+        self._send_error(status, reason)
 
     def _read_body(self, server: TrialHttpServer) -> bytes | None:
         length = self._content_length()
@@ -447,17 +515,6 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
             self._send_error(400, "content_length_required")
             return None
         return length
-
-    def _send_upstream(self, response: UpstreamResult) -> None:
-        self.send_response(response.status, response.reason)
-        for key, value in response.headers:
-            if key.lower() not in HOP_HEADERS:
-                self.send_header(key, value)
-        self.send_header("content-length", str(len(response.body)))
-        self.send_header("connection", "close")
-        self.end_headers()
-        self.wfile.write(response.body)
-        self.close_connection = True
 
     def _send_error(self, status: int, reason: str) -> None:
         self._send_json(status, {"error": reason})

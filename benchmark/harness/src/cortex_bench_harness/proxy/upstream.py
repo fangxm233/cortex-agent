@@ -1,5 +1,5 @@
 # input:  admitted HTTP request, fixed upstream URL, provider adapter
-# output: upstream response bytes and adapter-extracted model usage
+# output: relayed upstream response bytes and adapter-extracted model usage
 # pos:    Fixed-route upstream adapter
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -7,7 +7,7 @@ import threading
 import time
 from dataclasses import dataclass
 from http.client import HTTPConnection, HTTPException, HTTPSConnection, HTTPResponse
-from typing import Mapping
+from typing import Mapping, Protocol
 from urllib.parse import SplitResult, urlsplit
 
 from .adapters.base import ProviderAdapter
@@ -18,6 +18,21 @@ HOP_HEADERS = {
     "proxy-authenticate", "proxy-authorization", "te", "trailer",
     "transfer-encoding", "upgrade", "x-api-key",
 }
+
+
+class ResponseSink(Protocol):
+    """Receives an upstream response while it is still arriving.
+
+    Every admitted trial route is a streaming route, so holding the body until the upstream
+    finished made the caller wait out the whole generation with no bytes on the wire. A sink
+    relays each chunk the moment it is read; accounting still runs on the complete body.
+    """
+
+    def begin(
+        self, status: int, reason: str, headers: tuple[tuple[str, str], ...],
+    ) -> None: ...
+
+    def relay(self, chunk: bytes) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -52,7 +67,7 @@ class FixedUpstream:
 
     def request(
         self, path: str, headers: Mapping[str, str], body: bytes,
-        timeout_seconds: float, route_id: str,
+        timeout_seconds: float, route_id: str, sink: "ResponseSink | None" = None,
     ) -> UpstreamResult:
         outbound = self._headers(headers, body, route_id)
         expires_at = time.monotonic() + timeout_seconds
@@ -63,7 +78,7 @@ class FixedUpstream:
             connection.request("POST", self._path(path), body, outbound)
             return read_response(
                 connection.getresponse(), expires_at, self._adapter,
-                self._response_body_limit_bytes,
+                self._response_body_limit_bytes, sink,
             )
         except UpstreamAttemptError:
             raise
@@ -140,16 +155,23 @@ def validate_upstream(base_url: str) -> SplitResult:
 def read_response(
     response: HTTPResponse, expires_at: float, adapter: ProviderAdapter,
     response_body_limit_bytes: int | None = None,
+    sink: ResponseSink | None = None,
 ) -> UpstreamResult:
-    body = _read_until_deadline(response, expires_at, response_body_limit_bytes)
     headers = tuple(response.getheaders())
     content_type = response.getheader("content-type", "")
+    # The status line and headers are relayed before the first chunk is read, so the caller
+    # learns the response has started at the upstream's time-to-first-byte rather than at
+    # its completion.
+    if sink is not None:
+        sink.begin(response.status, response.reason, headers)
+    body = _read_until_deadline(response, expires_at, response_body_limit_bytes, sink)
     usage = adapter.extract_usage(body, content_type)
     return UpstreamResult(response.status, response.reason, headers, body, usage)
 
 
 def _read_until_deadline(
     response: HTTPResponse, expires_at: float, limit: int | None,
+    sink: ResponseSink | None = None,
 ) -> bytes:
     chunks: list[bytes] = []
     total = 0
@@ -162,8 +184,12 @@ def _read_until_deadline(
         if not chunk:
             return b"".join(chunks)
         total += len(chunk)
+        # The declared response cap is applied before the chunk is relayed, so no byte past
+        # the cap ever reaches the caller.
         if limit is not None and total > limit:
             raise UpstreamAttemptError(True, "upstream_response_too_large")
+        if sink is not None:
+            sink.relay(chunk)
         chunks.append(chunk)
 
 

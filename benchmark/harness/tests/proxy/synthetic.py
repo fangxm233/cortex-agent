@@ -7,7 +7,7 @@ import json
 import threading
 import time
 from dataclasses import dataclass
-from http.client import HTTPConnection
+from http.client import HTTPConnection, IncompleteRead
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Mapping
 from urllib.parse import urlsplit
@@ -129,19 +129,67 @@ class SyntheticUpstream:
         self.stop()
 
 
+@dataclass(frozen=True)
+class StreamedResponse:
+    """What a client observes now that the proxy relays a response while it arrives.
+
+    `complete` is the only way a refused response differs from an answer once bytes are on the
+    wire: the proxy withholds the chunked terminator, so the client's read raises instead of
+    returning a body it would otherwise treat as a whole answer.
+    """
+
+    status: int
+    body: bytes
+    complete: bool
+    first_byte_seconds: float
+    total_seconds: float
+
+
 def proxy_request(
     base_url: str, token: str, prompt: str, *, target: str = MESSAGES_TARGET,
     model: str | None = SYNTHETIC_MODEL, body: bytes | None = None,
     extra_headers: Mapping[str, str] | None = None,
 ) -> tuple[int, bytes]:
+    result = streamed_proxy_request(
+        base_url, token, prompt, target=target, model=model, body=body,
+        extra_headers=extra_headers,
+    )
+    return result.status, result.body
+
+
+def streamed_proxy_request(
+    base_url: str, token: str, prompt: str, *, target: str = MESSAGES_TARGET,
+    model: str | None = SYNTHETIC_MODEL, body: bytes | None = None,
+    extra_headers: Mapping[str, str] | None = None, timeout: float = 3,
+) -> StreamedResponse:
     payload = body if body is not None else json.dumps(
         {"model": model, "prompt": prompt}).encode()
     listener = urlsplit(base_url)
-    connection = HTTPConnection(listener.hostname, listener.port, timeout=3)
+    connection = HTTPConnection(listener.hostname, listener.port, timeout=timeout)
     headers = {"authorization": f"Bearer {token}", "content-type": "application/json"}
     headers.update(extra_headers or {})
+    started = time.monotonic()
     connection.request("POST", target, body=payload, headers=headers)
     response = connection.getresponse()
-    document = response.read()
+    result = _drain(response, started)
     connection.close()
-    return response.status, document
+    return result
+
+
+def _drain(response: object, started: float) -> StreamedResponse:
+    chunks: list[bytes] = []
+    first_byte = None
+    complete = True
+    try:
+        while chunk := response.read1(65536):  # type: ignore[attr-defined]
+            if first_byte is None:
+                first_byte = time.monotonic() - started
+            chunks.append(chunk)
+    except IncompleteRead as truncated:
+        complete = False
+        chunks.append(truncated.partial)
+    total = time.monotonic() - started
+    return StreamedResponse(
+        response.status, b"".join(chunks), complete,  # type: ignore[attr-defined]
+        first_byte if first_byte is not None else total, total,
+    )

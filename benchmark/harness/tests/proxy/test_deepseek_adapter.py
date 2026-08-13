@@ -15,7 +15,12 @@ import pytest
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
 from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
 from cortex_bench_harness.proxy.adapters import AuthInjectionUnavailable, select_adapter
-from synthetic import LEASE_TERMS, SyntheticUpstream, proxy_request
+from synthetic import (
+    LEASE_TERMS,
+    SyntheticUpstream,
+    proxy_request,
+    streamed_proxy_request,
+)
 
 MODEL = "deepseek-v4-flash"
 REAL_CREDENTIAL = "relay-DEEPSEEK-SYNTHETIC-UNIQUE"
@@ -85,6 +90,12 @@ def post(handle, body: bytes, *, target: str = TARGET, headers: dict[str, str] |
     return proxy_request(
         handle.base_url, handle.dummy_token, "unused", target=target, body=body,
         extra_headers=headers,
+    )
+
+
+def post_streamed(handle, body: bytes, *, target: str = TARGET):
+    return streamed_proxy_request(
+        handle.base_url, handle.dummy_token, "unused", target=target, body=body,
     )
 
 
@@ -282,11 +293,14 @@ def test_oversized_response_retains_reservation_and_revokes_route(tmp_path: Path
         upstream.server.raw_body = b"x" * (1024 * 1024 + 1)
         handle = start_proxy(tmp_path, upstream)
         try:
-            first, payload = post(handle, request_body())
+            first = post_streamed(handle, request_body())
             second, _ = post(handle, request_body())
         finally:
             handle.stop()
-    assert (first, second) == (502, 410)
-    assert json.loads(payload) == {"error": "upstream_unavailable"}
+    # The cap is applied to each chunk before it is relayed, so the client is cut off at the
+    # declared limit and never receives a terminated response.
+    assert first.complete is False
+    assert len(first.body) <= 1024 * 1024
+    assert second == 410
     assert len(upstream.requests) == 1
     assert records(tmp_path / "deepseek.jsonl")[0]["outcome"] == "upstream_response_too_large"

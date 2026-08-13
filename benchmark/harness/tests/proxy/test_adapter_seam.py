@@ -21,6 +21,7 @@ from synthetic import (
     SyntheticUpstream,
     proxy_request,
     row_one_adapter,
+    streamed_proxy_request,
 )
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-SEAM-UNIQUE"
@@ -220,12 +221,15 @@ def test_unparsable_usage_leaves_accounting_unavailable_and_revokes(tmp_path: Pa
         upstream.server.raw_body = b"<html>upstream gateway error</html>"
         handle = start_proxy(tmp_path, upstream.base_url)
         try:
-            first, payload = proxy_request(handle.base_url, handle.dummy_token, "garbled")
+            first = streamed_proxy_request(
+                handle.base_url, handle.dummy_token, "garbled")
             second, _ = proxy_request(handle.base_url, handle.dummy_token, "after")
         finally:
             handle.stop()
-    assert first == 502
-    assert json.loads(payload) == {"error": "budget_accounting_unavailable"}
+    # Usage is only known once the body is complete, and by then the response is on the wire:
+    # the refusal keeps its audit row and its revocation, and reaches the client as a stream
+    # that never terminates.
+    assert first.complete is False
     assert second == 410
     assert len(upstream.requests) == 1
 
@@ -242,12 +246,12 @@ def test_stream_that_stops_before_message_delta_is_unaccounted_and_revokes(
         )
         handle = start_proxy(tmp_path, upstream.base_url)
         try:
-            first, payload = proxy_request(handle.base_url, handle.dummy_token, "stream")
+            first = streamed_proxy_request(
+                handle.base_url, handle.dummy_token, "stream")
             second, _ = proxy_request(handle.base_url, handle.dummy_token, "after")
         finally:
             handle.stop()
-    assert first == 502
-    assert json.loads(payload) == {"error": "budget_accounting_unavailable"}
+    assert first.complete is False
     assert second == 410
     assert len(upstream.requests) == 1
 
