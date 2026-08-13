@@ -1,5 +1,5 @@
 # input:  trial proxy API and synthetic model upstream
-# output: forwarding, budget, deadline, stop, and redaction proofs
+# output: forwarding, budget, funded-turn, deadline, stop, and redaction proofs
 # pos:    Core proxy behavior tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -426,3 +426,63 @@ def test_logs_only_aggregate_usage_and_model_identity(tmp_path: Path) -> None:
     }
     assert REAL_CREDENTIAL.encode() not in log_bytes
     assert PLANTED_PROMPT.encode() not in log_bytes
+
+
+# --- how many turns a declared cost pair actually buys -------------------------------------------
+#
+# `max_provider_requests` is not a proxy-side ceiling: the route reserves one whole
+# `max_request_cost_usd` per admitted request, so `floor(max_cost_usd / max_request_cost_usd)` is
+# the real turn bound. The 2026-08-13 paid attempt declared $2.00 against $0.50 and stopped after
+# four requests with `429 budget_exhausted`; these two runs are that arithmetic, offline.
+
+CAMPAIGN_INPUT_PRICE = Decimal("0.14")
+CAMPAIGN_OUTPUT_PRICE = Decimal("0.28")
+
+
+def campaign_budget(max_request_cost: str) -> ProxyBudget:
+    return ProxyBudget(
+        max_cost_usd=Decimal("2.00"),
+        max_request_cost_usd=Decimal(max_request_cost),
+        input_cost_per_million_usd=CAMPAIGN_INPUT_PRICE,
+        output_cost_per_million_usd=CAMPAIGN_OUTPUT_PRICE,
+    )
+
+
+def drive_turns(tmp_path: Path, max_request_cost: str, turns: int) -> list[int]:
+    with SyntheticUpstream() as upstream:
+        handle = start_trial_proxy(
+            trial_id="trial-turns", upstream_base_url=upstream.base_url,
+            adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
+            bound_source_ip="127.0.0.1",
+            absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
+            budget=campaign_budget(max_request_cost),
+            log_path=tmp_path / f"turns-{max_request_cost}.jsonl",
+            lease_terms=LEASE_TERMS,
+        )
+        try:
+            return [
+                proxy_request(handle.base_url, handle.dummy_token, f"turn-{turn}")[0]
+                for turn in range(turns)
+            ]
+        finally:
+            handle.stop()
+
+
+def test_the_failed_attempts_pair_admits_exactly_four_turns(tmp_path: Path) -> None:
+    assert campaign_budget("0.50").funded_request_count() == 4
+
+    statuses = drive_turns(tmp_path, "0.50", 5)
+
+    assert statuses == [200, 200, 200, 200, 429]
+
+
+def test_the_committed_pair_admits_a_multi_turn_conversation(tmp_path: Path) -> None:
+    """More than four turns on the same $2.00 trial ceiling, with no ceiling raised."""
+    budget = campaign_budget("0.02")
+    assert budget.funded_request_count() == 100
+    # One reservation still pays for a full 8192-token response.
+    assert budget.output_cap_cost_usd(8192) <= budget.max_request_cost_usd
+
+    statuses = drive_turns(tmp_path, "0.02", 12)
+
+    assert statuses == [200] * 12

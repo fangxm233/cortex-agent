@@ -3,9 +3,12 @@
 # pos:    Production Harbor lifecycle wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import asyncio
+import contextlib
 import shlex
 import shutil
 import time
+from collections.abc import Coroutine
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, override
 
@@ -65,6 +68,13 @@ from .scan.models import ArtifactInventory, ScanPolicy
 
 PACKAGE_VERSION = "0.1.0"
 PROFILE_NAME = "benchmark"
+# How long the host keeps waiting for `cortex agent-run` to return AFTER that run has published its
+# own terminal marker, and how often the marker is looked for while the run is still going.
+# The grace is generous because the ordinary exit path — flushing the journal, publishing the
+# composite manifest and closing the trial — happens after the marker is written; only a run that
+# has stopped making progress reaches the end of it.
+INNER_RUN_TERMINAL_GRACE_SECONDS = 120.0
+INNER_RUN_TERMINAL_POLL_SECONDS = 1.0
 NPM_INSTALL_PREFIX = PurePosixPath("/installed-agent/npm")
 BUNDLE_PACKAGE = "@cortex-agent/server"
 SUPERVISOR_PATH = PurePosixPath("native/cortex-supervisor/dist/cortex-supervisor")
@@ -193,6 +203,9 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._initialize_finalization(host_scan_policy, environment_hash)
         self._proxy_arm_deferred = defer_proxy_arm
         self._deferred_proxy = dict(trial_proxy) if trial_proxy is not None else None
+        self._inner_run_terminal_grace_seconds = INNER_RUN_TERMINAL_GRACE_SECONDS
+        self._inner_run_poll_seconds = INNER_RUN_TERMINAL_POLL_SECONDS
+        self._inner_run_stall: str | None = None
 
     def _initialize_finalization(
         self, policy: Mapping[str, object] | None, environment_hash: str | None,
@@ -539,10 +552,70 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._write_thread_policy(instruction)
         _, _, trajectory_root, _ = self._agent_paths()
         await self.exec_as_agent(environment, f"mkdir -p {shlex.quote(str(trajectory_root))}")
-        result = await self.exec_as_agent(
+        result = await self._await_inner_run(self.exec_as_agent(
             environment, shlex.join(self.preview_run_argv()), cwd=self._resolved_cwd.realpath,
-        )
+        ))
+        if result is None:
+            self._write_collected_streams("", self._inner_run_stall)
+            return
         self._write_collected_streams(result.stdout, result.stderr)
+
+    def _terminal_marker_path(self) -> Path:
+        """The run's own terminal marker, written atomically into the shared trajectory root.
+
+        Same name `host_finalization` reads, so the file the host stops waiting on is the file it
+        goes on to grade.
+        """
+        return (
+            self.logs_dir / "trajectory"
+            / f"run-{self._trial_seed.root_run_id}.terminal.json"
+        )
+
+    async def _await_inner_run(self, execution: Coroutine[Any, Any, Any]) -> Any | None:
+        """Wait for `cortex agent-run`, but never past the run's own terminal marker.
+
+        Harbor bounds the agent phase by the trial's wall clock alone, so an inner run that
+        reaches a terminal state in seconds without its process returning — a provider budget
+        refusal, for instance — used to hold the phase open to that full timeout, and a timed-out
+        phase publishes no outer envelope and stops the campaign. The marker is the run's own
+        durable statement that it is over, so once it exists the host waits only the grace an
+        ordinary exit needs and then finalizes on the published inner evidence: an admitted trial
+        is still published, and a failed one is reported by its coded finalization refusal instead
+        of by a wall-clock timeout.
+
+        Returns the exec result, or None once the run is known to be over without one.
+        """
+        task = asyncio.ensure_future(execution)
+        while True:
+            try:
+                done, _ = await asyncio.wait({task}, timeout=self._inner_run_poll_seconds)
+            except BaseException:
+                # The phase itself was cancelled or timed out; the exec goes with it.
+                await self._abandon_inner_run(task)
+                raise
+            if done:
+                return task.result()
+            if self._terminal_marker_path().exists():
+                return await self._settle_terminated_inner_run(task)
+
+    async def _settle_terminated_inner_run(self, task: "asyncio.Future[Any]") -> Any | None:
+        grace = self._inner_run_terminal_grace_seconds
+        try:
+            return await asyncio.wait_for(asyncio.shield(task), grace)
+        except (TimeoutError, asyncio.TimeoutError):
+            await self._abandon_inner_run(task)
+            self._inner_run_stall = (
+                f"{self._terminal_marker_path().name} was published but `cortex agent-run` had "
+                f"not returned {grace:g}s later; the host stopped waiting and finalized on the "
+                "published inner evidence"
+            )
+            return None
+
+    @staticmethod
+    async def _abandon_inner_run(task: "asyncio.Future[Any]") -> None:
+        task.cancel()
+        with contextlib.suppress(BaseException):
+            await task
 
     def _revoke_after_run(self) -> TrialRevocation | None:
         try:
@@ -566,10 +639,18 @@ class CortexBenchAgent(BaseInstalledAgent):
             "node", "-e", WORKSPACE_COLLECTOR,
             self._resolved_cwd.realpath, str(output),
         ])
+        # A run that had to be abandoned may have left the container wedged, so collection after
+        # one is bounded too: an unbounded collection would hand the phase straight back to the
+        # timeout this class just stopped waiting for.
+        timeout = (
+            None if self._inner_run_stall is None
+            else int(self._inner_run_terminal_grace_seconds) or 1
+        )
         try:
-            await self.exec_as_agent(environment, command, cwd=self._resolved_cwd.realpath)
+            await self.exec_as_agent(
+                environment, command, cwd=self._resolved_cwd.realpath, timeout_sec=timeout)
             readable = shlex.join(["chmod", "-R", "a+rX", str(EnvironmentPaths().agent_dir)])
-            await self.exec_as_agent(environment, readable)
+            await self.exec_as_agent(environment, readable, timeout_sec=timeout)
         except Exception as error:
             raise HostFinalizationError("trial_output_collection_failed") from error
 

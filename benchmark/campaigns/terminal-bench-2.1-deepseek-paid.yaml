@@ -8,12 +8,39 @@
 # ../harness/scripts/terminal-bench-2.1-images.json. Admission is pull-disabled.
 # The provider credential remains host-only and is read from the named environment variable.
 # Run only through: cortex-bench run --config <this-file>
+#
+# COST ARITHMETIC (the pairing this campaign turns on; `campaign_config._validate_request_budget`
+# refuses the document if any of it stops holding).
+#
+# The proxy reserves one whole `proxy.max_request_cost_usd` per admitted request and then answers
+# `429 budget_exhausted` once the remainder of `limits.max_cost_usd` is below one reservation, so
+# the pair of costs — never `max_provider_requests` — is what bounds a trial's turns:
+#
+#   requests per trial = floor(max_cost_usd / max_request_cost_usd)
+#                      = floor($2.00 / $0.02) = 100        (the 2026-08-13 attempt declared
+#                        $0.50, which funded floor($2.00 / $0.50) = 4 turns and exhausted the route
+#                        on the fifth; see results/terminal-bench-2.1-deepseek-paid-2026-08-13.json)
+#
+# One reservation must also cover a full-length response, or the first one is refused as
+# `budget_accounting_exceeded` and the route is deactivated mid-trial:
+#
+#   response at the cap = 8192 * $0.28 / 1e6 = $0.00229376  <=  $0.02 reservation
+#   input room left     = ($0.02 - $0.00229376) / $0.14 * 1e6 = 126,473 prompt tokens per request
+#
+# Trial and campaign bounds, unchanged from the approved envelope:
+#
+#   per trial    <= $2.00                    (limits.max_cost_usd, the paid ceiling is $10.00)
+#   whole run    <= 3 * $2.00 = $6.00        <= cost_ceiling_usd $10.00, enforced by the driver
+#
+# Every field also stays at or below its committed row in ../policy/capability-ceilings.yaml.
 
 schema_version: cortex-bench-campaign/1
-campaign: tb21-paid
+# Fresh identity: the 2026-08-13 attempt's `tb21-paid` roots are immutable failure evidence and a
+# campaign never writes into an existing trial root.
+campaign: tb21-paid-r2
 paid: true
 cost_ceiling_usd: "10.00"
-trials_dir: /var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf
+trials_dir: /var/tmp/cortex-bench/tb21-paid-r2-2026-08-13-46b6
 cli_version: "2026.8.6"
 
 manifest:
@@ -46,7 +73,9 @@ docker_network:
 proxy:
   credential_env: CORTEX_BENCH_DEEPSEEK_CREDENTIAL
   bound_source_ip: 172.30.240.2
-  max_request_cost_usd: "0.50"
+  # One reservation: covers a full 8192-token response plus ~126k prompt tokens, and $2.00 of them
+  # funds the 100 requests the arm declares.
+  max_request_cost_usd: "0.02"
   input_cost_per_million_usd: "0.14"
   output_cost_per_million_usd: "0.28"
   request_body_limit_bytes: 16777216
@@ -68,11 +97,14 @@ arms:
       max_parent_questions: 0
       max_task_depth: 0
       max_tasks: 0
-      max_provider_requests: 200
+      # Exactly what floor($2.00 / $0.02) funds: the declared turn count and the funded one agree.
+      max_provider_requests: 100
       max_resident_agent_processes: 1
       max_cost_usd: "2.00"
       deadline_seconds: 1800
-      max_output_tokens: 32768
+      # Well above the 4096 a real tool-call turn needs, and cheap enough ($0.00229376) that one
+      # reservation still leaves 126k prompt tokens for a long multi-turn context.
+      max_output_tokens: 8192
 
 tasks:
   - task_id: chess-best-move

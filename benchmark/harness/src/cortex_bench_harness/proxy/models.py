@@ -1,5 +1,5 @@
 # input:  decimal budget values, UTC deadline, aggregate usage
-# output: validated proxy policy and safe manifest metadata
+# output: validated proxy policy, its derived request bounds, and safe manifest metadata
 # pos:    Proxy value types
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -35,6 +35,26 @@ class ProxyBudget:
         input_cost = Decimal(input_tokens) * self.input_cost_per_million_usd / MILLION
         output_cost = Decimal(output_tokens) * self.output_cost_per_million_usd / MILLION
         return input_cost + output_cost
+
+    def funded_request_count(self) -> int:
+        """How many requests this budget admits: `floor(max_cost_usd / max_request_cost_usd)`.
+
+        Every admitted request reserves one whole `max_request_cost_usd` (`ProxyState.reserve`) and
+        admission answers `429 budget_exhausted` once the remaining budget is below one reservation
+        (`ProxyState.admission_error`), so the two declared costs — not any request counter — fix
+        the trial's real request bound. The reservation is never refunded down to the request's
+        measured cost, so a cheap request costs the budget just as much as an expensive one.
+        """
+        return int(self.max_cost_usd // self.max_request_cost_usd)
+
+    def output_cap_cost_usd(self, max_output_tokens: int) -> Decimal:
+        """What one full-length response costs at the declared output price.
+
+        A reservation smaller than this is refused mid-trial as `budget_accounting_exceeded`
+        (`ProxyState._usage_outcome`), which deactivates the route, so the pair must be declared
+        together rather than each against its own ceiling.
+        """
+        return self.cost(0, max_output_tokens)
 
     def as_manifest(self) -> dict[str, str]:
         return {

@@ -6,10 +6,10 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 |---|---|---|
 | __init__.py | export | Lazily exposes the Harbor wrapper class |
 | campaign.py | CLI | Runs one campaign serially under its cost ceiling and writes the report |
-| campaign_config.py | boundary | Reads campaign input and scopes each trial proxy host |
+| campaign_config.py | boundary | Reads campaign input, scopes each trial proxy host and refuses a cost pair that funds too few requests |
 | cwd.py | core | Resolves the live container workdir |
 | manifest.py | core | Records artifacts and the installed CLI version |
-| harbor_agent.py | adapter | Runs the production Harbor lifecycle and admission gate |
+| harbor_agent.py | adapter | Runs the production Harbor lifecycle and admission gate, bounded by the inner run's terminal marker |
 | host_evidence_validation.py | boundary | Validates host-owned evidence identity |
 | host_finalization.py | boundary | Validates and publishes the outer grader envelope |
 | inner_validation.py | boundary | Validates the inner composite wire contract |

@@ -1,5 +1,5 @@
 # input:  campaign configs, a recording production trial path and published envelopes
-# output: routing, refusal, serial-order, hard-stop, resume and report proofs
+# output: routing, refusal, cost-pairing, serial-order, hard-stop, resume and report proofs
 # pos:    Campaign runner behaviour tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -29,17 +29,24 @@ from cortex_bench_harness.host_finalization import (
     OUTER_ENVELOPE_SCHEMA_VERSION,
     parse_host_scan_policy,
 )
+from cortex_bench_harness.launcher.capability_ceilings import load_capability_ceilings
 from cortex_bench_harness.launcher.comparison_report import (
     COMPARISON_REPORT_SCHEMA_VERSION,
 )
 from cortex_bench_harness.launcher.trial_admission import build_harbor_trial_config
-from cortex_bench_harness.launcher.trial_proxy import parse_trial_proxy_spec
+from cortex_bench_harness.launcher.trial_proxy import (
+    parse_trial_proxy_spec,
+    validate_paid_envelope,
+)
+from cortex_bench_harness.proxy.models import ProxyBudget
 
 DIGEST = f"sha256:{'a' * 64}"
 IMAGE_REF = f"registry.invalid/task@{DIGEST}"
 HARNESS_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = HARNESS_ROOT.parents[1]
-COMMITTED_ZERO_PAID_CONFIG = REPO_ROOT / "benchmark" / "campaigns" / "zero-paid-dry-run.yaml"
+CAMPAIGNS_DIR = REPO_ROOT / "benchmark" / "campaigns"
+COMMITTED_ZERO_PAID_CONFIG = CAMPAIGNS_DIR / "zero-paid-dry-run.yaml"
+COMMITTED_PAID_CONFIG = CAMPAIGNS_DIR / "terminal-bench-2.1-deepseek-paid.yaml"
 
 
 def arm_document(name: str, **overrides: object) -> dict[str, object]:
@@ -89,7 +96,9 @@ def campaign_document(root: Path, **overrides: object) -> dict[str, object]:
         "proxy": {
             "credential_env": "CORTEX_BENCH_TEST_CREDENTIAL",
             "bound_source_ip": "172.19.0.2",
-            "max_request_cost_usd": "0.50",
+            # Funds the arm's 200 declared requests out of its $2.00 trial ceiling
+            # (floor(2.00 / 0.01) = 200) and covers one 32768-token response ($0.00917504).
+            "max_request_cost_usd": "0.01",
             "input_cost_per_million_usd": "0.14",
             "output_cost_per_million_usd": "0.28",
             "request_body_limit_bytes": 16777216,
@@ -1108,3 +1117,118 @@ def test_the_committed_zero_paid_tasks_load_and_pin_the_declared_image() -> None
         assert task.image_ref.endswith(f"@{task.image_digest}")
         verifier = (task.path / "tests" / "test.sh").read_text(encoding="utf-8")
         assert "/logs/verifier/reward.txt" in verifier
+
+
+# --- the declared request-cost / output-cap pairing --------------------------------------------
+#
+# The 2026-08-13 paid attempt declared max_cost_usd $2.00 against max_request_cost_usd $0.50 and
+# bought four provider requests before the route answered 429 budget_exhausted
+# (results/terminal-bench-2.1-deepseek-paid-2026-08-13.json). Every field sat below its capability
+# ceiling; it was the PAIR that was wrong, so the pair is what the document is now read for.
+
+
+def paired_document(root: Path, **proxy: object) -> dict[str, object]:
+    document = campaign_document(root)
+    document["arms"] = [arm_document("cortex-direct")]
+    document["comparisons"] = []
+    document["proxy"].update(proxy)
+    return document
+
+
+def test_the_request_cost_pairing_that_bought_only_four_turns_is_refused(tmp_path: Path) -> None:
+    """The exact declared numbers of the failed paid attempt, refused as a document."""
+    document = paired_document(tmp_path, max_request_cost_usd="0.50")
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    message = str(error.value)
+    assert "floor(2.00 / 0.5) = 4 provider requests" in message
+    assert "below the 200 its max_provider_requests declares" in message
+    assert "429 budget_exhausted" in message
+
+
+def test_a_pairing_that_funds_every_declared_request_is_accepted(tmp_path: Path) -> None:
+    document = paired_document(tmp_path, max_request_cost_usd="0.01")
+
+    config = load_campaign_config(write_campaign(tmp_path, document))
+
+    assert str(config.proxy["max_request_cost_usd"]) == "0.01"
+
+
+def test_an_output_cap_one_reservation_cannot_pay_for_is_refused(tmp_path: Path) -> None:
+    """A cap above one reservation is refused mid-trial as budget_accounting_exceeded, which
+    deactivates the route, so the document is refused instead."""
+    document = paired_document(tmp_path, max_request_cost_usd="0.001")
+    document["arms"][0]["limits"]["max_provider_requests"] = 200
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    message = str(error.value)
+    assert "32768 * 0.28 / 1000000 = 0.00917504 USD" in message
+    assert "budget_accounting_exceeded" in message
+
+
+# --- the committed paid campaign ----------------------------------------------------------------
+
+
+def test_the_committed_paid_campaign_config_declares_the_approved_envelope() -> None:
+    config = load_campaign_config(COMMITTED_PAID_CONFIG)
+    (arm,) = config.arms
+    limits = arm["limits"]
+
+    assert (config.paid, config.cost_ceiling_text) == (True, "10.00")
+    assert (arm["kind"], arm["backend"], arm["provider"], arm["model"]) == (
+        "cortex", "pi", "deepseek", "deepseek-v4-flash")
+    assert arm["orchestration"] == {"mode": "direct", "ask_manager": False}
+    assert Decimal(str(limits["max_cost_usd"])) <= Decimal("2.00")
+    assert int(limits["max_output_tokens"]) >= 4096
+    assert [task.task_id for task in config.tasks] == [
+        "chess-best-move", "constraints-scheduling", "db-wal-recovery"]
+    assert [task.image_digest for task in config.tasks] == [
+        f"sha256:{digest}" for digest in (
+            "f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b",
+            "6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c",
+            "0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a",
+        )]
+
+
+def test_the_committed_paid_campaign_funds_a_multi_turn_trial() -> None:
+    """The pairing arithmetic the config's header documents, pinned here."""
+    config = load_campaign_config(COMMITTED_PAID_CONFIG)
+    (arm,) = config.arms
+    spec = parse_trial_proxy_spec(config.proxy)
+    budget = ProxyBudget(
+        max_cost_usd=Decimal(str(arm["limits"]["max_cost_usd"])),
+        max_request_cost_usd=spec.max_request_cost_usd,
+        input_cost_per_million_usd=spec.input_cost_per_million_usd,
+        output_cost_per_million_usd=spec.output_cost_per_million_usd,
+    )
+    cap = int(arm["limits"]["max_output_tokens"])
+
+    assert budget.funded_request_count() == 100
+    assert budget.output_cap_cost_usd(cap) == Decimal("0.00229376")
+    assert int(arm["limits"]["max_provider_requests"]) == 100
+    # Worst case: every trial spends its whole ceiling and the campaign still fits.
+    assert len(config.tasks) * budget.max_cost_usd <= config.cost_ceiling_usd
+
+
+def test_the_committed_paid_campaign_stays_within_every_capability_ceiling() -> None:
+    config = load_campaign_config(COMMITTED_PAID_CONFIG)
+    (arm,) = config.arms
+    ceilings = load_capability_ceilings()[str(arm["credential_capability"])]
+    declared = validate_paid_envelope(
+        arm, parse_trial_proxy_spec(config.proxy), str(arm["credential_capability"]))
+
+    assert declared and all(value <= ceilings[field] for field, value in declared.items())
+
+
+def test_the_committed_paid_campaign_uses_a_fresh_identity() -> None:
+    """A campaign never writes into an existing trial root, and the failed attempt's roots are
+    immutable evidence."""
+    config = load_campaign_config(COMMITTED_PAID_CONFIG)
+
+    assert config.campaign != "tb21-paid"
+    assert not config.trials_dir.exists()
+    assert all(not (config.trials_dir / plan.trial_id).exists() for plan in config.trials())

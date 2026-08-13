@@ -1,10 +1,11 @@
 # input:  Harbor base class, fake exec results, manifest and trial seed
-# output: admission, identity, install, discovery, and run-config proofs
+# output: admission, identity, install, discovery, run-config and terminal-marker proofs
 # pos:    Contract tests for the Harbor agent wrapper
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
 import json
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import override
@@ -429,3 +430,105 @@ def test_component_fixture_subclass_supplies_its_document_through_the_hook(
     assert agent.observed_facts == ContainerFacts(
         BUNDLE_ROOT, BACKEND_CLI_PATH, BACKEND_CLI_VERSION,
     )
+
+
+# --- the inner run's terminal marker bounds the wait ---------------------------------------------
+#
+# On 2026-08-13 a paid trial's inner run hit the proxy's `429 budget_exhausted`, published a
+# `failed`/`child_failure` terminal marker 32 seconds in, and then never returned from
+# `cortex agent-run`. Harbor bounds the agent phase only by the trial's wall clock, so the phase
+# ran to its 1800-second timeout and no outer envelope was ever published
+# (benchmark/campaigns/results/terminal-bench-2.1-deepseek-paid-2026-08-13.json).
+
+RUN_COMMAND = "cortex agent-run --prompt-file"
+TERMINAL_MARKER = {
+    "schema_version": "cortex-bench-manifest/1", "state": "failed",
+    "terminal_reason": "child_failure",
+}
+
+
+class NeverReturningRun(FakeEnvironment):
+    """Setup answers normally; the agent-run exec never returns, exactly as the paid trial's did.
+
+    `publish_marker` decides whether the inner run gets to say it is over before it wedges.
+    """
+
+    def __init__(
+        self, results: Sequence[ExecResult], marker_path: Path, *, publish_marker: bool,
+    ) -> None:
+        super().__init__(results)
+        self._marker_path = marker_path
+        self._publish_marker = publish_marker
+
+    @override
+    async def exec(self, command: str, **kwargs: object) -> ExecResult:
+        if RUN_COMMAND not in command:
+            return await super().exec(command, **kwargs)
+        self.calls.append((command, kwargs.get("user")))
+        if self._publish_marker:
+            self._marker_path.parent.mkdir(parents=True, exist_ok=True)
+            self._marker_path.write_text(json.dumps(TERMINAL_MARKER), encoding="utf-8")
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+
+def bounded_agent(tmp_path: Path) -> CortexBenchAgent:
+    agent = make_agent(tmp_path)
+    agent._inner_run_poll_seconds = 0.01
+    agent._inner_run_terminal_grace_seconds = 0.05
+    return agent
+
+
+def stalled_run(tmp_path: Path, *, publish_marker: bool) -> tuple[CortexBenchAgent, float]:
+    agent = bounded_agent(tmp_path)
+    environment = NeverReturningRun(
+        [*setup_results(), ok()], agent._terminal_marker_path(),
+        publish_marker=publish_marker,
+    )
+    asyncio.run(agent.setup(environment))
+
+    async def drive() -> None:
+        await asyncio.wait_for(
+            agent.run("Solve the task.", environment, None), timeout=1)
+
+    started = time.monotonic()
+    asyncio.run(drive())
+    return agent, time.monotonic() - started
+
+
+def test_the_terminal_marker_is_the_file_host_finalization_reads(tmp_path: Path) -> None:
+    agent = make_agent(tmp_path)
+
+    assert agent._terminal_marker_path() == (
+        tmp_path / "agent" / "trajectory" / "run-root-install-only.terminal.json")
+
+
+def test_a_run_that_never_returns_and_never_terminates_is_waited_for(tmp_path: Path) -> None:
+    """The failure as it stood: with no terminal marker there is nothing but the trial's wall
+    clock to end the wait, which is how one refused request cost 1800 seconds."""
+    with pytest.raises(TimeoutError):
+        stalled_run(tmp_path, publish_marker=False)
+
+
+def test_a_terminal_marker_ends_the_wait_long_before_the_trial_deadline(tmp_path: Path) -> None:
+    agent, elapsed = stalled_run(tmp_path, publish_marker=True)
+
+    assert elapsed < 2
+    assert (tmp_path / "agent" / "stdout.txt").read_text() == ""
+    stall = (tmp_path / "agent" / "stderr.txt").read_text()
+    assert "run-root-install-only.terminal.json was published" in stall
+    assert "cortex agent-run` had not returned" in stall
+
+
+def test_a_run_that_returns_is_reported_from_its_own_streams(tmp_path: Path) -> None:
+    """The marker watch never shortens a healthy run: the exec's own result is what is written."""
+    agent = bounded_agent(tmp_path)
+    environment = FakeEnvironment([
+        *setup_results(), ok(), ExecResult(stdout="inner stdout", stderr="", return_code=0),
+    ])
+    asyncio.run(agent.setup(environment))
+
+    asyncio.run(agent.run("Solve the task.", environment, None))
+
+    assert (tmp_path / "agent" / "stdout.txt").read_text() == "inner stdout"
+    assert agent._inner_run_stall is None

@@ -11,7 +11,7 @@
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_DOWN, Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -21,7 +21,8 @@ import yaml
 
 from .launcher.arms import IMAGE_DIGEST
 from .launcher.comparison_report import DIFFERENCE_CLASSES
-from .launcher.trial_proxy import parse_trial_proxy_spec
+from .launcher.trial_proxy import TrialProxySpec, parse_trial_proxy_spec
+from .proxy.models import ProxyBudget, decimal_text
 
 CAMPAIGN_SCHEMA_VERSION = "cortex-bench-campaign/1"
 ARM_SCHEMA_VERSION = "cortex-benchmark-arm/2"
@@ -218,6 +219,7 @@ def parse_campaign_config(
         comparisons=_comparisons(document.get("comparisons", []), arms),
     )
     _validate_trial_routes(config)
+    _validate_request_budget(config)
     return config
 
 
@@ -253,6 +255,69 @@ def _validate_trial_routes(config: CampaignConfig) -> None:
                 f"campaign trial {plan.trial_id} composes the proxy hostname {hostname!r}, "
                 "which is the upstream, the route identity host or a metadata address; "
                 "admission refuses a route that names one")
+
+
+def _validate_request_budget(config: CampaignConfig) -> None:
+    """Refuse a campaign whose per-request cost bound contradicts its per-trial one.
+
+    `max_provider_requests` is not a proxy-side ceiling: the route reserves one whole
+    `proxy.max_request_cost_usd` per admitted request and refuses further requests with
+    `429 budget_exhausted` once the remainder of `limits.max_cost_usd` is below one reservation,
+    so the declared costs alone fix the trial's request bound. The same reservation must also
+    cover one full-length response, or the first one is refused as `budget_accounting_exceeded`
+    and the route is deactivated mid-trial.
+
+    Each field of the pair can sit far below its capability ceiling while the pair funds a handful
+    of turns — which is exactly how a $2.00 trial ceiling paired with a $0.50 request bound bought
+    four requests. Both facts are invisible until a paid trial is already running, so the
+    contradiction is refused here, while the campaign is still a document.
+    """
+    spec = parse_trial_proxy_spec(config.proxy)
+    for arm in config.arms:
+        limits = arm["limits"]
+        assert isinstance(limits, Mapping)
+        budget = ProxyBudget(
+            max_cost_usd=Decimal(str(limits["max_cost_usd"])),
+            max_request_cost_usd=spec.max_request_cost_usd,
+            input_cost_per_million_usd=spec.input_cost_per_million_usd,
+            output_cost_per_million_usd=spec.output_cost_per_million_usd,
+        )
+        _validate_output_cap_pairing(str(arm["name"]), limits, spec, budget)
+        _validate_funded_requests(str(arm["name"]), limits, spec, budget)
+
+
+def _validate_output_cap_pairing(
+    name: str, limits: Mapping[str, object], spec: TrialProxySpec, budget: ProxyBudget,
+) -> None:
+    cap = int(str(limits["max_output_tokens"]))
+    response_cost = budget.output_cap_cost_usd(cap)
+    if response_cost <= spec.max_request_cost_usd:
+        return
+    raise CampaignConfigError(
+        f"campaign arm {name!r} pairs max_output_tokens {cap} with proxy max_request_cost_usd "
+        f"{decimal_text(spec.max_request_cost_usd)}: one full-length response costs "
+        f"{cap} * {decimal_text(spec.output_cost_per_million_usd)} / 1000000 = "
+        f"{decimal_text(response_cost)} USD, more than one reservation, so the proxy would "
+        "refuse it as budget_accounting_exceeded. Raise max_request_cost_usd to at least "
+        f"{decimal_text(response_cost)} or lower max_output_tokens")
+
+
+def _validate_funded_requests(
+    name: str, limits: Mapping[str, object], spec: TrialProxySpec, budget: ProxyBudget,
+) -> None:
+    declared = int(str(limits["max_provider_requests"]))
+    funded = budget.funded_request_count()
+    if funded >= declared:
+        return
+    affordable = (budget.max_cost_usd / declared).quantize(
+        Decimal("0.00000001"), rounding=ROUND_DOWN)
+    raise CampaignConfigError(
+        f"campaign arm {name!r} funds floor({limits['max_cost_usd']} / "
+        f"{decimal_text(spec.max_request_cost_usd)}) = {funded} provider requests, below the "
+        f"{declared} its max_provider_requests declares. The proxy reserves one "
+        "max_request_cost_usd per request and then answers 429 budget_exhausted, so lower proxy "
+        f"max_request_cost_usd to at most {decimal_text(affordable)}, raise limits.max_cost_usd, "
+        "or declare the max_provider_requests this pair funds")
 
 
 def _trial_plan(
