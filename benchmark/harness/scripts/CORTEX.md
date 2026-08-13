@@ -6,4 +6,6 @@ capability evidence.
 | filename | role | function |
 |---|---|---|
 | build-wheel.sh | build | Builds and byte-compares the fixed wheel |
+| build-zero-paid-runtime-image.sh | build | Builds the pinned offline Node and PI runtime image |
 | mutation-suite.py | evidence | Kills every listed mutation and regenerates offline evidence |
+| zero-paid-runtime-inputs.json | config | Pins exact local Node, npm and PI build inputs |

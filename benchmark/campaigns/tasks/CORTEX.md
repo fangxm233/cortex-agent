@@ -1,6 +1,6 @@
 Update this file whenever this directory changes
 
-Harbor task directories for the ZERO-PAID campaign; each is digest-pinned to the offline base
+Harbor task directories for the ZERO-PAID campaign; each is pinned to the shared offline runtime
 image. A task directory is mounted into the trial container, so no index file is placed inside one.
 
 | filename | role | function |

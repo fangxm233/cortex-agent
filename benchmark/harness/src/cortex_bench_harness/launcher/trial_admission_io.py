@@ -26,12 +26,14 @@ class HarborTrialAdmissionError(ValueError):
 
 class PullDisabledDockerEnvironment(DockerEnvironment):
     def __init__(
-        self, *args: object, external_network_name: str | None = None, **kwargs: Any,
+        self, *args: object, external_network_name: str | None = None,
+        proxy_host: str | None = None, **kwargs: Any,
     ) -> None:
         self._pull_policy_directory = tempfile.TemporaryDirectory()
         root = Path(self._pull_policy_directory.name)
         self._pull_policy_path = root / "pull-policy.json"
         self._external_network_path = root / "external-network.json"
+        self._proxy_host_path = root / "proxy-host.json"
         document = {"services": {
             "main": {"pull_policy": "never"},
             self._EGRESS_CONTROL_SERVICE_NAME: {"pull_policy": "never"},
@@ -43,6 +45,12 @@ class PullDisabledDockerEnvironment(DockerEnvironment):
                     "external": True, "name": external_network_name,
                 }},
             }))
+        if proxy_host is not None:
+            self._proxy_host_path.write_text(json.dumps({
+                "services": {self._EGRESS_CONTROL_SERVICE_NAME: {
+                    "extra_hosts": [f"{proxy_host}:host-gateway"],
+                }},
+            }))
         super().__init__(*args, **kwargs)
 
     @property
@@ -51,6 +59,8 @@ class PullDisabledDockerEnvironment(DockerEnvironment):
         paths = [*super()._docker_compose_paths, self._pull_policy_path]
         if self._external_network_path.is_file():
             paths.append(self._external_network_path)
+        if self._proxy_host_path.is_file():
+            paths.append(self._proxy_host_path)
         return paths
 
     async def _install_proxy_endpoint_filter(self, port: int) -> None:

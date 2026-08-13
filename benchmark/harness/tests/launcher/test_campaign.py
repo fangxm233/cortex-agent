@@ -82,6 +82,9 @@ def campaign_document(root: Path, **overrides: object) -> dict[str, object]:
             "repository_checkout_environment": "CORTEX_BENCH_TEST_CHECKOUT",
             "host_identity_environment": {"machine": "CORTEX_BENCH_TEST_IDENTITY"},
         },
+        "docker_network": {
+            "subnet": "172.30.240.0/24", "gateway": "172.30.240.1",
+        },
         "proxy": {
             "credential_env": "CORTEX_BENCH_TEST_CREDENTIAL",
             "bound_source_ip": "172.19.0.2",
@@ -136,11 +139,36 @@ def write_envelope(
     return path
 
 
+def write_result(
+    trials_dir: Path, trial_id: str, result: "RecordingResult | None" = None,
+) -> None:
+    result = result or RecordingResult(rewards={"reward": 1.0})
+    exception = None if result.exception_info is None else {
+        "exception_type": type(result.exception_info).__name__,
+        "exception_message": str(result.exception_info),
+    }
+    verifier = None if result.verifier_result is None else {
+        "rewards": result.verifier_result.rewards,
+    }
+    (trials_dir / trial_id / "result.json").write_text(json.dumps({
+        "exception_info": exception, "verifier_result": verifier,
+    }), encoding="utf-8")
+
+
 def publish_envelope(
     trials_dir: Path, trial_id: str, arm_name: str, cost_usd: str,
 ) -> Path:
-    return write_envelope(
+    path = write_envelope(
         trials_dir, trial_id, envelope_document(trial_id, arm_name, cost_usd))
+    write_result(trials_dir, trial_id)
+    return path
+
+
+class RecordingResult:
+    def __init__(self, *, exception_info: object = None, rewards: dict[str, float] | None = None) -> None:
+        self.exception_info = exception_info
+        self.verifier_result = None if rewards is None else type(
+            "VerifierResult", (), {"rewards": rewards})()
 
 
 class RecordingTrial:
@@ -157,12 +185,15 @@ class RecordingTrial:
             self.trial_id, arm_name,
             self.path.costs.get(self.trial_id, self.path.default_cost),
         )
+        trials_dir = Path(str(self.kwargs["trials_dir"]))
         write_envelope(
-            Path(str(self.kwargs["trials_dir"])), self.trial_id,
-            self.path.envelope_mutation(document),
+            trials_dir, self.trial_id, self.path.envelope_mutation(document),
         )
+        result = self.path.results.get(
+            self.trial_id, RecordingResult(rewards={"reward": 1.0}))
+        write_result(trials_dir, self.trial_id, result)
         self.path.events.append(("finished", self.trial_id))
-        return {"state": "completed"}
+        return result
 
 
 class RecordingTrialPath:
@@ -172,16 +203,20 @@ class RecordingTrialPath:
         self, *, default_cost: str = "0.60", costs: dict[str, str] | None = None,
         failures: tuple[str, ...] = (),
         envelope_mutation: object = None,
+        results: dict[str, RecordingResult] | None = None,
     ) -> None:
         self.default_cost = default_cost
         self.costs = costs or {}
         self.failures = set(failures)
         self.envelope_mutation = envelope_mutation or (lambda document: document)
+        self.results = results or {}
         self.calls: list[dict[str, object]] = []
         self.events: list[tuple[str, str]] = []
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> "RecordingTrialPath":
         monkeypatch.setattr(campaign, "create_harbor_trial", self._create)
+        monkeypatch.setattr(campaign, "_create_trial_network", lambda *_: "network-fixture")
+        monkeypatch.setattr(campaign, "_remove_trial_network", lambda *_: None)
         return self
 
     @property
@@ -486,6 +521,39 @@ def test_trials_run_one_at_a_time_in_declared_task_then_arm_order(
     assert [trial["trial_id"] for trial in result["trials"]] == recorder.armed
 
 
+def test_each_serial_trial_gets_a_fresh_declared_external_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    calls: list[list[str]] = []
+
+    def create(config: object, plan: object) -> str:
+        calls.append(["create", plan.trial_id, config.docker_network["subnet"],
+                      config.docker_network["gateway"]])
+        return f"network-{plan.trial_id}"
+
+    def remove(network_id: str) -> None:
+        calls.append(["remove", network_id])
+
+    monkeypatch.setattr(campaign, "_create_trial_network", create)
+    monkeypatch.setattr(campaign, "_remove_trial_network", remove)
+    document = campaign_document(tmp_path)
+    document["arms"] = [document["arms"][0]]
+    document["comparisons"] = []
+
+    status, _, stderr = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert (status, stderr) == (0, "")
+    assert calls == [
+        ["create", "camp-01-task-one-cortex-a", "172.30.240.0/24", "172.30.240.1"],
+        ["remove", "network-camp-01-task-one-cortex-a"],
+        ["create", "camp-01-task-two-cortex-a", "172.30.240.0/24", "172.30.240.1"],
+        ["remove", "network-camp-01-task-two-cortex-a"],
+    ]
+    assert len(recorder.armed) == 2
+
+
 def test_each_trial_is_armed_through_the_production_path_with_the_declared_documents(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -508,6 +576,7 @@ def test_each_trial_is_armed_through_the_production_path_with_the_declared_docum
     assert kwargs["trial_proxy"] == document["proxy"]
     assert kwargs["host_scan_policy"] == document["host_scan_policy"]
     assert seed["paid_run"] is False
+    assert seed["pi_benchmark_capability_proven"] is True
     assert seed["trial_id"] == "camp-01-task-one-cortex-a"
     assert seed["root_run_id"] == "camp-01-task-one-cortex-a.cortex-a"
     assert seed["task"] == {"task_id": "task-one", "image_ref": IMAGE_REF,
@@ -600,6 +669,45 @@ def test_a_campaign_below_its_ceiling_arms_every_declared_trial(
     assert result["cost_usd"] == "0.40"
 
 
+@pytest.mark.parametrize(
+    ("result", "fragment"),
+    [
+        (RecordingResult(exception_info=RuntimeError("verifier failed")), "failed"),
+        (RecordingResult(rewards=None), "verifier result"),
+        (RecordingResult(rewards={}), "verifier rewards"),
+        (RecordingResult(rewards={"reward": float("nan")}), "non-finite"),
+    ],
+)
+def test_a_trial_result_without_completed_verification_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    result: RecordingResult, fragment: str,
+) -> None:
+    trial_id = "camp-01-task-one-cortex-a"
+    RecordingTrialPath(results={trial_id: result}).install(monkeypatch)
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+
+    assert status == 1
+    assert fragment in failure_document(capsys)["error"]
+
+
+@pytest.mark.parametrize("reward", [0.0, -1.0])
+def test_a_completed_trial_accepts_any_finite_reward(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    reward: float,
+) -> None:
+    trial_id = "camp-01-task-one-cortex-a"
+    RecordingTrialPath(results={
+        trial_id: RecordingResult(rewards={"reward": reward}),
+    }).install(monkeypatch)
+
+    status, result, stderr = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert (status, stderr) == (0, "")
+    assert result["state"] == "completed"
+
+
 def drop_cost(document: dict[str, object]) -> dict[str, object]:
     del document["proxy_usage"]["cost_usd"]
     return document
@@ -684,6 +792,21 @@ def test_an_unadmitted_envelope_is_refused(
 
     assert status == 1
     assert "grader_admission" in failure_document(capsys)["error"]
+
+
+def test_a_resumed_envelope_without_a_successful_harbor_result_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    RecordingTrialPath().install(monkeypatch)
+    trials_dir = tmp_path / "trials"
+    trial_id = "camp-01-task-one-cortex-a"
+    publish_envelope(trials_dir, trial_id, "cortex-a", "0.10")
+    write_result(trials_dir, trial_id, RecordingResult(exception_info=RuntimeError("bad verifier")))
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+
+    assert status == 1
+    assert "bad verifier" in failure_document(capsys)["error"]
 
 
 def test_an_existing_trial_root_without_a_published_envelope_is_refused(
@@ -957,3 +1080,5 @@ def test_the_committed_zero_paid_tasks_load_and_pin_the_declared_image() -> None
         loaded = Task(task_dir=task.path)
         assert loaded.config.environment.docker_image == task.image_ref
         assert task.image_ref.endswith(f"@{task.image_digest}")
+        verifier = (task.path / "tests" / "test.sh").read_text(encoding="utf-8")
+        assert "/logs/verifier/reward.txt" in verifier

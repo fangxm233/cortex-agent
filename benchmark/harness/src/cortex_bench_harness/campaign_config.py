@@ -30,7 +30,7 @@ IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 CAMPAIGN_REQUIRED_FIELDS = frozenset({
     "schema_version", "campaign", "paid", "cost_ceiling_usd", "trials_dir", "cli_version",
-    "manifest", "credential", "host_scan_policy", "proxy", "arms", "tasks",
+    "manifest", "credential", "host_scan_policy", "docker_network", "proxy", "arms", "tasks",
 })
 CAMPAIGN_OPTIONAL_FIELDS = frozenset({"comparisons"})
 MANIFEST_FIELDS = frozenset({
@@ -45,6 +45,7 @@ CREDENTIAL_FIELDS = frozenset({
 # so one campaign-wide URL could satisfy at most one trial. The port is absent on purpose — the
 # live route's port is whatever the armed proxy handle binds, and admission reads only the host.
 CREDENTIAL_SEED_FIELDS = ("upstream_base_url", "route_identity_host", "dummy_token_ref")
+DOCKER_NETWORK_FIELDS = frozenset({"subnet", "gateway"})
 PROXY_ROUTE_SCHEME = "http"
 HOST_SUFFIX = re.compile(
     r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$")
@@ -123,6 +124,7 @@ class CampaignConfig:
     credential: Mapping[str, object]
     proxy_host_suffix: str
     host_scan_policy: Mapping[str, object]
+    docker_network: Mapping[str, object]
     proxy: Mapping[str, object]
     arms: tuple[Mapping[str, object], ...]
     tasks: tuple[CampaignTask, ...]
@@ -155,7 +157,8 @@ class CampaignConfig:
             "arm": dict(plan.arm), "arm_path": f"arm://{plan.arm_name}",
             "trial_id": plan.trial_id, "root_run_id": plan.root_run_id,
             "task": plan.task.as_seed_task(), "profile_name": PROFILE_NAME,
-            "paid_run": self.paid, "credential": self.trial_credential(plan),
+            "paid_run": self.paid, "pi_benchmark_capability_proven": True,
+            "credential": self.trial_credential(plan),
             "model_alias_policy": dict(MODEL_ALIAS_POLICY),
         }
 
@@ -208,6 +211,7 @@ def parse_campaign_config(
         credential={field: declared[field] for field in CREDENTIAL_SEED_FIELDS},
         proxy_host_suffix=_host_suffix(declared["proxy_host_suffix"]),
         host_scan_policy=_host_scan_policy(document["host_scan_policy"]),
+        docker_network=_docker_network(document["docker_network"]),
         proxy=_proxy(document["proxy"]),
         arms=arms,
         tasks=_tasks(document["tasks"], base_dir),
@@ -374,6 +378,10 @@ def _rule_name(field: str, rule: object) -> str:
         raise CampaignConfigError(
             f"campaign host_scan_policy {field} rule names must be non-empty strings")
     return rule
+
+
+def _docker_network(source: object) -> dict[str, object]:
+    return _exact_text_mapping(source, DOCKER_NETWORK_FIELDS, "docker_network")
 
 
 def _proxy(source: object) -> dict[str, object]:

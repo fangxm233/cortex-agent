@@ -112,6 +112,18 @@ EXPECTED_CAPABILITIES = [
         },
     },
     {
+        "id": "pi-deepseek-api-key",
+        "state": "live-handshake-passed",
+        "key": {
+            "runner_or_backend": "pi",
+            "provider": "deepseek",
+            "protocol": "openai-completions",
+            "credential_kind": "api-key",
+            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
+        },
+        "evidence_sha256": "3173d3a322299ce626bd8cc63524e80e679db045fe23f3bb0c731f23222cea05",
+    },
+    {
         "id": "pi-openai-codex-oauth",
         "state": "unsupported",
         "key": {

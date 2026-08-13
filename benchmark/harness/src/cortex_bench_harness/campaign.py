@@ -3,10 +3,10 @@
 # pos:    Public campaign runner
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
-# The driver owns exactly three things the trial path does not: the order trials are armed in, the
-# campaign-wide cost stop, and the resume rule. Everything else is delegated — arming is
-# `create_harbor_trial`, cost is whatever each trial published in its own outer envelope, and the
-# report is the existing comparison builder.
+# The driver owns exactly three policies the trial path does not: trial order, the campaign-wide
+# cost stop, and the resume rule. It delegates execution to `create_harbor_trial`, then validates
+# Harbor completion without imposing a reward threshold; cost comes only from each admitted outer
+# envelope, and reporting remains delegated to the existing comparison builder.
 #
 # Two rules make a campaign resumable and re-runnable without ever paying twice. A trial root that
 # already carries a published envelope is READ, never re-armed and never written to; a trial root
@@ -18,6 +18,8 @@ import argparse
 import asyncio
 import hashlib
 import json
+import math
+import subprocess
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -165,16 +167,72 @@ async def _run_campaign(
 
 async def _arm_trial(config: CampaignConfig, plan: TrialPlan) -> None:
     """One trial, through the production trial path and nothing else."""
+    network_id = ""
     try:
+        network_id = _create_trial_network(config, plan)
         trial = await create_harbor_trial(
             arm=dict(plan.arm), task_path=plan.task.path, trials_dir=config.trials_dir,
             manifest=config.trial_manifest(plan), trial_seed=config.trial_seed(plan),
             cli_version=config.cli_version, host_scan_policy=dict(config.host_scan_policy),
             trial_proxy=dict(config.proxy),
         )
-        await trial.run()
+        result = await trial.run()
+        _require_completed_trial(plan, result)
+    except CampaignError:
+        raise
     except Exception as error:
         raise CampaignError(f"trial {plan.trial_id} failed: {error}") from error
+    finally:
+        if network_id:
+            _remove_trial_network(network_id)
+
+
+def _require_completed_trial(plan: TrialPlan, result: object) -> None:
+    exception = getattr(result, "exception_info", None)
+    if exception is not None:
+        kind = getattr(exception, "exception_type", type(exception).__name__)
+        message = getattr(exception, "exception_message", str(exception))
+        raise CampaignError(f"trial {plan.trial_id} failed: {kind}: {message}")
+    verifier = getattr(result, "verifier_result", None)
+    if verifier is None:
+        raise CampaignError(f"trial {plan.trial_id} published no verifier result")
+    _require_finite_rewards(plan, getattr(verifier, "rewards", None))
+
+
+def _require_finite_rewards(plan: TrialPlan, rewards: object) -> None:
+    if not isinstance(rewards, Mapping) or not rewards:
+        raise CampaignError(f"trial {plan.trial_id} published no verifier rewards")
+    if any(
+        not isinstance(value, (int, float)) or isinstance(value, bool)
+        or not math.isfinite(value)
+        for value in rewards.values()
+    ):
+        raise CampaignError(
+            f"trial {plan.trial_id} published a non-finite or non-numeric verifier reward")
+
+
+def _create_trial_network(config: CampaignConfig, plan: TrialPlan) -> str:
+    name = f"{plan.trial_id}__env_default"
+    command = [
+        "docker", "network", "create", "--driver", "bridge",
+        "--subnet", str(config.docker_network["subnet"]),
+        "--gateway", str(config.docker_network["gateway"]), name,
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0 or not result.stdout.strip():
+        raise CampaignError(
+            f"trial {plan.trial_id} could not create Docker network {name}: "
+            f"{result.stderr.strip() or result.stdout.strip()}")
+    return result.stdout.strip()
+
+
+def _remove_trial_network(network_id: str) -> None:
+    result = subprocess.run(
+        ["docker", "network", "rm", network_id], capture_output=True, text=True, timeout=30)
+    if result.returncode != 0:
+        raise CampaignError(
+            f"could not remove Docker network {network_id}: "
+            f"{result.stderr.strip() or result.stdout.strip()}")
 
 
 def _resume(plan: TrialPlan, trial_root: Path) -> TrialOutcome:
@@ -188,6 +246,7 @@ def _resume(plan: TrialPlan, trial_root: Path) -> TrialOutcome:
 
 
 def _read_outcome(plan: TrialPlan, trial_root: Path, state: str) -> TrialOutcome:
+    _require_published_success(plan, trial_root)
     path = trial_root / "artifacts" / OUTER_ENVELOPE_FILENAME
     try:
         payload = path.read_bytes()
@@ -208,6 +267,25 @@ def _read_outcome(plan: TrialPlan, trial_root: Path, state: str) -> TrialOutcome
         envelope=envelope, envelope_path=path,
         envelope_sha256=hashlib.sha256(payload).hexdigest(),
     )
+
+
+def _require_published_success(plan: TrialPlan, trial_root: Path) -> None:
+    path = trial_root / "result.json"
+    try:
+        result = json.loads(path.read_bytes())
+    except (OSError, ValueError) as error:
+        raise CampaignError(
+            f"trial {plan.trial_id} published no readable Harbor result {path}: {error}") from error
+    if not isinstance(result, Mapping):
+        raise CampaignError(f"trial {plan.trial_id} published a non-mapping {path}")
+    exception = result.get("exception_info")
+    if exception is not None:
+        kind = exception.get("exception_type") if isinstance(exception, Mapping) else "unknown"
+        message = exception.get("exception_message") if isinstance(exception, Mapping) else exception
+        raise CampaignError(f"trial {plan.trial_id} failed: {kind}: {message}")
+    verifier = result.get("verifier_result")
+    rewards = verifier.get("rewards") if isinstance(verifier, Mapping) else None
+    _require_finite_rewards(plan, rewards)
 
 
 def _validate_identity(
