@@ -7,7 +7,7 @@ Python distribution for installing and validating the Cortex Harbor adapter.
 | .gitignore | config | Excludes local environments and wheel output |
 | pyproject.toml | config | Defines package metadata, dependencies and the cortex-bench command |
 | uv.lock | lock | Pins Python dependency resolution |
-| scripts/ | tools | Builds the fixed wheel |
+| scripts/ | tools | Builds the fixed wheel and launches a paid campaign with every host reference |
 | src/ | source | Contains the import package |
 | src/cortex_bench_harness/launcher/ | core | Selects arms and builds Harbor configurations |
 | src/cortex_bench_harness/scan/ | scan | Detects artifact credentials and host paths |
