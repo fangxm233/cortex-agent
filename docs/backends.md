@@ -68,6 +68,16 @@ Claude Code adapter session pool is keyed by channel for session reuse.
 Cost reporting reverse-derives USD from `message.usage` token counts using
 Anthropic's published pricing.
 
+The session-retention coordinator also syncs Claude's user-level
+`cleanupPeriodDays` into `$CLAUDE_CONFIG_DIR/settings.json` (or
+`~/.claude/settings.json`) using the same `sessionRetentionDays` value from
+Cortex runtime settings. That write is a merge into the user settings file only:
+it preserves every other Claude key, does not touch project-local
+`.claude/settings.local.json` or `.claude/settings.json` files in the spawn cwd,
+and does not take ownership of hook/permission configuration outside that one
+helper key. If the user file already has the same `cleanupPeriodDays`, nothing is
+rewritten.
+
 ## PI
 
 Full feature parity with Claude Code. PI's adapter bridges the gap where
@@ -85,6 +95,11 @@ PI's native feature set differs:
 PI sessions use `--session <path>` for resume and `--system-prompt` for
 system prompt override. The adapter handles LF-only NDJSON framing for
 PI's event stream.
+
+PI transcript retention is filesystem-based. Active PI backend session ids are
+protected during retention sweeps, while orphan transcript bundles under
+`$CORTEX_HOME/logs/sessions-pi/` are deleted only after they stay unreferenced
+past the retention cutoff and survive a second confirmation sweep.
 
 PI provider names are independent of Cortex backend names. In particular,
 `openai-codex` is a supported PI provider (including the

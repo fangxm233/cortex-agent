@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
 import re
 
 import yaml
@@ -38,9 +38,21 @@ MANIFEST_FIELDS = frozenset({
 })
 MANIFEST_PATH_FIELDS = ("wheel_path", "lockfile_path", "npm_artifact_path")
 CREDENTIAL_FIELDS = frozenset({
-    "upstream_base_url", "route_identity_host", "proxy_base_url", "dummy_token_ref",
+    "upstream_base_url", "route_identity_host", "proxy_host_suffix", "dummy_token_ref",
 })
+# The campaign declares the route's SUFFIX, never a whole URL: admission requires each trial's
+# proxy hostname to begin with that trial's own id (`trial_admission._validate_proxy_destination`),
+# so one campaign-wide URL could satisfy at most one trial. The port is absent on purpose — the
+# live route's port is whatever the armed proxy handle binds, and admission reads only the host.
+CREDENTIAL_SEED_FIELDS = ("upstream_base_url", "route_identity_host", "dummy_token_ref")
 DOCKER_NETWORK_FIELDS = frozenset({"subnet", "gateway"})
+PROXY_ROUTE_SCHEME = "http"
+HOST_SUFFIX = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$")
+MAXIMUM_HOSTNAME_LENGTH = 253
+# The destinations admission refuses outright, restated from `_forbidden_network_hosts` so a
+# campaign that would compose one is refused while it is still a document.
+FORBIDDEN_ROUTE_HOSTS = frozenset({"169.254.169.254", "metadata.google.internal"})
 HOST_SCAN_POLICY_MAPPING_FIELDS = (
     "secret_environment", "forbidden_environment", "forbidden_argv_environment",
     "host_identity_environment",
@@ -110,6 +122,7 @@ class CampaignConfig:
     cli_version: str
     manifest: Mapping[str, object]
     credential: Mapping[str, object]
+    proxy_host_suffix: str
     host_scan_policy: Mapping[str, object]
     docker_network: Mapping[str, object]
     proxy: Mapping[str, object]
@@ -132,16 +145,20 @@ class CampaignConfig:
             "image_size_bytes": plan.task.image_size_bytes,
         }
 
+    def trial_route(self, plan: TrialPlan) -> str:
+        """This trial's own proxy route: admission accepts no hostname but its own trial id."""
+        return f"{PROXY_ROUTE_SCHEME}://{plan.trial_id}.{self.proxy_host_suffix}"
+
+    def trial_credential(self, plan: TrialPlan) -> dict[str, object]:
+        return {**dict(self.credential), "proxy_base_url": self.trial_route(plan)}
+
     def trial_seed(self, plan: TrialPlan) -> dict[str, object]:
-        credential = dict(self.credential)
-        credential["proxy_base_url"] = _trial_proxy_base_url(
-            str(credential["proxy_base_url"]), plan.trial_id)
         return {
             "arm": dict(plan.arm), "arm_path": f"arm://{plan.arm_name}",
             "trial_id": plan.trial_id, "root_run_id": plan.root_run_id,
             "task": plan.task.as_seed_task(), "profile_name": PROFILE_NAME,
             "paid_run": self.paid, "pi_benchmark_capability_proven": True,
-            "credential": credential,
+            "credential": self.trial_credential(plan),
             "model_alias_policy": dict(MODEL_ALIAS_POLICY),
         }
 
@@ -150,19 +167,6 @@ class CampaignConfig:
 # campaign makes: the agent refuses any other profile name and an alias would unfreeze the model.
 PROFILE_NAME = "benchmark"
 MODEL_ALIAS_POLICY = {"kind": "exact"}
-
-
-def _trial_proxy_base_url(declared: str, trial_id: str) -> str:
-    parsed = urlsplit(declared)
-    if parsed.scheme != "http" or not parsed.hostname:
-        raise CampaignConfigError(
-            "campaign credential proxy_base_url must be an absolute HTTP URL")
-    if parsed.username or parsed.password or parsed.query or parsed.fragment:
-        raise CampaignConfigError(
-            "campaign credential proxy_base_url cannot contain credentials or metadata")
-    port = f":{parsed.port}" if parsed.port is not None else ""
-    authority = f"{trial_id}.{parsed.hostname}{port}"
-    return urlunsplit((parsed.scheme, authority, parsed.path, "", ""))
 
 
 def load_campaign_config(path: Path | str) -> CampaignConfig:
@@ -194,7 +198,8 @@ def parse_campaign_config(
             f"campaign schema_version must be {CAMPAIGN_SCHEMA_VERSION!r}; got {version!r}")
     arms = _arms(document["arms"])
     ceiling = _positive_decimal(document, "cost_ceiling_usd")
-    return CampaignConfig(
+    declared = _exact_text_mapping(document["credential"], CREDENTIAL_FIELDS, "credential")
+    config = CampaignConfig(
         source=source,
         campaign=_identifier(document, "campaign"),
         paid=_boolean(document, "paid"),
@@ -203,7 +208,8 @@ def parse_campaign_config(
         trials_dir=_path(document, "trials_dir", base_dir),
         cli_version=_text(document, "cli_version"),
         manifest=_manifest(document["manifest"], base_dir),
-        credential=_exact_text_mapping(document["credential"], CREDENTIAL_FIELDS, "credential"),
+        credential={field: declared[field] for field in CREDENTIAL_SEED_FIELDS},
+        proxy_host_suffix=_host_suffix(declared["proxy_host_suffix"]),
         host_scan_policy=_host_scan_policy(document["host_scan_policy"]),
         docker_network=_docker_network(document["docker_network"]),
         proxy=_proxy(document["proxy"]),
@@ -211,6 +217,42 @@ def parse_campaign_config(
         tasks=_tasks(document["tasks"], base_dir),
         comparisons=_comparisons(document.get("comparisons", []), arms),
     )
+    _validate_trial_routes(config)
+    return config
+
+
+def _host_suffix(value: str) -> str:
+    suffix = value.lower()
+    if suffix != value or HOST_SUFFIX.fullmatch(suffix) is None:
+        raise CampaignConfigError(
+            f"campaign credential proxy_host_suffix must be a lowercase DNS suffix such as "
+            f"'proxy.invalid'; got {value!r}. The trial id is prefixed to it, so declare no "
+            "scheme, port or path")
+    return suffix
+
+
+def _validate_trial_routes(config: CampaignConfig) -> None:
+    """Refuse a campaign whose composed routes admission would reject, while it is still a file.
+
+    Admission owns this rule (`trial_admission._proxy_host`): the hostname's first label must be
+    the trial's own id and must name no forbidden destination. Checking it here turns a failure
+    on trial one into a refusal before any trial is armed.
+    """
+    forbidden = {str(config.credential["route_identity_host"]).lower(), *FORBIDDEN_ROUTE_HOSTS}
+    upstream = urlsplit(str(config.credential["upstream_base_url"])).hostname
+    if upstream:
+        forbidden.add(upstream.lower())
+    for plan in config.trials():
+        hostname = f"{plan.trial_id}.{config.proxy_host_suffix}"
+        if len(hostname) > MAXIMUM_HOSTNAME_LENGTH:
+            raise CampaignConfigError(
+                f"campaign trial {plan.trial_id} composes the over-long proxy hostname "
+                f"{hostname!r}")
+        if hostname in forbidden:
+            raise CampaignConfigError(
+                f"campaign trial {plan.trial_id} composes the proxy hostname {hostname!r}, "
+                "which is the upstream, the route identity host or a metadata address; "
+                "admission refuses a route that names one")
 
 
 def _trial_plan(

@@ -10,3 +10,4 @@ Entry-point regressions for runtime wiring and CLI subcommands.
 | draft-attachments.test.ts | test | verifies canonical no-overwrite draft promotion |
 | hook-cli.test.ts | test | hook metadata, state, execution, ask, packaging |
 | provider-cli.test.ts | test | custom provider CLI parsing, output and exit codes |
+| session-retention-app-seam.test.ts | test | guards app retention wiring and startup helpers |

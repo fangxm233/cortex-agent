@@ -24,6 +24,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | session-compact.ts | control | compacts an idle session's context |
 | session-events.ts | events | publishes session state events on the bus |
 | session-rewind.ts | chat | restores and pins snapshots before Web resend |
+| session-retention-controller.ts | timer | serializes startup and periodic retention sweeps |
 | session-send.ts | chat | forwards admitted Web user turns |
 | status-helpers.ts | helper | builds settings-aware status messages |
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |

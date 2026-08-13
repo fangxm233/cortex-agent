@@ -89,6 +89,16 @@ test('PI lookup deterministically prefers the canonical direct-id filename', asy
   assert.equal(ioProbe.jsonlReads, 0);
 });
 
+test('PI lookup ignores backup-only and near-miss filenames', async () => {
+  const sessionId = 'backup-near-miss';
+  writeFileSync(path.join(sessionDir, `${sessionId}.jsonl.turn-2.bak`), 'backup-only');
+  writeFileSync(path.join(sessionDir, `backup_${sessionId}.jsonl`), 'near-miss');
+  writeFileSync(path.join(sessionDir, `2026-08-01T00-00-00Z_${sessionId}.jsonl.turn-3.bak`), 'prefixed-backup-only');
+
+  assert.equal(await findPISessionFile(sessionId), null);
+  assert.equal(ioProbe.jsonlReads, 0);
+});
+
 test('PI lookup chooses the newest timestamp when only prefixed duplicates exist', async () => {
   const sessionId = 'prefixed-session-id';
   const older = path.join(sessionDir, `2026-07-01T00-00-00Z_${sessionId}.jsonl`);

@@ -1,4 +1,4 @@
-// input:  session-registry.json + session metadata
+// input:  session-registry.jsonl + session metadata
 // output: thin re-export — all functionality delegated to store/session-registry-repo.ts
 // pos:    cortex-XXXX short name ↔ session UUID registry (thin re-export layer)
 // TODO: S12 — delete this file after physical move to store/ directory.
@@ -18,7 +18,12 @@ export function registerSession(name: string, opts: { sessionId: string; channel
   return sessionStore.registerSession(name, opts);
 }
 
-export function updateSession(name: string, updates: { sessionId?: string; lastUsedAt?: string; label?: string | null; profileName?: string | null }): Promise<void> {
+export function updateSession(name: string, updates: {
+  lastUsedAt?: string;
+  label?: string | null;
+  profileName?: string | null;
+  backendSessionId?: string | null;
+}): Promise<void> {
   return sessionStore.updateSession(name, updates);
 }
 

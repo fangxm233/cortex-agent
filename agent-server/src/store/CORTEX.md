@@ -9,9 +9,11 @@ Also runs startup file migrations and keeps deployed hooks and plugins in sync w
 | outbound-queue.ts | queue | Durable queue for outbound messages |
 | thread-repo.ts | store | Thread state persistence |
 | session-repo.ts | store | Session record persistence |
-| session-registry-repo.ts | store | Session identity and context snapshots |
+| session-registry-journal.ts | store | Session registry JSONL journal I/O and compaction |
+| session-registry-repo.ts | store | Session identity, delete intents and admission |
 | conversation-ledger-repo.ts | store | Turn to message mapping per conduit |
 | conversation-history-repo.ts | store | Append-only conversation transcript per session |
+| retention-candidate-repo.ts | store | Persists two-sweep orphan cleanup candidates |
 | pending-injection-repo.ts | store | Injected messages not yet consumed |
 | execution-repo.ts | store | Execution record persistence |
 | project-dir-repo.ts | store | Project to code directory mapping |

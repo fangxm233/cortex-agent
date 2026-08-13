@@ -50,12 +50,15 @@ export async function handleSendSession(
   deps: UiServiceDeps,
   args: SessionsSendArgs,
 ): Promise<Result<SessionsSendReturn>> {
+  if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
+    return { ok: false, code: 'invalid-args', message: 'Either text or attachments required' };
+  }
+  if (deps.sessionStore.touchForUse && !(await deps.sessionStore.touchForUse(args.sessionId))) {
+    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+  }
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
     return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
-  }
-  if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
-    return { ok: false, code: 'invalid-args', message: 'Either text or attachments required' };
   }
   // Scheduled run (design 27b): a reply adopts the run as a normal direct session FIRST — its
   // registry channel is the shared project channel, which a web send must never target.

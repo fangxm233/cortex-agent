@@ -1,6 +1,6 @@
 // input:  conversation-ledger.json, channel/session ids, Slack ts
-// output: ConversationLedgerRepo — turn tracking CRUD + rollback/switch APIs
-// pos:    Claude session turns to Slack message mapping persistence (based on JsonRepository, AsyncMutex serialized)
+// output: ConversationLedgerRepo persistence APIs
+// pos:    Channel turn ledger store for session-linked message state
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
@@ -46,10 +46,14 @@ function nowIso(): string {
 // --- Repo class ---
 
 export class ConversationLedgerRepo {
-  private repo = new JsonRepository<LedgerData>({
-    filePath: LEDGER_FILE,
-    defaultValue: () => ({}),
-  });
+  private repo: JsonRepository<LedgerData>;
+
+  constructor(filePath: string = LEDGER_FILE) {
+    this.repo = new JsonRepository<LedgerData>({
+      filePath,
+      defaultValue: () => ({}),
+    });
+  }
 
   // --- Read-only queries (no mutex, use repo cache) ---
 
@@ -196,6 +200,45 @@ export class ConversationLedgerRepo {
     await this.repo.mutate(data => {
       delete data[channel];
       return { next: data, result: undefined };
+    });
+  }
+
+  async listBySessionIds(sessionIds: Iterable<string>): Promise<Array<ChannelConversation & { channel: string }>> {
+    const targets = new Set(sessionIds);
+    if (targets.size === 0) return [];
+    const data = await this.repo.read();
+    const matches: Array<ChannelConversation & { channel: string }> = [];
+    for (const [channel, conversation] of Object.entries(data)) {
+      if (!conversation?.sessionId || !targets.has(conversation.sessionId)) continue;
+      matches.push({ ...conversation, channel });
+    }
+    return matches;
+  }
+
+  async clearBySessionIds(sessionIds: Iterable<string>): Promise<number> {
+    const targets = new Set(sessionIds);
+    if (targets.size === 0) return 0;
+    return this.repo.mutate(data => {
+      let removed = 0;
+      for (const [channel, conversation] of Object.entries(data)) {
+        if (!conversation?.sessionId || !targets.has(conversation.sessionId)) continue;
+        delete data[channel];
+        removed += 1;
+      }
+      return { next: data, result: removed };
+    });
+  }
+
+  async deleteExceptSessionIds(sessionIds: Iterable<string>): Promise<number> {
+    const live = new Set(sessionIds);
+    return this.repo.mutate(data => {
+      let removed = 0;
+      for (const [channel, conversation] of Object.entries(data)) {
+        if (!conversation?.sessionId || live.has(conversation.sessionId)) continue;
+        delete data[channel];
+        removed += 1;
+      }
+      return { next: data, result: removed };
     });
   }
 

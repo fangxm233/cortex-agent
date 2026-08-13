@@ -10,7 +10,7 @@ import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '../src/core/paths.js';
-import { sessionRepo } from '../src/store/session-repo.js';
+import { SessionRepo, sessionRepo } from '../src/store/session-repo.js';
 
 const SESSIONS_FILE = path.join(STORE_DIR, 'sessions.json');
 let backup: string | null = null;
@@ -185,4 +185,20 @@ test('concurrent setSessionAsync operations do not lose updates (AsyncMutex)', a
   for (const [i, ch] of channels.entries()) {
     assert.equal(raw[`claude:${ch}`], `sid-${i}`, `channel ${ch} should have sid-${i}`);
   }
+});
+
+test('deleteManyBySessionIds removes every binding whose value matches the given track ids', async () => {
+  const repo = new SessionRepo(path.join(STORE_DIR, 'sessions-bulk.json'));
+  await repo.setSessionAsync('C1', 'track-1', 'claude');
+  await repo.setSessionAsync('C2', 'track-2', 'claude');
+  await repo.setSessionAsync('C3', 'track-1', 'pi');
+  await repo.setSessionAsync('C4', 'track-3', 'claude');
+
+  const removed = await repo.deleteManyBySessionIds(['track-1', 'track-3']);
+
+  assert.equal(removed, 3);
+  assert.equal(await repo.getSessionAsync('C1', 'claude'), undefined);
+  assert.equal(await repo.getSessionAsync('C3', 'pi'), undefined);
+  assert.equal(await repo.getSessionAsync('C4', 'claude'), undefined);
+  assert.equal(await repo.getSessionAsync('C2', 'claude'), 'track-2');
 });

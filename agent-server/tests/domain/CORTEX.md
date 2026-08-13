@@ -13,6 +13,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 | cc-auth-cli.test.ts | test | Claude auth command I/O, privacy and lifecycle |
 | cc-login.test.ts | test | Claude API-key persistence, concurrency and recovery |
 | cc-subscription.test.ts | test | Claude subscription relay, cleanup and recovery |
+| claude-user-settings.test.ts | test | Claude settings cleanupPeriodDays path, merge, atomic temp-write, race retry, symlink, and guard coverage |
 | login-flow.test.ts | test | Covers login outcomes, safe errors, and abort scopes |
 | pi-custom-providers.test.ts | test | Custom PI provider validation, storage and rollback |
 | pi-login.test.ts | test | PI login receipts and safe failure payloads |

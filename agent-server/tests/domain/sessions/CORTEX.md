@@ -5,3 +5,4 @@ Session domain tests for how sessions are created, attached, and reset.
 | filename | role | function |
 |---|---|---|
 | session-lifecycle.test.ts | test | named, direct, attached, adopted, reset sessions |
+| session-retention.test.ts | test | sweeps pending deletes and orphan transcript files |

@@ -12,6 +12,7 @@ import { trackPendingTask } from './busy-tracker.js';
 import * as crypto from 'node:crypto';
 import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
+import type { Session } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory, summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
@@ -77,6 +78,11 @@ interface AgentCallbacks {
   onAssistantMsg: ((text: string) => void) & { stream?: OutputStream };
   onProgress: (progress: any) => void;
   onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
+}
+
+interface SessionUseLease {
+  session: Session;
+  release: () => void;
 }
 
 function acceptUserMessage(opts: {
@@ -244,11 +250,13 @@ export class AgentRunner {
     let sessionName: string;
     let backendSessionId: string | null;
     let projectId: string;
+    let sessionLease: SessionUseLease | null = null;
     if (sessionId) {
-      sessionName = await resolveSessionName(sessionId, channel, userMessage, adapter);
-      const rec = await sessionStore.getById(sessionId);
-      backendSessionId = rec ? effectiveBackendSessionId(rec) : null;
-      projectId = rec?.projectId ?? 'general';
+      sessionLease = await acquireSessionUseLease(sessionId);
+      if (!sessionLease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
+      sessionName = sessionLease.session.name;
+      backendSessionId = effectiveBackendSessionId(sessionLease.session);
+      projectId = sessionLease.session.projectId ?? 'general';
     } else {
       sessionId = crypto.randomUUID();
       projectId = (await adapter.resolveInboundProject(channel)) ?? 'general';
@@ -258,6 +266,8 @@ export class AgentRunner {
         profileName: getActiveProfile(channel), projectId,
       });
       await setSessionAsync(channel, sessionId, backend); // bind channel → track id
+      sessionLease = await acquireSessionUseLease(sessionId);
+      if (!sessionLease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
       backendSessionId = null; // fresh: the backend self-assigns its id on this first turn
     }
     const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId };
@@ -359,7 +369,11 @@ export class AgentRunner {
           }).catch(() => {});
           initStatusBlocks(statusMsg, blocksTemplateWithExec);
         },
-        onExecutionRegistered: () => finishTurnTracking(channel, turnTrackingToken),
+        onExecutionRegistered: () => {
+          finishTurnTracking(channel, turnTrackingToken);
+          sessionLease?.release();
+          sessionLease = null;
+        },
         onAssistantDelta: deltaStream ? (text: string, blockId: string) => deltaStream.onDelta(text, blockId) : null,
         onAssistantMessage: (text: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: NoticeAction) => {
           // Drain this block's preview FIRST: the authoritative message must never be overtaken by
@@ -459,6 +473,7 @@ export class AgentRunner {
         sessionName, sessionId, threadAnchorId, userMessageTs: messageTs, userMessage,
       });
     } finally {
+      sessionLease?.release();
       finishTurnTracking(channel, turnTrackingToken);
       // The turn is over (successfully, in error, or cancelled): no preview may outlive it.
       deltaStream?.dispose();
@@ -556,7 +571,7 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
     if (isProviderRateLimited(result.rateLimitProvider)) {
       recordResume({
         kind: 'direct', provider: result.rateLimitProvider ?? null,
-        channel, userMessage, recordedAt: Date.now(),
+        channel, trackSessionId: sessionId, userMessage, recordedAt: Date.now(),
       });
     }
     const { elapsedStr } = computeElapsed(startTime);
@@ -564,7 +579,7 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
     await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return;
   }
-  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: continuationToolUse, onToolResult: continuationToolResult, onContextUsage: continuationContextUsage, registerContinuationSink });
+  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, trackSessionId: sessionId, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: continuationToolUse, onToolResult: continuationToolResult, onContextUsage: continuationContextUsage, registerContinuationSink });
 }
 
 /**
@@ -572,6 +587,14 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
  * busy-gate seams `_executeReal` uses for an ordinary turn, so an injected message and a queued one
  * land in the transcript identically.
  */
+async function acquireSessionUseLease(sessionId: string): Promise<SessionUseLease | null> {
+  const session = await sessionStore.getById(sessionId);
+  if (!session) return null;
+  const release = await sessionStore.acquireSessionUse(sessionId);
+  if (!release) return null;
+  return { session, release };
+}
+
 function buildInjectDeps(sessionName: string | null, channel: string, adapter: PlatformAdapter): MidTurnInjectDeps {
   return {
     getLiveExecutions: (channel) => runningExecutions.getByChannel(channel),

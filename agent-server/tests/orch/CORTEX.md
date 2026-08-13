@@ -19,6 +19,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | interaction-records.test.ts | test | Covers interaction create and resolve lifecycle |
 | lifecycle-bg-hold.test.ts | test | Covers lifecycle hold, grace and wait cap |
 | lifecycle-rate-limit.test.ts | test | Covers provider-attributed error recovery |
+| lifecycle-session-lease.test.ts | test | Covers ask/retry session lease handoff to live executions |
 | mid-turn-inject-persistence.test.ts | test | Covers durable ordering of pending injection |
 | mid-turn-inject.test.ts | test | Covers lazy files, DEBUG prompts and lifecycle |
 | orchestrator.test.ts | test | Covers thread versus agent routing choice |
@@ -28,8 +29,10 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | resume-dispatcher.test.ts | test | Covers reset-isolated resume dispatch |
 | running-executions.test.ts | test | Covers execution registry indices and events |
 | seal-thread-status.test.ts | test | Covers terminal thread status sealing |
+| session-admission.test.ts | test | Covers send lease rejection and sweep blocking |
 | session-events.test.ts | test | Covers session event publication contract |
 | session-lifecycle-characterization.test.ts | test | Covers session naming and new session command |
+| session-retention-controller.test.ts | test | Covers startup and settings retention sweeps |
 | session-send.test.ts | test | Covers Web user message build and send |
 | superseded-edits.test.ts | test | Covers superseded edit mark, check and clear |
 | teardown-execution.test.ts | test | Covers execution teardown and balanced events |

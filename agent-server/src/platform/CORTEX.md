@@ -5,7 +5,7 @@ Concrete SDK integrations live in adapters/.
 
 | filename | role | function |
 |---|---|---|
-| index.ts | entry | Exports platform APIs and live update helpers |
+| index.ts | entry | Exports platform APIs, synthetic callback identity, and live update helpers |
 | adapter.ts | interface | Defines adapter lifecycle and live updates |
 | types.ts | types | Message, block, and modal type definitions |
 | output-stream.ts | interface | OutputStream and MutableRegion contracts |

@@ -197,7 +197,7 @@ function assertPinnedResult(value: any, workspace: string): void {
     WORKSPACE_DIR: path.join(root, 'cortex-home/tmp'),
   });
   assert.deepEqual(value.storeFiles, [
-    'executions.json', 'fake-run-agent.jsonl', 'session-registry.json', 'threads.json',
+    'executions.json', 'fake-run-agent.jsonl', 'session-registry.jsonl', 'threads.json',
   ]);
   assert.deepEqual(fs.readdirSync(path.join(root, 'projects')), []);
 }

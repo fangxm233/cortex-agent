@@ -6,7 +6,12 @@ import '../_test-home.js'; // MUST be first import — repoints CORTEX_HOME befo
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { STORE_DIR } from '../../src/core/paths.js';
 import { ConversationHistoryRepo } from '../../src/store/conversation-history-repo.js';
+
+const CUSTOM_HISTORY_DIR = path.join(STORE_DIR, 'history-retention-tests');
 
 test('DEBUG prompt and tool metadata round-trip without replacing the compact transcript fields', async () => {
   const repo = new ConversationHistoryRepo();
@@ -321,4 +326,18 @@ test('truncateFromTurn also drops a marker that belonged to the removed user eve
   const h = await repo.getHistory(sid);
   const user1 = h!.events.filter(e => e.type === 'user')[1];
   assert.deepEqual(user1.edited, { originalText: 'second-edited', originalTs: 't2' });
+});
+
+test('clearBySessionIds removes all matching transcript files and ignores missing ones', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  await repo.appendUser('track-a', { text: 'a' });
+  await repo.appendUser('track-b', { text: 'b' });
+  await repo.appendUser('track-c', { text: 'c' });
+
+  const removed = await repo.clearBySessionIds(['track-a', 'track-c', 'missing']);
+
+  assert.equal(removed, 2);
+  assert.equal(await repo.getHistory('track-a'), null);
+  assert.ok(await repo.getHistory('track-b'));
+  assert.equal(await repo.getHistory('track-c'), null);
 });

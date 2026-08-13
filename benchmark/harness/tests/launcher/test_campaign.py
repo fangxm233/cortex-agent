@@ -31,6 +31,7 @@ from cortex_bench_harness.host_finalization import (
 from cortex_bench_harness.launcher.comparison_report import (
     COMPARISON_REPORT_SCHEMA_VERSION,
 )
+from cortex_bench_harness.launcher.trial_admission import build_harbor_trial_config
 from cortex_bench_harness.launcher.trial_proxy import parse_trial_proxy_spec
 
 DIGEST = f"sha256:{'a' * 64}"
@@ -71,7 +72,7 @@ def campaign_document(root: Path, **overrides: object) -> dict[str, object]:
         "credential": {
             "upstream_base_url": "http://127.0.0.1:9880/m/deepseek/deepseek",
             "route_identity_host": "api.deepseek.com",
-            "proxy_base_url": "http://trial-proxy.invalid",
+            "proxy_host_suffix": "proxy.invalid",
             "dummy_token_ref": "offline-token-handle",
         },
         "host_scan_policy": {
@@ -581,29 +582,32 @@ def test_each_trial_is_armed_through_the_production_path_with_the_declared_docum
     assert seed["task"] == {"task_id": "task-one", "image_ref": IMAGE_REF,
                             "image_digest": DIGEST}
     assert seed["credential"] == {
-        **document["credential"],
-        "proxy_base_url": "http://camp-01-task-one-cortex-a.trial-proxy.invalid",
+        "upstream_base_url": "http://127.0.0.1:9880/m/deepseek/deepseek",
+        "route_identity_host": "api.deepseek.com",
+        "proxy_base_url": "http://camp-01-task-one-cortex-a.proxy.invalid",
+        "dummy_token_ref": "offline-token-handle",
     }
     assert kwargs["manifest"]["wheel_path"] == str(tmp_path / "harness.whl")
     assert kwargs["manifest"]["image_digest"] == DIGEST
     assert kwargs["manifest"]["trial_id"] == "camp-01-task-one-cortex-a"
 
 
-def test_each_trial_seed_names_its_own_proxy_host(
+def test_every_trial_is_armed_on_its_own_trial_scoped_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """Admission refuses a proxy hostname whose first label is not that trial's own id."""
     recorder = RecordingTrialPath().install(monkeypatch)
 
-    status, _, stderr = run_cli(
-        capsys, "run", "--config", str(write_campaign(tmp_path)))
+    run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
-    assert (status, stderr) == (0, "")
-    proxy_urls = [str(call["trial_seed"]["credential"]["proxy_base_url"])
-                  for call in recorder.calls]
-    assert proxy_urls == [
-        f"http://{call['trial_seed']['trial_id']}.trial-proxy.invalid"
-        for call in recorder.calls
+    routes = [str(call["trial_seed"]["credential"]["proxy_base_url"]) for call in recorder.calls]
+    assert routes == [
+        "http://camp-01-task-one-cortex-a.proxy.invalid",
+        "http://camp-01-task-one-cortex-b.proxy.invalid",
+        "http://camp-01-task-two-cortex-a.proxy.invalid",
+        "http://camp-01-task-two-cortex-b.proxy.invalid",
     ]
+    assert len(set(routes)) == len(routes)
 
 
 def test_a_paid_campaign_marks_every_trial_seed_paid(
@@ -942,6 +946,108 @@ def test_a_dry_run_plans_every_trial_without_arming_one(
         "camp-01-task-two-cortex-a", "camp-01-task-two-cortex-b",
     ]
     assert not (tmp_path / "trials").exists()
+
+
+# --- the real admission boundary ----------------------------------------------------------------
+#
+# Everything above replaces `create_harbor_trial`, so nothing above can see a document the real
+# admission boundary would refuse. These two push every planned trial of a campaign through the
+# production builder itself, which is offline and Docker-free, and are the reason the campaign
+# composes a per-trial proxy route rather than copying one campaign-wide URL.
+
+
+def harbor_task_dir(root: Path, name: str, image_ref: str) -> Path:
+    task = root / name
+    (task / "tests").mkdir(parents=True)
+    (task / "instruction.md").write_text("Do the declared work.\n", encoding="utf-8")
+    (task / "tests" / "test.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (task / "task.toml").write_text(
+        "[environment]\n"
+        f"docker_image = {json.dumps(image_ref)}\n"
+        'network_mode = "allowlist"\n'
+        "allowed_hosts = []\n"
+        'os = "linux"\n\n'
+        "[agent]\n"
+        "timeout_sec = 1800\n",
+        encoding="utf-8",
+    )
+    return task
+
+
+def admit_every_trial(config: object, workspace: Path) -> list[str]:
+    """Build every planned trial with the production builder; return the trial names it made."""
+    names: list[str] = []
+    workspace.mkdir(parents=True, exist_ok=True)
+    for plan in config.trials():
+        manifest = dict(config.trial_manifest(plan))
+        for field in ("wheel_path", "lockfile_path", "npm_artifact_path"):
+            stub = workspace / f"{plan.trial_id}-{Path(str(manifest[field])).name}"
+            stub.write_bytes(b"campaign admission fixture")
+            manifest[field] = str(stub)
+        built = build_harbor_trial_config(
+            dict(plan.arm), task_path=plan.task.path,
+            trials_dir=workspace / "admitted-trials", manifest=manifest,
+            trial_seed=config.trial_seed(plan), cli_version=config.cli_version,
+            host_scan_policy=dict(config.host_scan_policy), trial_proxy=dict(config.proxy),
+        )
+        names.append(built.trial_name)
+    return names
+
+
+def test_every_planned_trial_is_accepted_by_the_real_admission_builder(tmp_path: Path) -> None:
+    document = campaign_document(tmp_path)
+    for index, name in enumerate(("one", "two")):
+        harbor_task_dir(tmp_path / "tasks", name, IMAGE_REF)
+        document["tasks"][index]["path"] = str(tmp_path / "tasks" / name)
+
+    config = load_campaign_config(write_campaign(tmp_path, document))
+
+    assert admit_every_trial(config, tmp_path / "admission") == [
+        "camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b",
+        "camp-01-task-two-cortex-a", "camp-01-task-two-cortex-b",
+    ]
+
+
+def test_the_committed_zero_paid_campaign_is_accepted_by_the_real_admission_builder(
+    tmp_path: Path,
+) -> None:
+    config = load_campaign_config(COMMITTED_ZERO_PAID_CONFIG)
+
+    admitted = admit_every_trial(config, tmp_path)
+
+    assert admitted == [plan.trial_id for plan in config.trials()]
+    assert len(admitted) >= 2
+
+
+def test_a_route_suffix_that_composes_a_forbidden_destination_is_refused(
+    tmp_path: Path,
+) -> None:
+    document = campaign_document(tmp_path, campaign="api")
+    document["credential"]["proxy_host_suffix"] = "deepseek.com"
+    document["arms"] = [arm_document("a")]
+    document["tasks"] = [{"task_id": "b", "path": str(tmp_path / "tasks" / "one"),
+                          "image_ref": IMAGE_REF}]
+    document["comparisons"] = []
+    document["credential"]["route_identity_host"] = "api-b-a.deepseek.com"
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "api-b-a.deepseek.com" in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    ["http://proxy.invalid", "Proxy.Invalid", "proxy.invalid:4317", "proxy.invalid/route"],
+)
+def test_a_malformed_route_suffix_is_refused(tmp_path: Path, suffix: str) -> None:
+    document = campaign_document(tmp_path)
+    document["credential"]["proxy_host_suffix"] = suffix
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "proxy_host_suffix" in str(error.value)
 
 
 # --- the committed ZERO-PAID campaign -----------------------------------------------------------

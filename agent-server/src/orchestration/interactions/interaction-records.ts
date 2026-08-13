@@ -162,6 +162,16 @@ export class InteractionRecords {
     return out;
   }
 
+  pendingSessionIds(): string[] {
+    const out = new Set<string>();
+    for (const entry of this.index.values()) {
+      if (entry.status === 'pending' && Date.now() - entry.createdAt <= INTERACTION_TTL_MS) {
+        out.add(entry.sessionId);
+      }
+    }
+    return [...out];
+  }
+
   private publish(entry: InteractionIndexEntry): void {
     this.bus?.publish({
       type: 'session.interaction',
