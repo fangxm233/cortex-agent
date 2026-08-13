@@ -26,7 +26,12 @@ capabilities:
   pi-deepseek-api-key:
     # p90 task-dispatch session $2.49, max $15.65; suggested campaign default 2.00
     max_cost_usd: "10.00"
-    # per-request p99 $0.060, max $0.0749; suggested campaign default 0.50
+    # per-request p99 $0.060, max $0.0749. A campaign default is NOT read off this line: the proxy
+    # reserves one whole max_request_cost_usd per admitted request, so the declared pair fixes the
+    # trial's turn count at floor(max_cost_usd / max_request_cost_usd) — the 2026-08-13 paid
+    # attempt declared $0.50 against a $2.00 trial and bought four turns. Size it as
+    # max_cost_usd / max_provider_requests, keeping it above one full-length response
+    # (max_output_tokens * output price); `campaign_config` refuses a campaign that does not.
     max_request_cost_usd: "2.00"
     # per-request latency median ~1.1 s, max 58 s; a multi-turn task needs room for commands
     deadline_seconds: 7200
