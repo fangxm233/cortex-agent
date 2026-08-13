@@ -35,12 +35,14 @@
 # Every field also stays at or below its committed row in ../policy/capability-ceilings.yaml.
 
 schema_version: cortex-bench-campaign/1
-# Fresh identity: the 2026-08-13 attempt's `tb21-paid` roots are immutable failure evidence and a
-# campaign never writes into an existing trial root.
-campaign: tb21-paid-r2
+# Fresh identity: the 2026-08-13 `tb21-paid` (four-request exhaustion) and `tb21-paid-r2`
+# (refused before admission) roots are immutable evidence, and a campaign never writes into an
+# existing trial root -- `campaign._resume` refuses one that carries no published envelope.
+# Rotate both fields together whenever an attempt has materialised this root.
+campaign: tb21-paid-r3
 paid: true
 cost_ceiling_usd: "10.00"
-trials_dir: /var/tmp/cortex-bench/tb21-paid-r2-2026-08-13-46b6
+trials_dir: /var/tmp/cortex-bench/tb21-paid-r3-2026-08-13-4e25
 cli_version: "2026.8.6"
 
 manifest:
