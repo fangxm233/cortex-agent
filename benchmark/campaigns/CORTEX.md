@@ -6,5 +6,6 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 |---|---|---|
 | terminal-bench-2.1-deepseek-paid.yaml | campaign | Declares three serial authentic Terminal-Bench trials for the paid Cortex-direct DeepSeek arm |
 | zero-paid-dry-run.yaml | campaign | Declares the neutral ZERO-PAID campaign the runner is proven against |
+| zero-paid-failed-agent.yaml | campaign | Declares the ZERO-PAID campaign proving a failed agent is published, scored and followed by the next trial |
 | results/ | evidence | Holds path-sanitized committed campaign result summaries |
 | tasks/ | fixtures | Holds the Harbor task directories that campaign names |

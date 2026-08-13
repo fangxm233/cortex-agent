@@ -434,7 +434,10 @@ def fail_inner_run(
     absence of that file is part of the fixture rather than a defect in it.
     """
     def mutation(root: Path) -> None:
+        # Both, and only together: `runner.ts:1811` commits the merged trajectory and the
+        # composite as one pair, so a failed run leaves neither behind.
         (root / "composite-manifest.json").unlink()
+        (root / "trajectory.json").unlink()
         path = root / f"run-{ROOT_RUN_ID}.terminal.json"
         document = json.loads(path.read_text())
         document.update({"state": state, "terminal_reason": reason, "cost_usd": cost_usd})

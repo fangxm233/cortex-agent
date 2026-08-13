@@ -206,12 +206,14 @@ def _validate_inner(
         _validate_composite(composite, terminal, terminal_bytes, root_run_id, trial_id, arm)
         composite_sha256 = hashlib.sha256(composite_bytes).hexdigest()
         required = _attempt_files(root, composite)
+        # `runner.ts:1811` publishes the merged trajectory and the composite as one all-or-nothing
+        # pair, so a run that has neither is not missing an output — it never had one to miss.
         required["composite-manifest.json"] = "composite_manifest"
+        required["trajectory.json"] = "merged_trajectory"
     else:
         required = _non_admitted_files(root, terminal, root_run_id)
     required[terminal_name] = "run_terminal"
     required[f"run-{root_run_id}.started.json"] = "run_started"
-    required["trajectory.json"] = "merged_trajectory"
     return InnerEvidence(
         hashlib.sha256(terminal_bytes).hexdigest(), composite_sha256, composite, required,
         outcome, root_run_id, terminal.get("cost_usd"),
