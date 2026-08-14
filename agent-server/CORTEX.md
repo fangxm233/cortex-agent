@@ -10,11 +10,11 @@ Production code lives in src/, regression tests in tests/, and the install scaff
 | scripts/ | subdir | Build, benchmark, release and maintenance scripts |
 | src/ | subdir | Production TypeScript source |
 | tests/ | subdir | Vitest regression suite |
-| vendor/ | subdir | Vendored npm tarball dependencies |
+| vendor/ | subdir | Pins unpublished npm dependency tarballs |
 | README.md | docs | describes the published server package |
 | .dependency-cruiser.cjs | config | Guards layers and standalone runtime composition |
-| package.json | config | Builds, packs and bundles runtime dependencies |
-| package-lock.json | config | Pins runtime and development dependencies |
+| package.json | config | Builds, packs and selects runtime dependencies |
+| package-lock.json | config | Pins registry and vendored dependencies |
 | tsconfig.json | config | TypeScript compiler options |
 | tsconfig.build.json | config | Compiler options for the dist build |
 | vitest.config.ts | config | Unit test runner configuration |
