@@ -201,8 +201,11 @@ share one definition. `~/.aistatus/gateway.yaml` gets the route that forwards to
 the real endpoint, carrying the upstream key. **The key lives only in the
 gateway config** — the PI catalog holds a placeholder, so copying the catalog
 around never copies a secret. Every call therefore goes through the gateway and
-is accounted and throttled like any other route. The gateway reloads its config
-by itself, so no restart is needed.
+is accounted and throttled like any other route. The generated gateway config
+sets `max_body_size_mb: 100`. With aistatus 0.0.8 or newer, this caps each
+buffered request body in MiB; edit the top-level value to use a different limit.
+The gateway reloads its config by itself, so route and body-limit changes need
+no restart.
 
 The chat command deliberately has no key argument: a channel transcript is a
 poor place for a secret. Add the key from the CLI with `--key -` (read from

@@ -9,7 +9,7 @@ Core infrastructure tests: paths, config and profile generation, auth, locks, i1
 | bg-held-sessions.test.ts | test | per-session background hold registry |
 | config-generator.test.ts | test | shared and scoped MCP config builders |
 | debug-mode.test.ts | test | debug gate, thresholds, large-tool warnings |
-| gateway-generator.test.ts | test | model discovery parsing and gateway yaml |
+| gateway-generator.test.ts | test | model discovery, body limits and gateway yaml |
 | i18n.test.ts | test | locale lookup, fallback, and table parity |
 | paths.test.ts | test | install, data, project, and workspace paths |
 | pi-session-filename.test.ts | test | PI transcript filename parsing and selection |

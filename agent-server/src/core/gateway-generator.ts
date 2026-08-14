@@ -1,6 +1,6 @@
-// input:  Filesystem, YAML, and PI model discovery output
-// output: Gateway discovery, merge, serialization, and validation helpers
-// pos:    Generates gateway config from Claude and PI model sources
+// input:  Filesystem, YAML, PI model discovery output
+// output: Gateway config discovery, merge, serialization
+// pos:    Gateway configuration generator
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { writeFileSync, copyFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
@@ -37,7 +37,7 @@ export type EndpointMap = Record<string, Record<string, Record<string, unknown>>
 
 /** Parsed existing gateway.yaml split into reserved top-level fields and the endpoint/mode tree. */
 export interface ParsedGateway {
-  /** Reserved top-level keys preserved verbatim: port, mode, status_check, auth, host, endpoint_modes, endpoints. */
+  /** Reserved top-level keys preserved verbatim, including max_body_size_mb. */
   top: Record<string, unknown>;
   endpoints: EndpointMap;
 }
@@ -60,7 +60,10 @@ export interface GatewayValidationIssue {
 }
 
 /** aistatus reserved top-level keys (mirror of node_modules/aistatus fromDict RESERVED_KEYS). */
-const GATEWAY_RESERVED_KEYS = new Set(['host', 'port', 'mode', 'auth', 'status_check', 'endpoint_modes', 'endpoints']);
+const GATEWAY_RESERVED_KEYS = new Set([
+  'host', 'port', 'mode', 'auth', 'status_check', 'max_body_size_mb', 'endpoint_modes', 'endpoints',
+]);
+const DEFAULT_MAX_BODY_SIZE_MB = 100;
 
 /** Keys that, when present directly on an endpoint value, mark it as a "flat" (single-mode) config. */
 const FLAT_ENDPOINT_KEYS = ['keys', 'base_url', 'auth_style', 'passthrough', 'fallbacks', 'model_fallbacks'];
@@ -327,6 +330,7 @@ export function generateGatewayYaml(endpoints: DiscoveredEndpoint[], defaultMode
   lines.push(`port: 9880`);
   lines.push(`mode: ${activeMode}${allModes.length > 0 ? `  # active billing mode: ${allModes.join(' | ')}` : ''}`);
   lines.push(`status_check: true`);
+  lines.push(`max_body_size_mb: ${DEFAULT_MAX_BODY_SIZE_MB}  # buffered request limit in MiB`);
 
   for (const [epName, eps] of Object.entries(byEndpoint)) {
     lines.push('');
@@ -530,6 +534,7 @@ export function mergeGatewayConfig(
   top.port = top.port ?? 9880;
   top.mode = activeMode;
   top.status_check = top.status_check ?? true;
+  top.max_body_size_mb = top.max_body_size_mb ?? DEFAULT_MAX_BODY_SIZE_MB;
 
   return { endpoints: merged, top, preservedCustom, droppedFromDiscovery };
 }
@@ -541,6 +546,7 @@ export function serializeGatewayYaml(result: MergeGatewayResult): string {
   obj.port = result.top.port ?? 9880;
   obj.mode = result.top.mode;
   obj.status_check = result.top.status_check ?? true;
+  obj.max_body_size_mb = result.top.max_body_size_mb ?? DEFAULT_MAX_BODY_SIZE_MB;
   if (result.top.host !== undefined) obj.host = result.top.host;
   if (result.top.auth !== undefined) obj.auth = result.top.auth;
   if (result.top.endpoint_modes !== undefined) obj.endpoint_modes = result.top.endpoint_modes;

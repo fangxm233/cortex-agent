@@ -1,6 +1,6 @@
 // input:  gateway-generator module
-// output: verify pi --list-models parser, DiscoveredEndpoint shape, generateGatewayYaml filtering
-// pos:    Validate gateway-generator pure logic. Spawn-based scanPIViaListModels is covered by end-to-end.
+// output: Gateway config generation regression tests
+// pos:    Gateway generator unit test suite
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -258,6 +258,7 @@ test('generateGatewayYaml: renders multi PI providers in separate sections', () 
       passthrough: true,
     }),
   ]);
+  assert.match(yamlContent, /^max_body_size_mb: 100\b/m);
   assert.match(yamlContent, /^anthropic:/m);
   assert.match(yamlContent, /^deepseek:/m);
   assert.match(yamlContent, /^openai-codex:/m);
@@ -280,6 +281,7 @@ test('readGatewayYaml: parses nested endpoint→mode tree + reserved top keys', 
     'port: 9880',
     'mode: plan',
     'status_check: true',
+    'max_body_size_mb: 64',
     'anthropic:',
     '  plan:',
     '    base_url: https://api.anthropic.com',
@@ -297,6 +299,7 @@ test('readGatewayYaml: parses nested endpoint→mode tree + reserved top keys', 
   const parsed = readGatewayYaml(p)!;
   assert.equal(parsed.top.port, 9880);
   assert.equal(parsed.top.mode, 'plan');
+  assert.equal(parsed.top.max_body_size_mb, 64);
   assert.equal(parsed.endpoints.anthropic.plan.base_url, 'https://api.anthropic.com');
   assert.deepEqual(parsed.endpoints.anthropic['qwen-ksu'].keys, ['dummy']);
   assert.equal(parsed.endpoints.deepseek.deepseek.auth_style, 'openai');
@@ -321,7 +324,7 @@ test('readGatewayYaml: returns null on malformed YAML', () => {
 
 function existingWithCustoms(): ParsedGateway {
   return {
-    top: { port: 9880, mode: 'plan', status_check: true },
+    top: { port: 9880, mode: 'plan', status_check: true, max_body_size_mb: 64 },
     endpoints: {
       anthropic: {
         plan: { base_url: 'https://OLD.anthropic', auth_style: 'bearer' },
@@ -376,6 +379,7 @@ test('mergeGatewayConfig: existing=null equals pure discovery map', () => {
   ];
   const result = mergeGatewayConfig(discovered, null);
   assert.deepEqual(result.endpoints, discoveredToEndpointMap(discovered));
+  assert.equal(result.top.max_body_size_mb, 100);
   assert.equal(result.droppedFromDiscovery.length, 0);
 });
 
@@ -397,6 +401,7 @@ test('serializeGatewayYaml: round-trips custom + discovered through yaml.parse',
   const text = serializeGatewayYaml(result);
   const reparsed: any = yamlParse(text);
   assert.equal(reparsed.port, 9880);
+  assert.equal(reparsed.max_body_size_mb, 64);
   assert.equal(reparsed.anthropic.plan.base_url, 'https://OLD.anthropic'); // preserved (add-only)
   assert.equal(reparsed.anthropic.anthropic.keys[0], 'sk-relay');
   assert.equal(reparsed.deepseek.deepseek.auth_style, 'openai');
