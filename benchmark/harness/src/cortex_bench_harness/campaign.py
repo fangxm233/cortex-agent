@@ -53,8 +53,9 @@ from .host_finalization import OUTER_ENVELOPE_FILENAME, OUTER_ENVELOPE_SCHEMA_VE
 from .launcher.comparison_report import build_comparison_report, render_comparison_report
 from .launcher.trial_admission import create_harbor_trial
 
-CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/3"
+CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/4"
 COMPARISON_REPORT_FILENAME = "comparison-report.json"
+PROXY_EXPORT_FILENAME = "proxy-export.json"
 STATE_COMPLETED = "completed"
 STATE_HOST_FAULT = "stopped-after-host-fault"
 TRIAL_RAN = "ran"
@@ -120,6 +121,8 @@ class TrialOutcome:
     plan: TrialPlan
     state: str
     cost_usd: Decimal | None = None
+    metered_cost_usd: Decimal | None = None
+    armed: bool = False
     envelope: Mapping[str, object] | None = None
     envelope_path: Path | None = None
     envelope_sha256: str | None = None
@@ -145,6 +148,8 @@ class TrialOutcome:
         }
         if self.cost_usd is not None:
             record["cost_usd"] = str(self.cost_usd)
+        if self.metered_cost_usd is not None:
+            record["metered_cost_usd"] = str(self.metered_cost_usd)
         if self.envelope_path is not None:
             record["outer_envelope_path"] = str(self.envelope_path)
         if self.admission is not None:
@@ -199,13 +204,20 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
     started_at = _timestamp()
     outcomes, fault = asyncio.run(_run_campaign(config, plans))
     report_path, report_sha256 = _write_comparison_report(config, outcomes)
+    failed = sum(outcome.state in (TRIAL_FAILED, TRIAL_NOT_ARMED) for outcome in outcomes)
     document: dict[str, object] = {
-        "ok": fault is None, "schema_version": CAMPAIGN_RESULT_SCHEMA_VERSION,
+        # `ok` answers "did this campaign produce the results it declared", which is what a caller
+        # gates on. A host fault is not the only way to produce none of them: r5 ran to completion
+        # with every trial failing and reported ok, so a caller reading the exit code saw success.
+        "ok": fault is None and failed == 0,
+        "schema_version": CAMPAIGN_RESULT_SCHEMA_VERSION,
         "campaign": config.campaign,
         "state": STATE_COMPLETED if fault is None else STATE_HOST_FAULT,
         "paid": config.paid, "trials_dir": str(config.trials_dir),
         "concurrency": config.concurrency,
+        "trials_failed": failed,
         "cost_usd": str(_total(outcomes)),
+        "cost_complete": _total_is_complete(outcomes),
         "trials": [outcome.as_dict() for outcome in outcomes],
         "report_path": None if report_path is None else str(report_path),
         "report_sha256": report_sha256,
@@ -272,21 +284,28 @@ class _Schedule:
 
     async def _run_trial(self, plan: TrialPlan, slot: NetworkSlot) -> TrialOutcome:
         started_at = _timestamp()
+        trial_root = self._config.trials_dir / plan.trial_id
         try:
             await _arm_trial(self._config, plan, slot)
         except HostFaultError as error:
             # The machine, not the trial: stop the other workers before they arm anything else.
             self.fault = self.fault or error
-            return TrialOutcome(
-                plan=plan, state=TRIAL_FAILED, reason=str(error), slot=slot.index,
-                started_at=started_at, finished_at=_timestamp())
+            return self._failed(plan, slot, error, started_at, trial_root)
         except CampaignError as error:
-            return TrialOutcome(
-                plan=plan, state=TRIAL_FAILED, reason=str(error), slot=slot.index,
-                started_at=started_at, finished_at=_timestamp())
+            return self._failed(plan, slot, error, started_at, trial_root)
         return _read_outcome(
-            plan, self._config.trials_dir / plan.trial_id, TRIAL_RAN,
-            slot=slot.index, started_at=started_at, finished_at=_timestamp())
+            plan, trial_root, TRIAL_RAN, slot=slot.index, started_at=started_at,
+            finished_at=_timestamp())
+
+    def _failed(
+        self, plan: TrialPlan, slot: NetworkSlot, error: Exception, started_at: str,
+        trial_root: Path,
+    ) -> TrialOutcome:
+        """A trial that failed still spent whatever its proxy metered before it failed."""
+        return TrialOutcome(
+            plan=plan, state=TRIAL_FAILED, reason=str(error), slot=slot.index,
+            started_at=started_at, finished_at=_timestamp(), armed=True,
+            metered_cost_usd=_metered_cost(trial_root))
 
 
 def _partition(
@@ -427,8 +446,13 @@ def _read_outcome(
             f"{envelope.get('schema_version')!r}; this driver reads "
             f"{OUTER_ENVELOPE_SCHEMA_VERSION}")
     _validate_identity(plan, path, envelope)
+    # A published trial's envelope carries the very figure its proxy metered, validated on the way
+    # through finalization, so it is the accounting record for that trial and the raw export is
+    # only needed for a trial that never got to publish one.
+    cost = _envelope_cost(plan, path, envelope)
     return TrialOutcome(
-        plan=plan, state=state, cost_usd=_envelope_cost(plan, path, envelope),
+        plan=plan, state=state, cost_usd=cost,
+        metered_cost_usd=cost, armed=True,
         envelope=envelope, envelope_path=path,
         envelope_sha256=hashlib.sha256(payload).hexdigest(),
         slot=slot, started_at=started_at, finished_at=finished_at,
@@ -502,10 +526,49 @@ def _envelope_cost(
     return cost
 
 
+def _metered_cost(trial_root: Path) -> Decimal | None:
+    """What the host's own proxy metered for one trial, whatever became of the trial.
+
+    Read from the proxy export rather than from the outer envelope, because the envelope only
+    exists for a trial that was published: the r5 campaign summed envelopes, none of its three
+    trials published one, and so it reported spending nothing while $0.70 of provider traffic had
+    already gone through its meters. Spend happens at the proxy, before anything decides whether
+    the result is gradable, so it has to be accounted from the proxy.
+    """
+    try:
+        export = json.loads(
+            (trial_root / "artifacts" / "proxy" / PROXY_EXPORT_FILENAME).read_bytes())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(export, Mapping):
+        return None
+    field = export.get("cost_usd")
+    if not isinstance(field, Mapping) or field.get("status") != "available":
+        return None
+    try:
+        cost = Decimal(str(field.get("value")))
+    except InvalidOperation:
+        return None
+    return cost if cost.is_finite() and cost >= 0 else None
+
+
 def _total(outcomes: Sequence[TrialOutcome]) -> Decimal:
     return sum(
-        (outcome.cost_usd for outcome in outcomes if outcome.cost_usd is not None),
+        (outcome.metered_cost_usd
+         for outcome in outcomes if outcome.metered_cost_usd is not None),
         Decimal(0),
+    )
+
+
+def _total_is_complete(outcomes: Sequence[TrialOutcome]) -> bool:
+    """Whether every trial that was armed contributed a figure to the total.
+
+    A trial that was never armed spent nothing and cannot make the total incomplete; a trial that
+    ran and left no readable meter makes the total a floor rather than a sum, and the document has
+    to say so instead of letting the missing number read as zero.
+    """
+    return all(
+        outcome.metered_cost_usd is not None for outcome in outcomes if outcome.armed
     )
 
 

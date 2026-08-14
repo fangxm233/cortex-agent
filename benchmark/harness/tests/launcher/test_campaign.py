@@ -32,6 +32,7 @@ from cortex_bench_harness.host_finalization import (
     OUTER_ENVELOPE_SCHEMA_VERSION,
     parse_host_scan_policy,
 )
+from cortex_bench_harness.campaign import PROXY_EXPORT_FILENAME
 from cortex_bench_harness.launcher.capability_ceilings import load_capability_ceilings
 from cortex_bench_harness.launcher.comparison_report import (
     COMPARISON_REPORT_SCHEMA_VERSION,
@@ -151,6 +152,23 @@ def write_envelope(
     return path
 
 
+def write_proxy_export(trials_dir: Path, trial_id: str, cost_usd: str) -> Path:
+    """What the host metered for one trial, which exists whether or not the trial published.
+
+    Every r5 trial wrote this file: the two refused at finalization and the one cut by the agent
+    timeout all had one. Spend is incurred at the proxy, long before anything decides whether the
+    trial is gradable, so this is the only per-trial record that can answer what a run cost.
+    """
+    proxy = trials_dir / trial_id / "artifacts" / "proxy"
+    proxy.mkdir(parents=True, exist_ok=True)
+    path = proxy / PROXY_EXPORT_FILENAME
+    path.write_text(json.dumps({
+        "schema_version": "cortex-bench-proxy-export/1", "trial_id": trial_id,
+        "cost_usd": {"status": "available", "value": cost_usd},
+    }, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
 def write_result(
     trials_dir: Path, trial_id: str, result: "RecordingResult | None" = None,
 ) -> None:
@@ -203,6 +221,10 @@ class RecordingTrial:
         blocker = self.path.waits.get(self.trial_id)
         if blocker is not None:
             await self.path.finished(blocker).wait()
+        trials_dir = Path(str(self.kwargs["trials_dir"]))
+        spend = self.path.spends.get(self.trial_id)
+        if spend is not None:
+            write_proxy_export(trials_dir, self.trial_id, spend)
         if self.trial_id in self.path.failures:
             raise RuntimeError(f"container refused trial {self.trial_id}")
         arm_name = str(self.kwargs["arm"]["name"])
@@ -210,7 +232,6 @@ class RecordingTrial:
             self.trial_id, arm_name,
             self.path.costs.get(self.trial_id, self.path.default_cost),
         )
-        trials_dir = Path(str(self.kwargs["trials_dir"]))
         write_envelope(
             trials_dir, self.trial_id, self.path.envelope_mutation(document),
         )
@@ -234,9 +255,11 @@ class RecordingTrialPath:
         envelope_mutation: object = None,
         results: dict[str, RecordingResult] | None = None,
         waits: dict[str, str] | None = None,
+        spends: dict[str, str] | None = None,
     ) -> None:
         self.default_cost = default_cost
         self.costs = costs or {}
+        self.spends = spends or {}
         self.failures = set(failures)
         self.envelope_mutation = envelope_mutation or (lambda document: document)
         self.results = results or {}
@@ -900,15 +923,17 @@ def test_a_trial_that_fails_is_recorded_and_every_later_trial_still_runs(
 
     status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
-    assert status == 0
     assert len(recorder.armed) == 4, "the campaign ran every declared trial"
     states = {trial["trial_id"]: trial["state"] for trial in result["trials"]}
     assert states[failed] == "failed"
     assert set(states.values()) == {"ran", "failed"}
     reason = next(trial["reason"] for trial in result["trials"] if trial["trial_id"] == failed)
     assert "container refused trial" in reason
-    assert result["state"] == "completed"
+    assert result["state"] == "completed", "the driver finished; one trial did not"
+    assert status == 1 and result["ok"] is False, "a campaign missing a measurement is not ok"
+    assert result["trials_failed"] == 1
     assert result["cost_usd"] == "0.30", "a trial that failed published no cost"
+    assert result["cost_complete"] is False, "and left no meter for the driver to read either"
 
 
 def test_a_leaked_docker_network_stops_the_campaign_and_is_reported(
@@ -970,10 +995,57 @@ def test_a_campaign_whose_every_trial_failed_reports_that_instead_of_crashing(
 
     status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
-    assert status == 0
     assert [trial["state"] for trial in result["trials"]] == ["failed"] * 4
     assert result["report_path"] is None and result["report_sha256"] is None
-    assert result["cost_usd"] == "0"
+    # The r5 campaign exited 0 with ok true while three of three trials failed. A caller that
+    # gates on the exit code would have read that as a clean benchmark run.
+    assert result["ok"] is False, "a campaign that graded nothing did not succeed"
+    assert status == 1
+    assert result["trials_failed"] == 4
+    assert result["state"] == "completed", "the driver still finished; it is the trials that failed"
+
+
+def test_a_failed_trials_spend_is_still_counted_by_the_campaign(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Money is metered at the proxy, so a trial that fails afterwards has still spent it.
+
+    r5 reported `cost_usd: "0"` while $0.70 of provider traffic had been metered across three
+    trials, because the total was summed from published envelopes and no trial published one.
+    """
+    failed = "camp-01-task-one-cortex-a"
+    RecordingTrialPath(
+        default_cost="0.10",
+        failures=(failed,),
+        spends={failed: "0.25", "camp-01-task-one-cortex-b": "0.10"},
+    ).install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 1
+    spent = {trial["trial_id"]: trial.get("metered_cost_usd") for trial in result["trials"]}
+    assert spent[failed] == "0.25", "the failed trial's spend is on the record"
+    assert result["cost_usd"] == "0.55", (
+        "0.25 spent by the failed trial + 0.10 each from the three that ran; the old total "
+        "counted only the published three and would have read 0.30")
+    assert result["cost_complete"] is True
+
+
+def test_a_campaign_says_so_when_it_cannot_account_for_an_armed_trials_spend(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unreadable meter is reported as unknown rather than silently added as zero."""
+    RecordingTrialPath(
+        default_cost="0.10",
+        failures=("camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b"),
+        spends={"camp-01-task-one-cortex-a": "0.25"},
+    ).install(monkeypatch)
+
+    _, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert result["cost_usd"] == "0.45", "0.25 metered + the 0.20 the two survivors published"
+    assert result["cost_complete"] is False, (
+        "the second failed trial left no meter, so the total is a floor and not a sum")
 
 
 def test_a_campaign_arms_every_declared_trial(
@@ -1009,11 +1081,13 @@ def test_a_trial_result_without_completed_verification_is_refused(
 
     status, document, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
-    assert status == 0
+    assert status == 1, "the campaign kept going, but it is short one measurement"
+    assert document["state"] == "completed", "which is not the same as the driver failing"
     refused = next(
         trial for trial in document["trials"] if trial["trial_id"] == trial_id)
     assert refused["state"] == "failed"
     assert fragment in str(refused["reason"])
+    assert [trial["state"] for trial in document["trials"]].count("ran") == 3
 
 
 @pytest.mark.parametrize("reward", [0.0, -1.0])
@@ -1291,7 +1365,7 @@ def test_a_successful_campaign_returns_structured_state(
     assert {key: value for key, value in first.items()
             if key not in {"started_at", "finished_at"}} == {
         "trial_id": "camp-01-task-one-cortex-a", "arm": "cortex-a", "task_id": "task-one",
-        "state": "ran", "cost_usd": "0.10", "slot": 0,
+        "state": "ran", "cost_usd": "0.10", "metered_cost_usd": "0.10", "slot": 0,
         "outer_envelope_path": str(
             tmp_path / "trials" / "camp-01-task-one-cortex-a" / "artifacts"
             / OUTER_ENVELOPE_FILENAME),
