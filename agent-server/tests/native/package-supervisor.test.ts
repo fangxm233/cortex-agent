@@ -1,5 +1,5 @@
 // input:  npm pack, package fixtures, native builder
-// output: offline package closure and staging rollback proofs
+// output: package closure, synchronization, rollback proofs
 // pos:    Verifies production packing and staging cleanup
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -79,6 +79,29 @@ test('closure installer is a no-op in a checkout without the pack-time asset', (
 
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   assert.equal(fs.existsSync(path.join(server, 'node_modules/@clack/core')), false);
+});
+
+test('closure installer replaces an existing stale dependency with the bundled package', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-package-sync-'));
+  roots.push(root);
+  const server = copyCleanPackage(root);
+  const bundled = path.join(server, 'bundled-dependencies/aistatus');
+  const installed = path.join(server, 'node_modules/aistatus');
+  fs.mkdirSync(bundled, { recursive: true });
+  fs.mkdirSync(installed, { recursive: true });
+  fs.writeFileSync(path.join(bundled, 'package.json'), '{"name":"aistatus","version":"0.0.8"}\n');
+  fs.writeFileSync(path.join(bundled, 'bundled-only.txt'), 'new\n');
+  fs.writeFileSync(path.join(installed, 'package.json'), '{"name":"aistatus","version":"0.0.7"}\n');
+  fs.writeFileSync(path.join(installed, 'stale-only.txt'), 'old\n');
+
+  const result = spawnSync(process.execPath, ['scripts/install-bundled-dependencies.mjs'], {
+    cwd: server, encoding: 'utf8',
+  });
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8')).version, '0.0.8');
+  assert.equal(fs.existsSync(path.join(installed, 'bundled-only.txt')), true);
+  assert.equal(fs.existsSync(path.join(installed, 'stale-only.txt')), false);
 });
 
 test('failed dependency staging removes every partial package copy', () => {
