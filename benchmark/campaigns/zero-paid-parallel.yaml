@@ -1,30 +1,43 @@
-# input:  the ZERO-PAID campaign the public runner is proven against
-# output: two trials on a synthetic upstream, and one comparison report
-# pos:    Committed neutral ZERO-PAID campaign
+# input:  the ZERO-PAID campaign that proves concurrent trials on one host
+# output: three trials run two at a time across two address slots, and one comparison report
+# pos:    Committed ZERO-PAID concurrency campaign
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
-# ZERO-PAID means no paid-provider request: `paid: false`, a loopback-only synthetic upstream,
-# no provider endpoint and no real credential. `proxy_usage.cost_usd` still applies the declared
-# token prices to synthetic traffic as deterministic accounting; it is not provider spend.
+# Same ZERO-PAID contract as `zero-paid-dry-run.yaml` — `paid: false`, a loopback-only synthetic
+# upstream, no provider endpoint and no real credential — and the same RUN-LOCAL values, prepared
+# the same way. Read that file's header first; only the purpose differs.
 #
-# Two groups of values are RUN-LOCAL and must be confirmed before a dry run, because no committed
-# document can know them: the build artefacts under `manifest` (produce them from the repository
-# root with `benchmark/harness/scripts/build-wheel.sh` and
-# `mkdir -p benchmark/harness/dist && (cd agent-server && npm pack
-# --pack-destination ../benchmark/harness/dist)`), and `credential.upstream_base_url`, which must
-# point at the synthetic upstream the operator started. Build the pinned task runtime with
-# `benchmark/harness/scripts/build-zero-paid-runtime-image.sh`. Every other value is committed.
+# What this campaign proves, which no unit test can: the parts of concurrency that only exist on a
+# real host.
 #
-# The campaign runs one arm over two tasks. Add a second arm plus a `comparisons:` entry to
-# contrast two arms; both arms then share this one credential route, so they must name the same
-# provider.
+#   * Two Docker networks on non-overlapping subnets exist at once. A second network on the single
+#     literal every earlier campaign declared would simply be refused by Docker.
+#   * Two credential routes are live at once, each bound to its own container address, each with
+#     its own ephemeral port, its own reservation budget, its own audit log and its own proof of
+#     revocation.
+#   * The container address is DECLARED, not predicted: the compose overlay pins the sidecar to
+#     its slot's `.2`, and admission refuses the trial unless the armed route's source binding is
+#     that same address. If Docker Compose rejected `ipv4_address` on an external network, every
+#     trial here would fail closed rather than a paid one discovering it.
+#   * A slot is reusable: three trials over two slots means the third takes a slot whose network
+#     was created, used and removed, on a subnet that must therefore be free again.
+#   * Nothing crosses between concurrent trials — each trial's artifacts, scan and finalization
+#     see only its own root, and each envelope reconciles only its own traffic.
+#
+# `zero-paid-refused` is included because a failing trial and a succeeding one running side by
+# side is the case worth proving: the failure must not disturb its neighbour, and the campaign
+# must still finish. Which trials share a wave is visible afterwards in the result document's
+# per-trial `slot`, `started_at` and `finished_at`.
 
 schema_version: cortex-bench-campaign/1
-campaign: zero-paid-dry-run
+campaign: zero-paid-parallel
 paid: false
-trials_dir: /var/tmp/cortex-bench/zero-paid-dry-run
+trials_dir: /var/tmp/cortex-bench/zero-paid-parallel
 # Labels the runs in the comparison report; keep it equal to the bundle actually installed.
 cli_version: "2026.8.6"
+
+# Three trials, two slots: enough to prove both simultaneity and slot reuse in one run.
+concurrency: 2
 
 manifest:
   # RUN-LOCAL: both artefacts are build outputs and are not committed.
@@ -37,10 +50,6 @@ credential:
   # RUN-LOCAL: the synthetic upstream. A ZERO-PAID run must never name a provider or a gateway.
   upstream_base_url: http://127.0.0.1:9099
   route_identity_host: api.deepseek.com
-  # Each trial gets its OWN route at `http://<trial-id>.<proxy_host_suffix>`, because admission
-  # refuses any proxy hostname whose first label is not that trial's id. RUN-LOCAL: the container
-  # has to resolve that name to the host route, so point the suffix at whatever does that in the
-  # run environment (a wildcard record, or an entry the operator publishes for the trial network).
   proxy_host_suffix: proxy.invalid
   dummy_token_ref: zero-paid-dummy-token
 
@@ -55,8 +64,8 @@ host_scan_policy:
   host_identity_environment:
     machine: CORTEX_BENCH_ZERO_PAID_IDENTITY
 
-# The address space concurrent trials are carved out of. Slot k takes the k-th /24, its gateway
-# is .1 and its container is .2; slot 0 is the 172.30.240.0/24 every committed run so far used.
+# Slot 0 is 172.30.240.0/24 (.1 gateway, .2 container) — the address space every committed run so
+# far used. Slot 1 is 172.30.241.0/24. Nothing on the intended host routes 172.30.0.0/16.
 docker_network:
   subnet_pool: 172.30.240.0/20
   subnet_prefix: 24
@@ -96,6 +105,9 @@ arms:
 tasks:
   - task_id: zero-paid-one
     path: tasks/zero-paid-one
+    image_ref: cortex-bench-zero-paid-runtime@sha256:8b075847d21e55633a0f2bc2f3d7f9920f91d8aaf47b0778cb1d528a7dbedf55
+  - task_id: zero-paid-refused
+    path: tasks/zero-paid-refused
     image_ref: cortex-bench-zero-paid-runtime@sha256:8b075847d21e55633a0f2bc2f3d7f9920f91d8aaf47b0778cb1d528a7dbedf55
   - task_id: zero-paid-two
     path: tasks/zero-paid-two

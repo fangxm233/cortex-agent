@@ -1,5 +1,5 @@
 # input:  the approved paid Cortex-direct campaign over authentic Terminal-Bench 2.1 tasks
-# output: three serial production trials and one campaign report under a $10.00 hard ceiling
+# output: three concurrent production trials and one campaign report
 # pos:    Committed first real Terminal-Bench paid campaign
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -61,10 +61,21 @@
 #     waiting AFTER the marker appears, and that grace has to fit inside Harbor's phase budget.
 #     Raising the phase does not widen the credential window, because the lease takes the min of
 #     the two and `deadline_seconds` is unchanged; nor does it lengthen a trial that finishes.
-#   - `cost_ceiling_usd`, checked by the driver against accumulated *actual* cost between trials.
-#     At the r4 burn rate a full 1800s trial cost $0.3359384 (43 requests, 2,221,644 input and
-#     88,958 output tokens); $25.00 leaves two orders of magnitude of margin and is the only money
-#     stop left.
+#
+# THE CAMPAIGN-WIDE MONEY STOP IS GONE, deliberately. `cost_ceiling_usd` was checked between trials
+# against accumulated *published* cost; with trials in flight it can be overshot by a whole wave
+# and cannot see money being spent while it is being checked, so keeping it would keep the
+# appearance of a bound. The remaining bounds are per-trial and enforced by the proxy that actually
+# sees the money, and the campaign-wide bound is a multiplication this header does out loud:
+#
+#   arithmetic worst case = trials * turns * max cost of one request
+#                         = 3 * 500 * $0.15835008 = $237.53
+#   measured expectation  = 3 * $0.3359384 = $1.01
+#
+# The gap between the two is the point: the worst case assumes every one of 500 funded turns fills
+# a 1,000,000-token context, which 1800 seconds of agent time cannot physically issue — r4 spent
+# its entire 1800s budget on 43 requests. Before raising `concurrency` or adding tasks, redo that
+# first multiplication; it is the only campaign-level number left.
 #
 # Every field also stays at or below its committed row in ../policy/capability-ceilings.yaml.
 
@@ -77,9 +88,14 @@ schema_version: cortex-bench-campaign/1
 # this root.
 campaign: tb21-paid-r5
 paid: true
-cost_ceiling_usd: "25.00"
 trials_dir: /var/tmp/cortex-bench/tb21-paid-r5-2026-08-13-d3df
 cli_version: "2026.8.6"
+
+# All three trials in one wave. Each holds its own credential route for its own 1800s lease, so
+# three concurrent trials mean three simultaneous live windows — bounded independently, revoked
+# independently, and none of them carrying the credential inside a container. This host has 72
+# cores; three trials contend for none of them in any way a task would notice.
+concurrency: 3
 
 manifest:
   wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
@@ -121,13 +137,20 @@ timeouts:
   agent_seconds: 2100
   verifier_seconds: 1800
 
+# The address space concurrent trials are carved out of, not one subnet: Docker refuses two
+# networks whose subnets overlap, so a single literal serves one trial at a time. Slot k takes the
+# k-th /24 of the pool, its gateway is .1 and its container is .2 — slot 0 is exactly the
+# 172.30.240.0/24 / .1 / .2 that r1-r4 ran on. Sixteen slots; nothing on this host routes
+# 172.30.0.0/16.
 docker_network:
-  subnet: 172.30.240.0/24
-  gateway: 172.30.240.1
+  subnet_pool: 172.30.240.0/20
+  subnet_prefix: 24
 
+# `bound_source_ip` is absent on purpose and is refused if declared: the address a trial's route
+# binds to — the only source it will answer — is derived from the slot the trial runs in, and
+# pinned into that container's own Docker network configuration.
 proxy:
   credential_env: CORTEX_BENCH_DEEPSEEK_CREDENTIAL
-  bound_source_ip: 172.30.240.2
   # One reservation exceeds the most any admissible request can cost, so no response can be
   # refused as budget_accounting_exceeded; $100.00 of them funds the 500 turns the arm declares.
   max_request_cost_usd: "0.20"

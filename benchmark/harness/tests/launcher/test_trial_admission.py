@@ -377,6 +377,57 @@ def test_admitted_environment_maps_only_its_proxy_host_to_the_docker_host_gatewa
     assert environment._proxy_host_path in environment._docker_compose_paths
 
 
+def test_admitted_environment_pins_the_container_to_its_admitted_address(
+    tmp_path: Path,
+) -> None:
+    """The address the credential route will accept is DECLARED, not predicted.
+
+    The sidecar is the only member of the trial's network — `main` shares its namespace — so
+    pinning the sidecar pins the source address of every request the route sees. Concurrent
+    trials each sit on their own subnet, so reading the address off Docker's allocation order
+    would be a prediction made once per trial.
+    """
+    trial = create_trial(tmp_path)
+    environment = trial.agent_environment
+
+    document = json.loads(environment._container_address_path.read_text())
+
+    assert document == {"services": {
+        "harbor-docker-egress-control-sidecar": {
+            "networks": {"default": {"ipv4_address": "172.19.0.2"}},
+        },
+    }}
+    assert environment._container_address_path in environment._docker_compose_paths
+    # Last wins in Compose merge order, and Harbor's own files come first.
+    paths = environment._docker_compose_paths
+    assert paths.index(environment._container_address_path) == len(paths) - 1
+
+
+def test_the_admitted_container_address_is_the_proxy_source_binding(
+    tmp_path: Path,
+) -> None:
+    """One decision, not two: the same value configures the container and binds the route."""
+    kwargs = launch_kwargs(tmp_path)
+    kwargs["trial_proxy"] = trial_proxy_spec(bound_source_ip="172.30.241.2")
+
+    config = build_harbor_trial_config(**kwargs)
+
+    admission = config.environment.kwargs["admission"]
+    assert admission["container_ipv4"] == "172.30.241.2"
+    assert config.agent.kwargs["trial_proxy"]["bound_source_ip"] == "172.30.241.2"
+
+
+@pytest.mark.parametrize("value", ["", "172.30.240", "not-an-address", "::1"])
+def test_a_container_address_that_is_not_ipv4_is_refused(
+    tmp_path: Path, value: str,
+) -> None:
+    kwargs = launch_kwargs(tmp_path)
+    kwargs["trial_proxy"] = trial_proxy_spec(bound_source_ip=value)
+
+    with pytest.raises(HarborTrialAdmissionError, match="bound_source_ip"):
+        build_harbor_trial_config(**kwargs)
+
+
 def test_builder_refuses_a_proxy_not_listening_on_the_container_route(
     tmp_path: Path,
 ) -> None:
@@ -987,6 +1038,27 @@ def test_launch_evidence_records_the_actual_proxy_endpoint(
     assert route["bound_source_ip"] == (
         session.handle.manifest_block["source_binding"]["value"]
     )
+    assert route["bound_source_ip"] == (
+        trial.agent_environment._admission_contract["container_ipv4"]
+    )
+
+
+def test_a_route_bound_to_another_address_than_the_container_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A route bound to an address no container holds would answer nobody, silently.
+
+    The container is configured with one address and the route accepts one address; if the two
+    ever drift, the trial is refused rather than run against a route that cannot be reached.
+    """
+    trial = create_trial(tmp_path)
+    patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
+    trial.agent_environment._admission_contract["container_ipv4"] = "172.30.99.2"
+
+    with pytest.raises(HarborTrialAdmissionError, match="admitted container address"):
+        asyncio.run(trial.agent_environment.start(force_build=False))
+
+    assert not evidence_path(trial).exists()
 
 
 def test_separate_verifier_environment_is_rejected_before_launch(

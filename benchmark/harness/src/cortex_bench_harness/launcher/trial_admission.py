@@ -4,6 +4,7 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
+import ipaddress
 import json
 import os
 import re
@@ -189,9 +190,36 @@ def _task_image(seed: TrialSeed) -> tuple[str, str]:
     return require_pinned_image(image_ref, image_digest)
 
 
+def _require_trial_proxy(
+    trial_proxy: Mapping[str, object] | None,
+) -> Mapping[str, object]:
+    if trial_proxy is None:
+        raise HarborTrialAdmissionError(
+            "production Harbor admission requires a current trial proxy"
+        )
+    return trial_proxy
+
+
+def _container_ipv4(trial_proxy: Mapping[str, object] | None) -> str:
+    """The address this trial's container will be given, and the only source its route accepts.
+
+    Sealed into the contract so the two are one decision: the same value configures the container's
+    Docker address and is checked against the armed route's source binding. Concurrent trials each
+    hold their own subnet, so a container address that is merely *predicted* is a prediction made
+    once per trial rather than once per campaign.
+    """
+    value = _required_text(_require_trial_proxy(trial_proxy), "bound_source_ip")
+    try:
+        address = ipaddress.IPv4Address(value)
+    except ValueError as error:
+        raise HarborTrialAdmissionError(
+            f"trial proxy bound_source_ip must be an IPv4 address; got {value!r}") from error
+    return str(address)
+
+
 def _admission_contract(
     seed: TrialSeed, task_root: Path, trial_root: Path,
-    environment: Mapping[str, str], proxy_host: str,
+    environment: Mapping[str, str], proxy_host: str, container_ipv4: str,
 ) -> dict[str, object]:
     _provider(seed.arm)
     return {
@@ -202,6 +230,7 @@ def _admission_contract(
         "trial_root": str(trial_root),
         "image_ref": _task_image(seed)[0],
         "proxy_host": proxy_host,
+        "container_ipv4": container_ipv4,
         "configured_environment_keys": sorted(environment),
         "admitted_environment_keys": sorted(environment),
         "environment_digest": environment_digest(environment),
@@ -248,11 +277,7 @@ def _lease_seconds(arm: Mapping[str, object], agent_timeout_seconds: int) -> int
 def _sealed_trial_proxy(
     trial_proxy: Mapping[str, object] | None, proxy_host: str, lease_seconds: int,
 ) -> Mapping[str, object] | None:
-    if trial_proxy is None:
-        raise HarborTrialAdmissionError(
-            "production Harbor admission requires a current trial proxy"
-        )
-    sealed = dict(trial_proxy)
+    sealed = dict(_require_trial_proxy(trial_proxy))
     if sealed.get("listen_host") != "0.0.0.0":
         raise HarborTrialAdmissionError(
             "trial proxy listen_host must expose the container route"
@@ -309,6 +334,7 @@ def build_harbor_trial_config(
     _validate_environment_values(environment)
     contract = _admission_contract(
         seed, task_root, trial_root, environment, proxy_host,
+        _container_ipv4(trial_proxy),
     )
     agent = _build_trial_agent_config(
         arm, seed, trial_root, manifest, trial_seed, cli_version,
@@ -369,7 +395,7 @@ def _parse_contract(source: object) -> Mapping[str, object]:
         raise HarborTrialAdmissionError("admission policy must be a mapping")
     required = {
         "schema_version", "trial_id", "root_run_id", "task_root", "trial_root",
-        "image_ref", "proxy_host", "configured_environment_keys",
+        "image_ref", "proxy_host", "container_ipv4", "configured_environment_keys",
         "admitted_environment_keys", "environment_digest",
     }
     if set(source) != required or source.get("schema_version") != ADMISSION_SCHEMA_VERSION:
@@ -723,7 +749,8 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             phase_network_policies=phase_network_policies,
             extra_docker_compose=extra_docker_compose,
             external_network_name=f"{session_id}_default",
-            proxy_host=_required_text(contract, "proxy_host"), **kwargs,
+            proxy_host=_required_text(contract, "proxy_host"),
+            container_ipv4=_required_text(contract, "container_ipv4"), **kwargs,
         )
         self._seal_admission(contract, canonical_mounts, trial_paths)
 
@@ -786,6 +813,12 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         source = session.handle.manifest_block.get("source_binding")
         if not isinstance(source, Mapping) or source.get("kind") != "ip":
             raise HarborTrialAdmissionError("armed proxy source binding is unsupported")
+        # The address the container is configured with and the only address its credential route
+        # answers are one decision, so a drift between them refuses the trial rather than
+        # producing a route bound to nobody.
+        if _required_text(source, "value") != _required_text(contract, "container_ipv4"):
+            raise HarborTrialAdmissionError(
+                "armed proxy source binding differs from the admitted container address")
         return {
             "scheme": parsed.scheme, "host": parsed.hostname, "port": parsed.port,
             "bound_source_ip": _required_text(source, "value"),

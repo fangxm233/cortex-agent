@@ -27,13 +27,14 @@ class HarborTrialAdmissionError(ValueError):
 class PullDisabledDockerEnvironment(DockerEnvironment):
     def __init__(
         self, *args: object, external_network_name: str | None = None,
-        proxy_host: str | None = None, **kwargs: Any,
+        proxy_host: str | None = None, container_ipv4: str | None = None, **kwargs: Any,
     ) -> None:
         self._pull_policy_directory = tempfile.TemporaryDirectory()
         root = Path(self._pull_policy_directory.name)
         self._pull_policy_path = root / "pull-policy.json"
         self._external_network_path = root / "external-network.json"
         self._proxy_host_path = root / "proxy-host.json"
+        self._container_address_path = root / "container-address.json"
         document = {"services": {
             "main": {"pull_policy": "never"},
             self._EGRESS_CONTROL_SERVICE_NAME: {"pull_policy": "never"},
@@ -51,16 +52,28 @@ class PullDisabledDockerEnvironment(DockerEnvironment):
                     "extra_hosts": [f"{proxy_host}:host-gateway"],
                 }},
             }))
+        if container_ipv4 is not None:
+            # The sidecar is the only member of the trial's network — `main` shares its namespace —
+            # so pinning the sidecar pins the source address every request to the credential route
+            # will carry. Declared here rather than predicted from Docker's allocation order,
+            # because concurrent trials each hold a different subnet.
+            self._container_address_path.write_text(json.dumps({
+                "services": {self._EGRESS_CONTROL_SERVICE_NAME: {
+                    "networks": {"default": {"ipv4_address": container_ipv4}},
+                }},
+            }))
         super().__init__(*args, **kwargs)
 
     @property
     @override
     def _docker_compose_paths(self) -> list[Path]:
         paths = [*super()._docker_compose_paths, self._pull_policy_path]
-        if self._external_network_path.is_file():
-            paths.append(self._external_network_path)
-        if self._proxy_host_path.is_file():
-            paths.append(self._proxy_host_path)
+        for overlay in (
+            self._external_network_path, self._proxy_host_path,
+            self._container_address_path,
+        ):
+            if overlay.is_file():
+                paths.append(overlay)
         return paths
 
     async def _install_proxy_endpoint_filter(self, port: int) -> None:

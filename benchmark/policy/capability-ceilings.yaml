@@ -29,8 +29,12 @@ capabilities:
     # what the request actually cost — so this field is exactly a turn counter:
     # turns = floor(max_cost_usd / max_request_cost_usd). Raised 2026-08-13 from 10.00 so that a
     # per-request reservation large enough to be arithmetically unreachable can still fund more
-    # turns than a trial can physically take. Real spend is bounded by the task's own agent
-    # timeout and by the campaign driver's between-trial stop on accumulated actual cost.
+    # turns than a trial can physically take. Real spend is bounded per trial, by the task's own
+    # agent timeout and by this turn counter; the campaign driver's between-trial stop on
+    # accumulated cost is GONE, because with trials running concurrently it could be overshot by a
+    # whole wave and could not see money being spent while it was being checked. A campaign's own
+    # bound is therefore an arithmetic one its document has to state: trials * turns * the most
+    # one request can cost.
     max_cost_usd: "100.00"
     # per-request p99 $0.060, max $0.0749. A campaign default is NOT read off this line: the proxy
     # reserves one whole max_request_cost_usd per admitted request, so the declared pair fixes the

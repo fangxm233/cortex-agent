@@ -3,12 +3,20 @@
 # pos:    Campaign configuration boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
-# The campaign document is the run's declared configuration: arms, tasks, the proxy envelope and
-# the campaign cost ceiling. It is read closed-world — an unknown key is a refusal, not a comment —
-# because the failure this boundary must not have is a typo that silently drops a bound. Every
-# refusal names the offending field and what the field accepts, so the operator can fix the file
-# without reading this module.
+# The campaign document is the run's declared configuration: arms, tasks, the proxy envelope, and
+# the address space and concurrency its trials run in. It is read closed-world — an unknown key is
+# a refusal, not a comment — because the failure this boundary must not have is a typo that
+# silently drops a bound. Every refusal names the offending field and what the field accepts, so
+# the operator can fix the file without reading this module.
+#
+# Two fields a reader may go looking for are deliberately gone. `cost_ceiling_usd` was a
+# between-trial stop on accumulated published cost; with trials in flight it could be overshot by
+# a whole wave and could not see the money being spent while it was being checked, so it is
+# refused rather than kept as the appearance of a bound. What still bounds spend is per-trial and
+# proxy-enforced: floor(max_cost_usd / max_request_cost_usd) funded turns, and deadline_seconds.
+# `proxy.bound_source_ip` was one literal describing one container; it is now derived per slot.
 
+import ipaddress
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
@@ -30,10 +38,12 @@ ARM_SCHEMA_VERSION = "cortex-benchmark-arm/2"
 IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 CAMPAIGN_REQUIRED_FIELDS = frozenset({
-    "schema_version", "campaign", "paid", "cost_ceiling_usd", "trials_dir", "cli_version",
+    "schema_version", "campaign", "paid", "trials_dir", "cli_version",
     "manifest", "credential", "host_scan_policy", "docker_network", "proxy", "arms", "tasks",
 })
-CAMPAIGN_OPTIONAL_FIELDS = frozenset({"comparisons", "timeouts"})
+# `concurrency` is absent-means-one: a document that says nothing about parallelism gets the
+# serial campaign it has always described.
+CAMPAIGN_OPTIONAL_FIELDS = frozenset({"comparisons", "timeouts", "concurrency"})
 # Harbor bounds the agent and verifier phases separately from the arm's own deadline. Absent
 # means today's behaviour: the agent phase is cut at `limits.deadline_seconds`, and the verifier
 # at whatever the task's own `[verifier] timeout_sec` declares. Declaring them here overrides a
@@ -51,7 +61,13 @@ CREDENTIAL_FIELDS = frozenset({
 # so one campaign-wide URL could satisfy at most one trial. The port is absent on purpose — the
 # live route's port is whatever the armed proxy handle binds, and admission reads only the host.
 CREDENTIAL_SEED_FIELDS = ("upstream_base_url", "route_identity_host", "dummy_token_ref")
-DOCKER_NETWORK_FIELDS = frozenset({"subnet", "gateway"})
+# The campaign declares an address POOL, never one subnet: concurrent trials need one Docker
+# network each, and Docker refuses two networks whose subnets overlap.
+DOCKER_NETWORK_FIELDS = frozenset({"subnet_pool", "subnet_prefix"})
+# A slot needs a gateway (.1) and a container (.2) below the broadcast address, so /30 is the
+# smallest network that can carry a trial.
+SMALLEST_SLOT_PREFIX = 30
+DEFAULT_CONCURRENCY = 1
 PROXY_ROUTE_SCHEME = "http"
 HOST_SUFFIX = re.compile(
     r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$")
@@ -93,6 +109,51 @@ class CampaignConfigError(ValueError):
 
 
 @dataclass(frozen=True)
+class NetworkSlot:
+    """One concurrency slot's whole address space: its network, its gateway, its container.
+
+    `container_ip` is not a description — it is the address the trial's credential route binds to
+    and the only source it will answer, so it is pinned into the container's own Docker network
+    configuration rather than predicted from Docker's allocation order.
+    """
+
+    index: int
+    subnet: str
+    gateway: str
+    container_ip: str
+
+
+@dataclass(frozen=True)
+class DockerNetworkPool:
+    """The address space a campaign may carve concurrent trial networks out of."""
+
+    subnet_pool: str
+    subnet_prefix: int
+
+    @property
+    def slot_count(self) -> int:
+        return 1 << (self.subnet_prefix - ipaddress.IPv4Network(self.subnet_pool).prefixlen)
+
+    def slot(self, index: int) -> NetworkSlot:
+        if not 0 <= index < self.slot_count:
+            raise CampaignConfigError(
+                f"concurrency slot {index} is outside the {self.slot_count} slots "
+                f"{self.subnet_pool} carves into /{self.subnet_prefix} networks")
+        pool = ipaddress.IPv4Network(self.subnet_pool)
+        size = 1 << (pool.max_prefixlen - self.subnet_prefix)
+        network = ipaddress.IPv4Network(
+            (int(pool.network_address) + index * size, self.subnet_prefix))
+        return NetworkSlot(
+            index=index, subnet=str(network),
+            gateway=str(network.network_address + 1),
+            container_ip=str(network.network_address + 2),
+        )
+
+    def as_document(self) -> dict[str, object]:
+        return {"subnet_pool": self.subnet_pool, "subnet_prefix": self.subnet_prefix}
+
+
+@dataclass(frozen=True)
 class CampaignTask:
     task_id: str
     path: Path
@@ -122,20 +183,30 @@ class CampaignConfig:
     source: str
     campaign: str
     paid: bool
-    cost_ceiling_usd: Decimal
-    cost_ceiling_text: str
     trials_dir: Path
     cli_version: str
     manifest: Mapping[str, object]
     credential: Mapping[str, object]
     proxy_host_suffix: str
     host_scan_policy: Mapping[str, object]
-    docker_network: Mapping[str, object]
+    docker_network: DockerNetworkPool
+    concurrency: int
     proxy: Mapping[str, object]
     timeouts: Mapping[str, int]
     arms: tuple[Mapping[str, object], ...]
     tasks: tuple[CampaignTask, ...]
     comparisons: tuple[Mapping[str, object], ...]
+
+    def slot(self, index: int) -> NetworkSlot:
+        return self.docker_network.slot(index)
+
+    def slot_proxy(self, slot: NetworkSlot) -> dict[str, object]:
+        """This slot's trial proxy spec: the declared envelope plus the address it binds to.
+
+        `bound_source_ip` is derived here rather than declared, because one document literal can
+        describe at most one concurrent container.
+        """
+        return {**dict(self.proxy), "bound_source_ip": slot.container_ip}
 
     def trials(self) -> tuple[TrialPlan, ...]:
         """Every declared trial, task-major so an interrupted campaign still compares arms."""
@@ -204,22 +275,21 @@ def parse_campaign_config(
         raise CampaignConfigError(
             f"campaign schema_version must be {CAMPAIGN_SCHEMA_VERSION!r}; got {version!r}")
     arms = _arms(document["arms"])
-    ceiling = _positive_decimal(document, "cost_ceiling_usd")
     declared = _exact_text_mapping(document["credential"], CREDENTIAL_FIELDS, "credential")
+    pool = _docker_network(document["docker_network"])
     config = CampaignConfig(
         source=source,
         campaign=_identifier(document, "campaign"),
         paid=_boolean(document, "paid"),
-        cost_ceiling_usd=ceiling,
-        cost_ceiling_text=str(document["cost_ceiling_usd"]),
         trials_dir=_path(document, "trials_dir", base_dir),
         cli_version=_text(document, "cli_version"),
         manifest=_manifest(document["manifest"], base_dir),
         credential={field: declared[field] for field in CREDENTIAL_SEED_FIELDS},
         proxy_host_suffix=_host_suffix(declared["proxy_host_suffix"]),
         host_scan_policy=_host_scan_policy(document["host_scan_policy"]),
-        docker_network=_docker_network(document["docker_network"]),
-        proxy=_proxy(document["proxy"]),
+        docker_network=pool,
+        concurrency=_concurrency(document, pool),
+        proxy=_proxy(document["proxy"], pool),
         timeouts=_timeouts(document.get("timeouts")),
         arms=arms,
         tasks=_tasks(document["tasks"], base_dir),
@@ -289,7 +359,8 @@ def _validate_request_budget(config: CampaignConfig) -> None:
     four requests. Both facts are invisible until a paid trial is already running, so the
     contradiction is refused here, while the campaign is still a document.
     """
-    spec = parse_trial_proxy_spec(config.proxy)
+    # Every slot's spec differs only in the address it binds to, which no cost rule reads.
+    spec = parse_trial_proxy_spec(config.slot_proxy(config.slot(0)))
     for arm in config.arms:
         limits = arm["limits"]
         assert isinstance(limits, Mapping)
@@ -471,16 +542,61 @@ def _rule_name(field: str, rule: object) -> str:
     return rule
 
 
-def _docker_network(source: object) -> dict[str, object]:
-    return _exact_text_mapping(source, DOCKER_NETWORK_FIELDS, "docker_network")
+def _docker_network(source: object) -> DockerNetworkPool:
+    """Read the address pool concurrent trial networks are carved from.
 
-
-def _proxy(source: object) -> dict[str, object]:
-    document = _mapping(source, "campaign proxy")
-    # The trial proxy spec already owns its own closed field set and value rules; parsing it here
-    # keeps one definition of the route's envelope rather than a second, drifting copy.
+    A pool rather than a subnet, because Docker refuses to create two networks whose subnets
+    overlap: one literal can serve one trial at a time. A private pool is required — carving a
+    Docker subnet out of routable space would blackhole real destinations from inside the trial.
+    """
+    document = _mapping(source, "campaign docker_network")
+    _require_fields(document, DOCKER_NETWORK_FIELDS, frozenset(), "campaign docker_network")
+    text = _text(document, "subnet_pool", "campaign docker_network")
     try:
-        parse_trial_proxy_spec(document)
+        pool = ipaddress.IPv4Network(text, strict=True)
+    except ValueError as error:
+        raise CampaignConfigError(
+            f"campaign docker_network subnet_pool must be an IPv4 network with zero host bits, "
+            f"such as '172.30.240.0/20'; got {text!r} ({error})") from error
+    if not pool.is_private:
+        raise CampaignConfigError(
+            f"campaign docker_network subnet_pool {text} is not private address space; a trial "
+            "network carved out of routable space would blackhole real destinations")
+    prefix = _positive_int(document, "subnet_prefix", "campaign docker_network")
+    if not pool.prefixlen <= prefix <= SMALLEST_SLOT_PREFIX:
+        raise CampaignConfigError(
+            f"campaign docker_network subnet_prefix must be between the pool's own "
+            f"/{pool.prefixlen} and /{SMALLEST_SLOT_PREFIX}, which is the smallest network that "
+            f"still carries a gateway and a container; got /{prefix}")
+    return DockerNetworkPool(subnet_pool=str(pool), subnet_prefix=prefix)
+
+
+def _concurrency(document: Mapping[str, object], pool: DockerNetworkPool) -> int:
+    """How many trials may be in flight, bounded by the addresses the campaign declared."""
+    if "concurrency" not in document:
+        return DEFAULT_CONCURRENCY
+    value = _positive_int(document, "concurrency")
+    if value > pool.slot_count:
+        raise CampaignConfigError(
+            f"campaign concurrency {value} exceeds the {pool.slot_count} trial networks "
+            f"{pool.subnet_pool} carves into /{pool.subnet_prefix} subnets; widen subnet_pool, "
+            "raise subnet_prefix, or lower concurrency")
+    return value
+
+
+def _proxy(source: object, pool: DockerNetworkPool) -> dict[str, object]:
+    document = _mapping(source, "campaign proxy")
+    if "bound_source_ip" in document:
+        raise CampaignConfigError(
+            "campaign proxy rejects bound_source_ip: the address a trial's route binds to is "
+            "derived per concurrency slot from docker_network, because one literal can describe "
+            "at most one concurrent container")
+    # The trial proxy spec already owns its own closed field set and value rules; parsing it here
+    # keeps one definition of the route's envelope rather than a second, drifting copy. It is
+    # parsed with the address slot 0 will really use, so the document is validated against a real
+    # binding rather than a placeholder.
+    try:
+        parse_trial_proxy_spec({**document, "bound_source_ip": pool.slot(0).container_ip})
     except ValueError as error:
         raise CampaignConfigError(f"campaign proxy is invalid: {error}") from error
     return dict(document)

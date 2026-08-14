@@ -7,7 +7,7 @@ Launcher tests cover arm routing, credential projections, and vendor isolation.
 | trial_fixtures.py | fixture | Builds arm, seed and spec documents and admits a row |
 | test_arm_resolution.py | test | Verifies seed parsing and frozen phase-A composition |
 | test_arms.py | test | Verifies selection, seed binding, routing, and refusals |
-| test_campaign.py | test | Proves campaign routing, refusals, the declared cost pairing, serial order, hard stop, resume and continuation past a failed agent |
+| test_campaign.py | test | Proves campaign routing, refusals, the declared cost pairing, bounded concurrency with per-slot addresses, declared-order reporting, host-fault stop, resume and continuation past a failed trial |
 | test_capability_ceilings.py | test | Proves the committed ceiling policy and its refusals |
 | test_capability_evidence.py | test | Proves schema migration, evidence binding and manifest validity |
 | test_capability_state_gate.py | test | Proves an unadmitted row never reaches an armed route |

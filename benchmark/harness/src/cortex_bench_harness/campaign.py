@@ -1,18 +1,33 @@
 # input:  one campaign config path (or `-`), through the public cortex-bench CLI
-# output: serial trial roots, one deterministic comparison report and a structured result
+# output: concurrent trial roots, one deterministic comparison report and a structured result
 # pos:    Public campaign runner
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
-# The driver owns exactly three policies the trial path does not: trial order, the campaign-wide
-# cost stop, and the resume rule. It delegates execution to `create_harbor_trial`, then validates
-# Harbor completion without imposing a reward threshold; cost comes only from each admitted outer
-# envelope, and reporting remains delegated to the existing comparison builder.
+# The driver owns exactly three policies the trial path does not: which trials run and in what
+# order, how many run at once, and the resume rule. It delegates execution to `create_harbor_trial`,
+# then validates Harbor completion without imposing a reward threshold; cost comes only from each
+# admitted outer envelope, and reporting remains delegated to the existing comparison builder.
 #
 # Two rules make a campaign resumable and re-runnable without ever paying twice. A trial root that
 # already carries a published envelope is READ, never re-armed and never written to; a trial root
 # without one is a refusal, because a half-finished trial has no cost this driver may account for
-# and no result it may report. Cost is read only from published envelopes: an arm's declared budget
-# is a bound on what a trial may spend, never evidence of what it did spend.
+# and no result it may report. Both are decided BEFORE anything is armed, and the refusal names
+# every incomplete root at once — over a suite-sized campaign, learning them one run at a time is
+# its own failure. Cost is read only from published envelopes: an arm's declared budget is a bound
+# on what a trial may spend, never evidence of what it did spend.
+#
+# CONCURRENCY. Worker `k` holds network slot `k` for the whole campaign and pulls plans off a
+# shared queue in declared order. A slot owns one subnet, one gateway and one container address, so
+# at most one trial ever uses an address and there is no allocator to race. Outcomes are recorded
+# by trial id and re-emitted in DECLARED order, so the result document and the comparison report
+# stay byte-deterministic under any interleaving; each outcome carries its own start and finish
+# instants, because declared order is no longer the order things happened in.
+#
+# FAILURE. A trial that fails is a fact about that trial: it is recorded with its reason and the
+# campaign continues, because one flake must not cost eighty-eight other measurements. What stops
+# a campaign is a host-level fault — a Docker network that leaked, or a slot whose subnet cannot be
+# created — and even then in-flight trials are left to reach their own bounded end, since that is
+# what runs the ordered teardown that revokes their credential routes and proves the revocation.
 
 import argparse
 import asyncio
@@ -29,6 +44,7 @@ from pathlib import Path
 
 from .campaign_config import (
     CampaignConfig,
+    NetworkSlot,
     TrialPlan,
     load_campaign_config,
     parse_campaign_config,
@@ -37,10 +53,14 @@ from .host_finalization import OUTER_ENVELOPE_FILENAME, OUTER_ENVELOPE_SCHEMA_VE
 from .launcher.comparison_report import build_comparison_report, render_comparison_report
 from .launcher.trial_admission import create_harbor_trial
 
-CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/2"
+CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/3"
 COMPARISON_REPORT_FILENAME = "comparison-report.json"
 STATE_COMPLETED = "completed"
-STATE_COST_CEILING_REACHED = "cost-ceiling-reached"
+STATE_HOST_FAULT = "stopped-after-host-fault"
+TRIAL_RAN = "ran"
+TRIAL_SKIPPED = "skipped"
+TRIAL_FAILED = "failed"
+TRIAL_NOT_ARMED = "not-armed"
 
 EPILOG = """Examples:
   cortex-bench run --config benchmark/campaigns/zero-paid-dry-run.yaml
@@ -50,19 +70,29 @@ EPILOG = """Examples:
 A campaign is resumable: re-running the same config skips every trial root that already
 published its outer envelope, so a retry arms nothing and spends nothing.
 """
-RUN_DESCRIPTION = """Run one campaign serially: each declared trial is armed through the
-production trial path, the cost published in its outer envelope is added to the campaign
-total, and no further trial is armed once that total reaches cost_ceiling_usd."""
+RUN_DESCRIPTION = """Run one campaign: every declared trial is armed through the production
+trial path, up to `concurrency` of them at a time, each on its own slot of the declared address
+pool. A trial that fails is recorded and the campaign continues; a host-level fault stops further
+arming and leaves in-flight trials to end themselves."""
 
 
 class CampaignError(RuntimeError):
     """A campaign could not be run to a reportable end."""
 
 
-class TrialCleanupError(CampaignError):
+class HostFaultError(CampaignError):
+    """The campaign's own host state is no longer sound, so no further trial may be armed.
+
+    Distinct from a trial that failed: a failed trial is a measurement about that trial, while a
+    leaked Docker network or an unusable slot subnet is a fact about the machine every remaining
+    trial would run on.
+    """
+
+
+class TrialCleanupError(HostFaultError):
     """A trial and its mandatory network cleanup both failed."""
 
-    def __init__(self, trial_error: CampaignError, cleanup_error: Exception) -> None:
+    def __init__(self, trial_error: Exception, cleanup_error: Exception) -> None:
         self.trial_error = trial_error
         self.cleanup_error = cleanup_error
         super().__init__(
@@ -93,6 +123,10 @@ class TrialOutcome:
     envelope: Mapping[str, object] | None = None
     envelope_path: Path | None = None
     envelope_sha256: str | None = None
+    reason: str | None = None
+    slot: int | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
 
     @property
     def admission(self) -> Mapping[str, object] | None:
@@ -115,6 +149,14 @@ class TrialOutcome:
             record["outer_envelope_path"] = str(self.envelope_path)
         if self.admission is not None:
             record["grader_admission"] = dict(self.admission)
+        if self.reason is not None:
+            record["reason"] = self.reason
+        # The schedule, not the declaration: trials are reported in declared order, so without
+        # these three a reader cannot tell which of them actually overlapped.
+        for field in ("slot", "started_at", "finished_at"):
+            value = getattr(self, field)
+            if value is not None:
+                record[field] = value
         return record
 
 
@@ -155,54 +197,143 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
     if arguments.dry_run:
         return _dry_run_document(config, plans)
     started_at = _timestamp()
-    outcomes, state = asyncio.run(_run_campaign(config, plans))
+    outcomes, fault = asyncio.run(_run_campaign(config, plans))
     report_path, report_sha256 = _write_comparison_report(config, outcomes)
-    return {
-        "ok": True, "schema_version": CAMPAIGN_RESULT_SCHEMA_VERSION,
-        "campaign": config.campaign, "state": state, "paid": config.paid,
-        "trials_dir": str(config.trials_dir),
-        "cost_ceiling_usd": config.cost_ceiling_text,
+    document: dict[str, object] = {
+        "ok": fault is None, "schema_version": CAMPAIGN_RESULT_SCHEMA_VERSION,
+        "campaign": config.campaign,
+        "state": STATE_COMPLETED if fault is None else STATE_HOST_FAULT,
+        "paid": config.paid, "trials_dir": str(config.trials_dir),
+        "concurrency": config.concurrency,
         "cost_usd": str(_total(outcomes)),
         "trials": [outcome.as_dict() for outcome in outcomes],
-        "report_path": str(report_path), "report_sha256": report_sha256,
+        "report_path": None if report_path is None else str(report_path),
+        "report_sha256": report_sha256,
         "started_at": started_at, "ended_at": _timestamp(),
     }
+    if fault is not None:
+        document["fault"] = str(fault)
+    return document
 
 
 async def _run_campaign(
     config: CampaignConfig, plans: Sequence[TrialPlan],
-) -> tuple[list[TrialOutcome], str]:
-    outcomes: list[TrialOutcome] = []
-    for index, plan in enumerate(plans):
+) -> tuple[list[TrialOutcome], HostFaultError | None]:
+    """Resume what already ran, then run the rest `concurrency` at a time."""
+    schedule = _Schedule(config, plans)
+    workers = [
+        asyncio.create_task(schedule.work(slot))
+        for slot in range(min(config.concurrency, schedule.pending))
+    ]
+    if workers:
+        await asyncio.gather(*workers)
+    return schedule.outcomes(), schedule.fault
+
+
+class _Schedule:
+    """One campaign's queue of unrun trials, its slot workers and what they produced.
+
+    Every worker records; none of them raises. A trial's failure belongs in the result document
+    beside the trials that succeeded, and a host fault has to stop the OTHER workers rather than
+    unwind this one.
+    """
+
+    def __init__(self, config: CampaignConfig, plans: Sequence[TrialPlan]) -> None:
+        self._config = config
+        self._plans = tuple(plans)
+        self._recorded: dict[str, TrialOutcome] = {}
+        self._queue: asyncio.Queue[TrialPlan] = asyncio.Queue()
+        self.fault: HostFaultError | None = None
+        for plan, resumed in _partition(config, self._plans):
+            if resumed is not None:
+                self._recorded[plan.trial_id] = resumed
+            else:
+                self._queue.put_nowait(plan)
+
+    @property
+    def pending(self) -> int:
+        return self._queue.qsize()
+
+    def outcomes(self) -> list[TrialOutcome]:
+        """Declared order, whatever order the workers finished in."""
+        return [
+            self._recorded.get(plan.trial_id, TrialOutcome(plan=plan, state=TRIAL_NOT_ARMED))
+            for plan in self._plans
+        ]
+
+    async def work(self, slot_index: int) -> None:
+        slot = self._config.slot(slot_index)
+        while self.fault is None:
+            try:
+                plan = self._queue.get_nowait()
+            except asyncio.QueueEmpty:
+                return
+            self._recorded[plan.trial_id] = await self._run_trial(plan, slot)
+
+    async def _run_trial(self, plan: TrialPlan, slot: NetworkSlot) -> TrialOutcome:
+        started_at = _timestamp()
+        try:
+            await _arm_trial(self._config, plan, slot)
+        except HostFaultError as error:
+            # The machine, not the trial: stop the other workers before they arm anything else.
+            self.fault = self.fault or error
+            return TrialOutcome(
+                plan=plan, state=TRIAL_FAILED, reason=str(error), slot=slot.index,
+                started_at=started_at, finished_at=_timestamp())
+        except CampaignError as error:
+            return TrialOutcome(
+                plan=plan, state=TRIAL_FAILED, reason=str(error), slot=slot.index,
+                started_at=started_at, finished_at=_timestamp())
+        return _read_outcome(
+            plan, self._config.trials_dir / plan.trial_id, TRIAL_RAN,
+            slot=slot.index, started_at=started_at, finished_at=_timestamp())
+
+
+def _partition(
+    config: CampaignConfig, plans: Sequence[TrialPlan],
+) -> list[tuple[TrialPlan, TrialOutcome | None]]:
+    """Decide resume-or-arm for every trial before any of them is armed.
+
+    Refusing every unfinished root at once matters at suite scale: an operator learns which roots
+    to move aside in one message, rather than one campaign run per root.
+    """
+    partitioned: list[tuple[TrialPlan, TrialOutcome | None]] = []
+    unfinished: list[Path] = []
+    for plan in plans:
         trial_root = config.trials_dir / plan.trial_id
-        if trial_root.exists():
-            outcomes.append(_resume(plan, trial_root))
-            continue
-        if _total(outcomes) >= config.cost_ceiling_usd:
-            outcomes.extend(
-                TrialOutcome(plan=remaining, state="not-armed") for remaining in plans[index:])
-            return outcomes, STATE_COST_CEILING_REACHED
-        await _arm_trial(config, plan)
-        outcomes.append(_read_outcome(plan, trial_root, "ran"))
-    return outcomes, STATE_COMPLETED
+        if not trial_root.exists():
+            partitioned.append((plan, None))
+        elif (trial_root / "artifacts" / OUTER_ENVELOPE_FILENAME).exists():
+            partitioned.append((plan, _read_outcome(plan, trial_root, TRIAL_SKIPPED)))
+        else:
+            unfinished.append(trial_root)
+    if unfinished:
+        raise CampaignError(
+            f"{len(unfinished)} trial root(s) exist without a published "
+            f"{OUTER_ENVELOPE_FILENAME}, so those trials did not finish: "
+            f"{', '.join(str(root) for root in unfinished)}. Move them aside to re-run those "
+            "trials; this driver never overwrites one")
+    return partitioned
 
 
-async def _arm_trial(config: CampaignConfig, plan: TrialPlan) -> None:
+async def _arm_trial(config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot) -> None:
     """One trial, through the production trial path and nothing else."""
     network_id = ""
     trial_error: CampaignError | None = None
     try:
-        network_id = _create_trial_network(config, plan)
+        network_id = _create_trial_network(config, plan, slot)
         trial = await create_harbor_trial(
             arm=dict(plan.arm), task_path=plan.task.path, trials_dir=config.trials_dir,
             manifest=config.trial_manifest(plan), trial_seed=config.trial_seed(plan),
             cli_version=config.cli_version, host_scan_policy=dict(config.host_scan_policy),
-            trial_proxy=dict(config.proxy),
+            trial_proxy=config.slot_proxy(slot),
             agent_timeout_seconds=config.timeouts.get("agent_seconds"),
             verifier_timeout_seconds=config.timeouts.get("verifier_seconds"),
         )
         result = await trial.run()
         _require_completed_trial(plan, result)
+    except HostFaultError:
+        raise
     except CampaignError as error:
         trial_error = error
     except Exception as error:
@@ -243,41 +374,43 @@ def _require_finite_rewards(plan: TrialPlan, rewards: object) -> None:
             f"trial {plan.trial_id} published a non-finite or non-numeric verifier reward")
 
 
-def _create_trial_network(config: CampaignConfig, plan: TrialPlan) -> str:
+def _create_trial_network(
+    config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot,
+) -> str:
+    """This trial's own network, on the subnet its concurrency slot owns.
+
+    Host-level on failure: a slot whose declared subnet cannot be created is a fact about the
+    machine and its address space, and every later trial on that slot would meet it again.
+    """
     name = f"{plan.trial_id}__env_default"
     command = [
         "docker", "network", "create", "--driver", "bridge",
-        "--subnet", str(config.docker_network["subnet"]),
-        "--gateway", str(config.docker_network["gateway"]), name,
+        "--subnet", slot.subnet, "--gateway", slot.gateway, name,
     ]
     result = subprocess.run(command, capture_output=True, text=True, timeout=30)
     if result.returncode != 0 or not result.stdout.strip():
-        raise CampaignError(
-            f"trial {plan.trial_id} could not create Docker network {name}: "
+        raise HostFaultError(
+            f"trial {plan.trial_id} could not create Docker network {name} on slot "
+            f"{slot.index} ({slot.subnet}): "
             f"{result.stderr.strip() or result.stdout.strip()}")
     return result.stdout.strip()
 
 
 def _remove_trial_network(network_id: str) -> None:
+    """Host-level on failure: an un-removed network is leaked host state, and its subnet is a
+    slot the campaign can no longer use."""
     result = subprocess.run(
         ["docker", "network", "rm", network_id], capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
-        raise CampaignError(
+        raise HostFaultError(
             f"could not remove Docker network {network_id}: "
             f"{result.stderr.strip() or result.stdout.strip()}")
 
 
-def _resume(plan: TrialPlan, trial_root: Path) -> TrialOutcome:
-    """An existing trial root is evidence, not workspace: read it, never write into it."""
-    if not (trial_root / "artifacts" / OUTER_ENVELOPE_FILENAME).exists():
-        raise CampaignError(
-            f"trial root {trial_root} exists without a published "
-            f"{OUTER_ENVELOPE_FILENAME}: trial {plan.trial_id} did not finish. Move that "
-            "root aside to re-run the trial; this driver never overwrites one")
-    return _read_outcome(plan, trial_root, "skipped")
-
-
-def _read_outcome(plan: TrialPlan, trial_root: Path, state: str) -> TrialOutcome:
+def _read_outcome(
+    plan: TrialPlan, trial_root: Path, state: str, *, slot: int | None = None,
+    started_at: str | None = None, finished_at: str | None = None,
+) -> TrialOutcome:
     _require_published_success(plan, trial_root)
     path = trial_root / "artifacts" / OUTER_ENVELOPE_FILENAME
     try:
@@ -298,6 +431,7 @@ def _read_outcome(plan: TrialPlan, trial_root: Path, state: str) -> TrialOutcome
         plan=plan, state=state, cost_usd=_envelope_cost(plan, path, envelope),
         envelope=envelope, envelope_path=path,
         envelope_sha256=hashlib.sha256(payload).hexdigest(),
+        slot=slot, started_at=started_at, finished_at=finished_at,
     )
 
 
@@ -377,8 +511,15 @@ def _total(outcomes: Sequence[TrialOutcome]) -> Decimal:
 
 def _write_comparison_report(
     config: CampaignConfig, outcomes: Sequence[TrialOutcome],
-) -> tuple[Path, str]:
+) -> tuple[Path | None, str | None]:
+    """The report over every trial that published an envelope, or nothing when none did.
+
+    A campaign whose trials all failed has no runs to compare, and that is a result to report
+    rather than a crash on the way to reporting it.
+    """
     runs = [_report_run(config, outcome) for outcome in outcomes if outcome.envelope is not None]
+    if not runs:
+        return None, None
     report = build_comparison_report(
         campaign_id=config.campaign, runs=runs, comparisons=[dict(item) for item in _reported(
             config.comparisons, runs)],
@@ -431,7 +572,12 @@ def _dry_run_document(
         "ok": True, "dry_run": True, "schema_version": CAMPAIGN_RESULT_SCHEMA_VERSION,
         "campaign": config.campaign, "paid": config.paid,
         "trials_dir": str(config.trials_dir),
-        "cost_ceiling_usd": config.cost_ceiling_text,
+        "concurrency": config.concurrency,
+        "slots": [
+            {"slot": slot.index, "subnet": slot.subnet, "gateway": slot.gateway,
+             "container_ip": slot.container_ip}
+            for slot in (config.slot(index) for index in range(config.concurrency))
+        ],
         "report_path": str(config.trials_dir / COMPARISON_REPORT_FILENAME),
         "trials": [
             {"trial_id": plan.trial_id, "arm": plan.arm_name,
@@ -466,5 +612,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _emit(document: Mapping[str, object]) -> int:
+    """A host fault still publishes its result: the report is the evidence of what did run.
+
+    Only the exit code says the campaign did not complete.
+    """
     print(json.dumps(document, sort_keys=True), flush=True)
-    return 0
+    return 0 if document.get("ok") else 1

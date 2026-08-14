@@ -4,8 +4,8 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # Same ZERO-PAID contract as `zero-paid-dry-run.yaml` — `paid: false`, a loopback-only synthetic
-# upstream, no provider endpoint and no real credential — and the same three groups of RUN-LOCAL
-# values, prepared the same way. Read that file's header first; only the purpose differs.
+# upstream, no provider endpoint and no real credential — and the same RUN-LOCAL values,
+# prepared the same way. Read that file's header first; only the purpose differs.
 #
 # What this campaign proves, which the dry run cannot: a trial whose inner agent run ends in a
 # terminal state other than `completed`/`ok` is finalized, published with a `grader_admission`
@@ -24,8 +24,6 @@
 schema_version: cortex-bench-campaign/1
 campaign: zero-paid-failed-agent
 paid: false
-# One cent bounds synthetic proxy accounting while leaving room for both committed trials.
-cost_ceiling_usd: "0.01"
 trials_dir: /var/tmp/cortex-bench/zero-paid-failed-agent
 # Labels the runs in the comparison report; keep it equal to the bundle actually installed.
 cli_version: "2026.8.6"
@@ -55,16 +53,15 @@ host_scan_policy:
   host_identity_environment:
     machine: CORTEX_BENCH_ZERO_PAID_IDENTITY
 
+# The address space concurrent trials are carved out of. Slot k takes the k-th /24, its gateway
+# is .1 and its container is .2; slot 0 is the 172.30.240.0/24 every committed run so far used.
 docker_network:
-  # Reused serially: the driver creates/removes one trial-named external network at a time.
-  subnet: 172.30.240.0/24
-  gateway: 172.30.240.1
+  subnet_pool: 172.30.240.0/20
+  subnet_prefix: 24
 
 proxy:
   # The synthetic credential is named, never carried; the host reads this variable.
   credential_env: CORTEX_BENCH_ZERO_PAID_CREDENTIAL
-  # RUN-LOCAL: the trial container's address on its own Docker network.
-  bound_source_ip: 172.30.240.2
   max_request_cost_usd: "0.01"
   input_cost_per_million_usd: "0.14"
   output_cost_per_million_usd: "0.28"

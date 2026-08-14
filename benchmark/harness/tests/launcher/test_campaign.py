@@ -19,9 +19,11 @@ import pytest
 import yaml
 
 from cortex_bench_harness import campaign
+from cortex_bench_harness.harbor_agent import INNER_RUN_TERMINAL_GRACE_SECONDS
 from cortex_bench_harness.campaign_config import (
     CAMPAIGN_SCHEMA_VERSION,
     CampaignConfigError,
+    NetworkSlot,
     load_campaign_config,
     parse_campaign_config,
 )
@@ -70,7 +72,6 @@ def campaign_document(root: Path, **overrides: object) -> dict[str, object]:
         "schema_version": CAMPAIGN_SCHEMA_VERSION,
         "campaign": "camp-01",
         "paid": False,
-        "cost_ceiling_usd": "10.00",
         "trials_dir": str(root / "trials"),
         "cli_version": "2026.8.12",
         "manifest": {
@@ -93,11 +94,10 @@ def campaign_document(root: Path, **overrides: object) -> dict[str, object]:
             "host_identity_environment": {"machine": "CORTEX_BENCH_TEST_IDENTITY"},
         },
         "docker_network": {
-            "subnet": "172.30.240.0/24", "gateway": "172.30.240.1",
+            "subnet_pool": "172.30.240.0/22", "subnet_prefix": 24,
         },
         "proxy": {
             "credential_env": "CORTEX_BENCH_TEST_CREDENTIAL",
-            "bound_source_ip": "172.19.0.2",
             # Funds the arm's 200 declared requests out of its $2.00 trial ceiling
             # (floor(2.00 / 0.01) = 200) and covers one 32768-token response ($0.00917504).
             "max_request_cost_usd": "0.01",
@@ -190,6 +190,19 @@ class RecordingTrial:
         self.trial_id = str(kwargs["trial_seed"]["trial_id"])
 
     async def run(self) -> object:
+        # A real trial waits on Docker before it does anything, so the recorder yields too: a
+        # coroutine that never awaits runs to completion, and a scheduler proven against one
+        # would look serial no matter how many workers it started.
+        await asyncio.sleep(0)
+        try:
+            return await self._run()
+        finally:
+            self.path.leave(self.trial_id)
+
+    async def _run(self) -> object:
+        blocker = self.path.waits.get(self.trial_id)
+        if blocker is not None:
+            await self.path.finished(blocker).wait()
         if self.trial_id in self.path.failures:
             raise RuntimeError(f"container refused trial {self.trial_id}")
         arm_name = str(self.kwargs["arm"]["name"])
@@ -204,26 +217,35 @@ class RecordingTrial:
         result = self.path.results.get(
             self.trial_id, RecordingResult(rewards={"reward": 1.0}))
         write_result(trials_dir, self.trial_id, result)
-        self.path.events.append(("finished", self.trial_id))
         return result
 
 
 class RecordingTrialPath:
-    """Stands in for `create_harbor_trial`, including its fresh-root reservation."""
+    """Stands in for `create_harbor_trial`, including its fresh-root reservation.
+
+    It also records the campaign's *schedule*: which trials were in flight together, and how many
+    at once. `waits` lets a test pin the finishing order independently of the arming order, which
+    is the case a concurrent driver has to keep deterministic.
+    """
 
     def __init__(
         self, *, default_cost: str = "0.60", costs: dict[str, str] | None = None,
         failures: tuple[str, ...] = (),
         envelope_mutation: object = None,
         results: dict[str, RecordingResult] | None = None,
+        waits: dict[str, str] | None = None,
     ) -> None:
         self.default_cost = default_cost
         self.costs = costs or {}
         self.failures = set(failures)
         self.envelope_mutation = envelope_mutation or (lambda document: document)
         self.results = results or {}
+        self.waits = waits or {}
         self.calls: list[dict[str, object]] = []
         self.events: list[tuple[str, str]] = []
+        self.in_flight = 0
+        self.max_in_flight = 0
+        self._finished: dict[str, asyncio.Event] = {}
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> "RecordingTrialPath":
         monkeypatch.setattr(campaign, "create_harbor_trial", self._create)
@@ -235,11 +257,25 @@ class RecordingTrialPath:
     def armed(self) -> list[str]:
         return [trial_id for state, trial_id in self.events if state == "armed"]
 
+    def finished(self, trial_id: str) -> asyncio.Event:
+        return self._finished.setdefault(trial_id, asyncio.Event())
+
+    def enter(self, trial_id: str) -> None:
+        """In flight from the moment the trial is armed: that is when it holds a network."""
+        self.in_flight += 1
+        self.max_in_flight = max(self.max_in_flight, self.in_flight)
+
+    def leave(self, trial_id: str) -> None:
+        self.in_flight -= 1
+        self.events.append(("finished", trial_id))
+        self.finished(trial_id).set()
+
     async def _create(self, **kwargs: object) -> RecordingTrial:
         trial_id = str(kwargs["trial_seed"]["trial_id"])
         (Path(str(kwargs["trials_dir"])) / trial_id).mkdir(parents=True)
         self.calls.append(kwargs)
         self.events.append(("armed", trial_id))
+        self.enter(trial_id)
         return RecordingTrial(self, kwargs)
 
 
@@ -342,7 +378,7 @@ def test_a_valid_config_parses_into_the_declared_campaign(tmp_path: Path) -> Non
 
     assert config.campaign == "camp-01"
     assert config.paid is False
-    assert config.cost_ceiling_usd == Decimal("10.00")
+    assert config.concurrency == 1, "an undeclared concurrency is the serial campaign"
     assert config.trials_dir == tmp_path / "trials"
     assert [arm["name"] for arm in config.arms] == ["cortex-a", "cortex-b"]
     assert [task.task_id for task in config.tasks] == ["task-one", "task-two"]
@@ -362,10 +398,11 @@ def test_the_parsed_proxy_and_scan_policy_satisfy_their_existing_parsers(
         monkeypatch.setenv(f"CORTEX_BENCH_TEST_{name}", f"value-{name.lower()}")
     config = load_campaign_config(write_campaign(tmp_path))
 
-    spec = parse_trial_proxy_spec(config.proxy)
+    spec = parse_trial_proxy_spec(config.slot_proxy(config.slot(0)))
     policy = parse_host_scan_policy(config.host_scan_policy)
 
     assert spec.request_body_limit_bytes == 16777216
+    assert spec.bound_source_ip == "172.30.240.2"
     assert policy.secrets == {"provider_credential": "value-credential"}
 
 
@@ -384,12 +421,11 @@ def test_the_task_image_digest_is_derived_from_the_pinned_reference(tmp_path: Pa
         ({"campaign": ""}, "campaign"),
         ({"campaign": "Camp 01"}, "campaign"),
         ({"paid": "false"}, "paid"),
-        ({"cost_ceiling_usd": 10.0}, "cost_ceiling_usd"),
-        ({"cost_ceiling_usd": "0"}, "cost_ceiling_usd"),
-        ({"cost_ceiling_usd": "not-a-number"}, "cost_ceiling_usd"),
         ({"cli_version": ""}, "cli_version"),
         ({"arms": []}, "arms"),
         ({"tasks": []}, "tasks"),
+        ({"concurrency": 0}, "concurrency"),
+        ({"concurrency": 1.5}, "concurrency"),
     ],
 )
 def test_a_malformed_campaign_document_is_refused(
@@ -401,6 +437,90 @@ def test_a_malformed_campaign_document_is_refused(
         load_campaign_config(path)
 
     assert fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("network", "fragment"),
+    [
+        # The stale shape every committed document used to carry. Closed-world reading turns it
+        # into a refusal that names the fields that replaced it, rather than a silently ignored
+        # address literal serving one trial at a time.
+        ({"subnet": "172.30.240.0/24", "gateway": "172.30.240.1"}, "subnet_pool"),
+        ({"subnet_pool": "172.30.240.1/24", "subnet_prefix": 24}, "host bits"),
+        ({"subnet_pool": "8.8.8.0/24", "subnet_prefix": 24}, "private"),
+        ({"subnet_pool": "172.30.240.0/24", "subnet_prefix": 20}, "between the pool's own"),
+        ({"subnet_pool": "172.30.240.0/24", "subnet_prefix": 31}, "smallest network"),
+        ({"subnet_pool": "172.30.240.0/24", "subnet_prefix": "24"}, "positive integer"),
+    ],
+)
+def test_a_docker_network_that_cannot_carry_concurrent_trials_is_refused(
+    tmp_path: Path, network: dict[str, object], fragment: str,
+) -> None:
+    document = campaign_document(tmp_path, docker_network=network)
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert fragment in str(error.value)
+
+
+def test_a_concurrency_the_declared_pool_cannot_address_is_refused(tmp_path: Path) -> None:
+    """The bound that makes a slot's address space a property of the document, not of luck."""
+    document = campaign_document(
+        tmp_path, concurrency=5,
+        docker_network={"subnet_pool": "172.30.240.0/22", "subnet_prefix": 24})
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "4 trial networks" in str(error.value)
+
+
+def test_a_declared_bound_source_ip_is_refused(tmp_path: Path) -> None:
+    """One literal can describe one container; concurrent trials need one address each."""
+    document = campaign_document(tmp_path)
+    document["proxy"] = {**document["proxy"], "bound_source_ip": "172.30.240.2"}
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "derived per concurrency slot" in str(error.value)
+
+
+def test_each_slot_owns_a_distinct_subnet_gateway_and_container_address(
+    tmp_path: Path,
+) -> None:
+    config = load_campaign_config(write_campaign(
+        tmp_path, campaign_document(tmp_path, concurrency=4)))
+    slots = [config.slot(index) for index in range(config.concurrency)]
+
+    assert [slot.subnet for slot in slots] == [
+        "172.30.240.0/24", "172.30.241.0/24", "172.30.242.0/24", "172.30.243.0/24"]
+    assert [slot.gateway for slot in slots] == [
+        f"172.30.24{index}.1" for index in range(4)]
+    assert [slot.container_ip for slot in slots] == [
+        f"172.30.24{index}.2" for index in range(4)]
+    assert len({slot.subnet for slot in slots}) == len(slots)
+
+
+def test_slot_zero_is_the_address_space_every_committed_run_so_far_used(
+    tmp_path: Path,
+) -> None:
+    """The generalisation keeps the values r1-r4 and both ZERO-PAID runs were carried out on."""
+    config = load_campaign_config(write_campaign(tmp_path))
+
+    assert config.slot(0) == NetworkSlot(
+        index=0, subnet="172.30.240.0/24", gateway="172.30.240.1",
+        container_ip="172.30.240.2")
+
+
+def test_a_slot_outside_the_declared_pool_is_refused(tmp_path: Path) -> None:
+    config = load_campaign_config(write_campaign(tmp_path))
+
+    with pytest.raises(CampaignConfigError) as error:
+        config.slot(config.docker_network.slot_count)
+
+    assert "outside the 4 slots" in str(error.value)
 
 
 def test_a_missing_top_level_field_is_refused(tmp_path: Path) -> None:
@@ -512,12 +632,13 @@ class _StringStdin:
         return self._text
 
 
-# --- serial execution through the production trial path -----------------------------------------
+# --- execution through the production trial path -------------------------------------------------
 
 
-def test_trials_run_one_at_a_time_in_declared_task_then_arm_order(
+def test_an_undeclared_concurrency_runs_trials_one_at_a_time_in_declared_order(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """A document that says nothing about parallelism keeps the campaign it always described."""
     recorder = RecordingTrialPath().install(monkeypatch)
     config_path = write_campaign(tmp_path)
 
@@ -530,18 +651,58 @@ def test_trials_run_one_at_a_time_in_declared_task_then_arm_order(
         ("armed", "camp-01-task-two-cortex-a"), ("finished", "camp-01-task-two-cortex-a"),
         ("armed", "camp-01-task-two-cortex-b"), ("finished", "camp-01-task-two-cortex-b"),
     ]
+    assert recorder.max_in_flight == 1
     assert [trial["trial_id"] for trial in result["trials"]] == recorder.armed
 
 
-def test_each_serial_trial_gets_a_fresh_declared_external_network(
+def test_declared_concurrency_puts_that_many_trials_in_flight_and_never_more(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
     recorder = RecordingTrialPath().install(monkeypatch)
-    calls: list[list[str]] = []
+    document = campaign_document(tmp_path, concurrency=2)
 
-    def create(config: object, plan: object) -> str:
-        calls.append(["create", plan.trial_id, config.docker_network["subnet"],
-                      config.docker_network["gateway"]])
+    status, result, _ = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert status == 0
+    assert recorder.max_in_flight == 2, "the declared bound is a bound"
+    assert len(recorder.armed) == 4
+    assert result["concurrency"] == 2
+    # The property a serial loop cannot have: a second trial is armed before the first finishes.
+    assert recorder.events[:2] == [
+        ("armed", "camp-01-task-one-cortex-a"), ("armed", "camp-01-task-one-cortex-b"),
+    ]
+
+
+def test_trials_are_reported_in_declared_order_whatever_order_they_finish_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Concurrency must not make the record of a campaign depend on the race that produced it."""
+    first, second = "camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b"
+    recorder = RecordingTrialPath(waits={first: second}).install(monkeypatch)
+    document = campaign_document(tmp_path, concurrency=2)
+
+    status, result, _ = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert status == 0
+    finished = [trial_id for state, trial_id in recorder.events if state == "finished"]
+    assert finished[:2] == [second, first], "the second declared trial finished first"
+    assert [trial["trial_id"] for trial in result["trials"]] == [
+        first, second, "camp-01-task-two-cortex-a", "camp-01-task-two-cortex-b",
+    ]
+    report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
+    assert report["run_order"] == [trial["trial_id"] for trial in result["trials"]]
+
+
+def test_each_trial_gets_a_fresh_network_on_the_subnet_its_slot_owns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    calls: list[list[object]] = []
+
+    def create(config: object, plan: object, slot: object) -> str:
+        calls.append(["create", plan.trial_id, slot.index, slot.subnet, slot.gateway])
         return f"network-{plan.trial_id}"
 
     def remove(network_id: str) -> None:
@@ -558,12 +719,63 @@ def test_each_serial_trial_gets_a_fresh_declared_external_network(
 
     assert (status, stderr) == (0, "")
     assert calls == [
-        ["create", "camp-01-task-one-cortex-a", "172.30.240.0/24", "172.30.240.1"],
+        ["create", "camp-01-task-one-cortex-a", 0, "172.30.240.0/24", "172.30.240.1"],
         ["remove", "network-camp-01-task-one-cortex-a"],
-        ["create", "camp-01-task-two-cortex-a", "172.30.240.0/24", "172.30.240.1"],
+        ["create", "camp-01-task-two-cortex-a", 0, "172.30.240.0/24", "172.30.240.1"],
         ["remove", "network-camp-01-task-two-cortex-a"],
     ]
     assert len(recorder.armed) == 2
+
+
+def test_concurrent_trials_never_share_a_subnet_or_a_container_address(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The reason concurrency needs an address pool: Docker refuses overlapping subnets, and a
+    credential route bound to one address can only answer one container."""
+    live: dict[str, str] = {}
+    overlaps: list[tuple[str, str]] = []
+
+    def create(config: object, plan: object, slot: object) -> str:
+        for held_trial, held_subnet in live.items():
+            if held_subnet == slot.subnet:
+                overlaps.append((held_trial, plan.trial_id))
+        live[plan.trial_id] = slot.subnet
+        return f"network-{plan.trial_id}|{slot.subnet}"
+
+    def remove(network_id: str) -> None:
+        live.pop(network_id.split("|")[0].removeprefix("network-"), None)
+
+    recorder = RecordingTrialPath().install(monkeypatch)
+    monkeypatch.setattr(campaign, "_create_trial_network", create)
+    monkeypatch.setattr(campaign, "_remove_trial_network", remove)
+    document = campaign_document(tmp_path, concurrency=2)
+
+    status, _, _ = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert status == 0
+    assert recorder.max_in_flight == 2
+    assert overlaps == [], "two trials held the same subnet at the same time"
+    bindings = {
+        str(call["trial_seed"]["trial_id"]): str(call["trial_proxy"]["bound_source_ip"])
+        for call in recorder.calls
+    }
+    assert set(bindings.values()) == {"172.30.240.2", "172.30.241.2"}
+
+
+def test_a_trial_reuses_a_slot_once_the_previous_trial_released_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Four trials over two slots: a slot's subnet has to be usable again after its network went."""
+    recorder = RecordingTrialPath().install(monkeypatch)
+    document = campaign_document(tmp_path, concurrency=2)
+
+    status, result, _ = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert status == 0
+    slots = [trial["slot"] for trial in result["trials"]]
+    assert sorted(slots) == [0, 0, 1, 1]
 
 
 def test_trial_and_network_cleanup_failures_are_both_reported(
@@ -579,7 +791,7 @@ def test_trial_and_network_cleanup_failures_are_both_reported(
     config = load_campaign_config(write_campaign(tmp_path))
 
     with pytest.raises(campaign.CampaignError) as caught:
-        asyncio.run(campaign._arm_trial(config, config.trials()[0]))
+        asyncio.run(campaign._arm_trial(config, config.trials()[0], config.slot(0)))
 
     assert f"container refused trial {trial_id}" in str(caught.value)
     assert "network cleanup failed" in str(caught.value)
@@ -610,7 +822,9 @@ def test_each_trial_is_armed_through_the_production_path_with_the_declared_docum
     assert kwargs["cli_version"] == "2026.8.12"
     assert kwargs["task_path"] == tmp_path / "tasks" / "one"
     assert kwargs["trials_dir"] == tmp_path / "trials"
-    assert kwargs["trial_proxy"] == document["proxy"]
+    assert kwargs["trial_proxy"] == {
+        **document["proxy"], "bound_source_ip": "172.30.240.2",
+    }, "the declared envelope, plus the address this trial's slot binds to"
     assert kwargs["host_scan_policy"] == document["host_scan_policy"]
     assert seed["paid_run"] is False
     assert seed["pi_benchmark_capability_proven"] is True
@@ -658,42 +872,111 @@ def test_a_paid_campaign_marks_every_trial_seed_paid(
     assert all(call["trial_seed"]["paid_run"] is True for call in recorder.calls)
 
 
-# --- the campaign cost ceiling ------------------------------------------------------------------
+# --- what stops a campaign, and what does not ---------------------------------------------------
 
 
-def test_the_campaign_stops_arming_once_the_ceiling_is_exceeded(
+def test_a_declared_campaign_cost_ceiling_is_refused(tmp_path: Path) -> None:
+    """The between-trial money stop is gone, not optional.
+
+    It was checked against *published* envelopes, so a wave of trials in flight could overshoot it
+    and it could not see money being spent while it was being checked. A document still carrying
+    it would declare a bound nothing reads, so it is refused instead.
+    """
+    document = campaign_document(tmp_path, cost_ceiling_usd="1.00")
+
+    with pytest.raises(CampaignConfigError) as caught:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "cost_ceiling_usd" in str(caught.value)
+
+
+def test_a_trial_that_fails_is_recorded_and_every_later_trial_still_runs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    recorder = RecordingTrialPath(default_cost="0.60").install(monkeypatch)
-    document = campaign_document(tmp_path, cost_ceiling_usd="1.00")
+    """One flake must not cost the measurements of every task behind it."""
+    failed = "camp-01-task-one-cortex-b"
+    recorder = RecordingTrialPath(
+        default_cost="0.10", failures=(failed,)).install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 0
+    assert len(recorder.armed) == 4, "the campaign ran every declared trial"
+    states = {trial["trial_id"]: trial["state"] for trial in result["trials"]}
+    assert states[failed] == "failed"
+    assert set(states.values()) == {"ran", "failed"}
+    reason = next(trial["reason"] for trial in result["trials"] if trial["trial_id"] == failed)
+    assert "container refused trial" in reason
+    assert result["state"] == "completed"
+    assert result["cost_usd"] == "0.30", "a trial that failed published no cost"
+
+
+def test_a_leaked_docker_network_stops_the_campaign_and_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A host-level fault, unlike a failed trial: every remaining trial would meet it too."""
+    recorder = RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+    monkeypatch.setattr(
+        campaign, "_remove_trial_network",
+        lambda _network_id: (_ for _ in ()).throw(
+            campaign.HostFaultError("network cleanup failed")),
+    )
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 1, "the campaign did not complete"
+    assert result["ok"] is False
+    assert result["state"] == "stopped-after-host-fault"
+    assert "network cleanup failed" in str(result["fault"])
+    assert len(recorder.armed) == 1, "no further trial was armed"
+    assert [trial["state"] for trial in result["trials"]] == [
+        "failed", "not-armed", "not-armed", "not-armed"]
+
+
+def test_a_host_fault_still_publishes_the_report_of_what_did_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The report is the evidence of the trials that finished; only the exit code says stopped."""
+    first, second = "camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b"
+    RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+    removals: list[str] = []
+
+    def remove(network_id: str) -> None:
+        removals.append(network_id)
+        if len(removals) > 1:
+            raise campaign.HostFaultError("network cleanup failed")
+
+    monkeypatch.setattr(campaign, "_remove_trial_network", remove)
+    document = campaign_document(tmp_path, concurrency=2)
 
     status, result, _ = run_cli(
         capsys, "run", "--config", str(write_campaign(tmp_path, document)))
 
-    assert status == 0
-    assert recorder.armed == ["camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b"]
-    assert result["state"] == "cost-ceiling-reached"
-    assert result["cost_usd"] == "1.20"
-    assert [trial["state"] for trial in result["trials"]] == ["ran", "ran", "not-armed",
-                                                              "not-armed"]
+    assert status == 1
+    report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
+    assert set(report["run_order"]) <= {first, second}
+    assert report["run_order"], "the trial that finished is in the report"
 
 
-def test_the_ceiling_is_exact_at_the_declared_boundary(
+def test_a_campaign_whose_every_trial_failed_reports_that_instead_of_crashing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    recorder = RecordingTrialPath(default_cost="0.50").install(monkeypatch)
-    document = campaign_document(tmp_path, cost_ceiling_usd="1.00")
+    """There is nothing to compare, and that is a result rather than a crash on the way to one."""
+    plans = [
+        f"camp-01-task-{task}-cortex-{arm}"
+        for task in ("one", "two") for arm in ("a", "b")
+    ]
+    RecordingTrialPath(failures=tuple(plans)).install(monkeypatch)
 
-    status, result, _ = run_cli(
-        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
     assert status == 0
-    assert len(recorder.armed) == 2
-    assert result["cost_usd"] == "1.00"
-    assert result["state"] == "cost-ceiling-reached"
+    assert [trial["state"] for trial in result["trials"]] == ["failed"] * 4
+    assert result["report_path"] is None and result["report_sha256"] is None
+    assert result["cost_usd"] == "0"
 
 
-def test_a_campaign_below_its_ceiling_arms_every_declared_trial(
+def test_a_campaign_arms_every_declared_trial(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
     recorder = RecordingTrialPath(default_cost="0.10").install(monkeypatch)
@@ -719,13 +1002,18 @@ def test_a_trial_result_without_completed_verification_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
     result: RecordingResult, fragment: str,
 ) -> None:
+    """Refused for that trial, which is recorded as failed; the campaign is not the thing at
+    fault, so it keeps going."""
     trial_id = "camp-01-task-one-cortex-a"
     RecordingTrialPath(results={trial_id: result}).install(monkeypatch)
 
-    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+    status, document, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
-    assert status == 1
-    assert fragment in failure_document(capsys)["error"]
+    assert status == 0
+    refused = next(
+        trial for trial in document["trials"] if trial["trial_id"] == trial_id)
+    assert refused["state"] == "failed"
+    assert fragment in str(refused["reason"])
 
 
 @pytest.mark.parametrize("reward", [0.0, -1.0])
@@ -883,7 +1171,7 @@ def test_a_resumed_envelope_without_a_successful_harbor_result_is_refused(
 def test_an_existing_trial_root_without_a_published_envelope_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    RecordingTrialPath().install(monkeypatch)
+    recorder = RecordingTrialPath().install(monkeypatch)
     incomplete = tmp_path / "trials" / "camp-01-task-one-cortex-a"
     incomplete.mkdir(parents=True)
     (incomplete / "partial.log").write_text("half a trial", encoding="utf-8")
@@ -895,6 +1183,25 @@ def test_an_existing_trial_root_without_a_published_envelope_is_refused(
     assert error["ok"] is False
     assert "camp-01-task-one-cortex-a" in error["error"]
     assert (incomplete / "partial.log").read_text(encoding="utf-8") == "half a trial"
+    assert recorder.armed == [], "the refusal comes before anything is armed or spent"
+
+
+def test_every_unfinished_root_is_named_in_one_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """At suite scale, learning which roots to move aside one campaign run at a time is its own
+    failure: the resume decision is made for every trial before any of them is armed."""
+    RecordingTrialPath().install(monkeypatch)
+    unfinished = ["camp-01-task-one-cortex-b", "camp-01-task-two-cortex-a"]
+    for trial_id in unfinished:
+        (tmp_path / "trials" / trial_id).mkdir(parents=True)
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+
+    error = failure_document(capsys)
+    assert status == 1
+    assert all(trial_id in error["error"] for trial_id in unfinished)
+    assert "2 trial root(s)" in error["error"]
 
 
 # --- the comparison report ----------------------------------------------------------------------
@@ -948,17 +1255,19 @@ def test_the_report_telemetry_is_read_from_each_published_envelope(
     }
 
 
-def test_a_ceiling_stopped_campaign_still_reports_the_trials_it_ran(
+def test_the_report_carries_the_trials_that_published_and_not_the_ones_that_failed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    RecordingTrialPath(default_cost="0.60").install(monkeypatch)
-    document = campaign_document(tmp_path, cost_ceiling_usd="1.00")
+    RecordingTrialPath(
+        default_cost="0.60", failures=("camp-01-task-two-cortex-b",)).install(monkeypatch)
 
-    _, result, _ = run_cli(
-        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+    _, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
     report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
-    assert report["run_order"] == ["camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b"]
+    assert report["run_order"] == [
+        "camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b",
+        "camp-01-task-two-cortex-a",
+    ]
 
 
 # --- structured success, failure and dry run ----------------------------------------------------
@@ -974,32 +1283,20 @@ def test_a_successful_campaign_returns_structured_state(
     assert (status, stderr) == (0, "")
     assert result["ok"] is True
     assert result["campaign"] == "camp-01"
-    assert result["cost_ceiling_usd"] == "10.00"
+    assert result["state"] == "completed"
+    assert result["concurrency"] == 1
     assert result["started_at"].endswith("Z") and result["ended_at"].endswith("Z")
-    assert result["trials"][0] == {
+    first = result["trials"][0]
+    assert first["started_at"].endswith("Z") and first["finished_at"].endswith("Z")
+    assert {key: value for key, value in first.items()
+            if key not in {"started_at", "finished_at"}} == {
         "trial_id": "camp-01-task-one-cortex-a", "arm": "cortex-a", "task_id": "task-one",
-        "state": "ran", "cost_usd": "0.10",
+        "state": "ran", "cost_usd": "0.10", "slot": 0,
         "outer_envelope_path": str(
             tmp_path / "trials" / "camp-01-task-one-cortex-a" / "artifacts"
             / OUTER_ENVELOPE_FILENAME),
         "grader_admission": {"admitted": True},
     }
-
-
-def test_a_failing_trial_stops_the_campaign_with_a_structured_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    recorder = RecordingTrialPath(
-        failures=("camp-01-task-one-cortex-b",)).install(monkeypatch)
-
-    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
-
-    error = failure_document(capsys)
-    assert status == 1
-    assert error["ok"] is False
-    assert "camp-01-task-one-cortex-b" in error["error"]
-    assert recorder.armed == ["camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b"]
-    assert not (tmp_path / "trials" / "comparison-report.json").exists()
 
 
 def test_a_dry_run_plans_every_trial_without_arming_one(
@@ -1017,6 +1314,10 @@ def test_a_dry_run_plans_every_trial_without_arming_one(
         "camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b",
         "camp-01-task-two-cortex-a", "camp-01-task-two-cortex-b",
     ]
+    assert result["slots"] == [
+        {"slot": 0, "subnet": "172.30.240.0/24", "gateway": "172.30.240.1",
+         "container_ip": "172.30.240.2"},
+    ], "a dry run states the addresses the campaign would use before it uses one"
     assert not (tmp_path / "trials").exists()
 
 
@@ -1050,7 +1351,8 @@ def admit_every_trial(config: object, workspace: Path) -> list[str]:
     """Build every planned trial with the production builder; return the trial names it made."""
     names: list[str] = []
     workspace.mkdir(parents=True, exist_ok=True)
-    for plan in config.trials():
+    for index, plan in enumerate(config.trials()):
+        slot = config.slot(index % config.concurrency)
         manifest = dict(config.trial_manifest(plan))
         for field in ("wheel_path", "lockfile_path", "npm_artifact_path"):
             stub = workspace / f"{plan.trial_id}-{Path(str(manifest[field])).name}"
@@ -1060,7 +1362,8 @@ def admit_every_trial(config: object, workspace: Path) -> list[str]:
             dict(plan.arm), task_path=plan.task.path,
             trials_dir=workspace / "admitted-trials", manifest=manifest,
             trial_seed=config.trial_seed(plan), cli_version=config.cli_version,
-            host_scan_policy=dict(config.host_scan_policy), trial_proxy=dict(config.proxy),
+            host_scan_policy=dict(config.host_scan_policy),
+            trial_proxy=config.slot_proxy(slot),
         )
         names.append(built.trial_name)
     return names
@@ -1131,7 +1434,7 @@ def test_the_committed_zero_paid_campaign_config_is_valid_and_unpaid() -> None:
     assert config.paid is False
     assert config.arms and len(config.tasks) >= 2
     assert all(arm["credential_capability"] for arm in config.arms)
-    assert config.cost_ceiling_usd > 0
+    assert config.concurrency >= 1
     assert all(not str(task.path).startswith("/var") for task in config.tasks)
 
 
@@ -1213,18 +1516,32 @@ def test_an_output_cap_one_reservation_cannot_pay_for_is_refused(tmp_path: Path)
 def test_the_committed_paid_campaign_declares_both_harbor_phase_timeouts() -> None:
     config = load_campaign_config(COMMITTED_PAID_CONFIG)
 
-    assert config.timeouts == {"agent_seconds": 1800, "verifier_seconds": 1800}
+    assert config.timeouts == {"agent_seconds": 2100, "verifier_seconds": 1800}
+
+
+def test_the_committed_paid_agent_phase_outlives_the_deadline_it_bounds() -> None:
+    """What ended r4 on its first trial: an agent phase equal to the inner run's own deadline.
+
+    A trial that uses its whole budget then has no interval in which to stop itself, publish the
+    terminal marker every downstream gate reads, and be finalized. The gap has to exceed the
+    terminal grace the host waits out after the marker appears.
+    """
+    config = load_campaign_config(COMMITTED_PAID_CONFIG)
+    (arm,) = config.arms
+
+    deadline = int(str(arm["limits"]["deadline_seconds"]))
+    assert config.timeouts["agent_seconds"] - deadline > INNER_RUN_TERMINAL_GRACE_SECONDS
 
 
 @pytest.mark.parametrize("block, message", [
     ({"agent_seconds": 0}, "positive integer"),
-    ({"agent_seconds": 1800.5}, "positive integer"),
+    ({"agent_seconds": 2100.5}, "positive integer"),
     ({"agent_seconds": "true"}, "positive integer"),
     ({"wall_clock_seconds": 1800}, "unknown"),
 ])
 def test_a_malformed_timeouts_block_is_refused(block: dict, message: str) -> None:
     text = COMMITTED_PAID_CONFIG.read_text(encoding="utf-8").replace(
-        "timeouts:\n  agent_seconds: 1800\n  verifier_seconds: 1800\n",
+        "timeouts:\n  agent_seconds: 2100\n  verifier_seconds: 1800\n",
         "timeouts:\n" + "".join(f"  {k}: {v}\n" for k, v in block.items()))
 
     with pytest.raises(CampaignConfigError, match=message):
@@ -1234,7 +1551,7 @@ def test_a_malformed_timeouts_block_is_refused(block: dict, message: str) -> Non
 
 def test_an_absent_timeouts_block_leaves_every_phase_at_its_default() -> None:
     text = COMMITTED_PAID_CONFIG.read_text(encoding="utf-8").replace(
-        "timeouts:\n  agent_seconds: 1800\n  verifier_seconds: 1800\n", "")
+        "timeouts:\n  agent_seconds: 2100\n  verifier_seconds: 1800\n", "")
 
     config = parse_campaign_config(
         text, base_dir=COMMITTED_PAID_CONFIG.parent, source="timeouts-test")
@@ -1247,9 +1564,7 @@ def test_the_committed_paid_campaign_config_declares_the_approved_envelope() -> 
     (arm,) = config.arms
     limits = arm["limits"]
 
-    # The driver's stop on accumulated actual cost is the campaign's only money bound, because
-    # limits.max_cost_usd funds turns rather than authorizing spend.
-    assert (config.paid, config.cost_ceiling_text) == (True, "25.00")
+    assert config.paid is True
     assert (arm["kind"], arm["backend"], arm["provider"], arm["model"]) == (
         "cortex", "pi", "deepseek", "deepseek-v4-flash")
     assert arm["orchestration"] == {"mode": "direct", "ask_manager": False}
@@ -1268,7 +1583,7 @@ def test_the_committed_paid_campaign_funds_a_multi_turn_trial() -> None:
     """The pairing arithmetic the config's header documents, pinned here."""
     config = load_campaign_config(COMMITTED_PAID_CONFIG)
     (arm,) = config.arms
-    spec = parse_trial_proxy_spec(config.proxy)
+    spec = parse_trial_proxy_spec(config.slot_proxy(config.slot(0)))
     budget = ProxyBudget(
         max_cost_usd=Decimal(str(arm["limits"]["max_cost_usd"])),
         max_request_cost_usd=spec.max_request_cost_usd,
@@ -1296,7 +1611,8 @@ def test_the_committed_paid_campaign_stays_within_every_capability_ceiling() -> 
     (arm,) = config.arms
     ceilings = load_capability_ceilings()[str(arm["credential_capability"])]
     declared = validate_paid_envelope(
-        arm, parse_trial_proxy_spec(config.proxy), str(arm["credential_capability"]))
+        arm, parse_trial_proxy_spec(config.slot_proxy(config.slot(0))),
+        str(arm["credential_capability"]))
 
     assert declared and all(value <= ceilings[field] for field, value in declared.items())
 
