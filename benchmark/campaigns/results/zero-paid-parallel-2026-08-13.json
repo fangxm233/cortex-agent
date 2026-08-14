@@ -1,0 +1,199 @@
+{
+  "schema_version": "cortex-bench-campaign-result-summary/1",
+  "campaign": "zero-paid-parallel",
+  "executed_at": "2026-08-13",
+  "paid": false,
+  "purpose": "The end-to-end verification of concurrent trials on one host: three trials run two at a time across two address slots, proving the parts of parallelism that no unit test reaches — two Docker networks on non-overlapping subnets at once, two credential routes live at once each bound to its own container address, the compose pin that makes that address declared rather than predicted, slot reuse after a network is removed, and a failing trial running beside a succeeding one without disturbing it.",
+  "execution": {
+    "entrypoint": "cortex-bench run --config (through a run-local driver that starts the loopback synthetic upstream and pins the two RUN-LOCAL fields)",
+    "source_commit": "973320e1",
+    "state": "completed",
+    "concurrency": 2,
+    "trial_count": 3,
+    "comparison_count": 0,
+    "started_at": "2026-08-14T02:13:33.693Z",
+    "ended_at": "2026-08-14T02:17:25.781Z"
+  },
+  "reproducibility": {
+    "campaign_config": "benchmark/campaigns/zero-paid-parallel.yaml",
+    "campaign_config_sha256": "246ddb5dd2243bb0debfc182836681ffbc6208f9315fe9ca466a029df5840d2c",
+    "executed_run_config_sha256": "7723d38e4ba794b7c8bfae1de2ffba04b637dd6649e92e62ec899b5e2ace0ad3",
+    "run_local_fields": [
+      "trials_dir",
+      "credential.upstream_base_url"
+    ],
+    "harness_lockfile": "benchmark/harness/uv.lock",
+    "harness_lockfile_sha256": "45b7c8ff4adfa856aea2c874592ccc5a84da559824d8ee6aa36f9b9eee4b8e90",
+    "runtime_inputs": "benchmark/harness/scripts/zero-paid-runtime-inputs.json",
+    "runtime_inputs_sha256": "c54875c48c33ee08e84345248f77da4cf0670d88ddc6639a760d9cf6411f1fd2",
+    "runtime_image_digest": "sha256:8b075847d21e55633a0f2bc2f3d7f9920f91d8aaf47b0778cb1d528a7dbedf55",
+    "npm_artifact_sha256": "0e8881f1b44c9b006790aa84b865f044baa51f76eeffc010f70ac2cb2a3a74fa",
+    "wheel_sha256": "3023f5a8ad53b6337daa9df9e3698a2b6fb821d0a17828e3a91c28630e3e104c",
+    "wheel_note": "Rebuilt for this run from the concurrency change; the previous committed evidence was produced with e8899403362d2aa2880a32641aee3d2caef76eadb2ea1b3c1d5a31119fff55f8."
+  },
+  "address_space": {
+    "declared": {
+      "subnet_pool": "172.30.240.0/20",
+      "subnet_prefix": 24,
+      "slots_available": 16,
+      "slots_used": 2
+    },
+    "slot_0": {
+      "subnet": "172.30.240.0/24",
+      "gateway": "172.30.240.1",
+      "container_ip": "172.30.240.2",
+      "note": "Identical to the single literal every campaign before this one declared, so the change is a generalisation of the committed values rather than a replacement."
+    },
+    "slot_1": {
+      "subnet": "172.30.241.0/24",
+      "gateway": "172.30.241.1",
+      "container_ip": "172.30.241.2"
+    }
+  },
+  "schedule": {
+    "wall_clock_seconds": 232.088,
+    "sum_of_trial_durations_seconds": 434.729,
+    "speedup": 1.87,
+    "overlap_seconds": {
+      "zero-paid-one | zero-paid-refused": 116.695,
+      "zero-paid-two | zero-paid-refused": 85.949,
+      "zero-paid-one | zero-paid-two": -0.001
+    },
+    "overlap_note": "The two trials that shared slot 0 have NEGATIVE overlap of exactly one millisecond: zero-paid-two was armed at 02:15:30.747, one millisecond after zero-paid-one released the slot at 02:15:30.746. A slot is held by one trial at a time by construction, and the trials on different slots really did run together for almost two minutes."
+  },
+  "trials": [
+    {
+      "trial_id": "zero-paid-parallel-zero-paid-one-zero-paid-pi-direct",
+      "task_id": "zero-paid-one",
+      "declared_order": 1,
+      "slot": 0,
+      "bound_source_ip": "172.30.240.2",
+      "proxy_port": 37385,
+      "started_at": "2026-08-14T02:13:33.694Z",
+      "finished_at": "2026-08-14T02:15:30.746Z",
+      "reward": 1.0,
+      "reward_source": "authentic task verifier (tests/test.sh)",
+      "grader_admitted": true,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "ok",
+        "terminal_state": "completed",
+        "terminal_reason": "ok"
+      },
+      "outer_envelope_sha256": "eacca6c4d369dd859ffb25853400a1b329b18be1f63c1f5f36a10d26b3e7da3e",
+      "requests": 2,
+      "input_tokens": 2,
+      "output_tokens": 2,
+      "synthetic_accounting_cost_usd": "0.00000084",
+      "proxy_reconciled": true,
+      "leak_scan_clean": true,
+      "revocation_closed": true,
+      "classified_files": 44,
+      "assets_published": 19,
+      "assets_witnessed": true
+    },
+    {
+      "trial_id": "zero-paid-parallel-zero-paid-refused-zero-paid-pi-direct",
+      "task_id": "zero-paid-refused",
+      "declared_order": 2,
+      "slot": 1,
+      "bound_source_ip": "172.30.241.2",
+      "proxy_port": 42303,
+      "started_at": "2026-08-14T02:13:34.051Z",
+      "finished_at": "2026-08-14T02:17:25.779Z",
+      "reward": 0.0,
+      "reward_source": "authentic task verifier (tests/test.sh) read no /tmp/answer.txt and wrote 0",
+      "grader_admitted": false,
+      "grader_admission": {
+        "admitted": false,
+        "reason": "inner_terminal_not_ok",
+        "terminal_state": "failed",
+        "terminal_reason": "provider_error"
+      },
+      "outer_envelope_sha256": "54b7c5a177fb6e6c0f0ac1e39499e9f7e3105e3d0a2b3822a782ac18ebda83d3",
+      "requests": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "synthetic_accounting_cost_usd": "0",
+      "proxy_reconciled": false,
+      "audit_outcomes": {
+        "budget_accounting_unavailable": 1
+      },
+      "leak_scan_clean": true,
+      "revocation_closed": true,
+      "classified_files": 42,
+      "assets_published": 19,
+      "assets_witnessed": true,
+      "note": "The failing trial of the pair, and the decisive one for the address pin: its single request was ACCEPTED by a route that answers only 172.30.241.2, which means the container really did hold slot 1's address. Had the compose pin been ignored, the source binding would have refused every request instead."
+    },
+    {
+      "trial_id": "zero-paid-parallel-zero-paid-two-zero-paid-pi-direct",
+      "task_id": "zero-paid-two",
+      "declared_order": 3,
+      "slot": 0,
+      "bound_source_ip": "172.30.240.2",
+      "proxy_port": 35281,
+      "started_at": "2026-08-14T02:15:30.747Z",
+      "finished_at": "2026-08-14T02:16:56.696Z",
+      "reward": 1.0,
+      "reward_source": "authentic task verifier (tests/test.sh)",
+      "grader_admitted": true,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "ok",
+        "terminal_state": "completed",
+        "terminal_reason": "ok"
+      },
+      "outer_envelope_sha256": "ce8898fef4050a0b2c6a94070938e3beae48f5dcc2210736c56de012611343db",
+      "requests": 2,
+      "input_tokens": 2,
+      "output_tokens": 2,
+      "synthetic_accounting_cost_usd": "0.00000084",
+      "proxy_reconciled": true,
+      "leak_scan_clean": true,
+      "revocation_closed": true,
+      "classified_files": 44,
+      "assets_published": 19,
+      "assets_witnessed": true,
+      "note": "Took slot 0 one millisecond after the first trial released it, on the same subnet and the same container address, with a new network and a new ephemeral proxy port."
+    }
+  ],
+  "comparison_report": {
+    "path": "$TRIALS_DIR/comparison-report.json",
+    "written": true,
+    "sha256": "64ac818cb865d1a6026313b1b3853100560f0c88d88c3bad7c0040980a0da32f",
+    "run_order": [
+      "zero-paid-parallel-zero-paid-one-zero-paid-pi-direct",
+      "zero-paid-parallel-zero-paid-refused-zero-paid-pi-direct",
+      "zero-paid-parallel-zero-paid-two-zero-paid-pi-direct"
+    ],
+    "run_order_note": "Declared order, which is no longer the order the trials finished in: zero-paid-two finished 29 seconds before zero-paid-refused. The record of a campaign does not depend on the race that produced it."
+  },
+  "what_this_proves": [
+    "Two Docker networks on non-overlapping subnets existed at the same time for 116.7 seconds, which the single subnet literal every earlier campaign declared made impossible.",
+    "Two credential routes were live at once, on distinct ephemeral ports (37385 and 42303), each bound to a different container address, each with its own audit log, its own reservation budget and its own proof of revocation.",
+    "The container address is declared, not predicted: both containers reached routes that answer only their own slot's .2, so the compose ipv4_address overlay on an external network is accepted by this Docker Compose and does what it says.",
+    "A slot is reusable: the third trial took slot 0 one millisecond after the first released it, created a fresh network on the same subnet, and completed normally.",
+    "A slot is exclusive: the two trials that shared slot 0 have negative overlap, so no two trials ever held one address.",
+    "A failing trial does not disturb its neighbour: zero-paid-refused terminated failed/provider_error while zero-paid-one completed beside it, and the campaign ran every declared trial.",
+    "Every per-trial gate still held under concurrency: revocation closed on all three, the closed-world classification completed on all three (44/42/44 files), the leak scan was clean on all three, and each trial carries its own 19-file witnessed asset record.",
+    "Nothing crossed between trials: each envelope reconciles only its own traffic, and the run left zero Docker networks and zero containers behind.",
+    "Reporting is deterministic under interleaving: the result document and the comparison report are in declared order while the finish order differs from it."
+  ],
+  "safety": {
+    "paid_provider_requests": 0,
+    "real_credential_used": false,
+    "upstream": "loopback synthetic endpoint only",
+    "upstream_requests_observed": 5,
+    "docker_networks_leaked": 0,
+    "containers_leaked": 0,
+    "concurrent_live_credential_windows": 2,
+    "concurrent_window_note": "Each window is min(deadline_seconds, agent_seconds) and is armed, bounded and revoked independently; the credential never enters a container, which holds an opaque dummy token.",
+    "prohibitions_observed": {
+      "admission_bypassed": false,
+      "task_replaced": false,
+      "vendor_baseline_run": false,
+      "push_release_deployment_or_daemon_restart": false
+    }
+  }
+}
