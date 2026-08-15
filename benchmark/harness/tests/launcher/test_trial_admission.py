@@ -746,7 +746,14 @@ def test_sensitive_host_mounts_fail_closed(
     config = build_harbor_trial_config(**launch_kwargs(tmp_path))
     append_mount(config, sensitive_source, "/host-sensitive", read_only=True)
 
-    with pytest.raises(HarborTrialAdmissionError, match="sensitive host path"):
+    # Which of the two refusals fires depends on the HOST's environment, not on the mount. The
+    # credential check runs first and matches any path overlapping a credential env var, so on a
+    # desktop session where SSH_AUTH_SOCK points inside the home directory (as it does under a
+    # keyring agent) the home mount is refused as a credential path instead. Both are the same
+    # fail-closed outcome; pinning one message made this test pass or fail with the login session.
+    with pytest.raises(
+        HarborTrialAdmissionError, match="sensitive host path|host credential path",
+    ):
         asyncio.run(Trial.create(config))
 
 

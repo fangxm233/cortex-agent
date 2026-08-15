@@ -361,6 +361,25 @@ def assert_run_argv(agent: CortexBenchAgent, environment: RecordingEnvironment) 
     return emitted_path
 
 
+def test_the_inner_run_is_given_the_deadline_that_bounds_it(tmp_path: Path) -> None:
+    """Without this flag the arm's `deadline_seconds` never reaches the process it bounds.
+
+    `supervisor.ts:457` arms the backstop only when a deadline is supplied and returns immediately
+    when it is not, and nothing in agent-server reads `CORTEX_BENCH_DEADLINE_SECONDS`. So a run
+    parked inside one tool call had no timer that could reach it, and Harbor's phase cut was the
+    only thing that ended it - producing no terminal marker, no finalization and no grade. The r5
+    db-wal-recovery trial spent 31 of its 35 minutes that way. The r4 record claimed raising the
+    Harbor phase above the deadline would make such a trial "end itself and publish a terminal
+    marker"; that was only true if the deadline was armed, and it was not.
+    """
+    agent, _ = compose_through_public_entry(tmp_path, "claude")
+
+    preview = agent.preview_run_argv()
+
+    # 90 is the fixture arm's deadline_seconds; the flag carries milliseconds.
+    assert preview[preview.index("--deadline-ms") + 1] == str(90 * 1000)
+
+
 def test_public_entry_argv_loads_the_frozen_direct_composition(tmp_path: Path) -> None:
     agent, environment = compose_through_public_entry(tmp_path, "claude")
 

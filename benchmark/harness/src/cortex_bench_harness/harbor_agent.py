@@ -517,7 +517,31 @@ class CortexBenchAgent(BaseInstalledAgent):
             "--events-file", str(events_path), "--trajectory-root", str(trajectory_root),
             "--root-run-id", self._manifest_seed.root_run_id,
             "--run-config", str(run_config_path),
+            "--deadline-ms", str(self._inner_deadline_ms()),
         ]
+
+    def _inner_deadline_ms(self) -> int:
+        """The arm's own deadline, handed to the process it is supposed to bound.
+
+        The declared `deadline_seconds` used to reach only the host: it sized the credential lease
+        and nothing else. The run itself was spawned without `--deadline-ms`, so `supervisor.ts:457`
+        returned before arming anything and the run had no timer of its own. Between step
+        boundaries — which is where a run parked inside a single tool call lives — nothing could
+        reach it, and Harbor's phase cut was the only thing left. A phase cut is not a run ending:
+        it publishes no terminal marker, so finalization never runs and the trial cannot be graded
+        at all, which is how r5's db-wal-recovery threw away 31 minutes and its whole result.
+
+        Passing it makes the supervisor stop the run at its own deadline. The child then exits 124,
+        `runner.ts:943` reads that as terminal state `timeout` / reason `deadline`, and the run ends
+        the way any other bad ending does: with a marker, a finalization and a verifier score.
+        """
+        limits = self._trial_seed.arm.get("limits")
+        if not isinstance(limits, Mapping):
+            raise ValueError("arm requires limits to bound the inner run")
+        seconds = limits.get("deadline_seconds")
+        if not isinstance(seconds, int) or isinstance(seconds, bool) or seconds <= 0:
+            raise ValueError("arm limits require a positive deadline_seconds")
+        return seconds * 1000
 
     @override
     async def run(

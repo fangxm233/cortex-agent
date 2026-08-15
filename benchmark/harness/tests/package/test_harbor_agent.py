@@ -289,6 +289,10 @@ def test_preview_argv_contains_resolved_cwd_and_arm_resolution(tmp_path: Path) -
         "/logs/agent/trajectory/events.jsonl", "--trajectory-root",
         "/logs/agent/trajectory", "--root-run-id", "root-install-only",
         "--run-config", "/logs/agent/arm-resolution.json",
+        # The fixture arm's deadline_seconds of 90, in milliseconds. Without it the run is spawned
+        # with no deadline of its own and only Harbor's phase cut can end it, which publishes no
+        # terminal marker and leaves the trial ungradable.
+        "--deadline-ms", "90000",
     ]
     resolution = json.loads((tmp_path / "agent/arm-resolution.json").read_text())
     assert resolution["root_run_id"] == "root-install-only"

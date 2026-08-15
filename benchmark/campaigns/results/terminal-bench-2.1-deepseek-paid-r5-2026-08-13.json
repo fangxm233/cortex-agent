@@ -202,6 +202,9 @@
       "title": "A run that aborts on a protocol violation publishes a success terminal marker but no composite manifest",
       "where": "the inner CLI's terminal handling; observed by host_finalization.py:338",
       "detail": "chess-best-move wrote terminal state completed / reason ok, then exited 1 with terminal_reason protocol_violation and manifest null after malformed_fragment:unpaired_tool_result. The success marker and the failure line disagree, and the missing composite makes the trial unpublishable regardless of which one is believed.",
+      "mechanism": "agent-run/atif.ts groups the journal into steps. collectToolResults walks forward from a tool_use batch absorbing exactly three things - turn_progress, subagent_activity (:126) and a tool_result whose id belongs to the batch (:132) - and breaks on anything else (:143). groupEvents then meets the orphaned result at top level and condemns it (:199). Replaying that grouping against the real journal locates it exactly: seq 200 is the tool_use, seq 201 is a context_usage heartbeat, seq 202 is that same call's tool_result. context_usage is simply missing from the absorb list.",
+      "why_this_trial": "The heartbeat ticks about every 2 s, so it only lands inside the window between a call and its result when that call is slow. chess-best-move had such calls; constraints-scheduling's five steps were fast; db-wal-recovery's hung call stopped the heartbeat altogether.",
+      "note": "The comment at atif.ts:123-125 already states the principle - progress events interleave with an open call's result and 'breaking on them would orphan the result'. context_usage is the same class of periodic telemetry and was not included.",
       "cost": "52 turns and the largest single-trial traffic of the run were discarded."
     },
     {
@@ -210,7 +213,11 @@
       "title": "The benchmark bash surface has no per-tool-call timeout",
       "where": "the agent tool surface used under the benchmark profile",
       "detail": "A single `grep -rl ... /` consumed 1868 of db-wal-recovery's 2100 seconds and ended the trial. This is the same open question raised after r4, where one tool call blocked for 889.5 seconds; r5 is the run where it actually cost a trial.",
-      "note": "The r4 corrective action explicitly recorded that raising agent_seconds 'does not bound a single blocking tool call'. It still does not."
+      "mechanism": "The container's real filesystem is tiny - /app holds two files. The cost is /proc, which is synthesised on read: /proc/<pid>/task/<tid>/pagemap reports size 0 but the kernel emits 8 bytes per 4 KiB page across the whole user address space, which on x86-64 four-level paging is 2^47/4096*8 = 256 GiB per file, one per THREAD. Measured read throughput was 1.67 GB/s, about 164 s per file, and the content is essentially all zeros so `grep -l` never gets an early exit. A container running Node plus PI plus bash exposes roughly a dozen such files. The process was CPU-spinning at state R, not blocked, and it was burning a full host core reading host kernel page tables - which plausibly slowed the two sibling trials sharing the machine.",
+      "isolation": "Verified in throwaway containers off the same pinned image, 60 s cap, 124 = hit cap: `grep -rl x /` -> 124; with --exclude-dir=proc -> finished; `grep -rl x /proc --exclude=pagemap` -> finished; a single pagemap file at a 30 s cap -> 124.",
+      "the_models_mistake": "The command ended in `| grep -vE \"^/(proc|sys)\"`, which filters the OUTPUT list and does nothing to the traversal. Excluding /proc requires --exclude-dir. The model had every reason to believe it had already excluded /proc.",
+      "why_no_timer_reached_it": "bash is PI's own built-in tool (pi-coding-agent 0.82.1, dist/core/tools/bash.js), whose `timeout` is an optional parameter the MODEL may supply; there is no default, and the watchdog at bash.js:75-81 is armed only when the model supplies one. This model did not. Cortex's only interception point for bash (tool-shims.ts:214-219) is an allow/block gate with no timing at all.",
+      "note": "The r4 corrective action explicitly recorded that raising agent_seconds 'does not bound a single blocking tool call'. It still does not - and, per D5, the deadline it relied on instead was never armed either."
     },
     {
       "id": "D4",
@@ -219,6 +226,15 @@
       "where": "campaign.py result construction and _emit",
       "detail": "The run exited 0 with \"ok\": true and \"cost_usd\": \"0\" while 3 of 3 trials failed and the proxy metered $0.70108584. The cost figure appears to count only published envelopes, so a failed trial's spend is invisible in the document that is supposed to account for it.",
       "why_it_matters": "A money number that reads zero when money was spent is the one number that must never be wrong, and an exit code of 0 on a total failure will mislead any automation built on it."
+    },
+    {
+      "id": "D5",
+      "severity": "blocking",
+      "title": "The r4 corrective action was inert: the inner run never received the deadline it was supposed to be bounded by",
+      "where": "harbor_agent.py _build_run_argv, against supervisor.ts:457",
+      "detail": "r4 ended on an agent-phase timeout that published no terminal marker, and the recorded fix was to raise timeouts.agent_seconds from 1800 to 2100 so the arm's own 1800 s deadline would fire first and the run would 'end itself, publish a terminal marker, be finalized as not gradable, be scored by its own verifier, and be followed by the next trial'. None of that could happen: _build_run_argv never passed --deadline-ms, supervisor.ts:457 returns immediately without one, and CORTEX_BENCH_DEADLINE_SECONDS - which the container environment does set - has no reader anywhere in agent-server. The arm's deadline_seconds sized the credential lease and nothing else.",
+      "proof": "r5's db-wal-recovery is the disproof: it ran past 1800 s without ending itself and was cut by Harbor at 2100 s with no terminal marker, exactly as r4 did.",
+      "self_assessment": "This was my own error in the r4 record. The corrective action was asserted to work rather than verified to work, and it was recorded as a fix in a committed evidence file."
     }
   ],
   "observations": [
@@ -227,8 +243,9 @@
       "detail": "db-wal-recovery ran `head -c 3000 /logs/agent/trajectory/events.jsonl` and tailed the same file. The trial deliberately grants read access (`chmod -R a+rX /logs/agent`), and journal integrity is protected by the journal_sha256 chain, so this is not a tampering path. It does mean the agent under test can observe its own evidence record."
     },
     {
-      "title": "Filesystem-wide searches for what look like expected values",
-      "detail": "The same trial grepped `/` for the literals \"elderberry\" and \"item6\" through \"item11\". On a WAL-recovery task these may be legitimate searches for record contents, but the shape - scanning the whole filesystem for the strings a verifier would check - is the shape of looking for the answer key rather than reconstructing it."
+      "title": "The filesystem-wide search was legitimate recovery, not answer hunting",
+      "detail": "The same trial grepped `/` for \"elderberry\" and \"item6\" through \"item11\", which reads at first like hunting for the verifier's expected values. It was not. The agent-phase image carries only /app/main.db and /app/main.db-wal - `test_outputs.py` is not present at all, and the only occurrence of \"elderberry\" anywhere on the image is inside main.db itself, where it is record 5 of the base data the task says is readable without the WAL. So the agent read that name legitimately, then searched for another copy of the records the corrupted WAL was hiding. The search was sound; the command was not.",
+      "correction_note": "An earlier revision of this file called this the shape of looking for an answer key. That was wrong and is retracted here."
     },
     {
       "title": "Concurrency itself behaved",
