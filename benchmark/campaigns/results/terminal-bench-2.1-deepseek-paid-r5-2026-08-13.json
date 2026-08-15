@@ -211,9 +211,9 @@
       "not_a_safety_failure": "The proxy over-states, never under-states, and admission is decided by whole-reservation arithmetic that never consults measured cost. The money bound held throughout.",
       "collateral": "Every paid spend figure published so far is a proxy figure and therefore an over-statement. r4's headline $0.3359384 is the conservative number, not the billed one.",
       "corrective_action": {
-        "commit": "b0d87726",
+        "commit": "b0d87726, 9d3fd071",
         "what": "The proxy no longer prices anything: ProxyBudget became ProxyLimits(max_requests), the adapters' billable() and the cost-pair config refusals are gone, the audit row and export carry tokens (with a cached total and a no_cache_breakdown_reported reason) instead of cost_usd, and host_finalization reconciles input/output tokens by exact equality instead of cost within 1%.",
-        "open": "The cross-language seam is NOT migrated. agent-server src/domain/benchmark/accounting-reconciliation.ts still reconciles on cost, and it is the only axis there that can make `reconciled` false (the requests axis is permanently journal_underivable). The two goldens under benchmark/harness/tests/proxy/golden/ are therefore deliberately NOT regenerated and their two producer-side tests are red; regenerating them would fail all 24 proxyGolden() call sites at once. Note that in production runner.ts:1689-1701 hardcodes every proxy-side figure to counter_unreadable, so this axis has never actually fired in a real trial - it is exercised only through those goldens."
+        "open": "Closed by 9d3fd071, by removing the cross-check rather than porting it. The user's decision was that proxy-vs-journal reconciliation is not wanted: reconcileAccounting became buildAccountingRecord, the record now states what each side measured instead of judging agreement, and tolerance/deltas/reconciled/checks are gone -- nothing in it can refuse a trial. Both sides' measured figures are still recorded, and the journal's cache-aware cost_usd is still the number to quote for spend. The A4 role excess survives because it compares request counts, which both sides do observe. Note the comparison had never fired in production anyway: runner.ts:1689-1701 hardcodes every proxy-side figure to counter_unreadable, so an operand was always missing."
       }
     },
     {
