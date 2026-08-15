@@ -284,18 +284,70 @@ describe('the production wire shape publishes', () => {
     expect(carried).toContain('subagent speaking');
   });
 
-  // PINS THE ATTESTATION GATE ITSELF. This is an ORDINARY tool call — no census attests it — with
-  // content interleaved before its result. Absorbing that would be a real loosening of
-  // `unpaired_tool_result`, so the grouper must still break, orphan the result and refuse. Delete
-  // the `openSubagentCalls.size === 0` guard and this test publishes instead of refusing.
-  it('keeps unpaired_tool_result strict when no census attests the open call', () => {
+  // A call is closed by its own result, matched on id — not by what happens to arrive next. An
+  // ordinary unattested call with content interleaved before its result publishes, because the
+  // result is that call's and the batch stays open until it arrives. This used to refuse: the
+  // grouper broke on any event outside a fixed list and orphaned the result behind it.
+  it('pairs a result with its call across an interleaved event', () => {
     const shared = { ts: '2026-08-01T00:00:02.000Z', step: null, agentSlot: 'parent' } as const;
     const events: EventSpec[] = [
       { ...shared, event: { type: 'tool_use', toolUseId: 'bash-1', name: 'Bash', input: {} } },
       { ...shared, event: { type: 'assistant_text', text: 'interleaved, unattested' } },
       { ...shared, event: { type: 'tool_result', toolUseId: 'bash-1', ok: true, content: 'ok' } },
     ];
+
+    const trajectory = publishParent(makeRoot(), events);
+
+    expect(JSON.stringify(trajectory.steps)).toContain('bash-1');
+  });
+
+  // THE PRODUCTION SHAPE THAT BROKE. `context_usage` ticks about every two seconds, so it lands
+  // between a call and its result on any tool call slower than one tick. This is the exact
+  // ordering from the r5 chess-best-move journal — seq 200 tool_use, seq 201 context_usage, seq
+  // 202 that call's own result — which cost a finished 52-turn run its entire result.
+  it('publishes when a context_usage heartbeat lands between a call and its result', () => {
+    const shared = { ts: '2026-08-01T00:00:02.500Z', step: null, agentSlot: 'parent' } as const;
+    const events: EventSpec[] = [
+      { ...shared, event: { type: 'tool_use', toolUseId: 'call_00', name: 'Bash', input: {} } },
+      { ...shared, event: {
+        type: 'context_usage', usedTokens: 118802, contextWindow: 1000000,
+        percent: 11.88, accuracy: 'exact',
+      } },
+      { ...shared, event: { type: 'tool_result', toolUseId: 'call_00', ok: true, content: 'ok' } },
+    ];
+
+    const trajectory = publishParent(makeRoot(), events);
+
+    expect(JSON.stringify(trajectory.steps)).toContain('call_00');
+  });
+
+  // The orphan itself must still refuse: a result for a call that was never made is corruption
+  // whatever else is going on around it, and id matching is what tells the two cases apart.
+  it('still refuses a result whose call id was never used', () => {
+    const shared = { ts: '2026-08-01T00:00:02.750Z', step: null, agentSlot: 'parent' } as const;
+    const events: EventSpec[] = [
+      { ...shared, event: { type: 'tool_use', toolUseId: 'bash-1', name: 'Bash', input: {} } },
+      { ...shared, event: {
+        type: 'tool_result', toolUseId: 'never-called', ok: true, content: 'orphan',
+      } },
+      { ...shared, event: { type: 'tool_result', toolUseId: 'bash-1', ok: true, content: 'ok' } },
+    ];
     expect(refusalOf(() => publishParent(makeRoot(), events))).toBe(MALFORMED);
+  });
+
+  // A run stopped at its deadline ends inside the call it was making, and that call never answers.
+  // Truncation is not corruption: the batch simply ends, so the run stays gradable.
+  it('publishes a truncated batch whose last call never answered', () => {
+    const shared = { ts: '2026-08-01T00:00:02.900Z', step: null, agentSlot: 'parent' } as const;
+    const events: EventSpec[] = [
+      { ...shared, event: { type: 'tool_use', toolUseId: 'bash-1', name: 'Bash', input: {} } },
+      { ...shared, event: { type: 'tool_result', toolUseId: 'bash-1', ok: true, content: 'ok' } },
+      { ...shared, event: { type: 'tool_use', toolUseId: 'bash-2', name: 'Bash', input: {} } },
+    ];
+
+    const trajectory = publishParent(makeRoot(), events);
+
+    expect(JSON.stringify(trajectory.steps)).toContain('bash-2');
   });
 
   // PINS THE OTHER HALF OF THE GATE: absorption must STOP at the attested call's own result. Here

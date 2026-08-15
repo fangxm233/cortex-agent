@@ -114,43 +114,50 @@ function collectToolResults(
   attested: ReadonlySet<string>,
 ): { records: SourceJournalEvent[]; next: number } {
   const records: SourceJournalEvent[] = [];
+  // A batch is closed by its own results, matched on id. It used to be closed by ADJACENCY — the
+  // walk absorbed a fixed list of event types and broke on anything else — and the list was chosen
+  // from the interleavings that had been seen rather than from anything that bounds them. Any
+  // event not on it, arriving in the window between a call and its result, orphaned that result
+  // and condemned the whole journal as `unpaired_tool_result`.
+  //
+  // A `context_usage` heartbeat is emitted every couple of seconds and is exactly such an event.
+  // It lands inside that window whenever a tool call outlives one tick, which is to say on any
+  // slow call. That threw away a finished 52-turn benchmark run whose only fault was that one
+  // heartbeat arrived between `bash` and its output.
+  //
+  // Matching on id needs no such list: whatever interleaves, the batch stays open until the calls
+  // it opened have answered, and nothing about a heartbeat's arrival time can orphan anything.
+  const outstanding = new Set(callIds);
   // Calls in this batch that a `subagent_activity` event attests — i.e. the spans in which a
   // native subagent is producing output of its own. Emptied as each one's result arrives.
   const openSubagentCalls = new Set([...callIds].filter(id => attested.has(id)));
   let index = start;
-  while (index < events.length) {
+  while (index < events.length && outstanding.size > 0) {
     const record = events[index];
-    // Progress and native-subagent census events interleave with the results of the call that is
-    // still open — a subagent's lines land between its `Agent`/`Task` call and that call's result.
-    // Absorbing them keeps the batch contiguous; breaking on them would orphan the result.
-    if (eventType(record) === 'turn_progress' || eventType(record) === 'subagent_activity') {
-      records.push(record);
-      index += 1;
-      continue;
-    }
     const result = record.event;
-    if (result.type === 'tool_result' && callIds.has(result.toolUseId)) {
-      openSubagentCalls.delete(result.toolUseId);
-      records.push(record);
-      index += 1;
-      continue;
+    if (result.type === 'tool_result') {
+      if (callIds.has(result.toolUseId)) {
+        outstanding.delete(result.toolUseId);
+        openSubagentCalls.delete(result.toolUseId);
+      } else if (openSubagentCalls.size === 0) {
+        // A result for a call this batch never made, with no attested span to explain it. A native
+        // subagent's own result legitimately has no call here, which is why an open span relaxes
+        // this; outside one, it is the orphan `unpaired_tool_result` exists to catch.
+        malformed('unpaired_tool_result');
+      }
     }
-    // A native subagent runs INSIDE its caller's tool call, so its own text and tool events land
-    // between that call and that call's result (D-ADDITIVE keeps them flowing to the handlers that
-    // journal them). While such a call is open and attested, those events belong to this batch.
-    // Nothing is absorbed on an unattested call, so `unpaired_tool_result` keeps its full strength
-    // for every journal that has no native-subagent census.
-    if (openSubagentCalls.size === 0) break;
     records.push(record);
     index += 1;
   }
-  // The allowance above is BOUNDED by the attested call's own result, and nothing else in the
-  // journal marks that boundary: the adapter pushes `turn_complete` once, immediately before
-  // `stream.close()` (`claude/adapter.ts:1444-1449`), and `turn_progress` is absorbed at :126
-  // precisely because it lands mid-span. So reaching the end of the fragment with a span still
-  // open means the journal never said where the subagent's output stopped — and every record from
-  // the call onward was pushed RAW, so no batch guard inspected any of it. §9.6 A2 refuses rather
-  // than guessing a boundary; §17 G4-SA10 is fail-closed by design.
+  // Running out of events with a call still open is a TRUNCATED batch, not a corrupt one: a run
+  // stopped at its deadline ends inside the tool call it was making, and that call never answers.
+  // Refusing there would discard exactly the runs the deadline exists to bring back gradable.
+  //
+  // An attested span is different. It is bounded by the attested call's own result and by nothing
+  // else in the journal, so reaching the end with one open means the journal never said where the
+  // subagent's output stopped — and every record from the call onward was absorbed without any
+  // batch guard inspecting it. §9.6 A2 refuses rather than guessing a boundary; §17 G4-SA10 is
+  // fail-closed by design.
   if (openSubagentCalls.size > 0) malformed('unclosed_subagent_span');
   return { records, next: index };
 }
