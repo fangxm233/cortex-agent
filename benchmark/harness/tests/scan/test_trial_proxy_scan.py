@@ -25,7 +25,7 @@ from cortex_bench_harness.launcher.trial_proxy import (
 )
 from cortex_bench_harness.manifest import MANIFEST_FILENAME
 from cortex_bench_harness.proxy.lease import LEASE_ECHO_SCHEMA_VERSION, LEASE_ECHO_TARGET
-from cortex_bench_harness.scan.models import ArtifactInventory, ScanPolicy
+from cortex_bench_harness.scan.models import ScanPolicy
 from cortex_bench_harness.scan.scanner import scan_trial_artifacts
 from capability_admission import admit_every_capability
 
@@ -180,8 +180,6 @@ def offline_trial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> OfflineTri
         manifest=manifest_seed(tmp_path), trial_seed=trial_seed(upstream),
         trial_proxy={
             "credential_env": CREDENTIAL_ENV, "bound_source_ip": "127.0.0.1",
-            "max_request_cost_usd": "1.00", "input_cost_per_million_usd": "3",
-            "output_cost_per_million_usd": "15",
             "request_body_limit_bytes": 16 * 1024 * 1024,
             "response_body_limit_bytes": 16 * 1024 * 1024,
         },

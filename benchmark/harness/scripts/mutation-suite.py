@@ -134,10 +134,11 @@ MUTATIONS: tuple[tuple[str, str, list[tuple[str, str]], str, str], ...] = (
     ("response_bytes", f"{PROXY}/upstream.py", [(
         "        if limit is not None and total > limit:", "        if False:",
     )], ADAPTER_TESTS, "oversized_response"),
-    # --- budget, deadline, upstream and revocation ---
-    ("budget_reservation", SERVER, [(
-        "        if remaining < self.budget.max_request_cost_usd:", "        if False:",
-    )], "tests/proxy/test_proxy.py", "without_enough_budget"),
+    # --- request count, deadline, upstream and revocation ---
+    ("request_reservation", SERVER, [(
+        "        if self.reserved_requests >= self.limits.max_requests:",
+        "        if False:",
+    )], "tests/proxy/test_proxy.py", "after_the_request_count_is_consumed"),
     # The whole refusal, not one of its two readings: the lease timer and the clock comparison are
     # each sufficient, so a mutation of either alone survives this test by design.
     ("deadline", SERVER, [(

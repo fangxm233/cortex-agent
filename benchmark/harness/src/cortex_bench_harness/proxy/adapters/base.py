@@ -41,16 +41,10 @@ class BodyDecision:
     reason: str | None
 
 
-@dataclass(frozen=True)
-class Billable:
-    input_tokens: int
-    output_tokens: int
-
-
 class ProviderAdapter(Protocol):
     # Every duty fails closed: a duty that cannot decide refuses, and never
     # falls through to a shipped default or opens an upstream connection.
-    # An adapter declares billable quantities but never applies a budget: limit
+    # An adapter reports measured quantities but never applies a limit: bounds
     # enforcement stays with the single shipped enforcer.
     adapter_id: str
     schema_version: str
@@ -67,6 +61,5 @@ class ProviderAdapter(Protocol):
 
     def extract_usage(self, body: bytes, content_type: str) -> ProxyUsage: ...
 
-    def billable(self, usage: ProxyUsage) -> Billable: ...
 
     def clear_credential(self) -> None: ...

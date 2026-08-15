@@ -11,16 +11,15 @@ import socket
 import threading
 import time
 from datetime import datetime
-from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable, Mapping, cast
 from urllib.parse import urlsplit
 
-from .adapters.base import AuthInjectionUnavailable, Billable, ProviderAdapter
+from .adapters.base import AuthInjectionUnavailable, ProviderAdapter
 from .export import build_proxy_export
 from .lease import LEASE_ECHO_TARGET, LeaseRefused, LeaseTerms, TrialLease
-from .models import ProxyBudget, ProxyMetadata, ProxyUsage, decimal_text, utc_text
+from .models import ProxyLimits, ProxyMetadata, ProxyUsage, utc_text
 from .upstream import (
     HOP_HEADERS,
     FixedUpstream,
@@ -38,13 +37,13 @@ def host_now_ms() -> int:
 class ProxyState:
     def __init__(
         self, source_ip: str, dummy_token: str, deadline_ms: int,
-        budget: ProxyBudget, log_path: Path, now_ms: Callable[[], int],
+        limits: ProxyLimits, log_path: Path, now_ms: Callable[[], int],
     ) -> None:
         self.source_ip = source_ip
         self.dummy_token = dummy_token
         self.deadline_ms = deadline_ms
         self.now_ms = now_ms
-        self.budget = budget
+        self.limits = limits
         self.log_path = log_path
         self.request_lock = threading.Lock()
         self.active = True
@@ -52,8 +51,11 @@ class ProxyState:
         self.request_count = 0
         self.input_tokens = 0
         self.output_tokens = 0
-        self.cost_usd = Decimal("0")
-        self.budget_consumed_usd = Decimal("0")
+        self.cached_tokens = 0
+        # Admitted-but-not-yet-recorded requests are held here, so a request in flight already
+        # counts against the cap. This replaces a reservation denominated in dollars that could
+        # only ever express `floor(max_cost_usd / max_request_cost_usd)` requests anyway.
+        self.reserved_requests = 0
 
     def admission_error(self, source_ip: str, authorization: str | None):
         lifecycle_error = self.lifecycle_error()
@@ -62,9 +64,8 @@ class ProxyState:
         caller_error = self.caller_error(source_ip, authorization)
         if caller_error is not None:
             return caller_error
-        remaining = self.budget.max_cost_usd - self.budget_consumed_usd
-        if remaining < self.budget.max_request_cost_usd:
-            return 429, "budget_exhausted"
+        if self.reserved_requests >= self.limits.max_requests:
+            return 429, "requests_exhausted"
         return None
 
     def lifecycle_error(self):
@@ -102,7 +103,7 @@ class ProxyState:
         })
 
     def reserve(self) -> None:
-        self.budget_consumed_usd += self.budget.max_request_cost_usd
+        self.reserved_requests += 1
 
     def expire(self) -> None:
         self.expired = True
@@ -118,21 +119,25 @@ class ProxyState:
             return 401, "dummy_token_rejected"
         return None
 
-    def record(self, usage: ProxyUsage, billable: Billable | None) -> str | None:
-        if not usage.accounted or billable is None:
+    def record(self, usage: ProxyUsage) -> str | None:
+        """Meter one answered request. Unaccounted usage still ends the route.
+
+        There is no longer a per-request outcome to derive here. The check this replaces refused a
+        request whose PRICED cost exceeded one reservation, which is a judgement about a number the
+        proxy computed rather than one it observed - and the pricing that produced it was wrong by
+        12.7x on cached traffic. What physically bounds one request is declared elsewhere and
+        enforced by things that can actually see it: the request and response body limits, and the
+        provider's own `max_output_tokens`.
+        """
+        if not usage.accounted:
             error = self.record_attempt(
-                "budget_accounting_unavailable", True, usage.upstream_model)
+                "usage_accounting_unavailable", True, usage.upstream_model)
             self.active = False
-            return error or "budget_accounting_unavailable"
-        request_cost = self.budget.cost(billable.input_tokens, billable.output_tokens)
-        outcome = self._usage_outcome(request_cost)
-        record = self._usage_record(usage, request_cost, outcome)
-        if not self._persist(record):
+            return error or "usage_accounting_unavailable"
+        if not self._persist(self._usage_record(usage)):
             return "audit_log_unavailable"
-        self._commit_usage(usage, request_cost)
-        if outcome is not None:
-            self.active = False
-        return outcome
+        self._commit_usage(usage)
+        return None
 
     def record_attempt(
         self, outcome: str, retain_reservation: bool,
@@ -142,13 +147,12 @@ class ProxyState:
         if error is not None:
             return error
         if not retain_reservation:
-            self.budget_consumed_usd -= self.budget.max_request_cost_usd
+            self.reserved_requests -= 1
         return None
 
     def record_rejection(self, outcome: str) -> str | None:
-        # A route or body refusal never reserved, so it must not touch budget
-        # arithmetic: releasing an absent reservation would drive the consumed
-        # total negative.
+        # A route or body refusal never reserved, so it must not touch the reservation
+        # count: releasing an absent reservation would drive it negative.
         return self._record_outcome(outcome, None)
 
     def _record_outcome(self, outcome: str, upstream_model: str | None) -> str | None:
@@ -158,42 +162,33 @@ class ProxyState:
         self.request_count += 1
         return None
 
-    def _usage_outcome(self, request_cost: Decimal) -> str | None:
-        if request_cost > self.budget.max_request_cost_usd:
-            return "budget_accounting_exceeded"
-        return None
-
-    def _usage_record(
-        self, usage: ProxyUsage, request_cost: Decimal, outcome: str | None,
-    ) -> dict[str, object]:
-        record = self._record(
+    def _usage_record(self, usage: ProxyUsage) -> dict[str, object]:
+        return self._record(
             self.request_count + 1, self.input_tokens + usage.input_tokens,
-            self.output_tokens + usage.output_tokens, self.cost_usd + request_cost,
+            self.output_tokens + usage.output_tokens,
+            _add_cached(self.cached_tokens, usage.cached_tokens),
             usage.upstream_model,
         )
-        if outcome is not None:
-            record["outcome"] = outcome
-        return record
 
     def _attempt_record(
         self, outcome: str, upstream_model: str | None,
     ) -> dict[str, object]:
         record = self._record(
             self.request_count + 1, self.input_tokens, self.output_tokens,
-            self.cost_usd, upstream_model,
+            self.cached_tokens, upstream_model,
         )
         record["outcome"] = outcome
         return record
 
     def _record(
         self, count: int, input_tokens: int, output_tokens: int,
-        cost_usd: Decimal, upstream_model: str | None,
+        cached_tokens: int | None, upstream_model: str | None,
     ) -> dict[str, object]:
         return {
             "request_count": count,
             "tokens": {"input": input_tokens, "output": output_tokens,
-                       "total": input_tokens + output_tokens},
-            "cost_usd": decimal_text(cost_usd),
+                       "total": input_tokens + output_tokens,
+                       "cached": cached_tokens},
             "upstream_model": upstream_model,
         }
 
@@ -205,11 +200,11 @@ class ProxyState:
             self.active = False
             return False
 
-    def _commit_usage(self, usage: ProxyUsage, request_cost: Decimal) -> None:
+    def _commit_usage(self, usage: ProxyUsage) -> None:
         self.request_count += 1
         self.input_tokens += usage.input_tokens
         self.output_tokens += usage.output_tokens
-        self.cost_usd += request_cost
+        self.cached_tokens = _add_cached(self.cached_tokens, usage.cached_tokens)
 
 
 class TrialHttpServer(ThreadingHTTPServer):
@@ -471,10 +466,7 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         self, server: TrialHttpServer, response: UpstreamResult, sink: RelaySink,
     ) -> None:
         state = server.state
-        billable = (
-            server.adapter.billable(response.usage) if response.usage.accounted else None
-        )
-        accounting_error = state.record(response.usage, billable)
+        accounting_error = state.record(response.usage)
         if accounting_error is not None:
             status = 500 if accounting_error == "audit_log_unavailable" else 502
             self._refuse_response(sink, status, accounting_error)
@@ -674,7 +666,7 @@ class TrialProxyHandle:
 
 def start_trial_proxy(
     *, trial_id: str, upstream_base_url: str, adapter: ProviderAdapter,
-    bound_source_ip: str, absolute_deadline: datetime, budget: ProxyBudget,
+    bound_source_ip: str, absolute_deadline: datetime, limits: ProxyLimits,
     log_path: Path, lease_terms: LeaseTerms, listen_host: str = "127.0.0.1",
     advertised_host: str | None = None, now_ms: Callable[[], int] = host_now_ms,
     request_body_limit_bytes: int | None = None,
@@ -687,7 +679,7 @@ def start_trial_proxy(
     dummy_token = _dummy_token(adapter)
     provisional_bound_ms = int(absolute_deadline.timestamp() * 1000)
     state = ProxyState(
-        bound_source_ip, dummy_token, provisional_bound_ms, budget, log_path, now_ms,
+        bound_source_ip, dummy_token, provisional_bound_ms, limits, log_path, now_ms,
     )
     upstream = FixedUpstream(
         upstream_base_url, adapter, response_body_limit_bytes=response_body_limit_bytes,
@@ -699,7 +691,7 @@ def start_trial_proxy(
     port = cast(tuple[str, int], server.server_address)[1]
     metadata = ProxyMetadata(
         trial_id, upstream_base_url, bound_source_ip, absolute_deadline,
-        budget, log_path.name, adapter.adapter_id,
+        limits, log_path.name, adapter.adapter_id,
         request_body_limit_bytes, response_body_limit_bytes,
     )
     lease = TrialLease(
@@ -746,6 +738,18 @@ def _valid_request_target(target: str) -> bool:
 def _is_lease_echo_target(target: str) -> bool:
     parsed = urlsplit(target)
     return not parsed.scheme and not parsed.netloc and parsed.path == LEASE_ECHO_TARGET
+
+
+def _add_cached(total: int | None, observed: int | None) -> int | None:
+    """Accumulate a cache count that the provider may simply not have reported.
+
+    `None` is not zero. A response with no cache breakdown says nothing about whether the prompt
+    was served from cache, and adding zero for it would turn silence into a measurement. Once any
+    request in the trial is silent the running total is unknown, and the audit rows say so.
+    """
+    if total is None or observed is None:
+        return None
+    return total + observed
 
 
 def _append_log(path: Path, record: Mapping[str, object]) -> None:

@@ -183,8 +183,6 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
 def proxy_spec() -> dict[str, object]:
     return {
         "credential_env": CREDENTIAL_ENV, "bound_source_ip": "127.0.0.1",
-        "max_request_cost_usd": "1.00", "input_cost_per_million_usd": "3",
-        "output_cost_per_million_usd": "15",
         "request_body_limit_bytes": 16 * 1024 * 1024,
         "response_body_limit_bytes": 16 * 1024 * 1024,
     }
@@ -587,8 +585,12 @@ def test_assets_the_run_does_not_vouch_for_refuse_publication(
     assert not envelope_path(tmp_path).exists()
 
 
+UNDERIVABLE_TOKENS = {"input": None, "output": None}
+
+
 def fail_inner_run(
-    reason: str = "child_failure", cost_usd: object = None, state: str = "failed",
+    reason: str = "child_failure", tokens: object = UNDERIVABLE_TOKENS,
+    state: str = "failed",
 ) -> Callable[[Path], None]:
     """The shape a run leaves behind when its agent did not finish.
 
@@ -602,7 +604,7 @@ def fail_inner_run(
         (root / "trajectory.json").unlink()
         path = root / f"run-{ROOT_RUN_ID}.terminal.json"
         document = json.loads(path.read_text())
-        document.update({"state": state, "terminal_reason": reason, "cost_usd": cost_usd})
+        document.update({"state": state, "terminal_reason": reason, "tokens": tokens})
         write_json(path, document)
     return mutation
 
@@ -637,10 +639,11 @@ def test_a_failed_inner_run_publishes_an_envelope_that_says_it_is_not_gradable(
     assert envelope["classification"]["ok"] is True and envelope["leak_scan"]
 
 
-def test_a_failed_run_that_knows_of_no_cost_does_not_claim_a_reconciliation(
+def test_a_failed_run_that_knows_of_no_counts_does_not_claim_a_reconciliation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The composite is where the journal-side cost lives, and a failed run has none.
+    """The composite is where an admitted trial's journal-side counts live, and a failed run
+    publishes none. Its terminal marker may still state them, and here it states nothing.
 
     Reporting `reconciled: true` here would assert a cross-check that never happened, so the
     envelope says what is true instead: the proxy's own metering, and no counterpart to meet it.
@@ -650,16 +653,17 @@ def test_a_failed_run_that_knows_of_no_cost_does_not_claim_a_reconciliation(
     run_agent(agent, environment)
     usage = json.loads(envelope_path(tmp_path).read_bytes())["proxy_usage"]
 
-    assert usage["journal_cost_usd"] is None and usage["reconciled"] is False
-    assert usage["cost_usd"] == "0" and usage["trial_id"] == TRIAL_ID
+    assert usage["journal_tokens"] is None and usage["reconciled"] is False
+    assert usage["input_tokens"] == 0 and usage["output_tokens"] == 0
+    assert usage["trial_id"] == TRIAL_ID
 
 
-def test_a_failed_run_whose_own_cost_contradicts_the_proxy_is_still_refused(
+def test_a_failed_run_whose_own_counts_contradict_the_proxy_is_still_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Not being gradable does not make a trial's accounting optional."""
     agent, environment = make_agent(
-        tmp_path, monkeypatch, fail_inner_run(cost_usd=5))
+        tmp_path, monkeypatch, fail_inner_run(tokens={"input": 5, "output": 7}))
 
     assert_refused(tmp_path, agent, environment)
 

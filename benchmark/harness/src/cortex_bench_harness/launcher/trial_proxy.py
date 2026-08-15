@@ -10,17 +10,17 @@
 
 import json
 import os
+from decimal import Decimal, InvalidOperation
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
 from ..proxy.adapters import ProviderAdapter, select_adapter
 from ..proxy.export import render_proxy_export
 from ..proxy.lease import LeaseTerms
-from ..proxy.models import PROXY_SCHEMA_VERSION, ProxyBudget
+from ..proxy.models import PROXY_SCHEMA_VERSION, ProxyLimits
 from ..proxy.server import TrialProxyHandle, host_now_ms, start_trial_proxy
 from ..scan.models import ArtifactInventory
 from .capability_ceilings import load_capability_ceilings
@@ -50,17 +50,18 @@ ADAPTER_SELECTION_SCHEMA_VERSION = "cortex-bench-adapter-selection/1"
 LEASE_ECHO_RECORD_SCHEMA_VERSION = "cortex-bench-lease-echo-record/1"
 
 SPEC_REQUIRED_FIELDS = frozenset({
-    "credential_env", "bound_source_ip", "max_request_cost_usd",
-    "input_cost_per_million_usd", "output_cost_per_million_usd",
+    "credential_env", "bound_source_ip",
     # Declared, never defaulted: an absent body limit means *unlimited*, which is the wrong
     # default for a bounded run on either side of the route.
     "request_body_limit_bytes", "response_body_limit_bytes",
 })
 SPEC_OPTIONAL_FIELDS = frozenset({"listen_host", "advertised_host", "lease_seconds"})
 
-# The paid envelope: what a run declares it may spend, wait for, and carry. Four fields are the
-# arm's own limits and three are host proxy facts, but they are validated as one document — a
-# per-request cost bound means nothing beside a per-trial one it contradicts.
+# The paid envelope: what a run declares it may consume, wait for, and carry. It no longer carries
+# a cost pair. That pair was never a spend authorization — the reservation it funded was never
+# reconciled against actual cost, so it could only ever express
+# `floor(max_cost_usd / max_request_cost_usd)` requests, which `max_provider_requests` already
+# states outright.
 PAID_ENVELOPE_ARM_INTEGER_FIELDS = (
     "max_provider_requests", "deadline_seconds", "max_output_tokens",
 )
@@ -69,7 +70,7 @@ PAID_ENVELOPE_SPEC_INTEGER_FIELDS = (
 )
 PAID_ENVELOPE_FIELDS = frozenset(
     PAID_ENVELOPE_ARM_INTEGER_FIELDS + PAID_ENVELOPE_SPEC_INTEGER_FIELDS
-    + ("max_cost_usd", "max_request_cost_usd"),
+    + ("max_cost_usd",),
 )
 
 
@@ -83,9 +84,6 @@ class TrialProxySpec:
 
     credential_env: str
     bound_source_ip: str
-    max_request_cost_usd: Decimal
-    input_cost_per_million_usd: Decimal
-    output_cost_per_million_usd: Decimal
     request_body_limit_bytes: int
     response_body_limit_bytes: int
     listen_host: str = "127.0.0.1"
@@ -108,9 +106,6 @@ def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
     return TrialProxySpec(
         credential_env=_text(source, "credential_env"),
         bound_source_ip=_text(source, "bound_source_ip"),
-        max_request_cost_usd=_decimal(source, "max_request_cost_usd"),
-        input_cost_per_million_usd=_decimal(source, "input_cost_per_million_usd"),
-        output_cost_per_million_usd=_decimal(source, "output_cost_per_million_usd"),
         request_body_limit_bytes=_positive_int(source, "request_body_limit_bytes"),
         response_body_limit_bytes=_positive_int(source, "response_body_limit_bytes"),
         listen_host=_optional_text(source, "listen_host", "127.0.0.1"),
@@ -248,7 +243,7 @@ def _start_proxy_session(
     handle = start_trial_proxy(
         trial_id=trial_id, upstream_base_url=upstream_base_url, adapter=adapter,
         bound_source_ip=spec.bound_source_ip, absolute_deadline=absolute_deadline,
-        budget=_budget(arm, spec), log_path=proxy_dir / AUDIT_LOG_FILENAME,
+        limits=_limits_of(arm), log_path=proxy_dir / AUDIT_LOG_FILENAME,
         lease_terms=LeaseTerms(
             budget_ms=budget_ms, teardown_grace_ms=TEARDOWN_GRACE_MS,
         ),
@@ -395,8 +390,6 @@ def _declared_envelope(
         for field in PAID_ENVELOPE_ARM_INTEGER_FIELDS
     }
     declared["max_cost_usd"] = _envelope_decimal(limits.get("max_cost_usd"), "max_cost_usd")
-    declared["max_request_cost_usd"] = _envelope_decimal(
-        spec.max_request_cost_usd, "max_request_cost_usd")
     declared.update({
         field: _envelope_int(getattr(spec, field), field)
         for field in PAID_ENVELOPE_SPEC_INTEGER_FIELDS
@@ -444,13 +437,14 @@ def _require_contained(proxy_dir: Path, trial_roots: Sequence[Path]) -> None:
             f"proxy artifacts must be written under a trial root; {proxy_dir} is under none")
 
 
-def _budget(arm: Mapping[str, object], spec: TrialProxySpec) -> ProxyBudget:
-    return ProxyBudget(
-        max_cost_usd=_decimal(_limits(arm), "max_cost_usd"),
-        max_request_cost_usd=spec.max_request_cost_usd,
-        input_cost_per_million_usd=spec.input_cost_per_million_usd,
-        output_cost_per_million_usd=spec.output_cost_per_million_usd,
-    )
+def _limits_of(arm: Mapping[str, object]) -> ProxyLimits:
+    """The route's request cap, read from the one field that already declares it.
+
+    Derived rather than separately declared: when the cap lived in the proxy spec as a cost pair,
+    the campaign had to state the same number twice and two config refusals existed to keep the two
+    statements from disagreeing. There is nothing left to disagree.
+    """
+    return ProxyLimits(max_requests=_positive_int(_limits(arm), "max_provider_requests"))
 
 
 def _deadline_budget_ms(arm: Mapping[str, object], spec: TrialProxySpec) -> int:
@@ -507,15 +501,6 @@ def _declared_positive_int(values: Mapping[str, Any], key: str) -> int | None:
         return None
     return _positive_int(values, key)
 
-
-def _decimal(values: Mapping[str, Any], key: str) -> Decimal:
-    value = values.get(key)
-    if not isinstance(value, str):
-        raise ValueError(f"{key} must be a decimal string")
-    try:
-        return Decimal(value)
-    except InvalidOperation as error:
-        raise ValueError(f"{key} must be a decimal string") from error
 
 
 def _write_json(path: Path, document: Mapping[str, object]) -> None:

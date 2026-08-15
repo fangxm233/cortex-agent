@@ -7,7 +7,6 @@ import base64
 import json
 import secrets
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from http.client import HTTPConnection
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -15,7 +14,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
-from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from cortex_bench_harness.proxy.adapters import (
     AdapterUnavailable,
     AdapterVersionMismatch,
@@ -89,16 +88,14 @@ def row_four_adapter(
 def start_proxy(
     tmp_path: Path, upstream_base_url: str, *, credential: str | None = HOST_ACCESS_TOKEN,
     bound_source_ip: str = "127.0.0.1", deadline: datetime | None = None,
-    max_cost: str = "20", frozen_model: str | None = CODEX_MODEL,
+    max_requests: int = 8, frozen_model: str | None = CODEX_MODEL,
 ):
     return start_trial_proxy(
         trial_id="trial-codex", upstream_base_url=upstream_base_url,
         adapter=row_four_adapter(upstream_base_url, credential, frozen_model),
         bound_source_ip=bound_source_ip,
         absolute_deadline=deadline or datetime.now(UTC) + timedelta(minutes=5),
-        budget=ProxyBudget(
-            Decimal(max_cost), Decimal("5"), Decimal("1000000"), Decimal("1000000"),
-        ),
+        limits=ProxyLimits(max_requests=max_requests),
         log_path=tmp_path / "codex.jsonl", lease_terms=LEASE_TERMS,
     )
 
@@ -271,8 +268,7 @@ def test_a_row_without_that_requirement_keeps_the_shipped_opaque_dummy(
             adapter=row_one_adapter(upstream.base_url, "synthetic-key"),
             bound_source_ip="127.0.0.1",
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-            budget=ProxyBudget(
-                Decimal("20"), Decimal("5"), Decimal("1"), Decimal("1")),
+            limits=ProxyLimits(max_requests=8),
             log_path=tmp_path / "row-one.jsonl", lease_terms=LEASE_TERMS,
         )
         try:
@@ -341,7 +337,7 @@ def test_the_allowed_route_refuses_a_query_string_and_a_non_post_method() -> Non
     assert adapter.validate_route("POST", RESPONSES_PATH).route_id == RESPONSES_ROUTE
 
 
-def test_a_refused_route_is_audited_without_touching_budget(tmp_path: Path) -> None:
+def test_a_refused_route_is_audited_without_touching_the_reservation(tmp_path: Path) -> None:
     log_path = tmp_path / "codex.jsonl"
     with SyntheticUpstream() as upstream:
         handle = start_proxy(tmp_path, upstream.base_url)
@@ -351,7 +347,7 @@ def test_a_refused_route_is_audited_without_touching_budget(tmp_path: Path) -> N
             handle.stop()
     records = [json.loads(line) for line in log_path.read_text().splitlines()]
     assert [record["outcome"] for record in records] == ["route_denied_token_endpoint"]
-    assert records[0]["cost_usd"] == "0"
+    assert records[0]["tokens"]["total"] == 0
     assert upstream.requests == []
 
 
@@ -650,55 +646,8 @@ def test_a_cancelled_call_is_reported_unmetered_and_revokes_the_route(
     assert result.complete is False
     assert after == 410
     records = [json.loads(line) for line in log_path.read_text().splitlines()]
-    assert records[0]["outcome"] == "budget_accounting_unavailable"
-    assert records[0]["tokens"] == {"input": 0, "output": 0, "total": 0}
-
-
-# --- D5: billable quantities, and the enforcer that consumes them ---
-
-
-def test_billable_never_discounts_cached_or_cache_write_input_tokens() -> None:
-    adapter = OpenAICodexResponsesOAuthAdapter(
-        "http://127.0.0.1:1", HOST_ACCESS_TOKEN, CODEX_MODEL)
-    usage = adapter.extract_usage(
-        sse_stream([terminal_event()]), "text/event-stream")
-    billable = adapter.billable(usage)
-    # The client subtracts cached and cache-write tokens from the input count;
-    # the proxy bills the whole count, because under-billing is the direction
-    # that lets real spend outrun the limit.
-    assert (billable.input_tokens, billable.output_tokens) == (3, 2)
-
-
-def test_billable_refuses_an_unaccounted_usage() -> None:
-    adapter = OpenAICodexResponsesOAuthAdapter(
-        "http://127.0.0.1:1", HOST_ACCESS_TOKEN, CODEX_MODEL)
-    usage = adapter.extract_usage(b"", "text/event-stream")
-    with pytest.raises(ValueError):
-        adapter.billable(usage)
-
-
-def test_a_priced_call_beyond_the_per_request_limit_is_refused(tmp_path: Path) -> None:
-    with SyntheticUpstream() as upstream:
-        serve_stream(upstream, sse_stream([terminal_event()]))
-        handle = start_trial_proxy(
-            trial_id="trial-codex-limit", upstream_base_url=upstream.base_url,
-            adapter=row_four_adapter(upstream.base_url),
-            bound_source_ip="127.0.0.1",
-            absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-            budget=ProxyBudget(
-                Decimal("20"), Decimal("0.000001"), Decimal("1000000"),
-                Decimal("1000000")),
-            log_path=tmp_path / "codex-limit.jsonl", lease_terms=LEASE_TERMS,
-        )
-        try:
-            result = codex_request_streamed(handle)
-            after, _ = codex_request(handle)
-        finally:
-            handle.stop()
-    # A response priced above one reservation is still relayed as far as it got, because the
-    # price is only known once it is complete. It ends unterminated and the route is dead.
-    assert result.complete is False
-    assert after == 410
+    assert records[0]["outcome"] == "usage_accounting_unavailable"
+    assert records[0]["tokens"] == {"input": 0, "output": 0, "total": 0, "cached": 0}
 
 
 # --- R5: H7 properties 1, 2, 3 and 6 re-executed against this adapter ---
@@ -719,17 +668,17 @@ def test_h7_property_1_source_binding_holds_for_this_adapter(tmp_path: Path) -> 
     assert len(upstream.requests) == 1
 
 
-def test_h7_property_2_budget_cutoff_holds_for_this_adapter(tmp_path: Path) -> None:
+def test_h7_property_2_request_cutoff_holds_for_this_adapter(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
         serve_stream(upstream, sse_stream([terminal_event()]))
-        handle = start_proxy(tmp_path, upstream.base_url, max_cost="5")
+        handle = start_proxy(tmp_path, upstream.base_url, max_requests=1)
         try:
             first, _ = codex_request(handle)
             second, payload = codex_request(handle)
         finally:
             handle.stop()
     assert (first, second) == (200, 429)
-    assert json.loads(payload) == {"error": "budget_exhausted"}
+    assert json.loads(payload) == {"error": "requests_exhausted"}
     assert len(upstream.requests) == 1
 
 

@@ -9,8 +9,7 @@ import subprocess
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from datetime import UTC, datetime
 from http.client import HTTPConnection, HTTPException
 from pathlib import Path
 from typing import Any
@@ -23,7 +22,7 @@ from cortex_bench_harness.launcher.lease_bound import (
     TEARDOWN_GRACE_MS,
     provisional_lease_bound_ms,
 )
-from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from cortex_bench_harness.proxy.adapters import ProviderAdapter
 from cortex_bench_harness.proxy.adapters.openai_codex_responses import RESPONSES_PATH
 from cortex_bench_harness.proxy.lease import (
@@ -121,13 +120,8 @@ class TrialClocks:
         self.host.advance(delta_ms)
 
 
-def budget(max_cost: str = "500") -> ProxyBudget:
-    return ProxyBudget(
-        max_cost_usd=Decimal(max_cost),
-        max_request_cost_usd=Decimal("5"),
-        input_cost_per_million_usd=Decimal("1000000"),
-        output_cost_per_million_usd=Decimal("1000000"),
-    )
+def limits(max_cost: str = "500") -> ProxyLimits:
+    return ProxyLimits(max_requests=8)
 
 
 def start_leased_proxy(
@@ -146,7 +140,7 @@ def start_leased_proxy(
         adapter=row.build_adapter(upstream.base_url),
         bound_source_ip="127.0.0.1",
         absolute_deadline=datetime.fromtimestamp(provisional / 1000, UTC),
-        budget=budget(),
+        limits=limits(),
         log_path=tmp_path / "lease.jsonl",
         lease_terms=terms or LeaseTerms(BUDGET_MS, TEARDOWN_GRACE_MS),
         now_ms=clocks.host.now_ms,

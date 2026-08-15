@@ -1,5 +1,5 @@
 # input:  trial proxy API and synthetic model upstream
-# output: forwarding, budget, funded-turn, deadline, stop, and redaction proofs
+# output: forwarding, limits, funded-turn, deadline, stop, and redaction proofs
 # pos:    Core proxy behavior tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -7,7 +7,6 @@ import json
 import socket
 import time
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from http.client import HTTPConnection
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -15,7 +14,7 @@ from urllib.parse import urlsplit
 import pytest
 
 import cortex_bench_harness.proxy.server as proxy_server
-from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from synthetic import (
     LEASE_TERMS,
     MESSAGES_TARGET,
@@ -30,18 +29,13 @@ REAL_CREDENTIAL = "sk-ant-SYNTHETIC-PROXY-UNIQUE"
 PLANTED_PROMPT = "PROMPT-PLANT-2e47d8b8"
 
 
-def budget(max_cost: str = "5", max_request_cost: str = "5") -> ProxyBudget:
-    return ProxyBudget(
-        max_cost_usd=Decimal(max_cost),
-        max_request_cost_usd=Decimal(max_request_cost),
-        input_cost_per_million_usd=Decimal("1000000"),
-        output_cost_per_million_usd=Decimal("1000000"),
-    )
+def limits(max_requests: int = 1) -> ProxyLimits:
+    return ProxyLimits(max_requests=max_requests)
 
 
 def start_proxy(
     tmp_path: Path, upstream: SyntheticUpstream, *, deadline: datetime | None = None,
-    max_cost: str = "5",
+    max_requests: int = 1,
 ):
     return start_trial_proxy(
         trial_id="trial-synthetic",
@@ -49,7 +43,7 @@ def start_proxy(
         adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
         bound_source_ip="127.0.0.1",
         absolute_deadline=deadline or datetime.now(UTC) + timedelta(minutes=5),
-        budget=budget(max_cost),
+        limits=limits(max_requests),
         log_path=tmp_path / "proxy.jsonl",
         lease_terms=LEASE_TERMS,
     )
@@ -102,7 +96,7 @@ def test_a_response_the_client_never_received_is_still_recorded_as_billed_and_lo
     with SyntheticUpstream() as upstream:
         upstream.server.raw_body = json.dumps(upstream.server.response).encode()
         upstream.server.response_chunk_delay_seconds = 0.01
-        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, max_requests=4)
         try:
             status = abandoned_proxy_request(handle.base_url, handle.dummy_token, "abandoned")
             delivery = await_delivery_row(tmp_path)
@@ -132,7 +126,7 @@ def test_a_client_that_gave_up_on_one_turn_may_still_ask_for_the_next(
     with SyntheticUpstream() as upstream:
         upstream.server.raw_body = json.dumps(upstream.server.response).encode()
         upstream.server.response_chunk_delay_seconds = 0.01
-        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, max_requests=4)
         try:
             abandoned_proxy_request(handle.base_url, handle.dummy_token, "abandoned")
             await_delivery_row(tmp_path)
@@ -157,7 +151,7 @@ def test_slow_response_reaches_the_client_while_it_is_still_being_produced(
     with SyntheticUpstream() as upstream:
         upstream.server.raw_body = json.dumps(upstream.server.response).encode()
         upstream.server.response_chunk_delay_seconds = 0.004
-        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, max_requests=4)
         try:
             result = streamed_proxy_request(
                 handle.base_url, handle.dummy_token, "slow", timeout=30)
@@ -171,26 +165,7 @@ def test_slow_response_reaches_the_client_while_it_is_still_being_produced(
     assert result.first_byte_seconds < result.total_seconds / 2
 
 
-def test_rejects_request_without_enough_budget_for_maximum_call(tmp_path: Path) -> None:
-    with SyntheticUpstream() as upstream:
-        handle = start_trial_proxy(
-            trial_id="trial-reservation", upstream_base_url=upstream.base_url,
-            adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
-            bound_source_ip="127.0.0.1",
-            absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-            budget=budget("4", "5"), log_path=tmp_path / "reservation.jsonl",
-            lease_terms=LEASE_TERMS,
-        )
-        try:
-            status, payload = proxy_request(handle.base_url, handle.dummy_token, "blocked")
-        finally:
-            handle.stop()
-    assert status == 429
-    assert json.loads(payload) == {"error": "budget_exhausted"}
-    assert upstream.requests == []
-
-
-def test_rejects_requests_after_budget_is_consumed(tmp_path: Path) -> None:
+def test_rejects_requests_after_the_request_count_is_consumed(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
         handle = start_proxy(tmp_path, upstream)
         try:
@@ -200,7 +175,7 @@ def test_rejects_requests_after_budget_is_consumed(tmp_path: Path) -> None:
             handle.stop()
     assert first == 200
     assert second == 429
-    assert json.loads(payload) == {"error": "budget_exhausted"}
+    assert json.loads(payload) == {"error": "requests_exhausted"}
     assert len(upstream.requests) == 1
 
 
@@ -212,7 +187,7 @@ def test_connect_failure_releases_reservation_and_writes_audit(tmp_path: Path) -
         adapter=row_one_adapter(f"http://127.0.0.1:{port}", REAL_CREDENTIAL),
         bound_source_ip="127.0.0.1",
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-        budget=budget(), log_path=log_path, lease_terms=LEASE_TERMS,
+        limits=limits(), log_path=log_path, lease_terms=LEASE_TERMS,
     )
     try:
         first, _ = proxy_request(handle.base_url, handle.dummy_token, "connect-fail")
@@ -223,8 +198,8 @@ def test_connect_failure_releases_reservation_and_writes_audit(tmp_path: Path) -
     records = [json.loads(line) for line in log_path.read_text().splitlines()]
     assert (first, second) == (502, 200)
     assert records[0] == {
-        "cost_usd": "0", "outcome": "upstream_unavailable",
-        "request_count": 1, "tokens": {"input": 0, "output": 0, "total": 0},
+        "outcome": "upstream_unavailable",
+        "request_count": 1, "tokens": {"input": 0, "output": 0, "total": 0, "cached": 0},
         "upstream_model": None,
     }
     assert records[1]["request_count"] == 2
@@ -241,7 +216,7 @@ def test_missing_upstream_usage_revokes_budget_route(tmp_path: Path) -> None:
         upstream.server.response = {
             "model": "claude-synthetic-1", "usage": {}, "content": [],
         }
-        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, max_requests=4)
         try:
             first = streamed_proxy_request(
                 handle.base_url, handle.dummy_token, "unknown")
@@ -290,7 +265,7 @@ def _sse_body(documents: list[dict[str, object]]) -> bytes:
 def test_empty_upstream_model_identity_revokes_budget_route(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
         upstream.server.response["model"] = "  "
-        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, max_requests=4)
         try:
             first = streamed_proxy_request(
                 handle.base_url, handle.dummy_token, "unknown")
@@ -306,7 +281,7 @@ def test_revokes_request_that_crosses_absolute_deadline(tmp_path: Path) -> None:
     deadline = datetime.now(UTC) + timedelta(milliseconds=250)
     with SyntheticUpstream() as upstream:
         upstream.server.response_delay_seconds = 5.0
-        handle = start_proxy(tmp_path, upstream, deadline=deadline, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, deadline=deadline, max_requests=4)
         started = time.monotonic()
         try:
             status, payload = proxy_request(handle.base_url, handle.dummy_token, "slow")
@@ -323,7 +298,7 @@ def test_trickled_upstream_is_cut_at_absolute_deadline(tmp_path: Path) -> None:
     deadline = datetime.now(UTC) + timedelta(milliseconds=250)
     with SyntheticUpstream() as upstream:
         upstream.server.response_chunk_delay_seconds = 0.02
-        handle = start_proxy(tmp_path, upstream, deadline=deadline, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, deadline=deadline, max_requests=4)
         try:
             result = streamed_proxy_request(
                 handle.base_url, handle.dummy_token, "trickle")
@@ -341,7 +316,7 @@ def test_trickled_upstream_is_cut_at_absolute_deadline(tmp_path: Path) -> None:
 def test_body_finishing_after_deadline_never_reaches_upstream(tmp_path: Path) -> None:
     deadline = datetime.now(UTC) + timedelta(milliseconds=200)
     with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream, deadline=deadline, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, deadline=deadline, max_requests=4)
         try:
             status, payload = _slow_body_request(handle.base_url, handle.dummy_token, deadline)
         finally:
@@ -371,7 +346,7 @@ def _slow_body_request(base_url: str, token: str, deadline: datetime) -> tuple[i
 def test_rejects_requests_after_absolute_deadline(tmp_path: Path) -> None:
     deadline = datetime.now(UTC) + timedelta(seconds=2)
     with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream, deadline=deadline, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, deadline=deadline, max_requests=4)
         try:
             before, _ = proxy_request(handle.base_url, handle.dummy_token, "before")
             while datetime.now(UTC) <= deadline:
@@ -387,7 +362,7 @@ def test_rejects_requests_after_absolute_deadline(tmp_path: Path) -> None:
 
 def test_permanently_stalled_body_does_not_block_another_request(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, max_requests=4)
         stalled = _stalled_body_socket(handle.base_url, handle.dummy_token)
         try:
             _wait_for_body_client(handle)
@@ -402,7 +377,7 @@ def test_permanently_stalled_body_does_not_block_another_request(tmp_path: Path)
 def test_deadline_rejects_permanently_stalled_body(tmp_path: Path) -> None:
     deadline = datetime.now(UTC) + timedelta(milliseconds=250)
     with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream, deadline=deadline, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, deadline=deadline, max_requests=4)
         stalled = _stalled_body_socket(handle.base_url, handle.dummy_token)
         try:
             stalled.settimeout(2)
@@ -417,7 +392,7 @@ def test_deadline_rejects_permanently_stalled_body(tmp_path: Path) -> None:
 
 def test_stop_closes_permanently_stalled_body_handler(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        handle = start_proxy(tmp_path, upstream, max_requests=4)
         stalled = _stalled_body_socket(handle.base_url, handle.dummy_token)
         try:
             _wait_for_body_client(handle)
@@ -484,7 +459,7 @@ def test_log_persistence_failure_revokes_route(
             adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
             bound_source_ip="127.0.0.1",
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-            budget=budget("20", "5"), log_path=log_path, lease_terms=LEASE_TERMS,
+            limits=limits(4), log_path=log_path, lease_terms=LEASE_TERMS,
         )
         try:
             first = streamed_proxy_request(
@@ -496,9 +471,12 @@ def test_log_persistence_failure_revokes_route(
     assert second == 410
     assert len(upstream.requests) == 1
     assert handle._server.state.request_count == 0
-    assert handle._server.state.cost_usd == Decimal("0")
     assert handle._server.state.input_tokens == 0
     assert handle._server.state.output_tokens == 0
+    # The reservation is not handed back. A request whose audit row could not be persisted is a
+    # request this side cannot account for, so its slot stays spent — the error is resolved
+    # against the ceiling, never in favour of admitting one more call.
+    assert handle._server.state.reserved_requests == 1
 
 
 def _failing_log_path(
@@ -529,42 +507,31 @@ def test_logs_only_aggregate_usage_and_model_identity(tmp_path: Path) -> None:
     log_bytes = log_path.read_bytes()
     record = json.loads(log_bytes)
     assert record == {
-        "cost_usd": "5", "request_count": 1, "upstream_model": "claude-synthetic-1",
-        "tokens": {"input": 2, "output": 3, "total": 5},
+        "request_count": 1, "upstream_model": "claude-synthetic-1",
+        "tokens": {"input": 2, "output": 3, "total": 5, "cached": None},
     }
     assert REAL_CREDENTIAL.encode() not in log_bytes
     assert PLANTED_PROMPT.encode() not in log_bytes
 
 
-# --- how many turns a declared cost pair actually buys -------------------------------------------
+# --- how many turns the declared bound actually buys ---------------------------------------------
 #
-# `max_provider_requests` is not a proxy-side ceiling: the route reserves one whole
-# `max_request_cost_usd` per admitted request, so `floor(max_cost_usd / max_request_cost_usd)` is
-# the real turn bound. The 2026-08-13 paid attempt declared $2.00 against $0.50 and stopped after
-# four requests with `429 budget_exhausted`; these two runs are that arithmetic, offline.
-
-CAMPAIGN_INPUT_PRICE = Decimal("0.14")
-CAMPAIGN_OUTPUT_PRICE = Decimal("0.28")
+# The 2026-08-13 paid attempt declared `max_cost_usd: 2.00` against `max_request_cost_usd: 0.50`
+# and stopped after four requests with `429 budget_exhausted`, because admission reserved one whole
+# `max_request_cost_usd` per request and never reconciled it: the pair was `floor(2.00 / 0.50)`, a
+# request counter written in dollars. It is now written as a count, so the bound is the count, and
+# this run is that bound, offline.
 
 
-def campaign_budget(max_request_cost: str) -> ProxyBudget:
-    return ProxyBudget(
-        max_cost_usd=Decimal("2.00"),
-        max_request_cost_usd=Decimal(max_request_cost),
-        input_cost_per_million_usd=CAMPAIGN_INPUT_PRICE,
-        output_cost_per_million_usd=CAMPAIGN_OUTPUT_PRICE,
-    )
-
-
-def drive_turns(tmp_path: Path, max_request_cost: str, turns: int) -> list[int]:
+def drive_turns(tmp_path: Path, max_requests: int, turns: int) -> list[int]:
     with SyntheticUpstream() as upstream:
         handle = start_trial_proxy(
             trial_id="trial-turns", upstream_base_url=upstream.base_url,
             adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
             bound_source_ip="127.0.0.1",
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-            budget=campaign_budget(max_request_cost),
-            log_path=tmp_path / f"turns-{max_request_cost}.jsonl",
+            limits=ProxyLimits(max_requests=max_requests),
+            log_path=tmp_path / f"turns-{max_requests}.jsonl",
             lease_terms=LEASE_TERMS,
         )
         try:
@@ -576,21 +543,10 @@ def drive_turns(tmp_path: Path, max_request_cost: str, turns: int) -> list[int]:
             handle.stop()
 
 
-def test_the_failed_attempts_pair_admits_exactly_four_turns(tmp_path: Path) -> None:
-    assert campaign_budget("0.50").funded_request_count() == 4
-
-    statuses = drive_turns(tmp_path, "0.50", 5)
-
-    assert statuses == [200, 200, 200, 200, 429]
+def test_the_declared_count_is_exactly_the_number_of_turns_admitted(tmp_path: Path) -> None:
+    assert drive_turns(tmp_path, 4, 5) == [200, 200, 200, 200, 429]
 
 
-def test_the_committed_pair_admits_a_multi_turn_conversation(tmp_path: Path) -> None:
-    """More than four turns on the same $2.00 trial ceiling, with no ceiling raised."""
-    budget = campaign_budget("0.02")
-    assert budget.funded_request_count() == 100
-    # One reservation still pays for a full 8192-token response.
-    assert budget.output_cap_cost_usd(8192) <= budget.max_request_cost_usd
-
-    statuses = drive_turns(tmp_path, "0.02", 12)
-
-    assert statuses == [200] * 12
+def test_a_larger_count_admits_a_longer_conversation(tmp_path: Path) -> None:
+    """Turn depth is now raised by declaring more turns, not by re-deriving a quotient."""
+    assert drive_turns(tmp_path, 12, 12) == [200] * 12

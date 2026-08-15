@@ -5,12 +5,11 @@
 
 import json
 from datetime import UTC, datetime
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
-from cortex_bench_harness.proxy import ProxyBudget, fill_proxy_manifest, start_trial_proxy
+from cortex_bench_harness.proxy import ProxyLimits, fill_proxy_manifest, start_trial_proxy
 from synthetic import LEASE_TERMS, SyntheticUpstream, row_one_adapter
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-MANIFEST-UNIQUE"
@@ -81,14 +80,12 @@ def _base_manifest() -> dict[str, object]:
 
 
 def _start_proxy(tmp_path: Path, upstream_url: str, deadline: datetime):
-    budget = ProxyBudget(
-        Decimal("5"), Decimal("5"), Decimal("1000000"), Decimal("2000000"),
-    )
+    limits = ProxyLimits(max_requests=8)
     return start_trial_proxy(
         trial_id="trial-manifest", upstream_base_url=upstream_url,
         adapter=row_one_adapter(upstream_url, REAL_CREDENTIAL),
         bound_source_ip="127.0.0.1",
-        absolute_deadline=deadline, budget=budget,
+        absolute_deadline=deadline, limits=limits,
         log_path=tmp_path / "proxy.jsonl",
         lease_terms=LEASE_TERMS,
         request_body_limit_bytes=16 * 1024 * 1024,
@@ -103,12 +100,7 @@ def _expected_block(handle, upstream_url: str) -> dict[str, object]:
         "base_url": handle.base_url,
         "upstream_base_url": upstream_url,
         "source_binding": {"kind": "ip", "value": "127.0.0.1"},
-        "budget": {
-            "max_cost_usd": "5",
-            "max_request_cost_usd": "5",
-            "input_cost_per_million_usd": "1000000",
-            "output_cost_per_million_usd": "2000000",
-        },
+        "limits": {"max_requests": 8},
         "absolute_deadline": "2099-01-02T03:04:05Z",
         # The declared byte envelope belongs to the run, not to the capability's evidence: the
         # manifest is where a reader learns which limits this trial actually ran under.

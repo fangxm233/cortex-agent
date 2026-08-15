@@ -62,9 +62,6 @@ docker_network:
 proxy:
   # The synthetic credential is named, never carried; the host reads this variable.
   credential_env: CORTEX_BENCH_ZERO_PAID_CREDENTIAL
-  max_request_cost_usd: "0.01"
-  input_cost_per_million_usd: "0.14"
-  output_cost_per_million_usd: "0.28"
   request_body_limit_bytes: 16777216
   response_body_limit_bytes: 16777216
   # The container reaches the route, so the listener is bound for it and advertised by admission.

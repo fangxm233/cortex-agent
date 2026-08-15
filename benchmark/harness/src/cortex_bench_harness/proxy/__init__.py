@@ -18,7 +18,7 @@ from .lease import (
     lease_echo_terminal_check,
 )
 from .manifest import fill_proxy_manifest
-from .models import ProxyBudget
+from .models import ProxyLimits
 from .server import TrialProxyHandle, start_trial_proxy
 
 __all__ = [
@@ -29,7 +29,7 @@ __all__ = [
     "AdapterVersionMismatch",
     "LeaseTerms",
     "ProviderAdapter",
-    "ProxyBudget",
+    "ProxyLimits",
     "TerminalCheck",
     "TrialProxyHandle",
     "build_proxy_export",

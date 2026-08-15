@@ -6,14 +6,13 @@
 import json
 import socket
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from http.client import HTTPConnection
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
 
-from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from synthetic import (
     LEASE_TERMS,
     MESSAGES_TARGET,
@@ -35,12 +34,8 @@ DENIED_TARGETS = [
 ]
 
 
-def budget(max_cost: str = "5") -> ProxyBudget:
-    return ProxyBudget(
-        max_cost_usd=Decimal(max_cost), max_request_cost_usd=Decimal("5"),
-        input_cost_per_million_usd=Decimal("1000000"),
-        output_cost_per_million_usd=Decimal("1000000"),
-    )
+def limits(max_cost: str = "5") -> ProxyLimits:
+    return ProxyLimits(max_requests=8)
 
 
 def start_proxy(
@@ -52,7 +47,7 @@ def start_proxy(
         adapter=row_one_adapter(upstream_base_url, credential, frozen_model),
         bound_source_ip="127.0.0.1",
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-        budget=budget(max_cost), log_path=tmp_path / "seam.jsonl",
+        limits=limits(max_cost), log_path=tmp_path / "seam.jsonl",
         lease_terms=LEASE_TERMS,
     )
 
@@ -91,7 +86,7 @@ def test_forwarded_target_keeps_the_beta_query(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(("target", "outcome"), DENIED_TARGETS)
-def test_route_outside_the_allow_list_is_refused_before_any_upstream_or_budget(
+def test_route_outside_the_allow_list_is_refused_before_any_upstream_or_reservation(
     tmp_path: Path, target: str, outcome: str,
 ) -> None:
     log_path = tmp_path / "seam.jsonl"
@@ -105,10 +100,11 @@ def test_route_outside_the_allow_list_is_refused_before_any_upstream_or_budget(
     assert status == 403
     assert json.loads(payload) == {"error": "route_not_allowed"}
     assert upstream.requests == []
-    assert handle._server.state.budget_consumed_usd == Decimal("0")
+    assert handle._server.state.reserved_requests == 0
     assert records(log_path) == [{
-        "cost_usd": "0", "outcome": outcome, "request_count": 1,
-        "tokens": {"input": 0, "output": 0, "total": 0}, "upstream_model": None,
+        "outcome": outcome, "request_count": 1,
+        "tokens": {"input": 0, "output": 0, "total": 0, "cached": 0},
+        "upstream_model": None,
     }]
 
 
@@ -125,7 +121,7 @@ def test_denied_route_opens_no_upstream_connection(tmp_path: Path) -> None:
     assert forwarded == 502
 
 
-def test_body_model_mismatch_is_refused_without_upstream_or_budget(tmp_path: Path) -> None:
+def test_body_model_mismatch_is_refused_without_upstream_or_reservation(tmp_path: Path) -> None:
     log_path = tmp_path / "seam.jsonl"
     with SyntheticUpstream() as upstream:
         handle = start_proxy(tmp_path, upstream.base_url)
@@ -137,7 +133,7 @@ def test_body_model_mismatch_is_refused_without_upstream_or_budget(tmp_path: Pat
     assert status == 400
     assert json.loads(payload) == {"error": "request_model_rejected"}
     assert upstream.requests == []
-    assert handle._server.state.budget_consumed_usd == Decimal("0")
+    assert handle._server.state.reserved_requests == 0
     assert records(log_path)[0]["outcome"] == "request_model_mismatch"
 
 
@@ -165,7 +161,7 @@ def test_body_without_a_locatable_model_is_refused_never_passed_through(
     assert records(log_path)[0]["outcome"] == outcome
 
 
-def test_rejections_are_audited_without_touching_budget_arithmetic(tmp_path: Path) -> None:
+def test_rejections_are_audited_without_touching_the_request_reservation(tmp_path: Path) -> None:
     log_path = tmp_path / "seam.jsonl"
     with SyntheticUpstream() as upstream:
         handle = start_proxy(tmp_path, upstream.base_url)
@@ -179,13 +175,13 @@ def test_rejections_are_audited_without_touching_budget_arithmetic(tmp_path: Pat
             handle.stop()
     assert (first, second) == (403, 400)
     assert state.request_count == 2
-    assert state.budget_consumed_usd == Decimal("0")
-    assert state.budget_consumed_usd >= Decimal("0")
+    assert state.reserved_requests == 0
+    assert state.reserved_requests >= 0
     assert [record["request_count"] for record in records(log_path)] == [1, 2]
-    assert [record["cost_usd"] for record in records(log_path)] == ["0", "0"]
+    assert [record["tokens"]["total"] for record in records(log_path)] == [0, 0]
 
 
-def test_refused_requests_leave_the_whole_budget_for_an_admitted_one(tmp_path: Path) -> None:
+def test_refused_requests_leave_the_whole_request_count_for_an_admitted_one(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
         handle = start_proxy(tmp_path, upstream.base_url, max_cost="5")
         try:
@@ -196,7 +192,7 @@ def test_refused_requests_leave_the_whole_budget_for_an_admitted_one(tmp_path: P
         finally:
             handle.stop()
     assert admitted == 200
-    assert state.budget_consumed_usd == Decimal("5")
+    assert state.reserved_requests == 1
     assert len(upstream.requests) == 1
 
 
@@ -212,7 +208,7 @@ def test_missing_auth_form_refuses_and_forwards_nothing(tmp_path: Path) -> None:
     assert status == 502
     assert json.loads(payload) == {"error": "auth_injection_unavailable"}
     assert upstream.requests == []
-    assert state.budget_consumed_usd == Decimal("0")
+    assert state.reserved_requests == 0
     assert records(log_path)[0]["outcome"] == "auth_injection_unavailable"
 
 
@@ -265,7 +261,7 @@ def test_proxy_refuses_to_start_for_an_upstream_the_adapter_does_not_declare(
             adapter=row_one_adapter("http://other.host.test", REAL_CREDENTIAL),
             bound_source_ip="127.0.0.1",
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-            budget=budget(), log_path=tmp_path / "unstarted.jsonl",
+            limits=limits(), log_path=tmp_path / "unstarted.jsonl",
             lease_terms=LEASE_TERMS,
         )
 
@@ -277,7 +273,7 @@ def test_manifest_records_the_adapter_that_carried_the_trial(tmp_path: Path) -> 
             trial_id="trial-seam", upstream_base_url=upstream.base_url, adapter=adapter,
             bound_source_ip="127.0.0.1",
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-            budget=budget("20"), log_path=tmp_path / "seam.jsonl",
+            limits=limits("20"), log_path=tmp_path / "seam.jsonl",
             lease_terms=LEASE_TERMS,
         )
         try:

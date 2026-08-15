@@ -8,7 +8,6 @@ import select
 import socket
 import threading
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from http.client import HTTPConnection, HTTPResponse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -16,7 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from cortex_bench_harness.proxy.adapters.openai_codex_responses import (
     ACCOUNT_ID_HEADER,
     RESPONSES_PATH,
@@ -151,8 +150,7 @@ def start_proxy(tmp_path: Path, upstream: SyntheticUpstream, adapter):
         trial_id="trial-codex-refresh", upstream_base_url=upstream.base_url,
         adapter=adapter, bound_source_ip=MODEL_HOST,
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-        budget=ProxyBudget(
-            Decimal("20"), Decimal("5"), Decimal("1000000"), Decimal("1000000")),
+        limits=ProxyLimits(max_requests=8),
         log_path=tmp_path / "codex-refresh.jsonl", lease_terms=LEASE_TERMS,
     )
 

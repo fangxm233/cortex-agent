@@ -5,15 +5,12 @@
 
 import json
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-from http.client import HTTPConnection
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import pytest
 
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
-from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from cortex_bench_harness.proxy.adapters import AuthInjectionUnavailable, select_adapter
 from synthetic import (
     LEASE_TERMS,
@@ -78,9 +75,7 @@ def start_proxy(
         trial_id="trial-deepseek", upstream_base_url=upstream.base_url,
         adapter=adapter(upstream.base_url), bound_source_ip="127.0.0.1",
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-        budget=ProxyBudget(
-            Decimal("0.05"), Decimal("0.05"), Decimal("0.14"), Decimal("0.28"),
-        ),
+        limits=ProxyLimits(max_requests=8),
         log_path=tmp_path / "deepseek.jsonl", lease_terms=LEASE_TERMS,
         request_body_limit_bytes=request_limit, response_body_limit_bytes=response_limit,
     )
@@ -283,7 +278,7 @@ def test_proxy_accounts_one_complete_stream_and_replaces_auth(tmp_path: Path) ->
     assert outgoing["authorization"] == f"Bearer {REAL_CREDENTIAL}"
     assert "cookie" not in outgoing
     assert records(tmp_path / "deepseek.jsonl")[0]["tokens"] == {
-        "input": 9, "output": 2, "total": 11,
+        "input": 9, "output": 2, "total": 11, "cached": None,
     }
 
 

@@ -3,10 +3,8 @@
 # pos:    Proxy accounting export tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
-import json
 import os
 from datetime import UTC, datetime
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -15,7 +13,7 @@ from cortex_bench_harness.launcher.lease_bound import (
     TEARDOWN_GRACE_MS,
     provisional_lease_bound_ms,
 )
-from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from cortex_bench_harness.proxy.export import (
     PROXY_EXPORT_SCHEMA_VERSION,
     UNAVAILABLE_REASONS,
@@ -50,13 +48,8 @@ class FixedClock:
         self.epoch_ms += delta_ms
 
 
-def budget() -> ProxyBudget:
-    return ProxyBudget(
-        max_cost_usd=Decimal("10"),
-        max_request_cost_usd=Decimal("1"),
-        input_cost_per_million_usd=Decimal("3"),
-        output_cost_per_million_usd=Decimal("15"),
-    )
+def limits() -> ProxyLimits:
+    return ProxyLimits(max_requests=8)
 
 
 def start_export_proxy(tmp_path: Path, upstream: SyntheticUpstream, clock: FixedClock):
@@ -67,7 +60,7 @@ def start_export_proxy(tmp_path: Path, upstream: SyntheticUpstream, clock: Fixed
         adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
         bound_source_ip="127.0.0.1",
         absolute_deadline=datetime.fromtimestamp(bound_ms / 1000, UTC),
-        budget=budget(),
+        limits=limits(),
         log_path=tmp_path / "proxy.jsonl",
         lease_terms=LeaseTerms(BUDGET_MS, TEARDOWN_GRACE_MS),
         now_ms=clock.now_ms,
@@ -102,14 +95,14 @@ def silent_trial(tmp_path: Path, upstream: SyntheticUpstream, requests: int):
 
 
 class RaisingCounters:
-    """A counter source whose cost is not readable. The export must not read it as zero."""
+    """A counter source whose cached total is not readable. The export must not read it as zero."""
 
     request_count = 4
     input_tokens = 8
     output_tokens = 16
 
     @property
-    def cost_usd(self) -> Decimal:
+    def cached_tokens(self) -> int:
         raise OSError("counter register unavailable")
 
 
@@ -119,7 +112,7 @@ class DefaultInitialisedCounters:
     request_count = None
     input_tokens = None
     output_tokens = None
-    cost_usd = None
+    cached_tokens = None
 
 
 def zero_valued_slots(document: object, path: str = "") -> list[str]:
@@ -148,7 +141,10 @@ def test_export_reports_exactly_the_requests_the_trial_made(tmp_path: Path) -> N
     assert export["requests"] == {"status": "available", "value": 3}
     assert export["input_tokens"] == {"status": "available", "value": 6}
     assert export["output_tokens"] == {"status": "available", "value": 9}
-    assert export["cost_usd"] == {"status": "available", "value": "0.000153"}
+    # The synthetic upstream reports no cache breakdown, and a silent provider is not a cache
+    # miss: the total is unknowable rather than zero.
+    assert export["cached_tokens"] == {
+        "status": "unavailable", "reason": "no_cache_breakdown_reported"}
     assert export["audit_log"]["value"]["durable_requests"] == 3
     assert export["audit_log"]["value"]["agrees_with_counters"] is True
 
@@ -159,7 +155,7 @@ def test_a_counter_that_could_not_be_read_is_unavailable_not_zero(tmp_path: Path
         log_path=tmp_path / "absent.jsonl", lease_echo=None,
     )
 
-    assert export["cost_usd"] == {"status": "unavailable", "reason": "counter_unreadable"}
+    assert export["cached_tokens"] == {"status": "unavailable", "reason": "counter_unreadable"}
     assert export["requests"] == {"status": "available", "value": 4}
     assert zero_valued_slots(export) == []
 
@@ -170,8 +166,12 @@ def test_default_initialised_counters_never_yield_zeros(tmp_path: Path) -> None:
         log_path=tmp_path / "absent.jsonl", lease_echo=None,
     )
 
-    for slot in ("requests", "input_tokens", "output_tokens", "cost_usd"):
+    for slot in ("requests", "input_tokens", "output_tokens"):
         assert export[slot] == {"status": "unavailable", "reason": "counter_unreadable"}
+    # A never-filled cached field is indistinguishable from a provider that reported no
+    # breakdown. Either way it is not a zero.
+    assert export["cached_tokens"] == {
+        "status": "unavailable", "reason": "no_cache_breakdown_reported"}
     assert zero_valued_slots(export) == []
 
 
@@ -181,7 +181,7 @@ def test_an_unstarted_proxy_is_unavailable_rather_than_a_zero_total(tmp_path: Pa
         log_path=None, lease_echo=None,
     )
 
-    for slot in ("requests", "input_tokens", "output_tokens", "cost_usd", "lease_echo"):
+    for slot in ("requests", "input_tokens", "output_tokens", "cached_tokens", "lease_echo"):
         assert export[slot] == {"status": "unavailable", "reason": "proxy_not_started"}
     assert zero_valued_slots(export) == []
 
@@ -220,7 +220,7 @@ def test_a_trial_that_made_no_calls_reports_a_read_zero(tmp_path: Path) -> None:
             handle.stop()
 
     assert export["requests"] == {"status": "available", "value": 0}
-    assert export["cost_usd"] == {"status": "available", "value": "0"}
+    assert export["output_tokens"] == {"status": "available", "value": 0}
     # The proxy writes its first audit line on its first request, so a trial that made none has no
     # log to read. That is an unread source, not a durable zero.
     assert export["audit_log"] == {"status": "unavailable", "reason": "audit_log_unreadable"}
@@ -236,7 +236,8 @@ def test_a_log_holding_only_lease_lines_reports_a_read_zero(tmp_path: Path) -> N
             handle.stop()
 
     assert export["audit_log"]["value"] == {
-        "entries": 1, "durable_requests": 0, "durable_cost_usd": "0",
+        "entries": 1, "durable_requests": 0,
+        "durable_tokens": {"input": 0, "output": 0, "total": 0, "cached": 0},
         "agrees_with_counters": True, "outcomes": {},
     }
 

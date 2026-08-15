@@ -134,8 +134,6 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
 def proxy_spec(**overrides: object) -> dict[str, object]:
     return {
         "credential_env": CREDENTIAL_ENV, "bound_source_ip": "127.0.0.1",
-        "max_request_cost_usd": "1.00", "input_cost_per_million_usd": "3",
-        "output_cost_per_million_usd": "15",
         "request_body_limit_bytes": REQUEST_BODY_LIMIT_BYTES,
         "response_body_limit_bytes": RESPONSE_BODY_LIMIT_BYTES,
         **overrides,
@@ -238,7 +236,6 @@ DECLARED_LIMITS = {
     "deadline_seconds": 1800, "max_output_tokens": 32768,
 }
 DECLARED_SPEC = {
-    "max_request_cost_usd": "0.50",
     "request_body_limit_bytes": REQUEST_BODY_LIMIT_BYTES,
     "response_body_limit_bytes": RESPONSE_BODY_LIMIT_BYTES,
 }

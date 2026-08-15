@@ -39,8 +39,6 @@ def exact_inputs() -> dict[str, object]:
         "cli_version": "2026.8.10", "host_scan_policy": {},
         "trial_proxy": {
             "credential_env": "unused-by-vault", "bound_source_ip": "172.31.0.2",
-            "max_request_cost_usd": "0.05", "input_cost_per_million_usd": "0.14",
-            "output_cost_per_million_usd": "0.28", "listen_host": "0.0.0.0",
             "request_body_limit_bytes": 64 * 1024,
             "response_body_limit_bytes": 1024 * 1024,
         },

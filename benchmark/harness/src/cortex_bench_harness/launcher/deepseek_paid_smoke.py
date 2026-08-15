@@ -96,7 +96,6 @@ def _validate_proxy(
     exact = {
         "request_body_limit_bytes": REQUEST_LIMIT_BYTES,
         "response_body_limit_bytes": RESPONSE_LIMIT_BYTES,
-        "max_request_cost_usd": "0.05",
     }
     if any(proxy.get(key) != value for key, value in exact.items()):
         raise ValueError("DeepSeek paid smoke contract proxy limits differ")

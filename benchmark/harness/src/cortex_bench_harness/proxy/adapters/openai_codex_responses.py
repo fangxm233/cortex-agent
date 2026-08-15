@@ -1,5 +1,5 @@
 # input:  codex request targets, request bodies, and streamed upstream payloads
-# output: row-4 route, body, auth, usage, and billable decisions
+# output: row-4 route, body, auth, and usage decisions
 # pos:    OpenAI Codex responses adapter for an OAuth credential
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -16,7 +16,7 @@ from urllib.parse import SplitResult, urlencode, urlsplit
 import zstandard
 
 from ..models import PROXY_SCHEMA_VERSION, ProxyUsage
-from .base import AuthInjectionUnavailable, Billable, BodyDecision, RouteDecision
+from .base import AuthInjectionUnavailable, BodyDecision, RouteDecision
 
 ADAPTER_ID = "openai-codex-responses/oauth"
 RESPONSES_ROUTE = "codex_responses"
@@ -172,14 +172,6 @@ class OpenAICodexResponsesOAuthAdapter:
             return ProxyUsage(model, 0, 0, False)
         return ProxyUsage(model, input_tokens, output_tokens, True)
 
-    def billable(self, usage: ProxyUsage) -> Billable:
-        if not usage.accounted:
-            raise ValueError("billable is never called on an unaccounted usage")
-        # The wire's input_tokens already contains the cached and cache-write
-        # counts and the response carries no cost field, so the whole input count
-        # is billed at the input rate rather than discounted to the client's own
-        # cache-aware split.
-        return Billable(usage.input_tokens, usage.output_tokens)
 
     def clear_credential(self) -> None:
         with self._lock:

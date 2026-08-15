@@ -1,5 +1,5 @@
 # input:  container request lines, request bodies, and upstream payloads
-# output: row-1 route, body, auth, usage, and billable decisions
+# output: row-1 route, body, auth, and usage decisions
 # pos:    Anthropic messages adapter for a static API key
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -7,7 +7,7 @@ import json
 from urllib.parse import urlsplit
 
 from ..models import PROXY_SCHEMA_VERSION, ProxyUsage
-from .base import AuthInjectionUnavailable, Billable, BodyDecision, RouteDecision
+from .base import AuthInjectionUnavailable, BodyDecision, RouteDecision
 
 MESSAGES_BETA_ROUTE = "messages_beta"
 MESSAGES_PATH = "/v1/messages"
@@ -101,10 +101,6 @@ class AnthropicMessagesApiKeyAdapter:
         )
         return ProxyUsage(model, input_tokens, output_tokens, accounted)
 
-    def billable(self, usage: ProxyUsage) -> Billable:
-        if not usage.accounted:
-            raise ValueError("billable is never called on an unaccounted usage")
-        return Billable(usage.input_tokens, usage.output_tokens)
 
     def clear_credential(self) -> None:
         self._credential = None

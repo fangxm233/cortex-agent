@@ -14,7 +14,6 @@ import socket
 import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from .host_evidence_validation import validate_host_owned_identity
@@ -124,7 +123,10 @@ class InnerEvidence:
     required_agent_files: Mapping[str, str]
     terminal: TerminalOutcome
     root_run_id: str
-    terminal_cost_usd: float | int | None
+    #: The run's own token counts as its terminal marker states them. The composite carries the
+    #: same figures for an admitted trial, but a failed run publishes no composite, so this is
+    #: the only place its side of the reconciliation survives.
+    terminal_tokens: Mapping[str, object] | None
     #: The run's own first-class record of what it compiled: prompt, tool and plugin digests. It is
     #: written before the first step and survives every terminal state, so the assets can be
     #: witnessed on the failed path exactly as on the completed one.
@@ -286,7 +288,7 @@ def _validate_inner(
     required[f"run-{root_run_id}.started.json"] = "run_started"
     return InnerEvidence(
         hashlib.sha256(terminal_bytes).hexdigest(), composite_sha256, composite, required,
-        outcome, root_run_id, terminal.get("cost_usd"), journal.header,
+        outcome, root_run_id, terminal.get("tokens"), journal.header,
     )
 
 
@@ -576,22 +578,25 @@ def _reconcile_proxy(
     _, export = _read_json(revocation.export_path)
     _, lease = _read_json(revocation.lease_echo_path)
     requests = _available(export.get("requests"), int)
-    cost = _available(export.get("cost_usd"), str)
+    input_tokens = _available(export.get("input_tokens"), int)
+    output_tokens = _available(export.get("output_tokens"), int)
     audit = _available(export.get("audit_log"), Mapping)
     echo = export.get("lease_echo")
     if not _valid_proxy_export(export, lease, audit, trial_id):
         raise HostFinalizationError("proxy_reconciliation_failed")
-    journal_cost = _journal_cost(inner)
-    if journal_cost is not None and not _cost_reconciled(cost, journal_cost):
+    journal = _journal_tokens(inner)
+    if journal is not None and journal != (input_tokens, output_tokens):
         raise HostFinalizationError("proxy_reconciliation_failed")
     return {
         "schema_version": export["schema_version"], "trial_id": trial_id,
-        "requests": requests, "cost_usd": cost,
-        "input_tokens": _available(export.get("input_tokens"), int),
-        "output_tokens": _available(export.get("output_tokens"), int),
+        "requests": requests,
+        "input_tokens": input_tokens, "output_tokens": output_tokens,
+        "cached_tokens": export.get("cached_tokens"),
         "audit_entries": audit.get("entries"), "audit_outcomes": _audit_outcomes(audit),
         "lease_echo": echo,
-        "journal_cost_usd": journal_cost, "reconciled": journal_cost is not None,
+        "journal_tokens": (
+            None if journal is None else {"input": journal[0], "output": journal[1]}),
+        "reconciled": journal is not None,
     }
 
 
@@ -641,8 +646,11 @@ def _valid_proxy_export(
     if export.get("trial_id") != trial_id or not isinstance(audit, Mapping):
         return False
     requests = _available(export.get("requests"), int)
-    cost = _available(export.get("cost_usd"), str)
-    durable = audit.get("durable_requests") == requests and audit.get("durable_cost_usd") == cost
+    durable_tokens = audit.get("durable_tokens")
+    durable = audit.get("durable_requests") == requests and isinstance(durable_tokens, Mapping) and (
+        durable_tokens.get("input") == _available(export.get("input_tokens"), int)
+        and durable_tokens.get("output") == _available(export.get("output_tokens"), int)
+    )
     return durable and audit.get("agrees_with_counters") is True and (
         lease.get("schema_version") == "cortex-bench-lease-echo-record/1"
         and lease.get("trial_id") == trial_id
@@ -652,37 +660,62 @@ def _valid_proxy_export(
     )
 
 
-def _journal_cost(inner: InnerEvidence) -> str | None:
-    """The run's own view of what it spent, to be met against what the proxy metered.
+def _journal_tokens(inner: InnerEvidence) -> tuple[int, int] | None:
+    """The run's own token counts, to be met exactly against what the proxy measured.
 
-    An admitted trial must state one: the composite carries it as a tagged value and an
-    unavailable tag is an accounting fault. A non-admitted trial has no composite, so the
-    terminal marker answers instead — and it is allowed to answer `null`, because a run that died
-    before a single turn settled truthfully knows of no cost. The envelope then reports
+    This used to compare COSTS, within a 1% tolerance. Two independent observers of the same
+    traffic can only check each other if they are measuring the same quantity, and cost is not one:
+    it is a token count multiplied by whichever price list the observer happens to hold. The proxy
+    had no cache-read rate and the run did, so on 94-99% cached traffic their two correct answers
+    differed by 3x to 13x and the trial was refused for an accounting fault that never happened.
+
+    Tokens are what both sides actually observe, and they agreed exactly even in the run that
+    failed - 8514 output tokens on both sides, and the same 50985 prompt tokens once the run's
+    cache split is added back. So the check is now equality, with no tolerance to tune: a real
+    disagreement about how much traffic crossed the route is a fault, and nothing else can produce
+    one.
+
+    An admitted trial must state its counts: the composite carries them as tagged values and an
+    unavailable tag is an accounting fault. A non-admitted trial has no composite, so its terminal
+    marker answers instead — and it is allowed to answer nothing, because a run that died before a
+    single turn settled truthfully knows of no counts. The envelope then reports
     `reconciled: false` rather than claiming a cross-check that was never performed. A terminal
-    that *does* state a cost is still held to it: disagreement there is an accounting fault, not
+    that *does* state counts is still held to them: disagreement there is an accounting fault, not
     an agent outcome, and still refuses.
     """
     if inner.composite is not None:
         accounting = inner.composite.get("accounting")
         journal = accounting.get("journal") if isinstance(accounting, Mapping) else None
-        tagged = journal.get("cost_usd") if isinstance(journal, Mapping) else None
-        return str(_available(tagged, str))
-    cost = inner.terminal_cost_usd
-    if cost is None:
-        return None
-    if isinstance(cost, bool) or not isinstance(cost, (int, float)):
+        tokens = journal.get("tokens") if isinstance(journal, Mapping) else None
+        if not isinstance(tokens, Mapping):
+            raise HostFinalizationError("proxy_reconciliation_failed")
+        return (
+            _available(tokens.get("input"), int),
+            _available(tokens.get("output"), int),
+        )
+    return _terminal_tokens(inner.terminal_tokens)
+
+
+def _terminal_tokens(tokens: object) -> tuple[int, int] | None:
+    """The failed path's own counts, read straight off the terminal marker.
+
+    `_validate_terminal` has already established that this is a mapping carrying `input` and
+    `output`, so the only question left here is whether the run knew the numbers. A `null` on
+    either side is the run saying it could not derive them — the §9.6 A5 answer, not a zero — and
+    there is then no counterpart for the proxy's figures to meet. Anything else present is a
+    number the run stands behind, and it is held to it.
+    """
+    if not isinstance(tokens, Mapping):
         raise HostFinalizationError("proxy_reconciliation_failed")
-    return format(Decimal(str(cost)), "f")
-
-
-def _cost_reconciled(proxy: object, journal: str) -> bool:
-    try:
-        observed, expected = Decimal(str(proxy)), Decimal(journal)
-    except InvalidOperation:
-        return False
-    tolerance = max(abs(observed) * Decimal("0.01"), Decimal("0.000001"))
-    return observed >= 0 and expected >= 0 and abs(observed - expected) <= tolerance
+    counts: list[int] = []
+    for field in ("input", "output"):
+        value = tokens.get(field)
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise HostFinalizationError("proxy_reconciliation_failed")
+        counts.append(value)
+    return counts[0], counts[1]
 
 
 def _trial_roots(

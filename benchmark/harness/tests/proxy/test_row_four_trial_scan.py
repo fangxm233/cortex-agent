@@ -26,7 +26,7 @@ from cortex_bench_harness.proxy.adapters.openai_codex_responses import (
     TOKEN_PATH,
     ZSTD_MAGIC,
 )
-from cortex_bench_harness.proxy.lease import LEASE_ECHO_SCHEMA_VERSION, LEASE_ECHO_TARGET
+from cortex_bench_harness.proxy.lease import LEASE_ECHO_SCHEMA_VERSION
 from cortex_bench_harness.scan.models import ScanPolicy
 from cortex_bench_harness.scan.scanner import scan_trial_artifacts
 from synthetic import SyntheticUpstream, proxy_request
@@ -56,7 +56,7 @@ ROW_FOUR_AUDIT_OUTCOMES = (
     "route_denied_responses_query",
     "request_model_mismatch",
     "request_body_zstd_undecodable",
-    "budget_accounting_unavailable",
+    "usage_accounting_unavailable",
 )
 MODEL_REJECTED_WIRE_REASON = "request_model_rejected"
 
@@ -79,8 +79,6 @@ def row_four_arm() -> dict[str, object]:
 def proxy_spec() -> dict[str, object]:
     return {
         "credential_env": CREDENTIAL_ENV, "bound_source_ip": "127.0.0.1",
-        "max_request_cost_usd": "5.00", "input_cost_per_million_usd": "1000000",
-        "output_cost_per_million_usd": "1000000",
         "request_body_limit_bytes": 16 * 1024 * 1024,
         "response_body_limit_bytes": 16 * 1024 * 1024,
     }

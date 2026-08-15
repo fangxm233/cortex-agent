@@ -1,5 +1,5 @@
 # input:  DeepSeek request targets, JSON bodies, and SSE payloads
-# output: route, auth, usage, and billable decisions
+# output: route, auth, and usage decisions
 # pos:    DeepSeek OpenAI chat-completions API-key adapter
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 from ..models import PROXY_SCHEMA_VERSION, ProxyUsage
-from .base import AuthInjectionUnavailable, Billable, BodyDecision, RouteDecision
+from .base import AuthInjectionUnavailable, BodyDecision, RouteDecision
 
 ADAPTER_ID = "deepseek-chat-completions/api-key"
 CHAT_COMPLETIONS_ROUTE = "chat_completions"
@@ -97,13 +97,8 @@ class DeepSeekChatCompletionsApiKeyAdapter:
         model = next(iter(models), None)
         if len(usages) != 1:
             return ProxyUsage(model, 0, 0, False)
-        input_tokens, output_tokens = usages[0]
-        return ProxyUsage(model, input_tokens, output_tokens, accounted)
-
-    def billable(self, usage: ProxyUsage) -> Billable:
-        if not usage.accounted:
-            raise ValueError("billable is never called on an unaccounted usage")
-        return Billable(usage.input_tokens, usage.output_tokens)
+        input_tokens, output_tokens, cached_tokens = usages[0]
+        return ProxyUsage(model, input_tokens, output_tokens, accounted, cached_tokens)
 
     def clear_credential(self) -> None:
         self._credential = None
@@ -148,8 +143,8 @@ def _stream_models(documents: list[dict[str, object]]) -> set[str]:
     }
 
 
-def _stream_usages(documents: list[dict[str, object]]) -> list[tuple[int, int]]:
-    usages: list[tuple[int, int]] = []
+def _stream_usages(documents: list[dict[str, object]]) -> list[tuple[int, int, int | None]]:
+    usages: list[tuple[int, int, int | None]] = []
     for document in documents:
         usage = document.get("usage")
         if not isinstance(usage, dict):
@@ -157,17 +152,37 @@ def _stream_usages(documents: list[dict[str, object]]) -> list[tuple[int, int]]:
         prompt = usage.get("prompt_tokens")
         completion = usage.get("completion_tokens")
         if _token(prompt) and _token(completion):
-            usages.append((prompt, completion))
+            usages.append((prompt, completion, _cached_tokens(usage)))
         else:
-            usages.append((-1, -1))
+            usages.append((-1, -1, None))
     return usages
+
+
+def _cached_tokens(usage: dict[str, object]) -> int | None:
+    """What of the prompt the provider served from cache, if it said so.
+
+    Two spellings reach us for the same fact: the OpenAI-compatible
+    `usage.prompt_tokens_details.cached_tokens` and DeepSeek's own
+    `usage.prompt_cache_hit_tokens`. Either is read; absence is reported as absence.
+
+    This is recorded, not priced. The proxy states how much of the prompt was cached and stops
+    there, because turning that into money needs a price list, and the last time this boundary
+    held one it charged cached tokens at the full input rate and over-stated a trial by 12.7x.
+    """
+    details = usage.get("prompt_tokens_details")
+    if isinstance(details, dict):
+        cached = details.get("cached_tokens")
+        if _token(cached):
+            return cached
+    hit = usage.get("prompt_cache_hit_tokens")
+    return hit if _token(hit) else None
 
 
 def _stream_accounted(
     stream: _ParsedStream, models: set[str], usages: list[tuple[int, int]],
     frozen_model: str | None,
 ) -> bool:
-    valid_usage = len(usages) == 1 and min(usages[0]) >= 0
+    valid_usage = len(usages) == 1 and min(usages[0][0], usages[0][1]) >= 0
     return (
         stream.done and not stream.malformed and not stream.data_after_done
         and models == {frozen_model} and valid_usage

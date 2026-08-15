@@ -1,11 +1,11 @@
 Update this file whenever this directory changes
 
-Per-trial host proxy modules enforce credential, budget, deadline, and source boundaries.
+Per-trial host proxy modules enforce credential, request-count, deadline, and source boundaries.
 
 | filename | role | function |
 |---|---|---|
 | __init__.py | export | Exposes the trial proxy API |
-| models.py | types | Defines budgets, the requests they fund, usage, and the declared-envelope manifest block |
+| models.py | types | Defines the route's request cap, measured usage, and the declared-envelope manifest block |
 | adapters/ | adapters | Carries one provider protocol per capability key |
 | upstream.py | adapter | Forwards requests to one fixed upstream and relays the response as it arrives |
 | server.py | core | Enforces admission, relays the response to the client, records whether it arrived, and freezes usage and revocation |

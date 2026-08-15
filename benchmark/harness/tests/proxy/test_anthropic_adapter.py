@@ -253,16 +253,6 @@ def test_unparsable_usage_payload_is_never_accounted(body: bytes) -> None:
     assert adapter().extract_usage(body, "application/json").accounted is False
 
 
-def test_billable_mirrors_the_accounted_token_counts() -> None:
-    billable = adapter().billable(ProxyUsage(FROZEN_MODEL, 7, 11, True))
-    assert (billable.input_tokens, billable.output_tokens) == (7, 11)
-
-
-def test_billable_refuses_an_unaccounted_usage() -> None:
-    with pytest.raises(ValueError, match="unaccounted"):
-        adapter().billable(ProxyUsage(None, 0, 0, False))
-
-
 def test_upstream_hosts_is_one_host_taken_from_the_frozen_upstream() -> None:
     assert adapter().upstream_hosts == ("127.0.0.1",)
     assert AnthropicMessagesApiKeyAdapter(

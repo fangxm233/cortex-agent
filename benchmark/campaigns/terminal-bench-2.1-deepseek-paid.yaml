@@ -11,27 +11,28 @@
 # Run only through: ../harness/scripts/launch-paid-campaign.py --config <this-file> --run
 # (it supplies every `host_scan_policy` reference below, which a bare `cortex-bench run` does not).
 #
-# COST ARITHMETIC (the pairing this campaign turns on; `campaign_config._validate_request_budget`
-# refuses the document if any of it stops holding).
+# WHAT BOUNDS A TRIAL
 #
-# `limits.max_cost_usd` is a turn counter, not a spend authorization. Admission is decided purely
-# on reservations: the proxy reserves one whole `proxy.max_request_cost_usd` per admitted request
-# and answers `429 budget_exhausted` once the remainder is below one reservation, while what the
-# request actually cost is recorded separately and never reconciled against the reservation. So
+# `limits.max_provider_requests` is the route's cap, enforced directly: the proxy counts admitted
+# requests and answers `429 requests_exhausted` at 500. It used to be expressed as a pair of dollar
+# figures — one whole `max_request_cost_usd` reserved per request against `max_cost_usd` — but the
+# reservation was never reconciled against what a request actually cost, so that pair only ever
+# meant `floor($100.00 / $0.20) = 500` requests. It stated this number twice and needed two config
+# refusals to keep the two statements agreeing.
 #
-#   requests per trial = floor(max_cost_usd / max_request_cost_usd)
-#                      = floor($100.00 / $0.20) = 500
+# The proxy no longer prices anything, and this document no longer declares prices. It had to hold
+# a price list to do the old arithmetic, and it held the wrong one: DeepSeek bills cached prompt
+# tokens at a reduced rate, the proxy charged every prompt token at the full input rate, and at the
+# 99.2% cache hit rate the r5 chess-best-move trial actually ran at, it over-stated that trial's
+# spend by 12.7x ($0.642 against the run's own $0.0505). The disagreement between those two correct
+# numbers then failed the cost reconciliation and discarded a finished trial.
 #
-# Every declared bound is now placed beyond what a trial can reach, because a run truncated at a
-# limit still costs money and yields no measurement (the 2026-08-13 r1 attempt declared $0.50
-# against a $2.00 trial, bought four turns and exhausted the route on the fifth; see
+# Every declared bound is placed beyond what a trial can reach, because a run truncated at a limit
+# still costs money and yields no measurement (the 2026-08-13 r1 attempt declared $0.50 against a
+# $2.00 trial, bought four turns and exhausted the route on the fifth; see
 # results/terminal-bench-2.1-deepseek-paid-2026-08-13.json).
 #
-#   - one reservation exceeds the arithmetic maximum cost of any request the model can accept:
-#       1,000,000-token context * $0.14/1e6 + 65,536 * $0.28/1e6 = $0.15835008  <  $0.20
-#     so `budget_accounting_exceeded` cannot occur, from either the input or the output side
-#     (a reservation leaves room for 1,297,499 prompt tokens against a 1,000,000-token window).
-#   - 500 funded turns exceeds what 1800 seconds of agent time can physically issue.
+#   - 500 requests exceeds what 1800 seconds of agent time can physically issue.
 #   - 65,536 output tokens is 14x the largest response of the r3 trial and 2.3x the historical
 #     max of 28.2k; the model supports 384k.
 #   - 64 MiB bodies are 31x the largest observed request.
@@ -62,20 +63,20 @@
 #     Raising the phase does not widen the credential window, because the lease takes the min of
 #     the two and `deadline_seconds` is unchanged; nor does it lengthen a trial that finishes.
 #
-# THE CAMPAIGN-WIDE MONEY STOP IS GONE, deliberately. `cost_ceiling_usd` was checked between trials
-# against accumulated *published* cost; with trials in flight it can be overshot by a whole wave
-# and cannot see money being spent while it is being checked, so keeping it would keep the
-# appearance of a bound. The remaining bounds are per-trial and enforced by the proxy that actually
-# sees the money, and the campaign-wide bound is a multiplication this header does out loud:
+# THE CAMPAIGN-WIDE MONEY STOP IS GONE, deliberately. `cost_ceiling_usd` was checked between
+# trials against accumulated *published* cost; with trials in flight it can be overshot by a whole
+# wave and cannot see money being spent while it is being checked, so keeping it would keep only
+# the appearance of a bound. What bounds this campaign is a multiplication this header does out
+# loud, in the units the proxy actually enforces:
 #
-#   arithmetic worst case = trials * turns * max cost of one request
-#                         = 3 * 500 * $0.15835008 = $237.53
-#   measured expectation  = 3 * $0.3359384 = $1.01
+#   worst case = trials * requests per trial = 3 * 500 = 1500 provider requests
 #
-# The gap between the two is the point: the worst case assumes every one of 500 funded turns fills
-# a 1,000,000-token context, which 1800 seconds of agent time cannot physically issue — r4 spent
-# its entire 1800s budget on 43 requests. Before raising `concurrency` or adding tasks, redo that
-# first multiplication; it is the only campaign-level number left.
+# What those requests cost depends on a price list, and deliberately no longer on anything in this
+# file. For scale, the r5 run of these same three tasks metered 75 requests in total, and the runs'
+# own cache-aware accounting put the two that reported it at $0.0505 and $0.0029 — against a proxy
+# figure of $0.642 and $0.0095 for the same traffic, which is the 12.7x over-statement that removing
+# proxy-side pricing fixes. Before raising `concurrency` or adding tasks, redo that multiplication;
+# it is the only campaign-level number left.
 #
 # Every field also stays at or below its committed row in ../policy/capability-ceilings.yaml.
 
@@ -153,9 +154,6 @@ proxy:
   credential_env: CORTEX_BENCH_DEEPSEEK_CREDENTIAL
   # One reservation exceeds the most any admissible request can cost, so no response can be
   # refused as budget_accounting_exceeded; $100.00 of them funds the 500 turns the arm declares.
-  max_request_cost_usd: "0.20"
-  input_cost_per_million_usd: "0.14"
-  output_cost_per_million_usd: "0.28"
   request_body_limit_bytes: 67108864
   response_body_limit_bytes: 67108864
   listen_host: 0.0.0.0
@@ -175,11 +173,15 @@ arms:
       max_parent_questions: 0
       max_task_depth: 0
       max_tasks: 0
-      # Exactly what floor($100.00 / $0.20) funds: the declared turn count and the funded one
-      # agree, and both sit above what 900 seconds of agent time can issue.
+      # The route's cap, and now the only statement of it: the proxy counts to this number and
+      # refuses. It sits above what 900 seconds of agent time can physically issue.
       max_provider_requests: 500
-      max_resident_agent_processes: 1
+      # The INNER run's own cost limit, enforced by the agent runtime against its cache-aware
+      # accounting — not by the proxy, which no longer prices anything. It is set beyond reach for
+      # the same reason as every other bound here: a run truncated at a limit still costs money and
+      # yields no measurement. The r5 trials' own accounting came to $0.0505 and $0.0029.
       max_cost_usd: "100.00"
+      max_resident_agent_processes: 1
       # Twice the authentic task's own 900-second agent timeout, which is the real bound.
       deadline_seconds: 1800
       max_output_tokens: 65536

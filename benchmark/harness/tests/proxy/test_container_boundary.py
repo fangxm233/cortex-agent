@@ -6,11 +6,10 @@
 import base64
 import shlex
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from docker_gate import docker_opt_in
 from docker_tools import external_network, internal_network, raw_proxy_request, run_container
 from synthetic import LEASE_TERMS, SyntheticUpstream, row_one_adapter
@@ -27,9 +26,7 @@ def start_network_proxy(tmp_path: Path, upstream: SyntheticUpstream, network):
         adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
         bound_source_ip=network.trial_ip,
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-        budget=ProxyBudget(
-            Decimal("20"), Decimal("5"), Decimal("1000000"), Decimal("1000000"),
-        ),
+        limits=ProxyLimits(max_requests=8),
         log_path=tmp_path / "container-proxy.jsonl",
         lease_terms=LEASE_TERMS,
         listen_host=network.gateway,

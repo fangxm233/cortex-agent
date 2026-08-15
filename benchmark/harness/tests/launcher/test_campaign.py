@@ -1,5 +1,5 @@
 # input:  campaign configs, a recording production trial path and published envelopes
-# output: routing, refusal, cost-pairing, serial-order, hard-stop, resume and report proofs
+# output: routing, refusal, request-accounting, serial-order, hard-stop, resume and report proofs
 # pos:    Campaign runner behaviour tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -12,7 +12,6 @@ import asyncio
 import hashlib
 import json
 import tomllib
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -42,7 +41,6 @@ from cortex_bench_harness.launcher.trial_proxy import (
     parse_trial_proxy_spec,
     validate_paid_envelope,
 )
-from cortex_bench_harness.proxy.models import ProxyBudget
 
 DIGEST = f"sha256:{'a' * 64}"
 IMAGE_REF = f"registry.invalid/task@{DIGEST}"
@@ -98,12 +96,9 @@ def campaign_document(root: Path, **overrides: object) -> dict[str, object]:
             "subnet_pool": "172.30.240.0/22", "subnet_prefix": 24,
         },
         "proxy": {
+            # No cost fields: the route is bounded by the arm's own max_provider_requests, and
+            # the proxy holds no price list to turn traffic into money with.
             "credential_env": "CORTEX_BENCH_TEST_CREDENTIAL",
-            # Funds the arm's 200 declared requests out of its $2.00 trial ceiling
-            # (floor(2.00 / 0.01) = 200) and covers one 32768-token response ($0.00917504).
-            "max_request_cost_usd": "0.01",
-            "input_cost_per_million_usd": "0.14",
-            "output_cost_per_million_usd": "0.28",
             "request_body_limit_bytes": 16777216,
             "response_body_limit_bytes": 16777216,
             "listen_host": "0.0.0.0",
@@ -130,13 +125,13 @@ def write_campaign(root: Path, document: dict[str, object] | None = None) -> Pat
 
 
 def envelope_document(
-    trial_id: str, arm_name: str, cost_usd: str,
+    trial_id: str, arm_name: str, requests: int,
 ) -> dict[str, object]:
     return {
         "schema_version": OUTER_ENVELOPE_SCHEMA_VERSION,
         "identity": {"trial_id": trial_id, "root_run_id": f"{trial_id}.{arm_name}",
                      "arm_name": arm_name},
-        "proxy_usage": {"cost_usd": cost_usd, "requests": 2, "input_tokens": 11,
+        "proxy_usage": {"requests": requests, "input_tokens": 11,
                         "output_tokens": 7, "reconciled": True},
         "grader_admission": {"admitted": True},
     }
@@ -152,19 +147,20 @@ def write_envelope(
     return path
 
 
-def write_proxy_export(trials_dir: Path, trial_id: str, cost_usd: str) -> Path:
+def write_proxy_export(trials_dir: Path, trial_id: str, requests: int) -> Path:
     """What the host metered for one trial, which exists whether or not the trial published.
 
     Every r5 trial wrote this file: the two refused at finalization and the one cut by the agent
-    timeout all had one. Spend is incurred at the proxy, long before anything decides whether the
-    trial is gradable, so this is the only per-trial record that can answer what a run cost.
+    timeout all had one. A request is counted at the proxy, long before anything decides whether
+    the trial is gradable, so this is the only per-trial record that can answer how much provider
+    traffic a run made.
     """
     proxy = trials_dir / trial_id / "artifacts" / "proxy"
     proxy.mkdir(parents=True, exist_ok=True)
     path = proxy / PROXY_EXPORT_FILENAME
     path.write_text(json.dumps({
         "schema_version": "cortex-bench-proxy-export/1", "trial_id": trial_id,
-        "cost_usd": {"status": "available", "value": cost_usd},
+        "requests": {"status": "available", "value": requests},
     }, sort_keys=True) + "\n", encoding="utf-8")
     return path
 
@@ -186,10 +182,10 @@ def write_result(
 
 
 def publish_envelope(
-    trials_dir: Path, trial_id: str, arm_name: str, cost_usd: str,
+    trials_dir: Path, trial_id: str, arm_name: str, requests: int,
 ) -> Path:
     path = write_envelope(
-        trials_dir, trial_id, envelope_document(trial_id, arm_name, cost_usd))
+        trials_dir, trial_id, envelope_document(trial_id, arm_name, requests))
     write_result(trials_dir, trial_id)
     return path
 
@@ -230,7 +226,7 @@ class RecordingTrial:
         arm_name = str(self.kwargs["arm"]["name"])
         document = envelope_document(
             self.trial_id, arm_name,
-            self.path.costs.get(self.trial_id, self.path.default_cost),
+            self.path.requests.get(self.trial_id, self.path.default_requests),
         )
         write_envelope(
             trials_dir, self.trial_id, self.path.envelope_mutation(document),
@@ -250,15 +246,15 @@ class RecordingTrialPath:
     """
 
     def __init__(
-        self, *, default_cost: str = "0.60", costs: dict[str, str] | None = None,
+        self, *, default_requests: int = 6, requests: dict[str, int] | None = None,
         failures: tuple[str, ...] = (),
         envelope_mutation: object = None,
         results: dict[str, RecordingResult] | None = None,
         waits: dict[str, str] | None = None,
-        spends: dict[str, str] | None = None,
+        spends: dict[str, int] | None = None,
     ) -> None:
-        self.default_cost = default_cost
-        self.costs = costs or {}
+        self.default_requests = default_requests
+        self.requests = requests or {}
         self.spends = spends or {}
         self.failures = set(failures)
         self.envelope_mutation = envelope_mutation or (lambda document: document)
@@ -919,7 +915,7 @@ def test_a_trial_that_fails_is_recorded_and_every_later_trial_still_runs(
     """One flake must not cost the measurements of every task behind it."""
     failed = "camp-01-task-one-cortex-b"
     recorder = RecordingTrialPath(
-        default_cost="0.10", failures=(failed,)).install(monkeypatch)
+        default_requests=1, failures=(failed,)).install(monkeypatch)
 
     status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
@@ -932,15 +928,18 @@ def test_a_trial_that_fails_is_recorded_and_every_later_trial_still_runs(
     assert result["state"] == "completed", "the driver finished; one trial did not"
     assert status == 1 and result["ok"] is False, "a campaign missing a measurement is not ok"
     assert result["trials_failed"] == 1
-    assert result["cost_usd"] == "0.30", "a trial that failed published no cost"
-    assert result["cost_complete"] is False, "and left no meter for the driver to read either"
+    assert result["provider_requests"] == 3, (
+        "one request from each of the three trials that published; the trial that failed "
+        "published no envelope")
+    assert result["provider_requests_complete"] is False, (
+        "and left no meter for the driver to read either")
 
 
 def test_a_leaked_docker_network_stops_the_campaign_and_is_reported(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A host-level fault, unlike a failed trial: every remaining trial would meet it too."""
-    recorder = RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+    recorder = RecordingTrialPath(default_requests=1).install(monkeypatch)
     monkeypatch.setattr(
         campaign, "_remove_trial_network",
         lambda _network_id: (_ for _ in ()).throw(
@@ -963,7 +962,7 @@ def test_a_host_fault_still_publishes_the_report_of_what_did_run(
 ) -> None:
     """The report is the evidence of the trials that finished; only the exit code says stopped."""
     first, second = "camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b"
-    RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+    RecordingTrialPath(default_requests=1).install(monkeypatch)
     removals: list[str] = []
 
     def remove(network_id: str) -> None:
@@ -1008,27 +1007,27 @@ def test_a_campaign_whose_every_trial_failed_reports_that_instead_of_crashing(
 def test_a_failed_trials_spend_is_still_counted_by_the_campaign(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Money is metered at the proxy, so a trial that fails afterwards has still spent it.
+    """Requests are counted at the proxy, so a trial that fails afterwards has still made them.
 
-    r5 reported `cost_usd: "0"` while $0.70 of provider traffic had been metered across three
-    trials, because the total was summed from published envelopes and no trial published one.
+    r5 reported a total of nothing while three trials had already put provider traffic through
+    their meters, because the total was summed from published envelopes and no trial published one.
     """
     failed = "camp-01-task-one-cortex-a"
     RecordingTrialPath(
-        default_cost="0.10",
+        default_requests=1,
         failures=(failed,),
-        spends={failed: "0.25", "camp-01-task-one-cortex-b": "0.10"},
+        spends={failed: 4, "camp-01-task-one-cortex-b": 1},
     ).install(monkeypatch)
 
     status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
     assert status == 1
-    spent = {trial["trial_id"]: trial.get("metered_cost_usd") for trial in result["trials"]}
-    assert spent[failed] == "0.25", "the failed trial's spend is on the record"
-    assert result["cost_usd"] == "0.55", (
-        "0.25 spent by the failed trial + 0.10 each from the three that ran; the old total "
-        "counted only the published three and would have read 0.30")
-    assert result["cost_complete"] is True
+    spent = {trial["trial_id"]: trial.get("metered_requests") for trial in result["trials"]}
+    assert spent[failed] == 4, "the failed trial's metered requests are on the record"
+    assert result["provider_requests"] == 7, (
+        "4 metered by the failed trial + 1 published by each of the three that ran; the old "
+        "total counted only the published three and would have read 3")
+    assert result["provider_requests_complete"] is True
 
 
 def test_a_campaign_says_so_when_it_cannot_account_for_an_armed_trials_spend(
@@ -1036,29 +1035,30 @@ def test_a_campaign_says_so_when_it_cannot_account_for_an_armed_trials_spend(
 ) -> None:
     """An unreadable meter is reported as unknown rather than silently added as zero."""
     RecordingTrialPath(
-        default_cost="0.10",
+        default_requests=1,
         failures=("camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b"),
-        spends={"camp-01-task-one-cortex-a": "0.25"},
+        spends={"camp-01-task-one-cortex-a": 4},
     ).install(monkeypatch)
 
     _, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
-    assert result["cost_usd"] == "0.45", "0.25 metered + the 0.20 the two survivors published"
-    assert result["cost_complete"] is False, (
+    assert result["provider_requests"] == 6, (
+        "4 metered by the failed trial + the 2 the two survivors published")
+    assert result["provider_requests_complete"] is False, (
         "the second failed trial left no meter, so the total is a floor and not a sum")
 
 
 def test_a_campaign_arms_every_declared_trial(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    recorder = RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+    recorder = RecordingTrialPath(default_requests=1).install(monkeypatch)
 
     status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
     assert status == 0
     assert len(recorder.armed) == 4
     assert result["state"] == "completed"
-    assert result["cost_usd"] == "0.40"
+    assert result["provider_requests"] == 4, "one request published by each of the four trials"
 
 
 @pytest.mark.parametrize(
@@ -1107,32 +1107,32 @@ def test_a_completed_trial_accepts_any_finite_reward(
     assert result["state"] == "completed"
 
 
-def drop_cost(document: dict[str, object]) -> dict[str, object]:
-    del document["proxy_usage"]["cost_usd"]
+def drop_request_count(document: dict[str, object]) -> dict[str, object]:
+    del document["proxy_usage"]["requests"]
     return document
 
 
-def test_a_published_envelope_without_a_cost_is_refused(
+def test_a_published_envelope_without_a_request_count_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    RecordingTrialPath(envelope_mutation=drop_cost).install(monkeypatch)
+    RecordingTrialPath(envelope_mutation=drop_request_count).install(monkeypatch)
 
     status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
 
     error = failure_document(capsys)
     assert status == 1
-    assert "cost_usd" in error["error"]
+    assert "proxy_usage.requests" in error["error"]
 
 
 # --- resume, idempotency and non-clobbering -----------------------------------------------------
 
 
-def test_an_existing_completed_trial_root_is_skipped_and_its_cost_still_counts(
+def test_an_existing_completed_trial_root_is_skipped_and_its_requests_still_count(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    recorder = RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+    recorder = RecordingTrialPath(default_requests=1).install(monkeypatch)
     trials_dir = tmp_path / "trials"
-    publish_envelope(trials_dir, "camp-01-task-one-cortex-a", "cortex-a", "0.70")
+    publish_envelope(trials_dir, "camp-01-task-one-cortex-a", "cortex-a", 7)
     marker = trials_dir / "camp-01-task-one-cortex-a" / "artifacts" / "keep-me.txt"
     marker.write_text("prior evidence", encoding="utf-8")
 
@@ -1142,24 +1142,26 @@ def test_an_existing_completed_trial_root_is_skipped_and_its_cost_still_counts(
     assert "camp-01-task-one-cortex-a" not in recorder.armed
     assert marker.read_text(encoding="utf-8") == "prior evidence"
     assert result["trials"][0]["state"] == "skipped"
-    assert result["cost_usd"] == "1.00"
+    assert result["provider_requests"] == 10, (
+        "the 7 the skipped root already published + 1 from each of the three that ran")
 
 
 def test_re_running_a_finished_campaign_arms_nothing_and_is_idempotent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
     config_path = write_campaign(tmp_path)
-    first = RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+    first = RecordingTrialPath(default_requests=1).install(monkeypatch)
     first_status, first_result, _ = run_cli(capsys, "run", "--config", str(config_path))
     report = Path(str(first_result["report_path"])).read_bytes()
 
-    second = RecordingTrialPath(default_cost="0.99").install(monkeypatch)
+    second = RecordingTrialPath(default_requests=9).install(monkeypatch)
     second_status, second_result, _ = run_cli(capsys, "run", "--config", str(config_path))
 
     assert (first_status, second_status) == (0, 0)
     assert len(first.armed) == 4 and second.armed == []
     assert [trial["state"] for trial in second_result["trials"]] == ["skipped"] * 4
-    assert second_result["cost_usd"] == first_result["cost_usd"]
+    assert second_result["provider_requests"] == first_result["provider_requests"], (
+        "the resumed total is read from the published envelopes, not re-armed at 9 apiece")
     assert Path(str(second_result["report_path"])).read_bytes() == report
 
 
@@ -1170,7 +1172,7 @@ def test_an_envelope_from_another_trial_is_not_counted_as_this_one(
     trials_dir = tmp_path / "trials"
     write_envelope(
         trials_dir, "camp-01-task-one-cortex-a",
-        envelope_document("camp-01-task-two-cortex-b", "cortex-b", "0.10"))
+        envelope_document("camp-01-task-two-cortex-b", "cortex-b", 1))
 
     status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
 
@@ -1195,7 +1197,7 @@ def test_a_trial_whose_inner_run_failed_is_recorded_and_the_campaign_continues(
         return document
 
     recorder = RecordingTrialPath(
-        default_cost="0.10", envelope_mutation=not_admitted).install(monkeypatch)
+        default_requests=1, envelope_mutation=not_admitted).install(monkeypatch)
 
     status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
@@ -1208,7 +1210,8 @@ def test_a_trial_whose_inner_run_failed_is_recorded_and_the_campaign_continues(
         "admitted": False, "reason": "inner_terminal_not_ok",
         "terminal_state": "failed", "terminal_reason": "provider_error",
     }
-    assert result["trials"][0]["cost_usd"] == "0.10", "a failed trial still spent money"
+    assert result["trials"][0]["requests"] == 1, (
+        "a trial whose inner run failed still made its provider request")
 
 
 def test_an_envelope_that_will_not_say_whether_it_is_gradable_is_refused(
@@ -1233,7 +1236,7 @@ def test_a_resumed_envelope_without_a_successful_harbor_result_is_refused(
     RecordingTrialPath().install(monkeypatch)
     trials_dir = tmp_path / "trials"
     trial_id = "camp-01-task-one-cortex-a"
-    publish_envelope(trials_dir, trial_id, "cortex-a", "0.10")
+    publish_envelope(trials_dir, trial_id, "cortex-a", 1)
     write_result(trials_dir, trial_id, RecordingResult(exception_info=RuntimeError("bad verifier")))
 
     status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
@@ -1284,7 +1287,7 @@ def test_every_unfinished_root_is_named_in_one_refusal(
 def test_completion_writes_the_existing_comparison_report(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+    RecordingTrialPath(default_requests=1).install(monkeypatch)
 
     status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
@@ -1314,7 +1317,7 @@ def test_completion_writes_the_existing_comparison_report(
 def test_the_report_telemetry_is_read_from_each_published_envelope(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    RecordingTrialPath(default_cost="0.35").install(monkeypatch)
+    RecordingTrialPath(default_requests=3).install(monkeypatch)
 
     _, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
@@ -1324,7 +1327,7 @@ def test_the_report_telemetry_is_read_from_each_published_envelope(
     assert report["runs"][0]["cortex_telemetry"] == {
         "trial_id": "camp-01-task-one-cortex-a",
         "root_run_id": "camp-01-task-one-cortex-a.cortex-a",
-        "cost_usd": "0.35", "requests": 2, "input_tokens": 11, "output_tokens": 7,
+        "requests": 3, "input_tokens": 11, "output_tokens": 7,
         "outer_envelope_sha256": hashlib.sha256(envelope_path.read_bytes()).hexdigest(),
     }
 
@@ -1333,7 +1336,7 @@ def test_the_report_carries_the_trials_that_published_and_not_the_ones_that_fail
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
     RecordingTrialPath(
-        default_cost="0.60", failures=("camp-01-task-two-cortex-b",)).install(monkeypatch)
+        default_requests=6, failures=("camp-01-task-two-cortex-b",)).install(monkeypatch)
 
     _, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
@@ -1350,7 +1353,7 @@ def test_the_report_carries_the_trials_that_published_and_not_the_ones_that_fail
 def test_a_successful_campaign_returns_structured_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    RecordingTrialPath(default_cost="0.10").install(monkeypatch)
+    RecordingTrialPath(default_requests=1).install(monkeypatch)
 
     status, result, stderr = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
@@ -1365,7 +1368,7 @@ def test_a_successful_campaign_returns_structured_state(
     assert {key: value for key, value in first.items()
             if key not in {"started_at", "finished_at"}} == {
         "trial_id": "camp-01-task-one-cortex-a", "arm": "cortex-a", "task_id": "task-one",
-        "state": "ran", "cost_usd": "0.10", "metered_cost_usd": "0.10", "slot": 0,
+        "state": "ran", "requests": 1, "metered_requests": 1, "slot": 0,
         "outer_envelope_path": str(
             tmp_path / "trials" / "camp-01-task-one-cortex-a" / "artifacts"
             / OUTER_ENVELOPE_FILENAME),
@@ -1533,55 +1536,11 @@ def test_the_committed_zero_paid_tasks_load_and_pin_the_declared_image() -> None
         assert "/logs/verifier/reward.txt" in verifier
 
 
-# --- the declared request-cost / output-cap pairing --------------------------------------------
-#
-# The 2026-08-13 paid attempt declared max_cost_usd $2.00 against max_request_cost_usd $0.50 and
-# bought four provider requests before the route answered 429 budget_exhausted
-# (results/terminal-bench-2.1-deepseek-paid-2026-08-13.json). Every field sat below its capability
-# ceiling; it was the PAIR that was wrong, so the pair is what the document is now read for.
-
-
-def paired_document(root: Path, **proxy: object) -> dict[str, object]:
-    document = campaign_document(root)
-    document["arms"] = [arm_document("cortex-direct")]
-    document["comparisons"] = []
-    document["proxy"].update(proxy)
-    return document
-
-
-def test_the_request_cost_pairing_that_bought_only_four_turns_is_refused(tmp_path: Path) -> None:
-    """The exact declared numbers of the failed paid attempt, refused as a document."""
-    document = paired_document(tmp_path, max_request_cost_usd="0.50")
-
-    with pytest.raises(CampaignConfigError) as error:
-        load_campaign_config(write_campaign(tmp_path, document))
-
-    message = str(error.value)
-    assert "floor(2.00 / 0.5) = 4 provider requests" in message
-    assert "below the 200 its max_provider_requests declares" in message
-    assert "429 budget_exhausted" in message
-
-
-def test_a_pairing_that_funds_every_declared_request_is_accepted(tmp_path: Path) -> None:
-    document = paired_document(tmp_path, max_request_cost_usd="0.01")
-
-    config = load_campaign_config(write_campaign(tmp_path, document))
-
-    assert str(config.proxy["max_request_cost_usd"]) == "0.01"
-
-
-def test_an_output_cap_one_reservation_cannot_pay_for_is_refused(tmp_path: Path) -> None:
-    """A cap above one reservation is refused mid-trial as budget_accounting_exceeded, which
-    deactivates the route, so the document is refused instead."""
-    document = paired_document(tmp_path, max_request_cost_usd="0.001")
-    document["arms"][0]["limits"]["max_provider_requests"] = 200
-
-    with pytest.raises(CampaignConfigError) as error:
-        load_campaign_config(write_campaign(tmp_path, document))
-
-    message = str(error.value)
-    assert "32768 * 0.28 / 1000000 = 0.00917504 USD" in message
-    assert "budget_accounting_exceeded" in message
+# The declared request-cost / output-cap pairing proofs stood here. The pair only ever expressed
+# `floor(max_cost_usd / max_request_cost_usd)` requests: the 2026-08-13 paid attempt declared
+# $2.00 against $0.50 and bought exactly four before the route answered 429 budget_exhausted. That
+# bound is now declared directly as `max_provider_requests`, so the two statements those tests kept
+# in agreement no longer both exist, and the proxy prices nothing to pair against.
 
 
 # --- the committed paid campaign ----------------------------------------------------------------
@@ -1653,33 +1612,6 @@ def test_the_committed_paid_campaign_config_declares_the_approved_envelope() -> 
         )]
 
 
-def test_the_committed_paid_campaign_funds_a_multi_turn_trial() -> None:
-    """The pairing arithmetic the config's header documents, pinned here."""
-    config = load_campaign_config(COMMITTED_PAID_CONFIG)
-    (arm,) = config.arms
-    spec = parse_trial_proxy_spec(config.slot_proxy(config.slot(0)))
-    budget = ProxyBudget(
-        max_cost_usd=Decimal(str(arm["limits"]["max_cost_usd"])),
-        max_request_cost_usd=spec.max_request_cost_usd,
-        input_cost_per_million_usd=spec.input_cost_per_million_usd,
-        output_cost_per_million_usd=spec.output_cost_per_million_usd,
-    )
-    cap = int(arm["limits"]["max_output_tokens"])
-
-    assert budget.funded_request_count() == 500
-    assert budget.output_cap_cost_usd(cap) == Decimal("0.01835008")
-    assert int(arm["limits"]["max_provider_requests"]) == 500
-    # One reservation exceeds what any request the model can accept could possibly cost, so
-    # `budget_accounting_exceeded` cannot be reached from either the input or the output side.
-    # A limit a run can reach is a limit that can end a run without producing a measurement.
-    context_window_tokens = 1_000_000
-    dearest_admissible_request = (
-        context_window_tokens * budget.input_cost_per_million_usd / 1_000_000
-        + budget.output_cap_cost_usd(cap)
-    )
-    assert dearest_admissible_request < budget.max_request_cost_usd
-
-
 def test_the_committed_paid_campaign_stays_within_every_capability_ceiling() -> None:
     config = load_campaign_config(COMMITTED_PAID_CONFIG)
     (arm,) = config.arms
@@ -1689,6 +1621,20 @@ def test_the_committed_paid_campaign_stays_within_every_capability_ceiling() -> 
         str(arm["credential_capability"]))
 
     assert declared and all(value <= ceilings[field] for field, value in declared.items())
+
+
+def test_the_committed_paid_campaign_declares_the_request_bound_it_was_approved_for() -> None:
+    """The one statement of the trial's route cap, pinned.
+
+    It used to be pinned twice over, because it was expressed twice: `max_provider_requests`
+    beside a cost pair that independently funded `floor(max_cost_usd / max_request_cost_usd)`
+    requests, with config refusals holding the two in agreement. The pair is gone and this is now
+    the only place the number is written, so the ceiling check above — which only proves it is not
+    too large — is no longer enough on its own to notice it changing.
+    """
+    (arm,) = load_campaign_config(COMMITTED_PAID_CONFIG).arms
+
+    assert int(arm["limits"]["max_provider_requests"]) == 500
 
 
 # The 2026-08-13 attempts whose roots are preserved as immutable evidence: `tb21-paid` (four
@@ -1707,7 +1653,7 @@ def test_the_committed_paid_campaign_uses_a_fresh_identity() -> None:
     any attempt materialises that directory. An existing root without a published envelope is
     refused at run time by `test_an_existing_trial_root_without_a_published_envelope_is_refused`,
     and one with an envelope is resumed rather than rewritten by
-    `test_an_existing_completed_trial_root_is_skipped_and_its_cost_still_counts` and
+    `test_an_existing_completed_trial_root_is_skipped_and_its_requests_still_count` and
     `test_re_running_a_finished_campaign_arms_nothing_and_is_idempotent`, so this test stays true
     once the campaign has actually run.
     """

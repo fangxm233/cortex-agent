@@ -9,7 +9,6 @@ import signal
 import sys
 import threading
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Sequence
 
@@ -17,7 +16,7 @@ from ..launcher.credential_capabilities import CredentialCapabilityKey
 from ..launcher.lease_bound import TEARDOWN_GRACE_MS
 from .adapters import AdapterUnavailable, select_adapter
 from .lease import LeaseTerms
-from .models import ProxyBudget
+from .models import ProxyLimits
 from .server import TrialProxyHandle, start_trial_proxy
 
 
@@ -46,9 +45,7 @@ EPILOG = """Examples:
     --capability-credential-kind api-key-bearer \\
     --frozen-model claude-synthetic-1 \\
     --absolute-deadline 2099-01-02T03:04:05Z --trial-deadline-seconds 1800 \\
-    --budget-usd 5 \\
-    --max-request-cost-usd 1 --input-cost-per-million-usd 3 \\
-    --output-cost-per-million-usd 15 \\
+    --max-requests 500 \\
     --log-path ./proxy.jsonl
 """
 
@@ -93,10 +90,8 @@ def _add_required_arguments(parser: argparse.ArgumentParser) -> None:
                         help="The provisional lease bound; an echo may only shorten it")
     parser.add_argument("--trial-deadline-seconds", required=True, type=int,
                         help="The arm's deadline_seconds; an echo declaring another is refused")
-    parser.add_argument("--budget-usd", required=True, type=_decimal)
-    parser.add_argument("--max-request-cost-usd", required=True, type=_decimal)
-    parser.add_argument("--input-cost-per-million-usd", required=True, type=_decimal)
-    parser.add_argument("--output-cost-per-million-usd", required=True, type=_decimal)
+    parser.add_argument("--max-requests", required=True, type=int,
+                        help="How many provider requests this route admits before 429")
     parser.add_argument("--log-path", required=True, type=Path)
 
 
@@ -110,15 +105,6 @@ def _datetime(value: str) -> datetime:
         raise argparse.ArgumentTypeError("absolute deadline must include a timezone")
     return parsed
 
-
-def _decimal(value: str) -> Decimal:
-    try:
-        parsed = Decimal(value)
-    except InvalidOperation as error:
-        raise argparse.ArgumentTypeError(f"invalid decimal value {value!r}") from error
-    if not parsed.is_finite():
-        raise argparse.ArgumentTypeError(f"invalid finite decimal value {value!r}")
-    return parsed
 
 
 def _read_credential(source: str) -> str:
@@ -140,17 +126,14 @@ def _select_adapter(arguments: argparse.Namespace):
 
 
 def run(arguments: argparse.Namespace) -> int:
-    budget = ProxyBudget(
-        arguments.budget_usd, arguments.max_request_cost_usd,
-        arguments.input_cost_per_million_usd, arguments.output_cost_per_million_usd,
-    )
+    limits = ProxyLimits(arguments.max_requests)
     handle = start_trial_proxy(
         trial_id=arguments.trial_id,
         upstream_base_url=arguments.upstream_base_url,
         adapter=_select_adapter(arguments),
         bound_source_ip=arguments.bound_source_ip,
         absolute_deadline=arguments.absolute_deadline,
-        budget=budget, log_path=arguments.log_path,
+        limits=limits, log_path=arguments.log_path,
         lease_terms=LeaseTerms(
             budget_ms=arguments.trial_deadline_seconds * 1000,
             teardown_grace_ms=arguments.teardown_grace_ms,

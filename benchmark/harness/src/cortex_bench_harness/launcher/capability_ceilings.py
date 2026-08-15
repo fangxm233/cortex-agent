@@ -23,7 +23,9 @@ INTEGER_CEILING_FIELDS = (
     "max_provider_requests", "deadline_seconds", "max_output_tokens",
     "request_body_limit_bytes", "response_body_limit_bytes",
 )
-DECIMAL_CEILING_FIELDS = ("max_cost_usd", "max_request_cost_usd")
+# The one decimal ceiling left. It bounds the INNER run's own spend, which the run prices with the
+# provider's cache-aware rates; the proxy prices nothing and so has no cost ceiling of its own.
+DECIMAL_CEILING_FIELDS = ("max_cost_usd",)
 CEILING_FIELDS = frozenset(INTEGER_CEILING_FIELDS + DECIMAL_CEILING_FIELDS)
 
 CapabilityCeilings = Mapping[str, int | Decimal]
@@ -83,9 +85,10 @@ def _positive_int(capability_id: str, field: str, value: Any) -> int:
     return value
 
 
+
 def _positive_decimal(capability_id: str, field: str, value: Any) -> Decimal:
     # Decimal strings only: a YAML float ceiling would compare against a declared decimal through
-    # a binary approximation of the number a reviewer read.
+    # a binary approximation of the number the reviewer of this file read.
     if not isinstance(value, str):
         raise ValueError(
             f"capability ceiling {capability_id}.{field} must be a decimal string")

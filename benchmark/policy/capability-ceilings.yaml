@@ -24,29 +24,26 @@
 schema_version: cortex-bench-capability-ceilings/1
 capabilities:
   pi-deepseek-api-key:
-    # Not a spend authorization. Admission is decided purely on reservations — `reserve()` adds one
-    # whole max_request_cost_usd per admitted request and `record()` never reconciles it against
-    # what the request actually cost — so this field is exactly a turn counter:
-    # turns = floor(max_cost_usd / max_request_cost_usd). Raised 2026-08-13 from 10.00 so that a
-    # per-request reservation large enough to be arithmetically unreachable can still fund more
-    # turns than a trial can physically take. Real spend is bounded per trial, by the task's own
-    # agent timeout and by this turn counter; the campaign driver's between-trial stop on
-    # accumulated cost is GONE, because with trials running concurrently it could be overshot by a
-    # whole wave and could not see money being spent while it was being checked. A campaign's own
-    # bound is therefore an arithmetic one its document has to state: trials * turns * the most
-    # one request can cost.
+    # A request counter, and now written as one. This used to be a pair of dollar figures,
+    # `max_cost_usd` and `max_request_cost_usd`, and admission reserved one whole per-request
+    # figure against the per-trial one. Since the reservation was never reconciled against what a
+    # request actually cost, the pair could only ever express
+    # `floor(max_cost_usd / max_request_cost_usd)` requests — which `max_provider_requests` states
+    # directly. Two campaign-config refusals existed solely to stop the two expressions of that one
+    # number from contradicting each other, and both are gone with it.
+    #
+    # Holding a price list at the proxy was also actively harmful: it charged cached prompt tokens
+    # at the full input rate, over-stated a 99.2%-cached trial by 12.7x, and the resulting
+    # disagreement with the run's own cache-aware accounting discarded a finished benchmark trial.
+    # The proxy now counts requests and measures tokens, and prices nothing.
+    #
+    # The INNER run's own spend limit, which the run prices with the provider's cache-aware rates.
+    # The proxy holds no price list and enforces no cost, so this is the only money figure left.
     max_cost_usd: "100.00"
-    # per-request p99 $0.060, max $0.0749. A campaign default is NOT read off this line: the proxy
-    # reserves one whole max_request_cost_usd per admitted request, so the declared pair fixes the
-    # trial's turn count at floor(max_cost_usd / max_request_cost_usd) — the 2026-08-13 paid
-    # attempt declared $0.50 against a $2.00 trial and bought four turns. Size it as
-    # max_cost_usd / max_provider_requests, keeping it above one full-length response
-    # (max_output_tokens * output price); `campaign_config` refuses a campaign that does not.
-    max_request_cost_usd: "2.00"
-    # per-request latency median ~1.1 s, max 58 s; a multi-turn task needs room for commands
-    deadline_seconds: 7200
     # median session ~12k output tokens at ~268 tokens/response ~ 45 responses
     max_provider_requests: 1000
+    # per-request latency median ~1.1 s, max 58 s; a multi-turn task needs room for commands
+    deadline_seconds: 7200
     # per-response median 268, p99.9 14.5k, max 28.2k; the model supports 384k
     max_output_tokens: 131072
     # input median ~0.40 MiB, max ~2.04 MiB; 64 MiB

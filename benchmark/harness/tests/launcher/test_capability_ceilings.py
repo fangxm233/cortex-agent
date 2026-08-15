@@ -25,7 +25,6 @@ APPROVED_DEEPSEEK_CEILINGS = {
     "max_cost_usd": Decimal("100.00"),
     "deadline_seconds": 7200,
     "max_output_tokens": 131072,
-    "max_request_cost_usd": Decimal("2.00"),
     "request_body_limit_bytes": 64 * 1024 * 1024,
     "response_body_limit_bytes": 64 * 1024 * 1024,
 }
@@ -40,7 +39,7 @@ def policy_document(**overrides: object) -> str:
              "  pi-deepseek-api-key:"]
     values = {
         "max_provider_requests": 1000, "max_cost_usd": '"100.00"', "deadline_seconds": 7200,
-        "max_output_tokens": 131072, "max_request_cost_usd": '"2.00"',
+        "max_output_tokens": 131072,
         "request_body_limit_bytes": 67108864, "response_body_limit_bytes": 67108864,
         **overrides,
     }
@@ -74,7 +73,7 @@ def test_every_paid_envelope_field_has_a_ceiling_and_nothing_else_does() -> None
     assert set(PAID_ENVELOPE_FIELDS) == set(CEILING_FIELDS)
     assert set(PAID_ENVELOPE_FIELDS) == {
         "max_provider_requests", "max_cost_usd", "deadline_seconds", "max_output_tokens",
-        "max_request_cost_usd", "request_body_limit_bytes", "response_body_limit_bytes",
+        "request_body_limit_bytes", "response_body_limit_bytes",
     }
 
 
@@ -104,7 +103,7 @@ def test_a_ceiling_field_that_is_absent_is_refused(tmp_path: Path, field: str) -
         {"max_cost_usd": '"0"'},
         {"max_cost_usd": '"-1.00"'},
         {"max_cost_usd": 10.0},
-        {"max_request_cost_usd": '"not-a-decimal"'},
+        {"max_cost_usd": '"not-a-decimal"'},
     ],
 )
 def test_a_ceiling_that_is_not_a_positive_number_is_refused(

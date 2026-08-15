@@ -7,12 +7,11 @@ import json
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
-from cortex_bench_harness.proxy import ProxyBudget
+from cortex_bench_harness.proxy import ProxyLimits
 from synthetic import SyntheticUpstream
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-CLI-UNIQUE"
@@ -27,7 +26,7 @@ def test_module_cli_help_is_copyable() -> None:
     assert "usage:" in result.stdout
     assert "Examples:" in result.stdout
     assert "--credential-file" in result.stdout
-    assert "--max-request-cost-usd" in result.stdout
+    assert "--max-requests" in result.stdout
     assert "default: 127.0.0.1" in result.stdout
 
 
@@ -56,10 +55,10 @@ def test_module_cli_reads_credential_from_stdin_not_argv(tmp_path: Path) -> None
     assert REAL_CREDENTIAL not in repr(command) + started + remaining + stderr
 
 
-def test_cli_rejects_nonfinite_budget_with_structured_error(tmp_path: Path) -> None:
+def test_cli_rejects_a_non_integer_request_count_with_structured_error(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
         command = _start_command(tmp_path, upstream.base_url)
-        command[command.index("--budget-usd") + 1] = "NaN"
+        command[command.index("--max-requests") + 1] = "NaN"
         result = subprocess.run(
             command, input=REAL_CREDENTIAL, capture_output=True, text=True, timeout=20,
         )
@@ -67,7 +66,7 @@ def test_cli_rejects_nonfinite_budget_with_structured_error(tmp_path: Path) -> N
     assert result.returncode == 1
     assert result.stdout == ""
     assert document["ok"] is False
-    assert "finite decimal" in document["error"]
+    assert "--max-requests" in document["error"]
     assert "Traceback" not in result.stderr
 
 
@@ -83,11 +82,9 @@ def test_cli_missing_required_input_uses_structured_error() -> None:
     assert "required" in document["error"]
 
 
-def test_budget_model_rejects_nonfinite_decimals() -> None:
-    with pytest.raises(ValueError, match="finite"):
-        ProxyBudget(
-            Decimal("Infinity"), Decimal("1"), Decimal("1"), Decimal("1"),
-        )
+def test_limits_model_rejects_a_count_that_buys_nothing() -> None:
+    with pytest.raises(ValueError, match="greater than zero"):
+        ProxyLimits(max_requests=0)
 
 
 def _python() -> str:
@@ -105,9 +102,6 @@ def _start_command(tmp_path: Path, upstream_url: str) -> list[str]:
         "--capability-credential-kind", "api-key-bearer",
         "--frozen-model", "claude-synthetic-1",
         "--absolute-deadline", deadline.isoformat(),
-        "--trial-deadline-seconds", "1800", "--budget-usd", "5",
-        "--max-request-cost-usd", "5",
-        "--input-cost-per-million-usd", "1000000",
-        "--output-cost-per-million-usd", "1000000",
+        "--trial-deadline-seconds", "1800", "--max-requests", "8",
         "--log-path", str(tmp_path / "cli-proxy.jsonl"),
     ]

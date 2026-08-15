@@ -1,5 +1,5 @@
 # input:  a proxy carrying the row-1 adapter, loopback sources, and listeners
-# output: offline H7 source, budget, deadline, revocation, and host-set proofs
+# output: offline H7 source, limits, deadline, revocation, and host-set proofs
 # pos:    Offline containment proofs for the row-1 adapter
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -8,14 +8,13 @@ import select
 import socket
 import time
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from http.client import HTTPConnection, HTTPResponse
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
 
-from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from synthetic import (
     LEASE_TERMS,
     MESSAGES_TARGET,
@@ -31,16 +30,14 @@ BOUND_SOURCE = "127.0.0.9"
 
 def start_proxy(
     tmp_path: Path, upstream_base_url: str, *, bound_source_ip: str = "127.0.0.1",
-    deadline: datetime | None = None, max_cost: str = "20",
+    deadline: datetime | None = None, max_requests: int = 8,
 ):
     return start_trial_proxy(
         trial_id="trial-containment", upstream_base_url=upstream_base_url,
         adapter=row_one_adapter(upstream_base_url, REAL_CREDENTIAL, SYNTHETIC_MODEL),
         bound_source_ip=bound_source_ip,
         absolute_deadline=deadline or datetime.now(UTC) + timedelta(minutes=5),
-        budget=ProxyBudget(
-            Decimal(max_cost), Decimal("5"), Decimal("1000000"), Decimal("1000000"),
-        ),
+        limits=ProxyLimits(max_requests=max_requests),
         log_path=tmp_path / "containment.jsonl",
         lease_terms=LEASE_TERMS,
     )
@@ -60,16 +57,16 @@ def test_h7_property_1_source_binding_holds_offline(tmp_path: Path) -> None:
     assert len(upstream.requests) == 1
 
 
-def test_h7_property_2_budget_cutoff_holds_offline(tmp_path: Path) -> None:
+def test_h7_property_2_request_cutoff_holds_offline(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream.base_url, max_cost="5")
+        handle = start_proxy(tmp_path, upstream.base_url, max_requests=1)
         try:
             first, _ = proxy_request(handle.base_url, handle.dummy_token, "first")
             second, payload = proxy_request(handle.base_url, handle.dummy_token, "second")
         finally:
             handle.stop()
     assert (first, second) == (200, 429)
-    assert json.loads(payload) == {"error": "budget_exhausted"}
+    assert json.loads(payload) == {"error": "requests_exhausted"}
     assert len(upstream.requests) == 1
 
 

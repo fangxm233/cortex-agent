@@ -39,7 +39,6 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from .campaign_config import (
@@ -120,8 +119,8 @@ class HelpFormatter(
 class TrialOutcome:
     plan: TrialPlan
     state: str
-    cost_usd: Decimal | None = None
-    metered_cost_usd: Decimal | None = None
+    requests: int | None = None
+    metered_requests: int | None = None
     armed: bool = False
     envelope: Mapping[str, object] | None = None
     envelope_path: Path | None = None
@@ -146,10 +145,10 @@ class TrialOutcome:
             "trial_id": self.plan.trial_id, "arm": self.plan.arm_name,
             "task_id": self.plan.task.task_id, "state": self.state,
         }
-        if self.cost_usd is not None:
-            record["cost_usd"] = str(self.cost_usd)
-        if self.metered_cost_usd is not None:
-            record["metered_cost_usd"] = str(self.metered_cost_usd)
+        if self.requests is not None:
+            record["requests"] = self.requests
+        if self.metered_requests is not None:
+            record["metered_requests"] = self.metered_requests
         if self.envelope_path is not None:
             record["outer_envelope_path"] = str(self.envelope_path)
         if self.admission is not None:
@@ -216,8 +215,12 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
         "paid": config.paid, "trials_dir": str(config.trials_dir),
         "concurrency": config.concurrency,
         "trials_failed": failed,
-        "cost_usd": str(_total(outcomes)),
-        "cost_complete": _total_is_complete(outcomes),
+        "provider_requests": _total(outcomes),
+        "provider_requests_complete": _total_is_complete(outcomes),
+        "cost_usd_note": (
+            "Not reported here. The proxy meters requests and tokens, which it observes; turning "
+            "those into money needs a price list, and the run's own cache-aware accounting is the "
+            "thing that holds one."),
         "trials": [outcome.as_dict() for outcome in outcomes],
         "report_path": None if report_path is None else str(report_path),
         "report_sha256": report_sha256,
@@ -305,7 +308,7 @@ class _Schedule:
         return TrialOutcome(
             plan=plan, state=TRIAL_FAILED, reason=str(error), slot=slot.index,
             started_at=started_at, finished_at=_timestamp(), armed=True,
-            metered_cost_usd=_metered_cost(trial_root))
+            metered_requests=_metered_requests(trial_root))
 
 
 def _partition(
@@ -449,10 +452,10 @@ def _read_outcome(
     # A published trial's envelope carries the very figure its proxy metered, validated on the way
     # through finalization, so it is the accounting record for that trial and the raw export is
     # only needed for a trial that never got to publish one.
-    cost = _envelope_cost(plan, path, envelope)
+    requests = _envelope_requests(plan, path, envelope)
     return TrialOutcome(
-        plan=plan, state=state, cost_usd=cost,
-        metered_cost_usd=cost, armed=True,
+        plan=plan, state=state, requests=requests,
+        metered_requests=requests, armed=True,
         envelope=envelope, envelope_path=path,
         envelope_sha256=hashlib.sha256(payload).hexdigest(),
         slot=slot, started_at=started_at, finished_at=finished_at,
@@ -504,29 +507,19 @@ def _validate_identity(
             f"{admitted!r}; an envelope must state whether its result is gradable")
 
 
-def _envelope_cost(
+def _envelope_requests(
     plan: TrialPlan, path: Path, envelope: Mapping[str, object],
-) -> Decimal:
+) -> int:
     usage = envelope.get("proxy_usage")
-    value = usage.get("cost_usd") if isinstance(usage, Mapping) else None
-    if not isinstance(value, str):
+    value = usage.get("requests") if isinstance(usage, Mapping) else None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise CampaignError(
-            f"trial {plan.trial_id} published {path} without a proxy_usage.cost_usd "
-            "decimal string, so its spend cannot be accounted")
-    try:
-        cost = Decimal(value)
-    except InvalidOperation as error:
-        raise CampaignError(
-            f"trial {plan.trial_id} published proxy_usage.cost_usd {value!r}, "
-            "which is not a decimal") from error
-    if not cost.is_finite() or cost < 0:
-        raise CampaignError(
-            f"trial {plan.trial_id} published a negative or non-finite "
-            f"proxy_usage.cost_usd {value!r}")
-    return cost
+            f"trial {plan.trial_id} published {path} without a proxy_usage.requests "
+            "count, so its provider traffic cannot be accounted")
+    return value
 
 
-def _metered_cost(trial_root: Path) -> Decimal | None:
+def _metered_requests(trial_root: Path) -> int | None:
     """What the host's own proxy metered for one trial, whatever became of the trial.
 
     Read from the proxy export rather than from the outer envelope, because the envelope only
@@ -542,21 +535,19 @@ def _metered_cost(trial_root: Path) -> Decimal | None:
         return None
     if not isinstance(export, Mapping):
         return None
-    field = export.get("cost_usd")
+    field = export.get("requests")
     if not isinstance(field, Mapping) or field.get("status") != "available":
         return None
-    try:
-        cost = Decimal(str(field.get("value")))
-    except InvalidOperation:
+    value = field.get("value")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         return None
-    return cost if cost.is_finite() and cost >= 0 else None
+    return value
 
 
-def _total(outcomes: Sequence[TrialOutcome]) -> Decimal:
+def _total(outcomes: Sequence[TrialOutcome]) -> int:
     return sum(
-        (outcome.metered_cost_usd
-         for outcome in outcomes if outcome.metered_cost_usd is not None),
-        Decimal(0),
+        outcome.metered_requests
+        for outcome in outcomes if outcome.metered_requests is not None
     )
 
 
@@ -568,7 +559,7 @@ def _total_is_complete(outcomes: Sequence[TrialOutcome]) -> bool:
     to say so instead of letting the missing number read as zero.
     """
     return all(
-        outcome.metered_cost_usd is not None for outcome in outcomes if outcome.armed
+        outcome.metered_requests is not None for outcome in outcomes if outcome.armed
     )
 
 
@@ -619,7 +610,7 @@ def _report_run(config: CampaignConfig, outcome: TrialOutcome) -> dict[str, obje
         "cortex_telemetry": {
             "trial_id": outcome.plan.trial_id,
             "root_run_id": identity.get("root_run_id"),
-            "cost_usd": usage.get("cost_usd"), "requests": usage.get("requests"),
+            "requests": usage.get("requests"),
             "input_tokens": usage.get("input_tokens"),
             "output_tokens": usage.get("output_tokens"),
             "outer_envelope_sha256": outcome.envelope_sha256,

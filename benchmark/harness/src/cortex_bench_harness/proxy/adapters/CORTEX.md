@@ -1,6 +1,6 @@
 Update this file whenever this directory changes
 
-Provider adapters carry one vendor protocol each: routes, body model, auth form, usage, and billable quantities. Budget enforcement stays outside an adapter.
+Provider adapters carry one vendor protocol each: routes, body model, auth form, and measured usage. Limit enforcement stays outside an adapter.
 
 | filename | role | function |
 |---|---|---|

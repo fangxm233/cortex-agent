@@ -5,11 +5,9 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import json
-from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
 
-from .models import decimal_text
 
 PROXY_EXPORT_SCHEMA_VERSION = "cortex-bench-proxy-export/1"
 
@@ -21,9 +19,12 @@ UNAVAILABLE_REASONS = frozenset({
     "counter_unreadable",
     "audit_log_unreadable",
     "no_echo_received",
+    # The counter was read and the provider simply never reported a cache breakdown. Distinct from
+    # `counter_unreadable`, which is this side failing to read its own register.
+    "no_cache_breakdown_reported",
 })
 
-COUNTER_SLOTS = ("requests", "input_tokens", "output_tokens", "cost_usd")
+COUNTER_SLOTS = ("requests", "input_tokens", "output_tokens", "cached_tokens")
 
 
 class ProxyCounters(Protocol):
@@ -32,7 +33,7 @@ class ProxyCounters(Protocol):
     request_count: int
     input_tokens: int
     output_tokens: int
-    cost_usd: Decimal
+    cached_tokens: int | None
 
 
 def available(value: object) -> dict[str, object]:
@@ -78,8 +79,24 @@ def _counter_slots(counters: ProxyCounters | None) -> dict[str, object]:
         "requests": _read(counters, "request_count", _count),
         "input_tokens": _read(counters, "input_tokens", _count),
         "output_tokens": _read(counters, "output_tokens", _count),
-        "cost_usd": _read(counters, "cost_usd", _decimal),
+        "cached_tokens": _cached_slot(counters),
     }
+
+
+def _cached_slot(counters: ProxyCounters) -> dict[str, object]:
+    """The cached-prompt total, or an honest gap where the provider said nothing.
+
+    A response without a cache breakdown is not a cache miss, so one silent request makes the
+    trial's total unknowable rather than smaller. That is reported as unavailable instead of being
+    quietly rounded down to a number nobody measured.
+    """
+    try:
+        observed = counters.cached_tokens
+    except Exception:
+        return unavailable("counter_unreadable")
+    if observed is None:
+        return unavailable("no_cache_breakdown_reported")
+    return _read(counters, "cached_tokens", _count)
 
 
 def _read(
@@ -100,14 +117,6 @@ def _count(value: object) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f"not a counter value: {value!r}")
     return value
-
-
-def _decimal(value: object) -> str:
-    # Costs cross the seam as decimal strings on both sides: a binary float would make the
-    # comparison against the journal depend on representation rather than on value.
-    if not isinstance(value, Decimal) or not value.is_finite():
-        raise ValueError(f"not a decimal cost: {value!r}")
-    return decimal_text(value)
 
 
 def _audit_slot(
@@ -142,7 +151,9 @@ def _durable_totals(
     return {
         "entries": len(entries),
         "durable_requests": tail["request_count"] if tail else 0,
-        "durable_cost_usd": tail["cost_usd"] if tail else "0",
+        "durable_tokens": tail["tokens"] if tail else {
+            "input": 0, "output": 0, "total": 0, "cached": 0,
+        },
         "agrees_with_counters": _agrees(tail, counters),
         "outcomes": _outcomes(entries),
     }
@@ -169,7 +180,12 @@ def _agrees(tail: dict[str, Any] | None, counters: ProxyCounters | None) -> bool
     if counters is None:
         return False
     try:
-        durable = (tail["request_count"], Decimal(tail["cost_usd"])) if tail else (0, Decimal(0))
-        return durable == (counters.request_count, counters.cost_usd)
+        if tail is None:
+            return (0, 0, 0) == (
+                counters.request_count, counters.input_tokens, counters.output_tokens)
+        tokens = tail["tokens"]
+        return (tail["request_count"], tokens["input"], tokens["output"], tokens["cached"]) == (
+            counters.request_count, counters.input_tokens, counters.output_tokens,
+            counters.cached_tokens)
     except Exception:
         return False
