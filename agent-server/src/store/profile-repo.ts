@@ -1,5 +1,5 @@
 // input:  profiles.json, JsonRepository, resilient file monitor
-// output: ProfileRepo and polling-backed hot reload
+// output: ProfileRepo, reload revision, and file monitor
 // pos:    Profile persistence, sync cache, and hot reload
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -13,8 +13,13 @@ import { Icons } from '../core/icons.js';
 import type { ProfilesFile } from '@domain/agents/profile-manager.js';
 
 const log = createLogger('profile-repo');
+let profileConfigRevision = 0;
 
 export const PROFILES_FILE = path.join(CONFIG_DIR, 'profiles.json');
+
+export function getProfileConfigRevision(): number {
+  return profileConfigRevision;
+}
 
 export class ProfileRepo {
   private readonly _repo: JsonRepository<ProfilesFile>;
@@ -100,6 +105,7 @@ function reloadProfiles(repo: ProfileRepo, filePath: string, onReload?: () => vo
     JSON.parse(raw);
     repo.invalidate();
     repo.readSync();
+    profileConfigRevision += 1;
     onReload?.();
     log.info('Hot-reload: profiles.json reloaded');
     _adminNotifier?.(`${Icons.refresh} \`profiles.json\` hot-reloaded`);

@@ -1,5 +1,5 @@
 // input:  thread-template config, prompts, shells, resilient watch
-// output: thread config load, migration, lookup, and hot reload APIs
+// output: config lookup, reload revision, and watcher APIs
 // pos:    Thread template configuration loader and watcher
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -31,6 +31,11 @@ const FIELD_DIRS: Record<string, string> = {
 
 let agents: Record<string, AgentDefinition> = {};
 let templates: Record<string, ThreadTemplate> = {};
+let configRevision = 0;
+
+export function getThreadConfigRevision(): number {
+  return configRevision;
+}
 
 // --- Admin notification (hot-reload → Slack) ---
 let _adminNotifier: ((text: string) => void) | null = null;
@@ -333,6 +338,7 @@ export function loadConfig(): { agents: Record<string, AgentDefinition>; templat
       : loadConfigFromFile(CONFIG_FILE);
     agents = loaded.agents;
     templates = loaded.templates;
+    configRevision += 1;
     log.info(`Loaded ${Object.keys(agents).length} agents, ${Object.keys(templates).length} templates`);
     if (loaded.raw) logValidation(loaded.raw);
   } catch (e: any) {

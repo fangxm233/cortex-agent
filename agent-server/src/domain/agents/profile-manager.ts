@@ -1,6 +1,6 @@
 // input:  profiles.json through profileRepo
-// output: validated profile and fallback resolution
-// pos:    Resolves named Claude/PI profiles and provider identity
+// output: validated profile, caps, and fallback resolution
+// pos:    Resolves named backend execution profiles
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { profileRepo } from '@store/profile-repo.js';
 import type { Backend } from '../../agent-adapter/types.js';
@@ -25,6 +25,8 @@ export interface ProfileEntry {
    *  backend: claude → `--effort` (low/medium/high/xhigh/max), pi → `--thinking`
    *  (off/minimal/low/medium/high/xhigh). Fallback entries do not inherit it. */
   thinking?: string;
+  /** PI model output cap written into the generated provider catalog. */
+  maxOutputTokens?: number;
   fallback?: ProfileEntry[];
 }
 
@@ -51,7 +53,8 @@ export interface ResolvedProfileConfig {
   claudeBackend: 'print' | 'tui';
   /** Thinking level (backend-native value). null → nothing is passed to the CLI. */
   thinking: string | null;
-  fallback: Array<{ model: string; backend: Backend; mode: string | null; provider: string | null; extraEnv: Record<string, string>; extraOption: Record<string, string>; claudeBackend: 'print' | 'tui'; thinking: string | null }>;
+  maxOutputTokens?: number | null;
+  fallback: Array<{ model: string; backend: Backend; mode: string | null; provider: string | null; extraEnv: Record<string, string>; extraOption: Record<string, string>; claudeBackend: 'print' | 'tui'; thinking: string | null; maxOutputTokens?: number | null }>;
 }
 
 const PROFILE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
@@ -72,6 +75,17 @@ function loadProfilesFile(): ProfilesFile {
     return data;
   } catch (error) {
     throw new Error(`Failed to load profiles.json: ${(error as Error).message}`);
+  }
+}
+
+function validateMaxOutputTokens(
+  value: unknown,
+  backend: Backend,
+  label: string,
+): void {
+  if (value === undefined) return;
+  if (backend !== 'pi' || !Number.isInteger(value) || Number(value) <= 0) {
+    throw new Error(`${label} has invalid maxOutputTokens for backend '${backend}'`);
   }
 }
 
@@ -143,6 +157,7 @@ function validateProfileEntry(profile: unknown, label: string, inheritedBackend:
       throw new Error(`${label} has invalid thinking: ${String(p.thinking)} (backend '${effectiveBackend}' expects one of: ${[...levels].join(', ')})`);
     }
   }
+  validateMaxOutputTokens(p.maxOutputTokens, effectiveBackend, label);
 }
 
 /**
@@ -236,6 +251,7 @@ function resolveProfileConfig(name: string | null = null): ResolvedProfileConfig
     extraOption: { ...(profile.extraOption || {}) },
     claudeBackend: resolveClaudeBackend(profile),
     thinking: profile.thinking || null,
+    maxOutputTokens: profile.maxOutputTokens ?? null,
   };
   const fallback = (profile.fallback || []).map(fb => ({
     model: fb.model,
@@ -250,6 +266,7 @@ function resolveProfileConfig(name: string | null = null): ResolvedProfileConfig
     // thinking does NOT inherit from primary (like provider) — value sets are backend-specific,
     // so each entry must declare its own; undeclared → nothing is passed.
     thinking: fb.thinking || null,
+    maxOutputTokens: fb.maxOutputTokens ?? null,
   }));
   return { name: resolvedName, ...primary, fallback };
 }

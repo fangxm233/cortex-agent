@@ -1,6 +1,6 @@
-// input:  prepared spawn configs and temporary plugin trees
-// output: content, guard, and argv anti-divergence proofs
-// pos:    Regression tests for exact one-shot role identity
+// input:  resolved spawn configs and temporary plugin trees
+// output: prompt, plugin, skill, MCP, and hook identity proofs
+// pos:    Regression tests for exact spawn role identity
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -55,6 +55,29 @@ it('content-addresses plugin files and discovers skill directories', () => {
   );
   fs.appendFileSync(path.join(skill, 'SKILL.md'), 'changed\n');
   assert.notEqual(directoryContentSha256(plugin), before);
+});
+
+it('includes appended Cortex rules in the resolved system-prompt identity', () => {
+  const config = spawnConfig();
+  const base = roleSurfaceFromSpawnConfig(config);
+  config.appendSystemPrompt = 'resolved global rule';
+  assert.notEqual(roleSurfaceFromSpawnConfig(config).systemPromptSha256, base.systemPromptSha256);
+});
+
+it('captures PI-projected skill directories and portable MCP capability fingerprints', () => {
+  const skill = path.join(root, 'projected-skills', 'inspect');
+  fs.mkdirSync(skill, { recursive: true });
+  fs.writeFileSync(path.join(skill, 'SKILL.md'), '# Inspect\n');
+  const config = spawnConfig();
+  config.pluginSkillDirs = [skill];
+  config.pluginCapabilityFingerprint = 'b'.repeat(64);
+  const surface = roleSurfaceFromSpawnConfig(config);
+  assert.deepEqual(surface.skills, [{
+    name: 'inspect', content_sha256: directoryContentSha256(skill),
+  }]);
+  assert.ok(surface.pluginDirs.some(value => (
+    value.path === '@plugin-capability' && value.content_sha256 === 'b'.repeat(64)
+  )));
 });
 
 it('hashes a caller-supplied thread directive instead of the one-shot empty directive', () => {

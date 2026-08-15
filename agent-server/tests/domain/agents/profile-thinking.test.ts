@@ -1,6 +1,6 @@
-// input:  Node test runner + domain/agents/profile-manager + domain/agents/facade
-// output: Claude/PI profile validation and spawn-config propagation
-// pos:    Profile thinking and backend validation regressions
+// input:  profile manager and spawn-config facade
+// output: thinking and output-cap validation and propagation
+// pos:    Profile execution-control regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -153,6 +153,21 @@ test('buildSpawnConfig omits thinking when unset (backward compat)', () => {
     undefined,
   );
   assert.equal(spawn.thinking, undefined);
+});
+
+test('PI maxOutputTokens is validated and propagated into the resolved spawn', () => {
+  assert.throws(() => validateProfilesFile({
+    defaultProfile: 'd',
+    profiles: { d: { model: 'm', backend: 'pi', provider: 'deepseek', maxOutputTokens: 0 } },
+  }), /maxOutputTokens/);
+  withProfiles({
+    defaultProfile: 'd',
+    profiles: { d: { model: 'm', backend: 'pi', provider: 'deepseek', maxOutputTokens: 4096 } },
+  });
+  const resolved = resolveProfileConfig('d');
+  assert.equal(resolved.maxOutputTokens, 4096);
+  const spawn = facadeTest.buildSpawnConfig({ sessionKey: 'k' }, resolved, undefined);
+  assert.equal(spawn.piModelMaxTokens, 4096);
 });
 
 test('buildSpawnConfig preserves the openai-codex provider for a PI profile', () => {

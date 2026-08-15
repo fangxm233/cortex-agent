@@ -1,5 +1,5 @@
-// input:  run config, adapters, profiles, task events
-// output: attributed runs, accounting, and notices
+// input:  run config, resolved profiles, task events
+// output: pre-spawn identity, attributed runs, and notices
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -15,6 +15,7 @@ import {
 } from '../../agent-adapter/event-tee.js';
 import { buildAgentSpawnConfig, filterChannelScopedPlugins } from './spawn-config.js';
 import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
+import { freezeProductionAttemptIdentity } from '../agent-run/production-attempt-identity.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
 import type { AgentHandle, AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
@@ -352,6 +353,9 @@ export function runWithAdapter(
 ): AgentHandle {
   const spawnConfig = options.preparedSpawnConfig
     ?? buildAgentSpawnConfig(options, config, anthropicBaseUrl);
+  freezeProductionAttemptIdentity({
+    spawnConfig, options, resolvedProfile: options.resolvedProfileConfig,
+  });
   const proc = adapter.spawn(spawnConfig);
   const attachments = (options.files || []).map((file: any) => ({
     mimeType: file.mimetype ?? file.mimeType,
@@ -516,11 +520,13 @@ export function runAgentOnce(message: string, options: RunAgentOptions, config: 
 export function runAgent(message: string, options: RunAgentOptions = {}): AgentHandle {
   const profileConfig: ResolvedProfileConfig = resolveProfileConfig(options.profileName);
   const configs: AgentConfig[] = [
-    { model: profileConfig.model, backend: profileConfig.backend, mode: profileConfig.mode, provider: profileConfig.provider, extraEnv: profileConfig.extraEnv, extraOption: profileConfig.extraOption, claudeBackend: profileConfig.claudeBackend, thinking: profileConfig.thinking },
+    { model: profileConfig.model, backend: profileConfig.backend, mode: profileConfig.mode, provider: profileConfig.provider, extraEnv: profileConfig.extraEnv, extraOption: profileConfig.extraOption, claudeBackend: profileConfig.claudeBackend, thinking: profileConfig.thinking, maxOutputTokens: profileConfig.maxOutputTokens },
     ...(profileConfig.fallback || []),
   ];
   const notices = new AttemptNoticeTracker(options);
-  const trackedOptions = notices.options;
+  const trackedOptions: RunAgentOptions = {
+    ...notices.options, resolvedProfileConfig: profileConfig,
+  };
 
   // Single config — only terminal notice wrapping is needed.
   if (configs.length <= 1) {

@@ -1,5 +1,5 @@
 // input:  runtime env, stores, scheduler, auth publishers
-// output: server runtime, auth scans, settings pushes
+// output: server runtime, identity freeze, settings pushes
 // pos:    Agent-server composition root
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { mkdirSync } from 'fs';
@@ -49,7 +49,8 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
-import { loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier, migrateThreadTemplatesToDir, mergeThreadTemplates } from '@domain/threads/index.js';
+import { getThreadConfigRevision, loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier, migrateThreadTemplatesToDir, mergeThreadTemplates } from '@domain/threads/index.js';
+import { initializeProductionAttemptIdentity } from '@domain/agent-run/production-attempt-identity.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
 import { getActiveBackend, configureEnvForMode, loadMode } from '@domain/agents/index.js';
 import { createEditHandler } from '@orch/routing/edit-handler.js';
@@ -94,7 +95,7 @@ import { emitCortexEvent, initHookBus } from '@core/hook-bus.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { syncManagedPlugins } from '@store/plugin-sync.js';
 import { costRepo } from '@store/cost-repo.js';
-import { PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
+import { getProfileConfigRevision, PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { retentionCandidateRepo } from '@store/retention-candidate-repo.js';
 import { createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
@@ -618,6 +619,11 @@ process.on('SIGTERM', async () => {
     path.join(CONFIG_DIR, 'thread-templates'),
   );
   loadThreadConfig();
+  initializeProductionAttemptIdentity({
+    configurationRevision: () => ({
+      profiles: getProfileConfigRevision(), threads: getThreadConfigRevision(),
+    }),
+  });
   startThreadConfigWatcher();
   _stopProfileWatcher = startProfileWatcher(profileRepo, PROFILES_FILE, () => {
     bus.publish({ type: 'config.changed', section: 'profiles' });
