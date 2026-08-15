@@ -1642,6 +1642,9 @@ def test_the_committed_paid_campaign_declares_the_request_bound_it_was_approved_
 PRESERVED_ATTEMPT_ROOTS = {
     "tb21-paid": Path("/var/tmp/cortex-bench/tb21-paid-2026-08-13-37cf"),
     "tb21-paid-r2": Path("/var/tmp/cortex-bench/tb21-paid-r2-2026-08-13-46b6"),
+    "tb21-paid-r3": Path("/var/tmp/cortex-bench/tb21-paid-r3-2026-08-13-4e25"),
+    "tb21-paid-r4": Path("/var/tmp/cortex-bench/tb21-paid-r4-2026-08-13-ebe7"),
+    "tb21-paid-r5": Path("/var/tmp/cortex-bench/tb21-paid-r5-2026-08-13-d3df"),
 }
 
 

@@ -82,14 +82,15 @@
 
 schema_version: cortex-bench-campaign/1
 # Fresh identity: the 2026-08-13 `tb21-paid` (four paid requests, then exhaustion), `tb21-paid-r2`
-# (refused before admission, zero requests), `tb21-paid-r3` (first-trial inner-terminal rejection)
-# and `tb21-paid-r4` (first-trial agent-phase timeout, 43 requests) roots are immutable evidence,
-# and a campaign never writes into an existing trial root -- `campaign._resume` refuses one that
-# carries no published envelope. Rotate both fields together whenever an attempt has materialised
-# this root.
-campaign: tb21-paid-r5
+# (refused before admission, zero requests), `tb21-paid-r3` (first-trial inner-terminal rejection),
+# `tb21-paid-r4` (first-trial agent-phase timeout, 43 requests) and `tb21-paid-r5` (all three trials
+# ran and none published: two refused at finalization, one cut by the agent timeout) roots are
+# immutable evidence, and a campaign never writes into an existing trial root -- `campaign._resume`
+# refuses one that carries no published envelope. Rotate both fields together whenever an attempt
+# has materialised this root.
+campaign: tb21-paid-r6
 paid: true
-trials_dir: /var/tmp/cortex-bench/tb21-paid-r5-2026-08-13-d3df
+trials_dir: /var/tmp/cortex-bench/tb21-paid-r6-2026-08-14-90d8
 cli_version: "2026.8.6"
 
 # All three trials in one wave. Each holds its own credential route for its own 1800s lease, so
