@@ -1,0 +1,181 @@
+{
+  "schema_version": "cortex-bench-campaign-attempt-summary/1",
+  "campaign": "tb21-paid-r7",
+  "executed_at": "2026-08-15",
+  "paid": true,
+
+  "headline": "The first Terminal-Bench 2.1 score this harness has produced. All three trials ran concurrently, all three published outer envelopes, and the authentic Harbor verifier graded all three: constraints-scheduling reward 1, chess-best-move reward 0, db-wal-recovery reward 0. Score 1/3.",
+
+  "execution": {
+    "entrypoint": "setsid env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --offline --frozen python scripts/launch-paid-campaign.py --config ../campaigns/terminal-bench-2.1-deepseek-paid.yaml --run",
+    "detached": true,
+    "detach_rationale": "r6 was launched as a child of an agent session and was killed at 31 minutes when that session was torn down, losing the whole run. r7 was launched under setsid into its own session (PID 959760, SID 959740) and outlived the launching session.",
+    "source_commit": "33b55255",
+    "state": "completed",
+    "exit_code": 0,
+    "concurrency": 3,
+    "trial_count": 3,
+    "trials_ran": 3,
+    "trials_failed": 0,
+    "outer_envelope_count": 3,
+    "comparison_report_written": true,
+    "comparison_report_sha256": "6da5fe9af0034b75cb43cca2981e7ebb9be0e7db4d69fa57722848f1c9835a7c",
+    "started_at": "2026-08-15T07:26:37.264Z",
+    "ended_at": "2026-08-15T07:59:44.381Z",
+    "wall_clock_seconds": 1987.117,
+    "provider_requests": 51,
+    "provider_requests_complete": true
+  },
+
+  "artifact_provenance": {
+    "gate_added_this_attempt": true,
+    "why": "r6 pinned an agent-server tarball packed 34 hours before the D2 journal-grouping fix it was meant to measure. The harness recorded that artifact's sha256 correctly; nothing asked whether those bytes were the current source. scripts/build-trial-artifacts.py now builds both artifacts and records the source they came from, and launch-paid-campaign.py refuses to start when either no longer matches the checkout.",
+    "wheel_sha256": "4e3653257d21c93ac45ab65ac26e062f46c5da3b7cc6c563b06037e32a408ffd",
+    "npm_artifact_sha256": "775739badfa300f06737274053a2cb19373362da7501025addebb5db6f7b75ef",
+    "verified_against_commit": "33b5525533c2c5169d888031ac87d8abd38b11a4",
+    "both_scopes_clean": true,
+    "gate_fired_in_practice": "The first r7 launch attempt was REFUSED by this gate, before anything was armed and before the credential was loaded: the wheel had been built prior to an edit to artifact_provenance.py, which is inside the wheel's source scope. The wheel was rebuilt and the campaign relaunched. This is the same class of drift that silently ruined r6."
+  },
+
+  "score": {
+    "benchmark": "Terminal-Bench 2.1",
+    "tasks_attempted": 3,
+    "tasks_solved": 1,
+    "score": 0.3333333333333333,
+    "grading": "Authentic Harbor verifier, digest-pinned task images, per-task reward.txt written by the task's own test suite. Not self-reported.",
+    "caveat": "Three tasks is far too small a sample to characterise the agent. This attempt's value is that the measurement pipeline produced a real score end to end, not the score itself."
+  },
+
+  "trials": [
+    {
+      "trial_id": "tb21-paid-r7-constraints-scheduling-cortex-direct",
+      "task_id": "constraints-scheduling",
+      "slot": 1,
+      "image_ref": "cortex-terminal-bench-2.1@sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c",
+      "state": "ran",
+      "grader_admission": {"admitted": true, "reason": "ok", "terminal_state": "completed", "terminal_reason": "ok"},
+      "reward": 1,
+      "verifier": {"tests": 3, "passed": 3, "failed": 0},
+      "inner_run_seconds": 77.52,
+      "steps": 8,
+      "provider_requests": 8,
+      "tokens": {"input": 94799, "cached": 92288, "output": 9640},
+      "cache_hit_rate": 0.9735,
+      "run_reported_cost_usd": 0.0033091464,
+      "note": "Solved all three assertions in 78 seconds and 8 provider requests. This is also the trial that in r6 confirmed the D1 thesis: proxy input minus cached equals the run's own input exactly."
+    },
+    {
+      "trial_id": "tb21-paid-r7-chess-best-move-cortex-direct",
+      "task_id": "chess-best-move",
+      "slot": 0,
+      "image_ref": "cortex-terminal-bench-2.1@sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b",
+      "state": "ran",
+      "grader_admission": {"admitted": false, "reason": "inner_terminal_not_ok", "terminal_state": "failed", "terminal_reason": "child_failure"},
+      "reward": 0,
+      "verifier": {"tests": 1, "passed": 0, "failed": 1},
+      "inner_run_seconds": 1800.308,
+      "inner_run_exit": "pi exited with code 124; outer `cortex agent-run` reported by Harbor as exit 143",
+      "steps": null,
+      "provider_requests": 27,
+      "journal_events": 488,
+      "tokens": {"input": 1409288, "cached": 1385728, "output": 81919},
+      "cache_hit_rate": 0.9833,
+      "hang": {
+        "certain": true,
+        "last_journal_activity": "2026-08-15T07:43:00.628Z",
+        "silence_seconds": 985.5,
+        "evidence": "The final tool_use at 07:43:00.628 is a bash call running an alphabeta chess search inline via `python3 << EOF` against /app/chess_engine.py. No tool_result event for that toolUseId ever appears. The next and last journal event is at 07:59:26.134, a fatal `pi exited with code 124`. A single un-timed-out bash call consumed the last 16m25s of the run.",
+        "attributed_to": "D3 -- no per-tool-call bash timeout. Deferred by the user; this is the first direct paid-run evidence of its cost."
+      }
+    },
+    {
+      "trial_id": "tb21-paid-r7-db-wal-recovery-cortex-direct",
+      "task_id": "db-wal-recovery",
+      "slot": 2,
+      "image_ref": "cortex-terminal-bench-2.1@sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a",
+      "state": "ran",
+      "grader_admission": {"admitted": false, "reason": "inner_terminal_not_ok", "terminal_state": "failed", "terminal_reason": "child_failure"},
+      "reward": 0,
+      "verifier": {"tests": 7, "passed": 0, "failed": 7},
+      "inner_run_seconds": 1800.214,
+      "inner_run_exit": "pi exited with code 124; outer `cortex agent-run` reported by Harbor as exit 143",
+      "steps": null,
+      "provider_requests": 16,
+      "journal_events": 226,
+      "tokens": {"input": 343767, "cached": 328320, "output": 27141},
+      "cache_hit_rate": 0.9551,
+      "hang": {
+        "certain": false,
+        "last_journal_activity": "2026-08-15T07:33:31.505Z",
+        "silence_seconds": 1549.8,
+        "evidence": "The last journal event is a COMPLETED tool_result at 07:33:31.505 (a probe of /proc/kcore and the temp directories, which returned normally). Nothing further is recorded until the fatal `pi exited with code 124` at 07:59:21.266. Because the pair that stalled produced no tool_use record, the journal cannot say whether the run then hung on the next provider request or on the next tool call.",
+        "unresolved": "Which side stalled. The proxy audit log carries no per-row timestamp or outcome field, so it cannot date the 16th request either. Adding a timestamp to proxy audit rows would have answered this from evidence already collected."
+      }
+    }
+  ],
+
+  "defects_found": [
+    {
+      "id": "D-r7-1",
+      "severity": "medium",
+      "title": "A run that exhausts its deadline is classified as `child_failure`, so a legitimate zero is refused grader admission",
+      "observed": "Both timed-out trials published terminal markers with state `failed` and terminal_reason `child_failure`, which host finalization refuses as `inner_terminal_not_ok`. The journal's own final event in both cases is `pi exited with code 124` -- 124 being the timeout convention, which the codebase elsewhere maps to the `deadline` terminal reason (agent-server/src/domain/agent-run/runner.ts:943, and `timeout: ['deadline','deadline_exceeded']` in manifest-contract.ts:78).",
+      "impact": "Running out of time is a normal benchmark outcome that deserves the score the verifier gives it, which here was a correctly-computed 0. Instead the campaign reports two trials as not admitted, which reads as harness breakage rather than as agent underperformance. The reward files exist and are trustworthy, so the score is recoverable by hand -- but the envelope, which is the artifact of record, does not carry it.",
+      "not_yet_traced": "Which layer discards the 124. The `pi exited with code 124` text is produced by the PI adapter's event parser path (the Claude analogue is agent-adapter/claude/event-parser.ts:242, which turns any non-zero exit into a generic Error). The 124-to-deadline mapping in runner.ts:943 applies to a process spawned at a different layer. This should be confirmed by reading the PI adapter before any fix is attempted.",
+      "distinct_from_r4": "r4 was Harbor cutting the agent phase with no terminal marker at all, so finalization could not run. Here the marker was published, finalization ran, the verifier ran and produced a reward. Only the classification is wrong."
+    },
+    {
+      "id": "D-r7-2",
+      "severity": "low",
+      "title": "Proxy audit rows carry no timestamp or outcome, so a stalled request cannot be dated",
+      "observed": "Each metered row holds only `request_count`, `tokens` and `upstream_model`. `audit_outcomes` came back `{}` for all three trials.",
+      "impact": "Blocked the db-wal-recovery diagnosis above. When a run goes silent, the proxy log is the one independent clock available, and it does not keep one."
+    }
+  ],
+
+  "confirmed_fixed": [
+    {
+      "id": "D2",
+      "title": "ATIF journal grouping produced `unpaired_tool_result`, discarding the composite/trajectory pair",
+      "evidence": "Zero `protocol_violation` terminal reasons across three trials, three composite manifests survived, and three outer envelopes were published. r5 and r6 published none. The container ran an agent-server packed from commit 33b55255 with the fix present (3 occurrences of the `outstanding` marker in dist/domain/agent-run/atif.js, matching source); the artifact r6 ran carries 0.",
+      "first_trial_exercise": "This is the first attempt in which the D2 fix actually reached a container."
+    },
+    {
+      "id": "D1",
+      "title": "Proxy priced requests against a wrong price list and over-stated spend by 12.7x",
+      "evidence": "The proxy no longer prices anything. Every trial reported requests and tokens only, with a `cost_usd_note` stating why money is not reported at that layer. Cache hit rates of 95.5-98.3% across the three trials are exactly the regime in which the old full-rate arithmetic went wrong."
+    }
+  ],
+
+  "containment": {
+    "leak_scan_clean": [true, true, true],
+    "leak_scan_matches": 0,
+    "routes_revoked": "All three envelopes record route_active false, listener_present false, active_handlers 0, body_handlers 0, serving_thread_alive false.",
+    "lease": "All three leases reconciled with budget_ms 1800000 and consumed_ms of 70-104 ms at arming.",
+    "publication": "All three envelopes written atomically with post-publication re-read.",
+    "credential": "Strict-loaded from the gateway at execution time into the launching process only, and removed from the environment when the campaign returned. No credential value appears in any artifact or in this file."
+  },
+
+  "paid_spend": {
+    "provider_requests": 51,
+    "input_tokens": 1847854,
+    "cached_tokens": 1806336,
+    "output_tokens": 118700,
+    "overall_cache_hit_rate": 0.9775,
+    "cost_usd": "Not stated here. The proxy meters requests and tokens and no longer holds a price list; only constraints-scheduling completed cleanly enough to report its own cache-aware cost, $0.0033091464.",
+    "against_declared_bound": "51 of a possible 1500 (3 trials * 500 max_provider_requests). No trial approached its request cap; both failures were bounded by time, not by requests."
+  },
+
+  "next": [
+    "D-r7-1: trace the PI adapter's exit-code handling and let a deadline-exhausted run publish `deadline` rather than `child_failure`, so its verifier reward is admitted.",
+    "D3: a per-tool-call bash timeout. chess-best-move lost 16m25s of a 30-minute budget to one un-timed-out inline chess search, and db-wal-recovery lost 25m50s to an unidentified stall.",
+    "D-r7-2: timestamp proxy audit rows.",
+    "Widen the task set once the above land; three tasks cannot characterise anything."
+  ],
+
+  "prohibitions_observed": [
+    "Nothing was pushed.",
+    "No system packages installed, no system configuration modified, no rm -rf.",
+    "The orphaned r6 containers, sidecars and networks were removed only after explicit user approval; the pre-existing empty cortex-trial-egress network was left untouched."
+  ]
+}
