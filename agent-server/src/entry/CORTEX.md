@@ -6,8 +6,9 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | filename | role | function |
 |---|---|---|
 | admin-channel-hot-reload.ts | wiring | creates adapter with live admin settings |
-| app.ts | entry | Wires runtime services, auth scans, and event clients |
+| app.ts | entry | Wires runtime services and guarded boot jobs |
 | auth-cli.ts | cli | handles auth status arguments and rendering |
+| boot-jobs.ts | wiring | registers optional client and archive timers |
 | cli-help.ts | cli | builds top-level and subcommand help |
 | cli.ts | entry | dispatches the full operator CLI handlers |
 | cortex-cli.ts | entry | isolates agent-run from the operator CLI graph |

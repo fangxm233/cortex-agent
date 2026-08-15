@@ -16,6 +16,7 @@ export interface Settings {
   diskMonitor: boolean;
   disableUserContext: boolean;
   serverUpdateDisable: boolean;
+  clientHotReloadEnabled: boolean;
   hooksLegacy: boolean;
   managerRotateSteps: number;
   waitingSweepMs: number;
@@ -25,8 +26,10 @@ export interface Settings {
   taskDispatchMaxConcurrent: number | null;
   taskDispatchEnabled: boolean;
   taskDispatchIntervalMs: number;
+  dispatchReconcilerEnabled: boolean;
   taskArchiveEnabled: boolean;
   taskArchiveIntervalMs: number;
+  storeArchiveEnabled: boolean;
   memoryIndexRegenEnabled: boolean;
   memoryIndexRegenIntervalMs: number;
   sessionRetentionDays: number;
@@ -151,6 +154,10 @@ export const SETTINGS_SPEC = {
     default: false,
     legacyParse: (raw: string) => raw === '1',
   },
+  clientHotReloadEnabled: {
+    type: 'boolean',
+    default: true,
+  },
   hooksLegacy: {
     envVar: 'CORTEX_HOOKS_LEGACY',
     type: 'boolean',
@@ -211,6 +218,10 @@ export const SETTINGS_SPEC = {
     default: 30_000,
     validate: validateJobInterval,
   },
+  dispatchReconcilerEnabled: {
+    type: 'boolean',
+    default: true,
+  },
   taskArchiveEnabled: {
     type: 'boolean',
     default: true,
@@ -219,6 +230,10 @@ export const SETTINGS_SPEC = {
     type: 'number',
     default: 6 * 60 * 60 * 1000,
     validate: validateJobInterval,
+  },
+  storeArchiveEnabled: {
+    type: 'boolean',
+    default: true,
   },
   memoryIndexRegenEnabled: {
     type: 'boolean',

@@ -1,9 +1,10 @@
 // input:  a pidfile path
-// output: tryAcquireSingletonLock / releaseSingletonLock / isProcessAlive
-// pos:    L0 zero-dependency singleton-lock primitive, shared by daemon.ts and app.ts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// output: singleton lock acquisition, release, and liveness checks
+// pos:    Shared process pidfile lock primitive
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { dirname } from 'node:path';
 
 /** Probe whether a PID is alive. Signal 0 performs the permission/existence check
  *  without actually delivering a signal; a throw (ESRCH/EPERM-as-dead handled by caller)
@@ -39,6 +40,7 @@ export interface AcquireResult {
  * conflict (typically: log a message and process.exit(1)).
  */
 export function tryAcquireSingletonLock(pidFile: string): AcquireResult {
+  mkdirSync(dirname(pidFile), { recursive: true });
   if (existsSync(pidFile)) {
     const raw = readFileSync(pidFile, 'utf8').trim();
     const holderPid = Number(raw);

@@ -1,10 +1,7 @@
-// input:  PROJECTS_DIR (from @core/paths.js or constructor arg)
-// output: ProjectStore — list / get / exists / getDefault / resolveFromMessage / refresh
-//         + createProject(name) (validated scaffold of a new user project)
-//         + auto-scaffold of general/ project on first initialize()
-// pos:    Read-only project registry with fs.watch cache invalidation
-//         "general" is always synthesized; never persisted.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  project root path and filesystem state
+// output: project registry, creation, and TASKS.yaml scaffolding
+// pos:    Project discovery and scaffold store
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -156,7 +153,7 @@ export class ProjectStore {
 
   /**
    * Create a new user project directory under PROJECTS_DIR with a standard scaffold
-   * (STATUS.md + CORTEX.md). Validates the name (rejects path traversal, separators,
+   * (STATUS.md + CORTEX.md + TASKS.yaml). Validates the name (rejects path traversal, separators,
    * empty/whitespace, leading-dot, and the reserved 'general'). Never overwrites an
    * existing project directory — returns an `already-exists` error instead.
    */
@@ -209,17 +206,24 @@ export class ProjectStore {
   /** Create general/ scaffold if the directory does not exist. */
   private scaffoldGeneral(): void {
     const generalDir = path.join(this.projectsDir, 'general');
-    if (fs.existsSync(generalDir)) return;
-
-    this.scaffoldProject(generalDir, GENERAL_SCAFFOLD_STATUS, GENERAL_SCAFFOLD_CORTEX);
-    log.info(`Scaffolded general project at ${generalDir}`);
+    if (!fs.existsSync(generalDir)) {
+      this.scaffoldProject(generalDir, GENERAL_SCAFFOLD_STATUS, GENERAL_SCAFFOLD_CORTEX);
+      log.info(`Scaffolded general project at ${generalDir}`);
+    }
+    this.ensureTasksFile(generalDir);
   }
 
-  /** Create a project directory and write the standard scaffold files (STATUS.md + CORTEX.md). */
+  /** Create a project directory and write the standard scaffold files. */
   private scaffoldProject(dir: string, statusContent: string, cortexContent: string): void {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'STATUS.md'), statusContent, 'utf8');
     fs.writeFileSync(path.join(dir, 'CORTEX.md'), cortexContent, 'utf8');
+    this.ensureTasksFile(dir);
+  }
+
+  private ensureTasksFile(dir: string): void {
+    const tasksPath = path.join(dir, 'TASKS.yaml');
+    if (!fs.existsSync(tasksPath)) fs.writeFileSync(tasksPath, 'tasks: []\n', 'utf8');
   }
 
   /** Read PROJECTS_DIR and rebuild the in-memory cache. */
@@ -236,6 +240,7 @@ export class ProjectStore {
         if (!entry.isDirectory()) continue;
         if (entry.name.startsWith('.')) continue;
         if (entry.name === 'general') continue; // already added
+        this.ensureTasksFile(path.join(this.projectsDir, entry.name));
         result.push({
           id: entry.name,
           name: entry.name,

@@ -107,7 +107,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | platform/ | subdir | platform adapters and UI HTTP transport tests |
 | platform-mock-adapter.test.ts | test | Mock contract and nullable admin routing |
 | preferences.test.ts | test | operator display preferences store |
-| project-store.test.ts | test | project lookup, scaffolding and cache |
+| project-store.test.ts | test | project lookup, task scaffolding and cache |
 | rate-limit-throttle.test.ts | test | committed views and queued expiry retries |
 | rate-limiter.test.ts | test | token bucket rate limiter behaviour |
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |

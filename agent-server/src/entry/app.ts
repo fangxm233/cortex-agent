@@ -11,6 +11,7 @@ import type { PlatformAdapter } from '@platform/index.js';
 // type only); the transport (which pulls @trpc/server + jose) is dynamic-imported inside the gate,
 // gated on CORTEX_UI_HTTP, so it stays runtime-lazy for Slack/TUI-only installs.
 import { startUiHttpIfEnabled } from '@entry/ui-http-gate.js';
+import { startClientHotReloadJob, startStoreArchiveJob } from '@entry/boot-jobs.js';
 import { createHotReloadingAdapter } from '@entry/admin-channel-hot-reload.js';
 import { moveDraftAttachments } from '@entry/draft-attachments.js';
 import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_DIR } from '@core/utils.js';
@@ -696,18 +697,21 @@ process.on('SIGTERM', async () => {
   startGateway();
   startClientManager(parseInt(process.env.CORTEX_CLIENT_PORT || '3002', 10));
 
-  setTimeout(async () => {
-    try {
-      const updateResult = await checkAndUpdateClients();
-      if (updateResult) {
-        log.info(`Client hot-reload: ${updateResult.devices.length} devices updated in ${updateResult.duration}ms`);
-        await emitSystemNotice(adapter, { text: formatUpdateSlackMessage(updateResult) });
+  startClientHotReloadJob(
+    getSettings().clientHotReloadEnabled,
+    async () => {
+      try {
+        const updateResult = await checkAndUpdateClients();
+        if (updateResult) {
+          log.info(`Client hot-reload: ${updateResult.devices.length} devices updated in ${updateResult.duration}ms`);
+          await emitSystemNotice(adapter, { text: formatUpdateSlackMessage(updateResult) });
+        }
+      } catch (e) {
+        log.error(`Client hot-reload check failed: ${(e as Error).message}`);
       }
-    } catch (e) {
-      log.error(`Client hot-reload check failed: ${(e as Error).message}`);
-    }
-    await startAllRemoteClients();
-  }, 2000);
+    },
+    startAllRemoteClients,
+  );
 
   // DR-0013: server auto-update — first check after 60s, then every 24h
   setTimeout(async () => {
@@ -742,15 +746,14 @@ process.on('SIGTERM', async () => {
   // Daily store archival: move week-old terminal execution/thread records to data/archive/*.jsonl.
   // Keeps the hot stores small — their full-map sync stringify on every persist is the main
   // event-loop stall source when they grow to multi-MB.
-  const STORE_ARCHIVE_INTERVAL = 24 * 60 * 60 * 1000;
-  setInterval(async () => {
+  startStoreArchiveJob(getSettings().storeArchiveEnabled, async () => {
     try {
       await executionRepo.archiveTerminal();
       await threadStore.cleanup();
     } catch (e) {
       log.error(`Daily store archive failed: ${(e as Error).message}`);
     }
-  }, STORE_ARCHIVE_INTERVAL);
+  });
 
   startWebhookServer();
 
@@ -758,7 +761,7 @@ process.on('SIGTERM', async () => {
   registerHookBridgeSubscribers(bus, adapter, planApprovals);
 
   startMemoryWatcher();
-  startDispatchReconciler();
+  startDispatchReconciler(getSettings().dispatchReconcilerEnabled);
 
   // DR-0014: re-deliver child results that turned terminal while the server was down and
   // DR-0014 §8: wake suspended manager threads on child-task terminal events, and let the

@@ -13,7 +13,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | conduit-queue.ts | queue | serializes work per conduit |
 | conversation-runner.ts | runner | runs plain turns and captures backend prompts |
 | delta-coalescer.ts | stream | batches assistant text deltas for web sessions |
-| dispatch-reconciler.ts | timer | cleans up stale dispatch executions |
+| dispatch-reconciler.ts | timer | optionally cleans up stale dispatch executions |
 | durable-helpers.ts | util | builds durable post and update hooks |
 | lifecycle.ts | core | adopts admission leases and snapshots turns |
 | manager-qa.ts | channel | relays subtask questions to managers and humans |

@@ -13,6 +13,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | busy-tracker.test.ts | test | Covers busy counter publish and aggregation |
 | cancel-bg-hold.test.ts | test | Covers stop during a background hold |
 | channel-queue.test.ts | test | Covers per-channel queue serialization |
+| dispatch-reconciler.test.ts | test | Covers optional stale-dispatch reconciliation |
 | edit-handler.test.ts | test | Covers PI restore identity and edit retry routing |
 | first-turn-interrupt-resume.test.ts | test | Covers attachment prompt capture and interrupt |
 | hook-bridge-subscribers-web.test.ts | test | Covers hook to Web interaction delivery |

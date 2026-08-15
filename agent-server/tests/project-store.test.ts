@@ -1,7 +1,7 @@
-// input:  Node test runner + project-store + fs
-// output: regression tests for ProjectStore: list/get/exists/getDefault/resolveFromMessage + scaffolding + cache invalidation
-// pos:    verifies ProjectStore behaves correctly with temp directories
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  ProjectStore and temporary project directories
+// output: discovery, scaffolding, creation, and cache tests
+// pos:    Specifies project registry behavior
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -368,6 +368,7 @@ test('ProjectStore - scaffolding creates general directory on initialize', async
   assert.ok(fs.existsSync(generalDir));
   assert.ok(fs.existsSync(path.join(generalDir, 'STATUS.md')));
   assert.ok(fs.existsSync(path.join(generalDir, 'CORTEX.md')));
+  assert.equal(fs.readFileSync(path.join(generalDir, 'TASKS.yaml'), 'utf8'), 'tasks: []\n');
 
   const statusContent = fs.readFileSync(path.join(generalDir, 'STATUS.md'), 'utf8');
   assert.ok(statusContent.includes('# general'));
@@ -375,6 +376,16 @@ test('ProjectStore - scaffolding creates general directory on initialize', async
   for (const section of ['## Current Situation', '## In Flight & New Variables', '## Blockers & Pending Decisions', '## Next Step']) {
     assert.ok(statusContent.includes(section), `general STATUS.md missing ${section}`);
   }
+});
+
+test('ProjectStore - initialization adds TASKS.yaml to an existing project without one', async (t) => {
+  const { baseDir, cleanup } = makeTempProjectsDir(['nimbus']);
+  t.onTestFinished(cleanup);
+
+  const { store } = await makeStore(baseDir);
+  t.onTestFinished(() => store.destroy());
+
+  assert.equal(fs.readFileSync(path.join(baseDir, 'nimbus', 'TASKS.yaml'), 'utf8'), 'tasks: []\n');
 });
 
 test('ProjectStore - scaffolding does not overwrite existing general', async (t) => {
@@ -394,7 +405,7 @@ test('ProjectStore - scaffolding does not overwrite existing general', async (t)
 
 // ── createProject ──
 
-test('ProjectStore - createProject creates dir + STATUS.md + CORTEX.md and returns project', async (t) => {
+test('ProjectStore - createProject creates dir + STATUS.md + CORTEX.md + TASKS.yaml and returns project', async (t) => {
   const { baseDir, cleanup } = makeTempProjectsDir();
   t.onTestFinished(cleanup);
 
@@ -412,6 +423,7 @@ test('ProjectStore - createProject creates dir + STATUS.md + CORTEX.md and retur
   assert.ok(fs.existsSync(projectDir));
   assert.ok(fs.existsSync(path.join(projectDir, 'STATUS.md')));
   assert.ok(fs.existsSync(path.join(projectDir, 'CORTEX.md')));
+  assert.equal(fs.readFileSync(path.join(projectDir, 'TASKS.yaml'), 'utf8'), 'tasks: []\n');
   const status = fs.readFileSync(path.join(projectDir, 'STATUS.md'), 'utf8');
   assert.ok(status.includes('# nimbus'));
   // Scaffold follows the STATUS register skeleton (rules/status-md.md)

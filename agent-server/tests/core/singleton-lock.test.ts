@@ -1,7 +1,7 @@
-// input:  Node test runner + core/singleton-lock.ts
-// output: singleton-lock pure-function regression tests
-// pos:    Verify tryAcquireSingletonLock/releaseSingletonLock/isProcessAlive against a temp pidfile
-// >>> If I am updated, update me and the parent folder's CORTEX.md <<<
+// input:  singleton-lock primitive and temporary paths
+// output: lock acquisition, directory, release, liveness tests
+// pos:    Specifies singleton pidfile behavior
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -28,6 +28,17 @@ test('tryAcquireSingletonLock: fresh file acquires and writes own pid', (t) => {
   t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
 
   const r = tryAcquireSingletonLock(file);
+  assert.deepEqual(r, { acquired: true, stale: false });
+  assert.equal(readFileSync(file, 'utf8').trim(), String(process.pid));
+});
+
+test('tryAcquireSingletonLock: creates a missing lock directory before acquisition', (t) => {
+  const { dir } = tmpPidFile();
+  const file = path.join(dir, 'data', 'store', 'app.pid');
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+
+  const r = tryAcquireSingletonLock(file);
+
   assert.deepEqual(r, { acquired: true, stale: false });
   assert.equal(readFileSync(file, 'utf8').trim(), String(process.pid));
 });

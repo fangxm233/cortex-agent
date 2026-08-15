@@ -5,5 +5,5 @@ Projects domain: the registry of projects that sessions, tasks, and context file
 | filename | role | function |
 |---|---|---|
 | index.ts | entry | Re-exports the project domain public surface |
-| project-store.ts | store | Lists, resolves, and creates project entries |
+| project-store.ts | store | Lists and scaffolds projects with task queues |
 | project-types.ts | types | Defines the Project entity shape |
