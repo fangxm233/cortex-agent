@@ -1,6 +1,6 @@
-// input:  a fragment's journal, lifecycle and identity facts
-// output: the §9.1 attempt record, the closed §9.2 edge union, and derived attempt identity
-// pos:    Per-attempt record and attempt-DAG edge vocabulary
+// input:  production attempt lifecycle and identity facts
+// output: embedded attempt record and durable-edge policy
+// pos:    Composite v2 attempt-node contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { Backend } from '../../agent-adapter/types.js';
@@ -22,8 +22,8 @@ export type AttemptDisposition = typeof ATTEMPT_DISPOSITIONS[number];
 /**
  * The endpoints of §9.2's edges are heterogeneous — `depends_on` is task→task, `decompose` is
  * attempt→task, `dispatch` task→attempt, `proposal` attempt→proposal, `seal` proposal→outcome — so
- * a bare string endpoint cannot express them. `direct-parent` carries no id: it is §9.2 invariant
- * 1's named exception and resolves to `roots.parent_attempt_id`.
+ * a bare string endpoint cannot express them. `direct-parent` is retained only to classify the
+ * historical question/answer kinds; those kinds are out of the production v2 wire contract.
  */
 export const ENDPOINT_REF_KINDS = [
   'attempt', 'task', 'proposal', 'outcome', 'direct-parent',
@@ -48,6 +48,36 @@ export const ATTEMPT_EDGE_KINDS = [
   'verdict', 'rework', 'supersede', 'rotation', 'question', 'answer',
 ] as const;
 export type AttemptEdgeKind = typeof ATTEMPT_EDGE_KINDS[number];
+
+export const DURABLE_ATTEMPT_EDGE_KINDS = [
+  'spawn', 'decompose', 'depends_on', 'dispatch', 'delivery', 'verdict', 'rework',
+] as const satisfies readonly AttemptEdgeKind[];
+
+export const OUT_OF_CONTRACT_ATTEMPT_EDGE_KINDS = [
+  'proposal', 'seal', 'supersede', 'rotation', 'question', 'answer',
+] as const satisfies readonly AttemptEdgeKind[];
+
+export const ATTEMPT_EDGE_PRODUCTION_SUPPORT = Object.freeze({
+  spawn: { production: true, source: 'thread_metadata' },
+  decompose: { production: true, source: 'task_ancestry' },
+  depends_on: { production: true, source: 'task_dependencies' },
+  dispatch: { production: true, source: 'dispatch_generation' },
+  proposal: { production: false, producer_stage: 'out_of_contract' },
+  seal: { production: false, producer_stage: 'out_of_contract' },
+  delivery: { production: true, source: 'task_callback_ledger' },
+  verdict: { production: true, source: 'task_acceptance_ledger' },
+  rework: { production: true, source: 'task_acceptance_ledger' },
+  supersede: { production: false, producer_stage: 'out_of_contract' },
+  rotation: { production: false, producer_stage: 'out_of_contract' },
+  question: { production: false, producer_stage: 'P2-durable-qa' },
+  answer: { production: false, producer_stage: 'P2-durable-qa' },
+} satisfies Record<AttemptEdgeKind, { production: boolean; source?: string; producer_stage?: string }>);
+
+const DURABLE_ATTEMPT_EDGE_KIND_SET = new Set<AttemptEdgeKind>(DURABLE_ATTEMPT_EDGE_KINDS);
+
+export function isDurableAttemptEdgeKind(kind: AttemptEdgeKind): boolean {
+  return DURABLE_ATTEMPT_EDGE_KIND_SET.has(kind);
+}
 
 export interface AttemptEdge {
   readonly kind: AttemptEdgeKind;
@@ -166,7 +196,7 @@ export interface AttemptRecord {
   readonly terminal_state: TerminalState;
   readonly terminal_reason: TerminalReason;
   readonly disposition: AttemptDisposition;
-  /** Non-null iff `disposition === 'superseded'`, and it must resolve to a node (D-10). */
+  /** Always `null` at this pin: production persists the disposition but not an exact successor. */
   readonly superseded_by: string | null;
   // evidence
   /** Root-relative, never absolute — the shipped manifest contract is relocatable by construction. */

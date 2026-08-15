@@ -1,19 +1,19 @@
-// input:  lifecycle values, canonical roots, node:path
-// output: relocatable manifest types, builder, and validator
-// pos:    Value contract for terminal run truth
+// input:  lifecycle, journal, usage, and identity values
+// output: v2 terminal marker types, builder, and validator
+// pos:    Terminal evidence v2 value contract
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import path from 'node:path';
 
-const MANIFEST_SCHEMA = 'cortex-bench-manifest/1';
+export const TERMINAL_MANIFEST_SCHEMA_VERSION = 'cortex-bench-manifest/2';
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
-export type TerminalState = 'completed' | 'failed' | 'cancelled' | 'timeout';
+export type TerminalState = 'completed' | 'failed' | 'cancelled' | 'timeout' | 'aborted';
 export type TerminalReason = 'ok' | 'child_failure' | 'deadline' | 'deadline_exceeded' | 'cancelled'
   | 'containment_failure' | 'containment_failed' | 'missing_quiescent'
   | 'trajectory_write_failed' | 'rate_limited' | 'protocol_violation'
-  | 'step_limit_exceeded' | 'cost_limit_exceeded' | 'provider_error';
+  | 'step_limit_exceeded' | 'cost_limit_exceeded' | 'provider_error' | 'aborted';
 
 export interface SupervisorEvidence {
   quiescent: boolean;
@@ -23,8 +23,8 @@ export interface SupervisorEvidence {
 export interface TokenCounts {
   input: number | null;
   output: number | null;
-  cache_read?: number | null;
-  cache_creation?: number | null;
+  cache_read: number | null;
+  cache_creation: null;
 }
 
 export interface StartedMarkerInput {
@@ -47,7 +47,6 @@ export interface TerminalManifestInput {
   journalPath: string;
   journalSha256: string;
   eventCount: number;
-  supervisor: SupervisorEvidence;
   steps: number | null;
   costUsd: number | null;
   tokens: TokenCounts;
@@ -63,7 +62,7 @@ export const TERMINAL_IDENTITY_KEYS = [
 
 const TERMINAL_KEYS = [
   'schema_version', 'state', 'started_at', 'ended_at', 'journal_path', 'journal_sha256',
-  'event_count', 'supervisor', 'steps', 'cost_usd', 'tokens', ...TERMINAL_IDENTITY_KEYS,
+  'event_count', 'steps', 'cost_usd', 'tokens', ...TERMINAL_IDENTITY_KEYS,
   'terminal_reason',
 ];
 
@@ -76,6 +75,7 @@ const TERMINAL_REASONS: Record<TerminalState, readonly TerminalReason[]> = {
   ],
   cancelled: ['cancelled'],
   timeout: ['deadline', 'deadline_exceeded'],
+  aborted: ['aborted'],
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -114,7 +114,8 @@ function isNullableNumber(value: unknown): boolean {
 }
 
 function isTerminalState(value: unknown): value is TerminalState {
-  return value === 'completed' || value === 'failed' || value === 'cancelled' || value === 'timeout';
+  return value === 'completed' || value === 'failed' || value === 'cancelled'
+    || value === 'timeout' || value === 'aborted';
 }
 
 function isTerminalReason(value: unknown): value is TerminalReason {
@@ -126,37 +127,24 @@ function validReasonPair(state: unknown, reason: unknown): boolean {
   return TERMINAL_REASONS[state].includes(reason);
 }
 
-function validSupervisorShape(value: unknown): value is SupervisorEvidence {
-  if (!isObject(value) || !exactKeys(value, ['quiescent', 'descendants'])) return false;
-  return typeof value.quiescent === 'boolean' && isNonNegativeInteger(value.descendants);
-}
-
-function validSupervisor(value: unknown, state: unknown): boolean {
-  if (!validSupervisorShape(value) || !isTerminalState(state)) return false;
-  if (state !== 'completed') return true;
-  return value.quiescent && value.descendants === 0;
-}
-
 function validTokens(value: unknown): boolean {
   if (!isObject(value)) return false;
-  const required = ['input', 'output'];
-  const allowed = [...required, 'cache_read', 'cache_creation'];
-  if (!required.every(key => Object.hasOwn(value, key))) return false;
-  if (!Object.keys(value).every(key => allowed.includes(key))) return false;
-  return Object.values(value).every(isNullableNumber);
+  const required = ['input', 'output', 'cache_read', 'cache_creation'];
+  return exactKeys(value, required)
+    && isNullableNumber(value.input) && isNullableNumber(value.output)
+    && isNullableNumber(value.cache_read) && value.cache_creation === null;
 }
 
 type ManifestRule = [detail: string, check: (record: Record<string, unknown>) => boolean];
 
 const MANIFEST_RULES: ManifestRule[] = [
-  ['schema_version', record => record.schema_version === MANIFEST_SCHEMA],
+  ['schema_version', record => record.schema_version === TERMINAL_MANIFEST_SCHEMA_VERSION],
   ['state', record => isTerminalState(record.state)],
   ['started_at', record => isTimestamp(record.started_at)],
   ['ended_at', record => isTimestamp(record.ended_at)],
   ['journal_path', record => typeof record.journal_path === 'string' && record.journal_path.length > 0],
   ['journal_sha256', record => isSha256(record.journal_sha256)],
   ['event_count', record => isNonNegativeInteger(record.event_count)],
-  ['supervisor', record => validSupervisor(record.supervisor, record.state)],
   ['steps', record => isNullableNumber(record.steps)],
   ['cost_usd', record => isNullableNumber(record.cost_usd)],
   ['tokens', record => validTokens(record.tokens)],
@@ -178,14 +166,13 @@ export function recordedJournalPath(trajectoryRoot: string, journalPath: string)
 
 export function buildTerminalManifest(input: TerminalManifestInput): Record<string, unknown> {
   return {
-    schema_version: MANIFEST_SCHEMA,
+    schema_version: TERMINAL_MANIFEST_SCHEMA_VERSION,
     state: input.state,
     started_at: input.startedAt,
     ended_at: input.endedAt,
     journal_path: recordedJournalPath(input.trajectoryRoot, input.journalPath),
     journal_sha256: input.journalSha256,
     event_count: input.eventCount,
-    supervisor: input.supervisor,
     steps: input.steps,
     cost_usd: input.costUsd,
     tokens: input.tokens,

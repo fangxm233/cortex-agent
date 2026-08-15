@@ -1,6 +1,6 @@
-// input:  §9.1's 39-member interface, §9.2's closed edge union, §17 (17.3)'s minting rule
-// output: member-set, closed-union, endpoint-legality and attempt-identity proofs
-// pos:    Attempt record and attempt-DAG edge tests
+// input:  embedded attempt records and 13 historical edges
+// output: member, durable-edge, slot, and identity proofs
+// pos:    Composite v2 attempt-node tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 // SEAM NOTE. `mintAttemptId` is proved against the stem the SHIPPED `writeStartedMarker` actually
@@ -17,9 +17,12 @@ import { describe, expect, it } from 'vitest';
 import {
   ATTEMPT_DISPOSITIONS,
   ATTEMPT_EDGE_KINDS,
+  ATTEMPT_EDGE_PRODUCTION_SUPPORT,
   ATTEMPT_RECORD_KEYS,
+  DURABLE_ATTEMPT_EDGE_KINDS,
   EDGE_ENDPOINT_LEGALITY,
   ENDPOINT_REF_KINDS,
+  OUT_OF_CONTRACT_ATTEMPT_EDGE_KINDS,
   assignAttemptOrdinals,
   mintAttemptId,
   threadScopedIdentityHolds,
@@ -109,9 +112,17 @@ describe('AttemptEdge — the CLOSED union (§17 17.1.5)', () => {
     ]);
   });
 
-  it('both kinds of §9.2s last row are present and distinct', () => {
-    expect(ATTEMPT_EDGE_KINDS).toContain('question');
-    expect(ATTEMPT_EDGE_KINDS).toContain('answer');
+  it('classifies all 13 historical kinds against production durability at this pin', () => {
+    expect(Object.keys(ATTEMPT_EDGE_PRODUCTION_SUPPORT)).toEqual([...ATTEMPT_EDGE_KINDS]);
+    expect([...DURABLE_ATTEMPT_EDGE_KINDS]).toEqual([
+      'spawn', 'decompose', 'depends_on', 'dispatch', 'delivery', 'verdict', 'rework',
+    ]);
+    expect([...OUT_OF_CONTRACT_ATTEMPT_EDGE_KINDS]).toEqual([
+      'proposal', 'seal', 'supersede', 'rotation', 'question', 'answer',
+    ]);
+    expect(ATTEMPT_EDGE_PRODUCTION_SUPPORT.question).toEqual({
+      production: false, producer_stage: 'P2-durable-qa',
+    });
     expect(new Set(ATTEMPT_EDGE_KINDS).size).toBe(13);
   });
 
@@ -307,9 +318,9 @@ describe('R1 — the backend widening is ASSERTED, never re-edited (G4-N2)', () 
       new URL('../../../src/domain/agent-run/journal.ts', import.meta.url), 'utf8',
     );
     const lines = journalSource.split('\n');
-    expect(lines[57].trim()).toBe('backend: Backend;');
     const inputStart = lines.findIndex(line => line.includes('interface JournalEventInput'));
-    expect(inputStart).toBe(53);
+    expect(lines.slice(inputStart, inputStart + 12).map(line => line.trim()))
+      .toContain('backend: Backend;');
     expect(journalSource).toContain("import type { Backend } from '../../agent-adapter/types.js';");
   });
 

@@ -1,6 +1,6 @@
-// input:  attempt records, authoritative edges, the frozen policy identity and Gate 8's accounting
-// output: the canonical cortex-bench-composite-manifest/1 document, its refusals and its publication
-// pos:    Composite manifest encoding, structural validation and atomic publication
+// input:  production attempts, durable edges, identity, accounting
+// output: canonical composite-manifest/2 validation and bytes
+// pos:    Composite evidence v2 contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import fs from 'node:fs';
@@ -8,8 +8,8 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 
 import {
-  ATTEMPT_EDGE_KINDS, ATTEMPT_RECORD_KEYS, EDGE_ENDPOINT_LEGALITY, threadScopedIdentityHolds,
-  type AttemptEdge, type AttemptEdgeKind, type AttemptRecord, type EndpointRef,
+  ATTEMPT_EDGE_KINDS, ATTEMPT_RECORD_KEYS, EDGE_ENDPOINT_LEGALITY, isDurableAttemptEdgeKind,
+  threadScopedIdentityHolds, type AttemptEdge, type AttemptEdgeKind, type AttemptRecord, type EndpointRef,
   type EndpointRefKind,
 } from './attempt-record.js';
 import type { AccountingRecord } from './accounting-reconciliation.js';
@@ -23,7 +23,7 @@ import {
 export type { AttemptEdge, AttemptEdgeKind, AttemptRecord, EndpointRef, EndpointRefKind };
 export { ATTEMPT_EDGE_KINDS, EDGE_ENDPOINT_LEGALITY };
 
-export const COMPOSITE_MANIFEST_SCHEMA_VERSION = 'cortex-bench-composite-manifest/1';
+export const COMPOSITE_MANIFEST_SCHEMA_VERSION = 'cortex-bench-composite-manifest/2';
 
 export type OrchestrationModeName = 'direct' | 'coder-review' | 'manager';
 
@@ -71,7 +71,7 @@ export interface CompositeManifestIdentity {
 }
 
 export interface CompositeManifestRoots {
-  readonly parent_attempt_id: string;
+  readonly root_attempt_id: string;
   /** `null` exactly in the taskless modes of G4-CM11 — the ONE place the taskless shape is visible. */
   readonly root_task_id: string | null;
 }
@@ -118,7 +118,8 @@ export const COMPOSITE_MANIFEST_VIOLATION_CODES = [
   'schema_version_invalid', 'unknown_top_level_member', 'top_level_member_missing',
   'member_order_invalid', 'nodes_empty',
   // §9.2 invariant 1
-  'attempt_id_not_unique', 'edge_endpoint_unresolved', 'edge_endpoint_type_invalid',
+  'attempt_id_not_unique', 'edge_kind_out_of_contract', 'edge_endpoint_unresolved',
+  'edge_endpoint_type_invalid',
   // §9.2 invariant 2
   'attempt_dag_cycle', 'attempt_dag_unrooted',
   // §9.2 invariant 3
@@ -129,9 +130,10 @@ export const COMPOSITE_MANIFEST_VIOLATION_CODES = [
   'nodes_out_of_order', 'edges_out_of_order', 'edge_duplicated', 'node_edge_projection_mismatch',
   // roots and trial coherence
   'roots_parent_attempt_invalid', 'node_trial_id_mismatch', 'accounting_trial_id_mismatch',
-  'accounting_shape_invalid',
+  'accounting_shape_invalid', 'identity_invalid',
   // node-level
-  'attempt_ordinal_invalid', 'superseded_by_unresolved', 'task_ancestry_invalid',
+  'attempt_ordinal_invalid', 'attempt_evidence_invalid', 'superseded_by_unresolved',
+  'task_ancestry_invalid',
   'thread_scoped_identity_invalid',
   // predicate
   'predicate_checks_incomplete', 'predicate_checks_out_of_order', 'predicate_check_detail_invalid',
@@ -219,7 +221,7 @@ function compareEdges(left: AttemptEdge, right: AttemptEdge): number {
 
 /**
  * (17.1.4.1) — `depth(n)` is the number of edges on the SHORTEST path from
- * `roots.parent_attempt_id` to `n` over the `spawn`/`decompose`/`dispatch` subset. Shortest is
+ * `roots.root_attempt_id` to `n` over the `spawn`/`decompose`/`dispatch` subset. Shortest is
  * specified rather than assumed because §9.2 invariant 2 guarantees only that the subset is a DAG
  * rooted there, and a DAG admits several paths. Depth is DERIVED, never a stored field.
  */
@@ -331,7 +333,7 @@ function buildPredicate(
  */
 export function buildCompositeManifest(input: BuildCompositeManifestInput): CompositeManifest {
   const edges = [...input.edges].sort(compareEdges);
-  const depths = attemptDepths(edges, input.roots.parent_attempt_id);
+  const depths = attemptDepths(edges, input.roots.root_attempt_id);
   const projected = input.nodes.map((node): AttemptRecord => ({
     ...node,
     edges: edges.filter(edge => edge.from.ref === 'attempt' && edge.from.id === node.attempt_id),
@@ -401,7 +403,7 @@ export function canonicalCompositeManifestBytes(manifest: CompositeManifest): Bu
     else if (key === 'edges') ordered[key] = manifest.edges.map(canonicalEdge);
     else if (key === 'roots') {
       ordered[key] = {
-        parent_attempt_id: manifest.roots.parent_attempt_id,
+        root_attempt_id: manifest.roots.root_attempt_id,
         root_task_id: manifest.roots.root_task_id,
       };
     } else if (key === 'predicate') {
@@ -437,6 +439,50 @@ const PROXY_KEYS = [
   'requests', 'cached_tokens', 'input_tokens', 'output_tokens', 'audit_log', 'lease_echo', 'source',
 ];
 const JOURNAL_KEYS = ['requests', 'cost_usd', 'steps', 'tokens', 'source'];
+const SHA256_PATTERN = /^[a-f0-9]{64}$/;
+
+function isSha256(value: unknown): boolean {
+  return typeof value === 'string' && SHA256_PATTERN.test(value);
+}
+
+function validIdentityMap(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const entries = Object.entries(value as Record<string, unknown>);
+  return entries.length > 0 && entries.every(([role, hash]) => role.length > 0 && isSha256(hash));
+}
+
+function validTerminalOutcome(node: AttemptRecord): boolean {
+  const legal = {
+    completed: ['ok'],
+    failed: [
+      'child_failure', 'trajectory_write_failed', 'containment_failure', 'rate_limited',
+      'protocol_violation', 'step_limit_exceeded', 'cost_limit_exceeded', 'provider_error',
+    ],
+    cancelled: ['cancelled'],
+    timeout: ['deadline', 'deadline_exceeded'],
+    aborted: ['aborted'],
+  } as const;
+  return (legal[node.terminal_state] as readonly string[] | undefined)
+    ?.includes(node.terminal_reason) === true;
+}
+
+function validAttemptEvidence(node: AttemptRecord): boolean {
+  const keys = Object.keys(node);
+  if (keys.length !== ATTEMPT_RECORD_KEYS.length
+    || !ATTEMPT_RECORD_KEYS.every(key => Object.hasOwn(node, key))) return false;
+  const paths = [node.journal_path, node.terminal_manifest_path];
+  const hashes = [
+    node.model_execution_identity_hash, node.role_tool_surface_hash, node.bundle_manifest_hash,
+    node.journal_sha256, node.terminal_manifest_sha256,
+  ];
+  return paths.every(value => typeof value === 'string' && value.length > 0)
+    && node.terminal_manifest_path.endsWith('.terminal.json')
+    && hashes.every(isSha256)
+    && Number.isInteger(node.event_count) && node.event_count >= 0
+    && (node.provider_requests === null
+      || (Number.isInteger(node.provider_requests) && node.provider_requests > 0))
+    && validTerminalOutcome(node);
+}
 
 export function validateCompositeManifest(
   manifest: CompositeManifest,
@@ -489,10 +535,14 @@ export function validateCompositeManifest(
     switch (ref.ref) {
       case 'attempt': case 'proposal': case 'outcome': return attemptIds.has(ref.id);
       case 'task': return taskIds.has(ref.id);
-      case 'direct-parent': return attemptIds.has(manifest.roots?.parent_attempt_id);
+      case 'direct-parent': return attemptIds.has(manifest.roots?.root_attempt_id);
     }
   };
   for (const edge of edges) {
+    if (!isDurableAttemptEdgeKind(edge.kind)) {
+      add('edge_kind_out_of_contract', edge.kind);
+      continue;
+    }
     const legality = EDGE_ENDPOINT_LEGALITY[edge.kind];
     if (!legality) {
       add('edge_endpoint_type_invalid', `unknown kind ${String(edge.kind)}`);
@@ -520,10 +570,10 @@ export function validateCompositeManifest(
     add('edges_out_of_order', 'edges are not in (kind, from, to) order');
   }
 
-  // ---- §9.2 invariant 2: DAG rooted at roots.parent_attempt_id ------------------------------
-  const parentAttemptId = manifest.roots?.parent_attempt_id;
+  // ---- §9.2 invariant 2: DAG rooted at roots.root_attempt_id --------------------------------
+  const rootAttemptId = manifest.roots?.root_attempt_id;
   if (hasCycle(edges)) add('attempt_dag_cycle', 'spawn/decompose/dispatch subset contains a cycle');
-  const depths = attemptDepths(edges, parentAttemptId);
+  const depths = attemptDepths(edges, rootAttemptId);
   for (const node of nodes) {
     if (!depths.has(node.attempt_id)) {
       add('attempt_dag_unrooted', node.attempt_id);
@@ -593,9 +643,9 @@ export function validateCompositeManifest(
   }
 
   // ---- roots (17.1.6) -----------------------------------------------------------------------
-  const rootNode = nodes.find(node => node.attempt_id === parentAttemptId);
-  if (!rootNode || depths.get(parentAttemptId) !== 0 || rootNode.thread_id !== null) {
-    add('roots_parent_attempt_invalid', String(parentAttemptId));
+  const rootNode = nodes.find(node => node.attempt_id === rootAttemptId);
+  if (!rootNode || depths.get(rootAttemptId) !== 0 || rootNode.thread_id === null) {
+    add('roots_parent_attempt_invalid', String(rootAttemptId));
   }
 
   // ---- trial coherence (G4-CM23 / G4-CM24) --------------------------------------------------
@@ -615,15 +665,22 @@ export function validateCompositeManifest(
   if (journalKeys.join(',') !== JOURNAL_KEYS.join(',')) {
     add('accounting_shape_invalid', `journal keys ${journalKeys.join(',')}`);
   }
+  const identity = manifest.identity;
+  if (!validIdentityMap(identity?.model_execution_identity_hash)
+    || !validIdentityMap(identity?.role_tool_surface_hash)
+    || !isSha256(identity?.bundle_manifest_hash)) {
+    add('identity_invalid', 'spawn-time identity is absent or malformed');
+  }
 
   // ---- node-level ---------------------------------------------------------------------------
   for (const node of nodes) {
     if (!Number.isInteger(node.attempt_ordinal) || node.attempt_ordinal < 1) {
       add('attempt_ordinal_invalid', `${node.attempt_id} ordinal ${node.attempt_ordinal}`);
     }
-    const superseded = node.disposition === 'superseded';
-    if (superseded !== (node.superseded_by !== null)
-      || (node.superseded_by !== null && !attemptIds.has(node.superseded_by))) {
+    if (!validAttemptEvidence(node)) {
+      add('attempt_evidence_invalid', node.attempt_id);
+    }
+    if (node.superseded_by !== null) {
       add('superseded_by_unresolved', node.attempt_id);
     }
     const ancestry = node.task_ancestry ?? [];

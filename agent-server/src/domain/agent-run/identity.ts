@@ -1,6 +1,6 @@
-// input:  resolved profiles and caller-supplied manifests
-// output: canonical JSON and guarded run identity SHA-256 hashes
-// pos:    Pure identity freezer for one-shot agent runs
+// input:  resolved profiles and launcher pre-boot inputs
+// output: canonical model, role, and bundle SHA-256 hashes
+// pos:    Benchmark identity hash contract
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { createHash } from 'node:crypto';
@@ -60,6 +60,12 @@ export interface BundleManifestInput {
   harnessHashes: IdentityJsonValue;
   modelExecutionIdentityHash: string;
   roleToolSurfaceHash: string;
+}
+
+export interface LauncherBundleManifestInput {
+  npmArtifactSha256: string;
+  backendCli: { name: string; version: string };
+  preBootInputBundleSha256: string;
 }
 
 export interface FrozenIdentity {
@@ -185,6 +191,14 @@ export function computeBundleManifestHash(input: BundleManifestInput): string {
     harness_hashes: input.harnessHashes,
     model_execution_identity_hash: input.modelExecutionIdentityHash,
     role_tool_surface_hash: input.roleToolSurfaceHash,
+  });
+}
+
+export function computeLauncherBundleManifestHash(input: LauncherBundleManifestInput): string {
+  return canonicalJsonSha256({
+    npm_artifact_sha256: input.npmArtifactSha256,
+    backend_cli: input.backendCli,
+    pre_boot_input_bundle_sha256: input.preBootInputBundleSha256,
   });
 }
 

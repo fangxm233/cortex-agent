@@ -227,11 +227,11 @@ describe('§9.3 M4 — the merge indexes identity.model_execution_identity_hash 
 // M2 — partition by the DAG, not by `thread_id === null`
 // -------------------------------------------------------------------------------------------
 
-describe('§9.3 M2 — fragments partition by roots.parent_attempt_id and recurse', () => {
-  it('roots the walk at roots.parent_attempt_id, not at the null-thread fragment', () => {
+describe('§9.3 M2 — fragments partition by roots.root_attempt_id and recurse', () => {
+  it('roots the walk at roots.root_attempt_id, not at the null-thread fragment', () => {
     const fixture = writeManagerTreeFixture(makeRoot());
     const reRooted: AttemptDag = {
-      ...fixture.dag, roots: { parent_attempt_id: attemptIdOf('c1') },
+      ...fixture.dag, roots: { root_attempt_id: attemptIdOf('c1') },
     };
 
     // Rooted at c1 the parent process and c2 fall outside the DAG. The flat
@@ -342,10 +342,10 @@ describe('§9.3 M5/M6/M8/M9 generalise to the DAG without changing semantics', (
     expect(refusalFor(fixture)).toBe('aggregate_metrics_underivable');
   });
 
-  it('M5: containment is checked on a DEPTH-3 node, not only on the root', () => {
+  it('rejects legacy per-attempt supervisor evidence instead of treating it as v2 truth', () => {
     const fixture = writeManagerTreeFixture(makeRoot());
     setSupervisor(fixture.journals.get(attemptIdOf('gg1'))!, false, 1);
-    expect(refusalFor(fixture)).toBe('containment_failure');
+    expect(refusalFor(fixture)).toBe('malformed_fragment');
   });
 
   it('M8: snapshot validation is run for a DEPTH-3 node, not only for the root', () => {

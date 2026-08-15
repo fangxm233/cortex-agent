@@ -1,6 +1,6 @@
-// input:  built attempt DAGs, the shipped AccountingRecord, and deliberately corrupted manifests
-// output: canonical-form, verbatim-accounting and both-direction structural-invariant proofs
-// pos:    Composite manifest encoding and validation tests
+// input:  v2 attempt DAGs, accounting, and corrupt manifests
+// output: schema, roots, edges, history, and evidence proofs
+// pos:    Composite evidence v2 contract tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 // BOTH DIRECTIONS. Every §9.2 structural invariant is proved twice: a valid graph is ACCEPTED, and
@@ -82,9 +82,12 @@ function directManifest(): CompositeManifest {
   return buildCompositeManifest({
     trial_id: 'trial-1', root_run_id: 'r1', arm_name: 'arm-a', arm_canonical_sha256: SHA,
     identity: IDENTITY,
-    nodes: [sampleAttempt({ attempt_id: 'run-r1', task_id: 'trial-1', task_ancestry: ['trial-1'] })],
+    nodes: [sampleAttempt({
+      attempt_id: 'run-r1', task_id: 'trial-1', task_ancestry: ['trial-1'],
+      thread_id: 'r1', root_thread_id: 'r1', template: 'benchmark-direct', role: 'benchmark-direct',
+    })],
     edges: [],
-    roots: { parent_attempt_id: 'run-r1', root_task_id: null },
+    roots: { root_attempt_id: 'run-r1', root_task_id: null },
     accounting: accountingRecord(),
     mode: 'direct',
   });
@@ -100,7 +103,8 @@ function managerManifest(overrides: {
   nodes?: readonly AttemptRecord[]; edges?: readonly AttemptEdge[];
 } = {}): CompositeManifest {
   const parent = sampleAttempt({
-    attempt_id: 'run-r1', task_id: 't-root', task_ancestry: ['t-root'], thread_id: null,
+    attempt_id: 'run-r1', task_id: 't-root', task_ancestry: ['t-root'], thread_id: 'r1',
+    root_thread_id: 'r1', template: 'benchmark-manager', role: 'benchmark-manager',
   });
   const child = sampleAttempt({
     attempt_id: 'thread-c1', task_id: 't-child', parent_task_id: 't-root',
@@ -117,7 +121,7 @@ function managerManifest(overrides: {
       { kind: 'decompose', from: { ref: 'attempt', id: 'run-r1' }, to: { ref: 'task', id: 't-child' } },
       { kind: 'dispatch', from: { ref: 'task', id: 't-child' }, to: { ref: 'attempt', id: 'thread-c1' } },
     ],
-    roots: { parent_attempt_id: 'run-r1', root_task_id: 't-root' },
+    roots: { root_attempt_id: 'run-r1', root_task_id: 't-root' },
     accounting: accountingRecord(),
     mode: 'manager',
   });
@@ -154,7 +158,7 @@ describe('the eleven top-level members (§17 17.1.2, count RULED eleven)', () =>
   it('a built manifest carries all eleven and nothing else', () => {
     expect(Object.keys(directManifest())).toEqual([...COMPOSITE_MANIFEST_KEYS]);
     expect(directManifest().schema_version).toBe(COMPOSITE_MANIFEST_SCHEMA_VERSION);
-    expect(COMPOSITE_MANIFEST_SCHEMA_VERSION).toBe('cortex-bench-composite-manifest/1');
+    expect(COMPOSITE_MANIFEST_SCHEMA_VERSION).toBe('cortex-bench-composite-manifest/2');
   });
 });
 
@@ -262,7 +266,7 @@ describe('O-G4-ACCT — the AccountingRecord is placed VERBATIM (§17 17.1.8)', 
       trial_id: 'trial-1', root_run_id: 'r1', arm_name: 'arm-a', arm_canonical_sha256: SHA,
       identity: IDENTITY,
       nodes: [sampleAttempt({ attempt_id: 'run-r1', task_id: 'trial-1' })],
-      edges: [], roots: { parent_attempt_id: 'run-r1', root_task_id: null },
+      edges: [], roots: { root_attempt_id: 'run-r1', root_task_id: null },
       accounting: record, mode: 'direct',
     });
     // Reference identity: the very object buildAccountingRecord returned, not a copy of it.
@@ -315,7 +319,7 @@ describe('predicate (§17 17.1.7)', () => {
       trial_id: 'trial-1', root_run_id: 'r1', arm_name: 'arm-a', arm_canonical_sha256: SHA,
       identity: IDENTITY,
       nodes: [sampleAttempt({ attempt_id: 'run-r1', task_id: 'trial-1' })],
-      edges: [], roots: { parent_attempt_id: 'run-r1', root_task_id: null },
+      edges: [], roots: { root_attempt_id: 'run-r1', root_task_id: null },
       accounting: accountingRecord(), mode: 'direct',
       evaluatedChecks: { G1: { result: 'pass', detail: null } },
     });
@@ -332,6 +336,22 @@ describe('§9.2 structural invariants — DIRECTION 1: a valid graph is ACCEPTED
   it('accepts the two-node manager DAG with ZERO violations', () => {
     expect(codesOf(managerManifest(), managerContext)).toEqual([]);
   });
+
+  it('admits a failed attempt as truthful composite history', () => {
+    const failed = directManifest();
+    const nodes = failed.nodes.map(node => ({
+      ...node, terminal_state: 'failed' as const, terminal_reason: 'provider_error' as const,
+    }));
+    expect(codesOf(mutate(failed, { nodes }), directContext)).toEqual([]);
+  });
+
+  it('admits a superseded attempt without inventing an exact successor', () => {
+    const historical = directManifest();
+    const nodes = historical.nodes.map(node => ({
+      ...node, disposition: 'superseded' as const, superseded_by: null,
+    }));
+    expect(codesOf(mutate(historical, { nodes }), directContext)).toEqual([]);
+  });
 });
 
 describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN named code', () => {
@@ -342,7 +362,7 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
 
   // ---- document closure -------------------------------------------------------------------
   it('schema_version_invalid', () => {
-    const bad = mutate(directManifest(), { schema_version: 'cortex-bench-composite-manifest/2' });
+    const bad = mutate(directManifest(), { schema_version: 'cortex-bench-composite-manifest/1' });
     expect(codesOf(bad, directContext)).toContain('schema_version_invalid');
   });
 
@@ -400,15 +420,26 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
     expect(codesOf(bad, managerContext)).toContain('edge_endpoint_type_invalid');
   });
 
-  it('the id-less direct-parent endpoint RESOLVES to roots.parent_attempt_id', () => {
-    const ok = managerManifest({
+  it('refuses a historical edge kind that production cannot durably produce', () => {
+    const bad = mutate(managerManifest(), {
+      edges: [
+        ...managerManifest().edges,
+        { kind: 'proposal', from: { ref: 'attempt', id: 'run-r1' },
+          to: { ref: 'proposal', id: 'thread-c1' } },
+      ],
+    });
+    expect(codesOf(bad, managerContext)).toContain('edge_kind_out_of_contract');
+  });
+
+  it('the id-less direct-parent endpoint is out of the production v2 edge contract', () => {
+    const historical = managerManifest({
       edges: [
         { kind: 'decompose', from: { ref: 'attempt', id: 'run-r1' }, to: { ref: 'task', id: 't-child' } },
         { kind: 'dispatch', from: { ref: 'task', id: 't-child' }, to: { ref: 'attempt', id: 'thread-c1' } },
         { kind: 'question', from: { ref: 'attempt', id: 'thread-c1' }, to: { ref: 'direct-parent' } },
       ],
     });
-    expect(codesOf(ok, managerContext)).toEqual([]);
+    expect(codesOf(historical, managerContext)).toContain('edge_kind_out_of_contract');
   });
 
   // ---- §9.2 invariant 2 -------------------------------------------------------------------
@@ -445,7 +476,8 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
   // unrooted, while invariant 4's biconditional forced the child to be a node regardless.
   it('a TASKLESS spawn does not count against max_task_depth', () => {
     const parent = sampleAttempt({
-      attempt_id: 'run-r1', task_id: 'trial-1', task_ancestry: ['trial-1'], thread_id: null,
+      attempt_id: 'run-r1', task_id: 'trial-1', task_ancestry: ['trial-1'], thread_id: 'r1',
+      root_thread_id: 'r1', template: 'benchmark-coder-review', role: 'benchmark-coder',
     });
     const child = sampleAttempt({
       attempt_id: 'thread-c1', task_id: 'trial-1', task_ancestry: ['trial-1'], thread_id: 'c1',
@@ -460,7 +492,7 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
         { kind: 'spawn', from: { ref: 'attempt', id: 'run-r1' }, to: { ref: 'attempt', id: 'thread-c1' } },
       ],
       // The taskless shape, visible in exactly one place (17.1.6).
-      roots: { parent_attempt_id: 'run-r1', root_task_id: null },
+      roots: { root_attempt_id: 'run-r1', root_task_id: null },
       accounting: accountingRecord(), mode: 'coder-review',
     });
 
@@ -541,7 +573,7 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
   // ---- roots / coherence -------------------------------------------------------------------
   it('roots_parent_attempt_invalid — must resolve to a node at depth 0 with thread_id null', () => {
     const bad = mutate(directManifest(), {
-      roots: { parent_attempt_id: 'nobody', root_task_id: null },
+      roots: { root_attempt_id: 'nobody', root_task_id: null },
     });
     expect(codesOf(bad, directContext)).toContain('roots_parent_attempt_invalid');
   });
@@ -568,12 +600,29 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
       .toContain('accounting_shape_invalid');
   });
 
+  it('identity_invalid — deferred spawn identities cannot be represented by empty maps', () => {
+    const manifest = directManifest();
+    const identity = { ...manifest.identity, model_execution_identity_hash: {} };
+    expect(codesOf(mutate(manifest, { identity }), directContext)).toContain('identity_invalid');
+  });
+
   // ---- node-level --------------------------------------------------------------------------
   it('attempt_ordinal_invalid — base 1, there is no ordinal 0', () => {
     const bad = mutate(directManifest(), {
       nodes: [sampleAttempt({ attempt_id: 'run-r1', task_id: 'trial-1', attempt_ordinal: 0 })],
     });
     expect(codesOf(bad, directContext)).toContain('attempt_ordinal_invalid');
+  });
+
+  it.each([
+    ['model_execution_identity_hash', ''], ['role_tool_surface_hash', ''],
+    ['journal_path', ''], ['journal_sha256', ''],
+    ['terminal_manifest_path', ''], ['terminal_manifest_sha256', ''],
+    ['provider_requests', 0],
+  ] as const)('attempt_evidence_invalid — %s cannot use an empty/zero stand-in', (field, value) => {
+    const node = sampleAttempt({ [field]: value } as Partial<AttemptRecord>);
+    const bad = mutate(directManifest(), { nodes: [{ ...node, attempt_id: 'run-r1' }] });
+    expect(codesOf(bad, directContext)).toContain('attempt_evidence_invalid');
   });
 
   it('superseded_by_unresolved — non-null iff disposition is superseded, and must resolve', () => {

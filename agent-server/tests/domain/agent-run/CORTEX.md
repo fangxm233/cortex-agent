@@ -5,8 +5,8 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | filename | role | function |
 |---|---|---|
 | access-probe-cli.test.ts | test | verifies help and dual-format probe output |
-| atif-dag-fixtures.ts | fixture | writes manager- and coder-review-shaped attempt DAGs with their lifecycle pairs |
-| atif-recursive-merge.test.ts | test | proves recursion past one level, role-indexed identity, DAG partition and named refusals |
+| atif-dag-fixtures.ts | fixture | writes v2 attempt DAGs with lifecycle pairs |
+| atif-recursive-merge.test.ts | test | proves v2 recursive merge without attempt process claims |
 | access-probe-fixture.mjs | fixture | emits tamper, timeout and forbidden syscalls |
 | access-probe-policy.test.ts | test | proves path, root-metadata, count and stream policy |
 | access-probe.test.ts | e2e | proves evidence isolation and containment |
@@ -36,13 +36,13 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | fake-supervisor.ts | fixture | emits lifecycle and ownership process edges |
 | fake-thread-probe-entry.mjs | fixture | runs one current-runner step and flushes stores |
 | full-benchmark-thread-probe-entry.mjs | fixture | bootstraps MCP and emits fake C4 events for C8 tracing |
-| identity.test.ts | test | verifies deterministic run and guard identity hashes |
+| identity.test.ts | test | verifies pre-boot bundle and runtime identity hashes |
 | long-mcp-call-e2e.test.ts | e2e | holds a real MCP call past 60s on both backends |
 | long-mcp-claude-cli.mjs | fixture | answers one turn behind a real MCP client call |
 | long-mcp-hold-server.mjs | fixture | holds one stdio MCP call for a chosen duration |
 | long-mcp-trial-fixture.ts | fixture | compiles a trial whose declared MCP server holds |
-| journal.test.ts | test | verifies durable events and relocatable lifecycle paths |
-| manifest-contract.test.ts | test | verifies lifecycle, events and state admission |
+| journal.test.ts | test | verifies durable events and v2 lifecycle paths |
+| manifest-contract.test.ts | test | verifies supervisor-free terminal v2 evidence |
 | pi-rpc-cli.mjs | fixture | answers one PI rpc turn and records its env |
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
@@ -55,9 +55,9 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | terminal-classification.test.ts | test | pins which terminal reason a failed run is recorded under |
 | trial-run-pi.test.ts | test | proves PI state admission, supervision and run identity |
 | trial-manager-runtime.test.ts | test | proves standalone nested manager lifecycle |
-| trial-run.test.ts | test | proves Claude state admission, swaps and publication gates |
+| trial-run.test.ts | test | tests standalone publication against v2 field shapes |
 | trajectory-merge-cli.test.ts | test | verifies optional metrics and typed failures |
 | transport-teardown-e2e.test.ts | e2e | proves journal-linked finalization survives teardown |
-| trajectory-merge-fixtures.ts | fixture | writes print-mode accounted fragment events |
+| trajectory-merge-fixtures.ts | fixture | writes v2 accounted fragment events |
 | trajectory-merge-subagent.test.ts | test | proves the native-subagent census key, the derived subagent turn total, the zero-census refusal, id-matched call/result pairing across interleaved events, and the surviving named refusals |
-| trajectory-merge.test.ts | test | verifies admission and optional-metric ATIF output |
+| trajectory-merge.test.ts | test | verifies v2 lifecycle merge and optional metrics |

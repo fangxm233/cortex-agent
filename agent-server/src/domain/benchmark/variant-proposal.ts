@@ -7,7 +7,7 @@ import type { AgentSlotId } from '../../core/types/thread-types.js';
 import type { CoderReviewVariant } from './arm-schema.js';
 
 /** The pipeline thread's committed terminal state. */
-export type ProposalTerminalState = 'completed' | 'failed' | 'cancelled' | 'timeout';
+export type ProposalTerminalState = 'completed' | 'failed' | 'cancelled' | 'timeout' | 'aborted';
 
 /** Why the step loop ended. The first four are the transition engine's own typed reasons; the
  *  last two are the orchestrator's, for a loop the engine never got to judge. */

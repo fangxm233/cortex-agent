@@ -1,6 +1,6 @@
-// input:  lifecycle journals, attempt links and output path
+// input:  v2 lifecycle journals, attempt DAG and output path
 // output: structural ATIF with honest optional metrics
-// pos:    Parent-plus-child journal merge boundary
+// pos:    Attempt-journal merge boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { createHash } from 'node:crypto';
@@ -72,7 +72,7 @@ export const NODE_TRAJECTORY_MERGE_FS: TrajectoryMergeFileSystem = {
 export interface AttemptDag {
   readonly nodes: readonly AttemptRecord[];
   readonly edges: readonly AttemptEdge[];
-  readonly roots: { readonly parent_attempt_id: string };
+  readonly roots: { readonly root_attempt_id: string };
   /** §9.3 M4 / design B-1: a role-indexed MAP, never a scalar. A scalar cannot be indexed by role
    *  and would silently degrade M4 back to the shipped parent-equality check. */
   readonly identity: { readonly model_execution_identity_hash: Readonly<Record<string, string>> };
@@ -84,7 +84,7 @@ export interface MergeTrajectoryOptions {
   subagentLinks?: ThreadLink[];
   parentStateAdmission?: StateAdmissionEvidence;
   /**
-   * §9.2's attempt DAG. When supplied, the merge partitions at `roots.parent_attempt_id` and
+   * §9.2's attempt DAG. When supplied, the merge partitions at `roots.root_attempt_id` and
    * recurses over the authoritative edges (§9.3 M2/M3) and indexes identity by role (M4). Without
    * it the merge keeps the shipped one-level, tool-result-derived path — the modes that have no
    * composite manifest producer yet.
@@ -186,27 +186,6 @@ function loadInputs(root: string, fileSystem: TrajectoryMergeFileSystem): Lifecy
   const names = fileSystem.readdir(root).filter(name => name.endsWith('.started.json')).sort();
   if (names.length === 0) return mergeError('malformed_fragment', 'No started markers found');
   return names.map(name => loadLifecycle(root, name, fileSystem));
-}
-
-function supervisorEvidence(terminal: Record<string, unknown>): Record<string, unknown> {
-  const supervisor = terminal.supervisor;
-  if (!supervisor || typeof supervisor !== 'object' || Array.isArray(supervisor)) {
-    return mergeError('malformed_fragment', 'Terminal manifest has no supervisor evidence');
-  }
-  const evidence = supervisor as Record<string, unknown>;
-  if (typeof evidence.quiescent !== 'boolean' || !Number.isInteger(evidence.descendants)) {
-    return mergeError('malformed_fragment', 'Terminal supervisor evidence is unparseable');
-  }
-  return evidence;
-}
-
-function assertContainment(inputs: LifecycleInput[]): void {
-  for (const input of inputs) {
-    const evidence = supervisorEvidence(input.terminal);
-    if (evidence.quiescent !== true || evidence.descendants !== 0) {
-      mergeError('containment_failure', 'Terminal manifest is not quiescent');
-    }
-  }
 }
 
 function assertJournalLinkage(input: LifecycleInput): void {
@@ -600,7 +579,7 @@ function planNode(
 function planFromDag(
   fragments: SourceFragment[], dag: AttemptDag, explicit: ThreadLink[] | undefined,
 ): PlanNode {
-  const rootId = dag.roots.parent_attempt_id;
+  const rootId = dag.roots.root_attempt_id;
   const order = indexNodes(dag);
   if (!order.has(rootId)) {
     mergeError('malformed_fragment', `Root attempt ${rootId} is not declared by the manifest`);
@@ -937,7 +916,6 @@ function mergeBytes(
 ): { bytes: Buffer; trajectoryId: string; fragments: FragmentOutcome[] } {
   const inputs = loadInputs(root, fileSystem);
   // M5 and M8 hold for every node of the DAG because every node is one of these inputs.
-  assertContainment(inputs);
   const fragments = inputs.map(parseJournal);
   const includeMetrics = metricsAvailable(fragments);
   validateSnapshot(inputs, options.parentStateAdmission);

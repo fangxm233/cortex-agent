@@ -105,8 +105,8 @@ function shippedAcceptsManifestState(state: string): boolean {
     state: state as TerminalState,
     startedAt: '2026-08-06T00:00:00.000Z', endedAt: '2026-08-06T00:00:01.000Z',
     journalPath: '/trial/journal.jsonl', journalSha256: sha, eventCount: 1,
-    supervisor: { quiescent: true, descendants: 0 },
-    steps: 1, costUsd: null, tokens: { input: 1, output: 1 },
+    steps: 1, costUsd: null,
+    tokens: { input: 1, output: 1, cache_read: null, cache_creation: null },
     modelExecutionIdentityHash: sha, roleToolSurfaceHash: sha, bundleManifestHash: sha,
     terminalReason: 'ok',
   });
@@ -123,8 +123,8 @@ function shippedAcceptsTimestamp(value: string): boolean {
     state: 'completed',
     startedAt: value, endedAt: '2026-08-06T00:00:01.000Z',
     journalPath: '/trial/journal.jsonl', journalSha256: sha, eventCount: 1,
-    supervisor: { quiescent: true, descendants: 0 },
-    steps: 1, costUsd: null, tokens: { input: 1, output: 1 },
+    steps: 1, costUsd: null,
+    tokens: { input: 1, output: 1, cache_read: null, cache_creation: null },
     modelExecutionIdentityHash: sha, roleToolSurfaceHash: sha, bundleManifestHash: sha,
     terminalReason: 'ok',
   });
@@ -797,7 +797,7 @@ it('G4-CM14 — every projected edge RESOLVES against the real validator (zero u
     },
     nodes: [sampleAttempt({ attempt_id: 'run-r1', task_id: 'trial-1', task_ancestry: ['trial-1'] })],
     edges,
-    roots: { parent_attempt_id: 'run-r1', root_task_id: null },
+    roots: { root_attempt_id: 'run-r1', root_task_id: null },
     accounting: compositionAccounting(),
     mode: 'direct',
   });

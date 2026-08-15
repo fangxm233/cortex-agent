@@ -1,6 +1,6 @@
-// input:  manifests, journals, state admission evidence
-// output: lifecycle, event, and parent-admission proofs
-// pos:    Agent-run manifest contract tests
+// input:  v2 terminal markers and attempt journals
+// output: version, lifecycle, token, and slot proofs
+// pos:    Terminal evidence v2 contract tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -21,7 +21,6 @@ import {
   validateTrajectoryRoot,
   writeStartedMarker,
   writeTerminalManifest,
-  type SupervisorEvidence,
   type TerminalManifestInput,
   type TerminalReason,
   type TerminalState,
@@ -86,8 +85,9 @@ function manifestInput(
     trajectoryRoot: root, rootRunId: 'run-001', threadId: null, state: 'completed',
     startedAt: '2026-07-31T10:00:00.000Z', endedAt: '2026-07-31T10:00:01.000Z',
     journalPath, journalSha256, eventCount: 1,
-    supervisor: { quiescent: true, descendants: 0 }, steps: 1, costUsd: null,
-    tokens: { input: 7, output: 3 }, ...HASHES, terminalReason: 'ok', ...overrides,
+    steps: 1, costUsd: null,
+    tokens: { input: 7, output: 3, cache_read: null, cache_creation: null },
+    ...HASHES, terminalReason: 'ok', ...overrides,
   };
 }
 
@@ -121,6 +121,18 @@ async function createTrajectory(root: string): Promise<{ journalPath: string; te
   const finalPath = writeTerminalManifest(manifestInput(root, journal.journalPath, journal.journalSha256));
   return { journalPath: journal.journalPath, terminalPath: finalPath };
 }
+
+it('rotates the terminal contract to v2 and removes attempt-local supervisor claims', async () => {
+  const root = makeRoot();
+  try {
+    const trajectory = await createTrajectory(root);
+    const terminal = readObject(trajectory.terminalPath);
+    assert.equal(terminal.schema_version, 'cortex-bench-manifest/2');
+    assert.equal(Object.hasOwn(terminal, 'supervisor'), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 function rewriteJournal(
   journalPath: string,
@@ -273,60 +285,26 @@ it('requires parent admission only for standalone root validation', async () => 
   }
 });
 
-it('preserves caller-supplied non-quiescent evidence for a failed run', async () => {
-  const root = makeRoot();
-  try {
-    const journal = await createJournal(root);
-    const supervisor: SupervisorEvidence = { quiescent: false, descendants: 2 };
-    const input = manifestInput(root, journal.journalPath, journal.journalSha256, {
-      state: 'failed', terminalReason: 'containment_failure', supervisor,
-    });
-    const finalPath = writeTerminalManifest(input);
-    assert.deepEqual(readObject(finalPath).supervisor, supervisor);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-it('rejects completed truth without quiescent zero-descendant evidence', async () => {
-  const root = makeRoot();
-  try {
-    const journal = await createJournal(root);
-    const input = manifestInput(root, journal.journalPath, journal.journalSha256, {
-      supervisor: { quiescent: false, descendants: 1 },
-    });
-    assert.throws(() => writeTerminalManifest(input), expectTrajectoryError);
-    assert.equal(fs.existsSync(terminalPath(root)), false);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-const VALID_REASON_CASES: Array<[TerminalState, TerminalReason, SupervisorEvidence]> = [
-  ['completed', 'ok', { quiescent: true, descendants: 0 }],
-  ['cancelled', 'cancelled', { quiescent: false, descendants: 1 }],
-  ['timeout', 'deadline', { quiescent: false, descendants: 1 }],
-  ['timeout', 'deadline_exceeded', { quiescent: true, descendants: 0 }],
-  ['failed', 'child_failure', { quiescent: true, descendants: 0 }],
-  ['failed', 'trajectory_write_failed', { quiescent: true, descendants: 0 }],
-  ['failed', 'containment_failure', { quiescent: false, descendants: 1 }],
-  ['failed', 'rate_limited', { quiescent: true, descendants: 0 }],
-  ['failed', 'protocol_violation', { quiescent: true, descendants: 0 }],
-  ['failed', 'step_limit_exceeded', { quiescent: true, descendants: 0 }],
-  ['failed', 'cost_limit_exceeded', { quiescent: true, descendants: 0 }],
-  ['failed', 'provider_error', { quiescent: true, descendants: 0 }],
+const VALID_REASON_CASES: Array<[TerminalState, TerminalReason]> = [
+  ['completed', 'ok'], ['cancelled', 'cancelled'], ['timeout', 'deadline'],
+  ['timeout', 'deadline_exceeded'], ['failed', 'child_failure'],
+  ['failed', 'trajectory_write_failed'], ['failed', 'containment_failure'],
+  ['failed', 'rate_limited'], ['failed', 'protocol_violation'],
+  ['failed', 'step_limit_exceeded'], ['failed', 'cost_limit_exceeded'],
+  ['failed', 'provider_error'], ['aborted', 'aborted'],
 ];
 
-for (const [state, terminalReason, supervisor] of VALID_REASON_CASES) {
+for (const [state, terminalReason] of VALID_REASON_CASES) {
   it(`accepts the ${state}/${terminalReason} terminal pair`, async () => {
     const root = makeRoot();
     try {
       const journal = await createJournal(root);
       const input = manifestInput(root, journal.journalPath, journal.journalSha256, {
-        state, terminalReason, supervisor,
+        state, terminalReason,
       });
       const stored = readObject(writeTerminalManifest(input));
-      assert.deepEqual([stored.state, stored.terminal_reason, stored.supervisor], [state, terminalReason, supervisor]);
+      assert.deepEqual([stored.state, stored.terminal_reason], [state, terminalReason]);
+      assert.equal(Object.hasOwn(stored, 'supervisor'), false);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -358,7 +336,13 @@ const INVALID_DOMAINS: Array<[string, string, unknown]> = [
   ['string steps', 'steps', '1'],
   ['non-finite steps', 'steps', Number.NaN],
   ['null tokens', 'tokens', null],
-  ['non-finite token count', 'tokens', { input: Number.NaN, output: 3 }],
+  ['omitted cache attribution', 'tokens', { input: 7, output: 3 }],
+  ['synthetic cache creation count', 'tokens', {
+    input: 7, output: 3, cache_read: null, cache_creation: 0,
+  }],
+  ['non-finite token count', 'tokens', {
+    input: Number.NaN, output: 3, cache_read: null, cache_creation: null,
+  }],
   ['timestamp without milliseconds', 'startedAt', '2026-07-31T10:00:00Z'],
   ['non-finite cost', 'costUsd', Number.NaN],
   ['uppercase hash', 'bundleManifestHash', 'A'.repeat(64)],
@@ -535,14 +519,12 @@ it('accepts two slots that share one trial-level bundle manifest hash', async ()
   }
 });
 
-it('reads back the fixer slot and still refuses a slot nothing declares', async () => {
-  // The readback validator is the site that fails LATE: widening only the orchestrator's admission
-  // set lets the whole run spawn, journal and finish, and then loses the terminal manifest here.
+it('accepts production agent slot names and still refuses malformed names', async () => {
   const root = makeRoot();
   try {
     const trajectory = await createTrajectory(root);
     rewriteJournal(trajectory.journalPath, records => {
-      records[1].agent_slot = 'benchmark-fixer';
+      records[1].agent_slot = 'benchmark-direct';
       records[1].role_tool_surface_hash = '8'.repeat(64);
       records[1].bundle_manifest_hash = '9'.repeat(64);
     });
@@ -550,7 +532,7 @@ it('reads back the fixer slot and still refuses a slot nothing declares', async 
     assert.deepEqual(validateTrajectoryRoot(root), { ok: true, problems: [] });
 
     rewriteJournal(trajectory.journalPath, records => {
-      records[1].agent_slot = 'benchmark-unknown';
+      records[1].agent_slot = 'bad slot';
     });
     syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
     assert.deepEqual(validateTrajectoryRoot(root).problems, [

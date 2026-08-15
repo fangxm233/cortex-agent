@@ -54,7 +54,9 @@ const INVALIDATING_TERMINALS: ReadonlySet<string> = new Set(['failed', 'cancelle
  * second against `terminalManifestProblem`'s own verdict.
  */
 const TERMINAL_THREAD_STATUSES: ReadonlySet<string> = new Set(['completed', 'failed', 'cancelled', 'aborted']);
-const TERMINAL_MANIFEST_STATES: ReadonlySet<string> = new Set(['completed', 'failed', 'cancelled', 'timeout']);
+const TERMINAL_MANIFEST_STATES: ReadonlySet<string> = new Set([
+  'completed', 'failed', 'cancelled', 'timeout', 'aborted',
+]);
 
 /**
  * The shipped lifecycle timestamp grammar, restated for the same reason: it exists as three private

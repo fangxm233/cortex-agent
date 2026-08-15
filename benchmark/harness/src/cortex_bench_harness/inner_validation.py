@@ -1,6 +1,6 @@
-# input:  inner terminal/composite documents, frozen arm
-# output: host-side composite wire validity
-# pos:    Mirrors the production inner composite contract
+# input:  v2 terminal/composite documents, frozen arm
+# output: host-side production composite validity
+# pos:    Mirrors the inner evidence v2 contract
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import math
@@ -41,20 +41,29 @@ MODE_CHECK_IDS = {
     "manager": tuple(f"M-{index}" for index in range(1, 17)),
 }
 DISPOSITIONS = frozenset({"accepted", "rejected", "superseded", "invalidated", "none"})
+TERMINAL_REASONS = {
+    "completed": frozenset({"ok"}),
+    "failed": frozenset({
+        "child_failure", "trajectory_write_failed", "containment_failure", "rate_limited",
+        "protocol_violation", "step_limit_exceeded", "cost_limit_exceeded", "provider_error",
+    }),
+    "cancelled": frozenset({"cancelled"}),
+    "timeout": frozenset({"deadline", "deadline_exceeded"}),
+    "aborted": frozenset({"aborted"}),
+}
+EDGE_PRODUCTION_SUPPORT = {
+    "spawn": True, "decompose": True, "depends_on": True, "dispatch": True,
+    "proposal": False, "seal": False, "delivery": True, "verdict": True, "rework": True,
+    "supersede": False, "rotation": False, "question": False, "answer": False,
+}
 EDGE_LEGALITY = {
     "spawn": ({"attempt"}, {"attempt"}),
     "decompose": ({"attempt"}, {"task"}),
     "depends_on": ({"task"}, {"task"}),
     "dispatch": ({"task"}, {"attempt"}),
-    "proposal": ({"attempt"}, {"proposal"}),
-    "seal": ({"proposal"}, {"outcome"}),
     "delivery": ({"outcome"}, {"attempt"}),
     "verdict": ({"attempt"}, {"attempt"}),
     "rework": ({"attempt"}, {"attempt"}),
-    "supersede": ({"attempt"}, {"attempt"}),
-    "rotation": ({"attempt"}, {"attempt"}),
-    "question": ({"attempt"}, {"attempt", "direct-parent"}),
-    "answer": ({"attempt", "direct-parent"}, {"attempt"}),
 }
 
 
@@ -67,7 +76,7 @@ def valid_composite_structure(
     edges = composite.get("edges")
     roots = composite.get("roots")
     checks = (
-        _valid_identity(composite.get("identity"), terminal),
+        _valid_identity(composite.get("identity"), terminal, nodes, roots),
         _valid_accounting(composite.get("accounting"), trial_id),
         _valid_predicate(composite.get("predicate"), mode),
         _valid_roots(roots, mode, root_run_id),
@@ -83,17 +92,26 @@ def _orchestration_mode(arm: Mapping[str, object]) -> object:
     return orchestration.get("mode") if isinstance(orchestration, Mapping) else None
 
 
-def _valid_identity(identity: object, terminal: Mapping[str, object]) -> bool:
+def _valid_identity(
+    identity: object, terminal: Mapping[str, object], nodes: object, roots: object,
+) -> bool:
     if not isinstance(identity, Mapping) or set(identity) != {
         "model_execution_identity_hash", "role_tool_surface_hash", "bundle_manifest_hash",
     }:
         return False
+    if not isinstance(nodes, list) or not isinstance(roots, Mapping):
+        return False
+    root = next((node for node in nodes if isinstance(node, Mapping)
+                 and node.get("attempt_id") == roots.get("root_attempt_id")), None)
+    if not isinstance(root, Mapping) or not _text(root.get("role")):
+        return False
     model = identity.get("model_execution_identity_hash")
     role = identity.get("role_tool_surface_hash")
+    slot = root.get("role")
     return (
         _valid_hash_map(model) and _valid_hash_map(role)
-        and model.get("parent") == terminal.get("model_execution_identity_hash")
-        and role.get("parent") == terminal.get("role_tool_surface_hash")
+        and model.get(slot) == terminal.get("model_execution_identity_hash")
+        and role.get(slot) == terminal.get("role_tool_surface_hash")
         and identity.get("bundle_manifest_hash") == terminal.get("bundle_manifest_hash")
     )
 
@@ -145,13 +163,12 @@ def _valid_predicate_check(value: object) -> bool:
     )
 
 
-def _valid_roots(value: object, mode: object, root_run_id: str) -> bool:
-    if not isinstance(value, Mapping) or set(value) != {"parent_attempt_id", "root_task_id"}:
+def _valid_roots(value: object, mode: object, _root_run_id: str) -> bool:
+    if not isinstance(value, Mapping) or set(value) != {"root_attempt_id", "root_task_id"}:
         return False
     task = value.get("root_task_id")
-    return (
-        value.get("parent_attempt_id") == f"run-{root_run_id}"
-        and (task is None if mode in {"direct", "coder-review"} else _text(task))
+    return _text(value.get("root_attempt_id")) and (
+        task is None if mode in {"direct", "coder-review"} else _text(task)
     )
 
 
@@ -163,10 +180,10 @@ def _valid_nodes(
     if not isinstance(roots, Mapping):
         return False
     attempt_ids = [node.get("attempt_id") for node in value if isinstance(node, Mapping)]
-    parent_id = roots.get("parent_attempt_id")
+    root_id = roots.get("root_attempt_id")
     return (
         len(attempt_ids) == len(value) == len(set(attempt_ids))
-        and sum(identifier == parent_id for identifier in attempt_ids) == 1
+        and sum(identifier == root_id for identifier in attempt_ids) == 1
         and all(_valid_node(node, edges, root_run_id, trial_id) for node in value)
         and all(_valid_node_projection(node, edges) for node in value)
     )
@@ -187,12 +204,13 @@ def _valid_node(
         _text(value.get("role")), _nullable_text(value.get("stage")), _text(value.get("backend")),
         _nullable_text(value.get("provider")), _text(value.get("requested_model")),
         _nullable_text(value.get("reported_model")), _valid_node_identity(value),
-        value.get("terminal_state") == "completed", value.get("terminal_reason") == "ok",
-        value.get("disposition") in DISPOSITIONS, _valid_supersession(value),
+        _valid_terminal_pair(value), value.get("disposition") in DISPOSITIONS,
+        _valid_supersession(value),
         _valid_artifact_pair(value), _valid_node_evidence(value),
         _valid_timestamp(value.get("started_at")), _valid_timestamp(value.get("ended_at")),
         _valid_count_or_none(value.get("steps")), _valid_number_or_none(value.get("cost_usd")),
-        _valid_tokens(value.get("tokens")), _valid_count_or_none(value.get("provider_requests")),
+        _valid_tokens(value.get("tokens")), _valid_positive_count_or_none(
+            value.get("provider_requests")),
         _valid_ancestry(value), _valid_thread_scope(value), isinstance(value.get("edges"), list),
     )
     return all(checks)
@@ -204,10 +222,14 @@ def _valid_node_identity(value: Mapping[str, object]) -> bool:
     ))
 
 
+def _valid_terminal_pair(value: Mapping[str, object]) -> bool:
+    state = value.get("terminal_state")
+    reason = value.get("terminal_reason")
+    return isinstance(state, str) and reason in TERMINAL_REASONS.get(state, frozenset())
+
+
 def _valid_supersession(value: Mapping[str, object]) -> bool:
-    superseded = value.get("disposition") == "superseded"
-    replacement = value.get("superseded_by")
-    return (superseded and _text(replacement)) or (not superseded and replacement is None)
+    return value.get("superseded_by") is None
 
 
 def _valid_artifact_pair(value: Mapping[str, object]) -> bool:
@@ -271,14 +293,17 @@ def _valid_edges(value: object, nodes: object, roots: object) -> bool:
     tasks = {node.get("task_id") for node in nodes if isinstance(node, Mapping)}
     canonical = [repr(edge) for edge in value]
     return len(canonical) == len(set(canonical)) and all(
-        _valid_edge(edge, attempts, tasks, roots.get("parent_attempt_id")) for edge in value
+        _valid_edge(edge, attempts, tasks, roots.get("root_attempt_id")) for edge in value
     )
 
 
 def _valid_edge(edge: object, attempts: set[object], tasks: set[object], parent: object) -> bool:
     if not isinstance(edge, Mapping) or set(edge) != {"kind", "from", "to"}:
         return False
-    legality = EDGE_LEGALITY.get(edge.get("kind"))
+    kind = edge.get("kind")
+    if EDGE_PRODUCTION_SUPPORT.get(kind) is not True:
+        return False
+    legality = EDGE_LEGALITY.get(kind)
     if legality is None:
         return False
     source, target = edge.get("from"), edge.get("to")
@@ -314,8 +339,8 @@ def _valid_direct_shape(mode: object, nodes: object, edges: object, roots: objec
     node = nodes[0]
     return (
         isinstance(node, Mapping) and isinstance(roots, Mapping)
-        and roots.get("root_task_id") is None and node.get("thread_id") is None
-        and node.get("role") == "parent" and node.get("attempt_id") == roots.get("parent_attempt_id")
+        and roots.get("root_task_id") is None and _text(node.get("thread_id"))
+        and _text(node.get("role")) and node.get("attempt_id") == roots.get("root_attempt_id")
     )
 
 
@@ -342,6 +367,10 @@ def _valid_count(value: object, *, positive: bool = False) -> bool:
 
 def _valid_count_or_none(value: object) -> bool:
     return value is None or _valid_count(value)
+
+
+def _valid_positive_count_or_none(value: object) -> bool:
+    return value is None or _valid_count(value, positive=True)
 
 
 def _valid_number_or_none(value: object) -> bool:

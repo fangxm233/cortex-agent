@@ -1,6 +1,6 @@
-// input:  normalized events, state admission, paths and identity
-// output: durable ordered journal records and typed write failures
-// pos:    Durable NDJSON writer for one-shot agent runs
+// input:  normalized events, agent slot, paths and identity
+// output: durable ordered journal records and write failures
+// pos:    One-shot run NDJSON journal writer
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { createHash } from 'node:crypto';
@@ -11,8 +11,7 @@ import type { Backend } from '../../agent-adapter/types.js';
 const JOURNAL_SCHEMA = 'cortex-bench-journal/1';
 const READ_BUFFER_BYTES = 64 * 1024;
 
-export type AgentSlot =
-  | 'parent' | 'benchmark-manager' | 'benchmark-coder' | 'benchmark-reviewer' | 'benchmark-fixer';
+export type AgentSlot = string;
 
 export class TrajectoryWriteFailedError extends Error {
   readonly reason = 'trajectory_write_failed' as const;

@@ -131,7 +131,7 @@ export function writeDagFixture(
     dag: {
       nodes,
       edges: [...edges],
-      roots: { parent_attempt_id: attemptIdOf(null) },
+      roots: { root_attempt_id: attemptIdOf(null) },
       identity: {
         model_execution_identity_hash: Object.fromEntries(
           specs.map(spec => [spec.role, MODEL_HASH]),

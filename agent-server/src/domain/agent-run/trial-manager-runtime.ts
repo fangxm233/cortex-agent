@@ -68,7 +68,7 @@ export interface TrialManagerAttemptInput {
 export interface TrialManagerAttemptResult {
   taskId: string;
   threadId: string;
-  state: 'completed' | 'failed' | 'cancelled' | 'timeout';
+  state: 'completed' | 'failed' | 'cancelled' | 'timeout' | 'aborted';
   summary: string;
   manifestCommitted: boolean;
   quiescent: boolean;

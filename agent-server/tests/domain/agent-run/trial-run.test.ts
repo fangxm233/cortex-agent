@@ -778,7 +778,7 @@ it('publishes a valid composite manifest from inside runOneShotAgent (T16)', asy
   // G4-CM11 taskless shape: task_id re-uses trial_id, and roots.root_task_id is the ONE flag.
   assert.equal(node.task_id, 'trial-001');
   assert.equal(manifest.roots.root_task_id, null);
-  assert.equal(manifest.roots.parent_attempt_id, node.attempt_id);
+  assert.equal(manifest.roots.root_attempt_id, node.attempt_id);
   // D-NULL3: null means UNDERIVABLE — never 0, never "".
   assert.equal(node.dispatch_generation, null);
   assert.equal(node.root_thread_id, null);
@@ -1007,10 +1007,8 @@ function writeChildAttempt(built: Fixture, threadId: string, role: string): stri
     startedAt: at, endedAt: at, journalPath,
     journalSha256: createHash('sha256').update(bytes).digest('hex'),
     eventCount: events.length,
-    // §9.4 G2: the child is quiescent with no surviving descendants.
-    supervisor: { quiescent: true, descendants: 0 },
     steps: 1, costUsd: 0.001,
-    tokens: { input: 25, output: 2, cache_read: 15, cache_creation: 0 },
+    tokens: { input: 25, output: 2, cache_read: 15, cache_creation: null },
     ...identity,
     terminalReason: 'ok',
   });

@@ -93,7 +93,7 @@ export interface BenchmarkThreadRequest {
 
 export interface BenchmarkThreadResult {
   threadId: string;
-  state: 'completed' | 'failed' | 'cancelled' | 'timeout';
+  state: 'completed' | 'failed' | 'cancelled' | 'timeout' | 'aborted';
   terminalReason: string | null;
   artifactPath: string | null;
   journalPath: string;
@@ -872,10 +872,9 @@ function terminalInput(
     journalPath: prepared.journal.path,
     journalSha256: prepared.journal.sha256(),
     eventCount: prepared.journal.eventCount,
-    supervisor: { quiescent: true, descendants: 0 },
     steps: thread.steps.length,
     costUsd: thread.totalCostUsd,
-    tokens: { input: null, output: null },
+    tokens: { input: null, output: null, cache_read: null, cache_creation: null },
     modelExecutionIdentityHash: prepared.identity.modelExecutionIdentityHash,
     roleToolSurfaceHash: prepared.identity.roleToolSurfaceHash,
     bundleManifestHash: prepared.identity.bundleManifestHash,

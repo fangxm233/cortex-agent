@@ -13,6 +13,7 @@ import { getActiveBackend, setActiveBackend } from '../../../src/domain/agents/c
 import {
   canonicalJsonSha256,
   computeBundleManifestHash,
+  computeLauncherBundleManifestHash,
   computeModelExecutionIdentityHash,
   computeRoleToolSurfaceHash,
   freezeIdentity,
@@ -248,7 +249,24 @@ it('changes the role hash when one compiled benchmark guard rule changes', () =>
   assert.notEqual(readOnly, writable);
 });
 
-it('projects exactly the bundle manifest keys', () => {
+it('hashes the v2 bundle identity only from launcher-owned pre-boot inputs', () => {
+  const input = {
+    npmArtifactSha256: SHA_A,
+    backendCli: { name: 'pi', version: '0.82.1' },
+    preBootInputBundleSha256: SHA_B,
+  };
+  assert.equal(computeLauncherBundleManifestHash(input), canonicalJsonSha256({
+    npm_artifact_sha256: SHA_A,
+    backend_cli: { name: 'pi', version: '0.82.1' },
+    pre_boot_input_bundle_sha256: SHA_B,
+  }));
+  assert.notEqual(
+    computeLauncherBundleManifestHash(input),
+    computeLauncherBundleManifestHash({ ...input, preBootInputBundleSha256: SHA_C }),
+  );
+});
+
+it('projects exactly the legacy standalone bundle manifest keys', () => {
   const input = frozenInput();
   const modelHash = computeModelExecutionIdentityHash(modelIdentityInput(input));
   const roleHash = computeRoleToolSurfaceHash(input.roleToolSurface);

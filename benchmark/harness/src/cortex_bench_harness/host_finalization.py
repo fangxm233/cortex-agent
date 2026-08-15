@@ -1,8 +1,6 @@
-# input:  inner/proxy evidence, trial roots, the pinned bundle, scan policy
-# output: the trial's own copy of the assets the model was given, and a durable reread-validated
-#         outer envelope, admitting or declining the run for grading and, when it declines,
-#         saying which side the evidence points to
-# pos:    Host-side benchmark finalization gate
+# input:  inner/proxy evidence, host attestations, pinned bundle
+# output: validated assets and durable outer grader envelope
+# pos:    Host-side benchmark v2 finalization gate
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import hashlib
@@ -42,6 +40,8 @@ from .trial_assets import (
 
 OUTER_ENVELOPE_FILENAME = "cortex-bench-outer-envelope.json"
 OUTER_ENVELOPE_SCHEMA_VERSION = "cortex-bench-outer-envelope/4"
+LAUNCH_ATTESTATION_FILENAME = "cortex-bench-launch-attestation.json"
+CONTAINER_BOUNDARY_ATTESTATION_FILENAME = "cortex-bench-container-boundary-attestation.json"
 # The inner contract's own state -> reason table (`manifest-contract.ts:70-78`), mirrored so a
 # terminal that is merely *not ok* can be told apart from one that is malformed. The first is an
 # outcome of the run and is gradable; the second is evidence that cannot be trusted and is not.
@@ -53,6 +53,7 @@ TERMINAL_REASONS: Mapping[str, frozenset[str]] = {
     }),
     "cancelled": frozenset({"cancelled"}),
     "timeout": frozenset({"deadline", "deadline_exceeded"}),
+    "aborted": frozenset({"aborted"}),
 }
 # What a proxy audit outcome says about *where* a trial's trouble was. The mapping is total: an
 # outcome this table does not name is still reported, as a refusal the proxy itself made, so a new
@@ -72,7 +73,7 @@ SHA256 = re.compile(r"^[a-f0-9]{64}$")
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 TERMINAL_KEYS = frozenset({
     "schema_version", "state", "started_at", "ended_at", "journal_path",
-    "journal_sha256", "event_count", "supervisor", "steps", "cost_usd", "tokens",
+    "journal_sha256", "event_count", "steps", "cost_usd", "tokens",
     "model_execution_identity_hash", "role_tool_surface_hash", "bundle_manifest_hash",
     "terminal_reason",
 })
@@ -215,6 +216,7 @@ def finalize_host_trial(
         # that is a symlink has to be refused before any read can follow it.
         discovered = _discover_roots(roots)
         inner = _validate_inner(logs_dir, root_run_id, trial_id, arm)
+        _validate_trial_attestations(artifact_dir, npm_artifact, trial_id, inner.journal_header)
         assets = _publish_assets(logs_dir, npm_artifact, bundle_root, inner)
         discovered = _rediscover(roots, discovered, assets)
         validate_host_owned_identity(artifact_dir, trial_id, root_run_id, arm.get("name"))
@@ -339,14 +341,91 @@ def _read_json(path: Path) -> tuple[bytes, Mapping[str, object]]:
     return payload, value
 
 
-def _validate_terminal(terminal: Mapping[str, object]) -> None:
-    """Admission. Its predicate is unchanged: completed/ok, or nothing.
+def _read_attestation(path: Path, reason: str) -> Mapping[str, object]:
+    try:
+        value = json.loads(path.read_bytes())
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        raise HostFinalizationError(reason) from error
+    if not isinstance(value, Mapping):
+        raise HostFinalizationError(reason)
+    return value
 
-    Every node of an admitted composite is still held to exactly this
-    (`_validate_attempt_bytes`), so a DAG cannot carry a failed attempt.
-    """
-    if not _classify_terminal(terminal).admitted:
-        raise HostFinalizationError("inner_terminal_invalid")
+
+def _launcher_bundle_hash(value: Mapping[str, object]) -> str:
+    inputs = {
+        "npm_artifact_sha256": value.get("npm_artifact_sha256"),
+        "backend_cli": value.get("backend_cli"),
+        "pre_boot_input_bundle_sha256": value.get("pre_boot_input_bundle_sha256"),
+    }
+    payload = json.dumps(inputs, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _validate_launch_attestation(
+    value: Mapping[str, object], npm_artifact: Path, trial_id: str,
+    journal_header: Mapping[str, object],
+) -> None:
+    expected_keys = {
+        "schema_version", "trial_id", "capture_boundary", "npm_artifact_sha256",
+        "backend_cli", "pre_boot_input_bundle_sha256", "input_bundle_file_count",
+        "cortex_home_tree_sha256", "cortex_home_file_count", "bundle_manifest_hash",
+    }
+    backend = value.get("backend_cli")
+    valid = (
+        set(value) == expected_keys
+        and value.get("schema_version") == "cortex-bench-launch-attestation/2"
+        and value.get("trial_id") == trial_id
+        and value.get("capture_boundary") == "launcher_pre_boot"
+        and value.get("npm_artifact_sha256") == _sha256_file(npm_artifact)
+        and _valid_sha(value.get("pre_boot_input_bundle_sha256"))
+        and _valid_count(value.get("input_bundle_file_count"), positive=True)
+        and _valid_sha(value.get("cortex_home_tree_sha256"))
+        and _valid_count(value.get("cortex_home_file_count"), positive=True)
+        and isinstance(backend, Mapping) and set(backend) == {"name", "version"}
+        and all(isinstance(backend.get(key), str) and backend.get(key) for key in backend)
+        and value.get("bundle_manifest_hash") == _launcher_bundle_hash(value)
+        and value.get("bundle_manifest_hash") == journal_header.get("bundle_manifest_hash")
+    )
+    if not valid:
+        raise HostFinalizationError("launch_attestation_invalid")
+
+
+def _validate_container_boundary_attestation(
+    value: Mapping[str, object], trial_id: str,
+) -> None:
+    container = value.get("container_exit")
+    post_stop = value.get("post_stop")
+    valid = (
+        set(value) == {"schema_version", "trial_id", "observed_at", "container_exit", "post_stop"}
+        and value.get("schema_version") == "cortex-bench-container-boundary-attestation/1"
+        and value.get("trial_id") == trial_id and _valid_timestamp(value.get("observed_at"))
+        and isinstance(container, Mapping)
+        and dict(container) == {"status": "exited", "exit_code": container.get("exit_code"),
+                                "running": False, "pid": 0}
+        and isinstance(container.get("exit_code"), int)
+        and not isinstance(container.get("exit_code"), bool)
+        and isinstance(post_stop, Mapping)
+        and dict(post_stop) == {"descendants_alive": 0, "process_namespace_alive": False}
+    )
+    if not valid:
+        raise HostFinalizationError("container_boundary_unproven")
+
+
+def _validate_trial_attestations(
+    artifact_dir: Path, npm_artifact: Path, trial_id: str,
+    journal_header: Mapping[str, object],
+) -> None:
+    launch = _read_attestation(
+        artifact_dir / LAUNCH_ATTESTATION_FILENAME, "launch_attestation_invalid")
+    boundary = _read_attestation(
+        artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME, "container_boundary_unproven")
+    _validate_launch_attestation(launch, npm_artifact, trial_id, journal_header)
+    _validate_container_boundary_attestation(boundary, trial_id)
+
+
+def _validate_terminal(terminal: Mapping[str, object]) -> None:
+    """Validate terminal truth without requiring every historical attempt to complete."""
+    _classify_terminal(terminal)
 
 
 def _classify_terminal(terminal: Mapping[str, object]) -> TerminalOutcome:
@@ -354,15 +433,15 @@ def _classify_terminal(terminal: Mapping[str, object]) -> TerminalOutcome:
 
     A structurally sound marker naming a legal non-ok pair is the run's own outcome, and the
     verifier is entitled to score the attempt on its merits. Anything else — a wrong key set, a
-    bad digest, a supervisor that did not quiesce, a state and reason that the inner contract
-    does not admit together — is a harness fault and still refuses.
+    bad digest or a state and reason the inner contract does not admit together — is a harness
+    fault and still refuses.
     """
     checks = (
         set(terminal) == TERMINAL_KEYS,
-        terminal.get("schema_version") == "cortex-bench-manifest/1",
+        terminal.get("schema_version") == "cortex-bench-manifest/2",
         _valid_timestamp(terminal.get("started_at")), _valid_timestamp(terminal.get("ended_at")),
-        _valid_sha(terminal.get("journal_sha256")),
-        _valid_count(terminal.get("event_count")), _valid_supervisor(terminal.get("supervisor")),
+        isinstance(terminal.get("journal_path"), str) and bool(terminal.get("journal_path")),
+        _valid_sha(terminal.get("journal_sha256")), _valid_count(terminal.get("event_count")),
         _valid_identity_values(terminal), _valid_tokens(terminal.get("tokens")),
     )
     state, reason = terminal.get("state"), terminal.get("terminal_reason")
@@ -383,12 +462,9 @@ def _valid_sha(value: object) -> bool:
     return isinstance(value, str) and SHA256.fullmatch(value) is not None
 
 
-def _valid_count(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
-
-
-def _valid_supervisor(value: object) -> bool:
-    return isinstance(value, Mapping) and dict(value) == {"quiescent": True, "descendants": 0}
+def _valid_count(value: object, *, positive: bool = False) -> bool:
+    minimum = 1 if positive else 0
+    return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
 
 
 def _valid_identity_values(value: Mapping[str, object]) -> bool:
@@ -399,12 +475,14 @@ def _valid_identity_values(value: Mapping[str, object]) -> bool:
 
 
 def _valid_tokens(value: object) -> bool:
-    if not isinstance(value, Mapping) or not {"input", "output"} <= set(value):
+    if not isinstance(value, Mapping) or set(value) != {
+        "input", "output", "cache_read", "cache_creation",
+    }:
         return False
-    allowed = {"input", "output", "cache_read", "cache_creation"}
-    return set(value) <= allowed and all(
+    measured = (value.get("input"), value.get("output"), value.get("cache_read"))
+    return value.get("cache_creation") is None and all(
         item is None or isinstance(item, (int, float)) and not isinstance(item, bool)
-        for item in value.values()
+        for item in measured
     )
 
 
@@ -414,7 +492,7 @@ def _validate_composite(
 ) -> None:
     expected = (
         set(composite) == COMPOSITE_KEYS,
-        composite.get("schema_version") == "cortex-bench-composite-manifest/1",
+        composite.get("schema_version") == "cortex-bench-composite-manifest/2",
         composite.get("trial_id") == trial_id, composite.get("root_run_id") == root_run_id,
         composite.get("arm_name") == arm.get("name"),
         composite.get("arm_canonical_sha256") == canonical_sha256(arm),
@@ -430,13 +508,15 @@ def _parent_terminal_link(
     root_run_id: str,
 ) -> bool:
     nodes = composite.get("nodes")
-    parent = next((node for node in nodes if isinstance(node, Mapping)
-                   and node.get("attempt_id") == f"run-{root_run_id}"), None)
-    return isinstance(parent, Mapping) and (
-        parent.get("terminal_manifest_path") == f"run-{root_run_id}.terminal.json"
-        and parent.get("terminal_manifest_sha256") == hashlib.sha256(terminal_bytes).hexdigest()
-        and parent.get("journal_path") == terminal.get("journal_path")
-        and parent.get("journal_sha256") == terminal.get("journal_sha256")
+    roots = composite.get("roots")
+    root_id = roots.get("root_attempt_id") if isinstance(roots, Mapping) else None
+    root = next((node for node in nodes if isinstance(node, Mapping)
+                 and node.get("attempt_id") == root_id), None)
+    return isinstance(root, Mapping) and (
+        root.get("terminal_manifest_path") == f"run-{root_run_id}.terminal.json"
+        and root.get("terminal_manifest_sha256") == hashlib.sha256(terminal_bytes).hexdigest()
+        and root.get("journal_path") == terminal.get("journal_path")
+        and root.get("journal_sha256") == terminal.get("journal_sha256")
     )
 
 
@@ -705,6 +785,8 @@ def _required_files(
         ("agent", "stdout.txt"): "stdout", ("agent", "stderr.txt"): "stderr",
         ("agent", "workspace.diff"): "workspace_diff",
         ("artifacts", ADMISSION_EVIDENCE_FILENAME): "harbor_launch_admission",
+        ("artifacts", LAUNCH_ATTESTATION_FILENAME): "pre_boot_launch_attestation",
+        ("artifacts", CONTAINER_BOUNDARY_ATTESTATION_FILENAME): "container_boundary_attestation",
         ("artifacts", MANIFEST_FILENAME): "manifest",
         ("artifacts", f"proxy/{AUDIT_LOG_FILENAME}"): PROXY_AUDIT_LOG_SOURCE,
         ("artifacts", f"proxy/{EXPORT_FILENAME}"): PROXY_EXPORT_SOURCE,

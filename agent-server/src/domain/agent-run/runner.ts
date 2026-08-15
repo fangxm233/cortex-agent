@@ -996,7 +996,6 @@ function terminalInput(
     journalPath: run.options.eventsFile,
     journalSha256: journal.sha256(),
     eventCount: journal.eventCount,
-    supervisor: { quiescent: true, descendants: 0 },
     steps: outcome.result?.num_turns ?? null,
     costUsd: outcome.result?.costReported === false
       ? null
@@ -1004,6 +1003,8 @@ function terminalInput(
     tokens: {
       input: stats.sawInput ? stats.input : null,
       output: stats.sawOutput ? stats.output : null,
+      cache_read: null,
+      cache_creation: null,
     },
     modelExecutionIdentityHash: run.identity.modelExecutionIdentityHash,
     roleToolSurfaceHash: run.identity.roleToolSurfaceHash,
@@ -1755,7 +1756,7 @@ function publishCompositeManifest(
       nodes: graph.nodes,
       edges: graph.edges,
       roots: {
-        parent_attempt_id: parent.attempt_id,
+        root_attempt_id: parent.attempt_id,
         root_task_id: run.managerResult?.rootTaskId ?? null,
       },
       mode: mode as OrchestrationModeName,

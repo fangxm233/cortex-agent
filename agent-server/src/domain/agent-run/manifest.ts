@@ -15,8 +15,8 @@ import {
   type StartedMarkerInput, type TerminalManifestInput,
 } from './manifest-contract.js';
 export type {
-  StartedMarkerInput, SupervisorEvidence, TerminalManifestInput,
-  TerminalReason, TerminalState, TokenCounts,
+  StartedMarkerInput, SupervisorEvidence, TerminalManifestInput, TerminalReason, TerminalState,
+  TokenCounts,
 } from './manifest-contract.js';
 
 const JOURNAL_SCHEMA = 'cortex-bench-journal/1';
@@ -506,8 +506,7 @@ function isNullableInteger(value: unknown): boolean {
 }
 
 function isAgentSlot(value: unknown): boolean {
-  return value === 'parent' || value === 'benchmark-manager' || value === 'benchmark-coder'
-    || value === 'benchmark-reviewer' || value === 'benchmark-fixer';
+  return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value);
 }
 
 function isBackend(value: unknown): boolean {

@@ -1,6 +1,6 @@
-# input:  production Harbor agent, fake inner outputs, live offline proxy
-# output: outer admission, refusal, redaction, and durability proofs
-# pos:    Production host-finalization contract tests
+# input:  Harbor agent, v2 evidence, host attestations, proxy
+# output: v2 admission, refusal, redaction, durability proofs
+# pos:    Host evidence v2 finalization tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
@@ -24,6 +24,7 @@ from cortex_bench_harness.host_finalization import (
     OUTER_ENVELOPE_FILENAME,
     HostFinalizationError,
 )
+from cortex_bench_harness.inner_validation import valid_composite_structure
 from cortex_bench_harness.launcher.arm_resolution import (
     DIRECT_CLAUDE_DIRECTIVE,
     DIRECT_CLAUDE_PLUGIN_DIRS,
@@ -203,18 +204,42 @@ def canonical_sha256(value: object) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def launch_attestation(npm_artifact: Path) -> dict[str, object]:
+    inputs = {
+        "npm_artifact_sha256": hashlib.sha256(npm_artifact.read_bytes()).hexdigest(),
+        "backend_cli": {"name": "claude", "version": "1.2.3"},
+        "pre_boot_input_bundle_sha256": "4" * 64,
+    }
+    return {
+        "schema_version": "cortex-bench-launch-attestation/2", "trial_id": TRIAL_ID,
+        "capture_boundary": "launcher_pre_boot", **inputs,
+        "input_bundle_file_count": 7, "cortex_home_tree_sha256": "5" * 64,
+        "cortex_home_file_count": 9, "bundle_manifest_hash": canonical_sha256(inputs),
+    }
+
+
+def container_boundary_attestation() -> dict[str, object]:
+    return {
+        "schema_version": "cortex-bench-container-boundary-attestation/1",
+        "trial_id": TRIAL_ID, "observed_at": "2026-08-11T00:00:02.000Z",
+        "container_exit": {"status": "exited", "exit_code": 0, "running": False, "pid": 0},
+        "post_stop": {"descendants_alive": 0, "process_namespace_alive": False},
+    }
+
+
 def journal_bytes(assets: Mapping[str, str] | None = None) -> bytes:
     """The header the inner run publishes before its first step, including the three digests it
     computed from the files it opened. They are what the host holds the extracted assets against.
     """
     header = {
         "schema_version": "cortex-bench-journal/1", "type": "run_header",
-        "root_run_id": ROOT_RUN_ID, "thread_id": None, "agent_slot": "parent",
+        "root_run_id": ROOT_RUN_ID, "thread_id": "thr-production-root", "agent_slot": "parent",
         "model_execution_identity_hash": MODEL_HASH,
         "role_tool_surface_hash": ROLE_HASH, "bundle_manifest_hash": BUNDLE_HASH,
         **(dict(asset_witnesses()) | dict(assets or {})),
     }
-    return (json.dumps(header, sort_keys=True) + "\n").encode()
+    event = {"schema_version": "cortex-bench-journal/1", "type": "event"}
+    return (json.dumps(header, sort_keys=True) + "\n" + json.dumps(event) + "\n").encode()
 
 
 def asset_witnesses() -> dict[str, str]:
@@ -227,12 +252,13 @@ def asset_witnesses() -> dict[str, str]:
 
 def terminal_document(journal: bytes) -> dict[str, object]:
     return {
-        "schema_version": "cortex-bench-manifest/1", "state": "completed",
+        "schema_version": "cortex-bench-manifest/2", "state": "completed",
         "started_at": "2026-08-11T00:00:00.000Z",
         "ended_at": "2026-08-11T00:00:01.000Z", "journal_path": "events.jsonl",
-        "journal_sha256": hashlib.sha256(journal).hexdigest(), "event_count": 0,
-        "supervisor": {"quiescent": True, "descendants": 0}, "steps": 1,
-        "cost_usd": 0, "tokens": {"input": 0, "output": 0},
+        "journal_sha256": hashlib.sha256(journal).hexdigest(), "event_count": 1,
+        "steps": 1, "cost_usd": None,
+        "tokens": {"input": None, "output": None, "cache_read": None,
+                   "cache_creation": None},
         "model_execution_identity_hash": MODEL_HASH,
         "role_tool_surface_hash": ROLE_HASH, "bundle_manifest_hash": BUNDLE_HASH,
         "terminal_reason": "ok",
@@ -274,20 +300,21 @@ def attempt_node(terminal_sha256: str, journal: bytes | None = None) -> dict[str
     return {
         "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "task_id": TRIAL_ID,
         "parent_task_id": None, "dispatch_generation": None,
-        "attempt_id": f"run-{ROOT_RUN_ID}", "attempt_ordinal": 1,
-        "thread_id": None, "parent_thread_id": None, "root_thread_id": None,
-        "task_ancestry": [TRIAL_ID], "template": None, "role": "parent", "stage": None,
+        "attempt_id": "thread-thr-production-root", "attempt_ordinal": 1,
+        "thread_id": "thr-production-root", "parent_thread_id": None,
+        "root_thread_id": "thr-production-root", "task_ancestry": [TRIAL_ID],
+        "template": "benchmark-direct", "role": "parent", "stage": None,
         "backend": "claude", "provider": "anthropic", "requested_model": "claude-sonnet",
         "reported_model": None, "model_execution_identity_hash": MODEL_HASH,
         "role_tool_surface_hash": ROLE_HASH, "bundle_manifest_hash": BUNDLE_HASH,
         "terminal_state": "completed", "terminal_reason": "ok", "disposition": "none",
         "superseded_by": None, "artifact_path": None, "artifact_sha256": None,
         "journal_path": "events.jsonl", "journal_sha256": terminal["journal_sha256"],
-        "event_count": 0, "terminal_manifest_path": f"run-{ROOT_RUN_ID}.terminal.json",
+        "event_count": 1, "terminal_manifest_path": f"run-{ROOT_RUN_ID}.terminal.json",
         "terminal_manifest_sha256": terminal_sha256, "edges": [],
         "started_at": terminal["started_at"], "ended_at": terminal["ended_at"],
-        "steps": 1, "cost_usd": 0,
-        "tokens": {"input": 0, "output": 0, "cache_read": None, "cache_creation": None},
+        "steps": 1, "cost_usd": None,
+        "tokens": {"input": None, "output": None, "cache_read": None, "cache_creation": None},
         "provider_requests": None,
     }
 
@@ -296,14 +323,14 @@ def composite_document(
     terminal_sha256: str, journal: bytes | None = None,
 ) -> dict[str, object]:
     return {
-        "schema_version": "cortex-bench-composite-manifest/1", "trial_id": TRIAL_ID,
+        "schema_version": "cortex-bench-composite-manifest/2", "trial_id": TRIAL_ID,
         "root_run_id": ROOT_RUN_ID, "arm_name": ARM_NAME,
         "arm_canonical_sha256": canonical_sha256(arm()),
         "identity": {"model_execution_identity_hash": {"parent": MODEL_HASH},
                      "role_tool_surface_hash": {"parent": ROLE_HASH},
                      "bundle_manifest_hash": BUNDLE_HASH},
         "nodes": [attempt_node(terminal_sha256, journal)], "edges": [],
-        "roots": {"parent_attempt_id": f"run-{ROOT_RUN_ID}", "root_task_id": None},
+        "roots": {"root_attempt_id": "thread-thr-production-root", "root_task_id": None},
         "accounting": accounting(), "predicate": production_predicate(),
     }
 
@@ -418,9 +445,13 @@ def make_agent(
     upstream = closed_upstream()
     logs_dir = tmp_path / "agent"
     (tmp_path / "verifier").mkdir()
+    manifest = manifest_seed(tmp_path)
+    launch = launch_attestation(Path(manifest["npm_artifact_path"]))
+    global BUNDLE_HASH
+    BUNDLE_HASH = str(launch["bundle_manifest_hash"])
     agent = CortexBenchAgent(
         logs_dir=logs_dir, artifact_dir=tmp_path / "artifacts",
-        manifest=manifest_seed(tmp_path), trial_seed=trial_seed(upstream),
+        manifest=manifest, trial_seed=trial_seed(upstream),
         trial_proxy=proxy_spec(), host_scan_policy=scan_policy(),
         admission_environment_digest=environment_digest({}),
     )
@@ -430,6 +461,11 @@ def make_agent(
         "schema_version": "cortex-harbor-launch-admission/1", "trial_id": TRIAL_ID,
         "root_run_id": ROOT_RUN_ID,
     })
+    write_json(tmp_path / "artifacts" / "cortex-bench-launch-attestation.json", launch)
+    write_json(
+        tmp_path / "artifacts" / "cortex-bench-container-boundary-attestation.json",
+        container_boundary_attestation(),
+    )
     post_lease(agent.proxy_session)
     return agent, environment
 
@@ -497,6 +533,79 @@ def test_production_run_publishes_and_rereads_one_outer_admission(
                for file in envelope["classification"]["files"])
     assert any("cortex-bench-workspace-evidence/1" in call for call in environment.calls)
     assert any(call.endswith("chmod -R a+rX /logs/agent") for call in environment.calls)
+
+
+@pytest.mark.parametrize(("filename", "mutation", "reason"), [
+    ("cortex-bench-container-boundary-attestation.json", lambda value: value.update({
+        "container_exit": {"status": "exited", "exit_code": 0, "running": True, "pid": 41},
+    }), "container_boundary_unproven"),
+    ("cortex-bench-container-boundary-attestation.json", lambda value: value.update({
+        "post_stop": {"descendants_alive": 1, "process_namespace_alive": True},
+    }), "container_boundary_unproven"),
+    ("cortex-bench-launch-attestation.json", lambda value: value.update({
+        "cortex_home_tree_sha256": "", "cortex_home_file_count": 0,
+    }), "launch_attestation_invalid"),
+    ("cortex-bench-launch-attestation.json", lambda value: value.update({
+        "pre_boot_input_bundle_sha256": "", "input_bundle_file_count": 0,
+    }), "launch_attestation_invalid"),
+])
+def test_boundary_attestations_fail_closed_without_positive_observation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, filename: str,
+    mutation: Callable[[dict[str, object]], None], reason: str,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    path = tmp_path / "artifacts" / filename
+    document = json.loads(path.read_text())
+    mutation(document)
+    write_json(path, document)
+
+    with pytest.raises(HostFinalizationError) as raised:
+        run_agent(agent, environment)
+
+    assert raised.value.reason == reason
+    assert not envelope_path(tmp_path).exists()
+
+
+def test_missing_container_boundary_observation_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    (tmp_path / "artifacts" / "cortex-bench-container-boundary-attestation.json").unlink()
+
+    with pytest.raises(HostFinalizationError) as raised:
+        run_agent(agent, environment)
+
+    assert raised.value.reason == "container_boundary_unproven"
+
+
+def test_composite_accepts_failed_superseded_history_and_production_slot_names() -> None:
+    journal = journal_bytes()
+    terminal = terminal_document(journal)
+    composite = composite_document("a" * 64, journal)
+    node = composite["nodes"][0]
+    node.update({
+        "role": "benchmark-direct", "terminal_state": "failed",
+        "terminal_reason": "provider_error", "disposition": "superseded",
+        "superseded_by": None,
+    })
+    composite["identity"]["model_execution_identity_hash"] = {"benchmark-direct": MODEL_HASH}
+    composite["identity"]["role_tool_surface_hash"] = {"benchmark-direct": ROLE_HASH}
+
+    assert valid_composite_structure(composite, terminal, ROOT_RUN_ID, TRIAL_ID, arm())
+
+
+def test_composite_rejects_every_out_of_contract_edge_kind() -> None:
+    journal = journal_bytes()
+    terminal = terminal_document(journal)
+    for kind in ("proposal", "seal", "supersede", "rotation", "question", "answer"):
+        composite = composite_document("a" * 64, journal)
+        composite["edges"] = [{
+            "kind": kind,
+            "from": {"ref": "attempt", "id": "thread-thr-production-root"},
+            "to": {"ref": "attempt", "id": "thread-thr-production-root"},
+        }]
+        assert not valid_composite_structure(
+            composite, terminal, ROOT_RUN_ID, TRIAL_ID, arm())
 
 
 def asset_files(envelope: Mapping[str, object]) -> dict[str, str]:
@@ -579,7 +688,9 @@ def test_assets_the_run_does_not_vouch_for_refuse_publication(
     assert not envelope_path(tmp_path).exists()
 
 
-UNDERIVABLE_TOKENS = {"input": None, "output": None}
+UNDERIVABLE_TOKENS = {
+    "input": None, "output": None, "cache_read": None, "cache_creation": None,
+}
 
 
 def fail_inner_run(
@@ -726,13 +837,16 @@ def mutate_inner(kind: str) -> Callable[[Path], None]:
             terminal.unlink()
         elif kind == "digest_mismatch":
             (root / "events.jsonl").write_bytes(b"changed after terminal\n")
-        elif kind in {"identity_mismatch", "non_quiescent"}:
+        elif kind in {"identity_mismatch", "v1_terminal"}:
             document = json.loads(terminal.read_text())
-            key = "bundle_manifest_hash" if kind == "identity_mismatch" else "supervisor"
-            document[key] = "4" * 64 if kind == "identity_mismatch" else {
-                "quiescent": False, "descendants": 1,
-            }
+            key = "bundle_manifest_hash" if kind == "identity_mismatch" else "schema_version"
+            document[key] = "4" * 64 if kind == "identity_mismatch" else "cortex-bench-manifest/1"
             write_json(terminal, document)
+        elif kind == "v1_composite":
+            path = root / "composite-manifest.json"
+            document = json.loads(path.read_text())
+            document["schema_version"] = "cortex-bench-composite-manifest/1"
+            write_json(path, document)
         elif kind == "wrong_composite_shape":
             write_json(root / "composite-manifest.json", {"schema_version": "wrong"})
         else:
@@ -741,9 +855,9 @@ def mutate_inner(kind: str) -> Callable[[Path], None]:
 
 
 @pytest.mark.parametrize(
-    "kind", ["missing_required", "digest_mismatch", "identity_mismatch", "non_quiescent",
-             "wrong_composite_shape", "malformed_node", "accounting_identity_mismatch",
-             "invalid_journal"],
+    "kind", ["missing_required", "digest_mismatch", "identity_mismatch", "v1_terminal",
+             "v1_composite", "wrong_composite_shape", "malformed_node",
+             "accounting_identity_mismatch", "invalid_journal"],
 )
 def test_inner_truth_failure_never_admits_grading(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str,
