@@ -7,7 +7,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | accounting-reconciliation.test.ts | 测试 | Tests benchmark usage accounting |
 | actor-capability.test.ts | 测试 | Tests actor capability lifecycle |
 | attempt-record.test.ts | 测试 | Tests v2 attempt records and durable edges |
-| composite-runtime-ports.test.ts | 测试 | Tests composite runtime ports |
+| composite-runtime-ports.test.ts | 测试 | Pins v2-compatible composite runtime ports |
 | composite-manifest.test.ts | 测试 | Tests production composite evidence v2 |
 | guard-lease-state.test.ts | 测试 | Tests guard lease decisions |
 | lease-echo.test.ts | 测试 | Tests workspace lease delivery |

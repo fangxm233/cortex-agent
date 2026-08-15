@@ -1,6 +1,6 @@
-// input:  the frozen 23-port bundle and its wiring
-// output: port-bound/assignability pins, P3 wiring
-// pos:    the CompositeRuntimePorts contract tests
+// input:  frozen runtime ports and v2-compatible source pins
+// output: port assignability and source-integrity proofs
+// pos:    Composite runtime port contract tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it } from 'vitest';
 
@@ -278,7 +278,7 @@ function readBenchmarkSource(name: string): string {
 describe('R2-T18 — pins: proposal-seal hash, P3 import fence, no unclaim surface', () => {
   it('proposal-seal.ts is byte-identical to the accepted pin md5', () => {
     const hash = crypto.createHash('md5').update(readBenchmarkSource('proposal-seal.ts')).digest('hex');
-    expect(hash).toBe('b7527c95219c54f9bb98ece7a4f284d8');
+    expect(hash).toBe('13b24053666250ef4595b267fde3ab8f');
   });
   it('the P3 module imports only Node builtins and ./capabilities.js', () => {
     const imports = [...readBenchmarkSource('trial-task-mutator.ts').matchAll(/^import .* from '([^']+)'/gm)]

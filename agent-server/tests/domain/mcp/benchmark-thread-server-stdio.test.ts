@@ -1,6 +1,6 @@
-// input:  MCP stdio config, fake backend and verdict records
-// output: policy, verdict, lifecycle and cancellation proof
-// pos:    End-to-end benchmark-only thread MCP integration test
+// input:  MCP stdio config, fake backend and v2 terminals
+// output: policy, lifecycle, cancellation, and no-supervisor proofs
+// pos:    Benchmark thread MCP v2 integration test
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 // OBSERVATION CHANNEL. The fake backend is driven by a queue file and writes into an observations
@@ -392,7 +392,7 @@ function assertSuccessArtifacts(fixture: Fixture, payload: any): void {
   assert.equal(path.dirname(payload.trajectory_paths.journal), fixture.trajectoryRoot);
   assert.equal(path.dirname(payload.trajectory_paths.manifest), fixture.trajectoryRoot);
   const manifest = JSON.parse(fs.readFileSync(payload.trajectory_paths.manifest, 'utf8'));
-  assert.deepEqual(manifest.supervisor, { quiescent: true, descendants: 0 });
+  assert.equal(Object.hasOwn(manifest, 'supervisor'), false);
   assert.equal(manifest.model_execution_identity_hash, fixture.parentModelHash);
   assert.deepEqual(validateTrajectoryLifecycle({
     trajectoryRoot: fixture.trajectoryRoot, rootRunId: fixture.rootRunId,
@@ -554,7 +554,7 @@ test('pinned SDK request signal cancels the contained thread without hanging', a
       && error.code === ErrorCode.RequestTimeout);
     const terminal = await waitFor(() => threadTerminal(fixture), 'cancelled terminal manifest');
     assert.equal(terminal.state, 'cancelled');
-    assert.deepEqual(terminal.supervisor, { quiescent: true, descendants: 0 });
+    assert.equal(Object.hasOwn(terminal, 'supervisor'), false);
     await waitFor(() => processGone(pid) ? true : null, 'cancelled child exit');
   } finally {
     await closeServer(server);
@@ -578,7 +578,7 @@ test('stdin close cancels the contained thread and emits a typed tool error', as
     });
     const terminal = await waitFor(() => threadTerminal(fixture), 'stdin-close terminal manifest');
     assert.equal(terminal.state, 'cancelled');
-    assert.deepEqual(terminal.supervisor, { quiescent: true, descendants: 0 });
+    assert.equal(Object.hasOwn(terminal, 'supervisor'), false);
     await waitFor(() => processGone(pid) ? true : null, 'stdin-close child exit');
   } finally {
     await closeServer(server);

@@ -1,6 +1,6 @@
-// input:  merge CLI, optional metrics and filesystem faults
-// output: honest metric publication and typed fail-closed tests
-// pos:    Trajectory merge failure-boundary regression suite
+// input:  v2 merge CLI, optional metrics, filesystem faults
+// output: metric publication and typed v2 refusal proofs
+// pos:    Trajectory merge v2 boundary tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -278,14 +278,14 @@ it.each(['cost_record', 'turn_complete'] as const)(
   },
 );
 
-it('reports truthful non-quiescent evidence as containment_failure', () => {
+it('rejects a legacy per-attempt supervisor block as malformed_fragment', () => {
   const fixture = makeFixture();
   setTerminalState(fixture.children[0], 'failed');
   setSupervisor(fixture.children[0], false, 1);
-  assertFailedClosed(invoke(fixture), 'containment_failure');
+  assertFailedClosed(invoke(fixture), 'malformed_fragment');
 });
 
-it('reports an unparseable supervisor block as malformed_fragment', () => {
+it('rejects an unparseable legacy supervisor block as malformed_fragment', () => {
   const fixture = makeFixture();
   setTerminalState(fixture.children[0], 'failed');
   setMalformedSupervisor(fixture.children[0]);
