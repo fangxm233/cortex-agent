@@ -5,6 +5,8 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | filename | role | function |
 |---|---|---|
 | __init__.py | export | Lazily exposes the Harbor wrapper class |
+| artifact_build.py | build | Builds the harness wheel and the packed agent-server a trial installs |
+| artifact_provenance.py | boundary | Binds each built artifact to the source it came from, and refuses one that no longer matches the checkout |
 | campaign.py | CLI | Runs one campaign's trials concurrently across its address slots, accounts every trial's spend whether or not it published, and writes the report |
 | campaign_config.py | boundary | Reads campaign input, carves the concurrency slots' address space, scopes each trial proxy host and refuses a cost pair that funds too few requests |
 | cwd.py | core | Resolves the live container workdir |

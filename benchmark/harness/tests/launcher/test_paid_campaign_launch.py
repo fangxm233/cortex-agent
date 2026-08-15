@@ -22,6 +22,10 @@ from cortex_bench_harness.host_finalization import parse_host_scan_policy
 HARNESS_ROOT = Path(__file__).resolve().parents[2]
 LAUNCH_SCRIPT = HARNESS_ROOT / "scripts" / "launch-paid-campaign.py"
 CAMPAIGNS_DIR = HARNESS_ROOT.parents[0] / "campaigns"
+# The real checkout, which the committed artifacts were built from. A document copied into tmp_path
+# derives its checkout as tmp_path, so any test planning against a moved document must name this
+# explicitly -- exactly as `--checkout` exists for.
+CHECKOUT_ROOT = HARNESS_ROOT.parents[1]
 COMMITTED_PAID_CONFIG = CAMPAIGNS_DIR / "terminal-bench-2.1-deepseek-paid.yaml"
 # Never a real credential: the shape the strict loader accepts, with an unmistakable body.
 FAKE_CREDENTIAL = "test-not-a-real-deepseek-credential-0123456789abcdef"
@@ -264,7 +268,7 @@ def test_the_emitted_report_names_every_reference_and_carries_no_credential(
     config = committed_config()
     environment = resolve(gateway)
 
-    document = launcher.report(config, environment, "preflight", gateway)
+    document = launcher.report(config, environment, "preflight", gateway, {})
 
     payload = json.dumps(document, sort_keys=True)
     assert FAKE_CREDENTIAL not in payload
@@ -296,9 +300,14 @@ def test_preflight_plans_every_declared_trial_and_arms_none(
     gateway: Path, clean_environment: dict[str, str], hermetic_campaign: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Roots of their own, so `would-arm` and "nothing was created" mean what they say."""
+    """Roots of their own, so `would-arm` and "nothing was created" mean what they say.
+
+    The document is moved but the artifacts it pins are the committed ones, so the checkout they
+    are verified against has to be named rather than derived from the moved document's location.
+    """
     code = launcher.main(
-        ["--config", str(hermetic_campaign), "--gateway", str(gateway)])
+        ["--config", str(hermetic_campaign), "--gateway", str(gateway),
+         "--checkout", str(CHECKOUT_ROOT)])
 
     captured = capsys.readouterr()
     document = json.loads(captured.out)
@@ -371,3 +380,126 @@ def test_run_hands_the_campaign_every_reference_and_then_clears_them(
     assert all(name not in os.environ for name in REQUIRED_REFERENCES)
     assert FAKE_CREDENTIAL not in captured.out + captured.err
     assert json.loads(captured.err)["mode"] == "run"
+
+
+# --- the artifact staleness gate ----------------------------------------------------------------
+#
+# The r6 campaign pinned an agent-server packed 34 hours before the fix it was meant to measure,
+# ran three trials against the already-fixed bug, and recorded every artifact digest correctly on
+# the way. These prove the launcher now refuses that run instead of reporting it.
+
+
+@pytest.fixture
+def stale_campaign(tmp_path: Path) -> Path:
+    """The committed document with its artifacts copied somewhere they can be spoiled.
+
+    The copies keep their filenames and provenance sidecars, so what each test below changes is the
+    one thing it means to change and nothing else.
+    """
+    import yaml
+
+    document = yaml.safe_load(COMMITTED_PAID_CONFIG.read_text(encoding="utf-8"))
+    artifacts = tmp_path / "dist"
+    artifacts.mkdir()
+    manifest = dict(document["manifest"])
+    for key in ("wheel_path", "npm_artifact_path"):
+        source = (COMMITTED_PAID_CONFIG.parent / manifest[key]).resolve()
+        copied = artifacts / source.name
+        copied.write_bytes(source.read_bytes())
+        sidecar = source.with_name(source.name + ".provenance.json")
+        if sidecar.is_file():
+            copied.with_name(copied.name + ".provenance.json").write_bytes(sidecar.read_bytes())
+        manifest[key] = str(copied)
+    manifest["lockfile_path"] = str(
+        (COMMITTED_PAID_CONFIG.parent / manifest["lockfile_path"]).resolve())
+    document["manifest"] = manifest
+    for task in document["tasks"]:
+        task["path"] = str((COMMITTED_PAID_CONFIG.parent / task["path"]).resolve())
+    document["trials_dir"] = str(tmp_path / "trials")
+    campaigns = tmp_path / "benchmark" / "campaigns"
+    campaigns.mkdir(parents=True)
+    path = campaigns / COMMITTED_PAID_CONFIG.name
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+    return path
+
+
+def artifact_in(campaign_path: Path, key: str) -> Path:
+    return Path(str(launcher.load_campaign_config(campaign_path).manifest[key]))
+
+
+def test_preflight_verifies_both_pinned_artifacts_against_the_checkout(
+    gateway: Path, clean_environment: dict[str, str], capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = launcher.main(
+        ["--config", str(COMMITTED_PAID_CONFIG), "--gateway", str(gateway)])
+
+    document = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert sorted(document["artifacts_verified"]) == ["npm_artifact_path", "wheel_path"]
+    assert document["artifacts_verified"]["npm_artifact_path"]["scope"] == "cortex_agent_server_npm"
+    assert document["artifacts_verified"]["wheel_path"]["scope"] == "cortex_bench_harness_wheel"
+
+
+@pytest.mark.parametrize("key", ["wheel_path", "npm_artifact_path"])
+def test_an_artifact_that_no_longer_matches_its_source_refuses_the_launch(
+    key: str, gateway: Path, clean_environment: dict[str, str], stale_campaign: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Either artifact alone is enough to stop the campaign: r6 was stale in only one of them."""
+    artifact = artifact_in(stale_campaign, key)
+    artifact.write_bytes(artifact.read_bytes() + b"drift")
+
+    code = launcher.main(
+        ["--config", str(stale_campaign), "--gateway", str(gateway),
+         "--checkout", str(CHECKOUT_ROOT)])
+
+    captured = capsys.readouterr()
+    assert (code, captured.out) == (1, "")
+    refusal = json.loads(captured.err)
+    assert refusal["ok"] is False
+    assert key in refusal["error"]
+    assert "has changed since its provenance" in refusal["error"]
+
+
+@pytest.mark.parametrize("key", ["wheel_path", "npm_artifact_path"])
+def test_an_artifact_with_no_provenance_record_refuses_the_launch(
+    key: str, gateway: Path, clean_environment: dict[str, str], stale_campaign: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An artifact packed by hand carries no record, and is refused rather than assumed current."""
+    artifact = artifact_in(stale_campaign, key)
+    artifact.with_name(artifact.name + ".provenance.json").unlink()
+
+    code = launcher.main(
+        ["--config", str(stale_campaign), "--gateway", str(gateway),
+         "--checkout", str(CHECKOUT_ROOT)])
+
+    captured = capsys.readouterr()
+    assert (code, captured.out) == (1, "")
+    assert "carries no provenance record" in json.loads(captured.err)["error"]
+
+
+def test_a_stale_artifact_refuses_a_run_before_the_credential_is_exported(
+    gateway: Path, clean_environment: dict[str, str], stale_campaign: Path,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The gate is a launch refusal, not a report field: `--run` must not reach the campaign.
+
+    Ordering is the point. A stale artifact has to stop the run while nothing is armed and no
+    credential has entered this process's environment.
+    """
+    def unreachable(argv: list[str]) -> int:
+        raise AssertionError(f"the campaign ran with a stale artifact: {argv}")
+
+    monkeypatch.setattr(launcher.campaign, "main", unreachable)
+    artifact = artifact_in(stale_campaign, "npm_artifact_path")
+    artifact.with_name(artifact.name + ".provenance.json").unlink()
+
+    code = launcher.main(
+        ["--config", str(stale_campaign), "--gateway", str(gateway),
+         "--checkout", str(CHECKOUT_ROOT), "--run"])
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert FAKE_CREDENTIAL not in captured.out + captured.err
+    assert all(name not in os.environ for name in REQUIRED_REFERENCES)

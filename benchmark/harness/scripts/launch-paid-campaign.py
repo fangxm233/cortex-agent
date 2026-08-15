@@ -21,9 +21,16 @@
 #   * it lives only in this process's environment, is never written to argv, stdout or any file,
 #     and is removed from the environment as soon as the campaign returns.
 #
+# Both modes also refuse a campaign whose pinned artifacts were not built from this checkout's
+# current source (see `verify_artifacts`). That is the r6 gate, and it is why the build step below
+# is part of the procedure rather than something an operator is trusted to remember.
+#
 # THE LAUNCH PROCEDURE, exactly (run on the host that owns the gateway file; no `--env` anywhere):
 #
 #   cd <checkout>/benchmark/harness
+#   PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --offline --frozen \
+#     python scripts/build-trial-artifacts.py \
+#       --config ../campaigns/terminal-bench-2.1-deepseek-paid.yaml
 #   PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --offline --frozen \
 #     python scripts/launch-paid-campaign.py \
 #       --config ../campaigns/terminal-bench-2.1-deepseek-paid.yaml --preflight
@@ -32,9 +39,14 @@
 #       --config ../campaigns/terminal-bench-2.1-deepseek-paid.yaml --run
 #
 # `--preflight` is the whole procedure minus the trials: it loads the credential, resolves the five
-# references, parses the scan policy and dry-runs the campaign, arming nothing and paying nothing.
+# references, parses the scan policy, verifies both artifacts against current source and dry-runs
+# the campaign, arming nothing and paying nothing.
 # `--run` writes the campaign's own JSON result to stdout and this redacted report to stderr.
 # Under cortex-run, wrap the `--run` line only — never pass a reference through `--env`.
+#
+# A paid campaign is ~40 minutes and must outlive the session that starts it: run `--run` detached
+# (`setsid`/`nohup`, output to a file). The r6 attempt was launched as a child of an agent session
+# and was killed at 31 minutes when that session ended.
 
 import argparse
 import json
@@ -51,6 +63,12 @@ if str(HARNESS / "src") not in sys.path:
     sys.path.insert(0, str(HARNESS / "src"))
 
 from cortex_bench_harness import campaign  # noqa: E402
+from cortex_bench_harness.artifact_provenance import (  # noqa: E402
+    NPM_SCOPE,
+    WHEEL_SCOPE,
+    ProvenanceError,
+    verify_artifact,
+)
 from cortex_bench_harness.campaign_config import (  # noqa: E402
     CampaignConfig,
     CampaignConfigError,
@@ -239,9 +257,32 @@ def preflight(
         raise LaunchError(f"host scan policy is still unresolved: {error}") from error
 
 
+def verify_artifacts(config: CampaignConfig, checkout: Path) -> dict[str, object]:
+    """Refuse to launch artifacts that were not built from the source being launched from.
+
+    This is the r6 gate. That campaign pinned an agent-server packed 34 hours before the fix it was
+    meant to be measuring, ran three trials against the already-fixed bug, and recorded every
+    artifact digest correctly while doing it -- because a digest says which bytes ran and nothing
+    said whether they were the right ones.
+
+    It is checked in both modes and before anything is armed, so `--preflight` answers "would this
+    run measure my current code", which is the question an operator actually has.
+    """
+    checks: dict[str, object] = {}
+    for key, scope in (("wheel_path", WHEEL_SCOPE), ("npm_artifact_path", NPM_SCOPE)):
+        artifact = Path(str(config.manifest[key]))
+        try:
+            checks[key] = verify_artifact(artifact, checkout, scope)
+        except ProvenanceError as error:
+            raise LaunchError(
+                f"{key} is not current: {error}") from error
+    return checks
+
+
 def report(
     config: CampaignConfig, environment: LaunchEnvironment, mode: str,
-    gateway_path: Path, dry_run: Mapping[str, object] | None = None,
+    gateway_path: Path, artifacts: Mapping[str, object],
+    dry_run: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     document: dict[str, object] = {
         "ok": True, "schema_version": LAUNCH_SCHEMA_VERSION, "mode": mode,
@@ -249,6 +290,7 @@ def report(
         "trials_dir": str(config.trials_dir),
         "gateway_path": str(gateway_path),
         "host_scan_policy_resolved": True,
+        "artifacts_verified": dict(artifacts),
         **environment.as_report(),
     }
     if dry_run is not None:
@@ -263,16 +305,20 @@ def launch(arguments: argparse.Namespace) -> tuple[dict[str, object], int]:
     environment = resolve_launch_environment(
         config, gateway_path=gateway_path, environ=os.environ, checkout=checkout)
     preflight(config, environment, environ=os.environ)
+    artifacts = verify_artifacts(
+        config, checkout if checkout is not None else checkout_root(config))
     if arguments.mode == "preflight":
         # The public dry-run, through the same CLI entry the run uses, so the procedure is proven
         # end to end without arming a trial or reading the provider.
         planned = campaign.run(
             argparse.Namespace(config=arguments.config, dry_run=True))
-        return report(config, environment, "preflight", gateway_path, planned), 0
+        return report(
+            config, environment, "preflight", gateway_path, artifacts, planned), 0
     os.environ.update(environment.values)
     try:
         print(json.dumps(
-            report(config, environment, "run", gateway_path), sort_keys=True), file=sys.stderr)
+            report(config, environment, "run", gateway_path, artifacts), sort_keys=True),
+            file=sys.stderr)
         return {}, campaign.main(["run", "--config", arguments.config])
     finally:
         for name in environment.values:

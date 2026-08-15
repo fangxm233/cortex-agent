@@ -5,10 +5,11 @@ script supplies the host references a campaign run needs.
 
 | filename | role | function |
 |---|---|---|
-| build-wheel.sh | build | Builds and byte-compares the fixed wheel |
+| build-trial-artifacts.py | build | Builds both trial artifacts from current source into the paths a campaign pins, each with a provenance record |
+| build-wheel.sh | build | Builds the fixed wheel at a pinned epoch |
 | build-zero-paid-runtime-image.sh | build | Builds the pinned offline Node and PI runtime image |
 | capability-evidence-v1-to-v2.json | config | Pins v1 evidence inputs and the v2 field migration |
-| launch-paid-campaign.py | launch | Resolves every host-scan reference and the just-in-time credential, then runs a paid campaign |
+| launch-paid-campaign.py | launch | Resolves every host-scan reference and the just-in-time credential, refuses artifacts that no longer match current source, then runs a paid campaign |
 | migrate-capability-evidence.py | evidence | Reproduces canonical v2 evidence and digests |
 | mutation-suite.py | evidence | Kills every listed mutation and regenerates offline evidence |
 | provision-terminal-bench-images.sh | build | Provisions pinned Terminal-Bench task images |
