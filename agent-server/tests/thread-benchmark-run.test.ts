@@ -1,6 +1,6 @@
 // input:  thread runner, fake agents, hook/throttle/profile stores
-// output: benchmark isolation, exact accounting and regressions
-// pos:    Verifies the benchmark-only thread execution boundary
+// output: benchmark isolation, identity context, and accounting proofs
+// pos:    Verifies benchmark and production thread boundaries
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js';
@@ -94,11 +94,13 @@ function writeThreadFixtures(): void {
   writeAgent('bench-alpha', '__active__');
   writeAgent('bench-beta', '__active__');
   writeAgent('bench-pinned', 'pinned-claude');
+  writeAgent('bench-manager', '__active__');
   writeTemplate('bench-two-step', ['bench-alpha', 'bench-beta'], [
     { from: 'bench-alpha', to: 'bench-beta', condition: { type: 'always' } },
   ]);
   writeTemplate('bench-active', ['bench-alpha'], []);
   writeTemplate('bench-hardcoded', ['bench-pinned'], []);
+  writeTemplate('bench-manager-template', ['bench-manager'], []);
 }
 
 beforeAll(() => {
@@ -236,6 +238,56 @@ function assertCwdProbe(
   ]);
   assert.deepEqual(fs.readFileSync(marker, 'utf8').trim().split('\n'), [workspace, workspace]);
 }
+
+test('production direct, coder-review, and dispatched-manager steps carry real identity context', async () => {
+  const direct = createFixtureThread('bench-active');
+  queueSuccesses(1, 'direct');
+  await threadRunner.runThread(direct.id, runOptions(direct));
+  const directOptions = agent.runAgent.mock.calls[0][1] as RunAgentOptions;
+  assert.deepEqual({
+    threadId: directOptions.threadId, rootThreadId: directOptions.rootThreadId,
+    templateName: directOptions.templateName, role: directOptions.agentSlotId,
+  }, {
+    threadId: direct.id, rootThreadId: direct.id,
+    templateName: 'bench-active', role: 'bench-alpha',
+  });
+
+  agent.runAgent.mockReset();
+  const coderReview = createFixtureThread('bench-two-step');
+  queueSuccesses(2, 'review');
+  await threadRunner.runThread(coderReview.id, runOptions(coderReview));
+  const reviewOptions = agent.runAgent.mock.calls.map(call => call[1] as RunAgentOptions);
+  assert.deepEqual(reviewOptions.map(options => ({
+    rootThreadId: options.rootThreadId,
+    templateName: options.templateName,
+    role: options.agentSlotId,
+  })), [
+    { rootThreadId: coderReview.id, templateName: 'bench-two-step', role: 'bench-alpha' },
+    { rootThreadId: coderReview.id, templateName: 'bench-two-step', role: 'bench-beta' },
+  ]);
+
+  agent.runAgent.mockReset();
+  const manager = createThread('C-benchmark-manager', {
+    templateName: 'bench-manager-template', userMessage: 'manage the task',
+    userMessageTs: String(Date.now()), projectId: 'atlas',
+    metadata: {
+      trigger: 'task-dispatch', taskId: 'a1b2', taskProject: 'atlas',
+      dispatchGeneration: 'generation-manager',
+    },
+  });
+  createdThreadIds.add(manager.id);
+  queueSuccesses(1, 'manager');
+  await threadRunner.runThread(manager.id, runOptions(manager));
+  const managerOptions = agent.runAgent.mock.calls[0][1] as RunAgentOptions;
+  assert.deepEqual({
+    rootThreadId: managerOptions.rootThreadId, templateName: managerOptions.templateName,
+    role: managerOptions.agentSlotId, taskId: managerOptions.taskId,
+    taskProject: managerOptions.taskProject, generation: managerOptions.taskGeneration,
+  }, {
+    rootThreadId: manager.id, templateName: 'bench-manager-template', role: 'bench-manager',
+    taskId: 'a1b2', taskProject: 'atlas', generation: 'generation-manager',
+  });
+});
 
 test('benchmark forwards workspace cwd and spawner through every step to a real child', async () => {
   const workspace = path.join(tmpRoot, 'workspace-cwd');

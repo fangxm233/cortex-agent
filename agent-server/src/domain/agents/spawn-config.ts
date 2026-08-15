@@ -1,5 +1,5 @@
-// input:  run options, agent config, route URL
-// output: one backend-neutral agent spawn config
+// input:  run options, resolved profile, route URL
+// output: spawn config with execution identity context
 // pos:    Registry-free spawn-config builder
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -12,6 +12,7 @@ import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction } from '@
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
 import { resolvePluginRuntime } from '../plugins/runtime.js';
+import type { ResolvedProfileConfig } from './profile-manager.js';
 
 // --- Types ---
 
@@ -28,6 +29,8 @@ export interface AgentConfig {
   /** Thinking level from the profile (backend-native value: claude → --effort, pi → --thinking).
    *  null/undefined → nothing is passed. */
   thinking?: string | null;
+  /** PI output cap resolved from the profile into the provider catalog. */
+  maxOutputTokens?: number | null;
 }
 
 export interface RunObserver {
@@ -98,6 +101,15 @@ export interface RunAgentOptions {
   sessionName?: string | null;
   /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
   executionId?: string | null;
+  /** Exact resolved profile used to freeze benchmark identity before adapter spawn. */
+  resolvedProfileConfig?: ResolvedProfileConfig;
+  /** Production attempt ancestry and role values, consumed only by the identity freezer. */
+  rootThreadId?: string | null;
+  parentThreadId?: string | null;
+  templateName?: string | null;
+  agentSlotId?: string | null;
+  stage?: string | null;
+  identityDirective?: string;
   /** Explicit MCP privilege surface for the spawned backend. */
   mcpComposition?: McpComposition;
   /** Legacy thread-surface selector. Accepted for existing callers and resolved when the explicit
@@ -282,6 +294,7 @@ function piSpawnFields(config: AgentConfig): Partial<AgentSpawnConfig> {
   const provider = config.backend === 'pi' ? config.provider : undefined;
   return {
     piProvider: provider || undefined,
+    piModelMaxTokens: config.backend === 'pi' ? config.maxOutputTokens ?? undefined : undefined,
     piGatewayPath: provider
       ? buildPiGatewaySubPath(config.mode, provider)
       : undefined,

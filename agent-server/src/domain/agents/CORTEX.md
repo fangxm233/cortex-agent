@@ -5,9 +5,9 @@ Agent runtime domain for profiles and provider-attributed turns.
 | filename | role | function |
 |---|---|---|
 | config.ts | config | Selects modes and stores Claude credentials |
-| facade.ts | core | Orders accounting, continuations and notices |
+| facade.ts | core | Freezes identity then runs attributed turns |
 | provider-run-lifecycle.ts | core | Attributes providers and publishes auth lifecycle |
 | index.ts | entry | Re-exports the agents domain API |
-| profile-manager.ts | core | Resolves profiles and provider identities |
+| profile-manager.ts | core | Resolves profile identities and output caps |
 | profile-switch.ts | core | Decides and applies channel profile switches |
-| spawn-config.ts | core | Builds spawn config and resolves plugin runtime |
+| spawn-config.ts | core | Builds spawn and identity context from resolved inputs |

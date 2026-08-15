@@ -1,6 +1,6 @@
-// input:  resolved AgentSpawnConfig and plugin directory trees
+// input:  resolved spawn prompt and plugin runtime trees
 // output: content-addressed role, tool, and guard surface
-// pos:    Anti-divergence identity projection for one-shot spawns
+// pos:    Anti-divergence identity projection for spawns
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { createHash } from 'node:crypto';
@@ -59,11 +59,20 @@ export function directoryContentSha256(directory: string): string {
   return canonicalJsonSha256(contentEntries(directory).sort(comparePath));
 }
 
-function pluginIdentities(pluginDirs: string[]): PluginDirIdentityInput[] {
-  return pluginDirs.map(directory => ({
+function pluginIdentities(
+  pluginDirs: string[],
+  capabilityFingerprint?: string,
+): PluginDirIdentityInput[] {
+  const identities = pluginDirs.map(directory => ({
     path: directory,
     content_sha256: directoryContentSha256(directory),
-  })).sort((left, right) => compareText(left.path, right.path));
+  }));
+  if (capabilityFingerprint) {
+    identities.push({
+      path: '@plugin-capability', content_sha256: capabilityFingerprint,
+    });
+  }
+  return identities.sort((left, right) => compareText(left.path, right.path));
 }
 
 function pluginSkills(pluginDir: string): SkillIdentityInput[] {
@@ -77,14 +86,27 @@ function pluginSkills(pluginDir: string): SkillIdentityInput[] {
     }));
 }
 
-function discoveredSkills(pluginDirs: string[]): SkillIdentityInput[] {
-  const skills = pluginDirs.flatMap(pluginSkills);
+function directSkills(skillDirs: string[]): SkillIdentityInput[] {
+  return skillDirs.map(directory => ({
+    name: path.basename(directory),
+    content_sha256: directoryContentSha256(directory),
+  }));
+}
+
+function uniqueSkills(skills: SkillIdentityInput[]): SkillIdentityInput[] {
   const names = new Set<string>();
   for (const skill of skills) {
     if (names.has(skill.name)) throw new Error(`Duplicate plugin skill name: ${skill.name}`);
     names.add(skill.name);
   }
   return skills.sort((left, right) => compareText(left.name, right.name));
+}
+
+function discoveredSkills(pluginDirs: string[], skillDirs: string[]): SkillIdentityInput[] {
+  return uniqueSkills([
+    ...pluginDirs.flatMap(pluginSkills),
+    ...directSkills(skillDirs),
+  ]);
 }
 
 function spawnedTools(config: AgentSpawnConfig): string[] {
@@ -100,6 +122,14 @@ function hookPolicy(config: AgentSpawnConfig): IdentityJsonValue {
   return buildHooksSettings(tools) as unknown as IdentityJsonValue;
 }
 
+function systemPromptSha256(config: AgentSpawnConfig): string {
+  if (config.appendSystemPrompt === undefined) return sha256(config.systemPrompt ?? '');
+  return canonicalJsonSha256({
+    system_prompt: config.systemPrompt ?? '',
+    append_system_prompt: config.appendSystemPrompt,
+  });
+}
+
 export function roleSurfaceFromSpawnConfig(
   config: AgentSpawnConfig,
   directive = '',
@@ -107,11 +137,11 @@ export function roleSurfaceFromSpawnConfig(
 ): RoleToolSurfaceInput {
   const pluginDirs = config.pluginDirs ?? [];
   const surface: RoleToolSurfaceInput = {
-    systemPromptSha256: sha256(config.systemPrompt ?? ''),
+    systemPromptSha256: systemPromptSha256(config),
     directiveSha256: sha256(directive),
     tools: spawnedTools(config),
-    pluginDirs: pluginIdentities(pluginDirs),
-    skills: discoveredSkills(pluginDirs),
+    pluginDirs: pluginIdentities(pluginDirs, config.pluginCapabilityFingerprint),
+    skills: discoveredSkills(pluginDirs, config.pluginSkillDirs ?? []),
     mcpComposition: config.mcpComposition ?? 'direct',
     hookPolicy: hookPolicy(config),
   };
