@@ -42,7 +42,7 @@ import {
 import { mergeTrajectory, TrajectoryMergeError } from './trajectory-merge.js';
 import type { ThreadLink } from './atif.js';
 import {
-  PROXY_EXPORT_SCHEMA_VERSION, journalCostFromNumber, reconcileAccounting,
+  PROXY_EXPORT_SCHEMA_VERSION, buildAccountingRecord, journalCostFromNumber,
   type AccountingRecord, type JournalTotals, type ProxyExport, type Tagged,
 } from '../benchmark/accounting-reconciliation.js';
 import {
@@ -1692,7 +1692,7 @@ function attemptAccounting(
     trial_id: policy.trial_id,
     adapter_id: parentAttemptId,
     requests: unreadable,
-    cost_usd: unreadable,
+    cached_tokens: unreadable,
     input_tokens: unreadable,
     output_tokens: unreadable,
     audit_log: unreadable,
@@ -1707,7 +1707,7 @@ function attemptAccounting(
     // against it rather than absorbed.
     roles: [...new Set(nodes.map(node => node.role))],
   };
-  return reconcileAccounting(proxy, journal);
+  return buildAccountingRecord(proxy, journal);
 }
 
 /**

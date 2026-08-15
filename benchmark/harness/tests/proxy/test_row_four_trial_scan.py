@@ -119,7 +119,7 @@ def drive_row_four_flows(handle, upstream: SyntheticUpstream) -> dict[str, tuple
     serve_stream(upstream, sse_stream([terminal_event(input_tokens=1, output_tokens=1)]))
     call("metered")
     serve_stream(upstream, sse_stream([{"type": "response.output_text.delta"}], done=False))
-    call("budget_accounting_unavailable")
+    call("usage_accounting_unavailable")
     return calls
 
 

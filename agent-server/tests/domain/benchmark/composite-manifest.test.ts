@@ -34,7 +34,7 @@ import {
   type TrajectoryMergeFileSystem,
 } from '../../../src/domain/agent-run/trajectory-merge.js';
 import {
-  reconcileAccounting,
+  buildAccountingRecord,
   type AccountingRecord,
   type JournalTotals,
   type ProxyExport,
@@ -49,7 +49,7 @@ function accountingRecord(): AccountingRecord {
   const proxy: ProxyExport = {
     schema_version: 'cortex-bench-proxy-export/1', trial_id: 'trial-1', adapter_id: 'adapter-1',
     requests: { status: 'available', value: 4 },
-    cost_usd: { status: 'available', value: '0.000200' },
+    cached_tokens: { status: 'unavailable', reason: 'no_cache_breakdown_reported' },
     input_tokens: { status: 'available', value: 10 },
     output_tokens: { status: 'available', value: 20 },
     audit_log: { status: 'available', value: { entries: 1 } },
@@ -68,7 +68,7 @@ function accountingRecord(): AccountingRecord {
     source: 'trajectory_merge',
     roles: ['parent'],
   };
-  return reconcileAccounting(proxy, journal);
+  return buildAccountingRecord(proxy, journal);
 }
 
 const IDENTITY = {
@@ -222,21 +222,24 @@ describe('canonical form (§17 17.1.1) — order is not a degree of freedom', ()
 });
 
 describe('O-G4-ACCT — the AccountingRecord is placed VERBATIM (§17 17.1.8)', () => {
-  it('carries the NINE members that SHIPPED, including `checks`', () => {
-    // §15.4.3's sketch shows EIGHT and omits `checks` (accounting-reconciliation.ts:113).
+  it('carries the FIVE members that ship — a statement of figures, not a verdict', () => {
+    // `tolerance`, `deltas`, `reconciled` and `checks` were removed with the proxy-vs-journal
+    // comparison: the proxy priced what it metered from a different price list than the run's own
+    // cache-aware accumulator, and a 12.7x disagreement between two individually correct figures
+    // discarded a finished trial. A restored member fails here rather than in production.
     const accounting = directManifest().accounting;
     expect(Object.keys(accounting)).toEqual([
-      'schema_version', 'trial_id', 'proxy', 'journal', 'tolerance',
-      'deltas', 'reconciled', 'unaccounted_roles', 'checks',
+      'schema_version', 'trial_id', 'proxy', 'journal', 'unaccounted_roles',
     ]);
-    expect(Object.keys(accounting).length).toBe(9);
-    expect(accounting.checks).toBeDefined();
+    expect(Object.keys(accounting).length).toBe(5);
+    expect(accounting.schema_version).toBe('cortex-bench-accounting/2');
   });
 
   it('ProxyAccounting keeps all SEVEN members including audit_log', () => {
-    // `audit_log` (:53) is absent from §15.4.3's sketch too.
+    // `audit_log` is absent from §15.4.3's sketch too. `cost_usd` is gone from this side entirely:
+    // the proxy counts requests and meters tokens, and prices nothing.
     expect(Object.keys(directManifest().accounting.proxy)).toEqual([
-      'requests', 'cost_usd', 'input_tokens', 'output_tokens',
+      'requests', 'cached_tokens', 'input_tokens', 'output_tokens',
       'audit_log', 'lease_echo', 'source',
     ]);
   });
@@ -262,15 +265,14 @@ describe('O-G4-ACCT — the AccountingRecord is placed VERBATIM (§17 17.1.8)', 
       edges: [], roots: { parent_attempt_id: 'run-r1', root_task_id: null },
       accounting: record, mode: 'direct',
     });
-    // Reference identity: the very object reconcileAccounting returned, not a copy of it.
+    // Reference identity: the very object buildAccountingRecord returned, not a copy of it.
     expect(manifest.accounting).toBe(record);
     // And byte-preserving through the canonical encoder — key ORDER included.
     const parsed = JSON.parse(canonicalCompositeManifestBytes(manifest).toString('utf8'));
     expect(JSON.stringify(parsed.accounting)).toBe(JSON.stringify(record));
-    expect(parsed.accounting.deltas).toEqual(record.deltas);
-    expect(parsed.accounting.reconciled).toEqual(record.reconciled);
-    expect(parsed.accounting.checks).toEqual(record.checks);
-    expect(parsed.accounting.tolerance.requests_abs).toBe(0);
+    expect(parsed.accounting.proxy).toEqual(record.proxy);
+    expect(parsed.accounting.journal).toEqual(record.journal);
+    expect(parsed.accounting.unaccounted_roles).toEqual(record.unaccounted_roles);
   });
 
   it('G4-CM26: journal.requests is permanently unavailable, and no decimal is re-rounded', () => {

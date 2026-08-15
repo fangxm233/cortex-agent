@@ -1,5 +1,5 @@
 # input:  trial proxy API and synthetic model upstream
-# output: forwarding, limits, funded-turn, deadline, stop, and redaction proofs
+# output: forwarding, the declared request count, deadline, stop, and redaction proofs
 # pos:    Core proxy behavior tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -72,9 +72,9 @@ def audit_rows(tmp_path: Path) -> list[dict]:
 
 
 def await_delivery_row(tmp_path: Path, timeout: float = 10) -> list[dict]:
-    """The proxy keeps draining the upstream after the client leaves — the request was billed
-    and its usage still has to be read — so the delivery row lands after the last byte, not at
-    the moment the client vanished."""
+    """The proxy keeps draining the upstream after the client leaves — the request was already
+    counted and its usage still has to be read — so the delivery row lands after the last byte,
+    not at the moment the client vanished."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         rows = [row for row in audit_rows(tmp_path) if row.get("event") == "delivery"]
@@ -106,9 +106,9 @@ def test_a_response_the_client_never_received_is_still_recorded_as_billed_and_lo
 
     assert status == 200
     assert delivery == [{
-        "event": "delivery", "outcome": "client_gone_after_billing", "request_count_at": 1,
+        "event": "delivery", "outcome": "client_gone_after_accounting", "request_count_at": 1,
     }]
-    assert export["audit_log"]["value"]["outcomes"] == {"client_gone_after_billing": 1}
+    assert export["audit_log"]["value"]["outcomes"] == {"client_gone_after_accounting": 1}
     # The lost response is NOT a second request, and the money is counted exactly once.
     assert export["requests"]["value"] == 1
     assert export["audit_log"]["value"]["durable_requests"] == 1

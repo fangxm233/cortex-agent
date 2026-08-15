@@ -4,15 +4,20 @@
     "status": "available",
     "value": {
       "agrees_with_counters": true,
-      "durable_cost_usd": "0.000153",
       "durable_requests": 3,
+      "durable_tokens": {
+        "cached": null,
+        "input": 6,
+        "output": 9,
+        "total": 15
+      },
       "entries": 4,
       "outcomes": {}
     }
   },
-  "cost_usd": {
-    "status": "available",
-    "value": "0.000153"
+  "cached_tokens": {
+    "reason": "no_cache_breakdown_reported",
+    "status": "unavailable"
   },
   "input_tokens": {
     "status": "available",

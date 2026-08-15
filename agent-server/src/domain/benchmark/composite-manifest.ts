@@ -352,7 +352,7 @@ export function buildCompositeManifest(input: BuildCompositeManifestInput): Comp
     nodes,
     edges,
     roots: input.roots,
-    // VERBATIM: the same object reference reconcileAccounting returned. No arithmetic, no
+    // VERBATIM: the same object reference buildAccountingRecord returned. No arithmetic, no
     // re-shaping, no re-ordering (G4-CM23).
     accounting: input.accounting,
     predicate: buildPredicate(input.mode, input.evaluatedChecks),
@@ -430,8 +430,11 @@ export interface CompositeManifestContext {
   readonly lifecycleStems: readonly string[];
 }
 
+// Exact and ORDERED: compared with `join(',')` below. The order is `ProxyAccounting`'s declaration
+// order (`accounting-reconciliation.ts`). `cost_usd` left the proxy side when the proxy stopped
+// pricing what it meters; `cached_tokens` took its slot.
 const PROXY_KEYS = [
-  'requests', 'cost_usd', 'input_tokens', 'output_tokens', 'audit_log', 'lease_echo', 'source',
+  'requests', 'cached_tokens', 'input_tokens', 'output_tokens', 'audit_log', 'lease_echo', 'source',
 ];
 const JOURNAL_KEYS = ['requests', 'cost_usd', 'steps', 'tokens', 'source'];
 

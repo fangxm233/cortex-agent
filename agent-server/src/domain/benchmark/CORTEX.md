@@ -4,7 +4,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 
 | filename | role | function |
 |---|---|---|
-| accounting-reconciliation.ts | 核心 | Reconciles benchmark usage accounting |
+| accounting-reconciliation.ts | 核心 | Records proxy-side and journal-side usage figures side by side |
 | actor-capability-scope.ts | 核心 | Registers actor capabilities |
 | arm-schema.ts | 类型 | Validates benchmark arm definitions and declared limits |
 | attempt-record.ts | 类型 | Defines benchmark attempt records |

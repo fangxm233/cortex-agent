@@ -36,7 +36,7 @@ import {
   buildCompositeManifest, validateCompositeManifest,
 } from '../../../src/domain/benchmark/composite-manifest.js';
 import {
-  reconcileAccounting, type AccountingRecord,
+  buildAccountingRecord, type AccountingRecord,
 } from '../../../src/domain/benchmark/accounting-reconciliation.js';
 import { sampleAttempt } from './attempt-record.test.js';
 import { VERDICT_BY_VARIANT } from '../../../src/domain/benchmark/variant-proposal.js';
@@ -159,11 +159,11 @@ function storeReadable(): boolean {
 
 /** Gate 8's record, only ever placed verbatim — the composition test needs a well-formed one. */
 function compositionAccounting(): AccountingRecord {
-  return reconcileAccounting(
+  return buildAccountingRecord(
     {
       schema_version: 'cortex-bench-proxy-export/1', trial_id: 'trial-1', adapter_id: 'run-r1',
       requests: { status: 'unavailable', reason: 'counter_unreadable' },
-      cost_usd: { status: 'unavailable', reason: 'counter_unreadable' },
+      cached_tokens: { status: 'unavailable', reason: 'counter_unreadable' },
       input_tokens: { status: 'unavailable', reason: 'counter_unreadable' },
       output_tokens: { status: 'unavailable', reason: 'counter_unreadable' },
       audit_log: { status: 'unavailable', reason: 'counter_unreadable' },

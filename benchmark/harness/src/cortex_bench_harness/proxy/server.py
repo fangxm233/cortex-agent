@@ -88,12 +88,12 @@ class ProxyState:
         return self._persist(entry)
 
     def record_delivery(self, outcome: str) -> bool:
-        """Record what became of a response the trial was already billed for.
+        """Record what became of a response the trial was already charged a request for.
 
         Deliberately NOT a metered row: it carries no `request_count`, so it never touches the
-        request or cost totals the reconciliation meets against the journal — exactly as lease
-        rows do not. The request happened, was billed, and is already counted; what this adds is
-        whether the client was still there to receive it. It is also not a lifecycle event: a
+        request or token totals this side reports — exactly as lease rows do not. The request
+        happened and is already counted; what this adds is whether the client was still there to
+        receive it. It is also not a lifecycle event: a
         client that gave up on one turn may well ask for the next, and revoking the route here
         would turn one lost response into the end of the run.
         """
@@ -491,7 +491,7 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         # `_forward_reserved` holds `request_lock` across the whole forward, and the lock is not
         # reentrant, so this records under the caller's lock exactly as `state.record` does.
         if sink.client_failed:
-            state.record_delivery("client_gone_after_billing")
+            state.record_delivery("client_gone_after_accounting")
 
     def _refuse_response(self, sink: RelaySink, status: int, reason: str) -> None:
         """Refuse a request whose response may already be on the wire.
@@ -591,7 +591,7 @@ class TrialProxyHandle:
 
     @property
     def accounting_export(self) -> dict[str, object]:
-        """The A1 side of the accounting reconciliation after handler freeze."""
+        """The A1 side of the accounting record, after handler freeze."""
         return build_proxy_export(
             trial_id=self._metadata.trial_id, adapter_id=self._metadata.adapter_id,
             counters=self._server.state, log_path=self._server.state.log_path,

@@ -1,15 +1,11 @@
-// input:  the proxy-authoritative export, journal-derived totals, the arm's tolerance
-// output: the accounting record, its tagged figures, deltas and check ids
-// pos:    Pure §9.6 A1-A5 accounting reconciliation
+// input:  the proxy-authoritative export and the journal-derived totals
+// output: the accounting record — each side's own measured figures, tagged, plus the A4 role excess
+// pos:    Pure §9.6 A1-A5 accounting record construction
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import {
-  absDecimal, compareDecimal, decimalFromNumber, decimalText, isDecimalText,
-  maxDecimal, multiplyDecimal, parseDecimal, subtractDecimal, type DecimalValue,
-} from './decimal-text.js';
-import { BENCHMARK_FAILURES } from './resolved-policy.js';
+import { decimalFromNumber, decimalText, isDecimalText } from './decimal-text.js';
 
-export const ACCOUNTING_RECORD_SCHEMA_VERSION = 'cortex-bench-accounting/1';
+export const ACCOUNTING_RECORD_SCHEMA_VERSION = 'cortex-bench-accounting/2';
 export const PROXY_EXPORT_SCHEMA_VERSION = 'cortex-bench-proxy-export/1';
 
 /**
@@ -24,30 +20,28 @@ export type Tagged<T> = Available<T> | Unavailable;
 /** Closed on purpose: a reason the other side of the seam does not know is a refusal, not a pass. */
 export const UNAVAILABLE_REASONS = [
   'proxy_not_started', 'counter_unreadable', 'audit_log_unreadable', 'no_echo_received',
-  'journal_absent', 'journal_underivable', 'operand_unavailable',
+  // The counter WAS read and the provider simply never reported a cache split. Distinct from
+  // `counter_unreadable`, which is this side failing to read its own register: a response without a
+  // cache breakdown is not a cache miss, so one silent request makes the trial's cached total
+  // unknowable rather than smaller.
+  'no_cache_breakdown_reported',
+  'journal_absent', 'journal_underivable',
+  // No writer left: this was produced by the proxy-vs-journal comparison, which is gone. It stays
+  // in the set because this set gates PARSING — dropping it would start refusing any document
+  // written before that removal, which is the opposite of what a closed reason set is for.
+  'operand_unavailable',
 ] as const;
 export type UnavailableReason = typeof UNAVAILABLE_REASONS[number];
 
-export const ACCOUNTING_CHECK_IDS = [
-  'accounting_requests_mismatch', 'accounting_cost_out_of_tolerance',
-  'accounting_operand_unavailable',
-] as const;
-export type AccountingCheckId = typeof ACCOUNTING_CHECK_IDS[number];
-
-/** No new failure code is allocated: the distinctions ride as check ids on the shipped code 41. */
-const TERMINAL_PREDICATE_UNMET = BENCHMARK_FAILURES
-  .find(failure => failure.reason === 'terminal_predicate_unmet')!.code;
-
-export interface AccountingCheck {
-  readonly check_id: AccountingCheckId;
-  readonly passed: boolean;
-  readonly failure_code: number | null;
-  readonly detail: string;
-}
-
+/**
+ * What the proxy itself measured. It counts requests and meters tokens; it prices nothing, so there
+ * is no `cost_usd` here — see the note above `buildAccountingRecord` for why that slot is gone.
+ * Declaration order is load-bearing: `composite-manifest.ts` compares `Object.keys(...).join(',')`
+ * against `PROXY_KEYS` exactly, so `readProxy` must construct in this order too.
+ */
 export interface ProxyAccounting {
   readonly requests: Tagged<number>;
-  readonly cost_usd: Tagged<string>;
+  readonly cached_tokens: Tagged<number>;
   readonly input_tokens: Tagged<number>;
   readonly output_tokens: Tagged<number>;
   readonly audit_log: Tagged<Record<string, unknown>>;
@@ -61,6 +55,11 @@ export interface ProxyExport extends ProxyAccounting {
   readonly adapter_id: string;
 }
 
+/**
+ * What the run's own accumulator derived. `cost_usd` stays here and only here: it is the run's
+ * cache-aware figure, computed from the provider's own per-response billing, and it is the number a
+ * reader should quote for what the trial spent.
+ */
 export interface JournalAccounting {
   readonly requests: Tagged<number>;
   readonly cost_usd: Tagged<string>;
@@ -78,39 +77,23 @@ export interface JournalTotals extends JournalAccounting {
   readonly roles: readonly string[];
 }
 
-/**
- * Declared arm policy, frozen at compile and recorded in the record so a reader can see what was
- * applied. `requests_abs` is the literal 0: a request either traversed the proxy or it did not, and
- * a count has no rounding, so widening it is a type error rather than a judgement call.
- */
-export interface AccountingTolerance {
-  readonly requests_abs: 0;
-  readonly cost_usd_rel: string;
-  readonly cost_usd_abs_floor: string;
-}
-
-export const DEFAULT_ACCOUNTING_TOLERANCE: AccountingTolerance = Object.freeze({
-  requests_abs: 0, cost_usd_rel: '0.01', cost_usd_abs_floor: '0.000001',
-});
-
 /** The proxy metered requests the attempt DAG never claimed — OC-11's observable, listed not hidden. */
 export interface UnaccountedRole {
   readonly kind: 'proxy_excess';
   readonly journal_roles: readonly string[];
   readonly requests: Tagged<number>;
-  readonly cost_usd: Tagged<string>;
 }
 
+/**
+ * A statement of what each side measured, not a verdict on whether they agree. Nothing in here can
+ * refuse a trial; Gate 4 carries it verbatim as evidence.
+ */
 export interface AccountingRecord {
   readonly schema_version: typeof ACCOUNTING_RECORD_SCHEMA_VERSION;
   readonly trial_id: string;
   readonly proxy: ProxyAccounting;
   readonly journal: JournalAccounting;
-  readonly tolerance: AccountingTolerance;
-  readonly deltas: { readonly requests: Tagged<number>; readonly cost_usd: Tagged<string> };
-  readonly reconciled: Tagged<boolean>;
   readonly unaccounted_roles: readonly UnaccountedRole[];
-  readonly checks: readonly AccountingCheck[];
 }
 
 export class AccountingInputError extends Error {
@@ -121,34 +104,56 @@ export class AccountingInputError extends Error {
 }
 
 /**
- * Compare the proxy's own totals against the journal's. Pure: it reads its two arguments, mutates
- * neither and writes nothing. Gate 4 places the result verbatim; it does not re-derive it.
+ * Record both sides' figures side by side, each tagged with whether it could be read at all. Pure:
+ * it reads its two arguments, mutates neither and writes nothing. Gate 4 places the result verbatim;
+ * it does not re-derive it.
+ *
+ * ── the proxy-vs-journal cross-check was REMOVED here, deliberately ──────────────────────────────
+ *
+ * This function used to be `reconcileAccounting`: it compared the two sides' `cost_usd` under a
+ * relative tolerance and their request counts under exact equality, and published `reconciled`,
+ * `deltas`, `tolerance` and a `checks` array whose failures rode failure code 41 — i.e. a
+ * disagreement could refuse a finished trial.
+ *
+ * It was removed because the quantity it compared is not one either side observes. Cost is a token
+ * count multiplied by whichever price list the observer happens to hold, and the two observers held
+ * different ones. The trial proxy priced every prompt token at the full input rate; DeepSeek bills
+ * cached prompt tokens at a reduced rate, which the run's own cache-aware accumulator applied. At a
+ * 99.2% cache hit rate the two figures for one trial were $0.642 (proxy) against $0.0505 (journal) —
+ * a 12.7x spread in which BOTH numbers were correct under their own price list. Their disagreement
+ * failed reconciliation and discarded a finished trial.
+ *
+ * The fix was upstream, not here: the proxy no longer prices anything (it counts requests and
+ * measures tokens), so it no longer has a cost figure to disagree with. What remains is evidence,
+ * kept in full — both sides' measured counts are still recorded, and the journal's cache-aware
+ * `cost_usd` is still carried as the run's spend. The A4 excess below survives too, because it
+ * compares REQUEST COUNTS, which both sides genuinely observe.
+ *
+ * Do not "restore" the comparison as a bug fix. Reinstating it without a single shared price list
+ * reinstates the incident. If a cost cross-check is ever wanted again, the two sides must first be
+ * made to price from the same table, and the disagreement must be reported rather than allowed to
+ * discard a trial that already ran.
+ *
+ * (In production the comparison had in fact never fired: `runner.ts` hardcodes every proxy-side
+ * figure to `counter_unreadable` because the proxy runs host-side and the runner runs in-container,
+ * so an operand was always missing. It was exercised only through the Python-produced golden files.)
  */
-export function reconcileAccounting(
+export function buildAccountingRecord(
   proxyExport: ProxyExport,
   journalTotals: JournalTotals,
-  tolerance: AccountingTolerance = DEFAULT_ACCOUNTING_TOLERANCE,
 ): AccountingRecord {
-  assertTolerance(tolerance);
   const proxy = readProxy(proxyExport);
   const journal = readJournal(journalTotals);
-  const missing = unavailableOperands(proxy, journal);
-  const requests = compareRequests(proxy.requests, journal.requests);
-  const cost = compareCost(proxy.cost_usd, journal.cost_usd, tolerance);
   return deepFreeze({
     schema_version: ACCOUNTING_RECORD_SCHEMA_VERSION,
     trial_id: assertTrialId(proxyExport.trial_id),
     proxy,
     journal,
-    tolerance: { ...tolerance },
-    deltas: { requests: requests.delta, cost_usd: cost.delta },
-    reconciled: reconciledFlag(missing, [requests, cost]),
     unaccounted_roles: unaccountedRoles(proxy, journal, journalTotals.roles),
-    checks: buildChecks(missing, [requests, cost]),
   });
 }
 
-/** The journal reports cost as a JavaScript number; costs are compared as decimal strings. */
+/** The journal reports cost as a JavaScript number; it is carried as an exact decimal string. */
 export function journalCostFromNumber(value: unknown): Tagged<string> {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     return { status: 'unavailable', reason: 'journal_underivable' };
@@ -156,113 +161,20 @@ export function journalCostFromNumber(value: unknown): Tagged<string> {
   return { status: 'available', value: decimalText(decimalFromNumber(value)) };
 }
 
-interface Comparison<T> {
-  readonly delta: Tagged<T>;
-  readonly check: AccountingCheck | null;
-}
-
-/**
- * `journal.requests` is deliberately absent. An operand is one side of a comparison, and the
- * journal has no request counter to be absent: `MetricAccumulator` (`trajectory-merge.ts`) carries
- * only prompt/completion/cached/cost/steps, and the journal's one-per-turn `cost_record` counts a
- * different event from the proxy's one-per-HTTP-call `request_count`. Dividing one by the other is
- * a guess, so the count is permanently `journal_underivable` rather than merely missing. While it
- * was listed here it made `reconciled` unavailable on every trial, which fails the accounting
- * predicate forever for a reason that is not an accounting discrepancy.
- *
- * Compensating control, because this drops the journal-vs-proxy request cross-check: a runaway
- * request count is still bounded proxy-side by the trial cost budget. Every admitted request
- * reserves `max_request_cost_usd` (`proxy/server.py:89-90`) and admission is refused with
- * `429 budget_exhausted` once the remaining budget falls below one reservation
- * (`proxy/server.py:65-67`), capping admitted requests at
- * `floor(max_cost_usd / max_request_cost_usd)`. Host-side, the arm's `max_provider_requests` is
- * projected to `max_steps` (`launcher/arm_resolution.py:436`) and bounds agent-process admissions
- * (`benchmark-local-thread-orchestrator.ts:544,585`). Note it is NOT a proxy-side request ceiling:
- * `ProxyBudget` (`proxy/models.py:15-19`) has no request-count field and the proxy's own
- * `request_count` is only ever reported, never compared. `proxy.requests` stays an operand and
- * stays exported, so the proxy-side count is still recorded and audited.
- */
-const OPERAND_PATHS = [
-  'proxy.requests', 'proxy.cost_usd', 'proxy.lease_echo', 'journal.cost_usd',
-] as const;
-
-function unavailableOperands(proxy: ProxyAccounting, journal: JournalAccounting): string[] {
-  // Positionally coupled with OPERAND_PATHS: an entry added here without one there shifts every
-  // later index onto the wrong name.
-  const slots: Tagged<unknown>[] = [
-    proxy.requests, proxy.cost_usd, proxy.lease_echo, journal.cost_usd,
-  ];
-  return OPERAND_PATHS.filter((_path, index) => slots[index].status === 'unavailable');
-}
-
-function compareRequests(proxy: Tagged<number>, journal: Tagged<number>): Comparison<number> {
-  if (proxy.status !== 'available' || journal.status !== 'available') return notComparable();
-  const delta = proxy.value - journal.value;
-  return {
-    delta: { status: 'available', value: delta },
-    check: check('accounting_requests_mismatch', delta === 0,
-      `proxy ${proxy.value} journal ${journal.value}`),
-  };
-}
-
-function compareCost(
-  proxy: Tagged<string>, journal: Tagged<string>, tolerance: AccountingTolerance,
-): Comparison<string> {
-  if (proxy.status !== 'available' || journal.status !== 'available') return notComparable();
-  const observed = parseDecimal(proxy.value);
-  const delta = subtractDecimal(observed, parseDecimal(journal.value));
-  const limit = costLimit(observed, tolerance);
-  return {
-    delta: { status: 'available', value: decimalText(delta) },
-    check: check('accounting_cost_out_of_tolerance',
-      compareDecimal(absDecimal(delta), limit) <= 0,
-      `delta ${decimalText(delta)} tolerance ${decimalText(limit)}`),
-  };
-}
-
-/** The floor exists so a near-zero trial is not compared by ratio. */
-function costLimit(observed: DecimalValue, tolerance: AccountingTolerance): DecimalValue {
-  const relative = absDecimal(multiplyDecimal(observed, parseDecimal(tolerance.cost_usd_rel)));
-  return maxDecimal(parseDecimal(tolerance.cost_usd_abs_floor), relative);
-}
-
-function notComparable<T>(): Comparison<T> {
-  return { delta: { status: 'unavailable', reason: 'operand_unavailable' }, check: null };
-}
-
-function check(id: AccountingCheckId, passed: boolean, detail: string): AccountingCheck {
-  return { check_id: id, passed, failure_code: passed ? null : TERMINAL_PREDICATE_UNMET, detail };
-}
-
-/** R-A5-2: a missing operand is neither a mismatch nor a match, so it is neither false nor true. */
-function reconciledFlag(
-  missing: readonly string[], comparisons: readonly Comparison<unknown>[],
-): Tagged<boolean> {
-  if (missing.length > 0) return { status: 'unavailable', reason: 'operand_unavailable' };
-  // A null check was never constructed, which is not the same as a check that ran and failed. Only
-  // the requests axis can reach here unconstructed: every operand of the cost comparison is in
-  // OPERAND_PATHS, so an unavailable one leaves through the branch above. Reading null as a failure
-  // would restore the every-trial red this operand's removal exists to fix.
-  return {
-    status: 'available',
-    value: comparisons.every(comparison => comparison.check === null || comparison.check.passed),
-  };
-}
-
-function buildChecks(
-  missing: readonly string[], comparisons: readonly Comparison<unknown>[],
-): AccountingCheck[] {
-  const evaluated = comparisons
-    .map(comparison => comparison.check)
-    .filter((entry): entry is AccountingCheck => entry !== null);
-  if (missing.length === 0) return evaluated;
-  return [check('accounting_operand_unavailable', false, missing.join(', ')), ...evaluated];
-}
-
 /**
  * A4 detection. The proxy meters by route and source IP, so every role's traffic is inside its
- * totals by construction; the journal side is the one that can miss a role. An excess is listed
- * here rather than absorbed into the tolerance, because absorbing it is how OC-11 disappears.
+ * totals by construction; the journal side is the one that can miss a role. This is an observable
+ * about roles the journal never claimed, denominated in REQUESTS — a count both sides genuinely
+ * observe — and it is listed rather than absorbed, because absorbing it is how OC-11 disappears.
+ *
+ * It is not the removed proxy-vs-journal reconciliation and did not go with it: it raises no check,
+ * carries no failure code and cannot refuse a trial.
+ *
+ * `journal.requests` is in practice permanently `journal_underivable`: `MetricAccumulator`
+ * (`trajectory-merge.ts`) carries only prompt/completion/cached/cost/steps, and the journal's
+ * one-per-turn `cost_record` counts a different event from the proxy's one-per-HTTP-call
+ * `request_count`. Dividing one by the other is a guess, so the excess simply goes unlisted rather
+ * than being estimated.
  */
 function unaccountedRoles(
   proxy: ProxyAccounting, journal: JournalAccounting, roles: readonly string[],
@@ -274,24 +186,17 @@ function unaccountedRoles(
     kind: 'proxy_excess',
     journal_roles: [...roles],
     requests: { status: 'available', value: excess },
-    cost_usd: costExcess(proxy.cost_usd, journal.cost_usd),
   }];
-}
-
-function costExcess(proxy: Tagged<string>, journal: Tagged<string>): Tagged<string> {
-  if (proxy.status !== 'available' || journal.status !== 'available') {
-    return { status: 'unavailable', reason: 'operand_unavailable' };
-  }
-  const delta = subtractDecimal(parseDecimal(proxy.value), parseDecimal(journal.value));
-  return { status: 'available', value: decimalText(maxDecimal(delta, parseDecimal('0'))) };
 }
 
 function readProxy(document: ProxyExport): ProxyAccounting {
   assertMember(document?.schema_version === PROXY_EXPORT_SCHEMA_VERSION, 'proxy.schema_version');
   assertMember(document.source === 'proxy_export', 'proxy.source');
+  // Construction order is the declaration order of `ProxyAccounting`; `composite-manifest.ts`
+  // compares the key list verbatim, so reordering a line here refuses every trial.
   return {
     requests: taggedCount(document.requests, 'proxy.requests'),
-    cost_usd: taggedDecimal(document.cost_usd, 'proxy.cost_usd'),
+    cached_tokens: taggedCount(document.cached_tokens, 'proxy.cached_tokens'),
     input_tokens: taggedCount(document.input_tokens, 'proxy.input_tokens'),
     output_tokens: taggedCount(document.output_tokens, 'proxy.output_tokens'),
     audit_log: taggedObject(document.audit_log, 'proxy.audit_log'),
@@ -345,14 +250,6 @@ function taggedObject(slot: unknown, path: string): Tagged<Record<string, unknow
   // values still compare afterwards.
   if (entry.status !== 'available') return entry;
   return { status: 'available', value: structuredClone(entry.value) };
-}
-
-function assertTolerance(tolerance: AccountingTolerance): void {
-  assertMember(tolerance?.requests_abs === 0, 'tolerance.requests_abs');
-  for (const member of ['cost_usd_rel', 'cost_usd_abs_floor'] as const) {
-    assertMember(isDecimalText(tolerance[member]), `tolerance.${member}`);
-    assertMember(!tolerance[member].startsWith('-'), `tolerance.${member}`);
-  }
 }
 
 function assertTrialId(trialId: string): string {

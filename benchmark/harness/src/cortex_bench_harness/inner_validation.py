@@ -20,12 +20,16 @@ ATTEMPT_KEYS = frozenset({
     "edges", "started_at", "ended_at", "steps", "cost_usd", "tokens",
     "provider_requests",
 })
+# The composite's accounting block states what each side measured. It used to also carry that
+# comparison's verdict -- `tolerance`, `deltas`, `reconciled`, `checks` -- but the proxy-vs-journal
+# cross-check was removed: it compared COST, which neither side observes (it is a token count times
+# whichever price list the observer holds), and on cached traffic the two correct answers differed
+# by 12.7x and discarded a finished trial.
 ACCOUNTING_KEYS = frozenset({
-    "schema_version", "trial_id", "proxy", "journal", "tolerance", "deltas",
-    "reconciled", "unaccounted_roles", "checks",
+    "schema_version", "trial_id", "proxy", "journal", "unaccounted_roles",
 })
 PROXY_ACCOUNTING_KEYS = frozenset({
-    "requests", "cost_usd", "input_tokens", "output_tokens", "audit_log", "lease_echo",
+    "requests", "cached_tokens", "input_tokens", "output_tokens", "audit_log", "lease_echo",
     "source",
 })
 JOURNAL_ACCOUNTING_KEYS = frozenset({"requests", "cost_usd", "steps", "tokens", "source"})
@@ -107,14 +111,13 @@ def _valid_accounting(value: object, trial_id: str) -> bool:
     proxy = value.get("proxy")
     journal = value.get("journal")
     return (
-        value.get("schema_version") == "cortex-bench-accounting/1"
+        value.get("schema_version") == "cortex-bench-accounting/2"
         and value.get("trial_id") == trial_id
         and isinstance(proxy, Mapping) and set(proxy) == PROXY_ACCOUNTING_KEYS
         and proxy.get("source") == "proxy_export"
         and isinstance(journal, Mapping) and set(journal) == JOURNAL_ACCOUNTING_KEYS
         and journal.get("source") == "trajectory_merge"
         and isinstance(value.get("unaccounted_roles"), list)
-        and isinstance(value.get("checks"), list)
     )
 
 

@@ -792,9 +792,11 @@ it('publishes a valid composite manifest from inside runOneShotAgent (T16)', asy
     built.policy.identity.model_execution_identity_hash);
   assert.equal(manifest.identity.bundle_manifest_hash, built.policy.identity.bundle_manifest_hash);
 
-  // O-G4-ACCT: the shipped nine-member record, `checks` included.
-  assert.equal(Object.keys(manifest.accounting).length, 9);
-  assert.ok(Array.isArray(manifest.accounting.checks));
+  // O-G4-ACCT: the shipped five-member record — a statement of what each side measured, carrying no
+  // verdict on whether they agree. The proxy-vs-journal comparison was removed deliberately.
+  assert.deepEqual(Object.keys(manifest.accounting),
+    ['schema_version', 'trial_id', 'proxy', 'journal', 'unaccounted_roles']);
+  assert.equal(manifest.accounting.schema_version, 'cortex-bench-accounting/2');
   assert.equal(Object.keys(manifest.accounting.proxy).length, 7);
   assert.equal(manifest.accounting.trial_id, manifest.trial_id);
 

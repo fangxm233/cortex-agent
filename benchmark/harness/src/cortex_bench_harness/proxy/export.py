@@ -11,9 +11,9 @@ from typing import Any, Callable, Mapping, Protocol
 
 PROXY_EXPORT_SCHEMA_VERSION = "cortex-bench-proxy-export/1"
 
-# The closed set of reasons a figure may be missing. It is closed so that the reconciliation on the
-# other side of the seam can refuse a document carrying a reason it does not know, and so that a new
-# way of failing to read a counter cannot be smuggled in as free text.
+# The closed set of reasons a figure may be missing. It is closed so that the reader on the other
+# side of the seam can refuse a document carrying a reason it does not know, and so that a new way
+# of failing to read a counter cannot be smuggled in as free text.
 UNAVAILABLE_REASONS = frozenset({
     "proxy_not_started",
     "counter_unreadable",
@@ -50,7 +50,7 @@ def build_proxy_export(
     *, trial_id: str, adapter_id: str, counters: ProxyCounters | None,
     log_path: Path | None, lease_echo: Mapping[str, object] | None,
 ) -> dict[str, object]:
-    """The A1 side of the reconciliation: what the proxy itself observed.
+    """The A1 side of the accounting record: what the proxy itself observed.
 
     Nothing here is defaulted. A figure the proxy could not read is `unavailable` with a reason, so
     that missing telemetry cannot arrive downstream wearing the same shape as a real zero.
@@ -68,7 +68,7 @@ def build_proxy_export(
 
 
 def render_proxy_export(export: Mapping[str, object]) -> str:
-    """The bytes the reconciliation on the other side of the seam parses."""
+    """The bytes the reader on the other side of the seam parses."""
     return json.dumps(export, indent=2, sort_keys=True) + "\n"
 
 
@@ -162,9 +162,9 @@ def _durable_totals(
 def _outcomes(entries: list[dict[str, Any]]) -> dict[str, int]:
     """How many rows carry each outcome, and none for a run where nothing went wrong.
 
-    The totals above answer "how much", which is what the accounting reconciliation needs. They
-    cannot answer "and did anything go wrong on the way", so a trial could reconcile to the cent
-    while every one of its responses failed to reach the client. This is the smallest thing that
+    The totals above answer "how much", which is what the accounting record carries. They cannot
+    answer "and did anything go wrong on the way", so a trial could account to the token while
+    every one of its responses failed to reach the client. This is the smallest thing that
     makes such a run legible: a tally, sorted, of the outcomes the log already recorded one by
     one. It is a summary of durable rows, never a new source of truth.
     """

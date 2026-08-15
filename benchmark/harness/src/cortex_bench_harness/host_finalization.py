@@ -41,7 +41,7 @@ from .trial_assets import (
 )
 
 OUTER_ENVELOPE_FILENAME = "cortex-bench-outer-envelope.json"
-OUTER_ENVELOPE_SCHEMA_VERSION = "cortex-bench-outer-envelope/3"
+OUTER_ENVELOPE_SCHEMA_VERSION = "cortex-bench-outer-envelope/4"
 # The inner contract's own state -> reason table (`manifest-contract.ts:70-78`), mirrored so a
 # terminal that is merely *not ok* can be told apart from one that is malformed. The first is an
 # outcome of the run and is gradable; the second is evidence that cannot be trusted and is not.
@@ -60,11 +60,11 @@ TERMINAL_REASONS: Mapping[str, frozenset[str]] = {
 PROXY_OBSERVATIONS: Mapping[str, str] = {
     "upstream_unavailable": "upstream_failure",
     "upstream_response_too_large": "upstream_failure",
-    "client_gone_after_billing": "undelivered_response",
+    "client_gone_after_accounting": "undelivered_response",
     # The provider answered, but not in a shape the adapter could bill, so the proxy refused a
     # response it could not account for. Distinct from a policy refusal: the cause is what came
     # back, not what we would allow.
-    "budget_accounting_unavailable": "unaccountable_response",
+    "usage_accounting_unavailable": "unaccountable_response",
     # The host credential could not be injected. Never the provider, and never the trial.
     "auth_injection_unavailable": "credential_unavailable",
 }
@@ -123,10 +123,6 @@ class InnerEvidence:
     required_agent_files: Mapping[str, str]
     terminal: TerminalOutcome
     root_run_id: str
-    #: The run's own token counts as its terminal marker states them. The composite carries the
-    #: same figures for an admitted trial, but a failed run publishes no composite, so this is
-    #: the only place its side of the reconciliation survives.
-    terminal_tokens: Mapping[str, object] | None
     #: The run's own first-class record of what it compiled: prompt, tool and plugin digests. It is
     #: written before the first step and survives every terminal state, so the assets can be
     #: witnessed on the failed path exactly as on the completed one.
@@ -222,7 +218,7 @@ def finalize_host_trial(
         assets = _publish_assets(logs_dir, npm_artifact, bundle_root, inner)
         discovered = _rediscover(roots, discovered, assets)
         validate_host_owned_identity(artifact_dir, trial_id, root_run_id, arm.get("name"))
-        usage = _reconcile_proxy(revocation, inner, trial_id)
+        usage = _proxy_usage(revocation, trial_id)
         classified = _classify_outputs(roots, discovered, assets, inner, arm)
         scan = _scan_outputs(classified, roots, scan_policy)
         envelope = _outer_envelope(
@@ -288,7 +284,7 @@ def _validate_inner(
     required[f"run-{root_run_id}.started.json"] = "run_started"
     return InnerEvidence(
         hashlib.sha256(terminal_bytes).hexdigest(), composite_sha256, composite, required,
-        outcome, root_run_id, terminal.get("tokens"), journal.header,
+        outcome, root_run_id, journal.header,
     )
 
 
@@ -570,33 +566,39 @@ def _validate_started(root: Path, terminal_name: str, journal_name: str) -> None
         raise HostFinalizationError("inner_manifest_invalid")
 
 
-def _reconcile_proxy(
-    revocation: TrialRevocation | None, inner: InnerEvidence, trial_id: str,
+def _proxy_usage(
+    revocation: TrialRevocation | None, trial_id: str,
 ) -> dict[str, object]:
+    """What the host's own meter observed for this trial, stated and not cross-checked.
+
+    This used to also compare the proxy's figures against the run's own and refuse the trial when
+    they disagreed. The comparison was on COST, and cost is not a quantity either side observes:
+    it is a token count multiplied by whichever price list the observer happens to hold. The proxy
+    had no cache-read rate and the run did, so on 99.2% cached traffic their two correct answers
+    differed by 12.7x and a finished trial was discarded for an accounting fault that never
+    happened.
+
+    The proxy no longer prices anything, which removes that particular disagreement, and the
+    cross-check itself is now removed by decision rather than replaced. Both sides' measured
+    figures still reach the record — the proxy's here, the run's in its own composite — so a reader
+    who wants to compare them still can. What no longer happens is this side refusing a trial over
+    the result.
+    """
     if revocation is None or not _valid_revocation(revocation.revocation, trial_id):
         raise HostFinalizationError("proxy_revocation_uncertain")
     _, export = _read_json(revocation.export_path)
     _, lease = _read_json(revocation.lease_echo_path)
-    requests = _available(export.get("requests"), int)
-    input_tokens = _available(export.get("input_tokens"), int)
-    output_tokens = _available(export.get("output_tokens"), int)
     audit = _available(export.get("audit_log"), Mapping)
-    echo = export.get("lease_echo")
     if not _valid_proxy_export(export, lease, audit, trial_id):
-        raise HostFinalizationError("proxy_reconciliation_failed")
-    journal = _journal_tokens(inner)
-    if journal is not None and journal != (input_tokens, output_tokens):
-        raise HostFinalizationError("proxy_reconciliation_failed")
+        raise HostFinalizationError("proxy_export_invalid")
     return {
         "schema_version": export["schema_version"], "trial_id": trial_id,
-        "requests": requests,
-        "input_tokens": input_tokens, "output_tokens": output_tokens,
+        "requests": _available(export.get("requests"), int),
+        "input_tokens": _available(export.get("input_tokens"), int),
+        "output_tokens": _available(export.get("output_tokens"), int),
         "cached_tokens": export.get("cached_tokens"),
         "audit_entries": audit.get("entries"), "audit_outcomes": _audit_outcomes(audit),
-        "lease_echo": echo,
-        "journal_tokens": (
-            None if journal is None else {"input": journal[0], "output": journal[1]}),
-        "reconciled": journal is not None,
+        "lease_echo": export.get("lease_echo"),
     }
 
 
@@ -614,7 +616,7 @@ def _audit_outcomes(audit: Mapping[str, object]) -> dict[str, int]:
         for key, count in value.items()
     )
     if not valid:
-        raise HostFinalizationError("proxy_reconciliation_failed")
+        raise HostFinalizationError("proxy_export_invalid")
     return dict(sorted(value.items()))
 
 
@@ -629,12 +631,12 @@ def _valid_revocation(value: object, trial_id: str) -> bool:
 
 def _available(value: object, expected: type) -> object:
     if not isinstance(value, Mapping) or value.get("status") != "available":
-        raise HostFinalizationError("proxy_reconciliation_failed")
+        raise HostFinalizationError("proxy_export_invalid")
     payload = value.get("value")
     valid = isinstance(payload, expected) and not (
         expected is int and isinstance(payload, bool))
     if not valid:
-        raise HostFinalizationError("proxy_reconciliation_failed")
+        raise HostFinalizationError("proxy_export_invalid")
     return payload
 
 
@@ -658,64 +660,6 @@ def _valid_proxy_export(
         and isinstance(export.get("lease_echo"), Mapping)
         and export["lease_echo"].get("status") == "available"
     )
-
-
-def _journal_tokens(inner: InnerEvidence) -> tuple[int, int] | None:
-    """The run's own token counts, to be met exactly against what the proxy measured.
-
-    This used to compare COSTS, within a 1% tolerance. Two independent observers of the same
-    traffic can only check each other if they are measuring the same quantity, and cost is not one:
-    it is a token count multiplied by whichever price list the observer happens to hold. The proxy
-    had no cache-read rate and the run did, so on 94-99% cached traffic their two correct answers
-    differed by 3x to 13x and the trial was refused for an accounting fault that never happened.
-
-    Tokens are what both sides actually observe, and they agreed exactly even in the run that
-    failed - 8514 output tokens on both sides, and the same 50985 prompt tokens once the run's
-    cache split is added back. So the check is now equality, with no tolerance to tune: a real
-    disagreement about how much traffic crossed the route is a fault, and nothing else can produce
-    one.
-
-    An admitted trial must state its counts: the composite carries them as tagged values and an
-    unavailable tag is an accounting fault. A non-admitted trial has no composite, so its terminal
-    marker answers instead — and it is allowed to answer nothing, because a run that died before a
-    single turn settled truthfully knows of no counts. The envelope then reports
-    `reconciled: false` rather than claiming a cross-check that was never performed. A terminal
-    that *does* state counts is still held to them: disagreement there is an accounting fault, not
-    an agent outcome, and still refuses.
-    """
-    if inner.composite is not None:
-        accounting = inner.composite.get("accounting")
-        journal = accounting.get("journal") if isinstance(accounting, Mapping) else None
-        tokens = journal.get("tokens") if isinstance(journal, Mapping) else None
-        if not isinstance(tokens, Mapping):
-            raise HostFinalizationError("proxy_reconciliation_failed")
-        return (
-            _available(tokens.get("input"), int),
-            _available(tokens.get("output"), int),
-        )
-    return _terminal_tokens(inner.terminal_tokens)
-
-
-def _terminal_tokens(tokens: object) -> tuple[int, int] | None:
-    """The failed path's own counts, read straight off the terminal marker.
-
-    `_validate_terminal` has already established that this is a mapping carrying `input` and
-    `output`, so the only question left here is whether the run knew the numbers. A `null` on
-    either side is the run saying it could not derive them — the §9.6 A5 answer, not a zero — and
-    there is then no counterpart for the proxy's figures to meet. Anything else present is a
-    number the run stands behind, and it is held to it.
-    """
-    if not isinstance(tokens, Mapping):
-        raise HostFinalizationError("proxy_reconciliation_failed")
-    counts: list[int] = []
-    for field in ("input", "output"):
-        value = tokens.get(field)
-        if value is None:
-            return None
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            raise HostFinalizationError("proxy_reconciliation_failed")
-        counts.append(value)
-    return counts[0], counts[1]
 
 
 def _trial_roots(

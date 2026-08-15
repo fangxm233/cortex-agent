@@ -241,27 +241,20 @@ def terminal_document(journal: bytes) -> dict[str, object]:
 
 def accounting() -> dict[str, object]:
     unavailable = {"status": "unavailable", "reason": "counter_unreadable"}
-    available_zero = {"status": "available", "value": "0"}
-    unavailable_delta = {"status": "unavailable", "reason": "operand_unavailable"}
     return {
-        "schema_version": "cortex-bench-accounting/1", "trial_id": TRIAL_ID,
-        "proxy": {"requests": unavailable, "cost_usd": unavailable,
+        "schema_version": "cortex-bench-accounting/2", "trial_id": TRIAL_ID,
+        "proxy": {"requests": unavailable, "cached_tokens": unavailable,
                   "input_tokens": unavailable, "output_tokens": unavailable,
                   "audit_log": unavailable, "lease_echo": unavailable,
                   "source": "proxy_export"},
         "journal": {"requests": {"status": "unavailable", "reason": "journal_underivable"},
-                    "cost_usd": available_zero, "steps": {"status": "available", "value": 1},
+                    "cost_usd": {"status": "available", "value": "0"},
+                    "steps": {"status": "available", "value": 1},
                     "tokens": {"input": {"status": "available", "value": 0},
                                "output": {"status": "available", "value": 0},
                                "cached": {"status": "available", "value": 0}},
                     "source": "trajectory_merge"},
-        "tolerance": {"requests_abs": 0, "cost_usd_rel": "0.01",
-                      "cost_usd_abs_floor": "0.000001"},
-        "deltas": {"requests": unavailable_delta, "cost_usd": unavailable_delta},
-        "reconciled": unavailable_delta, "unaccounted_roles": [],
-        "checks": [{"check_id": "accounting_operand_unavailable", "passed": False,
-                    "failure_code": 41,
-                    "detail": "proxy.requests, proxy.cost_usd, proxy.lease_echo"}],
+        "unaccounted_roles": [],
     }
 
 
@@ -462,11 +455,12 @@ def assert_refused(
 
 
 def assert_outer_evidence(envelope: Mapping[str, object]) -> None:
-    assert envelope["schema_version"] == "cortex-bench-outer-envelope/3"
+    assert envelope["schema_version"] == "cortex-bench-outer-envelope/4"
     assert envelope["identity"] == {
         "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "arm_name": ARM_NAME,
     }
-    assert envelope["inner"]["composite_sha256"] and envelope["proxy_usage"]["reconciled"] is True
+    assert envelope["inner"]["composite_sha256"]
+    assert envelope["proxy_usage"]["trial_id"] == TRIAL_ID
     assert envelope["revocation"] == {
         "schema_version": "cortex-bench-proxy-revocation/1", "trial_id": TRIAL_ID,
         "route_active": False, "listener_present": False, "serving_thread_alive": False,
@@ -639,33 +633,24 @@ def test_a_failed_inner_run_publishes_an_envelope_that_says_it_is_not_gradable(
     assert envelope["classification"]["ok"] is True and envelope["leak_scan"]
 
 
-def test_a_failed_run_that_knows_of_no_counts_does_not_claim_a_reconciliation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The composite is where an admitted trial's journal-side counts live, and a failed run
-    publishes none. Its terminal marker may still state them, and here it states nothing.
+def test_a_failed_run_still_publishes_what_its_proxy_metered(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A trial that is not gradable still spent provider traffic, and the record has to say so.
 
-    Reporting `reconciled: true` here would assert a cross-check that never happened, so the
-    envelope says what is true instead: the proxy's own metering, and no counterpart to meet it.
+    Two tests stood here that held the failed run's own counts against the proxy's and refused the
+    trial when they disagreed. That cross-check compared COST -- a token count times whichever
+    price list the observer holds, which is not a quantity either side observes -- and on 99.2%
+    cached traffic the two correct answers differed by 12.7x and discarded a finished trial. The
+    comparison was removed by decision rather than retuned; what remains is this side stating what
+    it measured.
     """
     agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run())
 
     run_agent(agent, environment)
     usage = json.loads(envelope_path(tmp_path).read_bytes())["proxy_usage"]
 
-    assert usage["journal_tokens"] is None and usage["reconciled"] is False
-    assert usage["input_tokens"] == 0 and usage["output_tokens"] == 0
     assert usage["trial_id"] == TRIAL_ID
-
-
-def test_a_failed_run_whose_own_counts_contradict_the_proxy_is_still_refused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Not being gradable does not make a trial's accounting optional."""
-    agent, environment = make_agent(
-        tmp_path, monkeypatch, fail_inner_run(tokens={"input": 5, "output": 7}))
-
-    assert_refused(tmp_path, agent, environment)
+    assert usage["input_tokens"] == 0 and usage["output_tokens"] == 0
+    assert "reconciled" not in usage and "journal_tokens" not in usage
 
 
 @pytest.mark.parametrize(("state", "reason"), [
@@ -838,7 +823,7 @@ def test_a_response_that_was_billed_and_never_delivered_is_named_in_the_cause(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_audit_outcomes(
-        monkeypatch, {"client_gone_after_billing": 7, "upstream_unavailable": 1})
+        monkeypatch, {"client_gone_after_accounting": 7, "upstream_unavailable": 1})
     agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run())
 
     run_agent(agent, environment)
@@ -856,7 +841,7 @@ def test_a_provider_answer_that_could_not_be_billed_is_not_filed_as_a_policy_ref
     and the proxy refuses a response it cannot account for. Calling that a policy refusal would
     point the reader at our rules when the cause was what came back.
     """
-    install_audit_outcomes(monkeypatch, {"budget_accounting_unavailable": 1})
+    install_audit_outcomes(monkeypatch, {"usage_accounting_unavailable": 1})
     agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run("provider_error"))
 
     run_agent(agent, environment)
