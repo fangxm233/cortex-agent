@@ -29,9 +29,24 @@
     "reported_ok": true,
     "would_arm_trials": 3,
     "slots": [
-      {"slot": 0, "subnet": "172.30.240.0/24", "gateway": "172.30.240.1", "container_ip": "172.30.240.2"},
-      {"slot": 1, "subnet": "172.30.241.0/24", "gateway": "172.30.241.1", "container_ip": "172.30.241.2"},
-      {"slot": 2, "subnet": "172.30.242.0/24", "gateway": "172.30.242.1", "container_ip": "172.30.242.2"}
+      {
+        "slot": 0,
+        "subnet": "172.30.240.0/24",
+        "gateway": "172.30.240.1",
+        "container_ip": "172.30.240.2"
+      },
+      {
+        "slot": 1,
+        "subnet": "172.30.241.0/24",
+        "gateway": "172.30.241.1",
+        "container_ip": "172.30.241.2"
+      },
+      {
+        "slot": 2,
+        "subnet": "172.30.242.0/24",
+        "gateway": "172.30.242.1",
+        "container_ip": "172.30.242.2"
+      }
     ]
   },
   "path_aliases": {
@@ -194,7 +209,12 @@
       "detail": "The proxy has only an input rate and an output rate. DeepSeek returns a cache split which the run's own accounting uses and the proxy discards. With 94-99% cache hit rates the two figures differ by 3x to 13x, far outside the 1% reconciliation tolerance.",
       "why_it_surfaced_now": "r5 is the first paid attempt to reach host finalization at all. r1 and r4 died on agent-phase timeouts and r3 was rejected at the inner terminal, so nothing before this ever executed the journal-versus-proxy comparison on real cached traffic.",
       "not_a_safety_failure": "The proxy over-states, never under-states, and admission is decided by whole-reservation arithmetic that never consults measured cost. The money bound held throughout.",
-      "collateral": "Every paid spend figure published so far is a proxy figure and therefore an over-statement. r4's headline $0.3359384 is the conservative number, not the billed one."
+      "collateral": "Every paid spend figure published so far is a proxy figure and therefore an over-statement. r4's headline $0.3359384 is the conservative number, not the billed one.",
+      "corrective_action": {
+        "commit": "b0d87726",
+        "what": "The proxy no longer prices anything: ProxyBudget became ProxyLimits(max_requests), the adapters' billable() and the cost-pair config refusals are gone, the audit row and export carry tokens (with a cached total and a no_cache_breakdown_reported reason) instead of cost_usd, and host_finalization reconciles input/output tokens by exact equality instead of cost within 1%.",
+        "open": "The cross-language seam is NOT migrated. agent-server src/domain/benchmark/accounting-reconciliation.ts still reconciles on cost, and it is the only axis there that can make `reconciled` false (the requests axis is permanently journal_underivable). The two goldens under benchmark/harness/tests/proxy/golden/ are therefore deliberately NOT regenerated and their two producer-side tests are red; regenerating them would fail all 24 proxyGolden() call sites at once. Note that in production runner.ts:1689-1701 hardcodes every proxy-side figure to counter_unreadable, so this axis has never actually fired in a real trial - it is exercised only through those goldens."
+      }
     },
     {
       "id": "D2",
@@ -205,7 +225,11 @@
       "mechanism": "agent-run/atif.ts groups the journal into steps. collectToolResults walks forward from a tool_use batch absorbing exactly three things - turn_progress, subagent_activity (:126) and a tool_result whose id belongs to the batch (:132) - and breaks on anything else (:143). groupEvents then meets the orphaned result at top level and condemns it (:199). Replaying that grouping against the real journal locates it exactly: seq 200 is the tool_use, seq 201 is a context_usage heartbeat, seq 202 is that same call's tool_result. context_usage is simply missing from the absorb list.",
       "why_this_trial": "The heartbeat ticks about every 2 s, so it only lands inside the window between a call and its result when that call is slow. chess-best-move had such calls; constraints-scheduling's five steps were fast; db-wal-recovery's hung call stopped the heartbeat altogether.",
       "note": "The comment at atif.ts:123-125 already states the principle - progress events interleave with an open call's result and 'breaking on them would orphan the result'. context_usage is the same class of periodic telemetry and was not included.",
-      "cost": "52 turns and the largest single-trial traffic of the run were discarded."
+      "cost": "52 turns and the largest single-trial traffic of the run were discarded.",
+      "corrective_action": {
+        "commit": "c923631e",
+        "what": "collectToolResults now closes a tool batch by matching call ids rather than by absorbing whatever event arrives next, so a context_usage heartbeat landing between a call and its result no longer forces unpaired_tool_result."
+      }
     },
     {
       "id": "D3",
@@ -225,7 +249,11 @@
       "title": "The campaign result reports ok:true and cost_usd 0 for a run where every trial failed and real money was spent",
       "where": "campaign.py result construction and _emit",
       "detail": "The run exited 0 with \"ok\": true and \"cost_usd\": \"0\" while 3 of 3 trials failed and the proxy metered $0.70108584. The cost figure appears to count only published envelopes, so a failed trial's spend is invisible in the document that is supposed to account for it.",
-      "why_it_matters": "A money number that reads zero when money was spent is the one number that must never be wrong, and an exit code of 0 on a total failure will mislead any automation built on it."
+      "why_it_matters": "A money number that reads zero when money was spent is the one number that must never be wrong, and an exit code of 0 on a total failure will mislead any automation built on it.",
+      "corrective_action": {
+        "commit": "2c98c2b6",
+        "what": "The campaign accounts every armed trial from its proxy export rather than summing published envelopes, and stops reporting ok when nothing graded."
+      }
     },
     {
       "id": "D5",
@@ -234,7 +262,11 @@
       "where": "harbor_agent.py _build_run_argv, against supervisor.ts:457",
       "detail": "r4 ended on an agent-phase timeout that published no terminal marker, and the recorded fix was to raise timeouts.agent_seconds from 1800 to 2100 so the arm's own 1800 s deadline would fire first and the run would 'end itself, publish a terminal marker, be finalized as not gradable, be scored by its own verifier, and be followed by the next trial'. None of that could happen: _build_run_argv never passed --deadline-ms, supervisor.ts:457 returns immediately without one, and CORTEX_BENCH_DEADLINE_SECONDS - which the container environment does set - has no reader anywhere in agent-server. The arm's deadline_seconds sized the credential lease and nothing else.",
       "proof": "r5's db-wal-recovery is the disproof: it ran past 1800 s without ending itself and was cut by Harbor at 2100 s with no terminal marker, exactly as r4 did.",
-      "self_assessment": "This was my own error in the r4 record. The corrective action was asserted to work rather than verified to work, and it was recorded as a fix in a committed evidence file."
+      "self_assessment": "This was my own error in the r4 record. The corrective action was asserted to work rather than verified to work, and it was recorded as a fix in a committed evidence file.",
+      "corrective_action": {
+        "commit": "8994dc19",
+        "what": "_build_run_argv now passes --deadline-ms, which is what the r4 corrective action assumed was already being passed."
+      }
     }
   ],
   "observations": [
@@ -258,7 +290,11 @@
     "lease_echo_state": "reconciled on all three",
     "lease_budget_ms": 1800000,
     "lease_budget_note": "min(deadline_seconds 1800, agent_seconds 2100) = 1800, so raising the Harbor agent phase after r4 did not widen the credential window, exactly as that record predicted.",
-    "lease_consumed_ms": {"chess-best-move": 48, "constraints-scheduling": 296, "db-wal-recovery": 96},
+    "lease_consumed_ms": {
+      "chess-best-move": 48,
+      "constraints-scheduling": 296,
+      "db-wal-recovery": 96
+    },
     "trial_containers_removed": true,
     "docker_networks_removed": true,
     "containers_leaked": 0,
