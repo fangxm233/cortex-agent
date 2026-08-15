@@ -1645,6 +1645,7 @@ PRESERVED_ATTEMPT_ROOTS = {
     "tb21-paid-r3": Path("/var/tmp/cortex-bench/tb21-paid-r3-2026-08-13-4e25"),
     "tb21-paid-r4": Path("/var/tmp/cortex-bench/tb21-paid-r4-2026-08-13-ebe7"),
     "tb21-paid-r5": Path("/var/tmp/cortex-bench/tb21-paid-r5-2026-08-13-d3df"),
+    "tb21-paid-r6": Path("/var/tmp/cortex-bench/tb21-paid-r6-2026-08-14-90d8"),
 }
 
 

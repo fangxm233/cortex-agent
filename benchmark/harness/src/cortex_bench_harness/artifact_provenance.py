@@ -219,13 +219,21 @@ def _git_commit(checkout: Path) -> str:
 
 
 def _git_dirty(checkout: Path, scope: SourceScope) -> bool:
-    """Whether this scope carries uncommitted work.
+    """Whether the files this artifact is actually built from carry uncommitted work.
 
     Recorded for the operator's benefit only. The fingerprint is what the gate compares, and it is
     computed from file content, so a dirty build is verified exactly as strictly as a clean one --
     it simply pins the artifact to that working tree until it changes again.
+
+    The scope's exclusions apply here too. Reporting an artifact dirty because of an edit to a path
+    that provably cannot reach it -- a test, a build output -- would make the field mean "something
+    somewhere changed", which is not worth reporting and would train an operator to ignore it.
     """
-    return bool(_git(checkout, ["status", "--porcelain", "--", *scope.roots]).strip())
+    lines = _git(checkout, ["status", "--porcelain", "-z", "--", *scope.roots]).split("\0")
+    return any(
+        not any(entry[3:].startswith(prefix) for prefix in scope.excluded)
+        for entry in lines if entry.strip()
+    )
 
 
 def _git(checkout: Path, arguments: list[str]) -> str:

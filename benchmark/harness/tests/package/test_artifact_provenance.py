@@ -168,3 +168,15 @@ def test_a_dirty_build_is_pinned_to_the_tree_it_was_built_from(checkout: Path) -
     git(checkout, "checkout", "--", "src/main.py")
     with pytest.raises(ProvenanceError, match="built from different source"):
         verify_artifact(artifact, checkout, SCOPE)
+
+
+def test_an_edit_confined_to_an_excluded_path_is_not_reported_as_dirty(checkout: Path) -> None:
+    """`dirty` tracks the files the artifact is built from, or it trains operators to ignore it."""
+    build_artifact(checkout)
+    (checkout / "src" / "generated").mkdir()
+    (checkout / "src" / "generated" / "out.py").write_text("generated\n", encoding="utf-8")
+
+    assert read_source_state(checkout, SCOPE).dirty is False
+
+    (checkout / "src" / "main.py").write_text("print('edited')\n", encoding="utf-8")
+    assert read_source_state(checkout, SCOPE).dirty is True

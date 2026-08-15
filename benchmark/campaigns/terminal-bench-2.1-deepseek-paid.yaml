@@ -83,14 +83,21 @@
 schema_version: cortex-bench-campaign/1
 # Fresh identity: the 2026-08-13 `tb21-paid` (four paid requests, then exhaustion), `tb21-paid-r2`
 # (refused before admission, zero requests), `tb21-paid-r3` (first-trial inner-terminal rejection),
-# `tb21-paid-r4` (first-trial agent-phase timeout, 43 requests) and `tb21-paid-r5` (all three trials
-# ran and none published: two refused at finalization, one cut by the agent timeout) roots are
+# `tb21-paid-r4` (first-trial agent-phase timeout, 43 requests), `tb21-paid-r5` (all three trials
+# ran and none published: two refused at finalization, one cut by the agent timeout) and
+# `tb21-paid-r6` (killed at 31 minutes with its launching session, no report written) roots are
 # immutable evidence, and a campaign never writes into an existing trial root -- `campaign._resume`
 # refuses one that carries no published envelope. Rotate both fields together whenever an attempt
 # has materialised this root.
-campaign: tb21-paid-r6
+#
+# r6 is also why ../harness/scripts/build-trial-artifacts.py exists. It ran a wheel built minutes
+# earlier beside an agent-server tarball packed 34 hours earlier, so the D2 journal-grouping fix it
+# was meant to measure was in the host's source and not in the container's package; all three
+# trials then failed on the already-fixed bug. The launcher now refuses to start when either pinned
+# artifact does not match the checkout it is launching from.
+campaign: tb21-paid-r7
 paid: true
-trials_dir: /var/tmp/cortex-bench/tb21-paid-r6-2026-08-14-90d8
+trials_dir: /var/tmp/cortex-bench/tb21-paid-r7-2026-08-15-85db
 cli_version: "2026.8.6"
 
 # All three trials in one wave. Each holds its own credential route for its own 1800s lease, so
@@ -153,8 +160,10 @@ docker_network:
 # pinned into that container's own Docker network configuration.
 proxy:
   credential_env: CORTEX_BENCH_DEEPSEEK_CREDENTIAL
-  # One reservation exceeds the most any admissible request can cost, so no response can be
-  # refused as budget_accounting_exceeded; $100.00 of them funds the 500 turns the arm declares.
+  # 64 MiB each way, which is 31x the largest body observed on any attempt. These bound what one
+  # request may carry, nothing else -- the proxy prices no request and reserves nothing against a
+  # budget, so the only refusal it can raise on a well-formed call is `429 requests_exhausted` at
+  # the arm's `max_provider_requests`.
   request_body_limit_bytes: 67108864
   response_body_limit_bytes: 67108864
   listen_host: 0.0.0.0
