@@ -977,3 +977,61 @@ it('does not start a network listener or any forbidden daemon subsystem', async 
   assert.ok(forbiddenSpies.every(spy => spy.mock.calls.length === 0));
   listen.mockRestore();
 });
+
+// --- a deadline the control timer never got to announce -----------------------------------------
+//
+// The supervisor is armed with the same absolute deadline this control is. When time runs out it
+// ends the child, and the child's death arrives as an I/O event whose continuation classifies the
+// run before the event loop ever reaches the timers phase -- so `control.reason` is still null and
+// the run is filed as `child_failure`. The r7 paid campaign lost two trials to this: both ran their
+// full 1800s, both published failed/child_failure, and host finalization refused both even though
+// the Harbor verifier had already graded them.
+//
+// These pin that the supervisor's own statement decides it. Exit 124 is reserved for "I ended the
+// child because the deadline passed", so no clock is consulted and a crash one millisecond before
+// the deadline stays a crash.
+
+function queueChildDeath(exitCode: number): void {
+  const supervisor = fakeSupervisor();
+  supervisor.exited = Promise.resolve({ code: exitCode, signal: null });
+  harness.supervisors.push(supervisor);
+  harness.runAgent.mockImplementationOnce((_prompt: string, options: RunAgentOptions) => {
+    spawnThrough(options);
+    return {
+      promise: Promise.reject(new Error(`pi exited with code ${exitCode}`)),
+      kill: () => true,
+      sessionId: 'fixture-session',
+    };
+  });
+}
+
+it('records a supervisor deadline kill as a timeout even when the control timer never fired', async () => {
+  queueChildDeath(124);
+  // Far enough out that `control.timer` cannot possibly fire: the only thing that can classify this
+  // as a deadline is the supervisor's exit code, which is exactly the production ordering.
+  const req = request(path.join(root, 'deadline-race'), new AbortController().signal, {
+    limits: { maxSteps: 2, maxCostUsd: 1, deadlineEpochMs: Date.now() + 3_600_000 },
+  });
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+
+  assert.equal(value.state, 'timeout');
+  assert.equal(value.terminalReason, 'deadline_exceeded');
+  assert.equal(value.manifestCommitted, true);
+  assert.equal(
+    JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).terminal_reason,
+    'deadline_exceeded',
+  );
+});
+
+it('leaves an ordinary non-zero child exit classified as a child failure', async () => {
+  queueChildDeath(1);
+  const req = request(path.join(root, 'ordinary-death'), new AbortController().signal, {
+    limits: { maxSteps: 2, maxCostUsd: 1, deadlineEpochMs: Date.now() + 3_600_000 },
+  });
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'child_failure');
+});

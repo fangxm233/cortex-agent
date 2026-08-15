@@ -62,7 +62,7 @@ import { terminalManifestProblem } from './manifest-contract.js';
 import { preparePinnedTrialPaths } from './pinned-node-process.js';
 import { loadAgentRunConfigWithPolicy } from './run-config.js';
 import {
-  attachSupervisor, resolveSupervisorBinary, SupervisorContainmentError,
+  attachSupervisor, exitCodeFor, resolveSupervisorBinary, SupervisorContainmentError,
   type SupervisorSession,
 } from './supervisor.js';
 
@@ -172,6 +172,8 @@ interface RunOutcome {
   error: unknown;
   quiescent: boolean;
   containmentReason: 'containment_failed' | 'missing_quiescent' | null;
+  /** A supervised child was ended by the supervisor's own deadline. See `classifyRun`. */
+  deadlineExit: boolean;
   durabilityError: unknown;
 }
 
@@ -694,18 +696,42 @@ async function settleOneSupervisor(
   }
 }
 
+/** The exit code the supervisor ended a child with, or null if it did not settle in time.
+ *
+ * Bounded by the same budget quiescence gets, because this runs after a child has already exited
+ * in every ordinary case and must not become a second place a finished run can hang.
+ */
+async function observedExitCode(session: SupervisorSession, waitMs: number): Promise<number | null> {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), waitMs); });
+  try {
+    const exit = await Promise.race([session.exited.catch(() => null), timeout]);
+    return exit?.code ?? null;
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
 async function settleSupervisors(control: RunControl): Promise<{
   quiescent: boolean;
   containmentReason: ContainmentReason;
+  deadlineExit: boolean;
 }> {
-  if (control.sessions.length === 0) return { quiescent: true, containmentReason: null };
+  if (control.sessions.length === 0) {
+    return { quiescent: true, containmentReason: null, deadlineExit: false };
+  }
   const waitMs = quiescenceBudget(control);
-  const reasons = await Promise.all(
-    control.sessions.map(session => settleOneSupervisor(session, waitMs, control)),
-  );
+  const [reasons, exitCodes] = await Promise.all([
+    Promise.all(control.sessions.map(session => settleOneSupervisor(session, waitMs, control))),
+    Promise.all(control.sessions.map(session => observedExitCode(session, waitMs))),
+  ]);
   const containmentReason = reasons.includes('containment_failed')
     ? 'containment_failed' : reasons.find(Boolean) ?? null;
-  return { quiescent: containmentReason === null, containmentReason };
+  return {
+    quiescent: containmentReason === null,
+    containmentReason,
+    deadlineExit: exitCodes.includes(exitCodeFor('deadline')),
+  };
 }
 
 async function flushRepositories(): Promise<unknown> {
@@ -810,6 +836,23 @@ function classifyRun(
   const safety = safetyClassification(outcome);
   if (safety) return safety;
   if (control.reason) return controlClassification(control.reason);
+  // A run can exhaust its deadline without `control.timer` ever getting to say so. The supervisor
+  // is armed with the same absolute deadline this control is, so when time runs out it ends the
+  // child and the child's `close` arrives as an I/O event; the continuation that classifies the run
+  // is a microtask on that event, and microtasks drain before the event loop reaches the timers
+  // phase. The timer that would have set `control.reason` is then cleared by `cleanupControl`
+  // without ever running, and a run that merely ran out of time is filed as though the agent had
+  // crashed on its own work.
+  //
+  // The supervisor reserves exit 124 for exactly one thing -- it ended the child because the
+  // deadline passed -- so this reads that statement rather than re-deriving it from a clock, which
+  // could not tell a real crash one millisecond before the deadline from the deadline itself.
+  //
+  // Observed on the r7 paid campaign: chess-best-move and db-wal-recovery both ran their full 1800s
+  // and published `failed`/`child_failure`, which host finalization refuses as `inner_terminal_not_ok`.
+  // The Harbor verifier had already graded both at reward 0 -- a correct measurement that the
+  // envelope then would not carry.
+  if (outcome.deadlineExit) return controlClassification('deadline');
   return executionClassification(prepared, outcome);
 }
 
