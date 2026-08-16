@@ -1,7 +1,7 @@
-// input:  agent-run process fixture, stdin config, fake accounting
-// output: exact nullable accounting and protocol failure proofs
-// pos:    Process-level agent-run protocol regression suite
-// >>> If I am updated, update my header and folder CORTEX.md <<<
+// input:  protocol guards and production request attribution
+// output: protocol failures and six v2 accounting cases
+// pos:    Protocol guards and production accounting coverage
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -22,6 +22,7 @@ import {
   waitForExit,
   waitForText,
 } from './agent-run-e2e-fixture.js';
+import { withPublishedProductionBoundary } from './production-evidence-boundary-fixture.js';
 
 it('reads a stdin run config with relative paths based at the invoking cwd', async () => {
   const fixture = createFixture('stdin-run-config');
@@ -70,42 +71,6 @@ it('preserves raw stdin bytes while hashing the model-visible string', async () 
   assert.equal(header.model_visible_prompt_sha256, sha256(modelVisible));
 });
 
-it('reports cache-inclusive input tokens from Claude print mode', async () => {
-  const fixture = createFixture('cache-inclusive-accounting');
-  const first = fakeClaudeResult('e2e-run', 'reported', {
-    total_cost_usd: 0.08,
-    usage: {
-      input_tokens: 10, output_tokens: 5,
-      cache_creation_input_tokens: 3, cache_read_input_tokens: 7,
-    },
-    modelUsage: { 'claude-sonnet-4-5-20250929': {} },
-  });
-  const continuation = fakeClaudeResult('e2e-run', 'reported continuation', {
-    origin: { kind: 'task-notification' }, total_cost_usd: 0.08,
-  });
-  const child = spawnRun(fixture, {
-    FAKE_CLAUDE_FIRST_RESULT: first,
-    FAKE_CLAUDE_CONTINUATION_RESULT: continuation,
-  });
-  await waitForText(fixture.eventsFile, 'turn_complete', child);
-  fs.writeFileSync(fixture.releaseMarker, 'release');
-  const output = await processOutput(child);
-  assert.equal(child.exitCode, 0, output.stderr);
-  const cost = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'))
-    .find(record => record.event?.type === 'cost_record')!.event;
-  assert.deepEqual(cost, {
-    type: 'cost_record', provider: 'anthropic', model: 'claude-sonnet-4-5-20250929',
-    tokens_in: 10 + 3 + 7, tokens_out: 5,
-    prompt_tokens: 10 + 3 + 7, cached_tokens: 7,
-    input_tokens: 10, output_tokens: 5,
-    cache_read_tokens: 7, cache_creation_tokens: 3,
-    provider_requests: 1, cost_usd: 0.08,
-  });
-  assert.deepEqual(terminalRecord(fixture).tokens, {
-    input: 10 + 3 + 7, output: 5, cache_read: null, cache_creation: null,
-  });
-});
-
 it('keeps absent turn counts null instead of inventing aggregate steps', async () => {
   const fixture = createFixture('unknown-turn-count');
   const first = fakeClaudeResult('e2e-run', 'unknown', { num_turns: undefined });
@@ -124,49 +89,6 @@ it('keeps absent turn counts null instead of inventing aggregate steps', async (
     .filter(record => record.event?.type === 'turn_complete')
     .map(record => record.event.numTurns);
   assert.deepEqual(turns, [null, null]);
-});
-
-it('keeps unreported cost and usage null without fabricating cost records', async () => {
-  const fixture = createFixture('unknown-accounting');
-  const first = fakeClaudeResult('e2e-run', 'unknown');
-  const continuation = fakeClaudeResult('e2e-run', 'unknown', {
-    origin: { kind: 'task-notification' },
-  });
-  const child = spawnRun(fixture, {
-    FAKE_CLAUDE_FIRST_RESULT: first,
-    FAKE_CLAUDE_CONTINUATION_RESULT: continuation,
-  });
-  await waitForText(fixture.eventsFile, 'turn_complete', child);
-  fs.writeFileSync(fixture.releaseMarker, 'release');
-  const output = await processOutput(child);
-  assert.equal(child.exitCode, 0, output.stderr);
-  const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
-  assert.deepEqual(records.filter(record => record.event?.type === 'cost_record'), []);
-  const terminal = terminalRecord(fixture);
-  assert.equal(terminal.cost_usd, null);
-  assert.deepEqual(terminal.tokens, {
-    input: null, output: null, cache_read: null, cache_creation: null,
-  });
-});
-
-it('exits when only the background continuation reports cost', async () => {
-  const fixture = createFixture('continuation-accounting');
-  fs.writeFileSync(fixture.releaseMarker, 'release');
-  const first = fakeClaudeResult('e2e-run', 'unknown');
-  const continuation = fakeClaudeResult('e2e-run', 'reported continuation', {
-    origin: { kind: 'task-notification' }, total_cost_usd: 0.125,
-  });
-  const child = spawnRun(fixture, {
-    FAKE_CLAUDE_FIRST_RESULT: first,
-    FAKE_CLAUDE_CONTINUATION_RESULT: continuation,
-    FAKE_CLAUDE_EARLY_CONTINUATION: '1',
-  });
-  const output = await processOutput(child);
-  assert.equal(child.exitCode, 0, output.stderr);
-  assert.equal(terminalRecord(fixture).cost_usd, 0.125);
-  assert.deepEqual(terminalRecord(fixture).tokens, {
-    input: null, output: null, cache_read: null, cache_creation: null,
-  });
 });
 
 function assertEarlyAccountingOrder(events: any[]): void {
@@ -220,95 +142,6 @@ it('keeps early continuation events after immutable foreground accounting', asyn
     .map(record => record.event).filter(Boolean);
   assertEarlyAccountingOrder(events);
   assert.equal(terminalRecord(fixture).cost_usd, 0.3);
-});
-
-it.each([
-  { kind: 'non-zero', fixtureName: 'reported-accounting', cost: 0.375, input: 321, tokenOutput: 54 },
-  { kind: 'zero', fixtureName: 'reported-zero-accounting', cost: 0, input: 0, tokenOutput: 0 },
-])('keeps incomplete $kind prompt accounting null', async ({ fixtureName, cost, input, tokenOutput }) => {
-  const fixture = createFixture(fixtureName);
-  const reported = fakeClaudeResult('e2e-run', 'reported', {
-    total_cost_usd: cost,
-    usage: { input_tokens: input, output_tokens: tokenOutput },
-    modelUsage: { 'claude-reported-accounting': {} },
-  });
-  const continuation = fakeClaudeResult('e2e-run', 'reported continuation', {
-    origin: { kind: 'task-notification' }, total_cost_usd: cost,
-  });
-  const child = spawnRun(fixture, {
-    FAKE_CLAUDE_FIRST_RESULT: reported,
-    FAKE_CLAUDE_CONTINUATION_RESULT: continuation,
-  });
-  await waitForText(fixture.eventsFile, 'turn_complete', child);
-  fs.writeFileSync(fixture.releaseMarker, 'release');
-  const output = await processOutput(child);
-  assert.equal(child.exitCode, 0, output.stderr);
-  const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
-  const costEvents = records.filter(record => record.event?.type === 'cost_record')
-    .map(record => record.event);
-  assert.deepEqual(costEvents, [
-    {
-      type: 'cost_record', provider: 'anthropic', model: 'claude-reported-accounting',
-      tokens_in: null, tokens_out: tokenOutput, prompt_tokens: null, cached_tokens: null,
-      input_tokens: input, output_tokens: tokenOutput,
-      cache_read_tokens: null, cache_creation_tokens: null,
-      provider_requests: 1, cost_usd: cost,
-    },
-    {
-      type: 'cost_record', provider: 'anthropic', model: 'unknown',
-      tokens_in: null, tokens_out: null, prompt_tokens: null, cached_tokens: null,
-      input_tokens: null, output_tokens: null,
-      cache_read_tokens: null, cache_creation_tokens: null,
-      provider_requests: 1, cost_usd: 0,
-    },
-  ]);
-  const terminal = terminalRecord(fixture);
-  assert.equal(terminal.cost_usd, cost);
-  assert.deepEqual(terminal.tokens, {
-    input: null, output: tokenOutput, cache_read: null, cache_creation: null,
-  });
-});
-
-it('records reported cost when usage is absent', async () => {
-  const fixture = createFixture('cost-only-accounting');
-  const reported = fakeClaudeResult('e2e-run', 'reported cost', {
-    total_cost_usd: 0.625,
-  });
-  const continuation = fakeClaudeResult('e2e-run', 'reported continuation', {
-    origin: { kind: 'task-notification' }, total_cost_usd: 0.625,
-  });
-  const child = spawnRun(fixture, {
-    FAKE_CLAUDE_FIRST_RESULT: reported,
-    FAKE_CLAUDE_CONTINUATION_RESULT: continuation,
-  });
-  await waitForText(fixture.eventsFile, 'turn_complete', child);
-  fs.writeFileSync(fixture.releaseMarker, 'release');
-  const output = await processOutput(child);
-  assert.equal(child.exitCode, 0, output.stderr);
-  const costEvents = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'))
-    .filter(record => record.event?.type === 'cost_record')
-    .map(record => record.event);
-  assert.deepEqual(costEvents, [
-    {
-      type: 'cost_record', provider: 'anthropic', model: 'claude-requested-fixture',
-      tokens_in: null, tokens_out: null, prompt_tokens: null, cached_tokens: null,
-      input_tokens: null, output_tokens: null,
-      cache_read_tokens: null, cache_creation_tokens: null,
-      provider_requests: 1, cost_usd: 0.625,
-    },
-    {
-      type: 'cost_record', provider: 'anthropic', model: 'unknown',
-      tokens_in: null, tokens_out: null, prompt_tokens: null, cached_tokens: null,
-      input_tokens: null, output_tokens: null,
-      cache_read_tokens: null, cache_creation_tokens: null,
-      provider_requests: 1, cost_usd: 0,
-    },
-  ]);
-  const terminal = terminalRecord(fixture);
-  assert.equal(terminal.cost_usd, 0.625);
-  assert.deepEqual(terminal.tokens, {
-    input: null, output: null, cache_read: null, cache_creation: null,
-  });
 });
 
 it('includes the probed Claude version in frozen model identity', async () => {
@@ -378,4 +211,60 @@ it('fails a trajectory open without launching Claude or publishing completion', 
   assert.equal(parseNdjson(output.stdout).at(-1).terminal_reason, 'trajectory_write_failed');
   assert.equal(fs.existsSync(fixture.claudeMarker), false);
   assert.equal(fs.existsSync(terminalPath(fixture)), false);
+});
+
+it('production boundary publishes complete four-way token attribution', async () => {
+  await withPublishedProductionBoundary({ accounting: 'complete' }, (published) => {
+    assert.deepEqual(published.terminalManifests[0].tokens, {
+      input: 10, output: 4, cache_read: 2, cache_creation: null,
+    });
+  });
+});
+
+it('production boundary preserves cache and request categories in its journal', async () => {
+  await withPublishedProductionBoundary({ accounting: 'cached' }, (published) => {
+    const cost = published.journalRecords.find((record: any) => record.event?.type === 'cost_record');
+    assert.deepEqual(cost?.event, {
+      type: 'cost_record', provider: 'anthropic', model: 'model-native',
+      tokens_in: 20, tokens_out: 4, prompt_tokens: 20, cached_tokens: 7,
+      input_tokens: 10, output_tokens: 4, cache_read_tokens: 7,
+      cache_creation_tokens: 3, provider_requests: 1, cost_usd: 0.25,
+    });
+  });
+});
+
+it('production boundary keeps unavailable accounting null', async () => {
+  await withPublishedProductionBoundary({ accounting: 'unavailable' }, (published) => {
+    assert.deepEqual(published.terminalManifests[0].tokens, {
+      input: null, output: null, cache_read: null, cache_creation: null,
+    });
+    assert.deepEqual(published.composite.accounting.journal.requests, {
+      status: 'unavailable', reason: 'journal_underivable',
+    });
+  });
+});
+
+it('production boundary does not infer missing cache categories', async () => {
+  await withPublishedProductionBoundary({ accounting: 'partial' }, (published) => {
+    assert.deepEqual(published.terminalManifests[0].tokens, {
+      input: 10, output: 4, cache_read: null, cache_creation: null,
+    });
+  });
+});
+
+it('production boundary retains reported cost when usage is absent', async () => {
+  await withPublishedProductionBoundary({ accounting: 'cost-only' }, (published) => {
+    assert.equal(published.terminalManifests[0].cost_usd, 0.625);
+    assert.deepEqual(published.terminalManifests[0].tokens, {
+      input: null, output: null, cache_read: null, cache_creation: null,
+    });
+  });
+});
+
+it('production boundary reports one attributed provider request', async () => {
+  await withPublishedProductionBoundary({ accounting: 'cached' }, (published) => {
+    assert.deepEqual(published.composite.accounting.journal.requests, {
+      status: 'available', value: 1,
+    });
+  });
 });

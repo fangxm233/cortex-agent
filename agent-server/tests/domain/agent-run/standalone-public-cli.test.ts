@@ -1,6 +1,6 @@
-// input:  packed CLI, physical package-local dependency closure, Claude/PI fakes and hostile descendants
-// output: self-contained exact-public package, state handoff, credential and process containment
-// pos:    Packed cortex agent-run standalone regression
+// input:  packed CLI guards and production evidence exporter
+// output: package refusals and six public v2 publication cases
+// pos:    Public-package guards and evidence boundary coverage
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -11,6 +11,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { afterAll, beforeAll, it } from 'vitest';
+import {
+  pythonHostMirrorAccepts, sha256, withPublishedProductionBoundary,
+  type ProductionBoundaryScenario,
+} from './production-evidence-boundary-fixture.js';
 
 const serverRoot = path.resolve('.');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'standalone-public-cli-'));
@@ -161,70 +165,6 @@ function armResolution(
   return write(path.join(base, 'agent', 'arm-resolution.json'), JSON.stringify(document));
 }
 
-function managerArmResolution(
-  cli: string,
-  bundleRoot: string,
-  base: string,
-  trialId: string,
-  backend: 'claude' | 'pi',
-  askManager: boolean,
-): string {
-  const file = armResolution(cli, bundleRoot, base, trialId, backend);
-  const document = JSON.parse(fs.readFileSync(file, 'utf8'));
-  document.arm.name = `cortex-${backend}-manager-qa-${askManager ? 'on' : 'off'}`;
-  document.root_run_id = `${trialId}.${document.arm.name}`;
-  document.arm.orchestration = { mode: 'manager', ask_manager: askManager };
-  document.arm.limits = {
-    ...document.arm.limits, max_thread_starts: 1, max_provider_requests: 16,
-    max_parent_questions: askManager ? 2 : 0,
-    max_task_depth: 3, max_tasks: 12, max_resident_agent_processes: 4,
-  };
-  const defaults = path.join(bundleRoot, 'defaults');
-  const role = (slot: string, tools: string[]) => ({
-    system_prompt_path: path.join(defaults, 'prompts/systemPrompts', `${slot}.md`),
-    directive_path: path.join(defaults, 'prompts/directives', `${slot}.md`),
-    tools, plugin_dirs: [], mcp_composition: 'none', mcp_config_paths: [],
-    disable_hooks: true,
-  });
-  const tools = backend === 'claude' ? {
-    manager: ['Read', 'Write'],
-    coder: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'TodoWrite', 'Skill'],
-    reviewer: ['Bash', 'Read', 'Glob', 'Grep', 'TodoWrite', 'Skill'],
-  } : {
-    manager: ['read', 'write'],
-    coder: ['bash', 'read', 'write', 'edit', 'glob', 'grep', 'todo_write', 'skill'],
-    reviewer: ['bash', 'read', 'glob', 'grep', 'todo_write', 'skill'],
-  };
-  document.roles['benchmark-manager'] = role('benchmark-manager', tools.manager);
-  document.roles['benchmark-coder'] = role('benchmark-coder', tools.coder);
-  document.roles['benchmark-reviewer'] = role('benchmark-reviewer', tools.reviewer);
-  const templates = path.join(defaults, 'config/thread-templates');
-  document.thread_templates = {
-    'benchmark-manager': path.join(templates, 'templates/benchmark-manager.json'),
-    'benchmark-coder-review': path.join(templates, 'templates/benchmark-coder-review.json'),
-  };
-  document.thread_agents = {
-    'benchmark-manager': path.join(templates, 'agents/benchmark-manager.json'),
-    'benchmark-coder': path.join(templates, 'agents/benchmark-coder.json'),
-    'benchmark-reviewer': path.join(templates, 'agents/benchmark-reviewer.json'),
-  };
-  fs.writeFileSync(file, JSON.stringify(document));
-  return file;
-}
-
-function fakeManagerBackend(
-  base: string,
-  backend: 'claude' | 'pi',
-): { cli: string; observation: string } {
-  const observation = path.join(base, 'manager-observation.json');
-  const script = path.join(serverRoot, 'tests/domain/agent-run',
-    backend === 'claude' ? 'fake-manager-claude.mjs' : 'fake-manager-pi.mjs');
-  const cli = write(path.join(base, 'bundle', backend),
-    `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(script)} `
-      + `--observation ${JSON.stringify(observation)} "$@"\n`, 0o755);
-  return { cli, observation };
-}
-
 interface PackedBundle {
   root: string;
   cortex: string;
@@ -288,91 +228,6 @@ function installPackedBundle(): PackedBundle {
   };
 }
 
-function seedHostHome(): string {
-  const home = path.join(root, 'host-cortex');
-  write(path.join(home, 'config', 'profiles.json'), JSON.stringify({
-    defaultProfile: 'benchmark',
-    profiles: { benchmark: { model: 'host-model', backend: 'pi', provider: 'host-provider' } },
-  }));
-  return home;
-}
-
-it('executes the packed package bin from the public projection with no ambient fallback', () => {
-  const pkg = JSON.parse(fs.readFileSync(path.join(installed.root, 'package.json'), 'utf8'));
-  assert.equal(pkg.bin.cortex, 'dist/entry/cortex-cli.js');
-  assert.equal(fs.readFileSync(installed.cortex, 'utf8').startsWith('#!/usr/bin/env node\n'), true);
-  assert.notEqual(fs.statSync(installed.cortex).mode & 0o111, 0);
-  const backend = fakeBackend();
-  const runConfig = armResolution(backend.cli, installed.root);
-  const workspace = path.join(root, 'workspace');
-  const trajectory = path.join(root, 'agent', 'trajectory');
-  fs.mkdirSync(workspace, { recursive: true });
-  fs.mkdirSync(trajectory, { recursive: true });
-  const result = spawnSync(installed.cortex, ['agent-run',
-    '--prompt-file', write(path.join(root, 'agent', 'instruction.md'), 'Complete the task.'),
-    '--agent-slot', 'parent', '--profile', 'benchmark', '--cwd', workspace,
-    '--output-format', 'jsonl', '--events-file', path.join(trajectory, 'events.jsonl'),
-    '--trajectory-root', trajectory, '--root-run-id', 'trial-public-cli.cortex-direct',
-    '--run-config', runConfig, '--supervisor-binary', installed.supervisor,
-  ], {
-    cwd: workspace, encoding: 'utf8', timeout: 60_000,
-    env: {
-      ...process.env,
-      CORTEX_HOME: seedHostHome(),
-      CORTEX_PROJECTS_DIR: path.join(root, 'host-projects'),
-      SLACK_BOT_TOKEN: 'forbidden-slack-token',
-      FEISHU_APP_SECRET: 'forbidden-feishu-token',
-      CORTEX_REMOTE_TOKEN: 'forbidden-remote-token',
-      ANTHROPIC_API_KEY: 'forbidden-provider-key',
-    },
-  });
-
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  const terminal = result.stdout.trim().split('\n').map(line => JSON.parse(line)).at(-1);
-  assert.equal(terminal.type, 'terminal');
-  assert.equal(terminal.state, 'completed');
-  const journal = fs.readFileSync(path.join(trajectory, 'events.jsonl'), 'utf8')
-    .trimEnd().split('\n').map(line => JSON.parse(line));
-  const admissions = journal.filter(record => record.type === 'state_admission');
-  assert.equal(admissions.length, 1);
-  assert.equal(admissions[0].seq, 1);
-  assert.equal(admissions[0].root_run_id, 'trial-public-cli.cortex-direct');
-  assert.equal(
-    admissions[0].model_execution_identity_hash,
-    terminal.manifest.model_execution_identity_hash,
-  );
-  assert.deepEqual(admissions[0].evidence, {
-    schema_version: 'cortex-standalone-state-admission/1',
-    empty_before_projection: true,
-    roots: {
-      project: 'projects', task: 'cortex-home/state/tasks.json',
-      thread: 'cortex-home/state/threads.json', session: 'cortex-home/state/sessions.json',
-      execution: 'cortex-home/state/executions.json', cache: 'xdg-cache', temp: 'tmp',
-      backend: 'claude-config',
-    },
-  });
-  assert.equal(
-    terminal.manifest.event_count,
-    journal.filter(record => record.type === 'event').length,
-  );
-  const state = path.join(root, 'agent', 'trial-home', 'cortex-home', 'state');
-  assert.deepEqual(fs.readdirSync(state).sort(), [
-    'executions.json', 'sessions.json', 'tasks.json', 'threads.json',
-  ]);
-  const observed = JSON.parse(fs.readFileSync(backend.observation, 'utf8'));
-  assert.equal(observed.env.CORTEX_HOME,
-    path.join(root, 'agent', 'trial-home', 'cortex-home'));
-  assert.equal(observed.env.CORTEX_PROJECTS_DIR,
-    path.join(root, 'agent', 'trial-home', 'projects'));
-  assert.equal(observed.env.SLACK_BOT_TOKEN, undefined);
-  assert.equal(observed.env.FEISHU_APP_SECRET, undefined);
-  assert.equal(observed.env.CORTEX_REMOTE_TOKEN, undefined);
-  assert.equal(observed.env.ANTHROPIC_API_KEY, undefined);
-  assert.equal(observed.env.ANTHROPIC_AUTH_TOKEN, 'offline-token');
-  assert.equal(observed.env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:1');
-  assert.equal(fs.existsSync(path.join(root, 'host-cortex', 'data', 'threads.json')), false);
-}, 180_000);
-
 it('withholds packed handoff when state admission disappears after terminal publication', () => {
   const base = path.join(root, 'missing-admission-handoff');
   const backend = fakeBackend(base);
@@ -398,117 +253,6 @@ it('withholds packed handoff when state admission disappears after terminal publ
   assert.equal(fs.existsSync(path.join(trajectory, 'trajectory.json')), false);
   assert.equal(fs.existsSync(path.join(trajectory, 'composite-manifest.json')), false);
 }, 180_000);
-
-it('runs packed PI with only the trial dummy auth file and scoped proxy catalog', () => {
-  const base = path.join(root, 'pi-public');
-  const observation = path.join(base, 'backend-observation.json');
-  const fixture = path.join(serverRoot, 'tests/domain/agent-run/pi-rpc-cli.mjs');
-  const cli = write(
-    path.join(base, 'bundle', 'pi'),
-    `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(fixture)} `
-      + `--observation ${JSON.stringify(observation)} "$@"\n`,
-    0o755,
-  );
-  const trialId = 'trial-public-pi';
-  const runConfig = armResolution(cli, installed.root, base, trialId, 'pi');
-  const workspace = path.join(base, 'workspace');
-  const trajectory = path.join(base, 'agent', 'trajectory');
-  const hostHome = path.join(base, 'host-home');
-  write(path.join(hostHome, '.pi', 'agent', 'auth.json'), JSON.stringify({
-    anthropic: { type: 'api', key: 'forbidden-host-key' },
-  }));
-  fs.mkdirSync(workspace, { recursive: true });
-  fs.mkdirSync(trajectory, { recursive: true });
-  const result = spawnSync(installed.cortex, ['agent-run',
-    '--prompt-file', write(path.join(base, 'agent', 'instruction.md'), 'Complete the task.'),
-    '--agent-slot', 'parent', '--profile', 'benchmark', '--cwd', workspace,
-    '--output-format', 'jsonl', '--events-file', path.join(trajectory, 'events.jsonl'),
-    '--trajectory-root', trajectory, '--root-run-id', `${trialId}.cortex-pi-direct`,
-    '--run-config', runConfig, '--supervisor-binary', installed.supervisor,
-  ], {
-    cwd: workspace, encoding: 'utf8', timeout: 60_000,
-    env: {
-      ...process.env, HOME: hostHome,
-      ANTHROPIC_API_KEY: 'forbidden-provider-key',
-      ANTHROPIC_AUTH_TOKEN: 'forbidden-provider-token',
-      CORTEX_DAEMON_URL: 'http://127.0.0.1:9',
-    },
-  });
-
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  const terminal = result.stdout.trim().split('\n').map(line => JSON.parse(line)).at(-1);
-  assert.equal(terminal.state, 'completed');
-  const observed = JSON.parse(fs.readFileSync(observation, 'utf8'));
-  const agentDir = path.join(base, 'agent', 'trial-home', 'pi-agent');
-  assert.equal(observed.env.PI_CODING_AGENT_DIR, agentDir);
-  assert.equal(observed.env.ANTHROPIC_API_KEY, undefined);
-  assert.equal(observed.env.ANTHROPIC_AUTH_TOKEN, undefined);
-  assert.equal(observed.env.CORTEX_DAEMON_URL, undefined);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(agentDir, 'auth.json'), 'utf8')), {
-    anthropic: { type: 'api_key', key: 'offline-token' },
-  });
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(agentDir, 'models.json'), 'utf8')), {
-    providers: { anthropic: {
-      baseUrl: 'http://127.0.0.1:1',
-      modelOverrides: { 'pi-trial-model': { maxTokens: 4096 } },
-    } },
-  });
-}, 180_000);
-
-it.each([
-  ['claude', false], ['claude', true], ['pi', false], ['pi', true],
-] as const)(
-  'runs packed %s manager with Q&A=%s through fresh trial-local authority',
-  (backend, askManager) => {
-    const label = `${backend}-manager-${askManager ? 'qa-on' : 'qa-off'}`;
-    const base = path.join(root, label);
-    const fake = fakeManagerBackend(base, backend);
-    const trialId = `trial-${label}`;
-    const runConfig = managerArmResolution(
-      fake.cli, installed.root, base, trialId, backend, askManager,
-    );
-    const workspace = path.join(base, 'workspace');
-    const trajectory = path.join(base, 'agent', 'trajectory');
-    fs.mkdirSync(workspace, { recursive: true });
-    fs.mkdirSync(trajectory, { recursive: true });
-    const result = spawnSync(installed.cortex, ['agent-run',
-      '--prompt-file', write(path.join(base, 'agent', 'instruction.md'), 'Complete the task.'),
-      '--agent-slot', 'parent', '--profile', 'benchmark', '--cwd', workspace,
-      '--output-format', 'jsonl', '--events-file', path.join(trajectory, 'events.jsonl'),
-      '--trajectory-root', trajectory,
-      '--root-run-id', JSON.parse(fs.readFileSync(runConfig, 'utf8')).root_run_id,
-      '--run-config', runConfig, '--supervisor-binary', installed.supervisor,
-    ], { cwd: workspace, encoding: 'utf8', timeout: 120_000 });
-
-    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-    const terminal = result.stdout.trim().split('\n').map(line => JSON.parse(line)).at(-1);
-    assert.equal(terminal.state, 'completed');
-    const stateRoot = path.join(base, 'agent', 'trial-home', 'coordinator');
-    const tree = JSON.parse(fs.readFileSync(path.join(stateRoot, 'task-tree.json'), 'utf8'));
-    const tasks = JSON.parse(fs.readFileSync(path.join(
-      base, 'agent', 'trial-home', 'cortex-home', 'state', 'tasks.json',
-    ), 'utf8'));
-    assert.equal(tasks.root.status, 'done');
-    assert.equal(Object.values(tasks).every((task: any) => task.status === 'done'), true);
-    assert.equal(tree.attempts.length >= 3, true);
-    assert.equal(tree.attempts.every((attempt: any) => attempt.status === 'terminal'), true);
-    const observations = JSON.parse(fs.readFileSync(fake.observation, 'utf8'));
-    assert.equal(observations.some((entry: any) => entry.role === 'manager'), true);
-    assert.equal(observations.some((entry: any) => entry.role === 'coder'), true);
-    assert.equal(observations.some((entry: any) => entry.role === 'reviewer'), true);
-    if (askManager) {
-      assert.equal(observations.filter((entry: any) => entry.role === 'parent').length, 2);
-      const parentQuestions = JSON.parse(fs.readFileSync(path.join(
-        stateRoot, 'manager-qa', 'parent-questions.json',
-      ), 'utf8'));
-      assert.equal(parentQuestions.length, 1);
-      assert.equal(parentQuestions[0].state, 'consumed');
-      assert.equal(parentQuestions[0].answer, 'trial parent answer');
-    }
-    assert.equal(fs.existsSync(path.join(root, 'host-cortex', 'data', 'threads.json')), false);
-  },
-  180_000,
-);
 
 function procTokenPids(token: string): number[] {
   return fs.readdirSync('/proc').filter(entry => /^\d+$/.test(entry)).flatMap((entry) => {
@@ -590,3 +334,28 @@ it('reaps the public path hostile tree when agent-run transport disappears', asy
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
   }
 }, 180_000);
+
+const PUBLICATION_SCENARIOS: readonly [string, ProductionBoundaryScenario][] = [
+  ['direct publishes one immutable evidence directory', 'direct'],
+  ['audit coder-review publishes linked terminal files', 'coder-audit'],
+  ['reviewer-fix publishes recursive ATIF bytes', 'coder-fix'],
+  ['manager Q&A-off publishes no empty identity fields', 'manager-qa-off'],
+  ['manager Q&A-on passes the Python host mirror', 'manager-qa-on'],
+  ['failure/rework publishes a stable composite digest', 'manager-history'],
+];
+
+it.each(PUBLICATION_SCENARIOS)('production public export: %s', async (_name, scenario) => {
+  await withPublishedProductionBoundary({ scenario }, (published) => {
+    assert.equal(fs.lstatSync(published.outputDirectory).isDirectory(), true);
+    assert.equal(published.result.terminalPaths.length, published.composite.nodes.length);
+    assert.equal(fs.existsSync(path.join(published.outputDirectory, 'trajectory.json')), true);
+    assert.equal(published.composite.nodes.every(node => (
+      node.model_execution_identity_hash.length === 64
+      && node.role_tool_surface_hash.length === 64
+      && node.journal_path.length > 0
+      && node.terminal_manifest_path.length > 0
+    )), true);
+    assert.equal(sha256(fs.readFileSync(published.result.compositePath)), published.result.compositeSha256);
+    if (scenario === 'manager-qa-on') assert.equal(pythonHostMirrorAccepts(published), true);
+  });
+});

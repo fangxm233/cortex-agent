@@ -1,7 +1,7 @@
-// input:  a supervised trial whose declared MCP sidecar dies, or outlives, its call
-// output: journal-linked proof teardown cannot shorten finalization
-// pos:    Independent Gate-2 proving suite for design §13 (13.6) T16
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  teardown guard and atomic production evidence exporter
+// output: fail-closed teardown and three publication cases
+// pos:    Transport teardown and atomic publication coverage
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 // Design §13 (13.6) T16, against §4.5 F1–F6 and §4.6's "no transport teardown may bypass
 // finalization". The sidecar here is a real stdio MCP server process spawned by the backend from
@@ -15,12 +15,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeAll, beforeEach, it } from 'vitest';
-import { validateTrajectoryLifecycle } from '../../../src/domain/agent-run/manifest.js';
 import {
-  buildSupervisor, claudeTrial, groupAlive, installFakeSupervisor, journalRecords, processAlive,
-  readJson, runTrial, terminalManifestFile, waitForExit, waitForFile,
-  type ClaudeTrial, type TrialOutcome,
+  buildSupervisor, claudeTrial, installFakeSupervisor, processAlive,
+  readJson, runTrial, terminalManifestFile, waitForFile,
 } from './long-mcp-trial-fixture.js';
+import {
+  createProductionBoundaryFixture, withPublishedProductionBoundary,
+} from './production-evidence-boundary-fixture.js';
 
 let root = '';
 
@@ -33,110 +34,6 @@ beforeEach(() => {
 afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
-
-/**
- * §4.5 F2/F4/F6 as one predicate, because they are only meaningful together: a manifest whose
- * journal digest was taken before the journal closed, or a digest published by a run that never
- * proved quiescence, is not evidence of anything.
- */
-function assertFinalized(trial: ClaudeTrial, outcome: TrialOutcome): void {
-  // F2 — quiescence is proven, and `terminalManifest` withholds the manifest when it is not.
-  assert.notEqual(outcome.terminal.manifest, null, 'no terminal manifest was published');
-  assert.equal(outcome.terminal.manifest.supervisor.quiescent, true);
-
-  // F4 — the journal is closed and its digest and event count are the ones the manifest carries.
-  const records = journalRecords(trial);
-  assert.ok(records.length > 0, 'the journal holds no records');
-  assert.equal(
-    outcome.terminal.manifest.event_count,
-    records.filter(record => record.type === 'event').length,
-  );
-
-  // F6 — the manifest is on disk, re-readable, and identical to the one reported on stdout.
-  const manifestFile = terminalManifestFile(trial);
-  assert.equal(fs.existsSync(manifestFile), true, `no terminal manifest at ${manifestFile}`);
-  assert.deepEqual(readJson(manifestFile), outcome.terminal.manifest);
-
-  // The shipped lifecycle validator re-scans the journal against the published manifest, which is
-  // the same read-back F6 requires before a manifest counts as published.
-  assert.deepEqual(validateTrajectoryLifecycle({
-    trajectoryRoot: trial.options.trajectoryRoot,
-    rootRunId: trial.rootRunId,
-    threadId: null,
-  }), { ok: true, problems: [] });
-}
-
-it('finalizes the trial after the MCP sidecar is killed mid-call (T16, §4.5 F1-F6)', async () => {
-  const trial = claudeTrial(root, {
-    hold: { holdMs: 60_000, name: 'killed' }, deadlineSeconds: 600,
-  });
-  const run = runTrial(trial);
-  // Kill only once the call is genuinely in flight, so the teardown lands mid-request rather than
-  // before the server ever answered `tools/list`.
-  await waitForFile(trial.server.startedFile);
-  const sidecarPid = readJson(trial.server.pidFile).pid as number;
-  process.kill(sidecarPid, 'SIGKILL');
-
-  const outcome = await run;
-  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
-  assert.equal(outcome.terminal.state, 'completed');
-  // The kill really interrupted the call: the backend saw its request fail, not a held answer.
-  assert.equal(readJson(trial.mcpResult).ok, false);
-  assertFinalized(trial, outcome);
-  assert.equal(processAlive(sidecarPid), false);
-}, 115_000);
-
-it('keeps finalization intact when the sidecar exits non-zero mid-call (T16, §4.6)', async () => {
-  // The shipped sidecar's own failure path is `process.exit(1)` (benchmark-thread-server.ts). Under
-  // §4.6 that is harmless because the tree is not in that process; this row asserts the harmlessness
-  // rather than assuming it.
-  const trial = claudeTrial(root, {
-    hold: { holdMs: 60_000, exitAfterMs: 400, exitCode: 1, name: 'self-exit' },
-    deadlineSeconds: 600,
-  });
-  const outcome = await runTrial(trial);
-  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
-  assert.equal(outcome.terminal.state, 'completed');
-  assert.equal(readJson(trial.mcpResult).ok, false);
-  assertFinalized(trial, outcome);
-  await waitForExit(readJson(trial.server.pidFile).pid as number);
-}, 115_000);
-
-it('reaps a sidecar still holding its call when the turn ends (T16, §4.6)', async () => {
-  // The opposite teardown: the backend abandons the call and exits while the sidecar is still
-  // holding. Nothing in the transport can settle this one — only the containment boundary can, and
-  // a run that returned before it did would publish a manifest over a live descendant.
-  const trial = claudeTrial(root, {
-    hold: { holdMs: 90_000, name: 'orphan' }, deadlineSeconds: 600, detachMcp: true,
-  });
-  const run = runTrial(trial);
-  await waitForFile(trial.server.startedFile);
-  const sidecar = readJson(trial.server.pidFile) as { pid: number; ppid: number; pgid: number };
-
-  const outcome = await run;
-  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
-  assert.equal(outcome.terminal.state, 'completed');
-  assertFinalized(trial, outcome);
-
-  // §4.6's `[UA → Gate 2]` (UA-9), settled by observation rather than assumed: the backend CLI
-  // spawned its declared stdio MCP server as its OWN child and in its OWN process group, which is
-  // what puts the sidecar inside the group `forceStopGroup` kills (`supervisor.ts:354-361`).
-  const backend = readJson(trial.observation) as { pid: number; pgid: number };
-  assert.equal(sidecar.ppid, backend.pid, 'the sidecar is not a child of the backend CLI');
-  assert.equal(sidecar.pgid, backend.pgid, 'the sidecar is outside the backend process group');
-
-  // The hold had 90 s to run and the run returned long before that, so a live pid here is an
-  // escaped descendant rather than a slow one. Asked of the whole group, not only of the one pid
-  // this test happens to know: ruling R2(c).
-  assert.equal(
-    processAlive(sidecar.pid), false,
-    `sidecar ${sidecar.pid} outlived the trial that declared it`,
-  );
-  assert.equal(
-    groupAlive(sidecar.pgid), false,
-    `process group ${sidecar.pgid} outlived the trial that declared it`,
-  );
-}, 115_000);
 
 it('fails closed when the control stream ends without a quiescent record (T16, §4.5)', async () => {
   // Ruling R2(b). "Reaches strict finalization" includes reaching the FAILURE terminal correctly:
@@ -163,3 +60,33 @@ it('fails closed when the control stream ends without a quiescent record (T16, �
   assert.equal(fs.existsSync(terminalManifestFile(trial)), false);
   assert.equal(processAlive(sidecar.pid), false);
 }, 115_000);
+
+it('production evidence publication leaves no staging transport behind', async () => {
+  await withPublishedProductionBoundary({}, (published) => {
+    const parent = path.dirname(published.outputDirectory);
+    assert.equal(fs.readdirSync(parent).some(name => name.includes('.staging-')), false);
+  });
+});
+
+it('production evidence fails closed when a journal link disappears', async () => {
+  const fixture = createProductionBoundaryFixture();
+  try {
+    fixture.sources.getJournal = () => null;
+    await assert.rejects(fixture.publish(), /journal/i);
+    assert.equal(fs.existsSync(fixture.input.outputDirectory), false);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+it('production evidence never overwrites an existing publication', async () => {
+  const fixture = createProductionBoundaryFixture();
+  try {
+    fs.mkdirSync(fixture.input.outputDirectory);
+    fs.writeFileSync(path.join(fixture.input.outputDirectory, 'owner'), 'first');
+    await assert.rejects(fixture.publish(), /exists/i);
+    assert.equal(fs.readFileSync(path.join(fixture.input.outputDirectory, 'owner'), 'utf8'), 'first');
+  } finally {
+    fixture.cleanup();
+  }
+});

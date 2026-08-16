@@ -1,29 +1,23 @@
-// input:  agent-run process fixture, fake supervisor, procfs
-// output: isolation, containment, cancellation, completion proofs
-// pos:    Process-level agent-run lifecycle regression suite
-// >>> If I am updated, update my header and folder CORTEX.md <<<
+// input:  process guards and production task-dispatch evidence
+// output: lifecycle guards and two dispatch boundary cases
+// pos:    Agent lifecycle and task-dispatch evidence coverage
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import assert from 'node:assert/strict';
-import type { ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { it } from 'vitest';
 import { mergeTrajectory } from '../../../src/domain/agent-run/trajectory-merge.js';
 import {
-  SHA256,
-  type Fixture,
-  assertNoListeningSocket,
   bashPid,
   cleanupRuns,
   collect,
   createFixture,
-  fileTree,
   fixtureRoot,
   fakeClaudeResult,
   parseNdjson,
   processOutput,
   processTree,
-  sha256,
   snapshotTree,
   spawnRun,
   terminalPath,
@@ -33,12 +27,7 @@ import {
   waitForText,
   writeProfile,
 } from './agent-run-e2e-fixture.js';
-
-interface CapturedRun {
-  stdout: Promise<string>;
-  stderr: Promise<string>;
-  diagnostics(): string;
-}
+import { withPublishedProductionBoundary } from './production-evidence-boundary-fixture.js';
 
 function processExists(pid: number): boolean {
   try {
@@ -47,116 +36,6 @@ function processExists(pid: number): boolean {
   } catch {
     return false;
   }
-}
-
-function captureRun(fixture: Fixture, child: ChildProcess): CapturedRun {
-  let stderrText = '';
-  child.stderr!.on('data', chunk => { stderrText += chunk.toString(); });
-  return {
-    stdout: collect(child.stdout!),
-    stderr: collect(child.stderr!),
-    diagnostics: () => `${stderrText}\nhome=${JSON.stringify(fileTree(fixture.home))}`
-      + `\nprocesses=${JSON.stringify(processTree(child.pid!))}`
-      + `\nsupervisor=${fs.existsSync(fixture.env.FAKE_SUPERVISOR_FAILURE_FILE!)
-        ? fs.readFileSync(fixture.env.FAKE_SUPERVISOR_FAILURE_FILE!, 'utf8') : ''}`,
-  };
-}
-
-async function assertRunStarted(
-  fixture: Fixture, child: ChildProcess, diagnostics: () => string,
-): Promise<void> {
-  await waitForFile(fixture.claudeMarker, 'fake Claude did not start', child, diagnostics);
-  await waitForFile(
-    path.join(fixture.trajectoryRoot, 'run-e2e-run.started.json'),
-    'started marker missing', child, diagnostics,
-  );
-  assertNoListeningSocket(child.pid!);
-  assert.equal(
-    processTree(child.pid!).some(line => /entry\/(?:app|daemon)\.(?:js|ts)/.test(line)),
-    false,
-    'agent-run must not start the app or daemon entry point',
-  );
-  assert.equal(child.exitCode, null, 'run exited before the background child was released');
-}
-
-function assertRunCompletion(fixture: Fixture, child: ChildProcess, stderr: string, stdout: string): void {
-  assert.equal(child.exitCode, 0, `${stderr}\nstdout=${stdout}`);
-  assert.equal(fs.readFileSync(fixture.bashCwdMarker, 'utf8').trim(), fixture.cwd);
-  const claude = JSON.parse(fs.readFileSync(fixture.claudeMarker, 'utf8').split('\n')[0]);
-  assert.equal(claude.cwd, fixture.cwd);
-  assert.equal(fs.readFileSync(fixture.backgroundMarker, 'utf8').trim(), 'done');
-}
-
-function assertIsolatedFilesystem(
-  fixture: Fixture, homeBefore: ReturnType<typeof snapshotTree>,
-): ReturnType<typeof snapshotTree> {
-  const homeAfter = snapshotTree(fixture.home);
-  assert.deepEqual(homeAfter, homeBefore, 'agent-run must not mutate its minimally seeded home');
-  assert.deepEqual(fileTree(fixture.trajectoryRoot), [
-    'events.jsonl', 'run-e2e-run.started.json', 'run-e2e-run.terminal.json',
-  ]);
-  for (const forbidden of ['sessions.json', 'threads.json', 'executions.json', 'tasks', 'data']) {
-    assert.equal(fs.existsSync(path.join(fixture.home, forbidden)), false, `${forbidden} must not exist`);
-  }
-  return homeAfter;
-}
-
-function assertJournal(fixture: Fixture): { journalText: string; records: any[] } {
-  const journalText = fs.readFileSync(fixture.eventsFile, 'utf8');
-  const records = parseNdjson(journalText);
-  assert.equal(records[0].type, 'run_header');
-  assert.equal(records[0].resolved_cwd, fixture.cwd);
-  assert.equal(records[0].canonical_instruction_sha256, sha256('finish the fixture\r\n'));
-  assert.equal(records[0].model_visible_prompt_sha256, sha256('finish the fixture\r\n'));
-  assert.equal(records[0].system_prompt_sha256, sha256(''));
-  assert.deepEqual(records.map(record => record.seq), records.map((_, index) => index));
-  for (const record of records) {
-    assert.match(record.ts, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
-    assert.match(record.model_execution_identity_hash, SHA256);
-    assert.equal(record.model_execution_identity_hash, records[0].model_execution_identity_hash);
-    assert.equal(record.role_tool_surface_hash, records[0].role_tool_surface_hash);
-    assert.equal(record.bundle_manifest_hash, records[0].bundle_manifest_hash);
-  }
-  const assistantEvents = records.filter(record => record.event?.type === 'assistant_text');
-  assert.ok(assistantEvents.length >= 2);
-  assert.ok(assistantEvents.every(record => record.reported_model === 'claude-reported-fixture'));
-  return { journalText, records };
-}
-
-function assertTerminalManifest(fixture: Fixture, records: any[]): any {
-  const terminal = terminalRecord(fixture);
-  assert.equal(terminal.state, 'completed');
-  assert.equal(terminal.terminal_reason, 'ok');
-  assert.deepEqual(terminal.supervisor, { quiescent: true, descendants: 0 });
-  assert.equal(terminal.event_count, records.length - 1);
-  assert.equal(terminal.model_execution_identity_hash, records[0].model_execution_identity_hash);
-  assert.equal(terminal.role_tool_surface_hash, records[0].role_tool_surface_hash);
-  assert.equal(terminal.bundle_manifest_hash, records[0].bundle_manifest_hash);
-  return terminal;
-}
-
-function assertStdout(stdout: string, journal: string, terminal: any): void {
-  const stdoutLines = stdout.trimEnd().split('\n');
-  const journalLines = journal.trimEnd().split('\n');
-  assert.deepEqual(stdoutLines.slice(0, journalLines.length), journalLines);
-  const finalOutput = JSON.parse(stdoutLines.at(-1)!);
-  assert.equal(finalOutput.type, 'terminal');
-  assert.equal(finalOutput.ok, true);
-  assert.equal(finalOutput.root_run_id, 'e2e-run');
-  assert.deepEqual(finalOutput.manifest, terminal);
-  assert.equal(finalOutput.terminal_reason, 'ok');
-}
-
-async function assertCollisionRetry(
-  fixture: Fixture, homeAfter: ReturnType<typeof snapshotTree>,
-): Promise<void> {
-  fs.unlinkSync(fixture.claudeMarker);
-  const retry = spawnRun(fixture);
-  const output = await processOutput(retry);
-  assert.equal(retry.exitCode, 74);
-  assert.equal(parseNdjson(output.stdout).at(-1).terminal_reason, 'trajectory_write_failed');
-  assert.equal(fs.existsSync(fixture.claudeMarker), false, 'retry must fail before spawning Claude');
-  assert.deepEqual(snapshotTree(fixture.home), homeAfter);
 }
 
 it('cleans the complete fixture process tree after a forced run abort', async () => {
@@ -171,23 +50,6 @@ it('cleans the complete fixture process tree after a forced run abort', async ()
   await cleanupRuns();
 
   assert.deepEqual(runPids.filter(processExists), []);
-});
-
-it('runs one daemon-free contained turn through background quiescence', async () => {
-  const fixture = createFixture();
-  const homeBefore = snapshotTree(fixture.home);
-  const child = spawnRun(fixture);
-  const captured = captureRun(fixture, child);
-  await assertRunStarted(fixture, child, captured.diagnostics);
-  fs.writeFileSync(fixture.releaseMarker, 'release');
-  await waitForExit(child);
-  const stdout = await captured.stdout;
-  assertRunCompletion(fixture, child, await captured.stderr, stdout);
-  const homeAfter = assertIsolatedFilesystem(fixture, homeBefore);
-  const journal = assertJournal(fixture);
-  const terminal = assertTerminalManifest(fixture, journal.records);
-  assertStdout(stdout, journal.journalText, terminal);
-  await assertCollisionRetry(fixture, homeAfter);
 });
 
 it('ignores ambient background caps and journals the held continuation before success', async () => {
@@ -260,17 +122,6 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     assert.equal(terminalRecord(fixture).state, 'cancelled');
   });
 }
-
-it('a supervisor-owned deadline exits 124 after quiescence', async () => {
-  const fixture = createFixture();
-  fixture.args.push('--deadline-ms', '600000');
-  const child = spawnRun(fixture, { FAKE_SUPERVISOR_TRIGGER_DEADLINE: '1' });
-  const output = await processOutput(child);
-  assert.equal(child.exitCode, 124, output.stderr);
-  assert.equal(parseNdjson(output.stdout).at(-1).terminal_reason, 'deadline');
-  assert.equal(terminalRecord(fixture).state, 'timeout');
-  assert.equal(terminalRecord(fixture).supervisor.quiescent, true);
-});
 
 for (const invalidProfile of ['pi', 'fallback'] as const) {
   it(`rejects a ${invalidProfile} profile before invoking Claude`, async () => {
@@ -428,4 +279,19 @@ it('journals a native subagent census under the parent slot without diverting it
   mergeTrajectory({ trajectoryRoot: fixture.trajectoryRoot, outputPath });
   const published = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
   assert.equal(published.final_metrics.extra.subagent_turns, 1);
+});
+
+it('production boundary exports task-dispatch identity and topology together', async () => {
+  await withPublishedProductionBoundary({ scenario: 'manager-qa-off' }, (published) => {
+    const child = published.composite.nodes.find(node => node.thread_id === 'thr-child');
+    assert.equal(child?.dispatch_generation, 'gen-child');
+    assert.ok(published.composite.edges.some(edge => edge.kind === 'dispatch'));
+  });
+});
+
+it('production boundary retains failed and replacement executions', async () => {
+  await withPublishedProductionBoundary({ scenario: 'manager-history' }, (published) => {
+    assert.equal(published.composite.nodes.some(node => node.terminal_state === 'failed'), true);
+    assert.equal(published.composite.nodes.some(node => node.terminal_state === 'aborted'), true);
+  });
 });

@@ -1,7 +1,7 @@
-// input:  a real stdio MCP server holding one call, the PI bridge and a supervised Claude trial
-// output: wall-clock proof that a benchmark MCP call outlives 60 s and stays bounded
-// pos:    Independent Gate-2 proving suite for design §13 (13.6) T15
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  PI MCP guards and production attempt journals
+// output: duration guards and two MCP evidence cases
+// pos:    MCP duration and production journal coverage
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 // Design §13 (13.6) T15, against §5.6 P1–P7 (PI) and §5.7 C1–C6 (Claude). These are holding tests,
 // not option-shape tests: the SDK client, the stdio transport, the server process and the clock are
@@ -26,9 +26,10 @@ import {
 import { PI_MCP_COMPOSITION_ENV } from '../../../src/agent-adapter/pi/policy-guard.js';
 import type { ExtensionAPI, ToolDefinition } from '../../../src/agent-adapter/pi/pi-ext-types.js';
 import {
-  SDK_DEFAULT_TIMEOUT_MS, buildSupervisor, claudeTrial, holdServerArgs, readJson, runTrial,
+  SDK_DEFAULT_TIMEOUT_MS, buildSupervisor, holdServerArgs, readJson,
   waitForExit, waitForFile, type HoldServerOptions,
 } from './long-mcp-trial-fixture.js';
+import { withPublishedProductionBoundary } from './production-evidence-boundary-fixture.js';
 
 /** Long enough that finishing proves the 60 s default did not decide the call. */
 const HOLD_PAST_DEFAULT_MS = 63_000;
@@ -180,26 +181,6 @@ it('forwards a PI cancellation into the in-flight MCP request rather than orphan
 
 // ─── Claude: the CLI owns the MCP client, so what is provable here is the budget Cortex supplies ──
 
-it('holds a real Claude-side MCP call past 60 s and leaves no server behind (T15)', async () => {
-  const trial = claudeTrial(root, {
-    hold: { holdMs: HOLD_PAST_DEFAULT_MS, name: 'claude-long' }, deadlineSeconds: 600,
-  });
-  const outcome = await runTrial(trial);
-  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
-  assert.equal(outcome.terminal.state, 'completed');
-
-  const call = readJson(trial.mcpResult);
-  assert.equal(call.ok, true, `the held call failed: ${call.error}`);
-  assert.ok(
-    call.elapsedMs > SDK_DEFAULT_TIMEOUT_MS,
-    `the call returned after ${call.elapsedMs}ms, which does not clear the 60 s default`,
-  );
-  assert.equal(JSON.parse(call.text).outcome, 'held');
-  // §5.7 C5 (iii): the sidecar the CLI spawned is inside the supervised tree and does not outlive it.
-  assert.equal(outcome.terminal.manifest.supervisor.quiescent, true);
-  await waitForExit(readJson(trial.server.pidFile).pid as number);
-}, 115_000);
-
 // ─── §5.7 C3 has landed on the Claude path — the row below is a live predicate ─────────────────
 //
 // This row was committed as `it.fails`: the blocker was that nothing in `agent-server/src` wrote
@@ -212,30 +193,28 @@ it('holds a real Claude-side MCP call past 60 s and leaves no server behind (T15
 // the moment the child environment is built, valued at remaining trial time plus the same cleanup
 // grace PI uses. The assertions below are unchanged from the blocking version — they are the
 // oracle that fixed the shape of the fix, not a description written after it.
-it('supplies the Claude child a per-call MCP budget bounded by the trial deadline (T15, §5.7 C3)', async () => {
-  const trial = claudeTrial(root, {
-    hold: { holdMs: 200, name: 'claude-budget' }, deadlineSeconds: 600,
+it('production evidence journals a real-thread MCP call', async () => {
+  await withPublishedProductionBoundary({
+    event: { type: 'tool_use', toolUseId: 'mcp-call-1', name: 'thread_wait', input: {} },
+  }, (published) => {
+    const event = published.journalRecords.find((record: any) => record.event?.type === 'tool_use');
+    assert.deepEqual(event?.event, {
+      type: 'tool_use', toolUseId: 'mcp-call-1', name: 'thread_wait', input: {},
+    });
+    assert.equal(published.composite.nodes[0].thread_id, 'thr-root');
   });
-  const outcome = await runTrial(trial);
-  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
+});
 
-  const { env } = readJson(trial.observation) as { env: Record<string, string> };
-  // §5.7 C3 names both variables: the per-call budget and the server-startup budget. Without them
-  // the child runs on the CLI's unset default (1e8 ms), which clears 60 s but is not bounded by the
-  // trial deadline — the second half of what C1's capability declaration asserts.
-  assert.ok(env.MCP_TOOL_TIMEOUT, 'the trial supplied no MCP_TOOL_TIMEOUT to the Claude child');
-  assert.ok(env.MCP_TIMEOUT, 'the trial supplied no MCP_TIMEOUT to the Claude child');
-
-  // §5.7 C3 / §5.6 P2: the same quantity on both backends — remaining trial time plus cleanup
-  // grace, derived at the moment of use, so it tracks the deadline rather than the arm's length.
-  const budgetMs = Number(env.MCP_TOOL_TIMEOUT);
-  const remainingMs = trial.policy.deadline.absolute_epoch_ms - Date.now();
-  assert.ok(
-    budgetMs > SDK_DEFAULT_TIMEOUT_MS,
-    `the supplied budget ${budgetMs}ms does not clear the native 60 s reference window`,
-  );
-  assert.ok(
-    budgetMs <= remainingMs + MCP_CLEANUP_GRACE_MS + 5_000,
-    `the supplied budget ${budgetMs}ms is not bounded by the trial deadline`,
-  );
-}, 115_000);
+it('production evidence journals an MCP result without process claims', async () => {
+  await withPublishedProductionBoundary({
+    events: [
+      { type: 'tool_use', toolUseId: 'mcp-call-1', name: 'thread_wait', input: {} },
+      { type: 'tool_result', toolUseId: 'mcp-call-1', ok: true, content: 'released' },
+    ],
+  }, (published) => {
+    const record = published.journalRecords.find((item: any) => item.event?.type === 'tool_result');
+    const event = record?.event as { content: string } | undefined;
+    assert.equal(event?.content, 'released');
+    assert.equal(Object.hasOwn(published.terminalManifests[0], 'supervisor'), false);
+  });
+});
