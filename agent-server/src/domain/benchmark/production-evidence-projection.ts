@@ -158,8 +158,12 @@ function assertExpectedRoleInput(value: unknown): asserts value is readonly stri
     || new Set(value).size !== value.length) fail('expected role set is invalid');
 }
 
+function isOneOf(value: unknown, allowed: readonly string[]): boolean {
+  return typeof value === 'string' && allowed.includes(value);
+}
+
 function assertModeInput(input: Record<string, unknown>): void {
-  if (!['direct', 'coder-review', 'manager'].includes(String(input.mode))) {
+  if (!isOneOf(input.mode, ['direct', 'coder-review', 'manager'])) {
     fail('orchestration mode is invalid');
   }
   if (![null, 'on', 'off'].includes(input.managerQa as null | string)
@@ -173,7 +177,7 @@ function assertEvaluatedChecks(value: unknown): void {
   const checks = requireRecord(value, 'evaluated checks');
   for (const [name, candidate] of Object.entries(checks)) {
     const check = requireRecord(candidate, `evaluated check ${name}`);
-    if (!['pass', 'fail', 'unavailable'].includes(String(check.result))) {
+    if (!isOneOf(check.result, ['pass', 'fail', 'unavailable'])) {
       fail(`evaluated check ${name} result is invalid`);
     }
     if (check.detail !== null && typeof check.detail !== 'string') {
