@@ -22,6 +22,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | trial-task-ports.test.ts | 测试 | Tests trial task state ports |
 | policy-backed-runtime-deps.test.ts | 测试 | Tests frozen runtime dependency lookup |
 | policy-compiler.test.ts | 测试 | Tests benchmark policy compilation |
+| production-evidence-export.test.ts | 测试 | Tests atomic production evidence publication |
 | proposal-seal.test.ts | 测试 | Tests proposal sealing across terminal states |
 | terminal-predicate.test.ts | 测试 | Tests trial terminal evaluation |
 | trial-task-dispatcher.test.ts | 测试 | Tests trial task dispatch |
