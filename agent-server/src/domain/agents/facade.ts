@@ -1,5 +1,5 @@
 // input:  run config, resolved profiles, task events
-// output: pre-spawn identity, attributed runs, and notices
+// output: identity-bound journalled runs, accounting, and notices
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -16,8 +16,10 @@ import {
 import { buildAgentSpawnConfig, filterChannelScopedPlugins } from './spawn-config.js';
 import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
 import {
-  freezeProductionAttemptIdentity, type ProductionAttemptIdentityRecord,
+  freezeProductionAttemptIdentity, productionAttemptEvidenceEnabled,
+  type ProductionAttemptIdentityRecord,
 } from '../agent-run/production-attempt-identity.js';
+import { createProductionAttemptJournalSink } from '../agent-run/production-attempt-journal.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
 import type { AgentHandle, AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
@@ -368,43 +370,92 @@ async function resolveRunResult(
   });
 }
 
-export function runWithAdapter(
-  adapter: AgentAdapter,
-  message: string,
+type AttemptJournalSink = ReturnType<typeof createProductionAttemptJournalSink>;
+
+function productionJournalSink(
+  identity: ProductionAttemptIdentityRecord | null,
+  spawnConfig: AgentSpawnConfig,
   options: RunAgentOptions,
-  config: AgentConfig,
-  anthropicBaseUrl: string | undefined,
-): AgentHandle {
+  message: string,
+): AttemptJournalSink | null {
+  if (!identity) return null;
+  return createProductionAttemptJournalSink({
+    identity, spawnConfig,
+    canonicalInstruction: options.identityDirective ?? '', message,
+  });
+}
+
+function prepareAttemptEvidence(
+  adapter: AgentAdapter, message: string, options: RunAgentOptions,
+  config: AgentConfig, anthropicBaseUrl: string | undefined,
+) {
   const spawnConfig = options.preparedSpawnConfig
     ?? buildAgentSpawnConfig(options, config, anthropicBaseUrl);
   const attemptIdentity = freezeProductionAttemptIdentity({
     adapterBackend: adapter.backend, spawnConfig, options,
     resolvedProfile: options.resolvedProfileConfig,
   });
-  const attribution = costAttribution(options, attemptIdentity);
-  const proc = adapter.spawn(spawnConfig);
-  const attachments = (options.files || []).map((file: any) => ({
-    mimeType: file.mimetype ?? file.mimeType,
-    path: file.localPath ?? file.path,
-  }));
-  const turnPromise = proc.send({ text: message, attachments });
-  const closeProcess = createProcessCloser(proc);
-  const legacy = new LegacyEventDispatcher(adapter, options, config, spawnConfig, attribution);
-  const tee = createRunEventTee(proc, options.observers ?? [], options.requiredSinks ?? []);
-  const eventLoop = consumeEventStream({
-    proc, tee, onEvent: (event) => legacy.dispatch(event),
-  });
-  const resultPromise = resolveRunResult(turnPromise, eventLoop, adapter, options, proc, (event) => {
-    if (event.type === 'cost_record') legacy.recordAccounting(event);
-    tee.dispatch(event);
-  });
-
   return {
-    promise: settleEventfulRun(resultPromise, eventLoop, () => tee.close(), closeProcess),
+    spawnConfig, attemptIdentity,
+    attemptJournal: productionJournalSink(attemptIdentity, spawnConfig, options, message),
+  };
+}
+
+function spawnAdapterAttempt(
+  adapter: AgentAdapter, spawnConfig: AgentSpawnConfig, message: string,
+  options: RunAgentOptions, attemptJournal: AttemptJournalSink | null,
+) {
+  let proc: AgentProcess;
+  try { proc = adapter.spawn(spawnConfig); }
+  catch (error) {
+    attemptJournal?.onClose();
+    throw error;
+  }
+  const required = attemptJournal
+    ? [attemptJournal, ...(options.requiredSinks ?? [])]
+    : (options.requiredSinks ?? []);
+  const tee = createRunEventTee(proc, options.observers ?? [], required);
+  const attachments = (options.files || []).map((file: any) => ({
+    mimeType: file.mimetype ?? file.mimeType, path: file.localPath ?? file.path,
+  }));
+  try { return { proc, tee, turnPromise: proc.send({ text: message, attachments }) }; }
+  catch (error) {
+    attemptJournal?.onClose();
+    void proc.close().catch(() => {});
+    throw error;
+  }
+}
+
+function runHandle(proc: AgentProcess, promise: Promise<AgentResult>): AgentHandle {
+  return {
+    promise,
     kill: (): boolean => proc.kill(),
     get sessionId(): string | null { return proc.sessionId; },
     agentProcess: proc,
   };
+}
+
+export function runWithAdapter(
+  adapter: AgentAdapter, message: string, options: RunAgentOptions,
+  config: AgentConfig, anthropicBaseUrl: string | undefined,
+): AgentHandle {
+  const { spawnConfig, attemptIdentity, attemptJournal } = prepareAttemptEvidence(
+    adapter, message, options, config, anthropicBaseUrl,
+  );
+  const attribution = costAttribution(options, attemptIdentity);
+  const { proc, tee, turnPromise } = spawnAdapterAttempt(
+    adapter, spawnConfig, message, options, attemptJournal,
+  );
+  const closeProcess = createProcessCloser(proc);
+  const legacy = new LegacyEventDispatcher(adapter, options, config, spawnConfig, attribution);
+  const eventLoop = consumeEventStream({ proc, tee, onEvent: event => legacy.dispatch(event) });
+  const resultPromise = resolveRunResult(turnPromise, eventLoop, adapter, options, proc, (event) => {
+    if (event.type === 'cost_record') legacy.recordAccounting(event);
+    tee.dispatch(event);
+  });
+  return runHandle(
+    proc, settleEventfulRun(resultPromise, eventLoop, () => tee.close(), closeProcess),
+  );
 }
 
 export interface CompactAgentRequest {
@@ -529,15 +580,28 @@ export async function compactAgentContext(
   }
 }
 
-export function runAgentOnce(message: string, options: RunAgentOptions, config: AgentConfig): AgentHandle {
-  const effectiveMode = config.mode || 'api';
+function configureRunRoute(options: RunAgentOptions, config: AgentConfig): string | undefined {
   const metadata: Record<string, string> = {};
   if (options.project) metadata.project = options.project;
   if (options.trigger) metadata.trigger = options.trigger;
-  const anthropicBaseUrl = configureEnvForMode(
-    effectiveMode,
-    Object.keys(metadata).length > 0 ? metadata : undefined,
+  return configureEnvForMode(
+    config.mode || 'api', Object.keys(metadata).length > 0 ? metadata : undefined,
   );
+}
+
+function recordPreflightAttempt(
+  message: string, options: RunAgentOptions, config: AgentConfig,
+): void {
+  if (!productionAttemptEvidenceEnabled()) return;
+  const adapter = getAdapter(config.backend as Backend);
+  const prepared = prepareAttemptEvidence(
+    adapter, message, options, config, configureRunRoute(options, config),
+  );
+  prepared.attemptJournal?.onClose();
+}
+
+export function runAgentOnce(message: string, options: RunAgentOptions, config: AgentConfig): AgentHandle {
+  const anthropicBaseUrl = configureRunRoute(options, config);
   const adapter = getAdapter(config.backend as Backend);
   const handle = runWithAdapter(adapter, message, options, config, anthropicBaseUrl);
   const attributed = withRateLimitProvider(handle, resolveRateLimitProvider(config));
@@ -559,6 +623,7 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
   if (configs.length <= 1) {
     const effectiveMode = configs[0].mode || 'api';
     if (configIsRateLimited(configs[0]) && !options.isUserInitiated) {
+      recordPreflightAttempt(message, trackedOptions, configs[0]);
       const result = rateLimitedResult(effectiveMode, resolveRateLimitProvider(configs[0]));
       notices.emitTerminalRateLimit(result);
       return {
@@ -587,6 +652,7 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
       const effectiveMode = config.mode || 'api';
       if (configIsRateLimited(config) && !options.isUserInitiated) {
         if (isLast) {
+          recordPreflightAttempt(message, attemptOptions, config);
           const result = rateLimitedResult(effectiveMode, resolveRateLimitProvider(config));
           notices.emitTerminalRateLimit(result);
           return result;

@@ -1,5 +1,5 @@
 // input:  normalized events, agent slot, paths and identity
-// output: durable ordered journal records and write failures
+// output: durable ordered journal records and sync/async closure
 // pos:    One-shot run NDJSON journal writer
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -78,6 +78,7 @@ export interface Journal {
   writeStateAdmission(evidence: StateAdmissionEvidence): Readonly<Record<string, unknown>>;
   writeEvent(input: JournalEventInput): Readonly<Record<string, unknown>>;
   sha256(): string;
+  closeSync(): void;
   close(): Promise<void>;
 }
 
@@ -283,7 +284,7 @@ class FileJournal implements Journal {
     return hashFile(this.path);
   }
 
-  async close(): Promise<void> {
+  closeSync(): void {
     if (this.fd === null) return;
     const fd = this.fd;
     this.fd = null;
@@ -291,6 +292,10 @@ class FileJournal implements Journal {
     appendFailure(failures, fsyncFd(fd));
     appendFailure(failures, closeFd(fd));
     if (failures.length > 0) throw trajectoryFailure('journal close', failures);
+  }
+
+  async close(): Promise<void> {
+    this.closeSync();
   }
 
   private requireOpenFd(): number {
