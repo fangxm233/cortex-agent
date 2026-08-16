@@ -1,4 +1,4 @@
-# input:  production trial builder, offline image, fake endpoints
+# input:  production trial builder, offline image, scoped fake endpoints
 # output: concurrent trial isolation and complete boundary evidence
 # pos:    Black-box concurrent Harbor containment regression
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -345,7 +345,8 @@ def trial_inputs(
     network: NetworkFacts, trial_id: str,
 ) -> dict[str, object]:
     proxy = {
-        "credential_env": CREDENTIAL_ENV, "bound_source_ip": network.trial_ip,
+        "credential_env": CREDENTIAL_ENV, "listen_host": "0.0.0.0",
+        "bound_source_ip": network.trial_ip,
         "request_body_limit_bytes": 16 * 1024 * 1024,
         "response_body_limit_bytes": 16 * 1024 * 1024,
     }

@@ -1,5 +1,5 @@
-# input:  Harbor agent, v2 evidence, host attestations, proxy
-# output: v2 admission, refusal, redaction, durability proofs
+# input:  Harbor agent, v2 evidence, stop observation, proxy
+# output: deferred admission, refusal and durability proofs
 # pos:    Host evidence v2 finalization tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -19,6 +19,7 @@ from harbor.environments.base import ExecResult
 from harbor.models.agent.context import AgentContext
 
 import cortex_bench_harness.host_finalization as finalization
+from cortex_bench_harness.container_boundary import ContainerBoundaryObservation
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.host_finalization import (
     OUTER_ENVELOPE_FILENAME,
@@ -221,13 +222,15 @@ def launch_attestation(npm_artifact: Path) -> dict[str, object]:
     }
 
 
+def container_boundary_observation() -> ContainerBoundaryObservation:
+    return ContainerBoundaryObservation(
+        observed_at="2026-08-11T00:00:02.000Z", exit_code=0,
+        descendants_alive=0, process_namespace_alive=False,
+    )
+
+
 def container_boundary_attestation() -> dict[str, object]:
-    return {
-        "schema_version": "cortex-bench-container-boundary-attestation/1",
-        "trial_id": TRIAL_ID, "observed_at": "2026-08-11T00:00:02.000Z",
-        "container_exit": {"status": "exited", "exit_code": 0, "running": False, "pid": 0},
-        "post_stop": {"descendants_alive": 0, "process_namespace_alive": False},
-    }
+    return container_boundary_observation().document(TRIAL_ID)
 
 
 def journal_bytes(assets: Mapping[str, str] | None = None) -> bytes:
@@ -465,16 +468,17 @@ def make_agent(
         "root_run_id": ROOT_RUN_ID,
     })
     write_json(tmp_path / "artifacts" / "cortex-bench-launch-attestation.json", launch)
-    write_json(
-        tmp_path / "artifacts" / "cortex-bench-container-boundary-attestation.json",
-        container_boundary_attestation(),
-    )
     post_lease(agent.proxy_session)
     return agent, environment
 
 
-def run_agent(agent: CortexBenchAgent, environment: FinalizationEnvironment) -> None:
+def run_agent_phase(agent: CortexBenchAgent, environment: FinalizationEnvironment) -> None:
     asyncio.run(agent.run("Complete the task.", environment, AgentContext()))
+
+
+def run_agent(agent: CortexBenchAgent, environment: FinalizationEnvironment) -> None:
+    run_agent_phase(agent, environment)
+    agent.finalize_after_container_stop(container_boundary_observation())
 
 
 def envelope_path(tmp_path: Path) -> Path:
@@ -522,7 +526,9 @@ def test_production_run_publishes_and_rereads_one_outer_admission(
 ) -> None:
     agent, environment = make_agent(tmp_path, monkeypatch)
     assert type(agent) is CortexBenchAgent
-    run_agent(agent, environment)
+    run_agent_phase(agent, environment)
+    assert not envelope_path(tmp_path).exists()
+    agent.finalize_after_container_stop(container_boundary_observation())
     payload = envelope_path(tmp_path).read_bytes()
     envelope = json.loads(payload)
 
@@ -539,12 +545,6 @@ def test_production_run_publishes_and_rereads_one_outer_admission(
 
 
 @pytest.mark.parametrize(("filename", "mutation", "reason"), [
-    ("cortex-bench-container-boundary-attestation.json", lambda value: value.update({
-        "container_exit": {"status": "exited", "exit_code": 0, "running": True, "pid": 41},
-    }), "container_boundary_unproven"),
-    ("cortex-bench-container-boundary-attestation.json", lambda value: value.update({
-        "post_stop": {"descendants_alive": 1, "process_namespace_alive": True},
-    }), "container_boundary_unproven"),
     ("cortex-bench-launch-attestation.json", lambda value: value.update({
         "cortex_home_tree_sha256": "", "cortex_home_file_count": 0,
     }), "launch_attestation_invalid"),
@@ -569,16 +569,38 @@ def test_boundary_attestations_fail_closed_without_positive_observation(
     assert not envelope_path(tmp_path).exists()
 
 
-def test_missing_container_boundary_observation_fails_closed(
+@pytest.mark.parametrize("mutation", [
+    lambda value: value.update({
+        "container_exit": {"status": "exited", "exit_code": 0, "running": True, "pid": 41},
+    }),
+    lambda value: value.update({
+        "post_stop": {"descendants_alive": 1, "process_namespace_alive": True},
+    }),
+])
+def test_container_boundary_validator_rejects_non_quiescent_observation(
+    mutation: Callable[[dict[str, object]], None],
+) -> None:
+    document = container_boundary_attestation()
+    mutation(document)
+
+    with pytest.raises(HostFinalizationError) as raised:
+        finalization._validate_container_boundary_attestation(document, TRIAL_ID)
+
+    assert raised.value.reason == "container_boundary_unproven"
+
+
+def test_unobservable_container_boundary_leaves_no_attestation_or_publication(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent, environment = make_agent(tmp_path, monkeypatch)
-    (tmp_path / "artifacts" / "cortex-bench-container-boundary-attestation.json").unlink()
+    run_agent_phase(agent, environment)
 
     with pytest.raises(HostFinalizationError) as raised:
-        run_agent(agent, environment)
+        agent.finalize_after_container_stop(None)
 
     assert raised.value.reason == "container_boundary_unproven"
+    assert not (tmp_path / "artifacts" / "cortex-bench-container-boundary-attestation.json").exists()
+    assert not envelope_path(tmp_path).exists()
 
 
 def test_composite_accepts_failed_superseded_history_and_production_slot_names() -> None:

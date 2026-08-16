@@ -1,5 +1,5 @@
-# input:  Harbor lifecycle, inner/proxy evidence, workspace
-# output: proxy-confirmed installed run and grader admission
+# input:  Harbor lifecycle, inner/proxy evidence, stop observation
+# output: deferred post-stop grader admission
 # pos:    Production Harbor lifecycle wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -17,6 +17,7 @@ from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 from harbor.models.trial.paths import EnvironmentPaths
 
+from .container_boundary import ContainerBoundaryObservation
 from .cwd import ResolvedCwd, resolve_task_workdir
 from .launcher.arm_resolution import (
     ARM_RESOLUTION_CONTAINER_PATH,
@@ -53,8 +54,10 @@ from .launcher.trial_admission import (
     HarborTrialAdmissionError,
     environment_digest,
 )
+from .launcher.trial_admission_io import atomic_write_json
 from .launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 from .host_finalization import (
+    CONTAINER_BOUNDARY_ATTESTATION_FILENAME,
     HostFinalizationError,
     HostFinalizationResult,
     finalize_host_trial,
@@ -232,6 +235,8 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._revoked = False
         self._grader_admitted = False
         self._outer_publication: HostFinalizationResult | None = None
+        self._post_stop_revocation: TrialRevocation | None = None
+        self._post_stop_finalization_pending = False
         self._requires_admitted_proxy = environment_hash is not None
 
     @staticmethod
@@ -286,6 +291,10 @@ class CortexBenchAgent(BaseInstalledAgent):
     @property
     def production_server_stopped(self) -> bool:
         return self._production_server_stopped
+
+    @property
+    def post_stop_finalization_pending(self) -> bool:
+        return self._post_stop_finalization_pending
 
     @property
     def outer_envelope_sha256(self) -> str | None:
@@ -597,7 +606,9 @@ class CortexBenchAgent(BaseInstalledAgent):
                 raise execution_error
             raise HostFinalizationError("inner_execution_failed") from execution_error
         await self._collect_trial_outputs(environment)
-        self._finalize_outer(revocation)
+        if self._host_scan_policy is not None:
+            self._post_stop_revocation = revocation
+            self._post_stop_finalization_pending = True
 
     async def _execute_run(self, instruction: str, environment: BaseEnvironment) -> None:
         if self._production_direct:
@@ -755,6 +766,19 @@ class CortexBenchAgent(BaseInstalledAgent):
             await self.exec_as_agent(environment, readable)
         except Exception as error:
             raise HostFinalizationError("trial_output_collection_failed") from error
+
+    def finalize_after_container_stop(
+        self, observation: ContainerBoundaryObservation | None,
+    ) -> None:
+        path = self._artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME
+        path.unlink(missing_ok=True)
+        if not self._post_stop_finalization_pending or observation is None:
+            raise HostFinalizationError("container_boundary_unproven")
+        if observation.descendants_alive != 0 or observation.process_namespace_alive:
+            raise HostFinalizationError("container_boundary_unproven")
+        self._post_stop_finalization_pending = False
+        atomic_write_json(path, observation.document(self._trial_seed.trial_id))
+        self._finalize_outer(self._post_stop_revocation)
 
     def _finalize_outer(self, revocation: TrialRevocation | None) -> None:
         if self._host_scan_policy is None:
