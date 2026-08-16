@@ -19,6 +19,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | claude-subagent-activity.test.ts | test | proves the native-subagent census event and that a subagent line still reaches every handler it reaches today |
 | claude-tmux-control.test.ts | test | tmux argv, secure buffers, and tempfiles |
 | claude-tui-resume.test.ts | test | TUI first-turn resume guard |
+| claude-usage.test.ts | test | Claude account usage correlation and normalization |
 | fixtures/ | subdir | recorded backend streams and golden outputs |
 | normalize-assistant-delta.test.ts | test | delta event union and backend capability |
 | normalize.test.ts | test | normalized event parser edge cases |

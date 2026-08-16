@@ -20,3 +20,4 @@ Translates Claude stream and transcript events into the normalized event schema.
 | compact-window.ts | config | resolves the configured auto-compact window |
 | cost-from-usage.ts | util | derives call cost from token counts |
 | tool-summarizers.ts | util | renders tool inputs for trace display |
+| usage.ts | core | Pulls and normalizes scoped Claude account usage |

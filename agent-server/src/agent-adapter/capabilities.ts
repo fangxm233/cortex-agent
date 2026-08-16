@@ -24,9 +24,11 @@ export enum Capability {
    *  beyond the native default while staying bounded by the trial deadline. Benchmark arms require
    *  it: a blocking benchmark tool call must not be cut short by an SDK or CLI default. */
   BenchmarkLongMcpCall = 'benchmark-long-mcp-call',
+  /** Backend can pull provider usage for an explicitly requested subscription scope. */
+  Usage = 'usage',
 }
 
-// Claude: full native support (claude-bridge.ts wires all ten shared capabilities).
+// Claude: native turn support plus account usage pull through a dedicated print process.
 // StreamingDeltas: `--include-partial-messages` token-level output.
 // MidTurnInject: print mode accepts a user message on stdin while a turn is in flight.
 const CLAUDE_CAPS: Capability[] = [
@@ -46,6 +48,7 @@ const CLAUDE_CAPS: Capability[] = [
   // The CLI itself owns the MCP client, and it reads MCP_TOOL_TIMEOUT from the environment as the
   // per-call budget. See LONG_MCP_CALL_VERSION_GOVERNANCE for the read evidence.
   Capability.BenchmarkLongMcpCall,
+  Capability.Usage,
 ];
 
 // PI: per DR-0008 §5.1 capability matrix — --skill for Plugins, --system-prompt for SystemPromptOverride, tool-allowlist via adapter;

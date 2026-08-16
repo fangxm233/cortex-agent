@@ -1,10 +1,11 @@
-// input:  events, capabilities, process and MCP gate types
-// output: shared adapter and runtime contracts
+// input:  events, capabilities, process, MCP and usage types
+// output: shared adapter, usage and runtime contracts
 // pos:    Shared adapter runtime contracts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 import type { IdentityJsonValue } from '../domain/agent-run/identity.js';
+import type { ProviderUsage } from '../domain/costs/usage-store.js';
 import type { Capability } from './capabilities.js';
 import type { NormalizedEvent } from './normalize/event-types.js';
 import type { NormalizedHookSpec } from './normalize/hooks.js';
@@ -12,6 +13,11 @@ import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 
 export type Backend = 'claude' | 'pi';
 export type McpComposition = 'direct' | 'thread-control' | 'none' | 'benchmark-thread-run';
+
+export interface AgentUsageScope {
+  provider?: string;
+  mode?: string;
+}
 
 export function resolveMcpComposition(
   explicit: McpComposition | undefined,
@@ -265,4 +271,6 @@ export interface AgentAdapter {
   kill(sessionKey: string): boolean;
   /** List currently open session keys. */
   listSessions(): string[];
+  /** Pull provider usage when the backend has a scoped account-level source. */
+  getUsage?(scope: AgentUsageScope): Promise<ProviderUsage[] | null>;
 }
