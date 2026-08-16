@@ -14,6 +14,7 @@ import { decomposeTask } from '../src/domain/tasks/system/task-mutations.js';
 import { lintTasks } from '../src/domain/tasks/lint.js';
 import { processSplitOutcome } from '../src/domain/tasks/dispatch-utils.js';
 import { taskMutator } from '../src/domain/tasks/mutator.js';
+import { readProductionTopologyFacts } from '../src/domain/tasks/production-topology-ledger.js';
 
 // --- helpers (mirrors task-mutations.test.ts repo scaffolding) ---
 
@@ -66,6 +67,8 @@ test('parent survives a serialize → parse round trip', () => {
 test('decomposeTask keepParent keeps the parent as a join node depending on all children', () => {
   const proj = nextProject();
   const { tasksPathFor, cleanup } = makeRepo({ [proj]: BASE_TASK });
+  const previousThreadId = process.env.CORTEX_THREAD_ID;
+  process.env.CORTEX_THREAD_ID = 'thr_decomposer';
   try {
     const result = decomposeTask(proj, null, [
       { key: 'a', text: 'Part A', 'done-when': 'A done' },
@@ -84,7 +87,18 @@ test('decomposeTask keepParent keeps the parent as a join node depending on all 
     assert.deepEqual(b.depends_on, [a.id], 'sibling key dependency resolved to hex id');
     assert.equal(a.template, 'coder-review', 'children inherit template');
     assert.equal(parent.status, 'open', 'parent stays open (becomes the acceptance node)');
-  } finally { cleanup(); }
+
+    const facts = readProductionTopologyFacts({ project: proj });
+    assert.equal(facts.filter((fact) => fact.kind === 'decompose').length, 2);
+    assert.equal(facts.filter((fact) => fact.kind === 'depends_on').length, 3);
+    assert.ok(facts.filter((fact) => fact.kind === 'decompose').every(
+      (fact) => fact.kind === 'decompose' && fact.actor_thread_id === 'thr_decomposer',
+    ));
+  } finally {
+    if (previousThreadId === undefined) delete process.env.CORTEX_THREAD_ID;
+    else process.env.CORTEX_THREAD_ID = previousThreadId;
+    cleanup();
+  }
 });
 
 test('decomposeTask replace mode passes the grandparent down to keep the tree connected', () => {

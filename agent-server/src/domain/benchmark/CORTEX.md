@@ -7,7 +7,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | accounting-reconciliation.ts | 核心 | Records proxy-side and journal-side usage figures side by side |
 | actor-capability-scope.ts | 核心 | Registers actor capabilities |
 | arm-schema.ts | 类型 | Validates benchmark arm definitions and declared limits |
-| attempt-record.ts | 类型 | Defines embedded v2 attempts and durable edges |
+| attempt-record.ts | 类型 | Defines v2 attempts and production-ledger edges |
 | capabilities.ts | 策略 | Defines benchmark capability grants |
 | composite-runtime-ports.ts | 类型 | Defines composite runtime ports |
 | trial-task-mutator.ts | 核心 | Applies capability-fenced task mutations |

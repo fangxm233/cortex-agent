@@ -16,7 +16,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | dispatch-reconciler.ts | timer | optionally cleans up stale dispatch executions |
 | durable-helpers.ts | util | builds durable post and update hooks |
 | lifecycle.ts | core | finalizes turns and attributes continuation costs |
-| manager-qa.ts | channel | relays subtask questions to managers and humans |
+| manager-qa.ts | channel | durably relays subtask manager questions and answers |
 | mid-turn-inject.ts | core | lazily injects platform and Web files with prompts |
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |

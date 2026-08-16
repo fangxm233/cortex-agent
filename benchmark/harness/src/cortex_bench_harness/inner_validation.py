@@ -51,10 +51,13 @@ TERMINAL_REASONS = {
     "timeout": frozenset({"deadline", "deadline_exceeded"}),
     "aborted": frozenset({"aborted"}),
 }
-EDGE_PRODUCTION_SUPPORT = {
-    "spawn": True, "decompose": True, "depends_on": True, "dispatch": True,
-    "proposal": False, "seal": False, "delivery": True, "verdict": True, "rework": True,
-    "supersede": False, "rotation": False, "question": False, "answer": False,
+EDGE_PRODUCTION_SOURCES = {
+    "spawn": "production_topology_ledger", "decompose": "production_topology_ledger",
+    "depends_on": "production_topology_ledger", "dispatch": "production_topology_ledger",
+    "proposal": None, "seal": None, "delivery": "production_topology_ledger",
+    "verdict": "production_topology_ledger", "rework": "production_topology_ledger",
+    "supersede": None, "rotation": None,
+    "question": "production_topology_ledger", "answer": "production_topology_ledger",
 }
 EDGE_LEGALITY = {
     "spawn": ({"attempt"}, {"attempt"}),
@@ -64,6 +67,8 @@ EDGE_LEGALITY = {
     "delivery": ({"outcome"}, {"attempt"}),
     "verdict": ({"attempt"}, {"attempt"}),
     "rework": ({"attempt"}, {"attempt"}),
+    "question": ({"attempt"}, {"attempt"}),
+    "answer": ({"attempt"}, {"attempt"}),
 }
 
 
@@ -301,7 +306,7 @@ def _valid_edge(edge: object, attempts: set[object], tasks: set[object], parent:
     if not isinstance(edge, Mapping) or set(edge) != {"kind", "from", "to"}:
         return False
     kind = edge.get("kind")
-    if EDGE_PRODUCTION_SUPPORT.get(kind) is not True:
+    if EDGE_PRODUCTION_SOURCES.get(kind) is None:
         return False
     legality = EDGE_LEGALITY.get(kind)
     if legality is None:

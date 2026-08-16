@@ -11,4 +11,4 @@ Scheduling jobs: concrete runners used by persisted schedules and daemon-owned p
 | sync-public.ts | job | Pulls commits from the public repo |
 | target-dispatch.ts | core | Decides how a fired schedule is landed |
 | task-archive.ts | job | Archives completed tasks as a built-in job |
-| task-dispatch.ts | job | Reserves and starts generation-owned task dispatches |
+| task-dispatch.ts | job | Starts generation-owned dispatches and records linkage |

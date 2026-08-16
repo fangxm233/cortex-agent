@@ -1,5 +1,5 @@
 // input:  compiled MCP entries, tool gates, stdio client, QA webhook
-// output: gated privilege surfaces, refusals and direct answer calls
+// output: gated privilege surfaces, refusals and answerer identity
 // pos:    Built MCP server integration tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -152,6 +152,7 @@ test('built cortex-manager-qa answers without a thread context', async () => {
       assert.equal(result.isError ?? false, false);
       assert.deepEqual(received, [{
         action: 'answer', question_id: 'q-direct', answer: 'Use approach A.',
+        answererThreadId: null,
       }]);
     }, { WEBHOOK_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 'stdio-token' });
   });

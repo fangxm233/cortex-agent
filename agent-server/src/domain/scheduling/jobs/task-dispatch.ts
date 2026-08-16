@@ -1,5 +1,5 @@
-// input:  task store, execution capacity, thread runner, reconciler
-// output: reserved dispatch cycles, fenced threads, and quarantine
+// input:  task store, thread runner, production topology ledger
+// output: reserved dispatch cycles, fenced threads, dispatch facts
 // pos:    Runs the built-in automatic task dispatcher
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -16,6 +16,7 @@ import * as pendingTaskTracker from '../../tasks/pending-tracker.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { selectAndClaimTask } from '../../tasks/dispatcher.js';
 import { taskMutator } from '../../tasks/mutator.js';
+import { recordProductionTopologyFact } from '../../tasks/production-topology-ledger.js';
 import { createThread, detectSplitFromControl, clearPendingControl } from '../../threads/index.js';
 import { runThread as runThreadExec } from '../../threads/runner.js';
 import { processSplitOutcome, processAbortOutcome, formatWorkerAbortReason } from '../../tasks/dispatch-utils.js';
@@ -32,6 +33,23 @@ const dispatchFailureCounts = new Map<string, { count: number; lastError: string
 
 function sanitizeBlockReason(s: string): string {
   return String(s).replace(/[\r\n\]]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+}
+
+function recordDispatchTopology(
+  project: string, taskId: string, generation: string | null, threadId: string,
+): void {
+  if (!generation) {
+    log.warn(`topology ledger dispatch omitted for ${taskId}: generation unavailable`);
+    return;
+  }
+  try {
+    recordProductionTopologyFact({
+      project, kind: 'dispatch', task_id: taskId,
+      dispatch_generation: generation, thread_id: threadId,
+    });
+  } catch (error) {
+    log.warn(`topology ledger dispatch record failed: ${(error as Error).message}`);
+  }
 }
 
 // --- Guards ---
@@ -153,6 +171,9 @@ async function executeDispatchTask({ selected, selectedTask, channel, profileNam
     },
   });
   cycle.threadId = thread.id;
+  recordDispatchTopology(
+    selectedTask.project, selectedTask.id, selected.dispatchGeneration ?? null, thread.id,
+  );
 
   const icb = ctx.buildInteractiveCallbacks?.(channel, null);
   void emitCortexEvent('cortex:dispatch.started', {

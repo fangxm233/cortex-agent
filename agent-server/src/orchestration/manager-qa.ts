@@ -1,22 +1,19 @@
-// input:  webhook /webhook/manager-qa (ask/poll/answer), agent-runner human-reply interception
-// output: askManager / submitAnswer / getAnswer / tryAnswerFromHuman / buildQuestionNotice / buildOriginSessionNotice
-// pos:    DR-0016 up-ask channel — a subtask asks its manager a clarifying question and blocks
-//         (synchronously, via the ask_manager MCP tool's poll loop) until answered. A suspended
-//         manager is woken to answer (resumeManagerForQuestion) and re-suspends via
-//         pendingControl='wait' after answer_subtask. At the TOP of the tree (no manager thread) the
-//         ORIGIN session — the agent that dispatched the work — is woken (wakeSession / agentRunner.route)
-//         and answers from its own context via answer_subtask; only if it cannot does it consult the
-//         human, whose direct channel reply is captured by the still-armed backstop (channelIndex +
-//         tryAnswerFromHuman). Central question state is an in-memory Map in the daemon (synchronous
-//         model: a daemon restart fails the in-flight ask, consistent with running threads failing
-//         on restart — no persistence in v1).
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  thread/task state, production topology ledger, Q&A webhooks
+// output: durable manager ask/answer routing and one-shot polling
+// pos:    Manager Q&A control channel and restart-safe evidence source
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { threadStore } from '@store/thread-repo.js';
 import { scanAllTasks } from '@core/task-parser.js';
 import { isTerminalStatus } from '@domain/threads/tree.js';
 import { resumeManagerForQuestion, wakeSession } from './thread-callback.js';
 import { createLogger } from '@core/log.js';
+import {
+  consumeProductionTopologyAnswer,
+  readProductionTopologyFacts,
+  recordProductionTopologyFact,
+  type ProductionTopologyFact,
+} from '@domain/tasks/production-topology-ledger.js';
 import type { ThreadRecord } from '@core/types/thread-types.js';
 
 const log = createLogger('manager-qa');
@@ -28,8 +25,10 @@ interface PendingQuestion {
   managerThreadId: string | null; // null when escalated to a human
   channel: string | null;         // human-escalation channel (null for manager target)
   awaitingHuman: boolean;
+  project: string;
   question: string;
   answer: string | null;
+  answerFactId: string | null;
   createdAt: number;
 }
 
@@ -38,10 +37,20 @@ const questions = new Map<string, PendingQuestion>();
 /** channel → questionId, for routing a human's free-text reply back to the right pending ask. */
 const channelIndex = new Map<string, string>();
 
-/** Test hook: clear all in-memory Q&A state. */
+let hydrated = false;
+
+/** Test hook: clear all in-memory Q&A state without reloading durable history. */
 export function _testResetManagerQa(): void {
   questions.clear();
   channelIndex.clear();
+  hydrated = true;
+}
+
+/** Test hook: model a daemon restart by dropping memory and enabling durable reload. */
+export function _testSimulateManagerQaRestart(): void {
+  questions.clear();
+  channelIndex.clear();
+  hydrated = false;
 }
 
 /** Minimal task shape the resolver needs (kept tiny so callers/tests can inject a reader). */
@@ -68,6 +77,69 @@ function defaultReadTask(project: string | null, taskId: string): TaskLite | nul
 
 async function defaultWakeOriginSession(channel: string, notice: string): Promise<void> {
   await wakeSession(channel, notice, `askmgr_${Date.now().toString(36)}`);
+}
+
+function questionFromFact(
+  fact: Extract<ProductionTopologyFact, { kind: 'question' }>,
+): PendingQuestion {
+  return {
+    questionId: fact.question_id, fromThreadId: fact.asker_thread_id,
+    fromTaskId: fact.asker_task_id, managerThreadId: fact.manager_thread_id,
+    channel: fact.origin_channel, awaitingHuman: fact.manager_thread_id === null,
+    project: fact.project, question: fact.question, answer: null, answerFactId: null,
+    createdAt: Date.parse(fact.occurred_at),
+  };
+}
+
+function applyAnswerFact(
+  fact: Extract<ProductionTopologyFact, { kind: 'answer' }>,
+): void {
+  const question = questions.get(fact.question_id);
+  if (!question) return;
+  if (fact.consumed_at !== null) {
+    questions.delete(fact.question_id);
+    return;
+  }
+  question.answer = fact.answer;
+  question.answerFactId = fact.fact_id;
+}
+
+function ensureQaHydrated(): void {
+  if (hydrated) return;
+  try {
+    const facts = readProductionTopologyFacts({ kinds: ['question', 'answer'] });
+    for (const fact of facts) {
+      if (fact.kind === 'question') questions.set(fact.question_id, questionFromFact(fact));
+      else if (fact.kind === 'answer') applyAnswerFact(fact);
+    }
+    for (const question of questions.values()) {
+      if (question.awaitingHuman && question.channel && question.answer === null) {
+        channelIndex.set(question.channel, question.questionId);
+      }
+    }
+    hydrated = true;
+  } catch (error) {
+    log.error(`manager Q&A durable reload failed: ${(error as Error).message}`);
+  }
+}
+
+function recordQuestionFact(question: PendingQuestion): void {
+  recordProductionTopologyFact({
+    project: question.project, kind: 'question', question_id: question.questionId,
+    asker_thread_id: question.fromThreadId, asker_task_id: question.fromTaskId,
+    manager_thread_id: question.managerThreadId, origin_channel: question.channel,
+    question: question.question, projectable: question.managerThreadId !== null,
+  });
+}
+
+function recordAnswerFact(question: PendingQuestion, answererThreadId: string | null): void {
+  const fact = recordProductionTopologyFact({
+    project: question.project, kind: 'answer', question_id: question.questionId,
+    answerer_thread_id: answererThreadId, answerer_channel: question.channel,
+    asker_thread_id: question.fromThreadId, answer: question.answer ?? '', consumed_at: null,
+    projectable: question.managerThreadId !== null && answererThreadId !== null,
+  });
+  question.answerFactId = fact.fact_id;
 }
 
 /** Notice injected into the manager's pendingMessages — an AGENT-facing prompt (English, not i18n;
@@ -167,56 +239,85 @@ function newQuestionId(): string {
   return `q_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** Register a subtask's question and route it: to its manager (woken to answer), or — at the top of
- *  the tree — to a human via the origin channel. Returns a questionId the caller polls via getAnswer. */
-export async function askManager(threadId: string, question: string, deps: ManagerQaDeps = {}): Promise<AskResult> {
+function pendingQuestion(
+  thread: ThreadRecord, question: string, managerThreadId: string | null, channel: string | null,
+): PendingQuestion {
+  return {
+    questionId: newQuestionId(), fromThreadId: thread.id,
+    fromTaskId: thread.metadata?.taskId ?? null, managerThreadId, channel,
+    awaitingHuman: managerThreadId === null,
+    project: thread.metadata?.taskProject ?? thread.projectId,
+    question, answer: null, answerFactId: null, createdAt: Date.now(),
+  };
+}
+
+function persistQuestion(question: PendingQuestion): string | null {
+  questions.set(question.questionId, question);
+  try {
+    recordQuestionFact(question);
+    return null;
+  } catch (error) {
+    questions.delete(question.questionId);
+    return `question persistence failed: ${(error as Error).message}`;
+  }
+}
+
+async function askLiveManager(
+  thread: ThreadRecord, question: string, managerThreadId: string, deps: ManagerQaDeps,
+): Promise<AskResult> {
+  const record = pendingQuestion(thread, question, managerThreadId, null);
+  const error = persistQuestion(record);
+  if (error) return { ok: false, error };
+  await deliverToManager(managerThreadId, record, deps);
+  log.info(`ask_manager: ${thread.id} → manager ${managerThreadId} (${record.questionId})`);
+  return { ok: true, questionId: record.questionId, target: 'manager', managerThreadId };
+}
+
+function askOrigin(
+  thread: ThreadRecord, question: string, channel: string, deps: ManagerQaDeps,
+): AskResult {
+  const record = pendingQuestion(thread, question, null, channel);
+  const error = persistQuestion(record);
+  if (error) return { ok: false, error };
+  channelIndex.set(channel, record.questionId);
+  const wake = deps.wakeOriginSession ?? defaultWakeOriginSession;
+  Promise.resolve(wake(channel, buildOriginSessionNotice(record))).catch((wakeError: Error) =>
+    log.error(`ask_manager origin-wake on ${channel}: ${wakeError.message}`));
+  log.info(`ask_manager: ${thread.id} → origin session on ${channel} (${record.questionId})`);
+  return { ok: true, questionId: record.questionId, target: 'human', channel };
+}
+
+/** Register and route a subtask question to its nearest manager or origin session. */
+export async function askManager(
+  threadId: string, question: string, deps: ManagerQaDeps = {},
+): Promise<AskResult> {
+  ensureQaHydrated();
   const thread = threadStore.get(threadId);
   if (!thread) return { ok: false, error: 'calling thread not found (CORTEX_THREAD_ID stale?)' };
-  const q = (question ?? '').trim();
-  if (!q) return { ok: false, error: 'question must not be empty' };
-
+  const normalized = (question ?? '').trim();
+  if (!normalized) return { ok: false, error: 'question must not be empty' };
   const managerThreadId = resolveManagerThread(thread, deps);
-  const questionId = newQuestionId();
-
-  if (managerThreadId) {
-    const rec: PendingQuestion = {
-      questionId, fromThreadId: threadId, fromTaskId: thread.metadata?.taskId ?? null,
-      managerThreadId, channel: null, awaitingHuman: false, question: q, answer: null, createdAt: Date.now(),
-    };
-    questions.set(questionId, rec);
-    await deliverToManager(managerThreadId, rec, deps);
-    log.info(`ask_manager: ${threadId} → manager ${managerThreadId} (${questionId})`);
-    return { ok: true, questionId, target: 'manager', managerThreadId };
-  }
-
+  if (managerThreadId) return askLiveManager(thread, normalized, managerThreadId, deps);
   const channel = findEscalationChannel(thread, deps);
-  if (!channel) {
-    return { ok: false, error: 'no manager and no origin channel to escalate to — use your best judgment, record the assumption, or call thread_abort with a diagnosis' };
-  }
-  const rec: PendingQuestion = {
-    questionId, fromThreadId: threadId, fromTaskId: thread.metadata?.taskId ?? null,
-    managerThreadId: null, channel, awaitingHuman: true, question: q, answer: null, createdAt: Date.now(),
-  };
-  questions.set(questionId, rec);
-  // Arm the human backstop BEFORE waking the origin session: if that session decides it cannot
-  // answer and asks the human here, the human's reply must already be routable back (tryAnswerFromHuman).
-  channelIndex.set(channel, questionId);
-  // Top of the tree: wake the ORIGIN session (the agent that dispatched this work) and let it answer
-  // from its own context via answer_subtask, only consulting the human if it cannot. Fire-and-forget —
-  // wakeSession runs a full agent turn; the asking subtask's ask registration must not block on it.
-  const wake = deps.wakeOriginSession ?? defaultWakeOriginSession;
-  Promise.resolve(wake(channel, buildOriginSessionNotice(rec))).catch((e: Error) =>
-    log.error(`ask_manager origin-wake on ${channel}: ${e.message}`));
-  log.info(`ask_manager: ${threadId} → origin session on ${channel} (${questionId})`);
-  return { ok: true, questionId, target: 'human', channel };
+  if (channel) return askOrigin(thread, normalized, channel, deps);
+  return { ok: false, error: 'no manager and no origin channel to escalate to — use your best judgment, record the assumption, or call thread_abort with a diagnosis' };
 }
 
 /** Manager answers a subtask question. Records the answer and forces the manager back to waiting
  *  (pendingControl='wait') so it re-suspends on its still-live children at the next step boundary. */
-export async function submitAnswer(questionId: string, answer: string): Promise<{ ok: boolean; error?: string }> {
+export async function submitAnswer(
+  questionId: string, answer: string, options: { answererThreadId?: string | null } = {},
+): Promise<{ ok: boolean; error?: string }> {
+  ensureQaHydrated();
   const rec = questions.get(questionId);
-  if (!rec) return { ok: false, error: `unknown question ${questionId} (expired, already consumed, or lost on restart)` };
+  if (!rec) return { ok: false, error: `unknown question ${questionId} (expired or already consumed)` };
   rec.answer = answer ?? '';
+  const answerer = options.answererThreadId === undefined
+    ? rec.managerThreadId : options.answererThreadId;
+  try { recordAnswerFact(rec, answerer); } catch (error) {
+    rec.answer = null;
+    return { ok: false, error: `answer persistence failed: ${(error as Error).message}` };
+  }
   if (rec.managerThreadId) {
     await threadStore.mutate(rec.managerThreadId, (t) => {
       const m = (t.metadata ??= {});
@@ -231,9 +332,19 @@ export async function submitAnswer(questionId: string, answer: string): Promise<
 
 /** Poll for an answer. Consumes the entry once an answer is present (one-shot read by the poller). */
 export function getAnswer(questionId: string): { found: boolean; answered: boolean; answer: string | null } {
+  ensureQaHydrated();
   const rec = questions.get(questionId);
   if (!rec) return { found: false, answered: false, answer: null };
   if (rec.answer !== null) {
+    if (!rec.answerFactId) return { found: true, answered: false, answer: null };
+    try {
+      if (!consumeProductionTopologyAnswer(rec.answerFactId)) {
+        throw new Error(`answer fact ${rec.answerFactId} not found`);
+      }
+    } catch (error) {
+      log.error(`manager Q&A consume marker failed: ${(error as Error).message}`);
+      return { found: true, answered: false, answer: null };
+    }
     questions.delete(questionId);
     if (rec.channel) channelIndex.delete(rec.channel);
     return { found: true, answered: true, answer: rec.answer };
@@ -244,11 +355,17 @@ export function getAnswer(questionId: string): { found: boolean; answered: boole
 /** Interactive hook: if `channel` has a pending human-escalated question, consume this message as
  *  its answer and return true (the caller should then short-circuit normal turn handling). */
 export function tryAnswerFromHuman(channel: string, text: string): boolean {
+  ensureQaHydrated();
   const qid = channelIndex.get(channel);
   if (!qid) return false;
   const rec = questions.get(qid);
   if (!rec || !rec.awaitingHuman) { channelIndex.delete(channel); return false; }
   rec.answer = text ?? '';
+  try { recordAnswerFact(rec, null); } catch (error) {
+    rec.answer = null;
+    log.error(`human manager-Q&A persistence failed: ${(error as Error).message}`);
+    return false;
+  }
   log.info(`ask_manager: human answered ${qid} on ${channel}`);
   return true;
 }
