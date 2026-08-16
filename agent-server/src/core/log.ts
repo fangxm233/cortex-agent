@@ -26,9 +26,14 @@ type Level = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
 export interface ProcessLogPolicy {
   consoleToStderr: boolean;
   files: boolean;
+  console?: boolean;
 }
 
-let processLogPolicy: ProcessLogPolicy = { consoleToStderr: false, files: true };
+let processLogPolicy: ProcessLogPolicy = {
+  consoleToStderr: false,
+  files: true,
+  console: true,
+};
 
 export function setProcessLogPolicy(policy: ProcessLogPolicy): () => void {
   const previous = processLogPolicy;
@@ -142,8 +147,10 @@ function writeConsole(level: Level, prefix: string, args: unknown[]): void {
 function write(level: Level, mod: string, args: unknown[]): void {
   const ts = new Date().toLocaleTimeString('en-GB', { hour12: false });
   const prefix = `[${mod} ${ts}]`;
-  try { writeConsole(level, prefix, args); }
-  catch { /* stderr/stdout may be a broken pipe */ }
+  if (processLogPolicy.console !== false) {
+    try { writeConsole(level, prefix, args); }
+    catch { /* stderr/stdout may be a broken pipe */ }
+  }
   if (!processLogPolicy.files) return;
   const line = `${prefix} ${level} ${args.map(formatArg).join(' ')}\n`;
   try { getStream().write(line); } catch { /* don't crash on write failure */ }

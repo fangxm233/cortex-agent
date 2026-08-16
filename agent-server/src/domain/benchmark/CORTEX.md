@@ -19,7 +19,7 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | policy-compiler.ts | 核心 | Compiles benchmark trial policy from declared arm limits |
 | production-evidence-export.ts | 核心 | Atomically publishes production evidence v2 |
 | production-evidence-journal.ts | 核心 | Verifies production journals for projection |
-| production-evidence-projection.ts | 核心 | Projects durable facts and token usage into v2 bytes |
+| production-evidence-projection.ts | 核心 | Validates launcher input and projects v2 bytes |
 | production-evidence-topology.ts | 核心 | Validates durable production attempt topology |
 | proposal-seal.ts | 核心 | Stores and seals task proposals |
 | resolved-policy.ts | 类型 | Defines resolved trial policy |

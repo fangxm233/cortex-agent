@@ -6,7 +6,7 @@ They support packaging and manual verification outside the running daemon.
 | filename | role | function |
 |---|---|---|
 | benchmark-pi-provider-discovery.ts | benchmark | measures non-blocking PI provider refresh |
-| copy-assets.js | build | makes package CLIs executable and copies hooks |
+| copy-assets.js | build | makes package command binaries executable and copies hooks |
 | copy-web-dist.js | build | stages the built web UI into the package |
 | install-bundled-dependencies.mjs | build | Synchronizes packaged runtime dependencies |
 | lint-no-slack-shortcodes.ts | lint | flags Slack emoji shortcodes in source |

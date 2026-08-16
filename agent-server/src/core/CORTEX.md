@@ -19,7 +19,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | i18n.ts | core | resolves localized messages by key |
 | icons.ts | data | provides the semantic icon character set |
 | json-repository.ts | core | reads and writes cached JSON stores |
-| log.ts | core | creates loggers with process-scoped sink policy |
+| log.ts | core | creates loggers with process-scoped console and file policy |
 | mcp-tool-gate.ts | policy | canonicalizes and enforces MCP tool allowlists |
 | paths.ts | config | defines install, data, and config paths |
 | pi-session-filename.ts | util | parses and selects PI transcript filenames |

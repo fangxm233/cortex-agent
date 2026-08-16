@@ -1,5 +1,5 @@
 // input:  durable production attempts and launcher-owned arm facts
-// output: atomic v2 export, token, failure, and mirror coverage
+// output: input refusal, atomic v2, token and mirror coverage
 // pos:    Production terminal/composite exporter contract tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -287,6 +287,20 @@ function managerScenario(root: string, qa: boolean) {
 }
 
 describe('production evidence export', () => {
+  it('rejects malformed or incomplete launcher input before touching output', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-input-invalid-'));
+    try {
+      for (const input of [null, {}, { outputDirectory: path.join(root, 'evidence') }]) {
+        await expect(exportProductionBenchmarkEvidence(
+          input as ProductionEvidenceExportInput, sources([]),
+        )).rejects.toThrow(/production evidence export failed: .*missing|input must be an object/i);
+      }
+      expect(fs.readdirSync(root)).toEqual([]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     ['direct', false, false],
     ['coder-review', false, false],

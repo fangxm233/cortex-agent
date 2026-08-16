@@ -11,6 +11,7 @@ import { spawnSync } from 'node:child_process';
 import {
   PRODUCTION_EVIDENCE_SOURCES,
   ProductionEvidenceExportError,
+  assertProductionEvidenceExportInput,
   projectProductionBenchmarkEvidence,
   type ProductionEvidenceExportInput,
   type ProductionEvidenceProjection,
@@ -130,6 +131,7 @@ export async function exportProductionBenchmarkEvidence(
   input: ProductionEvidenceExportInput,
   sources: ProductionEvidenceSources = PRODUCTION_EVIDENCE_SOURCES,
 ): Promise<ProductionEvidenceExportResult> {
+  assertProductionEvidenceExportInput(input);
   const outputPath = path.resolve(input.outputDirectory);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true, mode: 0o700 });
   if (outputExists(outputPath)) fail(`output directory exists: ${outputPath}`);

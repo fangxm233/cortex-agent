@@ -1,15 +1,17 @@
 # CLI 参考 {#cli-reference}
 
 
-Cortex 提供三个可执行文件，在 `agent-server/package.json` 中注册：
+Cortex 提供五个可执行文件，在 `agent-server/package.json` 中注册：
 
 | 可执行文件 | 入口点 | 用途 |
 |---|---|---|
-| `cortex` | `dist/entry/cli.js` | 服务器管理和初始化 |
+| `cortex` | `dist/entry/cortex-cli.js` | 服务器管理和初始化 |
+| `cortex-evidence-export` | `dist/entry/production-evidence-export-cli.js` | 导出生产 benchmark evidence v2 |
+| `cortex-hook` | `dist/entry/hook-cli.js` | 检查 hook 并处理阻塞式用户询问 |
 | `cortex-task` | `dist/domain/tasks/system/task-cli.js` | 任务系统读取和修改 |
 | `cortex-run` | `dist/domain/tasks/system/cortex-run.js` | 远程命令分发 |
 
-三个都接受 `--help`（或 `-h`）打印用法。`cortex task` 子命令直接委托给 `cortex-task`。
+五个都接受 `--help`（或 `-h`）打印用法。`cortex task` 子命令直接委托给 `cortex-task`。
 
 ---
 
@@ -124,6 +126,41 @@ cortex auth provider remove --name my-vllm --dry-run
 |---|---|
 | 0 | 成功 |
 | 1 | 错误（无效命令、缺少配置、运行时失败） |
+
+---
+
+## cortex-evidence-export
+
+```
+cortex-evidence-export --input-file <路径|->
+```
+
+从 `CORTEX_HOME` 下的生产 store 发布不可变的 terminal/composite benchmark evidence v2。
+命令初始化生产 attempt identity 与 journal store，加载 `data/executions.json` 和
+`data/threads.json`，读取归因后的 cost、任务状态与生产 topology，再把验证和原子发布委托给
+`exportProductionBenchmarkEvidence`。它不会导入 benchmark checkout 源码或 standalone
+benchmark runtime。
+
+`--input-file` 接收 JSON 编码的 `ProductionEvidenceExportInput`；传 `-` 表示从 stdin 读取。
+所有字段都由 launcher 持有：`outputDirectory`、`project`、`trialId`、`rootRunId`、
+`armName`、`armCanonicalSha256`、`bundleManifestHash`、`mode`、`expectedRoles`、
+`managerQa`、`limits`、`proxyExport`，以及可选的 `evaluatedChecks`。发布前会验证 hash、
+mode、role 集合、limit、proxy trial identity 和 predicate 结果。输入缺失或格式错误、持久记录
+不完整、或输出目录已存在时，命令以退出码 `1` fail closed。
+
+```bash
+cortex-evidence-export --input-file production-evidence.json
+cat production-evidence.json | cortex-evidence-export --input-file -
+```
+
+成功时向 stdout 写入一个 JSON 对象：
+
+```json
+{"ok":true,"directory":"/evidence/run-1","composite_path":"/evidence/run-1/composite-manifest.json","composite_sha256":"<sha256>","terminal_paths":["/evidence/run-1/execution-root.terminal.json"]}
+```
+
+失败时向 stderr 写入 `{"ok":false,"error":"..."}`，且不会发布部分目录。只有所有 terminal
+和 composite 字节都在隐藏 staging 目录内完成写入、fsync 和校验后，公开输出路径才会出现。
 
 ---
 

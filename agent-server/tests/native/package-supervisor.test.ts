@@ -1,5 +1,5 @@
 // input:  npm pack, package fixtures, native builder
-// output: package closure, synchronization, rollback proofs
+// output: package closure, binaries, synchronization and rollback
 // pos:    Verifies production packing and staging cleanup
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -193,7 +193,10 @@ test('npm pack produces an offline-installable package with a 0755 supervisor', 
   );
   assert.equal(fs.existsSync(path.join(installedPackage, '@clack/core/package.json')), true);
   assert.equal(fs.existsSync(path.join(installedPackage, 'cross-spawn/package.json')), true);
-  const cliEnvironment = { ...process.env, NODE_DISABLE_COMPILE_CACHE: '1' };
+  const cliEnvironment: NodeJS.ProcessEnv = {
+    ...process.env,
+    NODE_DISABLE_COMPILE_CACHE: '1',
+  };
   delete cliEnvironment.NODE_PATH;
   const cli = spawnSync(path.join(prefix, 'bin/cortex'), ['agent-run', '--help'], {
     cwd: root,
@@ -202,4 +205,14 @@ test('npm pack produces an offline-installable package with a 0755 supervisor', 
     env: cliEnvironment,
   });
   assert.equal(cli.status, 0, `${cli.stdout}\n${cli.stderr}`);
+  const evidence = spawnSync(
+    path.join(prefix, 'bin/cortex-evidence-export'), ['--help'], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 30_000,
+      env: cliEnvironment,
+    },
+  );
+  assert.equal(evidence.status, 0, `${evidence.stdout}\n${evidence.stderr}`);
+  assert.match(evidence.stdout, /--input-file <path\|->/);
 }, 300_000);
