@@ -420,9 +420,12 @@ function spawnAdapterAttempt(
   }));
   try { return { proc, tee, turnPromise: proc.send({ text: message, attachments }) }; }
   catch (error) {
-    attemptJournal?.onClose();
+    let evidenceError: unknown;
+    try { attemptJournal?.onClose(); } catch (closeError) { evidenceError = closeError; }
     void proc.close().catch(() => {});
-    throw error;
+    // An evidence close failure outranks the send failure: the run fails either
+    // way, and the evidence error is the one the verifier must not miss.
+    throw evidenceError ?? error;
   }
 }
 
