@@ -13,7 +13,6 @@ import {
   computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
   type IdentityJsonValue,
 } from './identity.js';
-import { mintAttemptId } from '../benchmark/attempt-record.js';
 import { roleSurfaceFromSpawnConfig } from './role-surface.js';
 
 const INPUT_SCHEMA = 'cortex-production-attempt-identity-input/1';
@@ -234,6 +233,13 @@ export class ProductionAttemptIdentityRepo {
     return this.records.get(executionId) ?? null;
   }
 
+  firstRootAttempt(rootThreadId: string): ProductionAttemptIdentityRecord | null {
+    for (const record of this.records.values()) {
+      if (record.thread_id === rootThreadId && record.root_thread_id === rootThreadId) return record;
+    }
+    return null;
+  }
+
   append(record: ProductionAttemptIdentityRecord): ProductionAttemptIdentityRecord {
     const existing = this.get(record.execution_id);
     if (existing) {
@@ -359,6 +365,18 @@ type AttemptModel = Pick<ProductionAttemptIdentityRecord,
   'profile_name' | 'backend' | 'provider' | 'requested_model' |
   'model_execution_identity_hash' | 'role_tool_surface_hash'>;
 
+function rootAttemptId(
+  repo: ProductionAttemptIdentityRepo,
+  attemptId: string,
+  threadId: string,
+  rootThreadId: string,
+): string {
+  const root = repo.firstRootAttempt(rootThreadId);
+  if (root) return root.attempt_id;
+  if (threadId === rootThreadId) return attemptId;
+  throw new Error('Production benchmark root attempt is missing before child adapter spawn');
+}
+
 function attemptLinkage(
   state: ActiveIdentityState,
   options: RunAgentOptions,
@@ -369,9 +387,10 @@ function attemptLinkage(
   const taskProject = options.taskId ? requiredOption(options.taskProject, 'task project') : null;
   const generation = options.taskId
     ? requiredOption(options.taskGeneration, 'dispatch generation') : null;
+  const attemptId = `execution-${executionId}`;
   return {
-    attempt_id: mintAttemptId(state.input.root_run_id, threadId),
-    root_attempt_id: mintAttemptId(state.input.root_run_id, rootThreadId),
+    attempt_id: attemptId,
+    root_attempt_id: rootAttemptId(state.repo, attemptId, threadId, rootThreadId),
     execution_id: executionId,
     thread_id: threadId,
     parent_thread_id: nullableText(options.parentThreadId ?? null, 'parent thread identity'),
@@ -447,10 +466,21 @@ function buildRecord(
   };
 }
 
+function isBenchmarkObservable(options: RunAgentOptions): boolean {
+  return [options.templateName, options.agentSlotId, options.profileName]
+    .some(value => typeof value === 'string' && value.startsWith('benchmark-'));
+}
+
 export function freezeProductionAttemptIdentity(
   input: FreezeAttemptInput,
 ): ProductionAttemptIdentityRecord | null {
-  if (!initialized || !activeState) return null;
+  if (!initialized) return null;
+  if (!activeState) {
+    if (isBenchmarkObservable(input.options)) {
+      throw new Error('Production benchmark launcher identity input is missing');
+    }
+    return null;
+  }
   assertStableState(activeState);
   const record = buildRecord(activeState, input);
   const existing = activeState.repo.get(record.execution_id);
