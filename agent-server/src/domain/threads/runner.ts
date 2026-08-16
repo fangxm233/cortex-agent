@@ -594,9 +594,8 @@ function buildThreadAgentOptions(
   const { agentConfig, execution, profileName } = stepCtx;
   const meta = ctx.meta;
   return {
-    channel: opts.channel, executionId: execution.id,
-    sessionId: stepCtx.resumeSessionId, trackSessionId: stepCtx.trackSessionId,
-    sessionKey: stepCtx.sessionKey,
+    channel: opts.channel, executionId: execution.id, sessionId: stepCtx.resumeSessionId,
+    trackSessionId: stepCtx.trackSessionId, sessionKey: stepCtx.sessionKey,
     files: stepCtx.isFirstStep && !stepCtx.interruptedResume ? (opts.files || []) : [],
     profileName, project: threadStore.get(threadId)?.projectId,
     productionBenchmarkEvidenceContext: meta?.productionBenchmarkEvidenceContext ?? null,
