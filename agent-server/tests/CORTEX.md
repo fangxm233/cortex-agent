@@ -10,7 +10,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | _test-home-root.ts | setup | Allocates test homes and sweeps stale leftovers |
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
-| agent-adapter/ | subdir | backend adapter and event normalizer tests |
+| agent-adapter/ | subdir | backend adapters, usage pull and event normalization |
 | agent-adapter-claude.test.ts | test | Claude CLI, MCP gates, fallback, hooks and proxy |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-custom-catalog.test.ts | test | user-defined providers reaching the spawn catalog |

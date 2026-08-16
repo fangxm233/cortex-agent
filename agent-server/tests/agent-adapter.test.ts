@@ -63,14 +63,18 @@ test('Capability enum string values are stable (DR-0008 §3.2 contract)', () => 
   assert.equal(Capability.StreamingDeltas, 'streaming-deltas');
   assert.equal(Capability.MidTurnInject, 'mid-turn-inject');
   assert.equal(Capability.BenchmarkLongMcpCall, 'benchmark-long-mcp-call');
+  assert.equal(Capability.Usage, 'usage');
 });
 
-test('both live backends declare the eleven shared capabilities', () => {
+test('Claude alone declares account usage pull capability', () => {
   const shared = new Set(Object.values(Capability));
+  shared.delete(Capability.Usage);
 
   assert.equal(shared.size, 11);
-  assert.deepEqual(CAPABILITIES_BY_BACKEND.claude, shared);
+  assert.deepEqual(CAPABILITIES_BY_BACKEND.claude, new Set([...shared, Capability.Usage]));
   assert.deepEqual(CAPABILITIES_BY_BACKEND.pi, shared);
+  assert.equal(typeof getAdapter('claude').getUsage, 'function');
+  assert.equal(getAdapter('pi').getUsage, undefined);
 });
 
 test('both backends declare the benchmark long MCP call capability', () => {
@@ -90,6 +94,7 @@ test('CAPABILITIES_BY_BACKEND encodes the Claude and PI capability matrix', () =
   assert.equal(c.has(Capability.SystemPromptOverride), true);
   assert.equal(c.has(Capability.SessionResume), true);
   assert.equal(c.has(Capability.ToolAllowlist), true);
+  assert.equal(c.has(Capability.Usage), true);
 
   assert.equal(p.has(Capability.Hooks), true);
   assert.equal(p.has(Capability.Plugins), true);
@@ -100,6 +105,7 @@ test('CAPABILITIES_BY_BACKEND encodes the Claude and PI capability matrix', () =
   assert.equal(p.has(Capability.AskUserQuestion), true);
   assert.equal(p.has(Capability.SessionResume), true);
   assert.equal(p.has(Capability.MidTurnInject), true);
+  assert.equal(p.has(Capability.Usage), false);
 });
 
 test('getAdapter returns the same capability set as CAPABILITIES_BY_BACKEND', () => {

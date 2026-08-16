@@ -1,5 +1,5 @@
-// input:  Claude streams, spawn config, MCP tool gate, accounting
-// output: Claude turns, fallback events, and accounting
+// input:  Claude streams, spawn config, MCP gate, usage, accounting
+// output: Claude turns, account usage, fallback and accounting
 // pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -18,8 +18,8 @@ import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import { resolveMcpComposition } from '../types.js';
 import type {
   AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentProcess, AgentProcessSpawner,
-  AgentProcessSupervision, AgentSpawnConfig, Backend, ContinuationSink, InjectionAckSink,
-  McpComposition, SpawnedAgentProcess, UserMessage,
+  AgentProcessSupervision, AgentSpawnConfig, AgentUsageScope, Backend, ContinuationSink,
+  InjectionAckSink, McpComposition, SpawnedAgentProcess, UserMessage,
 } from '../types.js';
 import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
@@ -62,6 +62,7 @@ import {
   validateClaudeSupplementalMcpConfig,
   writeClaudeSupplementalMcpConfig,
 } from './mcp-config.js';
+import { collectClaudeUsage, type ClaudeUsageCollector } from './usage.js';
 
 const log = createLogger('claude-bridge');
 
@@ -1522,6 +1523,12 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
 export class ClaudeAdapter implements AgentAdapter {
   readonly backend: Backend = 'claude';
   readonly capabilities: Set<Capability> = CAPABILITIES_BY_BACKEND.claude;
+
+  constructor(private readonly usageCollector: ClaudeUsageCollector = collectClaudeUsage) {}
+
+  getUsage(scope: AgentUsageScope) {
+    return this.usageCollector(scope);
+  }
 
   spawn(config: AgentSpawnConfig): AgentProcess {
     // DR-0012: route to TUI implementation when profile selects it.
