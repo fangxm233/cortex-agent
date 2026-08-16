@@ -16,8 +16,7 @@ import {
 import { buildAgentSpawnConfig, filterChannelScopedPlugins } from './spawn-config.js';
 import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
 import {
-  freezeProductionAttemptIdentity, productionAttemptEvidenceEnabled,
-  type ProductionAttemptIdentityRecord,
+  freezeProductionAttemptIdentity, type ProductionAttemptIdentityRecord,
 } from '../agent-run/production-attempt-identity.js';
 import { createProductionAttemptJournalSink } from '../agent-run/production-attempt-journal.js';
 import { resolveProfileConfig } from './profile-manager.js';
@@ -592,17 +591,6 @@ function configureRunRoute(options: RunAgentOptions, config: AgentConfig): strin
   );
 }
 
-function recordPreflightAttempt(
-  message: string, options: RunAgentOptions, config: AgentConfig,
-): void {
-  if (!productionAttemptEvidenceEnabled(options)) return;
-  const adapter = getAdapter(config.backend as Backend);
-  const prepared = prepareAttemptEvidence(
-    adapter, message, options, config, configureRunRoute(options, config),
-  );
-  prepared.attemptJournal?.onClose();
-}
-
 export function runAgentOnce(message: string, options: RunAgentOptions, config: AgentConfig): AgentHandle {
   const anthropicBaseUrl = configureRunRoute(options, config);
   const adapter = getAdapter(config.backend as Backend);
@@ -626,7 +614,6 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
   if (configs.length <= 1) {
     const effectiveMode = configs[0].mode || 'api';
     if (configIsRateLimited(configs[0]) && !options.isUserInitiated) {
-      recordPreflightAttempt(message, trackedOptions, configs[0]);
       const result = rateLimitedResult(effectiveMode, resolveRateLimitProvider(configs[0]));
       notices.emitTerminalRateLimit(result);
       return {
@@ -655,7 +642,6 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
       const effectiveMode = config.mode || 'api';
       if (configIsRateLimited(config) && !options.isUserInitiated) {
         if (isLast) {
-          recordPreflightAttempt(message, attemptOptions, config);
           const result = rateLimitedResult(effectiveMode, resolveRateLimitProvider(config));
           notices.emitTerminalRateLimit(result);
           return result;

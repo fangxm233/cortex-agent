@@ -1,5 +1,5 @@
 // input:  facade, throttle, temp profiles, MockAdapter
-// output: provider identity, pre-flight evidence, notice regressions
+// output: provider identity, pre-flight skip, notice regressions
 // pos:    Facade pre-flight policy tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
@@ -157,12 +157,15 @@ test('allConfigsRateLimited returns false on unknown profile', async (t) => {
 
 /// --- runAgent pre-flight skip ---
 
-test('evidence-enabled preflight rate limit persists a zero-event attempt without spawning', async (t) => {
+test('evidence-enabled preflight rate limit creates no attempt evidence and keeps the refusal result', async (t) => {
   const rl = await initThrottle(['plan']);
   const identity = await import('../src/domain/agent-run/production-attempt-identity.js');
   const journals = await import('../src/domain/agent-run/production-attempt-journal.js');
-  const storePath = path.join(suiteHome, 'data', 'benchmark-attempt-identities.jsonl');
-  identity.initializeProductionAttemptIdentity({ storePath });
+  const dataDir = path.join(suiteHome, 'data');
+  const identityStorePath = path.join(dataDir, 'benchmark-attempt-identities.jsonl');
+  const journalStorePath = path.join(dataDir, 'benchmark-attempt-journals.jsonl');
+  const journalDir = path.join(dataDir, 'benchmark-attempt-journals');
+  identity.initializeProductionAttemptIdentity({ storePath: identityStorePath });
   t.onTestFinished(() => {
     identity.resetProductionAttemptIdentity();
     rl._testReset();
@@ -186,10 +189,12 @@ test('evidence-enabled preflight rate limit persists a zero-event attempt withou
   }).promise;
 
   assert.equal(result.rateLimited, true);
-  const evidence = journals.getProductionAttemptJournal('exec-preflight');
-  assert.ok(evidence);
-  assert.equal(evidence.event_count, 0);
-  assert.equal(existsSync(evidence.journal_path), true);
+  assert.equal(result.sessionId, null);
+  assert.equal(identity.getProductionAttemptIdentity('exec-preflight'), null);
+  assert.equal(journals.getProductionAttemptJournal('exec-preflight'), null);
+  assert.equal(existsSync(identityStorePath), false);
+  assert.equal(existsSync(journalStorePath), false);
+  assert.equal(existsSync(journalDir), false);
 });
 
 test('runAgent single-config path skips runAgentOnce when mode rate-limited', async (t) => {
