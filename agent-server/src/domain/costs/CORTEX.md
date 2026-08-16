@@ -10,4 +10,4 @@ Cost domain — persists attempt-attributed accounting and pauses work during pr
 | rate-limit-throttle.ts | core | Publishes provider windows, auto-resume, and manual early release |
 | resume-registry.ts | core | Tracks provider-attributed interrupted work |
 | usage-service.ts | service | Collects provider quota and gateway spend safely |
-| usage-store.ts | core | Persists latest backend-neutral provider usage |
+| usage-store.ts | core | Atomically persists newest provider observations |
