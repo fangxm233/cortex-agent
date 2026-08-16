@@ -46,10 +46,10 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | pi-rpc-cli.mjs | fixture | answers one PI rpc turn and records its env |
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
-| production-attempt-identity.test.ts | test | proves immutable pre-spawn identity, reload and drift refusal |
-| production-attempt-journal.test.ts | test | proves durable normalized event journals per attempt |
-| production-benchmark-evidence-context.test.ts | test | proves typed context gating, root binding and collision refusal |
-| production-accounting-attribution.test.ts | test | proves durable per-attempt request and token attribution |
+| production-attempt-identity.test.ts | test | proves pre-spawn root linkage, reload and drift refusal |
+| production-attempt-journal.test.ts | test | proves spawn-linked normalized journals per attempt |
+| production-benchmark-evidence-context.test.ts | test | proves context gating, spawn linkage and collision refusal |
+| production-accounting-attribution.test.ts | test | proves concurrent spawn-linked request and token attribution |
 | role-surface.test.ts | test | verifies prompt, plugin, skill, MCP and hook identity |
 | run-config.test.ts | test | proves schema dispatch, roles, argv and MCP inputs |
 | standalone-architecture.test.ts | test | rejects shared-state standalone composition |

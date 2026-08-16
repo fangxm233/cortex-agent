@@ -1,5 +1,5 @@
 // input:  production facade seam, injected benchmark identity, temp plugins
-// output: pre-spawn identity, drift refusal, and reload proofs
+// output: pre-spawn identity, root linkage, drift, and reload proofs
 // pos:    Verifies production benchmark attempt identity freezing
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -500,7 +500,7 @@ test('refuses reuse of an execution identity with a changed resolved spawn surfa
 test('rejects incomplete persisted identity records on reload', () => {
   fs.mkdirSync(path.dirname(storePath()), { recursive: true });
   fs.writeFileSync(storePath(), `${JSON.stringify({
-    schema_version: 'cortex-production-attempt-identity/1',
+    schema_version: 'cortex-production-attempt-identity/2',
     execution_id: 'exec-incomplete', attempt_id: 'attempt-exec-incomplete',
   })}\n`);
   assert.throws(() => initializeProductionAttemptIdentity({

@@ -1,5 +1,5 @@
-// input:  production facade, frozen identity, cost repo
-// output: attempt accounting persistence and reload proofs
+// input:  production facade, spawn-linked identity, cost repo
+// output: concurrent attempt accounting persistence and reload proofs
 // pos:    Verifies durable request and token attribution
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -122,9 +122,11 @@ async function runAttempt(
   event: NormalizedEvent,
 ): Promise<void> {
   const resolved = profile(backend);
+  const isRoot = suffix === 'zero';
   await facadeTest.runWithAdapter(adapter(backend, event), 'work', {
     trackSessionId: `session-${suffix}`, executionId: `exec-${suffix}`,
-    threadId: `thr-${suffix}`, rootThreadId: `thr-${suffix}`, parentThreadId: null,
+    threadId: `thr-${suffix}`, rootThreadId: 'thr-zero',
+    parentThreadId: isRoot ? null : 'thr-zero',
     taskId: `task-${suffix}`, taskProject: 'cortex-self', taskGeneration: `generation-${suffix}`,
     templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct', stage: null,
     profileName: resolved.name, resolvedProfileConfig: resolved,
