@@ -193,6 +193,8 @@ class ClaudeUsageRequest {
         this.deps.timeoutMs ?? CLAUDE_USAGE_TIMEOUT_MS,
       );
       this.child.stderr.on('data', this.onStderr);
+      // Keep this sink through kill so a late EPIPE cannot escape as an uncaught stream error.
+      this.child.stdin.on('error', this.fail);
       this.child.once('close', this.onClose);
       this.child.once('error', this.fail);
       this.lines.on('line', this.onLine);
@@ -204,9 +206,13 @@ class ClaudeUsageRequest {
     const request = {
       type: 'control_request', request_id: this.requestId, request: { subtype: 'get_usage' },
     };
-    this.child.stdin.write(`${JSON.stringify(request)}\n`, (error) => {
-      if (error) this.fail(error);
-    });
+    try {
+      this.child.stdin.write(`${JSON.stringify(request)}\n`, (error) => {
+        if (error) this.fail(error);
+      });
+    } catch (error) {
+      this.fail(error instanceof Error ? error : new Error(String(error)));
+    }
   }
 
   private cleanup(): void {
