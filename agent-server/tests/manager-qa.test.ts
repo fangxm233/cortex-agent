@@ -1,9 +1,7 @@
-// input:  Node test runner + orchestration/manager-qa daemon-side ask/answer logic
-// output: askManager (manager resolution + delivery + resume / top-of-tree origin-session wake +
-//         human backstop) / submitAnswer / getAnswer / tryAnswerFromHuman / buildQuestionNotice /
-//         buildOriginSessionNotice tests
-// pos:    Verify the synchronous ask_manager / answer_subtask Q&A channel (subtask → manager up-ask)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Vitest, manager Q&A routing, production topology ledger
+// output: manager/human routing, nested escalation, and reload tests
+// pos:    Verifies synchronous and durable manager Q&A behavior
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
@@ -16,7 +14,12 @@ import {
   buildQuestionNotice,
   buildOriginSessionNotice,
   _testResetManagerQa,
+  _testSimulateManagerQaRestart,
 } from '../src/orchestration/manager-qa.js';
+import {
+  projectManagerQaEdges,
+  readProductionTopologyFacts,
+} from '../src/domain/tasks/production-topology-ledger.js';
 import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
 
 const createdThreadIds = new Set<string>();
@@ -211,4 +214,81 @@ test('buildQuestionNotice carries the subtask id, the question, and answer_subta
   assert.match(notice, /Which dataset split\?/);
   assert.match(notice, /answer_subtask/);
   assert.match(notice, /CH9/);
+});
+
+test('durable Q&A survives daemon-memory loss and remains one-shot after answer consumption', async () => {
+  _testResetManagerQa();
+  const project = `_qa_reload_${seq++}`;
+  const managerTaskId = `M${seq++}`;
+  const childTaskId = `C${seq++}`;
+  const manager = makeThread({
+    status: 'waiting', projectId: project,
+    metadata: { taskId: managerTaskId, taskProject: project, trigger: 'task-dispatch' },
+  });
+  const child = makeThread({
+    status: 'running', projectId: project,
+    metadata: { taskId: childTaskId, taskProject: project, trigger: 'task-dispatch' },
+  });
+  const readTask = (_project: string | null, taskId: string) => taskId === childTaskId
+    ? { parent: managerTaskId, origin_channel: null }
+    : { parent: null, origin_channel: null };
+
+  const asked = await askManager(child.id, 'Which durable path?', { readTask, resume: () => {} });
+  assert.equal(asked.ok, true);
+  const questionId = asked.ok ? asked.questionId : '';
+  _testSimulateManagerQaRestart();
+  assert.equal((await submitAnswer(questionId, 'Use the ledger.')).ok, true);
+  _testSimulateManagerQaRestart();
+  assert.deepEqual(getAnswer(questionId), { found: true, answered: true, answer: 'Use the ledger.' });
+  _testSimulateManagerQaRestart();
+  assert.deepEqual(getAnswer(questionId), { found: false, answered: false, answer: null });
+
+  const facts = readProductionTopologyFacts({ project });
+  assert.deepEqual(facts.map((fact) => fact.kind), ['question', 'answer']);
+  assert.equal(facts[1].kind === 'answer' && facts[1].consumed_at !== null, true);
+  assert.equal(threadStore.get(manager.id)?.metadata?.pendingQuestions?.length ?? 0, 0);
+});
+
+test('nested manager escalation persists and projects real attempt-to-attempt question/answer edges', async () => {
+  _testResetManagerQa();
+  const project = `_qa_nested_${seq++}`;
+  const rootTask = `R${seq++}`;
+  const managerTask = `M${seq++}`;
+  const childTask = `C${seq++}`;
+  const grand = makeThread({
+    status: 'waiting', projectId: project,
+    metadata: { taskId: rootTask, taskProject: project, trigger: 'task-dispatch' },
+  });
+  const manager = makeThread({
+    status: 'waiting', projectId: project,
+    metadata: { taskId: managerTask, taskProject: project, trigger: 'task-dispatch' },
+  });
+  const child = makeThread({
+    status: 'running', projectId: project,
+    metadata: { taskId: childTask, taskProject: project, trigger: 'task-dispatch' },
+  });
+  const readTask = (_project: string | null, taskId: string) => ({
+    parent: taskId === childTask ? managerTask : taskId === managerTask ? rootTask : null,
+    origin_channel: null,
+  });
+
+  const childAsk = await askManager(child.id, 'A or B?', { readTask, resume: () => {} });
+  const managerAsk = await askManager(manager.id, 'Need higher intent', { readTask, resume: () => {} });
+  assert.equal(childAsk.ok, true);
+  assert.equal(managerAsk.ok, true);
+  assert.equal((await submitAnswer(
+    childAsk.ok ? childAsk.questionId : '', 'A', { answererThreadId: manager.id },
+  )).ok, true);
+  assert.equal((await submitAnswer(
+    managerAsk.ok ? managerAsk.questionId : '', 'Higher answer', { answererThreadId: grand.id },
+  )).ok, true);
+
+  const threadIds = new Set([child.id, manager.id, grand.id]);
+  const projection = projectManagerQaEdges(project, threadIds, (threadId) => `thread-${threadId}`);
+  assert.deepEqual(projection.edges, [
+    { kind: 'question', from: { ref: 'attempt', id: `thread-${child.id}` }, to: { ref: 'attempt', id: `thread-${manager.id}` } },
+    { kind: 'question', from: { ref: 'attempt', id: `thread-${manager.id}` }, to: { ref: 'attempt', id: `thread-${grand.id}` } },
+    { kind: 'answer', from: { ref: 'attempt', id: `thread-${manager.id}` }, to: { ref: 'attempt', id: `thread-${child.id}` } },
+    { kind: 'answer', from: { ref: 'attempt', id: `thread-${grand.id}` }, to: { ref: 'attempt', id: `thread-${manager.id}` } },
+  ]);
 });

@@ -22,11 +22,11 @@ export type AttemptDisposition = typeof ATTEMPT_DISPOSITIONS[number];
 /**
  * The endpoints of §9.2's edges are heterogeneous — `depends_on` is task→task, `decompose` is
  * attempt→task, `dispatch` task→attempt, `proposal` attempt→proposal, `seal` proposal→outcome — so
- * a bare string endpoint cannot express them. `direct-parent` is retained only to classify the
- * historical question/answer kinds; those kinds are out of the production v2 wire contract.
+ * a bare string endpoint cannot express them. Production v2 has no synthetic direct-parent node;
+ * question/answer edges resolve between persisted attempts or are omitted.
  */
 export const ENDPOINT_REF_KINDS = [
-  'attempt', 'task', 'proposal', 'outcome', 'direct-parent',
+  'attempt', 'task', 'proposal', 'outcome',
 ] as const;
 export type EndpointRefKind = typeof ENDPOINT_REF_KINDS[number];
 
@@ -34,8 +34,7 @@ export type EndpointRef =
   | { readonly ref: 'attempt'; readonly id: string }
   | { readonly ref: 'task'; readonly id: string }
   | { readonly ref: 'proposal'; readonly id: string }
-  | { readonly ref: 'outcome'; readonly id: string }
-  | { readonly ref: 'direct-parent' };
+  | { readonly ref: 'outcome'; readonly id: string };
 
 /**
  * THIRTEEN kinds. §9.2's table has twelve ROWS (`design:2680`-`:2691`) but its last row names two
@@ -51,26 +50,27 @@ export type AttemptEdgeKind = typeof ATTEMPT_EDGE_KINDS[number];
 
 export const DURABLE_ATTEMPT_EDGE_KINDS = [
   'spawn', 'decompose', 'depends_on', 'dispatch', 'delivery', 'verdict', 'rework',
+  'question', 'answer',
 ] as const satisfies readonly AttemptEdgeKind[];
 
 export const OUT_OF_CONTRACT_ATTEMPT_EDGE_KINDS = [
-  'proposal', 'seal', 'supersede', 'rotation', 'question', 'answer',
+  'proposal', 'seal', 'supersede', 'rotation',
 ] as const satisfies readonly AttemptEdgeKind[];
 
 export const ATTEMPT_EDGE_PRODUCTION_SUPPORT = Object.freeze({
-  spawn: { production: true, source: 'thread_metadata' },
-  decompose: { production: true, source: 'task_ancestry' },
-  depends_on: { production: true, source: 'task_dependencies' },
-  dispatch: { production: true, source: 'dispatch_generation' },
+  spawn: { production: true, source: 'production_topology_ledger' },
+  decompose: { production: true, source: 'production_topology_ledger' },
+  depends_on: { production: true, source: 'production_topology_ledger' },
+  dispatch: { production: true, source: 'production_topology_ledger' },
   proposal: { production: false, producer_stage: 'out_of_contract' },
   seal: { production: false, producer_stage: 'out_of_contract' },
-  delivery: { production: true, source: 'task_callback_ledger' },
-  verdict: { production: true, source: 'task_acceptance_ledger' },
-  rework: { production: true, source: 'task_acceptance_ledger' },
+  delivery: { production: true, source: 'production_topology_ledger' },
+  verdict: { production: true, source: 'production_topology_ledger' },
+  rework: { production: true, source: 'production_topology_ledger' },
   supersede: { production: false, producer_stage: 'out_of_contract' },
   rotation: { production: false, producer_stage: 'out_of_contract' },
-  question: { production: false, producer_stage: 'P2-durable-qa' },
-  answer: { production: false, producer_stage: 'P2-durable-qa' },
+  question: { production: true, source: 'production_topology_ledger' },
+  answer: { production: true, source: 'production_topology_ledger' },
 } satisfies Record<AttemptEdgeKind, { production: boolean; source?: string; producer_stage?: string }>);
 
 const DURABLE_ATTEMPT_EDGE_KIND_SET = new Set<AttemptEdgeKind>(DURABLE_ATTEMPT_EDGE_KINDS);
@@ -108,8 +108,8 @@ export const EDGE_ENDPOINT_LEGALITY: Readonly<Record<AttemptEdgeKind, EdgeEndpoi
     rework: { from: ['attempt'], to: ['attempt'] },
     supersede: { from: ['attempt'], to: ['attempt'] },
     rotation: { from: ['attempt'], to: ['attempt'] },
-    question: { from: ['attempt'], to: ['attempt', 'direct-parent'] },
-    answer: { from: ['attempt', 'direct-parent'], to: ['attempt'] },
+    question: { from: ['attempt'], to: ['attempt'] },
+    answer: { from: ['attempt'], to: ['attempt'] },
   });
 
 /**

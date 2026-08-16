@@ -195,8 +195,7 @@ export class CompositeManifestError extends Error {
 // ---------------------------------------------------------------------------------------------
 
 function endpointId(ref: EndpointRef): string {
-  // G4-CM17 sorts `{"ref":"direct-parent"}` as `id = ""`, which is also its vertex key.
-  return ref.ref === 'direct-parent' ? '' : ref.id;
+  return ref.id;
 }
 
 function endpointKey(ref: EndpointRef): string {
@@ -366,7 +365,7 @@ export function buildCompositeManifest(input: BuildCompositeManifestInput): Comp
 // ---------------------------------------------------------------------------------------------
 
 function canonicalEndpoint(ref: EndpointRef): Record<string, unknown> {
-  return ref.ref === 'direct-parent' ? { ref: ref.ref } : { ref: ref.ref, id: ref.id };
+  return { ref: ref.ref, id: ref.id };
 }
 
 function canonicalEdge(edge: AttemptEdge): Record<string, unknown> {
@@ -535,7 +534,6 @@ export function validateCompositeManifest(
     switch (ref.ref) {
       case 'attempt': case 'proposal': case 'outcome': return attemptIds.has(ref.id);
       case 'task': return taskIds.has(ref.id);
-      case 'direct-parent': return attemptIds.has(manifest.roots?.root_attempt_id);
     }
   };
   for (const edge of edges) {

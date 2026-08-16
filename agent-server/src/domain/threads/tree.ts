@@ -1,11 +1,14 @@
-// input:  threadStore, thread-types
-// output: getRootThreadId / getTreeThreads / summarizeTree / checkSpawnGuards / buildThreadTree
-// pos:    Recursive thread-tree infrastructure (DR-0014) — tree identity, resource guards, tree view
+// input:  threadStore, thread types, production topology ledger
+// output: thread tree queries, guards, views, and durable spawn facts
+// pos:    Recursive thread-tree infrastructure
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import { createLogger } from '@core/log.js';
 import { threadStore } from '@store/thread-repo.js';
+import { recordProductionTopologyFact } from '@domain/tasks/production-topology-ledger.js';
 import type { ThreadRecord, ThreadStatus } from '@core/types/thread-types.js';
 
+const log = createLogger('thread-tree');
 const TERMINAL_STATUSES: ReadonlySet<ThreadStatus> = new Set(['completed', 'failed', 'cancelled', 'aborted']);
 
 export function isTerminalStatus(status: ThreadStatus): boolean {
@@ -133,6 +136,15 @@ export async function registerChildSpawn(parentThreadId: string, childThreadId: 
     (m.childThreadIds ??= []).push(childThreadId);
     if (wait) (m.waitingOn ??= []).push(childThreadId);
   });
+  const child = threadStore.get(childThreadId);
+  if (!child) return;
+  try {
+    recordProductionTopologyFact({
+      project: child.projectId, kind: 'spawn', parent_thread_id: parentThreadId, child_thread_id: childThreadId,
+    });
+  } catch (error) {
+    log.warn(`topology ledger spawn record failed: ${(error as Error).message}`);
+  }
 }
 
 // --- Tree view (observability) ---

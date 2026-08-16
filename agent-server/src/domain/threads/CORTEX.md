@@ -23,6 +23,6 @@ Consumed by the orchestration and UI layers through the index barrel.
 | local-runtime-scope.ts | runtime | Propagates local event policy across async callbacks |
 | hook-runner.ts | hook | Adapts lifecycle hooks to HookBus and hook agents |
 | thread-transcript.ts | record | records step messages, notices and tools |
-| tree.ts | tree | tracks thread trees and spawn resource guards |
+| tree.ts | tree | tracks thread trees, spawn facts and resource guards |
 | contract.ts | contract | builds delegation contracts and goal chains |
 | auto-thread.ts | util | decides auto compound and merges final outputs |

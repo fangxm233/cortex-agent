@@ -5,7 +5,7 @@ Also tracks dispatched runs, records acceptance verdicts, and recovers claims or
 
 | filename | role | function |
 |---|---|---|
-| acceptance-ledger.ts | core | Records child delivery verdicts |
+| acceptance-ledger.ts | core | Records delivery verdicts and rework facts |
 | archiver.ts | core | Archives completed tasks |
 | claim-recovery.ts | core | Recovers orphaned task claims |
 | dispatcher.ts | core | Selects tasks for agents |
@@ -14,6 +14,7 @@ Also tracks dispatched runs, records acceptance verdicts, and recovers claims or
 | mutator.ts | core | Applies task mutations |
 | parser.ts | adapter | Exports the task parser |
 | pending-tracker.ts | core | Tracks dispatched task state |
+| production-topology-ledger.ts | core | Persists manager lifecycle facts |
 | store.ts | adapter | Exports task persistence |
 | recommendation/ | subdir | Extracts task recommendations |
 | system/ | subdir | Provides task lifecycle operations |

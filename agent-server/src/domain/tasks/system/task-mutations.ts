@@ -1,15 +1,19 @@
-// input:  task schema, lifecycle locks, ids, templates
-// output: locked task creation and generation-fenced decomposition
+// input:  task schema, lifecycle locks, topology ledger
+// output: locked creation and generation-fenced decomposition facts
 // pos:    Task creation and decomposition persistence
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as fs from 'node:fs';
+import { createLogger } from '@core/log.js';
 import { type Task, type TaskGenerationExpectation } from '@core/task-parser.js';
 import { collectAllExistingHashes, generateHash } from './task-id-utils.js';
 import {
   editTask, findTask, getTasksPath, readTasks, VALID_PRIORITIES, validateTemplateName,
   withTaskFileMutationLock, writeTasks,
 } from './task-lifecycle-edit.js';
+import { recordProductionTopologyFact } from '../production-topology-ledger.js';
+
+const log = createLogger('task-mutations');
 
 // ── Provenance for session→task wake (Problem 1) ──
 // Captured from CORTEX_* / channel env at task-creation time so task.completed can wake the
@@ -140,6 +144,33 @@ const HEX_ID_RE = /^[0-9a-fA-F]{4}$/;
 interface DecomposeOptions {
   keepParent?: boolean;
   ownership?: TaskGenerationExpectation;
+}
+
+function recordDecompositionFacts(
+  project: string, parentTask: Task, childIds: readonly string[], keepParent: boolean,
+): void {
+  try {
+    const actorThreadId = process.env.CORTEX_THREAD_ID?.trim() || null;
+    if (!actorThreadId) return;
+    const childSet = new Set(childIds);
+    const children = readTasks(project).filter(task => childSet.has(task.id));
+    for (const child of children) {
+      recordProductionTopologyFact({
+        project, kind: 'decompose', actor_thread_id: actorThreadId,
+        parent_task_id: parentTask.id, child_task_id: child.id,
+      });
+      for (const dependency of child.depends_on) {
+        recordProductionTopologyFact({
+          project, kind: 'depends_on', task_id: child.id, dependency_task_id: dependency,
+        });
+      }
+      if (keepParent) recordProductionTopologyFact({
+        project, kind: 'depends_on', task_id: parentTask.id, dependency_task_id: child.id,
+      });
+    }
+  } catch (error) {
+    log.warn(`topology ledger record failed after decomposition: ${(error as Error).message}`);
+  }
 }
 
 function decomposeTaskUnlocked(
@@ -383,14 +414,19 @@ function decomposeTaskOwnedUnlocked(
   project: string, originalText: string | null, subtasks: DecomposeSubtaskInput[],
   taskId: string | null = null, options: DecomposeOptions = {},
 ) {
-  if (options.ownership) {
-    const found = findTask(readTasks(project), originalText, taskId);
-    if ('error' in found) return { success: false, message: found.error };
-    if (found.task.dispatch_generation !== options.ownership.generation) {
-      return { success: false, message: 'Stale task dispatch generation; decomposition ignored', stale: true };
-    }
+  const found = findTask(readTasks(project), originalText, taskId);
+  if (options.ownership && 'error' in found) return { success: false, message: found.error };
+  if (options.ownership && !('error' in found)
+    && found.task.dispatch_generation !== options.ownership.generation) {
+    return { success: false, message: 'Stale task dispatch generation; decomposition ignored', stale: true };
   }
-  return decomposeTaskUnlocked(project, originalText, subtasks, taskId, options);
+  const result = decomposeTaskUnlocked(project, originalText, subtasks, taskId, options);
+  if (result.success && !('error' in found)) {
+    recordDecompositionFacts(
+      project, found.task, result.child_ids ?? [], !!options.keepParent,
+    );
+  }
+  return result;
 }
 
 const addTask = lockProjectMutation(addTaskUnlocked);

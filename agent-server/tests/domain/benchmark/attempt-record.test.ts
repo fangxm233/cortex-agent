@@ -116,19 +116,23 @@ describe('AttemptEdge — the CLOSED union (§17 17.1.5)', () => {
     expect(Object.keys(ATTEMPT_EDGE_PRODUCTION_SUPPORT)).toEqual([...ATTEMPT_EDGE_KINDS]);
     expect([...DURABLE_ATTEMPT_EDGE_KINDS]).toEqual([
       'spawn', 'decompose', 'depends_on', 'dispatch', 'delivery', 'verdict', 'rework',
+      'question', 'answer',
     ]);
     expect([...OUT_OF_CONTRACT_ATTEMPT_EDGE_KINDS]).toEqual([
-      'proposal', 'seal', 'supersede', 'rotation', 'question', 'answer',
+      'proposal', 'seal', 'supersede', 'rotation',
     ]);
     expect(ATTEMPT_EDGE_PRODUCTION_SUPPORT.question).toEqual({
-      production: false, producer_stage: 'P2-durable-qa',
+      production: true, source: 'production_topology_ledger',
+    });
+    expect(ATTEMPT_EDGE_PRODUCTION_SUPPORT.answer).toEqual({
+      production: true, source: 'production_topology_ledger',
     });
     expect(new Set(ATTEMPT_EDGE_KINDS).size).toBe(13);
   });
 
-  it('EndpointRef is the closed five-member tagged union of (17.1.5)', () => {
+  it('EndpointRef is the closed production four-member tagged union', () => {
     expect([...ENDPOINT_REF_KINDS]).toEqual(
-      ['attempt', 'task', 'proposal', 'outcome', 'direct-parent'],
+      ['attempt', 'task', 'proposal', 'outcome'],
     );
   });
 
@@ -143,11 +147,10 @@ describe('AttemptEdge — the CLOSED union (§17 17.1.5)', () => {
     expect(EDGE_ENDPOINT_LEGALITY.spawn).toEqual({ from: ['attempt'], to: ['attempt'] });
   });
 
-  it('G4-CM15: only question/answer admit the id-less direct-parent endpoint', () => {
-    expect(EDGE_ENDPOINT_LEGALITY.question.to).toEqual(['attempt', 'direct-parent']);
-    expect(EDGE_ENDPOINT_LEGALITY.answer.from).toEqual(['attempt', 'direct-parent']);
-    const others = ATTEMPT_EDGE_KINDS.filter(kind => kind !== 'question' && kind !== 'answer');
-    for (const kind of others) {
+  it('G4-CM15: production question/answer require real attempt endpoints', () => {
+    expect(EDGE_ENDPOINT_LEGALITY.question).toEqual({ from: ['attempt'], to: ['attempt'] });
+    expect(EDGE_ENDPOINT_LEGALITY.answer).toEqual({ from: ['attempt'], to: ['attempt'] });
+    for (const kind of ATTEMPT_EDGE_KINDS) {
       const legality = EDGE_ENDPOINT_LEGALITY[kind];
       expect(legality.from, `${kind}.from`).not.toContain('direct-parent');
       expect(legality.to, `${kind}.to`).not.toContain('direct-parent');

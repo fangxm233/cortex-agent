@@ -14,7 +14,7 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | harbor_agent.py | adapter | Runs the production Harbor lifecycle and admission gate, bounded by the inner run's terminal marker |
 | host_evidence_validation.py | boundary | Validates host-owned evidence identity |
 | host_finalization.py | boundary | Validates host attestations and publishes the outer envelope |
-| inner_validation.py | boundary | Validates the production inner evidence v2 contract |
+| inner_validation.py | boundary | Validates production-ledger evidence v2 edges |
 | launcher/ | core | Selects arms and builds non-secret Harbor inputs |
 | proxy/ | network | Injects credentials through a bounded trial route |
 | scan/ | audit | Finds credential and host-identity leaks |

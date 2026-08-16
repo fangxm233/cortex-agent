@@ -14,6 +14,10 @@ import {
   ledgerPath, pendingDeliveries, readLedger, recordDelivered, recordVerdict,
   type LedgerEntry, type LedgerVerdict,
 } from '../../../src/domain/tasks/acceptance-ledger.js';
+import {
+  readProductionTopologyFacts,
+  recordProductionTopologyFact,
+} from '../../../src/domain/tasks/production-topology-ledger.js';
 
 let counter = 0;
 let project = '';
@@ -102,4 +106,43 @@ it('G4-N6 — `readLedger`\'s fail-open is RECORDED, not repaired, by this incre
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.writeFileSync(target, 'not json at all');
   assert.deepEqual(readLedger(project, PARENT), { parent: PARENT, project, children: {} });
+});
+
+it('records rejection and the correlated replacement attempt without changing ledger semantics', async () => {
+  recordProductionTopologyFact({
+    project, kind: 'dispatch', task_id: CHILD,
+    dispatch_generation: 'generation-1', thread_id: 'thr_child_1',
+  });
+  assert.equal(await recordDelivered(project, PARENT, CHILD, 'completed', {
+    parentThreadId: 'thr_manager', childThreadId: 'thr_child_1',
+  }), true);
+  recordProductionTopologyFact({
+    project, kind: 'dispatch', task_id: CHILD,
+    dispatch_generation: 'generation-race', thread_id: 'thr_not_delivered',
+  });
+  recordVerdict(project, PARENT, CHILD, 'rejected', 'tests fail', {
+    managerThreadId: 'thr_manager',
+  });
+  recordProductionTopologyFact({
+    project, kind: 'dispatch', task_id: CHILD,
+    dispatch_generation: 'generation-2', thread_id: 'thr_child_2',
+  });
+  assert.equal(await recordDelivered(project, PARENT, CHILD, 'completed', {
+    parentThreadId: 'thr_manager', childThreadId: 'thr_child_2',
+  }), true);
+
+  const lifecycle = readProductionTopologyFacts({ project }).filter((fact) => (
+    fact.kind === 'delivery' || fact.kind === 'verdict' || fact.kind === 'rework'
+  ));
+  assert.deepEqual(lifecycle.map((fact) => fact.kind), ['delivery', 'verdict', 'rework', 'delivery']);
+  const rework = lifecycle.find((fact) => fact.kind === 'rework');
+  assert.deepEqual(rework && {
+    rejected_thread_id: rework.rejected_thread_id,
+    replacement_thread_id: rework.replacement_thread_id,
+    rework_round: rework.rework_round,
+  }, {
+    rejected_thread_id: 'thr_child_1',
+    replacement_thread_id: 'thr_child_2',
+    rework_round: 1,
+  });
 });

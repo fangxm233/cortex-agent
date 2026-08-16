@@ -431,15 +431,27 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
     expect(codesOf(bad, managerContext)).toContain('edge_kind_out_of_contract');
   });
 
-  it('the id-less direct-parent endpoint is out of the production v2 edge contract', () => {
+  it('admits durable manager question/answer edges between real attempts', () => {
+    const withQa = managerManifest({
+      edges: [
+        { kind: 'decompose', from: { ref: 'attempt', id: 'run-r1' }, to: { ref: 'task', id: 't-child' } },
+        { kind: 'dispatch', from: { ref: 'task', id: 't-child' }, to: { ref: 'attempt', id: 'thread-c1' } },
+        { kind: 'question', from: { ref: 'attempt', id: 'thread-c1' }, to: { ref: 'attempt', id: 'run-r1' } },
+        { kind: 'answer', from: { ref: 'attempt', id: 'run-r1' }, to: { ref: 'attempt', id: 'thread-c1' } },
+      ],
+    });
+    expect(codesOf(withQa, managerContext)).toEqual([]);
+  });
+
+  it('rejects the historical id-less direct-parent Q&A endpoint', () => {
     const historical = managerManifest({
       edges: [
         { kind: 'decompose', from: { ref: 'attempt', id: 'run-r1' }, to: { ref: 'task', id: 't-child' } },
         { kind: 'dispatch', from: { ref: 'task', id: 't-child' }, to: { ref: 'attempt', id: 'thread-c1' } },
-        { kind: 'question', from: { ref: 'attempt', id: 'thread-c1' }, to: { ref: 'direct-parent' } },
+        { kind: 'question', from: { ref: 'attempt', id: 'thread-c1' }, to: { ref: 'direct-parent' } } as any,
       ],
     });
-    expect(codesOf(historical, managerContext)).toContain('edge_kind_out_of_contract');
+    expect(codesOf(historical, managerContext)).toContain('edge_endpoint_type_invalid');
   });
 
   // ---- §9.2 invariant 2 -------------------------------------------------------------------

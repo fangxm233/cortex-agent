@@ -1,18 +1,22 @@
-// Acceptance ledger — task-keyed record of child-result deliveries and verdicts (DR-0017 W1).
-// input:  core/task-node paths, core/atomic-write
-// output: ledgerPath / readLedger / recordDelivered / recordVerdict / pendingDeliveries
-// pos:    the cross-incarnation dedupe for TASK children (per-thread deliveredChildResults
-//         only dedupes within one thread incarnation). Semantics: delivery is
-//         at-least-once per manager incarnation until a verdict is recorded;
-//         'accepted' children never re-deliver; 'rejected' children re-open
-//         (verdict → pending, rework_round preserved) when they complete again after rework;
-//         'superseded' + superseded_by (D-10) record a child replaced by an accepted rerun.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  task-node paths, atomic writes, production topology ledger
+// output: delivery dedupe, verdicts, and correlated rework facts
+// pos:    Persistent task-child acceptance and delivery ledger
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { readFileSync, mkdirSync } from 'fs';
 import * as path from 'path';
 import { managerNodeDir } from '@core/task-node.js';
 import { atomicWriteSync } from '@core/atomic-write.js';
+import { createLogger } from '@core/log.js';
+import {
+  latestDeliveryFact,
+  latestDispatchFact,
+  readProductionTopologyFacts,
+  recordProductionTopologyFact,
+  type ProductionTopologyFact,
+} from './production-topology-ledger.js';
+
+const log = createLogger('acceptance-ledger');
 
 /** `superseded` is the fourth verdict (D-10): success requires every delivered child "accepted or
  *  superseded by an accepted replacement", which the three-value union cannot express — a replaced
@@ -61,11 +65,64 @@ function writeLedger(ledger: AcceptanceLedger): void {
   atomicWriteSync(p, JSON.stringify(ledger, null, 2));
 }
 
+interface DeliveryTopologyContext {
+  parentThreadId: string;
+  childThreadId?: string;
+  childDispatchGeneration?: string;
+}
+
+interface VerdictTopologyContext {
+  managerThreadId?: string;
+  childThreadId?: string;
+}
+
+function latestRejectedVerdict(
+  project: string, parentTaskId: string, childTaskId: string,
+): Extract<ProductionTopologyFact, { kind: 'verdict' }> | null {
+  const verdicts = readProductionTopologyFacts({ project, kinds: ['verdict'] });
+  return [...verdicts].reverse().find(
+    (fact): fact is Extract<ProductionTopologyFact, { kind: 'verdict' }> => fact.kind === 'verdict'
+      && fact.parent_task_id === parentTaskId && fact.child_task_id === childTaskId
+      && fact.verdict === 'rejected',
+  ) ?? null;
+}
+
+function recordDeliveryTopology(
+  project: string, parentTaskId: string, childTaskId: string,
+  kind: 'completed' | 'blocked', existing: LedgerEntry | undefined,
+  context: DeliveryTopologyContext | undefined,
+): void {
+  if (!context) return;
+  const dispatch = latestDispatchFact(project, childTaskId);
+  const childThreadId = context.childThreadId ?? dispatch?.thread_id;
+  const generation = context.childDispatchGeneration
+    ?? (dispatch?.thread_id === childThreadId ? dispatch.dispatch_generation : null);
+  if (!childThreadId || !generation) return;
+  if (existing?.verdict === 'rejected') {
+    const rejected = latestRejectedVerdict(project, parentTaskId, childTaskId);
+    if (rejected && rejected.child_thread_id !== childThreadId) recordProductionTopologyFact({
+      project, kind: 'rework', task_id: childTaskId,
+      rejected_thread_id: rejected.child_thread_id,
+      rejected_dispatch_generation: rejected.child_dispatch_generation,
+      replacement_thread_id: childThreadId, replacement_dispatch_generation: generation,
+      rework_round: existing.rework_round,
+    });
+  }
+  recordProductionTopologyFact({
+    project, kind: 'delivery', child_task_id: childTaskId, child_thread_id: childThreadId,
+    child_dispatch_generation: generation, parent_task_id: parentTaskId,
+    parent_thread_id: context.parentThreadId, outcome: kind,
+  });
+}
+
 /** Record that a child result is being delivered to the parent task's manager.
  *  Returns false — meaning "do NOT deliver" — iff the child is already 'accepted'
  *  (cross-incarnation dedupe). A 'rejected' entry re-opens to 'pending' (the child
  *  completed again after rework), preserving its rework_round. */
-export async function recordDelivered(project: string, taskId: string, childId: string, kind: 'completed' | 'blocked'): Promise<boolean> {
+export async function recordDelivered(
+  project: string, taskId: string, childId: string, kind: 'completed' | 'blocked',
+  topology?: DeliveryTopologyContext,
+): Promise<boolean> {
   const ledger = readLedger(project, taskId);
   const existing = ledger.children[childId];
   if (existing?.verdict === 'accepted') return false;
@@ -80,13 +137,40 @@ export async function recordDelivered(project: string, taskId: string, childId: 
     superseded_by: existing?.superseded_by ?? null,
   };
   writeLedger(ledger);
+  try {
+    recordDeliveryTopology(project, taskId, childId, kind, existing, topology);
+  } catch (error) {
+    log.warn(`topology ledger delivery record failed: ${(error as Error).message}`);
+  }
   return true;
 }
 
-/** Record the manager's acceptance verdict for a delivered child. 'rejected' increments
- *  rework_round (the child is expected to be reworked and re-delivered). Upserts when
- *  the entry is missing (e.g. a verdict recorded for a delivery that predates the ledger). */
-export function recordVerdict(project: string, taskId: string, childId: string, verdict: 'accepted' | 'rejected', note?: string | null): void {
+function recordVerdictTopology(
+  project: string, taskId: string, childId: string, verdict: 'accepted' | 'rejected',
+  reworkRound: number, topology: VerdictTopologyContext,
+): void {
+  try {
+    const managerThreadId = topology.managerThreadId
+      ?? (process.env.CORTEX_THREAD_ID?.trim() || null);
+    const delivery = latestDeliveryFact(project, taskId, childId);
+    const childThreadId = topology.childThreadId ?? delivery?.child_thread_id ?? null;
+    const generation = delivery?.child_dispatch_generation ?? null;
+    if (!managerThreadId || !childThreadId || !generation) return;
+    recordProductionTopologyFact({
+      project, kind: 'verdict', parent_task_id: taskId, manager_thread_id: managerThreadId,
+      child_task_id: childId, child_thread_id: childThreadId,
+      child_dispatch_generation: generation, verdict, rework_round: reworkRound,
+    });
+  } catch (error) {
+    log.warn(`topology ledger verdict record failed: ${(error as Error).message}`);
+  }
+}
+
+/** Record a manager verdict and advance the acceptance rework round. */
+export function recordVerdict(
+  project: string, taskId: string, childId: string, verdict: 'accepted' | 'rejected',
+  note?: string | null, topology: VerdictTopologyContext = {},
+): void {
   const ledger = readLedger(project, taskId);
   const entry = ledger.children[childId] ?? {
     child: childId,
@@ -104,6 +188,7 @@ export function recordVerdict(project: string, taskId: string, childId: string, 
   if (verdict === 'rejected') entry.rework_round += 1;
   ledger.children[childId] = entry;
   writeLedger(ledger);
+  recordVerdictTopology(project, taskId, childId, verdict, entry.rework_round, topology);
 }
 
 /** Entries delivered but not yet accepted/rejected — the rehydration prompt's

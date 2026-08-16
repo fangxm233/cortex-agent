@@ -398,7 +398,7 @@ const DAG_EDGE_KINDS = new Set<AttemptEdge['kind']>(['spawn', 'decompose', 'disp
 const ATTEMPT_PREFIX = 'attempt\u0000';
 
 function endpointKey(ref: EndpointRef): string {
-  return ref.ref === 'direct-parent' ? 'direct-parent\u0000' : `${ref.ref}\u0000${ref.id}`;
+  return `${ref.ref}\u0000${ref.id}`;
 }
 
 function dagAdjacency(edges: readonly AttemptEdge[]): ReadonlyMap<string, string[]> {

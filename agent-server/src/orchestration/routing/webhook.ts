@@ -537,7 +537,11 @@ function createWebhookHandler(_options: {
           if (action === 'answer') {
             const questionId = data.question_id ?? data.questionId;
             if (!questionId) return reply({ success: false, error: 'answer requires question_id' });
-            const r = await submitAnswer(String(questionId), String(data.answer ?? ''));
+            const answererThreadId = typeof data.answererThreadId === 'string'
+              ? data.answererThreadId : data.answererThreadId === null ? null : undefined;
+            const r = await submitAnswer(String(questionId), String(data.answer ?? ''), {
+              answererThreadId,
+            });
             if (!r.ok) return reply({ success: false, error: r.error });
             return reply({ success: true, data: { answered: true } });
           }

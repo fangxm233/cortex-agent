@@ -92,7 +92,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | login-custom-command.test.ts | test | custom provider chat listing, writes and usage |
 | machines-query.test.ts | test | machines list online/offline projection |
 | machines-detail-query.test.ts | test | machine probe parsing and live-run join |
-| manager-qa.test.ts | test | manager ask/answer channel resolution |
+| manager-qa.test.ts | test | manager Q&A routing, durable reload and nested escalation |
 | manager-rotation.test.ts | test | live settings and task-artifact rehydration |
 | manager-task-artifact.test.ts | test | task-keyed manager artifact placement |
 | memory-index-regen.test.ts | test | memory index rebuild lifecycle sections |
@@ -150,7 +150,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | task-mutations.test.ts | test | task add, batch edit and decompose |
 | task-node-ledger.test.ts | test | task artifact paths and acceptance ledger |
 | task-origin-wake.test.ts | test | origin wake precedence and notice framing |
-| task-parent-split.test.ts | test | Task parent fields and owned split outcomes |
+| task-parent-split.test.ts | test | Task parent fields, split facts and owned outcomes |
 | task-parser.test.ts | test | Task schema round trips, query, lint and health |
 | task-store.test.ts | test | task store exclusive mutex serialization |
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
@@ -170,7 +170,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | thread-stages.test.ts | test | stage parsing and step prompt building |
 | thread-statusmsg-seal.test.ts | test | stale suspended status message refresh |
 | thread-task-bridge.test.ts | test | Generation-fenced results wake waiting managers |
-| thread-tree.test.ts | test | thread tree traversal and spawn guards |
+| thread-tree.test.ts | test | thread tree traversal, durable spawn facts and guards |
 | thread-wait-checkpoint-gate.test.ts | test | wait rejected without an artifact edit |
 | thread-wait-children.test.ts | test | parent suspension on child threads |
 | thread-wait-deadlock.test.ts | test | stuck wait-set detection and wake |

@@ -54,7 +54,10 @@ async function handleAskManager(question: string) {
 
 async function handleAnswerSubtask(questionId: string, answer: string) {
   try {
-    const result = await proxyQa('answer', { question_id: questionId, answer });
+    const result = await proxyQa('answer', {
+      question_id: questionId, answer,
+      answererThreadId: process.env.CORTEX_THREAD_ID?.trim() || null,
+    });
     return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
   } catch (error) {
     return { content: [{ type: 'text' as const, text: `answer_subtask error: ${(error as Error).message}` }], isError: true };

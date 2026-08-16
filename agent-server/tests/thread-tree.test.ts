@@ -14,6 +14,7 @@ import {
   buildThreadTree,
   registerChildSpawn,
 } from '../src/domain/threads/tree.js';
+import { readProductionTopologyFacts } from '../src/domain/tasks/production-topology-ledger.js';
 import type { ThreadRecord, ThreadMetadata, ThreadStatus } from '../src/core/types/thread-types.js';
 
 const createdThreadIds = new Set<string>();
@@ -194,13 +195,19 @@ test('buildThreadTree nests children under parents and computes root rollup', as
 
 // --- registerChildSpawn ---
 
-test('registerChildSpawn appends to childThreadIds and (when wait) to waitingOn', async () => {
-  const parent = makeThread();
-  await registerChildSpawn(parent.id, 'thr_kid1', true);
-  await registerChildSpawn(parent.id, 'thr_kid2', false);
+test('registerChildSpawn appends to childThreadIds and records durable spawn facts', async () => {
+  const project = `_tree_spawn_${seq++}`;
+  const parent = makeThread({ projectId: project });
+  const first = makeThread({ id: `thr_kid_${seq++}`, projectId: project });
+  const second = makeThread({ id: `thr_kid_${seq++}`, projectId: project });
+  await registerChildSpawn(parent.id, first.id, true);
+  await registerChildSpawn(parent.id, second.id, false);
   const p = threadStore.get(parent.id)!;
-  assert.deepEqual(p.metadata!.childThreadIds, ['thr_kid1', 'thr_kid2']);
-  assert.deepEqual(p.metadata!.waitingOn, ['thr_kid1']);
+  assert.deepEqual(p.metadata!.childThreadIds, [first.id, second.id]);
+  assert.deepEqual(p.metadata!.waitingOn, [first.id]);
+  const facts = readProductionTopologyFacts({ project });
+  assert.deepEqual(facts.map((fact) => fact.kind), ['spawn', 'spawn']);
+  assert.deepEqual(facts.map((fact) => fact.kind === 'spawn' && fact.child_thread_id), [first.id, second.id]);
 });
 
 test('buildThreadTree treats nodes whose parent is outside the set as roots', () => {

@@ -440,7 +440,9 @@ async function deliverTaskResult(parentThreadId: string, task: Task, kind: 'comp
   const parentTaskId = parent?.metadata?.taskId;
   const parentProject = parent?.metadata?.taskProject || parent?.projectId;
   if (parentTaskId && parentProject) {
-    const deliverable = await recordDelivered(parentProject, parentTaskId, task.id, kind)
+    const deliverable = await recordDelivered(
+      parentProject, parentTaskId, task.id, kind, { parentThreadId },
+    )
       .catch((e) => { log.warn(`acceptance-ledger record failed for ${parentTaskId}/${task.id}: ${(e as Error).message}`); return true; });
     if (!deliverable) {
       // Already accepted by a previous incarnation — drop from the wait set without re-queueing.
