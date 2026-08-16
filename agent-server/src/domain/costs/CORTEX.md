@@ -9,3 +9,4 @@ Cost domain — persists attempt-attributed accounting and pauses work during pr
 | gateway-manager.ts | core | Manages the local usage gateway process |
 | rate-limit-throttle.ts | core | Publishes provider windows, auto-resume, and manual early release |
 | resume-registry.ts | core | Tracks provider-attributed interrupted work |
+| usage-store.ts | core | Persists latest backend-neutral provider usage |

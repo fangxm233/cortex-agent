@@ -1,6 +1,6 @@
 // input:  provider/schedule state JSON, JsonRepository
-// output: ProviderStateRepo and validated legacy migration
-// pos:    Provider health and interrupted-work persistence
+// output: ProviderStateRepo, usage persistence, legacy migration
+// pos:    Provider health, usage, and interrupted-work persistence
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import fs from 'node:fs/promises';
@@ -13,16 +13,18 @@ import type {
   RateLimitThrottleState,
 } from '@domain/costs/rate-limit-throttle.js';
 import type { ResumeEntry } from '@domain/costs/resume-registry.js';
+import type { ProviderUsage } from '@domain/costs/usage-store.js';
 
 export const PROVIDER_STATE_FILE = path.join(STORE_DIR, 'provider-state.json');
 
 export interface ProviderStateData {
   rateLimitThrottle: PersistedThrottleState | null;
   resumeQueue: ResumeEntry[];
+  providerUsage: ProviderUsage[];
 }
 
 function defaultData(): ProviderStateData {
-  return { rateLimitThrottle: null, resumeQueue: [] };
+  return { rateLimitThrottle: null, resumeQueue: [], providerUsage: [] };
 }
 
 function serialize(data: unknown): string {
@@ -48,10 +50,12 @@ function isJsonRecord(value: unknown): value is Record<string, unknown> {
 
 function isProviderStateData(value: Record<string, unknown>): boolean {
   const throttle = value.rateLimitThrottle;
+  const usage = value.providerUsage;
   return Object.hasOwn(value, 'rateLimitThrottle')
     && Object.hasOwn(value, 'resumeQueue')
     && (throttle === null || isJsonRecord(throttle))
-    && Array.isArray(value.resumeQueue);
+    && Array.isArray(value.resumeQueue)
+    && (usage === undefined || Array.isArray(usage));
 }
 
 async function existingProviderStateIsValid(filePath: string): Promise<boolean> {
@@ -71,6 +75,7 @@ function legacyProviderState(schedules: Record<string, unknown>): ProviderStateD
   return {
     rateLimitThrottle: (schedules.rateLimitThrottle as PersistedThrottleState | null | undefined) ?? null,
     resumeQueue: (schedules.resumeQueue as ResumeEntry[] | null | undefined) ?? [],
+    providerUsage: [],
   };
 }
 
@@ -124,6 +129,17 @@ export class ProviderStateRepo {
 
   async getResumeQueue(): Promise<ResumeEntry[]> {
     return (await this.repo.read()).resumeQueue ?? [];
+  }
+
+  async setProviderUsage(records: ProviderUsage[]): Promise<void> {
+    await this.repo.mutate((data) => ({
+      next: { ...data, providerUsage: records },
+      result: undefined,
+    }));
+  }
+
+  async getProviderUsage(): Promise<ProviderUsage[]> {
+    return (await this.repo.read()).providerUsage ?? [];
   }
 
   flush(): Promise<void> {

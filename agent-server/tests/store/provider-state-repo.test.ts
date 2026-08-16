@@ -1,5 +1,5 @@
 // input:  Vitest, temp JSON, provider-state domains
-// output: Provider persistence and guarded migration regressions
+// output: Provider throttle, usage, resume, and migration regressions
 // pos:    Store coverage for provider-state.json ownership
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -81,11 +81,12 @@ function resumeEntries(): ResumeEntry[] {
   }];
 }
 
-test('ProviderStateRepo defaults to no throttle and an empty resume queue', async () => {
+test('ProviderStateRepo defaults to empty provider state', async () => {
   const repo = new ProviderStateRepo(path.join(nextDir(), 'provider-state.json'));
 
   assert.equal(await repo.getRateLimitThrottle(), null);
   assert.deepEqual(await repo.getResumeQueue(), []);
+  assert.deepEqual(await repo.getProviderUsage(), []);
 });
 
 test('ProviderStateRepo serializes concurrent throttle and resume writes', async () => {
@@ -104,6 +105,7 @@ test('ProviderStateRepo serializes concurrent throttle and resume writes', async
   assert.deepEqual(await readJson(filePath), {
     rateLimitThrottle: throttle,
     resumeQueue: resumes,
+    providerUsage: [],
   });
 });
 
@@ -163,6 +165,7 @@ test('runMigrations moves legacy provider state and strips schedules idempotentl
   assert.deepEqual(await readJson(providerStateFile), {
     rateLimitThrottle: throttle,
     resumeQueue: resumes,
+    providerUsage: [],
   });
   assert.deepEqual(await readJson(schedulesFile), { tasks: schedules.tasks });
   const firstProvider = await fs.readFile(providerStateFile, 'utf8');
