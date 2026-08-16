@@ -42,7 +42,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | long-mcp-hold-server.mjs | fixture | holds one stdio MCP call for a chosen duration |
 | long-mcp-trial-fixture.ts | fixture | compiles a trial whose declared MCP server holds |
 | journal.test.ts | test | verifies durable events and v2 lifecycle paths |
-| manifest-contract.test.ts | test | verifies supervisor-free terminal v2 evidence |
+| manifest-contract.test.ts | test | verifies terminal v2 lifecycle and token ranges |
 | pi-rpc-cli.mjs | fixture | answers one PI rpc turn and records its env |
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |

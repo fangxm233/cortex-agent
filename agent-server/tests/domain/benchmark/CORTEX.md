@@ -8,7 +8,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | actor-capability.test.ts | 测试 | Tests actor capability lifecycle |
 | attempt-record.test.ts | 测试 | Tests v2 attempt records and durable edges |
 | composite-runtime-ports.test.ts | 测试 | Pins v2-compatible composite runtime ports |
-| composite-manifest.test.ts | 测试 | Tests production composite evidence v2 |
+| composite-manifest.test.ts | 测试 | Tests composite v2 topology and token ranges |
 | guard-lease-state.test.ts | 测试 | Tests guard lease decisions |
 | lease-echo.test.ts | 测试 | Tests workspace lease delivery |
 | settings-snapshot.test.ts | 测试 | Tests immutable trial settings |
@@ -22,7 +22,7 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 | trial-task-ports.test.ts | 测试 | Tests trial task state ports |
 | policy-backed-runtime-deps.test.ts | 测试 | Tests frozen runtime dependency lookup |
 | policy-compiler.test.ts | 测试 | Tests benchmark policy compilation |
-| production-evidence-export.test.ts | 测试 | Tests atomic production evidence publication |
+| production-evidence-export.test.ts | 测试 | Tests atomic publication and token attribution |
 | proposal-seal.test.ts | 测试 | Tests proposal sealing across terminal states |
 | terminal-predicate.test.ts | 测试 | Tests trial terminal evaluation |
 | trial-task-dispatcher.test.ts | 测试 | Tests trial task dispatch |

@@ -7,19 +7,19 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | accounting-reconciliation.ts | 核心 | Records proxy-side and journal-side usage figures side by side |
 | actor-capability-scope.ts | 核心 | Registers actor capabilities |
 | arm-schema.ts | 类型 | Validates benchmark arm definitions and declared limits |
-| attempt-record.ts | 类型 | Defines v2 attempts and production-ledger edges |
+| attempt-record.ts | 类型 | Defines v2 attempts, token ranges and durable edges |
 | capabilities.ts | 策略 | Defines benchmark capability grants |
 | composite-runtime-ports.ts | 类型 | Defines composite runtime ports |
 | trial-task-mutator.ts | 核心 | Applies capability-fenced task mutations |
 | trial-task-ports.ts | 核心 | Provides trial task state ports |
-| composite-manifest.ts | 核心 | Builds and validates production composite v2 |
+| composite-manifest.ts | 核心 | Validates composite v2 identity and usage |
 | decimal-text.ts | 工具 | Parses exact decimal values |
 | lease-echo.ts | 核心 | Delivers workspace lease state |
 | policy-backed-runtime-deps.ts | 策略 | Resolves frozen runtime dependencies |
 | policy-compiler.ts | 核心 | Compiles benchmark trial policy from declared arm limits |
 | production-evidence-export.ts | 核心 | Atomically publishes production evidence v2 |
 | production-evidence-journal.ts | 核心 | Verifies production journals for projection |
-| production-evidence-projection.ts | 核心 | Projects durable production facts into v2 bytes |
+| production-evidence-projection.ts | 核心 | Projects durable facts and token usage into v2 bytes |
 | production-evidence-topology.ts | 核心 | Validates durable production attempt topology |
 | proposal-seal.ts | 核心 | Stores and seals task proposals |
 | resolved-policy.ts | 类型 | Defines resolved trial policy |

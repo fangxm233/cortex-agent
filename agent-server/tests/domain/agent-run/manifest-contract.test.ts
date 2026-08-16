@@ -337,8 +337,8 @@ const INVALID_DOMAINS: Array<[string, string, unknown]> = [
   ['non-finite steps', 'steps', Number.NaN],
   ['null tokens', 'tokens', null],
   ['omitted cache attribution', 'tokens', { input: 7, output: 3 }],
-  ['synthetic cache creation count', 'tokens', {
-    input: 7, output: 3, cache_read: null, cache_creation: 0,
+  ['negative cache creation count', 'tokens', {
+    input: 7, output: 3, cache_read: null, cache_creation: -1,
   }],
   ['non-finite token count', 'tokens', {
     input: Number.NaN, output: 3, cache_read: null, cache_creation: null,
@@ -347,6 +347,20 @@ const INVALID_DOMAINS: Array<[string, string, unknown]> = [
   ['non-finite cost', 'costUsd', Number.NaN],
   ['uppercase hash', 'bundleManifestHash', 'A'.repeat(64)],
 ];
+
+it.each([0, 7])('publishes an available cache creation count of %s', async (cacheCreation) => {
+  const root = makeRoot();
+  try {
+    const journal = await createJournal(root);
+    const input = manifestInput(root, journal.journalPath, journal.journalSha256, {
+      tokens: { input: 7, output: 3, cache_read: 2, cache_creation: cacheCreation },
+    });
+    const terminal = readObject(writeTerminalManifest(input));
+    assert.deepEqual(terminal.tokens, input.tokens);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 for (const [label, key, value] of INVALID_DOMAINS) {
   it(`rejects ${label} before terminal publication`, async () => {

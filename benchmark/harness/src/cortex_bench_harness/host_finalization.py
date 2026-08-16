@@ -1,10 +1,11 @@
 # input:  inner/proxy evidence, host attestations, pinned bundle
-# output: validated assets and durable outer grader envelope
+# output: validated token-linked assets and outer grader envelope
 # pos:    Host-side benchmark v2 finalization gate
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import hashlib
 import json
+import math
 import os
 import re
 import secrets
@@ -479,10 +480,10 @@ def _valid_tokens(value: object) -> bool:
         "input", "output", "cache_read", "cache_creation",
     }:
         return False
-    measured = (value.get("input"), value.get("output"), value.get("cache_read"))
-    return value.get("cache_creation") is None and all(
+    return all(
         item is None or isinstance(item, (int, float)) and not isinstance(item, bool)
-        for item in measured
+        and math.isfinite(item) and item >= 0
+        for item in value.values()
     )
 
 

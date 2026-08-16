@@ -1,5 +1,5 @@
 // input:  v2 attempt DAGs, accounting, and corrupt manifests
-// output: schema, roots, edges, history, and evidence proofs
+// output: schema, topology, token range, and evidence proofs
 // pos:    Composite evidence v2 contract tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -634,6 +634,16 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
   ] as const)('attempt_evidence_invalid — %s cannot use an empty/zero stand-in', (field, value) => {
     const node = sampleAttempt({ [field]: value } as Partial<AttemptRecord>);
     const bad = mutate(directManifest(), { nodes: [{ ...node, attempt_id: 'run-r1' }] });
+    expect(codesOf(bad, directContext)).toContain('attempt_evidence_invalid');
+  });
+
+  it.each([
+    { input: 1, output: 1, cache_read: 0, cache_creation: -1 },
+    { input: 1, output: 1, cache_read: 0 },
+  ])('attempt_evidence_invalid — token keys and non-negative ranges are exact', (tokens) => {
+    const manifest = directManifest();
+    const node = { ...manifest.nodes[0], tokens } as AttemptRecord;
+    const bad = mutate(manifest, { nodes: [node] });
     expect(codesOf(bad, directContext)).toContain('attempt_evidence_invalid');
   });
 

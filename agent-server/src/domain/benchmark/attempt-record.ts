@@ -1,5 +1,5 @@
 // input:  production attempt lifecycle and identity facts
-// output: embedded attempt record and durable-edge policy
+// output: attempt record, token validator, durable-edge policy
 // pos:    Composite v2 attempt-node contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -123,6 +123,16 @@ export interface AttemptTokenCounts {
   readonly output: number | null;
   readonly cache_read: number | null;
   readonly cache_creation: number | null;
+}
+
+export function validAttemptTokens(value: unknown): value is AttemptTokenCounts {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const tokens = value as Record<string, unknown>;
+  const keys = ['input', 'output', 'cache_read', 'cache_creation'];
+  return Object.keys(tokens).length === keys.length && keys.every(key => (
+    Object.hasOwn(tokens, key) && (tokens[key] === null
+      || (typeof tokens[key] === 'number' && Number.isFinite(tokens[key]) && tokens[key] >= 0))
+  ));
 }
 
 /**
