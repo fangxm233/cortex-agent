@@ -1,5 +1,5 @@
-// input:  Spawn config, provider cache, tool gate, MCP policy
-// output: PI process facade, sessions, events, compact
+// input:  Spawn config, provider and usage caches, MCP policy
+// output: PI process facade, cached usage, sessions, events
 // pos:    Coordinates PI process and session lifecycles
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -11,7 +11,7 @@ import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import { resolveMcpComposition } from '../types.js';
-import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentProcessSupervision, AgentSpawnConfig, Backend, InjectionAckSink, McpComposition, UserMessage } from '../types.js';
+import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentProcessSupervision, AgentSpawnConfig, AgentUsageScope, Backend, InjectionAckSink, McpComposition, UserMessage } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import {
@@ -30,7 +30,8 @@ import { readCustomProviderEntries } from './custom-catalog.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { findPISessionFilePath } from './session-files.js';
 import { reportCodexQuota, resolveQuotaSource } from './quota-sink.js';
-import type { CodexQuotaReading } from '@domain/costs/codex-quota.js';
+import { CODEX_PROVIDER, type CodexQuotaReading } from '@domain/costs/codex-quota.js';
+import type { ProviderUsage, UsageStore } from '@domain/costs/usage-store.js';
 import type { PIProviderDiscovery } from './discovery.js';
 import {
   CLOSE_EXIT_WAIT_MS,
@@ -978,6 +979,28 @@ function errorValue(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
+function neverCodexUsage(mode: string): ProviderUsage {
+  return {
+    provider: CODEX_PROVIDER,
+    displayName: 'OpenAI Codex',
+    modes: [mode],
+    windows: [],
+    observedAt: null,
+    freshness: 'never',
+    note: 'push-only: waiting for next provider call',
+  };
+}
+
+function staleCodexUsage(record: ProviderUsage): ProviderUsage {
+  return {
+    ...record,
+    modes: [...record.modes],
+    windows: record.windows.map((window) => ({ ...window })),
+    ...(record.spend ? { spend: { ...record.spend } } : {}),
+    freshness: 'stale',
+  };
+}
+
 /** Collaborators the daemon owns and a trial replaces. Both are injected rather than defaulted so
  *  the host PI home and its auth mirroring are not reachable from this module (§13 A1, A6). */
 export interface PIAdapterHooks {
@@ -990,6 +1013,8 @@ export interface PIAdapterHooks {
    *  definitions. Injected, never defaulted: reading the host PI home is exactly the ambient reach
    *  a trial must not have (§13 A1). Left unset, no custom provider is mirrored. */
   userModelsPath?: string;
+  /** Daemon-owned push usage cache. Trials omit it and observe only a cold state. */
+  usageStore?: Pick<UsageStore, 'get' | 'update'>;
 }
 
 export class PIAdapter implements AgentAdapter {
@@ -1005,6 +1030,7 @@ export class PIAdapter implements AgentAdapter {
   private readonly prepareAgentDir: ((agentDir: string) => void) | undefined;
   /** Injected user catalog path, or undefined when this instance mirrors no custom provider. */
   private readonly userModelsPath: string | undefined;
+  private readonly usageStore: Pick<UsageStore, 'get' | 'update'> | undefined;
   /** sessionDir for the <sessionId>.jsonl path convention. Exposed for tests. */
   readonly sessionDir: string;
 
@@ -1020,6 +1046,13 @@ export class PIAdapter implements AgentAdapter {
     this.configuredAgentDir = hooks.agentDir;
     this.prepareAgentDir = hooks.prepareAgentDir;
     this.userModelsPath = hooks.userModelsPath;
+    this.usageStore = hooks.usageStore;
+  }
+
+  async getUsage(scope: AgentUsageScope): Promise<ProviderUsage[] | null> {
+    if (scope.provider !== CODEX_PROVIDER || !scope.mode) return null;
+    const cached = await this.usageStore?.get(CODEX_PROVIDER) ?? null;
+    return [cached ? staleCodexUsage(cached) : neverCodexUsage(scope.mode)];
   }
 
   private gatewayOverrides(
@@ -1120,7 +1153,7 @@ export class PIAdapter implements AgentAdapter {
   private quotaReporter(config: AgentSpawnConfig): ProviderQuotaReporter | undefined {
     if (!reportsProviderQuota(config)) return undefined;
     return (reading) => {
-      void reportCodexQuota(reading, resolveQuotaSource(config))
+      void reportCodexQuota(reading, resolveQuotaSource(config), { usageStore: this.usageStore })
         .catch((error) => log.error('reportCodexQuota error:', error));
     };
   }

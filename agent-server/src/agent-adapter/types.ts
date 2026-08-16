@@ -271,6 +271,6 @@ export interface AgentAdapter {
   kill(sessionKey: string): boolean;
   /** List currently open session keys. */
   listSessions(): string[];
-  /** Pull provider usage when the backend has a scoped account-level source. */
+  /** Return scoped provider usage from the backend's pull source or push cache. */
   getUsage?(scope: AgentUsageScope): Promise<ProviderUsage[] | null>;
 }

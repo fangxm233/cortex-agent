@@ -29,6 +29,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | pi-mcp-duration.test.ts | test | PI MCP call bounded by the trial deadline |
 | pi-mid-turn-inject.test.ts | test | PI switch guard and mid-turn prompt steering |
 | pi-policy-guard.test.ts | test | fail-closed benchmark guard decisions for PI |
+| pi-usage.test.ts | test | PI cached Codex usage without provider traffic |
 | pi-supervision.test.ts | test | PI spawns through the injected supervisor |
 | pi-tool-shims-guard.test.ts | test | guarded PI tool dispatch and shim registration |
 | replay-harness.ts | helper | fixture replay and golden comparison helpers |
