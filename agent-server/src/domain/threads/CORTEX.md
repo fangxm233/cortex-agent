@@ -11,13 +11,13 @@ Consumed by the orchestration and UI layers through the index barrel.
 | template-loader.ts | config | reloads thread config and tracks its revision |
 | template-resolver.ts | config | expands vars and blocks in prompt templates |
 | shell-templates.ts | config | turns a shell binding into a full template |
-| template-validate.ts | config | reports what is broken in a template, agent or shell |
+| template-validate.ts | config | validates templates, agents, shells and tool gates |
 | template-validate.parity.ts | guard | pins the validator schemas to the thread types |
 | template-writer.ts | config | creates, replaces and deletes template config files |
-| prompt-builder.ts | build | assembles prompts from scoped runtime state |
+| prompt-builder.ts | build | assembles prompts and resolves canonical tool gates |
 | pending-user-inputs.ts | state | gates asynchronous buffered-input preparation |
 | state-machine.ts | state | drives lifecycle against scoped thread state |
-| runner.ts | runtime | Runs scoped steps with persisted spawn identity |
+| runner.ts | runtime | Runs scoped steps with gated persisted spawn identity |
 | local-runtime-deps.ts | runtime | Declares the injected port bundle and fails closed off-scope |
 | local-runtime-defaults.ts | runtime | Builds the daemon-side defaults for that bundle |
 | local-runtime-scope.ts | runtime | Propagates local event policy across async callbacks |

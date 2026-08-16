@@ -1,4 +1,4 @@
-// input:  PI spawn options, task context, benchmark policy
+// input:  PI spawn options, task context, MCP tool gate, benchmark policy
 // output: Isolated PI argv and subprocess environment
 // pos:    Builds PI process arguments and environment
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -10,6 +10,7 @@ import {
 } from './policy-guard.js';
 import { PI_BENCHMARK_DEADLINE_ENV } from './mcp-duration.js';
 import { PI_PLUGIN_MCP_CONFIG_ENV } from './mcp-config.js';
+import { MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 
 export const PI_BENCHMARK_THREAD_POLICY_ENV = 'CORTEX_BENCHMARK_THREAD_POLICY_PATH';
 
@@ -99,6 +100,8 @@ export interface PIEnvOptions {
   leaseState?: string;
   /** Resolved MCP composition; the bridge derives its server set from it (§5.6 P1). */
   mcpComposition?: McpComposition;
+  /** Canonical per-tool MCP allowlist inherited by built-in stdio servers. */
+  mcpToolAllowlist?: string[] | null;
   /** Absolute trial deadline the MCP bridge bounds its calls against (§5.6 P2/P5). */
   deadlineEpochMs?: number;
   /** Private path to the typed plugin MCP config written by the adapter. */
@@ -118,7 +121,7 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
   'CORTEX_PI_ALLOWED_TOOLS', 'CORTEX_PI_SUBAGENT', PI_PLUGIN_MCP_CONFIG_ENV,
   PI_BENCHMARK_THREAD_POLICY_ENV, PI_POLICY_GUARD_ENV, PI_LEASE_STATE_ENV,
-  PI_MCP_COMPOSITION_ENV, PI_BENCHMARK_DEADLINE_ENV,
+  PI_MCP_COMPOSITION_ENV, PI_BENCHMARK_DEADLINE_ENV, MCP_TOOL_ALLOWLIST_ENV,
 ] as const;
 
 function setOptional(env: NodeJS.ProcessEnv, key: string, value: unknown): void {
@@ -163,6 +166,9 @@ export function buildPiEnv(
     env[PI_LEASE_STATE_ENV] = options.leaseState ?? GATE2_LEASE_STATE;
   }
   setOptional(env, PI_MCP_COMPOSITION_ENV, options.mcpComposition);
+  if (options.mcpToolAllowlist !== undefined && options.mcpToolAllowlist !== null) {
+    env[MCP_TOOL_ALLOWLIST_ENV] = JSON.stringify(options.mcpToolAllowlist);
+  }
   setOptional(env, PI_BENCHMARK_DEADLINE_ENV, options.deadlineEpochMs);
   setOptional(env, PI_PLUGIN_MCP_CONFIG_ENV, options.pluginMcpConfigPath);
   setOptional(env, PI_BENCHMARK_THREAD_POLICY_ENV, options.benchmarkThreadPolicyPath);

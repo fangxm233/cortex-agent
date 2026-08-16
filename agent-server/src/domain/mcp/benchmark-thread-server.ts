@@ -1,4 +1,4 @@
-// input:  MCP SDK, benchmark policy, thread registrar, log policy
+// input:  MCP SDK, tool gate, benchmark policy and thread registrar
 // output: clean cortex-benchmark-thread MCP stdio service
 // pos:    Benchmark-only dynamic thread MCP server
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -8,6 +8,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createLogger, setProcessLogPolicy } from '@core/log.js';
 import { isMainModule } from '@core/utils.js';
 import { CORTEX_VERSION } from '@core/version.js';
+import { registerGatedMcpTools } from '@core/mcp-tool-gate.js';
 import {
   loadBenchmarkThreadPolicy, registerBenchmarkThreadRunTool,
 } from './tools/benchmark-thread-run.js';
@@ -18,7 +19,9 @@ export async function startServer(): Promise<void> {
   setProcessLogPolicy({ consoleToStderr: true, files: false });
   const shutdown = new AbortController();
   const server = new McpServer({ name: 'cortex-benchmark-thread', version: CORTEX_VERSION });
-  registerBenchmarkThreadRunTool(server, loadBenchmarkThreadPolicy(), shutdown.signal);
+  registerGatedMcpTools(server, target => (
+    registerBenchmarkThreadRunTool(target, loadBenchmarkThreadPolicy(), shutdown.signal)
+  ));
   const closeInput = () => shutdown.abort(new Error('benchmark MCP stdin closed'));
   process.stdin.once('end', closeInput);
   process.stdin.once('close', closeInput);

@@ -1,9 +1,10 @@
-// input:  run options, resolved profile, route URL
-// output: spawn config with execution identity context
+// input:  run options, resolved profile, tool gate, route URL
+// output: canonical spawn config with execution identity context
 // pos:    Registry-free spawn-config builder
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { resolveMcpComposition } from '../../agent-adapter/types.js';
+import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';
 import type {
   AgentProcessSpawner, AgentSpawnConfig, Backend, McpComposition,
 } from '../../agent-adapter/types.js';
@@ -112,6 +113,8 @@ export interface RunAgentOptions {
   identityDirective?: string;
   /** Explicit MCP privilege surface for the spawned backend. */
   mcpComposition?: McpComposition;
+  /** Optional resolved per-tool MCP allowlist. */
+  mcpToolAllowlist?: string[];
   /** Legacy thread-surface selector. Accepted for existing callers and resolved when the explicit
    *  composition is absent. */
   useCoreMcp?: boolean;
@@ -237,6 +240,8 @@ function spawnIdentity(
 function spawnPolicy(options: RunAgentOptions): Partial<AgentSpawnConfig> {
   return {
     mcpConfigPaths: options.mcpConfigPaths,
+    mcpToolAllowlist: options.mcpToolAllowlist === undefined
+      ? undefined : canonicalizeMcpToolAllowlist(options.mcpToolAllowlist),
     disableHooks: options.disableHooks,
     streamDeltas: options.streamDeltas,
     captureTranscriptLogs: options.captureTranscriptLogs,

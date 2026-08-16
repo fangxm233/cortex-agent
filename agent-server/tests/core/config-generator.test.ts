@@ -1,10 +1,13 @@
-// input:  scoped MCP config builders
-// output: whole-object contract per builder (keys, command, absolute args, cwd)
+// input:  scoped and gated MCP config builders
+// output: builder objects, canonical env gates and unknown-name refusal
 // pos:    Config-generator pure-logic tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 import {
   buildCoreConfig,
@@ -15,7 +18,9 @@ import {
   buildThreadConfig,
   buildTuiConfig,
   buildWebConfig,
+  materializeMcpToolAllowlistConfigs,
 } from '../../src/core/config-generator.js';
+import { MCP_TOOL_ALLOWLIST_ENV } from '../../src/core/mcp-tool-gate.js';
 
 // Each builder is asserted as ONE whole-object literal: this pins the server
 // set (isolation/no-leak per the privilege split), the node command, the
@@ -87,4 +92,36 @@ test('buildWebConfig: cortex-web only (layered on the base config)', () => {
       'cortex-web': { command: 'node', args: ['/test/dist/domain/mcp/web-server.js'], cwd: '/test' },
     },
   });
+});
+
+test('materialized configs carry one canonical allowlist across composed servers', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
+  const threadPath = path.join(root, 'thread.json');
+  const tasksPath = path.join(root, 'tasks.json');
+  writeFileSync(threadPath, JSON.stringify(buildThreadConfig('/test')));
+  writeFileSync(tasksPath, JSON.stringify(buildTasksConfig('/test')));
+
+  const generated = materializeMcpToolAllowlistConfigs(
+    [threadPath, tasksPath],
+    ['thread_wait', 'task_status', 'thread_wait'],
+    path.join(root, 'generated'),
+  );
+  const expected = JSON.stringify(['task_status', 'thread_wait']);
+  for (const file of generated) {
+    const config = JSON.parse(readFileSync(file, 'utf8'));
+    const entry = Object.values(config.mcpServers)[0] as { env: Record<string, string> };
+    assert.equal(entry.env[MCP_TOOL_ALLOWLIST_ENV], expected);
+  }
+});
+
+test('materialization refuses an allowlist name outside the composed server union', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
+  const threadPath = path.join(root, 'thread.json');
+  writeFileSync(threadPath, JSON.stringify(buildThreadConfig('/test')));
+  assert.throws(
+    () => materializeMcpToolAllowlistConfigs(
+      [threadPath], ['thread_wait', 'task_sttaus'], path.join(root, 'generated'),
+    ),
+    /Unknown MCP tool.*task_sttaus/,
+  );
 });

@@ -1,10 +1,11 @@
-// input:  templates, thread state, buffered-input readiness
-// output: ready step prompts and resolved runtime configs
+// input:  templates, tool gates, thread state, buffered-input readiness
+// output: ready prompts and canonical resolved runtime configs
 // pos:    Thread prompt assembly and agent slot resolution
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
 import { threadStore as daemonThreadStore } from '@store/thread-repo.js';
 import { buildResumeReminder } from '@core/resume-reminder.js';
+import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';
 import {
   getAgent as daemonGetAgent, getTemplate as daemonGetTemplate, resolveFileRef,
 } from './template-loader.js';
@@ -59,7 +60,7 @@ export function resolveSystemVars(text: string): string {
 
 type AgentOverrides = Partial<Pick<AgentSlotConfig,
   'promptTemplate' | 'directive' | 'systemPrompt' | 'persistSession' |
-  'claudeAgent' | 'outputStyle' | 'tools' | 'pluginDirs'>>;
+  'claudeAgent' | 'outputStyle' | 'tools' | 'pluginDirs' | 'mcpToolAllowlist'>>;
 
 function collectRefOverrides(ref: TemplateAgentRef): AgentOverrides {
   if (typeof ref === 'string') return {};
@@ -72,6 +73,9 @@ function collectRefOverrides(ref: TemplateAgentRef): AgentOverrides {
   if (ref.outputStyle != null) o.outputStyle = ref.outputStyle;
   if (ref.tools != null) o.tools = ref.tools;
   if (ref.pluginDirs != null) o.pluginDirs = ref.pluginDirs;
+  if (ref.mcpToolAllowlist != null) {
+    o.mcpToolAllowlist = canonicalizeMcpToolAllowlist(ref.mcpToolAllowlist);
+  }
   return o;
 }
 
@@ -94,6 +98,9 @@ export function resolveAgentSlotConfig(ref: TemplateAgentRef): AgentSlotConfig |
     tools: overrides.tools ?? agentDef.tools,
     pluginDirs: overrides.pluginDirs ?? agentDef.pluginDirs,
     mcpComposition: agentDef.mcpComposition,
+    mcpToolAllowlist: overrides.mcpToolAllowlist
+      ?? (agentDef.mcpToolAllowlist
+        ? canonicalizeMcpToolAllowlist(agentDef.mcpToolAllowlist) : undefined),
     stages: agentDef.stages,
     entryStage: agentDef.entryStage,
   };

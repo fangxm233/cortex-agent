@@ -1,7 +1,6 @@
-// input:  Node test runner + domain/threads/template-loader (directory config + migration + merge)
-// output: loadConfig dir/file parity (golden equivalence), fail-soft skip, migrateThreadTemplatesToDir,
-//         mergeThreadTemplates per-file copy-if-missing
-// pos:    DR-0017 D6 Phase 2.5 — config directory-ization + shell definitions back to JSON
+// input:  thread config loader, tool gates, migration and merge
+// output: directory parity, overrides, fail-soft and migration tests
+// pos:    Thread config directory behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -14,6 +13,7 @@ import {
   migrateThreadTemplatesToDir,
   mergeThreadTemplates,
 } from '../../src/domain/threads/template-loader.js';
+import { resolveAgentSlotConfig } from '../../src/domain/threads/prompt-builder.js';
 import { CONFIG_DIR } from '../../src/core/paths.js';
 
 const CONFIG_FILE = path.join(CONFIG_DIR, 'thread-templates.json');
@@ -101,6 +101,19 @@ test('loadConfig prefers the directory when both dir and single file exist', () 
   const { templates } = loadConfig();
   assert.ok(templates['plain'], 'dir template loaded');
   assert.equal(templates['onlyInFile'], undefined, 'single-file template ignored when dir present');
+});
+
+test('template MCP tool allowlist override wins and resolves canonically', () => {
+  clean();
+  const cfg = structuredClone(FIXTURE) as any;
+  cfg.agents.executor.mcpToolAllowlist = ['thread_wait', 'ask_manager'];
+  cfg.templates.plain.agents = [{
+    ref: 'executor', mcpToolAllowlist: ['thread_wait', 'task_status', 'thread_wait'],
+  }];
+  writeDir(cfg);
+  const { templates } = loadConfig();
+  const resolved = resolveAgentSlotConfig(templates.plain.agents[0]);
+  assert.deepEqual(resolved?.mcpToolAllowlist, ['task_status', 'thread_wait']);
 });
 
 // --- Fail-soft: name-field ≠ filename is skipped; the rest still load ---

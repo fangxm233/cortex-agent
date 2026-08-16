@@ -1,5 +1,5 @@
-// input:  agent facade, prompt serializers, execution registry
-// output: plain turns and backend-ready prompt callbacks
+// input:  agent facade, tool gates, prompts, execution registry
+// output: gated plain turns and backend-ready prompt callbacks
 // pos:    Thread-free user-turn execution
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
@@ -180,6 +180,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     trigger,
     threadId: null,
     useCoreMcp: false,
+    mcpToolAllowlist: agentConfig.mcpToolAllowlist,
     sessionName: opts.sessionName,
     claudeAgent: agentConfig.claudeAgent || null,
     systemPrompt: agentConfig.systemPrompt ? resolveSystemVars(agentConfig.systemPrompt) : null,

@@ -1,4 +1,4 @@
-// input:  MCP SDK, Feishu tool registrar, and environment-backed client builder
+// input:  MCP SDK, tool gate, Feishu registrar and client builder
 // output: Feishu-specific MCP stdio service assembled from production registration
 // pos:    standalone platform server loaded only for Feishu-originated
 //         sessions (channel carries the `feishu:` prefix) — Claude via mcp-config-feishu.json layering,
@@ -12,6 +12,7 @@ import { buildFeishuClientFromEnv } from './feishu/client.js';
 import { isMainModule } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { CORTEX_VERSION } from '@core/version.js';
+import { registerGatedMcpTools } from '@core/mcp-tool-gate.js';
 
 const log = createLogger('mcp-feishu');
 
@@ -22,7 +23,7 @@ const client = buildFeishuClientFromEnv();
 // --- McpServer + tool registration ---
 
 const server = new McpServer({ name: 'cortex-feishu', version: CORTEX_VERSION });
-registerFeishuTools(server, { client });
+registerGatedMcpTools(server, target => registerFeishuTools(target, { client }));
 
 export async function startServer(): Promise<void> {
   if (!client) {

@@ -1,6 +1,6 @@
 Please update me when files in this folder change
 
-MCP domain — one stdio server per privilege or platform surface, composed by the agent backends.
+MCP domain — gated stdio servers per privilege or platform surface, composed by the agent backends.
 
 | filename | role | function |
 |---|---|---|

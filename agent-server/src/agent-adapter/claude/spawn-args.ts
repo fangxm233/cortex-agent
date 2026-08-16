@@ -1,5 +1,5 @@
-// input:  Claude options, context, composition, hooks
-// output: Claude CLI args and isolated environment
+// input:  Claude options, context, composition, tool gate, hooks
+// output: Claude CLI args, gated MCP configs and isolated environment
 // pos:    Resolves Claude process configuration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -21,6 +21,7 @@ import {
   WEB_MCP_CONFIG,
 } from './defaults.js';
 import { getSettings } from '@core/settings.js';
+import { materializeMcpToolAllowlistConfigs } from '@core/config-generator.js';
 import type { IdentityJsonValue } from '../../domain/agent-run/identity.js';
 import type { McpComposition } from '../types.js';
 // The cleanup grace is one backend-neutral quantity: design §5.7 C3 defines the Claude budget as
@@ -48,6 +49,8 @@ export interface ClaudeSpawnOptions {
   mcpComposition?: McpComposition;
   /** Concrete MCP files supplied by a frozen one-shot run configuration. */
   mcpConfigPaths?: string[] | null;
+  /** Canonical per-tool MCP allowlist. */
+  mcpToolAllowlist?: string[] | null;
   /** Supplemental Claude MCP config written from portable runtime servers. */
   supplementalMcpConfigPath?: string | null;
   /** Omit all configured **ambient** hooks for isolated one-shot execution. */
@@ -116,7 +119,9 @@ function resolveMcpConfigs(
   }
   if (wantsInteractionBridge) configs.push(TUI_MCP_CONFIG);
   appendDirectMcpConfigs(configs, options, composition === 'direct');
-  return configs;
+  return materializeMcpToolAllowlistConfigs(
+    configs, options.mcpToolAllowlist ?? undefined,
+  );
 }
 
 /** Print mode uses NDJSON stdio and replay echoes as queued-message delivery acknowledgements. */

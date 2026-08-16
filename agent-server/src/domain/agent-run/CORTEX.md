@@ -12,13 +12,13 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | benchmark-local-thread-orchestrator.ts | runtime | runs one bounded thread and emits terminal v2 |
 | benchmark-output-adapter.ts | output | confines lifecycle output without platform delivery |
 | benchmark-thread-identity.ts | identity | compares projected and compiled role surfaces |
-| identity.ts | core | hashes routed model, role and pre-boot launcher bundle identities |
+| identity.ts | core | hashes routed model, gated role and launcher identities |
 | journal.ts | core | appends identity-bound records for production slot names |
 | manifest-contract.ts | types | defines supervisor-free terminal evidence v2 |
 | manifest.ts | core | validates lifecycle, state and normalized events |
 | pinned-node-process.ts | process | launches Node with canonical trial-pinned paths |
 | production-attempt-identity.ts | identity | freezes and persists production spawn identity |
-| role-surface.ts | identity | hashes resolved prompts, plugins, skills and guards |
+| role-surface.ts | identity | hashes prompts, tools, gates, plugins, skills and guards |
 | run-config.ts | config | dispatches legacy and injected benchmark configs |
 | runner.ts | core | gates supervisor-free terminal v2 and artifacts |
 | standalone-composition.ts | wiring | builds fresh roots and admission evidence |

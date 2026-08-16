@@ -1,5 +1,5 @@
-// input:  compiled MCP entries, stdio client, QA webhook
-// output: privilege surfaces and direct answer calls
+// input:  compiled MCP entries, tool gates, stdio client, QA webhook
+// output: gated privilege surfaces, refusals and direct answer calls
 // pos:    Built MCP server integration tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -11,6 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { MCP_TOOL_ALLOWLIST_ENV } from '../../../src/core/mcp-tool-gate.js';
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const MCP_DIST_DIR = resolve(TESTS_DIR, '../../../dist/domain/mcp');
@@ -114,6 +115,30 @@ test('built cortex-thread exposes lifecycle control and upward ask only', async 
     assert.equal(result.isError, true);
     assert.match((result.content as any[])[0].text, /CORTEX_THREAD_ID unset/);
   });
+});
+
+test('tool gate removes ask_manager without removing thread_wait or task monitoring', async () => {
+  const gate = JSON.stringify(['task_status', 'thread_wait']);
+  const env = { [MCP_TOOL_ALLOWLIST_ENV]: gate };
+  await withServer('thread-server.js', async (client) => {
+    assert.deepEqual(await toolNames(client), ['thread_wait']);
+  }, env);
+  await withServer('tasks-server.js', async (client) => {
+    assert.deepEqual(await toolNames(client), ['task_status']);
+  }, env);
+});
+
+test('a declared empty tool gate starts with zero registered tools', async () => {
+  await withServer('thread-server.js', async (client) => {
+    await client.ping();
+    await assert.rejects(client.listTools(), /Method not found/);
+  }, { [MCP_TOOL_ALLOWLIST_ENV]: '[]' });
+});
+
+test('an unknown tool gate name refuses MCP server startup', async () => {
+  await assert.rejects(withServer('thread-server.js', async () => {}, {
+    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['thread_wait', 'thread_wiat']),
+  }));
 });
 
 test('built cortex-manager-qa answers without a thread context', async () => {

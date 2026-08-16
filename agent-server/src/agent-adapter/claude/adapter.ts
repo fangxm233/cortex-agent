@@ -1,4 +1,4 @@
-// input:  Claude streams, spawn config, accounting
+// input:  Claude streams, spawn config, MCP tool gate, accounting
 // output: Claude turns, fallback events, and accounting
 // pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -174,6 +174,7 @@ interface ClaudeSessionOptions {
   cwd?: string;
   mcpComposition?: McpComposition;
   mcpConfigPaths?: string[];
+  mcpToolAllowlist?: string[];
   supplementalMcpConfigPath?: string | null;
   supplementalMcpConfigIdentity?: string | null;
   pluginCapabilityFingerprint?: string | null;
@@ -222,6 +223,7 @@ function deriveClaudeSpawnOptions(fields: ClaudeSpawnFields): ClaudeSpawnOptions
     sessionId: fields.sessionId,
     mcpComposition: fields.mcpComposition,
     mcpConfigPaths: fields.mcpConfigPaths,
+    mcpToolAllowlist: fields.mcpToolAllowlist,
     supplementalMcpConfigPath: fields.supplementalMcpConfigPath,
     disableHooks: fields.disableHooks,
     benchmarkPolicyGuard: fields.benchmarkPolicyGuard,
@@ -235,6 +237,7 @@ interface ClaudeSpawnCompatibility {
   pluginCapabilityFingerprint: string | null;
   pluginDirs: string[];
   mcpConfigPaths: string[];
+  mcpToolAllowlist: string[] | null;
   supplementalMcpConfigIdentity: string | null;
 }
 
@@ -246,6 +249,17 @@ function sameTextArray(left: readonly string[], right: readonly string[]): boole
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function optionalTextArray(values: string[] | null | undefined): string[] | null {
+  return values === undefined || values === null ? null : [...values];
+}
+
+function sameOptionalTextArray(
+  left: readonly string[] | null, right: readonly string[] | null,
+): boolean {
+  if (left === null || right === null) return left === right;
+  return sameTextArray(left, right);
+}
+
 function sameClaudeSpawnCompatibility(
   left: ClaudeSpawnCompatibility,
   right: ClaudeSpawnCompatibility,
@@ -255,7 +269,8 @@ function sameClaudeSpawnCompatibility(
     && left.pluginCapabilityFingerprint === right.pluginCapabilityFingerprint
     && left.supplementalMcpConfigIdentity === right.supplementalMcpConfigIdentity
     && sameTextArray(left.pluginDirs, right.pluginDirs)
-    && sameTextArray(left.mcpConfigPaths, right.mcpConfigPaths);
+    && sameTextArray(left.mcpConfigPaths, right.mcpConfigPaths)
+    && sameOptionalTextArray(left.mcpToolAllowlist, right.mcpToolAllowlist);
 }
 
 function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCompatibility {
@@ -265,6 +280,7 @@ function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCom
     pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
     pluginDirs: cloneTextArray(options.pluginDirs),
     mcpConfigPaths: cloneTextArray(options.mcpConfigPaths),
+    mcpToolAllowlist: optionalTextArray(options.mcpToolAllowlist),
     supplementalMcpConfigIdentity: options.supplementalMcpConfigIdentity ?? null,
   };
 }
@@ -318,6 +334,7 @@ class ClaudeSession {
   private cwd: string;
   private mcpComposition: McpComposition;
   private mcpConfigPaths: string[] | undefined;
+  private mcpToolAllowlist: string[] | undefined;
   private supplementalMcpConfigPath: string | null;
   private compatibility: ClaudeSpawnCompatibility;
   private disableHooks: boolean;
@@ -390,6 +407,7 @@ class ClaudeSession {
     this.extraEnv = options.extraEnv;
     this.mcpComposition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
     this.mcpConfigPaths = options.mcpConfigPaths;
+    this.mcpToolAllowlist = options.mcpToolAllowlist;
     this.supplementalMcpConfigPath = options.supplementalMcpConfigPath ?? null;
     this.compatibility = compatibilityFromOptions(options);
     this.disableHooks = options.disableHooks === true;
@@ -426,6 +444,7 @@ class ClaudeSession {
       sessionId: this.sessionId,
       mcpComposition: this.mcpComposition,
       mcpConfigPaths: this.mcpConfigPaths,
+      mcpToolAllowlist: this.mcpToolAllowlist,
       supplementalMcpConfigPath: this.supplementalMcpConfigPath,
       disableHooks: this.disableHooks,
       benchmarkPolicyGuard: this.benchmarkPolicyGuard,
@@ -1304,7 +1323,8 @@ function matchesTuiSession(
     && session.pluginCapabilityFingerprint === (options.pluginCapabilityFingerprint ?? null)
     && session.supplementalMcpConfigIdentity === (options.supplementalMcpConfigIdentity ?? null)
     && sameTextArray(session.pluginDirs, cloneTextArray(options.pluginDirs))
-    && sameTextArray(session.mcpConfigPaths, cloneTextArray(options.mcpConfigPaths));
+    && sameTextArray(session.mcpConfigPaths, cloneTextArray(options.mcpConfigPaths))
+    && sameOptionalTextArray(session.mcpToolAllowlist, optionalTextArray(options.mcpToolAllowlist));
 }
 
 function tuiPromptFields(options: ClaudeSessionOptions): Partial<ClaudeTuiSessionConfig> {
@@ -1335,6 +1355,7 @@ function tuiSessionConfig(
     ...tuiPromptFields(options),
     mcpComposition: composition,
     mcpConfigPaths: options.mcpConfigPaths ?? null,
+    mcpToolAllowlist: options.mcpToolAllowlist ?? null,
     supplementalMcpConfigPath: options.supplementalMcpConfigPath ?? null,
     disableHooks: options.disableHooks,
     benchmarkPolicyGuard: options.benchmarkPolicyGuard,
@@ -1435,6 +1456,7 @@ function sessionRuntimeOptions(
     cwd: config.cwd ?? DATA_DIR,
     mcpComposition: composition,
     mcpConfigPaths: config.mcpConfigPaths,
+    mcpToolAllowlist: config.mcpToolAllowlist,
     supplementalMcpConfigPath: supplemental?.path ?? null,
     supplementalMcpConfigIdentity: supplemental?.identity ?? null,
     pluginCapabilityFingerprint: config.pluginCapabilityFingerprint ?? null,
@@ -1485,6 +1507,7 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
     sessionId: opts.sessionIdEffective,
     mcpComposition: opts.mcpComposition ?? 'direct',
     mcpConfigPaths: opts.mcpConfigPaths,
+    mcpToolAllowlist: opts.mcpToolAllowlist,
     supplementalMcpConfigPath: opts.supplementalMcpConfigPath,
     disableHooks: opts.disableHooks,
     benchmarkPolicyGuard: opts.benchmarkPolicyGuard,

@@ -36,7 +36,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | fake-supervisor.ts | fixture | emits lifecycle and ownership process edges |
 | fake-thread-probe-entry.mjs | fixture | runs one current-runner step and flushes stores |
 | full-benchmark-thread-probe-entry.mjs | fixture | bootstraps MCP and emits fake C4 events for C8 tracing |
-| identity.test.ts | test | verifies pre-boot bundle and runtime identity hashes |
+| identity.test.ts | test | verifies model, gated role and bundle identity hashes |
 | long-mcp-call-e2e.test.ts | e2e | holds a real MCP call past 60s on both backends |
 | long-mcp-claude-cli.mjs | fixture | answers one turn behind a real MCP client call |
 | long-mcp-hold-server.mjs | fixture | holds one stdio MCP call for a chosen duration |

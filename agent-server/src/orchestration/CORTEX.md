@@ -11,7 +11,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | bg-wait-guard.ts | guard | bounds the background task waiting window |
 | busy-tracker.ts | tracker | counts active LLM runs and signals busy state |
 | conduit-queue.ts | queue | serializes work per conduit |
-| conversation-runner.ts | runner | runs plain turns and captures backend prompts |
+| conversation-runner.ts | runner | runs gated plain turns and captures backend prompts |
 | delta-coalescer.ts | stream | batches assistant text deltas for web sessions |
 | dispatch-reconciler.ts | timer | optionally cleans up stale dispatch executions |
 | durable-helpers.ts | util | builds durable post and update hooks |

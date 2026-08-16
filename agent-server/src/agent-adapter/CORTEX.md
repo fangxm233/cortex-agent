@@ -6,7 +6,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 | filename | role | function |
 |---|---|---|
 | index.ts | entry | selects adapters and pins PI transcript paths |
-| types.ts | types | Shared adapter and plugin runtime contracts |
+| types.ts | types | Shared adapter, tool-gate and plugin runtime contracts |
 | mcp-private-dir.ts | util | Guards private physical MCP directories |
 | mcp-remote-fetch.ts | util | Rejects remote MCP HTTP redirects |
 | capabilities.ts | core | Declares backend capabilities |

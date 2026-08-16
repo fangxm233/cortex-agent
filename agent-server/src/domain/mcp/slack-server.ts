@@ -1,4 +1,4 @@
-// input:  MCP SDK, Slack WebClient, environment routing, and Slack tool registrar
+// input:  MCP SDK, tool gate, Slack WebClient and registrar
 // output: Slack-specific MCP stdio service assembled from production registration
 // pos:    standalone platform server loaded only for Slack-originated
 //         sessions (channel carries the `slack:` prefix) — Claude via mcp-config-slack.json layering,
@@ -12,6 +12,7 @@ import { registerSlackTools } from './tools/slack.js';
 import { isMainModule } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { CORTEX_VERSION } from '@core/version.js';
+import { registerGatedMcpTools } from '@core/mcp-tool-gate.js';
 
 const log = createLogger('mcp-slack');
 
@@ -30,12 +31,12 @@ const slack: WebClient | null = token ? new WebClient(token) : null;
 
 const server = new McpServer({ name: 'cortex-slack', version: CORTEX_VERSION });
 
-registerSlackTools(server, {
+registerGatedMcpTools(server, target => registerSlackTools(target, {
   slack,
   fallbackChannel,
   branchMachine,
   callbackSource: fallbackCallbackSource,
-});
+}));
 
 // --- Start (called by barrel when run as standalone) ---
 

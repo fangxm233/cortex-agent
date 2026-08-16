@@ -1,4 +1,4 @@
-// input:  resolved profiles and launcher pre-boot inputs
+// input:  resolved profiles, tool gates and launcher pre-boot inputs
 // output: canonical model, role, and bundle SHA-256 hashes
 // pos:    Benchmark identity hash contract
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -48,6 +48,7 @@ export interface RoleToolSurfaceInput {
   pluginDirs: PluginDirIdentityInput[];
   skills: SkillIdentityInput[];
   mcpComposition: McpComposition;
+  mcpToolAllowlist?: string[];
   hookPolicy: IdentityJsonValue;
   benchmarkPolicyGuard?: IdentityJsonValue;
 }
@@ -177,6 +178,8 @@ export function computeRoleToolSurfaceHash(input: RoleToolSurfaceInput): string 
     plugin_dirs: [...input.pluginDirs].sort((a, b) => compareText(a.path, b.path)),
     skills: [...input.skills].sort((a, b) => compareText(a.name, b.name)),
     mcp_composition: input.mcpComposition,
+    mcp_tool_allowlist: input.mcpToolAllowlist
+      ? [...new Set(input.mcpToolAllowlist)].sort() : undefined,
     hook_policy: input.hookPolicy,
     benchmark_policy_guard: input.benchmarkPolicyGuard,
   });

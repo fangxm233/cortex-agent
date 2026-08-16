@@ -1,5 +1,5 @@
-// input:  PI MCP bridge, privilege env, clients
-// output: loading, transport, isolation, and retry tests
+// input:  PI MCP bridge, privilege/tool-gate env, clients
+// output: loading, gating, transport, isolation, and retry tests
 // pos:    PI MCP bridge behavior tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -33,6 +33,7 @@ import { PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/policy-guard.js'
 import { PI_BENCHMARK_THREAD_POLICY_ENV } from '../src/agent-adapter/pi/spawn-args.js';
 import type { ExtensionAPI, ToolDefinition } from '../src/agent-adapter/pi/pi-ext-types.js';
 import type { McpServerConfig } from '../src/agent-adapter/types.js';
+import { MCP_TOOL_ALLOWLIST_ENV } from '../src/core/mcp-tool-gate.js';
 
 // The CORE_SERVER_PATH / EXT_SERVER_PATH exported from mcp-bridge resolves relative to its own
 // location: when loaded via tsx from src/ those siblings don't exist; when running compiled from
@@ -382,6 +383,20 @@ test('restricted compositions and subagents suppress plugin config reads before 
     [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
   }, { loadPluginConfig }).map(state => state.name), ['core']);
   assert.equal(reads, 0);
+});
+
+test('buildServerStates validates a tool gate against the composed built-in union', () => {
+  assert.throws(() => buildServerStates({
+    [PI_MCP_COMPOSITION_ENV]: 'direct',
+    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['thread_wait']),
+  }), /Unknown MCP tool.*thread_wait/);
+
+  const states = buildServerStates({
+    [PI_MCP_COMPOSITION_ENV]: 'thread-control',
+    CORTEX_THREAD_ID: 'thr_fixture',
+    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['thread_wait', 'task_status']),
+  });
+  assert.ok(states.some(state => state.name === 'thread'));
 });
 
 test('buildServerStates appends namespaced plugin servers after the built-in direct set', () => {

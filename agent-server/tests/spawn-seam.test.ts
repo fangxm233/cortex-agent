@@ -1,5 +1,5 @@
-// input:  spawn facade, context, adapters, goldens
-// output: cwd, accounting, composition, and pool tests
+// input:  spawn facade, context, tool gates, adapters, goldens
+// output: cwd, accounting, gating, composition and pool tests
 // pos:    Verifies the backend process spawn contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -220,6 +220,13 @@ test('buildSpawnConfig carries isolated one-shot values and resolves legacy comp
   assert.equal(explicit.appendSystemPrompt, undefined);
   assert.equal(explicit.cortexContext?.useCoreMcp, true);
   assert.equal(legacy.mcpComposition, 'thread-control');
+});
+
+test('buildSpawnConfig canonicalizes a declared MCP tool allowlist', () => {
+  const config = facadeTest.buildSpawnConfig({
+    mcpToolAllowlist: ['thread_wait', 'ask_manager', 'thread_wait'],
+  }, FIXTURE_CONFIG, undefined);
+  assert.deepEqual(config.mcpToolAllowlist, ['ask_manager', 'thread_wait']);
 });
 
 test('task dispatch generation reaches both backend environments without inheriting stale state', () => {

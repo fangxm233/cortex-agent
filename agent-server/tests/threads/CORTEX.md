@@ -9,7 +9,7 @@ expansion, step lifecycle, provider-outage recovery, and transcripts.
 | resolve-template-profiles.test.ts | test | Covers template to profile resolution |
 | shell-template.test.ts | test | Covers shell expansion and shipped retry predicates |
 | template-merge.test.ts | test | Covers default merging and safe legacy-shell upgrades |
-| thread-config-dir.test.ts | test | Covers config directory load and migration |
+| thread-config-dir.test.ts | test | Covers config loading, gate overrides and migration |
 | thread-config-watcher-fallback.test.ts | test | Covers polling and watcher registration races |
 | thread-doc-review-retry.test.ts | test | Covers revised documents receiving a second review |
 | thread-live-step-ids.test.ts | test | Covers step session ids and thread events |

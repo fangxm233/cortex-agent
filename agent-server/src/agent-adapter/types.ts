@@ -1,4 +1,4 @@
-// input:  events, capabilities, and process types
+// input:  events, capabilities, process and MCP gate types
 // output: shared adapter and runtime contracts
 // pos:    Shared adapter runtime contracts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -88,6 +88,8 @@ export interface AgentSpawnConfig {
   mcpComposition?: McpComposition;
   /** Concrete MCP files for a frozen one-shot role. */
   mcpConfigPaths?: string[];
+  /** Canonical per-tool MCP allowlist; absent preserves the composition's full surface. */
+  mcpToolAllowlist?: string[];
   /** Suppress ambient lifecycle hooks for an isolated one-shot role. */
   disableHooks?: boolean;
   /** Explicit delta policy avoids loading watched daemon settings in one-shot mode. */

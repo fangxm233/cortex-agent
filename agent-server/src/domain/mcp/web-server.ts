@@ -1,4 +1,4 @@
-// input:  MCP SDK and the Web UI file registrar
+// input:  MCP SDK, tool gate, Web UI file registrar
 // output: Web-specific MCP stdio service
 // pos:    Serves file delivery tools to Web-originated sessions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -9,6 +9,7 @@ import { registerUiFileTools } from './tools/ui-file.js';
 import { isMainModule } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { CORTEX_VERSION } from '@core/version.js';
+import { registerGatedMcpTools } from '@core/mcp-tool-gate.js';
 
 const log = createLogger('mcp-web');
 
@@ -16,7 +17,7 @@ const log = createLogger('mcp-web');
 
 const server = new McpServer({ name: 'cortex-web', version: CORTEX_VERSION });
 
-registerUiFileTools(server);
+registerGatedMcpTools(server, registerUiFileTools);
 
 // --- Start (called by barrel when run as standalone) ---
 

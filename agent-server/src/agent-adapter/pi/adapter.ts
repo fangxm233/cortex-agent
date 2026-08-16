@@ -1,4 +1,4 @@
-// input:  Spawn config, provider cache, benchmark MCP policy
+// input:  Spawn config, provider cache, tool gate, MCP policy
 // output: PI process facade, sessions, events, compact
 // pos:    Coordinates PI process and session lifecycles
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -966,6 +966,7 @@ function buildSpawnEnvironment(
     policyGuard: guard,
     leaseState: config.benchmarkLeaseState,
     mcpComposition: composition,
+    mcpToolAllowlist: config.mcpToolAllowlist,
     deadlineEpochMs: config.benchmarkDeadlineEpochMs,
     pluginMcpConfigPath: spawnPluginMcpPath(config, composition, subagentMarker),
     benchmarkThreadPolicyPath: benchmarkThreadPolicyPath(config, composition),

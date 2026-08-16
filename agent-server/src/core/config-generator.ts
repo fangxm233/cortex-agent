@@ -1,12 +1,17 @@
-// input:  filesystem, config paths, server root
-// output: full, restricted, platform MCP configs
+// input:  filesystem, config paths, server root, MCP tool gates
+// output: full, restricted, platform and gated MCP configs
 // pos:    Generates declared MCP compositions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { writeFileSync } from 'fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import { SERVER_ROOT, CONFIG_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
+import {
+  canonicalizeMcpToolAllowlist, MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER,
+  validateMcpToolAllowlist,
+} from './mcp-tool-gate.js';
 
 const log = createLogger('config-generator');
 
@@ -33,6 +38,66 @@ function serverEntry(script: string, serverRoot: string) {
     args: [path.join(serverRoot, script)],
     cwd: serverRoot,
   };
+}
+
+interface McpServerEntry {
+  env?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+interface McpConfigDocument {
+  mcpServers: Record<string, McpServerEntry>;
+}
+
+function readMcpConfig(configPath: string): McpConfigDocument {
+  return JSON.parse(readFileSync(configPath, 'utf8')) as McpConfigDocument;
+}
+
+function knownToolsIn(configs: readonly McpConfigDocument[]): Set<string> {
+  const known = new Set<string>();
+  for (const config of configs) {
+    for (const serverName of Object.keys(config.mcpServers)) {
+      for (const tool of MCP_TOOLS_BY_SERVER[serverName] ?? []) known.add(tool);
+    }
+  }
+  return known;
+}
+
+function applyToolAllowlist(config: McpConfigDocument, encoded: string): McpConfigDocument {
+  const mcpServers = Object.fromEntries(Object.entries(config.mcpServers).map(([name, entry]) => [
+    name,
+    MCP_TOOLS_BY_SERVER[name]
+      ? { ...entry, env: { ...(entry.env ?? {}), [MCP_TOOL_ALLOWLIST_ENV]: encoded } }
+      : entry,
+  ]));
+  return { ...config, mcpServers };
+}
+
+function gatedConfigPath(
+  outputDir: string, sourcePath: string, document: McpConfigDocument, encoded: string,
+): string {
+  const digest = createHash('sha256')
+    .update(JSON.stringify({ sourcePath, document, encoded }))
+    .digest('hex').slice(0, 16);
+  return path.join(outputDir, `${path.basename(sourcePath, '.json')}-${digest}.json`);
+}
+
+export function materializeMcpToolAllowlistConfigs(
+  configPaths: readonly string[], allowlist: readonly string[] | undefined,
+  outputDir = path.join(CONFIG_DIR, 'mcp-tool-gates'),
+): string[] {
+  if (allowlist === undefined) return [...configPaths];
+  const documents = configPaths.map(readMcpConfig);
+  const canonical = canonicalizeMcpToolAllowlist(allowlist);
+  validateMcpToolAllowlist(canonical, knownToolsIn(documents));
+  const encoded = JSON.stringify(canonical);
+  mkdirSync(outputDir, { recursive: true });
+  return documents.map((document, index) => {
+    const gated = applyToolAllowlist(document, encoded);
+    const target = gatedConfigPath(outputDir, configPaths[index], document, encoded);
+    writeFileSync(target, JSON.stringify(gated, null, 2));
+    return target;
+  });
 }
 
 /** Direct-session config: always-on tools plus direct-only Cortex management. */

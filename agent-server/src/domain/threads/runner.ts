@@ -1,4 +1,4 @@
-// input:  thread state, buffered input, throttle, hooks
+// input:  thread state, tool gates, buffered input, throttle, hooks
 // output: isolated runs, notices, and transcripts
 // pos:    Thread step runtime and lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -571,6 +571,7 @@ function resolveStepSpawnPolicy(
   return {
     useCoreMcp: stepCtx.agentConfig.mcpComposition === undefined,
     mcpComposition: stepCtx.agentConfig.mcpComposition,
+    mcpToolAllowlist: stepCtx.agentConfig.mcpToolAllowlist,
     disableHooks: ctx.template?.disableHooks === true,
   };
 }

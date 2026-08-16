@@ -1,13 +1,6 @@
-// input:  a raw thread-template entity (agent / template / shell) + a raw registry snapshot
-// output: validateEntity / validateRegistry / rawRegistryFromDir → { errors, warnings }
-// pos:    The validation layer the config never had. The loader is fail-soft (it skips a bad file
-//         with a warning) and the executor re-reads templates on EVERY step, so a broken edit does
-//         not fail loudly — it makes a running thread stall at `no_matching_transition`. This module
-//         is the single place that says what "broken" means, and is consumed by the write path
-//         (errors block a save) and by loadConfig (warnings are logged, never enforced).
-//         Errors are the confident set: parse failures, name/filename mismatch, missing required
-//         fields, broken cross-references, invalid regexes, shell expansion throws. Anything merely
-//         unrecognised is a warning, so a schema that has drifted can never lock a user out.
+// input:  raw thread entities, registry snapshots, tool gates
+// output: validation errors, warnings and dependency impact
+// pos:    Validates thread-template registry entities
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { z } from 'zod';
@@ -102,6 +95,7 @@ export const agentSchema = z.object({
   tools: z.string().optional(),
   pluginDirs: z.array(z.string()).optional(),
   mcpComposition: z.enum(['direct', 'thread-control', 'none', 'benchmark-thread-run']).optional(),
+  mcpToolAllowlist: z.array(z.string()).optional(),
   stages: z.record(z.string(), stageSchema).optional(),
   entryStage: z.string().optional(),
 });
@@ -116,6 +110,7 @@ export const agentRefOverrideSchema = z.object({
   outputStyle: z.string().optional(),
   tools: z.string().optional(),
   pluginDirs: z.array(z.string()).optional(),
+  mcpToolAllowlist: z.array(z.string()).optional(),
 });
 
 export const agentRefSchema = z.union([z.string().min(1), agentRefOverrideSchema]);

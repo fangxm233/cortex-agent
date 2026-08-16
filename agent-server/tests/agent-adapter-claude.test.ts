@@ -1,5 +1,5 @@
-// input:  Claude modules, hooks, config, settings
-// output: Claude spawn, fallback, and compact tests
+// input:  Claude modules, hooks, tool gates, config, settings
+// output: Claude spawn, gate, fallback and compact tests
 // pos:    Claude adapter behavior tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -29,6 +29,7 @@ import {
   BENCHMARK_THREAD_MCP_CONFIG,
   CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
+  EMPTY_MCP_CONFIG,
   FEISHU_MCP_CONFIG,
   MANAGER_QA_MCP_CONFIG,
   MCP_CONFIG,
@@ -1010,6 +1011,21 @@ test('Claude print pool replaces the session when pluginDirs change', async () =
   });
 });
 
+test('Claude print pool distinguishes an undeclared gate from a declared empty gate', async () => {
+  fs.mkdirSync(path.dirname(EMPTY_MCP_CONFIG), { recursive: true });
+  fs.writeFileSync(EMPTY_MCP_CONFIG, '{"mcpServers":{}}\n');
+  await assertPoolReplacement({
+    key: 'pooled-print-empty-gate',
+    getSession: (key) => adapterTest.getPooledPrintSession(key),
+    shared: {
+      processSpawner: (() => ({ process: stubClaudeChild() })) as any,
+      mcpComposition: 'none', mcpConfigPaths: [EMPTY_MCP_CONFIG],
+    },
+    first: {},
+    second: { mcpToolAllowlist: [] },
+  });
+});
+
 test('Claude TUI pool replaces the session when mcpConfigPaths change', async () => {
   await assertPoolReplacement({
     key: 'pooled-tui-paths',
@@ -1017,6 +1033,20 @@ test('Claude TUI pool replaces the session when mcpConfigPaths change', async ()
     shared: { claudeBackend: 'tui' },
     first: { mcpConfigPaths: ['/fixture/base-a.json'] },
     second: { mcpConfigPaths: ['/fixture/base-b.json'] },
+  });
+});
+
+test('Claude TUI pool distinguishes an undeclared gate from a declared empty gate', async () => {
+  fs.mkdirSync(path.dirname(EMPTY_MCP_CONFIG), { recursive: true });
+  fs.writeFileSync(EMPTY_MCP_CONFIG, '{"mcpServers":{}}\n');
+  await assertPoolReplacement({
+    key: 'pooled-tui-empty-gate',
+    getSession: (key) => adapterTest.getPooledTuiSession(key),
+    shared: {
+      claudeBackend: 'tui', mcpComposition: 'none', mcpConfigPaths: [EMPTY_MCP_CONFIG],
+    },
+    first: {},
+    second: { mcpToolAllowlist: [] },
   });
 });
 

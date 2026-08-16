@@ -1,5 +1,5 @@
-// input:  resolved spawn prompt and plugin runtime trees
-// output: content-addressed role, tool, and guard surface
+// input:  resolved spawn prompt, tool gate and plugin runtime trees
+// output: content-addressed role, tool, MCP and guard surface
 // pos:    Anti-divergence identity projection for spawns
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -143,6 +143,7 @@ export function roleSurfaceFromSpawnConfig(
     pluginDirs: pluginIdentities(pluginDirs, config.pluginCapabilityFingerprint),
     skills: discoveredSkills(pluginDirs, config.pluginSkillDirs ?? []),
     mcpComposition: config.mcpComposition ?? 'direct',
+    mcpToolAllowlist: config.mcpToolAllowlist,
     hookPolicy: hookPolicy(config),
   };
   if (benchmarkPolicyGuard !== undefined) {

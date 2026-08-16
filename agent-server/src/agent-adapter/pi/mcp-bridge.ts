@@ -1,5 +1,5 @@
-// input:  PI API, plugin MCP config, restricted process env
-// output: retryable built-in and plugin MCP tools
+// input:  PI API, plugin MCP config, tool gate, restricted process env
+// output: gated retryable built-in and plugin MCP tools
 // pos:    PI MCP process and tool bridge
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -21,6 +21,10 @@ import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.j
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Type } from '@sinclair/typebox';
 import { createLogger } from '@core/log.js';
+import {
+  MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER, parseMcpToolAllowlist,
+  validateMcpToolAllowlist,
+} from '@core/mcp-tool-gate.js';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { McpServerConfig } from '../types.js';
@@ -147,6 +151,27 @@ function assertUniqueServerStateNames(states: ServerState[]): ServerState[] {
   return states;
 }
 
+const BUILTIN_TOOL_SERVERS: Readonly<Record<string, string>> = {
+  core: 'cortex-core', tasks: 'cortex-tasks', 'manager-qa': 'cortex-manager-qa',
+  thread: 'cortex-thread', ext: 'cortex-ext', slack: 'cortex-slack',
+  feishu: 'cortex-feishu', web: 'cortex-web',
+  [BENCHMARK_THREAD_SERVER_NAME]: 'cortex-benchmark-thread',
+};
+
+function validateToolGatedStates(
+  env: NodeJS.ProcessEnv, states: ServerState[],
+): ServerState[] {
+  const allowlist = parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]);
+  if (allowlist === null) return states;
+  const known = new Set<string>();
+  for (const state of states) {
+    const serverName = BUILTIN_TOOL_SERVERS[state.name];
+    for (const tool of MCP_TOOLS_BY_SERVER[serverName] ?? []) known.add(tool);
+  }
+  validateMcpToolAllowlist([...allowlist], known);
+  return states;
+}
+
 function optionalBuiltins(env: NodeJS.ProcessEnv): ServerState[] {
   const channel = env.SLACK_CHANNEL;
   const optional: Array<[boolean, ServerState]> = [
@@ -225,15 +250,15 @@ export function buildServerStates(
   options: BuildServerStatesOptions = {},
 ): ServerState[] {
   const composition = env[PI_MCP_COMPOSITION_ENV];
-  if (composition === 'none') return [];
+  if (composition === 'none') return validateToolGatedStates(env, []);
   if (composition === 'benchmark-thread-run') {
-    return [createState(
+    return validateToolGatedStates(env, [createState(
       BENCHMARK_THREAD_SERVER_NAME,
       builtinServerConfig(BENCHMARK_THREAD_SERVER_NAME, BENCHMARK_THREAD_SERVER_PATH, env),
-    )];
+    )]);
   }
   const states = [createState('core', builtinServerConfig('core', CORE_SERVER_PATH, env))];
-  if (env.CORTEX_PI_SUBAGENT === '1') return states;
+  if (env.CORTEX_PI_SUBAGENT === '1') return validateToolGatedStates(env, states);
   states.push(
     createState('tasks', builtinServerConfig('tasks', TASKS_SERVER_PATH, env)),
     createState('manager-qa', builtinServerConfig('manager-qa', MANAGER_QA_SERVER_PATH, env)),
@@ -244,7 +269,7 @@ export function buildServerStates(
       options.reportPluginIssue ?? (() => undefined),
     ),
   );
-  return assertUniqueServerStateNames(states);
+  return validateToolGatedStates(env, assertUniqueServerStateNames(states));
 }
 
 function serverFailure(name: string, action: string, cause: unknown): Error {

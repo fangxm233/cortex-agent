@@ -1,4 +1,4 @@
-// input:  thread config, benchmark events, process spawning
+// input:  thread config, tool gates, benchmark events, spawning
 // output: thread state, buffered-input, runtime lifecycle types
 // pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -51,6 +51,7 @@ export interface AgentDefinition {
   tools?: string;                    // Claude Code tools list (--tools flag, overrides default tool set)
   pluginDirs?: string[];             // plugin directories (--plugin-dir flags, repeatable)
   mcpComposition?: McpComposition;   // explicit MCP privilege surface for this agent
+  mcpToolAllowlist?: string[];        // optional per-tool MCP allowlist; absent preserves full surface
   /** Optional per-stage prompt map. When set, `promptTemplate` is ignored and the engine
    *  selects one stage per step based on the transition target (`"agent:stage"` syntax). */
   stages?: Record<string, StageDefinition>;
@@ -73,6 +74,7 @@ export type TemplateAgentRef = string | {
   outputStyle?: string;              // override agent's outputStyle
   tools?: string;                    // override agent's tools
   pluginDirs?: string[];             // override agent's pluginDirs
+  mcpToolAllowlist?: string[];        // override agent's MCP tool allowlist
 };
 
 // --- Resolved Agent Slot Config (merged from definition + template override) ---
@@ -89,6 +91,7 @@ export interface AgentSlotConfig {
   tools?: string;                    // Claude Code tools list (--tools flag)
   pluginDirs?: string[];             // plugin directories (--plugin-dir flags)
   mcpComposition?: McpComposition;   // explicit MCP privilege surface for this agent
+  mcpToolAllowlist?: string[];        // canonical resolved per-tool MCP allowlist
   /** Per-stage prompts (merged from AgentDefinition; templates currently don't override per stage). */
   stages?: Record<string, StageDefinition>;
   /** Default stage when a transition target omits the `:stage` suffix. */

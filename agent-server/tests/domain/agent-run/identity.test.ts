@@ -1,5 +1,5 @@
-// input:  identity module, resolved profiles, child processes
-// output: deterministic identity and benchmark guard hash proofs
+// input:  identity module, resolved profiles, tool gates, processes
+// output: deterministic role, gate and benchmark guard hash proofs
 // pos:    Agent-run identity hashing regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -234,6 +234,20 @@ it('freezes the guarded direct-PI parent surface hash (GH2)', () => {
     computeRoleToolSurfaceHash(parentSurface(PARENT_PI_TOOLS)),
     'f6623c9bbf0df3dcd0057cac7f438a4ee9d186a1ba663b1923a1bd8080369f23',
   );
+});
+
+it('changes the role hash with the canonical resolved MCP tool allowlist', () => {
+  const baseline = frozenInput().roleToolSurface;
+  const declared = computeRoleToolSurfaceHash({
+    ...baseline,
+    mcpToolAllowlist: ['thread_wait', 'ask_manager'],
+  });
+  const reordered = computeRoleToolSurfaceHash({
+    ...baseline,
+    mcpToolAllowlist: ['ask_manager', 'thread_wait', 'ask_manager'],
+  });
+  assert.notEqual(declared, computeRoleToolSurfaceHash(baseline));
+  assert.equal(declared, reordered);
 });
 
 it('changes the role hash when one compiled benchmark guard rule changes', () => {

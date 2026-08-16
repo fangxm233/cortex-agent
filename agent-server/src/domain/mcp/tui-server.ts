@@ -1,4 +1,4 @@
-// input:  MCP SDK, TUI plan/ask registrars, route identity, and webhook transport
+// input:  MCP SDK, tool gate, TUI registrars and webhook transport
 // output: Claude-TUI bridge stdio service assembled from production registrations
 // pos:    DR-0012 bridge loaded only by Claude TUI sessions; no exported name inventory
 // NOTE: "TUI" here refers to Claude CLI's Ink terminal mode (DR-0012), not to the upcoming Cortex TUI.
@@ -10,6 +10,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { isMainModule } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { CORTEX_VERSION } from '@core/version.js';
+import { registerGatedMcpTools } from '@core/mcp-tool-gate.js';
 import { registerTuiPlanTools, type TuiToolDeps } from './tools/tui-plan.js';
 import { registerTuiAskTools } from './tools/tui-ask.js';
 
@@ -69,8 +70,10 @@ const deps: TuiToolDeps = {
 
 const server = new McpServer({ name: 'cortex-tui-bridge', version: CORTEX_VERSION });
 
-registerTuiPlanTools(server, deps);
-registerTuiAskTools(server, deps);
+registerGatedMcpTools(server, (target) => {
+  registerTuiPlanTools(target, deps);
+  registerTuiAskTools(target, deps);
+});
 
 // --- Start (called by barrel when run as standalone) ---
 

@@ -1,4 +1,4 @@
-// input:  cwd, composition, prompts, tools, TUI deps
+// input:  cwd, composition, tool gate, prompts, TUI deps
 // output: interactive Claude session with spawn policy
 // pos:    Runs Claude TUI sessions under tmux
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -87,6 +87,7 @@ export interface ClaudeTuiSessionConfig {
   thinking?: string | null;
   mcpComposition?: McpComposition;
   mcpConfigPaths?: string[] | null;
+  mcpToolAllowlist?: string[] | null;
   supplementalMcpConfigPath?: string | null;
   disableHooks?: boolean;
   benchmarkPolicyGuard?: IdentityJsonValue;
@@ -163,6 +164,7 @@ export class ClaudeTuiSession {
   readonly supplementalMcpConfigIdentity: string | null;
   readonly pluginDirs: string[];
   readonly mcpConfigPaths: string[];
+  readonly mcpToolAllowlist: string[] | null;
 
   private readonly tmux: TmuxControl;
   private readonly tailFactory: (p: string) => JsonlTailLike;
@@ -204,6 +206,8 @@ export class ClaudeTuiSession {
     this.supplementalMcpConfigIdentity = config.supplementalMcpConfigIdentity ?? null;
     this.pluginDirs = [...(config.pluginDirs ?? [])];
     this.mcpConfigPaths = [...(config.mcpConfigPaths ?? [])];
+    this.mcpToolAllowlist = config.mcpToolAllowlist === undefined
+      || config.mcpToolAllowlist === null ? null : [...config.mcpToolAllowlist];
   }
 
   isAlive(): boolean {
@@ -245,6 +249,7 @@ export class ClaudeTuiSession {
       thinking: this.config.thinking ?? null,
       mcpComposition: this.mcpComposition,
       mcpConfigPaths: this.config.mcpConfigPaths ?? null,
+      mcpToolAllowlist: this.config.mcpToolAllowlist ?? null,
       supplementalMcpConfigPath: this.config.supplementalMcpConfigPath ?? null,
       disableHooks: this.config.disableHooks,
       benchmarkPolicyGuard: this.config.benchmarkPolicyGuard,
