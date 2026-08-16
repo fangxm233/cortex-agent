@@ -94,9 +94,9 @@ HOST_REDIRECT_ENVIRONMENT = {
 }
 SEALED_ENVIRONMENT_KEYS = {
     "PATH", "LANG", "CORTEX_HOME", "CORTEX_PROJECTS_DIR", "HOME",
-    "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "CORTEX_WEBHOOK_TOKEN",
+    "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "CORTEX_CONFIG_IMMUTABLE",
     "WEBHOOK_PORT", "CORTEX_TUI", "CORTEX_TUI_PORT",
-    "CORTEX_WEBHOOK_THREAD_OP_ONLY",
+    "CORTEX_WEBHOOK_THREAD_OP_ONLY", "CORTEX_WEBHOOK_SINGLE_ROOT",
 }
 
 
@@ -215,10 +215,16 @@ def test_materializes_without_host_home_and_scrubs_provider_and_chat_residue(tmp
     assert environment["CORTEX_TUI"] == "1"
     assert environment["WEBHOOK_PORT"] == "3001"
     assert environment["CORTEX_TUI_PORT"] == "3003"
+    assert environment["CORTEX_CONFIG_IMMUTABLE"] == "1"
     assert environment["CORTEX_WEBHOOK_THREAD_OP_ONLY"] == "1"
-    assert environment["CORTEX_WEBHOOK_TOKEN"] == hashlib.sha256(
-        b"trial-direct-001\x00trial-direct-001.cortex-direct\x00webhook"
-    ).hexdigest()
+    assert environment["CORTEX_WEBHOOK_SINGLE_ROOT"] == "1"
+    auth_tokens = {result.client_token, result.webhook_token}
+    assert len(auth_tokens) == 2
+    assert all(len(token) == 64 and int(token, 16) >= 0 for token in auth_tokens)
+    assert not auth_tokens & {"host-client-secret", "host-webhook-secret"}
+    assert "CORTEX_CLIENT_TOKEN" not in environment
+    assert "CORTEX_WEBHOOK_TOKEN" not in environment
+    assert not (result.cortex_home / "config/.env").exists()
     assert not any(
         key.startswith((
             "SLACK_", "FEISHU_", "LARK_", "CLAUDE_CODE_OAUTH_",

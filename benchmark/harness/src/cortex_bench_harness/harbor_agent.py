@@ -1,5 +1,5 @@
-# input:  Harbor lifecycle, inner/proxy evidence, stop observation
-# output: deferred post-stop grader admission
+# input:  Harbor lifecycle, inner/proxy evidence, workspace and stop observation
+# output: auth-bootstrapped run with deferred post-stop grader admission
 # pos:    Production Harbor lifecycle wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -413,7 +413,10 @@ class CortexBenchAgent(BaseInstalledAgent):
             environment, self._bundle_root_command(),
             f"Installed {BUNDLE_PACKAGE} bundle root probe returned no path",
         )
-        probe = "dist/entry/app.js" if self._production_direct else str(SUPERVISOR_PATH)
+        probe = (
+            "dist/entry/production-app-bootstrap.js"
+            if self._production_direct else str(SUPERVISOR_PATH)
+        )
         flag = "-f" if self._production_direct else "-x"
         target = PurePosixPath(bundle_root) / probe
         await self.exec_as_agent(

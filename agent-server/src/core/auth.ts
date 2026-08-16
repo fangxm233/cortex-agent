@@ -1,5 +1,5 @@
 // input:  process.env / CONFIG_DIR/.env, request headers
-// output: ensureAuthTokens + getClientToken/getWebhookToken + timingSafeEqualStr + AUTH_HEADER
+// output: persisted/captured auth tokens + timing-safe getters + AUTH_HEADER
 // pos:    Shared-secret auth for the cortex-client WebSocket and the webhook HTTP server.
 //         No Cloudflare dependency — two independent bearer tokens carried in the
 //         `x-cortex-token` header, generated on first start and persisted to .env (fail-closed).
@@ -21,6 +21,8 @@ export const CLIENT_TOKEN_ENV = 'CORTEX_CLIENT_TOKEN';
 /** Env var holding the webhook HTTP bearer token. */
 export const WEBHOOK_TOKEN_ENV = 'CORTEX_WEBHOOK_TOKEN';
 
+let runtimeAuthTokens: { clientToken: string; webhookToken: string } | null = null;
+
 /**
  * Constant-time string comparison. Returns false (fail-closed) when either side is
  * empty/undefined or the lengths differ — an unset configured token never matches.
@@ -34,12 +36,29 @@ export function timingSafeEqualStr(a: string | undefined, b: string | undefined)
 
 /** Read the configured client (WebSocket) token at call time (after dotenv loads). */
 export function getClientToken(): string {
-  return (process.env[CLIENT_TOKEN_ENV] || '').trim();
+  return runtimeAuthTokens?.clientToken ?? (process.env[CLIENT_TOKEN_ENV] || '').trim();
 }
 
 /** Read the configured webhook token at call time (after dotenv loads). */
 export function getWebhookToken(): string {
-  return (process.env[WEBHOOK_TOKEN_ENV] || '').trim();
+  return runtimeAuthTokens?.webhookToken ?? (process.env[WEBHOOK_TOKEN_ENV] || '').trim();
+}
+
+export function captureAuthTokensForRuntime(opts: {
+  env?: Record<string, string | undefined>;
+  scrubEnv?: boolean;
+} = {}): () => void {
+  const env = opts.env ?? process.env;
+  const clientToken = env[CLIENT_TOKEN_ENV]?.trim();
+  const webhookToken = env[WEBHOOK_TOKEN_ENV]?.trim();
+  if (!clientToken || !webhookToken) throw new Error('cannot capture missing auth tokens');
+  const previous = runtimeAuthTokens;
+  runtimeAuthTokens = { clientToken, webhookToken };
+  if (opts.scrubEnv) {
+    delete env[CLIENT_TOKEN_ENV];
+    delete env[WEBHOOK_TOKEN_ENV];
+  }
+  return () => { runtimeAuthTokens = previous; };
 }
 
 function genToken(): string {

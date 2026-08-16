@@ -12,7 +12,7 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | container_boundary.py | boundary | Proves post-stop container process and namespace quiescence |
 | cwd.py | core | Resolves the live container workdir |
 | manifest.py | core | Records artifacts and the installed CLI version |
-| harbor_agent.py | adapter | Defers host publication until Harbor confirms container stop |
+| harbor_agent.py | adapter | Auth-bootstraps production and defers publication until Harbor confirms container stop |
 | host_evidence_validation.py | boundary | Validates host-owned evidence identity |
 | host_finalization.py | boundary | Validates attestations and token-linked attempt bytes |
 | inner_validation.py | boundary | Validates production-ledger evidence v2 edges |

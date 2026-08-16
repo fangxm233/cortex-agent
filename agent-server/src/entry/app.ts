@@ -1,5 +1,5 @@
 // input:  runtime env, stores, scheduler, auth publishers
-// output: server runtime, attempt evidence, settings pushes
+// output: server runtime, immutable-config boot, attempt evidence, settings pushes
 // pos:    Agent-server composition root
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { mkdirSync } from 'fs';
@@ -58,9 +58,9 @@ import { setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
 
 // Extracted modules
-import { ensureMcpConfig } from './startup-helpers.js';
+import { ensureMcpConfig, shouldSyncManagedStartupAssets } from './startup-helpers.js';
 import { createLogger } from '@core/log.js';
-import { ensureAuthTokens } from '@core/auth.js';
+import { captureAuthTokensForRuntime, ensureAuthTokens } from '@core/auth.js';
 import { runningExecutions } from '@core/running-executions.js';
 import { getSettings, onSettingsChange } from '@core/settings.js';
 import { bgHeldSessions } from '@core/bg-held-sessions.js';
@@ -130,6 +130,9 @@ await migrateEnvToSettings();
 // and persists them to .env on first run (fail-closed auth — see core/auth.ts). Must run after
 // runtime dotenv loading so pre-existing tokens are honored, before either server starts.
 ensureAuthTokens();
+if (!shouldSyncManagedStartupAssets()) {
+  captureAuthTokensForRuntime({ scrubEnv: true });
+}
 
 // Apply the persisted mode to env now that .env is loaded. This used to be an import-time
 // side effect inside domain/agents/config.ts; it is explicit here so that CLI processes
@@ -397,17 +400,17 @@ process.on('SIGTERM', async () => {
 
 // --- Start ---
 (async () => {
-  ensureMcpConfig();
+  const syncManagedAssets = shouldSyncManagedStartupAssets();
+  if (syncManagedAssets) ensureMcpConfig();
   // Migrate old aistatus config from wrong location (CORTEX_HOME/config) to correct location (~/.aistatus)
   await migrateAistatusConfigLocation(DATA_DIR);
-  // Refresh version-stamped hooks in DATA_DIR/hooks from the shipped defaults. init's deployHooks
-  // only copies-if-missing, so without this an existing install never picks up hook code fixes.
-  await syncManagedHooks();
+  // Refresh version-stamped hooks in DATA_DIR/hooks from the shipped defaults. Immutable trial
+  // bundles already declare their entire role surface and may not mutate config after attestation.
+  if (syncManagedAssets) await syncManagedHooks();
   initConfiguredHooks();
   // Deploy new plugins and refresh updated skills in DATA_DIR/plugins from the shipped defaults.
-  // init's copyDefaults (copy-if-missing, only on `cortex init`) never reaches an existing install,
-  // so without this a new plugin or an updated skill never propagates on upgrade.
-  await syncManagedPlugins();
+  // A sealed production trial declares no plugins and keeps its attested config immutable.
+  if (syncManagedAssets) await syncManagedPlugins();
   // DR-0012 §3.6: clean up orphan TUI tmux sessions from a previous agent-server lifetime.
   // We can't re-adopt them (sessionKey↔tmux mapping was never persisted) so the honest move
   // is to kill any leftovers — otherwise a later session that reuses the same sessionId will

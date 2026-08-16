@@ -1,5 +1,5 @@
 # input:  npm artifact, Docker environment, production matrix seeds
-# output: installed Cortex arm matrix and artifact proof
+# output: installed Cortex arm matrix, non-root server boot and artifact proof
 # pos:    Opt-in container proof for the installed Harbor path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -14,8 +14,8 @@ import os
 import shlex
 import shutil
 import subprocess
-from pathlib import Path
-from typing import override
+from pathlib import Path, PurePosixPath
+from typing import Any, override
 
 import pytest
 from harbor.agents.installed.base import NonZeroAgentExitCodeError
@@ -27,6 +27,15 @@ from harbor.models.trial.paths import TrialPaths
 
 from cortex_bench_harness import CortexBenchAgent
 from cortex_bench_harness.inner_validation import valid_composite_structure
+from cortex_bench_harness.launcher.production_home import (
+    DirectArmLaunchFacts,
+    materialize_direct_arm_home,
+)
+from cortex_bench_harness.launcher.production_session import (
+    InstalledProductionServer,
+    ProductionServerSession,
+    ProductionSessionSpec,
+)
 from offline_package import build_offline_npm_artifact
 
 IMAGE_DIGEST = "sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818"
@@ -110,6 +119,21 @@ def create_environment(root: Path, node_runtime: Path, suffix: str) -> DockerEnv
         task_env_config=EnvironmentConfig(docker_image=IMAGE_REF, workdir="/app"),
         mounts=mounts,
     )
+
+
+def production_direct_arm() -> dict[str, object]:
+    return {
+        "schema_version": "cortex-benchmark-arm/2", "kind": "cortex",
+        "name": "cortex-direct", "backend": "pi", "provider": "deepseek",
+        "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
+        "orchestration": {"mode": "direct", "ask_manager": False},
+        "limits": {
+            "max_thread_starts": 0, "max_parent_questions": 0,
+            "max_task_depth": 0, "max_tasks": 0, "max_provider_requests": 8,
+            "max_resident_agent_processes": 1, "max_cost_usd": "2.50",
+            "deadline_seconds": 90, "max_output_tokens": 65536,
+        },
+    }
 
 
 def trial_seed(image: dict[str, object], suffix: str) -> dict[str, object]:
@@ -308,6 +332,86 @@ async def run_positive_path(
         await assert_installed_bundle(environment)
         assert_manifest_hash(root, artifact)
     finally:
+        await environment.stop(delete=True)
+
+
+async def run_production_boot_path(
+    root: Path, node_runtime: Path, artifact: Path, image: dict[str, object],
+) -> None:
+    environment = create_environment(root, node_runtime, "production-boot")
+    session: ProductionServerSession | None = None
+    pid: int | None = None
+    try:
+        await environment.start(force_build=False)
+        await provision_agent_user(environment)
+        await assert_fresh_container(environment)
+        agent = create_agent(CortexBenchAgent, root, artifact, image, "production-boot")
+        with environment.with_default_user(AGENT_USER):
+            await agent.setup(environment)
+        materialized = materialize_direct_arm_home(
+            cortex_home=root / "trial/agent/production-cortex-home",
+            runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
+            artifacts_dir=root / "trial/artifacts",
+            facts=DirectArmLaunchFacts(
+                trial_id="trial-production-boot", root_run_id="root-production-boot",
+                npm_artifact=artifact, backend_cli_version="pi-fixture-1",
+                proxy_base_url="http://trial-production-boot.proxy.invalid:49152",
+                dummy_token_ref="offline-token-handle",
+                model_alias_policy={"policy": "exact"},
+            ),
+            inherited_environment={
+                "PATH": "/usr/local/bin:/opt/node/bin:/usr/bin:/bin", "LANG": "C.UTF-8",
+            },
+        )
+        config_before = {
+            path.relative_to(materialized.cortex_home / "config").as_posix(): path.read_bytes()
+            for path in sorted((materialized.cortex_home / "config").rglob("*"))
+            if path.is_file()
+        }
+        ownership = await environment.exec(
+            command="chown -R cortex-agent:cortex-agent /logs/agent/production-cortex-home",
+            user="root",
+        )
+        assert ownership.return_code == 0, ownership.stderr
+        session = ProductionServerSession(ProductionSessionSpec(
+            logs_dir=root / "trial/agent",
+            container_logs_dir=PurePosixPath("/logs/agent"), workspace_cwd="/app",
+            arm=production_direct_arm(), trial_id="trial-production-boot",
+            root_run_id="root-production-boot", materialized_home=materialized,
+            installed=InstalledProductionServer(
+                bundle_root=PurePosixPath(
+                    "/installed-agent/npm/lib/node_modules/@cortex-agent/server"),
+                backend_cli_path=PurePosixPath("/usr/local/bin/pi"),
+                backend_cli_version="pi-fixture-1",
+            ),
+        ), poll_interval_seconds=0.05, readiness_timeout_seconds=30)
+
+        async def execute(command: str, **kwargs: Any) -> Any:
+            with environment.with_default_user(AGENT_USER):
+                return await environment.exec(command=command, **kwargs)
+
+        identity = await execute("id -u")
+        assert int(identity.stdout.strip()) > 0
+        pid = await session._start_server(execute)
+        owner = await execute(f"stat -c %u /proc/{pid}")
+        assert int(owner.stdout.strip()) > 0
+        await session._wait_until_ready(execute)
+        process_environment = await execute(f"cat /proc/{pid}/environ")
+        assert "CORTEX_CLIENT_TOKEN" not in process_environment.stdout
+        assert "CORTEX_WEBHOOK_TOKEN" not in process_environment.stdout
+        assert materialized.client_token not in process_environment.stdout
+        assert materialized.webhook_token not in process_environment.stdout
+        assert not (root / "trial/agent/production-server-auth.json").exists()
+        config_after = {
+            path.relative_to(materialized.cortex_home / "config").as_posix(): path.read_bytes()
+            for path in sorted((materialized.cortex_home / "config").rglob("*"))
+            if path.is_file()
+        }
+        assert config_after == config_before
+    finally:
+        if pid is not None and session is not None:
+            await session._stop_server(pid, execute)
+            session._remove_temporary_files()
         await environment.stop(delete=True)
 
 
@@ -636,6 +740,15 @@ def test_real_container_installs_bundle_and_aborts_corrupt_artifact(
     root, node_runtime, artifact, image = installed_bundle
     asyncio.run(run_positive_path(root / "positive", node_runtime, artifact, image))
     asyncio.run(run_negative_path(root / "negative", node_runtime, image))
+
+
+def test_installed_dist_server_reaches_readiness_as_non_root_with_sealed_home(
+    installed_bundle: tuple[Path, Path, Path, dict[str, object]],
+) -> None:
+    root, node_runtime, artifact, image = installed_bundle
+    asyncio.run(run_production_boot_path(
+        root / "production-boot", node_runtime, artifact, image,
+    ))
 
 
 @pytest.mark.parametrize(("backend", "mode", "detail"), PRODUCTION_ROWS)

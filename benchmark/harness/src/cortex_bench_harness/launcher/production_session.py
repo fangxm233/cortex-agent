@@ -184,17 +184,32 @@ class ProductionServerSession:
         self._temporary_files.append(local)
         return self._container_path(name)
 
-    def _launch_command(self) -> str:
-        environment = self._spec.materialized_home.process_environment
+    def _launch_command(self, auth_path: PurePosixPath) -> str:
+        environment = {
+            **self._spec.materialized_home.process_environment,
+            "CORTEX_PRODUCTION_AUTH_FILE": str(auth_path),
+        }
         assignments = [f"{key}={value}" for key, value in sorted(environment.items())]
-        app = self._spec.installed.bundle_root / "dist/entry/app.js"
+        app = self._spec.installed.bundle_root / "dist/entry/production-app-bootstrap.js"
         prefix = shlex.join(["env", "-i", *assignments, "setsid", "node", str(app)])
         stdout = shlex.quote(str(self._container_path("stdout.txt")))
         stderr = shlex.quote(str(self._container_path("stderr.txt")))
         return f"{prefix} >{stdout} 2>{stderr} </dev/null & printf '%s\\n' \"$!\""
 
+    def _write_server_auth(self) -> PurePosixPath:
+        path = self._write_request("production-server-auth.json", {
+            "clientToken": self._spec.materialized_home.client_token,
+            "webhookToken": self._spec.materialized_home.webhook_token,
+        })
+        # The bind-mounted log owner may not equal the container UID. The bootstrap unlinks this
+        # one-shot file before importing the app or spawning any model-controlled process.
+        (self._spec.logs_dir / "production-server-auth.json").chmod(0o444)
+        return path
+
     async def _start_server(self, execute: Executor) -> int:
-        result = await execute(self._launch_command(), cwd=self._spec.workspace_cwd)
+        result = await execute(
+            self._launch_command(self._write_server_auth()), cwd=self._spec.workspace_cwd,
+        )
         text = (result.stdout or "").strip()
         if not text.isdigit() or int(text) <= 0:
             raise ProductionSessionError("production server did not return a process-group id")
@@ -211,7 +226,7 @@ class ProductionServerSession:
 
     async def _post(self, name: str, body: Mapping[str, object], execute: Executor) -> Mapping[str, object]:
         request = self._write_request(name, body)
-        token = self._spec.materialized_home.process_environment["CORTEX_WEBHOOK_TOKEN"]
+        token = self._spec.materialized_home.webhook_token
         result = await execute(
             self._http_command(request), env={"CORTEX_WEBHOOK_TOKEN": token},
             cwd=self._spec.workspace_cwd, timeout_sec=HTTP_REQUEST_TIMEOUT_SECONDS,

@@ -57,12 +57,13 @@ def session(
             "CORTEX_PROJECTS_DIR": "/logs/agent/production-cortex-home/context/projects",
             "XDG_CACHE_HOME": "/logs/agent/production-cortex-home/home/.cache",
             "XDG_CONFIG_HOME": "/logs/agent/production-cortex-home/home/.config",
-            "CORTEX_WEBHOOK_TOKEN": "webhook-token", "WEBHOOK_PORT": "3001",
-            "CORTEX_WEBHOOK_THREAD_OP_ONLY": "1",
+            "CORTEX_CONFIG_IMMUTABLE": "1", "WEBHOOK_PORT": "3001",
+            "CORTEX_WEBHOOK_THREAD_OP_ONLY": "1", "CORTEX_WEBHOOK_SINGLE_ROOT": "1",
             "CORTEX_TUI": "1", "CORTEX_TUI_PORT": "3003",
         },
         production_evidence_context=EVIDENCE_CONTEXT,
         bundle_manifest_hash="b" * 64,
+        client_token="client-token", webhook_token="webhook-token",
     )
     spec = ProductionSessionSpec(
         logs_dir=tmp_path, container_logs_dir=PurePosixPath("/logs/agent"),
@@ -99,7 +100,9 @@ class FakeExecutor:
     ) -> SimpleNamespace:
         self.calls.append((command, env, cwd))
         self.timeouts.append(timeout_sec)
-        if "dist/entry/app.js" in command:
+        if "dist/entry/production-app-bootstrap.js" in command:
+            self._capture("production-server-auth.json")
+            (self.logs_dir / "production-server-auth.json").unlink()
             return SimpleNamespace(stdout="4242\n", stderr="")
         if "production-thread-ready.json" in command:
             self._capture("production-thread-ready.json")
@@ -173,9 +176,20 @@ def test_session_boots_real_server_injects_only_webhook_exports_and_stops(tmp_pa
     )
     assert production.stopped_cleanly is True
     commands = [call[0] for call in runner.calls]
-    assert "dist/entry/app.js" in commands[0]
+    assert "dist/entry/production-app-bootstrap.js" in commands[0]
     assert "setsid" in commands[0] and "env -i" in commands[0]
     assert "CORTEX_WEBHOOK_THREAD_OP_ONLY=1" in commands[0]
+    assert "CORTEX_CONFIG_IMMUTABLE=1" in commands[0]
+    assert "CORTEX_WEBHOOK_SINGLE_ROOT=1" in commands[0]
+    assert "CORTEX_PRODUCTION_AUTH_FILE=/logs/agent/production-server-auth.json" in commands[0]
+    assert "client-token" not in commands[0] and "webhook-token" not in commands[0]
+    assert runner.payloads["production-server-auth.json"] == {
+        "clientToken": "client-token", "webhookToken": "webhook-token",
+    }
+    assert all(
+        env == {"CORTEX_WEBHOOK_TOKEN": "webhook-token"}
+        for command, env, _ in runner.calls if "/webhook/thread-op" in command
+    )
     assert all("cortex agent-run" not in command for command in commands)
     assert all("benchmark-thread-run" not in command for command in commands)
     assert sum("/webhook/thread-op" in command for command in commands) == 4
