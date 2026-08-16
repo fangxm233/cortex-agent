@@ -25,11 +25,13 @@ vi.mock('@domain/agents/index.js', async (importOriginal) => {
 });
 
 import { resolveMcpComposition, type AgentProcessSpawner } from '../src/agent-adapter/types.js';
-import { CONFIG_DIR } from '../src/core/paths.js';
+import { CONFIG_DIR, STORE_DIR } from '../src/core/paths.js';
 import { initHookBus } from '../src/core/hook-bus.js';
 import { runningExecutions } from '../src/core/running-executions.js';
 import type { AgentResult } from '../src/core/types/agent-types.js';
-import type { RunThreadOptions, ThreadHookConfig, ThreadRecord } from '../src/core/types/thread-types.js';
+import type {
+  ProductionBenchmarkEvidenceContext, RunThreadOptions, ThreadHookConfig, ThreadRecord,
+} from '../src/core/types/thread-types.js';
 import { buildAgentSpawnConfig, type RunAgentOptions } from '../src/domain/agents/facade.js';
 import { resolveProfileConfig } from '../src/domain/agents/profile-manager.js';
 import * as resumeRegistry from '../src/domain/costs/resume-registry.js';
@@ -143,12 +145,31 @@ afterAll(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-function createFixtureThread(templateName = 'bench-two-step'): ThreadRecord {
+const PRODUCTION_EVIDENCE: ProductionBenchmarkEvidenceContext = {
+  schema_version: 'cortex-production-benchmark-evidence-context/1',
+  trial_id: 'trial-thread-boundary',
+  root_run_id: 'root-thread-boundary',
+  bundle_manifest_hash: 'd'.repeat(64),
+  model_execution: {
+    model_alias_policy: { policy: 'exact' },
+    cli_name: 'pi',
+    cli_version: 'pi-fixture-1',
+    max_output_tokens: null,
+  },
+};
+
+function createFixtureThread(
+  templateName = 'bench-two-step',
+  evidenceContext?: ProductionBenchmarkEvidenceContext,
+): ThreadRecord {
   const thread = createThread(`C-benchmark-${createdThreadIds.size}`, {
     templateName,
     userMessage: 'the same benchmark task',
     userMessageTs: String(Date.now()),
     projectId: 'atlas',
+    metadata: evidenceContext
+      ? { productionBenchmarkEvidenceContext: evidenceContext }
+      : undefined,
   });
   createdThreadIds.add(thread.id);
   return thread;
@@ -239,21 +260,29 @@ function assertCwdProbe(
   assert.deepEqual(fs.readFileSync(marker, 'utf8').trim().split('\n'), [workspace, workspace]);
 }
 
-test('production direct, coder-review, and dispatched-manager steps carry real identity context', async () => {
-  const direct = createFixtureThread('bench-active');
+test('production direct, coder-review, and dispatched-manager steps carry persisted evidence context', async () => {
+  const direct = createFixtureThread('bench-active', PRODUCTION_EVIDENCE);
   queueSuccesses(1, 'direct');
   await threadRunner.runThread(direct.id, runOptions(direct));
   const directOptions = agent.runAgent.mock.calls[0][1] as RunAgentOptions;
   assert.deepEqual({
     threadId: directOptions.threadId, rootThreadId: directOptions.rootThreadId,
     templateName: directOptions.templateName, role: directOptions.agentSlotId,
+    evidence: directOptions.productionBenchmarkEvidenceContext,
   }, {
     threadId: direct.id, rootThreadId: direct.id,
     templateName: 'bench-active', role: 'bench-alpha',
+    evidence: PRODUCTION_EVIDENCE,
   });
+  await threadStore.flush();
+  const persisted = JSON.parse(fs.readFileSync(path.join(STORE_DIR, 'threads.json'), 'utf8'));
+  assert.deepEqual(
+    persisted[direct.id].metadata.productionBenchmarkEvidenceContext,
+    PRODUCTION_EVIDENCE,
+  );
 
   agent.runAgent.mockReset();
-  const coderReview = createFixtureThread('bench-two-step');
+  const coderReview = createFixtureThread('bench-two-step', PRODUCTION_EVIDENCE);
   queueSuccesses(2, 'review');
   await threadRunner.runThread(coderReview.id, runOptions(coderReview));
   const reviewOptions = agent.runAgent.mock.calls.map(call => call[1] as RunAgentOptions);
@@ -261,9 +290,16 @@ test('production direct, coder-review, and dispatched-manager steps carry real i
     rootThreadId: options.rootThreadId,
     templateName: options.templateName,
     role: options.agentSlotId,
+    evidence: options.productionBenchmarkEvidenceContext,
   })), [
-    { rootThreadId: coderReview.id, templateName: 'bench-two-step', role: 'bench-alpha' },
-    { rootThreadId: coderReview.id, templateName: 'bench-two-step', role: 'bench-beta' },
+    {
+      rootThreadId: coderReview.id, templateName: 'bench-two-step', role: 'bench-alpha',
+      evidence: PRODUCTION_EVIDENCE,
+    },
+    {
+      rootThreadId: coderReview.id, templateName: 'bench-two-step', role: 'bench-beta',
+      evidence: PRODUCTION_EVIDENCE,
+    },
   ]);
 
   agent.runAgent.mockReset();
@@ -273,6 +309,7 @@ test('production direct, coder-review, and dispatched-manager steps carry real i
     metadata: {
       trigger: 'task-dispatch', taskId: 'a1b2', taskProject: 'atlas',
       dispatchGeneration: 'generation-manager',
+      productionBenchmarkEvidenceContext: PRODUCTION_EVIDENCE,
     },
   });
   createdThreadIds.add(manager.id);
@@ -283,9 +320,11 @@ test('production direct, coder-review, and dispatched-manager steps carry real i
     rootThreadId: managerOptions.rootThreadId, templateName: managerOptions.templateName,
     role: managerOptions.agentSlotId, taskId: managerOptions.taskId,
     taskProject: managerOptions.taskProject, generation: managerOptions.taskGeneration,
+    evidence: managerOptions.productionBenchmarkEvidenceContext,
   }, {
     rootThreadId: manager.id, templateName: 'bench-manager-template', role: 'bench-manager',
     taskId: 'a1b2', taskProject: 'atlas', generation: 'generation-manager',
+    evidence: PRODUCTION_EVIDENCE,
   });
 });
 

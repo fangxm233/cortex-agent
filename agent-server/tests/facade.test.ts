@@ -161,18 +161,8 @@ test('evidence-enabled preflight rate limit persists a zero-event attempt withou
   const rl = await initThrottle(['plan']);
   const identity = await import('../src/domain/agent-run/production-attempt-identity.js');
   const journals = await import('../src/domain/agent-run/production-attempt-journal.js');
-  const inputPath = path.join(suiteHome, 'config', 'benchmark-attempt-identity.json');
   const storePath = path.join(suiteHome, 'data', 'benchmark-attempt-identities.jsonl');
-  writeFileSync(inputPath, `${JSON.stringify({
-    schema_version: 'cortex-production-attempt-identity-input/1',
-    trial_id: 'trial-preflight', root_run_id: 'root-preflight',
-    bundle_manifest_hash: 'a'.repeat(64),
-    model_execution: {
-      model_alias_policy: { policy: 'exact' }, cli_name: 'claude',
-      cli_version: 'claude-fixture-1', max_output_tokens: null,
-    },
-  })}\n`);
-  identity.initializeProductionAttemptIdentity({ inputPath, storePath });
+  identity.initializeProductionAttemptIdentity({ storePath });
   t.onTestFinished(() => {
     identity.resetProductionAttemptIdentity();
     rl._testReset();
@@ -183,6 +173,15 @@ test('evidence-enabled preflight rate limit persists a zero-event attempt withou
     profileName: 'scan', executionId: 'exec-preflight',
     threadId: 'thr-preflight', rootThreadId: 'thr-preflight', parentThreadId: null,
     templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct', stage: null,
+    productionBenchmarkEvidenceContext: {
+      schema_version: 'cortex-production-benchmark-evidence-context/1',
+      trial_id: 'trial-preflight', root_run_id: 'root-preflight',
+      bundle_manifest_hash: 'a'.repeat(64),
+      model_execution: {
+        model_alias_policy: { policy: 'exact' }, cli_name: 'claude',
+        cli_version: 'claude-fixture-1', max_output_tokens: null,
+      },
+    },
     identityDirective: '', taskId: null, taskGeneration: null,
   }).promise;
 

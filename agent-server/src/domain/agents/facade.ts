@@ -592,7 +592,7 @@ function configureRunRoute(options: RunAgentOptions, config: AgentConfig): strin
 function recordPreflightAttempt(
   message: string, options: RunAgentOptions, config: AgentConfig,
 ): void {
-  if (!productionAttemptEvidenceEnabled()) return;
+  if (!productionAttemptEvidenceEnabled(options)) return;
   const adapter = getAdapter(config.backend as Backend);
   const prepared = prepareAttemptEvidence(
     adapter, message, options, config, configureRunRoute(options, config),

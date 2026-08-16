@@ -16,6 +16,7 @@ import type {
   AgentAdapter, AgentProcess, AgentSpawnConfig, Backend,
 } from '../../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
 import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
@@ -47,6 +48,7 @@ const ABORT_EVENTS: NormalizedEvent[] = [
 ];
 
 let root: string;
+let evidenceContext: ProductionBenchmarkEvidenceContext;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-attempt-journal-'));
@@ -59,10 +61,6 @@ afterEach(() => {
   resetProductionAttemptJournals();
   fs.rmSync(root, { recursive: true, force: true });
 });
-
-function inputPath(): string {
-  return path.join(root, 'config', 'benchmark-attempt-identity.json');
-}
 
 function identityStorePath(): string {
   return path.join(root, 'data', 'benchmark-attempt-identities.jsonl');
@@ -77,18 +75,17 @@ function journalDir(): string {
 }
 
 function initialize(backend: Backend, storePath = journalStorePath()): void {
-  fs.mkdirSync(path.dirname(inputPath()), { recursive: true });
-  fs.writeFileSync(inputPath(), `${JSON.stringify({
-    schema_version: 'cortex-production-attempt-identity-input/1',
+  evidenceContext = {
+    schema_version: 'cortex-production-benchmark-evidence-context/1',
     trial_id: 'trial-production-1', root_run_id: 'root-production-1',
     bundle_manifest_hash: SHA,
     model_execution: {
       model_alias_policy: { policy: 'exact' }, cli_name: backend,
       cli_version: `${backend}-fixture-1`, max_output_tokens: null,
     },
-  })}\n`);
+  };
   initializeProductionAttemptIdentity({
-    inputPath: inputPath(), storePath: identityStorePath(),
+    storePath: identityStorePath(),
     configurationRevision: () => ({ profiles: 1, threads: 1 }),
   });
   initializeProductionAttemptJournals({ journalDir: journalDir(), storePath });
@@ -169,6 +166,7 @@ function runAttempt(
     taskGeneration: pathCase.taskId ? `generation-${executionId}` : null,
     templateName: pathCase.template, agentSlotId: pathCase.role, stage: pathCase.stage,
     profileName: resolved.name, resolvedProfileConfig: resolved,
+    productionBenchmarkEvidenceContext: evidenceContext,
     identityDirective: `Directive for ${pathCase.role}`, systemPrompt: 'System prompt',
     tools: 'Read,Write', pluginDirs: [], mcpComposition: 'none', disableHooks: true,
     loadCortexRules: false, recordCost: false,
@@ -356,7 +354,7 @@ test('reload fails closed when persisted journal bytes no longer match their dig
 
 test('ordinary non-benchmark runs do not create production attempt evidence', async () => {
   initializeProductionAttemptJournals({ journalDir: journalDir(), storePath: journalStorePath() });
-  initializeProductionAttemptIdentity({ inputPath: inputPath(), storePath: identityStorePath() });
+  initializeProductionAttemptIdentity({ storePath: identityStorePath() });
   const ordinary = profile('claude');
   ordinary.name = 'ordinary';
   await facadeTest.runWithAdapter(adapter('claude', () => eventProcess(EVENTS)), 'x', {

@@ -1,5 +1,5 @@
 // input:  thread config, tool gates, benchmark events, spawning
-// output: thread state, buffered-input, runtime lifecycle types
+// output: thread state, evidence context, and runtime lifecycle types
 // pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -352,11 +352,31 @@ export interface BufferedThreadUserInput {
   text: string;
 }
 
+export type ProductionBenchmarkIdentityJsonValue =
+  | null | boolean | number | string
+  | ProductionBenchmarkIdentityJsonValue[]
+  | { [key: string]: ProductionBenchmarkIdentityJsonValue };
+
+export interface ProductionBenchmarkEvidenceContext {
+  readonly schema_version: 'cortex-production-benchmark-evidence-context/1';
+  readonly trial_id: string;
+  readonly root_run_id: string;
+  readonly bundle_manifest_hash: string;
+  readonly model_execution: {
+    readonly model_alias_policy: ProductionBenchmarkIdentityJsonValue;
+    readonly cli_name: Backend;
+    readonly cli_version: string;
+    readonly max_output_tokens: number | null;
+  };
+}
+
 /** Caller-provided metadata stored on ThreadRecord, used by thread-runner for execution registry etc. */
 export interface ThreadMetadata {
   scheduleTaskId?: string | null;    // schedule task association
   trigger?: string | null;           // execution trigger: 'scheduled' | 'task-dispatch' | 'user' | 'mcp-thread' | ...
   profileOverride?: string | null;   // override agent's configured profile at runtime
+  /** All-or-nothing production benchmark facts persisted at the injected thread boundary. */
+  productionBenchmarkEvidenceContext?: ProductionBenchmarkEvidenceContext | null;
   /** Recursion depth: 0 for top-level (direct-agent-spawned) threads, incremented per nested
    *  thread_start via the MCP thread-op bridge. Surfaced to spawned agents as CORTEX_THREAD_DEPTH
    *  so the depth guard can cap runaway agent→thread→agent recursion. */
