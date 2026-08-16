@@ -42,7 +42,7 @@ DISCOVERY_COMMANDS = [
     "set -o pipefail; npm ls --global --parseable --depth=0 "
     "--prefix /installed-agent/npm --cache /installed-agent/npm-cache "
     "--offline @cortex-agent/server",
-    f"set -o pipefail; test -f {BUNDLE_ROOT}/dist/entry/app.js",
+    f"set -o pipefail; test -f {BUNDLE_ROOT}/dist/entry/production-app-bootstrap.js",
     'set -o pipefail; realpath -- "$(command -v pi)"',
     "set -o pipefail; pi --version",
 ]
@@ -252,7 +252,8 @@ def test_setup_materializes_before_any_production_process_spawn(tmp_path: Path) 
 
     assert (tmp_path / "artifacts/cortex-bench-launch-attestation.json").is_file()
     assert not any(
-        command.startswith("set -o pipefail; node ") and "dist/entry/app.js" in command
+        command.startswith("set -o pipefail; node ")
+        and "dist/entry/production-app-bootstrap.js" in command
         for command, _ in environment.calls
     )
 
@@ -448,5 +449,5 @@ def test_nonproduction_run_still_executes_and_collects_the_legacy_agent_run(
 
     commands = [command for command, _ in environment.calls]
     assert any("cortex agent-run --prompt-file" in command for command in commands)
-    assert all("dist/entry/app.js" not in command for command in commands)
+    assert all("dist/entry/production-app-bootstrap.js" not in command for command in commands)
     assert (tmp_path / "agent/stdout.txt").read_text() == "legacy stdout"

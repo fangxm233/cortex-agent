@@ -6,7 +6,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | filename | role | function |
 |---|---|---|
 | admin-channel-hot-reload.ts | wiring | creates adapter with live admin settings |
-| app.ts | entry | Wires guarded boot jobs and attempt evidence |
+| app.ts | entry | Wires guarded boot jobs, immutable trial config and attempt evidence |
 | auth-cli.ts | cli | handles auth status arguments and rendering |
 | boot-jobs.ts | wiring | registers optional client and archive timers |
 | cli-help.ts | cli | builds top-level and subcommand help |
@@ -19,9 +19,10 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | hook-cli.ts | cli | Inspects hooks and runs blocking user asks |
 | feishu-login.ts | cli | handles Feishu login and serialized env updates |
 | init.ts | cli | creates Cortex home and MCP composition files |
+| production-app-bootstrap.ts | entry | Consumes one-shot server auth before importing the sealed production app |
 | production-evidence-export-cli.ts | cli | Publishes production benchmark evidence v2 |
 | provider-cli.ts | cli | manages user-defined PI providers from the CLI |
 | start-ui-http.ts | wiring | starts Web UI HTTP, CORS, and file routes |
-| startup-helpers.ts | util | prepares MCP config for startup |
+| startup-helpers.ts | util | Gates managed startup mutations and prepares MCP config |
 | startup-notify.ts | util | sends startup notices to the admin channel |
 | ui-http-gate.ts | gate | loads the Web UI server when enabled |

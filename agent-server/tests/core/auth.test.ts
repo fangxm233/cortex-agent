@@ -1,5 +1,5 @@
 // input:  Node test runner + core/auth.ts
-// output: token timing-safe compare + ensureAuthTokens generation/idempotency tests
+// output: token comparison, generation, runtime capture and scrubbing tests
 // pos:    Regression guard for WS/webhook shared-secret auth (no-Cloudflare auth model)
 // >>> If I am updated, update me and the parent folder's CORTEX.md <<<
 
@@ -11,6 +11,9 @@ import * as path from 'node:path';
 import {
   timingSafeEqualStr,
   ensureAuthTokens,
+  captureAuthTokensForRuntime,
+  getClientToken,
+  getWebhookToken,
   AUTH_HEADER,
 } from '../../src/core/auth.js';
 
@@ -99,6 +102,21 @@ test('ensureAuthTokens appends to an existing .env preserving prior content and 
   // The appended key starts on its own line (no concatenation onto lab2).
   assert.doesNotMatch(written, /lab2CORTEX_/);
   assert.match(written, /\nCORTEX_CLIENT_TOKEN=/);
+});
+
+test('runtime capture preserves auth while scrubbing the mutable process environment', () => {
+  const env: Record<string, string | undefined> = {
+    CORTEX_CLIENT_TOKEN: 'runtime-client', CORTEX_WEBHOOK_TOKEN: 'runtime-webhook',
+  };
+  const restore = captureAuthTokensForRuntime({ env, scrubEnv: true });
+  try {
+    assert.equal(env.CORTEX_CLIENT_TOKEN, undefined);
+    assert.equal(env.CORTEX_WEBHOOK_TOKEN, undefined);
+    assert.equal(getClientToken(), 'runtime-client');
+    assert.equal(getWebhookToken(), 'runtime-webhook');
+  } finally {
+    restore();
+  }
 });
 
 test('ignores blank/whitespace existing token values and regenerates', (t) => {

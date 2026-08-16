@@ -1,5 +1,5 @@
 // input:  PI source, hooks, cache, transcripts, fake processes
-// output: PI spawn quality, lifecycle, event, and compact tests
+// output: PI spawn auth isolation, lifecycle, event, and compact tests
 // pos:    Covers PI process construction and lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -310,6 +310,8 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
     CORTEX_TASK_PROJECT: 'stale-task-project',
     CORTEX_CALLBACK_SOURCE: 'stale-callback',
     CORTEX_SCHEDULE_TASK_ID: 'stale-schedule',
+    CORTEX_CONFIG_IMMUTABLE: '1',
+    CORTEX_WEBHOOK_SINGLE_ROOT: '1',
     CORTEX_PI_SUBAGENT: '1',
     [PI_PLUGIN_MCP_CONFIG_ENV]: '/stale-plugin-mcp.json',
     [PI_BENCHMARK_THREAD_POLICY_ENV]: '/stale-thread-policy.json',
@@ -325,6 +327,16 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
   assert.equal(env.PI_CODING_AGENT_DIR, '/pi-agent');
 });
 
+
+test('buildPiEnv preserves server auth for ordinary PI MCP sessions', () => {
+  const env = buildPiEnv({ piAgentDir: '/pi-agent' }, {
+    CORTEX_CLIENT_TOKEN: 'ordinary-client-token',
+    CORTEX_WEBHOOK_TOKEN: 'ordinary-webhook-token',
+  });
+
+  assert.equal(env.CORTEX_CLIENT_TOKEN, 'ordinary-client-token');
+  assert.equal(env.CORTEX_WEBHOOK_TOKEN, 'ordinary-webhook-token');
+});
 
 test('buildPiEnv resets and sets the PI plugin MCP config path through a dedicated env key', () => {
   const stale = { [PI_PLUGIN_MCP_CONFIG_ENV]: '/stale-plugin-mcp.json' };

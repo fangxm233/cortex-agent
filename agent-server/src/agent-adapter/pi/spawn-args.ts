@@ -1,5 +1,5 @@
 // input:  PI spawn options, task context, MCP tool gate, benchmark policy
-// output: Isolated PI argv and subprocess environment
+// output: Isolated PI argv and child environment without server auth
 // pos:    Builds PI process arguments and environment
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -119,6 +119,8 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_THREAD_DEPTH', 'CORTEX_TASK_ID', 'CORTEX_TASK_PROJECT',
   'CORTEX_TASK_GENERATION',
   'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
+  'CORTEX_CONFIG_IMMUTABLE', 'CORTEX_PRODUCTION_AUTH_FILE',
+  'CORTEX_WEBHOOK_THREAD_OP_ONLY', 'CORTEX_WEBHOOK_SINGLE_ROOT',
   'CORTEX_PI_ALLOWED_TOOLS', 'CORTEX_PI_SUBAGENT', PI_PLUGIN_MCP_CONFIG_ENV,
   PI_BENCHMARK_THREAD_POLICY_ENV, PI_POLICY_GUARD_ENV, PI_LEASE_STATE_ENV,
   PI_MCP_COMPOSITION_ENV, PI_BENCHMARK_DEADLINE_ENV, MCP_TOOL_ALLOWLIST_ENV,

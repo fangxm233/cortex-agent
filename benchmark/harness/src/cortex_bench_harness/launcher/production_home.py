@@ -1,5 +1,5 @@
 # input:  direct bundle, launcher facts, host and runtime paths
-# output: sealed fresh home, launch attestation and production evidence context
+# output: sealed fresh home, server-only auth, launch attestation and evidence context
 # pos:    Pre-boot materializer for the production direct benchmark arm
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -62,6 +63,8 @@ class DirectArmLaunchFacts:
 class MaterializedProductionHome:
     cortex_home: Path
     process_environment: Mapping[str, str]
+    client_token: str
+    webhook_token: str
     launch_attestation_path: Path
     production_evidence_context: Mapping[str, object]
     input_bundle_sha256: str
@@ -188,9 +191,8 @@ def _is_residue(key: str) -> bool:
     return key.startswith(RESIDUE_PREFIXES) or key.endswith(RESIDUE_SUFFIXES)
 
 
-def _webhook_token(trial_id: str, root_run_id: str) -> str:
-    payload = f"{trial_id}\0{root_run_id}\0webhook".encode()
-    return hashlib.sha256(payload).hexdigest()
+def _auth_token() -> str:
+    return secrets.token_hex(32)
 
 
 def _sealed_environment(
@@ -206,8 +208,9 @@ def _sealed_environment(
         "HOME": str(runtime_home / "home"),
         "XDG_CACHE_HOME": str(runtime_home / "home/.cache"),
         "XDG_CONFIG_HOME": str(runtime_home / "home/.config"),
-        "CORTEX_WEBHOOK_TOKEN": _webhook_token(facts.trial_id, facts.root_run_id),
-        "CORTEX_WEBHOOK_THREAD_OP_ONLY": "1", "WEBHOOK_PORT": "3001",
+        "CORTEX_CONFIG_IMMUTABLE": "1", "CORTEX_WEBHOOK_THREAD_OP_ONLY": "1",
+        "CORTEX_WEBHOOK_SINGLE_ROOT": "1",
+        "WEBHOOK_PORT": "3001",
         "CORTEX_TUI": "1", "CORTEX_TUI_PORT": "3003",
     })
     if any(_is_residue(key) for key in environment):
@@ -322,6 +325,7 @@ def materialize_direct_arm_home(
     proxy_base_url = _validate_facts(facts)
     bundle = _snapshot_tree(DIRECT_ARM_BUNDLE_DIR)
     environment = _sealed_environment(inherited_environment, runtime_home, facts)
+    client_token, webhook_token = _auth_token(), _auth_token()
     _copy_snapshot(bundle, home)
     _write_dynamic_inputs(home, proxy_base_url, facts.dummy_token_ref)
     _make_read_only(home)
@@ -334,6 +338,7 @@ def materialize_direct_arm_home(
     _write_json_atomic(attestation_path, attestation)
     return MaterializedProductionHome(
         cortex_home=home, process_environment=environment,
+        client_token=client_token, webhook_token=webhook_token,
         launch_attestation_path=attestation_path,
         production_evidence_context=_evidence_context(facts, manifest_hash),
         input_bundle_sha256=bundle.sha256, input_bundle_file_count=bundle.count,

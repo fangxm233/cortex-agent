@@ -24,7 +24,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
-| agent-adapter-pi.test.ts | test | PI spawn policy, resume, context and lifecycle |
+| agent-adapter-pi.test.ts | test | PI spawn policy, server-auth scrubbing, resume, context and lifecycle |
 | agent-adapter.test.ts | test | adapter dispatch, events and usage capabilities |
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
@@ -187,4 +187,4 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | webhook-ask-user.test.ts | test | ask endpoint level and channel resolution |
 | webhook-auth.test.ts | test | webhook bearer gate and thread-op-only confinement |
 | webhook-manager-qa.test.ts | test | manager Q&A webhook ask, poll, answer |
-| webhook-thread-control.test.ts | test | thread control plus root and child evidence injection |
+| webhook-thread-control.test.ts | test | thread control, single-root trial confinement, and root/child evidence injection |

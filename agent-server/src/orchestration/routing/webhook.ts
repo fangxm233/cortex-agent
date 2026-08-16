@@ -1,5 +1,5 @@
 // input:  sidecars, hooks, commands, benchmark evidence
-// output: startWebhookServer
+// output: startWebhookServer with authenticated single-root trial confinement
 // pos:    Serves task, thread, manager, and hook webhooks
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -153,6 +153,7 @@ function createWebhookHandler(_options: {
   // backward-compatible option passing from startWebhookServer.
   secret?: string;
 } = {}) {
+  let productionRootStarted = false;
   return (req, res) => {
     const threadOpOnly = process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY === '1';
     if (threadOpOnly && (req.method !== 'POST' || req.url !== '/webhook/thread-op')) {
@@ -296,6 +297,20 @@ function createWebhookHandler(_options: {
             const guard = checkSpawnGuards(parentThread);
             if (guard.ok === false) {
               return reply({ success: false, error: `${guard.reason}. Do NOT retry this spawn — fold the remaining work into your own step, or escalate by calling the thread_abort tool with a diagnosis.` });
+            }
+            if (process.env.CORTEX_WEBHOOK_SINGLE_ROOT === '1') {
+              const exactProductionRoot = (
+                template === 'benchmark-direct' && !agent && !data.parentThreadId
+                && curDepth === 0 && data.projectId === 'general' && evidenceContext !== undefined
+              );
+              if (!exactProductionRoot) {
+                return reply({ success: false, error: 'single-root mode requires the exact attested production root' });
+              }
+              if (productionRootStarted) {
+                return reply({ success: false, error: 'single production root already started' });
+              }
+              // Consume before createThread: concurrent or failing requests remain fail-closed.
+              productionRootStarted = true;
             }
             const projectId = data.projectId || 'general';
             // The originating conduit (the starter agent's SLACK_CHANNEL, forwarded by thread-ops.ts).
