@@ -230,6 +230,9 @@ it('production boundary preserves cache and request categories in its journal', 
       input_tokens: 10, output_tokens: 4, cache_read_tokens: 7,
       cache_creation_tokens: 3, provider_requests: 1, cost_usd: 0.25,
     });
+    assert.deepEqual(published.terminalManifests[0].tokens, {
+      input: 10, output: 4, cache_read: 7, cache_creation: 3,
+    });
   });
 });
 
