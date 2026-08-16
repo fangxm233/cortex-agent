@@ -143,9 +143,11 @@ export function roleSurfaceFromSpawnConfig(
     pluginDirs: pluginIdentities(pluginDirs, config.pluginCapabilityFingerprint),
     skills: discoveredSkills(pluginDirs, config.pluginSkillDirs ?? []),
     mcpComposition: config.mcpComposition ?? 'direct',
-    mcpToolAllowlist: config.mcpToolAllowlist,
     hookPolicy: hookPolicy(config),
   };
+  if (config.mcpToolAllowlist !== undefined) {
+    surface.mcpToolAllowlist = config.mcpToolAllowlist;
+  }
   if (benchmarkPolicyGuard !== undefined) {
     surface.benchmarkPolicyGuard = benchmarkPolicyGuard;
   }
