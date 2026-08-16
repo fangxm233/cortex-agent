@@ -43,6 +43,8 @@ export interface ReportedAccountingSnapshot {
   readonly usageReported: boolean;
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
+  readonly cacheReadTokens: number | null;
+  readonly cacheCreationTokens: number | null;
   readonly promptTokens: number | null;
   readonly cachedTokens: number | null;
   readonly model: string | null;

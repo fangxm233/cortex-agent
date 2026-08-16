@@ -1,9 +1,7 @@
-// input:  costs.json, budget.json, env overrides
-// output: recordCost / pickBudget / checkBudget / setBudget / clearProjectBudget /
-//         listProjectBudgets / formatCostReport / ...
-// pos:    budget resolution (global + per-project overrides) and cost record aggregation.
-//         Budget is advisory — nothing gates on it.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  cost reports, attempt attribution, budget config
+// output: durable cost records, summaries, and budget operations
+// pos:    Cost accounting and budget aggregation boundary
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { costRepo, type BudgetConfig } from '@store/cost-repo.js';
 import { projectStore } from '@domain/projects/index.js';
 export type { CostsData, BudgetConfig, ProjectBudget } from '@store/cost-repo.js';
@@ -27,16 +25,56 @@ export interface CostEntry {
   timestamp: string;
   project: string;
   trigger: string;
-  cost_usd: number;
+  cost_usd: number | null;
   num_turns: number | null;
   duration_s: number | null;
   backend: string;
   mode: string;
   source: string;
-  input_tokens?: number;
-  output_tokens?: number;
-  provider?: string;  // PI provider name; absent for Claude
-  model?: string;     // PI model id; absent for Claude
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  prompt_tokens?: number | null;
+  cache_read_tokens?: number | null;
+  cache_creation_tokens?: number | null;
+  provider_requests?: number | null;
+  session_id?: string | null;
+  execution_id?: string | null;
+  thread_id?: string | null;
+  parent_thread_id?: string | null;
+  root_thread_id?: string | null;
+  task_id?: string | null;
+  task_project?: string | null;
+  dispatch_generation?: string | null;
+  attempt_id?: string | null;
+  root_attempt_id?: string | null;
+  trial_id?: string | null;
+  root_run_id?: string | null;
+  provider?: string;
+  model?: string;
+}
+
+export type CostAttribution = Pick<CostEntry,
+  'session_id' | 'execution_id' | 'thread_id' | 'parent_thread_id' | 'root_thread_id' |
+  'task_id' | 'task_project' | 'dispatch_generation' | 'attempt_id' | 'root_attempt_id' |
+  'trial_id' | 'root_run_id'>;
+
+interface RecordCostInput extends Partial<CostAttribution> {
+  project?: string;
+  trigger?: string;
+  cost_usd?: number | null;
+  num_turns?: number | null;
+  duration_s?: number | null;
+  backend?: string;
+  mode?: string;
+  source?: string;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  prompt_tokens?: number | null;
+  cache_read_tokens?: number | null;
+  cache_creation_tokens?: number | null;
+  provider_requests?: number | null;
+  provider?: string;
+  model?: string;
 }
 
 interface PeriodBucket {
@@ -155,31 +193,36 @@ function addCostByMode(target: ModeBuckets, mode: string, cost: number): void {
  * source: 'estimate' (default, from Claude CLI) or 'gateway' (from aistatus gateway usage data)
  * Gateway entries may have cost_usd=0 (e.g. plan mode) but still track tokens.
  */
-async function recordCost({ project, trigger, cost_usd, num_turns, duration_s, backend, mode, source, input_tokens, output_tokens, provider, model }: {
-  project?: string; trigger?: string; cost_usd?: number | null; num_turns?: number | null;
-  duration_s?: number | null; backend?: string; mode?: string; source?: string;
-  input_tokens?: number; output_tokens?: number; provider?: string; model?: string;
-}): Promise<void> {
-  const effectiveSource = source || 'estimate';
-  // Allow gateway entries with cost=0 (plan mode tracks tokens only)
-  if (effectiveSource === 'estimate' && (cost_usd == null || cost_usd === 0)) return;
+async function recordCost(input: RecordCostInput): Promise<void> {
+  const effectiveSource = input.source || 'estimate';
+  const observed = [
+    input.input_tokens, input.output_tokens, input.cache_read_tokens,
+    input.cache_creation_tokens, input.provider_requests,
+  ].some(value => value != null);
+  if (effectiveSource === 'estimate' && !input.cost_usd && !observed) return;
 
   const entry: CostEntry = {
-    timestamp: new Date().toISOString(),
-    project: project || 'general',
-    trigger: trigger || 'unknown',
-    cost_usd: cost_usd || 0,
-    num_turns: num_turns || null,
-    duration_s: duration_s || null,
-    backend: backend || 'claude',
-    mode: normalizeCostMode(mode),
+    timestamp: new Date().toISOString(), project: input.project || 'general',
+    trigger: input.trigger || 'unknown', cost_usd: input.cost_usd ?? null,
+    num_turns: input.num_turns ?? null, duration_s: input.duration_s ?? null,
+    backend: input.backend || 'claude', mode: normalizeCostMode(input.mode),
     source: effectiveSource,
+    input_tokens: input.input_tokens ?? null, output_tokens: input.output_tokens ?? null,
+    cache_read_tokens: input.cache_read_tokens ?? null,
+    cache_creation_tokens: input.cache_creation_tokens ?? null,
+    provider_requests: Number.isSafeInteger(input.provider_requests)
+      && Number(input.provider_requests) > 0 ? input.provider_requests! : null,
+    session_id: input.session_id ?? null, execution_id: input.execution_id ?? null,
+    thread_id: input.thread_id ?? null, parent_thread_id: input.parent_thread_id ?? null,
+    root_thread_id: input.root_thread_id ?? null, task_id: input.task_id ?? null,
+    task_project: input.task_project ?? null,
+    dispatch_generation: input.dispatch_generation ?? null,
+    attempt_id: input.attempt_id ?? null, root_attempt_id: input.root_attempt_id ?? null,
+    trial_id: input.trial_id ?? null, root_run_id: input.root_run_id ?? null,
   };
-  if (input_tokens != null) entry.input_tokens = input_tokens;
-  if (output_tokens != null) entry.output_tokens = output_tokens;
-  if (provider) entry.provider = provider;
-  if (model) entry.model = model;
-
+  if (input.prompt_tokens !== undefined) entry.prompt_tokens = input.prompt_tokens;
+  if (input.provider) entry.provider = input.provider;
+  if (input.model) entry.model = input.model;
   await costRepo.recordEntry(entry);
 }
 
@@ -296,7 +339,8 @@ async function getCostSummary(project?: string | null, opts?: { now?: number }):
       if (isMonth) addCostByMode(periods.month, mode, cost);
 
       // Token aggregation (scoped)
-      const inTok = rawEntry.input_tokens || 0;
+      const inTok = Object.hasOwn(rawEntry, 'prompt_tokens')
+        ? rawEntry.prompt_tokens || 0 : rawEntry.input_tokens || 0;
       const outTok = rawEntry.output_tokens || 0;
       tokens.total.input += inTok;
       tokens.total.output += outTok;

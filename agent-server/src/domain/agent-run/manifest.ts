@@ -118,6 +118,8 @@ const isString: FieldRule = value => typeof value === 'string';
 const isBoolean: FieldRule = value => typeof value === 'boolean';
 const isNumber: FieldRule = value => typeof value === 'number' && Number.isFinite(value);
 const isNullableNumber: FieldRule = value => value === null || isNumber(value);
+const isNullablePositiveInteger: FieldRule = value => value === null
+  || (Number.isSafeInteger(value) && Number(value) > 0);
 const isNullableString: FieldRule = value => value === null || isString(value);
 const isStringArray: FieldRule = value => Array.isArray(value) && value.every(isString);
 
@@ -190,6 +192,9 @@ const EVENT_SCHEMAS: Record<string, EventSchema> = {
     },
     optional: {
       prompt_tokens: isNullableNumber, cached_tokens: isNullableNumber,
+      input_tokens: isNullableNumber, output_tokens: isNullableNumber,
+      cache_read_tokens: isNullableNumber, cache_creation_tokens: isNullableNumber,
+      provider_requests: isNullablePositiveInteger,
     },
   },
   turn_progress: {

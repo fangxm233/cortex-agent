@@ -18,7 +18,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | first-turn-interrupt-resume.test.ts | test | Covers attachment prompt capture and interrupt |
 | hook-bridge-subscribers-web.test.ts | test | Covers hook to Web interaction delivery |
 | interaction-records.test.ts | test | Covers interaction create and resolve lifecycle |
-| lifecycle-bg-hold.test.ts | test | Covers lifecycle hold, grace and wait cap |
+| lifecycle-bg-hold.test.ts | test | Covers lifecycle hold, accounting, grace and cap |
 | lifecycle-rate-limit.test.ts | test | Covers provider-attributed error recovery |
 | lifecycle-session-lease.test.ts | test | Covers ask/retry session lease handoff to live executions |
 | mid-turn-inject-persistence.test.ts | test | Covers durable ordering of pending injection |

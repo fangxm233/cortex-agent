@@ -22,31 +22,44 @@ interface PerMessageUsage {
   model: string;
 }
 
+function sumToken(entries: PerMessageUsage[], select: (usage: ClaudeUsage) => unknown): number | null {
+  let total = 0;
+  for (const entry of entries) {
+    const value = select(entry.usage);
+    if (!exactToken(value)) return null;
+    total += value;
+  }
+  return Number.isSafeInteger(total) ? total : null;
+}
+
+function sumKnown(...values: Array<number | null>): number | null {
+  return values.some(value => value === null)
+    ? null : values.reduce<number>((sum, value) => sum + value!, 0);
+}
+
 function summarizeUsage(entries: PerMessageUsage[]) {
   let totalCost = 0;
   let costKnown = true;
-  let tokensIn = 0;
-  let tokensOut = 0;
-  let cachedTokens = 0;
-  let promptKnown = true;
-  let cachedKnown = true;
   let model = '';
   for (const entry of entries) {
     const result = usageToCost(entry.usage, entry.model);
     if (result === null) costKnown = false;
     else totalCost += result.totalUsd;
-    const input = entry.usage.input_tokens;
-    const created = entry.usage.cache_creation_input_tokens;
-    const read = entry.usage.cache_read_input_tokens;
-    const cacheIsKnown = exactToken(created) && exactToken(read);
-    promptKnown &&= exactToken(input) && cacheIsKnown;
-    cachedKnown &&= cacheIsKnown;
-    tokensIn += (input ?? 0) + (created ?? 0) + (read ?? 0);
-    tokensOut += entry.usage.output_tokens ?? 0;
-    cachedTokens += read ?? 0;
     if (entry.model) model = entry.model;
   }
-  return { totalCost, costKnown, tokensIn, tokensOut, cachedTokens, promptKnown, cachedKnown, model };
+  const input = sumToken(entries, usage => usage.input_tokens);
+  const output = sumToken(entries, usage => usage.output_tokens);
+  const cacheCreation = sumToken(entries, usage => usage.cache_creation_input_tokens);
+  const cacheRead = sumToken(entries, usage => usage.cache_read_input_tokens);
+  const legacyInput = entries.reduce((sum, entry) => sum
+    + (entry.usage.input_tokens ?? 0)
+    + (entry.usage.cache_creation_input_tokens ?? 0)
+    + (entry.usage.cache_read_input_tokens ?? 0), 0);
+  const legacyOutput = entries.reduce((sum, entry) => sum + (entry.usage.output_tokens ?? 0), 0);
+  return {
+    totalCost, costKnown, model, input, output, cacheCreation, cacheRead,
+    legacyInput, legacyOutput, prompt: sumKnown(input, cacheCreation, cacheRead),
+  };
 }
 
 /**
@@ -201,9 +214,11 @@ export class JsonlEventNormalizer {
     if (this.currentTurnUsages.length > 0) {
       events.push({
         type: 'cost_record', provider: 'claude', model: usage.model,
-        tokens_in: usage.tokensIn, tokens_out: usage.tokensOut,
-        prompt_tokens: usage.promptKnown ? usage.tokensIn : null,
-        cached_tokens: usage.cachedKnown ? usage.cachedTokens : null,
+        tokens_in: usage.legacyInput, tokens_out: usage.legacyOutput,
+        prompt_tokens: usage.prompt, cached_tokens: usage.cacheRead,
+        input_tokens: usage.input, output_tokens: usage.output,
+        cache_read_tokens: usage.cacheRead, cache_creation_tokens: usage.cacheCreation,
+        provider_requests: this.turnCount > 0 ? this.turnCount : null,
         cost_usd: usage.costKnown ? usage.totalCost : null,
       });
     }

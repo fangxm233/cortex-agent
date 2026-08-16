@@ -229,6 +229,13 @@ test('Normalizer dedups usage by msg.id across multiple assistant entries', () =
     `expected ${expected}, got ${(cost as any).cost_usd}`);
   assert.equal((cost as any).prompt_tokens, null);
   assert.equal((cost as any).cached_tokens, null);
+  assert.deepEqual({
+    input: (cost as any).input_tokens,
+    output: (cost as any).output_tokens,
+    cacheRead: (cost as any).cache_read_tokens,
+    cacheCreation: (cost as any).cache_creation_tokens,
+    requests: (cost as any).provider_requests,
+  }, { input: 100, output: 200, cacheRead: null, cacheCreation: null, requests: 1 });
 });
 
 // --- Normalizer: turn boundary on system/turn_duration ---
@@ -258,6 +265,13 @@ test('Normalizer emits cost_record + turn_complete on system/turn_duration', () 
   assert.equal((costRec as any).tokens_out, 5);
   assert.equal((costRec as any).prompt_tokens, 10 + 3 + 7);
   assert.equal((costRec as any).cached_tokens, 7);
+  assert.deepEqual({
+    input: (costRec as any).input_tokens,
+    output: (costRec as any).output_tokens,
+    cacheRead: (costRec as any).cache_read_tokens,
+    cacheCreation: (costRec as any).cache_creation_tokens,
+    requests: (costRec as any).provider_requests,
+  }, { input: 10, output: 5, cacheRead: 7, cacheCreation: 3, requests: 1 });
 });
 
 test('Normalizer turn_complete carries null cost when model unknown', () => {

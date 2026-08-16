@@ -15,13 +15,19 @@ interface CostRecordEvent {
   type: 'cost_record';
   provider: string;
   model: string;
-  /** Claude input_tokens + cache_creation_input_tokens + cache_read_input_tokens; null if underivable. */
+  /** Legacy backend-specific input metric retained for compatibility. */
   tokens_in: number | null;
   tokens_out: number | null;
-  /** The same Claude prompt total, retained for aggregate metrics. */
+  /** Exact prompt total when the backend reports every input category. */
   prompt_tokens?: number | null;
-  /** Claude cache-read tokens; cache creation remains prompt-only. */
   cached_tokens?: number | null;
+  /** Exact provider-reported token categories; null means unavailable, never inferred zero. */
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_creation_tokens: number | null;
+  /** Positive observed request count, or null when the backend exposes no count. */
+  provider_requests: number | null;
   cost_usd: number | null;
 }
 

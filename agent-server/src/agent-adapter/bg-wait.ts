@@ -130,7 +130,13 @@ function continuationCostRecord(result: AgentResult): NormalizedEvent | null {
     tokens_out: accounting?.outputTokens ?? null,
     prompt_tokens: accounting?.promptTokens ?? null,
     cached_tokens: accounting?.cachedTokens ?? null,
-    cost_usd: result.costReported === true ? result.total_cost_usd : null,
+    input_tokens: accounting?.inputTokens ?? null,
+    output_tokens: accounting?.outputTokens ?? null,
+    cache_read_tokens: accounting?.cacheReadTokens ?? null,
+    cache_creation_tokens: accounting?.cacheCreationTokens ?? null,
+    provider_requests: Number.isSafeInteger(result.num_turns)
+      && Number(result.num_turns) > 0 ? result.num_turns : null,
+    cost_usd: result.costReported === false ? null : result.total_cost_usd,
   };
 }
 

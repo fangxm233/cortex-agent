@@ -610,7 +610,12 @@ test('cost_record: provider/model/usage precedes settled turn_complete', () => {
       cost: { total: 0.001 } },
   }] });
   assert.deepEqual(events, [
-    { type: 'cost_record', provider: 'anthropic', model: 'claude-opus-4', tokens_in: 100, tokens_out: 50, prompt_tokens: 130, cached_tokens: 20, cost_usd: 0.001 },
+    {
+      type: 'cost_record', provider: 'anthropic', model: 'claude-opus-4',
+      tokens_in: 100, tokens_out: 50, prompt_tokens: 130, cached_tokens: 20,
+      input_tokens: 100, output_tokens: 50, cache_read_tokens: 20,
+      cache_creation_tokens: 10, provider_requests: 1, cost_usd: 0.001,
+    },
     { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.001 },
   ]);
 });
@@ -623,8 +628,9 @@ test('cost_record: multiple messages sum tokens and use the first identity', () 
   ] });
   assert.deepEqual(events[0], {
     type: 'cost_record', provider: 'anthropic', model: 'claude-opus-4',
-    tokens_in: 350, tokens_out: 140,
-    prompt_tokens: 350, cached_tokens: 0, cost_usd: 0.005,
+    tokens_in: 350, tokens_out: 140, prompt_tokens: null, cached_tokens: null,
+    input_tokens: 350, output_tokens: 140, cache_read_tokens: null,
+    cache_creation_tokens: null, provider_requests: 2, cost_usd: 0.005,
   });
   assert.deepEqual(events[1], { type: 'turn_complete', numTurns: 2, totalCostUsd: 0.005 });
 });
@@ -644,16 +650,28 @@ test('cost_record: missing or empty provider emits no low-level cost event', () 
   }
 });
 
-test('cost_record: absent token counts default to zero', () => {
+test('cost_record: reported zero remains zero while absent token counts remain unavailable', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(line({ type: 'agent_end', messages: [{
+  const zero = piRpcLineToNormalized(line({ type: 'agent_end', messages: [{
+    role: 'assistant', provider: 'openai', model: 'gpt-4o',
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } },
+  }] }), state);
+  assert.deepEqual(zero, [{
+    type: 'cost_record', provider: 'openai', model: 'gpt-4o',
+    tokens_in: 0, tokens_out: 0, prompt_tokens: 0, cached_tokens: 0,
+    input_tokens: 0, output_tokens: 0, cache_read_tokens: 0,
+    cache_creation_tokens: 0, provider_requests: 1, cost_usd: 0,
+  }]);
+
+  const unavailable = piRpcLineToNormalized(line({ type: 'agent_end', messages: [{
     role: 'assistant', provider: 'openai', model: 'gpt-4o',
     usage: { cost: { total: 0.002 } },
-  }] }), state);
-  assert.deepEqual(events, [{
+  }] }), freshState());
+  assert.deepEqual(unavailable, [{
     type: 'cost_record', provider: 'openai', model: 'gpt-4o',
-    tokens_in: 0, tokens_out: 0,
-    prompt_tokens: 0, cached_tokens: 0, cost_usd: 0.002,
+    tokens_in: 0, tokens_out: 0, prompt_tokens: null, cached_tokens: null,
+    input_tokens: null, output_tokens: null, cache_read_tokens: null,
+    cache_creation_tokens: null, provider_requests: 1, cost_usd: 0.002,
   }]);
 });
 

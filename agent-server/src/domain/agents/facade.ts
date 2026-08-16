@@ -15,11 +15,13 @@ import {
 } from '../../agent-adapter/event-tee.js';
 import { buildAgentSpawnConfig, filterChannelScopedPlugins } from './spawn-config.js';
 import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
-import { freezeProductionAttemptIdentity } from '../agent-run/production-attempt-identity.js';
+import {
+  freezeProductionAttemptIdentity, type ProductionAttemptIdentityRecord,
+} from '../agent-run/production-attempt-identity.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
 import type { AgentHandle, AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
-import { recordCost } from '../costs/cost-tracker.js';
+import { recordCost, type CostAttribution } from '../costs/cost-tracker.js';
 import { configureEnvForMode, isApiRateLimitError, isRetryableResult, isRetryableError } from './config.js';
 import { isProviderRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
 import { createLogger } from '@core/log.js';
@@ -190,6 +192,26 @@ export type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.j
 
 type LegacyEventHandler = (event: any) => void | Promise<void>;
 
+function costAttribution(
+  options: RunAgentOptions,
+  identity: ProductionAttemptIdentityRecord | null,
+): Readonly<CostAttribution> {
+  return Object.freeze({
+    session_id: options.trackSessionId ?? options.sessionId ?? null,
+    execution_id: identity?.execution_id ?? options.executionId ?? null,
+    thread_id: identity?.thread_id ?? options.threadId ?? null,
+    parent_thread_id: identity?.parent_thread_id ?? options.parentThreadId ?? null,
+    root_thread_id: identity?.root_thread_id ?? options.rootThreadId ?? null,
+    task_id: identity?.task_id ?? options.taskId ?? null,
+    task_project: identity?.task_project ?? options.taskProject ?? null,
+    dispatch_generation: identity?.dispatch_generation ?? options.taskGeneration ?? null,
+    attempt_id: identity?.attempt_id ?? null,
+    root_attempt_id: identity?.root_attempt_id ?? null,
+    trial_id: identity?.trial_id ?? null,
+    root_run_id: identity?.root_run_id ?? null,
+  });
+}
+
 class LegacyEventDispatcher {
   private active = true;
   private readonly handlers: Partial<Record<NormalizedEvent['type'], LegacyEventHandler>>;
@@ -199,6 +221,7 @@ class LegacyEventDispatcher {
     private readonly options: RunAgentOptions,
     private readonly config: AgentConfig,
     private readonly spawnConfig: AgentSpawnConfig,
+    private readonly attribution: Readonly<CostAttribution>,
   ) {
     this.handlers = {
       session_started: (event) => this.sessionStarted(event),
@@ -209,7 +232,7 @@ class LegacyEventDispatcher {
       turn_progress: (event) => this.turnProgress(event),
       context_usage: (event) => this.contextUsage(event),
       turn_complete: (event) => this.turnComplete(event),
-      cost_record: (event) => this.costRecord(event),
+      cost_record: (event) => this.recordAccounting(event),
       context_compacted: () => this.contextCompacted(),
       model_fallback: (event) => this.modelFallback(event),
       plan_written: (event) => this.planWritten(event),
@@ -267,19 +290,20 @@ class LegacyEventDispatcher {
     this.active = false;
   }
 
-  private costRecord(event: Extract<NormalizedEvent, { type: 'cost_record' }>): void {
+  recordAccounting(event: Extract<NormalizedEvent, { type: 'cost_record' }>): void {
     if (this.options.recordCost === false) return;
     void recordCost({
-      project: this.options.project || 'general',
-      trigger: this.options.trigger || 'unknown',
-      cost_usd: event.cost_usd,
-      backend: this.adapter.backend,
-      mode: this.config.mode || 'api',
-      source: 'estimate',
-      input_tokens: event.tokens_in ?? 0,
-      output_tokens: event.tokens_out ?? 0,
-      provider: event.provider || undefined,
-      model: event.model || undefined,
+      ...this.attribution,
+      project: this.options.project || 'general', trigger: this.options.trigger || 'unknown',
+      cost_usd: event.cost_usd, backend: this.adapter.backend,
+      mode: this.config.mode || 'api', source: 'estimate',
+      input_tokens: event.input_tokens, output_tokens: event.output_tokens,
+      prompt_tokens: event.prompt_tokens === undefined
+        ? event.tokens_in : event.prompt_tokens,
+      cache_read_tokens: event.cache_read_tokens,
+      cache_creation_tokens: event.cache_creation_tokens,
+      provider_requests: event.provider_requests,
+      provider: event.provider || undefined, model: event.model || undefined,
     }).catch(err => log.warn('recordCost failed:', (err as Error)?.message ?? err));
   }
 
@@ -353,9 +377,10 @@ export function runWithAdapter(
 ): AgentHandle {
   const spawnConfig = options.preparedSpawnConfig
     ?? buildAgentSpawnConfig(options, config, anthropicBaseUrl);
-  freezeProductionAttemptIdentity({
+  const attemptIdentity = freezeProductionAttemptIdentity({
     spawnConfig, options, resolvedProfile: options.resolvedProfileConfig,
   });
+  const attribution = costAttribution(options, attemptIdentity);
   const proc = adapter.spawn(spawnConfig);
   const attachments = (options.files || []).map((file: any) => ({
     mimeType: file.mimetype ?? file.mimeType,
@@ -363,12 +388,13 @@ export function runWithAdapter(
   }));
   const turnPromise = proc.send({ text: message, attachments });
   const closeProcess = createProcessCloser(proc);
-  const legacy = new LegacyEventDispatcher(adapter, options, config, spawnConfig);
+  const legacy = new LegacyEventDispatcher(adapter, options, config, spawnConfig, attribution);
   const tee = createRunEventTee(proc, options.observers ?? [], options.requiredSinks ?? []);
   const eventLoop = consumeEventStream({
     proc, tee, onEvent: (event) => legacy.dispatch(event),
   });
   const resultPromise = resolveRunResult(turnPromise, eventLoop, adapter, options, proc, (event) => {
+    if (event.type === 'cost_record') legacy.recordAccounting(event);
     tee.dispatch(event);
   });
 

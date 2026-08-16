@@ -750,7 +750,10 @@ test('Claude daemon print mode reports cache-inclusive input tokens', async (t) 
   assert.deepEqual(cost, {
     type: 'cost_record', provider: 'anthropic', model: 'claude-sonnet-4-5-20250929',
     tokens_in: 10 + 3 + 7, tokens_out: 5,
-    prompt_tokens: 10 + 3 + 7, cached_tokens: 7, cost_usd: 0,
+    prompt_tokens: 10 + 3 + 7, cached_tokens: 7,
+    input_tokens: 10, output_tokens: 5,
+    cache_read_tokens: 7, cache_creation_tokens: 3,
+    provider_requests: 1, cost_usd: 0,
   });
 });
 

@@ -13,6 +13,7 @@ import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types
 import type { AgentResult } from '../src/core/types/agent-types.js';
 import { getLocale, setLocale } from '../src/core/i18n.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
+import { costRepo } from '../src/store/cost-repo.js';
 
 const { runWithAdapter } = modeManagerTest;
 
@@ -696,7 +697,12 @@ test('runWithAdapter: synchronous continuation replay follows the foreground ter
   const observed: NormalizedEvent[] = [];
   const spec: SinkCapableSpec = {
     events: [
-      { type: 'cost_record', provider: 'anthropic', model: 'foreground', tokens_in: 8, tokens_out: 3, prompt_tokens: 8, cached_tokens: 0, cost_usd: 0.2 },
+      {
+        type: 'cost_record', provider: 'anthropic', model: 'foreground',
+        tokens_in: 8, tokens_out: 3, prompt_tokens: 8, cached_tokens: 0,
+        input_tokens: 8, output_tokens: 3, cache_read_tokens: 0,
+        cache_creation_tokens: 0, provider_requests: 1, cost_usd: 0.2,
+      },
       { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.2 },
     ],
     resultOnResolve: {
@@ -707,9 +713,10 @@ test('runWithAdapter: synchronous continuation replay follows the foreground ter
     replayOnRegister: (sink) => {
       sink.onAssistantText('buffered continuation', 'continuation');
       sink.onResult({
-        ...defaultAgentResult('s-ordered-bg'), total_cost_usd: 0.1, costReported: true,
+        ...defaultAgentResult('s-ordered-bg'), total_cost_usd: 0.1,
         reportedAccounting: {
           usageReported: true, inputTokens: 4, outputTokens: 2,
+          cacheReadTokens: 3, cacheCreationTokens: 0,
           promptTokens: 7, cachedTokens: 3, model: 'continuation',
         },
         pendingBackgroundTasks: 0,
@@ -718,7 +725,7 @@ test('runWithAdapter: synchronous continuation replay follows the foreground ter
   };
 
   await runWithAdapter(makeSinkCapableAdapter('claude', spec), 'msg', {
-    awaitBackground: true,
+    awaitBackground: true, project: 'bg-accounting-test', trigger: 'test',
     requiredSinks: [{ onEvent: (event) => observed.push(event) }],
   }, { model: 'm', backend: 'claude', mode: null }, undefined).promise;
 
@@ -727,8 +734,14 @@ test('runWithAdapter: synchronous continuation replay follows the foreground ter
   ]);
   assert.deepEqual(observed.at(-2), {
     type: 'cost_record', provider: 'anthropic', model: 'continuation',
-    tokens_in: 7, tokens_out: 2, prompt_tokens: 7, cached_tokens: 3, cost_usd: 0.1,
+    tokens_in: 7, tokens_out: 2, prompt_tokens: 7, cached_tokens: 3,
+    input_tokens: 4, output_tokens: 2, cache_read_tokens: 3,
+    cache_creation_tokens: 0, provider_requests: 1, cost_usd: 0.1,
   });
+  await costRepo.flush();
+  const persisted = (await costRepo.readCosts()).entries
+    .filter(entry => entry.project === 'bg-accounting-test');
+  assert.deepEqual(persisted.map(entry => entry.model), ['foreground', 'continuation']);
 });
 
 test('runWithAdapter: awaitBackground false never waits for a thread turn', async () => {

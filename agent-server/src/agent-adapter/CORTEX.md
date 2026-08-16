@@ -10,7 +10,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 | mcp-private-dir.ts | util | Guards private physical MCP directories |
 | mcp-remote-fetch.ts | util | Rejects remote MCP HTTP redirects |
 | capabilities.ts | core | Declares backend capabilities |
-| bg-wait.ts | core | emits cache-inclusive continuation input totals |
+| bg-wait.ts | core | emits exact continuation request accounting |
 | event-tee.ts | core | fans out run events and enforces required sinks |
 | claude/ | subdir | Claude Code backend adapter |
 | normalize/ | subdir | backend-neutral events, accounting and tool schema |

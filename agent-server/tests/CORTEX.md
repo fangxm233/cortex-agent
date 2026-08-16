@@ -14,7 +14,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-claude.test.ts | test | Claude CLI, fallback, hooks and MCP proxy |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-custom-catalog.test.ts | test | user-defined providers reaching the spawn catalog |
-| agent-adapter-pi-event-parser.test.ts | test | PI events with nullable exact accounting |
+| agent-adapter-pi-event-parser.test.ts | test | PI events with four-way nullable accounting |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |
 | agent-adapter-pi-mcp-config.test.ts | test | PI MCP config privacy and reloads |
@@ -113,7 +113,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
-| run-with-adapter.test.ts | test | tests events, notices, accounting and waits |
+| run-with-adapter.test.ts | test | tests attributed events, notices and waits |
 | schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |
@@ -134,7 +134,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |
 | spawn-seam-direct.golden.json | golden | pins ordinary direct argv and environment |
 | spawn-seam-thread.golden.json | golden | pins ordinary thread argv and environment |
-| spawn-seam.test.ts | test | Proves context, restricted policy, and spawn seams |
+| spawn-seam.test.ts | test | Proves context, accounting, policy and spawn seams |
 | status-helpers.test.ts | test | status sealing and reset-isolated buttons |
 | status-md-guard.test.ts | test | STATUS.md size-guard allow/deny/warn hook |
 | store/ | subdir | JSON repository and store concurrency tests |

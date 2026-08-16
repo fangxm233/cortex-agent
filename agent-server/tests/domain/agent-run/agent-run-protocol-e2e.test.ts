@@ -96,9 +96,14 @@ it('reports cache-inclusive input tokens from Claude print mode', async () => {
   assert.deepEqual(cost, {
     type: 'cost_record', provider: 'anthropic', model: 'claude-sonnet-4-5-20250929',
     tokens_in: 10 + 3 + 7, tokens_out: 5,
-    prompt_tokens: 10 + 3 + 7, cached_tokens: 7, cost_usd: 0.08,
+    prompt_tokens: 10 + 3 + 7, cached_tokens: 7,
+    input_tokens: 10, output_tokens: 5,
+    cache_read_tokens: 7, cache_creation_tokens: 3,
+    provider_requests: 1, cost_usd: 0.08,
   });
-  assert.deepEqual(terminalRecord(fixture).tokens, { input: 10 + 3 + 7, output: 5 });
+  assert.deepEqual(terminalRecord(fixture).tokens, {
+    input: 10 + 3 + 7, output: 5, cache_read: null, cache_creation: null,
+  });
 });
 
 it('keeps absent turn counts null instead of inventing aggregate steps', async () => {
@@ -139,7 +144,9 @@ it('keeps unreported cost and usage null without fabricating cost records', asyn
   assert.deepEqual(records.filter(record => record.event?.type === 'cost_record'), []);
   const terminal = terminalRecord(fixture);
   assert.equal(terminal.cost_usd, null);
-  assert.deepEqual(terminal.tokens, { input: null, output: null });
+  assert.deepEqual(terminal.tokens, {
+    input: null, output: null, cache_read: null, cache_creation: null,
+  });
 });
 
 it('exits when only the background continuation reports cost', async () => {
@@ -157,20 +164,26 @@ it('exits when only the background continuation reports cost', async () => {
   const output = await processOutput(child);
   assert.equal(child.exitCode, 0, output.stderr);
   assert.equal(terminalRecord(fixture).cost_usd, 0.125);
-  assert.deepEqual(terminalRecord(fixture).tokens, { input: null, output: null });
+  assert.deepEqual(terminalRecord(fixture).tokens, {
+    input: null, output: null, cache_read: null, cache_creation: null,
+  });
 });
 
 function assertEarlyAccountingOrder(events: any[]): void {
   const costs = events.filter(event => event.type === 'cost_record');
   assert.deepEqual(costs[0], {
     type: 'cost_record', provider: 'anthropic', model: 'claude-foreground',
-    tokens_in: null, tokens_out: 22,
-    prompt_tokens: null, cached_tokens: null, cost_usd: 0.2,
+    tokens_in: null, tokens_out: 22, prompt_tokens: null, cached_tokens: null,
+    input_tokens: 111, output_tokens: 22,
+    cache_read_tokens: null, cache_creation_tokens: null,
+    provider_requests: 1, cost_usd: 0.2,
   });
   assert.deepEqual({ ...costs[1], cost_usd: 0.1 }, {
     type: 'cost_record', provider: 'anthropic', model: 'claude-continuation',
-    tokens_in: null, tokens_out: 4,
-    prompt_tokens: null, cached_tokens: null, cost_usd: 0.1,
+    tokens_in: null, tokens_out: 4, prompt_tokens: null, cached_tokens: null,
+    input_tokens: 9, output_tokens: 4,
+    cache_read_tokens: null, cache_creation_tokens: null,
+    provider_requests: 1, cost_usd: 0.1,
   });
   assert.ok(Math.abs(costs[1].cost_usd - 0.1) < 1e-12);
   const selected = events.filter(event =>
@@ -236,18 +249,24 @@ it.each([
   assert.deepEqual(costEvents, [
     {
       type: 'cost_record', provider: 'anthropic', model: 'claude-reported-accounting',
-      tokens_in: null, tokens_out: tokenOutput,
-      prompt_tokens: null, cached_tokens: null, cost_usd: cost,
+      tokens_in: null, tokens_out: tokenOutput, prompt_tokens: null, cached_tokens: null,
+      input_tokens: input, output_tokens: tokenOutput,
+      cache_read_tokens: null, cache_creation_tokens: null,
+      provider_requests: 1, cost_usd: cost,
     },
     {
       type: 'cost_record', provider: 'anthropic', model: 'unknown',
-      tokens_in: null, tokens_out: null,
-      prompt_tokens: null, cached_tokens: null, cost_usd: 0,
+      tokens_in: null, tokens_out: null, prompt_tokens: null, cached_tokens: null,
+      input_tokens: null, output_tokens: null,
+      cache_read_tokens: null, cache_creation_tokens: null,
+      provider_requests: 1, cost_usd: 0,
     },
   ]);
   const terminal = terminalRecord(fixture);
   assert.equal(terminal.cost_usd, cost);
-  assert.deepEqual(terminal.tokens, { input: null, output: tokenOutput });
+  assert.deepEqual(terminal.tokens, {
+    input: null, output: tokenOutput, cache_read: null, cache_creation: null,
+  });
 });
 
 it('records reported cost when usage is absent', async () => {
@@ -272,18 +291,24 @@ it('records reported cost when usage is absent', async () => {
   assert.deepEqual(costEvents, [
     {
       type: 'cost_record', provider: 'anthropic', model: 'claude-requested-fixture',
-      tokens_in: null, tokens_out: null,
-      prompt_tokens: null, cached_tokens: null, cost_usd: 0.625,
+      tokens_in: null, tokens_out: null, prompt_tokens: null, cached_tokens: null,
+      input_tokens: null, output_tokens: null,
+      cache_read_tokens: null, cache_creation_tokens: null,
+      provider_requests: 1, cost_usd: 0.625,
     },
     {
       type: 'cost_record', provider: 'anthropic', model: 'unknown',
-      tokens_in: null, tokens_out: null,
-      prompt_tokens: null, cached_tokens: null, cost_usd: 0,
+      tokens_in: null, tokens_out: null, prompt_tokens: null, cached_tokens: null,
+      input_tokens: null, output_tokens: null,
+      cache_read_tokens: null, cache_creation_tokens: null,
+      provider_requests: 1, cost_usd: 0,
     },
   ]);
   const terminal = terminalRecord(fixture);
   assert.equal(terminal.cost_usd, 0.625);
-  assert.deepEqual(terminal.tokens, { input: null, output: null });
+  assert.deepEqual(terminal.tokens, {
+    input: null, output: null, cache_read: null, cache_creation: null,
+  });
 });
 
 it('includes the probed Claude version in frozen model identity', async () => {

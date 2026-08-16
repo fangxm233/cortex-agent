@@ -17,7 +17,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools.
 | policy-guard.ts | core | Guards PI tool dispatch fail-closed |
 | mcp-config.ts | config | Writes and reloads private plugin MCP config |
 | mcp-duration.ts | core | Bounds MCP calls by trial deadlines |
-| event-parser.ts | parser | translates PI events with nullable accounting |
+| event-parser.ts | parser | translates PI events with exact nullable token splits |
 | framing.ts | codec | encodes and splits PI newline JSON records |
 | mcp-bridge.ts | bridge | Composes MCP tools from the selected process env |
 | mcp-bridge-logic.ts | core | decides server loading and maps tool content |

@@ -1,5 +1,5 @@
 // input:  turns, mutation leases, results and callbacks
-// output: snapshot barriers and provider finalization
+// output: snapshot barriers, finalization, exact continuation cost
 // pos:    Agent turn initialization and completion
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { createLogger } from '@core/log.js';
@@ -92,7 +92,8 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
         log.info(`bg-wait-guard grace timeout: sealing ${channel} without a continuation`);
         void finalizeBackgroundContinuation({
           adapter, statusMsg, channel, sessionName, sessionId: result?.sessionId ?? null,
-          startTime, baseResult: result, contResult: { total_cost_usd: null, num_turns: null } as AgentResult,
+          trackSessionId, startTime, baseResult: result,
+          contResult: { total_cost_usd: null, num_turns: null } as AgentResult,
           userMessageTs, executionId, trigger, projectId, backend,
         }).catch((e) => log.error('finalizeBackgroundContinuation (grace) failed:', (e as Error)?.message ?? e));
       },
@@ -136,7 +137,8 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
         finalized = true;
         void finalizeBackgroundContinuation({
           adapter, statusMsg, channel, sessionName, sessionId: result?.sessionId ?? null,
-          startTime, baseResult: result, contResult, userMessageTs, executionId, trigger, projectId, backend,
+          trackSessionId, startTime, baseResult: result, contResult,
+          userMessageTs, executionId, trigger, projectId, backend,
         }).catch((e) => log.error('finalizeBackgroundContinuation failed:', (e as Error)?.message ?? e));
       },
       // F2: the Claude process died while background tasks were pending (restart / crash /
@@ -205,14 +207,35 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
   }
 }
 
-/** Finalize a turn that was held in "waiting" state once its background-task continuation
- *  completes: seal the status (combined metrics), complete the conversation turn, release the
- *  streaming callback, and record the continuation's cost. Idempotency is guarded by the
- *  caller (the sink fires onComplete once). */
-async function finalizeBackgroundContinuation({ adapter, statusMsg, channel, sessionName, sessionId, startTime, baseResult, contResult, userMessageTs, executionId, trigger, projectId, backend }: {
-  adapter: PlatformAdapter; statusMsg: MessageRef; channel: string; sessionName: string | null; sessionId: string | null;
-  startTime: number; baseResult: AgentResult; contResult: AgentResult; userMessageTs: string | null; executionId: string | null;
-  trigger: string; projectId: string; backend: string;
+async function recordBackgroundCost(input: {
+  result: AgentResult; projectId: string; trigger: string; backend: string;
+  sessionId: string | null; executionId: string | null;
+}): Promise<void> {
+  const accounting = input.result.reportedAccounting;
+  if (input.result.total_cost_usd == null && accounting?.usageReported !== true) return;
+  await recordCost({
+    project: input.projectId,
+    trigger: input.trigger ? `${input.trigger}:bg-continuation` : 'bg-continuation',
+    cost_usd: input.result.total_cost_usd, backend: input.backend,
+    mode: getClaudeMode(), source: 'estimate',
+    input_tokens: accounting?.inputTokens ?? null,
+    output_tokens: accounting?.outputTokens ?? null,
+    prompt_tokens: accounting?.promptTokens ?? null,
+    cache_read_tokens: accounting?.cacheReadTokens ?? null,
+    cache_creation_tokens: accounting?.cacheCreationTokens ?? null,
+    provider_requests: Number.isSafeInteger(input.result.num_turns)
+      && Number(input.result.num_turns) > 0 ? input.result.num_turns : null,
+    session_id: input.sessionId, execution_id: input.executionId,
+    provider: 'anthropic', model: accounting?.model ?? undefined,
+  });
+}
+
+/** Finalize a held turn once its background continuation completes. */
+async function finalizeBackgroundContinuation({ adapter, statusMsg, channel, sessionName, sessionId, trackSessionId, startTime, baseResult, contResult, userMessageTs, executionId, trigger, projectId, backend }: {
+  adapter: PlatformAdapter; statusMsg: MessageRef; channel: string; sessionName: string | null;
+  sessionId: string | null; trackSessionId: string | null; startTime: number;
+  baseResult: AgentResult; contResult: AgentResult; userMessageTs: string | null;
+  executionId: string | null; trigger: string; projectId: string; backend: string;
 }): Promise<void> {
   const { elapsedStr } = computeElapsed(startTime);
   const totalCost = (baseResult?.total_cost_usd ?? 0) + (contResult?.total_cost_usd ?? 0);
@@ -226,18 +249,10 @@ async function finalizeBackgroundContinuation({ adapter, statusMsg, channel, ses
     await conversationLedger.completeTurn(channel, userMessageTs, { executionId }).catch((e) => log.error('completeTurn failed:', (e as Error).message));
   }
   clearStreamingCallback(channel);
-  if (contResult?.total_cost_usd != null) {
-    await recordCost({
-      project: projectId,
-      trigger: trigger ? `${trigger}:bg-continuation` : 'bg-continuation',
-      cost_usd: contResult.total_cost_usd,
-      backend: backend as any,
-      mode: getClaudeMode(),
-      source: 'estimate',
-      input_tokens: 0,
-      output_tokens: 0,
-    }).catch((e) => log.warn('recordCost (bg-continuation) failed:', (e as Error).message));
-  }
+  await recordBackgroundCost({
+    result: contResult, projectId, trigger, backend,
+    sessionId: trackSessionId ?? sessionId, executionId,
+  }).catch((e) => log.warn('recordCost (bg-continuation) failed:', (e as Error).message));
 }
 
 async function backfillLedgerSessionId(result: { sessionId?: string | null }, channel: string): Promise<void> {
