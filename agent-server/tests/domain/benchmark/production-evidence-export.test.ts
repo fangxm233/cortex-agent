@@ -301,6 +301,29 @@ describe('production evidence export', () => {
     }
   });
 
+  it('rejects string-coercible mode and predicate results', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-input-coerced-'));
+    try {
+      const base = exportInput(path.join(root, 'evidence'), 'direct', ['direct']);
+      for (const [input, message] of [
+        [{ ...base, mode: ['direct'] }, /orchestration mode is invalid/],
+        // A `fail` verdict wrapped in an array would clear an allowlist that coerces to text and
+        // then slip past the `=== 'fail'` refusal, publishing a failed predicate verbatim.
+        [
+          { ...base, evaluatedChecks: { G1: { result: ['fail'], detail: 'boom' } } },
+          /evaluated check G1 result is invalid/,
+        ],
+      ] as const) {
+        await expect(exportProductionBenchmarkEvidence(
+          input as unknown as ProductionEvidenceExportInput, sources([]),
+        )).rejects.toThrow(message);
+      }
+      expect(fs.readdirSync(root)).toEqual([]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     ['direct', false, false],
     ['coder-review', false, false],
