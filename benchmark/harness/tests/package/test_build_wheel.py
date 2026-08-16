@@ -1,11 +1,12 @@
-# input:  build script, locked source, and hostile process env
-# output: ambient-epoch reproducibility regression assertion
-# pos:    Contract test for the fixed wheel build epoch
+# input:  build script, locked source, hostile env and direct-arm bundle
+# output: reproducible wheel and packaged production bundle assertions
+# pos:    Contract tests for deterministic complete wheel contents
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import os
 import shutil
 import subprocess
+import zipfile
 from pathlib import Path
 
 HARNESS_DIR = Path(__file__).resolve().parents[2]
@@ -33,3 +34,24 @@ def test_conflicting_ambient_epoch_cannot_change_wheel() -> None:
     hostile = build_wheel("946684800")
 
     assert hostile == baseline
+
+
+def test_wheel_contains_the_complete_direct_arm_bundle() -> None:
+    build_wheel(None)
+    prefix = "cortex_bench_harness/launcher/bundles/direct-pi-deepseek/cortex-home/"
+    expected = {
+        prefix + name for name in (
+            "config/machines.json",
+            "config/profiles.json",
+            "config/settings.json",
+            "config/thread-templates/agents/benchmark-direct.json",
+            "config/thread-templates/templates/benchmark-direct.json",
+            "context/projects/general/TASKS.yaml",
+            "data/mode.json",
+            "data/schedules.json",
+            "prompts/directives/benchmark-direct.md",
+            "prompts/systemPrompts/benchmark-direct.md",
+        )
+    }
+    with zipfile.ZipFile(WHEEL_PATH) as wheel:
+        assert expected <= set(wheel.namelist())

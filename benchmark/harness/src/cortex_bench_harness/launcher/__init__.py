@@ -1,5 +1,5 @@
-# input:  launcher admission, arm, credential, comparison modules
-# output: lazy public trial, seed, projection, and report exports
+# input:  launcher admission, arm, home, credential and report modules
+# output: lazy public trial, materialization, projection, and report exports
 # pos:    Import surface for host benchmark launching
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -51,6 +51,13 @@ if TYPE_CHECKING:
         HarborTrialAdmissionError,
         build_harbor_trial_config,
         create_harbor_trial,
+    )
+    from .production_home import (
+        DIRECT_ARM_BUNDLE_DIR,
+        DirectArmLaunchFacts,
+        MaterializedProductionHome,
+        ProductionHomeError,
+        materialize_direct_arm_home,
     )
     from .trial_proxy import (
         PROXY_ARTIFACT_SOURCES,
@@ -108,6 +115,13 @@ _EXPORT_MODULES = {
         "build_harbor_trial_config",
         "create_harbor_trial",
     ], ".trial_admission"),
+    **dict.fromkeys([
+        "DIRECT_ARM_BUNDLE_DIR",
+        "DirectArmLaunchFacts",
+        "MaterializedProductionHome",
+        "ProductionHomeError",
+        "materialize_direct_arm_home",
+    ], ".production_home"),
     **dict.fromkeys([
         "PROXY_ARTIFACT_SOURCES",
         "TrialProxySession",

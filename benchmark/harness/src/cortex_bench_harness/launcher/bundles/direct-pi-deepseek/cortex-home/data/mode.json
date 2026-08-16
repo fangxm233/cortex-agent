@@ -1,0 +1,9 @@
+{
+  "mode": "api",
+  "claudeMode": "api",
+  "backend": "pi",
+  "claudeModel": "deepseek-v4-flash",
+  "activeProfile": "benchmark-direct",
+  "defaultAgent": "benchmark-direct",
+  "channelProfiles": {}
+}
