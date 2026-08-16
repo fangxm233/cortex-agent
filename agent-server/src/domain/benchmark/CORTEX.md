@@ -17,6 +17,10 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | lease-echo.ts | 核心 | Delivers workspace lease state |
 | policy-backed-runtime-deps.ts | 策略 | Resolves frozen runtime dependencies |
 | policy-compiler.ts | 核心 | Compiles benchmark trial policy from declared arm limits |
+| production-evidence-export.ts | 核心 | Atomically publishes production evidence v2 |
+| production-evidence-journal.ts | 核心 | Verifies production journals for projection |
+| production-evidence-projection.ts | 核心 | Projects durable production facts into v2 bytes |
+| production-evidence-topology.ts | 核心 | Validates durable production attempt topology |
 | proposal-seal.ts | 核心 | Stores and seals task proposals |
 | resolved-policy.ts | 类型 | Defines resolved trial policy |
 | settings-snapshot.ts | 类型 | Captures immutable trial settings |
