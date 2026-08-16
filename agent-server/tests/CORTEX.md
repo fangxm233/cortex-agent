@@ -182,6 +182,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | update-prompt-slack.test.ts | test | Slack update prompt buttons and timeout |
 | update-prompt.test.ts | test | update prompt buttons, stale and timeout |
 | update-state.test.ts | test | update state file round-trip and errors |
+| usage-service.test.ts | test | provider collection, failures and gateway spend |
 | usage-store.test.ts | test | durable provider usage model and state compatibility |
 | user-context.test.ts | test | reset-isolated USER.md conversation injection |
 | webhook-ask-user.test.ts | test | ask endpoint level and channel resolution |
