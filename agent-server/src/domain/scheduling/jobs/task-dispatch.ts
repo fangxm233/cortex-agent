@@ -1,5 +1,5 @@
-// input:  task store, thread runner, production topology ledger
-// output: reserved dispatch cycles, fenced threads, dispatch facts
+// input:  task store, parent threads, production topology ledger
+// output: reserved cycles, inherited dispatch threads, facts
 // pos:    Runs the built-in automatic task dispatcher
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -17,7 +17,10 @@ import { sessionStore } from '@store/session-registry-repo.js';
 import { selectAndClaimTask } from '../../tasks/dispatcher.js';
 import { taskMutator } from '../../tasks/mutator.js';
 import { recordProductionTopologyFact } from '../../tasks/production-topology-ledger.js';
-import { createThread, detectSplitFromControl, clearPendingControl } from '../../threads/index.js';
+import {
+  clearPendingControl, createThread, detectSplitFromControl,
+  getRootThreadId, resolveTaskParentThread,
+} from '../../threads/index.js';
 import { runThread as runThreadExec } from '../../threads/runner.js';
 import { processSplitOutcome, processAbortOutcome, formatWorkerAbortReason } from '../../tasks/dispatch-utils.js';
 import { threadStore } from '@store/thread-repo.js';
@@ -158,6 +161,12 @@ async function executeDispatchTask({ selected, selectedTask, channel, profileNam
     await taskMutator.unclaim(selectedTask.id, { ownership });
     return { success: false, skipped: true, note: 'Task missing required [template:] tag' };
   }
+  const parentThread = selectedTask.parent
+    ? resolveTaskParentThread(selectedTask.project, selectedTask.parent)
+    : null;
+  if (selectedTask.parent && !parentThread) {
+    throw new Error(`Persisted parent manager thread is missing for task ${selectedTask.parent}`);
+  }
   const thread = createThread(channel, {
     templateName: selected.template, userMessage: selected.prompt, userMessageTs: `dispatch_${Date.now()}`,
     platformThreadId: statusMsg?.messageId ?? null,
@@ -168,6 +177,12 @@ async function executeDispatchTask({ selected, selectedTask, channel, profileNam
       dispatchGeneration: selected.dispatchGeneration ?? null,
       taskText: selectedTask.text ?? null,
       resumeDest: 'project-report',
+      ...(parentThread ? {
+        parentThreadId: parentThread.id,
+        rootThreadId: getRootThreadId(parentThread),
+        productionBenchmarkEvidenceContext:
+          parentThread.metadata?.productionBenchmarkEvidenceContext,
+      } : {}),
     },
   });
   cycle.threadId = thread.id;

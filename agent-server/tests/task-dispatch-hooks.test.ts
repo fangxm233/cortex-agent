@@ -1,5 +1,5 @@
-// input:  dispatch job, settings, CPU topology, task doubles
-// output: limits, generations, hooks, quarantine, recovery tests
+// input:  dispatch job, parent threads, settings, task doubles
+// output: ancestry, limits, hooks, quarantine, recovery tests
 // pos:    Task dispatch lifecycle behavioral regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -19,6 +19,7 @@ const deps = vi.hoisted(() => ({
   processSplitOutcome: vi.fn(),
   finalizeThreadSuccess: vi.fn(),
   getThread: vi.fn(),
+  getAllThreads: vi.fn(),
   mutateThread: vi.fn(),
   unclaim: vi.fn(),
   block: vi.fn(),
@@ -61,14 +62,22 @@ vi.mock('@store/session-registry-repo.js', () => ({
   sessionStore: { generateSessionName: deps.generateSessionName },
 }));
 
-vi.mock('../src/domain/threads/index.js', () => ({
-  createThread: deps.createThread,
-  detectSplitFromControl: vi.fn(),
-  clearPendingControl: vi.fn(),
-}));
+vi.mock('../src/domain/threads/index.js', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    createThread: deps.createThread,
+    detectSplitFromControl: vi.fn(),
+    clearPendingControl: vi.fn(),
+  };
+});
 
 vi.mock('@store/thread-repo.js', () => ({
-  threadStore: { get: deps.getThread, mutate: deps.mutateThread },
+  threadStore: {
+    get: deps.getThread,
+    getAll: deps.getAllThreads,
+    mutate: deps.mutateThread,
+  },
 }));
 
 vi.mock('../src/domain/threads/runner.js', () => ({
@@ -90,6 +99,7 @@ vi.mock('../src/domain/tasks/mutator.js', () => ({
 }));
 
 import { ctx } from '../src/domain/scheduling/job-registry.js';
+import { resolveTaskParentThread } from '../src/domain/threads/index.js';
 import { _testResetDispatchCycles, taskDispatchRunner } from '../src/domain/scheduling/jobs/task-dispatch.js';
 
 const OWNERSHIP = { ownership: { generation: 'generation-b' } };
@@ -164,6 +174,7 @@ beforeEach(() => {
   deps.processSplitOutcome.mockResolvedValue({ handled: false });
   deps.finalizeThreadSuccess.mockResolvedValue(undefined);
   deps.getThread.mockImplementation(() => threadRecord);
+  deps.getAllThreads.mockReturnValue([]);
   deps.mutateThread.mockImplementation(async (_id, mutate) => { mutate(threadRecord); });
   deps.unclaim.mockResolvedValue({ success: true });
   deps.block.mockResolvedValue({ success: true });
@@ -312,6 +323,78 @@ test('dispatch persists generation on the thread and terminal event', async () =
   assert.deepEqual(terminal, {
     type: 'task.completed', taskId: 'task-1', dispatchGeneration: 'generation-b',
   });
+});
+
+test('child-task dispatch inherits persisted parent manager evidence and ancestry', async () => {
+  const evidence = {
+    schema_version: 'cortex-production-benchmark-evidence-context/1',
+    trial_id: 'trial-dispatch-child',
+    root_run_id: 'root-dispatch-child',
+    bundle_manifest_hash: 'd'.repeat(64),
+    model_execution: {
+      model_alias_policy: { policy: 'exact' },
+      cli_name: 'claude',
+      cli_version: 'claude-fixture-1',
+      max_output_tokens: null,
+    },
+  } as const;
+  const persistedParent = JSON.parse(JSON.stringify({
+    id: 'manager-thread', projectId: 'atlas', status: 'completed',
+    createdAt: '2026-08-16T00:00:00.000Z',
+    metadata: {
+      taskId: 'manager-task', taskProject: 'atlas', rootThreadId: 'root-thread',
+      productionBenchmarkEvidenceContext: evidence,
+    },
+  }));
+  deps.getAllThreads.mockReturnValue([persistedParent]);
+  deps.selectAndClaimTask.mockResolvedValue({
+    ...selected,
+    task: { ...selected.task, parent: 'manager-task' },
+  });
+
+  await runDispatchCycle();
+
+  const metadata = deps.createThread.mock.calls[0][1].metadata;
+  assert.equal(metadata.parentThreadId, 'manager-thread');
+  assert.equal(metadata.rootThreadId, 'root-thread');
+  assert.deepEqual(metadata.productionBenchmarkEvidenceContext, evidence);
+});
+
+test('root task dispatch remains ordinary production without evidence context', async () => {
+  await runDispatchCycle();
+  const metadata = deps.createThread.mock.calls[0][1].metadata;
+  assert.equal(metadata.parentThreadId, undefined);
+  assert.equal(metadata.rootThreadId, undefined);
+  assert.equal(metadata.productionBenchmarkEvidenceContext, undefined);
+});
+
+test('child-task dispatch refuses a missing persisted parent manager', async () => {
+  deps.selectAndClaimTask.mockResolvedValue({
+    ...selected,
+    task: { ...selected.task, parent: 'missing-manager-task' },
+  });
+
+  await runDispatchCycle();
+
+  assert.equal(deps.createThread.mock.calls.length, 0);
+  assert.match(deps.logError.mock.calls[0][0], /parent manager thread.*missing/i);
+});
+
+test('task parent resolution refuses ambiguous live manager incarnations', () => {
+  const parent = {
+    id: 'manager-thread-a', projectId: 'atlas', status: 'waiting',
+    createdAt: '2026-08-16T00:00:00.000Z',
+    metadata: { taskId: 'manager-task', taskProject: 'atlas' },
+  };
+  deps.getAllThreads.mockReturnValue([
+    parent,
+    { ...parent, id: 'manager-thread-b', createdAt: '2026-08-16T00:01:00.000Z' },
+  ]);
+
+  assert.throws(
+    () => resolveTaskParentThread('atlas', 'manager-task'),
+    /ambiguous.*parent manager/i,
+  );
 });
 
 test('a rejected dispatch hook does not prevent the claimed thread from running', async () => {

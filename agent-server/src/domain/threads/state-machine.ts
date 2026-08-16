@@ -1,5 +1,5 @@
-// input:  thread store, templates, tasks, scoped event bus
-// output: lifecycle, provider pauses, control transitions
+// input:  thread store, templates, tasks, evidence context
+// output: lifecycle, inherited evidence, control transitions
 // pos:    Thread lifecycle and suspension state machine
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -29,6 +29,7 @@ import { resolveStageName, parseTarget } from './utils.js';
 import { checkContractBudget } from './contract.js';
 import { getLocalThreadRuntimeScope } from './local-runtime-scope.js';
 import { scanAllTasks } from '@core/task-parser.js';
+import { resolveThreadEvidenceMetadata } from './evidence-context.js';
 import type {
   ThreadRecord, ThreadTemplate, AgentDefinition,
   AgentSlotConfig, AgentSlotId, AgentSlot, AgentStep,
@@ -186,13 +187,14 @@ export function createThread(channel: string, options: {
   const { agentSlots, entryAgent, entryStage } = isTemplate
     ? buildTemplateSlots(options.templateName!)
     : buildAdHocSlots(options.agentName!);
+  const metadata = resolveThreadEvidenceMetadata(options.metadata, id => threadStore.get(id));
   const id = daemonThreadStore.generateId();
   const { workspacePath, artifactPath: workspaceArtifact } = createWorkspace(id);
   // DR-0017 W1: a manager-template dispatch thread anchors its artifact on the task node
   // (context/projects/{project}/manager/{taskId}/artifact.md). An existing artifact is
   // inherited, never truncated — a new incarnation continues from the last checkpoint.
-  const m = options.metadata;
-  const artifactPath = (isTaskArtifactTemplate(options.templateName) && m?.taskId && m?.taskProject)
+  const m = metadata;
+  const artifactPath = (isTaskArtifactTemplate(options.templateName) && m.taskId && m.taskProject)
     ? ensureTaskArtifact(m.taskProject, m.taskId)
     : workspaceArtifact;
 
@@ -207,7 +209,7 @@ export function createThread(channel: string, options: {
     agents: agentSlots, activeAgent: entryAgent, activeStage: entryStage,
     // DR-0017 W2: baseline for the checkpoint gate — the artifact state the first step starts
     // against (non-empty for a rehydrated manager inheriting a task-keyed artifact).
-    metadata: { ...(options.metadata ?? {}), stepStartArtifactHash: hashArtifactAt(artifactPath) },
+    metadata: { ...metadata, stepStartArtifactHash: hashArtifactAt(artifactPath) },
   });
   threadStore.set(thread);
   publishThreadEvent({ type: 'thread.created', threadId: id, templateName: options.templateName || 'ad-hoc' });

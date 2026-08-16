@@ -16,13 +16,14 @@ Consumed by the orchestration and UI layers through the index barrel.
 | template-writer.ts | config | creates, replaces and deletes template config files |
 | prompt-builder.ts | build | assembles prompts and resolves canonical tool gates |
 | pending-user-inputs.ts | state | gates asynchronous buffered-input preparation |
-| state-machine.ts | state | drives lifecycle against scoped thread state |
+| evidence-context.ts | guard | inherits immutable benchmark evidence from parents |
+| state-machine.ts | state | drives lifecycle and inherits benchmark evidence |
 | runner.ts | runtime | Runs scoped steps with persisted evidence identity |
 | local-runtime-deps.ts | runtime | Declares the injected port bundle and fails closed off-scope |
 | local-runtime-defaults.ts | runtime | Builds the daemon-side defaults for that bundle |
 | local-runtime-scope.ts | runtime | Propagates local event policy across async callbacks |
 | hook-runner.ts | hook | Adapts lifecycle hooks to HookBus and hook agents |
 | thread-transcript.ts | record | records step messages, notices and tools |
-| tree.ts | tree | tracks thread trees, spawn facts and resource guards |
+| tree.ts | tree | resolves ancestry and tracks spawn facts and guards |
 | contract.ts | contract | builds delegation contracts and goal chains |
 | auto-thread.ts | util | decides auto compound and merges final outputs |

@@ -24,6 +24,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | paths.ts | config | defines install, data, and config paths |
 | pi-session-filename.ts | util | parses and selects PI transcript filenames |
 | profile-generator.ts | config | generates the agent profiles file |
+| production-benchmark-evidence.ts | guard | validates immutable benchmark admission facts |
 | resilient-watch.ts | util | falls back from filesystem watchers to polling |
 | resume-reminder.ts | data | continuation prompt for interrupted work |
 | runtime-env.ts | config | excludes file-only metadata from runtime env |

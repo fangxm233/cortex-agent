@@ -1,15 +1,28 @@
-// input:  Node test runner + webhook /webhook/thread-op `control` action + thread-repo
-// output: control action validation + pendingControl persistence tests (DR-0015 problem 1)
-// pos:    Verify the out-of-band control plane HTTP entry point (thread_abort/split/wait → webhook)
+// input:  thread-op webhook, thread store, detached runner
+// output: control persistence and descendant evidence tests
+// pos:    Verifies thread control and native child creation boundaries
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import { test, afterAll } from 'vitest';
+import { test, afterAll, beforeAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const detached = vi.hoisted(() => ({ runThreadDetached: vi.fn() }));
+vi.mock('../src/orchestration/thread-executor.js', () => ({
+  runThreadDetached: detached.runThreadDetached,
+}));
+
+import { CONFIG_DIR } from '../src/core/paths.js';
 import { threadStore } from '../src/store/thread-repo.js';
+import { loadConfig } from '../src/domain/threads/template-loader.js';
+import { ctx as jobCtx } from '../src/domain/scheduling/job-registry.js';
 import { createWebhookHandler } from '../src/orchestration/routing/webhook.js';
-import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
+import type {
+  ProductionBenchmarkEvidenceContext, ThreadRecord, ThreadStatus,
+} from '../src/core/types/thread-types.js';
 
 // The webhook now enforces a bearer token on all routes (except /webhook/github). Set one
 // for these control-plane tests and send it on every request.
@@ -19,7 +32,24 @@ const handler = createWebhookHandler();
 const createdThreadIds = new Set<string>();
 let seq = 0;
 
+beforeAll(() => {
+  const agentPath = path.join(
+    CONFIG_DIR, 'thread-templates', 'agents', 'evidence-child-agent.json',
+  );
+  fs.mkdirSync(path.dirname(agentPath), { recursive: true });
+  fs.writeFileSync(agentPath, JSON.stringify({
+    name: 'evidence-child-agent', profile: '__active__', persistSession: false,
+    directive: 'Test descendant evidence propagation', promptTemplate: '{{input}}',
+  }));
+  loadConfig();
+  jobCtx.adapter = {
+    postMessage: vi.fn().mockResolvedValue(null),
+    updateMessage: vi.fn().mockResolvedValue(undefined),
+  } as any;
+});
+
 afterAll(async () => {
+  jobCtx.adapter = null;
   for (const id of createdThreadIds) await threadStore.delete(id);
   await threadStore.flush();
 });
@@ -64,6 +94,52 @@ function postThreadOp(body: any): Promise<{ statusCode: number; json: any }> {
     req.emit('end');
   });
 }
+
+test('native child start inherits parent evidence after thread-store reload', async () => {
+  const evidence: ProductionBenchmarkEvidenceContext = {
+    schema_version: 'cortex-production-benchmark-evidence-context/1',
+    trial_id: 'trial-native-child',
+    root_run_id: 'root-native-child',
+    bundle_manifest_hash: 'e'.repeat(64),
+    model_execution: {
+      model_alias_policy: { policy: 'exact' },
+      cli_name: 'claude',
+      cli_version: 'claude-fixture-1',
+      max_output_tokens: null,
+    },
+  };
+  const parent = makeThread({
+    projectId: 'atlas',
+    metadata: { productionBenchmarkEvidenceContext: evidence },
+  });
+  await threadStore.flush();
+  threadStore.load();
+
+  const { json } = await postThreadOp({
+    action: 'start', agent: 'evidence-child-agent', message: 'nested work',
+    projectId: 'atlas', parentThreadId: parent.id, wait: false,
+  });
+
+  assert.equal(json.success, true);
+  const child = threadStore.get(json.data.threadId)!;
+  createdThreadIds.add(child.id);
+  assert.equal(child.metadata?.parentThreadId, parent.id);
+  assert.equal(child.metadata?.rootThreadId, parent.id);
+  assert.deepEqual(child.metadata?.productionBenchmarkEvidenceContext, evidence);
+  assert.equal(detached.runThreadDetached.mock.calls[0][0], child.id);
+});
+
+test('native child start refuses a missing persisted parent', async () => {
+  const callsBefore = detached.runThreadDetached.mock.calls.length;
+  const { json } = await postThreadOp({
+    action: 'start', agent: 'evidence-child-agent', message: 'orphan work',
+    projectId: 'atlas', parentThreadId: 'thr_missing_parent', wait: false,
+  });
+
+  assert.equal(json.success, false);
+  assert.match(json.error, /parent thread.*missing|not found/i);
+  assert.equal(detached.runThreadDetached.mock.calls.length, callsBefore);
+});
 
 test('control abort writes pendingControl with kind + diagnosis and returns an ack', async () => {
   const t = makeThread();
