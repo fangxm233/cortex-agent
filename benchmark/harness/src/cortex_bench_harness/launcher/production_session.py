@@ -97,7 +97,8 @@ def is_production_direct_arm(arm: Mapping[str, object]) -> bool:
     }
     expected = (
         arm.get("schema_version") == "cortex-benchmark-arm/2",
-        arm.get("kind") == "cortex", arm.get("name") == "cortex-direct",
+        arm.get("kind") == "cortex",
+        isinstance(arm.get("name"), str) and bool(arm.get("name")),
         arm.get("backend") == "pi", arm.get("provider") == "deepseek",
         arm.get("model") == "deepseek-v4-flash",
         arm.get("credential_capability") == "pi-deepseek-api-key",
