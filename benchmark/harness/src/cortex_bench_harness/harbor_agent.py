@@ -5,6 +5,7 @@
 
 import asyncio
 import contextlib
+import os
 import shlex
 import time
 from collections.abc import Coroutine
@@ -21,7 +22,6 @@ from .launcher.arm_resolution import (
     ARM_RESOLUTION_CONTAINER_PATH,
     TRAJECTORY_CONTAINER_PATH,
     ContainerFacts,
-    TrialSeed,
     build_benchmark_thread_policy,
     compose_arm_resolution,
     parse_trial_seed,
@@ -34,6 +34,19 @@ from .launcher.arms import (
     arm_orchestration_mode,
     backend_cli_binary,
     require_composable_arm,
+)
+from .launcher.production_home import (
+    DirectArmLaunchFacts,
+    MaterializedProductionHome,
+    materialize_direct_arm_home,
+)
+from .launcher.production_session import (
+    InstalledProductionServer,
+    ProductionServerSession,
+    ProductionSessionSpec,
+    is_production_direct_arm,
+    is_production_direct_candidate,
+    require_production_direct_arm,
 )
 from .launcher.trial_admission import (
     HarborTrialAdmissionError,
@@ -67,16 +80,12 @@ from .scan.models import ArtifactInventory, ScanPolicy
 
 PACKAGE_VERSION = "0.1.0"
 PROFILE_NAME = "benchmark"
-# How long the host keeps waiting for `cortex agent-run` to return AFTER that run has published its
-# own terminal marker, and how often the marker is looked for while the run is still going.
-# The grace is generous because the ordinary exit path — flushing the journal, publishing the
-# composite manifest and closing the trial — happens after the marker is written; only a run that
-# has stopped making progress reaches the end of it.
 INNER_RUN_TERMINAL_GRACE_SECONDS = 120.0
 INNER_RUN_TERMINAL_POLL_SECONDS = 1.0
 NPM_INSTALL_PREFIX = PurePosixPath("/installed-agent/npm")
 BUNDLE_PACKAGE = "@cortex-agent/server"
 SUPERVISOR_PATH = PurePosixPath("native/cortex-supervisor/dist/cortex-supervisor")
+PRODUCTION_HOME_NAME = "production-cortex-home"
 VERSION_COMMAND = "cortex daemon --version"
 WORKSPACE_EVIDENCE_FILENAME = "workspace.diff"
 WORKSPACE_COLLECTOR = r"""
@@ -126,8 +135,6 @@ try {
 
 
 class CortexBenchAgent(BaseInstalledAgent):
-    _allow_unsupported_fixture_seed = False
-
     def __init__(
         self,
         logs_dir: Path,
@@ -169,8 +176,11 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._manifest_seed = parse_manifest_seed(manifest)
         self._trial_seed = parse_trial_seed(trial_seed)
         self._validate_trial_seed_binding()
-        if not self._allow_unsupported_fixture_seed:
-            require_composable_arm(self._trial_seed.arm)
+        require_composable_arm(self._trial_seed.arm)
+        candidate = is_production_direct_candidate(self._trial_seed.arm)
+        if candidate:
+            require_production_direct_arm(self._trial_seed.arm)
+        self._production_direct = is_production_direct_arm(self._trial_seed.arm)
         self._host_credential = None
         if credential_handle is not None:
             require_capability_admission(
@@ -197,6 +207,10 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._npm_artifact: Path | None = None
         self._cortex_cli_version: str | None = None
         self._container_facts: ContainerFacts | None = None
+        self._installed_server: InstalledProductionServer | None = None
+        self._materialized_home: MaterializedProductionHome | None = None
+        self._production_server_stopped = False
+        self._inherited_environment = {**os.environ, **dict(extra_env or {})}
         self._captured_inventory: ArtifactInventory | None = None
         self._revocation: TrialRevocation | None = None
         self._initialize_finalization(host_scan_policy, environment_hash)
@@ -255,9 +269,8 @@ class CortexBenchAgent(BaseInstalledAgent):
         return session
 
     def _require_admitted_proxy(self) -> None:
-        if self._proxy_arm_deferred or (
-            self._requires_admitted_proxy and self._proxy_session is None
-        ):
+        proxy_required = self._requires_admitted_proxy or self._production_direct
+        if self._proxy_arm_deferred or (proxy_required and self._proxy_session is None):
             raise HarborTrialAdmissionError("current trial proxy is not armed")
 
     @property
@@ -268,6 +281,10 @@ class CortexBenchAgent(BaseInstalledAgent):
     @property
     def grader_admitted(self) -> bool:
         return self._grader_admitted
+
+    @property
+    def production_server_stopped(self) -> bool:
+        return self._production_server_stopped
 
     @property
     def outer_envelope_sha256(self) -> str | None:
@@ -357,10 +374,11 @@ class CortexBenchAgent(BaseInstalledAgent):
         )
 
     def _verification_commands(self) -> tuple[str, str]:
-        return (
-            "command -v cortex >/dev/null 2>&1",
-            "cortex agent-run --help >/dev/null",
+        command = (
+            "cortex-evidence-export --help >/dev/null" if self._production_direct
+            else "cortex agent-run --help >/dev/null"
         )
+        return "command -v cortex >/dev/null 2>&1", command
 
     def _bundle_root_command(self) -> str:
         prefix = shlex.quote(str(NPM_INSTALL_PREFIX))
@@ -378,16 +396,18 @@ class CortexBenchAgent(BaseInstalledAgent):
             raise RuntimeError(failure)
         return value
 
-    async def _discover_container_facts(
+    async def _discover_installed_server(
         self, environment: BaseEnvironment,
-    ) -> ContainerFacts:
+    ) -> InstalledProductionServer:
         bundle_root = await self._probe(
             environment, self._bundle_root_command(),
             f"Installed {BUNDLE_PACKAGE} bundle root probe returned no path",
         )
-        supervisor = PurePosixPath(bundle_root) / SUPERVISOR_PATH
+        probe = "dist/entry/app.js" if self._production_direct else str(SUPERVISOR_PATH)
+        flag = "-f" if self._production_direct else "-x"
+        target = PurePosixPath(bundle_root) / probe
         await self.exec_as_agent(
-            environment, command=f"test -x {shlex.quote(str(supervisor))}",
+            environment, command=f"test {flag} {shlex.quote(str(target))}",
         )
         binary = backend_cli_binary(self._trial_seed.arm)
         cli_path = await self._probe(
@@ -398,7 +418,9 @@ class CortexBenchAgent(BaseInstalledAgent):
             environment, f"{shlex.quote(binary)} --version",
             f"Installed {binary} CLI version probe returned no version",
         )
-        return ContainerFacts(bundle_root, cli_path, cli_version)
+        return InstalledProductionServer(
+            PurePosixPath(bundle_root), PurePosixPath(cli_path), cli_version,
+        )
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
@@ -414,10 +436,37 @@ class CortexBenchAgent(BaseInstalledAgent):
         await self.exec_as_root(environment, command=self._install_command(artifact))
         for command in self._verification_commands():
             await self.exec_as_agent(environment, command=command)
-        self._container_facts = await self._discover_container_facts(environment)
+        self._installed_server = await self._discover_installed_server(environment)
+        if not self._production_direct:
+            self._container_facts = ContainerFacts(
+                str(self._installed_server.bundle_root),
+                str(self._installed_server.backend_cli_path),
+                self._installed_server.backend_cli_version,
+            )
         self._cortex_cli_version = await self._probe(
             environment, VERSION_COMMAND,
             "Installed Cortex CLI version probe returned no version",
+        )
+
+    def _materialize_production_home(self) -> MaterializedProductionHome:
+        assert self._npm_artifact is not None
+        assert self._installed_server is not None
+        assert self._proxy_session is not None
+        credential = self._proxy_session.credential_block(self._trial_seed.credential)
+        facts = DirectArmLaunchFacts(
+            trial_id=self._trial_seed.trial_id,
+            root_run_id=self._trial_seed.root_run_id,
+            npm_artifact=self._npm_artifact,
+            backend_cli_version=self._installed_server.backend_cli_version,
+            proxy_base_url=str(credential["proxy_base_url"]),
+            dummy_token_ref=str(credential["dummy_token_ref"]),
+            model_alias_policy=self._trial_seed.model_alias_policy,
+        )
+        return materialize_direct_arm_home(
+            cortex_home=self.logs_dir / PRODUCTION_HOME_NAME,
+            runtime_cortex_home=EnvironmentPaths().agent_dir / PRODUCTION_HOME_NAME,
+            artifacts_dir=self._artifact_dir, facts=facts,
+            inherited_environment=self._inherited_environment,
         )
 
     def _is_coder_review(self) -> bool:
@@ -447,7 +496,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         await super().setup(environment)
         assert self._npm_artifact is not None
         assert self._cortex_cli_version is not None
-        assert self._container_facts is not None
+        assert self._installed_server is not None
         inputs = self._manifest_seed.with_cwd(
             resolved_cwd, self._npm_artifact, self._cortex_cli_version,
         )
@@ -456,24 +505,20 @@ class CortexBenchAgent(BaseInstalledAgent):
         )
         if self._proxy_session is not None:
             fill_proxy_manifest(manifest_path, self._proxy_session.handle)
-        write_arm_resolution(
-            self.logs_dir, self._compose_arm_resolution(self._container_facts),
-        )
-        if self._is_coder_review():
-            # The declaration the composed parent role's `mcp_config_paths` already names. It is
-            # instruction-independent, so it is written here rather than at run time.
-            write_benchmark_thread_mcp_config(
-                self.logs_dir, self._container_facts.bundle_root,
+        if self._production_direct:
+            self._materialized_home = self._materialize_production_home()
+        else:
+            assert self._container_facts is not None
+            write_arm_resolution(
+                self.logs_dir, self._compose_arm_resolution(self._container_facts),
             )
+            if self._is_coder_review():
+                write_benchmark_thread_mcp_config(
+                    self.logs_dir, self._container_facts.bundle_root,
+                )
         self._resolved_cwd = resolved_cwd
 
     def _write_thread_policy(self, instruction: str) -> None:
-        """The in-trial thread's policy, written beside the resolution the instant before the run.
-
-        It cannot be written at setup time: the canonical instruction is only handed to `run`, and
-        the deadline is an instant rather than a duration, so it is anchored on the run that is
-        about to start rather than on a setup that may have been slow.
-        """
         if not self._is_coder_review():
             return
         assert self._resolved_cwd is not None
@@ -521,20 +566,6 @@ class CortexBenchAgent(BaseInstalledAgent):
         ]
 
     def _inner_deadline_ms(self) -> int:
-        """The arm's own deadline, handed to the process it is supposed to bound.
-
-        The declared `deadline_seconds` used to reach only the host: it sized the credential lease
-        and nothing else. The run itself was spawned without `--deadline-ms`, so `supervisor.ts:457`
-        returned before arming anything and the run had no timer of its own. Between step
-        boundaries — which is where a run parked inside a single tool call lives — nothing could
-        reach it, and Harbor's phase cut was the only thing left. A phase cut is not a run ending:
-        it publishes no terminal marker, so finalization never runs and the trial cannot be graded
-        at all, which is how r5's db-wal-recovery threw away 31 minutes and its whole result.
-
-        Passing it makes the supervisor stop the run at its own deadline. The child then exits 124,
-        `runner.ts:943` reads that as terminal state `timeout` / reason `deadline`, and the run ends
-        the way any other bad ending does: with a marker, a finalization and a verifier score.
-        """
         limits = self._trial_seed.arm.get("limits")
         if not isinstance(limits, Mapping):
             raise ValueError("arm requires limits to bound the inner run")
@@ -568,6 +599,43 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._finalize_outer(revocation)
 
     async def _execute_run(self, instruction: str, environment: BaseEnvironment) -> None:
+        if self._production_direct:
+            await self._execute_production_run(instruction, environment)
+            return
+        await self._execute_legacy_run(instruction, environment)
+
+    async def _execute_production_run(
+        self, instruction: str, environment: BaseEnvironment,
+    ) -> None:
+        self._require_admitted_proxy()
+        if self._resolved_cwd is None or self._materialized_home is None:
+            raise RuntimeError("CortexBenchAgent.setup() must complete before run")
+        assert self._installed_server is not None
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        (self.logs_dir / "instruction.md").write_text(instruction, encoding="utf-8")
+        spec = ProductionSessionSpec(
+            logs_dir=self.logs_dir,
+            container_logs_dir=EnvironmentPaths().agent_dir,
+            workspace_cwd=self._resolved_cwd.realpath,
+            arm=self._trial_seed.arm,
+            trial_id=self._trial_seed.trial_id,
+            root_run_id=self._trial_seed.root_run_id,
+            materialized_home=self._materialized_home,
+            installed=self._installed_server,
+        )
+
+        async def execute(command: str, **kwargs: Any) -> Any:
+            return await self.exec_as_agent(environment, command, **kwargs)
+
+        session = ProductionServerSession(spec)
+        try:
+            await session.run(instruction, execute)
+        finally:
+            self._production_server_stopped = session.stopped_cleanly
+
+    async def _execute_legacy_run(
+        self, instruction: str, environment: BaseEnvironment,
+    ) -> None:
         self._require_admitted_proxy()
         if self._resolved_cwd is None:
             raise RuntimeError("CortexBenchAgent.setup() must complete before run")
@@ -590,19 +658,6 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._write_collected_streams(result.stdout, result.stderr)
 
     def _settle_non_zero_inner_run(self, error: Exception) -> None:
-        """A non-zero `cortex agent-run` is not by itself a stage failure.
-
-        Harbor's `exec_as_agent` raises on any non-zero exit (`agents/installed/base.py:550`),
-        and a run whose agent failed exits non-zero — so the ordinary shape of a failed agent
-        could not be finalized at all: the phase raised, the verifier never ran, and the campaign
-        stopped. Which of the two happened was decided by a race, since a run that published its
-        marker before its process returned took the other path instead.
-
-        The marker settles it. With one, the exit code only restates what the run already said
-        under the inner contract, and `host_finalization` grades the marker — publishing a
-        non-admitted envelope if it is not `completed`/`ok`. Without one, the process died
-        without stating an outcome, which is a stage failure and still raises.
-        """
         if not self._terminal_marker_path().exists():
             raise error
         self._write_collected_streams("", (
@@ -612,36 +667,17 @@ class CortexBenchAgent(BaseInstalledAgent):
         ))
 
     def _terminal_marker_path(self) -> Path:
-        """The run's own terminal marker, written atomically into the shared trajectory root.
-
-        Same name `host_finalization` reads, so the file the host stops waiting on is the file it
-        goes on to grade.
-        """
         return (
             self.logs_dir / "trajectory"
             / f"run-{self._trial_seed.root_run_id}.terminal.json"
         )
 
     async def _await_inner_run(self, execution: Coroutine[Any, Any, Any]) -> Any | None:
-        """Wait for `cortex agent-run`, but never past the run's own terminal marker.
-
-        Harbor bounds the agent phase by the trial's wall clock alone, so an inner run that
-        reaches a terminal state in seconds without its process returning — a provider budget
-        refusal, for instance — used to hold the phase open to that full timeout, and a timed-out
-        phase publishes no outer envelope and stops the campaign. The marker is the run's own
-        durable statement that it is over, so once it exists the host waits only the grace an
-        ordinary exit needs and then finalizes on the published inner evidence: an admitted trial
-        is still published, and a failed one is reported by its coded finalization refusal instead
-        of by a wall-clock timeout.
-
-        Returns the exec result, or None once the run is known to be over without one.
-        """
         task = asyncio.ensure_future(execution)
         while True:
             try:
                 done, _ = await asyncio.wait({task}, timeout=self._inner_run_poll_seconds)
             except BaseException:
-                # The phase itself was cancelled or timed out; the exec goes with it.
                 await self._abandon_inner_run(task)
                 raise
             if done:
@@ -668,6 +704,11 @@ class CortexBenchAgent(BaseInstalledAgent):
         with contextlib.suppress(BaseException):
             await task
 
+    def _write_collected_streams(self, stdout: str | None, stderr: str | None) -> None:
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        (self.logs_dir / "stdout.txt").write_text(stdout or "", encoding="utf-8")
+        (self.logs_dir / "stderr.txt").write_text(stderr or "", encoding="utf-8")
+
     def _revoke_after_run(self) -> TrialRevocation | None:
         try:
             return self._revoke_proxy()
@@ -675,11 +716,6 @@ class CortexBenchAgent(BaseInstalledAgent):
             if self._host_scan_policy is None:
                 raise
             raise HostFinalizationError("proxy_revocation_uncertain") from error
-
-    def _write_collected_streams(self, stdout: str | None, stderr: str | None) -> None:
-        self.logs_dir.mkdir(parents=True, exist_ok=True)
-        (self.logs_dir / "stdout.txt").write_text(stdout or "", encoding="utf-8")
-        (self.logs_dir / "stderr.txt").write_text(stderr or "", encoding="utf-8")
 
     async def _collect_trial_outputs(self, environment: BaseEnvironment) -> None:
         if self._host_scan_policy is None:
@@ -690,32 +726,25 @@ class CortexBenchAgent(BaseInstalledAgent):
             "node", "-e", WORKSPACE_COLLECTOR,
             self._resolved_cwd.realpath, str(output),
         ])
-        # A run that had to be abandoned may have left the container wedged, so collection after
-        # one is bounded too: an unbounded collection would hand the phase straight back to the
-        # timeout this class just stopped waiting for.
-        timeout = (
-            None if self._inner_run_stall is None
-            else int(self._inner_run_terminal_grace_seconds) or 1
-        )
         try:
             await self.exec_as_agent(
-                environment, command, cwd=self._resolved_cwd.realpath, timeout_sec=timeout)
+                environment, command, cwd=self._resolved_cwd.realpath)
             readable = shlex.join(["chmod", "-R", "a+rX", str(EnvironmentPaths().agent_dir)])
-            await self.exec_as_agent(environment, readable, timeout_sec=timeout)
+            await self.exec_as_agent(environment, readable)
         except Exception as error:
             raise HostFinalizationError("trial_output_collection_failed") from error
 
     def _finalize_outer(self, revocation: TrialRevocation | None) -> None:
         if self._host_scan_policy is None:
             return
-        if self._npm_artifact is None or self._container_facts is None:
+        if self._npm_artifact is None or self._installed_server is None:
             raise RuntimeError("CortexBenchAgent.install() must complete before finalization")
         publication = finalize_host_trial(
             logs_dir=self.logs_dir, verifier_dir=self._verifier_dir,
             artifact_dir=self._artifact_dir,
             root_run_id=self._trial_seed.root_run_id, trial_id=self._trial_seed.trial_id,
             arm=self._trial_seed.arm, npm_artifact=self._npm_artifact,
-            bundle_root=self._container_facts.bundle_root,
+            bundle_root=str(self._installed_server.bundle_root),
             revocation=revocation, scan_policy=self._host_scan_policy,
         )
         self._outer_publication = publication

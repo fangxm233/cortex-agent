@@ -184,6 +184,6 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | update-state.test.ts | test | update state file round-trip and errors |
 | user-context.test.ts | test | reset-isolated USER.md conversation injection |
 | webhook-ask-user.test.ts | test | ask endpoint level and channel resolution |
-| webhook-auth.test.ts | test | webhook bearer token gate |
+| webhook-auth.test.ts | test | webhook bearer gate and thread-op-only confinement |
 | webhook-manager-qa.test.ts | test | manager Q&A webhook ask, poll, answer |
-| webhook-thread-control.test.ts | test | thread control and child evidence inheritance |
+| webhook-thread-control.test.ts | test | thread control plus root and child evidence injection |

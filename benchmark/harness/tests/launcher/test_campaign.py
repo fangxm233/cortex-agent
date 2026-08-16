@@ -18,7 +18,10 @@ import pytest
 import yaml
 
 from cortex_bench_harness import campaign
-from cortex_bench_harness.harbor_agent import INNER_RUN_TERMINAL_GRACE_SECONDS
+from cortex_bench_harness.launcher.production_session import (
+    SERVER_READY_TIMEOUT_SECONDS,
+    SERVER_STOP_TIMEOUT_SECONDS,
+)
 from cortex_bench_harness.campaign_config import (
     CAMPAIGN_SCHEMA_VERSION,
     CampaignConfigError,
@@ -1563,7 +1566,8 @@ def test_the_committed_paid_agent_phase_outlives_the_deadline_it_bounds() -> Non
     (arm,) = config.arms
 
     deadline = int(str(arm["limits"]["deadline_seconds"]))
-    assert config.timeouts["agent_seconds"] - deadline > INNER_RUN_TERMINAL_GRACE_SECONDS
+    production_grace = SERVER_READY_TIMEOUT_SECONDS + SERVER_STOP_TIMEOUT_SECONDS
+    assert config.timeouts["agent_seconds"] - deadline > production_grace
 
 
 @pytest.mark.parametrize("block, message", [

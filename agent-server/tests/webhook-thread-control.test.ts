@@ -1,6 +1,6 @@
 // input:  thread-op webhook, thread store, detached runner
-// output: control persistence and descendant evidence tests
-// pos:    Verifies thread control and native child creation boundaries
+// output: control persistence plus root and descendant evidence tests
+// pos:    Verifies thread control and production evidence injection
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -94,6 +94,40 @@ function postThreadOp(body: any): Promise<{ statusCode: number; json: any }> {
     req.emit('end');
   });
 }
+
+test('native root start accepts one validated production evidence context', async () => {
+  const evidence: ProductionBenchmarkEvidenceContext = {
+    schema_version: 'cortex-production-benchmark-evidence-context/1',
+    trial_id: 'trial-native-root', root_run_id: 'root-native-root',
+    bundle_manifest_hash: 'e'.repeat(64),
+    model_execution: {
+      model_alias_policy: { policy: 'exact' }, cli_name: 'pi',
+      cli_version: 'pi-fixture-1', max_output_tokens: 65_536,
+    },
+  };
+
+  const { json } = await postThreadOp({
+    action: 'start', agent: 'evidence-child-agent', message: 'root work',
+    projectId: 'atlas', productionBenchmarkEvidenceContext: evidence,
+  });
+
+  assert.equal(json.success, true);
+  const root = threadStore.get(json.data.threadId)!;
+  createdThreadIds.add(root.id);
+  assert.deepEqual(root.metadata?.productionBenchmarkEvidenceContext, evidence);
+});
+
+test('native root start refuses malformed production evidence before dispatch', async () => {
+  const callsBefore = detached.runThreadDetached.mock.calls.length;
+  const { json } = await postThreadOp({
+    action: 'start', agent: 'evidence-child-agent', message: 'root work',
+    productionBenchmarkEvidenceContext: { trial_id: 'unsealed' },
+  });
+
+  assert.equal(json.success, false);
+  assert.match(json.error, /production benchmark evidence context invalid/i);
+  assert.equal(detached.runThreadDetached.mock.calls.length, callsBefore);
+});
 
 test('native child start inherits parent evidence after thread-store reload', async () => {
   const evidence: ProductionBenchmarkEvidenceContext = {

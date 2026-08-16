@@ -1,4 +1,4 @@
-// input:  sidecars, remote commands, hooks, runtime settings
+// input:  sidecars, hooks, commands, benchmark evidence
 // output: startWebhookServer
 // pos:    Serves task, thread, manager, and hook webhooks
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -6,6 +6,7 @@
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { AUTH_HEADER, getWebhookToken, timingSafeEqualStr } from '@core/auth.js';
+import { parseProductionBenchmarkEvidenceContext } from '@core/production-benchmark-evidence.js';
 import * as http from 'http';
 import * as crypto from 'crypto';
 import { readFileSync } from 'fs';
@@ -153,6 +154,12 @@ function createWebhookHandler(_options: {
   secret?: string;
 } = {}) {
   return (req, res) => {
+    const threadOpOnly = process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY === '1';
+    if (threadOpOnly && (req.method !== 'POST' || req.url !== '/webhook/thread-op')) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
     // --- Auth gate: every route requires the webhook bearer token, except /webhook/github
     //     which authenticates via its own HMAC signature (GitHub cannot send our header). ---
     if (req.url !== '/webhook/github' && !isWebhookAuthorized(req)) {
@@ -280,6 +287,12 @@ function createWebhookHandler(_options: {
             // Tree resource guards (DR-0014): width / node count / budget. A rejection is a
             // signal to escalate or re-plan — the error text says so to the calling agent.
             const parentThread = data.parentThreadId ? threadStore.get(String(data.parentThreadId)) : null;
+            const evidenceContext = data.productionBenchmarkEvidenceContext === undefined
+              ? undefined
+              : parseProductionBenchmarkEvidenceContext(data.productionBenchmarkEvidenceContext);
+            if (parentThread && evidenceContext) {
+              return reply({ success: false, error: 'production evidence context is root-only' });
+            }
             const guard = checkSpawnGuards(parentThread);
             if (guard.ok === false) {
               return reply({ success: false, error: `${guard.reason}. Do NOT retry this spawn — fold the remaining work into your own step, or escalate by calling the thread_abort tool with a diagnosis.` });
@@ -320,6 +333,9 @@ function createWebhookHandler(_options: {
                 resumeDest: haveChannel ? 'interactive-reply' : 'project-report',
                 contract,
                 missionChain,
+                ...(evidenceContext
+                  ? { productionBenchmarkEvidenceContext: evidenceContext }
+                  : {}),
               },
             });
             // Register the child on its thread parent: childThreadIds always (width counter),
