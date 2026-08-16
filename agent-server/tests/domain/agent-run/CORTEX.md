@@ -47,6 +47,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
 | production-attempt-identity.test.ts | test | proves immutable pre-spawn identity, reload and drift refusal |
+| production-attempt-journal.test.ts | test | proves durable normalized event journals per attempt |
 | production-accounting-attribution.test.ts | test | proves durable per-attempt request and token attribution |
 | role-surface.test.ts | test | verifies prompt, plugin, skill, MCP and hook identity |
 | run-config.test.ts | test | proves schema dispatch, roles, argv and MCP inputs |

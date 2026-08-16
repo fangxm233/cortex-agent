@@ -1,5 +1,5 @@
 // input:  facade, throttle, temp profiles, MockAdapter
-// output: provider identity, exact pre-flight, notice regressions
+// output: provider identity, pre-flight evidence, notice regressions
 // pos:    Facade pre-flight policy tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
@@ -9,7 +9,7 @@
 
 import { afterAll, test } from 'vitest';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -156,6 +156,42 @@ test('allConfigsRateLimited returns false on unknown profile', async (t) => {
 });
 
 /// --- runAgent pre-flight skip ---
+
+test('evidence-enabled preflight rate limit persists a zero-event attempt without spawning', async (t) => {
+  const rl = await initThrottle(['plan']);
+  const identity = await import('../src/domain/agent-run/production-attempt-identity.js');
+  const journals = await import('../src/domain/agent-run/production-attempt-journal.js');
+  const inputPath = path.join(suiteHome, 'config', 'benchmark-attempt-identity.json');
+  const storePath = path.join(suiteHome, 'data', 'benchmark-attempt-identities.jsonl');
+  writeFileSync(inputPath, `${JSON.stringify({
+    schema_version: 'cortex-production-attempt-identity-input/1',
+    trial_id: 'trial-preflight', root_run_id: 'root-preflight',
+    bundle_manifest_hash: 'a'.repeat(64),
+    model_execution: {
+      model_alias_policy: { policy: 'exact' }, cli_name: 'claude',
+      cli_version: 'claude-fixture-1', max_output_tokens: null,
+    },
+  })}\n`);
+  identity.initializeProductionAttemptIdentity({ inputPath, storePath });
+  t.onTestFinished(() => {
+    identity.resetProductionAttemptIdentity();
+    rl._testReset();
+  });
+
+  const facade = await getFacade();
+  const result = await facade.runAgent('test', {
+    profileName: 'scan', executionId: 'exec-preflight',
+    threadId: 'thr-preflight', rootThreadId: 'thr-preflight', parentThreadId: null,
+    templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct', stage: null,
+    identityDirective: '', taskId: null, taskGeneration: null,
+  }).promise;
+
+  assert.equal(result.rateLimited, true);
+  const evidence = journals.getProductionAttemptJournal('exec-preflight');
+  assert.ok(evidence);
+  assert.equal(evidence.event_count, 0);
+  assert.equal(existsSync(evidence.journal_path), true);
+});
 
 test('runAgent single-config path skips runAgentOnce when mode rate-limited', async (t) => {
   // scan profile has no fallback (single config, mode=plan)

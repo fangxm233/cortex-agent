@@ -14,6 +14,9 @@ import {
   type IdentityJsonValue,
 } from './identity.js';
 import { roleSurfaceFromSpawnConfig } from './role-surface.js';
+import {
+  initializeProductionAttemptJournals, resetProductionAttemptJournals,
+} from './production-attempt-journal.js';
 
 const INPUT_SCHEMA = 'cortex-production-attempt-identity-input/1';
 const RECORD_SCHEMA = 'cortex-production-attempt-identity/1';
@@ -271,19 +274,27 @@ export function initializeProductionAttemptIdentity(
   initialized = true;
   if (!fs.existsSync(inputPath)) {
     activeState = null;
+    resetProductionAttemptJournals();
     return;
   }
   const inputText = fs.readFileSync(inputPath, 'utf8');
+  const identityStorePath = init.storePath ?? DEFAULT_STORE_PATH;
+  const evidenceDir = path.dirname(identityStorePath);
   activeState = {
     inputPath, inputText, input: parseIdentityInput(inputText),
-    repo: new ProductionAttemptIdentityRepo(init.storePath ?? DEFAULT_STORE_PATH),
+    repo: new ProductionAttemptIdentityRepo(identityStorePath),
     revision: currentRevision(init), configurationRevision: init.configurationRevision,
   };
+  initializeProductionAttemptJournals({
+    journalDir: path.join(evidenceDir, 'benchmark-attempt-journals'),
+    storePath: path.join(evidenceDir, 'benchmark-attempt-journals.jsonl'),
+  });
 }
 
 export function resetProductionAttemptIdentity(): void {
   initialized = false;
   activeState = null;
+  resetProductionAttemptJournals();
 }
 
 function assertStableState(state: ActiveIdentityState): void {
@@ -486,6 +497,10 @@ export function freezeProductionAttemptIdentity(
   const existing = activeState.repo.get(record.execution_id);
   const candidate = existing ? { ...record, frozen_at: existing.frozen_at } : record;
   return activeState.repo.append(candidate);
+}
+
+export function productionAttemptEvidenceEnabled(): boolean {
+  return initialized && activeState !== null;
 }
 
 export function getProductionAttemptIdentity(
