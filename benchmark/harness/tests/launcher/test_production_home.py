@@ -72,6 +72,30 @@ HOSTILE_ENVIRONMENT = {
     "GOOGLE_APPLICATION_CREDENTIALS": "/host/private/google.json",
     "CLAUDE_CODE_OAUTH_TOKEN": "host-oauth",
 }
+# Host variables the server itself reads that name no provider: each one either redirects a
+# credential or state file out of the sealed home, overrides the arm, or carries a host secret.
+HOST_REDIRECT_ENVIRONMENT = {
+    "PI_CODING_AGENT_DIR": "/host/private/.cortex/data/pi",
+    "CLAUDE_CONFIG_DIR": "/host/private/.claude",
+    "CLAUDE_CODE_MESSAGING_SOCKET": "/host/private/run/claude.sock",
+    "CLAUDE_CODE_MESSAGING_TOKEN": "host-messaging-token",
+    "CORTEX_BUDGET_FILE": "/host/private/.cortex/config/budget.json",
+    "CORTEX_COSTS_FILE": "/host/private/.cortex/data/costs.jsonl",
+    "CORTEX_EXECUTIONS_FILE": "/host/private/.cortex/data/executions.json",
+    "CORTEX_PROFILE": "host-profile",
+    "CORTEX_BACKEND": "claude",
+    "CORTEX_MACHINE": "host-machine",
+    "CORTEX_THREAD_ID": "thr-host",
+    "CORTEX_WEBHOOK_TOKEN": "host-webhook-secret",
+    "CORTEX_CLIENT_TOKEN": "host-client-secret",
+    "CORTEX_TUI": "1",
+    "CF_ACCESS_CLIENT_SECRET": "host-cf-secret",
+    "GITHUB_WEBHOOK_SECRET": "host-github-secret",
+}
+SEALED_ENVIRONMENT_KEYS = {
+    "PATH", "LANG", "CORTEX_HOME", "CORTEX_PROJECTS_DIR", "HOME",
+    "XDG_CACHE_HOME", "XDG_CONFIG_HOME",
+}
 
 
 def canonical_sha256(value: object) -> str:
@@ -198,6 +222,21 @@ def test_materializes_without_host_home_and_scrubs_provider_and_chat_residue(tmp
     gateway = (result.cortex_home / "home/.aistatus/gateway.yaml").read_text()
     assert gateway == EXPECTED_GATEWAY
     assert "anthropic" not in gateway.lower() and "api.deepseek.com" not in gateway
+
+
+def test_seals_out_host_state_redirects_and_secrets_the_server_itself_reads(tmp_path: Path) -> None:
+    hostile = {**HOSTILE_ENVIRONMENT, **HOST_REDIRECT_ENVIRONMENT}
+
+    environment = materialize(tmp_path, hostile).process_environment
+
+    assert set(environment) == SEALED_ENVIRONMENT_KEYS
+    assert environment["PATH"] == "/usr/bin:/bin"
+    assert environment["LANG"] == "C.UTF-8"
+    serialized = json.dumps(environment)
+    assert not any(
+        marker in serialized
+        for marker in ("/host/private", "host-", "xoxb-", "sk-ant", ".claude", ".pi")
+    )
 
 
 def test_hashes_both_trees_and_writes_exact_linked_attestation(tmp_path: Path) -> None:
