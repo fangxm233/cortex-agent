@@ -1,10 +1,13 @@
-// input:  Vitest, a stub PI extension API, spawner and UI context
-// output: quota-notice emission, source resolution and throttle-arrival assertions
-// pos:    Covers the PI provider quota path from child probe to throttle
+// input:  Vitest, PI quota probes, usage persistence, throttle
+// output: quota emission, durable visibility, unchanged throttle assertions
+// pos:    Covers PI provider quota from child probe to stored usage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import quotaProbe from '../src/agent-adapter/pi/quota-probe.js';
 import { decodeQuotaNotice } from '../src/domain/costs/codex-quota.js';
 import { reportCodexQuota, resolveQuotaSource } from '../src/agent-adapter/pi/quota-sink.js';
@@ -14,6 +17,8 @@ import {
   type RateLimitThrottleState,
 } from '../src/domain/costs/rate-limit-throttle.js';
 import { MockAdapter } from '../src/platform/testing.js';
+import { ProviderStateRepo } from '../src/store/provider-state-repo.js';
+import { UsageStore } from '../src/domain/costs/usage-store.js';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
@@ -111,8 +116,16 @@ const READING = {
 
 test('submits one throttle event per window, keeping utilization and reset intact', async () => {
   const calls: unknown[] = [];
-  await reportCodexQuota(READING, { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
-    async (info, source) => { calls.push({ info, source }); });
+  const records: unknown[] = [];
+  await reportCodexQuota(
+    READING,
+    { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
+    {
+      submit: async (info, source) => { calls.push({ info, source }); },
+      usageStore: { update: async (record) => { records.push(record); } },
+      now: () => 1_786_000_000_000,
+    },
+  );
 
   assert.deepEqual(calls, [
     {
@@ -124,13 +137,71 @@ test('submits one throttle event per window, keeping utilization and reset intac
       source: { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
     },
   ]);
+  assert.equal(records.length, 1);
 });
 
 test('attributes the reading to the profile provider, not the name the headers used', async () => {
   const calls: { source: unknown }[] = [];
-  await reportCodexQuota(READING, { provider: 'my-codex', displayName: 'my-codex', mode: 'api' },
-    async (_info, source) => { calls.push({ source }); });
+  await reportCodexQuota(
+    READING,
+    { provider: 'my-codex', displayName: 'my-codex', mode: 'api' },
+    {
+      submit: async (_info, source) => { calls.push({ source }); },
+      usageStore: { update: async () => {} },
+    },
+  );
   assert.deepEqual(new Set(calls.map((c) => (c.source as { provider: string }).provider)), new Set(['my-codex']));
+});
+
+test('persists every below-threshold window across restart with its observation time', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-codex-usage-'));
+  const filePath = path.join(dir, 'provider-state.json');
+  const persistence = (repo: ProviderStateRepo) => ({
+    load: () => repo.getProviderUsage(),
+    save: (records: Parameters<ProviderStateRepo['setProviderUsage']>[0]) => repo.setProviderUsage(records),
+  });
+  const reading = {
+    ...READING,
+    windows: [
+      { type: 'seven_day', utilization: 0.12, resetsAt: 1_786_160_107 },
+      { type: 'five_hour', utilization: 0.34, resetsAt: 1_785_823_070 },
+    ],
+  };
+  const calls: unknown[] = [];
+
+  try {
+    const first = new UsageStore(persistence(new ProviderStateRepo(filePath)));
+    await reportCodexQuota(
+      reading,
+      { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
+      {
+        submit: async (info, source) => { calls.push({ info, source }); },
+        usageStore: first,
+        now: () => 1_786_000_000_999,
+      },
+    );
+    const restarted = new UsageStore(persistence(new ProviderStateRepo(filePath)));
+
+    assert.deepEqual(await restarted.get('openai-codex'), {
+      provider: 'openai-codex',
+      displayName: 'OpenAI Codex',
+      modes: ['openai-codex'],
+      windows: reading.windows,
+      observedAt: 1_786_000_000,
+      freshness: 'stale',
+      note: 'push-only: observed during the latest provider call',
+    });
+    assert.deepEqual(calls, reading.windows.map((window) => ({
+      info: {
+        rateLimitType: window.type,
+        utilization: window.utilization,
+        resetsAt: window.resetsAt,
+      },
+      source: { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
+    })));
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });
 
 function stubSpawner() {

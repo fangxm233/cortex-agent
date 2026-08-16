@@ -1,9 +1,10 @@
-// input:  spawn config, codex quota readings, the rate-limit throttle
-// output: resolveQuotaSource and reportCodexQuota
-// pos:    Feeds PI provider quota readings into the throttle
+// input:  spawn config, Codex quota readings, usage store, throttle
+// output: resolveQuotaSource and durable reportCodexQuota
+// pos:    Persists PI quota visibility and feeds the throttle
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { handleRateLimitEvent, type RateLimitSource } from '@domain/costs/rate-limit-throttle.js';
+import { usageStore, type ProviderUsage, type UsageStore } from '@domain/costs/usage-store.js';
 import type { CodexQuotaReading } from '@domain/costs/codex-quota.js';
 import type { AgentSpawnConfig } from '../types.js';
 
@@ -12,6 +13,14 @@ type SubmitRateLimit = (
   info: { rateLimitType: string; utilization: number; resetsAt: number },
   source: RateLimitSource,
 ) => Promise<void>;
+
+type UsageWriter = Pick<UsageStore, 'update'>;
+
+export interface CodexQuotaSinkDeps {
+  submit?: SubmitRateLimit;
+  usageStore?: UsageWriter;
+  now?: () => number;
+}
 
 const DISPLAY_NAMES: Record<string, string> = {
   'openai-codex': 'OpenAI Codex',
@@ -33,15 +42,26 @@ export function resolveQuotaSource(
   return { provider, displayName: DISPLAY_NAMES[provider] ?? provider, mode };
 }
 
-/**
- * File each advertised window as its own throttle event. The throttle owns the thresholds and
- * decides whether a window is worth pausing for, so every window is submitted as observed —
- * including the ones far below the line, which keep the recorded reset time fresh.
- */
-export async function reportCodexQuota(
+function providerUsage(
   reading: CodexQuotaReading,
   source: RateLimitSource,
-  submit: SubmitRateLimit = handleRateLimitEvent,
+  observedAtMs: number,
+): ProviderUsage {
+  return {
+    provider: reading.provider,
+    displayName: DISPLAY_NAMES[reading.provider] ?? reading.provider,
+    modes: source.mode ? [source.mode] : [],
+    windows: reading.windows.map((window) => ({ ...window })),
+    observedAt: Math.floor(observedAtMs / 1000),
+    freshness: 'stale',
+    note: 'push-only: observed during the latest provider call',
+  };
+}
+
+async function submitWindows(
+  reading: CodexQuotaReading,
+  source: RateLimitSource,
+  submit: SubmitRateLimit,
 ): Promise<void> {
   for (const window of reading.windows) {
     await submit(
@@ -49,4 +69,24 @@ export async function reportCodexQuota(
       source,
     );
   }
+}
+
+/** Persist every observation while preserving the throttle's sequential submission behavior. */
+export async function reportCodexQuota(
+  reading: CodexQuotaReading,
+  source: RateLimitSource,
+  deps: CodexQuotaSinkDeps = {},
+): Promise<void> {
+  const persisted = (deps.usageStore ?? usageStore)
+    .update(providerUsage(reading, source, (deps.now ?? Date.now)()))
+    .then(() => null, (error: unknown) => ({ error }));
+  let submitError: unknown;
+  try {
+    await submitWindows(reading, source, deps.submit ?? handleRateLimitEvent);
+  } catch (error) {
+    submitError = error;
+  }
+  const persistError = await persisted;
+  if (submitError !== undefined) throw submitError;
+  if (persistError) throw persistError.error;
 }

@@ -78,6 +78,8 @@ const PI_CAPS: Capability[] = [
   // cancellation reaching the server rather than orphaning the request. The governing proof is
   // tests/domain/agent-run/long-mcp-call-e2e.test.ts — real wall clock, no fake timers.
   Capability.BenchmarkLongMcpCall,
+  // Codex quota is push-only; PI reads the daemon-owned cache and never initiates provider traffic.
+  Capability.Usage,
 ];
 
 export const CAPABILITIES_BY_BACKEND: Record<Backend, Set<Capability>> = {

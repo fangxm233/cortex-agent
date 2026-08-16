@@ -66,15 +66,14 @@ test('Capability enum string values are stable (DR-0008 §3.2 contract)', () => 
   assert.equal(Capability.Usage, 'usage');
 });
 
-test('Claude alone declares account usage pull capability', () => {
-  const shared = new Set(Object.values(Capability));
-  shared.delete(Capability.Usage);
+test('Claude and PI declare their pull and push-only usage capability', () => {
+  const allCapabilities = new Set(Object.values(Capability));
 
-  assert.equal(shared.size, 11);
-  assert.deepEqual(CAPABILITIES_BY_BACKEND.claude, new Set([...shared, Capability.Usage]));
-  assert.deepEqual(CAPABILITIES_BY_BACKEND.pi, shared);
+  assert.equal(allCapabilities.size, 12);
+  assert.deepEqual(CAPABILITIES_BY_BACKEND.claude, allCapabilities);
+  assert.deepEqual(CAPABILITIES_BY_BACKEND.pi, allCapabilities);
   assert.equal(typeof getAdapter('claude').getUsage, 'function');
-  assert.equal(getAdapter('pi').getUsage, undefined);
+  assert.equal(typeof getAdapter('pi').getUsage, 'function');
 });
 
 test('both backends declare the benchmark long MCP call capability', () => {
@@ -105,7 +104,7 @@ test('CAPABILITIES_BY_BACKEND encodes the Claude and PI capability matrix', () =
   assert.equal(p.has(Capability.AskUserQuestion), true);
   assert.equal(p.has(Capability.SessionResume), true);
   assert.equal(p.has(Capability.MidTurnInject), true);
-  assert.equal(p.has(Capability.Usage), false);
+  assert.equal(p.has(Capability.Usage), true);
 });
 
 test('getAdapter returns the same capability set as CAPABILITIES_BY_BACKEND', () => {

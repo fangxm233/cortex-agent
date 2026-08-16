@@ -19,13 +19,13 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |
 | agent-adapter-pi-mcp-config.test.ts | test | PI MCP config privacy and reloads |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP gates, surfaces, env and retry policy |
-| agent-adapter-pi-quota-probe.test.ts | test | PI provider quota from child probe to throttle |
+| agent-adapter-pi-quota-probe.test.ts | test | PI quota probe, durable usage and throttle parity |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
 | agent-adapter-pi.test.ts | test | PI spawn policy, resume, context and lifecycle |
-| agent-adapter.test.ts | test | adapter dispatch, events and capabilities |
+| agent-adapter.test.ts | test | adapter dispatch, events and usage capabilities |
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
 | auth-events.test.ts | test | auth case, boundary, privacy and recovery events |

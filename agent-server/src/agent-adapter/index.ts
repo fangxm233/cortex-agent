@@ -1,5 +1,5 @@
-// input:  backend labels and restored PI transcript paths
-// output: adapter lookup, PI path registration, public re-exports
+// input:  backend labels, PI transcript paths, usage store
+// output: daemon adapter lookup, PI path registration, exports
 // pos:    Unified entry point for the Agent adapter system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -9,6 +9,7 @@ import { PIAdapter } from './pi/adapter.js';
 import { ensureAuthVisible, USER_PI_MODELS_PATH } from './pi/agent-dir.js';
 import { DEFAULT_SESSION_DIR, PI_AGENT_DIR } from './pi/defaults.js';
 import { piProviderDiscovery } from './pi/discovery.js';
+import { usageStore } from '@domain/costs/usage-store.js';
 
 export * from './types.js';
 export * from './capabilities.js';
@@ -23,6 +24,7 @@ const PI_ADAPTER = new PIAdapter(undefined, DEFAULT_SESSION_DIR, piProviderDisco
   agentDir: PI_AGENT_DIR,
   prepareAgentDir: (agentDir) => ensureAuthVisible({ agentDir }),
   userModelsPath: USER_PI_MODELS_PATH,
+  usageStore,
 });
 
 const ADAPTERS: Record<Backend, AgentAdapter> = {
