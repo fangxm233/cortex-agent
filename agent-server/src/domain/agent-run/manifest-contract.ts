@@ -1,5 +1,5 @@
 // input:  lifecycle, journal, usage, and identity values
-// output: v2 terminal marker types, builder, and validator
+// output: v2 terminal marker and non-negative token validator
 // pos:    Terminal evidence v2 value contract
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -24,7 +24,7 @@ export interface TokenCounts {
   input: number | null;
   output: number | null;
   cache_read: number | null;
-  cache_creation: null;
+  cache_creation: number | null;
 }
 
 export interface StartedMarkerInput {
@@ -113,6 +113,10 @@ function isNullableNumber(value: unknown): boolean {
   return value === null || isFiniteNumber(value);
 }
 
+function isNullableNonNegativeNumber(value: unknown): boolean {
+  return value === null || (typeof value === 'number' && Number.isFinite(value) && value >= 0);
+}
+
 function isTerminalState(value: unknown): value is TerminalState {
   return value === 'completed' || value === 'failed' || value === 'cancelled'
     || value === 'timeout' || value === 'aborted';
@@ -131,8 +135,7 @@ function validTokens(value: unknown): boolean {
   if (!isObject(value)) return false;
   const required = ['input', 'output', 'cache_read', 'cache_creation'];
   return exactKeys(value, required)
-    && isNullableNumber(value.input) && isNullableNumber(value.output)
-    && isNullableNumber(value.cache_read) && value.cache_creation === null;
+    && required.every(key => isNullableNonNegativeNumber(value[key]));
 }
 
 type ManifestRule = [detail: string, check: (record: Record<string, unknown>) => boolean];

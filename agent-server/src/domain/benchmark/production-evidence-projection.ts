@@ -1,5 +1,5 @@
-// input:  launcher arm facts and durable production attempt stores
-// output: validated terminal/composite v2 projection bytes
+// input:  launcher facts, durable attempts, attributed usage
+// output: validated token-complete terminal/composite v2 bytes
 // pos:    Production evidence read-model projection
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -320,7 +320,7 @@ function usage(source: AttemptSource): AttemptUsage {
       input: sumNullable(source.costs, row => row.input_tokens),
       output: sumNullable(source.costs, row => row.output_tokens),
       cache_read: sumNullable(source.costs, row => row.cache_read_tokens),
-      cache_creation: null,
+      cache_creation: sumNullable(source.costs, row => row.cache_creation_tokens),
     },
     providerRequests: requests,
   };
@@ -379,7 +379,8 @@ function terminalBytes(
     steps: attemptUsage.steps, costUsd: attemptUsage.costUsd,
     tokens: {
       input: attemptUsage.tokens.input, output: attemptUsage.tokens.output,
-      cache_read: attemptUsage.tokens.cache_read, cache_creation: null,
+      cache_read: attemptUsage.tokens.cache_read,
+      cache_creation: attemptUsage.tokens.cache_creation,
     },
     modelExecutionIdentityHash: source.identity.model_execution_identity_hash,
     roleToolSurfaceHash: source.identity.role_tool_surface_hash,

@@ -1,5 +1,5 @@
 // input:  production attempts, durable edges, identity, accounting
-// output: canonical composite-manifest/2 validation and bytes
+// output: canonical composite v2 bytes and strict usage validation
 // pos:    Composite evidence v2 contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -9,7 +9,8 @@ import { createHash } from 'node:crypto';
 
 import {
   ATTEMPT_EDGE_KINDS, ATTEMPT_RECORD_KEYS, EDGE_ENDPOINT_LEGALITY, isDurableAttemptEdgeKind,
-  threadScopedIdentityHolds, type AttemptEdge, type AttemptEdgeKind, type AttemptRecord, type EndpointRef,
+  threadScopedIdentityHolds, validAttemptTokens,
+  type AttemptEdge, type AttemptEdgeKind, type AttemptRecord, type EndpointRef,
   type EndpointRefKind,
 } from './attempt-record.js';
 import type { AccountingRecord } from './accounting-reconciliation.js';
@@ -477,7 +478,7 @@ function validAttemptEvidence(node: AttemptRecord): boolean {
   return paths.every(value => typeof value === 'string' && value.length > 0)
     && node.terminal_manifest_path.endsWith('.terminal.json')
     && hashes.every(isSha256)
-    && Number.isInteger(node.event_count) && node.event_count >= 0
+    && Number.isInteger(node.event_count) && node.event_count >= 0 && validAttemptTokens(node.tokens)
     && (node.provider_requests === null
       || (Number.isInteger(node.provider_requests) && node.provider_requests > 0))
     && validTerminalOutcome(node);

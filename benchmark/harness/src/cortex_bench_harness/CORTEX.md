@@ -13,7 +13,7 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | manifest.py | core | Records artifacts and the installed CLI version |
 | harbor_agent.py | adapter | Runs the production Harbor lifecycle and admission gate, bounded by the inner run's terminal marker |
 | host_evidence_validation.py | boundary | Validates host-owned evidence identity |
-| host_finalization.py | boundary | Validates host attestations and publishes the outer envelope |
+| host_finalization.py | boundary | Validates attestations and token-linked attempt bytes |
 | inner_validation.py | boundary | Validates production-ledger evidence v2 edges |
 | launcher/ | core | Selects arms and builds non-secret Harbor inputs |
 | proxy/ | network | Injects credentials through a bounded trial route |
