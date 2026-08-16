@@ -340,6 +340,26 @@ test('a required journal close failure fails the run and never publishes placeho
   assert.equal(fs.existsSync(journalStorePath()), false);
 });
 
+test('a synchronous send failure that also fails journal close still closes the process and publishes nothing', () => {
+  initialize('pi');
+  let closed = false;
+  const factory = () => {
+    const proc = eventProcess([], result());
+    proc.send = () => {
+      fs.closeSync(findOpenFd(onlyOpenJournalPath()));
+      throw new Error('send failed');
+    };
+    proc.close = async () => { closed = true; };
+    return proc;
+  };
+  assert.throws(
+    () => runAttempt('pi', PATHS[0], 'exec-send-close-double-fault', factory),
+    /trajectory|journal|sink/i,
+  );
+  assert.equal(closed, true);
+  assert.equal(getProductionAttemptJournal('exec-send-close-double-fault'), null);
+});
+
 test('reload fails closed when persisted journal bytes no longer match their digest', async () => {
   initialize('claude');
   await runAttempt('claude', PATHS[0], 'exec-tampered').promise;
