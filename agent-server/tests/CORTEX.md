@@ -115,7 +115,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
 | run-with-adapter.test.ts | test | tests attributed events, notices and waits |
 | schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
-| scheduled-runner-jobs.test.ts | test | scheduled job dispatch and isolation |
+| scheduled-runner-jobs.test.ts | test | scheduled job dispatch, sync paths and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |
 | scheduler-precheck.test.ts | test | preCheck exit codes and env passing |
 | server-update-check.test.ts | test | CalVer compare and server update check |

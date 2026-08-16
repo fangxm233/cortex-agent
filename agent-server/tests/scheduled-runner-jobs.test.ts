@@ -1,13 +1,19 @@
-// input:  job registry dispatch callbacks
-// output: missing-runner, failure-isolation and finalize-registration tests
+// input:  job registry callbacks, sync script, temporary command shim
+// output: dispatch isolation, portable sync paths and finalization tests
 // pos:    Verifies scheduled job dispatch behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { register, dispatch } from '../src/domain/scheduling/job-registry.js';
 import { finalizeThreadSuccess } from '../src/domain/scheduling/jobs/_shared.js';
+import { resolveSyncPublicScript } from '../src/domain/scheduling/jobs/sync-public.js';
 import { sessionStore } from '../src/store/session-registry-repo.js';
 
 const stubAdapter = { updateMessage: async () => ({}) } as any;
@@ -15,6 +21,44 @@ const stubAdapter = { updateMessage: async () => ({}) } as any;
 test('unknown key dispatch logs a warning and returns false', () => {
   const result = dispatch('nonexistent-key', {});
   assert.equal(result, false, 'dispatch returns false for unknown key');
+});
+
+test('sync-public resolves its script from the configured agent-server checkout', () => {
+  assert.equal(
+    resolveSyncPublicScript('/opt/cortex/agent-server'),
+    path.join('/opt/cortex/scripts', 'sync-pull-from-public.sh'),
+  );
+  assert.equal(resolveSyncPublicScript(''), null);
+});
+
+test('sync-public shell script operates on the checkout that contains it', () => {
+  const repoRoot = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-sync-path-'));
+  const capturePath = path.join(root, 'git-cwds.txt');
+  const gitPath = path.join(root, 'git');
+  fs.writeFileSync(gitPath, `#!/bin/bash
+printf '%s\\n' "$PWD" >> "$CAPTURE_PATH"
+case "$*" in
+  "rev-parse --verify "*) exit 1 ;;
+  "rev-parse public/main") printf 'fixture-public-sha\\n' ;;
+  "rev-parse --short "*) printf 'fixture-public-sha\\n' ;;
+esac
+`);
+  fs.chmodSync(gitPath, 0o755);
+
+  try {
+    const result = spawnSync('bash', [path.join(repoRoot, 'scripts/sync-pull-from-public.sh')], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${root}${path.delimiter}${process.env.PATH}`, CAPTURE_PATH: capturePath },
+    });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const invokedFrom = fs.readFileSync(capturePath, 'utf8').trim().split('\n');
+    assert.ok(invokedFrom.length > 0);
+    assert.ok(invokedFrom.every(cwd => cwd === repoRoot));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('one job failure does not break dispatch table', async () => {

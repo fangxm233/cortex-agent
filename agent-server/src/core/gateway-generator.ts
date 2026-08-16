@@ -111,8 +111,7 @@ const ANTHROPIC_MODELS = [
  * Providers absent from this table are still surfaced as cortex profiles, but no gateway endpoint
  * is generated for them (gatewayManaged=false). PI will then either fail (if the cortex spawn path
  * forces gateway routing) or direct-call the upstream (if the spawn path leaves models.json
- * untouched for that provider). See `/home/fangxin/.cortex/plan/generic-wibbling-pine.md` stage E
- * for the eventual full plumbing.
+ * untouched for that provider). Full provider plumbing remains future work.
  */
 const PI_PROVIDER_UPSTREAM: Record<string, { url: string; auth_style: string }> = {
   // Anthropic-protocol providers (PI's `api: anthropic-messages`)

@@ -6,5 +6,5 @@ Real-process integration coverage for Linux native helpers and containment bound
 |---|---|---|
 | fixtures/ | fixtures | Provides hostile process-tree test programs |
 | integration-supervisor.test.ts | test | Verifies lifecycle and control-loss containment |
-| package-supervisor.test.ts | test | Tests closure sync, binaries, rollback and digest |
+| package-supervisor.test.ts | test | Tests package hygiene, closure, binaries and rollback |
 | supervisor-harness.ts | helper | Drives supervisor teardown and leak probes |

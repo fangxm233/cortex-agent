@@ -78,7 +78,7 @@ const RESTART_TRIGGER = path.join(STORE_DIR, '.restart');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 const CORTEX_REPO = process.env.CORTEX_REPO ?? '';
 const SRC_WATCH_PATH = CORTEX_REPO ? path.join(CORTEX_REPO, 'src') : '';
-// Monorepo root is the parent of the agent-server repo (e.g. /home/fangxin/Cortex).
+// Monorepo root is the parent of the agent-server repo (e.g. /srv/cortex).
 // Web SPA lives under MONOREPO_ROOT/web/ and must be built before packing.
 const MONOREPO_ROOT = CORTEX_REPO ? path.dirname(CORTEX_REPO) : '';
 const WEB_DIR = MONOREPO_ROOT ? path.join(MONOREPO_ROOT, 'web') : '';

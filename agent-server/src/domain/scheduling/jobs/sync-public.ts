@@ -1,19 +1,27 @@
-// input:  sync-public script + PlatformAdapter
-// output: sync-public job runner — registers as 'sync-public'
-// pos:    periodic fetch + cherry-pick from public/main to main (non-LLM programmatic work)
+// input:  CORTEX_REPO, sync-public script, PlatformAdapter
+// output: sync-public path resolver and registered job runner
+// pos:    Pulls public/main changes into a source checkout
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import { execFileSync } from 'child_process';
+import * as path from 'path';
 import { register, ctx } from '../job-registry.js';
 import { Icons } from '../../../core/icons.js';
-import { execSync } from 'child_process';
 
-const SYNC_SCRIPT = '/home/fangxin/Cortex/scripts/sync-pull-from-public.sh';
+export function resolveSyncPublicScript(agentServerDir = process.env.CORTEX_REPO ?? ''): string | null {
+  const checkout = agentServerDir.trim();
+  if (!checkout) return null;
+  return path.resolve(checkout, '..', 'scripts', 'sync-pull-from-public.sh');
+}
 
 // Self-register
 register('sync-public', async (payload: unknown) => {
   const { channel } = payload as { channel: string; scheduleTaskId: string };
   const adapter = ctx.adapter!;
   try {
-    const output = execSync(`bash "${SYNC_SCRIPT}"`, {
+    const syncScript = resolveSyncPublicScript();
+    if (!syncScript) throw new Error('CORTEX_REPO is unset; public sync requires a source checkout');
+    const output = execFileSync('bash', [syncScript], {
       timeout: 30_000,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
