@@ -23,6 +23,7 @@ export interface Settings {
   injectWaitMaxS: number;
   threadMaxDepth: number;
   taskArtifactTemplates: string[];
+  anthropicSubscriptionModes: string[];
   taskDispatchMaxConcurrent: number | null;
   taskDispatchEnabled: boolean;
   taskDispatchIntervalMs: number;
@@ -199,6 +200,10 @@ export const SETTINGS_SPEC = {
     type: 'string[]',
     default: ['manager'],
     legacyParse: (raw: string) => raw.split(',').map((value) => value.trim()).filter(Boolean),
+  },
+  anthropicSubscriptionModes: {
+    type: 'string[]',
+    default: ['plan'],
   },
   taskDispatchMaxConcurrent: {
     envVar: 'TASK_DISPATCH_MAX_CONCURRENT',
