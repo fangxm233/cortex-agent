@@ -33,6 +33,12 @@ RESIDUE_PREFIXES = (
     "AZURE_OPENAI_", "AWS_BEDROCK_",
 )
 RESIDUE_SUFFIXES = ("_API_KEY", "_BASE_URL")
+# The arm is the committed bundle, so the process environment is composed, not filtered: only these
+# neutral base variables survive from the host, and everything else the trial runs on is written
+# below. A provider denylist cannot express this -- the server also reads host variables that name
+# no provider (PI_CODING_AGENT_DIR, CLAUDE_CONFIG_DIR, CORTEX_COSTS_FILE, CORTEX_PROFILE) and each
+# of them redirects a credential or state file out of the sealed home, or overrides the arm.
+INHERITED_KEYS = ("LANG", "LC_ALL", "LC_CTYPE", "PATH", "TERM", "TZ")
 SAFE_DUMMY_TOKEN = re.compile(r"^[A-Za-z0-9._:-]+$")
 TRIAL_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
@@ -186,8 +192,8 @@ def _sealed_environment(
     source: Mapping[str, str], cortex_home: Path,
 ) -> Mapping[str, str]:
     environment = {
-        key: value for key, value in source.items()
-        if isinstance(key, str) and isinstance(value, str) and not _is_residue(key)
+        key: source[key] for key in INHERITED_KEYS
+        if isinstance(source.get(key), str)
     }
     environment.update({
         "CORTEX_HOME": str(cortex_home),
@@ -196,7 +202,6 @@ def _sealed_environment(
         "XDG_CACHE_HOME": str(cortex_home / "home/.cache"),
         "XDG_CONFIG_HOME": str(cortex_home / "home/.config"),
     })
-    environment.pop("CORTEX_TUI", None)
     if any(_is_residue(key) for key in environment):
         raise ProductionHomeError("provider or chat residue survived environment sealing")
     return dict(sorted(environment.items()))
