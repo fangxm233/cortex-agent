@@ -17,6 +17,7 @@ Launcher tests cover arm routing, credential projections, and vendor isolation.
 | test_host_credential_vault.py | test | Proves consume-once host credential transfer |
 | test_host_finalization.py | test | Proves v2 host attestations and inner evidence fail closed |
 | test_paid_campaign_launch.py | test | Proves the host-only launcher resolves all five references, refuses artifacts that no longer match current source, and never exposes the credential |
+| test_production_home.py | test | Proves fresh direct homes, route sealing and attestations |
 | test_independent_entry_parity.py | test | Second witness: shipped entry composes with no helper |
 | test_public_entry_parity.py | test | Proves seed-only composition through the shipped loader |
 | test_thread_policy.py | test | Verifies the composed in-trial thread-policy document and its file |

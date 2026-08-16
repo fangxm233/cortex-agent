@@ -1,0 +1,325 @@
+# input:  committed direct-arm bundle, hostile environment, launcher facts
+# output: fresh-home, residue, digest, attestation and refusal proofs
+# pos:    Contract tests for the production direct-arm materializer
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+
+import hashlib
+import json
+import stat
+from pathlib import Path
+
+import pytest
+
+from cortex_bench_harness.launcher import (
+    DIRECT_ARM_BUNDLE_DIR,
+    DirectArmLaunchFacts,
+    ProductionHomeError,
+    materialize_direct_arm_home,
+    production_home,
+)
+
+EXPECTED_PROFILE = {
+    "defaultProfile": "benchmark-direct",
+    "profiles": {"benchmark-direct": {
+        "model": "deepseek-v4-flash", "backend": "pi", "mode": "trial",
+        "provider": "deepseek", "thinking": "off", "maxOutputTokens": 65536,
+        "fallback": [],
+    }},
+}
+EXPECTED_SETTINGS = {
+    "clientHotReloadEnabled": False, "taskDispatchMaxConcurrent": 1,
+    "taskDispatchEnabled": False, "taskDispatchIntervalMs": 2147483647,
+    "dispatchReconcilerEnabled": False, "taskArchiveEnabled": False,
+    "taskArchiveIntervalMs": 2147483647, "storeArchiveEnabled": False,
+    "memoryIndexRegenEnabled": False, "memoryIndexRegenIntervalMs": 2147483647,
+    "serverUpdateDisable": True, "diskMonitor": False, "waitingSweepMs": 0,
+    "eventLog": False,
+}
+EXPECTED_AGENT = {
+    "name": "benchmark-direct",
+    "description": "Single production agent for the direct benchmark arm",
+    "profile": "benchmark-direct", "persistSession": False,
+    "promptTemplate": "{{input}}", "directive": "file:benchmark-direct.md",
+    "systemPrompt": "file:benchmark-direct.md",
+    "tools": "agent,bash,edit,glob,grep,read,skill,todo_write,write",
+    "pluginDirs": [], "mcpComposition": "none", "mcpToolAllowlist": [],
+}
+EXPECTED_TEMPLATE = {
+    "name": "benchmark-direct",
+    "description": "One production agent step with no orchestration fork",
+    "agents": ["benchmark-direct"], "transitions": [],
+    "entryAgent": "benchmark-direct", "maxTotalSteps": 1,
+    "maxTotalCostUsd": 100, "disableHooks": True,
+}
+EXPECTED_GATEWAY = (
+    "port: 9880\nmode: trial\nstatus_check: false\nmax_body_size_mb: 64\n"
+    "deepseek:\n  trial:\n"
+    "    base_url: http://trial-direct-001.proxy.invalid:49152\n"
+    "    auth_style: openai\n    keys:\n      - trial-dummy-token\n"
+)
+HOSTILE_ENVIRONMENT = {
+    "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8",
+    "CORTEX_HOME": "/host/private/.cortex",
+    "CORTEX_PROJECTS_DIR": "/host/private/projects", "HOME": "/host/private",
+    "SLACK_BOT_TOKEN": "xoxb-host-secret", "SLACK_CHANNEL": "host-channel",
+    "FEISHU_APP_ID": "host-app", "FEISHU_APP_SECRET": "host-secret",
+    "LARK_VERIFICATION_TOKEN": "host-token", "ANTHROPIC_API_KEY": "sk-ant-host",
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "DEEPSEEK_API_KEY": "host-deepseek",
+    "DEEPSEEK_BASE_URL": "https://api.deepseek.com",
+    "OPENAI_API_KEY": "host-openai", "OPENAI_BASE_URL": "https://api.openai.com/v1",
+    "MISTRAL_TOKEN": "host-mistral",
+    "GOOGLE_APPLICATION_CREDENTIALS": "/host/private/google.json",
+    "CLAUDE_CODE_OAUTH_TOKEN": "host-oauth",
+}
+
+
+def canonical_sha256(value: object) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def tree_digest(root: Path) -> tuple[str, int]:
+    entries = [
+        {
+            "path": path.relative_to(root).as_posix(),
+            "type": "file",
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    ]
+    return canonical_sha256(entries), len(entries)
+
+
+def facts(tmp_path: Path) -> DirectArmLaunchFacts:
+    npm_artifact = tmp_path / "cortex-agent-server.tgz"
+    npm_artifact.write_bytes(b"pinned npm artifact\n")
+    return DirectArmLaunchFacts(
+        trial_id="trial-direct-001",
+        root_run_id="trial-direct-001.cortex-direct",
+        npm_artifact=npm_artifact,
+        backend_cli_version="0.82.1",
+        proxy_base_url="http://trial-direct-001.proxy.invalid:49152",
+        dummy_token_ref="trial-dummy-token",
+        model_alias_policy={"policy": "exact"},
+    )
+
+
+def materialize(tmp_path: Path, environment: dict[str, str] | None = None):
+    return materialize_direct_arm_home(
+        cortex_home=tmp_path / "fresh-cortex-home",
+        artifacts_dir=tmp_path / "artifacts",
+        facts=facts(tmp_path),
+        inherited_environment=environment or {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
+    )
+
+
+def read_json(path: Path) -> object:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def expected_attestation(
+    launch: DirectArmLaunchFacts, bundle_sha: str, bundle_count: int,
+    home_sha: str, home_count: int,
+) -> tuple[dict[str, object], str]:
+    npm_sha = hashlib.sha256(launch.npm_artifact.read_bytes()).hexdigest()
+    backend = {"name": "pi", "version": "0.82.1"}
+    manifest = canonical_sha256({
+        "npm_artifact_sha256": npm_sha, "backend_cli": backend,
+        "pre_boot_input_bundle_sha256": bundle_sha,
+    })
+    return {
+        "schema_version": "cortex-bench-launch-attestation/2",
+        "trial_id": "trial-direct-001", "capture_boundary": "launcher_pre_boot",
+        "npm_artifact_sha256": npm_sha, "backend_cli": backend,
+        "pre_boot_input_bundle_sha256": bundle_sha,
+        "input_bundle_file_count": bundle_count,
+        "cortex_home_tree_sha256": home_sha, "cortex_home_file_count": home_count,
+        "bundle_manifest_hash": manifest,
+    }, manifest
+
+
+def copy_bundle(destination: Path, symlink_target: Path | None = None) -> None:
+    destination.mkdir()
+    for source in DIRECT_ARM_BUNDLE_DIR.rglob("*"):
+        relative = source.relative_to(DIRECT_ARM_BUNDLE_DIR)
+        output = destination / relative
+        if source.is_dir():
+            output.mkdir()
+        elif relative.as_posix() == "config/machines.json" and symlink_target:
+            output.symlink_to(symlink_target)
+        else:
+            output.write_bytes(source.read_bytes())
+
+
+def test_committed_bundle_is_the_exact_production_direct_surface(tmp_path: Path) -> None:
+    home = materialize(tmp_path).cortex_home
+
+    assert read_json(home / "config/profiles.json") == EXPECTED_PROFILE
+    assert read_json(home / "config/settings.json") == EXPECTED_SETTINGS
+    agent = home / "config/thread-templates/agents/benchmark-direct.json"
+    template = home / "config/thread-templates/templates/benchmark-direct.json"
+    assert read_json(agent) == EXPECTED_AGENT
+    assert read_json(template) == EXPECTED_TEMPLATE
+    assert read_json(home / "config/machines.json") == {}
+    assert read_json(home / "data/schedules.json") == {"tasks": []}
+    assert read_json(home / "data/mode.json") == {
+        "mode": "api", "claudeMode": "api", "backend": "pi",
+        "claudeModel": "deepseek-v4-flash", "activeProfile": "benchmark-direct",
+        "defaultAgent": "benchmark-direct", "channelProfiles": {},
+    }
+    assert (home / "context/projects/general/TASKS.yaml").read_text() == "tasks: []\n"
+    server_prompts = Path(__file__).resolve().parents[4] / "agent-server/defaults/prompts"
+    for kind in ("directives", "systemPrompts"):
+        expected = (server_prompts / kind / "benchmark-direct.md").read_bytes()
+        assert (home / "prompts" / kind / "benchmark-direct.md").read_bytes() == expected
+
+
+def test_materializes_without_host_home_and_scrubs_provider_and_chat_residue(tmp_path: Path) -> None:
+    result = materialize(tmp_path, HOSTILE_ENVIRONMENT)
+    environment = result.process_environment
+
+    assert environment["PATH"] == "/usr/bin:/bin"
+    assert environment["CORTEX_HOME"] == str(result.cortex_home)
+    projects = result.cortex_home / "context/projects"
+    assert environment["CORTEX_PROJECTS_DIR"] == str(projects)
+    assert environment["HOME"] == str(result.cortex_home / "home")
+    assert not any(
+        key.startswith((
+            "SLACK_", "FEISHU_", "LARK_", "CLAUDE_CODE_OAUTH_",
+            "ANTHROPIC_", "DEEPSEEK_", "OPENAI_", "MISTRAL_", "GOOGLE_",
+        )) or key.endswith(("_API_KEY", "_BASE_URL")) for key in environment
+    )
+    assert "/host/private" not in json.dumps(environment)
+    assert read_json(result.cortex_home / "data/pi/auth.json") == {
+        "deepseek": {"type": "api_key", "key": "trial-dummy-token"},
+    }
+    gateway = (result.cortex_home / "home/.aistatus/gateway.yaml").read_text()
+    assert gateway == EXPECTED_GATEWAY
+    assert "anthropic" not in gateway.lower() and "api.deepseek.com" not in gateway
+
+
+def test_hashes_both_trees_and_writes_exact_linked_attestation(tmp_path: Path) -> None:
+    launch = facts(tmp_path)
+    result = materialize_direct_arm_home(
+        cortex_home=tmp_path / "fresh-cortex-home", artifacts_dir=tmp_path / "artifacts",
+        facts=launch, inherited_environment={"PATH": "/usr/bin:/bin"},
+    )
+    bundle_sha, bundle_count = tree_digest(DIRECT_ARM_BUNDLE_DIR)
+    home_sha, home_count = tree_digest(result.cortex_home)
+    attestation, manifest = expected_attestation(
+        launch, bundle_sha, bundle_count, home_sha, home_count,
+    )
+
+    assert read_json(result.launch_attestation_path) == attestation
+    assert result.production_evidence_context == {
+        "schema_version": "cortex-production-benchmark-evidence-context/1",
+        "trial_id": "trial-direct-001", "root_run_id": "trial-direct-001.cortex-direct",
+        "bundle_manifest_hash": manifest,
+        "model_execution": {
+            "model_alias_policy": {"policy": "exact"}, "cli_name": "pi",
+            "cli_version": "0.82.1", "max_output_tokens": 65536,
+        },
+    }
+    assert result.bundle_manifest_hash == manifest
+    assert result.launch_attestation_path.exists()
+
+
+def test_materialized_inputs_are_read_only_before_result_is_returned(tmp_path: Path) -> None:
+    result = materialize(tmp_path)
+
+    for path in result.cortex_home.rglob("*"):
+        if path.is_file():
+            assert stat.S_IMODE(path.stat().st_mode) == 0o444, path
+
+
+def test_attestation_is_the_last_materialization_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: dict[str, object] = {}
+    writer = production_home._write_json_atomic
+
+    def observe(path: Path, value: dict[str, object]) -> None:
+        home = tmp_path / "fresh-cortex-home"
+        observed["home_sha"] = tree_digest(home)[0]
+        observed["all_read_only"] = all(
+            stat.S_IMODE(item.stat().st_mode) == 0o444
+            for item in home.rglob("*") if item.is_file()
+        )
+        writer(path, value)
+
+    monkeypatch.setattr(production_home, "_write_json_atomic", observe)
+    result = materialize(tmp_path)
+
+    assert observed == {
+        "home_sha": result.cortex_home_tree_sha256,
+        "all_read_only": True,
+    }
+
+
+def test_one_bundle_byte_mutation_changes_bundle_home_and_manifest_hashes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    copied_bundle = tmp_path / "bundle-copy"
+    copy_bundle(copied_bundle)
+    monkeypatch.setattr(production_home, "DIRECT_ARM_BUNDLE_DIR", copied_bundle)
+
+    before = materialize_direct_arm_home(
+        cortex_home=tmp_path / "home-before", artifacts_dir=tmp_path / "artifacts-before",
+        facts=facts(tmp_path), inherited_environment={"PATH": "/bin"},
+    )
+    profile = copied_bundle / "config/profiles.json"
+    profile.chmod(0o644)
+    profile.write_bytes(profile.read_bytes() + b"\n")
+    after = materialize_direct_arm_home(
+        cortex_home=tmp_path / "home-after", artifacts_dir=tmp_path / "artifacts-after",
+        facts=facts(tmp_path), inherited_environment={"PATH": "/bin"},
+    )
+
+    assert after.input_bundle_sha256 != before.input_bundle_sha256
+    assert after.cortex_home_tree_sha256 != before.cortex_home_tree_sha256
+    assert after.bundle_manifest_hash != before.bundle_manifest_hash
+
+
+def test_refuses_an_existing_home_before_writing_an_attestation(tmp_path: Path) -> None:
+    existing = tmp_path / "existing-home"
+    existing.mkdir()
+
+    with pytest.raises(ProductionHomeError, match="fresh CORTEX_HOME"):
+        materialize_direct_arm_home(
+            cortex_home=existing, artifacts_dir=tmp_path / "artifacts-existing",
+            facts=facts(tmp_path), inherited_environment={},
+        )
+    assert not (tmp_path / "artifacts-existing").exists()
+
+
+def test_refuses_a_symlinked_bundle_before_creating_the_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    copied_bundle = tmp_path / "bundle-symlink"
+    linked_target = tmp_path / "outside.json"
+    linked_target.write_text("{}\n")
+    copy_bundle(copied_bundle, linked_target)
+    monkeypatch.setattr(production_home, "DIRECT_ARM_BUNDLE_DIR", copied_bundle)
+
+    with pytest.raises(ProductionHomeError, match="regular files"):
+        materialize_direct_arm_home(
+            cortex_home=tmp_path / "symlink-home", artifacts_dir=tmp_path / "artifacts-link",
+            facts=facts(tmp_path), inherited_environment={},
+        )
+    assert not (tmp_path / "symlink-home").exists()
+
+
+def test_refuses_a_direct_provider_route_before_creating_the_home(tmp_path: Path) -> None:
+    launch = facts(tmp_path)
+    invalid = DirectArmLaunchFacts(
+        **{**launch.__dict__, "proxy_base_url": "http://api.deepseek.com"},
+    )
+
+    with pytest.raises(ProductionHomeError, match="trial-scoped"):
+        materialize_direct_arm_home(
+            cortex_home=tmp_path / "invalid-home", artifacts_dir=tmp_path / "artifacts-invalid",
+            facts=invalid, inherited_environment={},
+        )
+    assert not (tmp_path / "invalid-home").exists()

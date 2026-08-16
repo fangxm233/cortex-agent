@@ -1,0 +1,13 @@
+{
+  "name": "benchmark-direct",
+  "description": "Single production agent for the direct benchmark arm",
+  "profile": "benchmark-direct",
+  "persistSession": false,
+  "promptTemplate": "{{input}}",
+  "directive": "file:benchmark-direct.md",
+  "systemPrompt": "file:benchmark-direct.md",
+  "tools": "agent,bash,edit,glob,grep,read,skill,todo_write,write",
+  "pluginDirs": [],
+  "mcpComposition": "none",
+  "mcpToolAllowlist": []
+}

@@ -1,0 +1,14 @@
+{
+  "defaultProfile": "benchmark-direct",
+  "profiles": {
+    "benchmark-direct": {
+      "model": "deepseek-v4-flash",
+      "backend": "pi",
+      "mode": "trial",
+      "provider": "deepseek",
+      "thinking": "off",
+      "maxOutputTokens": 65536,
+      "fallback": []
+    }
+  }
+}

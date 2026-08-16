@@ -7,6 +7,7 @@ Host launcher modules select immutable arms and project non-secret trial configu
 | __init__.py | export | Lazily exposes launcher and paid-smoke APIs |
 | arm_resolution.py | core | Composes and writes phase-A compiler input, thread policy and MCP config |
 | arms.py | core | Builds isolated agents with host-only scan references |
+| bundles/ | config | Holds immutable production arm input bundles |
 | capability_ceilings.py | policy | Reads the committed per-capability envelope ceilings |
 | comparison_report.py | report | Pins campaign inputs and comparison semantics |
 | capability_evidence.py | boundary | Validates schema-v2 promotion provenance and its mutation manifest |
@@ -15,6 +16,7 @@ Host launcher modules select immutable arms and project non-secret trial configu
 | evidence/ | evidence | Binds immutable capability promotion records |
 | host_credential_vault.py | boundary | Transfers one host credential by opaque handle |
 | lease_bound.py | policy | Computes the provisional credential-lease bound |
+| production_home.py | boundary | Materializes and attests the production direct home |
 | trial_admission.py | boundary | Seals launch evidence, mounts and proxy egress |
 | trial_admission_io.py | IO | Pins pull, external network and endpoint policy |
 | trial_proxy.py | core | Validates the declared paid envelope, freezes final usage and proves trial route revocation |
