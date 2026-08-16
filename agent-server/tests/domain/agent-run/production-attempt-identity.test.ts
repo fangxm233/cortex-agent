@@ -277,6 +277,75 @@ test('hashes the effective Claude route after profile environment overrides', as
     }));
 });
 
+test('hashes the effective benchmark guard that replaces ambient hooks', async () => {
+  initialize('claude');
+  const resolvedProfile = profile('claude');
+  const guard = { 'workspace-write': { allow: ['Read', 'Write'] } };
+  const spawns: AgentSpawnConfig[] = [];
+  await facadeTest.runWithAdapter(adapter('claude', spawns), 'x', {
+    executionId: 'exec-guard', threadId: 'thr-guard', rootThreadId: 'thr-guard',
+    parentThreadId: null, taskId: null, taskGeneration: null,
+    templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct', stage: null,
+    profileName: resolvedProfile.name, resolvedProfileConfig: resolvedProfile,
+    identityDirective: '', tools: 'Read,Write', pluginDirs: [], mcpComposition: 'none',
+    benchmarkPolicyGuard: guard, loadCortexRules: false,
+  }, {
+    model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
+    provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
+    thinking: resolvedProfile.thinking,
+  }, 'http://proxy.invalid').promise;
+  const expected = computeRoleToolSurfaceHash(roleSurfaceFromSpawnConfig(spawns[0], '', guard));
+  assert.equal(getProductionAttemptIdentity('exec-guard')?.role_tool_surface_hash, expected);
+});
+
+for (const backend of ['claude', 'pi'] as const) {
+  test(`refuses ${backend} spawn config that diverges from the resolved profile`, () => {
+    initialize(backend);
+    const resolvedProfile = profile(backend);
+    const spawns: AgentSpawnConfig[] = [];
+    const config = {
+      sessionId: null, sessionKey: 'fixture', resume: false,
+      model: 'substituted-model', thinking: resolvedProfile.thinking ?? undefined,
+      piProvider: backend === 'pi' ? resolvedProfile.provider ?? undefined : undefined,
+      piGatewayBaseUrl: backend === 'pi' ? 'http://127.0.0.1:9880' : undefined,
+      mcpComposition: 'none' as const, rawTools: 'Read', disableHooks: true,
+    };
+    assert.throws(() => facadeTest.runWithAdapter(adapter(backend, spawns), 'x', {
+      executionId: `exec-${backend}-divergence`, threadId: `thr-${backend}-divergence`,
+      rootThreadId: `thr-${backend}-divergence`, parentThreadId: null,
+      taskId: null, taskGeneration: null, templateName: 'benchmark-direct',
+      agentSlotId: 'benchmark-direct', stage: null, profileName: resolvedProfile.name,
+      resolvedProfileConfig: resolvedProfile, identityDirective: '', preparedSpawnConfig: config,
+    }, {
+      model: resolvedProfile.model, backend, mode: resolvedProfile.mode,
+      provider: resolvedProfile.provider, extraEnv: {}, extraOption: {},
+      claudeBackend: resolvedProfile.claudeBackend, thinking: resolvedProfile.thinking,
+    }, backend === 'claude' ? 'http://proxy.invalid' : undefined), /model.*drift|diverge/i);
+    assert.equal(spawns.length, 0);
+  });
+}
+
+test('does not expose mutable in-memory identity records', async () => {
+  initialize('claude');
+  const resolvedProfile = profile('claude');
+  await facadeTest.runWithAdapter(adapter('claude', []), 'x', {
+    executionId: 'exec-immutable', threadId: 'thr-immutable', rootThreadId: 'thr-immutable',
+    parentThreadId: null, taskId: null, taskGeneration: null,
+    templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct', stage: null,
+    profileName: resolvedProfile.name, resolvedProfileConfig: resolvedProfile,
+    identityDirective: '', tools: 'Read', pluginDirs: [], mcpComposition: 'none',
+    disableHooks: true, loadCortexRules: false,
+  }, {
+    model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
+    provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
+    thinking: resolvedProfile.thinking,
+  }, 'http://proxy.invalid').promise;
+  const record = getProductionAttemptIdentity('exec-immutable');
+  assert.ok(record);
+  assert.throws(() => { (record as { role: string }).role = 'mutated'; }, TypeError);
+  assert.equal(getProductionAttemptIdentity('exec-immutable')?.role, 'benchmark-direct');
+});
+
 test('fails closed for unapplied output caps and incomplete task-dispatch identity', () => {
   initialize('pi', 4096);
   const piProfile = profile('pi');
