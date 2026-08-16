@@ -13,7 +13,6 @@ import {
   computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
   type IdentityJsonValue,
 } from './identity.js';
-import { mintAttemptId } from '../benchmark/attempt-record.js';
 import { roleSurfaceFromSpawnConfig } from './role-surface.js';
 
 const INPUT_SCHEMA = 'cortex-production-attempt-identity-input/1';
@@ -44,7 +43,7 @@ interface ProductionAttemptIdentityInput {
   model_execution: ModelExecutionInput;
 }
 
-export interface ProductionAttemptIdentityRecord {
+export type ProductionAttemptIdentityRecord = Readonly<{
   schema_version: typeof RECORD_SCHEMA;
   trial_id: string;
   root_run_id: string;
@@ -68,7 +67,7 @@ export interface ProductionAttemptIdentityRecord {
   role_tool_surface_hash: string;
   bundle_manifest_hash: string;
   frozen_at: string;
-}
+}>;
 
 interface ConfigurationRevision {
   profiles: number;
@@ -91,6 +90,7 @@ interface ActiveIdentityState {
 }
 
 interface FreezeAttemptInput {
+  adapterBackend: Backend;
   spawnConfig: AgentSpawnConfig;
   options: RunAgentOptions;
   resolvedProfile: ResolvedProfileConfig | undefined;
@@ -218,16 +218,26 @@ export class ProductionAttemptIdentityRepo {
     lines.forEach((line, index) => this.remember(parseStoredRecord(line, index + 1)));
   }
 
-  private remember(record: ProductionAttemptIdentityRecord): void {
+  private remember(record: ProductionAttemptIdentityRecord): ProductionAttemptIdentityRecord {
     const existing = this.records.get(record.execution_id);
     if (existing && !sameRecord(existing, record)) {
       throw new Error(`Production attempt identity changed for execution ${record.execution_id}`);
     }
-    this.records.set(record.execution_id, record);
+    if (existing) return existing;
+    const immutable = Object.freeze({ ...record });
+    this.records.set(record.execution_id, immutable);
+    return immutable;
   }
 
   get(executionId: string): ProductionAttemptIdentityRecord | null {
     return this.records.get(executionId) ?? null;
+  }
+
+  firstRootAttempt(rootThreadId: string): ProductionAttemptIdentityRecord | null {
+    for (const record of this.records.values()) {
+      if (record.thread_id === rootThreadId && record.root_thread_id === rootThreadId) return record;
+    }
+    return null;
   }
 
   append(record: ProductionAttemptIdentityRecord): ProductionAttemptIdentityRecord {
@@ -246,8 +256,7 @@ export class ProductionAttemptIdentityRepo {
     } finally {
       fs.closeSync(fd);
     }
-    this.remember(record);
-    return record;
+    return this.remember(record);
   }
 }
 
@@ -304,17 +313,35 @@ function configuredRouteHost(config: AgentSpawnConfig, backend: Backend): string
   }
 }
 
+function assertSpawnMatchesProfile(
+  config: AgentSpawnConfig,
+  profile: ResolvedProfileConfig,
+): void {
+  if (config.model !== profile.model) {
+    throw new Error('Production benchmark resolved model drifted before adapter spawn');
+  }
+  if ((config.thinking ?? null) !== profile.thinking) {
+    throw new Error('Production benchmark resolved thinking drifted before adapter spawn');
+  }
+  if (profile.backend === 'pi' && (config.piProvider ?? null) !== profile.provider) {
+    throw new Error('Production benchmark resolved provider drifted before adapter spawn');
+  }
+}
+
 function assertProfile(
-  profile: ResolvedProfileConfig | undefined,
+  input: FreezeAttemptInput,
   state: ActiveIdentityState,
 ): ResolvedProfileConfig {
+  const profile = input.resolvedProfile;
   if (!profile) throw new Error('Production benchmark attempt is missing resolved profile');
   if (profile.fallback.length > 0) {
     throw new Error('Production benchmark identity refuses profiles with fallbacks');
   }
-  if (profile.backend !== state.input.model_execution.cli_name) {
+  if (profile.backend !== state.input.model_execution.cli_name
+    || profile.backend !== input.adapterBackend) {
     throw new Error('Production benchmark backend differs from injected CLI identity');
   }
+  assertSpawnMatchesProfile(input.spawnConfig, profile);
   return profile;
 }
 
@@ -338,6 +365,18 @@ type AttemptModel = Pick<ProductionAttemptIdentityRecord,
   'profile_name' | 'backend' | 'provider' | 'requested_model' |
   'model_execution_identity_hash' | 'role_tool_surface_hash'>;
 
+function rootAttemptId(
+  repo: ProductionAttemptIdentityRepo,
+  attemptId: string,
+  threadId: string,
+  rootThreadId: string,
+): string {
+  const root = repo.firstRootAttempt(rootThreadId);
+  if (root) return root.attempt_id;
+  if (threadId === rootThreadId) return attemptId;
+  throw new Error('Production benchmark root attempt is missing before child adapter spawn');
+}
+
 function attemptLinkage(
   state: ActiveIdentityState,
   options: RunAgentOptions,
@@ -348,9 +387,10 @@ function attemptLinkage(
   const taskProject = options.taskId ? requiredOption(options.taskProject, 'task project') : null;
   const generation = options.taskId
     ? requiredOption(options.taskGeneration, 'dispatch generation') : null;
+  const attemptId = `execution-${executionId}`;
   return {
-    attempt_id: mintAttemptId(state.input.root_run_id, threadId),
-    root_attempt_id: mintAttemptId(state.input.root_run_id, rootThreadId),
+    attempt_id: attemptId,
+    root_attempt_id: rootAttemptId(state.repo, attemptId, threadId, rootThreadId),
     execution_id: executionId,
     thread_id: threadId,
     parent_thread_id: nullableText(options.parentThreadId ?? null, 'parent thread identity'),
@@ -394,10 +434,12 @@ function attemptModel(
   state: ActiveIdentityState,
   input: FreezeAttemptInput,
 ): AttemptModel {
-  const profile = assertProfile(input.resolvedProfile, state);
+  const profile = assertProfile(input, state);
   const directive = typeof input.options.identityDirective === 'string'
     ? input.options.identityDirective : '';
-  const roleSurface = roleSurfaceFromSpawnConfig(input.spawnConfig, directive);
+  const roleSurface = roleSurfaceFromSpawnConfig(
+    input.spawnConfig, directive, input.spawnConfig.benchmarkPolicyGuard,
+  );
   return {
     profile_name: profile.name,
     backend: profile.backend,
@@ -424,10 +466,21 @@ function buildRecord(
   };
 }
 
+function isBenchmarkObservable(options: RunAgentOptions): boolean {
+  return [options.templateName, options.agentSlotId, options.profileName]
+    .some(value => typeof value === 'string' && value.startsWith('benchmark-'));
+}
+
 export function freezeProductionAttemptIdentity(
   input: FreezeAttemptInput,
 ): ProductionAttemptIdentityRecord | null {
-  if (!initialized || !activeState) return null;
+  if (!initialized) return null;
+  if (!activeState) {
+    if (isBenchmarkObservable(input.options)) {
+      throw new Error('Production benchmark launcher identity input is missing');
+    }
+    return null;
+  }
   assertStableState(activeState);
   const record = buildRecord(activeState, input);
   const existing = activeState.repo.get(record.execution_id);

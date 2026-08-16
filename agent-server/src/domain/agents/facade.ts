@@ -354,7 +354,8 @@ export function runWithAdapter(
   const spawnConfig = options.preparedSpawnConfig
     ?? buildAgentSpawnConfig(options, config, anthropicBaseUrl);
   freezeProductionAttemptIdentity({
-    spawnConfig, options, resolvedProfile: options.resolvedProfileConfig,
+    adapterBackend: adapter.backend, spawnConfig, options,
+    resolvedProfile: options.resolvedProfileConfig,
   });
   const proc = adapter.spawn(spawnConfig);
   const attachments = (options.files || []).map((file: any) => ({

@@ -17,7 +17,7 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | manifest-contract.ts | types | defines supervisor-free terminal evidence v2 |
 | manifest.ts | core | validates lifecycle, state and normalized events |
 | pinned-node-process.ts | process | launches Node with canonical trial-pinned paths |
-| production-attempt-identity.ts | identity | freezes and persists production spawn identity |
+| production-attempt-identity.ts | identity | freezes immutable adapter-aligned spawn identity |
 | role-surface.ts | identity | hashes prompts, tools, gates, plugins, skills and guards |
 | run-config.ts | config | dispatches legacy and injected benchmark configs |
 | runner.ts | core | gates supervisor-free terminal v2 and artifacts |

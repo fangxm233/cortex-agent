@@ -16,7 +16,6 @@ import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import {
   computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
 } from '../../../src/domain/agent-run/identity.js';
-import { mintAttemptId } from '../../../src/domain/benchmark/attempt-record.js';
 import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
@@ -176,8 +175,8 @@ for (const backend of ['claude', 'pi'] as const) {
       assert.ok(record);
       assert.equal(record.trial_id, 'trial-production-1');
       assert.equal(record.root_run_id, 'root-production-1');
-      assert.equal(record.attempt_id, mintAttemptId('root-production-1', pathCase.threadId));
-      assert.equal(record.root_attempt_id, mintAttemptId('root-production-1', pathCase.rootThreadId));
+      assert.match(record.attempt_id, /^execution-/);
+      assert.equal(record.root_attempt_id, record.attempt_id);
       assert.equal(record.execution_id, executionId);
       assert.equal(record.thread_id, pathCase.threadId);
       assert.equal(record.root_thread_id, pathCase.rootThreadId);
@@ -209,6 +208,79 @@ for (const backend of ['claude', 'pi'] as const) {
     });
   }
 }
+
+test('binds every execution to a unique attempt and the persisted first root execution', async () => {
+  initialize('claude');
+  const resolvedProfile = profile('claude');
+  const spawns: AgentSpawnConfig[] = [];
+  const config = {
+    model: resolvedProfile.model, backend: 'claude' as const, mode: resolvedProfile.mode,
+    provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print' as const,
+    thinking: resolvedProfile.thinking,
+  };
+  const run = async (executionId: string, threadId: string, rootThreadId: string) => {
+    await facadeTest.runWithAdapter(adapter('claude', spawns), 'x', {
+      executionId, threadId, rootThreadId, parentThreadId: threadId === rootThreadId ? null : rootThreadId,
+      taskId: null, taskGeneration: null, templateName: 'benchmark-coder-review',
+      agentSlotId: 'benchmark-coder', stage: 'implement', profileName: resolvedProfile.name,
+      resolvedProfileConfig: resolvedProfile, identityDirective: '', tools: 'Read', pluginDirs: [],
+      mcpComposition: 'none', disableHooks: true, loadCortexRules: false,
+    }, config, 'http://proxy.invalid').promise;
+  };
+
+  await run('exec-root-first', 'thr-root', 'thr-root');
+  resetProductionAttemptIdentity();
+  initializeProductionAttemptIdentity({
+    inputPath: inputPath(), storePath: storePath(), configurationRevision: () => ({ ...revision }),
+  });
+  await run('exec-root-review', 'thr-root', 'thr-root');
+  await run('exec-child', 'thr-child', 'thr-root');
+
+  const first = getProductionAttemptIdentity('exec-root-first');
+  const review = getProductionAttemptIdentity('exec-root-review');
+  const child = getProductionAttemptIdentity('exec-child');
+  assert.ok(first && review && child);
+  assert.equal(new Set([first.attempt_id, review.attempt_id, child.attempt_id]).size, 3);
+  assert.equal(first.root_attempt_id, first.attempt_id);
+  assert.equal(review.root_attempt_id, first.attempt_id);
+  assert.equal(child.root_attempt_id, first.attempt_id);
+});
+
+test('fails closed when a child attempt arrives before the production root attempt', () => {
+  initialize('claude');
+  const resolvedProfile = profile('claude');
+  assert.throws(() => facadeTest.runWithAdapter(adapter('claude', []), 'x', {
+    executionId: 'exec-orphan-child', threadId: 'thr-child', rootThreadId: 'thr-root-missing',
+    parentThreadId: 'thr-root-missing', taskId: null, taskGeneration: null,
+    templateName: 'benchmark-manager', agentSlotId: 'benchmark-manager', stage: null,
+    profileName: resolvedProfile.name, resolvedProfileConfig: resolvedProfile,
+    identityDirective: '', tools: 'Read', pluginDirs: [], mcpComposition: 'none',
+    disableHooks: true, loadCortexRules: false,
+  }, {
+    model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
+    provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
+    thinking: resolvedProfile.thinking,
+  }, 'http://proxy.invalid'), /root attempt|root execution/i);
+});
+
+test('fails closed for a production benchmark template when launcher identity input is absent', () => {
+  initializeProductionAttemptIdentity({ inputPath: inputPath(), storePath: storePath() });
+  const resolvedProfile = profile('claude');
+  const spawns: AgentSpawnConfig[] = [];
+  assert.throws(() => facadeTest.runWithAdapter(adapter('claude', spawns), 'x', {
+    executionId: 'exec-missing-launcher', threadId: 'thr-missing-launcher',
+    rootThreadId: 'thr-missing-launcher', parentThreadId: null, taskId: null,
+    taskGeneration: null, templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct',
+    stage: null, profileName: resolvedProfile.name, resolvedProfileConfig: resolvedProfile,
+    identityDirective: '', tools: 'Read', pluginDirs: [], mcpComposition: 'none',
+    disableHooks: true, loadCortexRules: false,
+  }, {
+    model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
+    provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
+    thinking: resolvedProfile.thinking,
+  }, 'http://proxy.invalid'), /launcher identity input|identity input.*missing/i);
+  assert.equal(spawns.length, 0);
+});
 
 test('fails closed before spawn for fallback profiles, missing identity inputs, and hot reload drift', () => {
   initialize('claude');
@@ -275,6 +347,75 @@ test('hashes the effective Claude route after profile environment overrides', as
       cliName: 'claude', cliVersion: 'claude-fixture-1',
       reasoningEffort: resolvedProfile.thinking, maxOutputTokens: null, fallbackEmpty: true,
     }));
+});
+
+test('hashes the effective benchmark guard that replaces ambient hooks', async () => {
+  initialize('claude');
+  const resolvedProfile = profile('claude');
+  const guard = { 'workspace-write': { allow: ['Read', 'Write'] } };
+  const spawns: AgentSpawnConfig[] = [];
+  await facadeTest.runWithAdapter(adapter('claude', spawns), 'x', {
+    executionId: 'exec-guard', threadId: 'thr-guard', rootThreadId: 'thr-guard',
+    parentThreadId: null, taskId: null, taskGeneration: null,
+    templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct', stage: null,
+    profileName: resolvedProfile.name, resolvedProfileConfig: resolvedProfile,
+    identityDirective: '', tools: 'Read,Write', pluginDirs: [], mcpComposition: 'none',
+    benchmarkPolicyGuard: guard, loadCortexRules: false,
+  }, {
+    model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
+    provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
+    thinking: resolvedProfile.thinking,
+  }, 'http://proxy.invalid').promise;
+  const expected = computeRoleToolSurfaceHash(roleSurfaceFromSpawnConfig(spawns[0], '', guard));
+  assert.equal(getProductionAttemptIdentity('exec-guard')?.role_tool_surface_hash, expected);
+});
+
+for (const backend of ['claude', 'pi'] as const) {
+  test(`refuses ${backend} spawn config that diverges from the resolved profile`, () => {
+    initialize(backend);
+    const resolvedProfile = profile(backend);
+    const spawns: AgentSpawnConfig[] = [];
+    const config = {
+      sessionId: null, sessionKey: 'fixture', resume: false,
+      model: 'substituted-model', thinking: resolvedProfile.thinking ?? undefined,
+      piProvider: backend === 'pi' ? resolvedProfile.provider ?? undefined : undefined,
+      piGatewayBaseUrl: backend === 'pi' ? 'http://127.0.0.1:9880' : undefined,
+      mcpComposition: 'none' as const, rawTools: 'Read', disableHooks: true,
+    };
+    assert.throws(() => facadeTest.runWithAdapter(adapter(backend, spawns), 'x', {
+      executionId: `exec-${backend}-divergence`, threadId: `thr-${backend}-divergence`,
+      rootThreadId: `thr-${backend}-divergence`, parentThreadId: null,
+      taskId: null, taskGeneration: null, templateName: 'benchmark-direct',
+      agentSlotId: 'benchmark-direct', stage: null, profileName: resolvedProfile.name,
+      resolvedProfileConfig: resolvedProfile, identityDirective: '', preparedSpawnConfig: config,
+    }, {
+      model: resolvedProfile.model, backend, mode: resolvedProfile.mode,
+      provider: resolvedProfile.provider, extraEnv: {}, extraOption: {},
+      claudeBackend: resolvedProfile.claudeBackend, thinking: resolvedProfile.thinking,
+    }, backend === 'claude' ? 'http://proxy.invalid' : undefined), /model.*drift|diverge/i);
+    assert.equal(spawns.length, 0);
+  });
+}
+
+test('does not expose mutable in-memory identity records', async () => {
+  initialize('claude');
+  const resolvedProfile = profile('claude');
+  await facadeTest.runWithAdapter(adapter('claude', []), 'x', {
+    executionId: 'exec-immutable', threadId: 'thr-immutable', rootThreadId: 'thr-immutable',
+    parentThreadId: null, taskId: null, taskGeneration: null,
+    templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct', stage: null,
+    profileName: resolvedProfile.name, resolvedProfileConfig: resolvedProfile,
+    identityDirective: '', tools: 'Read', pluginDirs: [], mcpComposition: 'none',
+    disableHooks: true, loadCortexRules: false,
+  }, {
+    model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
+    provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
+    thinking: resolvedProfile.thinking,
+  }, 'http://proxy.invalid').promise;
+  const record = getProductionAttemptIdentity('exec-immutable');
+  assert.ok(record);
+  assert.throws(() => { (record as { role: string }).role = 'mutated'; }, TypeError);
+  assert.equal(getProductionAttemptIdentity('exec-immutable')?.role, 'benchmark-direct');
 });
 
 test('fails closed for unapplied output caps and incomplete task-dispatch identity', () => {
