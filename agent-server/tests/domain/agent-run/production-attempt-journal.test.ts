@@ -1,4 +1,4 @@
-// input:  production facade, attempt identity, normalized adapter events
+// input:  production facade, spawn-linked identity, adapter events
 // output: durable per-attempt journal linkage and failure proofs
 // pos:    Verifies production normalized-event journal persistence
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -154,14 +154,23 @@ const PATHS: AttemptPath[] = [
   { label: 'manager/task-dispatch', template: 'benchmark-manager', role: 'benchmark-manager', stage: null, taskId: 'a1b2' },
 ];
 
+interface AttemptTopology {
+  threadId: string;
+  rootThreadId: string;
+  parentThreadId: string | null;
+}
+
 function runAttempt(
   backend: Backend, pathCase: AttemptPath, executionId: string,
   factory: ProcessFactory = () => eventProcess(EVENTS),
+  topology: AttemptTopology = {
+    threadId: `thr-${executionId}`, rootThreadId: `thr-${executionId}`, parentThreadId: null,
+  },
 ) {
   const resolved = profile(backend);
   return facadeTest.runWithAdapter(adapter(backend, factory), 'do work', {
-    executionId, threadId: `thr-${executionId}`, rootThreadId: `thr-${executionId}`,
-    parentThreadId: null, taskId: pathCase.taskId,
+    executionId, threadId: topology.threadId, rootThreadId: topology.rootThreadId,
+    parentThreadId: topology.parentThreadId, taskId: pathCase.taskId,
     taskProject: pathCase.taskId ? 'atlas' : null,
     taskGeneration: pathCase.taskId ? `generation-${executionId}` : null,
     templateName: pathCase.template, agentSlotId: pathCase.role, stage: pathCase.stage,
@@ -266,10 +275,16 @@ test('a synchronous adapter spawn failure still closes and links its zero-event 
   assert.equal(evidence.journal_sha256, sha256(evidence.journal_path));
 });
 
-test('keeps concurrent attempt journals isolated and ordered', async () => {
+test('keeps concurrent child-thread attempt journals isolated and ordered', async () => {
   initialize('pi');
   const attempts = Array.from({ length: 6 }, (_, index) => `exec-concurrent-${index}`);
-  await Promise.all(attempts.map(executionId => runAttempt('pi', PATHS[1], executionId).promise));
+  const rootThreadId = `thr-${attempts[0]}`;
+  await Promise.all(attempts.map((executionId, index) => runAttempt(
+    'pi', PATHS[1], executionId, () => eventProcess(EVENTS), {
+      threadId: `thr-${executionId}`, rootThreadId,
+      parentThreadId: index === 0 ? null : rootThreadId,
+    },
+  ).promise));
   const records = attempts.map(executionId => getProductionAttemptJournal(executionId));
   assert.equal(new Set(records.map(record => record?.journal_path)).size, attempts.length);
   for (const record of records) {
