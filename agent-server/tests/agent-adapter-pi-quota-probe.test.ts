@@ -140,6 +140,49 @@ test('submits one throttle event per window, keeping utilization and reset intac
   assert.equal(records.length, 1);
 });
 
+test('a usage persistence failure does not suppress existing throttle submissions', async () => {
+  const calls: unknown[] = [];
+
+  await assert.rejects(
+    reportCodexQuota(
+      READING,
+      { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
+      {
+        submit: async (info, source) => { calls.push({ info, source }); },
+        usageStore: { update: async () => { throw new Error('usage store unavailable'); } },
+      },
+    ),
+    /usage store unavailable/,
+  );
+
+  assert.deepEqual(calls, READING.windows.map((window) => ({
+    info: {
+      rateLimitType: window.type,
+      utilization: window.utilization,
+      resetsAt: window.resetsAt,
+    },
+    source: { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
+  })));
+});
+
+test('a throttle failure does not suppress usage persistence', async () => {
+  const records: unknown[] = [];
+
+  await assert.rejects(
+    reportCodexQuota(
+      READING,
+      { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
+      {
+        submit: async () => { throw new Error('throttle unavailable'); },
+        usageStore: { update: async (record) => { records.push(record); } },
+      },
+    ),
+    /throttle unavailable/,
+  );
+
+  assert.equal(records.length, 1);
+});
+
 test('attributes the reading to the profile provider, not the name the headers used', async () => {
   const calls: { source: unknown }[] = [];
   await reportCodexQuota(
