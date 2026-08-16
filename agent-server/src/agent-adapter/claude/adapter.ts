@@ -883,6 +883,8 @@ class ClaudeSession {
       usageReported: usage != null,
       inputTokens: turnUsage?.input ?? null,
       outputTokens: turnUsage?.output ?? null,
+      cacheReadTokens: turnUsage?.cacheRead ?? null,
+      cacheCreationTokens: turnUsage?.cacheCreation ?? null,
       ...promptAccounting(turnUsage),
       model: data.modelUsage ? Object.keys(data.modelUsage)[0] ?? null : null,
     };
@@ -893,9 +895,9 @@ class ClaudeSession {
   ): void {
     if (result.resolved) {
       const value = result.value as AgentResult;
+      value.reportedAccounting = this.reportedAccounting(data);
       if (this.preserveUnreportedAccounting) {
         value.costReported = data.total_cost_usd != null;
-        value.reportedAccounting = this.reportedAccounting(data);
       }
       value.pendingBackgroundTasks = this.bgTracker.pendingCount;
       value.undeliveredBackgroundTasks = this.bgTracker.undeliveredCount;
@@ -1610,20 +1612,25 @@ export class ClaudeAdapter implements AgentAdapter {
             const legacyUsage = session.lastTokenUsage;
             const exactPrompt = promptAccounting(legacyUsage);
             stream.push({
-              type: 'cost_record',
-              provider: 'anthropic',
+              type: 'cost_record', provider: 'anthropic',
               model: (preserveReportedness ? accounting?.model : session.lastModelName)
                 || session.modelName || 'unknown',
               tokens_in: preserveReportedness
                 ? accounting?.promptTokens ?? null : exactPrompt.promptTokens,
-              tokens_out: preserveReportedness ? accounting?.outputTokens ?? null : legacyUsage?.output ?? 0,
+              tokens_out: preserveReportedness
+                ? accounting?.outputTokens ?? null : legacyUsage?.output ?? 0,
               prompt_tokens: preserveReportedness
                 ? accounting?.promptTokens ?? null : exactPrompt.promptTokens,
               cached_tokens: preserveReportedness
                 ? accounting?.cachedTokens ?? null : exactPrompt.cachedTokens,
+              input_tokens: accounting?.inputTokens ?? null,
+              output_tokens: accounting?.outputTokens ?? null,
+              cache_read_tokens: accounting?.cacheReadTokens ?? null,
+              cache_creation_tokens: accounting?.cacheCreationTokens ?? null,
+              provider_requests: Number.isSafeInteger(result.num_turns)
+                && Number(result.num_turns) > 0 ? result.num_turns : null,
               cost_usd: preserveReportedness && result.costReported !== true
-                ? null
-                : result.total_cost_usd ?? null,
+                ? null : result.total_cost_usd ?? null,
             });
           }
           stream.push({

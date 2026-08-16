@@ -1,7 +1,7 @@
 // input:  PI --mode rpc stdout JSONL lines
 // output: normalized events with nullable exact accounting
 // pos:    Pure PI RPC event translator
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
@@ -22,6 +22,10 @@ interface PIAgentEndSummary extends PIPendingCompletion {
   tokensOut: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  inputReported: boolean;
+  outputReported: boolean;
+  cacheReadReported: boolean;
+  cacheWriteReported: boolean;
 }
 
 export interface PIEventParserState {
@@ -316,13 +320,10 @@ function emptyPendingCompletion(): PIPendingCompletion {
 
 function emptyAgentEndSummary(): PIAgentEndSummary {
   return {
-    ...emptyPendingCompletion(),
-    provider: '',
-    model: '',
-    tokensIn: 0,
-    tokensOut: 0,
-    cacheReadTokens: 0,
-    cacheWriteTokens: 0,
+    ...emptyPendingCompletion(), provider: '', model: '',
+    tokensIn: 0, tokensOut: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+    inputReported: true, outputReported: true,
+    cacheReadReported: true, cacheWriteReported: true,
   };
 }
 
@@ -334,14 +335,18 @@ function handleAgentEnd(
   const summary = summarizeAgentEnd(messages);
   accumulatePendingCompletion(state, summary);
   if (summary.provider === '') return [];
+  const input = reportedTokens(summary.tokensIn, summary.inputReported);
+  const output = reportedTokens(summary.tokensOut, summary.outputReported);
+  const cacheRead = reportedTokens(summary.cacheReadTokens, summary.cacheReadReported);
+  const cacheCreation = reportedTokens(summary.cacheWriteTokens, summary.cacheWriteReported);
+  const prompt = sumReportedTokens(input, cacheRead, cacheCreation);
   return [{
-    type: 'cost_record',
-    provider: summary.provider,
-    model: summary.model,
-    tokens_in: summary.tokensIn,
-    tokens_out: summary.tokensOut,
-    prompt_tokens: summary.tokensIn + summary.cacheReadTokens + summary.cacheWriteTokens,
-    cached_tokens: summary.cacheReadTokens,
+    type: 'cost_record', provider: summary.provider, model: summary.model,
+    tokens_in: summary.tokensIn, tokens_out: summary.tokensOut,
+    prompt_tokens: prompt, cached_tokens: cacheRead,
+    input_tokens: input, output_tokens: output, cache_read_tokens: cacheRead,
+    cache_creation_tokens: cacheCreation,
+    provider_requests: summary.numTurns > 0 ? summary.numTurns : null,
     cost_usd: summary.totalCostUsd,
   }];
 }
@@ -395,29 +400,48 @@ function captureAssistantError(
     : 'PI agent reported an error during execution';
 }
 
+function reportedToken(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function accumulateToken(
+  total: number,
+  reported: boolean,
+  value: unknown,
+): [number, boolean] {
+  return reportedToken(value) ? [total + value, reported] : [total, false];
+}
+
 function captureAssistantUsage(
   summary: PIAgentEndSummary,
   message: Record<string, unknown>,
 ): void {
-  const usage = message['usage'];
-  if (!usage || typeof usage !== 'object') return;
-  const usageRecord = usage as Record<string, unknown>;
-  const input = usageRecord['input'];
-  const output = usageRecord['output'];
-  const cacheRead = usageRecord['cacheRead'];
-  const cacheWrite = usageRecord['cacheWrite'];
-  if (typeof input === 'number' && isFinite(input)) summary.tokensIn += input;
-  if (typeof output === 'number' && isFinite(output)) summary.tokensOut += output;
-  if (typeof cacheRead === 'number' && isFinite(cacheRead)) {
-    summary.cacheReadTokens += cacheRead;
-  }
-  if (typeof cacheWrite === 'number' && isFinite(cacheWrite)) {
-    summary.cacheWriteTokens += cacheWrite;
-  }
-  const cost = asRecord(usageRecord['cost'])['total'];
+  const usage = asRecord(message['usage']);
+  [summary.tokensIn, summary.inputReported] = accumulateToken(
+    summary.tokensIn, summary.inputReported, usage['input'],
+  );
+  [summary.tokensOut, summary.outputReported] = accumulateToken(
+    summary.tokensOut, summary.outputReported, usage['output'],
+  );
+  [summary.cacheReadTokens, summary.cacheReadReported] = accumulateToken(
+    summary.cacheReadTokens, summary.cacheReadReported, usage['cacheRead'],
+  );
+  [summary.cacheWriteTokens, summary.cacheWriteReported] = accumulateToken(
+    summary.cacheWriteTokens, summary.cacheWriteReported, usage['cacheWrite'],
+  );
+  const cost = asRecord(usage['cost'])['total'];
   if (typeof cost === 'number' && isFinite(cost)) {
     summary.totalCostUsd = (summary.totalCostUsd ?? 0) + cost;
   }
+}
+
+function reportedTokens(total: number, reported: boolean): number | null {
+  return reported ? total : null;
+}
+
+function sumReportedTokens(...tokens: Array<number | null>): number | null {
+  return tokens.some(token => token === null)
+    ? null : tokens.reduce<number>((sum, token) => sum + token!, 0);
 }
 
 function accumulatePendingCompletion(

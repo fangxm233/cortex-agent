@@ -151,7 +151,10 @@ test('pi-cost-record: agent_end records cost before agent_settled completes', as
         role: 'assistant',
         provider: 'anthropic',
         model: 'claude-opus-4',
-        usage: { input: 200, output: 100, cost: { total: 0.005 } },
+        usage: {
+          input: 200, output: 100, cacheRead: 20, cacheWrite: 10,
+          cost: { total: 0.005 },
+        },
       },
     ],
   });
@@ -182,6 +185,10 @@ test('pi-cost-record: agent_end records cost before agent_settled completes', as
   assert.equal(entry.model, 'claude-opus-4', 'model should match agent_end message');
   assert.equal(entry.input_tokens, 200, 'input_tokens should match usage.input');
   assert.equal(entry.output_tokens, 100, 'output_tokens should match usage.output');
+  assert.equal(entry.prompt_tokens, 230, 'prompt total includes both cache token categories');
+  assert.equal(entry.cache_read_tokens, 20, 'cache reads preserve the provider report');
+  assert.equal(entry.cache_creation_tokens, 10, 'cache writes preserve the provider report');
+  assert.equal(entry.provider_requests, 1, 'one assistant request was observed');
   assert.ok(
     Math.abs((entry.cost_usd ?? 0) - 0.005) < 0.0001,
     `cost_usd should be ~0.005, got ${entry.cost_usd}`,

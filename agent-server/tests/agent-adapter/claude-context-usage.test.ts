@@ -1,7 +1,7 @@
 // input:  Claude stream/result usage and configured models
-// output: exact context and cache-read accounting regressions
+// output: exact context and token-split accounting tests
 // pos:    Claude print usage telemetry contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -364,8 +364,28 @@ describe('ClaudeSession context usage wiring', () => {
 
     assert.deepEqual(resolved.reportedAccounting, {
       usageReported: true, inputTokens: 1_000, outputTokens: 200,
+      cacheReadTokens: 40, cacheCreationTokens: 30,
       promptTokens: 1_000 + 30 + 40, cachedTokens: 40,
       model: 'claude-sonnet-4-6',
+    });
+  });
+
+  test('ordinary results preserve reported zero separately from unavailable cache categories', (t) => {
+    const session: any = _test.makeSessionForTest('claude-sonnet-4-6');
+    t.onTestFinished(() => session.close());
+    let resolved: any = null;
+    session.currentTurn = fakeTurn({ resolve: (value: any) => { resolved = value; } });
+
+    session.handleLine(JSON.stringify({
+      type: 'result', subtype: 'success', is_error: false,
+      session_id: 'test-session', total_cost_usd: 0, num_turns: 1,
+      usage: { input_tokens: 0, output_tokens: 0 }, result: 'done',
+    }));
+
+    assert.deepEqual(resolved.reportedAccounting, {
+      usageReported: true, inputTokens: 0, outputTokens: 0,
+      cacheReadTokens: null, cacheCreationTokens: null,
+      promptTokens: null, cachedTokens: null, model: null,
     });
   });
 

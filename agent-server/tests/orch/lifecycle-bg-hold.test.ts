@@ -1,13 +1,14 @@
 // input:  lifecycle success handler with mock output/context sink
-// output: background hold, context, grace, interruption, and cap regressions
+// output: background hold, accounting, interruption, and cap tests
 // pos:    Lifecycle background-continuation integration tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleAgentSuccess } from '../../src/orchestration/lifecycle.js';
 import { MockAdapter, MockOutputStream } from '../../src/platform/testing.js';
 import type { ContinuationSink } from '../../src/agent-adapter/types.js';
+import { costRepo } from '../../src/domain/costs/cost-tracker.js';
 
 function baseResult(overrides: Record<string, unknown> = {}) {
   return {
@@ -32,8 +33,9 @@ function harness() {
   const contexts: number[] = [];
   const args = {
     channel: 'slack:D1', adapter: adapter as any, statusMsg: statusMsg as any,
-    startTime: Date.now(), userMessage: 'run it in background', executionId: null,
-    trigger: 'user', sessionName: 'cortex-test', threadAnchorId: null, userMessageTs: null,
+    startTime: Date.now(), userMessage: 'run it in background', executionId: `exec-bg-${statusSeq}`,
+    trigger: 'user', sessionName: 'cortex-test', trackSessionId: `session-bg-${statusSeq}`,
+    projectId: 'cortex-self', threadAnchorId: null, userMessageTs: null,
     onAssistantMessage: onAssistantMessage as any, onToolUse: null,
     onContextUsage: (usage: { contextWindow: number }) => contexts.push(usage.contextWindow),
     registerContinuationSink: (s: ContinuationSink) => { sink = s; },
@@ -74,9 +76,29 @@ test('undelivered-only completions hold the status waiting and register a sink; 
   assert.deepEqual(h.contexts, [1_000_000], 'continuation context reaches the lifecycle callback');
 
   // The (late) notification arrives and the continuation turn completes.
-  sink!.onResult(baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0, total_cost_usd: 0.01, num_turns: 1 }) as any);
+  sink!.onResult(baseResult({
+    pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0,
+    total_cost_usd: 0.01, costReported: true, num_turns: 1,
+    reportedAccounting: {
+      usageReported: true, inputTokens: 0, outputTokens: 2,
+      cacheReadTokens: 0, cacheCreationTokens: 3,
+      promptTokens: 3, cachedTokens: 0, model: 'claude-fixture',
+    },
+  }) as any);
   await waitFor(() => /Done/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /Done/i, 'status sealed done after continuation');
+  await costRepo.flush();
+  const rows = (await costRepo.readCosts()).entries
+    .filter(entry => entry.execution_id === h.args.executionId);
+  assert.equal(rows.length, 1);
+  assert.deepEqual({
+    session: rows[0].session_id, input: rows[0].input_tokens,
+    output: rows[0].output_tokens, cacheRead: rows[0].cache_read_tokens,
+    cacheCreation: rows[0].cache_creation_tokens, requests: rows[0].provider_requests,
+  }, {
+    session: h.args.trackSessionId, input: 0, output: 2,
+    cacheRead: 0, cacheCreation: 3, requests: 1,
+  });
 });
 
 test('grace watchdog: no notification within grace → auto-finalized (status sealed, no hang)', async (t) => {
