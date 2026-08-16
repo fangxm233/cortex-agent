@@ -24,7 +24,7 @@ export enum Capability {
    *  beyond the native default while staying bounded by the trial deadline. Benchmark arms require
    *  it: a blocking benchmark tool call must not be cut short by an SDK or CLI default. */
   BenchmarkLongMcpCall = 'benchmark-long-mcp-call',
-  /** Backend can pull provider usage for an explicitly requested subscription scope. */
+  /** Backend can return scoped provider usage from a pull source or push cache. */
   Usage = 'usage',
 }
 
