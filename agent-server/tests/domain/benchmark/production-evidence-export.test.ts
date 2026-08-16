@@ -1,5 +1,5 @@
 // input:  durable production attempts and launcher-owned arm facts
-// output: atomic v2 evidence-export boundary coverage
+// output: atomic v2 export, token, failure, and mirror coverage
 // pos:    Production terminal/composite exporter contract tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -88,6 +88,7 @@ function attemptFixture(root: string, input: {
   parentAttemptId?: string | null; rootAttemptId?: string;
   status?: 'completed' | 'failed' | 'cancelled'; threadStatus?: ThreadRecord['status'];
   abortReason?: string | null; rateLimited?: boolean; frozenAt?: string;
+  cacheCreationTokens?: number | null;
 }): AttemptFixture {
   const attemptId = `execution-${input.executionId}`;
   const bytes = journalBytes({
@@ -136,7 +137,8 @@ function attemptFixture(root: string, input: {
     timestamp: END, project: 'cortex-self', trigger: 'thread', cost_usd: 0.25,
     num_turns: 1, duration_s: 2, backend: 'claude', mode: 'api', source: 'agent',
     input_tokens: 10, output_tokens: 4, prompt_tokens: 12, cache_read_tokens: 2,
-    cache_creation_tokens: null, provider_requests: 1, execution_id: input.executionId,
+    cache_creation_tokens: input.cacheCreationTokens ?? null,
+    provider_requests: 1, execution_id: input.executionId,
     thread_id: input.threadId, parent_thread_id: input.parentThreadId ?? null,
     root_thread_id: input.rootThreadId ?? input.threadId, task_id: input.taskId,
     task_project: input.taskProject ?? null, dispatch_generation: input.generation ?? null,
@@ -324,6 +326,69 @@ describe('production evidence export', () => {
       ) as Record<string, unknown>;
       expect(new Set(atifIds(atif))).toEqual(new Set(composite.nodes.map(node => node.attempt_id)));
       expect(pythonMirrorAccepts(output, input)).toBe(true);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([null, 0, 7] as const)(
+    'preserves cache-creation attribution %s through terminal, composite, and host validation',
+    async (cacheCreationTokens) => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-cache-creation-'));
+      try {
+        const attempt = attemptFixture(root, {
+          rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root',
+          role: 'direct', taskId: 'trial-1', cacheCreationTokens,
+        });
+        const output = path.join(root, 'trajectory');
+        const input = exportInput(output, 'direct', ['direct']);
+        await exportProductionBenchmarkEvidence(input, sources([attempt]));
+        const composite = readComposite(output);
+        const terminal = JSON.parse(fs.readFileSync(
+          path.join(output, composite.nodes[0].terminal_manifest_path), 'utf8',
+        )) as Record<string, unknown>;
+        expect(composite.nodes[0].tokens.cache_creation).toBe(cacheCreationTokens);
+        expect((terminal.tokens as Record<string, unknown>).cache_creation)
+          .toBe(cacheCreationTokens);
+        expect(pythonMirrorAccepts(output, input)).toBe(true);
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('projects a direct rate-limited failure without weakening its evidence', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-rate-limit-'));
+    try {
+      const attempt = attemptFixture(root, {
+        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root',
+        role: 'direct', taskId: 'trial-1', status: 'failed', rateLimited: true,
+        cacheCreationTokens: 3,
+      });
+      const output = path.join(root, 'trajectory');
+      const input = exportInput(output, 'direct', ['direct']);
+      await exportProductionBenchmarkEvidence(input, sources([attempt]));
+      const composite = readComposite(output);
+      expect(composite.nodes[0]).toMatchObject({
+        terminal_state: 'failed', terminal_reason: 'rate_limited',
+        tokens: { cache_creation: 3 },
+      });
+      expect(pythonMirrorAccepts(output, input)).toBe(true);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses negative cache-creation attribution', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-cache-invalid-'));
+    try {
+      const attempt = attemptFixture(root, {
+        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root',
+        role: 'direct', taskId: 'trial-1', cacheCreationTokens: -1,
+      });
+      await expect(exportProductionBenchmarkEvidence(
+        exportInput(path.join(root, 'trajectory'), 'direct', ['direct']), sources([attempt]),
+      )).rejects.toThrow(/invalid counter/i);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
