@@ -1,5 +1,5 @@
 // input:  npm pack, package fixtures, native builder
-// output: package closure, binaries, synchronization and rollback
+// output: package closure, hygiene, binaries, synchronization and rollback
 // pos:    Verifies production packing and staging cleanup
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -61,7 +61,36 @@ function extract(tarball: string, destination: string): string {
   fs.mkdirSync(destination);
   const result = spawnSync('tar', ['-xzf', tarball, '-C', destination], { encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return path.join(destination, 'package/native/cortex-supervisor/dist');
+  return path.join(destination, 'package');
+}
+
+function assertPackageHygiene(packageRoot: string): void {
+  const forbiddenBytes = ['/home/fangxin', 'Cortex-wt-'].map(value => Buffer.from(value));
+  const pending = [packageRoot];
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const entryPath = path.join(current, entry.name);
+      if (entry.isSymbolicLink()) {
+        const resolved = path.resolve(current, fs.readlinkSync(entryPath));
+        const relative = path.relative(packageRoot, resolved);
+        assert.ok(
+          relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative),
+          `packed symlink escapes package root: ${entryPath} -> ${resolved}`,
+        );
+      } else if (entry.isDirectory()) {
+        pending.push(entryPath);
+      } else if (entry.isFile()) {
+        const contents = fs.readFileSync(entryPath);
+        for (const forbidden of forbiddenBytes) {
+          assert.equal(
+            contents.includes(forbidden), false,
+            `packed file contains host-specific bytes: ${path.relative(packageRoot, entryPath)}`,
+          );
+        }
+      }
+    }
+  }
 }
 
 afterEach(() => {
@@ -167,7 +196,9 @@ test('npm pack produces an offline-installable package with a 0755 supervisor', 
       `production tarball omitted runtime dependency ${dependency}`,
     );
   }
-  const packedDist = extract(tarball, path.join(root, 'extracted'));
+  const packageRoot = extract(tarball, path.join(root, 'extracted'));
+  assertPackageHygiene(packageRoot);
+  const packedDist = path.join(packageRoot, 'native/cortex-supervisor/dist');
   const binary = path.join(packedDist, 'cortex-supervisor');
   const manifest = JSON.parse(fs.readFileSync(path.join(packedDist, 'build-manifest.json'), 'utf8'));
   const digest = createHash('sha256').update(fs.readFileSync(binary)).digest('hex');

@@ -620,8 +620,8 @@ export class ClaudeTuiSession {
  * (leading slash → leading `-`; dotfiles like `.cortex` → `--cortex`).
  *
  * Empirically verified against `~/.claude/projects/` directory contents on Claude 2.1.141+:
- *   `/home/fangxin/.cortex`     → `-home-fangxin--cortex`
- *   `/home/fangxin/Cortex`      → `-home-fangxin-Cortex`
+ *   `/home/alice/.cortex`       → `-home-alice--cortex`
+ *   `/srv/cortex/workspace`     → `-srv-cortex-workspace`
  *   `/tmp/cortex-spike-tui`     → `-tmp-cortex-spike-tui`
  *
  * The DR-0012 spike ran in `/tmp/cortex-spike-tui` (no dots), so the dot-encoding rule was

@@ -1,10 +1,12 @@
 #!/bin/bash
-# Fetch from public remote and cherry-pick new commits onto main.
-# Called by the Cortex scheduled sync-public job. Safe to run repeatedly.
-# Uses a tracking ref (refs/sync/public-last) to only process new commits.
+# input:  script-relative checkout, public remote, sync tracking ref
+# output: fetched commits cherry-picked onto the current checkout
+# pos:    Synchronizes public/main changes into the private main branch
+# >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 set -euo pipefail
 
-REPO_DIR="/home/fangxin/Cortex"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 LOG_FILE="/tmp/cortex-sync-pull.log"
 TRACKING_REF="refs/sync/public-last"
 

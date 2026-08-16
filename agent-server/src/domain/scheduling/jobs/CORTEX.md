@@ -8,7 +8,7 @@ Scheduling jobs: concrete runners used by persisted schedules and daemon-owned p
 | auth-expiry-scan.ts | job | Warns for in-use expired authentication states |
 | memory-index-regen.ts | job | Regenerates memory indexes as a built-in job |
 | scheduled-task.ts | job | Runs a fired schedule as an agent thread |
-| sync-public.ts | job | Pulls commits from the public repo |
+| sync-public.ts | job | Resolves and runs source-checkout public sync |
 | target-dispatch.ts | core | Decides how a fired schedule is landed |
 | task-archive.ts | job | Archives completed tasks as a built-in job |
 | task-dispatch.ts | job | Starts ancestry-bound dispatches and records linkage |

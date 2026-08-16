@@ -92,8 +92,8 @@ export function ensureAuthVisible(opts?: EnsureAuthVisibleOpts): void {
   if (process.platform === 'win32') {
     // Windows: symlink requires elevated permissions on many systems; copy instead.
     // KNOWN LIMITATION: PI's OAuth refresh writes to the cortex-private copy, not the user's
-    // original file. Re-running ensureAuthVisible would overwrite the refreshed token. See
-    // /home/fangxin/.cortex/plan/generic-wibbling-pine.md §D4 for Windows-specific TODO.
+    // original file. Re-running ensureAuthVisible would overwrite the refreshed token; proper
+    // Windows credential mirroring remains future work.
     copyFileSync(userAuth, cortexAuth);
   } else {
     symlinkSync(userAuth, cortexAuth);
