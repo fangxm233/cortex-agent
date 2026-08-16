@@ -1,4 +1,4 @@
-// input:  runtime settings, platform adapter, built-in job runners
+// input:  runtime settings, platform adapter, jobs, usage service
 // output: startBuiltinJobs and stopBuiltinJobs lifecycle
 // pos:    Composes daemon-owned periodic infrastructure jobs
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -6,6 +6,7 @@
 import { createLogger } from '@core/log.js';
 import { getSettings, onSettingsChange } from '@core/settings.js';
 import { getDefaultProfileName } from '../agents/profile-manager.js';
+import { usageService } from '../costs/usage-service.js';
 import type { PlatformAdapter } from '../../platform/index.js';
 import { createBuiltinJobController, type BuiltinJobDefinition } from './builtin-job-controller.js';
 import { runMemoryIndexRegenJob } from './jobs/memory-index-regen.js';
@@ -21,6 +22,11 @@ function buildJobs(adapter: PlatformAdapter): BuiltinJobDefinition[] {
       name: 'task-dispatch', enabledKey: 'taskDispatchEnabled',
       intervalKey: 'taskDispatchIntervalMs', mode: 'detached',
       run: () => { taskDispatchRunner({ channel: 'general', profileName: getDefaultProfileName() }); },
+    },
+    {
+      name: 'provider-usage-collection', enabledKey: 'providerUsageCollectionEnabled',
+      intervalKey: 'providerUsageCollectionIntervalMs', mode: 'serial',
+      run: async () => { await usageService.collect(); },
     },
     {
       name: 'task-archive', enabledKey: 'taskArchiveEnabled',

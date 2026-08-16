@@ -104,6 +104,8 @@ const expectedKeys = [
   'threadMaxDepth',
   'taskArtifactTemplates',
   'anthropicSubscriptionModes',
+  'providerUsageCollectionEnabled',
+  'providerUsageCollectionIntervalMs',
   'taskDispatchMaxConcurrent',
   'taskDispatchEnabled',
   'taskDispatchIntervalMs',
@@ -140,6 +142,8 @@ const expectedDefaults = {
   threadMaxDepth: 5,
   taskArtifactTemplates: ['manager'],
   anthropicSubscriptionModes: ['plan'],
+  providerUsageCollectionEnabled: true,
+  providerUsageCollectionIntervalMs: 5 * 60 * 1000,
   taskDispatchMaxConcurrent: null,
   taskDispatchEnabled: true,
   taskDispatchIntervalMs: 30_000,
@@ -183,6 +187,8 @@ describe.sequential('core settings', () => {
         threadMaxDepth: 'CORTEX_THREAD_MAX_DEPTH',
         taskArtifactTemplates: 'CORTEX_TASK_ARTIFACT_TEMPLATES',
         anthropicSubscriptionModes: undefined,
+        providerUsageCollectionEnabled: undefined,
+        providerUsageCollectionIntervalMs: undefined,
         taskDispatchMaxConcurrent: 'TASK_DISPATCH_MAX_CONCURRENT',
         taskDispatchEnabled: undefined,
         taskDispatchIntervalMs: undefined,
@@ -385,7 +391,11 @@ describe.sequential('core settings', () => {
   });
 
   test('built-in job intervals enforce integer Node timer bounds', () => {
-    const valid = { taskDispatchIntervalMs: 1_000, memoryIndexRegenIntervalMs: 2_147_483_647 };
+    const valid = {
+      taskDispatchIntervalMs: 1_000,
+      providerUsageCollectionIntervalMs: 300_000,
+      memoryIndexRegenIntervalMs: 2_147_483_647,
+    };
     assert.doesNotThrow(() => resolveSettingsSnapshot(valid));
     for (const value of [999, 1_000.5, 2_147_483_648]) {
       assert.throws(() => resolveSettingsSnapshot({ taskArchiveIntervalMs: value }));

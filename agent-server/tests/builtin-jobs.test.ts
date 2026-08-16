@@ -1,11 +1,40 @@
-// input:  fake timers, mutable settings, built-in job controller
-// output: timer lifecycle, serial/detached, and shutdown tests
+// input:  fake timers, mutable settings, built-in job services
+// output: registration, timer, serial, and shutdown tests
 // pos:    Verifies settings-backed built-in periodic jobs
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vitest';
+import type { PlatformAdapter } from '../src/platform/index.js';
+
+const builtinHarness = vi.hoisted(() => ({
+  callbacks: new Set<(keys: string[]) => void>(),
+  collect: vi.fn<() => Promise<unknown[]>>(),
+  settings: {
+    taskDispatchEnabled: false,
+    taskDispatchIntervalMs: 30_000,
+    taskArchiveEnabled: false,
+    taskArchiveIntervalMs: 21_600_000,
+    memoryIndexRegenEnabled: false,
+    memoryIndexRegenIntervalMs: 86_400_000,
+    providerUsageCollectionEnabled: true,
+    providerUsageCollectionIntervalMs: 300_000,
+  },
+}));
+
+vi.mock('../src/core/settings.js', () => ({
+  getSettings: () => builtinHarness.settings,
+  onSettingsChange: (callback: (keys: string[]) => void) => {
+    builtinHarness.callbacks.add(callback);
+    return () => builtinHarness.callbacks.delete(callback);
+  },
+}));
+vi.mock('../src/domain/costs/usage-service.js', () => ({
+  usageService: { collect: builtinHarness.collect },
+}));
+
 import { createBuiltinJobController } from '../src/domain/scheduling/builtin-job-controller.js';
+import { startBuiltinJobs, stopBuiltinJobs } from '../src/domain/scheduling/builtin-jobs.js';
 
 const settings: Record<string, boolean | number> = {
   serialEnabled: true,
@@ -25,18 +54,80 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
   return { promise, resolve };
 }
 
-beforeEach(() => {
+function notifyBuiltin(...keys: string[]): void {
+  for (const callback of builtinHarness.callbacks) callback(keys);
+}
+
+beforeEach(async () => {
+  await stopBuiltinJobs();
   vi.useFakeTimers();
   settings.serialEnabled = true;
   settings.serialIntervalMs = 2_000;
   settings.detachedEnabled = true;
   settings.detachedIntervalMs = 1_000;
   callbacks.clear();
+  builtinHarness.callbacks.clear();
+  builtinHarness.collect.mockReset();
+  builtinHarness.settings.providerUsageCollectionEnabled = true;
+  builtinHarness.settings.providerUsageCollectionIntervalMs = 300_000;
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await stopBuiltinJobs();
   callbacks.clear();
+  builtinHarness.callbacks.clear();
   vi.useRealTimers();
+});
+
+test('provider usage collection is serial and awaited at shutdown', async () => {
+  const first = deferred();
+  const second = deferred();
+  builtinHarness.collect
+    .mockReturnValueOnce(first.promise.then(() => []))
+    .mockReturnValueOnce(second.promise.then(() => []));
+
+  startBuiltinJobs({} as PlatformAdapter);
+  await vi.advanceTimersByTimeAsync(0);
+  builtinHarness.settings.providerUsageCollectionIntervalMs = 5_000;
+  notifyBuiltin('providerUsageCollectionIntervalMs');
+  await vi.advanceTimersByTimeAsync(10_000);
+  assert.equal(builtinHarness.collect.mock.calls.length, 1, 'collection runs must not overlap');
+
+  first.resolve();
+  await Promise.resolve();
+  await vi.advanceTimersByTimeAsync(5_000);
+  assert.equal(builtinHarness.collect.mock.calls.length, 2);
+  let stopped = false;
+  const stopping = stopBuiltinJobs().then(() => { stopped = true; });
+  await Promise.resolve();
+  assert.equal(stopped, false, 'shutdown must await active collection');
+  second.resolve();
+  await stopping;
+});
+
+test('provider usage settings reschedule, disable, and re-enable collection', async () => {
+  builtinHarness.collect.mockResolvedValue([]);
+  builtinHarness.settings.providerUsageCollectionEnabled = false;
+  startBuiltinJobs({} as PlatformAdapter);
+  await vi.advanceTimersByTimeAsync(10_000);
+  assert.equal(builtinHarness.collect.mock.calls.length, 0);
+
+  builtinHarness.settings.providerUsageCollectionEnabled = true;
+  notifyBuiltin('providerUsageCollectionEnabled');
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(builtinHarness.collect.mock.calls.length, 1, 're-enabled collection runs immediately');
+
+  builtinHarness.settings.providerUsageCollectionIntervalMs = 7_000;
+  notifyBuiltin('providerUsageCollectionIntervalMs');
+  await vi.advanceTimersByTimeAsync(6_999);
+  assert.equal(builtinHarness.collect.mock.calls.length, 1);
+  await vi.advanceTimersByTimeAsync(1);
+  assert.equal(builtinHarness.collect.mock.calls.length, 2, 'interval changes reschedule collection');
+
+  builtinHarness.settings.providerUsageCollectionEnabled = false;
+  notifyBuiltin('providerUsageCollectionEnabled');
+  await vi.advanceTimersByTimeAsync(20_000);
+  assert.equal(builtinHarness.collect.mock.calls.length, 2, 'disabled collection stays stopped');
 });
 
 test('enabled jobs run immediately and detached ticks recur without awaiting work', async () => {
