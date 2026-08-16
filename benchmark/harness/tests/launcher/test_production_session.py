@@ -47,7 +47,9 @@ def direct_arm() -> dict[str, object]:
     }
 
 
-def session(tmp_path: Path) -> ProductionServerSession:
+def session(
+    tmp_path: Path, *, readiness_timeout_seconds: float = 1,
+) -> ProductionServerSession:
     materialized = SimpleNamespace(
         process_environment={
             "PATH": "/usr/bin:/bin", "HOME": "/logs/agent/production-cortex-home/home",
@@ -73,18 +75,19 @@ def session(tmp_path: Path) -> ProductionServerSession:
         ),
     )
     return ProductionServerSession(
-        spec, poll_interval_seconds=0, readiness_timeout_seconds=1,
+        spec, poll_interval_seconds=0, readiness_timeout_seconds=readiness_timeout_seconds,
     )
 
 
 class FakeExecutor:
     def __init__(
         self, logs_dir: Path, *, export_failure: bool = False,
-        malformed_evidence: bool = False,
+        malformed_evidence: bool = False, gateway_failure: bool = False,
     ) -> None:
         self.logs_dir = logs_dir
         self.export_failure = export_failure
         self.malformed_evidence = malformed_evidence
+        self.gateway_failure = gateway_failure
         self.calls: list[tuple[str, dict[str, str] | None, str | None]] = []
         self.timeouts: list[int | None] = []
         self.payloads: dict[str, object] = {}
@@ -102,6 +105,8 @@ class FakeExecutor:
             self._capture("production-thread-ready.json")
             return self._reply({"success": True, "data": {"agents": []}})
         if "http://127.0.0.1:9880/status" in command:
+            if self.gateway_failure:
+                raise RuntimeError("aistatus gateway unavailable")
             return self._reply({"status": "ok"})
         if "production-thread-start.json" in command:
             self._capture("production-thread-start.json")
@@ -224,6 +229,22 @@ def test_session_refuses_malformed_v2_files_and_still_stops(tmp_path: Path) -> N
     assert production.stopped_cleanly is True
 
 
+def test_session_refuses_aistatus_fallback_when_gateway_is_unavailable(
+    tmp_path: Path,
+) -> None:
+    runner = FakeExecutor(tmp_path, gateway_failure=True)
+    production = session(tmp_path, readiness_timeout_seconds=0.01)
+
+    with pytest.raises(ProductionSessionError, match="readiness timed out"):
+        asyncio.run(production.run("Solve only this task.", runner))
+
+    commands = [call[0] for call in runner.calls]
+    assert any("127.0.0.1:9880/status" in command for command in commands)
+    assert all("production-thread-start.json" not in command for command in commands)
+    assert commands[-1].startswith("kill -TERM -- -4242")
+    assert production.stopped_cleanly is True
+
+
 def test_session_still_stops_the_server_when_export_refuses(tmp_path: Path) -> None:
     runner = FakeExecutor(tmp_path, export_failure=True)
     production = session(tmp_path)
@@ -235,7 +256,7 @@ def test_session_still_stops_the_server_when_export_refuses(tmp_path: Path) -> N
     assert production.stopped_cleanly is True
 
 
-def test_only_the_exact_pi_deepseek_direct_arm_selects_the_production_path() -> None:
+def test_exact_pi_deepseek_direct_shape_selects_the_production_path() -> None:
     assert is_production_direct_arm(direct_arm()) is True
 
 
@@ -243,7 +264,7 @@ def test_only_the_exact_pi_deepseek_direct_arm_selects_the_production_path() -> 
     ("field", "value"),
     [
         ("backend", "claude"), ("provider", "anthropic"),
-        ("model", "claude-sonnet"), ("name", "another-direct"),
+        ("model", "claude-sonnet"), ("name", ""),
         ("credential_capability", "another-capability"),
     ],
 )
@@ -253,6 +274,26 @@ def test_refuses_any_arm_that_can_enter_aistatus_direct_fallback(
     arm = direct_arm()
     arm[field] = value
 
+    assert is_production_direct_arm(arm) is False
+    with pytest.raises(ProductionSessionError, match="PI/DeepSeek.*direct fallback"):
+        require_production_direct_arm(arm)
+
+
+def test_preserves_a_nonempty_campaign_arm_name_as_production_identity() -> None:
+    arm = direct_arm()
+    arm["name"] = "zero-paid-pi-direct"
+
+    assert is_production_direct_candidate(arm) is True
+    assert is_production_direct_arm(arm) is True
+    require_production_direct_arm(arm)
+
+
+@pytest.mark.parametrize("mode", ["coder-review", "manager"])
+def test_production_direct_selector_refuses_non_direct_orchestration(mode: str) -> None:
+    arm = direct_arm()
+    arm["orchestration"] = {"mode": mode, "ask_manager": False}
+
+    assert is_production_direct_candidate(arm) is False
     assert is_production_direct_arm(arm) is False
     with pytest.raises(ProductionSessionError, match="PI/DeepSeek.*direct fallback"):
         require_production_direct_arm(arm)

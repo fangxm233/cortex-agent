@@ -1,5 +1,5 @@
 # input:  Harbor base class, fake exec results, manifest and production trial seed
-# output: admission, install, materialization and standalone-refusal proofs
+# output: production route proof plus preserved legacy dispatch
 # pos:    Contract tests for the production Harbor agent wrapper
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -14,6 +14,7 @@ import pytest
 from harbor.agents.installed.base import BaseInstalledAgent, NonZeroAgentExitCodeError
 from harbor.environments.base import ExecResult
 
+from cortex_bench_harness.campaign_config import load_campaign_config
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.production_session import (
     ProductionServerSession,
@@ -26,6 +27,7 @@ BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
 BACKEND_CLI_PATH = "/usr/local/bin/pi"
 BACKEND_CLI_VERSION = "0.82.1"
 DIGEST = f"sha256:{'a' * 64}"
+CAMPAIGNS_DIR = Path(__file__).resolve().parents[3] / "campaigns"
 INSTALL_COMMAND = (
     "set -o pipefail; npm install --global --prefix /installed-agent/npm "
     f"--cache /installed-agent/npm-cache --offline --no-audit --no-fund "
@@ -67,10 +69,21 @@ class FakeEnvironment:
 
 
 class FakeProxySession:
-    handle = SimpleNamespace(
-        trial_id="trial-install-only",
-        manifest_block={"schema_version": "cortex-bench-proxy-manifest/1"},
-    )
+    def __init__(self, request_count: int = 1) -> None:
+        self.handle = SimpleNamespace(
+            trial_id="trial-install-only",
+            manifest_block={"schema_version": "cortex-bench-proxy-manifest/1"},
+            accounting_export={
+                "requests": {"status": "available", "value": request_count},
+                "audit_log": {
+                    "status": "available",
+                    "value": {
+                        "durable_requests": request_count,
+                        "agrees_with_counters": True,
+                    },
+                },
+            },
+        )
 
     @staticmethod
     def credential_block(seed: object) -> dict[str, str]:
@@ -198,6 +211,30 @@ def test_setup_installs_attests_fresh_home_and_never_composes_standalone(
     assert (tmp_path / "agent/production-cortex-home/config/profiles.json").is_file()
 
 
+@pytest.mark.parametrize(
+    "config_name",
+    ["zero-paid-dry-run.yaml", "zero-paid-failed-agent.yaml", "zero-paid-parallel.yaml"],
+)
+def test_committed_zero_paid_direct_campaigns_materialize_the_production_bundle(
+    tmp_path: Path, config_name: str,
+) -> None:
+    (arm,) = load_campaign_config(CAMPAIGNS_DIR / config_name).arms
+    seed = trial_seed({"arm": arm, "arm_path": f"arm://{arm['name']}"})
+    manifest = manifest_seed(tmp_path)
+    manifest["arm"] = arm["name"]
+    agent = CortexBenchAgent(
+        logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
+        trial_seed=seed, manifest=manifest,
+    )
+    agent._proxy_session = FakeProxySession()
+    agent._revoke_proxy = lambda: None
+
+    asyncio.run(agent.setup(FakeEnvironment(setup_results())))
+
+    assert (tmp_path / "agent/production-cortex-home/config/profiles.json").is_file()
+    assert not (tmp_path / "agent/arm-resolution.json").exists()
+
+
 def test_production_direct_requires_the_trial_scoped_proxy_before_setup(tmp_path: Path) -> None:
     environment = FakeEnvironment([])
 
@@ -240,6 +277,27 @@ def test_direct_run_dispatches_the_production_session_not_agent_run(
     assert observed == ["Solve through production."]
     assert agent.production_server_stopped is True
     assert all("cortex agent-run" not in command for command, _ in environment.calls)
+
+
+def test_direct_run_refuses_without_positive_trial_proxy_traffic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment = FakeEnvironment(setup_results())
+    agent = make_agent(tmp_path, attach_proxy=True)
+    agent._proxy_session = FakeProxySession(request_count=0)
+
+    async def run_production(
+        self: ProductionServerSession, instruction: str, execute: object,
+    ) -> None:
+        self._stopped_cleanly = True
+
+    monkeypatch.setattr(ProductionServerSession, "run", run_production)
+    asyncio.run(agent.setup(environment))
+
+    with pytest.raises(ProductionSessionError, match="trial-scoped proxy"):
+        asyncio.run(agent.run("Solve through production.", environment, None))
+
+    assert agent.production_server_stopped is True
 
 
 def test_failed_install_does_not_publish_manifest_or_home(tmp_path: Path) -> None:
@@ -349,21 +407,46 @@ def test_misaligned_pi_deepseek_direct_arm_never_falls_back_to_standalone(
         )
 
 
-def test_nonproduction_arm_remains_on_the_legacy_path(tmp_path: Path) -> None:
+def legacy_arm() -> dict[str, object]:
     arm = direct_arm()
     arm.update({
         "backend": "claude", "provider": "anthropic", "model": "claude-sonnet",
         "credential_capability": "claude-api-key",
     })
-    seed = trial_seed({"arm": arm})
-    environment = FakeEnvironment(setup_results())
-    agent = CortexBenchAgent(
+    return arm
+
+
+def legacy_agent(tmp_path: Path) -> CortexBenchAgent:
+    return CortexBenchAgent(
         logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
-        version="0.1.0", trial_seed=seed, manifest=manifest_seed(tmp_path),
+        version="0.1.0", trial_seed=trial_seed({"arm": legacy_arm()}),
+        manifest=manifest_seed(tmp_path),
     )
+
+
+def test_nonproduction_arm_remains_on_the_legacy_path(tmp_path: Path) -> None:
+    environment = FakeEnvironment(setup_results())
+    agent = legacy_agent(tmp_path)
 
     asyncio.run(agent.setup(environment))
 
     assert any("cortex agent-run --help" in command for command, _ in environment.calls)
     assert (tmp_path / "agent/arm-resolution.json").is_file()
     assert not (tmp_path / "agent/production-cortex-home").exists()
+
+
+def test_nonproduction_run_still_executes_and_collects_the_legacy_agent_run(
+    tmp_path: Path,
+) -> None:
+    environment = FakeEnvironment([
+        *setup_results(), ok(), ExecResult(stdout="legacy stdout", stderr="", return_code=0),
+    ])
+    agent = legacy_agent(tmp_path)
+    asyncio.run(agent.setup(environment))
+
+    asyncio.run(agent.run("Solve through legacy.", environment, None))
+
+    commands = [command for command, _ in environment.calls]
+    assert any("cortex agent-run --prompt-file" in command for command in commands)
+    assert all("dist/entry/app.js" not in command for command in commands)
+    assert (tmp_path / "agent/stdout.txt").read_text() == "legacy stdout"

@@ -1,5 +1,5 @@
 # input:  Harbor lifecycle, inner/proxy evidence, workspace
-# output: installed run and validated grader admission
+# output: proxy-confirmed installed run and grader admission
 # pos:    Production Harbor lifecycle wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -43,6 +43,7 @@ from .launcher.production_home import (
 from .launcher.production_session import (
     InstalledProductionServer,
     ProductionServerSession,
+    ProductionSessionError,
     ProductionSessionSpec,
     is_production_direct_arm,
     is_production_direct_candidate,
@@ -630,8 +631,29 @@ class CortexBenchAgent(BaseInstalledAgent):
         session = ProductionServerSession(spec)
         try:
             await session.run(instruction, execute)
+            self._require_production_proxy_traffic()
         finally:
             self._production_server_stopped = session.stopped_cleanly
+
+    def _require_production_proxy_traffic(self) -> None:
+        assert self._proxy_session is not None
+        evidence = self._proxy_session.handle.accounting_export
+        requests = evidence.get("requests")
+        audit = evidence.get("audit_log")
+        count = requests.get("value") if isinstance(requests, Mapping) else None
+        audit_value = audit.get("value") if isinstance(audit, Mapping) else None
+        valid = (
+            isinstance(count, int) and not isinstance(count, bool) and count > 0
+            and requests.get("status") == "available"
+            and isinstance(audit_value, Mapping)
+            and audit.get("status") == "available"
+            and audit_value.get("durable_requests") == count
+            and audit_value.get("agrees_with_counters") is True
+        )
+        if not valid:
+            raise ProductionSessionError(
+                "production PI/DeepSeek route did not reach the trial-scoped proxy"
+            )
 
     async def _execute_legacy_run(
         self, instruction: str, environment: BaseEnvironment,
