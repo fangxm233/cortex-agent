@@ -1,5 +1,5 @@
-// input:  usage service, in-memory store, adapter and gateway fakes
-// output: collection, freshness, failure, and spend regressions
+// input:  usage service/store, PI cache, quota sink, gateway fakes
+// output: collection, freshness, race, failure, and spend regressions
 // pos:    Validates the public provider usage orchestration boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,11 +7,13 @@ import assert from 'node:assert/strict';
 import { describe, test, vi } from 'vitest';
 import type { AgentAdapter, Backend } from '../src/agent-adapter/types.js';
 import { Capability } from '../src/agent-adapter/capabilities.js';
+import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { reportCodexQuota } from '../src/agent-adapter/pi/quota-sink.js';
 import {
   UsageService,
   type UsageServiceStore,
 } from '../src/domain/costs/usage-service.js';
-import type { ProviderUsage } from '../src/domain/costs/usage-store.js';
+import { UsageStore, type ProviderUsage } from '../src/domain/costs/usage-store.js';
 
 class MemoryUsageStore implements UsageServiceStore {
   private readonly records = new Map<string, ProviderUsage>();
@@ -82,6 +84,20 @@ function gatewayFetch(
     const url = String(input);
     return gatewayResponse(url.includes('period=today') ? todayProviders : monthProviders);
   }) as typeof fetch;
+}
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function durableMemoryStore(): UsageStore {
+  let records: ProviderUsage[] = [];
+  return new UsageStore({
+    load: async () => structuredClone(records),
+    save: async (next) => { records = structuredClone(next); },
+  });
 }
 
 function serviceWith(options: {
@@ -171,6 +187,59 @@ describe('UsageService', () => {
       (await cold.collect()).find((record) => record.provider === 'openai-codex')?.freshness,
       'never',
     );
+  });
+
+  test('a cached PI collection snapshot cannot overwrite a newer quota push', async () => {
+    const store = durableMemoryStore();
+    await store.update(usage('openai-codex', 'stale', {
+      modes: ['openai-codex'],
+      windows: [{ type: 'codex_primary', utilization: 0.1, resetsAt: null }],
+      observedAt: 100,
+    }));
+    const snapshotRead = deferred();
+    const releaseSnapshot = deferred();
+    const pi = new PIAdapter(
+      (() => { throw new Error('usage collection must not spawn PI'); }) as never,
+      undefined,
+      undefined,
+      { usageStore: {
+        get: async (provider) => {
+          const snapshot = await store.get(provider);
+          snapshotRead.resolve();
+          await releaseSnapshot.promise;
+          return snapshot;
+        },
+        update: (record) => store.update(record),
+      } },
+    );
+    const claude = fakeAdapter('claude', async () => []);
+    const service = new UsageService({
+      store,
+      getAdapter: (backend) => backend === 'pi' ? pi : claude,
+      getSettings: () => ({ anthropicSubscriptionModes: [] }),
+      fetch: gatewayFetch([], []),
+      gatewayUrl: 'http://gateway.test',
+    });
+
+    const collection = service.collect();
+    await snapshotRead.promise;
+    await reportCodexQuota(
+      {
+        provider: 'openai-codex',
+        planType: 'pro',
+        windows: [{ type: 'codex_primary', utilization: 0.9, resetsAt: null }],
+      },
+      { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
+      { usageStore: store, submit: async () => {}, now: () => 200_000 },
+    );
+    assert.equal((await store.get('openai-codex'))?.observedAt, 200);
+
+    releaseSnapshot.resolve();
+    await collection;
+
+    const persisted = await store.get('openai-codex');
+    assert.equal(persisted?.observedAt, 200);
+    assert.equal(persisted?.windows[0].utilization, 0.9);
   });
 
   test('every explicit refresh immediately invokes every enabled source', async () => {

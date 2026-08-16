@@ -1,5 +1,5 @@
 // input:  Vitest, ProviderStateRepo, usage-store model and API
-// output: usage defaults, persistence, replacement, and legacy regressions
+// output: usage ordering, persistence, replacement, and legacy regressions
 // pos:    Validates the durable provider usage source
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -104,6 +104,41 @@ test('update atomically upserts by provider and returns defensive copies', async
   assert.deepEqual((await store.list()).map((record) => record.provider), ['alpha', 'beta']);
   assert.deepEqual(await store.get('alpha'), replacement);
   assert.deepEqual((await store.get('alpha'))?.modes, ['plan']);
+});
+
+test('update rejects older and never-observed records after a provider observation', async () => {
+  const store = storeFor(new ProviderStateRepo(nextFile()));
+  const observed = usage('alpha', 'stale', 0.9);
+  observed.observedAt = 200;
+  await store.update(observed);
+
+  const older = usage('alpha', 'stale', 0.1);
+  older.observedAt = 100;
+  await store.update(older);
+  await store.update(usage('alpha', 'never'));
+
+  assert.deepEqual(await store.get('alpha'), observed);
+});
+
+test('update accepts equal observations as complete metadata replacements', async () => {
+  const store = storeFor(new ProviderStateRepo(nextFile()));
+  const observed = usage('alpha', 'live', 0.9);
+  observed.observedAt = 200;
+  observed.spend = { today: 1, month: 2 };
+  await store.update(observed);
+
+  const failureUpdate: ProviderUsage = {
+    provider: 'alpha',
+    displayName: 'Alpha account',
+    modes: ['team'],
+    windows: [],
+    observedAt: 200,
+    freshness: 'stale',
+    note: 'collection failed: 429',
+  };
+  await store.update(failureUpdate);
+
+  assert.deepEqual(await store.get('alpha'), failureUpdate);
 });
 
 test('replace removes omitted providers and deterministically keeps the last duplicate', async () => {

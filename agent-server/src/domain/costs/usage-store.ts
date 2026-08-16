@@ -1,5 +1,5 @@
 // input:  ProviderStateRepo and provider usage readings
-// output: ProviderUsage model and durable provider-keyed usage store
+// output: ProviderUsage model and observation-ordered usage store
 // pos:    Backend-neutral source of latest provider usage
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -49,6 +49,12 @@ function canonicalRecords(records: ProviderUsage[]): ProviderUsage[] {
   return [...byProvider.values()].sort((a, b) => a.provider.localeCompare(b.provider));
 }
 
+function canReplace(existing: ProviderUsage, next: ProviderUsage): boolean {
+  if (existing.observedAt === null) return true;
+  if (next.observedAt === null) return false;
+  return next.observedAt >= existing.observedAt;
+}
+
 const defaultPersistence: UsagePersistence = {
   load: () => providerStateRepo.getProviderUsage(),
   save: (records) => providerStateRepo.setProviderUsage(records),
@@ -71,6 +77,7 @@ export class UsageStore {
     await this.mutationMutex.run(async () => {
       const records = canonicalRecords(await this.persistence.load());
       const existingIndex = records.findIndex((candidate) => candidate.provider === record.provider);
+      if (existingIndex !== -1 && !canReplace(records[existingIndex], record)) return;
       if (existingIndex === -1) records.push(record);
       else records[existingIndex] = record;
       await this.persistence.save(canonicalRecords(records));
