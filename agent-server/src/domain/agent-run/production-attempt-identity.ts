@@ -8,6 +8,7 @@ import path from 'node:path';
 import { STORE_DIR } from '../../core/paths.js';
 import type { AgentSpawnConfig, Backend } from '../../agent-adapter/types.js';
 import type { ProductionBenchmarkEvidenceContext } from '../../core/types/thread-types.js';
+import { parseProductionBenchmarkEvidenceContext } from '../../core/production-benchmark-evidence.js';
 import type { RunAgentOptions } from '../agents/spawn-config.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import {
@@ -18,7 +19,6 @@ import {
   initializeProductionAttemptJournals, resetProductionAttemptJournals,
 } from './production-attempt-journal.js';
 
-const CONTEXT_SCHEMA = 'cortex-production-benchmark-evidence-context/1';
 const RECORD_SCHEMA = 'cortex-production-attempt-identity/1';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DEFAULT_STORE_PATH = path.join(STORE_DIR, 'benchmark-attempt-identities.jsonl');
@@ -104,53 +104,6 @@ function requiredText(value: unknown, label: string): string {
 function nullableText(value: unknown, label: string): string | null {
   if (value === null) return null;
   return requiredText(value, label);
-}
-
-type ModelExecutionContext = ProductionBenchmarkEvidenceContext['model_execution'];
-
-function isIdentityJsonValue(value: unknown): boolean {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
-  if (typeof value === 'number') return Number.isFinite(value);
-  if (Array.isArray(value)) return value.every(isIdentityJsonValue);
-  return isRecord(value) && Object.values(value).every(isIdentityJsonValue);
-}
-
-function parseModelExecution(value: unknown): ModelExecutionContext {
-  if (!isRecord(value) || !exactKeys(value, [
-    'model_alias_policy', 'cli_name', 'cli_version', 'max_output_tokens',
-  ])) throw identityInputError('model_execution');
-  if (!isIdentityJsonValue(value.model_alias_policy)) {
-    throw identityInputError('model_execution.model_alias_policy');
-  }
-  if (value.cli_name !== 'claude' && value.cli_name !== 'pi') {
-    throw identityInputError('model_execution.cli_name');
-  }
-  const max = value.max_output_tokens;
-  if (max !== null && (!Number.isInteger(max) || Number(max) <= 0)) {
-    throw identityInputError('model_execution.max_output_tokens');
-  }
-  return {
-    model_alias_policy: value.model_alias_policy as ModelExecutionContext['model_alias_policy'],
-    cli_name: value.cli_name,
-    cli_version: requiredText(value.cli_version, 'model_execution.cli_version'),
-    max_output_tokens: max as number | null,
-  };
-}
-
-function parseEvidenceContext(value: unknown): ProductionBenchmarkEvidenceContext {
-  if (!isRecord(value) || !exactKeys(value, [
-    'schema_version', 'trial_id', 'root_run_id', 'bundle_manifest_hash', 'model_execution',
-  ])) throw identityInputError('evidence context envelope');
-  if (value.schema_version !== CONTEXT_SCHEMA) throw identityInputError('schema_version');
-  const bundle = requiredText(value.bundle_manifest_hash, 'bundle_manifest_hash');
-  if (!SHA256_PATTERN.test(bundle)) throw identityInputError('bundle_manifest_hash');
-  return Object.freeze({
-    schema_version: CONTEXT_SCHEMA,
-    trial_id: requiredText(value.trial_id, 'trial_id'),
-    root_run_id: requiredText(value.root_run_id, 'root_run_id'),
-    bundle_manifest_hash: bundle,
-    model_execution: Object.freeze(parseModelExecution(value.model_execution)),
-  });
 }
 
 function isNullableString(value: unknown): boolean {
@@ -499,7 +452,7 @@ export function freezeProductionAttemptIdentity(
     throw new Error('Production benchmark identity store is not initialized');
   }
   assertStableState(activeState);
-  const context = parseEvidenceContext(supplied);
+  const context = parseProductionBenchmarkEvidenceContext(supplied);
   const record = buildRecord(activeState, input, context);
   const existing = activeState.repo.get(record.execution_id);
   const candidate = existing ? { ...record, frozen_at: existing.frozen_at } : record;

@@ -141,7 +141,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
 | task-archiver.test.ts | test | accepts precise task completion timestamps |
 | task-completion.test.ts | test | Checks generation fencing, evidence and timestamps |
-| task-dispatch-hooks.test.ts | test | Dispatch generations, limits, hooks and recovery |
+| task-dispatch-hooks.test.ts | test | Dispatch ancestry, generations, hooks and recovery |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and provider gating |
 | task-file-input.test.ts | test | task-file CLI matrix, unique paths and literals |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
@@ -156,7 +156,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |
-| thread-benchmark-run.test.ts | test | benchmark isolation, production identity and accounting |
+| thread-benchmark-run.test.ts | test | benchmark identity inheritance and accounting |
 | thread-callback-tree.test.ts | test | safe child results and parent re-entry |
 | thread-benchmark-coder-review.e2e.test.ts | e2e | benchmark graph, tools, MCP and identity isolation |
 | thread-coder-review.e2e.test.ts | e2e | Coder-review stages and commit policy |
@@ -186,4 +186,4 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | webhook-ask-user.test.ts | test | ask endpoint level and channel resolution |
 | webhook-auth.test.ts | test | webhook bearer token gate |
 | webhook-manager-qa.test.ts | test | manager Q&A webhook ask, poll, answer |
-| webhook-thread-control.test.ts | test | thread control webhook validation |
+| webhook-thread-control.test.ts | test | thread control and child evidence inheritance |

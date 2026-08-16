@@ -1,5 +1,5 @@
-// input:  threadStore, thread types, production topology ledger
-// output: thread tree queries, guards, views, and durable spawn facts
+// input:  thread store, task ancestry, production topology ledger
+// output: tree queries, parent resolution, guards, spawn facts
 // pos:    Recursive thread-tree infrastructure
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -34,6 +34,33 @@ export function getRootThreadId(t: ThreadRecord): string {
  *  fully in-memory and small, so a full scan is fine. */
 export function getTreeThreads(rootId: string): ThreadRecord[] {
   return threadStore.getAll().filter(t => getRootThreadId(t) === rootId);
+}
+
+function parentEvidenceKey(thread: ThreadRecord): string | null {
+  const context = thread.metadata?.productionBenchmarkEvidenceContext;
+  if (context == null) return null;
+  return JSON.stringify({ rootThreadId: getRootThreadId(thread), context });
+}
+
+function assertParentCandidatesUnambiguous(candidates: ThreadRecord[], parentTaskId: string): void {
+  const liveCount = candidates.filter(thread => !isTerminalStatus(thread.status)).length;
+  const evidenceKeys = candidates.map(parentEvidenceKey);
+  const benchmarkKeys = evidenceKeys.filter((key): key is string => key !== null);
+  const mixedEvidence = benchmarkKeys.length > 0 && benchmarkKeys.length !== candidates.length;
+  if (liveCount > 1 || mixedEvidence || new Set(benchmarkKeys).size > 1) {
+    throw new Error(`Ambiguous persisted parent manager threads for task ${parentTaskId}`);
+  }
+}
+
+/** Resolve the newest persisted thread that owns a task-tree parent node. */
+export function resolveTaskParentThread(projectId: string, parentTaskId: string): ThreadRecord | null {
+  const candidates = threadStore.getAll().filter((thread) => {
+    const taskProject = thread.metadata?.taskProject ?? thread.projectId;
+    return thread.metadata?.taskId === parentTaskId && taskProject === projectId;
+  });
+  assertParentCandidatesUnambiguous(candidates, parentTaskId);
+  candidates.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  return candidates[0] ?? null;
 }
 
 export interface TreeSummary {

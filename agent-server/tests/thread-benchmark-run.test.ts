@@ -1,5 +1,5 @@
-// input:  thread runner, fake agents, hook/throttle/profile stores
-// output: benchmark isolation, identity context, and accounting proofs
+// input:  thread runner, stores, fake agents, profiles
+// output: benchmark isolation, inherited identity, accounting proofs
 // pos:    Verifies benchmark and production thread boundaries
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -326,6 +326,81 @@ test('production direct, coder-review, and dispatched-manager steps carry persis
     taskId: 'a1b2', taskProject: 'atlas', generation: 'generation-manager',
     evidence: PRODUCTION_EVIDENCE,
   });
+});
+
+test('child creation and resumed execution retain immutable evidence across store reload', async () => {
+  const parent = createFixtureThread('bench-active', PRODUCTION_EVIDENCE);
+  await threadStore.flush();
+  threadStore.load();
+
+  const child = createThread('C-benchmark-child', {
+    templateName: 'bench-active', userMessage: 'nested work', userMessageTs: String(Date.now()),
+    projectId: 'atlas', metadata: { parentThreadId: parent.id },
+  });
+  createdThreadIds.add(child.id);
+  assert.equal(child.metadata?.rootThreadId, parent.id);
+  assert.deepEqual(child.metadata?.productionBenchmarkEvidenceContext, PRODUCTION_EVIDENCE);
+  assert.equal(Object.isFrozen(child.metadata?.productionBenchmarkEvidenceContext), true);
+  assert.equal(Object.isFrozen(child.metadata?.productionBenchmarkEvidenceContext?.model_execution), true);
+  assert.equal(Object.isFrozen(
+    child.metadata?.productionBenchmarkEvidenceContext?.model_execution.model_alias_policy,
+  ), true);
+  queueSuccesses(1, 'root');
+  await threadRunner.runThread(parent.id, runOptions(threadStore.get(parent.id)!));
+  const rootAttempt = agent.runAgent.mock.calls[0][1] as RunAgentOptions;
+  assert.ok(rootAttempt.executionId);
+  agent.runAgent.mockReset();
+
+  queueSuccesses(1, 'child');
+  await threadRunner.runThread(child.id, runOptions(child));
+  const childAttempt = agent.runAgent.mock.calls[0][1] as RunAgentOptions;
+  assert.equal(childAttempt.rootThreadId, parent.id);
+  assert.ok(childAttempt.executionId);
+  agent.runAgent.mockReset();
+
+  const conflicting = {
+    ...PRODUCTION_EVIDENCE,
+    trial_id: 'conflicting-descendant-trial',
+  };
+  assert.throws(() => createThread('C-benchmark-conflict', {
+    templateName: 'bench-active', userMessage: 'nested work', userMessageTs: String(Date.now()),
+    projectId: 'atlas', metadata: {
+      parentThreadId: parent.id,
+      productionBenchmarkEvidenceContext: conflicting,
+    },
+  }), /benchmark.*context.*conflict|descendant.*context/i);
+
+  await threadStore.mutate(parent.id, (record) => {
+    record.status = 'waiting';
+  });
+  await threadStore.flush();
+  threadStore.load();
+  queueSuccesses(1, 'resumed');
+  await threadRunner.resumeThread(parent.id, runOptions(threadStore.get(parent.id)!));
+  const resumed = agent.runAgent.mock.calls[0][1] as RunAgentOptions;
+  assert.deepEqual(resumed.productionBenchmarkEvidenceContext, PRODUCTION_EVIDENCE);
+  assert.equal(resumed.rootThreadId, parent.id);
+  assert.ok(resumed.executionId);
+  assert.equal(new Set([
+    rootAttempt.executionId, childAttempt.executionId, resumed.executionId,
+  ]).size, 3);
+});
+
+test('malformed persisted parent evidence refuses descendant creation', async () => {
+  const parent = createFixtureThread('bench-active', PRODUCTION_EVIDENCE);
+  await threadStore.mutate(parent.id, (record) => {
+    record.metadata!.productionBenchmarkEvidenceContext = {
+      ...PRODUCTION_EVIDENCE,
+      model_execution: { cli_name: 'pi' },
+    } as unknown as ProductionBenchmarkEvidenceContext;
+  });
+  await threadStore.flush();
+  threadStore.load();
+
+  assert.throws(() => createThread('C-benchmark-malformed', {
+    templateName: 'bench-active', userMessage: 'nested work', userMessageTs: String(Date.now()),
+    projectId: 'atlas', metadata: { parentThreadId: parent.id },
+  }), /evidence context.*invalid|model_execution/i);
 });
 
 test('benchmark forwards workspace cwd and spawner through every step to a real child', async () => {
