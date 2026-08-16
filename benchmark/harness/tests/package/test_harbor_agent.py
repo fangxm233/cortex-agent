@@ -1,29 +1,30 @@
-# input:  Harbor base class, fake exec results, manifest and trial seed
-# output: admission, identity, install, discovery, run-config and terminal-marker proofs
-# pos:    Contract tests for the Harbor agent wrapper
+# input:  Harbor base class, fake exec results, manifest and production trial seed
+# output: admission, install, materialization and standalone-refusal proofs
+# pos:    Contract tests for the production Harbor agent wrapper
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
+import hashlib
 import json
-import time
 from collections.abc import Sequence
 from pathlib import Path
-from typing import override
+from types import SimpleNamespace
 
 import pytest
 from harbor.agents.installed.base import BaseInstalledAgent, NonZeroAgentExitCodeError
 from harbor.environments.base import ExecResult
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
-from cortex_bench_harness.launcher.arm_resolution import ContainerFacts
-from cortex_bench_harness.launcher.arms import (
-    BackendUnsupportedForKindError,
+from cortex_bench_harness.launcher.production_session import (
+    ProductionServerSession,
+    ProductionSessionError,
 )
+from cortex_bench_harness.launcher.trial_admission import HarborTrialAdmissionError
 
 ARTIFACT_NAME = "cortex-agent-server-test.tgz"
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
-BACKEND_CLI_PATH = "/usr/local/bin/claude"
-BACKEND_CLI_VERSION = "1.2.3 (Claude Code)"
+BACKEND_CLI_PATH = "/usr/local/bin/pi"
+BACKEND_CLI_VERSION = "0.82.1"
 DIGEST = f"sha256:{'a' * 64}"
 INSTALL_COMMAND = (
     "set -o pipefail; npm install --global --prefix /installed-agent/npm "
@@ -33,15 +34,15 @@ INSTALL_COMMAND = (
 )
 VERIFY_COMMANDS = [
     "set -o pipefail; command -v cortex >/dev/null 2>&1",
-    "set -o pipefail; cortex agent-run --help >/dev/null",
+    "set -o pipefail; cortex-evidence-export --help >/dev/null",
 ]
 DISCOVERY_COMMANDS = [
     "set -o pipefail; npm ls --global --parseable --depth=0 "
     "--prefix /installed-agent/npm --cache /installed-agent/npm-cache "
     "--offline @cortex-agent/server",
-    f"set -o pipefail; test -x {BUNDLE_ROOT}/native/cortex-supervisor/dist/cortex-supervisor",
-    'set -o pipefail; realpath -- "$(command -v claude)"',
-    "set -o pipefail; claude --version",
+    f"set -o pipefail; test -f {BUNDLE_ROOT}/dist/entry/app.js",
+    'set -o pipefail; realpath -- "$(command -v pi)"',
+    "set -o pipefail; pi --version",
 ]
 VERSION_COMMAND = "set -o pipefail; cortex daemon --version"
 BUNDLE_ROOT_RESULT = 7
@@ -65,16 +66,29 @@ class FakeEnvironment:
         self.uploads.append((source_path, target_path))
 
 
+class FakeProxySession:
+    handle = SimpleNamespace(
+        trial_id="trial-install-only",
+        manifest_block={"schema_version": "cortex-bench-proxy-manifest/1"},
+    )
+
+    @staticmethod
+    def credential_block(seed: object) -> dict[str, str]:
+        return {
+            "proxy_base_url": "http://trial-install-only.proxy.invalid:49152",
+            "dummy_token_ref": "offline-token-handle",
+        }
+
+
 def ok(stdout: str | None = None) -> ExecResult:
     return ExecResult(stdout=stdout, return_code=0)
 
 
 def install_results() -> list[ExecResult]:
     return [
-        ok("/app\n"), ok("/app\n"), ok(), ok(), ok(),
-        ok(), ok(),
-        ok(f"{BUNDLE_ROOT}\n"), ok(),
-        ok(f"{BACKEND_CLI_PATH}\n"), ok(f"{BACKEND_CLI_VERSION}\n"),
+        ok("/app\n"), ok("/app\n"), ok(), ok(), ok(), ok(), ok(),
+        ok(f"{BUNDLE_ROOT}\n"), ok(), ok(f"{BACKEND_CLI_PATH}\n"),
+        ok(f"{BACKEND_CLI_VERSION}\n"),
     ]
 
 
@@ -103,29 +117,16 @@ def direct_arm() -> dict[str, object]:
     return {
         "schema_version": "cortex-benchmark-arm/2",
         "kind": "cortex", "name": "cortex-direct",
-        "backend": "claude", "provider": "anthropic", "model": "claude-sonnet",
-        "credential_capability": "claude-api-key",
+        "backend": "pi", "provider": "deepseek", "model": "deepseek-v4-flash",
+        "credential_capability": "pi-deepseek-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
             "max_thread_starts": 0, "max_parent_questions": 0, "max_task_depth": 0,
             "max_tasks": 0, "max_provider_requests": 8,
             "max_resident_agent_processes": 1, "max_cost_usd": "2.50",
-            "deadline_seconds": 90,
+            "deadline_seconds": 90, "max_output_tokens": 65536,
         },
     }
-
-
-def coder_review_arm() -> dict[str, object]:
-    value = direct_arm()
-    value["name"] = "cortex-coder-review"
-    value["orchestration"] = {
-        "mode": "coder-review", "coder_review_variant": "audit-retry",
-        "ask_manager": False,
-    }
-    limits = value["limits"]
-    assert isinstance(limits, dict)
-    value["limits"] = {**limits, "max_thread_starts": 1}
-    return value
 
 
 def trial_seed(overrides: dict[str, object] | None = None) -> dict[str, object]:
@@ -135,27 +136,29 @@ def trial_seed(overrides: dict[str, object] | None = None) -> dict[str, object]:
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
                  "image_digest": DIGEST},
         "profile_name": "benchmark", "paid_run": False,
-        "credential": {"upstream_base_url": "https://api.anthropic.com",
-                       "route_identity_host": "api.anthropic.com",
-                       "proxy_base_url": "http://trial-proxy.invalid",
+        "credential": {"upstream_base_url": "http://synthetic.invalid",
+                       "route_identity_host": "api.deepseek.com",
+                       "proxy_base_url": "http://trial-install-only.proxy.invalid",
                        "dummy_token_ref": "offline-token-handle"},
-        "model_alias_policy": None,
+        "model_alias_policy": {"policy": "exact"},
     }
     seed.update(overrides or {})
     return seed
 
 
 def make_agent(
-    tmp_path: Path,
-    *,
-    version: str = "0.1.0",
-    seed_overrides: dict[str, object] | None = None,
+    tmp_path: Path, *, version: str = "0.1.0",
+    seed_overrides: dict[str, object] | None = None, attach_proxy: bool = False,
 ) -> CortexBenchAgent:
-    return CortexBenchAgent(
+    agent = CortexBenchAgent(
         logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
         version=version, trial_seed=trial_seed(seed_overrides),
         manifest=manifest_seed(tmp_path),
     )
+    if attach_proxy:
+        agent._proxy_session = FakeProxySession()
+        agent._revoke_proxy = lambda: None
+    return agent
 
 
 def test_wrapper_is_real_harbor_installed_agent() -> None:
@@ -163,63 +166,91 @@ def test_wrapper_is_real_harbor_installed_agent() -> None:
     assert CortexBenchAgent.import_path().endswith(":CortexBenchAgent")
 
 
-def test_setup_installs_bundle_and_discovers_container_facts(tmp_path: Path) -> None:
+def test_setup_installs_attests_fresh_home_and_never_composes_standalone(
+    tmp_path: Path,
+) -> None:
     environment = FakeEnvironment(setup_results())
-    agent = make_agent(tmp_path)
+    agent = make_agent(tmp_path, attach_proxy=True)
 
     asyncio.run(agent.setup(environment))
 
     assert environment.calls == [
-        ("pwd", None),
-        ("realpath -- /app", None),
-        ("test -d /app", None),
+        ("pwd", None), ("realpath -- /app", None), ("test -d /app", None),
         ("[ -d /installed-agent ] || mkdir -p /installed-agent", "root"),
         (INSTALL_COMMAND, "root"),
         *((command, None) for command in VERIFY_COMMANDS),
         *((command, None) for command in DISCOVERY_COMMANDS),
         (VERSION_COMMAND, None),
     ]
-    # Uploaded from where the campaign pinned it. Nothing copies it into the trial's log dir,
-    # which is collected as trial output: `trial_assets` lifts the few files the model was given
-    # out of it instead of shipping 55.8 MB of bundle per trial.
+    assert all("agent-run" not in command for command, _ in environment.calls)
+    assert not (tmp_path / "agent/arm-resolution.json").exists()
     source = tmp_path / ARTIFACT_NAME
     assert environment.uploads == [(source, f"/installed-agent/{ARTIFACT_NAME}")]
-    assert not list((tmp_path / "agent").rglob("*.tgz"))
-    manifest = tmp_path / "artifacts/cortex-bench-harness-manifest.json"
-    assert manifest.is_file()
-    assert '"version": "2026.7.31"' in manifest.read_text()
-
-
-def test_setup_composes_the_resolution_from_the_discovered_facts(tmp_path: Path) -> None:
-    agent = make_agent(tmp_path)
-
-    asyncio.run(agent.setup(FakeEnvironment(setup_results())))
-
-    document = json.loads((tmp_path / "agent/arm-resolution.json").read_text())
-    parent = document["roles"]["parent"]
-    assert document["schema_version"] == "cortex-benchmark-arm-resolution/1"
-    assert document["cli_artifact"] == {
-        "path": BACKEND_CLI_PATH, "version": BACKEND_CLI_VERSION,
-    }
-    assert parent["system_prompt_path"] == (
-        f"{BUNDLE_ROOT}/defaults/prompts/systemPrompts/benchmark-direct.md"
+    manifest = json.loads(
+        (tmp_path / "artifacts/cortex-bench-harness-manifest.json").read_text()
     )
-    assert parent["plugin_dirs"] == [
-        f"{BUNDLE_ROOT}/defaults/plugins/cortex-common",
-        f"{BUNDLE_ROOT}/defaults/plugins/cortex-coder",
-    ]
-    assert parent["mcp_config_paths"] == []
+    assert manifest["cortex_cli"]["version"] == "2026.7.31"
+    attestation = json.loads(
+        (tmp_path / "artifacts/cortex-bench-launch-attestation.json").read_text()
+    )
+    assert attestation["capture_boundary"] == "launcher_pre_boot"
+    assert attestation["npm_artifact_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+    assert (tmp_path / "agent/production-cortex-home/config/profiles.json").is_file()
 
 
-def test_failed_install_does_not_publish_manifest(tmp_path: Path) -> None:
-    failed = ExecResult(stderr="corrupt artifact", return_code=1)
-    results = [ok("/app\n"), ok("/app\n"), ok(), ok(), failed]
-    environment = FakeEnvironment(results)
+def test_production_direct_requires_the_trial_scoped_proxy_before_setup(tmp_path: Path) -> None:
+    environment = FakeEnvironment([])
 
-    with pytest.raises(NonZeroAgentExitCodeError):
+    with pytest.raises(HarborTrialAdmissionError, match="proxy"):
         asyncio.run(make_agent(tmp_path).setup(environment))
 
+    assert environment.calls == []
+
+
+def test_setup_materializes_before_any_production_process_spawn(tmp_path: Path) -> None:
+    environment = FakeEnvironment(setup_results())
+    agent = make_agent(tmp_path, attach_proxy=True)
+
+    asyncio.run(agent.setup(environment))
+
+    assert (tmp_path / "artifacts/cortex-bench-launch-attestation.json").is_file()
+    assert not any(
+        command.startswith("set -o pipefail; node ") and "dist/entry/app.js" in command
+        for command, _ in environment.calls
+    )
+
+
+def test_direct_run_dispatches_the_production_session_not_agent_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment = FakeEnvironment(setup_results())
+    agent = make_agent(tmp_path, attach_proxy=True)
+    observed: list[str] = []
+
+    async def run_production(
+        self: ProductionServerSession, instruction: str, execute: object,
+    ) -> None:
+        observed.append(instruction)
+        self._stopped_cleanly = True
+
+    monkeypatch.setattr(ProductionServerSession, "run", run_production)
+    asyncio.run(agent.setup(environment))
+    asyncio.run(agent.run("Solve through production.", environment, None))
+
+    assert observed == ["Solve through production."]
+    assert agent.production_server_stopped is True
+    assert all("cortex agent-run" not in command for command, _ in environment.calls)
+
+
+def test_failed_install_does_not_publish_manifest_or_home(tmp_path: Path) -> None:
+    failed = ExecResult(stderr="corrupt artifact", return_code=1)
+    results = [ok("/app\n"), ok("/app\n"), ok(), ok(), failed]
+
+    with pytest.raises(NonZeroAgentExitCodeError):
+        asyncio.run(make_agent(tmp_path, attach_proxy=True).setup(FakeEnvironment(results)))
+
     assert not (tmp_path / "artifacts/cortex-bench-harness-manifest.json").exists()
+    assert not (tmp_path / "agent/production-cortex-home").exists()
 
 
 @pytest.mark.parametrize("failed_check", range(6))
@@ -229,84 +260,46 @@ def test_failed_verification_does_not_publish_manifest(
     failure = ExecResult(stderr=f"verification {failed_check} failed", return_code=1)
     results = install_results()[: 5 + failed_check]
     results.append(failure)
-    environment = FakeEnvironment(results)
 
     with pytest.raises(NonZeroAgentExitCodeError):
-        asyncio.run(make_agent(tmp_path).setup(environment))
+        asyncio.run(make_agent(tmp_path, attach_proxy=True).setup(FakeEnvironment(results)))
 
     assert not (tmp_path / "artifacts/cortex-bench-harness-manifest.json").exists()
-    assert not (tmp_path / "agent/arm-resolution.json").exists()
 
 
 @pytest.mark.parametrize(
     ("empty_probe", "message"),
     [
         (BUNDLE_ROOT_RESULT, "bundle root"),
-        (CLI_PATH_RESULT, "claude CLI path"),
-        (CLI_VERSION_RESULT, "claude CLI version"),
+        (CLI_PATH_RESULT, "pi CLI path"),
+        (CLI_VERSION_RESULT, "pi CLI version"),
     ],
 )
-def test_empty_container_fact_probe_fails_closed(
+def test_empty_installed_fact_probe_fails_closed(
     tmp_path: Path, empty_probe: int, message: str,
 ) -> None:
     results = install_results()
     results[empty_probe] = ok("\n")
 
     with pytest.raises(RuntimeError, match=message):
-        asyncio.run(make_agent(tmp_path).setup(FakeEnvironment(results)))
+        asyncio.run(make_agent(tmp_path, attach_proxy=True).setup(FakeEnvironment(results)))
 
     assert not (tmp_path / "artifacts/cortex-bench-harness-manifest.json").exists()
-    assert not (tmp_path / "agent/arm-resolution.json").exists()
 
 
 def test_failed_version_probe_does_not_publish_manifest(tmp_path: Path) -> None:
     failure = ExecResult(stderr="version probe failed", return_code=1)
-    results = [*install_results(), failure]
 
     with pytest.raises(NonZeroAgentExitCodeError):
-        asyncio.run(make_agent(tmp_path).setup(FakeEnvironment(results)))
+        asyncio.run(make_agent(tmp_path, attach_proxy=True).setup(
+            FakeEnvironment([*install_results(), failure])
+        ))
 
     assert not (tmp_path / "artifacts/cortex-bench-harness-manifest.json").exists()
-
-
-def test_empty_version_probe_does_not_publish_manifest(tmp_path: Path) -> None:
-    results = [*install_results(), ok("\n")]
-
-    with pytest.raises(RuntimeError, match="version"):
-        asyncio.run(make_agent(tmp_path).setup(FakeEnvironment(results)))
-
-    assert not (tmp_path / "artifacts/cortex-bench-harness-manifest.json").exists()
-
-
-def test_preview_argv_contains_resolved_cwd_and_arm_resolution(tmp_path: Path) -> None:
-    agent = make_agent(tmp_path)
-    asyncio.run(agent.setup(FakeEnvironment(setup_results())))
-
-    assert agent.preview_run_argv() == [
-        "cortex", "agent-run", "--prompt-file", "/logs/agent/instruction.md",
-        "--agent-slot", "parent", "--profile", "benchmark", "--cwd", "/app",
-        "--output-format", "jsonl", "--events-file",
-        "/logs/agent/trajectory/events.jsonl", "--trajectory-root",
-        "/logs/agent/trajectory", "--root-run-id", "root-install-only",
-        "--run-config", "/logs/agent/arm-resolution.json",
-        # The fixture arm's deadline_seconds of 90, in milliseconds. Without it the run is spawned
-        # with no deadline of its own and only Harbor's phase cut can end it, which publishes no
-        # terminal marker and leaves the trial ungradable.
-        "--deadline-ms", "90000",
-    ]
-    resolution = json.loads((tmp_path / "agent/arm-resolution.json").read_text())
-    assert resolution["root_run_id"] == "root-install-only"
-
-
-def test_preview_argv_requires_a_completed_setup(tmp_path: Path) -> None:
-    with pytest.raises(RuntimeError, match="setup"):
-        make_agent(tmp_path).preview_run_argv()
 
 
 def test_constructor_accepts_one_explicit_version_keyword(tmp_path: Path) -> None:
-    agent = make_agent(tmp_path, version="2026.8.3")
-
-    assert agent.version() == "2026.8.3"
+    assert make_agent(tmp_path, version="2026.8.3").version() == "2026.8.3"
 
 
 @pytest.mark.parametrize(
@@ -323,8 +316,7 @@ def test_constructor_rejects_trial_seed_binding_mismatch(
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("trial_id", "another-trial"),
-        ("arm", "another-arm"),
+        ("trial_id", "another-trial"), ("arm", "another-arm"),
         ("image_ref", f"registry.invalid/other@{DIGEST}"),
         ("image_digest", f"sha256:{'b' * 64}"),
     ],
@@ -342,200 +334,36 @@ def test_constructor_rejects_manifest_seed_binding_mismatch(
         )
 
 
-@pytest.mark.parametrize(
-    "launcher_owned",
-    ["schema_version", "roles", "thread_templates", "cli_artifact", "credential_capabilities"],
-)
-def test_constructor_rejects_launcher_owned_seed_fields(
-    tmp_path: Path, launcher_owned: str,
-) -> None:
-    with pytest.raises(ValueError, match=launcher_owned):
-        make_agent(tmp_path, seed_overrides={launcher_owned: {}})
-
-
-@pytest.mark.parametrize(
-    ("variant", "error_type", "reason"),
-    [
-        ("unknown-backend", BackendUnsupportedForKindError, "backend_unsupported_for_kind"),
-        ("vendor-baseline", ValueError, None),
-    ],
-)
-def test_public_constructor_refuses_uncomposable_seed_before_setup(
+def test_misaligned_pi_deepseek_direct_arm_never_falls_back_to_standalone(
     tmp_path: Path,
-    variant: str,
-    error_type: type[ValueError],
-    reason: str | None,
 ) -> None:
     arm = direct_arm()
-    arm["name"] = f"cortex-{variant}"
-    if variant == "unknown-backend":
-        arm["backend"] = variant
-    else:
-        arm.update({"kind": "vendor-baseline", "vendor_agent": "claude-code"})
-        arm.pop("backend")
-        arm.pop("orchestration")
-    seed = trial_seed({"arm": arm})
-    manifest = manifest_seed(tmp_path)
-    manifest["arm"] = arm["name"]
+    limits = dict(arm["limits"])
+    limits["max_output_tokens"] = 8192
+    arm["limits"] = limits
 
-    with pytest.raises(error_type) as error:
+    with pytest.raises(ProductionSessionError, match="PI/DeepSeek.*direct fallback"):
         CortexBenchAgent(
             logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
-            version="0.1.0", trial_seed=seed, manifest=manifest,
-        )
-
-    if reason is not None:
-        assert getattr(error.value, "reason") == reason
-
-
-def test_public_constructor_has_no_unsupported_seed_opt_out(tmp_path: Path) -> None:
-    # All declared orchestration modes compose; an undeclared backend remains a hard refusal even
-    # when the component-fixture-only hook is enabled.
-    arm = direct_arm()
-    arm["name"] = "cortex-unknown-backend"
-    arm["backend"] = "unknown-backend"
-    seed = trial_seed({"arm": arm})
-    manifest = manifest_seed(tmp_path)
-    manifest["arm"] = arm["name"]
-
-    with pytest.raises(BackendUnsupportedForKindError):
-        CortexBenchAgent(
-            logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
-            version="0.1.0", trial_seed=seed, manifest=manifest,
-            _allow_unsupported_fixture_seed=True,
+            trial_seed=trial_seed({"arm": arm}), manifest=manifest_seed(tmp_path),
         )
 
 
-class FixtureCompositionAgent(CortexBenchAgent):
-    """Component-fixture subclass: supplies its own document through the hook."""
-
-    _allow_unsupported_fixture_seed = True
-    fixture_document: dict[str, object] = {"schema_version": "component-fixture/1"}
-    observed_facts: ContainerFacts | None = None
-
-    @override
-    def _compose_arm_resolution(self, facts: ContainerFacts) -> dict[str, object]:
-        self.observed_facts = facts
-        return self.fixture_document
-
-
-def test_component_fixture_subclass_supplies_its_document_through_the_hook(
-    tmp_path: Path,
-) -> None:
-    manifest = manifest_seed(tmp_path)
-    manifest["arm"] = "cortex-coder-review"
-    agent = FixtureCompositionAgent(
+def test_nonproduction_arm_remains_on_the_legacy_path(tmp_path: Path) -> None:
+    arm = direct_arm()
+    arm.update({
+        "backend": "claude", "provider": "anthropic", "model": "claude-sonnet",
+        "credential_capability": "claude-api-key",
+    })
+    seed = trial_seed({"arm": arm})
+    environment = FakeEnvironment(setup_results())
+    agent = CortexBenchAgent(
         logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
-        manifest=manifest, trial_seed=trial_seed({"arm": coder_review_arm()}),
+        version="0.1.0", trial_seed=seed, manifest=manifest_seed(tmp_path),
     )
 
-    asyncio.run(agent.setup(FakeEnvironment(setup_results())))
-
-    assert json.loads((tmp_path / "agent/arm-resolution.json").read_text()) == {
-        "schema_version": "component-fixture/1",
-    }
-    assert agent.observed_facts == ContainerFacts(
-        BUNDLE_ROOT, BACKEND_CLI_PATH, BACKEND_CLI_VERSION,
-    )
-
-
-# --- the inner run's terminal marker bounds the wait ---------------------------------------------
-#
-# On 2026-08-13 a paid trial's inner run hit the proxy's `429 budget_exhausted`, published a
-# `failed`/`child_failure` terminal marker 32 seconds in, and then never returned from
-# `cortex agent-run`. Harbor bounds the agent phase only by the trial's wall clock, so the phase
-# ran to its 1800-second timeout and no outer envelope was ever published
-# (benchmark/campaigns/results/terminal-bench-2.1-deepseek-paid-2026-08-13.json).
-
-RUN_COMMAND = "cortex agent-run --prompt-file"
-TERMINAL_MARKER = {
-    "schema_version": "cortex-bench-manifest/1", "state": "failed",
-    "terminal_reason": "child_failure",
-}
-
-
-class NeverReturningRun(FakeEnvironment):
-    """Setup answers normally; the agent-run exec never returns, exactly as the paid trial's did.
-
-    `publish_marker` decides whether the inner run gets to say it is over before it wedges.
-    """
-
-    def __init__(
-        self, results: Sequence[ExecResult], marker_path: Path, *, publish_marker: bool,
-    ) -> None:
-        super().__init__(results)
-        self._marker_path = marker_path
-        self._publish_marker = publish_marker
-
-    @override
-    async def exec(self, command: str, **kwargs: object) -> ExecResult:
-        if RUN_COMMAND not in command:
-            return await super().exec(command, **kwargs)
-        self.calls.append((command, kwargs.get("user")))
-        if self._publish_marker:
-            self._marker_path.parent.mkdir(parents=True, exist_ok=True)
-            self._marker_path.write_text(json.dumps(TERMINAL_MARKER), encoding="utf-8")
-        await asyncio.Event().wait()
-        raise AssertionError("unreachable")
-
-
-def bounded_agent(tmp_path: Path) -> CortexBenchAgent:
-    agent = make_agent(tmp_path)
-    agent._inner_run_poll_seconds = 0.01
-    agent._inner_run_terminal_grace_seconds = 0.05
-    return agent
-
-
-def stalled_run(tmp_path: Path, *, publish_marker: bool) -> tuple[CortexBenchAgent, float]:
-    agent = bounded_agent(tmp_path)
-    environment = NeverReturningRun(
-        [*setup_results(), ok()], agent._terminal_marker_path(),
-        publish_marker=publish_marker,
-    )
     asyncio.run(agent.setup(environment))
 
-    async def drive() -> None:
-        await asyncio.wait_for(
-            agent.run("Solve the task.", environment, None), timeout=1)
-
-    started = time.monotonic()
-    asyncio.run(drive())
-    return agent, time.monotonic() - started
-
-
-def test_the_terminal_marker_is_the_file_host_finalization_reads(tmp_path: Path) -> None:
-    agent = make_agent(tmp_path)
-
-    assert agent._terminal_marker_path() == (
-        tmp_path / "agent" / "trajectory" / "run-root-install-only.terminal.json")
-
-
-def test_a_run_that_never_returns_and_never_terminates_is_waited_for(tmp_path: Path) -> None:
-    """The failure as it stood: with no terminal marker there is nothing but the trial's wall
-    clock to end the wait, which is how one refused request cost 1800 seconds."""
-    with pytest.raises(TimeoutError):
-        stalled_run(tmp_path, publish_marker=False)
-
-
-def test_a_terminal_marker_ends_the_wait_long_before_the_trial_deadline(tmp_path: Path) -> None:
-    agent, elapsed = stalled_run(tmp_path, publish_marker=True)
-
-    assert elapsed < 2
-    assert (tmp_path / "agent" / "stdout.txt").read_text() == ""
-    stall = (tmp_path / "agent" / "stderr.txt").read_text()
-    assert "run-root-install-only.terminal.json was published" in stall
-    assert "cortex agent-run` had not returned" in stall
-
-
-def test_a_run_that_returns_is_reported_from_its_own_streams(tmp_path: Path) -> None:
-    """The marker watch never shortens a healthy run: the exec's own result is what is written."""
-    agent = bounded_agent(tmp_path)
-    environment = FakeEnvironment([
-        *setup_results(), ok(), ExecResult(stdout="inner stdout", stderr="", return_code=0),
-    ])
-    asyncio.run(agent.setup(environment))
-
-    asyncio.run(agent.run("Solve the task.", environment, None))
-
-    assert (tmp_path / "agent" / "stdout.txt").read_text() == "inner stdout"
-    assert agent._inner_run_stall is None
+    assert any("cortex agent-run --help" in command for command, _ in environment.calls)
+    assert (tmp_path / "agent/arm-resolution.json").is_file()
+    assert not (tmp_path / "agent/production-cortex-home").exists()

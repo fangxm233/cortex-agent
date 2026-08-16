@@ -94,7 +94,9 @@ HOST_REDIRECT_ENVIRONMENT = {
 }
 SEALED_ENVIRONMENT_KEYS = {
     "PATH", "LANG", "CORTEX_HOME", "CORTEX_PROJECTS_DIR", "HOME",
-    "XDG_CACHE_HOME", "XDG_CONFIG_HOME",
+    "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "CORTEX_WEBHOOK_TOKEN",
+    "WEBHOOK_PORT", "CORTEX_TUI", "CORTEX_TUI_PORT",
+    "CORTEX_WEBHOOK_THREAD_OP_ONLY",
 }
 
 
@@ -133,6 +135,7 @@ def facts(tmp_path: Path) -> DirectArmLaunchFacts:
 def materialize(tmp_path: Path, environment: dict[str, str] | None = None):
     return materialize_direct_arm_home(
         cortex_home=tmp_path / "fresh-cortex-home",
+        runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
         artifacts_dir=tmp_path / "artifacts",
         facts=facts(tmp_path),
         inherited_environment=environment or {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
@@ -205,10 +208,17 @@ def test_materializes_without_host_home_and_scrubs_provider_and_chat_residue(tmp
     environment = result.process_environment
 
     assert environment["PATH"] == "/usr/bin:/bin"
-    assert environment["CORTEX_HOME"] == str(result.cortex_home)
-    projects = result.cortex_home / "context/projects"
-    assert environment["CORTEX_PROJECTS_DIR"] == str(projects)
-    assert environment["HOME"] == str(result.cortex_home / "home")
+    runtime_home = Path("/logs/agent/production-cortex-home")
+    assert environment["CORTEX_HOME"] == str(runtime_home)
+    assert environment["CORTEX_PROJECTS_DIR"] == str(runtime_home / "context/projects")
+    assert environment["HOME"] == str(runtime_home / "home")
+    assert environment["CORTEX_TUI"] == "1"
+    assert environment["WEBHOOK_PORT"] == "3001"
+    assert environment["CORTEX_TUI_PORT"] == "3003"
+    assert environment["CORTEX_WEBHOOK_THREAD_OP_ONLY"] == "1"
+    assert environment["CORTEX_WEBHOOK_TOKEN"] == hashlib.sha256(
+        b"trial-direct-001\x00trial-direct-001.cortex-direct\x00webhook"
+    ).hexdigest()
     assert not any(
         key.startswith((
             "SLACK_", "FEISHU_", "LARK_", "CLAUDE_CODE_OAUTH_",
@@ -271,6 +281,20 @@ def test_materialized_inputs_are_read_only_before_result_is_returned(tmp_path: P
     for path in result.cortex_home.rglob("*"):
         if path.is_file():
             assert stat.S_IMODE(path.stat().st_mode) == 0o444, path
+
+
+def test_immutable_bundle_directories_cannot_replace_attested_inputs(tmp_path: Path) -> None:
+    home = materialize(tmp_path).cortex_home
+
+    for relative in ("config", "prompts", "context", "home/.aistatus"):
+        root = home / relative
+        assert stat.S_IMODE(root.stat().st_mode) == 0o555
+        assert all(
+            stat.S_IMODE(path.stat().st_mode) == 0o555
+            for path in root.rglob("*") if path.is_dir()
+        )
+    assert stat.S_IMODE((home / "data").stat().st_mode) == 0o755
+    assert stat.S_IMODE((home / "home").stat().st_mode) == 0o755
 
 
 def test_attestation_is_the_last_materialization_write(

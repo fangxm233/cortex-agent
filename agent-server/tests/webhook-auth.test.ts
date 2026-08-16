@@ -1,5 +1,5 @@
 // input:  Node test runner + webhook createWebhookHandler auth gate
-// output: token-gate tests (401 without/with wrong token; pass with token; github exempt)
+// output: bearer and thread-op-only route confinement tests
 // pos:    Regression guard for the webhook HTTP bearer-token gate (no-Cloudflare auth model)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -94,6 +94,24 @@ test('POST /hook/ask-user-question without a token is rejected 401', async () =>
 test('an unknown route without a token is rejected 401 (does not leak 404)', async () => {
   const { statusCode } = await drive({ url: '/totally/unknown' });
   assert.equal(statusCode, 401);
+});
+
+test('thread-op-only mode refuses every broader webhook route', async () => {
+  process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY = '1';
+  try {
+    const refused = await drive({
+      method: 'POST', url: '/webhook/remote-command',
+      headers: { 'x-cortex-token': TOKEN }, body: { device: 'x', action: 'bash' },
+    });
+    assert.equal(refused.statusCode, 403);
+    const admitted = await drive({
+      method: 'POST', url: '/webhook/thread-op',
+      headers: { 'x-cortex-token': TOKEN }, body: { action: 'list' },
+    });
+    assert.equal(admitted.statusCode, 200);
+  } finally {
+    delete process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY;
+  }
 });
 
 test('POST /webhook/github is exempt from the token gate (uses HMAC instead)', async () => {

@@ -97,7 +97,7 @@ arms:
       max_resident_agent_processes: 1
       max_cost_usd: "2.00"
       deadline_seconds: 1800
-      max_output_tokens: 32768
+      max_output_tokens: 65536
 
 tasks:
   - task_id: zero-paid-one

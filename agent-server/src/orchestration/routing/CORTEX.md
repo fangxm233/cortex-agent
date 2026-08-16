@@ -11,4 +11,4 @@ Covers chat messages, message edits, file attachments, agent hook requests and H
 | hook-bridge.ts | core | pairs hook requests with replies and blocking TTL |
 | hook-bridge-subscribers.ts | handlers | posts question and plan requests to users |
 | message-router.ts | entry | normalizes mentions and routes chat commands |
-| webhook.ts | entry | serves routed thread, Q&A and hook requests |
+| webhook.ts | entry | serves confined thread roots, Q&A and hooks |

@@ -1,4 +1,4 @@
-# input:  committed direct bundle, explicit launcher facts and environment
+# input:  direct bundle, launcher facts, host and runtime paths
 # output: sealed fresh home, launch attestation and production evidence context
 # pos:    Pre-boot materializer for the production direct benchmark arm
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -188,19 +188,27 @@ def _is_residue(key: str) -> bool:
     return key.startswith(RESIDUE_PREFIXES) or key.endswith(RESIDUE_SUFFIXES)
 
 
+def _webhook_token(trial_id: str, root_run_id: str) -> str:
+    payload = f"{trial_id}\0{root_run_id}\0webhook".encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
 def _sealed_environment(
-    source: Mapping[str, str], cortex_home: Path,
+    source: Mapping[str, str], runtime_home: Path, facts: DirectArmLaunchFacts,
 ) -> Mapping[str, str]:
     environment = {
         key: source[key] for key in INHERITED_KEYS
         if isinstance(source.get(key), str)
     }
     environment.update({
-        "CORTEX_HOME": str(cortex_home),
-        "CORTEX_PROJECTS_DIR": str(cortex_home / "context/projects"),
-        "HOME": str(cortex_home / "home"),
-        "XDG_CACHE_HOME": str(cortex_home / "home/.cache"),
-        "XDG_CONFIG_HOME": str(cortex_home / "home/.config"),
+        "CORTEX_HOME": str(runtime_home),
+        "CORTEX_PROJECTS_DIR": str(runtime_home / "context/projects"),
+        "HOME": str(runtime_home / "home"),
+        "XDG_CACHE_HOME": str(runtime_home / "home/.cache"),
+        "XDG_CONFIG_HOME": str(runtime_home / "home/.config"),
+        "CORTEX_WEBHOOK_TOKEN": _webhook_token(facts.trial_id, facts.root_run_id),
+        "CORTEX_WEBHOOK_THREAD_OP_ONLY": "1", "WEBHOOK_PORT": "3001",
+        "CORTEX_TUI": "1", "CORTEX_TUI_PORT": "3003",
     })
     if any(_is_residue(key) for key in environment):
         raise ProductionHomeError("provider or chat residue survived environment sealing")
@@ -211,6 +219,12 @@ def _make_read_only(root: Path) -> None:
     for path in root.rglob("*"):
         if path.is_file():
             path.chmod(0o444)
+    for relative in ("config", "prompts", "context", "home/.aistatus"):
+        immutable = root / relative
+        for path in sorted(immutable.rglob("*"), reverse=True):
+            if path.is_dir():
+                path.chmod(0o555)
+        immutable.chmod(0o555)
 
 
 def _sha256_file(path: Path) -> str:
@@ -290,27 +304,33 @@ def _validate_destinations(cortex_home: Path, attestation_path: Path) -> None:
         raise ProductionHomeError(f"launch attestation already exists: {attestation_path}")
 
 
+def _runtime_home(value: Path | None, local_home: Path) -> Path:
+    runtime_home = Path(value) if value is not None else local_home
+    if not runtime_home.is_absolute():
+        raise ProductionHomeError("runtime CORTEX_HOME must be absolute")
+    return runtime_home
+
+
 def materialize_direct_arm_home(
     *, cortex_home: Path, artifacts_dir: Path, facts: DirectArmLaunchFacts,
-    inherited_environment: Mapping[str, str],
+    inherited_environment: Mapping[str, str], runtime_cortex_home: Path | None = None,
 ) -> MaterializedProductionHome:
     home = Path(cortex_home).resolve()
+    runtime_home = _runtime_home(runtime_cortex_home, home)
     attestation_path = Path(artifacts_dir).resolve() / LAUNCH_ATTESTATION_FILENAME
     _validate_destinations(home, attestation_path)
     proxy_base_url = _validate_facts(facts)
     bundle = _snapshot_tree(DIRECT_ARM_BUNDLE_DIR)
-    environment = _sealed_environment(inherited_environment, home)
+    environment = _sealed_environment(inherited_environment, runtime_home, facts)
     _copy_snapshot(bundle, home)
     _write_dynamic_inputs(home, proxy_base_url, facts.dummy_token_ref)
     _make_read_only(home)
     home_sha256, home_count = _digest_tree(home)
     npm_sha256 = _sha256_file(facts.npm_artifact)
     manifest_hash = _bundle_manifest_hash(
-        npm_sha256, facts.backend_cli_version, bundle.sha256,
-    )
+        npm_sha256, facts.backend_cli_version, bundle.sha256)
     attestation = _launch_attestation(
-        facts, npm_sha256, bundle, home_sha256, home_count, manifest_hash,
-    )
+        facts, npm_sha256, bundle, home_sha256, home_count, manifest_hash)
     _write_json_atomic(attestation_path, attestation)
     return MaterializedProductionHome(
         cortex_home=home, process_environment=environment,
