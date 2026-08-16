@@ -12,6 +12,7 @@ Launcher tests cover arm routing, credential projections, and vendor isolation.
 | test_capability_evidence.py | test | Proves schema migration, evidence binding and manifest validity |
 | test_capability_state_gate.py | test | Proves an unadmitted row never reaches an armed route |
 | test_comparison_report.py | test | Verifies campaign pins and comparison semantics |
+| test_container_stop_observation.py | test | Proves stop/wait process and namespace census |
 | test_credential_capabilities.py | test | Verifies non-secret capability projections |
 | test_deepseek_paid_smoke.py | test | Proves exact paid contract and vault cleanup |
 | test_host_credential_vault.py | test | Proves consume-once host credential transfer |
@@ -23,7 +24,7 @@ Launcher tests cover arm routing, credential projections, and vendor isolation.
 | test_public_entry_parity.py | test | Proves seed-only composition through the shipped loader |
 | test_thread_policy.py | test | Verifies the composed in-trial thread-policy document and its file |
 | test_trial_admission.py | test | Proves sealed admission and host scan reference safety |
-| test_trial_admission_container.py | test | Proves concurrent production trial isolation in Docker |
+| test_trial_admission_container.py | test | Proves admitted isolation and post-stop evidence in Docker |
 | fake_containment_claude.mjs | fixture | Probes sibling state, process and route denial |
 | test_trial_proxy_wiring.py | test | Proves declared-envelope refusals, final accounting and handler-free revocation |
 | test_variant_role_sets.py | test | Verifies both coder-review variant role sets on both backends |

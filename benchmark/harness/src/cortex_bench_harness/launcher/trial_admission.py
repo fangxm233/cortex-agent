@@ -1,5 +1,5 @@
 # input:  trial seed, task/config, proxy and host scan policy
-# output: sealed TrialConfig, redacted evidence and Docker boundary
+# output: sealed launch and post-stop finalization lifecycle
 # pos:    Production Harbor container admission boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -38,6 +38,7 @@ from harbor.models.trial.config import (
 from harbor.models.trial.paths import EnvironmentPaths, TrialPaths
 from harbor.trial.trial import Trial
 
+from ..container_boundary import ContainerBoundaryProbe
 from .arm_resolution import TrialSeed, parse_trial_seed
 from .host_credential_vault import HOST_CREDENTIAL_VAULT
 from .arms import arm_backend, build_agent_config, require_pinned_image
@@ -849,12 +850,51 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             self._revoke_proxy()
             raise
 
+    def _container_boundary_probe(self) -> ContainerBoundaryProbe:
+        return ContainerBoundaryProbe()
+
+    async def _main_container_id(self) -> str:
+        result = await self._run_docker_compose_command(["ps", "--quiet", "main"])
+        values = (result.stdout or "").splitlines()
+        if len(values) != 1 or re.fullmatch(r"[a-f0-9]{64}", values[0]) is None:
+            raise HarborTrialAdmissionError("trial container identity is unobservable")
+        return values[0]
+
+    async def _finalize_after_container_stop(self) -> None:
+        controller = self._proxy_controller
+        if controller is None or not getattr(controller, "post_stop_finalization_pending", False):
+            return
+        try:
+            container_id = await self._main_container_id()
+            probe = self._container_boundary_probe()
+            census = await probe.capture(container_id)
+            await self._run_docker_compose_command(["stop"])
+            observation = await probe.observe_after_stop(census)
+        except BaseException as error:
+            try:
+                controller.finalize_after_container_stop(None)
+            except BaseException as boundary_error:
+                raise boundary_error from error
+            raise
+        controller.finalize_after_container_stop(observation)
+
     @override
     async def stop(self, delete: bool) -> None:
+        failure: BaseException | None = None
+        try:
+            await self._finalize_after_container_stop()
+        except BaseException as error:
+            failure = error
         try:
             await super().stop(delete=delete)
+        except BaseException as cleanup_error:
+            if failure is not None:
+                raise failure from cleanup_error
+            raise
         finally:
             self._revoke_proxy()
+        if failure is not None:
+            raise failure
 
     @override
     async def exec(
