@@ -22,6 +22,7 @@ import type {
   HookResult,
   HookContext,
   RunThreadOptions,
+  ThreadRecord,
 } from '@core/types/thread-types.js';
 
 const log = createLogger('thread-hook');
@@ -81,6 +82,23 @@ function asHookResult(emitted: HookEmitResult): HookResult | null {
     ...value,
     insertAgent: typeof value.insertAgent === 'boolean' ? value.insertAgent : false,
   } as HookResult;
+}
+
+/** The Cortex execution context a hook-agent turn must carry so its subprocess env matches a
+ *  normal thread step. Omitting it strips CORTEX_THREAD_ID / CORTEX_TASK_ID from the turn, so a
+ *  task created inside a hook records a session-style origin (the dispatch conduit) instead of
+ *  its thread, and its completion callback wakes a context-less session on that conduit. */
+function hookAgentContext(thread: ThreadRecord, executionId: string, trackSessionId: string | null) {
+  const meta = thread.metadata;
+  return {
+    threadId: thread.id,
+    threadDepth: meta?.depth ?? 0,
+    taskId: meta?.taskId ?? null,
+    taskProject: meta?.taskProject ?? null,
+    taskGeneration: meta?.dispatchGeneration ?? null,
+    executionId,
+    trackSessionId,
+  };
 }
 
 /** Run a hook agent and record it as a step in the thread.
@@ -177,6 +195,7 @@ async function runHookAgent(
     profileName,
     project: thread.projectId,
     trigger: meta?.trigger || undefined,
+    ...hookAgentContext(thread, execution.id, trackSessionId),
     onFallback: null,
     isUserInitiated: false,
     onAssistantMessage: (text: string) => {

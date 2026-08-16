@@ -445,6 +445,34 @@ test('template-scoped onEnd HookResult targets the existing agent session', asyn
   assert.equal(threadStore.get(thread.id)?.steps.at(-1)?.agentSlotId, 'alpha');
 });
 
+test('hook agent turn carries the thread Cortex execution context', async () => {
+  setScopedEndHook({ insertAgent: false, targetAgent: 'alpha', prompt: 'contextual follow-up' });
+  const thread = createTestThread('scoped', {
+    trigger: 'task-dispatch',
+    taskId: 'a7b8',
+    taskProject: 'orchard',
+    dispatchGeneration: 'gen-7',
+    depth: 2,
+  });
+  queueAgentResult(result('backend-alpha'));
+  queueAgentResult(result('backend-target'));
+
+  await runThread(thread.id, makeOptions(thread.channel));
+
+  const hookOptions = agent.runAgent.mock.calls[1][1];
+  assert.equal(hookOptions.threadId, thread.id);
+  assert.equal(hookOptions.threadDepth, 2);
+  assert.equal(hookOptions.taskId, 'a7b8');
+  assert.equal(hookOptions.taskProject, 'orchard');
+  assert.equal(hookOptions.taskGeneration, 'gen-7');
+  assert.equal(typeof hookOptions.executionId, 'string');
+  assert.ok(hookOptions.executionId.length > 0);
+  // The hook resumes alpha's session, so its turn must be tracked under alpha's Cortex track id
+  // (steps[0].sessionId), not the backend `--resume` id it also passes as sessionId.
+  assert.equal(hookOptions.sessionId, 'backend-alpha');
+  assert.equal(hookOptions.trackSessionId, threadStore.get(thread.id)?.steps[0]?.sessionId);
+});
+
 test('template-scoped onEnd does not leak to another template', async () => {
   setScopedEndHook({ insertAgent: true, prompt: 'must stay scoped' });
   const thread = createTestThread('suspend');
