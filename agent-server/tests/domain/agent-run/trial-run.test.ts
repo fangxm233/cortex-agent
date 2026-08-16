@@ -1,4 +1,4 @@
-// input:  standalone guards and durable production attempts
+// input:  package bins, standalone guards and production attempts
 // output: refusal guards and 19 production evidence cases
 // pos:    Claude run guards and production v2 boundary matrix
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -468,7 +468,9 @@ it('G4-PB6: trajectory-merge-cli is NOT promoted to a bin, and F8 spawns no CLI 
   // One production writer, one publication: a second route to the same publication turns the
   // `output_path_exists` hard failure into a race.
   const pkg = JSON.parse(fs.readFileSync(path.join(installRoot, 'package.json'), 'utf8'));
-  assert.deepEqual(Object.keys(pkg.bin), ['cortex', 'cortex-hook', 'cortex-run', 'cortex-task']);
+  assert.deepEqual(Object.keys(pkg.bin), [
+    'cortex', 'cortex-evidence-export', 'cortex-hook', 'cortex-run', 'cortex-task',
+  ]);
   assert.equal(JSON.stringify(pkg.bin).includes('trajectory-merge'), false);
   // G4-PB5: the publication path contains no spawn. F8 runs after F2 has proven quiescence, so a
   // Node subprocess here would falsify the very evidence §9.4 G2 publishes.
