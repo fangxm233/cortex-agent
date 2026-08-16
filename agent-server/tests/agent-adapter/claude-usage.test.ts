@@ -159,6 +159,32 @@ test('surfaces correlated Claude control errors and cleans up the process', asyn
   assert.deepEqual(child.killSignals, ['SIGKILL']);
 });
 
+test('cleans up when writing the control request throws synchronously', async () => {
+  const { child, spawn } = harness();
+  child.stdin.write = (() => { throw new Error('stdin write failed'); }) as typeof child.stdin.write;
+
+  const pending = collectClaudeUsage(
+    { provider: 'anthropic', mode: 'plan' },
+    { spawn, requestId: () => 'usage-write-throw' },
+  );
+
+  await assert.rejects(pending, /stdin write failed/);
+  assert.deepEqual(child.killSignals, ['SIGKILL']);
+});
+
+test('surfaces stdin pipe errors and cleans up the process', async () => {
+  const { child, spawn } = harness();
+  const pending = collectClaudeUsage(
+    { provider: 'anthropic', mode: 'plan' },
+    { spawn, requestId: () => 'usage-stdin-error' },
+  );
+
+  child.stdin.emit('error', new Error('stdin pipe failed'));
+
+  await assert.rejects(pending, /stdin pipe failed/);
+  assert.deepEqual(child.killSignals, ['SIGKILL']);
+});
+
 test('surfaces malformed correlated responses and early process exits', async () => {
   const malformedHarness = harness();
   const malformed = collectClaudeUsage(
