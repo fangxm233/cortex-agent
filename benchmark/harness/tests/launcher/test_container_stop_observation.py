@@ -48,7 +48,7 @@ class ScriptedRunner:
         return values.pop(0)
 
 
-def state(*, running: bool, pid: int, status: str, exit_code: int) -> str:
+def state(*, running: bool, pid: object, status: str, exit_code: int) -> str:
     return json.dumps({
         "Status": status, "ExitCode": exit_code, "Running": running, "Pid": pid,
     })
@@ -118,6 +118,27 @@ def test_unobservable_container_exit_code_fails_closed(tmp_path: Path) -> None:
     write_process(proc_root, 102, 1002)
     commands = runner()
     commands.responses[WAIT] = [ExecResult(return_code=1, stderr="wait unavailable")]
+    probe = ContainerBoundaryProbe(commands, proc_root=proc_root)
+    census = capture(probe)
+    shutil.rmtree(proc_root / "101")
+    shutil.rmtree(proc_root / "102")
+
+    with pytest.raises(ContainerBoundaryUnproven):
+        observe(probe, census)
+
+
+@pytest.mark.parametrize("pid", [False, 0.0])
+def test_non_integer_zero_pid_is_not_positive_exit_evidence(
+    tmp_path: Path, pid: object,
+) -> None:
+    proc_root = tmp_path / "proc"
+    write_process(proc_root, 101, 1001)
+    write_process(proc_root, 102, 1002)
+    commands = runner()
+    commands.responses[INSPECT][1] = ExecResult(
+        stdout=state(running=False, pid=pid, status="exited", exit_code=17),
+        return_code=0,
+    )
     probe = ContainerBoundaryProbe(commands, proc_root=proc_root)
     census = capture(probe)
     shutil.rmtree(proc_root / "101")

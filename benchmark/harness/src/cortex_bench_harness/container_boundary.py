@@ -182,11 +182,13 @@ def _parse_exit_code(value: str | None) -> int:
 
 def _require_exited_state(state: Mapping[str, object], waited_exit_code: int) -> None:
     exit_code = state.get("ExitCode")
+    pid = state.get("Pid")
     valid = (
         set(("Status", "ExitCode", "Running", "Pid")) <= set(state)
         and state.get("Status") == "exited" and state.get("Running") is False
-        and state.get("Pid") == 0 and isinstance(exit_code, int)
-        and not isinstance(exit_code, bool) and exit_code == waited_exit_code
+        and isinstance(pid, int) and not isinstance(pid, bool) and pid == 0
+        and isinstance(exit_code, int) and not isinstance(exit_code, bool)
+        and exit_code == waited_exit_code
     )
     if not valid:
         raise ContainerBoundaryUnproven("post-stop Docker state is unproven")
