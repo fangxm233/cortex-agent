@@ -30,7 +30,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | runtime-env.ts | config | excludes file-only metadata from runtime env |
 | running-executions.ts | state | registers and kills live agent executions |
 | settings-migration.ts | config | safely migrates legacy env settings at startup |
-| settings-spec.ts | config | defines settings, usage attribution and job defaults |
+| settings-spec.ts | config | defines settings, usage collection and job defaults |
 | settings.ts | config | reloads runtime settings with polling fallback |
 | singleton-lock.ts | util | creates, claims and releases a process pidfile |
 | status-format.ts | util | formats status and progress messages |

@@ -24,6 +24,8 @@ export interface Settings {
   threadMaxDepth: number;
   taskArtifactTemplates: string[];
   anthropicSubscriptionModes: string[];
+  providerUsageCollectionEnabled: boolean;
+  providerUsageCollectionIntervalMs: number;
   taskDispatchMaxConcurrent: number | null;
   taskDispatchEnabled: boolean;
   taskDispatchIntervalMs: number;
@@ -204,6 +206,15 @@ export const SETTINGS_SPEC = {
   anthropicSubscriptionModes: {
     type: 'string[]',
     default: ['plan'],
+  },
+  providerUsageCollectionEnabled: {
+    type: 'boolean',
+    default: true,
+  },
+  providerUsageCollectionIntervalMs: {
+    type: 'number',
+    default: 5 * 60 * 1000,
+    validate: validateJobInterval,
   },
   taskDispatchMaxConcurrent: {
     envVar: 'TASK_DISPATCH_MAX_CONCURRENT',
