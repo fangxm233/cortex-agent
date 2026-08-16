@@ -7,7 +7,7 @@ import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { beforeEach, it } from 'vitest';
+import { beforeEach, it, vi } from 'vitest';
 
 import { PROJECTS_DIR } from '../../../src/core/paths.js';
 import {
@@ -145,4 +145,26 @@ it('records rejection and the correlated replacement attempt without changing le
     replacement_thread_id: 'thr_child_2',
     rework_round: 1,
   });
+});
+
+it('delivery without a dispatch fact is skipped, not crashed', async () => {
+  // A child completed outside the builtin dispatcher (e.g. a machine run) has no
+  // dispatch fact; the topology recorder must skip the delivery fact silently,
+  // not null-dereference the missing dispatch entry.
+  const warnSpy = vi.spyOn(console, 'warn');
+  const deliverable = await recordDelivered(project, PARENT, CHILD, 'completed', {
+    parentThreadId: 'thr_manager',
+  });
+  const warns = warnSpy.mock.calls.map((args) => args.map(String).join(' '));
+  warnSpy.mockRestore();
+  assert.equal(deliverable, true);
+  assert.equal(readLedger(project, PARENT).children[CHILD].verdict, 'pending');
+  assert.deepEqual(
+    readProductionTopologyFacts({ project, kinds: ['delivery'] }),
+    [],
+  );
+  assert.equal(
+    warns.some((line) => line.includes('topology ledger delivery record failed')),
+    false,
+  );
 });

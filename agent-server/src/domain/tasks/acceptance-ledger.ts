@@ -96,7 +96,7 @@ function recordDeliveryTopology(
   const dispatch = latestDispatchFact(project, childTaskId);
   const childThreadId = context.childThreadId ?? dispatch?.thread_id;
   const generation = context.childDispatchGeneration
-    ?? (dispatch?.thread_id === childThreadId ? dispatch.dispatch_generation : null);
+    ?? (dispatch && dispatch.thread_id === childThreadId ? dispatch.dispatch_generation : null);
   if (!childThreadId || !generation) return;
   if (existing?.verdict === 'rejected') {
     const rejected = latestRejectedVerdict(project, parentTaskId, childTaskId);
