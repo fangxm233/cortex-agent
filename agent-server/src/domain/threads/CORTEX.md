@@ -17,7 +17,7 @@ Consumed by the orchestration and UI layers through the index barrel.
 | prompt-builder.ts | build | assembles prompts and resolves canonical tool gates |
 | pending-user-inputs.ts | state | gates asynchronous buffered-input preparation |
 | state-machine.ts | state | drives lifecycle against scoped thread state |
-| runner.ts | runtime | Runs scoped steps with gated persisted spawn identity |
+| runner.ts | runtime | Runs scoped steps with persisted evidence identity |
 | local-runtime-deps.ts | runtime | Declares the injected port bundle and fails closed off-scope |
 | local-runtime-defaults.ts | runtime | Builds the daemon-side defaults for that bundle |
 | local-runtime-scope.ts | runtime | Propagates local event policy across async callbacks |

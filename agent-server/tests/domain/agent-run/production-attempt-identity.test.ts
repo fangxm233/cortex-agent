@@ -13,6 +13,7 @@ import type {
   AgentAdapter, AgentProcess, AgentSpawnConfig, Backend,
 } from '../../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
 import {
   computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
 } from '../../../src/domain/agent-run/identity.js';
@@ -23,15 +24,17 @@ import {
 } from '../../../src/domain/agent-run/production-attempt-identity.js';
 import { roleSurfaceFromSpawnConfig } from '../../../src/domain/agent-run/role-surface.js';
 import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
-import { _test as facadeTest } from '../../../src/domain/agents/facade.js';
+import { _test as rawFacadeTest } from '../../../src/domain/agents/facade.js';
 
 const SHA = 'a'.repeat(64);
 let root: string;
 let revision: { profiles: number; threads: number };
+let activeEvidence: ProductionBenchmarkEvidenceContext | null;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-attempt-identity-'));
   revision = { profiles: 1, threads: 1 };
+  activeEvidence = null;
   resetProductionAttemptIdentity();
 });
 
@@ -40,18 +43,16 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-function inputPath(): string {
-  return path.join(root, 'config', 'benchmark-attempt-identity.json');
-}
-
 function storePath(): string {
   return path.join(root, 'data', 'benchmark-attempt-identities.jsonl');
 }
 
-function writeInput(backend: Backend, maxOutputTokens: number | null = null): void {
-  fs.mkdirSync(path.dirname(inputPath()), { recursive: true });
-  fs.writeFileSync(inputPath(), `${JSON.stringify({
-    schema_version: 'cortex-production-attempt-identity-input/1',
+function evidence(
+  backend: Backend,
+  maxOutputTokens: number | null = null,
+): ProductionBenchmarkEvidenceContext {
+  return {
+    schema_version: 'cortex-production-benchmark-evidence-context/1',
     trial_id: 'trial-production-1',
     root_run_id: 'root-production-1',
     bundle_manifest_hash: SHA,
@@ -61,14 +62,28 @@ function writeInput(backend: Backend, maxOutputTokens: number | null = null): vo
       cli_version: backend === 'claude' ? 'claude-fixture-1' : 'pi-fixture-1',
       max_output_tokens: maxOutputTokens,
     },
-  }, null, 2)}\n`);
+  };
 }
 
+const facadeTest = {
+  ...rawFacadeTest,
+  runWithAdapter: (
+    adapterValue: Parameters<typeof rawFacadeTest.runWithAdapter>[0],
+    message: string,
+    options: Parameters<typeof rawFacadeTest.runWithAdapter>[2],
+    config: Parameters<typeof rawFacadeTest.runWithAdapter>[3],
+    baseUrl: Parameters<typeof rawFacadeTest.runWithAdapter>[4],
+  ) => rawFacadeTest.runWithAdapter(adapterValue, message, {
+    ...options,
+    productionBenchmarkEvidenceContext:
+      options.productionBenchmarkEvidenceContext ?? activeEvidence,
+  }, config, baseUrl),
+};
+
 function initialize(backend: Backend, maxOutputTokens: number | null = null): void {
-  writeInput(backend, maxOutputTokens);
+  activeEvidence = evidence(backend, maxOutputTokens);
   initializeProductionAttemptIdentity({
-    inputPath: inputPath(), storePath: storePath(),
-    configurationRevision: () => ({ ...revision }),
+    storePath: storePath(), configurationRevision: () => ({ ...revision }),
   });
 }
 
@@ -101,11 +116,17 @@ function process(): AgentProcess {
   };
 }
 
-function adapter(backend: Backend, spawns: AgentSpawnConfig[]): AgentAdapter {
+function adapter(
+  backend: Backend,
+  spawns: AgentSpawnConfig[],
+  requireIdentity = true,
+): AgentAdapter {
   return {
     backend, capabilities: new Set(),
     spawn(config) {
-      assert.ok(fs.existsSync(storePath()), 'identity must be durable before adapter.spawn');
+      if (requireIdentity) {
+        assert.ok(fs.existsSync(storePath()), 'identity must be durable before adapter.spawn');
+      }
       spawns.push(config);
       return process();
     },
@@ -201,8 +222,7 @@ for (const backend of ['claude', 'pi'] as const) {
 
       resetProductionAttemptIdentity();
       initializeProductionAttemptIdentity({
-        inputPath: inputPath(), storePath: storePath(),
-        configurationRevision: () => ({ ...revision }),
+        storePath: storePath(), configurationRevision: () => ({ ...revision }),
       });
       assert.deepEqual(getProductionAttemptIdentity(executionId), record);
     });
@@ -231,7 +251,7 @@ test('binds every execution to a unique attempt and the persisted first root exe
   await run('exec-root-first', 'thr-root', 'thr-root');
   resetProductionAttemptIdentity();
   initializeProductionAttemptIdentity({
-    inputPath: inputPath(), storePath: storePath(), configurationRevision: () => ({ ...revision }),
+    storePath: storePath(), configurationRevision: () => ({ ...revision }),
   });
   await run('exec-root-review', 'thr-root', 'thr-root');
   await run('exec-child', 'thr-child', 'thr-root');
@@ -263,13 +283,13 @@ test('fails closed when a child attempt arrives before the production root attem
   }, 'http://proxy.invalid'), /root attempt|root execution/i);
 });
 
-test('fails closed for a production benchmark template when launcher identity input is absent', () => {
-  initializeProductionAttemptIdentity({ inputPath: inputPath(), storePath: storePath() });
+test('keeps production identity observability absent without typed evidence context', async () => {
+  initializeProductionAttemptIdentity({ storePath: storePath() });
   const resolvedProfile = profile('claude');
   const spawns: AgentSpawnConfig[] = [];
-  assert.throws(() => facadeTest.runWithAdapter(adapter('claude', spawns), 'x', {
-    executionId: 'exec-missing-launcher', threadId: 'thr-missing-launcher',
-    rootThreadId: 'thr-missing-launcher', parentThreadId: null, taskId: null,
+  await facadeTest.runWithAdapter(adapter('claude', spawns, false), 'x', {
+    executionId: 'exec-without-context', threadId: 'thr-without-context',
+    rootThreadId: 'thr-without-context', parentThreadId: null, taskId: null,
     taskGeneration: null, templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct',
     stage: null, profileName: resolvedProfile.name, resolvedProfileConfig: resolvedProfile,
     identityDirective: '', tools: 'Read', pluginDirs: [], mcpComposition: 'none',
@@ -278,8 +298,9 @@ test('fails closed for a production benchmark template when launcher identity in
     model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
     provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
     thinking: resolvedProfile.thinking,
-  }, 'http://proxy.invalid'), /launcher identity input|identity input.*missing/i);
-  assert.equal(spawns.length, 0);
+  }, 'http://proxy.invalid').promise;
+  assert.equal(getProductionAttemptIdentity('exec-without-context'), null);
+  assert.equal(spawns.length, 1);
 });
 
 test('fails closed before spawn for fallback profiles, missing identity inputs, and hot reload drift', () => {
@@ -472,44 +493,37 @@ test('refuses reuse of an execution identity with a changed resolved spawn surfa
   ).promise;
   assert.throws(() => facadeTest.runWithAdapter(
     adapter('claude', spawns), 'x', { ...options, tools: 'Write' }, config, 'http://proxy.invalid',
-  ), /identity changed/i);
+  ), /identity changed|baseline.*drift/i);
   assert.equal(spawns.length, 1);
 });
 
 test('rejects incomplete persisted identity records on reload', () => {
-  writeInput('claude');
   fs.mkdirSync(path.dirname(storePath()), { recursive: true });
   fs.writeFileSync(storePath(), `${JSON.stringify({
     schema_version: 'cortex-production-attempt-identity/1',
     execution_id: 'exec-incomplete', attempt_id: 'attempt-exec-incomplete',
   })}\n`);
   assert.throws(() => initializeProductionAttemptIdentity({
-    inputPath: inputPath(), storePath: storePath(),
-    configurationRevision: () => ({ ...revision }),
+    storePath: storePath(), configurationRevision: () => ({ ...revision }),
   }), /store invalid/i);
 });
 
-test('rejects malformed or mutable launcher identity input', () => {
-  fs.mkdirSync(path.dirname(inputPath()), { recursive: true });
-  fs.writeFileSync(inputPath(), '{"schema_version":"cortex-production-attempt-identity-input/1"}\n');
-  assert.throws(() => initializeProductionAttemptIdentity({
-    inputPath: inputPath(), storePath: storePath(),
-    configurationRevision: () => ({ ...revision }),
-  }), /trial_id|identity input/i);
-
-  resetProductionAttemptIdentity();
+test('rejects malformed typed evidence context before spawn', () => {
   initialize('pi');
-  fs.appendFileSync(inputPath(), '\n');
+  activeEvidence = {
+    ...evidence('pi'),
+    model_execution: { cli_name: 'pi' },
+  } as unknown as ProductionBenchmarkEvidenceContext;
   const resolvedProfile = profile('pi');
   assert.throws(() => facadeTest.runWithAdapter(adapter('pi', []), 'x', {
-    executionId: 'exec-input-drift', threadId: 'thr-input-drift', rootThreadId: 'thr-input-drift',
-    parentThreadId: null, taskId: null, taskGeneration: null,
-    templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct', stage: null,
-    profileName: resolvedProfile.name, resolvedProfileConfig: resolvedProfile,
-    identityDirective: '', tools: 'Read', pluginDirs: [], mcpComposition: 'none', disableHooks: true,
-    loadCortexRules: false,
+    executionId: 'exec-context-invalid', threadId: 'thr-context-invalid',
+    rootThreadId: 'thr-context-invalid', parentThreadId: null, taskId: null,
+    taskGeneration: null, templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct',
+    stage: null, profileName: resolvedProfile.name, resolvedProfileConfig: resolvedProfile,
+    identityDirective: '', tools: 'Read', pluginDirs: [], mcpComposition: 'none',
+    disableHooks: true, loadCortexRules: false,
   }, {
     model: resolvedProfile.model, backend: 'pi', mode: resolvedProfile.mode,
     provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, thinking: resolvedProfile.thinking,
-  }, undefined), /identity input.*changed|drift/i);
+  }, undefined), /evidence context.*invalid|model_execution/i);
 });

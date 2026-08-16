@@ -1,5 +1,5 @@
 // input:  run options, resolved profile, tool gate, route URL
-// output: canonical spawn config with execution identity context
+// output: canonical spawn config with execution and evidence context
 // pos:    Registry-free spawn-config builder
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -10,6 +10,7 @@ import type {
 } from '../../agent-adapter/types.js';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction } from '@core/types/agent-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '@core/types/thread-types.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
 import { resolvePluginRuntime } from '../plugins/runtime.js';
@@ -104,6 +105,8 @@ export interface RunAgentOptions {
   executionId?: string | null;
   /** Exact resolved profile used to freeze benchmark identity before adapter spawn. */
   resolvedProfileConfig?: ResolvedProfileConfig;
+  /** Typed all-or-nothing benchmark facts persisted on the owning production thread. */
+  productionBenchmarkEvidenceContext?: ProductionBenchmarkEvidenceContext | null;
   /** Production attempt ancestry and role values, consumed only by the identity freezer. */
   rootThreadId?: string | null;
   parentThreadId?: string | null;

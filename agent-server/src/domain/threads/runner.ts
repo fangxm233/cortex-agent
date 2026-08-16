@@ -1,5 +1,5 @@
 // input:  thread state, tool gates, buffered input, throttle, hooks
-// output: isolated runs, notices, and transcripts
+// output: evidence-bound runs, notices, and transcripts
 // pos:    Thread step runtime and lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -599,6 +599,7 @@ function buildThreadAgentOptions(
     sessionKey: stepCtx.sessionKey,
     files: stepCtx.isFirstStep && !stepCtx.interruptedResume ? (opts.files || []) : [],
     profileName, project: threadStore.get(threadId)?.projectId,
+    productionBenchmarkEvidenceContext: meta?.productionBenchmarkEvidenceContext ?? null,
     trigger: meta?.trigger || undefined, threadId, threadDepth: meta?.depth ?? 0,
     rootThreadId: getRootThreadId(ctx.thread), parentThreadId: meta?.parentThreadId ?? null,
     templateName: ctx.thread.templateName, agentSlotId: stepCtx.agentSlotId, stage: stepCtx.stage,

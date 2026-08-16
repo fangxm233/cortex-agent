@@ -13,6 +13,7 @@ import type {
   AgentAdapter, AgentProcess, AgentSpawnConfig, Backend, NormalizedEvent,
 } from '../../../src/agent-adapter/index.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
 import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
@@ -26,6 +27,7 @@ import { CostRepo, costRepo } from '../../../src/store/cost-repo.js';
 const SHA = 'b'.repeat(64);
 let root: string;
 let costsPath: string;
+let evidenceContext: ProductionBenchmarkEvidenceContext;
 const originalCostsPath = process.env.CORTEX_COSTS_FILE;
 
 beforeEach(() => {
@@ -57,19 +59,16 @@ function profile(backend: Backend): ResolvedProfileConfig {
 }
 
 function initializeIdentity(backend: Backend): void {
-  const inputPath = path.join(root, 'config', 'benchmark-attempt-identity.json');
-  fs.mkdirSync(path.dirname(inputPath), { recursive: true });
-  fs.writeFileSync(inputPath, `${JSON.stringify({
-    schema_version: 'cortex-production-attempt-identity-input/1',
+  evidenceContext = {
+    schema_version: 'cortex-production-benchmark-evidence-context/1',
     trial_id: 'trial-accounting', root_run_id: 'root-accounting',
     bundle_manifest_hash: SHA,
     model_execution: {
       model_alias_policy: { policy: 'exact' }, cli_name: backend,
       cli_version: `${backend}-fixture-1`, max_output_tokens: null,
     },
-  })}\n`);
+  };
   initializeProductionAttemptIdentity({
-    inputPath,
     storePath: path.join(root, 'data', 'benchmark-attempt-identities.jsonl'),
   });
 }
@@ -129,6 +128,7 @@ async function runAttempt(
     taskId: `task-${suffix}`, taskProject: 'cortex-self', taskGeneration: `generation-${suffix}`,
     templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct', stage: null,
     profileName: resolved.name, resolvedProfileConfig: resolved,
+    productionBenchmarkEvidenceContext: evidenceContext,
     identityDirective: '', tools: 'Read', pluginDirs: [], mcpComposition: 'none',
     disableHooks: true, loadCortexRules: false,
     project: 'cortex-self', trigger: 'thread',
