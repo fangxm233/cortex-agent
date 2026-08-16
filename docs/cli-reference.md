@@ -1,14 +1,16 @@
 # CLI Reference
 
-Cortex ships three binaries, registered in `agent-server/package.json`:
+Cortex ships five binaries, registered in `agent-server/package.json`:
 
 | Binary | Entry point | Purpose |
 |---|---|---|
-| `cortex` | `dist/entry/cli.js` | Server management and initialization |
+| `cortex` | `dist/entry/cortex-cli.js` | Server management and initialization |
+| `cortex-evidence-export` | `dist/entry/production-evidence-export-cli.js` | Production benchmark evidence v2 export |
+| `cortex-hook` | `dist/entry/hook-cli.js` | Hook inspection and blocking user asks |
 | `cortex-task` | `dist/domain/tasks/system/task-cli.js` | Task system read and mutation |
 | `cortex-run` | `dist/domain/tasks/system/cortex-run.js` | Remote command dispatch |
 
-All three accept `--help` (or `-h`) to print their usage. The `cortex task`
+All five accept `--help` (or `-h`) to print their usage. The `cortex task`
 subcommand delegates directly to `cortex-task`.
 
 ---
@@ -166,6 +168,43 @@ Options:
 |---|---|
 | 0 | Success |
 | 1 | Error (invalid command, missing config, runtime failure) |
+
+---
+
+## cortex-evidence-export
+
+```
+cortex-evidence-export --input-file <path|->
+```
+
+Publish immutable terminal/composite benchmark evidence v2 from the production stores under
+`CORTEX_HOME`. The command initializes the production attempt identity and journal stores, loads
+`data/executions.json` and `data/threads.json`, reads attributed costs, task state, and production
+topology, then delegates validation and atomic publication to
+`exportProductionBenchmarkEvidence`. It never imports benchmark checkout source or the standalone
+benchmark runtime.
+
+`--input-file` contains one JSON-encoded `ProductionEvidenceExportInput`; use `-` to read it from
+stdin. The launcher owns every field: `outputDirectory`, `project`, `trialId`, `rootRunId`,
+`armName`, `armCanonicalSha256`, `bundleManifestHash`, `mode`, `expectedRoles`, `managerQa`,
+`limits`, `proxyExport`, and optional `evaluatedChecks`. Hashes, modes, role sets, limits, proxy
+trial identity, and predicate results are validated before publication. Missing or malformed input,
+incomplete durable records, or an existing output directory fail closed with exit code `1`.
+
+```bash
+cortex-evidence-export --input-file production-evidence.json
+cat production-evidence.json | cortex-evidence-export --input-file -
+```
+
+Success writes one JSON object to stdout:
+
+```json
+{"ok":true,"directory":"/evidence/run-1","composite_path":"/evidence/run-1/composite-manifest.json","composite_sha256":"<sha256>","terminal_paths":["/evidence/run-1/execution-root.terminal.json"]}
+```
+
+Failure writes `{"ok":false,"error":"..."}` to stderr and does not publish a partial directory.
+The public output path appears only after all terminal and composite bytes are written, fsynced,
+and verified in a hidden staging directory.
 
 ---
 

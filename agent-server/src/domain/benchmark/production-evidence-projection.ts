@@ -147,27 +147,61 @@ function requireTimestamp(value: unknown, label: string): string {
   return text;
 }
 
-function assertInput(input: ProductionEvidenceExportInput): void {
+function requireRecord(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${label} must be an object`);
+  return value as Record<string, unknown>;
+}
+
+function assertExpectedRoleInput(value: unknown): asserts value is readonly string[] {
+  if (!Array.isArray(value) || value.length === 0
+    || value.some(role => typeof role !== 'string' || role.length === 0)
+    || new Set(value).size !== value.length) fail('expected role set is invalid');
+}
+
+function assertModeInput(input: Record<string, unknown>): void {
+  if (!['direct', 'coder-review', 'manager'].includes(String(input.mode))) {
+    fail('orchestration mode is invalid');
+  }
+  if (![null, 'on', 'off'].includes(input.managerQa as null | string)
+    || (input.mode === 'manager') !== (input.managerQa !== null)) {
+    fail('manager Q&A mode is invalid');
+  }
+}
+
+function assertEvaluatedChecks(value: unknown): void {
+  if (value === undefined) return;
+  const checks = requireRecord(value, 'evaluated checks');
+  for (const [name, candidate] of Object.entries(checks)) {
+    const check = requireRecord(candidate, `evaluated check ${name}`);
+    if (!['pass', 'fail', 'unavailable'].includes(String(check.result))) {
+      fail(`evaluated check ${name} result is invalid`);
+    }
+    if (check.detail !== null && typeof check.detail !== 'string') {
+      fail(`evaluated check ${name} detail is invalid`);
+    }
+    if (check.result === 'fail') fail('failed predicate cannot be published');
+  }
+}
+
+export function assertProductionEvidenceExportInput(
+  value: unknown,
+): asserts value is ProductionEvidenceExportInput {
+  const input = requireRecord(value, 'input');
+  requiredText(input.outputDirectory, 'output directory');
   requiredText(input.project, 'project');
   requiredText(input.trialId, 'trial identity');
   requiredText(input.rootRunId, 'root run identity');
   requiredText(input.armName, 'arm name');
   requireHash(input.armCanonicalSha256, 'arm canonical hash');
   requireHash(input.bundleManifestHash, 'bundle manifest hash');
-  requireCount(input.limits.max_task_depth, 'max task depth');
-  requireCount(input.limits.max_tasks, 'max tasks');
-  if (!Array.isArray(input.expectedRoles) || input.expectedRoles.length === 0
-    || input.expectedRoles.some(role => typeof role !== 'string' || role.length === 0)
-    || new Set(input.expectedRoles).size !== input.expectedRoles.length) {
-    fail('expected role set is invalid');
-  }
-  if ((input.mode === 'manager') !== (input.managerQa !== null)) {
-    fail('manager Q&A mode is invalid');
-  }
-  if (input.proxyExport.trial_id !== input.trialId) fail('proxy trial identity mismatch');
-  for (const check of Object.values(input.evaluatedChecks ?? {})) {
-    if (check.result === 'fail') fail('failed predicate cannot be published');
-  }
+  const limits = requireRecord(input.limits, 'limits');
+  requireCount(limits.max_task_depth, 'max task depth');
+  requireCount(limits.max_tasks, 'max tasks');
+  assertExpectedRoleInput(input.expectedRoles);
+  assertModeInput(input);
+  const proxy = requireRecord(input.proxyExport, 'proxy export');
+  if (proxy.trial_id !== input.trialId) fail('proxy trial identity mismatch');
+  assertEvaluatedChecks(input.evaluatedChecks);
 }
 
 function sha256(bytes: Buffer): string {
@@ -566,7 +600,7 @@ function projectionFiles(
 export async function projectProductionBenchmarkEvidence(
   input: ProductionEvidenceExportInput, sources: ProductionEvidenceSources,
 ): Promise<ProductionEvidenceProjection> {
-  assertInput(input);
+  assertProductionEvidenceExportInput(input);
   await sources.flush();
   const identities = sources.listIdentities({ trialId: input.trialId, rootRunId: input.rootRunId });
   const attempts = collectSources(input, sources, identities, await sources.readCosts());

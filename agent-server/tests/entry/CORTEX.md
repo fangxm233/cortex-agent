@@ -10,5 +10,6 @@ Entry-point regressions for runtime wiring and CLI subcommands.
 | doctor-cli.test.ts | test | doctor auth probes, output modes and exit codes |
 | draft-attachments.test.ts | test | verifies canonical no-overwrite draft promotion |
 | hook-cli.test.ts | test | hook metadata, state, execution, ask, packaging |
+| production-evidence-export-cli.test.ts | test | Tests evidence export CLI JSON and failures |
 | provider-cli.test.ts | test | custom provider CLI parsing, output and exit codes |
 | session-retention-app-seam.test.ts | test | guards app retention wiring and startup helpers |

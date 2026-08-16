@@ -55,7 +55,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | run-config.test.ts | test | proves schema dispatch, roles, argv and MCP inputs |
 | standalone-architecture.test.ts | test | rejects shared-state standalone composition |
 | standalone-composition.test.ts | test | proves fresh roots and admission evidence |
-| standalone-public-cli.test.ts | e2e | Covers packed guards and public v2 evidence export |
+| standalone-public-cli.test.ts | e2e | Covers packed guards and installed v2 export |
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
 | terminal-classification.test.ts | test | pins which terminal reason a failed run is recorded under |
 | trial-run-pi.test.ts | test | Covers PI guards and production v2 evidence |

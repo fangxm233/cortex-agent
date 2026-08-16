@@ -19,6 +19,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | hook-cli.ts | cli | Inspects hooks and runs blocking user asks |
 | feishu-login.ts | cli | handles Feishu login and serialized env updates |
 | init.ts | cli | creates Cortex home and MCP composition files |
+| production-evidence-export-cli.ts | cli | Publishes production benchmark evidence v2 |
 | provider-cli.ts | cli | manages user-defined PI providers from the CLI |
 | start-ui-http.ts | wiring | starts Web UI HTTP, CORS, and file routes |
 | startup-helpers.ts | util | prepares MCP config for startup |

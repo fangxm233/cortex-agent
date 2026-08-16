@@ -1,5 +1,5 @@
-// input:  packed CLI guards and production evidence exporter
-// output: package refusals and six public v2 publication cases
+// input:  packed CLIs, production stores and evidence exporter
+// output: installed export plus package refusals and v2 cases
 // pos:    Public-package guards and evidence boundary coverage
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -12,8 +12,8 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { afterAll, beforeAll, it } from 'vitest';
 import {
-  pythonHostMirrorAccepts, sha256, withPublishedProductionBoundary,
-  type ProductionBoundaryScenario,
+  createProductionBoundaryFixture, pythonHostMirrorAccepts, sha256,
+  withPublishedProductionBoundary, type ProductionBoundaryScenario,
 } from './production-evidence-boundary-fixture.js';
 
 const serverRoot = path.resolve('.');
@@ -168,6 +168,7 @@ function armResolution(
 interface PackedBundle {
   root: string;
   cortex: string;
+  evidenceExport: string;
   supervisor: string;
 }
 
@@ -220,13 +221,79 @@ function installPackedBundle(): PackedBundle {
   const bin = path.join(extracted, 'bin');
   fs.mkdirSync(bin);
   const cortex = path.join(bin, 'cortex');
+  const evidenceExport = path.join(bin, 'cortex-evidence-export');
   fs.symlinkSync(path.join(bundleRoot, 'dist', 'entry', 'cortex-cli.js'), cortex);
+  fs.symlinkSync(
+    path.join(bundleRoot, 'dist', 'entry', 'production-evidence-export-cli.js'), evidenceExport,
+  );
   return {
     root: bundleRoot,
     cortex,
+    evidenceExport,
     supervisor: path.join(bundleRoot, 'native', 'cortex-supervisor', 'dist', 'cortex-supervisor'),
   };
 }
+
+function writeProductionHome(
+  home: string, fixture: ReturnType<typeof createProductionBoundaryFixture>,
+): void {
+  const data = path.join(home, 'data');
+  fs.mkdirSync(data, { recursive: true });
+  fs.copyFileSync(
+    path.join(fixture.root, 'identities.jsonl'),
+    path.join(data, 'benchmark-attempt-identities.jsonl'),
+  );
+  fs.copyFileSync(
+    path.join(fixture.root, 'journals.jsonl'),
+    path.join(data, 'benchmark-attempt-journals.jsonl'),
+  );
+  fs.writeFileSync(path.join(data, 'executions.json'), JSON.stringify(Object.fromEntries(
+    fixture.attempts.map(attempt => [attempt.execution.id, attempt.execution]),
+  )));
+  fs.writeFileSync(path.join(data, 'threads.json'), JSON.stringify(Object.fromEntries(
+    fixture.attempts.map(attempt => [attempt.thread.id, attempt.thread]),
+  )));
+  fs.writeFileSync(path.join(data, 'costs.jsonl'), `${fixture.attempts.map(
+    attempt => JSON.stringify(attempt.cost),
+  ).join('\n')}\n`);
+}
+
+function productionHomeEnv(home: string): NodeJS.ProcessEnv {
+  const env = { ...process.env, CORTEX_HOME: home };
+  for (const key of [
+    'CORTEX_BUDGET_FILE', 'CORTEX_COSTS_FILE', 'CORTEX_EXECUTIONS_FILE',
+    'CORTEX_PROJECTS_DIR',
+  ]) delete env[key];
+  return env;
+}
+
+it('installed evidence exporter reads a fresh production home and publishes v2 bytes', () => {
+  const fixture = createProductionBoundaryFixture({ scenario: 'direct' });
+  try {
+    const home = path.join(fixture.root, 'home');
+    writeProductionHome(home, fixture);
+    const inputPath = write(
+      path.join(fixture.root, 'launcher-input.json'), JSON.stringify(fixture.input),
+    );
+    const result = spawnSync(installed.evidenceExport, ['--input-file', inputPath], {
+      cwd: fixture.root,
+      encoding: 'utf8',
+      timeout: 60_000,
+      env: productionHomeEnv(home),
+    });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const response = JSON.parse(result.stdout);
+    assert.equal(response.ok, true);
+    assert.equal(response.directory, fixture.input.outputDirectory);
+    assert.equal(fs.existsSync(response.composite_path), true);
+    assert.equal(JSON.parse(
+      fs.readFileSync(response.composite_path, 'utf8'),
+    ).schema_version, 'cortex-bench-composite-manifest/2');
+    assert.equal(result.stderr, '');
+  } finally {
+    fixture.cleanup();
+  }
+}, 180_000);
 
 it('withholds packed handoff when state admission disappears after terminal publication', () => {
   const base = path.join(root, 'missing-admission-handoff');
