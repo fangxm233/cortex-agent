@@ -124,7 +124,7 @@ export function UsagePanel() {
   return (
     <div style={{ marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <SButton tone="accent" data-usage-refresh disabled={usage.isRefreshing} onClick={usage.refresh}>
+        <SButton tone="accent" data-usage-refresh onClick={usage.refresh}>
           {usage.isRefreshing ? L.usageRefreshing : L.usageRefresh}
         </SButton>
         {usage.refreshError ? <span style={{ color: 'var(--proto-danger)', fontSize: 10.5 }}>{L.usageRefreshError}: {usage.refreshError.message}</span> : null}

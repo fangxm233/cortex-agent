@@ -161,13 +161,16 @@ describe('desktop Settings Usage panel', () => {
     expect(html).toContain('Anthropic');
   });
 
-  it('shows refresh loading feedback and all freshness labels', () => {
+  it('keeps refresh unthrottled while showing loading feedback and all freshness labels', () => {
     harness.pending = true;
     const renderer = mount();
     const refresh = renderer.root.findByProps({ 'data-usage-refresh': true });
     const html = JSON.stringify(renderer.toJSON());
 
-    expect(refresh.props.disabled).toBe(true);
+    expect(refresh.props.disabled).toBeFalsy();
+    act(() => refresh.props.onClick());
+    act(() => refresh.props.onClick());
+    expect(harness.mutations).toHaveLength(2);
     expect(html).toContain('Refreshing…');
     expect(html).toContain('Live');
     expect(html).toContain('Stale');
