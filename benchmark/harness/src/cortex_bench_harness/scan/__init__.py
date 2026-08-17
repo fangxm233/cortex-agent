@@ -12,7 +12,7 @@ from .models import (
     SourceScan,
     UnclassifiedFile,
 )
-from .scanner import scan_trial_artifacts
+from .scanner import contains_sensitive_literal, scan_trial_artifacts
 
 __all__ = [
     "ArtifactInventory",
@@ -22,5 +22,6 @@ __all__ = [
     "ScanReport",
     "SourceScan",
     "UnclassifiedFile",
+    "contains_sensitive_literal",
     "scan_trial_artifacts",
 ]

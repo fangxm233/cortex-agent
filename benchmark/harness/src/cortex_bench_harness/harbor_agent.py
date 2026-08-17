@@ -780,11 +780,11 @@ class CortexBenchAgent(BaseInstalledAgent):
         says processes remained is evidence about this run, and destroying the whole record over
         it discards everything else the trial produced. The flag makes publication happen once.
         """
-        path = self._artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME
-        path.unlink(missing_ok=True)
         if not self._post_stop_finalization_pending:
             return
         self._post_stop_finalization_pending = False
+        path = self._artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME
+        path.unlink(missing_ok=True)
         if observation is not None:
             atomic_write_json(path, observation.document(self._trial_seed.trial_id))
         self._finalize_outer(self._post_stop_revocation)

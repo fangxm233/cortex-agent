@@ -31,7 +31,12 @@ from .launcher.production_home import committed_input_bundle_files
 from .launcher.trial_admission import ADMISSION_EVIDENCE_FILENAME
 from .launcher.trial_proxy import TrialRevocation
 from .manifest import MANIFEST_FILENAME
-from .scan import ArtifactInventory, ScanPolicy, scan_trial_artifacts
+from .scan import (
+    ArtifactInventory,
+    ScanPolicy,
+    contains_sensitive_literal,
+    scan_trial_artifacts,
+)
 from .trial_assets import ASSET_MANIFEST_PATH, PublishedAssets, TrialAssetError, publish_trial_assets
 
 OUTER_ENVELOPE_FILENAME = "cortex-bench-outer-envelope.json"
@@ -136,7 +141,8 @@ def finalize_host_trial(
     roots = {"agent": logs_dir, VERIFIER_ROOT: verifier_dir, "artifacts": artifact_dir}
     assets = _lift_assets(logs_dir, npm_artifact, bundle_root)
     walked, collected = _collect_roots(roots)
-    scan = _scan_collected(collected, roots, scan_policy)
+    scan_roots = {name: root for name, root in roots.items() if walked[name] == "collected"}
+    scan = _scan_collected(collected, scan_roots, scan_policy)
     envelope = {
         "schema_version": OUTER_ENVELOPE_SCHEMA_VERSION,
         "identity": {"trial_id": trial_id, "root_run_id": root_run_id,
@@ -253,6 +259,10 @@ def _scan_collected(
     """The one remaining refusal. Only a finding stops publication: a missing or unclassified
     source is a statement about the inventory, which is now a record like everything else.
     """
+    if any(contains_sensitive_literal(item.relative_path, policy) for item in collected):
+        raise HostFinalizationError("output_leak_detected")
+    if not roots:
+        return _unavailable("evidence_roots_unavailable")
     sources = {
         item.source: roots[item.root] / item.relative_path
         for item in collected if item.kind == "file"
@@ -298,7 +308,7 @@ def _launch_record(artifact_dir: Path, npm_artifact: Path) -> dict[str, object]:
     manifest = _read_record(artifact_dir / MANIFEST_FILENAME)
     image = _block(admission, "image")
     return {
-        "npm_artifact": _npm_artifact_record(npm_artifact),
+        "npm_artifact": _npm_artifact_record(attestation, npm_artifact),
         "config_bundle": _config_bundle_record(attestation),
         "sealed_environment_allowlist": _field(
             _block(admission, "environment"), "admitted_keys", "admission_evidence_absent"),
@@ -315,11 +325,13 @@ def _launch_record(artifact_dir: Path, npm_artifact: Path) -> dict[str, object]:
     }
 
 
-def _npm_artifact_record(npm_artifact: Path) -> dict[str, object]:
-    digest = _sha256_file(npm_artifact)
-    if digest is None:
-        return _unavailable("npm_artifact_unreadable")
-    return {"filename": npm_artifact.name, "sha256": digest}
+def _npm_artifact_record(
+    attestation: Mapping[str, object] | None, npm_artifact: Path,
+) -> dict[str, object]:
+    return {
+        "filename": npm_artifact.name,
+        "sha256": _field(attestation, "npm_artifact_sha256", "launch_attestation_absent"),
+    }
 
 
 def _config_bundle_record(attestation: Mapping[str, object] | None) -> dict[str, object]:
@@ -428,6 +440,17 @@ def _publish_outer(
     if path.exists() or path.is_symlink():
         raise HostFinalizationError("outer_publication_exists")
     _write_publication(temporary, path, payload)
+    try:
+        expected = _verify_publication(path, payload, document)
+    except HostFinalizationError:
+        _cleanup_publication(None, path, None)
+        raise
+    return HostFinalizationResult(path, expected, True)
+
+
+def _verify_publication(
+    path: Path, payload: bytes, document: Mapping[str, object],
+) -> str:
     reread = _reread_publication(path)
     expected = hashlib.sha256(payload).hexdigest()
     if reread != payload or hashlib.sha256(reread).hexdigest() != expected:
@@ -437,7 +460,7 @@ def _publish_outer(
             raise HostFinalizationError("outer_reread_failed")
     except (ValueError, UnicodeDecodeError) as error:
         raise HostFinalizationError("outer_reread_failed") from error
-    return HostFinalizationResult(path, expected, True)
+    return expected
 
 
 def _write_publication(temporary: Path, final: Path, payload: bytes) -> None:

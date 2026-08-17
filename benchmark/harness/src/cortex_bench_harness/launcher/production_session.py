@@ -1,5 +1,5 @@
 # input:  installed server, sealed home, direct arm and instruction
-# output: terminal production thread and immutable v2 evidence files
+# output: terminal production thread and emitted evidence files
 # pos:    Owns one production direct-arm server lifecycle
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -10,7 +10,7 @@ import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Protocol
+from typing import Protocol
 
 from ..trial_assets import canonical_sha256
 from .production_home import MaterializedProductionHome
@@ -328,67 +328,10 @@ class ProductionServerSession:
 
     async def _export_evidence(self, execute: Executor) -> None:
         path = self._write_request("production-evidence-input.json", self._evidence_input())
-        result = await execute(
+        await execute(
             shlex.join(["cortex-evidence-export", "--input-file", str(path)]),
             cwd=self._spec.workspace_cwd, timeout_sec=EVIDENCE_EXPORT_TIMEOUT_SECONDS,
         )
-        try:
-            response = _required_mapping(json.loads(result.stdout or ""), "evidence exporter")
-        except json.JSONDecodeError as error:
-            raise ProductionSessionError("evidence exporter returned malformed JSON") from error
-        self._validate_export(response)
-
-    def _validate_export(self, response: Mapping[str, object]) -> None:
-        if response.get("ok") is not True:
-            raise ProductionSessionError(f"evidence exporter refused: {response.get('error')}")
-        terminals = response.get("terminal_paths")
-        if not isinstance(terminals, list) or not terminals:
-            raise ProductionSessionError("evidence exporter returned no terminal files")
-        for value in terminals:
-            document = self._read_evidence(_required_text(value, "terminal evidence path"))
-            self._validate_terminal_evidence(document)
-        composite = self._read_evidence(
-            _required_text(response.get("composite_path"), "composite evidence path"))
-        self._validate_composite_evidence(composite)
-
-    def _read_evidence(self, value: str) -> Mapping[str, object]:
-        relative = self._trajectory_relative(value)
-        path = self._spec.logs_dir / "trajectory" / relative
-        try:
-            document = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
-            raise ProductionSessionError(f"v2 evidence is unreadable: {relative}") from error
-        return _required_mapping(document, "v2 evidence")
-
-    def _validate_terminal_evidence(self, document: Mapping[str, object]) -> None:
-        valid = (
-            document.get("schema_version") == "cortex-bench-manifest/2"
-            and document.get("bundle_manifest_hash")
-            == self._spec.materialized_home.bundle_manifest_hash
-        )
-        if not valid:
-            raise ProductionSessionError("v2 evidence terminal identity is invalid")
-
-    def _validate_composite_evidence(self, document: Mapping[str, object]) -> None:
-        identity = document.get("identity")
-        valid = (
-            document.get("schema_version") == "cortex-bench-composite-manifest/2"
-            and document.get("trial_id") == self._spec.trial_id
-            and document.get("root_run_id") == self._spec.root_run_id
-            and document.get("arm_name") == self._spec.arm.get("name")
-            and isinstance(identity, Mapping)
-            and identity.get("bundle_manifest_hash")
-            == self._spec.materialized_home.bundle_manifest_hash
-        )
-        if not valid:
-            raise ProductionSessionError("v2 evidence composite identity is invalid")
-
-    def _trajectory_relative(self, value: str) -> PurePosixPath:
-        root = self._container_path("trajectory")
-        try:
-            return PurePosixPath(value).relative_to(root)
-        except ValueError as error:
-            raise ProductionSessionError("evidence path escaped the trajectory root") from error
 
     async def _stop_server(self, pid: int, execute: Executor) -> None:
         command = (

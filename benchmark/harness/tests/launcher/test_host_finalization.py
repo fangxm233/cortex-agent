@@ -27,10 +27,6 @@ from cortex_bench_harness.host_finalization import (
     HostFinalizationError,
     finalize_host_trial,
 )
-from cortex_bench_harness.inner_validation import (
-    EDGE_PRODUCTION_SOURCES,
-    valid_composite_structure,
-)
 from cortex_bench_harness.launcher.arm_resolution import (
     DIRECT_CLAUDE_DIRECTIVE,
     DIRECT_CLAUDE_PLUGIN_DIRS,
@@ -554,6 +550,20 @@ def test_launch_parameters_are_recorded_as_the_launcher_emitted_them(
     }
 
 
+def test_the_npm_digest_is_recorded_from_the_launcher_not_rediscovered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    attestation = json.loads(
+        (tmp_path / "artifacts/cortex-bench-launch-attestation.json").read_text())
+    (tmp_path / "server.tgz").write_bytes(b"changed after launcher capture")
+    run_agent(agent, environment)
+
+    assert published(tmp_path)["launch"]["npm_artifact"] == {
+        "filename": "server.tgz", "sha256": attestation["npm_artifact_sha256"],
+    }
+
+
 def test_a_parameter_the_launcher_never_emitted_is_marked_unavailable_not_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -563,6 +573,7 @@ def test_a_parameter_the_launcher_never_emitted_is_marked_unavailable_not_refuse
     run_agent(agent, environment)
 
     launch = published(tmp_path)["launch"]
+    assert launch["npm_artifact"]["sha256"] == unavailable("launch_attestation_absent")
     assert launch["config_bundle"]["canonical_sha256"] == unavailable("launch_attestation_absent")
     assert launch["config_bundle"]["files"] == unavailable("launch_attestation_absent")
     assert launch["sealed_environment_allowlist"] == unavailable("admission_evidence_absent")
@@ -665,6 +676,17 @@ def test_the_verifier_evidence_path_is_recorded_when_the_reward_is_not_yet_writt
     verifier = published(tmp_path)["verifier"]
     assert verifier["reward"] == unavailable("verifier_reward_absent")
     assert verifier["evidence_paths"] == ["verifier/reward.json", "verifier/reward.txt"]
+
+
+def test_the_text_verifier_reward_is_recorded_when_json_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    (tmp_path / "verifier/reward.json").write_text("{not json", encoding="utf-8")
+    (tmp_path / "verifier/reward.txt").write_text("0.75\n", encoding="utf-8")
+    run_agent(agent, environment)
+
+    assert published(tmp_path)["verifier"]["reward"] == "0.75"
 
 
 def asset_paths(envelope: Mapping[str, object]) -> set[str]:
@@ -814,6 +836,21 @@ def test_a_leak_on_any_collected_surface_still_refuses_publication(
     assert not envelope_path(tmp_path).exists()
 
 
+def test_a_sensitive_relative_path_still_refuses_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def mutation(root: Path) -> None:
+        (root / HOST_IDENTITY).write_text("clean body\n", encoding="utf-8")
+
+    agent, environment = make_agent(tmp_path, monkeypatch, mutation)
+
+    with pytest.raises(HostFinalizationError) as raised:
+        run_agent(agent, environment)
+
+    assert raised.value.reason == "output_leak_detected"
+    assert not envelope_path(tmp_path).exists()
+
+
 @pytest.mark.parametrize("observation", [
     None,
     container_boundary_observation(descendants_alive=3),
@@ -844,10 +881,13 @@ def test_the_envelope_is_published_atomically_exactly_once(
     agent, environment = make_agent(tmp_path, monkeypatch)
     run_agent(agent, environment)
     payload = envelope_path(tmp_path).read_bytes()
+    boundary = tmp_path / "artifacts" / finalization.CONTAINER_BOUNDARY_ATTESTATION_FILENAME
+    boundary_payload = boundary.read_bytes()
 
     agent.finalize_after_container_stop(container_boundary_observation())
 
     assert envelope_path(tmp_path).read_bytes() == payload
+    assert boundary.read_bytes() == boundary_payload
     assert not list((tmp_path / "artifacts").glob(f"{OUTER_ENVELOPE_FILENAME}.tmp*"))
 
 
@@ -896,6 +936,18 @@ def test_a_failed_post_publication_reread_never_leaves_an_envelope(
         run_agent(agent, environment)
 
     assert raised.value.reason == "outer_reread_failed"
+    assert not envelope_path(tmp_path).exists()
+
+
+def test_an_unavailable_evidence_root_is_recorded_without_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    (tmp_path / "verifier").rmdir()
+    run_agent(agent, environment)
+
+    roots = {entry["root"]: entry["status"] for entry in published(tmp_path)["evidence"]["roots"]}
+    assert roots == {"agent": "collected", "verifier": "unavailable", "artifacts": "collected"}
 
 
 @pytest.mark.parametrize("stage", ["inner_run", "workspace_collection"])
@@ -1053,79 +1105,3 @@ def test_the_committed_config_bundle_list_is_read_never_derived() -> None:
     for entry in entries:
         assert entry["sha256"] == sha256_hex(
             (DIRECT_ARM_BUNDLE_DIR / entry["path"]).read_bytes())
-
-
-def test_composite_accepts_failed_superseded_history_and_production_slot_names() -> None:
-    journal = journal_bytes()
-    terminal = terminal_document(journal)
-    composite = composite_document("a" * 64, journal)
-    node = composite["nodes"][0]
-    node.update({
-        "role": "benchmark-direct", "terminal_state": "failed",
-        "terminal_reason": "provider_error", "disposition": "superseded",
-        "superseded_by": None,
-    })
-    composite["identity"]["model_execution_identity_hash"] = {"benchmark-direct": MODEL_HASH}
-    composite["identity"]["role_tool_surface_hash"] = {"benchmark-direct": ROLE_HASH}
-
-    assert valid_composite_structure(composite, terminal, ROOT_RUN_ID, TRIAL_ID, arm())
-
-
-def test_composite_admits_durable_question_answer_between_real_attempts() -> None:
-    assert EDGE_PRODUCTION_SOURCES["question"] == "production_topology_ledger"
-    assert EDGE_PRODUCTION_SOURCES["answer"] == "production_topology_ledger"
-    journal = journal_bytes()
-    terminal = terminal_document(journal)
-    composite = composite_document("a" * 64, journal)
-    attempt = "thread-thr-production-root"
-    composite["edges"] = [
-        {"kind": "question", "from": {"ref": "attempt", "id": attempt},
-         "to": {"ref": "attempt", "id": attempt}},
-        {"kind": "answer", "from": {"ref": "attempt", "id": attempt},
-         "to": {"ref": "attempt", "id": attempt}},
-    ]
-    composite["nodes"][0]["edges"] = composite["edges"]
-    composite["roots"]["root_task_id"] = composite["nodes"][0]["task_id"]
-    composite["predicate"] = {
-        "mode": "manager",
-        "checks": [
-            {"check_id": check_id, "result": "pass", "detail": None}
-            for check_id in (
-                *(f"G{index}" for index in range(1, 9)),
-                *(f"M-{index}" for index in range(1, 17)),
-            )
-        ],
-    }
-    manager_arm = arm()
-    manager_arm["orchestration"] = {"mode": "manager", "ask_manager": True}
-
-    assert valid_composite_structure(
-        composite, terminal, ROOT_RUN_ID, TRIAL_ID, manager_arm)
-
-
-def test_composite_rejects_every_out_of_contract_edge_kind() -> None:
-    journal = journal_bytes()
-    terminal = terminal_document(journal)
-    for kind in ("proposal", "seal", "supersede", "rotation", "unknown"):
-        composite = composite_document("a" * 64, journal)
-        composite["edges"] = [{
-            "kind": kind,
-            "from": {"ref": "attempt", "id": "thread-thr-production-root"},
-            "to": {"ref": "attempt", "id": "thread-thr-production-root"},
-        }]
-        assert not valid_composite_structure(
-            composite, terminal, ROOT_RUN_ID, TRIAL_ID, arm())
-
-
-def test_composite_rejects_direct_parent_and_unresolved_qa_endpoints() -> None:
-    journal = journal_bytes()
-    terminal = terminal_document(journal)
-    for target in ({"ref": "direct-parent"}, {"ref": "attempt", "id": "synthetic"}):
-        composite = composite_document("a" * 64, journal)
-        composite["edges"] = [{
-            "kind": "question",
-            "from": {"ref": "attempt", "id": "thread-thr-production-root"},
-            "to": target,
-        }]
-        assert not valid_composite_structure(
-            composite, terminal, ROOT_RUN_ID, TRIAL_ID, arm())

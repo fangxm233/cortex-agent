@@ -1,5 +1,5 @@
 # input:  named artifact inventory, scan policy, and binary streams
-# output: closed-inventory credential and host-identity scan report
+# output: artifact/path leak findings and inventory scan report
 # pos:    Trial artifact inventory scanner
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -21,6 +21,10 @@ from .models import (
 
 HOME_PATH = re.compile(rb"/home/[^/\x00\s]+")
 Rule = tuple[str, str, bytes]
+
+
+def contains_sensitive_literal(value: str, policy: ScanPolicy) -> bool:
+    return any(literal in value for literal in _policy_literals(policy))
 
 
 def scan_trial_artifacts(

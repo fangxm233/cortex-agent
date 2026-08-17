@@ -1,6 +1,6 @@
 Update this file whenever this directory changes
 
-Artifact scanning rejects leaks and inventory gaps across declared trial sources and roots.
+Artifact scanning finds leaks in collected files and their recorded relative paths.
 
 | filename | role | function |
 |---|---|---|
@@ -8,4 +8,4 @@ Artifact scanning rejects leaks and inventory gaps across declared trial sources
 | __main__.py | entry | Dispatches the scanner module command |
 | cli.py | CLI | Parses core sources and emits redacted JSON |
 | models.py | types | Defines inventory and redacted host leak policies |
-| scanner.py | core | Physically confines and scans every declared source |
+| scanner.py | core | Scans collected files and path text for sensitive values |
