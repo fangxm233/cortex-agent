@@ -72,6 +72,19 @@ describe('buildUsageView', () => {
     expect(vm.providers[1].windows.map(window => window.label)).toEqual(['Primary', 'Secondary']);
   });
 
+  it('marks elapsed reset timestamps instead of describing them as future', () => {
+    const vm = buildUsageView([{
+      provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'], freshness: 'stale',
+      observedAt: NOW - 3600, windows: [
+        { type: 'five_hour', utilization: 0.54, resetsAt: NOW - 60 },
+      ],
+    }], NOW, 'en');
+
+    expect(vm.providers[0].windows[0]).toMatchObject({
+      resetsAt: NOW - 60, resetIn: null, resetElapsed: true,
+    });
+  });
+
   it('represents a supported push source with no observation as never', () => {
     const vm = buildUsageView([{
       provider: 'openai-codex', displayName: 'OpenAI Codex', modes: ['openai-codex'],

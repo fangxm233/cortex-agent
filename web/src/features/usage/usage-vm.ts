@@ -16,6 +16,7 @@ export interface UsageWindowView {
   utilizationWidth: string;
   resetsAt: number | null;
   resetIn: string | null;
+  resetElapsed: boolean;
 }
 
 export interface ProviderSpendView {
@@ -83,6 +84,7 @@ function utilizationLabel(utilization: number | null): string | null {
 }
 
 function buildWindow(window: UsageWindow, nowSec: number, lang: Lang): UsageWindowView {
+  const resetElapsed = window.resetsAt !== null && window.resetsAt <= nowSec;
   return {
     type: window.type,
     label: windowLabel(window, lang),
@@ -90,7 +92,10 @@ function buildWindow(window: UsageWindow, nowSec: number, lang: Lang): UsageWind
     utilizationLabel: utilizationLabel(window.utilization),
     utilizationWidth: window.utilization === null ? '0%' : `${window.utilization * 100}%`,
     resetsAt: window.resetsAt,
-    resetIn: window.resetsAt === null ? null : formatUsageDuration(window.resetsAt - nowSec, lang),
+    resetIn: window.resetsAt === null || resetElapsed
+      ? null
+      : formatUsageDuration(window.resetsAt - nowSec, lang),
+    resetElapsed,
   };
 }
 

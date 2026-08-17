@@ -1,6 +1,6 @@
-// input:  desktop Settings/LoginFlow providers and template fixtures
-// output: Settings layout/source-copy and non-stacked login regressions
-// pos:    Verifies Settings shell layout and shared LoginFlow handoff
+// input:  Settings/LoginFlow providers, usage, and template fixtures
+// output: Settings routing/layout and non-stacked login regressions
+// pos:    Verifies Settings shell routing and shared LoginFlow handoff
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useState } from 'react';
@@ -15,6 +15,8 @@ import type {
 import { LangProvider } from '@/i18n';
 import { ThemeProvider } from '@/theme';
 import { PlatformPanel } from './SettingsPanels';
+
+const queriedKinds = vi.hoisted(() => [] as string[]);
 
 vi.mock('@radix-ui/react-dialog', async importOriginal => ({
   ...await importOriginal<typeof import('@radix-ui/react-dialog')>(),
@@ -51,6 +53,10 @@ vi.mock('@/lib/trpc', () => {
       remove: mutation('threadTemplates.remove'),
     },
     approvals: { request: mutation('approvals.request') },
+    system: {
+      usageStatus: query('system.usageStatus'),
+      refreshUsage: mutation('system.refreshUsage'),
+    },
     profiles: {
       create: mutation('profiles.create'),
       update: mutation('profiles.update'),
@@ -68,20 +74,25 @@ vi.mock('@/lib/trpc', () => {
 
 vi.mock('@tanstack/react-query', async importOriginal => ({
   ...await importOriginal<typeof import('@tanstack/react-query')>(),
-  useQuery: (options: any) => ({
-    data: options.__kind === 'config.get'
-      ? snapshot
-      : options.__kind === 'threadTemplates.get'
-        ? templateEntries
-        : options.__kind === 'threadTemplates.detail'
-          ? templateDetail
-          : options.__kind === 'auth.status'
-            ? authStatus
-            : options.__kind === 'auth.customProviders' ? [] : undefined,
-    isLoading: false,
-    isError: false,
-    error: null,
-  }),
+  useQuery: (options: any) => {
+    queriedKinds.push(options.__kind);
+    return {
+      data: options.__kind === 'config.get'
+        ? snapshot
+        : options.__kind === 'threadTemplates.get'
+          ? templateEntries
+          : options.__kind === 'threadTemplates.detail'
+            ? templateDetail
+            : options.__kind === 'auth.status'
+              ? authStatus
+              : options.__kind === 'auth.customProviders' || options.__kind === 'system.usageStatus'
+                ? []
+                : undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+  },
   useMutation: () => ({ mutate: () => {}, isPending: false }),
   useQueryClient: () => ({ invalidateQueries: () => {} }),
 }));
@@ -182,6 +193,15 @@ describe('desktop authentication settings entry', () => {
     const detailScroller = detailCard.find(node => node.props.style?.overflow === 'auto');
     expect(detailScroller.findAllByProps({ 'data-action': 'save' })).toHaveLength(0);
     expect(detailCard.findAll(node => node.type === 'button' && node.props['data-action'] === 'save')).toHaveLength(1);
+  });
+
+  it('opens Usage through the Settings router and starts its independent query', () => {
+    queriedKinds.length = 0;
+    const renderer = create(<SettingsHarness />);
+    act(() => { renderer.root.findByProps({ 'data-settings-nav': 'usage' }).props.onClick(); });
+
+    expect(queriedKinds).toContain('system.usageStatus');
+    expect(renderedText(renderer.root)).toContain('No provider usage is available yet.');
   });
 
   it('moves authentication controls out of Platform into a dedicated Accounts section', () => {

@@ -87,6 +87,7 @@ export const enExtra = {
   usageObserved: 'Observed',
   usageAgo: 'ago',
   usageResetsIn: 'Resets in',
+  usageResetElapsed: 'Reset elapsed',
   usageToday: 'today',
   usageMonth: 'this month',
   usageUnavailable: 'Unavailable',
