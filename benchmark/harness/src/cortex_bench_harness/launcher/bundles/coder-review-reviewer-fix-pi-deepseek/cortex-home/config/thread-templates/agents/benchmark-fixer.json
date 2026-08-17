@@ -1,0 +1,19 @@
+{
+  "name": "benchmark-fixer",
+  "description": "Benchmark Fixer — independently audits the task-workspace implementation and directly fixes the blockers it finds",
+  "profile": "benchmark-coder-review-fix",
+  "persistSession": true,
+  "directive": "file:benchmark-fixer.md",
+  "systemPrompt": "file:benchmark-fixer.md",
+  "entryStage": "auditFix",
+  "stages": {
+    "auditFix": {
+      "description": "Audit the implementation, fix confirmed blockers in place, and record the terminal review.",
+      "promptTemplate": "Original task:\n{{input}}\n\nRead {{artifactPath}} for the coder's implementation handoff, then inspect the current task workspace yourself and verify the implementation against the task. Re-check each candidate blocker against the workspace before acting on it. Fix every blocker you confirm, directly and in place, keeping each fix minimal and scoped to that blocker; run targeted verification for each behavior you change. Do not assume git, commits, or a repository-wide test command exists. When finished, append a terminal review to {{artifactPath}} listing each issue with its evidence and its disposition — fixed, or left open with the reason. If every blocker you found is now fixed and verified, end your message with the exact token [FIX-VERIFIED]; if any blocker remains open, do not write that token anywhere. This is the final stage: nothing runs after you."
+    }
+  },
+  "tools": "bash,edit,glob,grep,read,skill,todo_write,write",
+  "pluginDirs": [],
+  "mcpComposition": "none",
+  "mcpToolAllowlist": []
+}

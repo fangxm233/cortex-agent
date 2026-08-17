@@ -51,6 +51,14 @@ def audit_retry_arm(**overrides: object) -> dict[str, object]:
     )
 
 
+def reviewer_fix_arm(**overrides: object) -> dict[str, object]:
+    return arm(
+        {"mode": "coder-review", "coder_review_variant": "reviewer-fix",
+         "ask_manager": False},
+        **overrides,
+    )
+
+
 def read_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -89,9 +97,21 @@ def test_a_candidate_whose_limits_do_not_match_its_declaration_is_refused() -> N
         require_production_arm(mismatched)
 
 
+def test_reviewer_fix_arm_resolves_to_its_own_bundle_template_and_roles() -> None:
+    bundle = require_production_arm(reviewer_fix_arm())
+
+    assert bundle.key == "coder-review-reviewer-fix-pi-deepseek"
+    assert bundle.root_template == "benchmark-coder-review-fix"
+    assert bundle.profile_name == "benchmark-coder-review-fix"
+    assert bundle.evidence_mode == "coder-review"
+    assert bundle.expected_roles == ("benchmark-coder", "benchmark-fixer")
+    assert bundle.manager_qa is None
+    assert bundle.bundle_dir != require_production_arm(audit_retry_arm()).bundle_dir
+
+
 def test_a_coder_review_variant_without_a_bundle_is_not_a_production_candidate() -> None:
     other = arm({
-        "mode": "coder-review", "coder_review_variant": "reviewer-fix",
+        "mode": "coder-review", "coder_review_variant": "reviewer-advise",
         "ask_manager": False,
     })
 

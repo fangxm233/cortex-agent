@@ -9,6 +9,7 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 | zero-paid-failed-agent.yaml | campaign | Declares the ZERO-PAID campaign proving a failed agent is published, scored and followed by the next trial |
 | zero-paid-parallel.yaml | campaign | Declares the ZERO-PAID campaign proving concurrent trials hold distinct subnets, addresses and live routes |
 | zero-paid-production-coder-review.yaml | campaign | Declares one production coder-review audit-retry ZERO-PAID recording trial using that arm's committed bundle and pinned image |
+| zero-paid-production-coder-review-fix.yaml | campaign | Declares one production coder-review reviewer-fix ZERO-PAID recording trial using that arm's committed bundle and pinned image |
 | zero-paid-production-direct.yaml | campaign | Declares one production-direct ZERO-PAID recording trial using the committed bundle and pinned image |
 | results/ | evidence | Holds path-sanitized committed campaign result summaries |
 | tasks/ | fixtures | Holds the Harbor task directories that campaign names |

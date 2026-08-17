@@ -87,6 +87,16 @@ PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
             "ask_manager": False,
         },
     ),
+    _bundle(
+        key="coder-review-reviewer-fix-pi-deepseek",
+        profile_name="benchmark-coder-review-fix",
+        root_template="benchmark-coder-review-fix", evidence_mode="coder-review",
+        expected_roles=("benchmark-coder", "benchmark-fixer"),
+        orchestration={
+            "mode": "coder-review", "coder_review_variant": "reviewer-fix",
+            "ask_manager": False,
+        },
+    ),
 )
 
 
