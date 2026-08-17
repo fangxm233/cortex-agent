@@ -52,11 +52,12 @@ def session(
 ) -> ProductionServerSession:
     materialized = SimpleNamespace(
         process_environment={
-            "PATH": "/usr/bin:/bin", "HOME": "/logs/agent/production-cortex-home/home",
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/logs/agent/production-cortex-home/container-home",
             "CORTEX_HOME": "/logs/agent/production-cortex-home",
             "CORTEX_PROJECTS_DIR": "/logs/agent/production-cortex-home/context/projects",
-            "XDG_CACHE_HOME": "/logs/agent/production-cortex-home/home/.cache",
-            "XDG_CONFIG_HOME": "/logs/agent/production-cortex-home/home/.config",
+            "XDG_CACHE_HOME": "/logs/agent/production-cortex-home/container-home/.cache",
+            "XDG_CONFIG_HOME": "/logs/agent/production-cortex-home/container-home/.config",
             "CORTEX_CONFIG_IMMUTABLE": "1", "WEBHOOK_PORT": "3001",
             "CORTEX_WEBHOOK_THREAD_OP_ONLY": "1", "CORTEX_WEBHOOK_SINGLE_ROOT": "1",
             "CORTEX_TUI": "1", "CORTEX_TUI_PORT": "3003",
@@ -100,6 +101,8 @@ class FakeExecutor:
     ) -> SimpleNamespace:
         self.calls.append((command, env, cwd))
         self.timeouts.append(timeout_sec)
+        if "production-webhook-auth.json" in command:
+            self._capture("production-webhook-auth.json")
         if "dist/entry/production-app-bootstrap.js" in command:
             self._capture("production-server-auth.json")
             (self.logs_dir / "production-server-auth.json").unlink()
@@ -128,7 +131,7 @@ class FakeExecutor:
                     "terminal": terminal, "artifact": None, "finalOutput": "done" if terminal else None,
                 },
             })
-        if command.startswith("cortex-evidence-export"):
+        if "cortex-evidence-export" in command:
             self._capture("production-evidence-input.json")
             if self.export_failure:
                 raise RuntimeError("export refused")
@@ -188,10 +191,16 @@ def test_session_boots_real_server_injects_only_webhook_exports_and_stops(tmp_pa
     assert runner.payloads["production-server-auth.json"] == {
         "clientToken": "client-token", "webhookToken": "webhook-token",
     }
+    # The sealed container environment is an exact identity, so a webhook POST may add no exec
+    # variable at all; the bearer travels as a one-shot file whose path is the only thing in argv.
     assert all(
-        env == {"CORTEX_WEBHOOK_TOKEN": "webhook-token"}
+        env is None and "webhook-token" not in command
+        and "/logs/agent/production-webhook-auth.json" in command
         for command, env, _ in runner.calls if "/webhook/thread-op" in command
     )
+    assert runner.payloads["production-webhook-auth.json"] == {
+        "webhookToken": "webhook-token",
+    }
     assert all("cortex agent-run" not in command for command in commands)
     assert all("benchmark-thread-run" not in command for command in commands)
     assert sum("/webhook/thread-op" in command for command in commands) == 4
@@ -201,13 +210,38 @@ def test_session_boots_real_server_injects_only_webhook_exports_and_stops(tmp_pa
     for command, timeout in zip(commands, runner.timeouts, strict=True):
         if "/webhook/thread-op" in command or "127.0.0.1:9880/status" in command:
             assert timeout == 10
-    assert commands[-2] == (
+    assert commands[-2].endswith(
         "cortex-evidence-export --input-file /logs/agent/production-evidence-input.json"
     )
     assert commands[-1].startswith("kill -TERM -- -4242")
     assert (tmp_path / "trajectory/run-root-direct.terminal.json").is_file()
     assert (tmp_path / "trajectory/composite-manifest.json").is_file()
     assert not list(tmp_path.glob("production-*.json"))
+
+
+def test_evidence_export_reads_the_production_home_not_the_container_home(
+    tmp_path: Path,
+) -> None:
+    """The exporter is a second reader of the server's own stores.
+
+    The admitted container environment names a different `CORTEX_HOME`, and admission refuses
+    exec-time variables, so the exporter must compose the server's environment inside the command
+    exactly as the bootstrap does. Run against the container's own home it finds no attempts.
+    """
+    runner = FakeExecutor(tmp_path)
+
+    asyncio.run(session(tmp_path).run("Solve only this task.", runner))
+
+    export, environment, _ = next(
+        call for call in runner.calls if "cortex-evidence-export" in call[0]
+    )
+    assert environment is None
+    assert export.startswith("env -i ")
+    assert "CORTEX_HOME=/logs/agent/production-cortex-home" in export
+    assert "HOME=/logs/agent/production-cortex-home/container-home" in export
+    assert export.endswith(
+        "cortex-evidence-export --input-file /logs/agent/production-evidence-input.json"
+    )
 
 
 def test_session_posts_validated_root_context_and_export_identity(tmp_path: Path) -> None:

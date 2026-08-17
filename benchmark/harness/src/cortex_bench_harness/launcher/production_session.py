@@ -7,7 +7,7 @@ import asyncio
 import json
 import shlex
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol
@@ -23,12 +23,21 @@ HTTP_REQUEST_TIMEOUT_SECONDS = 10
 EVIDENCE_EXPORT_TIMEOUT_SECONDS = 120
 SERVER_STOP_TIMEOUT_SECONDS = 30
 GATEWAY_STATUS_URL = "http://127.0.0.1:9880/status"
+SERVER_AUTH_FILENAME = "production-server-auth.json"
+WEBHOOK_AUTH_FILENAME = "production-webhook-auth.json"
+# The bearer arrives by file path, never by exec environment and never in argv. The sealed
+# container environment is an exact identity — keys and value digest — so one extra exec-time
+# variable refuses the whole call, and a value in the command string would be argv the leak
+# scanner reads. This is the same one-shot-file delivery `_write_server_auth` uses.
 HTTP_CLIENT = """
 import fs from 'node:fs';
-const [url, input] = process.argv.slice(1);
+const [url, input, auth] = process.argv.slice(1);
 const response = await fetch(url, {
   method: 'POST',
-  headers: {'content-type': 'application/json', 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN},
+  headers: {
+    'content-type': 'application/json',
+    'x-cortex-token': JSON.parse(fs.readFileSync(auth, 'utf8')).webhookToken,
+  },
   body: fs.readFileSync(input),
 });
 const body = await response.text();
@@ -184,26 +193,39 @@ class ProductionServerSession:
         self._temporary_files.append(local)
         return self._container_path(name)
 
-    def _launch_command(self, auth_path: PurePosixPath) -> str:
+    def _production_command(
+        self, argv: Sequence[str], extra: Mapping[str, str] | None = None,
+    ) -> str:
+        """One command under the server's own sealed process environment.
+
+        The admitted container environment names a different CORTEX_HOME, and admission refuses
+        any exec-time variable, so every process that has to read the production home composes
+        that environment inside the command — the same `env -i` construction the bootstrap uses.
+        """
         environment = {
-            **self._spec.materialized_home.process_environment,
-            "CORTEX_PRODUCTION_AUTH_FILE": str(auth_path),
+            **self._spec.materialized_home.process_environment, **(extra or {}),
         }
         assignments = [f"{key}={value}" for key, value in sorted(environment.items())]
+        return shlex.join(["env", "-i", *assignments, *argv])
+
+    def _launch_command(self, auth_path: PurePosixPath) -> str:
         app = self._spec.installed.bundle_root / "dist/entry/production-app-bootstrap.js"
-        prefix = shlex.join(["env", "-i", *assignments, "setsid", "node", str(app)])
+        prefix = self._production_command(
+            ["setsid", "node", str(app)],
+            {"CORTEX_PRODUCTION_AUTH_FILE": str(auth_path)},
+        )
         stdout = shlex.quote(str(self._container_path("stdout.txt")))
         stderr = shlex.quote(str(self._container_path("stderr.txt")))
         return f"{prefix} >{stdout} 2>{stderr} </dev/null & printf '%s\\n' \"$!\""
 
     def _write_server_auth(self) -> PurePosixPath:
-        path = self._write_request("production-server-auth.json", {
+        path = self._write_request(SERVER_AUTH_FILENAME, {
             "clientToken": self._spec.materialized_home.client_token,
             "webhookToken": self._spec.materialized_home.webhook_token,
         })
         # The bind-mounted log owner may not equal the container UID. The bootstrap unlinks this
         # one-shot file before importing the app or spawning any model-controlled process.
-        (self._spec.logs_dir / "production-server-auth.json").chmod(0o444)
+        (self._spec.logs_dir / SERVER_AUTH_FILENAME).chmod(0o444)
         return path
 
     async def _start_server(self, execute: Executor) -> int:
@@ -215,22 +237,32 @@ class ProductionServerSession:
             raise ProductionSessionError("production server did not return a process-group id")
         return int(text)
 
-    def _http_command(self, request_path: PurePosixPath) -> str:
+    def _http_command(
+        self, request_path: PurePosixPath, auth_path: PurePosixPath,
+    ) -> str:
         environment = self._spec.materialized_home.process_environment
         port = environment["WEBHOOK_PORT"]
         url = f"http://127.0.0.1:{port}/webhook/thread-op"
         return shlex.join([
             "node", "--input-type=module", "--eval", HTTP_CLIENT,
-            url, str(request_path),
+            url, str(request_path), str(auth_path),
         ])
+
+    def _write_webhook_auth(self) -> PurePosixPath:
+        return self._write_request(WEBHOOK_AUTH_FILENAME, {
+            "webhookToken": self._spec.materialized_home.webhook_token,
+        })
 
     async def _post(self, name: str, body: Mapping[str, object], execute: Executor) -> Mapping[str, object]:
         request = self._write_request(name, body)
-        token = self._spec.materialized_home.webhook_token
-        result = await execute(
-            self._http_command(request), env={"CORTEX_WEBHOOK_TOKEN": token},
-            cwd=self._spec.workspace_cwd, timeout_sec=HTTP_REQUEST_TIMEOUT_SECONDS,
-        )
+        auth = self._write_webhook_auth()
+        try:
+            result = await execute(
+                self._http_command(request, auth),
+                cwd=self._spec.workspace_cwd, timeout_sec=HTTP_REQUEST_TIMEOUT_SECONDS,
+            )
+        finally:
+            (self._spec.logs_dir / WEBHOOK_AUTH_FILENAME).unlink(missing_ok=True)
         try:
             response = json.loads(result.stdout or "")
         except json.JSONDecodeError as error:
@@ -329,7 +361,8 @@ class ProductionServerSession:
     async def _export_evidence(self, execute: Executor) -> None:
         path = self._write_request("production-evidence-input.json", self._evidence_input())
         await execute(
-            shlex.join(["cortex-evidence-export", "--input-file", str(path)]),
+            self._production_command(
+                ["cortex-evidence-export", "--input-file", str(path)]),
             cwd=self._spec.workspace_cwd, timeout_sec=EVIDENCE_EXPORT_TIMEOUT_SECONDS,
         )
 

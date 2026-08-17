@@ -10,6 +10,11 @@ from pathlib import Path
 
 import pytest
 
+from cortex_bench_harness.scan import (
+    ArtifactInventory,
+    ScanPolicy,
+    scan_trial_artifacts,
+)
 from cortex_bench_harness.launcher import (
     DIRECT_ARM_BUNDLE_DIR,
     DirectArmLaunchFacts,
@@ -211,7 +216,7 @@ def test_materializes_without_host_home_and_scrubs_provider_and_chat_residue(tmp
     runtime_home = Path("/logs/agent/production-cortex-home")
     assert environment["CORTEX_HOME"] == str(runtime_home)
     assert environment["CORTEX_PROJECTS_DIR"] == str(runtime_home / "context/projects")
-    assert environment["HOME"] == str(runtime_home / "home")
+    assert environment["HOME"] == str(runtime_home / "container-home")
     assert environment["CORTEX_TUI"] == "1"
     assert environment["WEBHOOK_PORT"] == "3001"
     assert environment["CORTEX_TUI_PORT"] == "3003"
@@ -235,9 +240,44 @@ def test_materializes_without_host_home_and_scrubs_provider_and_chat_residue(tmp
     assert read_json(result.cortex_home / "data/pi/auth.json") == {
         "deepseek": {"type": "api_key", "key": "trial-dummy-token"},
     }
-    gateway = (result.cortex_home / "home/.aistatus/gateway.yaml").read_text()
+    gateway = (result.cortex_home / "container-home/.aistatus/gateway.yaml").read_text()
     assert gateway == EXPECTED_GATEWAY
     assert "anthropic" not in gateway.lower() and "api.deepseek.com" not in gateway
+
+
+def test_sealed_home_paths_cannot_be_read_as_a_host_home_path(tmp_path: Path) -> None:
+    """The server prints its own paths, and the leak scanner refuses any `/home/<name>`.
+
+    A container HOME named `<CORTEX_HOME>/home` produces exactly that shape, so the production
+    gateway logging its own config path was scanned as a host-identity leak and the trial was
+    refused with `output_leak_detected` after a complete, correct run.
+    """
+    result = materialize(tmp_path)
+    emitted = tmp_path / "emitted"
+    emitted.mkdir()
+    log = emitted / "server.log"
+    log.write_text(
+        "\n".join(sorted(result.process_environment.values()))
+        + "\n"
+        + "\n".join(
+            (Path(result.process_environment["CORTEX_HOME"]) / path.relative_to(
+                result.cortex_home)).as_posix()
+            for path in sorted(result.cortex_home.rglob("*"))
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    policy = ScanPolicy(
+        secrets={"provider_credential": "synthetic-scan-credential"},
+        repository_checkout="/srv/scan-checkout", hostname="scan-host",
+        home_path="/home/scan-user",
+    )
+
+    report = scan_trial_artifacts(
+        ArtifactInventory({"emitted": log}, frozenset({"emitted"}), (emitted,)), policy,
+    )
+
+    assert report.findings == ()
 
 
 def test_seals_out_host_state_redirects_and_secrets_the_server_itself_reads(tmp_path: Path) -> None:
@@ -292,7 +332,7 @@ def test_materialized_inputs_are_read_only_before_result_is_returned(tmp_path: P
 def test_immutable_bundle_directories_cannot_replace_attested_inputs(tmp_path: Path) -> None:
     home = materialize(tmp_path).cortex_home
 
-    for relative in ("config", "prompts", "context", "home/.aistatus"):
+    for relative in ("config", "prompts", "context", "container-home/.aistatus"):
         root = home / relative
         assert stat.S_IMODE(root.stat().st_mode) == 0o555
         assert all(
@@ -300,7 +340,7 @@ def test_immutable_bundle_directories_cannot_replace_attested_inputs(tmp_path: P
             for path in root.rglob("*") if path.is_dir()
         )
     assert stat.S_IMODE((home / "data").stat().st_mode) == 0o755
-    assert stat.S_IMODE((home / "home").stat().st_mode) == 0o755
+    assert stat.S_IMODE((home / "container-home").stat().st_mode) == 0o755
 
 
 def test_attestation_is_the_last_materialization_write(
