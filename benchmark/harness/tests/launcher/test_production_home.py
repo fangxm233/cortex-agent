@@ -1,4 +1,4 @@
-# input:  committed direct-arm bundle, hostile environment, launcher facts
+# input:  committed direct bundle, hostile env, launcher facts
 # output: fresh-home, residue, digest, attestation and refusal proofs
 # pos:    Contract tests for the production direct-arm materializer
 # >>> If I am updated, update my header and folder CORTEX.md <<<

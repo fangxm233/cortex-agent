@@ -1,6 +1,6 @@
-# input:  a real admitted Docker environment and a real materialized production home
-# output: proof the production session's webhook POST survives the sealed-environment assertion
-# pos:    Cross-seam proof binding the production session to the admitted exec boundary
+# input:  admitted Docker environment and materialized home
+# output: real sealed-exec webhook regression proof
+# pos:    Cross-seam production-session admission proof
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The session's own suite drives a FAKE executor, and the admission suite never drives the session,
