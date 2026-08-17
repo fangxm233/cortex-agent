@@ -1,5 +1,5 @@
-# input:  sealed production home, installed server facts, fake container executor
-# output: boot, webhook, evidence collection, route-refusal and shutdown proofs
+# input:  sealed home, installed server facts, fake executor
+# output: lifecycle, webhook, evidence and shutdown proofs
 # pos:    Integration contract for one production direct-arm session
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 

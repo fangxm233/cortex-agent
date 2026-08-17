@@ -1,6 +1,6 @@
 # input:  direct bundle, launcher facts, host and runtime paths
 # output: sealed home, auth, attestations, committed bundle inventory
-# pos:    Pre-boot materializer for the production direct benchmark arm
+# pos:    Builds sealed production direct-arm homes
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import hashlib
