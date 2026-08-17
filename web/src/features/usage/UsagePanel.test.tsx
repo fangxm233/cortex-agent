@@ -157,7 +157,7 @@ describe('desktop Settings Usage panel', () => {
     const renderer = mount();
 
     expect(renderer.root.findAllByType('time')[0].children.join('')).toBe('1m ago');
-    act(() => vi.advanceTimersByTime(60_000));
+    act(() => { vi.advanceTimersByTime(60_000); });
     expect(renderer.root.findAllByType('time')[0].children.join('')).toBe('2m ago');
   });
 
