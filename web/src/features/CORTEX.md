@@ -24,6 +24,7 @@ Cross-cutting concerns that any surface can pull in (live stream, media preview,
 | live/ | subdir | The single live event stream and fan-out |
 | connection/ | subdir | Connectivity status for the daemon badge |
 | rate-limit/ | subdir | Provider throttle times and waiting counts |
+| usage/ | subdir | Provider quota, spend, freshness and refresh state |
 | hot-update/ | subdir | Staged frontend update prompt |
 | app-update/ | subdir | App shell update prompt |
 | kit/ | subdir | Design-system gallery page |

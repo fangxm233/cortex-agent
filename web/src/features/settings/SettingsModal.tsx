@@ -1,4 +1,4 @@
-// input:  config queries, settings panels, login handoff
+// input:  config/usage queries, settings panels, login handoff
 // output: settings shell with bounded panel content
 // pos:    Desktop settings modal and section router
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -21,6 +21,7 @@ import { TemplatesPanel } from './TemplatesPanel';
 import { AppearancePanel } from './AppearancePanel';
 import { AccountsPanel } from './AccountsPanel';
 import { PluginsPanel } from './PluginsPanel';
+import { UsagePanel } from '@/features/usage';
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -181,17 +182,26 @@ interface SectionContentProps {
   onPluginDirtyChange: (dirty: boolean) => void;
 }
 
-function IndependentSettingsPanel(
-  props: Pick<SectionContentProps, 'section' | 'onClose' | 'onPluginDirtyChange'>,
-) {
+type IndependentPanelProps = Pick<
+  SectionContentProps,
+  'section' | 'onClose' | 'onPluginDirtyChange'
+>;
+
+type IndependentPanelRenderer = (props: IndependentPanelProps) => JSX.Element;
+
+const INDEPENDENT_PANEL_RENDERERS: Partial<Record<SettingsSectionKey, IndependentPanelRenderer>> = {
+  appearance: () => <AppearancePanel />,
+  usage: () => <UsagePanel />,
+  plugins: (props) => <PluginsPanel onDirtyChange={props.onPluginDirtyChange} />,
+};
+
+function IndependentSettingsPanel(props: IndependentPanelProps) {
   const { openLogin } = useLoginFlow();
-  switch (props.section) {
-    case 'appearance': return <AppearancePanel />;
-    case 'accounts':
-      return <AccountsPanel onLogin={(target) => { props.onClose(); openLogin(target); }} />;
-    case 'plugins': return <PluginsPanel onDirtyChange={props.onPluginDirtyChange} />;
-    default: return null;
+  if (props.section === 'accounts') {
+    return <AccountsPanel onLogin={(target) => { props.onClose(); openLogin(target); }} />;
   }
+  const render = INDEPENDENT_PANEL_RENDERERS[props.section];
+  return render ? render(props) : null;
 }
 
 function ConfiguredSettingsPanel(props: SectionContentProps) {
@@ -207,7 +217,7 @@ function ConfiguredSettingsPanel(props: SectionContentProps) {
 }
 
 function SettingsSectionContent(props: SectionContentProps) {
-  const independent = ['appearance', 'accounts', 'plugins'].includes(props.section);
+  const independent = ['appearance', 'accounts', 'usage', 'plugins'].includes(props.section);
   return independent ? <IndependentSettingsPanel {...props} /> : <ConfiguredSettingsPanel {...props} />;
 }
 

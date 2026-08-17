@@ -73,6 +73,28 @@ export const enExtra = {
   ttInvalidBadge: 'invalid',
   ttFootNote: 'Files under config/thread-templates/. The filename is the identity; renaming is duplicate-then-delete. The directory is git-tracked, so git is the undo.',
 
+  // ── Provider usage ──
+  usageRefresh: 'Refresh now',
+  usageRefreshing: 'Refreshing…',
+  usageLoading: 'Loading usage…',
+  usageLoadError: 'Failed to load usage',
+  usageRefreshError: 'Refresh failed',
+  usageEmpty: 'No provider usage is available yet.',
+  usageQuota: 'Quota windows',
+  usageGatewaySpend: 'Gateway spend',
+  usageQuotaUnsupported: 'Quota is unsupported for this provider. Spend remains available below.',
+  usageNeverObserved: 'No quota observation yet. Push-only sources update after the next provider call.',
+  usageObserved: 'Observed',
+  usageAgo: 'ago',
+  usageResetsIn: 'Resets in',
+  usageToday: 'today',
+  usageMonth: 'this month',
+  usageUnavailable: 'Unavailable',
+  usageFreshLive: 'Live',
+  usageFreshStale: 'Stale',
+  usageFreshNever: 'Never observed',
+  usageFreshUnsupported: 'Unsupported',
+
   // ── Advanced flags titles & descriptions ──
   stAdvDebugTitle: 'Debug logging',
   stAdvDebugDesc: 'verbose output to daemon.log',

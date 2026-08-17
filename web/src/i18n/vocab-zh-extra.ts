@@ -73,6 +73,28 @@ export const zhExtra = {
   ttInvalidBadge: '有错',
   ttFootNote: '文件位于 config/thread-templates/。文件名即身份；改名请用复制再删除。该目录已纳入 git，git 就是撤销。',
 
+  // ── Provider usage ──
+  usageRefresh: '立即刷新',
+  usageRefreshing: '刷新中…',
+  usageLoading: '正在加载用量…',
+  usageLoadError: '加载用量失败',
+  usageRefreshError: '刷新失败',
+  usageEmpty: '尚无 provider 用量数据。',
+  usageQuota: '配额窗口',
+  usageGatewaySpend: '网关支出',
+  usageQuotaUnsupported: '该 provider 不支持配额状态；下方仍显示支出。',
+  usageNeverObserved: '尚未观测到配额。仅推送的数据源会在下一次 provider 调用后更新。',
+  usageObserved: '观测于',
+  usageAgo: '前',
+  usageResetsIn: '重置倒计时',
+  usageToday: '今日',
+  usageMonth: '本月',
+  usageUnavailable: '不可用',
+  usageFreshLive: '实时',
+  usageFreshStale: '陈旧',
+  usageFreshNever: '从未观测',
+  usageFreshUnsupported: '不支持',
+
   // ── Advanced flags titles & descriptions ──
   stAdvDebugTitle: '调试日志',
   stAdvDebugDesc: '详细输出写入 daemon.log',

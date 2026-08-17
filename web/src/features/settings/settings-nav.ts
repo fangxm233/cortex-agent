@@ -13,6 +13,7 @@ export type SettingsSectionKey =
   | 'accounts'
   | 'profiles'
   | 'budget'
+  | 'usage'
   | 'machines'
   | 'templates'
   | 'plugins'
@@ -40,6 +41,7 @@ const NAV_LABEL_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
   accounts: 'stNavAccounts',
   profiles: 'stNavProfiles',
   budget: 'stNavBudget',
+  usage: 'stNavUsage',
   machines: 'stNavMachines',
   templates: 'stNavTemplates',
   plugins: 'stNavPlugins',
@@ -56,6 +58,7 @@ const NAV_SUB_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
   accounts: 'stMetaAccountsSub',
   profiles: 'stMetaProfilesSub',
   budget: 'stMetaBudgetSub',
+  usage: 'stMetaUsageSub',
   machines: 'stMetaMachinesSub',
   templates: 'stMetaTemplatesSub',
   plugins: 'stMetaPluginsSub',
@@ -72,6 +75,7 @@ const NAV_ORDER: SettingsSectionKey[] = [
   'accounts',
   'profiles',
   'budget',
+  'usage',
   'machines',
   'templates',
   'plugins',

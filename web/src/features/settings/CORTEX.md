@@ -1,12 +1,12 @@
 Please update me when files in this folder change
 
-Desktop settings overlay: one modal with left nav and twelve sections, mounted globally by its provider.
-Panels read snapshots; accounts, budget, runtime, profiles, hooks, templates, and plugins own mutations.
+Desktop settings overlay: one modal with left nav and thirteen sections, mounted globally by its provider.
+Panels read snapshots; Usage independently queries the shared web usage feature.
 
 | filename | role | function |
 |---|---|---|
 | SettingsProvider.tsx | provider | Provides global open and close for the modal |
-| SettingsModal.tsx | view | Bounds editor panels and hands off account login |
+| SettingsModal.tsx | view | Routes config and independent panels including Usage |
 | SettingsPanels.tsx | view | Renders non-runtime platform and config sections |
 | AccountsPanel.tsx | view | Filters providers and manages account login/logout |
 | AccountsPanel.test.tsx | test | Tests account rows and native actions |
