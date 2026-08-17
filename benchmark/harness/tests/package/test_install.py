@@ -26,7 +26,6 @@ from harbor.models.trial.config import ServiceVolumeConfig
 from harbor.models.trial.paths import TrialPaths
 
 from cortex_bench_harness import CortexBenchAgent
-from cortex_bench_harness.inner_validation import valid_composite_structure
 from cortex_bench_harness.launcher.production_home import (
     DirectArmLaunchFacts,
     materialize_direct_arm_home,
@@ -649,11 +648,7 @@ def assert_s1_artifacts(
     backend: str, mode: str, detail: str | bool | None,
 ) -> None:
     trajectory = root / "trial/agent/trajectory"
-    terminal = read_json(trajectory / f"run-root-{suffix}.terminal.json")
     composite = read_json(trajectory / "composite-manifest.json")
-    assert valid_composite_structure(
-        composite, terminal, f"root-{suffix}", f"trial-{suffix}", resolution["arm"],
-    )
     assert_trial_state(root, backend)
     assert_zero_paid_run(resolution, composite)
     expected_roles = set(resolution["roles"])

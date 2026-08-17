@@ -9,12 +9,11 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | artifact_provenance.py | boundary | Binds each built artifact to the source it came from, and refuses one that no longer matches the checkout |
 | campaign.py | CLI | Runs one campaign's trials concurrently across its address slots, accounts every trial's spend whether or not it published, and writes the report |
 | campaign_config.py | boundary | Reads campaign input, carves the concurrency slots' address space, scopes each trial proxy host and refuses a cost pair that funds too few requests |
-| container_boundary.py | boundary | Proves post-stop container process and namespace quiescence |
+| container_boundary.py | boundary | Records post-stop container exit and process census |
 | cwd.py | core | Resolves the live container workdir |
 | manifest.py | core | Records artifacts and the installed CLI version |
 | harbor_agent.py | adapter | Auth-bootstraps production and defers publication until Harbor confirms container stop |
 | host_finalization.py | boundary | Collects the trial evidence tree, records the launch parameters and publishes the outer envelope |
-| inner_validation.py | boundary | Validates production-ledger evidence v2 edges |
 | launcher/ | core | Selects arms and builds non-secret Harbor inputs |
 | proxy/ | network | Injects credentials through a bounded trial route |
 | scan/ | audit | Finds credential and host-identity leaks |

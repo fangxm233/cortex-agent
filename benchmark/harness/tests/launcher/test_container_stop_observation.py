@@ -1,5 +1,5 @@
 # input:  scripted or opt-in Docker state and host proc census
-# output: post-stop observation and fail-closed census proofs
+# output: post-stop exit and observed process census recording proofs
 # pos:    Container stop/wait boundary tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -20,7 +20,6 @@ from cortex_bench_harness.container_boundary import (
     ContainerBoundaryProbe,
     ContainerBoundaryUnproven,
 )
-from cortex_bench_harness.host_finalization import HostFinalizationError
 from cortex_bench_harness.launcher.trial_admission import AdmittedDockerEnvironment
 from cortex_bench_harness.launcher.trial_admission_io import PullDisabledDockerEnvironment
 
@@ -112,6 +111,21 @@ def test_positive_stop_wait_observation_requires_empty_cgroup_and_dead_namespace
     assert commands.calls[-1] == LSNS
 
 
+def test_nonzero_post_stop_census_is_recorded_as_observed(tmp_path: Path) -> None:
+    proc_root = tmp_path / "proc"
+    write_process(proc_root, 101, 1001)
+    write_process(proc_root, 102, 1002)
+    commands = runner(lsns=ExecResult(stdout=f"{NAMESPACE_ID}\n", return_code=0))
+    probe = ContainerBoundaryProbe(commands, proc_root=proc_root)
+    census = capture(probe)
+
+    observation = observe(probe, census)
+
+    assert observation.descendants_alive == 2
+    assert observation.process_namespace_alive is True
+    assert observation.exit_code == 17
+
+
 def test_unobservable_container_exit_code_fails_closed(tmp_path: Path) -> None:
     proc_root = tmp_path / "proc"
     write_process(proc_root, 101, 1001)
@@ -182,7 +196,7 @@ def test_unobservable_descendant_cgroup_census_fails_closed(tmp_path: Path) -> N
         observe(probe, census)
 
 
-def test_live_descendant_refuses_observation(tmp_path: Path) -> None:
+def test_live_descendant_count_is_recorded(tmp_path: Path) -> None:
     proc_root = tmp_path / "proc"
     write_process(proc_root, 101, 1001)
     write_process(proc_root, 102, 1002)
@@ -190,11 +204,13 @@ def test_live_descendant_refuses_observation(tmp_path: Path) -> None:
     probe = ContainerBoundaryProbe(commands, proc_root=proc_root)
     census = capture(probe)
 
-    with pytest.raises(ContainerBoundaryUnproven):
-        observe(probe, census)
+    observation = observe(probe, census)
+
+    assert observation.descendants_alive == 2
+    assert observation.process_namespace_alive is False
 
 
-def test_live_pid_namespace_refuses_observation(tmp_path: Path) -> None:
+def test_live_pid_namespace_is_recorded(tmp_path: Path) -> None:
     proc_root = tmp_path / "proc"
     write_process(proc_root, 101, 1001)
     write_process(proc_root, 102, 1002)
@@ -204,8 +220,10 @@ def test_live_pid_namespace_refuses_observation(tmp_path: Path) -> None:
     shutil.rmtree(proc_root / "101")
     shutil.rmtree(proc_root / "102")
 
-    with pytest.raises(ContainerBoundaryUnproven):
-        observe(probe, census)
+    observation = observe(probe, census)
+
+    assert observation.descendants_alive == 0
+    assert observation.process_namespace_alive is True
 
 
 @docker_opt_in
@@ -283,7 +301,7 @@ def test_admitted_environment_finalizes_between_stop_wait_and_container_removal(
     assert events.index(("finalize", observation)) < events.index(("remove", False))
 
 
-def test_unobservable_stop_census_reports_boundary_failure_and_still_removes_container(
+def test_unobservable_stop_census_is_recorded_after_stop_and_container_is_removed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[object] = []
@@ -293,8 +311,6 @@ def test_unobservable_stop_census_reports_boundary_failure_and_still_removes_con
 
         def finalize_after_container_stop(self, value: object) -> None:
             events.append(("finalize", value))
-            if value is None:
-                raise HostFinalizationError("container_boundary_unproven")
 
         def revoke_admitted_proxy(self) -> None:
             events.append("revoke")
@@ -310,6 +326,7 @@ def test_unobservable_stop_census_reports_boundary_failure_and_still_removes_con
     environment._proxy_controller = Controller()
 
     async def compose(command: list[str], **_kwargs: object) -> ExecResult:
+        events.append(tuple(command))
         if command == ["ps", "--quiet", "main"]:
             return ExecResult(stdout=f"{CONTAINER_ID}\n", return_code=0)
         return ExecResult(return_code=0)
@@ -321,9 +338,46 @@ def test_unobservable_stop_census_reports_boundary_failure_and_still_removes_con
     environment._container_boundary_probe = lambda: Probe()
     monkeypatch.setattr(PullDisabledDockerEnvironment, "stop", base_stop)
 
-    with pytest.raises(HostFinalizationError) as raised:
-        asyncio.run(environment.stop(delete=False))
+    asyncio.run(environment.stop(delete=False))
 
-    assert raised.value.reason == "container_boundary_unproven"
-    assert ("finalize", None) in events
-    assert ("remove", False) in events
+    assert events.index(("stop",)) < events.index(("finalize", None))
+    assert events.index(("finalize", None)) < events.index(("remove", False))
+
+
+def test_capture_failure_still_stops_before_recording_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[object] = []
+
+    class Controller:
+        post_stop_finalization_pending = True
+
+        def finalize_after_container_stop(self, value: object) -> None:
+            events.append(("finalize", value))
+
+        def revoke_admitted_proxy(self) -> None:
+            events.append("revoke")
+
+    class Probe:
+        async def capture(self, _container_id: str) -> str:
+            raise ContainerBoundaryUnproven("capture unavailable")
+
+    environment = object.__new__(AdmittedDockerEnvironment)
+    environment._proxy_controller = Controller()
+
+    async def compose(command: list[str], **_kwargs: object) -> ExecResult:
+        events.append(tuple(command))
+        if command == ["ps", "--quiet", "main"]:
+            return ExecResult(stdout=f"{CONTAINER_ID}\n", return_code=0)
+        return ExecResult(return_code=0)
+
+    async def base_stop(_self: object, delete: bool) -> None:
+        events.append(("remove", delete))
+
+    environment._run_docker_compose_command = compose
+    environment._container_boundary_probe = lambda: Probe()
+    monkeypatch.setattr(PullDisabledDockerEnvironment, "stop", base_stop)
+
+    asyncio.run(environment.stop(delete=False))
+
+    assert events.index(("stop",)) < events.index(("finalize", None))

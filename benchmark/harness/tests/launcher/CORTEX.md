@@ -12,14 +12,14 @@ Launcher tests cover arm routing, credential projections, and vendor isolation.
 | test_capability_evidence.py | test | Proves schema migration, evidence binding and manifest validity |
 | test_capability_state_gate.py | test | Proves an unadmitted row never reaches an armed route |
 | test_comparison_report.py | test | Verifies campaign pins and comparison semantics |
-| test_container_stop_observation.py | test | Proves stop/wait process and namespace census |
+| test_container_stop_observation.py | test | Proves stop ordering and observed process census recording |
 | test_credential_capabilities.py | test | Verifies non-secret capability projections |
 | test_deepseek_paid_smoke.py | test | Proves exact paid contract and vault cleanup |
 | test_host_credential_vault.py | test | Proves consume-once host credential transfer |
 | test_host_finalization.py | test | Proves the collected evidence record, the recorded launch parameters and the single leak refusal |
 | test_paid_campaign_launch.py | test | Proves the host-only launcher resolves all five references, refuses artifacts that no longer match current source, and never exposes the credential |
 | test_production_home.py | test | Proves fresh direct homes, isolated server auth, route sealing and attestations |
-| test_production_session.py | test | Proves production lifecycle command sequencing, webhook, export and stop with a fake executor |
+| test_production_session.py | test | Proves production lifecycle, emitted evidence collection and stop |
 | test_independent_entry_parity.py | test | Second witness: shipped entry composes with no helper |
 | test_public_entry_parity.py | test | Proves seed-only composition through the shipped loader |
 | test_thread_policy.py | test | Verifies the composed in-trial thread-policy document and its file |

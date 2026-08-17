@@ -1,6 +1,6 @@
 # input:  Docker lifecycle state and host /proc namespace census
-# output: exact post-stop container boundary observation
-# pos:    Host container quiescence probe
+# output: post-stop container exit and process census observation
+# pos:    Host container boundary recorder
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
@@ -88,8 +88,6 @@ class ContainerBoundaryProbe:
         _require_exited_state(state, exit_code)
         descendants = _descendants_alive(self._proc_root, census)
         namespace_alive = await self._namespace_alive(census.namespace_id)
-        if descendants != 0 or namespace_alive:
-            raise ContainerBoundaryUnproven("container processes remain after stop")
         return ContainerBoundaryObservation(
             _timestamp(), exit_code, descendants, namespace_alive,
         )

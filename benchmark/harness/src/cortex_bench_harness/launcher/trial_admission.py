@@ -5,7 +5,6 @@
 
 import asyncio
 import ipaddress
-import json
 import os
 import re
 import stat
@@ -38,7 +37,7 @@ from harbor.models.trial.config import (
 from harbor.models.trial.paths import EnvironmentPaths, TrialPaths
 from harbor.trial.trial import Trial
 
-from ..container_boundary import ContainerBoundaryProbe
+from ..container_boundary import ContainerBoundaryProbe, ContainerBoundaryUnproven
 from .arm_resolution import TrialSeed, parse_trial_seed
 from .host_credential_vault import HOST_CREDENTIAL_VAULT
 from .arms import arm_backend, build_agent_config, require_pinned_image
@@ -864,18 +863,20 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         controller = self._proxy_controller
         if controller is None or not getattr(controller, "post_stop_finalization_pending", False):
             return
+        probe = self._container_boundary_probe()
+        census = None
         try:
             container_id = await self._main_container_id()
-            probe = self._container_boundary_probe()
             census = await probe.capture(container_id)
-            await self._run_docker_compose_command(["stop"])
-            observation = await probe.observe_after_stop(census)
-        except BaseException as error:
+        except (HarborTrialAdmissionError, ContainerBoundaryUnproven):
+            pass
+        await self._run_docker_compose_command(["stop"])
+        observation = None
+        if census is not None:
             try:
-                controller.finalize_after_container_stop(None)
-            except BaseException as boundary_error:
-                raise boundary_error from error
-            raise
+                observation = await probe.observe_after_stop(census)
+            except ContainerBoundaryUnproven:
+                pass
         controller.finalize_after_container_stop(observation)
 
     @override

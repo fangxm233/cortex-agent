@@ -1,5 +1,5 @@
 # input:  direct bundle, launcher facts, host and runtime paths
-# output: sealed fresh home, server-only auth, launch attestation and evidence context
+# output: sealed home, auth, attestations, committed bundle inventory
 # pos:    Pre-boot materializer for the production direct benchmark arm
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 

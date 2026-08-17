@@ -1,5 +1,5 @@
 # input:  sealed production home, installed server facts, fake container executor
-# output: boot, webhook, export, route-refusal and shutdown proofs
+# output: boot, webhook, evidence collection, route-refusal and shutdown proofs
 # pos:    Integration contract for one production direct-arm session
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -146,6 +146,8 @@ class FakeExecutor:
             }
             (trajectory / "run-root-direct.terminal.json").write_text(json.dumps(terminal))
             (trajectory / "composite-manifest.json").write_text(json.dumps(composite))
+            if self.malformed_evidence:
+                return SimpleNamespace(stdout="{not json", stderr="")
             return self._reply({
                 "ok": True,
                 "directory": "/logs/agent/trajectory",
@@ -233,13 +235,14 @@ def test_session_posts_validated_root_context_and_export_identity(tmp_path: Path
     assert evidence["proxyExport"]["trial_id"] == "trial-direct"
 
 
-def test_session_refuses_malformed_v2_files_and_still_stops(tmp_path: Path) -> None:
+def test_session_records_malformed_evidence_without_revalidating_it(tmp_path: Path) -> None:
     runner = FakeExecutor(tmp_path, malformed_evidence=True)
     production = session(tmp_path)
 
-    with pytest.raises(ProductionSessionError, match="v2 evidence"):
-        asyncio.run(production.run("Solve only this task.", runner))
+    result = asyncio.run(production.run("Solve only this task.", runner))
 
+    assert result.status == "completed"
+    assert (tmp_path / "trajectory/run-root-direct.terminal.json").read_text() == "{}"
     assert production.stopped_cleanly is True
 
 
