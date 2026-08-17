@@ -1,5 +1,5 @@
 // input:  command dependencies, platform adapter, command handlers
-// output: registerCommands dispatcher including auth flows
+// output: registerCommands dispatcher including auth and usage flows
 // pos:    Orchestration command registry and dispatcher
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -29,6 +29,7 @@ import { handleDispatchCmd } from './dispatch.js';
 import { handleLangCmd } from './lang.js';
 import { handleRestartCmd } from './restart.js';
 import { createLoginHandler } from './login.js';
+import { createUsageHandler, type UsageCommandService } from './usage.js';
 import type { AuthLoginService, AuthStatusSnapshot } from '@domain/auth/index.js';
 
 const log = createLogger('command-handler');
@@ -41,6 +42,7 @@ export interface CommandDeps {
   compactSessionByChannel?: CompactSessionByChannel | null;
   getAuthStatus?: (() => Promise<AuthStatusSnapshot>) | null;
   authLogin?: AuthLoginService;
+  usageService?: UsageCommandService;
 }
 
 type Handler = (channel: string, adapter: PlatformAdapter, trimmedMessage: string, threadAnchorId?: string | null) => Promise<CommandResult | void>;
@@ -108,6 +110,7 @@ function createHandlerSet(deps: CommandDeps) {
     register: createRegisterHandler(router),
     projectDir: createProjectDirHandler(router),
     schedule: createScheduleHandler(deps.scheduler, router),
+    usage: createUsageHandler(router, deps.usageService),
     login: createLoginHandler({
       readStatus: deps.getAuthStatus ?? undefined,
       authLogin: deps.authLogin,
@@ -129,6 +132,7 @@ function createExactCommands(h: HandlerSet): Record<string, Handler> {
     '!mode': (ch, ad) => handleModeCmd(ch, ad),
     '!skills': (ch, ad) => handleSkillsCmd(ch, ad),
     '!status': (ch, ad) => h.status(ch, ad),
+    '!usage': (ch, ad, msg) => h.usage(ch, ad, msg),
     '!projects': (ch, ad) => handleProjectsCmd(ch, ad),
     '!resume': (ch, ad, msg) => h.resume(ch, ad, msg),
     '!tail': (ch, ad, msg) => handleTailCmd(ch, ad, msg),
@@ -149,6 +153,7 @@ function createPrefixCommands(h: HandlerSet): PrefixHandler[] {
     { prefix: '!backend', handler: handleBackendCmd },
     { prefix: '!model', handler: handleModelCmd },
     { prefix: '!profile', handler: h.profile },
+    { prefix: '!usage ', handler: h.usage },
     { prefix: '!cost', handler: handleCostCmd },
     { prefix: '!budget', handler: handleBudgetCmd },
     { prefix: '!schedule', handler: h.schedule },

@@ -1,5 +1,5 @@
-// input:  Node runner, command handlers, auth/profile fixtures
-// output: Bang-command routing including profile and login usage
+// input:  Node runner, command handlers, auth/profile/usage fixtures
+// output: Bang-command routing including profile, login and usage
 // pos:    Command handler regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -11,8 +11,11 @@ import * as path from 'path';
 import * as os from 'os';
 
 import { registerCommands as createCommandDispatcher } from '../src/orchestration/routing/commands/index.js';
+import { CommandActionRouter } from '../src/orchestration/interactions/command-action-router.js';
 import { handleBackendCmd } from '../src/orchestration/routing/commands/mode.js';
 import { handleBudgetCmd } from '../src/orchestration/routing/commands/cost.js';
+import { formatUsageReport } from '../src/orchestration/routing/commands/usage.js';
+import type { ProviderUsage } from '../src/domain/costs/usage-store.js';
 import { projectStore } from '../src/domain/projects/index.js';
 import { getActiveBackend, setActiveBackend } from '../src/domain/agents/config.js';
 import { getDefaultProfileName } from '../src/domain/agents/profile-manager.js';
@@ -125,6 +128,142 @@ test('!cost <project> filters report to the requested project scope', async (t) 
   assert.match(adapter.posted[0].content.text, /Cost Report \(project: proj-a\)/);
   assert.match(adapter.posted[0].content.text, /Today: \$1\.50/);
   assert.doesNotMatch(adapter.posted[0].content.text, /proj-b/);
+});
+
+const COMMAND_USAGE: ProviderUsage[] = [{
+  provider: 'anthropic',
+  displayName: 'Anthropic',
+  modes: ['plan'],
+  windows: [
+    { type: 'five_hour', utilization: 0.34, resetsAt: 1_800_000_000 },
+    { type: 'seven_day', utilization: 0.61, resetsAt: null },
+    { type: 'model_scoped', label: 'Fable', utilization: 0.12, resetsAt: null },
+  ],
+  observedAt: 1_799_999_000,
+  freshness: 'live',
+}, {
+  provider: 'openai-codex',
+  displayName: 'OpenAI Codex',
+  modes: ['openai-codex'],
+  windows: [
+    { type: 'codex_primary', utilization: 0.2, resetsAt: null },
+    { type: 'codex_secondary', utilization: null, resetsAt: null },
+  ],
+  observedAt: 1_799_998_000,
+  freshness: 'stale',
+  note: 'push-only observation is stale',
+}, {
+  provider: 'deepseek',
+  displayName: 'DeepSeek',
+  modes: ['deepseek'],
+  windows: [],
+  spend: { today: 1.25, month: 4.5 },
+  observedAt: null,
+  freshness: 'unsupported',
+  note: 'gateway usage collection failed (month: timeout)',
+}, {
+  provider: 'qwen-ksu',
+  displayName: 'Qwen KSU',
+  modes: ['qwen-ksu'],
+  windows: [],
+  spend: { today: 0, month: 2.75 },
+  observedAt: null,
+  freshness: 'unsupported',
+}];
+
+test('usage formatter renders quota windows, spend, freshness, and stale error notes', () => {
+  const text = formatUsageReport(COMMAND_USAGE);
+
+  assert.match(text, /Anthropic.*live/);
+  assert.match(text, /5 hour.*34%.*2027-01-15T08:00:00\.000Z/);
+  assert.match(text, /7 day.*61%/);
+  assert.match(text, /Fable.*12%/);
+  assert.match(text, /OpenAI Codex.*stale/);
+  assert.match(text, /Primary.*20%/);
+  assert.match(text, /Secondary.*unavailable/);
+  assert.match(text, /push-only observation is stale/);
+  assert.match(text, /DeepSeek.*quota unsupported/);
+  assert.match(text, /today \$1\.25.*month \$4\.50/);
+  assert.match(text, /gateway usage collection failed \(month: timeout\)/);
+  assert.match(text, /Qwen KSU.*quota unsupported/);
+});
+
+test('!usage uses exact and trailing-space prefix routes with provider filtering', async () => {
+  const adapter = new MockAdapter();
+  let statusCalls = 0;
+  const dispatchCommand = createCommandDispatcher({
+    scheduler: null,
+    usageService: {
+      getStatus: async () => { statusCalls += 1; return COMMAND_USAGE; },
+      refresh: async () => COMMAND_USAGE,
+    },
+  });
+
+  assert.equal(dispatchCommand('!usage', 'C-usage', adapter), true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(adapter.posted[0].content.text, /Anthropic/);
+  assert.match(adapter.posted[0].content.text, /DeepSeek/);
+
+  assert.equal(dispatchCommand('!usage openai-codex', 'C-usage', adapter), true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(adapter.posted[1].content.text, /OpenAI Codex/);
+  assert.doesNotMatch(adapter.posted[1].content.text, /Anthropic/);
+
+  assert.equal(dispatchCommand('!usage-extra', 'C-usage', adapter), true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(adapter.posted[2].content.text, /Unknown command/);
+  assert.equal(statusCalls, 2);
+});
+
+test('!usage refresh action forces every collection and preserves provider filter', async () => {
+  const adapter = new MockAdapter();
+  const router = new CommandActionRouter();
+  let statusCalls = 0;
+  let refreshCalls = 0;
+  const dispatchCommand = createCommandDispatcher({
+    scheduler: null,
+    commandRouter: router,
+    usageService: {
+      getStatus: async () => { statusCalls += 1; return COMMAND_USAGE; },
+      refresh: async () => { refreshCalls += 1; return COMMAND_USAGE; },
+    },
+  });
+  router.bindToAdapter(adapter);
+
+  dispatchCommand('!usage openai-codex', 'C-usage', adapter);
+  await new Promise(resolve => setImmediate(resolve));
+  const actions = adapter.posted[0].content.richBlocks?.find(block => block.type === 'actions');
+  assert.equal(actions?.elements[0].actionId, 'cmd:usage:refresh');
+  assert.equal(actions?.elements[0].value, 'openai-codex');
+  assert.equal(statusCalls, 1);
+  assert.equal(refreshCalls, 0, 'reading usage must not collect');
+
+  const action = { channelId: 'C-usage', messageRef: { conduit: 'C-usage', messageId: 'usage-msg-1' } };
+  await adapter.simulateAction('cmd:usage:refresh', 'openai-codex', action);
+  await adapter.simulateAction('cmd:usage:refresh', 'openai-codex', action);
+
+  assert.equal(refreshCalls, 2, 'each action must force an unthrottled refresh');
+  assert.equal(adapter.updated.length, 2);
+  assert.match(adapter.updated[1].content.text, /OpenAI Codex.*stale/);
+  assert.doesNotMatch(adapter.updated[1].content.text, /Anthropic/);
+  assert.match(adapter.updated[1].content.text, /push-only observation is stale/);
+});
+
+test('!usage appears in English and Chinese monitoring help', async (t) => {
+  const previousLocale = getLocale();
+  t.onTestFinished(() => setLocale(previousLocale));
+  const adapter = new MockAdapter();
+  const dispatchCommand = createCommandDispatcher({ scheduler: null });
+
+  setLocale('en');
+  dispatchCommand('!help', 'C-help', adapter);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(adapter.posted[0].content.text, /!usage \[provider\].*provider quota and spend/);
+
+  setLocale('zh');
+  dispatchCommand('!help', 'C-help', adapter);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(adapter.posted[1].content.text, /!usage \[provider\].*供应商配额和消费额/);
 });
 
 // ── !budget: global + per-project forms ────────────────────────────
