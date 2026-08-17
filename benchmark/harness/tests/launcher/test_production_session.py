@@ -100,6 +100,8 @@ class FakeExecutor:
     ) -> SimpleNamespace:
         self.calls.append((command, env, cwd))
         self.timeouts.append(timeout_sec)
+        if "production-webhook-auth.json" in command:
+            self._capture("production-webhook-auth.json")
         if "dist/entry/production-app-bootstrap.js" in command:
             self._capture("production-server-auth.json")
             (self.logs_dir / "production-server-auth.json").unlink()
@@ -188,10 +190,16 @@ def test_session_boots_real_server_injects_only_webhook_exports_and_stops(tmp_pa
     assert runner.payloads["production-server-auth.json"] == {
         "clientToken": "client-token", "webhookToken": "webhook-token",
     }
+    # The sealed container environment is an exact identity, so a webhook POST may add no exec
+    # variable at all; the bearer travels as a one-shot file whose path is the only thing in argv.
     assert all(
-        env == {"CORTEX_WEBHOOK_TOKEN": "webhook-token"}
+        env is None and "webhook-token" not in command
+        and "/logs/agent/production-webhook-auth.json" in command
         for command, env, _ in runner.calls if "/webhook/thread-op" in command
     )
+    assert runner.payloads["production-webhook-auth.json"] == {
+        "webhookToken": "webhook-token",
+    }
     assert all("cortex agent-run" not in command for command in commands)
     assert all("benchmark-thread-run" not in command for command in commands)
     assert sum("/webhook/thread-op" in command for command in commands) == 4

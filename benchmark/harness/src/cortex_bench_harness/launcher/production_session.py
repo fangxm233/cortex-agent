@@ -23,12 +23,21 @@ HTTP_REQUEST_TIMEOUT_SECONDS = 10
 EVIDENCE_EXPORT_TIMEOUT_SECONDS = 120
 SERVER_STOP_TIMEOUT_SECONDS = 30
 GATEWAY_STATUS_URL = "http://127.0.0.1:9880/status"
+SERVER_AUTH_FILENAME = "production-server-auth.json"
+WEBHOOK_AUTH_FILENAME = "production-webhook-auth.json"
+# The bearer arrives by file path, never by exec environment and never in argv. The sealed
+# container environment is an exact identity — keys and value digest — so one extra exec-time
+# variable refuses the whole call, and a value in the command string would be argv the leak
+# scanner reads. This is the same one-shot-file delivery `_write_server_auth` uses.
 HTTP_CLIENT = """
 import fs from 'node:fs';
-const [url, input] = process.argv.slice(1);
+const [url, input, auth] = process.argv.slice(1);
 const response = await fetch(url, {
   method: 'POST',
-  headers: {'content-type': 'application/json', 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN},
+  headers: {
+    'content-type': 'application/json',
+    'x-cortex-token': JSON.parse(fs.readFileSync(auth, 'utf8')).webhookToken,
+  },
   body: fs.readFileSync(input),
 });
 const body = await response.text();
@@ -197,13 +206,13 @@ class ProductionServerSession:
         return f"{prefix} >{stdout} 2>{stderr} </dev/null & printf '%s\\n' \"$!\""
 
     def _write_server_auth(self) -> PurePosixPath:
-        path = self._write_request("production-server-auth.json", {
+        path = self._write_request(SERVER_AUTH_FILENAME, {
             "clientToken": self._spec.materialized_home.client_token,
             "webhookToken": self._spec.materialized_home.webhook_token,
         })
         # The bind-mounted log owner may not equal the container UID. The bootstrap unlinks this
         # one-shot file before importing the app or spawning any model-controlled process.
-        (self._spec.logs_dir / "production-server-auth.json").chmod(0o444)
+        (self._spec.logs_dir / SERVER_AUTH_FILENAME).chmod(0o444)
         return path
 
     async def _start_server(self, execute: Executor) -> int:
@@ -215,22 +224,32 @@ class ProductionServerSession:
             raise ProductionSessionError("production server did not return a process-group id")
         return int(text)
 
-    def _http_command(self, request_path: PurePosixPath) -> str:
+    def _http_command(
+        self, request_path: PurePosixPath, auth_path: PurePosixPath,
+    ) -> str:
         environment = self._spec.materialized_home.process_environment
         port = environment["WEBHOOK_PORT"]
         url = f"http://127.0.0.1:{port}/webhook/thread-op"
         return shlex.join([
             "node", "--input-type=module", "--eval", HTTP_CLIENT,
-            url, str(request_path),
+            url, str(request_path), str(auth_path),
         ])
+
+    def _write_webhook_auth(self) -> PurePosixPath:
+        return self._write_request(WEBHOOK_AUTH_FILENAME, {
+            "webhookToken": self._spec.materialized_home.webhook_token,
+        })
 
     async def _post(self, name: str, body: Mapping[str, object], execute: Executor) -> Mapping[str, object]:
         request = self._write_request(name, body)
-        token = self._spec.materialized_home.webhook_token
-        result = await execute(
-            self._http_command(request), env={"CORTEX_WEBHOOK_TOKEN": token},
-            cwd=self._spec.workspace_cwd, timeout_sec=HTTP_REQUEST_TIMEOUT_SECONDS,
-        )
+        auth = self._write_webhook_auth()
+        try:
+            result = await execute(
+                self._http_command(request, auth),
+                cwd=self._spec.workspace_cwd, timeout_sec=HTTP_REQUEST_TIMEOUT_SECONDS,
+            )
+        finally:
+            (self._spec.logs_dir / WEBHOOK_AUTH_FILENAME).unlink(missing_ok=True)
         try:
             response = json.loads(result.stdout or "")
         except json.JSONDecodeError as error:
