@@ -14,7 +14,7 @@ Panels read snapshots; Usage independently queries the shared web usage feature.
 | CustomProvidersCard.test.tsx | test | Tests provider selections, writes and delete guard |
 | custom-provider-vm.ts | vm | Validates custom provider drafts and builds mutation args |
 | custom-provider-vm.test.ts | test | Unit tests for the custom provider view model |
-| AuthLoginEntry.test.tsx | test | Tests shell, login, and save placement |
+| AuthLoginEntry.test.tsx | test | Tests shell routing, Usage, login, and save placement |
 | RuntimeSettingsPanels.tsx | view | Edits runtime switches, retention days, and job cadence selections |
 | RuntimeSettingsPanels.test.tsx | test | Tests runtime selections, retention writes, control sizing and production writes |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |

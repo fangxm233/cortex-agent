@@ -13,7 +13,10 @@ const NOW = Math.floor(Date.now() / 1000);
 const usage: SystemUsageStatus = [
   {
     provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'], freshness: 'live', observedAt: NOW - 60,
-    windows: [{ type: 'five_hour', utilization: 0.54, resetsAt: NOW + 3600 }],
+    windows: [
+      { type: 'five_hour', utilization: 0.54, resetsAt: NOW + 3600 },
+      { type: 'seven_day', utilization: 0.31, resetsAt: NOW - 60 },
+    ],
   },
   {
     provider: 'openai-codex', displayName: 'OpenAI Codex', modes: ['openai-codex'], freshness: 'stale', observedAt: NOW - 600,
@@ -41,6 +44,8 @@ const harness = vi.hoisted(() => ({
   mutations: [] as { kind: string; args: unknown }[],
   invalidations: [] as unknown[],
   pending: false,
+  queryError: null as Error | null,
+  refreshError: null as Error | null,
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -61,7 +66,12 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
   ...await importOriginal<typeof import('@tanstack/react-query')>(),
   useQuery: (options: any) => {
     harness.queried.push(options.__kind);
-    return { data: usage, isLoading: false, isError: false, error: null };
+    return {
+      data: harness.queryError ? undefined : usage,
+      isLoading: false,
+      isError: harness.queryError !== null,
+      error: harness.queryError,
+    };
   },
   useMutation: (options: any) => ({
     mutate: (args: unknown) => {
@@ -69,8 +79,8 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
       options.onSuccess?.(usage);
     },
     isPending: harness.pending,
-    isError: false,
-    error: null,
+    isError: harness.refreshError !== null,
+    error: harness.refreshError,
   }),
   useQueryClient: () => ({
     setQueryData: (key: unknown, value: unknown) => harness.invalidations.push({ key, value }),
@@ -90,6 +100,8 @@ beforeEach(() => {
   harness.mutations = [];
   harness.invalidations = [];
   harness.pending = false;
+  harness.queryError = null;
+  harness.refreshError = null;
 });
 
 describe('desktop Settings Usage panel', () => {
@@ -113,6 +125,7 @@ describe('desktop Settings Usage panel', () => {
     expect(html).toContain('5 hours');
     expect(html).toContain('Primary');
     expect(html).toContain('Secondary');
+    expect(html).toContain('Reset elapsed');
     expect(html).toContain('$1.25');
   });
 
@@ -131,6 +144,21 @@ describe('desktop Settings Usage panel', () => {
       { key: ['system.usageStatus', {}], value: usage },
       { key: ['system.usageStatus', {}], value: usage },
     ]);
+  });
+
+  it('renders query and refresh failures without hiding successful snapshots', () => {
+    harness.queryError = new Error('status unavailable');
+    const failedQuery = JSON.stringify(mount().toJSON());
+    expect(failedQuery).toContain('Failed to load usage');
+    expect(failedQuery).toContain('status unavailable');
+
+    harness.queryError = null;
+    harness.refreshError = new Error('refresh unavailable');
+    const failedRefresh = mount();
+    const html = JSON.stringify(failedRefresh.toJSON());
+    expect(html).toContain('Refresh failed');
+    expect(html).toContain('refresh unavailable');
+    expect(html).toContain('Anthropic');
   });
 
   it('shows refresh loading feedback and all freshness labels', () => {

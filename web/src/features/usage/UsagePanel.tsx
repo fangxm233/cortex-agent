@@ -59,7 +59,11 @@ function WindowRow({ window }: { window: UsageWindowView }) {
         <span style={{ marginLeft: 'auto', font: `600 10px ${MONO}`, color: 'var(--proto-ink)' }}>{window.utilizationLabel ?? L.usageUnavailable}</span>
       </div>
       <UsageProgress window={window} />
-      {window.resetsAt !== null && window.resetIn !== null ? (
+      {window.resetElapsed ? (
+        <div style={{ marginTop: 5, font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>
+          {L.usageResetElapsed}
+        </div>
+      ) : window.resetsAt !== null && window.resetIn !== null ? (
         <div style={{ marginTop: 5, font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>
           {L.usageResetsIn}{' '}<time dateTime={isoTime(window.resetsAt)} title={isoTime(window.resetsAt)}>{window.resetIn}</time>
         </div>

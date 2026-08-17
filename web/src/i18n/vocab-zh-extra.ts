@@ -87,6 +87,7 @@ export const zhExtra = {
   usageObserved: '观测于',
   usageAgo: '前',
   usageResetsIn: '重置倒计时',
+  usageResetElapsed: '重置时间已过',
   usageToday: '今日',
   usageMonth: '本月',
   usageUnavailable: '不可用',
