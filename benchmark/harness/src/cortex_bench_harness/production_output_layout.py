@@ -47,8 +47,16 @@ PI_SESSION = re.compile(
     r"(?:(?:\d{4}-\d{2}-\d{2}T\d{2}(?:[-:]\d{2}){2}(?:-\d{3})?Z)_)?"
     r"(?P<session>[A-Za-z0-9-]+)\.jsonl"
 )
+PRODUCTION_THREAD_ID = re.compile(r"thr_[a-f0-9]{8}")
 SAFE_DYNAMIC_ID = re.compile(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*")
 FORBIDDEN_DYNAMIC_ID = re.compile(r"auth|credential|env|secret", re.IGNORECASE)
+PRODUCTION_DIRECT_ROLE = "benchmark-direct"
+IDENTITY_NODE_FIELDS = (
+    "trial_id", "root_run_id", "thread_id", "parent_thread_id", "root_thread_id",
+    "task_id", "dispatch_generation", "template", "role", "stage", "backend", "provider",
+    "requested_model", "model_execution_identity_hash", "role_tool_surface_hash",
+    "bundle_manifest_hash",
+)
 
 
 class ProductionOutputLayoutError(ValueError):
@@ -104,34 +112,34 @@ def production_direct_dynamic_files(
     if not isinstance(nodes, list) or len(nodes) != 1 or not isinstance(nodes[0], Mapping):
         raise ProductionOutputLayoutError("production direct composite must have one node")
     threads = _read_mapping(logs_dir / PRODUCTION_HOME / "data/threads.json")
-    return _dynamic_node_files(nodes[0], threads, discovered_paths)
+    return _dynamic_node_files(logs_dir, nodes[0], threads, discovered_paths)
 
 
 def _dynamic_node_files(
-    node: Mapping[str, object], threads: Mapping[str, object],
+    logs_dir: Path, node: Mapping[str, object], threads: Mapping[str, object],
     discovered_paths: Sequence[str],
 ) -> dict[tuple[str, str], str]:
     attempt = _required_text(node, "attempt_id")
-    thread_id = _required_text(node, "thread_id")
-    role = _required_text(node, "role")
-    step = _thread_step(threads, thread_id, role)
-    track_id = _dynamic_id(step, "sessionId")
-    backend_id = _dynamic_id(step, "backendSessionId")
-    session_path = _pi_session_path(discovered_paths, backend_id)
+    thread_id = _production_thread_id(node)
+    role = _production_role(node)
+    track_id, settled_backend = _thread_sessions(threads, thread_id, role)
+    journal_relative, backend_id = _authoritative_attempt(logs_dir, node, attempt)
+    if settled_backend is not None and settled_backend != backend_id:
+        raise ProductionOutputLayoutError("production backend session identity drifted")
     relative = {
-        f"data/benchmark-attempt-journals/{hashlib.sha256(attempt.encode()).hexdigest()}.ndjson": (
-            "production_attempt_journal"
-        ),
+        journal_relative: "production_attempt_journal",
         _derived_output_path("data/conversation-history", f"{track_id}.jsonl"): (
             "production_conversation_history"
         ),
-        f"tmp/threads/{thread_id}/artifact.md": "production_thread_artifact",
-        session_path: "production_pi_session",
+        _derived_output_path(f"tmp/threads/{thread_id}", "artifact.md"): (
+            "production_thread_artifact"
+        ),
+        _pi_session_path(discovered_paths, backend_id): "production_pi_session",
     }
     relative.update(_server_log_files(node, discovered_paths))
     return {
-        ("agent", f"{PRODUCTION_HOME}/{path}"): source
-        for path, source in relative.items()
+        ("agent", f"{PRODUCTION_HOME}/{relative_path}"): source
+        for relative_path, source in relative.items()
     }
 
 
@@ -145,18 +153,119 @@ def _read_mapping(path: Path) -> Mapping[str, object]:
     return value
 
 
-def _thread_step(
+def _production_thread_id(node: Mapping[str, object]) -> str:
+    thread_id = _required_text(node, "thread_id")
+    if PRODUCTION_THREAD_ID.fullmatch(thread_id) is None:
+        raise ProductionOutputLayoutError("production thread_id is invalid")
+    return thread_id
+
+
+def _production_role(node: Mapping[str, object]) -> str:
+    role = _required_text(node, "role")
+    if role != PRODUCTION_DIRECT_ROLE:
+        raise ProductionOutputLayoutError("production direct role is invalid")
+    return role
+
+
+def _thread_sessions(
     threads: Mapping[str, object], thread_id: str, role: str,
-) -> Mapping[str, object]:
+) -> tuple[str, str | None]:
     thread = threads.get(thread_id)
+    agents = thread.get("agents") if isinstance(thread, Mapping) else None
+    slot = agents.get(role) if isinstance(agents, Mapping) else None
     steps = thread.get("steps") if isinstance(thread, Mapping) else None
-    matches = [
-        step for step in steps or []
-        if isinstance(step, Mapping) and step.get("agentSlotId") == role
-    ]
-    if len(matches) != 1:
+    if not isinstance(slot, Mapping) or not isinstance(steps, list):
+        raise ProductionOutputLayoutError("production thread identity is unavailable")
+    track_id = _dynamic_id(slot, "sessionId")
+    matches = [step for step in steps if (
+        isinstance(step, Mapping) and step.get("agentSlotId") == role
+    )]
+    if len(matches) > 1:
         raise ProductionOutputLayoutError("production thread step identity is ambiguous")
-    return matches[0]
+    if not matches:
+        return track_id, None
+    if _dynamic_id(matches[0], "sessionId") != track_id:
+        raise ProductionOutputLayoutError("production track session identity drifted")
+    return track_id, _dynamic_id(matches[0], "backendSessionId")
+
+
+def _json_lines(path: Path, label: str) -> list[Mapping[str, object]]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        values = [json.loads(line) for line in lines]
+    except OSError as error:
+        raise ProductionOutputMissing(f"production {label} is missing") from error
+    except (ValueError, UnicodeDecodeError) as error:
+        raise ProductionOutputLayoutError(f"production {label} is malformed") from error
+    if not values or any(not isinstance(value, Mapping) for value in values):
+        raise ProductionOutputLayoutError(f"production {label} is malformed")
+    return values
+
+
+def _identity_record(home: Path, node: Mapping[str, object], attempt: str) -> Mapping[str, object]:
+    rows = _json_lines(home / "data/benchmark-attempt-identities.jsonl", "identity store")
+    matches = [row for row in rows if row.get("attempt_id") == attempt]
+    if len(rows) != 1 or len(matches) != 1:
+        raise ProductionOutputLayoutError("production attempt identity is ambiguous")
+    identity = matches[0]
+    matches_node = all(identity.get(key) == node.get(key) for key in IDENTITY_NODE_FIELDS)
+    root_shape = (
+        identity.get("schema_version") == "cortex-production-attempt-identity/2"
+        and identity.get("root_attempt_id") == attempt
+        and identity.get("spawn_parent_attempt_id") is None
+    )
+    if not matches_node or not root_shape:
+        raise ProductionOutputLayoutError("production attempt identity drifted")
+    return identity
+
+
+def _journal_index_record(
+    home: Path, identity: Mapping[str, object], attempt: str,
+) -> Mapping[str, object]:
+    rows = _json_lines(home / "data/benchmark-attempt-journals.jsonl", "journal index")
+    matches = [row for row in rows if row.get("attempt_id") == attempt]
+    if len(rows) != 1 or len(matches) != 1:
+        raise ProductionOutputLayoutError("production attempt journal index is ambiguous")
+    record = matches[0]
+    if (
+        record.get("schema_version") != "cortex-production-attempt-journal/1"
+        or record.get("execution_id") != identity.get("execution_id")
+    ):
+        raise ProductionOutputLayoutError("production attempt journal index drifted")
+    return record
+
+
+def _authoritative_attempt(
+    logs_dir: Path, node: Mapping[str, object], attempt: str,
+) -> tuple[str, str]:
+    home = logs_dir / PRODUCTION_HOME
+    identity = _identity_record(home, node, attempt)
+    index = _journal_index_record(home, identity, attempt)
+    name = f"{hashlib.sha256(attempt.encode()).hexdigest()}.ndjson"
+    relative = f"data/benchmark-attempt-journals/{name}"
+    raw_path = home / relative
+    try:
+        raw = raw_path.read_bytes()
+        exported = (logs_dir / "trajectory" / _required_text(node, "journal_path")).read_bytes()
+    except OSError as error:
+        raise ProductionOutputMissing("production attempt journal is missing") from error
+    if raw != exported or hashlib.sha256(raw).hexdigest() != index.get("journal_sha256"):
+        raise ProductionOutputLayoutError("production attempt journal bytes drifted")
+    rows = _json_lines(raw_path, "attempt journal")
+    if index.get("event_count") != len(rows) - 1:
+        raise ProductionOutputLayoutError("production attempt journal count drifted")
+    return relative, _journal_session_id(rows)
+
+
+def _journal_session_id(rows: Sequence[Mapping[str, object]]) -> str:
+    sessions = []
+    for row in rows[1:]:
+        event = row.get("event")
+        if isinstance(event, Mapping) and event.get("type") == "session_started":
+            sessions.append(_dynamic_id(event, "sessionId"))
+    if len(sessions) != 1:
+        raise ProductionOutputLayoutError("production backend session identity is ambiguous")
+    return sessions[0]
 
 
 def _pi_session_path(discovered_paths: Sequence[str], backend_id: str) -> str:

@@ -38,6 +38,10 @@ from cortex_bench_harness.launcher.trial_proxy import (
     TrialRevocation,
 )
 from cortex_bench_harness.manifest import MANIFEST_FILENAME, SCHEMA_VERSION
+from cortex_bench_harness.production_output_layout import (
+    ProductionOutputLayoutError,
+    _production_thread_id,
+)
 from cortex_bench_harness.scan import ScanPolicy
 from cortex_bench_harness.trial_assets import canonical_sha256
 
@@ -113,18 +117,26 @@ def write_production_evidence(
     return composite["nodes"][0]
 
 
-def write_production_runtime_outputs(home: Path, node: Mapping[str, object]) -> None:
+def write_production_runtime_outputs(
+    home: Path, node: Mapping[str, object], *, failed: bool,
+) -> None:
     exact_json = (
         "data/versions.json", "data/threads.json", "data/executions.json",
         "data/pi/settings.json", "data/pi/models.json",
     )
     for relative in exact_json:
         write_json(home / relative, {})
+    settled_steps = [] if failed else [{
+        "agentSlotId": "benchmark-direct", "sessionId": "track-production",
+        "backendSessionId": "pi-production-session",
+    }]
     write_json(home / "data/threads.json", {
-        THREAD_ID: {"steps": [{
-            "agentSlotId": "benchmark-direct", "sessionId": "track-production",
-            "backendSessionId": "pi-production-session",
-        }]},
+        THREAD_ID: {
+            "agents": {"benchmark-direct": {
+                "sessionId": "track-production", "backendSessionId": None,
+            }},
+            "steps": settled_steps,
+        },
     })
     for relative in (
         "data/pi/agents/explore.md", "data/pi/agents/general-purpose.md",
@@ -219,7 +231,7 @@ def prepare_trial(
     node = write_production_evidence(
         logs_dir, materialized.cortex_home, materialized.bundle_manifest_hash, failed=failed,
     )
-    write_production_runtime_outputs(materialized.cortex_home, node)
+    write_production_runtime_outputs(materialized.cortex_home, node, failed=failed)
     (logs_dir / "instruction.md").write_text("Solve the task.\n", encoding="utf-8")
     (logs_dir / "stdout.txt").write_text("clean stdout\n", encoding="utf-8")
     (logs_dir / "stderr.txt").write_text("clean stderr\n", encoding="utf-8")
@@ -332,6 +344,35 @@ def test_exact_production_direct_layout_reaches_grader_admission(tmp_path: Path)
     assert all(value not in serialized for value in (
         SERVER_BEARER, LIVE_CREDENTIAL, HOST_PATH, "synthetic-evidence-value",
     ))
+
+
+@pytest.mark.parametrize("source", ["journal", "identity"])
+def test_production_direct_rejects_substituted_authoritative_evidence(
+    tmp_path: Path, source: str,
+) -> None:
+    logs, verifier, artifacts, npm_artifact, revocation = prepare_trial(tmp_path)
+    home = logs / "production-cortex-home"
+    if source == "journal":
+        journal = home / "data/benchmark-attempt-journals" / (
+            f"{hashlib.sha256(ATTEMPT_ID.encode()).hexdigest()}.ndjson"
+        )
+        journal.write_bytes(journal.read_bytes() + b"{}\n")
+    else:
+        identity = home / "data/benchmark-attempt-identities.jsonl"
+        row = json.loads(identity.read_text(encoding="utf-8"))
+        row["role_tool_surface_hash"] = SYNTHETIC_HASH
+        identity.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    with pytest.raises(HostFinalizationError) as raised:
+        finalize_host_trial(
+            logs_dir=logs, verifier_dir=verifier, artifact_dir=artifacts,
+            root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=arm(),
+            npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT,
+            revocation=revocation, scan_policy=scan_policy(),
+        )
+
+    assert raised.value.reason == "collected_output_invalid"
+    assert not (artifacts / OUTER_ENVELOPE_FILENAME).exists()
 
 
 def test_production_direct_rejects_a_structured_spawn_config_witness(
@@ -644,6 +685,14 @@ def test_production_state_cannot_bind_forbidden_dynamic_output_names(
 
     assert raised.value.reason == "collected_output_invalid"
     assert not (artifacts / OUTER_ENVELOPE_FILENAME).exists()
+
+
+@pytest.mark.parametrize("thread_id", [".env", "thr_auth"])
+def test_production_thread_output_identity_uses_the_exact_runtime_grammar(
+    thread_id: str,
+) -> None:
+    with pytest.raises(ProductionOutputLayoutError):
+        _production_thread_id({"thread_id": thread_id})
 
 
 @pytest.mark.parametrize("value", [SERVER_BEARER, LIVE_CREDENTIAL, HOST_PATH])

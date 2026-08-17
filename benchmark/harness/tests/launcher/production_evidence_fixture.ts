@@ -178,6 +178,7 @@ async function main(): Promise<void> {
     identity, spawnConfig: spawn,
     canonicalInstruction: options.identityDirective ?? '', message: 'Solve the task.',
   });
+  sink.onEvent({ type: 'session_started', sessionId: 'pi-production-session' });
   sink.onEvent(input.failed
     ? { type: 'rate_limit', raw: { status: 429 } }
     : { type: 'assistant_text', text: 'done', model: MODEL });
