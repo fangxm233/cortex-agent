@@ -1,4 +1,4 @@
-# input:  inner/proxy evidence, host attestations, pinned bundle
+# input:  arm output layout, inner/proxy evidence, host attestations
 # output: validated token-linked assets and outer grader envelope
 # pos:    Host-side benchmark v2 finalization gate
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -17,6 +17,7 @@ from pathlib import Path
 
 from .host_evidence_validation import validate_host_owned_identity
 from .inner_validation import valid_composite_structure
+from .launcher.production_session import is_production_direct_arm
 from .launcher.trial_admission import ADMISSION_EVIDENCE_FILENAME
 from .launcher.trial_proxy import (
     ADAPTER_SELECTION_RECORD_SOURCE,
@@ -30,12 +31,20 @@ from .launcher.trial_proxy import (
     TrialRevocation,
 )
 from .manifest import MANIFEST_FILENAME
+from .production_output_layout import (
+    ProductionOutputLayoutError,
+    ProductionOutputMissing,
+    production_direct_dynamic_files,
+    production_direct_required_files,
+    production_preboot_matches,
+)
 from .scan import ArtifactInventory, ScanPolicy, scan_trial_artifacts
 from .trial_assets import (
     ASSET_MANIFEST_PATH,
     PublishedAssets,
     TrialAssetError,
     canonical_sha256,
+    production_direct_asset_roles,
     publish_trial_assets,
 )
 
@@ -217,8 +226,11 @@ def finalize_host_trial(
         # that is a symlink has to be refused before any read can follow it.
         discovered = _discover_roots(roots)
         inner = _validate_inner(logs_dir, root_run_id, trial_id, arm)
-        _validate_trial_attestations(artifact_dir, npm_artifact, trial_id, inner.journal_header)
-        assets = _publish_assets(logs_dir, npm_artifact, bundle_root, inner)
+        launch = _validate_trial_attestations(
+            artifact_dir, npm_artifact, trial_id, inner.journal_header)
+        if not production_preboot_matches(logs_dir, arm, launch):
+            raise HostFinalizationError("launch_attestation_invalid")
+        assets = _publish_assets(logs_dir, npm_artifact, bundle_root, inner, arm)
         discovered = _rediscover(roots, discovered, assets)
         validate_host_owned_identity(artifact_dir, trial_id, root_run_id, arm.get("name"))
         usage = _proxy_usage(revocation, trial_id)
@@ -251,11 +263,16 @@ def _rediscover(
 
 def _publish_assets(
     logs_dir: Path, npm_artifact: Path, bundle_root: str, inner: InnerEvidence,
+    arm: Mapping[str, object],
 ) -> PublishedAssets:
     try:
+        roles = (
+            production_direct_asset_roles(logs_dir, bundle_root)
+            if is_production_direct_arm(arm) else None
+        )
         return publish_trial_assets(
             logs_dir=logs_dir, npm_artifact=npm_artifact, bundle_root=bundle_root,
-            header=inner.journal_header,
+            header=inner.journal_header, roles=roles,
         )
     except TrialAssetError as error:
         raise HostFinalizationError(error.reason) from error
@@ -415,13 +432,14 @@ def _validate_container_boundary_attestation(
 def _validate_trial_attestations(
     artifact_dir: Path, npm_artifact: Path, trial_id: str,
     journal_header: Mapping[str, object],
-) -> None:
+) -> Mapping[str, object]:
     launch = _read_attestation(
         artifact_dir / LAUNCH_ATTESTATION_FILENAME, "launch_attestation_invalid")
     boundary = _read_attestation(
         artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME, "container_boundary_unproven")
     _validate_launch_attestation(launch, npm_artifact, trial_id, journal_header)
     _validate_container_boundary_attestation(boundary, trial_id)
+    return launch
 
 
 def _validate_terminal(terminal: Mapping[str, object]) -> None:
@@ -754,9 +772,20 @@ def _classify_outputs(
     assets: PublishedAssets, inner: InnerEvidence, arm: Mapping[str, object],
 ) -> tuple[ClassifiedFile, ...]:
     required = _required_files(assets, inner, arm)
+    if set(required) - set(discovered):
+        raise HostFinalizationError("required_output_missing")
+    try:
+        required.update(production_direct_dynamic_files(
+            roots["agent"], arm, inner.composite,
+            [path for root, path in discovered if root == "agent"],
+        ))
+    except ProductionOutputMissing as error:
+        raise HostFinalizationError("required_output_missing") from error
+    except ProductionOutputLayoutError as error:
+        raise HostFinalizationError("collected_output_invalid") from error
     classified: list[ClassifiedFile] = []
     for key, path in discovered.items():
-        source, disposition = _classification(key, required)
+        source, disposition = _classification(key, required, arm)
         digest = _sha256_file(path)
         classified.append(ClassifiedFile(
             source, key[0], key[1], disposition, path.stat().st_size, digest,
@@ -781,7 +810,6 @@ def _required_files(
     assets: PublishedAssets, inner: InnerEvidence, arm: Mapping[str, object],
 ) -> dict[tuple[str, str], str]:
     required = {
-        ("agent", "arm-resolution.json"): "arm_resolution",
         ("agent", "instruction.md"): "instruction",
         ("agent", "stdout.txt"): "stdout", ("agent", "stderr.txt"): "stderr",
         ("agent", "workspace.diff"): "workspace_diff",
@@ -797,8 +825,12 @@ def _required_files(
     required.update({("agent", f"trajectory/{path}"): source
                      for path, source in inner.required_agent_files.items()})
     required.update({("agent", path): source for path, source in assets.files.items()})
-    _add_mode_files(required, arm)
-    _add_trial_state_files(required, arm)
+    if is_production_direct_arm(arm):
+        required.update(production_direct_required_files(arm))
+    else:
+        required[("agent", "arm-resolution.json")] = "arm_resolution"
+        _add_mode_files(required, arm)
+        _add_trial_state_files(required, arm)
     return required
 
 
@@ -878,16 +910,21 @@ def _admit_discovered(
 
 def _classification(
     key: tuple[str, str], required: Mapping[tuple[str, str], str],
+    arm: Mapping[str, object],
 ) -> tuple[str, str]:
     if key in required:
         return required[key], "required"
     if Path(key[1]).name in FORBIDDEN_FILENAMES or key[1] == OUTER_ENVELOPE_FILENAME:
         raise HostFinalizationError("forbidden_output_present")
-    return _optional_classification(key)
+    return _optional_classification(key, arm)
 
 
-def _optional_classification(key: tuple[str, str]) -> tuple[str, str]:
-    if key[0] == "agent" and key[1].startswith(OPTIONAL_TRIAL_STATE_PREFIXES):
+def _optional_classification(
+    key: tuple[str, str], arm: Mapping[str, object],
+) -> tuple[str, str]:
+    if not is_production_direct_arm(arm) and (
+        key[0] == "agent" and key[1].startswith(OPTIONAL_TRIAL_STATE_PREFIXES)
+    ):
         return f"trial_state:{key[1]}", "optional-classified"
     raise HostFinalizationError("unknown_output_present")
 
