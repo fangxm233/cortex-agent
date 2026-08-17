@@ -52,11 +52,12 @@ def session(
 ) -> ProductionServerSession:
     materialized = SimpleNamespace(
         process_environment={
-            "PATH": "/usr/bin:/bin", "HOME": "/logs/agent/production-cortex-home/home",
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/logs/agent/production-cortex-home/container-home",
             "CORTEX_HOME": "/logs/agent/production-cortex-home",
             "CORTEX_PROJECTS_DIR": "/logs/agent/production-cortex-home/context/projects",
-            "XDG_CACHE_HOME": "/logs/agent/production-cortex-home/home/.cache",
-            "XDG_CONFIG_HOME": "/logs/agent/production-cortex-home/home/.config",
+            "XDG_CACHE_HOME": "/logs/agent/production-cortex-home/container-home/.cache",
+            "XDG_CONFIG_HOME": "/logs/agent/production-cortex-home/container-home/.config",
             "CORTEX_CONFIG_IMMUTABLE": "1", "WEBHOOK_PORT": "3001",
             "CORTEX_WEBHOOK_THREAD_OP_ONLY": "1", "CORTEX_WEBHOOK_SINGLE_ROOT": "1",
             "CORTEX_TUI": "1", "CORTEX_TUI_PORT": "3003",
@@ -237,7 +238,7 @@ def test_evidence_export_reads_the_production_home_not_the_container_home(
     assert environment is None
     assert export.startswith("env -i ")
     assert "CORTEX_HOME=/logs/agent/production-cortex-home" in export
-    assert "HOME=/logs/agent/production-cortex-home/home" in export
+    assert "HOME=/logs/agent/production-cortex-home/container-home" in export
     assert export.endswith(
         "cortex-evidence-export --input-file /logs/agent/production-evidence-input.json"
     )

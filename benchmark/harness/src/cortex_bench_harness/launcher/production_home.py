@@ -21,6 +21,11 @@ DIRECT_ARM_BUNDLE_DIR = (
     Path(__file__).resolve().parent
     / "bundles/direct-pi-deepseek/cortex-home"
 )
+# The container HOME lives inside the sealed CORTEX_HOME, and the server prints its own paths into
+# logs the trial collects. The leak scanner refuses any `/home/<name>` it finds there, so this
+# directory may not be called `home`: that spelling made the gateway logging its own config path
+# indistinguishable from a host home path and refused an otherwise complete trial.
+CONTAINER_HOME_DIR = "container-home"
 BACKEND_CLI_NAME = "pi"
 MODEL_NAME = "deepseek-v4-flash"
 PROFILE_NAME = "benchmark-direct"
@@ -199,7 +204,7 @@ def _write_dynamic_inputs(
         (json.dumps(auth, indent=2, ensure_ascii=False) + "\n").encode(),
     )
     _write_bytes(
-        cortex_home / "home/.aistatus/gateway.yaml",
+        cortex_home / f"{CONTAINER_HOME_DIR}/.aistatus/gateway.yaml",
         _gateway_yaml(proxy_base_url, dummy_token_ref),
     )
 
@@ -222,9 +227,9 @@ def _sealed_environment(
     environment.update({
         "CORTEX_HOME": str(runtime_home),
         "CORTEX_PROJECTS_DIR": str(runtime_home / "context/projects"),
-        "HOME": str(runtime_home / "home"),
-        "XDG_CACHE_HOME": str(runtime_home / "home/.cache"),
-        "XDG_CONFIG_HOME": str(runtime_home / "home/.config"),
+        "HOME": str(runtime_home / CONTAINER_HOME_DIR),
+        "XDG_CACHE_HOME": str(runtime_home / f"{CONTAINER_HOME_DIR}/.cache"),
+        "XDG_CONFIG_HOME": str(runtime_home / f"{CONTAINER_HOME_DIR}/.config"),
         "CORTEX_CONFIG_IMMUTABLE": "1", "CORTEX_WEBHOOK_THREAD_OP_ONLY": "1",
         "CORTEX_WEBHOOK_SINGLE_ROOT": "1",
         "WEBHOOK_PORT": "3001",
@@ -239,7 +244,7 @@ def _make_read_only(root: Path) -> None:
     for path in root.rglob("*"):
         if path.is_file():
             path.chmod(0o444)
-    for relative in ("config", "prompts", "context", "home/.aistatus"):
+    for relative in ("config", "prompts", "context", f"{CONTAINER_HOME_DIR}/.aistatus"):
         immutable = root / relative
         for path in sorted(immutable.rglob("*"), reverse=True):
             if path.is_dir():
