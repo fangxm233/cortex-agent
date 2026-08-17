@@ -360,7 +360,7 @@ class ProductionServerSession:
 
         The dispatcher picks the task up on its own cycle, so the root appears after the add
         rather than in reply to it. The server lists newest first and the arm caps the tree at
-        one task, so the last dispatch-triggered thread in the project is that root.
+        one task, so the first dispatch-triggered thread is its current attempt after a retry.
         """
         deadline = time.monotonic() + self._dispatch_timeout_seconds
         while time.monotonic() < deadline:
@@ -377,7 +377,7 @@ class ProductionServerSession:
                 if isinstance(thread, Mapping) and thread.get("trigger") == "task-dispatch"
             ]
             if dispatched:
-                return _required_text(dispatched[-1].get("threadId"), "dispatched thread id")
+                return _required_text(dispatched[0].get("threadId"), "dispatched thread id")
             await asyncio.sleep(self._poll_seconds)
         raise ProductionSessionError("production task dispatch did not start a thread")
 

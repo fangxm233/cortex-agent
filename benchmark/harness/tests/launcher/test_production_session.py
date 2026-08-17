@@ -125,6 +125,13 @@ class FakeExecutor:
         self.payloads: dict[str, object] = {}
         self.result_polls = 0
         self.list_thread_polls = 0
+        self.dispatched_threads = [
+            {
+                "threadId": "thr_dispatched", "status": "running",
+                "templateName": "benchmark-manager", "trigger": "task-dispatch",
+                "createdAt": "2026-01-01T00:00:01.000Z",
+            },
+        ]
 
     async def __call__(
         self, command: str, *, env: dict[str, str] | None = None,
@@ -162,13 +169,10 @@ class FakeExecutor:
         if "production-thread-list.json" in command:
             self._capture("production-thread-list.json")
             self.list_thread_polls += 1
-            dispatched = [] if self.dispatch_never_runs or self.list_thread_polls < 2 else [
-                {
-                    "threadId": "thr_dispatched", "status": "running",
-                    "templateName": "benchmark-manager", "trigger": "task-dispatch",
-                    "createdAt": "2026-01-01T00:00:01.000Z",
-                },
-            ]
+            dispatched = (
+                [] if self.dispatch_never_runs or self.list_thread_polls < 2
+                else self.dispatched_threads
+            )
             return self._reply({"success": True, "data": {
                 "scope": "project", "count": len(dispatched), "threads": dispatched,
             }})
@@ -468,6 +472,29 @@ def test_manager_arm_waits_on_the_thread_the_dispatcher_started(tmp_path: Path) 
     }
     assert runner.payloads["production-thread-result.json"]["threadId"] == "thr_dispatched"
     assert production.stopped_cleanly is True
+
+
+def test_manager_arm_uses_the_newest_dispatch_thread_after_a_retry(tmp_path: Path) -> None:
+    """Thread-op lists newest first; a retried task must not bind to its stale attempt."""
+    runner = FakeExecutor(tmp_path)
+    runner.dispatched_threads = [
+        {
+            "threadId": "thr_retry", "status": "running",
+            "templateName": "benchmark-manager", "trigger": "task-dispatch",
+            "createdAt": "2026-01-01T00:00:02.000Z",
+        },
+        {
+            "threadId": "thr_stale", "status": "failed",
+            "templateName": "benchmark-manager", "trigger": "task-dispatch",
+            "createdAt": "2026-01-01T00:00:01.000Z",
+        },
+    ]
+    production = session(tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE)
+
+    result = asyncio.run(production.run("Solve only this task.", runner))
+
+    assert result.thread_id == "thr_retry"
+    assert runner.payloads["production-thread-result.json"]["threadId"] == "thr_retry"
 
 
 def test_manager_arm_exports_its_own_evidence_shape(tmp_path: Path) -> None:
