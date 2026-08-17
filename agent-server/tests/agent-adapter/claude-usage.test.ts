@@ -122,6 +122,68 @@ test('correlates get_usage response and normalizes scoped account windows', asyn
   assert.deepEqual(child.killSignals, ['SIGKILL']);
 });
 
+test('tolerates non-window rate_limits entries and keeps only informative windows', async () => {
+  const { child, spawn } = harness();
+  const pending = collectClaudeUsage(
+    { provider: 'anthropic', mode: 'plan' },
+    { spawn, requestId: () => 'usage-open-set', now: () => 1_723_456_789_123 },
+  );
+  child.stdout.write(controlResponse('usage-open-set', {
+    rate_limits: {
+      five_hour: {
+        utilization: 42,
+        resets_at: '2026-08-16T12:00:00.000Z',
+        limit_dollars: null,
+        used_dollars: null,
+        remaining_dollars: null,
+      },
+      seven_day: { utilization: 18, resets_at: '2026-08-21T00:00:00.000Z' },
+      seven_day_alpha: null,
+      seven_day_beta: null,
+      alpha_bucket: null,
+      beta_bucket: null,
+      gamma_bucket: { utilization: 0, resets_at: null, limit_dollars: null },
+      delta_bucket: { utilization: null, resets_at: null, limit_dollars: null },
+      limits: [
+        { kind: 'session', group: 'session', percent: 42, severity: 'normal', is_active: true },
+      ],
+      spend: { used: { amount_minor: 0, currency: 'USD' }, percent: 0, enabled: false },
+      member_dashboard_available: false,
+      extra_usage: { is_enabled: false, utilization: null, daily: null, weekly: null },
+      model_scoped: [
+        { display_name: 'Alpha Model', utilization: 27, resets_at: '2026-08-21T00:00:00.000Z' },
+      ],
+    },
+  }));
+
+  assert.deepEqual(await pending, [{
+    provider: 'anthropic',
+    displayName: 'Anthropic',
+    modes: ['plan'],
+    windows: [
+      {
+        type: 'five_hour',
+        utilization: 0.42,
+        resetsAt: Date.parse('2026-08-16T12:00:00.000Z') / 1000,
+      },
+      {
+        type: 'seven_day',
+        utilization: 0.18,
+        resetsAt: Date.parse('2026-08-21T00:00:00.000Z') / 1000,
+      },
+      { type: 'gamma_bucket', utilization: 0, resetsAt: null },
+      {
+        type: 'model_scoped',
+        label: 'Alpha Model',
+        utilization: 0.27,
+        resetsAt: Date.parse('2026-08-21T00:00:00.000Z') / 1000,
+      },
+    ],
+    observedAt: 1_723_456_789,
+    freshness: 'live',
+  }]);
+});
+
 test('adapter usage pull bypasses conversational print and TUI session spawn paths', async () => {
   const scopes: unknown[] = [];
   const adapter = new ClaudeAdapter(async (scope) => {

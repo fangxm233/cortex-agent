@@ -67,10 +67,12 @@ function resetEpoch(value: unknown, field: string): number | null {
   return epochMs / 1000;
 }
 
-function usageWindow(type: string, value: unknown): UsageWindow {
-  if (value === null) return { type, utilization: null, resetsAt: null };
+function windowRecord(value: unknown): JsonRecord | null {
   const record = asRecord(value);
-  if (!record) throw new Error(`Malformed Claude usage window ${type}`);
+  return record && ('utilization' in record || 'resets_at' in record) ? record : null;
+}
+
+function usageWindow(type: string, record: JsonRecord): UsageWindow {
   return {
     type,
     utilization: utilization(record['utilization'], `${type}.utilization`),
@@ -99,7 +101,12 @@ function normalizedWindows(response: unknown): UsageWindow[] {
   if (!payload || !rateLimits) throw new Error('Malformed Claude usage response: missing rate_limits');
   const windows = Object.entries(rateLimits)
     .filter(([type]) => type !== 'model_scoped' && type !== 'extra_usage')
-    .map(([type, value]) => usageWindow(type, value));
+    .flatMap(([type, value]) => {
+      const record = windowRecord(value);
+      if (!record) return []; // rate_limits is an open set: skip non-window entries
+      const window = usageWindow(type, record);
+      return window.utilization === null && window.resetsAt === null ? [] : [window];
+    });
   return [...windows, ...modelWindows(rateLimits['model_scoped'])];
 }
 
