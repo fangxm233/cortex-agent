@@ -196,15 +196,87 @@ def test_reports_unclassified_file_under_trial_root(tmp_path: Path) -> None:
     assert report.exit_code == 1
 
 
-def test_reports_unclassified_symlink_to_declared_file(tmp_path: Path) -> None:
+def test_classifies_in_root_alias_of_a_scanned_source(tmp_path: Path) -> None:
+    """An alias of a source whose bytes were scanned hides nothing.
+
+    The production daemon replaces the PI agent directory's auth.json with a link to the same
+    file under the container HOME on every spawn, so every multi-agent arm collects one such
+    alias. Reporting it unclassified makes `clean=false` the normal readout, which is where a
+    genuinely out-of-root alias would later hide.
+    """
     artifacts = make_artifacts(tmp_path, "none")
-    (tmp_path / "undeclared-link.txt").symlink_to(artifacts.sources["stdout"])
+    (tmp_path / "alias.txt").symlink_to(artifacts.sources["stdout"])
+    (tmp_path / "alias-of-alias.txt").symlink_to(tmp_path / "alias.txt")
 
     report = scan_trial_artifacts(artifacts, policy())
 
-    assert report.unclassified_files == (UnclassifiedFile(0, "undeclared-link.txt"),)
+    assert report.unclassified_files == ()
+    assert report.missing_sources == ()
+    assert report.clean is True
+    assert report.exit_code == 0
+
+
+def test_reports_alias_whose_resolved_target_leaves_every_trial_root(tmp_path: Path) -> None:
+    root = tmp_path / "trial"
+    root.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("clean\n")
+    artifacts = make_artifacts(root, "none")
+    (root / "alias.txt").symlink_to(outside)
+
+    report = scan_trial_artifacts(artifacts, policy())
+
+    assert report.unclassified_files == (UnclassifiedFile(0, "alias.txt"),)
     assert report.clean is False
-    assert report.exit_code == 1
+
+
+def test_reports_alias_chain_that_escapes_the_trial_root_at_any_hop(tmp_path: Path) -> None:
+    root = tmp_path / "trial"
+    root.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("clean\n")
+    (tmp_path / "outside-link.txt").symlink_to(outside)
+    artifacts = make_artifacts(root, "none")
+    (root / "alias.txt").symlink_to(tmp_path / "outside-link.txt")
+
+    report = scan_trial_artifacts(artifacts, policy())
+
+    assert report.unclassified_files == (UnclassifiedFile(0, "alias.txt"),)
+    assert report.clean is False
+
+
+def test_reports_alias_of_an_in_root_file_that_was_never_scanned(tmp_path: Path) -> None:
+    artifacts = make_artifacts(tmp_path, "none")
+    (tmp_path / "undeclared.log").write_text("clean\n")
+    (tmp_path / "alias.txt").symlink_to(tmp_path / "undeclared.log")
+
+    report = scan_trial_artifacts(artifacts, policy())
+
+    assert report.unclassified_files == (
+        UnclassifiedFile(0, "alias.txt"), UnclassifiedFile(0, "undeclared.log"),
+    )
+    assert report.clean is False
+
+
+def test_declared_source_that_aliases_a_scanned_source_is_scanned_not_missing(
+    tmp_path: Path,
+) -> None:
+    """`missing_sources` and `unclassified_files` read one file the same way."""
+    artifacts = make_artifacts(tmp_path, "none")
+    alias = tmp_path / "extra.txt"
+    alias.symlink_to(artifacts.sources["stdout"])
+    inventory = ArtifactInventory(
+        sources={**artifacts.sources, "extra": alias},
+        expected_sources=artifacts.expected_sources | {"extra"},
+        trial_roots=artifacts.trial_roots,
+    )
+
+    report = scan_trial_artifacts(inventory, policy())
+
+    assert report.missing_sources == ()
+    assert SourceScan("extra", len("clean\n")) in report.sources
+    assert report.unclassified_files == ()
+    assert report.clean is True
 
 
 def test_rejects_declared_source_symlink(tmp_path: Path) -> None:

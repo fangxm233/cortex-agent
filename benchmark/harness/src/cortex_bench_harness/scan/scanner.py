@@ -6,6 +6,7 @@
 import os
 import re
 from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
 from ..manifest import MANIFEST_FILENAME
@@ -31,8 +32,9 @@ def scan_trial_artifacts(
     inventory: ArtifactInventory, policy: ScanPolicy,
 ) -> ScanReport:
     _validate_inventory(inventory, policy)
-    missing_sources = _missing_sources(inventory)
-    unclassified_files = _unclassified_files(inventory, policy, missing_sources)
+    scanned = _scanned_sources(inventory)
+    missing_sources = _missing_sources(inventory, scanned)
+    unclassified_files = _unclassified_files(inventory, policy, missing_sources, scanned)
     findings, sources = _scan_present_sources(inventory, missing_sources, policy)
     return ScanReport(
         sources, findings, missing_sources, unclassified_files,
@@ -111,26 +113,76 @@ def _contains_sensitive(value: str, literals: tuple[str, ...]) -> bool:
     )
 
 
-def _missing_sources(inventory: ArtifactInventory) -> tuple[str, ...]:
+def _missing_sources(
+    inventory: ArtifactInventory, scanned: "_ScannedSources",
+) -> tuple[str, ...]:
     return tuple(sorted(
         source for source in inventory.expected_sources
         if source not in inventory.sources
-        or not _source_is_present(inventory.sources[source])
+        or not scanned.is_present(inventory.sources[source])
     ))
 
 
-def _source_is_present(path: Path) -> bool:
+@dataclass(frozen=True)
+class _ScannedSources:
+    """The canonical files this scan reads, and the resolved roots that contain them.
+
+    A collected tree carries aliases of files it already holds: the production daemon replaces
+    the PI agent directory's auth.json with a link to the container HOME's copy on every spawn.
+    An alias of a file whose bytes are scanned hides nothing, so it is classified; anything whose
+    fully resolved target dangles, leaves every root, or was never scanned is not.
+    """
+
+    targets: frozenset[Path]
+    roots: tuple[Path, ...]
+
+    def is_present(self, path: Path) -> bool:
+        return _is_regular_file(path) or self.is_alias(path)
+
+    def is_alias(self, path: Path) -> bool:
+        if not path.is_symlink():
+            return False
+        target = _resolved_file(path)
+        if target is None or not any(target.is_relative_to(root) for root in self.roots):
+            return False
+        return target in self.targets
+
+
+def _scanned_sources(inventory: ArtifactInventory) -> _ScannedSources:
+    try:
+        return _ScannedSources(
+            targets=frozenset(
+                path.resolve(strict=True) for source, path in inventory.sources.items()
+                if source in inventory.expected_sources and _is_regular_file(path)
+            ),
+            roots=tuple(_root_location(root) for root in inventory.trial_roots),
+        )
+    except OSError as error:
+        raise ArtifactReadError("artifact_inventory") from error
+
+
+def _is_regular_file(path: Path) -> bool:
     return path.is_file() and not path.is_symlink()
+
+
+def _resolved_file(path: Path) -> Path | None:
+    """The regular file a link chain ends at, resolved in full, or None when it ends elsewhere."""
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+    return resolved if _is_regular_file(resolved) else None
 
 
 def _unclassified_files(
     inventory: ArtifactInventory,
     policy: ScanPolicy,
     missing_sources: tuple[str, ...],
+    scanned: _ScannedSources,
 ) -> tuple[UnclassifiedFile, ...]:
     classified = {
         _normalized_path(path) for source, path in inventory.sources.items()
-        if source in inventory.expected_sources and _source_is_present(path)
+        if source in inventory.expected_sources and scanned.is_present(path)
     }
     redactions = _policy_literals(policy)
     discovered: set[Path] = set()
@@ -139,7 +191,7 @@ def _unclassified_files(
         missing_source = _missing_source_for_root(inventory, missing_sources, root)
         _append_unclassified(
             root, root_index, classified, discovered, unclassified, redactions,
-            missing_source,
+            missing_source, scanned,
         )
     return tuple(unclassified)
 
@@ -165,12 +217,15 @@ def _append_unclassified(
     unclassified: list[UnclassifiedFile],
     redactions: tuple[str, ...],
     missing_source: str | None,
+    scanned: _ScannedSources,
 ) -> None:
     for path in _root_candidates(root, root_index, missing_source):
         absolute = _normalized_path(path)
         if absolute in classified or absolute in discovered:
             continue
         discovered.add(absolute)
+        if scanned.is_alias(path):
+            continue
         relative_path = path.relative_to(root).as_posix()
         reported_path = (
             None if _contains_sensitive(relative_path, redactions) else relative_path
