@@ -1,5 +1,5 @@
 # input:  npm artifact, Docker environment, production matrix seeds
-# output: installed Cortex arm matrix, non-root server boot and artifact proof
+# output: pull-disabled arm matrix, sealed non-root server and artifact proof
 # pos:    Opt-in container proof for the installed Harbor path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -35,6 +35,9 @@ from cortex_bench_harness.launcher.production_session import (
     InstalledProductionServer,
     ProductionServerSession,
     ProductionSessionSpec,
+)
+from cortex_bench_harness.launcher.trial_admission_io import (
+    PullDisabledDockerEnvironment,
 )
 from offline_package import build_offline_npm_artifact
 
@@ -97,7 +100,9 @@ def build_node_runtime(root: Path) -> Path:
     return runtime
 
 
-def create_environment(root: Path, node_runtime: Path, suffix: str) -> DockerEnvironment:
+def create_environment(
+    root: Path, node_runtime: Path, suffix: str,
+) -> PullDisabledDockerEnvironment:
     trial_paths = TrialPaths(root / "trial")
     trial_paths.mkdir()
     environment_dir = root / "environment"
@@ -113,7 +118,7 @@ def create_environment(root: Path, node_runtime: Path, suffix: str) -> DockerEnv
         {"type": "bind", "source": str(node_runtime), "target": "/opt/node",
          "read_only": True},
     ]
-    return DockerEnvironment(
+    return PullDisabledDockerEnvironment(
         environment_dir=environment_dir, environment_name=f"cortex-install-{suffix}",
         session_id=f"cortex-install-{suffix}-{os.getpid()}", trial_paths=trial_paths,
         task_env_config=EnvironmentConfig(docker_image=IMAGE_REF, workdir="/app"),
@@ -339,6 +344,7 @@ async def run_production_boot_path(
     root: Path, node_runtime: Path, artifact: Path, image: dict[str, object],
 ) -> None:
     environment = create_environment(root, node_runtime, "production-boot")
+    assert isinstance(environment, PullDisabledDockerEnvironment)
     session: ProductionServerSession | None = None
     pid: int | None = None
     try:
