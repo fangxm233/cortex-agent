@@ -1,13 +1,14 @@
 // input:  shared usage hook, provider usage view, and localized copy
-// output: desktop Settings Usage quota and gateway-spend cards
+// output: desktop Settings Usage cards with meters, badges, and spend tiles
 // pos:    Independently queried desktop usage settings panel
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+import type { CSSProperties, ReactNode } from 'react';
 import type { UsageFreshness } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
-import { SButton, SCard, SCardHeader } from '@/features/settings/settings-ui';
+import { SButton, SCard } from '@/features/settings/settings-ui';
 import { useUsage } from './useUsage';
-import type { ProviderUsageView, UsageWindowView } from './usage-vm';
+import type { ProviderUsageView, UsageSeverity, UsageWindowView } from './usage-vm';
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -18,14 +19,47 @@ const FRESHNESS_KEYS: Record<UsageFreshness, keyof Vocab> = {
   unsupported: 'usageFreshUnsupported',
 };
 
+// live → success, stale → amber, never/unsupported → neutral (semantic pill tokens)
+const FRESHNESS_TONE: Record<UsageFreshness, { bg: string; fg: string }> = {
+  live: { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)' },
+  stale: { bg: 'var(--pill-waiting-bg)', fg: 'var(--pill-waiting-fg)' },
+  never: { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)' },
+  unsupported: { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)' },
+};
+
+// Meter fill escalates with utilization; the track stays neutral in both themes.
+const SEVERITY_FILL: Record<UsageSeverity, string> = {
+  normal: 'var(--proto-accent)',
+  warning: 'var(--proto-amber)',
+  danger: 'var(--proto-danger)',
+};
+
+const SECTION_LABEL: CSSProperties = {
+  fontSize: 9,
+  fontWeight: 700,
+  letterSpacing: '.07em',
+  color: 'var(--proto-muted-3)',
+  textTransform: 'uppercase',
+};
+
+const META_TEXT: CSSProperties = { font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' };
+
 function isoTime(epochSeconds: number): string {
   return new Date(epochSeconds * 1000).toISOString();
 }
 
 function FreshnessBadge({ freshness }: { freshness: UsageFreshness }) {
   const L = useVocab();
+  const tone = FRESHNESS_TONE[freshness];
   return (
-    <span data-usage-freshness={freshness} style={{ padding: '2px 7px', borderRadius: 999, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' }}>
+    <span
+      data-usage-freshness={freshness}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 8px',
+        borderRadius: 999, background: tone.bg, color: tone.fg, font: `600 9.5px ${MONO}`,
+      }}
+    >
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', flex: 'none' }} />
       {L[FRESHNESS_KEYS[freshness]]}
     </span>
   );
@@ -35,17 +69,48 @@ function Observation({ provider }: { provider: ProviderUsageView }) {
   const L = useVocab();
   if (provider.observedAt === null || provider.observedAgo === null) return null;
   return (
-    <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>
+    <span style={META_TEXT}>
       {L.usageObserved}{' '}
       <time dateTime={isoTime(provider.observedAt)} title={isoTime(provider.observedAt)}>{provider.observedAgo} {L.usageAgo}</time>
     </span>
   );
 }
 
-function UsageProgress({ window }: { window: UsageWindowView }) {
+function CardHeader({ provider }: { provider: ProviderUsageView }) {
   return (
-    <div style={{ height: 5, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 6 }}>
-      <div style={{ width: window.utilizationWidth, height: '100%', background: 'var(--proto-accent)' }} />
+    <header style={{ padding: '11px 14px 10px', borderBottom: '1px solid var(--proto-line-2)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{provider.displayName}</span>
+        <span style={{ marginLeft: 'auto' }}><FreshnessBadge freshness={provider.freshness} /></span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+        <span style={META_TEXT}>{provider.modes.join(' · ')}</span>
+        <Observation provider={provider} />
+      </div>
+    </header>
+  );
+}
+
+function UsageMeter({ window }: { window: UsageWindowView }) {
+  return (
+    <div style={{ height: 8, borderRadius: 999, background: 'var(--proto-gray)', overflow: 'hidden', marginTop: 6 }}>
+      <div
+        style={{
+          width: window.utilizationWidth, height: '100%', borderRadius: 999,
+          background: SEVERITY_FILL[window.severity],
+        }}
+      />
+    </div>
+  );
+}
+
+function ResetLine({ window }: { window: UsageWindowView }) {
+  const L = useVocab();
+  if (window.resetElapsed) return <div style={{ ...META_TEXT, marginTop: 4 }}>{L.usageResetElapsed}</div>;
+  if (window.resetsAt === null || window.resetIn === null) return null;
+  return (
+    <div style={{ ...META_TEXT, marginTop: 4 }}>
+      {L.usageResetsIn}{' '}<time dateTime={isoTime(window.resetsAt)} title={isoTime(window.resetsAt)}>{window.resetIn}</time>
     </div>
   );
 }
@@ -53,21 +118,28 @@ function UsageProgress({ window }: { window: UsageWindowView }) {
 function WindowRow({ window }: { window: UsageWindowView }) {
   const L = useVocab();
   return (
-    <div data-usage-window={window.type} style={{ padding: '9px 0', borderTop: '1px solid var(--proto-line-2)' }}>
+    <div data-usage-window={window.type} data-usage-severity={window.severity} style={{ marginTop: 11 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-ink-2)' }}>{window.label}</span>
-        <span style={{ marginLeft: 'auto', font: `600 10px ${MONO}`, color: 'var(--proto-ink)' }}>{window.utilizationLabel ?? L.usageUnavailable}</span>
+        {window.utilizationLabel !== null
+          ? <span style={{ marginLeft: 'auto', font: `600 14px ${MONO}`, color: 'var(--proto-ink)', letterSpacing: '-.02em' }}>{window.utilizationLabel}</span>
+          : <span style={{ marginLeft: 'auto', font: `500 10px ${MONO}`, color: 'var(--proto-muted-2)' }}>{L.usageUnavailable}</span>}
       </div>
-      <UsageProgress window={window} />
-      {window.resetElapsed ? (
-        <div style={{ marginTop: 5, font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>
-          {L.usageResetElapsed}
-        </div>
-      ) : window.resetsAt !== null && window.resetIn !== null ? (
-        <div style={{ marginTop: 5, font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>
-          {L.usageResetsIn}{' '}<time dateTime={isoTime(window.resetsAt)} title={isoTime(window.resetsAt)}>{window.resetIn}</time>
-        </div>
-      ) : null}
+      <UsageMeter window={window} />
+      <ResetLine window={window} />
+    </div>
+  );
+}
+
+function QuietState({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        marginTop: 8, border: '1px dashed var(--proto-line-3)', borderRadius: 8,
+        padding: '8px 11px', fontSize: 10.5, lineHeight: 1.55, color: 'var(--proto-muted-2)',
+      }}
+    >
+      {children}
     </div>
   );
 }
@@ -78,12 +150,21 @@ function QuotaBlock({ provider }: { provider: ProviderUsageView }) {
     ? L.usageQuotaUnsupported
     : L.usageNeverObserved;
   return (
-    <section data-usage-quota={provider.provider} data-usage-quota-state={provider.quotaState} style={{ padding: '10px 14px' }}>
-      <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--proto-muted-3)', textTransform: 'uppercase' }}>{L.usageQuota}</div>
+    <section data-usage-quota={provider.provider} data-usage-quota-state={provider.quotaState} style={{ padding: '10px 14px 13px', flex: 1 }}>
+      <div style={SECTION_LABEL}>{L.usageQuota}</div>
       {provider.quotaState === 'available'
         ? provider.windows.map(window => <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} />)
-        : <div style={{ marginTop: 7, fontSize: 10.5, color: 'var(--proto-muted-2)' }}>{stateCopy}</div>}
+        : <QuietState>{stateCopy}</QuietState>}
     </section>
+  );
+}
+
+function SpendTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ background: 'var(--proto-alt)', border: '1px solid var(--proto-line-2)', borderRadius: 8, padding: '7px 10px' }}>
+      <div style={{ ...SECTION_LABEL, letterSpacing: '.05em' }}>{label}</div>
+      <div style={{ font: `600 15px ${MONO}`, color: 'var(--proto-ink)', letterSpacing: '-.02em', marginTop: 3 }}>{value}</div>
+    </div>
   );
 }
 
@@ -91,28 +172,61 @@ function SpendBlock({ provider }: { provider: ProviderUsageView }) {
   const L = useVocab();
   if (!provider.spend) return null;
   return (
-    <section data-usage-spend={provider.provider} style={{ borderTop: '1px solid var(--proto-line-2)', padding: '10px 14px' }}>
-      <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--proto-muted-3)', textTransform: 'uppercase' }}>{L.usageGatewaySpend}</div>
-      <div style={{ display: 'flex', gap: 24, marginTop: 7 }}>
-        <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.today} <small>{L.usageToday}</small></span>
-        <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.month} <small>{L.usageMonth}</small></span>
+    <section data-usage-spend={provider.provider} style={{ borderTop: '1px solid var(--proto-line-2)', padding: '10px 14px 12px' }}>
+      <div style={SECTION_LABEL}>{L.usageGatewaySpend}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 7 }}>
+        <SpendTile label={L.usageToday} value={provider.spend.today} />
+        <SpendTile label={L.usageMonth} value={provider.spend.month} />
       </div>
     </section>
   );
 }
 
+function NoteBlock({ provider }: { provider: ProviderUsageView }) {
+  if (!provider.note) return null;
+  if (provider.noteTone === 'error') {
+    return (
+      <div
+        data-usage-note="error"
+        style={{
+          margin: '0 14px 12px', display: 'flex', alignItems: 'flex-start', gap: 7,
+          background: 'var(--proto-danger-bg)', borderRadius: 8, padding: '7px 10px',
+        }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-danger)', flex: 'none', marginTop: 4 }} />
+        <span style={{ fontSize: 10, lineHeight: 1.5, color: 'var(--proto-danger)' }}>{provider.note}</span>
+      </div>
+    );
+  }
+  return (
+    <div data-usage-note="info" style={{ margin: '0 14px 12px', fontSize: 9.5, lineHeight: 1.5, color: 'var(--proto-muted-3)' }}>
+      {provider.note}
+    </div>
+  );
+}
+
 function ProviderCard({ provider }: { provider: ProviderUsageView }) {
   return (
-    <SCard style={{ marginTop: 12, maxWidth: 980 }}>
-      <SCardHeader title={provider.displayName} right={<FreshnessBadge freshness={provider.freshness} />} />
-      <div style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>{provider.modes.join(' · ')}</span>
-        <Observation provider={provider} />
-      </div>
+    <SCard style={{ display: 'flex', flexDirection: 'column' }}>
+      <CardHeader provider={provider} />
       <QuotaBlock provider={provider} />
       <SpendBlock provider={provider} />
-      {provider.note ? <div style={{ padding: '0 14px 10px', fontSize: 9.5, color: 'var(--proto-muted-3)' }}>{provider.note}</div> : null}
+      <NoteBlock provider={provider} />
     </SCard>
+  );
+}
+
+function ErrorChip({ label, message }: { label: string; message: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--proto-danger-bg)',
+        borderRadius: 8, padding: '5px 10px', color: 'var(--proto-danger)', fontSize: 10.5,
+      }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-danger)', flex: 'none' }} />
+      {label}: {message}
+    </span>
   );
 }
 
@@ -120,17 +234,29 @@ export function UsagePanel() {
   const L = useVocab();
   const usage = useUsage();
   if (usage.isLoading) return <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.usageLoading}</div>;
-  if (usage.queryError) return <div style={{ marginTop: 16, color: 'var(--proto-danger)' }}>{L.usageLoadError}: {usage.queryError.message}</div>;
+  if (usage.queryError) {
+    return <div style={{ marginTop: 16 }}><ErrorChip label={L.usageLoadError} message={usage.queryError.message} /></div>;
+  }
   return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <SButton tone="accent" data-usage-refresh onClick={usage.refresh}>
+    <div style={{ marginTop: 12, maxWidth: 980 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <SButton tone="accent" data-usage-refresh aria-busy={usage.isRefreshing} onClick={usage.refresh}>
           {usage.isRefreshing ? L.usageRefreshing : L.usageRefresh}
         </SButton>
-        {usage.refreshError ? <span style={{ color: 'var(--proto-danger)', fontSize: 10.5 }}>{L.usageRefreshError}: {usage.refreshError.message}</span> : null}
+        {usage.refreshError ? <ErrorChip label={L.usageRefreshError} message={usage.refreshError.message} /> : null}
       </div>
-      {usage.view.providers.length === 0 ? <div style={{ marginTop: 16, color: 'var(--proto-muted-3)' }}>{L.usageEmpty}</div> : null}
-      {usage.view.providers.map(provider => <ProviderCard key={provider.provider} provider={provider} />)}
+      {usage.view.providers.length === 0
+        ? <div style={{ marginTop: 14, maxWidth: 420 }}><QuietState>{L.usageEmpty}</QuietState></div>
+        : (
+          <div
+            style={{
+              marginTop: 12, display: 'grid', gap: 12, alignItems: 'start',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))',
+            }}
+          >
+            {usage.view.providers.map(provider => <ProviderCard key={provider.provider} provider={provider} />)}
+          </div>
+        )}
     </div>
   );
 }

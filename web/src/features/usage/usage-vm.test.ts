@@ -1,11 +1,11 @@
 // input:  ProviderUsage fixtures, language, and current epoch
-// output: quota, spend, freshness, and timing view-model regressions
+// output: quota, spend, freshness, severity, and timing view-model regressions
 // pos:    Verifies the shared usage presentation model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
 import type { SystemUsageStatus } from '@cortex-agent/ui-contract';
-import { buildUsageView, formatUsageDuration } from './usage-vm';
+import { buildUsageView, formatUsageDuration, utilizationSeverity } from './usage-vm';
 
 const NOW = 1_800_000_000;
 
@@ -95,6 +95,42 @@ describe('buildUsageView', () => {
       freshness: 'never', observedAgo: null, quotaState: 'never',
       note: 'push-only: waiting for next call',
     });
+  });
+
+  it('classifies utilization severity at the 70% and 90% thresholds', () => {
+    expect(utilizationSeverity(null)).toBe('normal');
+    expect(utilizationSeverity(0)).toBe('normal');
+    expect(utilizationSeverity(0.699)).toBe('normal');
+    expect(utilizationSeverity(0.7)).toBe('warning');
+    expect(utilizationSeverity(0.899)).toBe('warning');
+    expect(utilizationSeverity(0.9)).toBe('danger');
+    expect(utilizationSeverity(1)).toBe('danger');
+  });
+
+  it('grades window severity and separates failure notes from informational ones', () => {
+    const vm = buildUsageView([
+      {
+        provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'], freshness: 'live',
+        observedAt: NOW,
+        windows: [
+          { type: 'five_hour', utilization: 0.54, resetsAt: null },
+          { type: 'seven_day', utilization: 0.7, resetsAt: null },
+          { type: 'model_scoped', label: 'Fable', utilization: 0.93, resetsAt: null },
+          { type: 'nimbus_quill', utilization: null, resetsAt: null },
+        ],
+        note: 'Anthropic usage collection failed: HTTP 429',
+      },
+      {
+        provider: 'openrouter', displayName: 'OpenRouter', modes: ['openrouter'], freshness: 'never',
+        observedAt: null, windows: [], note: 'push-only: waiting for next call',
+      },
+    ], NOW, 'en');
+
+    expect(vm.providers[0].windows.map(window => window.severity)).toEqual([
+      'normal', 'warning', 'danger', 'normal',
+    ]);
+    expect(vm.providers[0].noteTone).toBe('error');
+    expect(vm.providers[1].noteTone).toBe('info');
   });
 
   it('localizes window labels while keeping compact observed and reset timing', () => {

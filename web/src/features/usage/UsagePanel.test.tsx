@@ -1,5 +1,5 @@
 // input:  UsagePanel with tRPC query/mutation fakes and bilingual vocab
-// output: independent query, refresh, loading, and provider rendering regressions
+// output: query, refresh, severity, note-tone, and provider rendering regressions
 // pos:    Verifies the desktop Settings Usage surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -176,6 +176,32 @@ describe('desktop Settings Usage panel', () => {
       { key: ['system.usageStatus', {}], value: usage },
       { key: ['system.usageStatus', {}], value: usage },
     ]);
+  });
+
+  it('escalates meter severity and renders collection failures as error notes', () => {
+    currentUsage = [
+      {
+        provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'], freshness: 'stale', observedAt: NOW - 60,
+        windows: [
+          { type: 'five_hour', utilization: 0.72, resetsAt: NOW + 3600 },
+          { type: 'seven_day', utilization: 0.93, resetsAt: NOW + 86400 },
+        ],
+        note: 'Anthropic usage collection failed: HTTP 429',
+      },
+      {
+        provider: 'openrouter', displayName: 'OpenRouter', modes: ['openrouter'], freshness: 'never',
+        observedAt: null, windows: [], note: 'push-only: waiting for next call',
+      },
+    ];
+    const renderer = mount();
+    const html = JSON.stringify(renderer.toJSON());
+
+    expect(renderer.root.findAllByProps({ 'data-usage-severity': 'warning' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-severity': 'danger' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-note': 'error' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-note': 'info' })).toHaveLength(1);
+    expect(html).toContain('usage collection failed');
+    expect(html).toContain('push-only: waiting for next call');
   });
 
   it('renders query and refresh failures without hiding successful snapshots', () => {

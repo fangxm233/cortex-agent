@@ -1,5 +1,5 @@
 // input:  ProviderUsage snapshots, language, and current epoch
-// output: provider quota, spend, freshness, and relative timing views
+// output: provider quota, spend, freshness, severity, and timing views
 // pos:    Shared desktop/mobile usage presentation model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,6 +7,11 @@ import type { ProviderUsage, UsageFreshness, UsageWindow } from '@cortex-agent/u
 import type { Lang } from '@/i18n';
 
 export type UsageQuotaState = 'available' | 'never' | 'unsupported';
+export type UsageSeverity = 'normal' | 'warning' | 'danger';
+export type UsageNoteTone = 'info' | 'error';
+
+export const USAGE_WARNING_UTILIZATION = 0.7;
+export const USAGE_DANGER_UTILIZATION = 0.9;
 
 export interface UsageWindowView {
   type: string;
@@ -14,6 +19,7 @@ export interface UsageWindowView {
   utilization: number | null;
   utilizationLabel: string | null;
   utilizationWidth: string;
+  severity: UsageSeverity;
   resetsAt: number | null;
   resetIn: string | null;
   resetElapsed: boolean;
@@ -35,6 +41,7 @@ export interface ProviderUsageView {
   freshness: UsageFreshness;
   quotaState: UsageQuotaState;
   note?: string;
+  noteTone?: UsageNoteTone;
 }
 
 export interface UsageView {
@@ -83,6 +90,11 @@ function utilizationLabel(utilization: number | null): string | null {
   return `${percentage.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
 }
 
+export function utilizationSeverity(utilization: number | null): UsageSeverity {
+  if (utilization === null || utilization < USAGE_WARNING_UTILIZATION) return 'normal';
+  return utilization < USAGE_DANGER_UTILIZATION ? 'warning' : 'danger';
+}
+
 function buildWindow(window: UsageWindow, nowSec: number, lang: Lang): UsageWindowView {
   const resetElapsed = window.resetsAt !== null && window.resetsAt <= nowSec;
   return {
@@ -91,6 +103,7 @@ function buildWindow(window: UsageWindow, nowSec: number, lang: Lang): UsageWind
     utilization: window.utilization,
     utilizationLabel: utilizationLabel(window.utilization),
     utilizationWidth: window.utilization === null ? '0%' : `${window.utilization * 100}%`,
+    severity: utilizationSeverity(window.utilization),
     resetsAt: window.resetsAt,
     resetIn: window.resetsAt === null || resetElapsed
       ? null
@@ -109,6 +122,11 @@ function formatUsd(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
+/** Collection-failure notes read as errors; push-only/disabled notes stay informational. */
+function noteTone(note: string): UsageNoteTone {
+  return /fail(?:ed|ure)|error|失败/i.test(note) ? 'error' : 'info';
+}
+
 function buildProvider(record: ProviderUsage, nowSec: number, lang: Lang): ProviderUsageView {
   return {
     provider: record.provider,
@@ -120,7 +138,7 @@ function buildProvider(record: ProviderUsage, nowSec: number, lang: Lang): Provi
     observedAgo: record.observedAt === null ? null : formatUsageDuration(nowSec - record.observedAt, lang),
     freshness: record.freshness,
     quotaState: quotaState(record.freshness),
-    ...(record.note ? { note: record.note } : {}),
+    ...(record.note ? { note: record.note, noteTone: noteTone(record.note) } : {}),
   };
 }
 

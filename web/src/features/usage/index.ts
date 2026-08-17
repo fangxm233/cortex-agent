@@ -8,9 +8,12 @@ export { useUsage, type UsageFeatureState } from './useUsage';
 export {
   buildUsageView,
   formatUsageDuration,
+  utilizationSeverity,
   type ProviderSpendView,
   type ProviderUsageView,
+  type UsageNoteTone,
   type UsageQuotaState,
+  type UsageSeverity,
   type UsageView,
   type UsageWindowView,
 } from './usage-vm';
