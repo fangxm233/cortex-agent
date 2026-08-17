@@ -352,3 +352,8 @@ def test_session_refuses_an_arm_its_bundle_does_not_declare(tmp_path: Path) -> N
 
     with pytest.raises(ProductionArmError, match="production launcher"):
         session(tmp_path, arm=arm, bundle=AUDIT_RETRY_BUNDLE)
+
+
+def test_session_refuses_a_materialized_home_from_another_arm(tmp_path: Path) -> None:
+    with pytest.raises(ProductionSessionError, match="materialized home.*arm"):
+        session(tmp_path, arm=audit_retry_arm(), bundle=DIRECT_BUNDLE)

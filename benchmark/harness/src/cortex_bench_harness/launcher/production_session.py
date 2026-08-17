@@ -114,7 +114,10 @@ class ProductionServerSession:
         poll_interval_seconds: float = SESSION_POLL_SECONDS,
         readiness_timeout_seconds: float = SERVER_READY_TIMEOUT_SECONDS,
     ) -> None:
-        require_production_arm(spec.arm)
+        declared_bundle = require_production_arm(spec.arm)
+        if declared_bundle != spec.materialized_home.arm_bundle:
+            raise ProductionSessionError(
+                "materialized home does not belong to the declared production arm")
         self._spec = spec
         self._poll_seconds = poll_interval_seconds
         self._ready_timeout_seconds = readiness_timeout_seconds
