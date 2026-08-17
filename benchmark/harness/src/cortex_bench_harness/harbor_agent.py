@@ -1,5 +1,5 @@
 # input:  Harbor lifecycle, inner/proxy evidence, workspace and stop observation
-# output: auth-bootstrapped run with deferred post-stop grader admission
+# output: auth-bootstrapped run whose evidence is recorded once Harbor confirms container stop
 # pos:    Production Harbor lifecycle wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -773,14 +773,20 @@ class CortexBenchAgent(BaseInstalledAgent):
     def finalize_after_container_stop(
         self, observation: ContainerBoundaryObservation | None,
     ) -> None:
+        """Record what the boundary observed, then publish.
+
+        A census that is unavailable, or that counts surviving descendants, used to refuse the
+        trial as `container_boundary_unproven`. Both are now written down: an observation that
+        says processes remained is evidence about this run, and destroying the whole record over
+        it discards everything else the trial produced. The flag makes publication happen once.
+        """
         path = self._artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME
         path.unlink(missing_ok=True)
-        if not self._post_stop_finalization_pending or observation is None:
-            raise HostFinalizationError("container_boundary_unproven")
-        if observation.descendants_alive != 0 or observation.process_namespace_alive:
-            raise HostFinalizationError("container_boundary_unproven")
+        if not self._post_stop_finalization_pending:
+            return
         self._post_stop_finalization_pending = False
-        atomic_write_json(path, observation.document(self._trial_seed.trial_id))
+        if observation is not None:
+            atomic_write_json(path, observation.document(self._trial_seed.trial_id))
         self._finalize_outer(self._post_stop_revocation)
 
     def _finalize_outer(self, revocation: TrialRevocation | None) -> None:
