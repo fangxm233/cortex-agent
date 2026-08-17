@@ -74,7 +74,7 @@ export const zhExtra = {
   ttFootNote: '文件位于 config/thread-templates/。文件名即身份；改名请用复制再删除。该目录已纳入 git，git 就是撤销。',
 
   // ── Provider usage ──
-  usageRefresh: '立即刷新',
+  usageRefresh: '刷新',
   usageRefreshing: '刷新中…',
   usageLoading: '正在加载用量…',
   usageLoadError: '加载用量失败',

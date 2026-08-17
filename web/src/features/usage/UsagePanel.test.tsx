@@ -1,5 +1,5 @@
 // input:  UsagePanel with tRPC query/mutation fakes and bilingual vocab
-// output: query, refresh, severity, note-tone, and provider rendering regressions
+// output: query, refresh spin, severity, error-note, and provider rendering regressions
 // pos:    Verifies the desktop Settings Usage surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -126,12 +126,32 @@ describe('desktop Settings Usage panel', () => {
     expect(renderer.root.findAllByProps({ 'data-usage-quota': 'openai-codex' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-usage-spend': 'deepseek' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-usage-spend': 'qwen-ksu' })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-usage-quota-state': 'unsupported' })).toHaveLength(2);
     expect(html).toContain('5 hours');
     expect(html).toContain('Primary');
     expect(html).toContain('Secondary');
     expect(html).toContain('Reset elapsed');
     expect(html).toContain('$1.25');
+  });
+
+  it('hides the quota section for unsupported providers while keeping the never empty state', () => {
+    const renderer = mount();
+    const html = JSON.stringify(renderer.toJSON());
+
+    expect(renderer.root.findAllByProps({ 'data-usage-quota': 'deepseek' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-quota': 'qwen-ksu' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-quota-state': 'unsupported' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-quota-state': 'never' })).toHaveLength(1);
+    expect(html).not.toContain('Quota is unsupported');
+    expect(html).toContain('No quota observation yet');
+  });
+
+  it('shows a freshness badge only for live providers', () => {
+    const renderer = mount();
+
+    expect(renderer.root.findAllByProps({ 'data-usage-freshness': 'live' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-freshness': 'stale' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-freshness': 'never' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-freshness': 'unsupported' })).toHaveLength(0);
   });
 
   it('gives model-scoped windows with a shared reset time distinct React identities', () => {
@@ -178,7 +198,7 @@ describe('desktop Settings Usage panel', () => {
     ]);
   });
 
-  it('escalates meter severity and renders collection failures as error notes', () => {
+  it('escalates meter severity and renders only error-tone notes', () => {
     currentUsage = [
       {
         provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'], freshness: 'stale', observedAt: NOW - 60,
@@ -199,9 +219,9 @@ describe('desktop Settings Usage panel', () => {
     expect(renderer.root.findAllByProps({ 'data-usage-severity': 'warning' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-usage-severity': 'danger' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-usage-note': 'error' })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-usage-note': 'info' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-note': 'info' })).toHaveLength(0);
     expect(html).toContain('usage collection failed');
-    expect(html).toContain('push-only: waiting for next call');
+    expect(html).not.toContain('push-only: waiting for next call');
   });
 
   it('renders query and refresh failures without hiding successful snapshots', () => {
@@ -219,7 +239,10 @@ describe('desktop Settings Usage panel', () => {
     expect(html).toContain('Anthropic');
   });
 
-  it('keeps refresh unthrottled while showing loading feedback and all freshness labels', () => {
+  it('keeps refresh unthrottled and clickable while spinning during a pending refresh', () => {
+    const idle = mount();
+    expect(idle.root.findAllByType('animateTransform')).toHaveLength(0);
+
     harness.pending = true;
     const renderer = mount();
     const refresh = renderer.root.findByProps({ 'data-usage-refresh': true });
@@ -229,10 +252,8 @@ describe('desktop Settings Usage panel', () => {
     act(() => refresh.props.onClick());
     act(() => refresh.props.onClick());
     expect(harness.mutations).toHaveLength(2);
+    expect(renderer.root.findAllByType('animateTransform')).toHaveLength(1);
     expect(html).toContain('Refreshing…');
     expect(html).toContain('Live');
-    expect(html).toContain('Stale');
-    expect(html).toContain('Never observed');
-    expect(html).toContain('Unsupported');
   });
 });

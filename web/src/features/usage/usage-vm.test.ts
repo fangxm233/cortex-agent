@@ -1,5 +1,5 @@
 // input:  ProviderUsage fixtures, language, and current epoch
-// output: quota, spend, freshness, severity, and timing view-model regressions
+// output: quota filtering, spend, freshness, severity, and timing regressions
 // pos:    Verifies the shared usage presentation model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -17,6 +17,7 @@ const status: SystemUsageStatus = [
       { type: 'five_hour', utilization: 0.54, resetsAt: NOW + 2 * 3600 },
       { type: 'seven_day', utilization: 0.31, resetsAt: NOW + 3 * 86400 },
       { type: 'model_scoped', label: 'Fable', utilization: 0.1, resetsAt: null },
+      { type: 'model_scoped', utilization: 0.2, resetsAt: null },
       { type: 'nimbus_quill', utilization: null, resetsAt: null },
     ],
   },
@@ -57,7 +58,7 @@ describe('buildUsageView', () => {
     });
   });
 
-  it('labels Anthropic, Codex, model, and unknown windows without dropping any bucket', () => {
+  it('renders known and labeled model windows while dropping unknown experiment buckets', () => {
     const vm = buildUsageView(status, NOW, 'en');
 
     expect(vm.providers[0].windows.map(window => ({
@@ -67,7 +68,6 @@ describe('buildUsageView', () => {
       { type: 'five_hour', label: '5 hours', utilization: '54%', resetIn: '2h' },
       { type: 'seven_day', label: '7 days', utilization: '31%', resetIn: '3d' },
       { type: 'model_scoped', label: 'Fable', utilization: '10%', resetIn: null },
-      { type: 'nimbus_quill', label: 'nimbus quill', utilization: null, resetIn: null },
     ]);
     expect(vm.providers[1].windows.map(window => window.label)).toEqual(['Primary', 'Secondary']);
   });
@@ -127,7 +127,7 @@ describe('buildUsageView', () => {
     ], NOW, 'en');
 
     expect(vm.providers[0].windows.map(window => window.severity)).toEqual([
-      'normal', 'warning', 'danger', 'normal',
+      'normal', 'warning', 'danger',
     ]);
     expect(vm.providers[0].noteTone).toBe('error');
     expect(vm.providers[1].noteTone).toBe('info');

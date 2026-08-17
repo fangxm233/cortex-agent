@@ -1,31 +1,15 @@
 // input:  shared usage hook, provider usage view, and localized copy
-// output: desktop Settings Usage cards with meters, badges, and spend tiles
+// output: desktop Settings Usage cards with meters, live badge, and spend tiles
 // pos:    Independently queried desktop usage settings panel
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { CSSProperties, ReactNode } from 'react';
-import type { UsageFreshness } from '@cortex-agent/ui-contract';
-import { useVocab, type Vocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import { SButton, SCard } from '@/features/settings/settings-ui';
 import { useUsage } from './useUsage';
 import type { ProviderUsageView, UsageSeverity, UsageWindowView } from './usage-vm';
 
 const MONO = "'IBM Plex Mono',monospace";
-
-const FRESHNESS_KEYS: Record<UsageFreshness, keyof Vocab> = {
-  live: 'usageFreshLive',
-  stale: 'usageFreshStale',
-  never: 'usageFreshNever',
-  unsupported: 'usageFreshUnsupported',
-};
-
-// live → success, stale → amber, never/unsupported → neutral (semantic pill tokens)
-const FRESHNESS_TONE: Record<UsageFreshness, { bg: string; fg: string }> = {
-  live: { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)' },
-  stale: { bg: 'var(--pill-waiting-bg)', fg: 'var(--pill-waiting-fg)' },
-  never: { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)' },
-  unsupported: { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)' },
-};
 
 // Meter fill escalates with utilization; the track stays neutral in both themes.
 const SEVERITY_FILL: Record<UsageSeverity, string> = {
@@ -48,19 +32,20 @@ function isoTime(epochSeconds: number): string {
   return new Date(epochSeconds * 1000).toISOString();
 }
 
-function FreshnessBadge({ freshness }: { freshness: UsageFreshness }) {
+// Staleness is already conveyed by the observed-ago line; only live earns a badge.
+function LiveBadge() {
   const L = useVocab();
-  const tone = FRESHNESS_TONE[freshness];
   return (
     <span
-      data-usage-freshness={freshness}
+      data-usage-freshness="live"
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 8px',
-        borderRadius: 999, background: tone.bg, color: tone.fg, font: `600 9.5px ${MONO}`,
+        borderRadius: 999, background: 'var(--pill-done-bg)', color: 'var(--pill-done-fg)',
+        font: `600 9.5px ${MONO}`,
       }}
     >
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', flex: 'none' }} />
-      {L[FRESHNESS_KEYS[freshness]]}
+      {L.usageFreshLive}
     </span>
   );
 }
@@ -81,7 +66,7 @@ function CardHeader({ provider }: { provider: ProviderUsageView }) {
     <header style={{ padding: '11px 14px 10px', borderBottom: '1px solid var(--proto-line-2)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{provider.displayName}</span>
-        <span style={{ marginLeft: 'auto' }}><FreshnessBadge freshness={provider.freshness} /></span>
+        {provider.freshness === 'live' ? <span style={{ marginLeft: 'auto' }}><LiveBadge /></span> : null}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
         <span style={META_TEXT}>{provider.modes.join(' · ')}</span>
@@ -144,17 +129,16 @@ function QuietState({ children }: { children: ReactNode }) {
   );
 }
 
+// Unsupported providers show only spend; never keeps its short empty state.
 function QuotaBlock({ provider }: { provider: ProviderUsageView }) {
   const L = useVocab();
-  const stateCopy = provider.quotaState === 'unsupported'
-    ? L.usageQuotaUnsupported
-    : L.usageNeverObserved;
+  if (provider.quotaState === 'unsupported') return null;
   return (
     <section data-usage-quota={provider.provider} data-usage-quota-state={provider.quotaState} style={{ padding: '10px 14px 13px', flex: 1 }}>
       <div style={SECTION_LABEL}>{L.usageQuota}</div>
       {provider.quotaState === 'available'
         ? provider.windows.map(window => <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} />)
-        : <QuietState>{stateCopy}</QuietState>}
+        : <QuietState>{L.usageNeverObserved}</QuietState>}
     </section>
   );
 }
@@ -182,25 +166,19 @@ function SpendBlock({ provider }: { provider: ProviderUsageView }) {
   );
 }
 
+// Info-tone notes never render on desktop; only failures earn a banner.
 function NoteBlock({ provider }: { provider: ProviderUsageView }) {
-  if (!provider.note) return null;
-  if (provider.noteTone === 'error') {
-    return (
-      <div
-        data-usage-note="error"
-        style={{
-          margin: '0 14px 12px', display: 'flex', alignItems: 'flex-start', gap: 7,
-          background: 'var(--proto-danger-bg)', borderRadius: 8, padding: '7px 10px',
-        }}
-      >
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-danger)', flex: 'none', marginTop: 4 }} />
-        <span style={{ fontSize: 10, lineHeight: 1.5, color: 'var(--proto-danger)' }}>{provider.note}</span>
-      </div>
-    );
-  }
+  if (!provider.note || provider.noteTone !== 'error') return null;
   return (
-    <div data-usage-note="info" style={{ margin: '0 14px 12px', fontSize: 9.5, lineHeight: 1.5, color: 'var(--proto-muted-3)' }}>
-      {provider.note}
+    <div
+      data-usage-note="error"
+      style={{
+        margin: '0 14px 12px', display: 'flex', alignItems: 'flex-start', gap: 7,
+        background: 'var(--proto-danger-bg)', borderRadius: 8, padding: '7px 10px',
+      }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-danger)', flex: 'none', marginTop: 4 }} />
+      <span style={{ fontSize: 10, lineHeight: 1.5, color: 'var(--proto-danger)' }}>{provider.note}</span>
     </div>
   );
 }
@@ -230,6 +208,49 @@ function ErrorChip({ label, message }: { label: string; message: string }) {
   );
 }
 
+// Circular-arrows glyph; the SMIL rotation runs only while a refresh is pending.
+function RefreshIcon({ spinning }: { spinning: boolean }) {
+  return (
+    <svg
+      width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ flex: 'none', display: 'block' }}
+    >
+      <g>
+        {spinning
+          ? <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.9s" repeatCount="indefinite" />
+          : null}
+        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+        <path d="M21 3v5h-5" />
+        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+        <path d="M8 16H3v5" />
+      </g>
+    </svg>
+  );
+}
+
+// Right-aligned toolbar; the button stays clickable while a refresh is pending.
+function RefreshToolbar({ usage }: { usage: ReturnType<typeof useUsage> }) {
+  const L = useVocab();
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+      {usage.refreshError
+        ? (
+          <span style={{ fontSize: 10, color: 'var(--proto-danger)' }}>
+            {L.usageRefreshError}: {usage.refreshError.message}
+          </span>
+        )
+        : null}
+      <SButton tone="neutral" data-usage-refresh aria-busy={usage.isRefreshing} onClick={usage.refresh}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <RefreshIcon spinning={usage.isRefreshing} />
+          {usage.isRefreshing ? L.usageRefreshing : L.usageRefresh}
+        </span>
+      </SButton>
+    </div>
+  );
+}
+
 export function UsagePanel() {
   const L = useVocab();
   const usage = useUsage();
@@ -239,12 +260,7 @@ export function UsagePanel() {
   }
   return (
     <div style={{ marginTop: 12, maxWidth: 980 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <SButton tone="accent" data-usage-refresh aria-busy={usage.isRefreshing} onClick={usage.refresh}>
-          {usage.isRefreshing ? L.usageRefreshing : L.usageRefresh}
-        </SButton>
-        {usage.refreshError ? <ErrorChip label={L.usageRefreshError} message={usage.refreshError.message} /> : null}
-      </div>
+      <RefreshToolbar usage={usage} />
       {usage.view.providers.length === 0
         ? <div style={{ marginTop: 14, maxWidth: 420 }}><QuietState>{L.usageEmpty}</QuietState></div>
         : (

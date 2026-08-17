@@ -1,5 +1,5 @@
 // input:  ProviderUsage snapshots, language, and current epoch
-// output: provider quota, spend, freshness, severity, and timing views
+// output: known-bucket quota, spend, freshness, severity, and timing views
 // pos:    Shared desktop/mobile usage presentation model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -58,6 +58,15 @@ const WINDOW_LABELS: Record<Lang, Record<string, string>> = {
     codex_secondary: '次窗口',
   },
 };
+
+// Providers also report internal experiment buckets under opaque code names; only
+// known window types (plus labeled model-scoped windows) reach any rendered view.
+const RENDERABLE_WINDOW_TYPES = new Set(Object.keys(WINDOW_LABELS.en));
+
+function isRenderableWindow(window: UsageWindow): boolean {
+  if (window.type === 'model_scoped') return Boolean(window.label);
+  return RENDERABLE_WINDOW_TYPES.has(window.type);
+}
 
 const PROVIDER_ORDER: Record<string, number> = {
   anthropic: 0,
@@ -132,7 +141,7 @@ function buildProvider(record: ProviderUsage, nowSec: number, lang: Lang): Provi
     provider: record.provider,
     displayName: record.displayName,
     modes: [...record.modes],
-    windows: record.windows.map(window => buildWindow(window, nowSec, lang)),
+    windows: record.windows.filter(isRenderableWindow).map(window => buildWindow(window, nowSec, lang)),
     spend: record.spend ? { today: formatUsd(record.spend.today), month: formatUsd(record.spend.month) } : null,
     observedAt: record.observedAt,
     observedAgo: record.observedAt === null ? null : formatUsageDuration(nowSec - record.observedAt, lang),

@@ -74,7 +74,7 @@ export const enExtra = {
   ttFootNote: 'Files under config/thread-templates/. The filename is the identity; renaming is duplicate-then-delete. The directory is git-tracked, so git is the undo.',
 
   // ── Provider usage ──
-  usageRefresh: 'Refresh now',
+  usageRefresh: 'Refresh',
   usageRefreshing: 'Refreshing…',
   usageLoading: 'Loading usage…',
   usageLoadError: 'Failed to load usage',
