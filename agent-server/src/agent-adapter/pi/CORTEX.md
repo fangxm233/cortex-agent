@@ -7,7 +7,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools.
 |---|---|---|
 | adapter.ts | adapter | Coordinates PI sessions, cached usage and benchmark policy |
 | session-support.ts | core | PI session timers, queues, and probes |
-| spawn-args.ts | core | Builds PI args and scrubs server-only auth from the gated child environment |
+| spawn-args.ts | core | Builds PI args and scrubs server auth and trial controls from child environments |
 | defaults.ts | config | PI agent, session and extension path defaults |
 | agent-dir.ts | config | manages the private PI agent directory |
 | discovery.ts | core | refreshes the host provider cache |
