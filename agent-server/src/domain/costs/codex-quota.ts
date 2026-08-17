@@ -10,14 +10,8 @@ export const CODEX_PROVIDER = 'openai-codex';
  *  short window (pro, 2026-08), so a bucket is only real when its window length is positive. */
 const FAMILIES = ['primary', 'secondary'] as const;
 
-/** Named window lengths shared with the Claude throttle path, so state and UI stay one vocabulary. */
-const WINDOW_TYPE_BY_MINUTES: Record<number, string> = {
-  10080: 'seven_day',
-  300: 'five_hour',
-};
-
 export interface QuotaWindow {
-  /** `seven_day` / `five_hour`, else `window_<minutes>m` for a length Codex has not used before. */
+  /** Codex limit family, preserving the provider's primary/secondary distinction. */
   type: string;
   /** Fraction in [0,1] — Codex reports whole percents, the throttle compares against 0.95. */
   utilization: number;
@@ -50,10 +44,6 @@ function num(map: Map<string, string>, key: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-function windowTypeFor(minutes: number): string {
-  return WINDOW_TYPE_BY_MINUTES[minutes] ?? `window_${minutes}m`;
-}
-
 function resetsAtFor(map: Map<string, string>, family: string, nowMs: number): number | null {
   const absolute = num(map, `x-codex-${family}-reset-at`);
   if (absolute !== null && absolute > 0) return absolute;
@@ -61,14 +51,18 @@ function resetsAtFor(map: Map<string, string>, family: string, nowMs: number): n
   return after === null ? null : Math.floor(nowMs / 1000) + after;
 }
 
-function windowFor(map: Map<string, string>, family: string, nowMs: number): QuotaWindow | null {
+function windowFor(
+  map: Map<string, string>,
+  family: typeof FAMILIES[number],
+  nowMs: number,
+): QuotaWindow | null {
   const minutes = num(map, `x-codex-${family}-window-minutes`);
   if (minutes === null || minutes <= 0) return null;
   const usedPercent = num(map, `x-codex-${family}-used-percent`);
-  if (usedPercent === null) return null;
+  if (usedPercent === null || usedPercent < 0 || usedPercent > 100) return null;
   const resetsAt = resetsAtFor(map, family, nowMs);
   if (resetsAt === null) return null;
-  return { type: windowTypeFor(minutes), utilization: usedPercent / 100, resetsAt };
+  return { type: `codex_${family}`, utilization: usedPercent / 100, resetsAt };
 }
 
 /**
@@ -124,5 +118,6 @@ function safeParse(raw: string): { windows?: unknown; planType?: unknown } | nul
 function isQuotaWindow(value: unknown): value is QuotaWindow {
   const w = value as QuotaWindow | null;
   return !!w && typeof w.type === 'string' && w.type.length > 0
-    && Number.isFinite(w.utilization) && Number.isFinite(w.resetsAt);
+    && Number.isFinite(w.utilization) && w.utilization >= 0 && w.utilization <= 1
+    && Number.isFinite(w.resetsAt);
 }

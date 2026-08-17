@@ -61,7 +61,7 @@ test('reports the quota it read off a codex response', () => {
   assert.deepEqual(decodeQuotaNotice(sent[0]), {
     provider: 'openai-codex',
     planType: 'pro',
-    windows: [{ type: 'seven_day', utilization: 0.93, resetsAt: 1786160107 }],
+    windows: [{ type: 'codex_primary', utilization: 0.93, resetsAt: 1786160107 }],
   });
 });
 
@@ -109,8 +109,8 @@ const READING = {
   provider: 'openai-codex' as const,
   planType: 'pro',
   windows: [
-    { type: 'seven_day', utilization: 0.96, resetsAt: 1786160107 },
-    { type: 'five_hour', utilization: 0.91, resetsAt: 1785823070 },
+    { type: 'codex_primary', utilization: 0.96, resetsAt: 1786160107 },
+    { type: 'codex_secondary', utilization: 0.91, resetsAt: 1785823070 },
   ],
 };
 
@@ -129,11 +129,11 @@ test('submits one throttle event per window, keeping utilization and reset intac
 
   assert.deepEqual(calls, [
     {
-      info: { rateLimitType: 'seven_day', utilization: 0.96, resetsAt: 1786160107 },
+      info: { rateLimitType: 'codex_primary', utilization: 0.96, resetsAt: 1786160107 },
       source: { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
     },
     {
-      info: { rateLimitType: 'five_hour', utilization: 0.91, resetsAt: 1785823070 },
+      info: { rateLimitType: 'codex_secondary', utilization: 0.91, resetsAt: 1785823070 },
       source: { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
     },
   ]);
@@ -206,8 +206,8 @@ test('persists every below-threshold window across restart with its observation 
   const reading = {
     ...READING,
     windows: [
-      { type: 'seven_day', utilization: 0.12, resetsAt: 1_786_160_107 },
-      { type: 'five_hour', utilization: 0.34, resetsAt: 1_785_823_070 },
+      { type: 'codex_primary', utilization: 0.12, resetsAt: 1_786_160_107 },
+      { type: 'codex_secondary', utilization: 0.34, resetsAt: 1_785_823_070 },
     ],
   };
   const calls: unknown[] = [];
@@ -290,7 +290,7 @@ test('a quota notice from the PI child throttles the provider it was routed unde
   const reading = {
     provider: 'openai-codex',
     planType: 'pro',
-    windows: [{ type: 'seven_day', utilization: 0.96, resetsAt: Math.floor(Date.now() / 1000) + 3600 }],
+    windows: [{ type: 'codex_primary', utilization: 0.96, resetsAt: Math.floor(Date.now() / 1000) + 3600 }],
   };
   stub.children[0].stdout.write(`${JSON.stringify({
     type: 'extension_ui_request',
@@ -303,7 +303,7 @@ test('a quota notice from the PI child throttles the provider it was routed unde
   const state = getThrottleState();
   assert.deepEqual(state.providers.map((p) => p.provider), ['openai-codex']);
   assert.deepEqual(state.providers[0].modes, ['openai-codex']);
-  assert.deepEqual(state.providers[0].windows.map((w) => w.type), ['seven_day']);
+  assert.deepEqual(state.providers[0].windows.map((w) => w.type), ['codex_primary']);
 });
 
 test('resolves the provider and mode that the dispatch gate looks up', () => {

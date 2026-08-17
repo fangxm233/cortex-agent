@@ -4,7 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SystemUsageStatus } from '@cortex-agent/ui-contract';
 import { en, LangProvider, zh } from '@/i18n';
 import { getSettingsNav, getSectionMeta } from '@/features/settings/settings-nav';
@@ -39,6 +39,8 @@ const usage: SystemUsageStatus = [
   },
 ];
 
+let currentUsage = usage;
+
 const harness = vi.hoisted(() => ({
   queried: [] as string[],
   mutations: [] as { kind: string; args: unknown }[],
@@ -67,7 +69,7 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
   useQuery: (options: any) => {
     harness.queried.push(options.__kind);
     return {
-      data: harness.queryError ? undefined : usage,
+      data: harness.queryError ? undefined : currentUsage,
       isLoading: false,
       isError: harness.queryError !== null,
       error: harness.queryError,
@@ -76,7 +78,7 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
   useMutation: (options: any) => ({
     mutate: (args: unknown) => {
       harness.mutations.push({ kind: options.__kind, args });
-      options.onSuccess?.(usage);
+      options.onSuccess?.(currentUsage);
     },
     isPending: harness.pending,
     isError: harness.refreshError !== null,
@@ -96,6 +98,7 @@ function mount(): ReactTestRenderer {
 }
 
 beforeEach(() => {
+  currentUsage = usage;
   harness.queried = [];
   harness.mutations = [];
   harness.invalidations = [];
@@ -103,6 +106,8 @@ beforeEach(() => {
   harness.queryError = null;
   harness.refreshError = null;
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe('desktop Settings Usage panel', () => {
   it('adds bilingual Usage navigation and metadata through exhaustive records', () => {
@@ -127,6 +132,33 @@ describe('desktop Settings Usage panel', () => {
     expect(html).toContain('Secondary');
     expect(html).toContain('Reset elapsed');
     expect(html).toContain('$1.25');
+  });
+
+  it('gives model-scoped windows with a shared reset time distinct React identities', () => {
+    currentUsage = [{
+      provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'], freshness: 'live',
+      observedAt: NOW,
+      windows: [
+        { type: 'model_scoped', label: 'Fable', utilization: 0.33, resetsAt: null },
+        { type: 'model_scoped', label: 'Unlisted Model', utilization: null, resetsAt: null },
+      ],
+    }];
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    mount();
+
+    expect(consoleError.mock.calls.flat().join(' ')).not.toContain('same key');
+    consoleError.mockRestore();
+  });
+
+  it('advances observed freshness while the panel remains open', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW * 1000);
+    const renderer = mount();
+
+    expect(renderer.root.findAllByType('time')[0].children.join('')).toBe('1m ago');
+    act(() => { vi.advanceTimersByTime(60_000); });
+    expect(renderer.root.findAllByType('time')[0].children.join('')).toBe('2m ago');
   });
 
   it('invokes system.refreshUsage on every click and writes the returned snapshot', () => {
@@ -161,13 +193,16 @@ describe('desktop Settings Usage panel', () => {
     expect(html).toContain('Anthropic');
   });
 
-  it('shows refresh loading feedback and all freshness labels', () => {
+  it('keeps refresh unthrottled while showing loading feedback and all freshness labels', () => {
     harness.pending = true;
     const renderer = mount();
     const refresh = renderer.root.findByProps({ 'data-usage-refresh': true });
     const html = JSON.stringify(renderer.toJSON());
 
-    expect(refresh.props.disabled).toBe(true);
+    expect(refresh.props.disabled).toBeFalsy();
+    act(() => refresh.props.onClick());
+    act(() => refresh.props.onClick());
+    expect(harness.mutations).toHaveLength(2);
     expect(html).toContain('Refreshing…');
     expect(html).toContain('Live');
     expect(html).toContain('Stale');

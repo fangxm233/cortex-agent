@@ -31,7 +31,7 @@ test('extracts the weekly window and drops the disabled secondary window', () =>
   assert.deepEqual(reading, {
     provider: 'openai-codex',
     planType: 'pro',
-    windows: [{ type: 'seven_day', utilization: 0.93, resetsAt: 1786160107 }],
+    windows: [{ type: 'codex_primary', utilization: 0.93, resetsAt: 1786160107 }],
   });
 });
 
@@ -47,8 +47,8 @@ test('reports the five-hour window when the secondary window comes back', () => 
     { nowMs: 1785822470_000 },
   );
   assert.deepEqual(reading?.windows, [
-    { type: 'seven_day', utilization: 0.93, resetsAt: 1786160107 },
-    { type: 'five_hour', utilization: 0.4, resetsAt: 1785823070 },
+    { type: 'codex_primary', utilization: 0.93, resetsAt: 1786160107 },
+    { type: 'codex_secondary', utilization: 0.4, resetsAt: 1785823070 },
   ]);
 });
 
@@ -58,16 +58,16 @@ test('derives resetsAt from reset-after-seconds when the absolute stamp is absen
     { nowMs: 1785822470_000 },
   );
   assert.deepEqual(reading?.windows, [
-    { type: 'seven_day', utilization: 0.93, resetsAt: 1785822470 + 337636 },
+    { type: 'codex_primary', utilization: 0.93, resetsAt: 1785822470 + 337636 },
   ]);
 });
 
-test('labels an unrecognized window length by its duration instead of guessing', () => {
+test('preserves the primary identity for an unrecognized window length', () => {
   const reading = parseCodexQuotaHeaders(
     { ...LIVE_HEADERS, 'x-codex-primary-window-minutes': '1440' },
     { nowMs: 1785822470_000 },
   );
-  assert.equal(reading?.windows[0]?.type, 'window_1440m');
+  assert.equal(reading?.windows[0]?.type, 'codex_primary');
 });
 
 test('reads headers case-insensitively', () => {
@@ -118,6 +118,26 @@ test('rejects a prefixed notice whose payload is not a usable reading', () => {
   assert.equal(decodeQuotaNotice(`${prefix}not json`), null);
   assert.equal(decodeQuotaNotice(`${prefix}{"provider":"openai-codex"}`), null);
   assert.equal(decodeQuotaNotice(`${prefix}{"provider":"openai-codex","windows":[]}`), null);
+});
+
+test('rejects used percentages outside the provider contract range', () => {
+  for (const usedPercent of ['-1', '101']) {
+    const reading = parseCodexQuotaHeaders(
+      { ...LIVE_HEADERS, 'x-codex-primary-used-percent': usedPercent },
+      { nowMs: 1785822470_000 },
+    );
+    assert.equal(reading, null);
+  }
+});
+
+test('rejects notice windows whose utilization is outside zero to one', () => {
+  for (const utilization of [-0.01, 1.01]) {
+    assert.equal(decodeQuotaNotice(encodeQuotaNotice({
+      provider: 'openai-codex',
+      planType: 'pro',
+      windows: [{ type: 'codex_primary', utilization, resetsAt: 1786160107 }],
+    })), null);
+  }
 });
 
 test('ignores a malformed used-percent rather than reporting a bogus utilization', () => {
