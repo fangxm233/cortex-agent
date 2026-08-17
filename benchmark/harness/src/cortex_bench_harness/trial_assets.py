@@ -1,12 +1,12 @@
-# input:  attested root template, pinned npm bundle, container bundle root
+# input:  materialized arm home, pinned npm bundle, container paths
 # output: model-visible assets copied beside the trajectory and inventoried
 # pos:    Per-trial asset collection
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
-# A trial record has to answer "what did the model actually see" out of its own directory. The
-# prompts, directives and skills live in the bundle, at container paths the host cannot read, so
-# this module lifts exactly the members the launcher's role record names out of the pinned tarball
-# and writes them beside the trajectory.
+# A trial record has to answer "what did the model actually see" out of its own directory. A
+# production arm reads prompts from its materialized CORTEX_HOME, while legacy plugin assets live
+# in the installed bundle. This module copies bytes from the path each runtime actually read and
+# writes them beside the trajectory.
 #
 # Copying the whole 55.8 MB bundle into every trial would answer the same question and was what the
 # trial dir used to carry by accident of staging location. It is 400x the bytes, 99.6% of which is
@@ -35,6 +35,7 @@ ASSET_MANIFEST_PATH = f"{ASSETS_DIRNAME}/manifest.json"
 MEMBER_ROOT = "package"
 ARM_RESOLUTION_FILENAME = "arm-resolution.json"
 PRODUCTION_HOME_DIRNAME = "production-cortex-home"
+PRODUCTION_HOME_CONTAINER_ROOT = f"/logs/agent/{PRODUCTION_HOME_DIRNAME}"
 PRODUCTION_TEMPLATES_DIR = f"{PRODUCTION_HOME_DIRNAME}/config/thread-templates/templates"
 PRODUCTION_AGENTS_DIR = f"{PRODUCTION_HOME_DIRNAME}/config/thread-templates/agents"
 PROMPT_FILE_PREFIX = "file:"
@@ -65,11 +66,19 @@ def publish_trial_assets(
     *, logs_dir: Path, npm_artifact: Path, bundle_root: str,
     root_template: str | None = None,
 ) -> PublishedAssets:
+    production = not (logs_dir / ARM_RESOLUTION_FILENAME).is_file()
     roles = _resolve_roles(logs_dir, bundle_root, root_template)
     files, trees = _asset_plan(roles, bundle_root)
-    extracted = _extract(npm_artifact, files, trees)
+    home_files, container_paths = (
+        _production_prompt_assets(logs_dir, roles, bundle_root) if production else ({}, {})
+    )
+    extracted = {
+        **_extract(npm_artifact, files - home_files.keys(), trees), **home_files,
+    }
     written = _write(logs_dir, extracted)
-    manifest = _manifest(roles, extracted, written, npm_artifact, bundle_root)
+    manifest = _manifest(
+        roles, extracted, written, npm_artifact, bundle_root, container_paths,
+    )
     _write_manifest(logs_dir, manifest)
     return PublishedAssets(tuple(sorted(written.values())), manifest)
 
@@ -133,6 +142,30 @@ def _prompt_path(value: object, bundle_root: str, kind: str) -> str:
     if not isinstance(value, str) or not value.startswith(PROMPT_FILE_PREFIX):
         raise TrialAssetError("production_home_unreadable")
     return f"{bundle_root}/defaults/prompts/{kind}/{value[len(PROMPT_FILE_PREFIX):]}"
+
+
+def _production_prompt_assets(
+    logs_dir: Path, roles: Mapping[str, Mapping[str, object]], bundle_root: str,
+) -> tuple[dict[str, bytes], dict[str, str]]:
+    payloads: dict[str, bytes] = {}
+    container_paths: dict[str, str] = {}
+    for role in roles.values():
+        for field, kind in (("system_prompt_path", "systemPrompts"),
+                            ("directive_path", "directives")):
+            relative = _bundle_relative(role.get(field), bundle_root)
+            prefix = PurePosixPath("defaults", "prompts", kind)
+            try:
+                prompt = PurePosixPath(relative).relative_to(prefix)
+            except ValueError as error:
+                raise TrialAssetError("production_home_unreadable") from error
+            local = logs_dir / PRODUCTION_HOME_DIRNAME / "prompts" / kind / prompt
+            try:
+                payloads[relative] = local.read_bytes()
+            except OSError as error:
+                raise TrialAssetError("production_home_unreadable") from error
+            container_paths[relative] = str(
+                PurePosixPath(PRODUCTION_HOME_CONTAINER_ROOT, "prompts", kind, prompt))
+    return payloads, container_paths
 
 
 def _read_resolution(logs_dir: Path) -> Mapping[str, object]:
@@ -256,6 +289,7 @@ def _write_manifest(logs_dir: Path, manifest: Mapping[str, object]) -> None:
 def _manifest(
     roles: Mapping[str, Mapping[str, object]], extracted: Mapping[str, bytes],
     written: Mapping[str, str], npm_artifact: Path, bundle_root: str,
+    container_paths: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
     return {
         "schema_version": ASSET_SCHEMA_VERSION,
@@ -269,7 +303,8 @@ def _manifest(
         },
         "files": [
             {"asset_path": written[relative],
-             "container_path": f"{bundle_root}/{relative}",
+             "container_path": (container_paths or {}).get(
+                 relative, f"{bundle_root}/{relative}"),
              "size_bytes": len(extracted[relative]),
              "sha256": hashlib.sha256(extracted[relative]).hexdigest()}
             for relative in sorted(written)

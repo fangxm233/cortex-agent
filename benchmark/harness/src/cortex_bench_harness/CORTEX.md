@@ -18,4 +18,4 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | proxy/ | network | Injects credentials through a bounded trial route |
 | scan/ | audit | Finds credential and host-identity leaks |
 | synthetic_deepseek.py | fixture | Serves deterministic loopback tool turns |
-| trial_assets.py | collect | Lifts the model-visible assets one trial used out of the pinned bundle and inventories them |
+| trial_assets.py | collect | Lifts model-visible prompts from the arm home and plugins from the pinned bundle |

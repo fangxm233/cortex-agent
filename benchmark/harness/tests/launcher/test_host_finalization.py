@@ -1053,13 +1053,14 @@ def agent_prompt_members(bundle: ProductionArmBundle) -> dict[str, bytes]:
 
 def finalize_production_trial(
     tmp_path: Path, bundle: ProductionArmBundle,
+    *, npm_prompt_members: dict[str, bytes] | None = None,
 ) -> tuple[dict[str, object], object]:
     logs_dir = tmp_path / "agent"
     verifier_dir = tmp_path / "verifier"
     artifact_dir = tmp_path / "artifacts"
     verifier_dir.mkdir()
     npm_artifact = tmp_path / "server.tgz"
-    write_npm_artifact(npm_artifact, agent_prompt_members(bundle))
+    write_npm_artifact(npm_artifact, npm_prompt_members or agent_prompt_members(bundle))
     materialized = materialize_production_home(
         cortex_home=logs_dir / "production-cortex-home",
         runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
@@ -1130,6 +1131,33 @@ def test_a_coder_review_trial_never_records_the_direct_arm_bundle(tmp_path: Path
     assert not any("benchmark-direct" in path for path in paths)
     assert recorded == list(committed_input_bundle_files(bundle.key))
     assert canonical_sha256(recorded) == materialized.input_bundle_sha256
+
+
+def test_production_assets_copy_the_materialized_arm_prompts_not_npm_defaults(
+    tmp_path: Path,
+) -> None:
+    bundle = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
+    npm_prompts = {
+        path: b"different npm default\n" for path in agent_prompt_members(bundle)
+    }
+
+    envelope, _ = finalize_production_trial(
+        tmp_path, bundle, npm_prompt_members=npm_prompts,
+    )
+
+    manifest = json.loads((tmp_path / "agent/assets/manifest.json").read_bytes())
+    role = manifest["roles"]["benchmark-coder"]
+    asset = tmp_path / "agent" / role["system_prompt"]
+    expected = bundle.bundle_dir / "prompts/systemPrompts/benchmark-coder.md"
+    assert asset.read_bytes() == expected.read_bytes()
+    entry = next(
+        item for item in manifest["files"]
+        if item["asset_path"] == role["system_prompt"]
+    )
+    assert entry["container_path"] == (
+        "/logs/agent/production-cortex-home/prompts/systemPrompts/benchmark-coder.md"
+    )
+    assert envelope["assets"]["file_count"] == 4
 
 
 def test_an_attestation_naming_no_committed_bundle_records_no_other_arms_list(

@@ -176,9 +176,9 @@ def _unavailable(reason: str) -> dict[str, str]:
 def _lift_assets(
     logs_dir: Path, npm_artifact: Path, bundle_root: str, root_template: str | None,
 ) -> PublishedAssets | str:
-    """Copy the bundle members this trial's composition named, so the record answers "what did the
-    model see" out of its own directory. The lift is collection: nothing here is held against the
-    run's journal, and a lift that cannot be made is recorded as unavailable.
+    """Copy the model-visible assets this trial's composition named, so the record answers "what
+    did the model see" out of its own directory. Production prompts come from the materialized arm
+    home; legacy assets come from the installed bundle. A failed lift is recorded as unavailable.
     """
     try:
         return publish_trial_assets(
