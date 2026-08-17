@@ -193,11 +193,11 @@ class ContainerDouble:
                 "data": {"threadId": "thr_sealed", "status": "running"},
             })
         if "cortex-task add" in command:
-            return json.dumps({
+            return self._task_cli_stdout({
                 "success": True, "message": "Task added to general", "task-id": "a1b2",
             })
         if "cortex-task lock-release" in command:
-            return json.dumps({"success": True, "message": "Lock released"})
+            return self._task_cli_stdout({"success": True, "message": "Lock released"})
         if "production-thread-list.json" in command:
             return json.dumps({"success": True, "data": {
                 "scope": "project", "count": 1,
@@ -219,6 +219,14 @@ class ContainerDouble:
         if "kill -TERM" in command:
             return ""
         raise AssertionError(f"unexpected container command: {command}")
+
+    @staticmethod
+    def _task_cli_stdout(value: dict[str, object]) -> str:
+        """`cortex-task` prints its own logger to stdout ahead of the JSON result."""
+        return (
+            "[thread-manager 09:40:08] Loaded 1 agents, 1 templates\n"
+            + json.dumps(value, indent=2) + "\n"
+        )
 
 
 def sealed_trial(tmp_path: Path, bundle: ProductionArmBundle = DIRECT_BUNDLE) -> Trial:

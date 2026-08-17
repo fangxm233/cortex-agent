@@ -104,6 +104,18 @@ def _required_text(value: object, label: str) -> str:
     return value
 
 
+def _task_cli_payload(stdout: str) -> str:
+    """The JSON result at the end of a `cortex-task` stdout stream.
+
+    The shipped CLI prints its result as pretty-printed JSON and its own logger writes console
+    lines to the same stream, so the payload is the last object that opens at column zero rather
+    than the whole stream. Read as the production behaviour it is: the launcher adapts to the
+    server it runs, it does not quiet the server to suit itself.
+    """
+    index = stdout.rfind("\n{\n")
+    return stdout if index < 0 else stdout[index + 1:]
+
+
 def _unavailable_proxy(trial_id: str) -> dict[str, object]:
     unavailable = {"status": "unavailable", "reason": "counter_unreadable"}
     return {
@@ -307,7 +319,7 @@ class ProductionServerSession:
         )
         label = f"cortex-task {argv[0]}"
         try:
-            response = json.loads(result.stdout or "")
+            response = json.loads(_task_cli_payload(result.stdout or ""))
         except json.JSONDecodeError as error:
             raise ProductionSessionError(f"{label} returned malformed JSON") from error
         response = _required_mapping(response, label)

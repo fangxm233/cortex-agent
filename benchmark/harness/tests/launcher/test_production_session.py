@@ -152,11 +152,11 @@ class FakeExecutor:
             })
         if "cortex-task add" in command:
             self._capture("production-task-spec.json")
-            return self._reply({
+            return self._task_cli_reply({
                 "success": True, "message": "Task added to general", "task-id": "a1b2",
             })
         if "cortex-task lock-release" in command:
-            return self._reply({
+            return self._task_cli_reply({
                 "success": True, "project": "general", "message": "Lock released",
             })
         if "production-thread-list.json" in command:
@@ -222,6 +222,19 @@ class FakeExecutor:
     @staticmethod
     def _reply(value: dict[str, object]) -> SimpleNamespace:
         return SimpleNamespace(stdout=json.dumps(value), stderr="")
+
+    @staticmethod
+    def _task_cli_reply(value: dict[str, object]) -> SimpleNamespace:
+        """`cortex-task` prints its own logger to stdout ahead of the JSON result."""
+        return SimpleNamespace(
+            stdout=(
+                "[task-lock 09:40:08] Lock acquired for %s by %s (expires %s) "
+                "general benchmark-launcher 2026-01-01T00:20:00.000Z\n"
+                "[thread-manager 09:40:08] Loaded 1 agents, 1 templates\n"
+                + json.dumps(value, indent=2) + "\n"
+            ),
+            stderr="Lock acquired automatically.",
+        )
 
 
 def test_session_boots_real_server_injects_only_webhook_exports_and_stops(tmp_path: Path) -> None:
@@ -464,6 +477,19 @@ def test_manager_arm_exports_its_own_evidence_shape(tmp_path: Path) -> None:
     assert evidence["managerQa"] == "off"
     assert evidence["armName"] == "cortex-manager-qa-off"
     assert evidence["limits"] == {"max_task_depth": 1, "max_tasks": 1}
+
+
+def test_manager_arm_refuses_a_task_cli_that_did_not_add_the_task(tmp_path: Path) -> None:
+    runner = FakeExecutor(tmp_path)
+    original = runner._task_cli_reply
+    runner._task_cli_reply = lambda value: original(  # type: ignore[method-assign]
+        {"success": False, "message": "Lock required: held by someone else"})
+    production = session(tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE)
+
+    with pytest.raises(ProductionSessionError, match="cortex-task add refused"):
+        asyncio.run(production.run("Solve only this task.", runner))
+
+    assert production.stopped_cleanly is True
 
 
 def test_manager_arm_refuses_a_dispatch_that_never_runs(tmp_path: Path) -> None:
