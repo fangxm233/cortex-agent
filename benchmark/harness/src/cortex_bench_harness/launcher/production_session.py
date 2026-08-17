@@ -7,7 +7,7 @@ import asyncio
 import json
 import shlex
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol
@@ -193,14 +193,27 @@ class ProductionServerSession:
         self._temporary_files.append(local)
         return self._container_path(name)
 
-    def _launch_command(self, auth_path: PurePosixPath) -> str:
+    def _production_command(
+        self, argv: Sequence[str], extra: Mapping[str, str] | None = None,
+    ) -> str:
+        """One command under the server's own sealed process environment.
+
+        The admitted container environment names a different CORTEX_HOME, and admission refuses
+        any exec-time variable, so every process that has to read the production home composes
+        that environment inside the command — the same `env -i` construction the bootstrap uses.
+        """
         environment = {
-            **self._spec.materialized_home.process_environment,
-            "CORTEX_PRODUCTION_AUTH_FILE": str(auth_path),
+            **self._spec.materialized_home.process_environment, **(extra or {}),
         }
         assignments = [f"{key}={value}" for key, value in sorted(environment.items())]
+        return shlex.join(["env", "-i", *assignments, *argv])
+
+    def _launch_command(self, auth_path: PurePosixPath) -> str:
         app = self._spec.installed.bundle_root / "dist/entry/production-app-bootstrap.js"
-        prefix = shlex.join(["env", "-i", *assignments, "setsid", "node", str(app)])
+        prefix = self._production_command(
+            ["setsid", "node", str(app)],
+            {"CORTEX_PRODUCTION_AUTH_FILE": str(auth_path)},
+        )
         stdout = shlex.quote(str(self._container_path("stdout.txt")))
         stderr = shlex.quote(str(self._container_path("stderr.txt")))
         return f"{prefix} >{stdout} 2>{stderr} </dev/null & printf '%s\\n' \"$!\""
@@ -348,7 +361,8 @@ class ProductionServerSession:
     async def _export_evidence(self, execute: Executor) -> None:
         path = self._write_request("production-evidence-input.json", self._evidence_input())
         await execute(
-            shlex.join(["cortex-evidence-export", "--input-file", str(path)]),
+            self._production_command(
+                ["cortex-evidence-export", "--input-file", str(path)]),
             cwd=self._spec.workspace_cwd, timeout_sec=EVIDENCE_EXPORT_TIMEOUT_SECONDS,
         )
 

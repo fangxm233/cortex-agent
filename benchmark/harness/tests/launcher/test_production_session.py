@@ -130,7 +130,7 @@ class FakeExecutor:
                     "terminal": terminal, "artifact": None, "finalOutput": "done" if terminal else None,
                 },
             })
-        if command.startswith("cortex-evidence-export"):
+        if "cortex-evidence-export" in command:
             self._capture("production-evidence-input.json")
             if self.export_failure:
                 raise RuntimeError("export refused")
@@ -209,13 +209,38 @@ def test_session_boots_real_server_injects_only_webhook_exports_and_stops(tmp_pa
     for command, timeout in zip(commands, runner.timeouts, strict=True):
         if "/webhook/thread-op" in command or "127.0.0.1:9880/status" in command:
             assert timeout == 10
-    assert commands[-2] == (
+    assert commands[-2].endswith(
         "cortex-evidence-export --input-file /logs/agent/production-evidence-input.json"
     )
     assert commands[-1].startswith("kill -TERM -- -4242")
     assert (tmp_path / "trajectory/run-root-direct.terminal.json").is_file()
     assert (tmp_path / "trajectory/composite-manifest.json").is_file()
     assert not list(tmp_path.glob("production-*.json"))
+
+
+def test_evidence_export_reads_the_production_home_not_the_container_home(
+    tmp_path: Path,
+) -> None:
+    """The exporter is a second reader of the server's own stores.
+
+    The admitted container environment names a different `CORTEX_HOME`, and admission refuses
+    exec-time variables, so the exporter must compose the server's environment inside the command
+    exactly as the bootstrap does. Run against the container's own home it finds no attempts.
+    """
+    runner = FakeExecutor(tmp_path)
+
+    asyncio.run(session(tmp_path).run("Solve only this task.", runner))
+
+    export, environment, _ = next(
+        call for call in runner.calls if "cortex-evidence-export" in call[0]
+    )
+    assert environment is None
+    assert export.startswith("env -i ")
+    assert "CORTEX_HOME=/logs/agent/production-cortex-home" in export
+    assert "HOME=/logs/agent/production-cortex-home/home" in export
+    assert export.endswith(
+        "cortex-evidence-export --input-file /logs/agent/production-evidence-input.json"
+    )
 
 
 def test_session_posts_validated_root_context_and_export_identity(tmp_path: Path) -> None:
