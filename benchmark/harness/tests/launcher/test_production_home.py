@@ -229,6 +229,18 @@ def test_committed_bundle_is_the_exact_production_direct_surface(tmp_path: Path)
         assert (home / "prompts" / kind / "benchmark-direct.md").read_bytes() == expected
 
 
+def test_manager_qa_route_is_opened_only_for_the_qa_on_arm(tmp_path: Path) -> None:
+    qa_on = production_arm_bundle("manager-qa-on-pi-deepseek")
+    on_root, off_root = tmp_path / "on", tmp_path / "off"
+    on_root.mkdir()
+    off_root.mkdir()
+    on = materialize(on_root, bundle=qa_on).process_environment
+    off = materialize(off_root, bundle=MANAGER_BUNDLE).process_environment
+
+    assert on["CORTEX_WEBHOOK_MANAGER_QA_ALLOWED"] == "1"
+    assert "CORTEX_WEBHOOK_MANAGER_QA_ALLOWED" not in off
+
+
 def test_materializes_without_host_home_and_scrubs_provider_and_chat_residue(tmp_path: Path) -> None:
     result = materialize(tmp_path, HOSTILE_ENVIRONMENT)
     environment = result.process_environment

@@ -1,0 +1,28 @@
+{
+  "name": "benchmark-manager",
+  "description": "Benchmark Manager — owns the dispatched task node with Q&A available",
+  "profile": "benchmark-manager",
+  "persistSession": false,
+  "directive": "file:benchmark-manager.md",
+  "systemPrompt": "file:benchmark-manager.md",
+  "entryStage": "manage",
+  "stages": {
+    "manage": {
+      "description": "Advance the dispatched task: do the work directly or decompose it, then record the outcome.",
+      "promptTemplate": "{{input}}"
+    }
+  },
+  "tools": "bash,edit,glob,grep,read,skill,todo_write,write",
+  "pluginDirs": [],
+  "mcpComposition": "thread-control",
+  "mcpToolAllowlist": [
+    "answer_subtask",
+    "task_list",
+    "task_result",
+    "task_status",
+    "thread_abort",
+    "thread_split",
+    "thread_wait",
+    "ask_manager"
+  ]
+}

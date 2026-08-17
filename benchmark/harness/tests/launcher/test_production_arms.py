@@ -77,6 +77,14 @@ def manager_qa_off_arm(**overrides: object) -> dict[str, object]:
     )
 
 
+def manager_qa_on_arm(**overrides: object) -> dict[str, object]:
+    return arm(
+        {"mode": "manager", "ask_manager": True},
+        {**MANAGER_CONTAINMENT_LIMITS, "max_parent_questions": 1},
+        **overrides,
+    )
+
+
 def read_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -139,6 +147,40 @@ def test_manager_qa_off_arm_resolves_to_its_own_bundle_template_and_role() -> No
     assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
 
 
+def test_manager_qa_on_arm_differs_only_by_its_question_tool_gate() -> None:
+    off = require_production_arm(manager_qa_off_arm())
+    on = require_production_arm(manager_qa_on_arm())
+
+    assert on.key == "manager-qa-on-pi-deepseek"
+    assert on.root_template == off.root_template == "benchmark-manager"
+    assert on.profile_name == off.profile_name == "benchmark-manager"
+    assert on.evidence_mode == off.evidence_mode == "manager"
+    assert on.expected_roles == off.expected_roles == ("benchmark-manager",)
+    assert on.manager_qa == "on"
+
+    off_files = {
+        path.relative_to(off.bundle_dir): path.read_bytes()
+        for path in off.bundle_dir.rglob("*") if path.is_file()
+    }
+    on_files = {
+        path.relative_to(on.bundle_dir): path.read_bytes()
+        for path in on.bundle_dir.rglob("*") if path.is_file()
+    }
+    assert on_files.keys() == off_files.keys()
+    changed = {path for path in on_files if on_files[path] != off_files[path]}
+    agent_path = Path("config/thread-templates/agents/benchmark-manager.json")
+    assert changed == {agent_path}
+
+    off_agent = read_json(off.bundle_dir / agent_path)
+    on_agent = read_json(on.bundle_dir / agent_path)
+    assert on_agent["mcpToolAllowlist"] == [*off_agent["mcpToolAllowlist"], "ask_manager"]
+    ignored = {"description", "mcpToolAllowlist"}
+    assert {key: value for key, value in on_agent.items() if key not in ignored} == {
+        key: value for key, value in off_agent.items() if key not in ignored
+    }
+    assert on_agent["description"] == "Benchmark Manager — owns the dispatched task node with Q&A available"
+
+
 def test_manager_arm_declares_a_task_root_and_the_one_path_it_needs_writable() -> None:
     """The second injection kind: work enters as a task the production dispatcher runs, which
     means the sealed home cannot keep the whole context tree read-only.
@@ -159,6 +201,13 @@ def test_manager_arm_confinement_is_recorded_with_a_closed_endpoint_set() -> Non
     assert manager.confinement_record() == {
         "injection": "task-root",
         "webhook_endpoints": ["POST /webhook/thread-op"],
+        "writable_home_paths": ["context/projects/general"],
+    }
+    assert require_production_arm(manager_qa_on_arm()).confinement_record() == {
+        "injection": "task-root",
+        "webhook_endpoints": [
+            "POST /webhook/thread-op", "POST /webhook/manager-qa",
+        ],
         "writable_home_paths": ["context/projects/general"],
     }
     assert require_production_arm(direct_arm()).confinement_record() == {

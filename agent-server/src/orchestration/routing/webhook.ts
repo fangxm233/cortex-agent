@@ -156,7 +156,12 @@ function createWebhookHandler(_options: {
   let productionRootStarted = false;
   return (req, res) => {
     const threadOpOnly = process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY === '1';
-    if (threadOpOnly && (req.method !== 'POST' || req.url !== '/webhook/thread-op')) {
+    const managerQaAllowed = process.env.CORTEX_WEBHOOK_MANAGER_QA_ALLOWED === '1';
+    const confinedRoute = req.method === 'POST' && (
+      req.url === '/webhook/thread-op'
+      || (managerQaAllowed && req.url === '/webhook/manager-qa')
+    );
+    if (threadOpOnly && !confinedRoute) {
       res.writeHead(403);
       res.end('Forbidden');
       return;

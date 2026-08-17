@@ -1,0 +1,13 @@
+{
+  "name": "benchmark-manager",
+  "description": "One production manager thread over the task the built-in dispatcher runs",
+  "agents": [
+    "benchmark-manager"
+  ],
+  "transitions": [],
+  "entryAgent": "benchmark-manager",
+  "entryStage": "manage",
+  "maxTotalSteps": 4,
+  "maxTotalCostUsd": 100,
+  "disableHooks": true
+}

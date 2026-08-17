@@ -14,7 +14,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .production_arms import TASK_ROOT, ProductionArmBundle, production_arm_bundle
+from .production_arms import (
+    MANAGER_QA_ENDPOINT,
+    TASK_ROOT,
+    ProductionArmBundle,
+    production_arm_bundle,
+)
 
 LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/4"
 EVIDENCE_CONTEXT_SCHEMA = "cortex-production-benchmark-evidence-context/1"
@@ -254,6 +259,8 @@ def _sealed_environment(
     if facts.arm_bundle.injection == TASK_ROOT:
         environment[EVIDENCE_CONTEXT_FILE_ENV] = str(
             runtime_home / EVIDENCE_CONTEXT_FILENAME)
+    if MANAGER_QA_ENDPOINT in facts.arm_bundle.webhook_endpoints:
+        environment["CORTEX_WEBHOOK_MANAGER_QA_ALLOWED"] = "1"
     if any(_is_residue(key) for key in environment):
         raise ProductionHomeError("provider or chat residue survived environment sealing")
     return dict(sorted(environment.items()))
