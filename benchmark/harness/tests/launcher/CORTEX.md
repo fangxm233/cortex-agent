@@ -17,6 +17,7 @@ Launcher tests cover arm routing, credential projections, and vendor isolation.
 | test_deepseek_paid_smoke.py | test | Proves exact paid contract and vault cleanup |
 | test_host_credential_vault.py | test | Proves consume-once host credential transfer |
 | test_host_finalization.py | test | Proves v2 host attestations and inner evidence fail closed |
+| test_production_host_finalization.py | test | Proves production direct output admission and refusals |
 | test_paid_campaign_launch.py | test | Proves the host-only launcher resolves all five references, refuses artifacts that no longer match current source, and never exposes the credential |
 | test_production_home.py | test | Proves fresh direct homes, isolated server auth, route sealing and attestations |
 | test_production_session.py | test | Proves production lifecycle command sequencing, webhook, export and stop with a fake executor |

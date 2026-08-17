@@ -1,5 +1,5 @@
-# input:  the trial's arm resolution, the pinned npm bundle, and the run's own journal header
-# output: the model-visible assets this trial read, written into the trial and digest-checked
+# input:  resolved roles, pinned npm bundle, run journal header
+# output: model-visible assets written and digest-checked
 # pos:    Per-trial asset extraction
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -39,6 +39,10 @@ MEMBER_ROOT = "package"
 SLOT_WITNESSES = (
     "system_prompt_sha256", "tool_manifest_sha256", "plugin_manifest_sha256",
 )
+PRODUCTION_DIRECT_ROLE = "benchmark-direct"
+PRODUCTION_DIRECT_AGENT_PATH = (
+    "production-cortex-home/config/thread-templates/agents/benchmark-direct.json"
+)
 
 
 class TrialAssetError(RuntimeError):
@@ -64,19 +68,44 @@ def canonical_sha256(value: object) -> str:
 
 def publish_trial_assets(
     *, logs_dir: Path, npm_artifact: Path, bundle_root: str, header: Mapping[str, object],
+    roles: Mapping[str, Mapping[str, object]] | None = None,
 ) -> PublishedAssets:
-    roles = _roles(_read_resolution(logs_dir))
-    files, trees = _asset_plan(roles, bundle_root)
+    resolved_roles = _roles(_read_resolution(logs_dir)) if roles is None else roles
+    files, trees = _asset_plan(resolved_roles, bundle_root)
     extracted = _extract(npm_artifact, files, trees)
-    slot, witnesses = _verify(roles, header, extracted, bundle_root)
+    slot, witnesses = _verify(resolved_roles, header, extracted, bundle_root)
     written = _write(logs_dir, extracted)
     manifest = _manifest(
-        roles, extracted, written, npm_artifact, bundle_root, slot, witnesses,
+        resolved_roles, extracted, written, npm_artifact, bundle_root, slot, witnesses,
     )
     _write_manifest(logs_dir, manifest)
     published = {path: f"trial_asset:{relative}" for relative, path in written.items()}
     published[ASSET_MANIFEST_PATH] = ASSET_MANIFEST_SOURCE
     return PublishedAssets(published, manifest)
+
+
+def production_direct_asset_roles(
+    logs_dir: Path, bundle_root: str,
+) -> Mapping[str, Mapping[str, object]]:
+    try:
+        value = json.loads((logs_dir / PRODUCTION_DIRECT_AGENT_PATH).read_bytes())
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        raise TrialAssetError("production_home_unreadable") from error
+    valid = (
+        isinstance(value, Mapping) and value.get("name") == PRODUCTION_DIRECT_ROLE
+        and value.get("systemPrompt") == "file:benchmark-direct.md"
+        and value.get("directive") == "file:benchmark-direct.md"
+        and isinstance(value.get("tools"), str) and bool(value.get("tools"))
+        and value.get("pluginDirs") == []
+    )
+    if not valid:
+        raise TrialAssetError("production_home_unreadable")
+    tools = tuple(str(value["tools"]).split(","))
+    return {PRODUCTION_DIRECT_ROLE: {
+        "system_prompt_path": f"{bundle_root}/defaults/prompts/systemPrompts/benchmark-direct.md",
+        "directive_path": f"{bundle_root}/defaults/prompts/directives/benchmark-direct.md",
+        "tools": tools, "plugin_dirs": (),
+    }}
 
 
 def _read_resolution(logs_dir: Path) -> Mapping[str, object]:
