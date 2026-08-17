@@ -27,5 +27,6 @@ Each file covers one command family, from sessions and threads to devices, costs
 | status.ts | command | shows execution status and command help |
 | tail.ts | command | streams the daemon log into the chat |
 | task.ts | command | lists project tasks by filter |
+| usage.ts | command | shows provider quota, spend and refresh action |
 | thread-handlers.ts | handlers | thread status, list, agents and cancel |
 | thread.ts | util | re-exports the thread command handler |

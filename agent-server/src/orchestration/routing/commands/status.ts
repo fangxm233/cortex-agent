@@ -1,5 +1,5 @@
 // input:  execution status, command router, localized help copy
-// output: status/help handlers including auth status help
+// output: status/help handlers including auth and usage help
 // pos:    Status and categorized help command presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -87,8 +87,9 @@ function configHelpCategory(): HelpCategory {
 function monitoringHelpCategory(): HelpCategory {
   return {
     label: t('cmd.help.catMonitoring'),
-    commands: [t('cmd.help.monitoring.cost'), t('cmd.help.monitoring.status'),
-      t('cmd.help.monitoring.login'), t('cmd.help.monitoring.budget'), t('cmd.help.monitoring.schedule')],
+    commands: [t('cmd.help.monitoring.cost'), t('cmd.help.monitoring.usage'),
+      t('cmd.help.monitoring.status'), t('cmd.help.monitoring.login'),
+      t('cmd.help.monitoring.budget'), t('cmd.help.monitoring.schedule')],
   };
 }
 
