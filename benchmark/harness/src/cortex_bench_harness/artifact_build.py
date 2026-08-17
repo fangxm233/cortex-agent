@@ -1,8 +1,8 @@
-# input:  a repository checkout with its dependencies already installed
-# output: the two artifacts a trial installs, built from that checkout's current source
+# input:  repository checkout, installed dependencies and host file locks
+# output: serialized npm artifacts and deterministic harness wheels
 # pos:    Trial artifact builders
 # >>> If I am updated, update my header and folder CORTEX.md <<<
-#
+
 # The npm builder lived in `tests/offline_package.py` and was reachable only from three tests, so
 # the only automated thing that ever rebuilt the agent-server artifact was a test run. Whether the
 # `dist/` copy a campaign pins was current depended on an operator remembering to rebuild it by
@@ -14,9 +14,14 @@
 
 from __future__ import annotations
 
+import fcntl
+import hashlib
 import os
 import shutil
 import subprocess
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 WHEEL_NAME = "cortex_bench_harness-0.1.0-py3-none-any.whl"
@@ -39,24 +44,34 @@ def build_environment() -> dict[str, str]:
     return environment
 
 
+@contextmanager
+def _checkout_pack_lock(repo_root: Path) -> Iterator[None]:
+    identity = hashlib.sha256(os.fsencode(repo_root.resolve())).hexdigest()
+    lock_path = Path(tempfile.gettempdir()) / f"cortex-npm-pack-{identity}.lock"
+    with lock_path.open("a") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        yield
+
+
 def build_offline_npm_artifact(repo_root: Path, output_dir: Path) -> Path:
     """Build the web SPA, then pack the production agent-server tarball into `output_dir`.
 
     `npm pack` will not create its destination, and fails late and confusingly when it is missing
     -- after the whole build has already run -- so it is created here.
     """
-    server_root = repo_root / "agent-server"
-    environment = build_environment()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    _run(["pnpm", "--filter", "@cortex-agent/web...", "run", "build"], repo_root, environment)
-    _run(["npm", "pack", "--offline", "--pack-destination", str(output_dir)],
-         server_root, environment)
-    artifacts = sorted(output_dir.glob(NPM_ARTIFACT_GLOB))
-    if len(artifacts) != 1:
-        raise ArtifactBuildError(
-            f"expected exactly one {NPM_ARTIFACT_GLOB} in {output_dir}, found "
-            f"{[path.name for path in artifacts]}")
-    return artifacts[0]
+    with _checkout_pack_lock(repo_root):
+        server_root = repo_root / "agent-server"
+        environment = build_environment()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        _run(["pnpm", "--filter", "@cortex-agent/web...", "run", "build"], repo_root, environment)
+        _run(["npm", "pack", "--offline", "--pack-destination", str(output_dir)],
+             server_root, environment)
+        artifacts = sorted(output_dir.glob(NPM_ARTIFACT_GLOB))
+        if len(artifacts) != 1:
+            raise ArtifactBuildError(
+                f"expected exactly one {NPM_ARTIFACT_GLOB} in {output_dir}, found "
+                f"{[path.name for path in artifacts]}")
+        return artifacts[0]
 
 
 def build_harness_wheel(harness_dir: Path) -> Path:
