@@ -1,5 +1,5 @@
 // input:  mobile paths, history state and effects
-// output: Android back, settings parent and tab-switch tests
+// output: Android back, Usage parent and tab-switch tests
 // pos:    Mobile navigation policy tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -50,7 +50,8 @@ describe('resolveMobileBack', () => {
     expect(resolveMobileBack('/m/daemon', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
     expect(resolveMobileBack('/m/settings/accounts', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
     expect(resolveMobileBack('/m/settings/hooks', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
-    expect(resolveMobileBack('/m/settings/hooks/', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
+    expect(resolveMobileBack('/m/settings/usage', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
+    expect(resolveMobileBack('/m/settings/usage/', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
   });
 });
 

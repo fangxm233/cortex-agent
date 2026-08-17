@@ -1,5 +1,5 @@
 // input:  mobile settings/accounts models and UI primitives
-// output: fixed-header mobile settings with config drill-ins
+// output: fixed-header settings with Usage and config drill-ins
 // pos:    Presentational mobile settings view
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -29,6 +29,7 @@ export interface MSettingsCopy {
   themeDark: string; // `深色`
   budget: string;
   budgetUnit: string; // `日`
+  usage: string;
   notify: string;
   notifySub: string;
   autoResume: string;
@@ -256,6 +257,21 @@ function HooksDrillRow({ vm, copy, onOpenHooks }: { vm: MSettingsVm; copy: MSett
   );
 }
 
+function UsageDrillRow({ copy, onOpenUsage }: { copy: MSettingsCopy; onOpenUsage: () => void }) {
+  return (
+    <button
+      type="button"
+      data-usage-entry="mobile"
+      aria-label={copy.usage}
+      onClick={onOpenUsage}
+      style={{ ...rowStyle(false), width: '100%', border: 0, background: 'transparent', textAlign: 'left', font: 'inherit', cursor: 'pointer' }}
+    >
+      <span style={TITLE}>{copy.usage}</span>
+      <span style={{ marginLeft: 'auto', ...CHEV }}>›</span>
+    </button>
+  );
+}
+
 export function MSettingsView({
   vm,
   copy,
@@ -270,6 +286,7 @@ export function MSettingsView({
   onOpenHooks,
   accountsSummary,
   onOpenAccounts,
+  onOpenUsage,
   profileSheet,
   onOpenProfile,
   onCloseProfile,
@@ -289,6 +306,7 @@ export function MSettingsView({
   onOpenHooks: () => void;
   accountsSummary: AccountsSummaryVm;
   onOpenAccounts: () => void;
+  onOpenUsage: () => void;
   profileSheet: ProfileSheetItem[] | null;
   onOpenProfile: () => void;
   onCloseProfile: () => void;
@@ -432,6 +450,10 @@ export function MSettingsView({
               darkLabel={copy.themeDark}
             />
           </div>
+        </Card>
+
+        <Card>
+          <UsageDrillRow copy={copy} onOpenUsage={onOpenUsage} />
         </Card>
 
         <Card>
