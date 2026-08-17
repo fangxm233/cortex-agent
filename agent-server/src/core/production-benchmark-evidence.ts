@@ -3,6 +3,7 @@
 // pos:    Canonicalizes benchmark admission facts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+import * as fs from 'node:fs';
 import type {
   ProductionBenchmarkEvidenceContext,
   ProductionBenchmarkIdentityJsonValue,
@@ -10,6 +11,7 @@ import type {
 
 const CONTEXT_SCHEMA = 'cortex-production-benchmark-evidence-context/1';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
+const CONTEXT_FILE_ENV = 'CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE';
 
 function invalid(detail: string): Error {
   return new Error(`Production benchmark evidence context invalid: ${detail}`);
@@ -73,4 +75,23 @@ export function parseProductionBenchmarkEvidenceContext(
     bundle_manifest_hash: bundle,
     model_execution: parseModelExecution(value.model_execution),
   });
+}
+
+/** The launcher's attested context for a root the daemon creates itself, or null off-benchmark.
+ *
+ *  A thread root arrives through the webhook and carries its context in the request body. A task
+ *  root is created by the built-in dispatcher, which has no request to read, so the launcher seals
+ *  the context into the home and names that file here. Unset means no production trial is running
+ *  and the daemon behaves exactly as shipped; a named file that cannot be read or parsed is a
+ *  launch defect and raises rather than silently dispatching an unattributable root. */
+export function attestedProductionBenchmarkEvidenceContext(): ProductionBenchmarkEvidenceContext | null {
+  const file = process.env[CONTEXT_FILE_ENV];
+  if (!file) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    throw invalid(`attested file is unreadable: ${(error as Error).message}`);
+  }
+  return parseProductionBenchmarkEvidenceContext(value);
 }

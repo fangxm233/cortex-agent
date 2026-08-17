@@ -23,6 +23,7 @@ from cortex_bench_harness.launcher.production_session import (
 
 DIRECT_BUNDLE = production_arm_bundle("direct-pi-deepseek")
 AUDIT_RETRY_BUNDLE = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
+MANAGER_BUNDLE = production_arm_bundle("manager-qa-off-pi-deepseek")
 
 
 EVIDENCE_CONTEXT = {
@@ -61,8 +62,17 @@ def audit_retry_arm() -> dict[str, object]:
     return arm
 
 
+def manager_arm() -> dict[str, object]:
+    arm = direct_arm()
+    arm["name"] = "cortex-manager-qa-off"
+    arm["orchestration"] = {"mode": "manager", "ask_manager": False}
+    arm["limits"] = {**arm["limits"], "max_task_depth": 1, "max_tasks": 1}
+    return arm
+
+
 def session(
     tmp_path: Path, *, readiness_timeout_seconds: float = 1,
+    dispatch_timeout_seconds: float = 1,
     arm: dict[str, object] | None = None, bundle=DIRECT_BUNDLE,
 ) -> ProductionServerSession:
     materialized = SimpleNamespace(
@@ -95,6 +105,7 @@ def session(
     )
     return ProductionServerSession(
         spec, poll_interval_seconds=0, readiness_timeout_seconds=readiness_timeout_seconds,
+        dispatch_timeout_seconds=dispatch_timeout_seconds,
     )
 
 
@@ -102,15 +113,18 @@ class FakeExecutor:
     def __init__(
         self, logs_dir: Path, *, export_failure: bool = False,
         malformed_evidence: bool = False, gateway_failure: bool = False,
+        dispatch_never_runs: bool = False,
     ) -> None:
         self.logs_dir = logs_dir
         self.export_failure = export_failure
         self.malformed_evidence = malformed_evidence
         self.gateway_failure = gateway_failure
+        self.dispatch_never_runs = dispatch_never_runs
         self.calls: list[tuple[str, dict[str, str] | None, str | None]] = []
         self.timeouts: list[int | None] = []
         self.payloads: dict[str, object] = {}
         self.result_polls = 0
+        self.list_thread_polls = 0
 
     async def __call__(
         self, command: str, *, env: dict[str, str] | None = None,
@@ -136,14 +150,37 @@ class FakeExecutor:
             return self._reply({
                 "success": True, "data": {"threadId": "thr_production", "status": "running"},
             })
+        if "cortex-task add" in command:
+            self._capture("production-task-spec.json")
+            return self._reply({
+                "success": True, "message": "Task added to general", "task-id": "a1b2",
+            })
+        if "cortex-task lock-release" in command:
+            return self._reply({
+                "success": True, "project": "general", "message": "Lock released",
+            })
+        if "production-thread-list.json" in command:
+            self._capture("production-thread-list.json")
+            self.list_thread_polls += 1
+            dispatched = [] if self.dispatch_never_runs or self.list_thread_polls < 2 else [
+                {
+                    "threadId": "thr_dispatched", "status": "running",
+                    "templateName": "benchmark-manager", "trigger": "task-dispatch",
+                    "createdAt": "2026-01-01T00:00:01.000Z",
+                },
+            ]
+            return self._reply({"success": True, "data": {
+                "scope": "project", "count": len(dispatched), "threads": dispatched,
+            }})
         if "production-thread-result.json" in command:
             self._capture("production-thread-result.json")
+            requested = self.payloads["production-thread-result.json"]["threadId"]
             self.result_polls += 1
             terminal = self.result_polls > 1
             return self._reply({
                 "success": True,
                 "data": {
-                    "threadId": "thr_production",
+                    "threadId": requested,
                     "status": "completed" if terminal else "running",
                     "terminal": terminal, "artifact": None, "finalOutput": "done" if terminal else None,
                 },
@@ -224,6 +261,7 @@ def test_session_boots_real_server_injects_only_webhook_exports_and_stops(tmp_pa
     assert sum("http://127.0.0.1:9880/status" in command for command in commands) == 1
     assert all("api.deepseek.com" not in command for command in commands)
     assert all("/webhook/task-op" not in command for command in commands)
+    assert all("cortex-task" not in command for command in commands)
     for command, timeout in zip(commands, runner.timeouts, strict=True):
         if "/webhook/thread-op" in command or "127.0.0.1:9880/status" in command:
             assert timeout == 10
@@ -344,6 +382,103 @@ def test_audit_retry_session_injects_its_own_template_and_evidence_shape(
     assert all(
         "benchmark-direct" not in command for command, _, _ in runner.calls
     )
+
+
+def test_manager_arm_injects_a_task_and_never_posts_a_thread_root(tmp_path: Path) -> None:
+    """The second injection kind: the unit of work enters as a task, not as a thread root.
+
+    The launcher adds it to the arm's own task store through the production task CLI and stops
+    there — nothing tells the server which thread to run, and no `thread-op start` is posted.
+    """
+    runner = FakeExecutor(tmp_path)
+    production = session(tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE)
+
+    asyncio.run(production.run("Solve only this task.", runner))
+
+    commands = [call[0] for call in runner.calls]
+    assert all("production-thread-start.json" not in command for command in commands)
+    assert all("/webhook/task-op" not in command for command in commands)
+    add = next(command for command in commands if "cortex-task add" in command)
+    assert add.startswith("env -i ")
+    assert "CORTEX_HOME=/logs/agent/production-cortex-home" in add
+    assert add.endswith(
+        "cortex-task add --project general "
+        "--task-file /logs/agent/production-task-spec.json --auto-lock"
+    )
+    assert runner.payloads["production-task-spec.json"] == {
+        "text": "Solve only this task.",
+        "why": "The trial's one unit of work, injected as this arm's task root.",
+        "done-when": "Solve only this task.",
+        "template": "benchmark-manager", "priority": "high",
+    }
+
+
+def test_manager_arm_releases_the_add_lock_under_the_same_owner(tmp_path: Path) -> None:
+    """`--auto-lock` acquires and never releases, and the owner is the process that acquired.
+
+    Every exec is a new process, so the launcher names one owner identity for both calls; without
+    it the release is made by a stranger and the arm's task store stays locked for the trial.
+    """
+    runner = FakeExecutor(tmp_path)
+
+    asyncio.run(session(
+        tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE,
+    ).run("Solve only this task.", runner))
+
+    commands = [call[0] for call in runner.calls]
+    add = next(command for command in commands if "cortex-task add" in command)
+    release = next(command for command in commands if "cortex-task lock-release" in command)
+    assert commands.index(add) < commands.index(release)
+    assert release.endswith("cortex-task lock-release --project general --json")
+    owner = "CORTEX_EXECUTION_ID=benchmark-launcher"
+    assert owner in add and owner in release
+
+
+def test_manager_arm_waits_on_the_thread_the_dispatcher_started(tmp_path: Path) -> None:
+    """The production dispatcher owns the root, so its own thread is the outcome to wait on."""
+    runner = FakeExecutor(tmp_path)
+    production = session(tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE)
+
+    result = asyncio.run(production.run("Solve only this task.", runner))
+
+    assert (result.thread_id, result.status, result.final_output) == (
+        "thr_dispatched", "completed", "done",
+    )
+    assert runner.payloads["production-thread-list.json"] == {
+        "action": "list-threads", "scope": "project", "projectId": "general",
+    }
+    assert runner.payloads["production-thread-result.json"]["threadId"] == "thr_dispatched"
+    assert production.stopped_cleanly is True
+
+
+def test_manager_arm_exports_its_own_evidence_shape(tmp_path: Path) -> None:
+    runner = FakeExecutor(tmp_path)
+
+    asyncio.run(session(
+        tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE,
+    ).run("Solve only this task.", runner))
+
+    evidence = runner.payloads["production-evidence-input.json"]
+    assert evidence["mode"] == "manager"
+    assert evidence["expectedRoles"] == ["benchmark-manager"]
+    assert evidence["managerQa"] == "off"
+    assert evidence["armName"] == "cortex-manager-qa-off"
+    assert evidence["limits"] == {"max_task_depth": 1, "max_tasks": 1}
+
+
+def test_manager_arm_refuses_a_dispatch_that_never_runs(tmp_path: Path) -> None:
+    runner = FakeExecutor(tmp_path, dispatch_never_runs=True)
+    production = session(
+        tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE, dispatch_timeout_seconds=0.01,
+    )
+
+    with pytest.raises(ProductionSessionError, match="task dispatch"):
+        asyncio.run(production.run("Solve only this task.", runner))
+
+    commands = [call[0] for call in runner.calls]
+    assert all("production-thread-result.json" not in command for command in commands)
+    assert commands[-1].startswith("kill -TERM -- -4242")
+    assert production.stopped_cleanly is True
 
 
 def test_session_refuses_an_arm_its_bundle_does_not_declare(tmp_path: Path) -> None:

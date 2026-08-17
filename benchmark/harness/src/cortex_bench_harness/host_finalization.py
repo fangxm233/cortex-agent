@@ -315,6 +315,7 @@ def _launch_record(
     return {
         "npm_artifact": _npm_artifact_record(attestation, npm_artifact),
         "arm_bundle": _field(attestation, "arm_bundle", "launch_attestation_absent"),
+        "confinement": _field(attestation, "arm_confinement", "launch_attestation_absent"),
         "config_bundle": _config_bundle_record(attestation),
         "sealed_environment_allowlist": _field(
             _block(admission, "environment"), "admitted_keys", "admission_evidence_absent"),
