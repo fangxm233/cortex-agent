@@ -13,12 +13,10 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | cwd.py | core | Resolves the live container workdir |
 | manifest.py | core | Records artifacts and the installed CLI version |
 | harbor_agent.py | adapter | Auth-bootstraps production and defers publication until Harbor confirms container stop |
-| host_evidence_validation.py | boundary | Validates host-owned evidence identity |
-| host_finalization.py | boundary | Validates production composites, outputs and attestations |
+| host_finalization.py | boundary | Collects the trial evidence tree, records the launch parameters and publishes the outer envelope |
 | inner_validation.py | boundary | Validates production-ledger evidence v2 edges |
-| production_output_layout.py | boundary | Binds evidence and classifies strict production outputs |
 | launcher/ | core | Selects arms and builds non-secret Harbor inputs |
 | proxy/ | network | Injects credentials through a bounded trial route |
 | scan/ | audit | Finds credential and host-identity leaks |
 | synthetic_deepseek.py | fixture | Serves deterministic loopback tool turns |
-| trial_assets.py | boundary | Lifts the model-visible assets one trial used out of the pinned bundle and holds them against the run's own header |
+| trial_assets.py | collect | Lifts the model-visible assets one trial used out of the pinned bundle and inventories them |

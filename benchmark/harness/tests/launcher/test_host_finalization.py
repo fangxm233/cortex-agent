@@ -1,6 +1,6 @@
-# input:  Harbor agent, v2 evidence, stop observation, proxy
-# output: deferred admission, refusal and durability proofs
-# pos:    Host evidence v2 finalization tests
+# input:  Harbor agent, collected trial roots, launcher records, proxy revocation
+# output: collect-and-record proofs for the outer envelope and its one refusal
+# pos:    Host finalization recording tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
@@ -23,7 +23,9 @@ from cortex_bench_harness.container_boundary import ContainerBoundaryObservation
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.host_finalization import (
     OUTER_ENVELOPE_FILENAME,
+    OUTER_ENVELOPE_SCHEMA_VERSION,
     HostFinalizationError,
+    finalize_host_trial,
 )
 from cortex_bench_harness.inner_validation import (
     EDGE_PRODUCTION_SOURCES,
@@ -33,17 +35,31 @@ from cortex_bench_harness.launcher.arm_resolution import (
     DIRECT_CLAUDE_DIRECTIVE,
     DIRECT_CLAUDE_PLUGIN_DIRS,
     DIRECT_CLAUDE_SYSTEM_PROMPT,
-    DIRECT_CLAUDE_TOOLS,
+)
+from cortex_bench_harness.launcher.production_home import (
+    DIRECT_ARM_BUNDLE_DIR,
+    DirectArmLaunchFacts,
+    committed_input_bundle_files,
+    materialize_direct_arm_home,
 )
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
+    ADMISSION_SCHEMA_VERSION,
     environment_digest,
 )
 from cortex_bench_harness.launcher.trial_proxy import (
-    PROXY_ARTIFACT_SOURCES,
+    ADAPTER_SELECTION_FILENAME,
+    ADAPTER_SELECTION_SCHEMA_VERSION,
+    AUDIT_LOG_FILENAME,
+    EXPORT_FILENAME,
+    LEASE_ECHO_FILENAME,
+    LEASE_ECHO_RECORD_SCHEMA_VERSION,
     TrialProxySession,
+    TrialRevocation,
 )
+from cortex_bench_harness.manifest import MANIFEST_FILENAME, SCHEMA_VERSION
 from cortex_bench_harness.proxy.lease import LEASE_ECHO_SCHEMA_VERSION, LEASE_ECHO_TARGET
+from cortex_bench_harness.scan import ScanPolicy
 from capability_admission import admit_every_capability
 
 DIGEST = f"sha256:{'a' * 64}"
@@ -62,11 +78,15 @@ REAL_CREDENTIAL = "sk-ant-FINALIZATION-REAL-CREDENTIAL"
 FORBIDDEN_ENV = "forbidden-environment-value-unique"
 FORBIDDEN_ARGV = "forbidden-argv-value-unique"
 HOST_CHECKOUT = "/srv/private/cortex-checkout"
-HOST_HOME = "/private/host-home/fangxin"
+HOST_HOME = "/private/host-home/operator"
 HOSTNAME = "private-hostname-unique"
 HOST_IDENTITY = "machine-identity-unique"
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
 COMMON_PLUGIN, CODER_PLUGIN = DIRECT_CLAUDE_PLUGIN_DIRS
+SEALED_ENVIRONMENT_KEYS = (
+    "CORTEX_BENCH_BACKEND", "CORTEX_BENCH_TRIAL_ID", "CORTEX_HOME", "HOME", "PATH",
+)
+UNAVAILABLE = "unavailable"
 DIRECT_CHECK_IDS = (
     "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8",
     "D1", "D2", "D3", "D4", "D5", "D6",
@@ -126,9 +146,9 @@ def bundle_members() -> dict[str, bytes]:
     }
 
 
-def write_npm_artifact(path: Path) -> None:
+def write_npm_artifact(path: Path, members: Mapping[str, bytes] | None = None) -> None:
     with tarfile.open(path, "w:gz") as tar:
-        for relative, payload in sorted(bundle_members().items()):
+        for relative, payload in sorted((members or bundle_members()).items()):
             info = tarfile.TarInfo(f"package/{relative}")
             info.size = len(payload)
             tar.addfile(info, io.BytesIO(payload))
@@ -138,34 +158,9 @@ def sha256_hex(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def tree_sha256(prefix: str) -> str:
-    """`directoryContentSha256` restated: every file under the directory, keyed by its path
-    relative to that directory, hashed as one canonical document.
-    """
-    return canonical_sha256(sorted(
-        (
-            {"path": relative[len(prefix) + 1:], "type": "file", "sha256": sha256_hex(payload)}
-            for relative, payload in bundle_members().items()
-            if relative.startswith(f"{prefix}/")
-        ),
-        key=lambda entry: entry["path"],
-    ))
-
-
-def plugin_manifest_sha256() -> str:
-    return canonical_sha256({
-        "plugin_dirs": [
-            {"path": f"{BUNDLE_ROOT}/{plugin}", "content_sha256": tree_sha256(plugin)}
-            for plugin in sorted((COMMON_PLUGIN, CODER_PLUGIN))
-        ],
-        "skills": sorted(
-            (
-                {"name": skill, "content_sha256": tree_sha256(f"{plugin}/skills/{skill}")}
-                for plugin, skill in ((COMMON_PLUGIN, "compound"), (CODER_PLUGIN, "develop"))
-            ),
-            key=lambda entry: entry["name"],
-        ),
-    })
+def canonical_sha256(value: object) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 def manifest_seed(tmp_path: Path) -> dict[str, object]:
@@ -193,7 +188,7 @@ def proxy_spec() -> dict[str, object]:
     }
 
 
-def scan_policy() -> dict[str, object]:
+def scan_policy_document() -> dict[str, object]:
     return {
         "secret_environment": {"provider_credential": CREDENTIAL_ENV},
         "forbidden_environment": {"ambient_forbidden": FORBIDDEN_ENV_NAME},
@@ -203,14 +198,9 @@ def scan_policy() -> dict[str, object]:
     }
 
 
-def canonical_sha256(value: object) -> str:
-    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(payload.encode()).hexdigest()
-
-
 def launch_attestation(npm_artifact: Path) -> dict[str, object]:
     inputs = {
-        "npm_artifact_sha256": hashlib.sha256(npm_artifact.read_bytes()).hexdigest(),
+        "npm_artifact_sha256": sha256_hex(npm_artifact.read_bytes()),
         "backend_cli": {"name": "claude", "version": "1.2.3"},
         "pre_boot_input_bundle_sha256": "4" * 64,
     }
@@ -222,38 +212,38 @@ def launch_attestation(npm_artifact: Path) -> dict[str, object]:
     }
 
 
-def container_boundary_observation() -> ContainerBoundaryObservation:
+def admission_evidence() -> dict[str, object]:
+    return {
+        "schema_version": ADMISSION_SCHEMA_VERSION, "trial_id": TRIAL_ID,
+        "root_run_id": ROOT_RUN_ID,
+        "image": {"reference": f"task@{DIGEST}", "pinned": True},
+        "environment": {
+            "admitted_keys": list(SEALED_ENVIRONMENT_KEYS),
+            "configured_keys": list(SEALED_ENVIRONMENT_KEYS),
+            "inheritance": "none",
+        },
+        "mounts": [], "network": {"default": "deny", "loopback": "allow"},
+    }
+
+
+def container_boundary_observation(
+    *, descendants_alive: int = 0, namespace_alive: bool = False, exit_code: int = 0,
+) -> ContainerBoundaryObservation:
     return ContainerBoundaryObservation(
-        observed_at="2026-08-11T00:00:02.000Z", exit_code=0,
-        descendants_alive=0, process_namespace_alive=False,
+        observed_at="2026-08-11T00:00:02.000Z", exit_code=exit_code,
+        descendants_alive=descendants_alive, process_namespace_alive=namespace_alive,
     )
 
 
-def container_boundary_attestation() -> dict[str, object]:
-    return container_boundary_observation().document(TRIAL_ID)
-
-
-def journal_bytes(assets: Mapping[str, str] | None = None) -> bytes:
-    """The header the inner run publishes before its first step, including the three digests it
-    computed from the files it opened. They are what the host holds the extracted assets against.
-    """
+def journal_bytes() -> bytes:
     header = {
         "schema_version": "cortex-bench-journal/1", "type": "run_header",
         "root_run_id": ROOT_RUN_ID, "thread_id": "thr-production-root", "agent_slot": "parent",
         "model_execution_identity_hash": MODEL_HASH,
         "role_tool_surface_hash": ROLE_HASH, "bundle_manifest_hash": BUNDLE_HASH,
-        **(dict(asset_witnesses()) | dict(assets or {})),
     }
     event = {"schema_version": "cortex-bench-journal/1", "type": "event"}
     return (json.dumps(header, sort_keys=True) + "\n" + json.dumps(event) + "\n").encode()
-
-
-def asset_witnesses() -> dict[str, str]:
-    return {
-        "system_prompt_sha256": sha256_hex(bundle_members()[DIRECT_CLAUDE_SYSTEM_PROMPT]),
-        "tool_manifest_sha256": canonical_sha256(list(DIRECT_CLAUDE_TOOLS)),
-        "plugin_manifest_sha256": plugin_manifest_sha256(),
-    }
 
 
 def terminal_document(journal: bytes) -> dict[str, object]:
@@ -261,7 +251,7 @@ def terminal_document(journal: bytes) -> dict[str, object]:
         "schema_version": "cortex-bench-manifest/2", "state": "completed",
         "started_at": "2026-08-11T00:00:00.000Z",
         "ended_at": "2026-08-11T00:00:01.000Z", "journal_path": "events.jsonl",
-        "journal_sha256": hashlib.sha256(journal).hexdigest(), "event_count": 1,
+        "journal_sha256": sha256_hex(journal), "event_count": 1,
         "steps": 1, "cost_usd": None,
         "tokens": {"input": None, "output": None, "cache_read": None,
                    "cache_creation": None},
@@ -272,14 +262,14 @@ def terminal_document(journal: bytes) -> dict[str, object]:
 
 
 def accounting() -> dict[str, object]:
-    unavailable = {"status": "unavailable", "reason": "counter_unreadable"}
+    unavailable = {"status": UNAVAILABLE, "reason": "counter_unreadable"}
     return {
         "schema_version": "cortex-bench-accounting/2", "trial_id": TRIAL_ID,
         "proxy": {"requests": unavailable, "cached_tokens": unavailable,
                   "input_tokens": unavailable, "output_tokens": unavailable,
                   "audit_log": unavailable, "lease_echo": unavailable,
                   "source": "proxy_export"},
-        "journal": {"requests": {"status": "unavailable", "reason": "journal_underivable"},
+        "journal": {"requests": {"status": UNAVAILABLE, "reason": "journal_underivable"},
                     "cost_usd": {"status": "available", "value": "0"},
                     "steps": {"status": "available", "value": 1},
                     "tokens": {"input": {"status": "available", "value": 0},
@@ -290,15 +280,12 @@ def accounting() -> dict[str, object]:
     }
 
 
-def production_predicate(*, all_pass: bool = False) -> dict[str, object]:
-    checks = []
-    for check_id in DIRECT_CHECK_IDS:
-        passed = all_pass or check_id == "D2"
-        checks.append({
-            "check_id": check_id, "result": "pass" if passed else "unavailable",
-            "detail": None if passed else "not evaluated at this pin",
-        })
-    return {"mode": "direct", "checks": checks}
+def production_predicate() -> dict[str, object]:
+    return {"mode": "direct", "checks": [
+        {"check_id": check_id, "result": "pass" if check_id == "D2" else "unavailable",
+         "detail": None if check_id == "D2" else "not evaluated at this pin"}
+        for check_id in DIRECT_CHECK_IDS
+    ]}
 
 
 def attempt_node(terminal_sha256: str, journal: bytes | None = None) -> dict[str, object]:
@@ -369,7 +356,7 @@ def write_inner_outputs(logs_dir: Path, mutation: Callable[[Path], None] | None)
     })
     terminal_path = root / f"run-{ROOT_RUN_ID}.terminal.json"
     write_json(terminal_path, terminal_document(journal))
-    terminal_sha = hashlib.sha256(terminal_path.read_bytes()).hexdigest()
+    terminal_sha = sha256_hex(terminal_path.read_bytes())
     write_json(root / "composite-manifest.json", composite_document(terminal_sha))
     write_json(root / "trajectory.json", {"schema_version": "ATIF-v1.2", "steps": []})
     if mutation is not None:
@@ -453,20 +440,15 @@ def make_agent(
     (tmp_path / "verifier").mkdir()
     manifest = manifest_seed(tmp_path)
     launch = launch_attestation(Path(manifest["npm_artifact_path"]))
-    global BUNDLE_HASH
-    BUNDLE_HASH = str(launch["bundle_manifest_hash"])
     agent = CortexBenchAgent(
         logs_dir=logs_dir, artifact_dir=tmp_path / "artifacts",
         manifest=manifest, trial_seed=trial_seed(upstream),
-        trial_proxy=proxy_spec(), host_scan_policy=scan_policy(),
+        trial_proxy=proxy_spec(), host_scan_policy=scan_policy_document(),
         admission_environment_digest=environment_digest({}),
     )
     environment = FinalizationEnvironment(logs_dir, mutation)
     asyncio.run(agent.setup(environment))
-    write_json(tmp_path / "artifacts" / ADMISSION_EVIDENCE_FILENAME, {
-        "schema_version": "cortex-harbor-launch-admission/1", "trial_id": TRIAL_ID,
-        "root_run_id": ROOT_RUN_ID,
-    })
+    write_json(tmp_path / "artifacts" / ADMISSION_EVIDENCE_FILENAME, admission_evidence())
     write_json(tmp_path / "artifacts" / "cortex-bench-launch-attestation.json", launch)
     post_lease(agent.proxy_session)
     return agent, environment
@@ -476,131 +458,601 @@ def run_agent_phase(agent: CortexBenchAgent, environment: FinalizationEnvironmen
     asyncio.run(agent.run("Complete the task.", environment, AgentContext()))
 
 
-def run_agent(agent: CortexBenchAgent, environment: FinalizationEnvironment) -> None:
+def run_agent(
+    agent: CortexBenchAgent, environment: FinalizationEnvironment,
+    observation: ContainerBoundaryObservation | None = ...,
+) -> None:
     run_agent_phase(agent, environment)
-    agent.finalize_after_container_stop(container_boundary_observation())
+    agent.finalize_after_container_stop(
+        container_boundary_observation() if observation is ... else observation,
+    )
 
 
 def envelope_path(tmp_path: Path) -> Path:
     return tmp_path / "artifacts" / OUTER_ENVELOPE_FILENAME
 
 
-def assert_refused(
-    tmp_path: Path, agent: CortexBenchAgent, environment: FinalizationEnvironment,
-    sensitive: str | None = None,
+def published(tmp_path: Path) -> Mapping[str, object]:
+    return json.loads(envelope_path(tmp_path).read_bytes())
+
+
+def recorded_files(envelope: Mapping[str, object]) -> dict[tuple[str, str], Mapping[str, object]]:
+    return {
+        (str(entry["root"]), str(entry["relative_path"])): entry
+        for entry in envelope["evidence"]["files"]
+    }
+
+
+def unavailable(reason: str) -> dict[str, str]:
+    return {"status": UNAVAILABLE, "reason": reason}
+
+
+def test_a_run_records_every_collected_file_and_publishes_one_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    with pytest.raises(HostFinalizationError) as raised:
-        run_agent(agent, environment)
-    assert not agent.grader_admitted
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    run_agent_phase(agent, environment)
     assert not envelope_path(tmp_path).exists()
-    if sensitive is not None:
-        assert sensitive not in str(raised.value)
+    agent.finalize_after_container_stop(container_boundary_observation())
 
-
-def assert_outer_evidence(envelope: Mapping[str, object]) -> None:
-    assert envelope["schema_version"] == "cortex-bench-outer-envelope/4"
+    payload = envelope_path(tmp_path).read_bytes()
+    envelope = json.loads(payload)
+    assert envelope["schema_version"] == OUTER_ENVELOPE_SCHEMA_VERSION
     assert envelope["identity"] == {
         "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "arm_name": ARM_NAME,
     }
-    assert envelope["inner"]["composite_sha256"]
-    assert envelope["proxy_usage"]["trial_id"] == TRIAL_ID
+    assert agent.grader_admitted
+    assert agent.outer_envelope_sha256 == hashlib.sha256(payload).hexdigest()
+    # What the campaign driver reads back out of a published envelope.
+    assert envelope["grader_admission"] == {"admitted": True, "reason": "recorded"}
+    assert isinstance(envelope["proxy_usage"]["requests"], int)
+    assert envelope["publication"] == {
+        "root": "artifacts", "relative_path": OUTER_ENVELOPE_FILENAME,
+        "atomic": True, "post_publication_reread": True,
+    }
+    files = recorded_files(envelope)
+    expected = {
+        ("agent", "instruction.md"), ("agent", "stdout.txt"), ("agent", "stderr.txt"),
+        ("agent", "workspace.diff"), ("agent", "arm-resolution.json"),
+        ("agent", "trajectory/events.jsonl"), ("agent", "trajectory/composite-manifest.json"),
+        ("agent", "trial-home/cortex-home/state/tasks.json"),
+        ("artifacts", MANIFEST_FILENAME), ("artifacts", ADMISSION_EVIDENCE_FILENAME),
+        ("artifacts", f"proxy/{EXPORT_FILENAME}"),
+    }
+    assert expected <= set(files)
+    entry = files[("agent", "trajectory/events.jsonl")]
+    assert entry["kind"] == "file"
+    assert entry["size_bytes"] == len(journal_bytes())
+    assert entry["sha256"] == sha256_hex(journal_bytes())
+    assert {root["root"] for root in envelope["evidence"]["roots"]} == {
+        "agent", "verifier", "artifacts",
+    }
+
+
+def test_launch_parameters_are_recorded_as_the_launcher_emitted_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    run_agent(agent, environment)
+
+    launch = published(tmp_path)["launch"]
+    artifact = tmp_path / "server.tgz"
+    assert launch["npm_artifact"] == {
+        "filename": "server.tgz", "sha256": sha256_hex(artifact.read_bytes()),
+    }
+    assert launch["config_bundle"]["canonical_sha256"] == "4" * 64
+    assert launch["config_bundle"]["file_count"] == 7
+    assert launch["sealed_environment_allowlist"] == list(SEALED_ENVIRONMENT_KEYS)
+    assert launch["image"] == {
+        "reference": f"task@{DIGEST}", "digest": DIGEST, "pinned": True,
+    }
+    assert launch["container_exit"] == {
+        "status": "exited", "exit_code": 0, "running": False, "pid": 0,
+    }
+    assert launch["post_stop_census"] == {
+        "descendants_alive": 0, "process_namespace_alive": False,
+    }
+
+
+def test_a_parameter_the_launcher_never_emitted_is_marked_unavailable_not_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    (tmp_path / "artifacts" / "cortex-bench-launch-attestation.json").unlink()
+    (tmp_path / "artifacts" / ADMISSION_EVIDENCE_FILENAME).unlink()
+    run_agent(agent, environment)
+
+    launch = published(tmp_path)["launch"]
+    assert launch["config_bundle"]["canonical_sha256"] == unavailable("launch_attestation_absent")
+    assert launch["config_bundle"]["files"] == unavailable("launch_attestation_absent")
+    assert launch["sealed_environment_allowlist"] == unavailable("admission_evidence_absent")
+    assert launch["image"]["reference"] == unavailable("admission_evidence_absent")
+    assert launch["image"]["digest"] == DIGEST
+
+
+def test_a_launcher_record_the_host_cannot_read_never_refuses_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    (tmp_path / "artifacts" / "cortex-bench-launch-attestation.json").write_text("{not json")
+    run_agent(agent, environment)
+
+    launch = published(tmp_path)["launch"]
+    assert launch["config_bundle"]["canonical_sha256"] == unavailable("launch_attestation_absent")
+
+
+def corrupt_inner(kind: str) -> Callable[[Path], None]:
+    def mutation(root: Path) -> None:
+        if kind == "terminal_malformed":
+            (root / f"run-{ROOT_RUN_ID}.terminal.json").write_text("{not json")
+        elif kind == "composite_missing":
+            (root / "composite-manifest.json").unlink()
+        elif kind == "journal_digest_drift":
+            (root / "events.jsonl").write_bytes(b'{"type":"other"}\n')
+        elif kind == "unknown_output":
+            (root.parent / "unknown.bin").write_bytes(b"unknown")
+        elif kind == "forbidden_lookalike":
+            (root.parent / "credentials.json").write_text("clean fixture body\n")
+        elif kind == "started_marker_missing":
+            (root / f"run-{ROOT_RUN_ID}.started.json").unlink()
+    return mutation
+
+
+@pytest.mark.parametrize("kind", [
+    "terminal_malformed", "composite_missing", "journal_digest_drift",
+    "unknown_output", "forbidden_lookalike", "started_marker_missing",
+])
+def test_inner_evidence_that_used_to_be_refused_is_now_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str,
+) -> None:
+    """Every one of these ended the trial before an envelope existed. The evidence tree is now a
+    record: what the container emitted is what is written down, and provenance comes from the
+    record plus the pinned code rather than from a per-trial gate.
+    """
+    agent, environment = make_agent(tmp_path, monkeypatch, corrupt_inner(kind))
+    run_agent(agent, environment)
+
+    files = recorded_files(published(tmp_path))
+    if kind == "unknown_output":
+        assert ("agent", "unknown.bin") in files
+    if kind == "forbidden_lookalike":
+        assert ("agent", "credentials.json") in files
+    if kind == "composite_missing":
+        assert ("agent", "trajectory/composite-manifest.json") not in files
+
+
+def test_host_owned_identity_that_disagrees_is_recorded_not_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    path = tmp_path / "artifacts" / MANIFEST_FILENAME
+    document = json.loads(path.read_text())
+    document["trial_id"] = "foreign-trial"
+    write_json(path, document)
+    run_agent(agent, environment)
+
+    assert published(tmp_path)["identity"]["trial_id"] == TRIAL_ID
+
+
+def test_an_output_under_the_verifier_root_is_collected_like_any_other(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    (tmp_path / "verifier/notes.txt").write_text("clean verifier note\n")
+    run_agent(agent, environment)
+
+    assert ("verifier", "notes.txt") in recorded_files(published(tmp_path))
+
+
+def test_the_verifier_reward_is_recorded_when_it_is_on_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    write_json(tmp_path / "verifier/reward.json", {"reward": 1.0})
+    run_agent(agent, environment)
+
+    verifier = published(tmp_path)["verifier"]
+    assert verifier["reward"] == {"reward": 1.0}
+    assert verifier["evidence_paths"] == ["verifier/reward.json", "verifier/reward.txt"]
+
+
+def test_the_verifier_evidence_path_is_recorded_when_the_reward_is_not_yet_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    run_agent(agent, environment)
+
+    verifier = published(tmp_path)["verifier"]
+    assert verifier["reward"] == unavailable("verifier_reward_absent")
+    assert verifier["evidence_paths"] == ["verifier/reward.json", "verifier/reward.txt"]
+
+
+def asset_paths(envelope: Mapping[str, object]) -> set[str]:
+    return {
+        relative for root, relative in recorded_files(envelope)
+        if root == "agent" and relative.startswith("assets/")
+    }
+
+
+def test_the_model_visible_assets_are_copied_and_inventoried_without_a_witness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The lift stays: a trial answers "what did the model see" out of its own directory. What is
+    gone is holding it against the run journal's own digests, which was the host reimplementing the
+    container's hashing to check the container against itself.
+    """
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    run_agent(agent, environment)
+    envelope = published(tmp_path)
+
+    lifted = asset_paths(envelope)
+    assert f"assets/bundle/{DIRECT_CLAUDE_SYSTEM_PROMPT}" in lifted
+    assert f"assets/bundle/{COMMON_PLUGIN}/skills/compound/SKILL.md" in lifted
+    assert not any(path.endswith("node_modules/left-pad/index.js") for path in lifted)
+    assert envelope["assets"]["manifest_path"] == "agent/assets/manifest.json"
+    assert envelope["assets"]["file_count"] == len(lifted) - 1
+    manifest = json.loads((tmp_path / "agent/assets/manifest.json").read_text())
+    assert "witnesses" not in manifest and "witnessed_slot" not in manifest
+
+
+def test_assets_that_cannot_be_lifted_are_recorded_as_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    write_npm_artifact(tmp_path / "server.tgz", {"dist/index.js": b"only product code\n"})
+    run_agent(agent, environment)
+
+    assert published(tmp_path)["assets"]["status"] == UNAVAILABLE
+
+
+def test_the_proxy_revocation_and_audit_records_land_in_the_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    run_agent(agent, environment)
+    envelope = published(tmp_path)
+
     assert envelope["revocation"] == {
         "schema_version": "cortex-bench-proxy-revocation/1", "trial_id": TRIAL_ID,
         "route_active": False, "listener_present": False, "serving_thread_alive": False,
         "active_handlers": 0, "body_handlers": 0,
     }
-    assert envelope["classification"]["ok"] is True
-    assert envelope["publication"] == {
-        "source": "outer_envelope", "root": "artifacts",
-        "relative_path": OUTER_ENVELOPE_FILENAME, "classification": "required",
-        "atomic": True, "post_publication_reread": True,
-    }
-    assert envelope["grader_admission"] == {
-        "admitted": True, "reason": "ok",
-        "terminal_state": "completed", "terminal_reason": "ok",
-    }
+    usage = envelope["proxy_usage"]
+    assert usage["trial_id"] == TRIAL_ID
+    assert usage["requests"] == 0
+    assert usage["audit_entries"] == 1
+    assert usage["audit_outcomes"] == {}
+    assert agent.proxy_session.handle.revocation_evidence["listener_present"] is False
 
 
-def test_production_run_publishes_and_rereads_one_outer_admission(
+def test_an_unaccountable_proxy_export_is_recorded_and_still_published(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent, environment = make_agent(tmp_path, monkeypatch)
-    assert type(agent) is CortexBenchAgent
-    run_agent_phase(agent, environment)
-    assert not envelope_path(tmp_path).exists()
-    agent.finalize_after_container_stop(container_boundary_observation())
-    payload = envelope_path(tmp_path).read_bytes()
-    envelope = json.loads(payload)
+    original = TrialProxySession.write_accounting
 
-    assert agent.grader_admitted and agent.outer_envelope_sha256 == hashlib.sha256(payload).hexdigest()
-    assert_outer_evidence(envelope)
-    scanned = {source["source"] for source in envelope["leak_scan"]["sources"]}
-    assert {"harbor_launch_admission", "manifest", *PROXY_ARTIFACT_SOURCES,
-            "workspace_diff"} <= scanned
-    assert any(source.startswith("trial_state:") for source in scanned)
-    assert any(file["classification"] == "optional-classified"
-               for file in envelope["classification"]["files"])
-    assert any("cortex-bench-workspace-evidence/1" in call for call in environment.calls)
-    assert any(call.endswith("chmod -R a+rX /logs/agent") for call in environment.calls)
+    def write(self: TrialProxySession) -> tuple[Path, Path]:
+        paths = original(self)
+        document = json.loads(self.export_path.read_text())
+        document["requests"] = {"status": UNAVAILABLE, "reason": "counter_unreadable"}
+        write_json(self.export_path, document)
+        return paths
+
+    monkeypatch.setattr(TrialProxySession, "write_accounting", write)
+    run_agent(agent, environment)
+
+    assert published(tmp_path)["proxy_usage"]["requests"] == {
+        "status": UNAVAILABLE, "reason": "counter_unreadable",
+    }
 
 
-@pytest.mark.parametrize(("filename", "mutation", "reason"), [
-    ("cortex-bench-launch-attestation.json", lambda value: value.update({
-        "cortex_home_tree_sha256": "", "cortex_home_file_count": 0,
-    }), "launch_attestation_invalid"),
-    ("cortex-bench-launch-attestation.json", lambda value: value.update({
-        "pre_boot_input_bundle_sha256": "", "input_bundle_file_count": 0,
-    }), "launch_attestation_invalid"),
-])
-def test_boundary_attestations_fail_closed_without_positive_observation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, filename: str,
-    mutation: Callable[[dict[str, object]], None], reason: str,
+def install_accounting_leak(
+    monkeypatch: pytest.MonkeyPatch, target: str, value: str,
 ) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    path = tmp_path / "artifacts" / filename
-    document = json.loads(path.read_text())
-    mutation(document)
-    write_json(path, document)
+    original = TrialProxySession.write_accounting
+
+    def write(self: TrialProxySession) -> tuple[Path, Path]:
+        paths = original(self)
+        path = self.export_path if target == "proxy_export" else self.lease_echo_path
+        document = json.loads(path.read_text())
+        if target == "proxy_export":
+            document["audit_log"]["value"]["diagnostic"] = value
+        else:
+            document["diagnostic"] = value
+        write_json(path, document)
+        return paths
+
+    monkeypatch.setattr(TrialProxySession, "write_accounting", write)
+
+
+def plant_pre_revoke_leak(tmp_path: Path, source: str, value: str) -> None:
+    paths = {
+        "manifest": tmp_path / "artifacts" / MANIFEST_FILENAME,
+        "proxy_audit_log": tmp_path / "artifacts/proxy" / AUDIT_LOG_FILENAME,
+        "adapter_selection_record": tmp_path / "artifacts/proxy" / ADAPTER_SELECTION_FILENAME,
+    }
+    with paths[source].open("a") as handle:
+        planted = json.dumps({"diagnostic": value}) if source == "proxy_audit_log" else value
+        handle.write(planted + "\n")
+
+
+@pytest.mark.parametrize(
+    ("source", "value"),
+    [
+        ("manifest", REAL_CREDENTIAL),
+        ("proxy_audit_log", FORBIDDEN_ENV),
+        ("proxy_export", FORBIDDEN_ARGV),
+        ("lease_echo_record", f"{HOST_CHECKOUT}\n{HOST_HOME}"),
+        ("adapter_selection_record", HOSTNAME),
+        ("workspace_diff", HOST_IDENTITY),
+        ("trajectory", HOST_IDENTITY),
+    ],
+)
+def test_a_leak_on_any_collected_surface_still_refuses_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str, value: str,
+) -> None:
+    """The one refusal that survives. Everything else about the trial is a record; a credential or
+    a host identity reaching a collected artifact is real damage, so it is still a gate.
+    """
+    mutation = None
+    if source == "trajectory":
+        def mutation(root: Path) -> None:
+            (root / "leaked.txt").write_text(f"{value}\n")
+    agent, environment = make_agent(tmp_path, monkeypatch, mutation)
+    if source in {"proxy_export", "lease_echo_record"}:
+        install_accounting_leak(monkeypatch, source, value)
+    elif source == "workspace_diff":
+        environment.workspace_payload = value
+    elif source != "trajectory":
+        plant_pre_revoke_leak(tmp_path, source, value)
 
     with pytest.raises(HostFinalizationError) as raised:
         run_agent(agent, environment)
 
-    assert raised.value.reason == reason
+    assert raised.value.reason == "output_leak_detected"
+    assert value not in str(raised.value)
     assert not envelope_path(tmp_path).exists()
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda value: value.update({
-        "container_exit": {"status": "exited", "exit_code": 0, "running": True, "pid": 41},
-    }),
-    lambda value: value.update({
-        "post_stop": {"descendants_alive": 1, "process_namespace_alive": True},
-    }),
+@pytest.mark.parametrize("observation", [
+    None,
+    container_boundary_observation(descendants_alive=3),
+    container_boundary_observation(namespace_alive=True, exit_code=137),
 ])
-def test_container_boundary_validator_rejects_non_quiescent_observation(
-    mutation: Callable[[dict[str, object]], None],
+def test_a_container_boundary_that_is_not_quiescent_is_recorded_and_still_published(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    observation: ContainerBoundaryObservation | None,
 ) -> None:
-    document = container_boundary_attestation()
-    mutation(document)
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    run_agent(agent, environment, observation)
 
-    with pytest.raises(HostFinalizationError) as raised:
-        finalization._validate_container_boundary_attestation(document, TRIAL_ID)
+    launch = published(tmp_path)["launch"]
+    if observation is None:
+        assert launch["post_stop_census"] == unavailable(
+            "container_boundary_attestation_absent")
+        return
+    assert launch["post_stop_census"] == {
+        "descendants_alive": observation.descendants_alive,
+        "process_namespace_alive": observation.process_namespace_alive,
+    }
+    assert launch["container_exit"]["exit_code"] == observation.exit_code
 
-    assert raised.value.reason == "container_boundary_unproven"
 
-
-def test_unobservable_container_boundary_leaves_no_attestation_or_publication(
+def test_the_envelope_is_published_atomically_exactly_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent, environment = make_agent(tmp_path, monkeypatch)
-    run_agent_phase(agent, environment)
+    run_agent(agent, environment)
+    payload = envelope_path(tmp_path).read_bytes()
+
+    agent.finalize_after_container_stop(container_boundary_observation())
+
+    assert envelope_path(tmp_path).read_bytes() == payload
+    assert not list((tmp_path / "artifacts").glob(f"{OUTER_ENVELOPE_FILENAME}.tmp*"))
+
+
+def test_a_preexisting_envelope_is_never_replaced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    (tmp_path / "artifacts").mkdir(parents=True, exist_ok=True)
+    envelope_path(tmp_path).write_text("partial\n")
 
     with pytest.raises(HostFinalizationError) as raised:
-        agent.finalize_after_container_stop(None)
+        run_agent(agent, environment)
 
-    assert raised.value.reason == "container_boundary_unproven"
-    assert not (tmp_path / "artifacts" / "cortex-bench-container-boundary-attestation.json").exists()
+    assert raised.value.reason == "outer_publication_exists"
+    assert envelope_path(tmp_path).read_text() == "partial\n"
+
+
+@pytest.mark.parametrize(
+    "target", ["_write_all", "_flush_descriptor", "_link_publication", "_sync_directory"],
+)
+def test_a_publication_io_failure_leaves_no_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: str,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise OSError("publication failure")
+
+    monkeypatch.setattr(finalization, target, fail)
+
+    with pytest.raises(HostFinalizationError) as raised:
+        run_agent(agent, environment)
+
+    assert raised.value.reason == "outer_publication_failed"
     assert not envelope_path(tmp_path).exists()
+    assert not list((tmp_path / "artifacts").glob(f"{OUTER_ENVELOPE_FILENAME}.tmp*"))
+
+
+def test_a_failed_post_publication_reread_never_leaves_an_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    monkeypatch.setattr(finalization, "_reread_publication", lambda _path: b"different\n")
+
+    with pytest.raises(HostFinalizationError) as raised:
+        run_agent(agent, environment)
+
+    assert raised.value.reason == "outer_reread_failed"
+
+
+@pytest.mark.parametrize("stage", ["inner_run", "workspace_collection"])
+def test_a_stage_failure_before_collection_publishes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stage: str,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    if stage == "inner_run":
+        environment.run_return_code = 17
+    else:
+        environment.workspace_return_code = 17
+
+    with pytest.raises(HostFinalizationError):
+        run_agent(agent, environment)
+
+    assert not envelope_path(tmp_path).exists()
+    assert agent.proxy_session.handle.revocation_evidence["listener_present"] is False
+
+
+def production_scan_policy() -> ScanPolicy:
+    return ScanPolicy(
+        secrets={"provider_credential": "sk-live-production-finalization-secret"},
+        repository_checkout="/private/host-checkout/cortex", hostname="private-hostname",
+        forbidden_environment={"ambient": "forbidden-environment-value"},
+        forbidden_argv={"argv": "forbidden-argv-value"},
+        home_path="/private/host-home",
+        host_identities={"machine": "private-machine-identity"},
+    )
+
+
+def production_proxy_outputs(artifact_dir: Path) -> TrialRevocation:
+    proxy = artifact_dir / "proxy"
+    proxy.mkdir(parents=True)
+    (proxy / AUDIT_LOG_FILENAME).write_text("{}\n", encoding="utf-8")
+    lease = {"status": "available", "value": {"remaining_ms": 1}}
+    lease_path = proxy / LEASE_ECHO_FILENAME
+    write_json(lease_path, {
+        "schema_version": LEASE_ECHO_RECORD_SCHEMA_VERSION,
+        "trial_id": TRIAL_ID, "lease_echo": lease,
+    })
+    export_path = proxy / EXPORT_FILENAME
+    write_json(export_path, {
+        "schema_version": "cortex-bench-proxy-export/1", "trial_id": TRIAL_ID,
+        "requests": {"status": "available", "value": 1},
+        "input_tokens": {"status": "available", "value": 3},
+        "output_tokens": {"status": "available", "value": 2},
+        "cached_tokens": {"status": "available", "value": 0},
+        "audit_log": {"status": "available", "value": {
+            "entries": 1, "outcomes": {}, "durable_requests": 1,
+            "durable_tokens": {"input": 3, "output": 2},
+            "agrees_with_counters": True,
+        }},
+        "lease_echo": lease,
+    })
+    write_json(proxy / ADAPTER_SELECTION_FILENAME, {
+        "schema_version": ADAPTER_SELECTION_SCHEMA_VERSION, "trial_id": TRIAL_ID,
+    })
+    return TrialRevocation(None, export_path, lease_path, {
+        "schema_version": "cortex-bench-proxy-revocation/1", "trial_id": TRIAL_ID,
+        "route_active": False, "listener_present": False,
+        "serving_thread_alive": False, "active_handlers": 0, "body_handlers": 0,
+    })
+
+
+def production_arm() -> dict[str, object]:
+    return {
+        "schema_version": "cortex-benchmark-arm/2", "kind": "cortex",
+        "name": ARM_NAME, "backend": "pi", "provider": "deepseek",
+        "model": "deepseek-v4-flash",
+        "credential_capability": "pi-deepseek-api-key",
+        "orchestration": {"mode": "direct", "ask_manager": False},
+        "limits": {
+            "max_thread_starts": 0, "max_parent_questions": 0,
+            "max_task_depth": 0, "max_tasks": 0, "max_provider_requests": 8,
+            "max_resident_agent_processes": 1, "max_cost_usd": "2.50",
+            "deadline_seconds": 90, "max_output_tokens": 65536,
+        },
+    }
+
+
+def test_the_production_layout_records_through_the_same_collect_and_record_path(
+    tmp_path: Path,
+) -> None:
+    """No arm branch survives: a production trial has no `arm-resolution.json` and its roles come
+    from the home the launcher materialized, but it walks the same collector and publishes the same
+    envelope shape as a legacy trial.
+    """
+    logs_dir = tmp_path / "agent"
+    verifier_dir = tmp_path / "verifier"
+    artifact_dir = tmp_path / "artifacts"
+    verifier_dir.mkdir()
+    npm_artifact = tmp_path / "server.tgz"
+    write_npm_artifact(npm_artifact, {
+        "defaults/prompts/directives/benchmark-direct.md": (
+            DIRECT_ARM_BUNDLE_DIR / "prompts/directives/benchmark-direct.md"
+        ).read_bytes(),
+        "defaults/prompts/systemPrompts/benchmark-direct.md": (
+            DIRECT_ARM_BUNDLE_DIR / "prompts/systemPrompts/benchmark-direct.md"
+        ).read_bytes(),
+    })
+    materialized = materialize_direct_arm_home(
+        cortex_home=logs_dir / "production-cortex-home",
+        runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
+        artifacts_dir=artifact_dir,
+        facts=DirectArmLaunchFacts(
+            trial_id=TRIAL_ID, root_run_id=ROOT_RUN_ID, npm_artifact=npm_artifact,
+            backend_cli_version="0.82.1",
+            proxy_base_url=f"http://{TRIAL_ID}.proxy.invalid:49152",
+            dummy_token_ref="trial-dummy-token", model_alias_policy={"policy": "exact"},
+        ),
+        inherited_environment={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
+    )
+    (logs_dir / "instruction.md").write_text("Solve the task.\n", encoding="utf-8")
+    (logs_dir / "workspace.diff").write_text(
+        '{"schema_version":"cortex-bench-workspace-evidence/1"}\n', encoding="utf-8")
+    write_json(artifact_dir / MANIFEST_FILENAME, {
+        "schema_version": SCHEMA_VERSION, "trial_id": TRIAL_ID,
+        "root_run_id": ROOT_RUN_ID, "arm": ARM_NAME,
+        "container": {"image_ref": f"task@{DIGEST}", "image_digest": DIGEST},
+    })
+    write_json(artifact_dir / ADMISSION_EVIDENCE_FILENAME, admission_evidence())
+    write_json(
+        artifact_dir / finalization.CONTAINER_BOUNDARY_ATTESTATION_FILENAME,
+        container_boundary_observation().document(TRIAL_ID),
+    )
+    revocation = production_proxy_outputs(artifact_dir)
+
+    result = finalize_host_trial(
+        logs_dir=logs_dir, verifier_dir=verifier_dir, artifact_dir=artifact_dir,
+        root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=production_arm(),
+        npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT, revocation=revocation,
+        scan_policy=production_scan_policy(),
+    )
+    envelope = json.loads(result.path.read_bytes())
+
+    assert envelope["schema_version"] == OUTER_ENVELOPE_SCHEMA_VERSION
+    assert not (logs_dir / "arm-resolution.json").exists()
+    assert "assets/bundle/defaults/prompts/systemPrompts/benchmark-direct.md" in asset_paths(
+        envelope)
+    bundle = envelope["launch"]["config_bundle"]
+    assert bundle["canonical_sha256"] == materialized.input_bundle_sha256
+    assert bundle["file_count"] == materialized.input_bundle_file_count
+    assert len(bundle["files"]) == materialized.input_bundle_file_count
+    assert canonical_sha256(bundle["files"]) == materialized.input_bundle_sha256
+
+
+def test_the_committed_config_bundle_list_is_read_never_derived() -> None:
+    entries = committed_input_bundle_files()
+    on_disk = sorted(
+        path.relative_to(DIRECT_ARM_BUNDLE_DIR).as_posix()
+        for path in DIRECT_ARM_BUNDLE_DIR.rglob("*") if path.is_file()
+    )
+
+    assert [entry["path"] for entry in entries] == on_disk
+    for entry in entries:
+        assert entry["sha256"] == sha256_hex(
+            (DIRECT_ARM_BUNDLE_DIR / entry["path"]).read_bytes())
 
 
 def test_composite_accepts_failed_superseded_history_and_production_slot_names() -> None:
@@ -677,710 +1129,3 @@ def test_composite_rejects_direct_parent_and_unresolved_qa_endpoints() -> None:
         }]
         assert not valid_composite_structure(
             composite, terminal, ROOT_RUN_ID, TRIAL_ID, arm())
-
-
-def asset_files(envelope: Mapping[str, object]) -> dict[str, str]:
-    return {
-        file["relative_path"]: file["sha256"] for file in envelope["classification"]["files"]
-        if file["root"] == "agent" and file["relative_path"].startswith("assets/")
-    }
-
-
-def test_trial_carries_the_assets_it_used_and_not_the_bundle(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    run_agent(agent, environment)
-    envelope = json.loads(envelope_path(tmp_path).read_bytes())
-    published = asset_files(envelope)
-    prompt = f"assets/bundle/{DIRECT_CLAUDE_SYSTEM_PROMPT}"
-
-    # Every model-visible asset the composition named, and nothing else the bundle carries.
-    assert set(published) == {"assets/manifest.json"} | {
-        f"assets/bundle/{relative}" for relative in bundle_members()
-        if relative.startswith(("defaults/prompts/", "defaults/plugins/"))
-    }
-    assert (tmp_path / "agent" / prompt).read_bytes() == (
-        bundle_members()[DIRECT_CLAUDE_SYSTEM_PROMPT])
-    assert published[prompt] == asset_witnesses()["system_prompt_sha256"]
-    assert not (tmp_path / "agent" / "assets/bundle/dist").exists()
-    assert not list((tmp_path / "agent").rglob("*.tgz"))
-
-    manifest = json.loads((tmp_path / "agent" / "assets/manifest.json").read_bytes())
-    assert manifest["witnessed_slot"] == "parent"
-    assert manifest["npm_artifact"]["sha256"] == hashlib.sha256(
-        (tmp_path / "server.tgz").read_bytes()).hexdigest()
-    assert manifest["roles"]["parent"] == {
-        "system_prompt": prompt,
-        "directive": f"assets/bundle/{DIRECT_CLAUDE_DIRECTIVE}",
-        "tools": list(DIRECT_CLAUDE_TOOLS),
-        "plugin_dirs": [f"assets/bundle/{plugin}" for plugin in DIRECT_CLAUDE_PLUGIN_DIRS],
-        "bound_by": "run_header_and_bundle_digest",
-    }
-    assert envelope["assets"] == {
-        "manifest_path": "agent/assets/manifest.json",
-        "npm_artifact": manifest["npm_artifact"],
-        "witnessed_slot": "parent",
-        "witnesses": {
-            name: {"value": value, "witness": f"run_header.{name}"}
-            for name, value in asset_witnesses().items()
-        },
-        "file_count": len(published),
-    }
-
-
-def tamper_witness(field: str) -> Callable[[Path], None]:
-    """Rewrite the run's own header so it disagrees with the bundle about one asset, keeping every
-    other binding intact — the digest chain still closes, so the only thing that can refuse is the
-    asset check itself.
-    """
-    def mutation(root: Path) -> None:
-        journal = journal_bytes({field: "f" * 64})
-        (root / "events.jsonl").write_bytes(journal)
-        terminal_path = root / f"run-{ROOT_RUN_ID}.terminal.json"
-        write_json(terminal_path, terminal_document(journal))
-        terminal_sha = hashlib.sha256(terminal_path.read_bytes()).hexdigest()
-        write_json(root / "composite-manifest.json", composite_document(terminal_sha, journal))
-    return mutation
-
-
-@pytest.mark.parametrize(
-    "field", ("system_prompt_sha256", "tool_manifest_sha256", "plugin_manifest_sha256"),
-)
-def test_assets_the_run_does_not_vouch_for_refuse_publication(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch, tamper_witness(field))
-
-    with pytest.raises(HostFinalizationError) as raised:
-        run_agent(agent, environment)
-
-    assert raised.value.reason == "trial_asset_mismatch"
-    assert not envelope_path(tmp_path).exists()
-
-
-UNDERIVABLE_TOKENS = {
-    "input": None, "output": None, "cache_read": None, "cache_creation": None,
-}
-
-
-def fail_inner_run(
-    reason: str = "child_failure", tokens: object = UNDERIVABLE_TOKENS,
-    state: str = "failed",
-) -> Callable[[Path], None]:
-    """The shape a run leaves behind when its agent did not finish.
-
-    `runner.ts` publishes no composite manifest for a non-completed terminal, by design, so the
-    absence of that file is part of the fixture rather than a defect in it.
-    """
-    def mutation(root: Path) -> None:
-        # Both, and only together: `runner.ts:1811` commits the merged trajectory and the
-        # composite as one pair, so a failed run leaves neither behind.
-        (root / "composite-manifest.json").unlink()
-        (root / "trajectory.json").unlink()
-        path = root / f"run-{ROOT_RUN_ID}.terminal.json"
-        document = json.loads(path.read_text())
-        document.update({"state": state, "terminal_reason": reason, "tokens": tokens})
-        write_json(path, document)
-    return mutation
-
-
-def test_a_failed_inner_run_publishes_an_envelope_that_says_it_is_not_gradable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Why option A exists.
-
-    This trial used to raise `inner_terminal_invalid` inside the agent phase, which meant Harbor
-    never ran the verifier, no reward existed for the task, and the campaign stopped. The run is
-    now finalized and published like any other — the difference is that the envelope states, in
-    its own words, that its result must not be graded.
-    """
-    agent, environment = make_agent(
-        tmp_path, monkeypatch, fail_inner_run("provider_error"))
-
-    run_agent(agent, environment)
-    envelope = json.loads(envelope_path(tmp_path).read_bytes())
-
-    assert not agent.grader_admitted
-    assert envelope["grader_admission"] == {
-        "admitted": False, "reason": "inner_terminal_not_ok",
-        "terminal_state": "failed", "terminal_reason": "provider_error",
-    }
-    assert envelope["identity"] == {
-        "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "arm_name": ARM_NAME,
-    }
-    assert envelope["inner"]["composite_sha256"] is None
-    assert envelope["inner"]["terminal_sha256"]
-    assert envelope["revocation"]["route_active"] is False
-    assert envelope["classification"]["ok"] is True and envelope["leak_scan"]
-
-
-def test_a_failed_run_still_publishes_what_its_proxy_metered(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A trial that is not gradable still spent provider traffic, and the record has to say so.
-
-    Two tests stood here that held the failed run's own counts against the proxy's and refused the
-    trial when they disagreed. That cross-check compared COST -- a token count times whichever
-    price list the observer holds, which is not a quantity either side observes -- and on 99.2%
-    cached traffic the two correct answers differed by 12.7x and discarded a finished trial. The
-    comparison was removed by decision rather than retuned; what remains is this side stating what
-    it measured.
-    """
-    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run())
-
-    run_agent(agent, environment)
-    usage = json.loads(envelope_path(tmp_path).read_bytes())["proxy_usage"]
-
-    assert usage["trial_id"] == TRIAL_ID
-    assert usage["input_tokens"] == 0 and usage["output_tokens"] == 0
-    assert "reconciled" not in usage and "journal_tokens" not in usage
-
-
-@pytest.mark.parametrize(("state", "reason"), [
-    ("failed", "child_failure"), ("failed", "containment_failure"),
-    ("failed", "trajectory_write_failed"), ("failed", "cost_limit_exceeded"),
-    ("cancelled", "cancelled"), ("timeout", "deadline_exceeded"),
-])
-def test_every_terminal_state_the_inner_contract_admits_is_finalized(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str, reason: str,
-) -> None:
-    agent, environment = make_agent(
-        tmp_path, monkeypatch, fail_inner_run(reason, state=state))
-
-    run_agent(agent, environment)
-    admission = json.loads(envelope_path(tmp_path).read_bytes())["grader_admission"]
-
-    assert admission == {
-        "admitted": False, "reason": "inner_terminal_not_ok",
-        "terminal_state": state, "terminal_reason": reason,
-    }
-
-
-@pytest.mark.parametrize(("state", "reason"), [
-    ("failed", "ok"), ("completed", "child_failure"), ("cancelled", "deadline"),
-    ("aborted", "child_failure"), ("failed", "made_up_reason"),
-])
-def test_a_terminal_pair_the_inner_contract_never_writes_is_not_an_agent_outcome(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str, reason: str,
-) -> None:
-    """A forged marker must not become a gradable failure.
-
-    The whole split rests on a non-ok terminal being the run's own truthful statement. A pair the
-    inner contract cannot produce is evidence of something else, and still refuses.
-    """
-    agent, environment = make_agent(
-        tmp_path, monkeypatch, fail_inner_run(reason, state=state))
-
-    assert_refused(tmp_path, agent, environment)
-
-
-def corrupt_self_consistent_journal(
-    root: Path, composite: dict[str, object],
-) -> None:
-    journal = root / "events.jsonl"
-    journal.write_bytes(b"not-json\n")
-    digest = hashlib.sha256(journal.read_bytes()).hexdigest()
-    terminal_path = root / f"run-{ROOT_RUN_ID}.terminal.json"
-    terminal = json.loads(terminal_path.read_text())
-    terminal["journal_sha256"] = digest
-    write_json(terminal_path, terminal)
-    composite["nodes"][0]["journal_sha256"] = digest
-    composite["nodes"][0]["terminal_manifest_sha256"] = hashlib.sha256(
-        terminal_path.read_bytes()).hexdigest()
-
-
-def corrupt_composite(root: Path, kind: str) -> None:
-    path = root / "composite-manifest.json"
-    composite = json.loads(path.read_text())
-    composite["predicate"] = production_predicate(all_pass=True)
-    if kind == "malformed_node":
-        del composite["nodes"][0]["task_id"]
-    elif kind == "accounting_identity_mismatch":
-        composite["accounting"]["trial_id"] = "foreign-trial"
-    else:
-        corrupt_self_consistent_journal(root, composite)
-    write_json(path, composite)
-
-
-def mutate_inner(kind: str) -> Callable[[Path], None]:
-    def mutation(root: Path) -> None:
-        terminal = root / f"run-{ROOT_RUN_ID}.terminal.json"
-        if kind == "missing_required":
-            terminal.unlink()
-        elif kind == "digest_mismatch":
-            (root / "events.jsonl").write_bytes(b"changed after terminal\n")
-        elif kind in {"identity_mismatch", "v1_terminal"}:
-            document = json.loads(terminal.read_text())
-            key = "bundle_manifest_hash" if kind == "identity_mismatch" else "schema_version"
-            document[key] = "4" * 64 if kind == "identity_mismatch" else "cortex-bench-manifest/1"
-            write_json(terminal, document)
-        elif kind == "v1_composite":
-            path = root / "composite-manifest.json"
-            document = json.loads(path.read_text())
-            document["schema_version"] = "cortex-bench-composite-manifest/1"
-            write_json(path, document)
-        elif kind == "wrong_composite_shape":
-            write_json(root / "composite-manifest.json", {"schema_version": "wrong"})
-        else:
-            corrupt_composite(root, kind)
-    return mutation
-
-
-@pytest.mark.parametrize(
-    "kind", ["missing_required", "digest_mismatch", "identity_mismatch", "v1_terminal",
-             "v1_composite", "wrong_composite_shape", "malformed_node",
-             "accounting_identity_mismatch", "invalid_journal"],
-)
-def test_inner_truth_failure_never_admits_grading(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch, mutate_inner(kind))
-    assert_refused(tmp_path, agent, environment)
-
-
-def install_audit_outcomes(
-    monkeypatch: pytest.MonkeyPatch, outcomes: object,
-) -> None:
-    """Rewrite the tally the proxy exported, so a trial can be finalized against one it never had.
-
-    The fixture's proxy answers no requests, so its audit is silent by construction; every
-    interesting pairing of a failed run with what the proxy saw has to be planted here.
-    """
-    original = TrialProxySession.write_accounting
-
-    def write(self: TrialProxySession) -> tuple[Path, Path]:
-        paths = original(self)
-        document = json.loads(self.export_path.read_text())
-        audit = document["audit_log"]["value"]
-        if outcomes is None:
-            del audit["outcomes"]
-        else:
-            audit["outcomes"] = outcomes
-        write_json(self.export_path, document)
-        return paths
-
-    monkeypatch.setattr(TrialProxySession, "write_accounting", write)
-
-
-def test_a_completed_trial_states_no_cause(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-
-    run_agent(agent, environment)
-
-    assert json.loads(envelope_path(tmp_path).read_bytes())["cause"] is None
-
-
-def test_a_failed_run_the_proxy_saw_nothing_wrong_in_says_exactly_that(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The r3 signature, and the reason `cause` exists.
-
-    A run that ends `provider_error` while the proxy answered every request and recorded nothing
-    wrong was not failed by the provider — it was failed on our side of the proxy. r3 looked like
-    a model failure for a day because nothing in the evidence made that pairing visible.
-    """
-    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run("provider_error"))
-
-    run_agent(agent, environment)
-    cause = json.loads(envelope_path(tmp_path).read_bytes())["cause"]
-
-    assert cause == {
-        "terminal_state": "failed", "terminal_reason": "provider_error",
-        "proxy_observed": [], "audit_outcomes": {},
-    }
-
-
-def test_a_failed_run_the_proxy_corroborates_names_the_upstream(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    install_audit_outcomes(monkeypatch, {"upstream_unavailable": 3})
-    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run("provider_error"))
-
-    run_agent(agent, environment)
-    cause = json.loads(envelope_path(tmp_path).read_bytes())["cause"]
-
-    assert cause["proxy_observed"] == ["upstream_failure"]
-    assert cause["audit_outcomes"] == {"upstream_unavailable": 3}
-
-
-def test_a_response_that_was_billed_and_never_delivered_is_named_in_the_cause(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    install_audit_outcomes(
-        monkeypatch, {"client_gone_after_accounting": 7, "upstream_unavailable": 1})
-    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run())
-
-    run_agent(agent, environment)
-    cause = json.loads(envelope_path(tmp_path).read_bytes())["cause"]
-
-    assert cause["proxy_observed"] == ["undelivered_response", "upstream_failure"]
-
-
-def test_a_provider_answer_that_could_not_be_billed_is_not_filed_as_a_policy_refusal(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """What the ZERO-PAID verification actually produces, and it is its own diagnosis.
-
-    The synthetic model answers 400 with a plain-text body, the adapter reads no usage from it,
-    and the proxy refuses a response it cannot account for. Calling that a policy refusal would
-    point the reader at our rules when the cause was what came back.
-    """
-    install_audit_outcomes(monkeypatch, {"usage_accounting_unavailable": 1})
-    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run("provider_error"))
-
-    run_agent(agent, environment)
-    cause = json.loads(envelope_path(tmp_path).read_bytes())["cause"]
-
-    assert cause["proxy_observed"] == ["unaccountable_response"]
-
-
-def test_an_outcome_the_table_does_not_name_is_still_reported(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Totality: a new audit outcome must not be able to make a failure invisible."""
-    install_audit_outcomes(monkeypatch, {"some_future_outcome": 1})
-    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run())
-
-    run_agent(agent, environment)
-    cause = json.loads(envelope_path(tmp_path).read_bytes())["cause"]
-
-    assert cause["proxy_observed"] == ["proxy_refusal"]
-    assert cause["audit_outcomes"] == {"some_future_outcome": 1}
-
-
-@pytest.mark.parametrize("outcomes", [None, {"upstream_unavailable": 0}, {"x": "many"}, []])
-def test_an_export_that_cannot_state_its_outcomes_is_refused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcomes: object,
-) -> None:
-    """Silence must not be readable as "nothing went wrong"."""
-    install_audit_outcomes(monkeypatch, outcomes)
-    agent, environment = make_agent(tmp_path, monkeypatch)
-
-    assert_refused(tmp_path, agent, environment)
-
-
-def install_accounting_leak(
-    monkeypatch: pytest.MonkeyPatch, target: str, value: str,
-) -> None:
-    original = TrialProxySession.write_accounting
-
-    def write(self: TrialProxySession) -> tuple[Path, Path]:
-        paths = original(self)
-        path = self.export_path if target == "proxy_export" else self.lease_echo_path
-        document = json.loads(path.read_text())
-        if target == "proxy_export":
-            document["audit_log"]["value"]["diagnostic"] = value
-        else:
-            document["diagnostic"] = value
-        write_json(path, document)
-        return paths
-
-    monkeypatch.setattr(TrialProxySession, "write_accounting", write)
-
-
-def plant_pre_revoke_leak(tmp_path: Path, source: str, value: str) -> None:
-    paths = {
-        "manifest": tmp_path / "artifacts/cortex-bench-harness-manifest.json",
-        "proxy_audit_log": tmp_path / "artifacts/proxy/proxy-audit.jsonl",
-        "adapter_selection_record": tmp_path / "artifacts/proxy/adapter-selection.json",
-    }
-    with paths[source].open("a") as handle:
-        planted = json.dumps({"diagnostic": value}) if source == "proxy_audit_log" else value
-        handle.write(planted + "\n")
-
-
-@pytest.mark.parametrize(
-    ("source", "value"),
-    [
-        ("manifest", REAL_CREDENTIAL),
-        ("proxy_audit_log", FORBIDDEN_ENV),
-        ("proxy_export", FORBIDDEN_ARGV),
-        ("lease_echo_record", f"{HOST_CHECKOUT}\n{HOST_HOME}"),
-        ("adapter_selection_record", HOSTNAME),
-        ("workspace_diff", HOST_IDENTITY),
-    ],
-)
-def test_every_host_and_collected_surface_rejects_redacted_leaks(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str, value: str,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    if source in {"proxy_export", "lease_echo_record"}:
-        install_accounting_leak(monkeypatch, source, value)
-    elif source == "workspace_diff":
-        environment.workspace_payload = value
-    else:
-        plant_pre_revoke_leak(tmp_path, source, value)
-
-    assert_refused(tmp_path, agent, environment, value)
-
-
-def classification_mutation(kind: str, outside: Path) -> Callable[[Path], None]:
-    def mutation(root: Path) -> None:
-        if kind == "unknown":
-            (root.parent / "unknown.bin").write_bytes(b"unknown")
-        elif kind == "forbidden":
-            (root.parent.parent / "artifacts/credentials.json").write_text("clean")
-        elif kind == "symlink":
-            (root / "unexpected-link").symlink_to(root / "events.jsonl")
-        elif kind == "physical_escape":
-            outside.mkdir()
-            (outside / "escaped.txt").write_text("clean")
-            (root / "escaped-directory").symlink_to(outside, target_is_directory=True)
-        elif kind == "required_symlink":
-            outside.mkdir()
-            manifest = root / "composite-manifest.json"
-            target = outside / manifest.name
-            target.write_bytes(manifest.read_bytes())
-            manifest.unlink()
-            manifest.symlink_to(target)
-    return mutation
-
-
-@pytest.mark.parametrize("kind", ["unknown", "forbidden", "symlink", "physical_escape"])
-def test_closed_world_classification_refuses_every_invalid_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str,
-) -> None:
-    agent, environment = make_agent(
-        tmp_path, monkeypatch, classification_mutation(kind, tmp_path / "outside"),
-    )
-    assert_refused(tmp_path, agent, environment)
-
-
-def force_legacy_pass_predicate(root: Path) -> None:
-    path = root / "composite-manifest.json"
-    document = json.loads(path.read_text())
-    document["predicate"] = production_predicate(all_pass=True)
-    write_json(path, document)
-
-
-def test_verifier_root_output_cannot_escape_closed_world_classification(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch, force_legacy_pass_predicate)
-    (tmp_path / "verifier/escaped-output.txt").write_text("unclassified")
-
-    assert_refused(tmp_path, agent, environment)
-
-
-def test_a_non_zero_inner_exit_is_graded_from_the_marker_it_published(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The shape a failed agent actually has, and the one that used to be unreachable.
-
-    Harbor raises on any non-zero exit, so this run's phase ended before finalization could look
-    at anything. Which of the two paths a failure took was decided by a race — a run that
-    published its marker before its process returned was settled by the poll instead. The marker
-    now decides it: the exit code restates what the run already said, and the envelope is
-    published saying it must not be graded.
-    """
-    agent, environment = make_agent(tmp_path, monkeypatch, fail_inner_run("provider_error"))
-    environment.run_return_code = 1
-    environment.publish_terminal_on_failure = True
-
-    run_agent(agent, environment)
-    envelope = json.loads(envelope_path(tmp_path).read_bytes())
-
-    assert not agent.grader_admitted
-    assert envelope["grader_admission"]["terminal_reason"] == "provider_error"
-    assert "exited non-zero" in (tmp_path / "agent" / "stderr.txt").read_text()
-
-
-@pytest.mark.parametrize("stage", ["inner_run", "workspace_collection"])
-def test_pre_envelope_stage_failure_is_not_a_gradeable_agent_outcome(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stage: str,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    if stage == "inner_run":
-        environment.run_return_code = 17
-    else:
-        environment.workspace_return_code = 17
-
-    with pytest.raises(HostFinalizationError):
-        run_agent(agent, environment)
-    # The inner-run case dies without publishing a terminal marker, so nothing states an outcome
-    # and there is nothing to grade. That is what separates it from a failed agent.
-    assert not agent.grader_admitted and not envelope_path(tmp_path).exists()
-    assert agent.proxy_session.handle.revocation_evidence["listener_present"] is False
-
-
-@pytest.mark.parametrize("source", ["manifest", "admission", "adapter_selection"])
-def test_host_owned_identity_mismatch_refuses_admission(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    paths = {
-        "manifest": tmp_path / "artifacts/cortex-bench-harness-manifest.json",
-        "admission": tmp_path / "artifacts" / ADMISSION_EVIDENCE_FILENAME,
-        "adapter_selection": tmp_path / "artifacts/proxy/adapter-selection.json",
-    }
-    path = paths[source]
-    document = json.loads(path.read_text())
-    document["trial_id"] = "foreign-trial"
-    write_json(path, document)
-
-    assert_refused(tmp_path, agent, environment)
-
-
-def test_physical_inventory_rejects_a_required_symlink_before_read(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    mutation = classification_mutation("required_symlink", tmp_path / "outside-required")
-    agent, environment = make_agent(tmp_path, monkeypatch, mutation)
-    original = Path.read_bytes
-    followed = False
-
-    def observe(path: Path) -> bytes:
-        nonlocal followed
-        followed = followed or path.is_symlink()
-        return original(path)
-
-    monkeypatch.setattr(Path, "read_bytes", observe)
-    assert_refused(tmp_path, agent, environment)
-    assert not followed
-
-
-def test_proxy_reconciliation_uncertainty_refuses_admission(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    original = TrialProxySession.write_accounting
-
-    def disagree(self: TrialProxySession) -> tuple[Path, Path]:
-        paths = original(self)
-        document = json.loads(self.export_path.read_text())
-        document["audit_log"]["value"]["agrees_with_counters"] = False
-        write_json(self.export_path, document)
-        return paths
-
-    monkeypatch.setattr(TrialProxySession, "write_accounting", disagree)
-    assert_refused(tmp_path, agent, environment)
-
-
-def test_revocation_uncertainty_refuses_admission(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    handle_type = type(agent.proxy_session.handle)
-    original = handle_type.stop
-
-    def uncertain(self: object) -> None:
-        original(self)
-        raise RuntimeError("revocation proof unavailable")
-
-    monkeypatch.setattr(handle_type, "stop", uncertain)
-    assert_refused(tmp_path, agent, environment)
-
-
-def fail_once() -> Callable[..., None]:
-    failed = False
-
-    def failure(*_args: object, **_kwargs: object) -> None:
-        nonlocal failed
-        if not failed:
-            failed = True
-            raise OSError("injected publication failure")
-
-    return failure
-
-
-@pytest.mark.parametrize(
-    "operation", ["_write_all", "_flush_descriptor", "_close_descriptor", "_link_publication"],
-)
-def test_outer_publication_io_failure_leaves_no_admissible_envelope(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    monkeypatch.setattr(finalization, operation, fail_once())
-
-    assert_refused(tmp_path, agent, environment)
-    assert not tuple((tmp_path / "artifacts").glob(f"{OUTER_ENVELOPE_FILENAME}.tmp.*"))
-
-
-def test_failed_post_publication_reread_never_admits_grading(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    monkeypatch.setattr(finalization, "_reread_publication", lambda _path: b"different")
-
-    with pytest.raises(HostFinalizationError):
-        run_agent(agent, environment)
-    assert not agent.grader_admitted
-
-
-def test_preexisting_partial_outer_envelope_is_not_replaced(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    output = envelope_path(tmp_path)
-    output.write_bytes(b"partial")
-
-    with pytest.raises(HostFinalizationError):
-        run_agent(agent, environment)
-    assert output.read_bytes() == b"partial"
-    assert not agent.grader_admitted
-
-
-def test_root_walk_failure_never_admits_grading(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    monkeypatch.setattr(finalization.os, "scandir", lambda _path: (_ for _ in ()).throw(
-        OSError("injected root walk failure")))
-
-    assert_refused(tmp_path, agent, environment)
-
-
-def test_source_open_failure_never_admits_grading(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    original = Path.open
-
-    def fail_open(path: Path, mode: str = "r", *args: object, **kwargs: object):
-        if path.name == "stdout.txt" and "r" in mode:
-            raise OSError("injected open failure")
-        return original(path, mode, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "open", fail_open)
-    assert_refused(tmp_path, agent, environment)
-
-
-class ReadFailure:
-    def __init__(self, handle: object) -> None:
-        self.handle = handle
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_args: object) -> None:
-        self.handle.close()
-
-    def read(self, *_args: object) -> bytes:
-        raise OSError("injected read failure")
-
-
-def test_source_read_failure_never_admits_grading(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    original = Path.open
-
-    def fail_read(path: Path, mode: str = "r", *args: object, **kwargs: object):
-        handle = original(path, mode, *args, **kwargs)
-        if path.name != "stdout.txt" or "r" not in mode:
-            return handle
-        return ReadFailure(handle)
-
-    monkeypatch.setattr(Path, "open", fail_read)
-    assert_refused(tmp_path, agent, environment)
-
-
-def test_hash_failure_never_admits_grading(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    monkeypatch.setattr(finalization, "_sha256_file", lambda _path: (_ for _ in ()).throw(
-        OSError("injected hash failure")))
-
-    assert_refused(tmp_path, agent, environment)

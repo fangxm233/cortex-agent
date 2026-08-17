@@ -142,11 +142,28 @@ def _snapshot_tree(root: Path) -> _TreeSnapshot:
             files.append((path.relative_to(root).as_posix(), path.read_bytes()))
     if not files:
         raise ProductionHomeError("input bundle must contain regular files")
-    entries = [
+    snapshot = tuple(files)
+    return _TreeSnapshot(snapshot, _canonical_sha256(list(_snapshot_entries(snapshot))))
+
+
+def _snapshot_entries(
+    files: tuple[tuple[str, bytes], ...],
+) -> tuple[dict[str, str], ...]:
+    return tuple(
         {"path": name, "type": "file", "sha256": hashlib.sha256(body).hexdigest()}
         for name, body in files
-    ]
-    return _TreeSnapshot(tuple(files), _canonical_sha256(entries))
+    )
+
+
+def committed_input_bundle_files() -> tuple[dict[str, str], ...]:
+    """The committed pre-boot input bundle, entry by entry, in the shape
+    `pre_boot_input_bundle_sha256` is computed over.
+
+    The attestation states that digest and a file count but never the list, and a record that only
+    counts its inputs cannot be read back to what they were. The list is therefore read off the
+    committed bundle it was computed from, never reconstructed from the digest.
+    """
+    return _snapshot_entries(_snapshot_tree(DIRECT_ARM_BUNDLE_DIR).files)
 
 
 def _digest_tree(root: Path) -> tuple[str, int]:
