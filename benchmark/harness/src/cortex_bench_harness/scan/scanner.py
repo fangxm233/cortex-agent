@@ -125,16 +125,15 @@ def _missing_sources(
 
 @dataclass(frozen=True)
 class _ScannedSources:
-    """The canonical files this scan reads, and the resolved roots that contain them.
+    """The canonical files this scan reads, grouped by their containing trial root.
 
-    A collected tree carries aliases of files it already holds: the production daemon replaces
-    the PI agent directory's auth.json with a link to the container HOME's copy on every spawn.
-    An alias of a file whose bytes are scanned hides nothing, so it is classified; anything whose
-    fully resolved target dangles, leaves every root, or was never scanned is not.
+    An alias is classified only when every hop stays inside its own root and ends at a source
+    whose bytes this scan reads from that same root. A dangling, escaping, cross-root or unscanned
+    alias remains visible in the unclassified inventory.
     """
 
-    targets: frozenset[Path]
     roots: tuple[Path, ...]
+    targets_by_root: tuple[frozenset[Path], ...]
 
     def is_present(self, path: Path) -> bool:
         return _is_regular_file(path) or self.is_alias(path)
@@ -142,20 +141,28 @@ class _ScannedSources:
     def is_alias(self, path: Path) -> bool:
         if not path.is_symlink():
             return False
-        target = _resolved_file(path)
-        if target is None or not any(target.is_relative_to(root) for root in self.roots):
-            return False
-        return target in self.targets
+        location = _normalized_path(path)
+        for root, targets in zip(self.roots, self.targets_by_root, strict=True):
+            if not location.is_relative_to(root):
+                continue
+            target = _resolved_file_within(path, root)
+            return target is not None and target in targets
+        return False
 
 
 def _scanned_sources(inventory: ArtifactInventory) -> _ScannedSources:
     try:
+        roots = tuple(_root_location(root) for root in inventory.trial_roots)
+        targets = frozenset(
+            path.resolve(strict=True) for source, path in inventory.sources.items()
+            if source in inventory.expected_sources and _is_regular_file(path)
+        )
         return _ScannedSources(
-            targets=frozenset(
-                path.resolve(strict=True) for source, path in inventory.sources.items()
-                if source in inventory.expected_sources and _is_regular_file(path)
+            roots=roots,
+            targets_by_root=tuple(
+                frozenset(target for target in targets if target.is_relative_to(root))
+                for root in roots
             ),
-            roots=tuple(_root_location(root) for root in inventory.trial_roots),
         )
     except OSError as error:
         raise ArtifactReadError("artifact_inventory") from error
@@ -165,13 +172,33 @@ def _is_regular_file(path: Path) -> bool:
     return path.is_file() and not path.is_symlink()
 
 
-def _resolved_file(path: Path) -> Path | None:
-    """The regular file a link chain ends at, resolved in full, or None when it ends elsewhere."""
-    try:
-        resolved = path.resolve(strict=True)
-    except (OSError, RuntimeError):
+def _resolved_file_within(path: Path, root: Path) -> Path | None:
+    """Resolve one file path while refusing any symlink hop that leaves its trial root."""
+    location = _normalized_path(path)
+    if not location.is_relative_to(root):
         return None
-    return resolved if _is_regular_file(resolved) else None
+    pending = list(location.relative_to(root).parts)
+    current = root
+    visited: set[Path] = set()
+    try:
+        while pending:
+            candidate = current / pending.pop(0)
+            if not candidate.is_symlink():
+                current = candidate
+                continue
+            if candidate in visited:
+                return None
+            visited.add(candidate)
+            target = Path(os.readlink(candidate))
+            target = _normalized_path(
+                target if target.is_absolute() else candidate.parent / target)
+            if not target.is_relative_to(root):
+                return None
+            pending = [*target.relative_to(root).parts, *pending]
+            current = root
+    except OSError:
+        return None
+    return current if _is_regular_file(current) else None
 
 
 def _unclassified_files(

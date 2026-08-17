@@ -245,6 +245,46 @@ def test_reports_alias_chain_that_escapes_the_trial_root_at_any_hop(tmp_path: Pa
     assert report.clean is False
 
 
+def test_reports_alias_chain_that_leaves_then_returns_to_the_trial_root(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "trial"
+    root.mkdir()
+    artifacts = make_artifacts(root, "none")
+    outside = tmp_path / "outside-link.txt"
+    outside.symlink_to(artifacts.sources["stdout"])
+    (root / "alias.txt").symlink_to(outside)
+
+    report = scan_trial_artifacts(artifacts, policy())
+
+    assert report.unclassified_files == (UnclassifiedFile(0, "alias.txt"),)
+    assert report.clean is False
+
+
+def test_reports_alias_to_a_scanned_source_in_another_trial_root(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    first_artifacts = make_artifacts(first, "none")
+    second_artifacts = make_artifacts(second, "none")
+    alias = first / "cross-root.txt"
+    alias.symlink_to(second_artifacts.sources["stdout"])
+    inventory = ArtifactInventory(
+        sources={
+            **first_artifacts.sources,
+            "second_stdout": second_artifacts.sources["stdout"],
+        },
+        expected_sources=first_artifacts.expected_sources | {"second_stdout"},
+        trial_roots=(first, second),
+    )
+
+    report = scan_trial_artifacts(inventory, policy())
+
+    assert UnclassifiedFile(0, "cross-root.txt") in report.unclassified_files
+    assert report.clean is False
+
+
 def test_reports_alias_of_an_in_root_file_that_was_never_scanned(tmp_path: Path) -> None:
     artifacts = make_artifacts(tmp_path, "none")
     (tmp_path / "undeclared.log").write_text("clean\n")

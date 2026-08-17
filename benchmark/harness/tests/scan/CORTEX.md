@@ -4,7 +4,7 @@ Scanner tests reject leaks and inventory gaps and prove gated isolated bundle ru
 
 | filename | role | function |
 |---|---|---|
-| test_scanner.py | test | Proves leaks and closed-inventory failures |
+| test_scanner.py | test | Proves leaks, closed inventory and same-root alias confinement |
 | test_scan_cli.py | test | Verifies scanner CLI exits and redaction |
 | test_real_agent_run.py | integration | Collection-gated thread merge and mutation proof |
 | test_zero_paid_gate.py | test | Proves ZERO-PAID commands skip container tests |
