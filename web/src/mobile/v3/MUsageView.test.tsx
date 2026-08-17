@@ -91,6 +91,23 @@ describe('MUsageView provider presentation', () => {
     expect(html).toContain('Refresh failed: gateway timeout');
     expect(html).toContain('OpenAI Codex');
   });
+
+  it('gives model-scoped windows with a shared reset time distinct React identities', () => {
+    const duplicateResetStatus: SystemUsageStatus = [{
+      provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'], freshness: 'live',
+      observedAt: NOW,
+      windows: [
+        { type: 'model_scoped', label: 'Fable', utilization: 0.33, resetsAt: null },
+        { type: 'model_scoped', label: 'Unlisted Model', utilization: null, resetsAt: null },
+      ],
+    }];
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    create(view({ view: buildUsageView(duplicateResetStatus, NOW, 'en') }));
+
+    expect(consoleError.mock.calls.flat().join(' ')).not.toContain('same key');
+    consoleError.mockRestore();
+  });
 });
 
 describe('MUsageView refresh action', () => {
@@ -105,7 +122,10 @@ describe('MUsageView refresh action', () => {
 
     act(() => renderer.update(view({ onRefresh, isRefreshing: true })));
     const pending = renderer.root.findByProps({ 'data-usage-refresh': true });
-    expect(pending.props.disabled).toBe(true);
+    expect(pending.props.disabled).not.toBe(true);
+    act(() => pending.props.onClick());
+    act(() => pending.props.onClick());
+    expect(onRefresh).toHaveBeenCalledTimes(4);
     expect(JSON.stringify(renderer.toJSON())).toContain('Refreshing…');
   });
 
