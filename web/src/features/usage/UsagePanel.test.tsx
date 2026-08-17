@@ -4,7 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SystemUsageStatus } from '@cortex-agent/ui-contract';
 import { en, LangProvider, zh } from '@/i18n';
 import { getSettingsNav, getSectionMeta } from '@/features/settings/settings-nav';
@@ -107,6 +107,8 @@ beforeEach(() => {
   harness.refreshError = null;
 });
 
+afterEach(() => vi.useRealTimers());
+
 describe('desktop Settings Usage panel', () => {
   it('adds bilingual Usage navigation and metadata through exhaustive records', () => {
     expect(getSettingsNav(en).find(entry => entry.key === 'usage')).toEqual({ key: 'usage', label: 'Usage' });
@@ -147,6 +149,16 @@ describe('desktop Settings Usage panel', () => {
 
     expect(consoleError.mock.calls.flat().join(' ')).not.toContain('same key');
     consoleError.mockRestore();
+  });
+
+  it('advances observed freshness while the panel remains open', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW * 1000);
+    const renderer = mount();
+
+    expect(renderer.root.findAllByType('time')[0].children.join('')).toBe('1m ago');
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(renderer.root.findAllByType('time')[0].children.join('')).toBe('2m ago');
   });
 
   it('invokes system.refreshUsage on every click and writes the returned snapshot', () => {

@@ -1,8 +1,9 @@
-// input:  system usage query/refresh procedures and selected language
+// input:  React clock, usage query/refresh, selected language
 // output: queried usage view with unthrottled refresh state
 // pos:    Shared usage data hook for desktop and mobile consumers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLang } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -22,6 +23,7 @@ function currentEpochSeconds(): number {
 }
 
 export function useUsage(): UsageFeatureState {
+  const [nowSec, setNowSec] = useState(currentEpochSeconds);
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const lang = useLang();
@@ -30,8 +32,12 @@ export function useUsage(): UsageFeatureState {
   const refresh = useMutation(trpc.system.refreshUsage.mutationOptions({
     onSuccess: data => queryClient.setQueryData(statusOptions.queryKey, data),
   }));
+  useEffect(() => {
+    const timer = setInterval(() => setNowSec(currentEpochSeconds()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   return {
-    view: buildUsageView(query.data, currentEpochSeconds(), lang),
+    view: buildUsageView(query.data, nowSec, lang),
     isLoading: query.isLoading,
     queryError: query.isError ? query.error : null,
     refreshError: refresh.isError ? refresh.error : null,
