@@ -194,7 +194,12 @@ test('gateway records cache tokens in usage', async (t) => {
   };
 
   // Call _recordUsageIfPossible
-  (gw as any)._recordUsageIfPossible(mockBackend, Buffer.from(mockResponse), 'claude-opus-4-6', 1000);
+  await (gw as any)._recordUsageIfPossible(
+    mockBackend,
+    Buffer.from(mockResponse),
+    'claude-opus-4-6',
+    1000,
+  );
 
   // Check what was recorded
   const records = gw.usage.storage.read('all');
@@ -245,7 +250,12 @@ test('gateway cost includes cache write and read fees', async (t) => {
     translate: null,
   };
 
-  (gw as any)._recordUsageIfPossible(mockBackend, Buffer.from(mockResponse), 'claude-opus-4-6', 500);
+  await (gw as any)._recordUsageIfPossible(
+    mockBackend,
+    Buffer.from(mockResponse),
+    'claude-opus-4-6',
+    500,
+  );
 
   const records = gw.usage.storage.read('all') as Array<{ cost: number }>;
   assert.equal(records.length, 1, 'cost test should read only its isolated usage record');
