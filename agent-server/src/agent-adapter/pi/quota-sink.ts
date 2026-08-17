@@ -54,7 +54,6 @@ function providerUsage(
     windows: reading.windows.map((window) => ({ ...window })),
     observedAt: Math.floor(observedAtMs / 1000),
     freshness: 'stale',
-    note: 'push-only: observed during the latest provider call',
   };
 }
 

@@ -232,7 +232,6 @@ test('persists every below-threshold window across restart with its observation 
       windows: reading.windows,
       observedAt: 1_786_000_000,
       freshness: 'stale',
-      note: 'push-only: observed during the latest provider call',
     });
     assert.deepEqual(calls, reading.windows.map((window) => ({
       info: {

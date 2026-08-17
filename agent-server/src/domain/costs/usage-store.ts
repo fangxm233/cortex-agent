@@ -1,5 +1,5 @@
 // input:  ProviderStateRepo and provider usage readings
-// output: ProviderUsage model and observation-ordered usage store
+// output: ProviderUsage model, verbatim-note error, and usage store
 // pos:    Backend-neutral source of latest provider usage
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,6 +7,10 @@ import { AsyncMutex } from '@core/async-mutex.js';
 import { providerStateRepo } from '@store/provider-state-repo.js';
 
 export type UsageFreshness = 'live' | 'stale' | 'never' | 'unsupported';
+
+/** Collection failure whose message is already the complete user-facing note; consumers persist
+ *  it verbatim instead of wrapping it in a collection-failed prefix. */
+export class UsageUnavailableError extends Error {}
 
 export interface UsageWindow {
   type: string;

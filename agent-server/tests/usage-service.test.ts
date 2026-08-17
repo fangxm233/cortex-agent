@@ -13,7 +13,11 @@ import {
   UsageService,
   type UsageServiceStore,
 } from '../src/domain/costs/usage-service.js';
-import { UsageStore, type ProviderUsage } from '../src/domain/costs/usage-store.js';
+import {
+  UsageStore,
+  UsageUnavailableError,
+  type ProviderUsage,
+} from '../src/domain/costs/usage-store.js';
 
 class MemoryUsageStore implements UsageServiceStore {
   private readonly records = new Map<string, ProviderUsage>();
@@ -180,7 +184,6 @@ describe('UsageService', () => {
     const coldPi = fakeAdapter('pi', async () => [usage('openai-codex', 'never', {
       displayName: 'OpenAI Codex',
       modes: ['openai-codex'],
-      note: 'push-only: waiting for next provider call',
     })]);
     const cold = serviceWith({ claude, pi: coldPi }).service;
     assert.equal(
@@ -308,6 +311,32 @@ describe('UsageService', () => {
     assert.equal(result.find((record) => record.provider === 'openai-codex')?.freshness, 'never');
   });
 
+  test('a collector-declared unavailable note is persisted verbatim without a failure prefix', async () => {
+    const prior = usage('anthropic', 'live', {
+      displayName: 'Anthropic',
+      modes: ['plan'],
+      windows: [{ type: 'five_hour', utilization: 1, resetsAt: 1_900_000_000 }],
+    });
+    const store = new MemoryUsageStore([prior]);
+    const claude = fakeAdapter('claude', async () => {
+      throw new UsageUnavailableError(
+        'Anthropic quota data temporarily unavailable (account rate-limited); showing last reading',
+      );
+    });
+    const { service } = serviceWith({ store, claude });
+
+    const result = await service.collect();
+    const anthropic = result.find((record) => record.provider === 'anthropic');
+
+    assert.deepEqual(anthropic?.windows, prior.windows);
+    assert.equal(anthropic?.observedAt, prior.observedAt);
+    assert.equal(anthropic?.freshness, 'stale');
+    assert.equal(
+      anthropic?.note,
+      'Anthropic quota data temporarily unavailable (account rate-limited); showing last reading',
+    );
+  });
+
   test('a source with no observation remains never and does not throw', async () => {
     const { service } = serviceWith({
       claude: fakeAdapter('claude', async () => null),
@@ -315,9 +344,13 @@ describe('UsageService', () => {
     });
 
     const result = await service.collect();
+    const anthropic = result.find((record) => record.provider === 'anthropic');
+    const codex = result.find((record) => record.provider === 'openai-codex');
 
-    assert.equal(result.find((record) => record.provider === 'anthropic')?.freshness, 'never');
-    assert.equal(result.find((record) => record.provider === 'openai-codex')?.freshness, 'never');
+    assert.equal(anthropic?.freshness, 'never');
+    assert.match(anthropic?.note ?? '', /no observation/);
+    assert.equal(codex?.freshness, 'never');
+    assert.equal(codex?.note, undefined);
   });
 
   test('gateway provider grouping aggregates deepseek and both qwen aliases', async () => {

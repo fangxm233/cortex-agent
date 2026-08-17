@@ -10,6 +10,7 @@ import { getSettings as readSettings, type Settings } from '@core/settings.js';
 import { GATEWAY_URL } from './gateway-manager.js';
 import {
   usageStore,
+  UsageUnavailableError,
   type ProviderUsage,
 } from './usage-store.js';
 
@@ -41,7 +42,7 @@ interface AdapterSource {
   displayName: string;
   scope: AgentUsageScope;
   modes: string[];
-  noObservationNote: string;
+  noObservationNote?: string;
 }
 
 interface GatewaySpend {
@@ -60,7 +61,6 @@ const PI_SOURCE: AdapterSource = {
   displayName: 'OpenAI Codex',
   scope: { provider: 'openai-codex', mode: 'openai-codex' },
   modes: ['openai-codex'],
-  noObservationNote: 'push-only: waiting for next provider call',
 };
 
 const SPEND_PROVIDERS: Record<SpendProvider, { displayName: string; modes: string[] }> = {
@@ -90,8 +90,9 @@ function errorMessage(error: unknown): string {
 function unavailableRecord(
   source: AdapterSource,
   prior: ProviderUsage | null,
-  note: string,
+  note: string | undefined,
 ): ProviderUsage {
+  const annotation = note === undefined ? {} : { note };
   if (!prior) {
     return {
       provider: source.provider,
@@ -100,14 +101,15 @@ function unavailableRecord(
       windows: [],
       observedAt: null,
       freshness: 'never',
-      note,
+      ...annotation,
     };
   }
+  const { note: _priorNote, ...retained } = prior;
   return {
-    ...prior,
+    ...retained,
     modes: source.modes,
     freshness: prior.observedAt === null ? 'never' : 'stale',
-    note,
+    ...annotation,
   };
 }
 
@@ -244,7 +246,9 @@ export class UsageService {
         : unavailableRecord(source, prior, source.noObservationNote);
       await this.store.update(next);
     } catch (error) {
-      const note = `${source.displayName} usage collection failed: ${errorMessage(error)}`;
+      const note = error instanceof UsageUnavailableError
+        ? error.message
+        : `${source.displayName} usage collection failed: ${errorMessage(error)}`;
       await this.store.update(unavailableRecord(source, prior, note));
     }
   }

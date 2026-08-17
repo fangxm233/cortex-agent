@@ -44,7 +44,6 @@ test('returns a never state for a scoped Codex cold start without provider traff
     windows: [],
     observedAt: null,
     freshness: 'never',
-    note: 'push-only: waiting for next provider call',
   }]);
   assert.deepEqual(counts(), { spawnCalls: 0, cacheReads: 1 });
 });
@@ -57,7 +56,6 @@ test('returns a cached Codex observation as stale with its observation time inta
     windows: [{ type: 'seven_day', utilization: 0.42, resetsAt: 1_786_160_107 }],
     observedAt: 1_786_000_000,
     freshness: 'live',
-    note: 'push-only: observed during the latest provider call',
   };
   const { adapter, counts } = adapterWith(cached);
 

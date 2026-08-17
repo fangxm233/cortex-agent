@@ -987,7 +987,6 @@ function neverCodexUsage(mode: string): ProviderUsage {
     windows: [],
     observedAt: null,
     freshness: 'never',
-    note: 'push-only: waiting for next provider call',
   };
 }
 

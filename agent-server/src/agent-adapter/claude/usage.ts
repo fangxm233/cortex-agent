@@ -8,7 +8,11 @@ import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import type { Readable, Writable } from 'node:stream';
 import { DATA_DIR } from '@core/utils.js';
-import type { ProviderUsage, UsageWindow } from '@domain/costs/usage-store.js';
+import {
+  UsageUnavailableError,
+  type ProviderUsage,
+  type UsageWindow,
+} from '@domain/costs/usage-store.js';
 import type { AgentUsageScope } from '../types.js';
 
 export const CLAUDE_USAGE_TIMEOUT_MS = 15_000;
@@ -97,8 +101,14 @@ function modelWindows(value: unknown): UsageWindow[] {
 
 function normalizedWindows(response: unknown): UsageWindow[] {
   const payload = asRecord(response);
-  const rateLimits = asRecord(payload?.['rate_limits']);
-  if (!payload || !rateLimits) throw new Error('Malformed Claude usage response: missing rate_limits');
+  if (!payload) throw new Error('Malformed Claude usage response: missing rate_limits');
+  const rateLimits = asRecord(payload['rate_limits']);
+  if (!rateLimits || payload['rate_limits_available'] === false) {
+    // A hard rate-limited account answers get_usage without rate_limits; a provider state, not corruption.
+    throw new UsageUnavailableError(
+      'Anthropic quota data temporarily unavailable (account rate-limited); showing last reading',
+    );
+  }
   const windows = Object.entries(rateLimits)
     .filter(([type]) => type !== 'model_scoped' && type !== 'extra_usage')
     .flatMap(([type, value]) => {

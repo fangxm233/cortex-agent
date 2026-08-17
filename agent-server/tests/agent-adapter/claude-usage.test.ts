@@ -14,6 +14,7 @@ import {
   type ClaudeUsageProcess,
   type ClaudeUsageSpawn,
 } from '../../src/agent-adapter/claude/usage.js';
+import { UsageUnavailableError } from '../../src/domain/costs/usage-store.js';
 
 class FakeUsageProcess extends EventEmitter implements ClaudeUsageProcess {
   readonly stdin = new PassThrough();
@@ -245,6 +246,46 @@ test('surfaces stdin pipe errors and cleans up the process', async () => {
 
   await assert.rejects(pending, /stdin pipe failed/);
   assert.deepEqual(child.killSignals, ['SIGKILL']);
+});
+
+test('reports absent quota data as temporarily unavailable, not malformed', async () => {
+  for (const payload of [
+    {},
+    { rate_limits: null },
+    { rate_limits_available: false, rate_limits: { five_hour: { utilization: 100 } } },
+  ]) {
+    const { child, spawn } = harness();
+    const pending = collectClaudeUsage(
+      { provider: 'anthropic', mode: 'plan' },
+      { spawn, requestId: () => 'usage-throttled' },
+    );
+    child.stdout.write(controlResponse('usage-throttled', payload));
+
+    await assert.rejects(pending, (error: unknown) => {
+      assert.ok(error instanceof UsageUnavailableError);
+      assert.equal(
+        error.message,
+        'Anthropic quota data temporarily unavailable (account rate-limited); showing last reading',
+      );
+      return true;
+    });
+    assert.deepEqual(child.killSignals, ['SIGKILL']);
+  }
+});
+
+test('still rejects a non-record usage payload as malformed', async () => {
+  const { child, spawn } = harness();
+  const pending = collectClaudeUsage(
+    { provider: 'anthropic', mode: 'plan' },
+    { spawn, requestId: () => 'usage-non-record' },
+  );
+  child.stdout.write(controlResponse('usage-non-record', 'not-a-payload'));
+
+  await assert.rejects(pending, (error: unknown) => {
+    assert.ok(!(error instanceof UsageUnavailableError));
+    assert.match((error as Error).message, /Malformed Claude usage response/);
+    return true;
+  });
 });
 
 test('surfaces malformed correlated responses and early process exits', async () => {
