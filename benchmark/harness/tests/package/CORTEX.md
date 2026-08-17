@@ -6,6 +6,7 @@ Package tests cover cwd resolution, manifests, and Harbor adapter behavior.
 |---|---|---|
 | fake_claude_mcp_cli.mjs | fixture | Drives Claude direct and coder-review turns |
 | fake_pi_mcp_cli.mjs | fixture | Drives PI direct and coder-review turns |
+| test_artifact_build.py | test | Proves checkout-scoped npm artifact builds serialize |
 | test_artifact_provenance.py | test | Proves the staleness gate refuses an artifact that no longer matches its source |
 | test_build_wheel.py | test | Verifies deterministic builds include the direct bundle |
 | test_cwd.py | test | Verifies dynamic container cwd resolution |
