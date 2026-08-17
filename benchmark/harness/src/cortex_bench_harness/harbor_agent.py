@@ -36,19 +36,22 @@ from .launcher.arms import (
     backend_cli_binary,
     require_composable_arm,
 )
+from .launcher.production_arms import (
+    ProductionArmBundle,
+    production_arm_candidate,
+    require_production_arm,
+    resolve_production_arm,
+)
 from .launcher.production_home import (
-    DirectArmLaunchFacts,
     MaterializedProductionHome,
-    materialize_direct_arm_home,
+    ProductionArmLaunchFacts,
+    materialize_production_home,
 )
 from .launcher.production_session import (
     InstalledProductionServer,
     ProductionServerSession,
     ProductionSessionError,
     ProductionSessionSpec,
-    is_production_direct_arm,
-    is_production_direct_candidate,
-    require_production_direct_arm,
 )
 from .launcher.trial_admission import (
     HarborTrialAdmissionError,
@@ -181,10 +184,10 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._trial_seed = parse_trial_seed(trial_seed)
         self._validate_trial_seed_binding()
         require_composable_arm(self._trial_seed.arm)
-        candidate = is_production_direct_candidate(self._trial_seed.arm)
-        if candidate:
-            require_production_direct_arm(self._trial_seed.arm)
-        self._production_direct = is_production_direct_arm(self._trial_seed.arm)
+        if production_arm_candidate(self._trial_seed.arm) is not None:
+            require_production_arm(self._trial_seed.arm)
+        self._production_arm: ProductionArmBundle | None = resolve_production_arm(
+            self._trial_seed.arm)
         self._host_credential = None
         if credential_handle is not None:
             require_capability_admission(
@@ -275,7 +278,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         return session
 
     def _require_admitted_proxy(self) -> None:
-        proxy_required = self._requires_admitted_proxy or self._production_direct
+        proxy_required = self._requires_admitted_proxy or self._production_arm is not None
         if self._proxy_arm_deferred or (proxy_required and self._proxy_session is None):
             raise HarborTrialAdmissionError("current trial proxy is not armed")
 
@@ -385,7 +388,7 @@ class CortexBenchAgent(BaseInstalledAgent):
 
     def _verification_commands(self) -> tuple[str, str]:
         command = (
-            "cortex-evidence-export --help >/dev/null" if self._production_direct
+            "cortex-evidence-export --help >/dev/null" if self._production_arm is not None
             else "cortex agent-run --help >/dev/null"
         )
         return "command -v cortex >/dev/null 2>&1", command
@@ -415,9 +418,9 @@ class CortexBenchAgent(BaseInstalledAgent):
         )
         probe = (
             "dist/entry/production-app-bootstrap.js"
-            if self._production_direct else str(SUPERVISOR_PATH)
+            if self._production_arm is not None else str(SUPERVISOR_PATH)
         )
-        flag = "-f" if self._production_direct else "-x"
+        flag = "-f" if self._production_arm is not None else "-x"
         target = PurePosixPath(bundle_root) / probe
         await self.exec_as_agent(
             environment, command=f"test {flag} {shlex.quote(str(target))}",
@@ -450,7 +453,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         for command in self._verification_commands():
             await self.exec_as_agent(environment, command=command)
         self._installed_server = await self._discover_installed_server(environment)
-        if not self._production_direct:
+        if self._production_arm is None:
             self._container_facts = ContainerFacts(
                 str(self._installed_server.bundle_root),
                 str(self._installed_server.backend_cli_path),
@@ -465,8 +468,10 @@ class CortexBenchAgent(BaseInstalledAgent):
         assert self._npm_artifact is not None
         assert self._installed_server is not None
         assert self._proxy_session is not None
+        assert self._production_arm is not None
         credential = self._proxy_session.credential_block(self._trial_seed.credential)
-        facts = DirectArmLaunchFacts(
+        facts = ProductionArmLaunchFacts(
+            arm_bundle=self._production_arm,
             trial_id=self._trial_seed.trial_id,
             root_run_id=self._trial_seed.root_run_id,
             npm_artifact=self._npm_artifact,
@@ -475,7 +480,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             dummy_token_ref=str(credential["dummy_token_ref"]),
             model_alias_policy=self._trial_seed.model_alias_policy,
         )
-        return materialize_direct_arm_home(
+        return materialize_production_home(
             cortex_home=self.logs_dir / PRODUCTION_HOME_NAME,
             runtime_cortex_home=EnvironmentPaths().agent_dir / PRODUCTION_HOME_NAME,
             artifacts_dir=self._artifact_dir, facts=facts,
@@ -518,7 +523,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         )
         if self._proxy_session is not None:
             fill_proxy_manifest(manifest_path, self._proxy_session.handle)
-        if self._production_direct:
+        if self._production_arm is not None:
             self._materialized_home = self._materialize_production_home()
         else:
             assert self._container_facts is not None
@@ -614,7 +619,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             self._post_stop_finalization_pending = True
 
     async def _execute_run(self, instruction: str, environment: BaseEnvironment) -> None:
-        if self._production_direct:
+        if self._production_arm is not None:
             await self._execute_production_run(instruction, environment)
             return
         await self._execute_legacy_run(instruction, environment)

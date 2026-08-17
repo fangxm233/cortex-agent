@@ -32,11 +32,15 @@ from cortex_bench_harness.launcher.arm_resolution import (
     DIRECT_CLAUDE_PLUGIN_DIRS,
     DIRECT_CLAUDE_SYSTEM_PROMPT,
 )
+from cortex_bench_harness.launcher.production_arms import (
+    PRODUCTION_ARM_BUNDLES,
+    ProductionArmBundle,
+    production_arm_bundle,
+)
 from cortex_bench_harness.launcher.production_home import (
-    DIRECT_ARM_BUNDLE_DIR,
-    DirectArmLaunchFacts,
+    ProductionArmLaunchFacts,
     committed_input_bundle_files,
-    materialize_direct_arm_home,
+    materialize_production_home,
 )
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
@@ -201,8 +205,10 @@ def launch_attestation(npm_artifact: Path) -> dict[str, object]:
         "pre_boot_input_bundle_sha256": "4" * 64,
     }
     return {
-        "schema_version": "cortex-bench-launch-attestation/2", "trial_id": TRIAL_ID,
-        "capture_boundary": "launcher_pre_boot", **inputs,
+        "schema_version": "cortex-bench-launch-attestation/3", "trial_id": TRIAL_ID,
+        "capture_boundary": "launcher_pre_boot",
+        "arm_bundle": production_arm_bundle("direct-pi-deepseek").attested_record(),
+        **inputs,
         "input_bundle_file_count": 7, "cortex_home_tree_sha256": "5" * 64,
         "cortex_home_file_count": 9, "bundle_manifest_hash": canonical_sha256(inputs),
     }
@@ -1028,31 +1034,38 @@ def production_arm() -> dict[str, object]:
     }
 
 
-def test_the_production_layout_records_through_the_same_collect_and_record_path(
-    tmp_path: Path,
-) -> None:
-    """No arm branch survives: a production trial has no `arm-resolution.json` and its roles come
-    from the home the launcher materialized, but it walks the same collector and publishes the same
-    envelope shape as a legacy trial.
-    """
+def production_arm_for(bundle: ProductionArmBundle) -> dict[str, object]:
+    arm = production_arm()
+    arm["orchestration"] = dict(bundle.orchestration)
+    return arm
+
+
+def agent_prompt_members(bundle: ProductionArmBundle) -> dict[str, bytes]:
+    """The prompts the arm's own agents name, as the pinned npm bundle ships them."""
+    return {
+        f"defaults/prompts/{kind}/{role}.md": (
+            bundle.bundle_dir / f"prompts/{kind}/{role}.md"
+        ).read_bytes()
+        for role in bundle.expected_roles
+        for kind in ("directives", "systemPrompts")
+    }
+
+
+def finalize_production_trial(
+    tmp_path: Path, bundle: ProductionArmBundle,
+) -> tuple[dict[str, object], object]:
     logs_dir = tmp_path / "agent"
     verifier_dir = tmp_path / "verifier"
     artifact_dir = tmp_path / "artifacts"
     verifier_dir.mkdir()
     npm_artifact = tmp_path / "server.tgz"
-    write_npm_artifact(npm_artifact, {
-        "defaults/prompts/directives/benchmark-direct.md": (
-            DIRECT_ARM_BUNDLE_DIR / "prompts/directives/benchmark-direct.md"
-        ).read_bytes(),
-        "defaults/prompts/systemPrompts/benchmark-direct.md": (
-            DIRECT_ARM_BUNDLE_DIR / "prompts/systemPrompts/benchmark-direct.md"
-        ).read_bytes(),
-    })
-    materialized = materialize_direct_arm_home(
+    write_npm_artifact(npm_artifact, agent_prompt_members(bundle))
+    materialized = materialize_production_home(
         cortex_home=logs_dir / "production-cortex-home",
         runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
         artifacts_dir=artifact_dir,
-        facts=DirectArmLaunchFacts(
+        facts=ProductionArmLaunchFacts(
+            arm_bundle=bundle,
             trial_id=TRIAL_ID, root_run_id=ROOT_RUN_ID, npm_artifact=npm_artifact,
             backend_cli_version="0.82.1",
             proxy_base_url=f"http://{TRIAL_ID}.proxy.invalid:49152",
@@ -1077,31 +1090,90 @@ def test_the_production_layout_records_through_the_same_collect_and_record_path(
 
     result = finalize_host_trial(
         logs_dir=logs_dir, verifier_dir=verifier_dir, artifact_dir=artifact_dir,
+        root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=production_arm_for(bundle),
+        npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT, revocation=revocation,
+        scan_policy=production_scan_policy(),
+    )
+    return json.loads(result.path.read_bytes()), materialized
+
+
+@pytest.mark.parametrize("bundle", PRODUCTION_ARM_BUNDLES, ids=lambda item: item.key)
+def test_the_production_layout_records_through_the_same_collect_and_record_path(
+    tmp_path: Path, bundle: ProductionArmBundle,
+) -> None:
+    """No arm branch survives: a production trial has no `arm-resolution.json` and its roles come
+    from the home the launcher materialized, but it walks the same collector and publishes the same
+    envelope shape as a legacy trial — for whichever arm's bundle actually ran.
+    """
+    envelope, materialized = finalize_production_trial(tmp_path, bundle)
+
+    assert envelope["schema_version"] == OUTER_ENVELOPE_SCHEMA_VERSION
+    assert not (tmp_path / "agent/arm-resolution.json").exists()
+    for role in bundle.expected_roles:
+        assert f"assets/bundle/defaults/prompts/systemPrompts/{role}.md" in asset_paths(envelope)
+    recorded = envelope["launch"]["config_bundle"]
+    assert recorded["canonical_sha256"] == materialized.input_bundle_sha256
+    assert recorded["file_count"] == materialized.input_bundle_file_count
+    assert len(recorded["files"]) == materialized.input_bundle_file_count
+    assert canonical_sha256(recorded["files"]) == materialized.input_bundle_sha256
+
+
+def test_a_coder_review_trial_never_records_the_direct_arm_bundle(tmp_path: Path) -> None:
+    """Hazard 4: a recorded file list that belongs to another arm is a fabricated parameter."""
+    bundle = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
+
+    envelope, materialized = finalize_production_trial(tmp_path, bundle)
+
+    recorded = envelope["launch"]["config_bundle"]["files"]
+    paths = [entry["path"] for entry in recorded]
+    assert "config/thread-templates/templates/benchmark-coder-review.json" in paths
+    assert not any("benchmark-direct" in path for path in paths)
+    assert recorded == list(committed_input_bundle_files(bundle.key))
+    assert canonical_sha256(recorded) == materialized.input_bundle_sha256
+
+
+def test_an_attestation_naming_no_committed_bundle_records_no_other_arms_list(
+    tmp_path: Path,
+) -> None:
+    bundle = production_arm_bundle("direct-pi-deepseek")
+    logs_dir = tmp_path / "agent"
+    (tmp_path / "verifier").mkdir()
+    npm_artifact = tmp_path / "server.tgz"
+    write_npm_artifact(npm_artifact, agent_prompt_members(bundle))
+    logs_dir.mkdir(parents=True)
+    (logs_dir / "instruction.md").write_text("Solve the task.\n", encoding="utf-8")
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir()
+    attestation = launch_attestation(npm_artifact)
+    attestation["arm_bundle"] = {
+        "key": "retired-arm", "profile_name": "retired", "root_template": "retired",
+    }
+    write_json(artifact_dir / "cortex-bench-launch-attestation.json", attestation)
+    write_json(artifact_dir / ADMISSION_EVIDENCE_FILENAME, admission_evidence())
+    revocation = production_proxy_outputs(artifact_dir)
+
+    result = finalize_host_trial(
+        logs_dir=logs_dir, verifier_dir=tmp_path / "verifier", artifact_dir=artifact_dir,
         root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=production_arm(),
         npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT, revocation=revocation,
         scan_policy=production_scan_policy(),
     )
-    envelope = json.loads(result.path.read_bytes())
 
-    assert envelope["schema_version"] == OUTER_ENVELOPE_SCHEMA_VERSION
-    assert not (logs_dir / "arm-resolution.json").exists()
-    assert "assets/bundle/defaults/prompts/systemPrompts/benchmark-direct.md" in asset_paths(
-        envelope)
-    bundle = envelope["launch"]["config_bundle"]
-    assert bundle["canonical_sha256"] == materialized.input_bundle_sha256
-    assert bundle["file_count"] == materialized.input_bundle_file_count
-    assert len(bundle["files"]) == materialized.input_bundle_file_count
-    assert canonical_sha256(bundle["files"]) == materialized.input_bundle_sha256
+    recorded = json.loads(result.path.read_bytes())["launch"]["config_bundle"]
+    assert recorded["files"] == unavailable("committed_input_bundle_unreadable")
 
 
-def test_the_committed_config_bundle_list_is_read_never_derived() -> None:
-    entries = committed_input_bundle_files()
+@pytest.mark.parametrize("bundle", PRODUCTION_ARM_BUNDLES, ids=lambda item: item.key)
+def test_the_committed_config_bundle_list_is_read_never_derived(
+    bundle: ProductionArmBundle,
+) -> None:
+    entries = committed_input_bundle_files(bundle.key)
     on_disk = sorted(
-        path.relative_to(DIRECT_ARM_BUNDLE_DIR).as_posix()
-        for path in DIRECT_ARM_BUNDLE_DIR.rglob("*") if path.is_file()
+        path.relative_to(bundle.bundle_dir).as_posix()
+        for path in bundle.bundle_dir.rglob("*") if path.is_file()
     )
 
     assert [entry["path"] for entry in entries] == on_disk
     for entry in entries:
         assert entry["sha256"] == sha256_hex(
-            (DIRECT_ARM_BUNDLE_DIR / entry["path"]).read_bytes())
+            (bundle.bundle_dir / entry["path"]).read_bytes())

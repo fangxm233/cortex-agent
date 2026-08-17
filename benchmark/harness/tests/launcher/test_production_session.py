@@ -1,6 +1,6 @@
 # input:  sealed home, installed server facts, fake executor
 # output: lifecycle, webhook, evidence and shutdown proofs
-# pos:    Integration contract for one production direct-arm session
+# pos:    Integration contract for one production arm session
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
@@ -10,15 +10,19 @@ from types import SimpleNamespace
 
 import pytest
 
+from cortex_bench_harness.launcher.production_arms import (
+    ProductionArmError,
+    production_arm_bundle,
+)
 from cortex_bench_harness.launcher.production_session import (
     InstalledProductionServer,
     ProductionServerSession,
     ProductionSessionError,
     ProductionSessionSpec,
-    is_production_direct_arm,
-    is_production_direct_candidate,
-    require_production_direct_arm,
 )
+
+DIRECT_BUNDLE = production_arm_bundle("direct-pi-deepseek")
+AUDIT_RETRY_BUNDLE = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
 
 
 EVIDENCE_CONTEXT = {
@@ -47,10 +51,22 @@ def direct_arm() -> dict[str, object]:
     }
 
 
+def audit_retry_arm() -> dict[str, object]:
+    arm = direct_arm()
+    arm["name"] = "cortex-audit-retry"
+    arm["orchestration"] = {
+        "mode": "coder-review", "coder_review_variant": "audit-retry",
+        "ask_manager": False,
+    }
+    return arm
+
+
 def session(
     tmp_path: Path, *, readiness_timeout_seconds: float = 1,
+    arm: dict[str, object] | None = None, bundle=DIRECT_BUNDLE,
 ) -> ProductionServerSession:
     materialized = SimpleNamespace(
+        arm_bundle=bundle,
         process_environment={
             "PATH": "/usr/bin:/bin",
             "HOME": "/logs/agent/production-cortex-home/container-home",
@@ -60,6 +76,7 @@ def session(
             "XDG_CONFIG_HOME": "/logs/agent/production-cortex-home/container-home/.config",
             "CORTEX_CONFIG_IMMUTABLE": "1", "WEBHOOK_PORT": "3001",
             "CORTEX_WEBHOOK_THREAD_OP_ONLY": "1", "CORTEX_WEBHOOK_SINGLE_ROOT": "1",
+            "CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE": bundle.root_template,
             "CORTEX_TUI": "1", "CORTEX_TUI_PORT": "3003",
         },
         production_evidence_context=EVIDENCE_CONTEXT,
@@ -68,7 +85,7 @@ def session(
     )
     spec = ProductionSessionSpec(
         logs_dir=tmp_path, container_logs_dir=PurePosixPath("/logs/agent"),
-        workspace_cwd="/app", arm=direct_arm(), trial_id="trial-direct",
+        workspace_cwd="/app", arm=arm or direct_arm(), trial_id="trial-direct",
         root_run_id="root-direct", materialized_home=materialized,
         installed=InstalledProductionServer(
             bundle_root=PurePosixPath("/installed/server"),
@@ -307,60 +324,31 @@ def test_session_still_stops_the_server_when_export_refuses(tmp_path: Path) -> N
     assert production.stopped_cleanly is True
 
 
-def test_exact_pi_deepseek_direct_shape_selects_the_production_path() -> None:
-    assert is_production_direct_arm(direct_arm()) is True
-
-
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("backend", "claude"), ("provider", "anthropic"),
-        ("model", "claude-sonnet"), ("name", ""),
-        ("credential_capability", "another-capability"),
-    ],
-)
-def test_refuses_any_arm_that_can_enter_aistatus_direct_fallback(
-    field: str, value: str,
+def test_audit_retry_session_injects_its_own_template_and_evidence_shape(
+    tmp_path: Path,
 ) -> None:
-    arm = direct_arm()
-    arm[field] = value
+    """The arm decides the injected root and the evidence mode; the session hardcodes neither."""
+    runner = FakeExecutor(tmp_path)
+    production = session(tmp_path, arm=audit_retry_arm(), bundle=AUDIT_RETRY_BUNDLE)
 
-    assert is_production_direct_arm(arm) is False
-    with pytest.raises(ProductionSessionError, match="PI/DeepSeek.*direct fallback"):
-        require_production_direct_arm(arm)
+    asyncio.run(production.run("Solve only this task.", runner))
 
-
-def test_preserves_a_nonempty_campaign_arm_name_as_production_identity() -> None:
-    arm = direct_arm()
-    arm["name"] = "zero-paid-pi-direct"
-
-    assert is_production_direct_candidate(arm) is True
-    assert is_production_direct_arm(arm) is True
-    require_production_direct_arm(arm)
-
-
-@pytest.mark.parametrize("mode", ["coder-review", "manager"])
-def test_production_direct_selector_refuses_non_direct_orchestration(mode: str) -> None:
-    arm = direct_arm()
-    arm["orchestration"] = {"mode": mode, "ask_manager": False}
-
-    assert is_production_direct_candidate(arm) is False
-    assert is_production_direct_arm(arm) is False
-    with pytest.raises(ProductionSessionError, match="PI/DeepSeek.*direct fallback"):
-        require_production_direct_arm(arm)
+    start = runner.payloads["production-thread-start.json"]
+    evidence = runner.payloads["production-evidence-input.json"]
+    assert start["template"] == "benchmark-coder-review"
+    assert start["projectId"] == "general"
+    assert evidence["mode"] == "coder-review"
+    assert evidence["expectedRoles"] == ["benchmark-coder", "benchmark-reviewer"]
+    assert evidence["managerQa"] is None
+    assert evidence["armName"] == "cortex-audit-retry"
+    assert all(
+        "benchmark-direct" not in command for command, _, _ in runner.calls
+    )
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [("max_output_tokens", 8192), ("max_task_depth", 1), ("max_thread_starts", 1)],
-)
-def test_refuses_direct_limits_that_do_not_match_the_committed_bundle(
-    field: str, value: int,
-) -> None:
-    arm = direct_arm()
-    limits = dict(arm["limits"])
-    limits[field] = value
-    arm["limits"] = limits
+def test_session_refuses_an_arm_its_bundle_does_not_declare(tmp_path: Path) -> None:
+    arm = audit_retry_arm()
+    arm["limits"] = {**arm["limits"], "max_tasks": 2}
 
-    assert is_production_direct_candidate(arm) is True
-    assert is_production_direct_arm(arm) is False
+    with pytest.raises(ProductionArmError, match="production launcher"):
+        session(tmp_path, arm=arm, bundle=AUDIT_RETRY_BUNDLE)

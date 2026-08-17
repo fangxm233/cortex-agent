@@ -1,4 +1,4 @@
-# input:  launcher role record, pinned npm bundle, container bundle root
+# input:  attested root template, pinned npm bundle, container bundle root
 # output: model-visible assets copied beside the trajectory and inventoried
 # pos:    Per-trial asset collection
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -34,10 +34,9 @@ ASSET_MANIFEST_PATH = f"{ASSETS_DIRNAME}/manifest.json"
 # container reported, so the two halves of the path meet here and nowhere else.
 MEMBER_ROOT = "package"
 ARM_RESOLUTION_FILENAME = "arm-resolution.json"
-PRODUCTION_DIRECT_ROLE = "benchmark-direct"
-PRODUCTION_DIRECT_AGENT_PATH = (
-    f"production-cortex-home/config/thread-templates/agents/{PRODUCTION_DIRECT_ROLE}.json"
-)
+PRODUCTION_HOME_DIRNAME = "production-cortex-home"
+PRODUCTION_TEMPLATES_DIR = f"{PRODUCTION_HOME_DIRNAME}/config/thread-templates/templates"
+PRODUCTION_AGENTS_DIR = f"{PRODUCTION_HOME_DIRNAME}/config/thread-templates/agents"
 PROMPT_FILE_PREFIX = "file:"
 
 
@@ -64,8 +63,9 @@ def canonical_sha256(value: object) -> str:
 
 def publish_trial_assets(
     *, logs_dir: Path, npm_artifact: Path, bundle_root: str,
+    root_template: str | None = None,
 ) -> PublishedAssets:
-    roles = _resolve_roles(logs_dir, bundle_root)
+    roles = _resolve_roles(logs_dir, bundle_root, root_template)
     files, trees = _asset_plan(roles, bundle_root)
     extracted = _extract(npm_artifact, files, trees)
     written = _write(logs_dir, extracted)
@@ -75,34 +75,58 @@ def publish_trial_assets(
 
 
 def _resolve_roles(
-    logs_dir: Path, bundle_root: str,
+    logs_dir: Path, bundle_root: str, root_template: str | None,
 ) -> Mapping[str, Mapping[str, object]]:
     """Whichever record the launcher left behind. A legacy arm writes `arm-resolution.json`; the
-    production arm materializes a home instead and its composition is the agent definition in it.
-    The arm is never consulted: the record on disk decides, so both arms take one path.
+    production arm materializes a home instead and its composition is the root template in it,
+    together with every agent that template names. The arm is never consulted: the record on disk
+    decides, so both arms take one path.
     """
     if (logs_dir / ARM_RESOLUTION_FILENAME).is_file():
         return _roles(_read_resolution(logs_dir))
-    return _production_home_roles(logs_dir, bundle_root)
+    return _production_home_roles(logs_dir, bundle_root, root_template)
 
 
 def _production_home_roles(
-    logs_dir: Path, bundle_root: str,
+    logs_dir: Path, bundle_root: str, root_template: str | None,
 ) -> Mapping[str, Mapping[str, object]]:
+    if not root_template:
+        raise TrialAssetError("production_root_template_unattested")
+    template = _read_home_document(
+        logs_dir / PRODUCTION_TEMPLATES_DIR / f"{root_template}.json")
+    agents = template.get("agents")
+    if not isinstance(agents, list) or not agents:
+        raise TrialAssetError("production_home_unreadable")
+    return {
+        str(name): _production_role(
+            _read_home_document(logs_dir / PRODUCTION_AGENTS_DIR / f"{name}.json"),
+            bundle_root,
+        )
+        for name in agents
+    }
+
+
+def _read_home_document(path: Path) -> Mapping[str, object]:
     try:
-        value = json.loads((logs_dir / PRODUCTION_DIRECT_AGENT_PATH).read_bytes())
+        value = json.loads(path.read_bytes())
     except (OSError, ValueError, UnicodeDecodeError) as error:
         raise TrialAssetError("production_home_unreadable") from error
     if not isinstance(value, Mapping):
         raise TrialAssetError("production_home_unreadable")
+    return value
+
+
+def _production_role(
+    value: Mapping[str, object], bundle_root: str,
+) -> Mapping[str, object]:
     tools = value.get("tools")
-    return {PRODUCTION_DIRECT_ROLE: {
+    return {
         "system_prompt_path": _prompt_path(
             value.get("systemPrompt"), bundle_root, "systemPrompts"),
         "directive_path": _prompt_path(value.get("directive"), bundle_root, "directives"),
         "tools": tuple(str(tools).split(",")) if isinstance(tools, str) and tools else (),
         "plugin_dirs": tuple(_string_sequence(value.get("pluginDirs") or [])),
-    }}
+    }
 
 
 def _prompt_path(value: object, bundle_root: str, kind: str) -> str:

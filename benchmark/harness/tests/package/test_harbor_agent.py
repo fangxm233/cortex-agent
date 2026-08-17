@@ -16,6 +16,7 @@ from harbor.environments.base import ExecResult
 
 from cortex_bench_harness.campaign_config import load_campaign_config
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
+from cortex_bench_harness.launcher.production_arms import ProductionArmError
 from cortex_bench_harness.launcher.production_session import (
     ProductionServerSession,
     ProductionSessionError,
@@ -393,15 +394,25 @@ def test_constructor_rejects_manifest_seed_binding_mismatch(
         )
 
 
-def test_misaligned_pi_deepseek_direct_arm_never_falls_back_to_standalone(
-    tmp_path: Path,
-) -> None:
+def audit_retry_arm() -> dict[str, object]:
     arm = direct_arm()
+    arm["orchestration"] = {
+        "mode": "coder-review", "coder_review_variant": "audit-retry",
+        "ask_manager": False,
+    }
+    return arm
+
+
+@pytest.mark.parametrize("builder", [direct_arm, audit_retry_arm])
+def test_a_misaligned_production_arm_never_falls_back_to_standalone(
+    tmp_path: Path, builder,
+) -> None:
+    arm = builder()
     limits = dict(arm["limits"])
     limits["max_output_tokens"] = 8192
     arm["limits"] = limits
 
-    with pytest.raises(ProductionSessionError, match="PI/DeepSeek.*direct fallback"):
+    with pytest.raises(ProductionArmError, match="production launcher"):
         CortexBenchAgent(
             logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
             trial_seed=trial_seed({"arm": arm}), manifest=manifest_seed(tmp_path),

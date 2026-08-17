@@ -1,0 +1,24 @@
+{
+  "name": "benchmark-reviewer",
+  "description": "Benchmark Reviewer — audits task-workspace changes without modifying them",
+  "profile": "benchmark-coder-review",
+  "persistSession": true,
+  "directive": "file:benchmark-reviewer.md",
+  "systemPrompt": "file:benchmark-reviewer.md",
+  "entryStage": "audit",
+  "stages": {
+    "audit": {
+      "description": "Audit the first implementation and either approve it or identify blockers.",
+      "promptTemplate": "Original task:\n{{input}}\n\nRead {{artifactPath}}, inspect the current task workspace, and run targeted verification for the changed behavior. Do not modify any workspace file and do not write any file. Report your concise implementation audit, with evidence, as your final message. If the implementation satisfies the task, end with `[IMPL-APPROVED]`. Otherwise list only actionable blockers and do not include the approval token anywhere."
+    },
+    "finalAudit": {
+      "description": "Audit the retry and provide the terminal review.",
+      "continuesSession": true,
+      "promptTemplate": "Read the retry handoff in {{artifactPath}}, inspect the current task workspace again, and run targeted verification for the revised behavior. Do not modify any workspace file and do not write any file. Report your final audit, with evidence, as your final message. If the implementation now satisfies the task, end with `[IMPL-APPROVED]`. Otherwise list the remaining blockers without the approval token; this is the final audit."
+    }
+  },
+  "tools": "bash,glob,grep,read,skill,todo_write",
+  "pluginDirs": [],
+  "mcpComposition": "none",
+  "mcpToolAllowlist": []
+}

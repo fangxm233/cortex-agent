@@ -8,7 +8,7 @@ Package tests cover cwd resolution, manifests, and Harbor adapter behavior.
 | fake_pi_mcp_cli.mjs | fixture | Drives PI direct and coder-review turns |
 | test_artifact_build.py | test | Proves deterministic checkout pack serialization |
 | test_artifact_provenance.py | test | Proves the staleness gate refuses an artifact that no longer matches its source |
-| test_build_wheel.py | test | Verifies deterministic builds include the direct bundle |
+| test_build_wheel.py | test | Verifies deterministic builds include every committed arm bundle |
 | test_cwd.py | test | Verifies dynamic container cwd resolution |
 | test_manifest.py | test | Verifies H3 digests and installed CLI version |
 | test_harbor_agent.py | test | Verifies proxy-confirmed production and preserved legacy dispatch |

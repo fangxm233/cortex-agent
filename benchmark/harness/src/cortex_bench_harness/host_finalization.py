@@ -139,7 +139,10 @@ def finalize_host_trial(
     scan_policy: ScanPolicy,
 ) -> HostFinalizationResult:
     roots = {"agent": logs_dir, VERIFIER_ROOT: verifier_dir, "artifacts": artifact_dir}
-    assets = _lift_assets(logs_dir, npm_artifact, bundle_root)
+    attestation = _read_record(artifact_dir / LAUNCH_ATTESTATION_FILENAME)
+    launch_record = _launch_record(attestation, artifact_dir, npm_artifact)
+    assets = _lift_assets(
+        logs_dir, npm_artifact, bundle_root, _attested_arm(attestation, "root_template"))
     walked, collected = _collect_roots(roots)
     scan_roots = {name: root for name, root in roots.items() if walked[name] == "collected"}
     scan = _scan_collected(collected, scan_roots, scan_policy)
@@ -151,7 +154,7 @@ def finalize_host_trial(
             "roots": [{"root": name, "status": status} for name, status in walked.items()],
             "files": [item.as_dict() for item in collected],
         },
-        "launch": _launch_record(artifact_dir, npm_artifact),
+        "launch": launch_record,
         "assets": _asset_record(assets),
         "verifier": _verifier_record(verifier_dir),
         "proxy_usage": _proxy_usage(revocation, trial_id),
@@ -171,7 +174,7 @@ def _unavailable(reason: str) -> dict[str, str]:
 
 
 def _lift_assets(
-    logs_dir: Path, npm_artifact: Path, bundle_root: str,
+    logs_dir: Path, npm_artifact: Path, bundle_root: str, root_template: str | None,
 ) -> PublishedAssets | str:
     """Copy the bundle members this trial's composition named, so the record answers "what did the
     model see" out of its own directory. The lift is collection: nothing here is held against the
@@ -180,6 +183,7 @@ def _lift_assets(
     try:
         return publish_trial_assets(
             logs_dir=logs_dir, npm_artifact=npm_artifact, bundle_root=bundle_root,
+            root_template=root_template,
         )
     except TrialAssetError as error:
         return error.reason
@@ -300,15 +304,17 @@ def _block(record: Mapping[str, object] | None, key: str) -> Mapping[str, object
     return value if isinstance(value, Mapping) else None
 
 
-def _launch_record(artifact_dir: Path, npm_artifact: Path) -> dict[str, object]:
+def _launch_record(
+    attestation: Mapping[str, object] | None, artifact_dir: Path, npm_artifact: Path,
+) -> dict[str, object]:
     """The parameters the launcher passed the container, written down as it emitted them."""
-    attestation = _read_record(artifact_dir / LAUNCH_ATTESTATION_FILENAME)
     admission = _read_record(artifact_dir / ADMISSION_EVIDENCE_FILENAME)
     boundary = _read_record(artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME)
     manifest = _read_record(artifact_dir / MANIFEST_FILENAME)
     image = _block(admission, "image")
     return {
         "npm_artifact": _npm_artifact_record(attestation, npm_artifact),
+        "arm_bundle": _field(attestation, "arm_bundle", "launch_attestation_absent"),
         "config_bundle": _config_bundle_record(attestation),
         "sealed_environment_allowlist": _field(
             _block(admission, "environment"), "admitted_keys", "admission_evidence_absent"),
@@ -334,17 +340,25 @@ def _npm_artifact_record(
     }
 
 
+def _attested_arm(attestation: Mapping[str, object] | None, field: str) -> str | None:
+    """What the launch attestation states about the arm that ran, or None when it stated none."""
+    block = _block(attestation, "arm_bundle")
+    value = block.get(field) if block is not None else None
+    return value if isinstance(value, str) and value else None
+
+
 def _config_bundle_record(attestation: Mapping[str, object] | None) -> dict[str, object]:
     """The bundle hash and count as the attestation states them, beside the file list they were
-    computed over. The list is read off the committed bundle because the attestation carries no
-    list of its own; a trial whose launcher wrote no attestation had no such bundle, and gets the
-    marker rather than another trial's inventory.
+    computed over. The list is read off the committed bundle THIS trial's attestation names,
+    because the attestation carries no list of its own; a trial whose launcher wrote no attestation
+    had no such bundle, and gets the marker rather than another arm's inventory.
     """
     absent = _unavailable("launch_attestation_absent")
     if attestation is None:
         return {"canonical_sha256": absent, "file_count": absent, "files": absent}
+    key = _attested_arm(attestation, "key")
     try:
-        files: object = list(committed_input_bundle_files())
+        files: object = list(committed_input_bundle_files(str(key)))
     except Exception:
         files = _unavailable("committed_input_bundle_unreadable")
     return {

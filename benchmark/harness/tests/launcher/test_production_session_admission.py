@@ -21,9 +21,13 @@ from harbor.trial.trial import Trial
 
 from capability_admission import admit_capability
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
+from cortex_bench_harness.launcher.production_arms import (
+    ProductionArmBundle,
+    production_arm_bundle,
+)
 from cortex_bench_harness.launcher.production_home import (
-    DirectArmLaunchFacts,
-    materialize_direct_arm_home,
+    ProductionArmLaunchFacts,
+    materialize_production_home,
 )
 from cortex_bench_harness.launcher.production_session import (
     InstalledProductionServer,
@@ -32,6 +36,8 @@ from cortex_bench_harness.launcher.production_session import (
 )
 from cortex_bench_harness.launcher.trial_admission import build_harbor_trial_config
 
+DIRECT_BUNDLE = production_arm_bundle("direct-pi-deepseek")
+AUDIT_RETRY_BUNDLE = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
 DIGEST = f"sha256:{'a' * 64}"
 IMAGE_REF = f"registry.invalid/task@{DIGEST}"
 TRIAL_ID = "trial-sealed"
@@ -62,12 +68,18 @@ def admitted_deepseek_capability(monkeypatch: pytest.MonkeyPatch):
     )
 
 
-def direct_arm() -> dict[str, object]:
+ARM_NAMES = {
+    "direct-pi-deepseek": "zero-paid-pi-direct",
+    "coder-review-audit-retry-pi-deepseek": "zp-pi-coder-audit-retry",
+}
+
+
+def production_arm(bundle: ProductionArmBundle = DIRECT_BUNDLE) -> dict[str, object]:
     return {
         "schema_version": "cortex-benchmark-arm/2", "kind": "cortex",
-        "name": "zero-paid-pi-direct", "backend": "pi", "provider": "deepseek",
+        "name": ARM_NAMES[bundle.key], "backend": "pi", "provider": "deepseek",
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
-        "orchestration": {"mode": "direct", "ask_manager": False},
+        "orchestration": dict(bundle.orchestration),
         "limits": {
             "max_thread_starts": 0, "max_parent_questions": 0,
             "max_task_depth": 0, "max_tasks": 0, "max_provider_requests": 8,
@@ -95,7 +107,8 @@ def write_task(root: Path) -> Path:
     return task
 
 
-def launch_kwargs(root: Path) -> dict[str, object]:
+def launch_kwargs(root: Path, bundle: ProductionArmBundle = DIRECT_BUNDLE) -> dict[str, object]:
+    arm_name = ARM_NAMES[bundle.key]
     artifacts = root / "inputs"
     artifacts.mkdir(parents=True)
     files = {
@@ -106,20 +119,20 @@ def launch_kwargs(root: Path) -> dict[str, object]:
     for path in files.values():
         path.write_bytes(b"sealed session fixture")
     return {
-        "arm": direct_arm(),
+        "arm": production_arm(bundle),
         "task_path": write_task(root),
         "trials_dir": root / "trials",
         "manifest": {
-            "root_run_id": f"{TRIAL_ID}.zero-paid-pi-direct", "trial_id": TRIAL_ID,
-            "arm": "zero-paid-pi-direct",
+            "root_run_id": f"{TRIAL_ID}.{arm_name}", "trial_id": TRIAL_ID,
+            "arm": arm_name,
             **{key: str(value) for key, value in files.items()},
             "lockfile_manifest_path": "benchmark/harness/uv.lock",
             "image_ref": IMAGE_REF, "image_digest": DIGEST,
             "image_size_bytes": len(b"sealed session fixture"),
         },
         "trial_seed": {
-            "arm": direct_arm(), "arm_path": "arm://zero-paid-pi-direct",
-            "trial_id": TRIAL_ID, "root_run_id": f"{TRIAL_ID}.zero-paid-pi-direct",
+            "arm": production_arm(bundle), "arm_path": f"arm://{arm_name}",
+            "trial_id": TRIAL_ID, "root_run_id": f"{TRIAL_ID}.{arm_name}",
             "task": {"task_id": "sealed-task", "image_ref": IMAGE_REF,
                      "image_digest": DIGEST},
             "profile_name": "benchmark", "paid_run": False,
@@ -193,21 +206,25 @@ class ContainerDouble:
         raise AssertionError(f"unexpected container command: {command}")
 
 
-def sealed_trial(tmp_path: Path) -> Trial:
-    config = build_harbor_trial_config(**launch_kwargs(tmp_path))
+def sealed_trial(tmp_path: Path, bundle: ProductionArmBundle = DIRECT_BUNDLE) -> Trial:
+    config = build_harbor_trial_config(**launch_kwargs(tmp_path, bundle))
     trial = asyncio.run(Trial.create(config))
     assert isinstance(trial.agent, CortexBenchAgent)
     trial.agent_environment.bind_proxy_controller(trial.agent)
     return trial
 
 
-def production_session(trial: Trial, logs_dir: Path) -> ProductionServerSession:
-    materialized = materialize_direct_arm_home(
+def production_session(
+    trial: Trial, logs_dir: Path, bundle: ProductionArmBundle = DIRECT_BUNDLE,
+) -> ProductionServerSession:
+    arm_name = ARM_NAMES[bundle.key]
+    materialized = materialize_production_home(
         cortex_home=logs_dir / "production-cortex-home",
         artifacts_dir=trial.paths.artifacts_dir,
         runtime_cortex_home=CONTAINER_LOGS_DIR / "production-cortex-home",
-        facts=DirectArmLaunchFacts(
-            trial_id=TRIAL_ID, root_run_id=f"{TRIAL_ID}.zero-paid-pi-direct",
+        facts=ProductionArmLaunchFacts(
+            arm_bundle=bundle,
+            trial_id=TRIAL_ID, root_run_id=f"{TRIAL_ID}.{arm_name}",
             npm_artifact=Path(str(trial.config.agent.kwargs["manifest"]["npm_artifact_path"])),
             backend_cli_version="0.82.1",
             proxy_base_url=f"http://{PROXY_HOST}:4317",
@@ -218,8 +235,8 @@ def production_session(trial: Trial, logs_dir: Path) -> ProductionServerSession:
     )
     spec = ProductionSessionSpec(
         logs_dir=logs_dir, container_logs_dir=CONTAINER_LOGS_DIR,
-        workspace_cwd=WORKSPACE_CWD, arm=direct_arm(), trial_id=TRIAL_ID,
-        root_run_id=f"{TRIAL_ID}.zero-paid-pi-direct",
+        workspace_cwd=WORKSPACE_CWD, arm=production_arm(bundle), trial_id=TRIAL_ID,
+        root_run_id=f"{TRIAL_ID}.{arm_name}",
         materialized_home=materialized,
         installed=InstalledProductionServer(
             bundle_root=PurePosixPath("/installed/server"),
@@ -281,3 +298,45 @@ def test_webhook_token_never_reaches_a_container_command_string(
         for command in container.commands
     )
     assert not list(logs_dir.glob("production-*auth*.json"))
+
+
+def test_audit_retry_arm_injects_its_attested_root_through_the_real_sealed_exec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """K-051: the second arm's exec path gets its own witness against the real admission check.
+
+    A fake executor cannot see that the sealed environment gained
+    `CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE`, and the exact-identity comparison in
+    `AdmittedDockerEnvironment.exec` is what would refuse it.
+    """
+    trial = sealed_trial(tmp_path, AUDIT_RETRY_BUNDLE)
+    logs_dir = trial.paths.agent_dir
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    container = ContainerDouble(logs_dir)
+    monkeypatch.setattr(trial.agent_environment, "_compose_exec", container)
+    session = production_session(trial, logs_dir, AUDIT_RETRY_BUNDLE)
+    posted: list[dict[str, object]] = []
+    original = session._write_request
+
+    def capture(name: str, value):
+        posted.append({"name": name, "body": dict(value)})
+        return original(name, value)
+
+    monkeypatch.setattr(session, "_write_request", capture)
+
+    result = asyncio.run(session.run("Solve only this task.", lambda command, **kwargs: (
+        trial.agent.exec_as_agent(trial.agent_environment, command, **kwargs)
+    )))
+
+    assert (result.thread_id, result.status) == ("thr_sealed", "completed")
+    start = next(
+        item["body"] for item in posted if item["name"] == "production-thread-start.json")
+    evidence = next(
+        item["body"] for item in posted if item["name"] == "production-evidence-input.json")
+    assert start["template"] == "benchmark-coder-review"
+    assert evidence["mode"] == "coder-review"
+    assert evidence["expectedRoles"] == ["benchmark-coder", "benchmark-reviewer"]
+    launch = container.commands[0]
+    assert "CORTEX_WEBHOOK_SINGLE_ROOT=1" in launch
+    assert "CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE=benchmark-coder-review" in launch
+    assert all("benchmark-direct" not in command for command in container.commands)

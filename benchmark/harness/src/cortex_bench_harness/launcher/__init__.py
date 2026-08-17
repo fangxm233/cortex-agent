@@ -52,12 +52,19 @@ if TYPE_CHECKING:
         build_harbor_trial_config,
         create_harbor_trial,
     )
+    from .production_arms import (
+        PRODUCTION_ARM_BUNDLES,
+        ProductionArmBundle,
+        ProductionArmError,
+        production_arm_bundle,
+        require_production_arm,
+        resolve_production_arm,
+    )
     from .production_home import (
-        DIRECT_ARM_BUNDLE_DIR,
-        DirectArmLaunchFacts,
         MaterializedProductionHome,
+        ProductionArmLaunchFacts,
         ProductionHomeError,
-        materialize_direct_arm_home,
+        materialize_production_home,
     )
     from .trial_proxy import (
         PROXY_ARTIFACT_SOURCES,
@@ -116,11 +123,18 @@ _EXPORT_MODULES = {
         "create_harbor_trial",
     ], ".trial_admission"),
     **dict.fromkeys([
-        "DIRECT_ARM_BUNDLE_DIR",
-        "DirectArmLaunchFacts",
+        "PRODUCTION_ARM_BUNDLES",
+        "ProductionArmBundle",
+        "ProductionArmError",
+        "production_arm_bundle",
+        "require_production_arm",
+        "resolve_production_arm",
+    ], ".production_arms"),
+    **dict.fromkeys([
         "MaterializedProductionHome",
+        "ProductionArmLaunchFacts",
         "ProductionHomeError",
-        "materialize_direct_arm_home",
+        "materialize_production_home",
     ], ".production_home"),
     **dict.fromkeys([
         "PROXY_ARTIFACT_SOURCES",

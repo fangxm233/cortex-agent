@@ -1,4 +1,4 @@
-# input:  build script, locked source, hostile env and direct-arm bundle
+# input:  build script, locked source, hostile env and committed arm bundles
 # output: reproducible wheel and packaged production bundle assertions
 # pos:    Contract tests for deterministic complete wheel contents
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import zipfile
 from pathlib import Path
+
+from cortex_bench_harness.launcher.production_arms import PRODUCTION_ARM_BUNDLES
 
 HARNESS_DIR = Path(__file__).resolve().parents[2]
 BUILD_SCRIPT = HARNESS_DIR / "scripts" / "build-wheel.sh"
@@ -36,22 +38,15 @@ def test_conflicting_ambient_epoch_cannot_change_wheel() -> None:
     assert hostile == baseline
 
 
-def test_wheel_contains_the_complete_direct_arm_bundle() -> None:
+def test_wheel_contains_every_committed_arm_bundle() -> None:
+    """A bundle that is not packaged is an arm the installed harness cannot launch."""
     build_wheel(None)
-    prefix = "cortex_bench_harness/launcher/bundles/direct-pi-deepseek/cortex-home/"
     expected = {
-        prefix + name for name in (
-            "config/machines.json",
-            "config/profiles.json",
-            "config/settings.json",
-            "config/thread-templates/agents/benchmark-direct.json",
-            "config/thread-templates/templates/benchmark-direct.json",
-            "context/projects/general/TASKS.yaml",
-            "data/mode.json",
-            "data/schedules.json",
-            "prompts/directives/benchmark-direct.md",
-            "prompts/systemPrompts/benchmark-direct.md",
-        )
+        f"cortex_bench_harness/launcher/bundles/{bundle.key}/cortex-home/"
+        f"{path.relative_to(bundle.bundle_dir).as_posix()}"
+        for bundle in PRODUCTION_ARM_BUNDLES
+        for path in bundle.bundle_dir.rglob("*") if path.is_file()
     }
+    assert len(expected) >= 20
     with zipfile.ZipFile(WHEEL_PATH) as wheel:
         assert expected <= set(wheel.namelist())

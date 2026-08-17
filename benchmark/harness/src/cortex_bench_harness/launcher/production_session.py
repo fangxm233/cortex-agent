@@ -1,6 +1,6 @@
-# input:  installed server, sealed home, direct arm and instruction
+# input:  installed server, sealed home, production arm and instruction
 # output: terminal production thread and emitted evidence files
-# pos:    Owns one production direct-arm server lifecycle
+# pos:    Owns one production arm server lifecycle
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
@@ -13,10 +13,10 @@ from pathlib import Path, PurePosixPath
 from typing import Protocol
 
 from ..trial_assets import canonical_sha256
+from .production_arms import ProductionArmBundle, require_production_arm
 from .production_home import MaterializedProductionHome
 
 PROJECT_ID = "general"
-TEMPLATE_NAME = "benchmark-direct"
 SERVER_READY_TIMEOUT_SECONDS = 30.0
 SESSION_POLL_SECONDS = 1.0
 HTTP_REQUEST_TIMEOUT_SECONDS = 10
@@ -85,48 +85,6 @@ class ProductionThreadResult:
     final_output: str | None
 
 
-def is_production_direct_candidate(arm: Mapping[str, object]) -> bool:
-    orchestration = arm.get("orchestration")
-    return (
-        arm.get("kind") == "cortex" and arm.get("backend") == "pi"
-        and arm.get("provider") == "deepseek"
-        and arm.get("model") == "deepseek-v4-flash"
-        and isinstance(orchestration, Mapping)
-        and orchestration.get("mode") == "direct"
-    )
-
-
-def is_production_direct_arm(arm: Mapping[str, object]) -> bool:
-    orchestration = arm.get("orchestration")
-    limits = arm.get("limits")
-    expected_limits = {
-        "max_thread_starts": 0, "max_parent_questions": 0,
-        "max_task_depth": 0, "max_tasks": 0,
-        "max_resident_agent_processes": 1, "max_output_tokens": 65_536,
-    }
-    expected = (
-        arm.get("schema_version") == "cortex-benchmark-arm/2",
-        arm.get("kind") == "cortex",
-        isinstance(arm.get("name"), str) and bool(arm.get("name")),
-        arm.get("backend") == "pi", arm.get("provider") == "deepseek",
-        arm.get("model") == "deepseek-v4-flash",
-        arm.get("credential_capability") == "pi-deepseek-api-key",
-        isinstance(orchestration, Mapping) and orchestration.get("mode") == "direct",
-        isinstance(orchestration, Mapping) and orchestration.get("ask_manager") is False,
-        isinstance(limits, Mapping)
-        and all(limits.get(key) == value for key, value in expected_limits.items()),
-    )
-    return all(expected)
-
-
-def require_production_direct_arm(arm: Mapping[str, object]) -> None:
-    if not is_production_direct_arm(arm):
-        raise ProductionSessionError(
-            "production launcher requires the PI/DeepSeek direct arm; any arm that can enter "
-            "the aistatus silent direct fallback is refused"
-        )
-
-
 def _required_mapping(value: object, label: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
         raise ProductionSessionError(f"{label} response must be an object")
@@ -156,7 +114,7 @@ class ProductionServerSession:
         poll_interval_seconds: float = SESSION_POLL_SECONDS,
         readiness_timeout_seconds: float = SERVER_READY_TIMEOUT_SECONDS,
     ) -> None:
-        require_production_direct_arm(spec.arm)
+        require_production_arm(spec.arm)
         self._spec = spec
         self._poll_seconds = poll_interval_seconds
         self._ready_timeout_seconds = readiness_timeout_seconds
@@ -166,6 +124,11 @@ class ProductionServerSession:
     @property
     def stopped_cleanly(self) -> bool:
         return self._stopped_cleanly
+
+    @property
+    def _arm_bundle(self) -> ProductionArmBundle:
+        """The bundle this home was materialized from: the arm that is actually running."""
+        return self._spec.materialized_home.arm_bundle
 
     async def run(self, instruction: str, execute: Executor) -> ProductionThreadResult:
         pid: int | None = None
@@ -305,7 +268,8 @@ class ProductionServerSession:
     async def _start_thread(self, instruction: str, execute: Executor) -> str:
         context = self._spec.materialized_home.production_evidence_context
         response = await self._post("production-thread-start.json", {
-            "action": "start", "template": TEMPLATE_NAME, "message": instruction,
+            "action": "start", "template": self._arm_bundle.root_template,
+            "message": instruction,
             "projectId": PROJECT_ID, "productionBenchmarkEvidenceContext": context,
         }, execute)
         return _required_text(self._response_data(response).get("threadId"), "thread id")
@@ -353,7 +317,9 @@ class ProductionServerSession:
             "rootRunId": self._spec.root_run_id, "armName": self._spec.arm["name"],
             "armCanonicalSha256": canonical_sha256(self._spec.arm),
             "bundleManifestHash": self._spec.materialized_home.bundle_manifest_hash,
-            "mode": "direct", "expectedRoles": [TEMPLATE_NAME], "managerQa": None,
+            "mode": self._arm_bundle.evidence_mode,
+            "expectedRoles": list(self._arm_bundle.expected_roles),
+            "managerQa": self._arm_bundle.manager_qa,
             "limits": {"max_task_depth": limits["max_task_depth"], "max_tasks": limits["max_tasks"]},
             "proxyExport": _unavailable_proxy(self._spec.trial_id),
         }

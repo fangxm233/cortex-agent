@@ -1,6 +1,6 @@
-# input:  direct bundle, launcher facts, host and runtime paths
+# input:  the arm's committed bundle, launcher facts, host and runtime paths
 # output: sealed home, auth, attestations, committed bundle inventory
-# pos:    Builds sealed production direct-arm homes
+# pos:    Builds sealed production arm homes
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import hashlib
@@ -14,23 +14,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/2"
+from .production_arms import ProductionArmBundle, production_arm_bundle
+
+LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/3"
 EVIDENCE_CONTEXT_SCHEMA = "cortex-production-benchmark-evidence-context/1"
 LAUNCH_ATTESTATION_FILENAME = "cortex-bench-launch-attestation.json"
-DIRECT_ARM_BUNDLE_DIR = (
-    Path(__file__).resolve().parent
-    / "bundles/direct-pi-deepseek/cortex-home"
-)
 # The container HOME lives inside the sealed CORTEX_HOME, and the server prints its own paths into
 # logs the trial collects. The leak scanner refuses any `/home/<name>` it finds there, so this
 # directory may not be called `home`: that spelling made the gateway logging its own config path
 # indistinguishable from a host home path and refused an otherwise complete trial.
 CONTAINER_HOME_DIR = "container-home"
 BACKEND_CLI_NAME = "pi"
-MODEL_NAME = "deepseek-v4-flash"
-PROFILE_NAME = "benchmark-direct"
 PROVIDER_NAME = "deepseek"
-PROFILE_MODE = "trial"
 MAX_OUTPUT_TOKENS = 65_536
 RESIDUE_PREFIXES = (
     "SLACK_", "FEISHU_", "LARK_", "CLAUDE_CODE_OAUTH_", "ANTHROPIC_",
@@ -54,7 +49,8 @@ class ProductionHomeError(ValueError):
 
 
 @dataclass(frozen=True)
-class DirectArmLaunchFacts:
+class ProductionArmLaunchFacts:
+    arm_bundle: ProductionArmBundle
     trial_id: str
     root_run_id: str
     npm_artifact: Path
@@ -66,6 +62,7 @@ class DirectArmLaunchFacts:
 
 @dataclass(frozen=True)
 class MaterializedProductionHome:
+    arm_bundle: ProductionArmBundle
     cortex_home: Path
     process_environment: Mapping[str, str]
     client_token: str
@@ -119,7 +116,7 @@ def _validate_proxy(value: str, trial_id: str) -> str:
     return value.rstrip("/")
 
 
-def _validate_facts(facts: DirectArmLaunchFacts) -> str:
+def _validate_facts(facts: ProductionArmLaunchFacts) -> str:
     trial_id = _required_text(facts.trial_id, "trial_id")
     if not TRIAL_ID_PATTERN.fullmatch(trial_id):
         raise ProductionHomeError("trial_id must be one lowercase DNS label")
@@ -160,15 +157,18 @@ def _snapshot_entries(
     )
 
 
-def committed_input_bundle_files() -> tuple[dict[str, str], ...]:
-    """The committed pre-boot input bundle, entry by entry, in the shape
+def committed_input_bundle_files(bundle_key: str) -> tuple[dict[str, str], ...]:
+    """The committed pre-boot input bundle of the named arm, entry by entry, in the shape
     `pre_boot_input_bundle_sha256` is computed over.
 
     The attestation states that digest and a file count but never the list, and a record that only
     counts its inputs cannot be read back to what they were. The list is therefore read off the
-    committed bundle it was computed from, never reconstructed from the digest.
+    committed bundle it was computed from, never reconstructed from the digest — and off the bundle
+    the trial's own attestation names, so a coder-review trial can never record the direct arm's
+    inventory.
     """
-    return _snapshot_entries(_snapshot_tree(DIRECT_ARM_BUNDLE_DIR).files)
+    return _snapshot_entries(
+        _snapshot_tree(production_arm_bundle(bundle_key).bundle_dir).files)
 
 
 def _digest_tree(root: Path) -> tuple[str, int]:
@@ -218,7 +218,7 @@ def _auth_token() -> str:
 
 
 def _sealed_environment(
-    source: Mapping[str, str], runtime_home: Path, facts: DirectArmLaunchFacts,
+    source: Mapping[str, str], runtime_home: Path, facts: ProductionArmLaunchFacts,
 ) -> Mapping[str, str]:
     environment = {
         key: source[key] for key in INHERITED_KEYS
@@ -231,7 +231,10 @@ def _sealed_environment(
         "XDG_CACHE_HOME": str(runtime_home / f"{CONTAINER_HOME_DIR}/.cache"),
         "XDG_CONFIG_HOME": str(runtime_home / f"{CONTAINER_HOME_DIR}/.config"),
         "CORTEX_CONFIG_IMMUTABLE": "1", "CORTEX_WEBHOOK_THREAD_OP_ONLY": "1",
+        # Single-root mode admits exactly the root this launch attests, and admits nothing at all
+        # when the launcher states no template: the arm widens the guard, the server does not.
         "CORTEX_WEBHOOK_SINGLE_ROOT": "1",
+        "CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE": facts.arm_bundle.root_template,
         "WEBHOOK_PORT": "3001",
         "CORTEX_TUI": "1", "CORTEX_TUI_PORT": "3003",
     })
@@ -287,13 +290,14 @@ def _bundle_manifest_hash(
 
 
 def _launch_attestation(
-    facts: DirectArmLaunchFacts, npm_sha256: str, bundle: _TreeSnapshot,
+    facts: ProductionArmLaunchFacts, npm_sha256: str, bundle: _TreeSnapshot,
     home_sha256: str, home_count: int, manifest_hash: str,
 ) -> dict[str, object]:
     return {
         "schema_version": LAUNCH_ATTESTATION_SCHEMA,
         "trial_id": facts.trial_id,
         "capture_boundary": "launcher_pre_boot",
+        "arm_bundle": facts.arm_bundle.attested_record(),
         "npm_artifact_sha256": npm_sha256,
         "backend_cli": {"name": BACKEND_CLI_NAME, "version": facts.backend_cli_version},
         "pre_boot_input_bundle_sha256": bundle.sha256,
@@ -305,7 +309,7 @@ def _launch_attestation(
 
 
 def _evidence_context(
-    facts: DirectArmLaunchFacts, bundle_manifest_hash: str,
+    facts: ProductionArmLaunchFacts, bundle_manifest_hash: str,
 ) -> Mapping[str, object]:
     value = {
         "schema_version": EVIDENCE_CONTEXT_SCHEMA,
@@ -336,8 +340,8 @@ def _runtime_home(value: Path | None, local_home: Path) -> Path:
     return runtime_home
 
 
-def materialize_direct_arm_home(
-    *, cortex_home: Path, artifacts_dir: Path, facts: DirectArmLaunchFacts,
+def materialize_production_home(
+    *, cortex_home: Path, artifacts_dir: Path, facts: ProductionArmLaunchFacts,
     inherited_environment: Mapping[str, str], runtime_cortex_home: Path | None = None,
 ) -> MaterializedProductionHome:
     home = Path(cortex_home).resolve()
@@ -345,7 +349,7 @@ def materialize_direct_arm_home(
     attestation_path = Path(artifacts_dir).resolve() / LAUNCH_ATTESTATION_FILENAME
     _validate_destinations(home, attestation_path)
     proxy_base_url = _validate_facts(facts)
-    bundle = _snapshot_tree(DIRECT_ARM_BUNDLE_DIR)
+    bundle = _snapshot_tree(facts.arm_bundle.bundle_dir)
     environment = _sealed_environment(inherited_environment, runtime_home, facts)
     client_token, webhook_token = _auth_token(), _auth_token()
     _copy_snapshot(bundle, home)
@@ -359,6 +363,7 @@ def materialize_direct_arm_home(
         facts, npm_sha256, bundle, home_sha256, home_count, manifest_hash)
     _write_json_atomic(attestation_path, attestation)
     return MaterializedProductionHome(
+        arm_bundle=facts.arm_bundle,
         cortex_home=home, process_environment=environment,
         client_token=client_token, webhook_token=webhook_token,
         launch_attestation_path=attestation_path,

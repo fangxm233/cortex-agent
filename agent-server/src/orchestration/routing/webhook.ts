@@ -299,8 +299,13 @@ function createWebhookHandler(_options: {
               return reply({ success: false, error: `${guard.reason}. Do NOT retry this spawn — fold the remaining work into your own step, or escalate by calling the thread_abort tool with a diagnosis.` });
             }
             if (process.env.CORTEX_WEBHOOK_SINGLE_ROOT === '1') {
+              // The admitted root template is whatever the launcher attested for the arm it
+              // materialized, never a name this server carries. An unset attestation admits
+              // nothing at all, so the guard stays fail-closed for every arm.
+              const attestedTemplate = process.env.CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE;
               const exactProductionRoot = (
-                template === 'benchmark-direct' && !agent && !data.parentThreadId
+                !!attestedTemplate && template === attestedTemplate
+                && !agent && !data.parentThreadId
                 && curDepth === 0 && data.projectId === 'general' && evidenceContext !== undefined
               );
               if (!exactProductionRoot) {

@@ -1,8 +1,9 @@
-# input:  committed direct bundle, hostile env, launcher facts
+# input:  committed arm bundles, hostile env, launcher facts
 # output: fresh-home, residue, digest, attestation and refusal proofs
-# pos:    Contract tests for the production direct-arm materializer
+# pos:    Contract tests for the production arm materializer
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import dataclasses
 import hashlib
 import json
 import stat
@@ -16,12 +17,18 @@ from cortex_bench_harness.scan import (
     scan_trial_artifacts,
 )
 from cortex_bench_harness.launcher import (
-    DIRECT_ARM_BUNDLE_DIR,
-    DirectArmLaunchFacts,
+    ProductionArmLaunchFacts,
     ProductionHomeError,
-    materialize_direct_arm_home,
+    materialize_production_home,
     production_home,
 )
+from cortex_bench_harness.launcher.production_arms import (
+    ProductionArmBundle,
+    production_arm_bundle,
+)
+
+DIRECT_BUNDLE = production_arm_bundle("direct-pi-deepseek")
+AUDIT_RETRY_BUNDLE = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
 
 EXPECTED_PROFILE = {
     "defaultProfile": "benchmark-direct",
@@ -102,6 +109,7 @@ SEALED_ENVIRONMENT_KEYS = {
     "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "CORTEX_CONFIG_IMMUTABLE",
     "WEBHOOK_PORT", "CORTEX_TUI", "CORTEX_TUI_PORT",
     "CORTEX_WEBHOOK_THREAD_OP_ONLY", "CORTEX_WEBHOOK_SINGLE_ROOT",
+    "CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE",
 }
 
 
@@ -123,10 +131,13 @@ def tree_digest(root: Path) -> tuple[str, int]:
     return canonical_sha256(entries), len(entries)
 
 
-def facts(tmp_path: Path) -> DirectArmLaunchFacts:
+def facts(
+    tmp_path: Path, bundle: ProductionArmBundle = DIRECT_BUNDLE,
+) -> ProductionArmLaunchFacts:
     npm_artifact = tmp_path / "cortex-agent-server.tgz"
     npm_artifact.write_bytes(b"pinned npm artifact\n")
-    return DirectArmLaunchFacts(
+    return ProductionArmLaunchFacts(
+        arm_bundle=bundle,
         trial_id="trial-direct-001",
         root_run_id="trial-direct-001.cortex-direct",
         npm_artifact=npm_artifact,
@@ -137,12 +148,15 @@ def facts(tmp_path: Path) -> DirectArmLaunchFacts:
     )
 
 
-def materialize(tmp_path: Path, environment: dict[str, str] | None = None):
-    return materialize_direct_arm_home(
+def materialize(
+    tmp_path: Path, environment: dict[str, str] | None = None,
+    bundle: ProductionArmBundle = DIRECT_BUNDLE,
+):
+    return materialize_production_home(
         cortex_home=tmp_path / "fresh-cortex-home",
         runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
         artifacts_dir=tmp_path / "artifacts",
-        facts=facts(tmp_path),
+        facts=facts(tmp_path, bundle),
         inherited_environment=environment or {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
     )
 
@@ -152,7 +166,7 @@ def read_json(path: Path) -> object:
 
 
 def expected_attestation(
-    launch: DirectArmLaunchFacts, bundle_sha: str, bundle_count: int,
+    launch: ProductionArmLaunchFacts, bundle_sha: str, bundle_count: int,
     home_sha: str, home_count: int,
 ) -> tuple[dict[str, object], str]:
     npm_sha = hashlib.sha256(launch.npm_artifact.read_bytes()).hexdigest()
@@ -162,8 +176,12 @@ def expected_attestation(
         "pre_boot_input_bundle_sha256": bundle_sha,
     })
     return {
-        "schema_version": "cortex-bench-launch-attestation/2",
+        "schema_version": "cortex-bench-launch-attestation/3",
         "trial_id": "trial-direct-001", "capture_boundary": "launcher_pre_boot",
+        "arm_bundle": {
+            "key": "direct-pi-deepseek", "profile_name": "benchmark-direct",
+            "root_template": "benchmark-direct",
+        },
         "npm_artifact_sha256": npm_sha, "backend_cli": backend,
         "pre_boot_input_bundle_sha256": bundle_sha,
         "input_bundle_file_count": bundle_count,
@@ -172,10 +190,10 @@ def expected_attestation(
     }, manifest
 
 
-def copy_bundle(destination: Path, symlink_target: Path | None = None) -> None:
+def copy_bundle(destination: Path, symlink_target: Path | None = None) -> ProductionArmBundle:
     destination.mkdir()
-    for source in DIRECT_ARM_BUNDLE_DIR.rglob("*"):
-        relative = source.relative_to(DIRECT_ARM_BUNDLE_DIR)
+    for source in DIRECT_BUNDLE.bundle_dir.rglob("*"):
+        relative = source.relative_to(DIRECT_BUNDLE.bundle_dir)
         output = destination / relative
         if source.is_dir():
             output.mkdir()
@@ -183,6 +201,7 @@ def copy_bundle(destination: Path, symlink_target: Path | None = None) -> None:
             output.symlink_to(symlink_target)
         else:
             output.write_bytes(source.read_bytes())
+    return dataclasses.replace(DIRECT_BUNDLE, bundle_dir=destination)
 
 
 def test_committed_bundle_is_the_exact_production_direct_surface(tmp_path: Path) -> None:
@@ -297,11 +316,11 @@ def test_seals_out_host_state_redirects_and_secrets_the_server_itself_reads(tmp_
 
 def test_hashes_both_trees_and_writes_exact_linked_attestation(tmp_path: Path) -> None:
     launch = facts(tmp_path)
-    result = materialize_direct_arm_home(
+    result = materialize_production_home(
         cortex_home=tmp_path / "fresh-cortex-home", artifacts_dir=tmp_path / "artifacts",
         facts=launch, inherited_environment={"PATH": "/usr/bin:/bin"},
     )
-    bundle_sha, bundle_count = tree_digest(DIRECT_ARM_BUNDLE_DIR)
+    bundle_sha, bundle_count = tree_digest(DIRECT_BUNDLE.bundle_dir)
     home_sha, home_count = tree_digest(result.cortex_home)
     attestation, manifest = expected_attestation(
         launch, bundle_sha, bundle_count, home_sha, home_count,
@@ -368,22 +387,21 @@ def test_attestation_is_the_last_materialization_write(
 
 
 def test_one_bundle_byte_mutation_changes_bundle_home_and_manifest_hashes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     copied_bundle = tmp_path / "bundle-copy"
-    copy_bundle(copied_bundle)
-    monkeypatch.setattr(production_home, "DIRECT_ARM_BUNDLE_DIR", copied_bundle)
+    copied = copy_bundle(copied_bundle)
 
-    before = materialize_direct_arm_home(
+    before = materialize_production_home(
         cortex_home=tmp_path / "home-before", artifacts_dir=tmp_path / "artifacts-before",
-        facts=facts(tmp_path), inherited_environment={"PATH": "/bin"},
+        facts=facts(tmp_path, copied), inherited_environment={"PATH": "/bin"},
     )
     profile = copied_bundle / "config/profiles.json"
     profile.chmod(0o644)
     profile.write_bytes(profile.read_bytes() + b"\n")
-    after = materialize_direct_arm_home(
+    after = materialize_production_home(
         cortex_home=tmp_path / "home-after", artifacts_dir=tmp_path / "artifacts-after",
-        facts=facts(tmp_path), inherited_environment={"PATH": "/bin"},
+        facts=facts(tmp_path, copied), inherited_environment={"PATH": "/bin"},
     )
 
     assert after.input_bundle_sha256 != before.input_bundle_sha256
@@ -396,39 +414,83 @@ def test_refuses_an_existing_home_before_writing_an_attestation(tmp_path: Path) 
     existing.mkdir()
 
     with pytest.raises(ProductionHomeError, match="fresh CORTEX_HOME"):
-        materialize_direct_arm_home(
+        materialize_production_home(
             cortex_home=existing, artifacts_dir=tmp_path / "artifacts-existing",
             facts=facts(tmp_path), inherited_environment={},
         )
     assert not (tmp_path / "artifacts-existing").exists()
 
 
-def test_refuses_a_symlinked_bundle_before_creating_the_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_refuses_a_symlinked_bundle_before_creating_the_home(tmp_path: Path) -> None:
     copied_bundle = tmp_path / "bundle-symlink"
     linked_target = tmp_path / "outside.json"
     linked_target.write_text("{}\n")
-    copy_bundle(copied_bundle, linked_target)
-    monkeypatch.setattr(production_home, "DIRECT_ARM_BUNDLE_DIR", copied_bundle)
+    copied = copy_bundle(copied_bundle, linked_target)
 
     with pytest.raises(ProductionHomeError, match="regular files"):
-        materialize_direct_arm_home(
+        materialize_production_home(
             cortex_home=tmp_path / "symlink-home", artifacts_dir=tmp_path / "artifacts-link",
-            facts=facts(tmp_path), inherited_environment={},
+            facts=facts(tmp_path, copied), inherited_environment={},
         )
     assert not (tmp_path / "symlink-home").exists()
 
 
 def test_refuses_a_direct_provider_route_before_creating_the_home(tmp_path: Path) -> None:
     launch = facts(tmp_path)
-    invalid = DirectArmLaunchFacts(
-        **{**launch.__dict__, "proxy_base_url": "http://api.deepseek.com"},
-    )
+    invalid = dataclasses.replace(launch, proxy_base_url="http://api.deepseek.com")
 
     with pytest.raises(ProductionHomeError, match="trial-scoped"):
-        materialize_direct_arm_home(
+        materialize_production_home(
             cortex_home=tmp_path / "invalid-home", artifacts_dir=tmp_path / "artifacts-invalid",
             facts=invalid, inherited_environment={},
         )
     assert not (tmp_path / "invalid-home").exists()
+
+
+def test_audit_retry_arm_materializes_its_own_bundle_and_never_the_direct_one(
+    tmp_path: Path,
+) -> None:
+    """Hazard 4's other half: the home a coder-review trial boots is that arm's bundle."""
+    result = materialize(tmp_path, bundle=AUDIT_RETRY_BUNDLE)
+    home = result.cortex_home
+
+    assert result.arm_bundle is AUDIT_RETRY_BUNDLE
+    assert (home / "config/thread-templates/templates/benchmark-coder-review.json").is_file()
+    assert not (home / "config/thread-templates/templates/benchmark-direct.json").exists()
+    assert not (home / "prompts/directives/benchmark-direct.md").exists()
+    assert read_json(home / "config/profiles.json")["defaultProfile"] == "benchmark-coder-review"
+    bundle_sha, bundle_count = tree_digest(AUDIT_RETRY_BUNDLE.bundle_dir)
+    assert (result.input_bundle_sha256, result.input_bundle_file_count) == (
+        bundle_sha, bundle_count)
+    (tmp_path / "direct").mkdir()
+    assert result.input_bundle_sha256 != materialize(
+        tmp_path / "direct", bundle=DIRECT_BUNDLE).input_bundle_sha256
+
+
+def test_attestation_and_sealed_environment_state_the_arm_that_ran(tmp_path: Path) -> None:
+    """The webhook's single-root guard is widened by exactly this attested template."""
+    result = materialize(tmp_path, bundle=AUDIT_RETRY_BUNDLE)
+
+    assert result.process_environment["CORTEX_WEBHOOK_SINGLE_ROOT"] == "1"
+    assert result.process_environment["CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE"] == (
+        "benchmark-coder-review")
+    attestation = read_json(result.launch_attestation_path)
+    assert attestation["arm_bundle"] == {
+        "key": "coder-review-audit-retry-pi-deepseek",
+        "profile_name": "benchmark-coder-review",
+        "root_template": "benchmark-coder-review",
+    }
+    assert attestation["schema_version"] == "cortex-bench-launch-attestation/3"
+
+
+def test_committed_bundle_files_are_read_from_the_bundle_that_ran(tmp_path: Path) -> None:
+    """`committed_input_bundle_files` answers per bundle key, never for one hardcoded arm."""
+    entries = production_home.committed_input_bundle_files(AUDIT_RETRY_BUNDLE.key)
+    paths = tuple(entry["path"] for entry in entries)
+
+    assert "config/thread-templates/templates/benchmark-coder-review.json" in paths
+    assert not any("benchmark-direct" in path for path in paths)
+    for entry in entries:
+        payload = (AUDIT_RETRY_BUNDLE.bundle_dir / entry["path"]).read_bytes()
+        assert entry["sha256"] == hashlib.sha256(payload).hexdigest()
+    assert production_home.committed_input_bundle_files(DIRECT_BUNDLE.key) != entries
