@@ -47,8 +47,8 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
 | production-attempt-identity.test.ts | test | proves pre-spawn root linkage, reload and drift refusal |
-| production-attempt-journal.test.ts | test | proves spawn-linked normalized journals per attempt |
-| production-evidence-boundary-fixture.ts | fixture | Builds durable production v2 evidence scenarios |
+| production-attempt-journal.test.ts | test | proves asset-bound normalized journals per attempt |
+| production-evidence-boundary-fixture.ts | fixture | Builds identity-consistent production evidence |
 | production-benchmark-evidence-context.test.ts | test | proves context gating, spawn linkage and collision refusal |
 | production-accounting-attribution.test.ts | test | proves concurrent spawn-linked request and token attribution |
 | role-surface.test.ts | test | verifies prompt, plugin, skill, MCP and hook identity |

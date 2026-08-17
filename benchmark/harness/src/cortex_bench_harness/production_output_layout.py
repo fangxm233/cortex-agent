@@ -8,7 +8,7 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .launcher.production_session import is_production_direct_arm
 
@@ -47,9 +47,8 @@ PI_SESSION = re.compile(
     r"(?:(?:\d{4}-\d{2}-\d{2}T\d{2}(?:[-:]\d{2}){2}(?:-\d{3})?Z)_)?"
     r"(?P<session>[A-Za-z0-9-]+)\.jsonl"
 )
-FORBIDDEN_DYNAMIC_ID = re.compile(
-    r"(?:^|[._-])(?:auth|credentials?|env|secrets?)(?:$|[._-])", re.IGNORECASE,
-)
+SAFE_DYNAMIC_ID = re.compile(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*")
+FORBIDDEN_DYNAMIC_ID = re.compile(r"auth|credential|env|secret", re.IGNORECASE)
 
 
 class ProductionOutputLayoutError(ValueError):
@@ -123,7 +122,7 @@ def _dynamic_node_files(
         f"data/benchmark-attempt-journals/{hashlib.sha256(attempt.encode()).hexdigest()}.ndjson": (
             "production_attempt_journal"
         ),
-        f"data/conversation-history/{_safe_track_id(track_id)}.jsonl": (
+        _derived_output_path("data/conversation-history", f"{track_id}.jsonl"): (
             "production_conversation_history"
         ),
         f"tmp/threads/{thread_id}/artifact.md": "production_thread_artifact",
@@ -169,7 +168,7 @@ def _pi_session_path(discovered_paths: Sequence[str], backend_id: str) -> str:
         filename = path.removeprefix(prefix)
         parsed = PI_SESSION.fullmatch(filename)
         if parsed is not None and parsed.group("session") == backend_id:
-            matches.append(f"logs/sessions-pi/{filename}")
+            matches.append(_derived_output_path("logs/sessions-pi", filename))
     if not matches:
         raise ProductionOutputMissing("production PI session output is missing")
     if len(matches) != 1:
@@ -201,8 +200,12 @@ def _server_log_files(
     }
 
 
-def _safe_track_id(value: str) -> str:
-    return re.sub(r"[^A-Za-z0-9._-]", "_", value)
+def _derived_output_path(directory: str, filename: str) -> str:
+    candidate = PurePosixPath(directory, filename)
+    expected_parts = (*PurePosixPath(directory).parts, filename)
+    if "/" in filename or filename in {".", ".."} or candidate.parts != expected_parts:
+        raise ProductionOutputLayoutError("production dynamic output path is invalid")
+    return candidate.as_posix()
 
 
 def _timestamp(node: Mapping[str, object], key: str) -> datetime:
@@ -219,7 +222,8 @@ def _date_tag(value: datetime) -> str:
 
 def _dynamic_id(value: Mapping[str, object], key: str) -> str:
     item = _required_text(value, key)
-    if FORBIDDEN_DYNAMIC_ID.search(item):
+    compact = item.replace("-", "")
+    if not SAFE_DYNAMIC_ID.fullmatch(item) or FORBIDDEN_DYNAMIC_ID.search(compact):
         raise ProductionOutputLayoutError(f"production {key} names a forbidden output")
     return item
 

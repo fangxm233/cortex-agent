@@ -6,8 +6,9 @@
 import hashlib
 import io
 import json
+import subprocess
 import tarfile
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -44,19 +45,14 @@ TRIAL_ID = "trial-production-finalization"
 ROOT_RUN_ID = "root-production-finalization"
 ARM_NAME = "cortex-direct"
 THREAD_ID = "thr_0123abcd"
-ATTEMPT_ID = f"thread-{THREAD_ID}"
-MODEL_HASH = hashlib.sha256(b"production-model-identity").hexdigest()
-ROLE_HASH = hashlib.sha256(b"production-role-surface").hexdigest()
+ATTEMPT_ID = "execution-exec-production-finalization"
 LIVE_CREDENTIAL = "sk-live-production-finalization-secret"
 SERVER_BEARER = "production-server-bearer-secret"
 HOST_PATH = "/private/host-checkout/cortex"
 SYNTHETIC_HASH = "f" * 64
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
-TOOLS = "agent,bash,edit,glob,grep,read,skill,todo_write,write".split(",")
-DIRECT_CHECK_IDS = (
-    "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8",
-    "D1", "D2", "D3", "D4", "D5", "D6",
-)
+REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+PRODUCTION_EVIDENCE_FIXTURE = Path(__file__).with_name("production_evidence_fixture.ts")
 
 
 def arm() -> dict[str, object]:
@@ -96,124 +92,28 @@ def write_npm_artifact(path: Path) -> None:
             archive.addfile(info, io.BytesIO(payload))
 
 
-def journal_bytes(home: Path, bundle_hash: str) -> bytes:
-    system_prompt = home / "prompts/systemPrompts/benchmark-direct.md"
-    header = {
-        "schema_version": "cortex-bench-journal/1", "type": "run_header",
-        "root_run_id": ROOT_RUN_ID, "thread_id": THREAD_ID,
-        "agent_slot": "benchmark-direct",
-        "model_execution_identity_hash": MODEL_HASH,
-        "role_tool_surface_hash": ROLE_HASH,
-        "bundle_manifest_hash": bundle_hash,
-        "system_prompt_sha256": hashlib.sha256(system_prompt.read_bytes()).hexdigest(),
-        "tool_manifest_sha256": canonical_sha256(TOOLS),
-        "plugin_manifest_sha256": canonical_sha256({"plugin_dirs": [], "skills": []}),
-    }
-    event = {"schema_version": "cortex-bench-journal/1", "type": "event"}
-    return (json.dumps(header, sort_keys=True) + "\n" + json.dumps(event) + "\n").encode()
-
-
-def terminal_document(journal: bytes, bundle_hash: str) -> dict[str, object]:
-    return {
-        "schema_version": "cortex-bench-manifest/2", "state": "completed",
-        "started_at": "2026-08-17T00:00:00.000Z",
-        "ended_at": "2026-08-17T00:00:01.000Z", "journal_path": "events.jsonl",
-        "journal_sha256": hashlib.sha256(journal).hexdigest(), "event_count": 1,
-        "steps": 1, "cost_usd": 0,
-        "tokens": {"input": 3, "output": 2, "cache_read": 0, "cache_creation": 0},
-        "model_execution_identity_hash": MODEL_HASH,
-        "role_tool_surface_hash": ROLE_HASH,
-        "bundle_manifest_hash": bundle_hash, "terminal_reason": "ok",
-    }
-
-
-def accounting() -> dict[str, object]:
-    unavailable = {"status": "unavailable", "reason": "counter_unreadable"}
-    return {
-        "schema_version": "cortex-bench-accounting/2", "trial_id": TRIAL_ID,
-        "proxy": {
-            "requests": unavailable, "cached_tokens": unavailable,
-            "input_tokens": unavailable, "output_tokens": unavailable,
-            "audit_log": unavailable, "lease_echo": unavailable,
-            "source": "proxy_export",
-        },
-        "journal": {
-            "requests": {"status": "unavailable", "reason": "journal_underivable"},
-            "cost_usd": {"status": "available", "value": "0"},
-            "steps": {"status": "available", "value": 1},
-            "tokens": {
-                "input": {"status": "available", "value": 3},
-                "output": {"status": "available", "value": 2},
-                "cached": {"status": "available", "value": 0},
-            },
-            "source": "trajectory_merge",
-        },
-        "unaccounted_roles": [],
-    }
-
-
-def composite_document(
-    terminal_sha256: str, journal: bytes, bundle_hash: str,
-) -> dict[str, object]:
-    terminal = terminal_document(journal, bundle_hash)
-    node = {
-        "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "task_id": TRIAL_ID,
-        "parent_task_id": None, "dispatch_generation": None,
-        "attempt_id": ATTEMPT_ID, "attempt_ordinal": 1,
-        "thread_id": THREAD_ID, "parent_thread_id": None,
-        "root_thread_id": THREAD_ID, "task_ancestry": [TRIAL_ID],
-        "template": "benchmark-direct", "role": "benchmark-direct", "stage": None,
-        "backend": "pi", "provider": "deepseek",
-        "requested_model": "deepseek-v4-flash", "reported_model": "deepseek-v4-flash",
-        "model_execution_identity_hash": MODEL_HASH,
-        "role_tool_surface_hash": ROLE_HASH, "bundle_manifest_hash": bundle_hash,
-        "terminal_state": "completed", "terminal_reason": "ok", "disposition": "none",
-        "superseded_by": None, "artifact_path": None, "artifact_sha256": None,
-        "journal_path": "events.jsonl", "journal_sha256": terminal["journal_sha256"],
-        "event_count": 1, "terminal_manifest_path": f"run-{ROOT_RUN_ID}.terminal.json",
-        "terminal_manifest_sha256": terminal_sha256, "edges": [],
-        "started_at": terminal["started_at"], "ended_at": terminal["ended_at"],
-        "steps": 1, "cost_usd": 0, "tokens": terminal["tokens"],
-        "provider_requests": None,
-    }
-    return {
-        "schema_version": "cortex-bench-composite-manifest/2", "trial_id": TRIAL_ID,
-        "root_run_id": ROOT_RUN_ID, "arm_name": ARM_NAME,
-        "arm_canonical_sha256": canonical_sha256(arm()),
-        "identity": {
-            "model_execution_identity_hash": {"benchmark-direct": MODEL_HASH},
-            "role_tool_surface_hash": {"benchmark-direct": ROLE_HASH},
-            "bundle_manifest_hash": bundle_hash,
-        },
-        "nodes": [node], "edges": [],
-        "roots": {"root_attempt_id": ATTEMPT_ID, "root_task_id": None},
-        "accounting": accounting(),
-        "predicate": {"mode": "direct", "checks": [
-            {"check_id": check_id, "result": "pass", "detail": None}
-            for check_id in DIRECT_CHECK_IDS
-        ]},
-    }
-
-
-def write_trajectory(logs_dir: Path, home: Path, bundle_hash: str) -> None:
-    root = logs_dir / "trajectory"
-    root.mkdir(parents=True)
-    journal = journal_bytes(home, bundle_hash)
-    (root / "events.jsonl").write_bytes(journal)
-    write_json(root / f"run-{ROOT_RUN_ID}.started.json", {
-        "root_run_id": ROOT_RUN_ID, "thread_id": THREAD_ID,
-        "ts": "2026-08-17T00:00:00.000Z", "journal_path": "events.jsonl",
+def write_production_evidence(
+    logs_dir: Path, home: Path, bundle_hash: str, *, failed: bool = False,
+) -> Mapping[str, object]:
+    fixture_input = logs_dir.parent / "production-evidence-input.json"
+    write_json(fixture_input, {
+        "home": str(home), "outputDirectory": str(logs_dir / "trajectory"),
+        "trialId": TRIAL_ID, "rootRunId": ROOT_RUN_ID, "armName": ARM_NAME,
+        "armCanonicalSha256": canonical_sha256(arm()),
+        "bundleManifestHash": bundle_hash, "failed": failed,
     })
-    terminal_path = root / f"run-{ROOT_RUN_ID}.terminal.json"
-    write_json(terminal_path, terminal_document(journal, bundle_hash))
-    terminal_sha = hashlib.sha256(terminal_path.read_bytes()).hexdigest()
-    write_json(root / "composite-manifest.json", composite_document(
-        terminal_sha, journal, bundle_hash,
-    ))
-    write_json(root / "trajectory.json", {"schema_version": "ATIF-v1.2", "steps": []})
+    subprocess.run(
+        ["node", "--import", "tsx", str(PRODUCTION_EVIDENCE_FIXTURE), str(fixture_input)],
+        cwd=REPOSITORY_ROOT / "agent-server", check=True,
+        capture_output=True, text=True,
+    )
+    composite = json.loads(
+        (logs_dir / "trajectory/composite-manifest.json").read_text(encoding="utf-8")
+    )
+    return composite["nodes"][0]
 
 
-def write_production_runtime_outputs(home: Path) -> None:
+def write_production_runtime_outputs(home: Path, node: Mapping[str, object]) -> None:
     exact_json = (
         "data/versions.json", "data/threads.json", "data/executions.json",
         "data/pi/settings.json", "data/pi/models.json",
@@ -235,17 +135,17 @@ def write_production_runtime_outputs(home: Path) -> None:
         path.write_text("clean production role\n", encoding="utf-8")
     for relative in (
         "data/session-registry.jsonl", "data/costs.jsonl",
-        "data/benchmark-attempt-identities.jsonl",
-        "data/benchmark-attempt-journals.jsonl",
-        f"data/benchmark-attempt-journals/{hashlib.sha256(ATTEMPT_ID.encode()).hexdigest()}.ndjson",
-        "data/conversation-history/track-production.jsonl",
-        "logs/server-20260817.log", "logs/gateway.log",
+        "data/conversation-history/track-production.jsonl", "logs/gateway.log",
         "logs/sessions-pi/pi-production-session.jsonl",
         f"tmp/threads/{THREAD_ID}/artifact.md",
     ):
         path = home / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{}\n", encoding="utf-8")
+    date_tag = str(node["started_at"])[0:10].replace("-", "")
+    (home / f"logs/server-{date_tag}.log").write_text(
+        "clean production server log\n", encoding="utf-8",
+    )
 
 
 def write_proxy_outputs(artifact_dir: Path) -> TrialRevocation:
@@ -294,7 +194,9 @@ def scan_policy() -> ScanPolicy:
     )
 
 
-def prepare_trial(tmp_path: Path) -> tuple[Path, Path, Path, Path, TrialRevocation]:
+def prepare_trial(
+    tmp_path: Path, *, failed: bool = False,
+) -> tuple[Path, Path, Path, Path, TrialRevocation]:
     logs_dir = tmp_path / "agent"
     verifier_dir = tmp_path / "verifier"
     artifact_dir = tmp_path / "artifacts"
@@ -314,8 +216,10 @@ def prepare_trial(tmp_path: Path) -> tuple[Path, Path, Path, Path, TrialRevocati
         ),
         inherited_environment={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
     )
-    write_production_runtime_outputs(materialized.cortex_home)
-    write_trajectory(logs_dir, materialized.cortex_home, materialized.bundle_manifest_hash)
+    node = write_production_evidence(
+        logs_dir, materialized.cortex_home, materialized.bundle_manifest_hash, failed=failed,
+    )
+    write_production_runtime_outputs(materialized.cortex_home, node)
     (logs_dir / "instruction.md").write_text("Solve the task.\n", encoding="utf-8")
     (logs_dir / "stdout.txt").write_text("clean stdout\n", encoding="utf-8")
     (logs_dir / "stderr.txt").write_text("clean stderr\n", encoding="utf-8")
@@ -347,6 +251,29 @@ def set_attempt_times(logs: Path, started_at: str, ended_at: str) -> None:
     composite_path = logs / "trajectory/composite-manifest.json"
     composite = json.loads(composite_path.read_text(encoding="utf-8"))
     composite["nodes"][0].update({"started_at": started_at, "ended_at": ended_at})
+    composite["nodes"][0]["terminal_manifest_sha256"] = hashlib.sha256(
+        terminal_path.read_bytes()
+    ).hexdigest()
+    write_json(composite_path, composite)
+
+
+def rewrite_exported_journal_witness(
+    logs: Path, witness: str, replacement: str,
+) -> None:
+    journal_path = logs / "trajectory/events.jsonl"
+    rows = [json.loads(line) for line in journal_path.read_text().splitlines()]
+    rows[0][witness] = replacement
+    journal_path.write_text(
+        "".join(json.dumps(row, separators=(",", ":")) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    terminal_path = logs / "trajectory" / f"run-{ROOT_RUN_ID}.terminal.json"
+    terminal = json.loads(terminal_path.read_text(encoding="utf-8"))
+    terminal["journal_sha256"] = hashlib.sha256(journal_path.read_bytes()).hexdigest()
+    write_json(terminal_path, terminal)
+    composite_path = logs / "trajectory/composite-manifest.json"
+    composite = json.loads(composite_path.read_text(encoding="utf-8"))
+    composite["nodes"][0]["journal_sha256"] = terminal["journal_sha256"]
     composite["nodes"][0]["terminal_manifest_sha256"] = hashlib.sha256(
         terminal_path.read_bytes()
     ).hexdigest()
@@ -385,13 +312,95 @@ def test_exact_production_direct_layout_reaches_grader_admission(tmp_path: Path)
         "production_attempt_identities"
     )
     assert classified[
+        "production-cortex-home/data/conversation-history/track-production.jsonl"
+    ] == "production_conversation_history"
+    assert classified[
+        "production-cortex-home/logs/sessions-pi/pi-production-session.jsonl"
+    ] == "production_pi_session"
+    assert classified[
         f"production-cortex-home/tmp/threads/{THREAD_ID}/artifact.md"
     ] == "production_thread_artifact"
     serialized = result.path.read_text(encoding="utf-8")
+    raw_journal = (
+        tmp_path / "agent/production-cortex-home/data/benchmark-attempt-journals"
+        / f"{hashlib.sha256(ATTEMPT_ID.encode()).hexdigest()}.ndjson"
+    )
+    assert raw_journal.read_bytes() == (
+        tmp_path / "agent/trajectory/events.jsonl"
+    ).read_bytes()
     assert not (tmp_path / "agent/production-server-auth.json").exists()
     assert all(value not in serialized for value in (
         SERVER_BEARER, LIVE_CREDENTIAL, HOST_PATH, "synthetic-evidence-value",
     ))
+
+
+def test_production_direct_rejects_a_structured_spawn_config_witness(
+    tmp_path: Path,
+) -> None:
+    logs, verifier, artifacts, npm_artifact, revocation = prepare_trial(tmp_path)
+    system_prompt = (
+        logs / "production-cortex-home/prompts/systemPrompts/benchmark-direct.md"
+    ).read_text(encoding="utf-8")
+    incompatible = hashlib.sha256(json.dumps({
+        "systemPrompt": system_prompt, "appendSystemPrompt": None,
+    }, separators=(",", ":")).encode()).hexdigest()
+    rewrite_exported_journal_witness(logs, "system_prompt_sha256", incompatible)
+
+    with pytest.raises(HostFinalizationError) as raised:
+        finalize_host_trial(
+            logs_dir=logs, verifier_dir=verifier, artifact_dir=artifacts,
+            root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=arm(),
+            npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT,
+            revocation=revocation, scan_policy=scan_policy(),
+        )
+
+    assert raised.value.reason == "trial_asset_mismatch"
+    assert not (artifacts / OUTER_ENVELOPE_FILENAME).exists()
+
+
+def test_failed_production_direct_publishes_unchanged_non_admitted_envelope(
+    tmp_path: Path,
+) -> None:
+    logs, verifier, artifacts, npm_artifact, revocation = prepare_trial(tmp_path, failed=True)
+    composite_path = logs / "trajectory/composite-manifest.json"
+    expected_composite = hashlib.sha256(composite_path.read_bytes()).hexdigest()
+
+    result = finalize_host_trial(
+        logs_dir=logs, verifier_dir=verifier, artifact_dir=artifacts,
+        root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=arm(),
+        npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT,
+        revocation=revocation, scan_policy=scan_policy(),
+    )
+    envelope = json.loads(result.path.read_bytes())
+
+    assert result.admitted is False
+    assert envelope["inner"]["composite_sha256"] == expected_composite
+    assert envelope["grader_admission"] == {
+        "admitted": False, "reason": "inner_terminal_not_ok",
+        "terminal_state": "failed", "terminal_reason": "rate_limited",
+    }
+
+
+@pytest.mark.parametrize("mutation", ["missing", "malformed"])
+def test_failed_production_direct_requires_a_valid_composite(
+    tmp_path: Path, mutation: str,
+) -> None:
+    logs, verifier, artifacts, npm_artifact, revocation = prepare_trial(tmp_path, failed=True)
+    composite_path = logs / "trajectory/composite-manifest.json"
+    if mutation == "missing":
+        composite_path.unlink()
+    else:
+        write_json(composite_path, {"synthetic": True})
+
+    with pytest.raises(HostFinalizationError):
+        finalize_host_trial(
+            logs_dir=logs, verifier_dir=verifier, artifact_dir=artifacts,
+            root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=arm(),
+            npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT,
+            revocation=revocation, scan_policy=scan_policy(),
+        )
+
+    assert not (artifacts / OUTER_ENVELOPE_FILENAME).exists()
 
 
 @pytest.mark.parametrize(("relative", "reason"), [
@@ -404,7 +413,6 @@ def test_exact_production_direct_layout_reaches_grader_admission(tmp_path: Path)
         "required_output_missing",
     ),
     ("production-cortex-home/data/conversation-history/track-production.jsonl", "required_output_missing"),
-    ("production-cortex-home/logs/server-20260817.log", "required_output_missing"),
     ("production-cortex-home/logs/sessions-pi/pi-production-session.jsonl", "required_output_missing"),
     (f"production-cortex-home/tmp/threads/{THREAD_ID}/artifact.md", "required_output_missing"),
 ])
@@ -473,7 +481,8 @@ def test_production_server_logs_are_bound_to_the_utc_attempt_window(
 ) -> None:
     logs, verifier, artifacts, npm_artifact, revocation = prepare_trial(tmp_path)
     set_attempt_times(logs, started_at, ended_at)
-    (logs / "production-cortex-home/logs/server-20260817.log").unlink()
+    for existing in (logs / "production-cortex-home/logs").glob("server-*.log"):
+        existing.unlink()
     for date in log_dates:
         (logs / f"production-cortex-home/logs/server-{date}.log").write_text(
             "clean server log\n", encoding="utf-8",
@@ -487,6 +496,23 @@ def test_production_server_logs_are_bound_to_the_utc_attempt_window(
     )
 
     assert result.admitted is True
+
+
+def test_missing_production_server_log_refuses_before_publication(tmp_path: Path) -> None:
+    logs, verifier, artifacts, npm_artifact, revocation = prepare_trial(tmp_path)
+    for existing in (logs / "production-cortex-home/logs").glob("server-*.log"):
+        existing.unlink()
+
+    with pytest.raises(HostFinalizationError) as raised:
+        finalize_host_trial(
+            logs_dir=logs, verifier_dir=verifier, artifact_dir=artifacts,
+            root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=arm(),
+            npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT,
+            revocation=revocation, scan_policy=scan_policy(),
+        )
+
+    assert raised.value.reason == "required_output_missing"
+    assert not (artifacts / OUTER_ENVELOPE_FILENAME).exists()
 
 
 def test_unrelated_server_log_date_remains_unknown(tmp_path: Path) -> None:
@@ -571,6 +597,21 @@ def test_dynamic_output_names_not_bound_to_production_state_are_unknown(
         "sessionId", ".env",
         "data/conversation-history/track-production.jsonl",
         "data/conversation-history/.env.jsonl",
+    ),
+    (
+        "sessionId", "auth$",
+        "data/conversation-history/track-production.jsonl",
+        "data/conversation-history/auth_.jsonl",
+    ),
+    (
+        "sessionId", "a-u-t-h",
+        "data/conversation-history/track-production.jsonl",
+        "data/conversation-history/a-u-t-h.jsonl",
+    ),
+    (
+        "sessionId", "cre-den-tial",
+        "data/conversation-history/track-production.jsonl",
+        "data/conversation-history/cre-den-tial.jsonl",
     ),
     (
         "backendSessionId", "credential",

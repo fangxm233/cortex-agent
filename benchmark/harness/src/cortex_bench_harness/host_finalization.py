@@ -127,8 +127,8 @@ class RootJournal:
 @dataclass(frozen=True)
 class InnerEvidence:
     terminal_sha256: str
-    #: Absent exactly when the run did not complete: `runner.ts:compositeApplicability` publishes
-    #: no composite for a non-completed terminal, by design.
+    #: Production evidence export retains trustworthy failed composites; legacy standalone
+    #: non-admitted terminals still carry no composite.
     composite_sha256: str | None
     composite: Mapping[str, object] | None
     required_agent_files: Mapping[str, str]
@@ -289,7 +289,7 @@ def _validate_inner(
     journal = _read_root_journal(root, terminal)
     composite_sha256: str | None = None
     composite: Mapping[str, object] | None = None
-    if outcome.admitted:
+    if outcome.admitted or is_production_direct_arm(arm):
         composite_bytes, composite = _read_json(root / "composite-manifest.json")
         _validate_composite(composite, terminal, terminal_bytes, root_run_id, trial_id, arm)
         composite_sha256 = hashlib.sha256(composite_bytes).hexdigest()

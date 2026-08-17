@@ -27,6 +27,7 @@ import {
   initializeProductionAttemptJournals,
   resetProductionAttemptJournals,
 } from '../../../src/domain/agent-run/production-attempt-journal.js';
+import { canonicalJsonSha256 } from '../../../src/domain/agent-run/identity.js';
 import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
 import { _test as facadeTest } from '../../../src/domain/agents/facade.js';
 
@@ -193,6 +194,19 @@ function sha256(filePath: string): string {
 function readJournal(filePath: string): Array<Record<string, unknown>> {
   return fs.readFileSync(filePath, 'utf8').trimEnd().split('\n').map(line => JSON.parse(line));
 }
+
+test('records the exact model-visible role asset witnesses used by host finalization', async () => {
+  initialize('pi');
+  await runAttempt('pi', PATHS[0], 'exec-asset-witness').promise;
+  const evidence = getProductionAttemptJournal('exec-asset-witness');
+  assert.ok(evidence);
+  const header = readJournal(evidence.journal_path)[0];
+  assert.equal(header.system_prompt_sha256, createHash('sha256').update('System prompt').digest('hex'));
+  assert.equal(header.tool_manifest_sha256, canonicalJsonSha256(['Read', 'Write']));
+  assert.equal(header.plugin_manifest_sha256, canonicalJsonSha256({
+    plugin_dirs: [], skills: [],
+  }));
+});
 
 for (const backend of ['claude', 'pi'] as const) {
   for (const pathCase of PATHS) {
