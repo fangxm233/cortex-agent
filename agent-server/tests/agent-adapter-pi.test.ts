@@ -345,6 +345,7 @@ test('buildPiEnv scrubs server auth and production bootstrap controls from the c
     CORTEX_WEBHOOK_THREAD_OP_ONLY: '1',
     CORTEX_WEBHOOK_SINGLE_ROOT: 'root-run',
     CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE: 'benchmark-coder-review',
+    CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE: '/inherited/evidence-context.json',
   });
 
   for (const key of [
@@ -355,6 +356,7 @@ test('buildPiEnv scrubs server auth and production bootstrap controls from the c
     'CORTEX_WEBHOOK_THREAD_OP_ONLY',
     'CORTEX_WEBHOOK_SINGLE_ROOT',
     'CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE',
+    'CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE',
   ]) assert.equal(env[key], undefined, key);
 });
 

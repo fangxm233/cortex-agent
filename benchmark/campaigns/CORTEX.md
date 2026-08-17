@@ -11,5 +11,6 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 | zero-paid-production-coder-review.yaml | campaign | Declares one production coder-review audit-retry ZERO-PAID recording trial using that arm's committed bundle and pinned image |
 | zero-paid-production-coder-review-fix.yaml | campaign | Declares one production coder-review reviewer-fix ZERO-PAID recording trial using that arm's committed bundle and pinned image |
 | zero-paid-production-direct.yaml | campaign | Declares one production-direct ZERO-PAID recording trial using the committed bundle and pinned image |
+| zero-paid-production-manager-qa-off.yaml | campaign | Declares one production manager Q&A-off ZERO-PAID recording trial whose unit of work enters as a task for the built-in dispatcher |
 | results/ | evidence | Holds path-sanitized committed campaign result summaries |
 | tasks/ | fixtures | Holds the Harbor task directories that campaign names |

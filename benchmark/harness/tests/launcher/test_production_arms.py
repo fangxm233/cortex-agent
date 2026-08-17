@@ -27,13 +27,23 @@ EXECUTION_LIMITS = {
 }
 
 
-def arm(orchestration: dict[str, object], **overrides: object) -> dict[str, object]:
+MANAGER_CONTAINMENT_LIMITS = {
+    "max_thread_starts": 0, "max_parent_questions": 0,
+    "max_task_depth": 1, "max_tasks": 1,
+}
+
+
+def arm(
+    orchestration: dict[str, object],
+    containment: dict[str, object] = CONTAINMENT_LIMITS,
+    **overrides: object,
+) -> dict[str, object]:
     value: dict[str, object] = {
         "schema_version": "cortex-benchmark-arm/2", "kind": "cortex",
         "name": "an-arm", "backend": "pi", "provider": "deepseek",
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
         "orchestration": orchestration,
-        "limits": {**CONTAINMENT_LIMITS, **EXECUTION_LIMITS},
+        "limits": {**containment, **EXECUTION_LIMITS},
     }
     value.update(overrides)
     return value
@@ -55,6 +65,14 @@ def reviewer_fix_arm(**overrides: object) -> dict[str, object]:
     return arm(
         {"mode": "coder-review", "coder_review_variant": "reviewer-fix",
          "ask_manager": False},
+        **overrides,
+    )
+
+
+def manager_qa_off_arm(**overrides: object) -> dict[str, object]:
+    return arm(
+        {"mode": "manager", "ask_manager": False},
+        MANAGER_CONTAINMENT_LIMITS,
         **overrides,
     )
 
@@ -107,6 +125,69 @@ def test_reviewer_fix_arm_resolves_to_its_own_bundle_template_and_roles() -> Non
     assert bundle.expected_roles == ("benchmark-coder", "benchmark-fixer")
     assert bundle.manager_qa is None
     assert bundle.bundle_dir != require_production_arm(audit_retry_arm()).bundle_dir
+
+
+def test_manager_qa_off_arm_resolves_to_its_own_bundle_template_and_role() -> None:
+    bundle = require_production_arm(manager_qa_off_arm())
+
+    assert bundle.key == "manager-qa-off-pi-deepseek"
+    assert bundle.root_template == "benchmark-manager"
+    assert bundle.profile_name == "benchmark-manager"
+    assert bundle.evidence_mode == "manager"
+    assert bundle.expected_roles == ("benchmark-manager",)
+    assert bundle.manager_qa == "off"
+    assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
+
+
+def test_manager_arm_declares_a_task_root_and_the_one_path_it_needs_writable() -> None:
+    """The second injection kind: work enters as a task the production dispatcher runs, which
+    means the sealed home cannot keep the whole context tree read-only.
+    """
+    manager = require_production_arm(manager_qa_off_arm())
+
+    assert manager.injection == "task-root"
+    assert manager.writable_home_paths == ("context/projects/general",)
+    for thread_root in (direct_arm(), audit_retry_arm(), reviewer_fix_arm()):
+        bundle = require_production_arm(thread_root)
+        assert bundle.injection == "thread-root"
+        assert bundle.writable_home_paths == ()
+
+
+def test_manager_arm_confinement_is_recorded_with_a_closed_endpoint_set() -> None:
+    manager = require_production_arm(manager_qa_off_arm())
+
+    assert manager.confinement_record() == {
+        "injection": "task-root",
+        "webhook_endpoints": ["POST /webhook/thread-op"],
+        "writable_home_paths": ["context/projects/general"],
+    }
+    assert require_production_arm(direct_arm()).confinement_record() == {
+        "injection": "thread-root",
+        "webhook_endpoints": ["POST /webhook/thread-op"],
+        "writable_home_paths": [],
+    }
+
+
+def test_manager_bundle_gates_ask_manager_out_of_its_agent_tool_surface() -> None:
+    """Plan section 4 C2: Q&A off is the per-tool MCP gate, not a whole-server removal — the
+    agent keeps a real MCP surface so the omission is the arm's only capability difference.
+    """
+    bundle = require_production_arm(manager_qa_off_arm())
+    agent = read_json(
+        bundle.bundle_dir / "config/thread-templates/agents/benchmark-manager.json")
+
+    allowlist = agent["mcpToolAllowlist"]
+    assert isinstance(allowlist, list) and allowlist
+    assert "ask_manager" not in allowlist
+    assert agent["mcpComposition"] == "thread-control"
+
+
+def test_manager_arm_limits_must_permit_the_task_it_injects() -> None:
+    taskless = manager_qa_off_arm()
+    taskless["limits"] = {**taskless["limits"], "max_tasks": 0}
+
+    assert production_arm_candidate(taskless) is not None
+    assert resolve_production_arm(taskless) is None
 
 
 def test_a_coder_review_variant_without_a_bundle_is_not_a_production_candidate() -> None:

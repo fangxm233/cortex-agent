@@ -5,6 +5,8 @@
 
 import './_test-home.js';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 const deps = vi.hoisted(() => ({
@@ -190,6 +192,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete process.env.CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE;
   ctx.adapter = null;
   ctx.schedulerRef = null;
   ctx.bus = null;
@@ -365,6 +368,83 @@ test('root task dispatch remains ordinary production without evidence context', 
   const metadata = deps.createThread.mock.calls[0][1].metadata;
   assert.equal(metadata.parentThreadId, undefined);
   assert.equal(metadata.rootThreadId, undefined);
+  assert.equal(metadata.productionBenchmarkEvidenceContext, undefined);
+});
+
+const ATTESTED_EVIDENCE = {
+  schema_version: 'cortex-production-benchmark-evidence-context/1',
+  trial_id: 'trial-dispatch-root',
+  root_run_id: 'root-dispatch-root',
+  bundle_manifest_hash: 'e'.repeat(64),
+  model_execution: {
+    model_alias_policy: { policy: 'exact' },
+    cli_name: 'pi',
+    cli_version: '0.82.1',
+    max_output_tokens: 65536,
+  },
+} as const;
+
+/** Names a launcher-attested context file for the current test only. */
+function attestEvidenceContext(body: string | null): void {
+  if (body === null) {
+    process.env.CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE = path.join(
+      fs.mkdtempSync(path.join(process.env.CORTEX_HOME!, 'attested-')), 'absent.json',
+    );
+    return;
+  }
+  const file = path.join(
+    fs.mkdtempSync(path.join(process.env.CORTEX_HOME!, 'attested-')), 'context.json',
+  );
+  fs.writeFileSync(file, body);
+  process.env.CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE = file;
+}
+
+test('root task dispatch adopts the launcher-attested evidence context', async () => {
+  // A task root has no request body and no parent to inherit from, so the attempt identity the
+  // export freezes can only come from the file the launcher sealed into the home.
+  attestEvidenceContext(JSON.stringify(ATTESTED_EVIDENCE));
+
+  await runDispatchCycle();
+
+  const metadata = deps.createThread.mock.calls[0][1].metadata;
+  assert.equal(metadata.parentThreadId, undefined);
+  assert.deepEqual(metadata.productionBenchmarkEvidenceContext, ATTESTED_EVIDENCE);
+});
+
+test('root task dispatch refuses an attested evidence context it cannot read', async () => {
+  attestEvidenceContext(null);
+
+  await runDispatchCycle();
+
+  assert.equal(deps.createThread.mock.calls.length, 0);
+  assert.match(deps.logError.mock.calls[0][0], /evidence context/i);
+});
+
+test('root task dispatch refuses an attested evidence context that is not one', async () => {
+  attestEvidenceContext(JSON.stringify({ schema_version: 'something-else' }));
+
+  await runDispatchCycle();
+
+  assert.equal(deps.createThread.mock.calls.length, 0);
+  assert.match(deps.logError.mock.calls[0][0], /evidence context/i);
+});
+
+test('a child task dispatch never reads the attested root context', async () => {
+  attestEvidenceContext(JSON.stringify(ATTESTED_EVIDENCE));
+  deps.getAllThreads.mockReturnValue([JSON.parse(JSON.stringify({
+    id: 'manager-thread', projectId: 'atlas', status: 'completed',
+    createdAt: '2026-08-16T00:00:00.000Z',
+    metadata: { taskId: 'manager-task', taskProject: 'atlas' },
+  }))]);
+  deps.selectAndClaimTask.mockResolvedValue({
+    ...selected,
+    task: { ...selected.task, parent: 'manager-task' },
+  });
+
+  await runDispatchCycle();
+
+  const metadata = deps.createThread.mock.calls[0][1].metadata;
+  assert.equal(metadata.parentThreadId, 'manager-thread');
   assert.equal(metadata.productionBenchmarkEvidenceContext, undefined);
 });
 

@@ -18,7 +18,7 @@ Host launcher modules select immutable arms and project non-secret trial configu
 | lease_bound.py | policy | Computes the provisional credential-lease bound |
 | production_arms.py | registry | Resolves a campaign arm to its committed bundle, profile, root template and evidence shape |
 | production_home.py | boundary | Materializes and attests an arm's production home with isolated server auth, and reads back that bundle's committed input file list |
-| production_session.py | lifecycle | Boots an arm's attested root template and collects emitted evidence |
+| production_session.py | lifecycle | Injects an arm's unit of work as its own root kind and collects emitted evidence |
 | trial_admission.py | boundary | Seals launch inputs and owns post-stop finalization |
 | trial_admission_io.py | IO | Pins service-aware pull, external network and endpoint policy |
 | trial_proxy.py | core | Validates the declared paid envelope, freezes final usage and proves trial route revocation |

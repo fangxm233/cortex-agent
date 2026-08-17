@@ -1,0 +1,14 @@
+{
+  "defaultProfile": "benchmark-manager",
+  "profiles": {
+    "benchmark-manager": {
+      "model": "deepseek-v4-flash",
+      "backend": "pi",
+      "mode": "trial",
+      "provider": "deepseek",
+      "thinking": "off",
+      "maxOutputTokens": 65536,
+      "fallback": []
+    }
+  }
+}

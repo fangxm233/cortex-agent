@@ -22,6 +22,15 @@ TASKLESS_LIMITS = {
     "max_task_depth": 0, "max_tasks": 0,
 }
 SERIAL_EXECUTION_LIMITS = {"max_resident_agent_processes": 1, "max_output_tokens": 65_536}
+# How the launcher hands the arm its one unit of work. A thread root is posted to the webhook and
+# runs under the single-root guard; a task root is added to the arm's own task store and is run by
+# the production dispatcher the bundle's settings enable.
+THREAD_ROOT = "thread-root"
+TASK_ROOT = "task-root"
+# `CORTEX_WEBHOOK_THREAD_OP_ONLY=1` serves exactly this one route and refuses every other, for
+# every arm. It is stated here so a trial's launch parameters carry the endpoint set that was
+# actually open rather than leaving "nothing was relaxed" to be inferred from an absence.
+ADMITTED_WEBHOOK_ENDPOINTS: tuple[str, ...] = ("POST /webhook/thread-op",)
 
 
 class ProductionArmError(RuntimeError):
@@ -45,6 +54,8 @@ class ProductionArmBundle:
     credential_capability: str
     orchestration: Mapping[str, object]
     limits: Mapping[str, object]
+    injection: str
+    writable_home_paths: tuple[str, ...]
 
     def attested_record(self) -> dict[str, str]:
         """What the launch attestation states about which arm ran."""
@@ -53,12 +64,27 @@ class ProductionArmBundle:
             "root_template": self.root_template,
         }
 
+    def confinement_record(self) -> dict[str, object]:
+        """What this arm needed opened, as a launch parameter rather than an inference.
+
+        The sealed home is read-only and the server serves one route; an arm that needs more
+        states it here, so the published record says which paths and endpoints were open for the
+        trial that ran instead of leaving it to be read off the code that ran it.
+        """
+        return {
+            "injection": self.injection,
+            "webhook_endpoints": list(ADMITTED_WEBHOOK_ENDPOINTS),
+            "writable_home_paths": list(self.writable_home_paths),
+        }
+
 
 def _bundle(
     *, key: str, profile_name: str, root_template: str, evidence_mode: str,
     expected_roles: tuple[str, ...], orchestration: Mapping[str, object],
     manager_qa: str | None = None,
     limits: Mapping[str, object] = SERIAL_EXECUTION_LIMITS,
+    injection: str = THREAD_ROOT,
+    writable_home_paths: tuple[str, ...] = (),
 ) -> ProductionArmBundle:
     return ProductionArmBundle(
         key=key, bundle_dir=BUNDLES_DIR / key / BUNDLE_HOME_DIRNAME,
@@ -67,6 +93,7 @@ def _bundle(
         manager_qa=manager_qa, backend="pi", provider="deepseek",
         model="deepseek-v4-flash", credential_capability="pi-deepseek-api-key",
         orchestration=orchestration, limits={**TASKLESS_LIMITS, **limits},
+        injection=injection, writable_home_paths=writable_home_paths,
     )
 
 
@@ -96,6 +123,17 @@ PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
             "mode": "coder-review", "coder_review_variant": "reviewer-fix",
             "ask_manager": False,
         },
+    ),
+    # The manager arm is the second injection kind. Its unit of work is a task, so its limits
+    # permit exactly one task at one level, and its sealed home keeps the one directory the task
+    # store writes — `TASKS.yaml` and its in-file lock live there and nowhere else.
+    _bundle(
+        key="manager-qa-off-pi-deepseek", profile_name="benchmark-manager",
+        root_template="benchmark-manager", evidence_mode="manager",
+        expected_roles=("benchmark-manager",), manager_qa="off",
+        orchestration={"mode": "manager", "ask_manager": False},
+        limits={**SERIAL_EXECUTION_LIMITS, "max_task_depth": 1, "max_tasks": 1},
+        injection=TASK_ROOT, writable_home_paths=("context/projects/general",),
     ),
 )
 

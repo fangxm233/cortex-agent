@@ -14,11 +14,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .production_arms import ProductionArmBundle, production_arm_bundle
+from .production_arms import TASK_ROOT, ProductionArmBundle, production_arm_bundle
 
-LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/3"
+LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/4"
 EVIDENCE_CONTEXT_SCHEMA = "cortex-production-benchmark-evidence-context/1"
 LAUNCH_ATTESTATION_FILENAME = "cortex-bench-launch-attestation.json"
+# A task root is created by the daemon's own dispatcher, not posted to the webhook, so it cannot
+# carry the launcher's evidence context in a request body the way a thread root does. The context
+# is materialized into the sealed home instead and named by the server's sealed environment.
+EVIDENCE_CONTEXT_FILENAME = "production-benchmark-evidence-context.json"
+EVIDENCE_CONTEXT_FILE_ENV = "CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE"
 # The container HOME lives inside the sealed CORTEX_HOME, and the server prints its own paths into
 # logs the trial collects. The leak scanner refuses any `/home/<name>` it finds there, so this
 # directory may not be called `home`: that spelling made the gateway logging its own config path
@@ -197,6 +202,7 @@ def _gateway_yaml(proxy_base_url: str, dummy_token_ref: str) -> bytes:
 
 def _write_dynamic_inputs(
     cortex_home: Path, proxy_base_url: str, dummy_token_ref: str,
+    evidence_context: Mapping[str, object] | None,
 ) -> None:
     auth = {PROVIDER_NAME: {"type": "api_key", "key": dummy_token_ref}}
     payload = (json.dumps(auth, indent=2, ensure_ascii=False) + "\n").encode()
@@ -209,6 +215,11 @@ def _write_dynamic_inputs(
         cortex_home / f"{CONTAINER_HOME_DIR}/.aistatus/gateway.yaml",
         _gateway_yaml(proxy_base_url, dummy_token_ref),
     )
+    if evidence_context is not None:
+        _write_bytes(
+            cortex_home / EVIDENCE_CONTEXT_FILENAME,
+            (json.dumps(dict(evidence_context), indent=2, ensure_ascii=False) + "\n").encode(),
+        )
 
 
 def _is_residue(key: str) -> bool:
@@ -240,12 +251,28 @@ def _sealed_environment(
         "WEBHOOK_PORT": "3001",
         "CORTEX_TUI": "1", "CORTEX_TUI_PORT": "3003",
     })
+    if facts.arm_bundle.injection == TASK_ROOT:
+        environment[EVIDENCE_CONTEXT_FILE_ENV] = str(
+            runtime_home / EVIDENCE_CONTEXT_FILENAME)
     if any(_is_residue(key) for key in environment):
         raise ProductionHomeError("provider or chat residue survived environment sealing")
     return dict(sorted(environment.items()))
 
 
-def _make_read_only(root: Path) -> None:
+def _writable_target(root: Path, relative: str) -> Path:
+    """One directory this arm declared writable, refused unless it is really inside the home.
+
+    An arm opens a path because something in the running server has to write it; a path that
+    escapes the home, or that the bundle never shipped, is a launcher defect, not a relaxation.
+    """
+    target = (root / relative).resolve()
+    if not target.is_relative_to(root.resolve()) or not target.is_dir():
+        raise ProductionHomeError(
+            f"writable arm path must be one directory inside the home: {relative}")
+    return target
+
+
+def _make_read_only(root: Path, writable: tuple[str, ...] = ()) -> None:
     for path in root.rglob("*"):
         if path.is_file():
             path.chmod(0o444)
@@ -255,6 +282,13 @@ def _make_read_only(root: Path) -> None:
             if path.is_dir():
                 path.chmod(0o555)
         immutable.chmod(0o555)
+    # Reopened last and only here: the arm's declared paths, not their parents, so the tree above
+    # a writable task store stays exactly as sealed as every other arm's.
+    for relative in writable:
+        target = _writable_target(root, relative)
+        for path in target.rglob("*"):
+            path.chmod(0o755 if path.is_dir() else 0o644)
+        target.chmod(0o755)
 
 
 def _sha256_file(path: Path) -> str:
@@ -300,6 +334,7 @@ def _launch_attestation(
         "trial_id": facts.trial_id,
         "capture_boundary": "launcher_pre_boot",
         "arm_bundle": facts.arm_bundle.attested_record(),
+        "arm_confinement": facts.arm_bundle.confinement_record(),
         "npm_artifact_sha256": npm_sha256,
         "backend_cli": {"name": BACKEND_CLI_NAME, "version": facts.backend_cli_version},
         "pre_boot_input_bundle_sha256": bundle.sha256,
@@ -354,13 +389,17 @@ def materialize_production_home(
     bundle = _snapshot_tree(facts.arm_bundle.bundle_dir)
     environment = _sealed_environment(inherited_environment, runtime_home, facts)
     client_token, webhook_token = _auth_token(), _auth_token()
-    _copy_snapshot(bundle, home)
-    _write_dynamic_inputs(home, proxy_base_url, facts.dummy_token_ref)
-    _make_read_only(home)
-    home_sha256, home_count = _digest_tree(home)
     npm_sha256 = _sha256_file(facts.npm_artifact)
     manifest_hash = _bundle_manifest_hash(
         npm_sha256, facts.backend_cli_version, bundle.sha256)
+    evidence_context = _evidence_context(facts, manifest_hash)
+    _copy_snapshot(bundle, home)
+    _write_dynamic_inputs(
+        home, proxy_base_url, facts.dummy_token_ref,
+        evidence_context if facts.arm_bundle.injection == TASK_ROOT else None,
+    )
+    _make_read_only(home, facts.arm_bundle.writable_home_paths)
+    home_sha256, home_count = _digest_tree(home)
     attestation = _launch_attestation(
         facts, npm_sha256, bundle, home_sha256, home_count, manifest_hash)
     _write_json_atomic(attestation_path, attestation)
@@ -369,7 +408,7 @@ def materialize_production_home(
         cortex_home=home, process_environment=environment,
         client_token=client_token, webhook_token=webhook_token,
         launch_attestation_path=attestation_path,
-        production_evidence_context=_evidence_context(facts, manifest_hash),
+        production_evidence_context=evidence_context,
         input_bundle_sha256=bundle.sha256, input_bundle_file_count=bundle.count,
         cortex_home_tree_sha256=home_sha256, cortex_home_file_count=home_count,
         bundle_manifest_hash=manifest_hash,

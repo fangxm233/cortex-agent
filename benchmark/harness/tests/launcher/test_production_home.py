@@ -29,6 +29,7 @@ from cortex_bench_harness.launcher.production_arms import (
 
 DIRECT_BUNDLE = production_arm_bundle("direct-pi-deepseek")
 AUDIT_RETRY_BUNDLE = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
+MANAGER_BUNDLE = production_arm_bundle("manager-qa-off-pi-deepseek")
 
 EXPECTED_PROFILE = {
     "defaultProfile": "benchmark-direct",
@@ -176,12 +177,13 @@ def expected_attestation(
         "pre_boot_input_bundle_sha256": bundle_sha,
     })
     return {
-        "schema_version": "cortex-bench-launch-attestation/3",
+        "schema_version": "cortex-bench-launch-attestation/4",
         "trial_id": "trial-direct-001", "capture_boundary": "launcher_pre_boot",
         "arm_bundle": {
             "key": "direct-pi-deepseek", "profile_name": "benchmark-direct",
             "root_template": "benchmark-direct",
         },
+        "arm_confinement": DIRECT_BUNDLE.confinement_record(),
         "npm_artifact_sha256": npm_sha, "backend_cli": backend,
         "pre_boot_input_bundle_sha256": bundle_sha,
         "input_bundle_file_count": bundle_count,
@@ -380,6 +382,69 @@ def test_immutable_bundle_directories_cannot_replace_attested_inputs(tmp_path: P
     assert stat.S_IMODE((home / "container-home").stat().st_mode) == 0o755
 
 
+def test_manager_home_opens_only_the_directory_its_task_store_writes(tmp_path: Path) -> None:
+    """Hazard: the built-in dispatcher and `cortex-task` write `TASKS.yaml` and its in-file lock,
+    which a wholly read-only `context/` tree refuses. Exactly that directory opens; the tree above
+    it and every other input stay sealed.
+    """
+    home = materialize(tmp_path, bundle=MANAGER_BUNDLE).cortex_home
+
+    writable = home / "context/projects/general"
+    assert stat.S_IMODE(writable.stat().st_mode) == 0o755
+    assert stat.S_IMODE((writable / "TASKS.yaml").stat().st_mode) == 0o644
+    for sealed in ("context", "context/projects", "config", "prompts"):
+        assert stat.S_IMODE((home / sealed).stat().st_mode) == 0o555
+    assert all(
+        stat.S_IMODE(path.stat().st_mode) == 0o444
+        for path in (home / "config").rglob("*") if path.is_file()
+    )
+
+
+def test_thread_root_homes_keep_their_whole_context_tree_read_only(tmp_path: Path) -> None:
+    home = materialize(tmp_path, bundle=AUDIT_RETRY_BUNDLE).cortex_home
+
+    assert stat.S_IMODE((home / "context/projects/general").stat().st_mode) == 0o555
+    assert stat.S_IMODE(
+        (home / "context/projects/general/TASKS.yaml").stat().st_mode) == 0o444
+
+
+def test_task_root_home_carries_the_attested_evidence_context_the_dispatcher_reads(
+    tmp_path: Path,
+) -> None:
+    """A dispatched root thread is created by the daemon, not posted to the webhook, so the
+    launcher's evidence context has to reach it some other way: a file in the sealed home the
+    sealed environment names. A thread-root arm carries neither.
+    """
+    result = materialize(tmp_path, bundle=MANAGER_BUNDLE)
+
+    context_file = result.cortex_home / "production-benchmark-evidence-context.json"
+    assert read_json(context_file) == dict(result.production_evidence_context)
+    assert result.process_environment[
+        "CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE"
+    ] == "/logs/agent/production-cortex-home/production-benchmark-evidence-context.json"
+    (tmp_path / "direct").mkdir()
+    direct = materialize(tmp_path / "direct")
+    assert not (direct.cortex_home / "production-benchmark-evidence-context.json").exists()
+    assert "CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE" not in direct.process_environment
+
+
+def test_attestation_records_the_confinement_each_arm_needed_opened(tmp_path: Path) -> None:
+    manager = read_json(materialize(tmp_path, bundle=MANAGER_BUNDLE).launch_attestation_path)
+    (tmp_path / "direct").mkdir()
+    direct = read_json(materialize(tmp_path / "direct").launch_attestation_path)
+
+    assert manager["arm_confinement"] == {
+        "injection": "task-root",
+        "webhook_endpoints": ["POST /webhook/thread-op"],
+        "writable_home_paths": ["context/projects/general"],
+    }
+    assert direct["arm_confinement"] == {
+        "injection": "thread-root",
+        "webhook_endpoints": ["POST /webhook/thread-op"],
+        "writable_home_paths": [],
+    }
+
+
 def test_attestation_is_the_last_materialization_write(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -498,7 +563,7 @@ def test_attestation_and_sealed_environment_state_the_arm_that_ran(tmp_path: Pat
         "profile_name": "benchmark-coder-review",
         "root_template": "benchmark-coder-review",
     }
-    assert attestation["schema_version"] == "cortex-bench-launch-attestation/3"
+    assert attestation["schema_version"] == "cortex-bench-launch-attestation/4"
 
 
 def test_committed_bundle_files_are_read_from_the_bundle_that_ran(tmp_path: Path) -> None:

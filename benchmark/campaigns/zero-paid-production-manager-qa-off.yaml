@@ -1,0 +1,85 @@
+# input:  one committed production manager Q&A-off ZERO-PAID trial
+# output: one production task-root/dispatcher trial over the manager template
+# pos:    Committed single-trial production manager recording campaign
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# The manager counterpart to zero-paid-production-direct.yaml. Everything outside the arm is the
+# same committed trial: same task fixture, same sealed proxy policy, same digest-pinned image, same
+# loopback synthetic upstream on port 9099. The arm alone differs, and it differs in two ways. Its
+# committed bundle is manager-qa-off-pi-deepseek, whose manager agent's mcpToolAllowlist omits
+# ask_manager, so the Q&A tool is absent from the running tool surface rather than merely unused.
+# And its unit of work enters as a task rather than as a thread root: the bundle enables the
+# built-in task dispatcher, which claims the task and starts the root thread itself. The limits
+# therefore permit exactly one task at one level -- everywhere else they stay at zero. The operator
+# starts the committed synthetic DeepSeek upstream and builds the two RUN-LOCAL artifacts named
+# below before launch. No provider endpoint or real credential is used; paid remains false.
+
+schema_version: cortex-bench-campaign/1
+campaign: zp-manager-qa-off-record
+paid: false
+trials_dir: /var/tmp/cortex-bench/zp-manager-qa-off-record
+cli_version: "2026.8.6"
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: http://127.0.0.1:9099
+  route_identity_host: api.deepseek.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: zero-paid-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_ZERO_PAID_CREDENTIAL
+  forbidden_environment:
+    host_provider_credential: CORTEX_BENCH_ZERO_PAID_FORBIDDEN
+  forbidden_argv_environment:
+    host_provider_credential: CORTEX_BENCH_ZERO_PAID_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_ZERO_PAID_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_ZERO_PAID_IDENTITY
+
+docker_network:
+  subnet_pool: 172.30.240.0/20
+  subnet_prefix: 24
+
+proxy:
+  credential_env: CORTEX_BENCH_ZERO_PAID_CREDENTIAL
+  request_body_limit_bytes: 16777216
+  response_body_limit_bytes: 16777216
+  listen_host: 0.0.0.0
+
+arms:
+  # Declared exactly as launcher/production_arms.py states this bundle: any drift and the launcher
+  # refuses the arm rather than running it on some other arm's bundle.
+  - name: zp-pi-manager-qa-off
+    kind: cortex
+    backend: pi
+    provider: deepseek
+    model: deepseek-v4-flash
+    credential_capability: pi-deepseek-api-key
+    orchestration:
+      mode: manager
+      ask_manager: false
+    limits:
+      max_thread_starts: 0
+      max_parent_questions: 0
+      # The unit of work is itself a task, run at the root of the tree and never decomposed.
+      max_task_depth: 1
+      max_tasks: 1
+      max_provider_requests: 400
+      max_resident_agent_processes: 1
+      max_cost_usd: "4.00"
+      deadline_seconds: 3600
+      max_output_tokens: 65536
+
+tasks:
+  - task_id: zero-paid-one
+    path: tasks/zero-paid-one
+    image_ref: cortex-bench-zero-paid-runtime@sha256:8b075847d21e55633a0f2bc2f3d7f9920f91d8aaf47b0778cb1d528a7dbedf55
+
+comparisons: []

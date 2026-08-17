@@ -205,9 +205,11 @@ def launch_attestation(npm_artifact: Path) -> dict[str, object]:
         "pre_boot_input_bundle_sha256": "4" * 64,
     }
     return {
-        "schema_version": "cortex-bench-launch-attestation/3", "trial_id": TRIAL_ID,
+        "schema_version": "cortex-bench-launch-attestation/4", "trial_id": TRIAL_ID,
         "capture_boundary": "launcher_pre_boot",
         "arm_bundle": production_arm_bundle("direct-pi-deepseek").attested_record(),
+        "arm_confinement": production_arm_bundle(
+            "direct-pi-deepseek").confinement_record(),
         **inputs,
         "input_bundle_file_count": 7, "cortex_home_tree_sha256": "5" * 64,
         "cortex_home_file_count": 9, "bundle_manifest_hash": canonical_sha256(inputs),
@@ -544,6 +546,11 @@ def test_launch_parameters_are_recorded_as_the_launcher_emitted_them(
     }
     assert launch["config_bundle"]["canonical_sha256"] == "4" * 64
     assert launch["config_bundle"]["file_count"] == 7
+    assert launch["confinement"] == {
+        "injection": "thread-root",
+        "webhook_endpoints": ["POST /webhook/thread-op"],
+        "writable_home_paths": [],
+    }
     assert launch["sealed_environment_allowlist"] == list(SEALED_ENVIRONMENT_KEYS)
     assert launch["image"] == {
         "reference": f"task@{DIGEST}", "digest": DIGEST, "pinned": True,
@@ -582,6 +589,7 @@ def test_a_parameter_the_launcher_never_emitted_is_marked_unavailable_not_refuse
     assert launch["npm_artifact"]["sha256"] == unavailable("launch_attestation_absent")
     assert launch["config_bundle"]["canonical_sha256"] == unavailable("launch_attestation_absent")
     assert launch["config_bundle"]["files"] == unavailable("launch_attestation_absent")
+    assert launch["confinement"] == unavailable("launch_attestation_absent")
     assert launch["sealed_environment_allowlist"] == unavailable("admission_evidence_absent")
     assert launch["image"]["reference"] == unavailable("admission_evidence_absent")
     assert launch["image"]["digest"] == DIGEST

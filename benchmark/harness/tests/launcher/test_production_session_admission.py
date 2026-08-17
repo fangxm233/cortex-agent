@@ -38,6 +38,7 @@ from cortex_bench_harness.launcher.trial_admission import build_harbor_trial_con
 
 DIRECT_BUNDLE = production_arm_bundle("direct-pi-deepseek")
 AUDIT_RETRY_BUNDLE = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
+MANAGER_BUNDLE = production_arm_bundle("manager-qa-off-pi-deepseek")
 DIGEST = f"sha256:{'a' * 64}"
 IMAGE_REF = f"registry.invalid/task@{DIGEST}"
 TRIAL_ID = "trial-sealed"
@@ -71,6 +72,7 @@ def admitted_deepseek_capability(monkeypatch: pytest.MonkeyPatch):
 ARM_NAMES = {
     "direct-pi-deepseek": "zero-paid-pi-direct",
     "coder-review-audit-retry-pi-deepseek": "zp-pi-coder-audit-retry",
+    "manager-qa-off-pi-deepseek": "zp-pi-manager-qa-off",
 }
 
 
@@ -81,10 +83,8 @@ def production_arm(bundle: ProductionArmBundle = DIRECT_BUNDLE) -> dict[str, obj
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
         "orchestration": dict(bundle.orchestration),
         "limits": {
-            "max_thread_starts": 0, "max_parent_questions": 0,
-            "max_task_depth": 0, "max_tasks": 0, "max_provider_requests": 8,
-            "max_resident_agent_processes": 1, "max_cost_usd": "2.00",
-            "deadline_seconds": 90, "max_output_tokens": 65536,
+            "max_provider_requests": 8, "max_cost_usd": "2.00",
+            "deadline_seconds": 90, **bundle.limits,
         },
     }
 
@@ -192,6 +192,21 @@ class ContainerDouble:
                 "success": True,
                 "data": {"threadId": "thr_sealed", "status": "running"},
             })
+        if "cortex-task add" in command:
+            return json.dumps({
+                "success": True, "message": "Task added to general", "task-id": "a1b2",
+            })
+        if "cortex-task lock-release" in command:
+            return json.dumps({"success": True, "message": "Lock released"})
+        if "production-thread-list.json" in command:
+            return json.dumps({"success": True, "data": {
+                "scope": "project", "count": 1,
+                "threads": [{
+                    "threadId": "thr_sealed", "status": "running",
+                    "templateName": "benchmark-manager", "trigger": "task-dispatch",
+                    "createdAt": "2026-01-01T00:00:01.000Z",
+                }],
+            }})
         if "production-thread-result.json" in command:
             self.result_polls += 1
             return json.dumps({
@@ -340,3 +355,67 @@ def test_audit_retry_arm_injects_its_attested_root_through_the_real_sealed_exec(
     assert "CORTEX_WEBHOOK_SINGLE_ROOT=1" in launch
     assert "CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE=benchmark-coder-review" in launch
     assert all("benchmark-direct" not in command for command in container.commands)
+
+
+def test_manager_arm_injects_its_task_root_through_the_real_sealed_exec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """K-051: the task-root injection is a new exec path, so it gets its own real-exec witness.
+
+    `cortex-task` runs under a composed environment the webhook POSTs do not use — it adds
+    `CORTEX_EXECUTION_ID` for the lock owner and the launch adds the evidence-context file — and
+    only `AdmittedDockerEnvironment.exec` compares the merged environment against the sealed
+    identity by keys AND value digest.
+    """
+    trial = sealed_trial(tmp_path, MANAGER_BUNDLE)
+    logs_dir = trial.paths.agent_dir
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    container = ContainerDouble(logs_dir)
+    monkeypatch.setattr(trial.agent_environment, "_compose_exec", container)
+    session = production_session(trial, logs_dir, MANAGER_BUNDLE)
+
+    result = asyncio.run(session.run("Solve only this task.", lambda command, **kwargs: (
+        trial.agent.exec_as_agent(trial.agent_environment, command, **kwargs)
+    )))
+
+    assert (result.thread_id, result.status) == ("thr_sealed", "completed")
+    assert all(
+        "production-thread-start.json" not in command for command in container.commands)
+    add = next(command for command in container.commands if "cortex-task add" in command)
+    assert "CORTEX_EXECUTION_ID=benchmark-launcher" in add
+    assert (
+        "cortex-task add --project general "
+        f"--task-file {CONTAINER_LOGS_DIR}/production-task-spec.json --auto-lock"
+    ) in add
+    assert any("cortex-task lock-release" in command for command in container.commands)
+    launch = container.commands[0]
+    assert (
+        "CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE="
+        f"{CONTAINER_LOGS_DIR}/production-cortex-home"
+        "/production-benchmark-evidence-context.json"
+    ) in launch
+
+
+def test_manager_arm_opens_only_its_task_store_in_the_sealed_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The one relaxation this arm needs, against the home the trial actually materialized."""
+    trial = sealed_trial(tmp_path, MANAGER_BUNDLE)
+    logs_dir = trial.paths.agent_dir
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(trial.agent_environment, "_compose_exec", ContainerDouble(logs_dir))
+    session = production_session(trial, logs_dir, MANAGER_BUNDLE)
+    home = session._spec.materialized_home.cortex_home
+
+    tasks = home / "context/projects/general/TASKS.yaml"
+    assert tasks.stat().st_mode & 0o777 == 0o644
+    assert (home / "context/projects/general").stat().st_mode & 0o777 == 0o755
+    assert (home / "context/projects").stat().st_mode & 0o777 == 0o555
+    assert (home / "config/settings.json").stat().st_mode & 0o777 == 0o444
+    attestation = json.loads(
+        session._spec.materialized_home.launch_attestation_path.read_text())
+    assert attestation["arm_confinement"] == {
+        "injection": "task-root",
+        "webhook_endpoints": ["POST /webhook/thread-op"],
+        "writable_home_paths": ["context/projects/general"],
+    }

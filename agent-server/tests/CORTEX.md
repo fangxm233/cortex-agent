@@ -141,7 +141,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
 | task-archiver.test.ts | test | accepts precise task completion timestamps |
 | task-completion.test.ts | test | Checks generation fencing, evidence and timestamps |
-| task-dispatch-hooks.test.ts | test | Dispatch ancestry, generations, hooks and recovery |
+| task-dispatch-hooks.test.ts | test | Dispatch ancestry, attested root evidence, generations, hooks and recovery |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and provider gating |
 | task-file-input.test.ts | test | task-file CLI matrix, unique paths and literals |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |

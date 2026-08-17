@@ -8,6 +8,7 @@ import { ctx } from '../job-registry.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
+import { attestedProductionBenchmarkEvidenceContext } from '@core/production-benchmark-evidence.js';
 import { Icons } from '../../../core/icons.js';
 import * as executionRegistry from '../../executions/registry.js';
 
@@ -167,6 +168,12 @@ async function executeDispatchTask({ selected, selectedTask, channel, profileNam
   if (selectedTask.parent && !parentThread) {
     throw new Error(`Persisted parent manager thread is missing for task ${selectedTask.parent}`);
   }
+  // A descendant inherits its manager's context; a root task has no parent to inherit from and no
+  // request body to carry one, so it adopts whatever the launcher attested for this home (null
+  // outside a production benchmark trial).
+  const evidenceContext = parentThread
+    ? parentThread.metadata?.productionBenchmarkEvidenceContext
+    : attestedProductionBenchmarkEvidenceContext();
   const thread = createThread(channel, {
     templateName: selected.template, userMessage: selected.prompt, userMessageTs: `dispatch_${Date.now()}`,
     platformThreadId: statusMsg?.messageId ?? null,
@@ -180,9 +187,8 @@ async function executeDispatchTask({ selected, selectedTask, channel, profileNam
       ...(parentThread ? {
         parentThreadId: parentThread.id,
         rootThreadId: getRootThreadId(parentThread),
-        productionBenchmarkEvidenceContext:
-          parentThread.metadata?.productionBenchmarkEvidenceContext,
       } : {}),
+      ...(evidenceContext ? { productionBenchmarkEvidenceContext: evidenceContext } : {}),
     },
   });
   cycle.threadId = thread.id;
