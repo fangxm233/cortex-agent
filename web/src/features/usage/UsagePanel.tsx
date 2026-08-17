@@ -81,7 +81,7 @@ function QuotaBlock({ provider }: { provider: ProviderUsageView }) {
     <section data-usage-quota={provider.provider} data-usage-quota-state={provider.quotaState} style={{ padding: '10px 14px' }}>
       <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--proto-muted-3)', textTransform: 'uppercase' }}>{L.usageQuota}</div>
       {provider.quotaState === 'available'
-        ? provider.windows.map(window => <WindowRow key={`${window.type}:${window.resetsAt ?? 'none'}`} window={window} />)
+        ? provider.windows.map(window => <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} />)
         : <div style={{ marginTop: 7, fontSize: 10.5, color: 'var(--proto-muted-2)' }}>{stateCopy}</div>}
     </section>
   );
@@ -124,7 +124,7 @@ export function UsagePanel() {
   return (
     <div style={{ marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <SButton tone="accent" data-usage-refresh disabled={usage.isRefreshing} onClick={usage.refresh}>
+        <SButton tone="accent" data-usage-refresh onClick={usage.refresh}>
           {usage.isRefreshing ? L.usageRefreshing : L.usageRefresh}
         </SButton>
         {usage.refreshError ? <span style={{ color: 'var(--proto-danger)', fontSize: 10.5 }}>{L.usageRefreshError}: {usage.refreshError.message}</span> : null}
