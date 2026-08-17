@@ -81,7 +81,7 @@ function QuotaBlock({ provider }: { provider: ProviderUsageView }) {
     <section data-usage-quota={provider.provider} data-usage-quota-state={provider.quotaState} style={{ padding: '10px 14px' }}>
       <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--proto-muted-3)', textTransform: 'uppercase' }}>{L.usageQuota}</div>
       {provider.quotaState === 'available'
-        ? provider.windows.map(window => <WindowRow key={`${window.type}:${window.resetsAt ?? 'none'}`} window={window} />)
+        ? provider.windows.map(window => <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} />)
         : <div style={{ marginTop: 7, fontSize: 10.5, color: 'var(--proto-muted-2)' }}>{stateCopy}</div>}
     </section>
   );

@@ -39,6 +39,8 @@ const usage: SystemUsageStatus = [
   },
 ];
 
+let currentUsage = usage;
+
 const harness = vi.hoisted(() => ({
   queried: [] as string[],
   mutations: [] as { kind: string; args: unknown }[],
@@ -67,7 +69,7 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
   useQuery: (options: any) => {
     harness.queried.push(options.__kind);
     return {
-      data: harness.queryError ? undefined : usage,
+      data: harness.queryError ? undefined : currentUsage,
       isLoading: false,
       isError: harness.queryError !== null,
       error: harness.queryError,
@@ -76,7 +78,7 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
   useMutation: (options: any) => ({
     mutate: (args: unknown) => {
       harness.mutations.push({ kind: options.__kind, args });
-      options.onSuccess?.(usage);
+      options.onSuccess?.(currentUsage);
     },
     isPending: harness.pending,
     isError: harness.refreshError !== null,
@@ -96,6 +98,7 @@ function mount(): ReactTestRenderer {
 }
 
 beforeEach(() => {
+  currentUsage = usage;
   harness.queried = [];
   harness.mutations = [];
   harness.invalidations = [];
@@ -127,6 +130,23 @@ describe('desktop Settings Usage panel', () => {
     expect(html).toContain('Secondary');
     expect(html).toContain('Reset elapsed');
     expect(html).toContain('$1.25');
+  });
+
+  it('gives model-scoped windows with a shared reset time distinct React identities', () => {
+    currentUsage = [{
+      provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'], freshness: 'live',
+      observedAt: NOW,
+      windows: [
+        { type: 'model_scoped', label: 'Fable', utilization: 0.33, resetsAt: null },
+        { type: 'model_scoped', label: 'Unlisted Model', utilization: null, resetsAt: null },
+      ],
+    }];
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    mount();
+
+    expect(consoleError.mock.calls.flat().join(' ')).not.toContain('same key');
+    consoleError.mockRestore();
   });
 
   it('invokes system.refreshUsage on every click and writes the returned snapshot', () => {
