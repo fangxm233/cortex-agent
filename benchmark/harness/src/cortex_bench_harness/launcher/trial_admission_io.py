@@ -1,4 +1,4 @@
-# input:  image metadata, env values, launch evidence, Docker runtime
+# input:  image metadata, env values, egress options, Docker runtime
 # output: isolated commands and sealed Docker policy overlays
 # pos:    Admission IO and deterministic serialization primitives
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -35,9 +35,14 @@ class PullDisabledDockerEnvironment(DockerEnvironment):
         self._external_network_path = root / "external-network.json"
         self._proxy_host_path = root / "proxy-host.json"
         self._container_address_path = root / "container-address.json"
+        sidecar_policy = (
+            {self._EGRESS_CONTROL_SERVICE_NAME: {"pull_policy": "never"}}
+            if any(value is not None for value in (
+                external_network_name, proxy_host, container_ipv4,
+            )) else {}
+        )
         document = {"services": {
-            "main": {"pull_policy": "never"},
-            self._EGRESS_CONTROL_SERVICE_NAME: {"pull_policy": "never"},
+            "main": {"pull_policy": "never"}, **sidecar_policy,
         }}
         self._pull_policy_path.write_text(json.dumps(document))
         if external_network_name is not None:
