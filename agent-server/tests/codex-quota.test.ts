@@ -120,6 +120,26 @@ test('rejects a prefixed notice whose payload is not a usable reading', () => {
   assert.equal(decodeQuotaNotice(`${prefix}{"provider":"openai-codex","windows":[]}`), null);
 });
 
+test('rejects used percentages outside the provider contract range', () => {
+  for (const usedPercent of ['-1', '101']) {
+    const reading = parseCodexQuotaHeaders(
+      { ...LIVE_HEADERS, 'x-codex-primary-used-percent': usedPercent },
+      { nowMs: 1785822470_000 },
+    );
+    assert.equal(reading, null);
+  }
+});
+
+test('rejects notice windows whose utilization is outside zero to one', () => {
+  for (const utilization of [-0.01, 1.01]) {
+    assert.equal(decodeQuotaNotice(encodeQuotaNotice({
+      provider: 'openai-codex',
+      planType: 'pro',
+      windows: [{ type: 'codex_primary', utilization, resetsAt: 1786160107 }],
+    })), null);
+  }
+});
+
 test('ignores a malformed used-percent rather than reporting a bogus utilization', () => {
   const reading = parseCodexQuotaHeaders(
     { ...LIVE_HEADERS, 'x-codex-primary-used-percent': 'n/a' },

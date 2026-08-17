@@ -59,7 +59,7 @@ function windowFor(
   const minutes = num(map, `x-codex-${family}-window-minutes`);
   if (minutes === null || minutes <= 0) return null;
   const usedPercent = num(map, `x-codex-${family}-used-percent`);
-  if (usedPercent === null) return null;
+  if (usedPercent === null || usedPercent < 0 || usedPercent > 100) return null;
   const resetsAt = resetsAtFor(map, family, nowMs);
   if (resetsAt === null) return null;
   return { type: `codex_${family}`, utilization: usedPercent / 100, resetsAt };
@@ -118,5 +118,6 @@ function safeParse(raw: string): { windows?: unknown; planType?: unknown } | nul
 function isQuotaWindow(value: unknown): value is QuotaWindow {
   const w = value as QuotaWindow | null;
   return !!w && typeof w.type === 'string' && w.type.length > 0
-    && Number.isFinite(w.utilization) && Number.isFinite(w.resetsAt);
+    && Number.isFinite(w.utilization) && w.utilization >= 0 && w.utilization <= 1
+    && Number.isFinite(w.resetsAt);
 }
