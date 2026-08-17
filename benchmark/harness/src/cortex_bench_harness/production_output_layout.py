@@ -1,5 +1,5 @@
-# input:  semantic arm, production stores, composite and discovered paths
-# output: exact production direct output classifications
+# input:  arm, production stores, composite and discovered paths
+# output: exact classifications with forbidden dynamic-name refusal
 # pos:    Closed-world production direct finalization layout
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -46,6 +46,9 @@ SERVER_LOG = re.compile(rf"{PRODUCTION_HOME}/logs/server-(?P<date>\d{{8}})\.log"
 PI_SESSION = re.compile(
     r"(?:(?:\d{4}-\d{2}-\d{2}T\d{2}(?:[-:]\d{2}){2}(?:-\d{3})?Z)_)?"
     r"(?P<session>[A-Za-z0-9-]+)\.jsonl"
+)
+FORBIDDEN_DYNAMIC_ID = re.compile(
+    r"(?:^|[._-])(?:auth|credentials?|env|secrets?)(?:$|[._-])", re.IGNORECASE,
 )
 
 
@@ -113,8 +116,8 @@ def _dynamic_node_files(
     thread_id = _required_text(node, "thread_id")
     role = _required_text(node, "role")
     step = _thread_step(threads, thread_id, role)
-    track_id = _required_text(step, "sessionId")
-    backend_id = _required_text(step, "backendSessionId")
+    track_id = _dynamic_id(step, "sessionId")
+    backend_id = _dynamic_id(step, "backendSessionId")
     session_path = _pi_session_path(discovered_paths, backend_id)
     relative = {
         f"data/benchmark-attempt-journals/{hashlib.sha256(attempt.encode()).hexdigest()}.ndjson": (
@@ -212,6 +215,13 @@ def _timestamp(node: Mapping[str, object], key: str) -> datetime:
 
 def _date_tag(value: datetime) -> str:
     return value.strftime("%Y%m%d")
+
+
+def _dynamic_id(value: Mapping[str, object], key: str) -> str:
+    item = _required_text(value, key)
+    if FORBIDDEN_DYNAMIC_ID.search(item):
+        raise ProductionOutputLayoutError(f"production {key} names a forbidden output")
+    return item
 
 
 def _required_text(value: Mapping[str, object], key: str) -> str:

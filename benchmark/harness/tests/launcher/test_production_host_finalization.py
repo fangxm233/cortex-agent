@@ -1,5 +1,5 @@
-# input:  production direct home, v2 evidence, host attestations and proxy proof
-# output: production-layout admission and fail-closed regression proofs
+# input:  production home, v2 evidence, attestations and proxy proof
+# output: production admission and dynamic-name refusal proofs
 # pos:    Host finalization tests for the production direct launcher
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -559,6 +559,50 @@ def test_dynamic_output_names_not_bound_to_production_state_are_unknown(
         )
 
     assert raised.value.reason == "unknown_output_present"
+
+
+@pytest.mark.parametrize(("identity_key", "identity", "original", "replacement"), [
+    (
+        "sessionId", "auth",
+        "data/conversation-history/track-production.jsonl",
+        "data/conversation-history/auth.jsonl",
+    ),
+    (
+        "sessionId", ".env",
+        "data/conversation-history/track-production.jsonl",
+        "data/conversation-history/.env.jsonl",
+    ),
+    (
+        "backendSessionId", "credential",
+        "logs/sessions-pi/pi-production-session.jsonl",
+        "logs/sessions-pi/credential.jsonl",
+    ),
+])
+def test_production_state_cannot_bind_forbidden_dynamic_output_names(
+    tmp_path: Path, identity_key: str, identity: str,
+    original: str, replacement: str,
+) -> None:
+    logs, verifier, artifacts, npm_artifact, revocation = prepare_trial(tmp_path)
+    home = logs / "production-cortex-home"
+    threads_path = home / "data/threads.json"
+    threads = json.loads(threads_path.read_text(encoding="utf-8"))
+    threads[THREAD_ID]["steps"][0][identity_key] = identity
+    write_json(threads_path, threads)
+    (home / original).unlink()
+    replacement_path = home / replacement
+    replacement_path.parent.mkdir(parents=True, exist_ok=True)
+    replacement_path.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(HostFinalizationError) as raised:
+        finalize_host_trial(
+            logs_dir=logs, verifier_dir=verifier, artifact_dir=artifacts,
+            root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=arm(),
+            npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT,
+            revocation=revocation, scan_policy=scan_policy(),
+        )
+
+    assert raised.value.reason == "collected_output_invalid"
+    assert not (artifacts / OUTER_ENVELOPE_FILENAME).exists()
 
 
 @pytest.mark.parametrize("value", [SERVER_BEARER, LIVE_CREDENTIAL, HOST_PATH])
