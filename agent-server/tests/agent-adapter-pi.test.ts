@@ -312,6 +312,7 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
     CORTEX_SCHEDULE_TASK_ID: 'stale-schedule',
     CORTEX_CONFIG_IMMUTABLE: '1',
     CORTEX_WEBHOOK_SINGLE_ROOT: '1',
+    CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE: 'stale-root-template',
     CORTEX_PI_SUBAGENT: '1',
     [PI_PLUGIN_MCP_CONFIG_ENV]: '/stale-plugin-mcp.json',
     [PI_BENCHMARK_THREAD_POLICY_ENV]: '/stale-thread-policy.json',
@@ -343,6 +344,7 @@ test('buildPiEnv scrubs server auth and production bootstrap controls from the c
     CORTEX_PRODUCTION_AUTH_FILE: '/inherited/auth.json',
     CORTEX_WEBHOOK_THREAD_OP_ONLY: '1',
     CORTEX_WEBHOOK_SINGLE_ROOT: 'root-run',
+    CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE: 'benchmark-coder-review',
   });
 
   for (const key of [
@@ -352,6 +354,7 @@ test('buildPiEnv scrubs server auth and production bootstrap controls from the c
     'CORTEX_PRODUCTION_AUTH_FILE',
     'CORTEX_WEBHOOK_THREAD_OP_ONLY',
     'CORTEX_WEBHOOK_SINGLE_ROOT',
+    'CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE',
   ]) assert.equal(env[key], undefined, key);
 });
 

@@ -199,10 +199,12 @@ def _write_dynamic_inputs(
     cortex_home: Path, proxy_base_url: str, dummy_token_ref: str,
 ) -> None:
     auth = {PROVIDER_NAME: {"type": "api_key", "key": dummy_token_ref}}
-    _write_bytes(
-        cortex_home / "data/pi/auth.json",
-        (json.dumps(auth, indent=2, ensure_ascii=False) + "\n").encode(),
-    )
+    payload = (json.dumps(auth, indent=2, ensure_ascii=False) + "\n").encode()
+    # Both locations, because the daemon mirrors PI auth from the container HOME into the private
+    # agent dir on every spawn: seeding only the private copy authenticates the arm's first agent
+    # and leaves every later one with the empty auth.json the first PI process wrote.
+    _write_bytes(cortex_home / "data/pi/auth.json", payload)
+    _write_bytes(cortex_home / f"{CONTAINER_HOME_DIR}/.pi/agent/auth.json", payload)
     _write_bytes(
         cortex_home / f"{CONTAINER_HOME_DIR}/.aistatus/gateway.yaml",
         _gateway_yaml(proxy_base_url, dummy_token_ref),

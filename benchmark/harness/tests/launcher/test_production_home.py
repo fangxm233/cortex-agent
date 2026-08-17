@@ -264,6 +264,24 @@ def test_materializes_without_host_home_and_scrubs_provider_and_chat_residue(tmp
     assert "anthropic" not in gateway.lower() and "api.deepseek.com" not in gateway
 
 
+def test_every_agent_of_the_arm_resolves_the_same_seeded_provider_credential(
+    tmp_path: Path,
+) -> None:
+    """The daemon mirrors PI auth from the container HOME, once per agent spawn.
+
+    A home that seeds only the private agent directory authenticates the first agent and no
+    other: the first PI process creates an empty `$HOME/.pi/agent/auth.json`, and the next
+    spawn's mirroring replaces the seeded file with a link to that empty one. A multi-agent arm
+    then dies at its second role with "No API key found". Seeding the canonical location the
+    mirror reads keeps every spawn resolving the one trial-scoped dummy token.
+    """
+    result = materialize(tmp_path)
+
+    seeded = {"deepseek": {"type": "api_key", "key": "trial-dummy-token"}}
+    assert read_json(result.cortex_home / "container-home/.pi/agent/auth.json") == seeded
+    assert read_json(result.cortex_home / "data/pi/auth.json") == seeded
+
+
 def test_sealed_home_paths_cannot_be_read_as_a_host_home_path(tmp_path: Path) -> None:
     """The server prints its own paths, and the leak scanner refuses any `/home/<name>`.
 
