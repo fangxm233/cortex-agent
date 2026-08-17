@@ -10,8 +10,10 @@ import { STORE_DIR } from '../../core/paths.js';
 import type { AgentSpawnConfig } from '../../agent-adapter/types.js';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import type { EventObserver } from '../../agent-adapter/event-tee.js';
+import { canonicalJsonSha256, computeRoleToolSurfaceHash } from './identity.js';
 import { openJournal, type Journal } from './journal.js';
 import type { ProductionAttemptIdentityRecord } from './production-attempt-identity.js';
+import { roleSurfaceFromSpawnConfig } from './role-surface.js';
 
 const RECORD_SCHEMA = 'cortex-production-attempt-journal/1';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
@@ -198,22 +200,20 @@ function valueSha256(value: unknown): string {
 }
 
 function promptHashes(input: ProductionAttemptJournalInput) {
-  const { spawnConfig } = input;
+  const role = roleSurfaceFromSpawnConfig(
+    input.spawnConfig, input.canonicalInstruction,
+    input.spawnConfig.benchmarkPolicyGuard,
+  );
+  if (computeRoleToolSurfaceHash(role) !== input.identity.role_tool_surface_hash) {
+    throw new Error('Production attempt journal role identity drifted before open');
+  }
   return {
     canonicalInstructionSha256: valueSha256(input.canonicalInstruction),
     modelVisiblePromptSha256: valueSha256(input.message),
-    systemPromptSha256: valueSha256({
-      systemPrompt: spawnConfig.systemPrompt ?? null,
-      appendSystemPrompt: spawnConfig.appendSystemPrompt ?? null,
-    }),
-    toolManifestSha256: valueSha256({
-      tools: spawnConfig.tools ?? null, rawTools: spawnConfig.rawTools ?? null,
-      mcpToolAllowlist: spawnConfig.mcpToolAllowlist ?? null,
-    }),
-    pluginManifestSha256: valueSha256({
-      pluginDirs: spawnConfig.pluginDirs ?? null,
-      pluginSkillDirs: spawnConfig.pluginSkillDirs ?? null,
-      pluginCapabilityFingerprint: spawnConfig.pluginCapabilityFingerprint ?? null,
+    systemPromptSha256: role.systemPromptSha256,
+    toolManifestSha256: canonicalJsonSha256(role.tools),
+    pluginManifestSha256: canonicalJsonSha256({
+      plugin_dirs: role.pluginDirs, skills: role.skills,
     }),
   };
 }

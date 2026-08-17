@@ -14,9 +14,9 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | manifest.py | core | Records artifacts and the installed CLI version |
 | harbor_agent.py | adapter | Auth-bootstraps production and defers publication until Harbor confirms container stop |
 | host_evidence_validation.py | boundary | Validates host-owned evidence identity |
-| host_finalization.py | boundary | Validates arm outputs, attestations and attempt bytes |
+| host_finalization.py | boundary | Validates production composites, outputs and attestations |
 | inner_validation.py | boundary | Validates production-ledger evidence v2 edges |
-| production_output_layout.py | boundary | Rejects forbidden dynamic production outputs |
+| production_output_layout.py | boundary | Classifies strict production dynamic outputs |
 | launcher/ | core | Selects arms and builds non-secret Harbor inputs |
 | proxy/ | network | Injects credentials through a bounded trial route |
 | scan/ | audit | Finds credential and host-identity leaks |

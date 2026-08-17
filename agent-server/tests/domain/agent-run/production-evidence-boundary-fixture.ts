@@ -16,11 +16,13 @@ import type { Task } from '../../../src/core/task-parser.js';
 import {
   ProductionAttemptIdentityRepo, type ProductionAttemptIdentityRecord,
 } from '../../../src/domain/agent-run/production-attempt-identity.js';
+import { computeRoleToolSurfaceHash } from '../../../src/domain/agent-run/identity.js';
 import {
   createProductionAttemptJournalSink, getProductionAttemptJournal,
   initializeProductionAttemptJournals, resetProductionAttemptJournals,
   type ProductionAttemptJournalRecord,
 } from '../../../src/domain/agent-run/production-attempt-journal.js';
+import { roleSurfaceFromSpawnConfig } from '../../../src/domain/agent-run/role-surface.js';
 import type { ProxyExport } from '../../../src/domain/benchmark/accounting-reconciliation.js';
 import {
   exportProductionBenchmarkEvidence,
@@ -204,15 +206,25 @@ function cost(
   } as CostEntry;
 }
 
+function journalSpawnConfig(): AgentSpawnConfig {
+  return {
+    sessionId: null, sessionKey: 'production-boundary', resume: false,
+    cwd: process.cwd(), systemPrompt: 'system', tools: ['Read'], pluginDirs: [],
+  };
+}
+
+function journalRoleHash(): string {
+  return computeRoleToolSurfaceHash(roleSurfaceFromSpawnConfig(
+    journalSpawnConfig(), 'complete the task',
+  ));
+}
+
 function writeJournal(
   identity: ProductionAttemptIdentityRecord, accounting: ProductionBoundaryAccounting,
   events: readonly NormalizedEvent[] | undefined,
 ): ProductionAttemptJournalRecord {
   const sink = createProductionAttemptJournalSink({
-    identity,
-    spawnConfig: {
-      cwd: process.cwd(), systemPrompt: 'system', tools: ['Read'], pluginDirs: [],
-    } as AgentSpawnConfig,
+    identity, spawnConfig: journalSpawnConfig(),
     canonicalInstruction: 'complete the task', message: 'complete the task',
   });
   const observed = events ?? [identity.role === 'direct'
@@ -248,7 +260,7 @@ function appendAttempt(
     dispatch_generation: spec.generation ?? null, template: `template-${spec.role}`,
     role: spec.role, stage: null, profile_name: 'benchmark', backend,
     provider: 'anthropic', requested_model: 'model-requested',
-    model_execution_identity_hash: HASH, role_tool_surface_hash: HASH,
+    model_execution_identity_hash: HASH, role_tool_surface_hash: journalRoleHash(),
     bundle_manifest_hash: BUNDLE_HASH, frozen_at: new Date().toISOString(),
   });
   return {
