@@ -85,8 +85,8 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MSettingsView.test.tsx | test | Tests fixed header and settings drill-in rows |
 | MUsageScreen.tsx | screen | Binds public Usage data, refresh and settings back route |
 | MUsageScreen.test.tsx | test | Tests Usage hook, refresh and replace-back wiring |
-| MUsageView.tsx | view | Renders mobile quotas, spend and freshness feedback |
-| MUsageView.test.tsx | test | Tests mobile quota, spend, stale and refresh states |
+| MUsageView.tsx | view | Renders keyed quotas, spend and refresh feedback |
+| MUsageView.test.tsx | test | Tests quotas, spend, stale, keys and refresh states |
 | m-settings-vm.ts | vm | Maps config, costs and mounted hooks |
 | m-settings-vm.test.ts | test | Tests mobile settings data mapping |
 | MAccountsScreen.tsx | screen | Loads account status and serializes logout actions |

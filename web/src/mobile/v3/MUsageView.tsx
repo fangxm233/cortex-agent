@@ -84,7 +84,7 @@ function QuotaBlock({ provider, copy }: { provider: ProviderUsageView; copy: MUs
     <section data-usage-quota={provider.provider} data-usage-quota-state={provider.quotaState} style={{ padding: '10px 13px' }}>
       <div style={LABEL}>{copy.quota}</div>
       {provider.quotaState === 'available'
-        ? provider.windows.map(window => <WindowRow key={`${window.type}:${window.resetsAt ?? 'none'}`} window={window} copy={copy} />)
+        ? provider.windows.map(window => <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} copy={copy} />)
         : <div style={{ marginTop: 7, fontSize: 10.5, color: MC.muted }}>{unavailable}</div>}
     </section>
   );
@@ -133,7 +133,7 @@ function RefreshButton({ copy, pending, onRefresh }: { copy: MUsageCopy; pending
     <button
       type="button"
       data-usage-refresh
-      disabled={pending}
+      aria-busy={pending}
       onClick={onRefresh}
       style={{ border: 0, borderRadius: 8, padding: '7px 10px', background: MC.runBg, color: MC.run, fontSize: 10.5, fontWeight: 650 }}
     >
