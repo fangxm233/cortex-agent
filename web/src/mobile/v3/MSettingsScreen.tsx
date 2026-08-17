@@ -1,5 +1,5 @@
 // input:  config/cost/auth queries, language/theme state, navigation
-// output: mobile settings with accounts and config drill-ins
+// output: mobile settings with Usage, accounts, and config drill-ins
 // pos:    Mobile settings query and mutation container
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -35,6 +35,7 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     themeDark: 'Dark',
     budget: 'Budget',
     budgetUnit: '/day',
+    usage: 'Usage',
     notify: 'Notifications',
     notifySub: 'push on · long task > 10m · approvals instant',
     autoResume: 'Auto-resume on limit',
@@ -62,6 +63,7 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     themeDark: '深色',
     budget: '预算',
     budgetUnit: '日',
+    usage: '用量',
     notify: '通知',
     notifySub: '推送开 · 长任务 > 10m · 审批即时',
     autoResume: '限额自动续跑',
@@ -150,6 +152,7 @@ export function MSettingsScreen() {
       onOpenHooks={() => navigate('/m/settings/hooks')}
       accountsSummary={accountsSummary}
       onOpenAccounts={() => navigate('/m/settings/accounts')}
+      onOpenUsage={() => navigate('/m/settings/usage')}
       profileSheet={profileSheet}
       onOpenProfile={() => setProfileOpen(true)}
       onCloseProfile={() => setProfileOpen(false)}

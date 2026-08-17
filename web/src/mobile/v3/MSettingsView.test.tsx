@@ -1,5 +1,5 @@
 // input:  mobile settings view, account/hooks snapshots, UI copy
-// output: fixed-header and account/hook drill-in regressions
+// output: fixed-header, Usage, account, and hook drill-in tests
 // pos:    Verifies mobile settings layout and entries
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -16,7 +16,7 @@ const copy: MSettingsCopy = {
   profileTitle: 'Profile', switchLabel: 'Switch', profileSheetTitle: 'Profiles',
   profileSheetCurrent: 'current', profileSheetFooter: 'new sessions', theme: 'Theme',
   themeLight: 'Light', themeDark: 'Dark', budget: 'Budget', budgetUnit: '/day',
-  notify: 'Notifications', notifySub: 'notify', autoResume: 'Auto resume',
+  usage: 'Usage', notify: 'Notifications', notifySub: 'notify', autoResume: 'Auto resume',
   autoResumeSub: 'resume', language: 'Language', platform: 'Platform',
   desktopEdit: 'Desktop', templates: 'Templates', hooks: 'Hooks',
   footerBrand: 'cortex mobile',
@@ -53,6 +53,7 @@ function settingsView(value: ConfigSnapshot, onlineMachines = 0) {
         onOpenHooks={() => {}}
         accountsSummary={{ claudeLoggedIn: true, piLoggedInCount: 2 }}
         onOpenAccounts={() => {}}
+        onOpenUsage={() => {}}
         profileSheet={null}
         onOpenProfile={() => {}}
         onCloseProfile={() => {}}
@@ -85,6 +86,15 @@ describe('MSettingsView accounts', () => {
     expect(html).toContain('data-accounts-entry="mobile"');
     expect(html).toContain('aria-label="Accounts"');
     expect(html).toContain('Accounts · CC ✓ · PI logged in 2');
+  });
+});
+
+describe('MSettingsView usage', () => {
+  it('renders a dedicated mobile Usage drill-in row', () => {
+    const html = renderHooks(snapshot);
+
+    expect(html).toContain('data-usage-entry="mobile"');
+    expect(html).toContain('aria-label="Usage"');
   });
 });
 

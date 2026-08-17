@@ -1,5 +1,5 @@
 // input:  mobile shell and tab/drill screen components
-// output: mobile route table including accounts drill-in
+// output: mobile route table including Usage settings drill-in
 // pos:    Mobile router route declarations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -23,6 +23,7 @@ import { MSettingsScreen } from './v3/MSettingsScreen';
 import { MAccountsScreen } from './v3/MAccountsScreen';
 import { MHooksScreen } from './v3/MHooksScreen';
 import { MDaemonScreen } from './v3/MDaemonScreen';
+import { MUsageScreen } from './v3/MUsageScreen';
 
 // Mobile v3 route table (scheme-mobile.dc.html §1). Four bottom-Tab routes (会话/线程/任务/项目) +
 // drill-in sub-screens (1b/1f/1g/1h/1i/1j/1j-file/1k/1l/1l-h/1r) which hide the Tab bar (see
@@ -55,6 +56,7 @@ export const mobileRoutes: RouteObject[] = [
       { path: '/m/settings', element: <MSettingsScreen /> },
       { path: '/m/settings/accounts', element: <MAccountsScreen /> },
       { path: '/m/settings/hooks', element: <MHooksScreen /> },
+      { path: '/m/settings/usage', element: <MUsageScreen /> },
       { path: '/m/daemon', element: <MDaemonScreen /> },
       { path: '*', element: <Navigate to="/m/sessions" replace /> },
     ],

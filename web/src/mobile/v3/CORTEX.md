@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
-Every mobile screen as a triad: a Screen container binding data and routing, a pure View, and a view model.
-The view models are framework-free record to slot mappings and each one has a colocated unit test.
+Mobile screens use a data/routing Screen and pure View, plus a local or public feature view model.
+Framework-free view models map records to slots and have colocated unit tests.
 
 | filename | role | function |
 |---|---|---|
@@ -83,6 +83,10 @@ The view models are framework-free record to slot mappings and each one has a co
 | MSettingsScreen.tsx | screen | Loads settings and account summary data |
 | MSettingsView.tsx | view | Fixed-header settings with account and config drill-ins |
 | MSettingsView.test.tsx | test | Tests fixed header and settings drill-in rows |
+| MUsageScreen.tsx | screen | Binds public Usage data, refresh and settings back route |
+| MUsageScreen.test.tsx | test | Tests Usage hook, refresh and replace-back wiring |
+| MUsageView.tsx | view | Renders mobile quotas, spend and freshness feedback |
+| MUsageView.test.tsx | test | Tests mobile quota, spend, stale and refresh states |
 | m-settings-vm.ts | vm | Maps config, costs and mounted hooks |
 | m-settings-vm.test.ts | test | Tests mobile settings data mapping |
 | MAccountsScreen.tsx | screen | Loads account status and serializes logout actions |
