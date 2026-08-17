@@ -104,16 +104,26 @@ def _required_text(value: object, label: str) -> str:
     return value
 
 
-def _task_cli_payload(stdout: str) -> str:
-    """The JSON result at the end of a `cortex-task` stdout stream.
+def _task_cli_result(stdout: str) -> object | None:
+    """The JSON result inside a `cortex-task` output stream, or None when there is none.
 
-    The shipped CLI prints its result as pretty-printed JSON and its own logger writes console
-    lines to the same stream, so the payload is the last object that opens at column zero rather
-    than the whole stream. Read as the production behaviour it is: the launcher adapts to the
-    server it runs, it does not quiet the server to suit itself.
+    The shipped CLI prints its result as pretty-printed JSON, its own logger writes console lines
+    to the same stream ahead of it, and its advisory notices trail it. The result is therefore the
+    last complete object that opens at column zero, decoded and stopped there rather than read as
+    the whole stream. The launcher adapts to the server it runs; it does not quiet that server to
+    suit itself.
     """
-    index = stdout.rfind("\n{\n")
-    return stdout if index < 0 else stdout[index + 1:]
+    decoder = json.JSONDecoder()
+    result: object | None = None
+    for line in range(len(stdout)):
+        if stdout[line] != "{" or (line and stdout[line - 1] != "\n"):
+            continue
+        try:
+            value, _ = decoder.raw_decode(stdout, line)
+        except ValueError:
+            continue
+        result = value
+    return result
 
 
 def _unavailable_proxy(trial_id: str) -> dict[str, object]:
@@ -318,11 +328,10 @@ class ProductionServerSession:
             cwd=self._spec.workspace_cwd, timeout_sec=TASK_CLI_TIMEOUT_SECONDS,
         )
         label = f"cortex-task {argv[0]}"
-        try:
-            response = json.loads(_task_cli_payload(result.stdout or ""))
-        except json.JSONDecodeError as error:
-            raise ProductionSessionError(f"{label} returned malformed JSON") from error
-        response = _required_mapping(response, label)
+        decoded = _task_cli_result(result.stdout or "")
+        if decoded is None:
+            raise ProductionSessionError(f"{label} printed no JSON result")
+        response = _required_mapping(decoded, label)
         if response.get("success") is not True:
             raise ProductionSessionError(f"{label} refused: {response.get('message')}")
         return response

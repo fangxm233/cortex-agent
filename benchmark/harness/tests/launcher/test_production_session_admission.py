@@ -222,10 +222,12 @@ class ContainerDouble:
 
     @staticmethod
     def _task_cli_stdout(value: dict[str, object]) -> str:
-        """`cortex-task` prints its own logger to stdout ahead of the JSON result."""
+        """The JSON result with the CLI's own logger ahead of it and its notice trailing it."""
         return (
-            "[thread-manager 09:40:08] Loaded 1 agents, 1 templates\n"
+            "[thread-manager 09:40:08] Loaded 17 agents, 9 templates\n"
             + json.dumps(value, indent=2) + "\n"
+            "Lock acquired automatically. "
+            "Release with: cortex-task lock-release --project general\n"
         )
 
 

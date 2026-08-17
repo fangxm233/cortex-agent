@@ -225,15 +225,21 @@ class FakeExecutor:
 
     @staticmethod
     def _task_cli_reply(value: dict[str, object]) -> SimpleNamespace:
-        """`cortex-task` prints its own logger to stdout ahead of the JSON result."""
+        """The JSON result as the sealed container really delivers it.
+
+        `cortex-task` prints its own logger to stdout ahead of the result, and the sealed exec
+        returns the process output with its advisory notice trailing the JSON.
+        """
         return SimpleNamespace(
             stdout=(
                 "[task-lock 09:40:08] Lock acquired for %s by %s (expires %s) "
                 "general benchmark-launcher 2026-01-01T00:20:00.000Z\n"
                 "[thread-manager 09:40:08] Loaded 1 agents, 1 templates\n"
                 + json.dumps(value, indent=2) + "\n"
+                "Lock acquired automatically. "
+                "Release with: cortex-task lock-release --project general\n"
             ),
-            stderr="Lock acquired automatically.",
+            stderr="",
         )
 
 
@@ -487,6 +493,19 @@ def test_manager_arm_refuses_a_task_cli_that_did_not_add_the_task(tmp_path: Path
     production = session(tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE)
 
     with pytest.raises(ProductionSessionError, match="cortex-task add refused"):
+        asyncio.run(production.run("Solve only this task.", runner))
+
+    assert production.stopped_cleanly is True
+
+
+def test_manager_arm_refuses_a_task_cli_that_printed_no_result(tmp_path: Path) -> None:
+    """A refused CLI writes its reason to stderr and leaves stdout without a result."""
+    runner = FakeExecutor(tmp_path)
+    runner._task_cli_reply = lambda value: SimpleNamespace(  # type: ignore[method-assign]
+        stdout="", stderr="--project is required")
+    production = session(tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE)
+
+    with pytest.raises(ProductionSessionError, match="cortex-task add printed no JSON result"):
         asyncio.run(production.run("Solve only this task.", runner))
 
     assert production.stopped_cleanly is True
