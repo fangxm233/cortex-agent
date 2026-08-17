@@ -8,3 +8,4 @@ Committed launcher input bundles are copied into fresh trial homes before boot.
 | coder-review-reviewer-fix-pi-deepseek/ | config | Pins the production coder-review reviewer-fix PI and DeepSeek arm |
 | direct-pi-deepseek/ | config | Pins the production direct PI and DeepSeek arm |
 | manager-qa-off-pi-deepseek/ | config | Pins the production manager PI and DeepSeek arm: dispatcher on, ask_manager off the tool surface |
+| manager-qa-on-pi-deepseek/ | config | Pins the production manager PI and DeepSeek arm: dispatcher and ask_manager on |

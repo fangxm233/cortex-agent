@@ -132,6 +132,29 @@ test('thread-op-only mode refuses task-op and manager-qa to an authenticated cal
   }
 });
 
+test('thread-op-only mode admits manager-qa only when the arm explicitly enables it', async () => {
+  process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY = '1';
+  process.env.CORTEX_WEBHOOK_MANAGER_QA_ALLOWED = '1';
+  try {
+    const admitted = await drive({
+      method: 'POST', url: '/webhook/manager-qa',
+      headers: { 'x-cortex-token': TOKEN }, body: { action: 'unknown' },
+    });
+    assert.equal(admitted.statusCode, 200);
+    assert.deepEqual(JSON.parse(admitted.body), { success: false, error: 'unknown action: unknown' });
+
+    for (const url of ['/webhook/task-op', '/webhook/remote-command']) {
+      const refused = await drive({
+        method: 'POST', url, headers: { 'x-cortex-token': TOKEN }, body: {},
+      });
+      assert.equal(refused.statusCode, 403, url);
+    }
+  } finally {
+    delete process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY;
+    delete process.env.CORTEX_WEBHOOK_MANAGER_QA_ALLOWED;
+  }
+});
+
 test('POST /webhook/github is exempt from the token gate (uses HMAC instead)', async () => {
   // No x-cortex-token header. With no GITHUB_WEBHOOK_SECRET configured, verifySignature
   // returns true (warns) and a non-push event is Ignored with 200 — proving the token

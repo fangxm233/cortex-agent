@@ -27,10 +27,11 @@ SERIAL_EXECUTION_LIMITS = {"max_resident_agent_processes": 1, "max_output_tokens
 # the production dispatcher the bundle's settings enable.
 THREAD_ROOT = "thread-root"
 TASK_ROOT = "task-root"
-# `CORTEX_WEBHOOK_THREAD_OP_ONLY=1` serves exactly this one route and refuses every other, for
-# every arm. It is stated here so a trial's launch parameters carry the endpoint set that was
-# actually open rather than leaving "nothing was relaxed" to be inferred from an absence.
-ADMITTED_WEBHOOK_ENDPOINTS: tuple[str, ...] = ("POST /webhook/thread-op",)
+# `CORTEX_WEBHOOK_THREAD_OP_ONLY=1` serves the thread route plus only those additions an arm
+# explicitly declares. The Q&A-on arm needs the manager route; every other route stays refused.
+THREAD_OP_ENDPOINT = "POST /webhook/thread-op"
+MANAGER_QA_ENDPOINT = "POST /webhook/manager-qa"
+THREAD_ONLY_ENDPOINTS: tuple[str, ...] = (THREAD_OP_ENDPOINT,)
 
 
 class ProductionArmError(RuntimeError):
@@ -56,6 +57,7 @@ class ProductionArmBundle:
     limits: Mapping[str, object]
     injection: str
     writable_home_paths: tuple[str, ...]
+    webhook_endpoints: tuple[str, ...]
 
     def attested_record(self) -> dict[str, str]:
         """What the launch attestation states about which arm ran."""
@@ -73,7 +75,7 @@ class ProductionArmBundle:
         """
         return {
             "injection": self.injection,
-            "webhook_endpoints": list(ADMITTED_WEBHOOK_ENDPOINTS),
+            "webhook_endpoints": list(self.webhook_endpoints),
             "writable_home_paths": list(self.writable_home_paths),
         }
 
@@ -85,6 +87,7 @@ def _bundle(
     limits: Mapping[str, object] = SERIAL_EXECUTION_LIMITS,
     injection: str = THREAD_ROOT,
     writable_home_paths: tuple[str, ...] = (),
+    webhook_endpoints: tuple[str, ...] = THREAD_ONLY_ENDPOINTS,
 ) -> ProductionArmBundle:
     return ProductionArmBundle(
         key=key, bundle_dir=BUNDLES_DIR / key / BUNDLE_HOME_DIRNAME,
@@ -94,6 +97,7 @@ def _bundle(
         model="deepseek-v4-flash", credential_capability="pi-deepseek-api-key",
         orchestration=orchestration, limits={**TASKLESS_LIMITS, **limits},
         injection=injection, writable_home_paths=writable_home_paths,
+        webhook_endpoints=webhook_endpoints,
     )
 
 
@@ -135,6 +139,18 @@ PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
         limits={**SERIAL_EXECUTION_LIMITS, "max_task_depth": 1, "max_tasks": 1},
         injection=TASK_ROOT, writable_home_paths=("context/projects/general",),
     ),
+    _bundle(
+        key="manager-qa-on-pi-deepseek", profile_name="benchmark-manager",
+        root_template="benchmark-manager", evidence_mode="manager",
+        expected_roles=("benchmark-manager",), manager_qa="on",
+        orchestration={"mode": "manager", "ask_manager": True},
+        limits={
+            **SERIAL_EXECUTION_LIMITS, "max_parent_questions": 1,
+            "max_task_depth": 1, "max_tasks": 1,
+        },
+        injection=TASK_ROOT, writable_home_paths=("context/projects/general",),
+        webhook_endpoints=(THREAD_OP_ENDPOINT, MANAGER_QA_ENDPOINT),
+    ),
 )
 
 
@@ -167,6 +183,8 @@ def production_arm_candidate(arm: Mapping[str, object]) -> ProductionArmBundle |
             and orchestration.get("mode") == bundle.orchestration["mode"]
             and orchestration.get("coder_review_variant")
             == bundle.orchestration.get("coder_review_variant")
+            and orchestration.get("ask_manager")
+            == bundle.orchestration.get("ask_manager")
         )
         if addressed:
             return bundle
