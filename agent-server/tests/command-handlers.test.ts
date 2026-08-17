@@ -188,6 +188,28 @@ test('usage formatter renders quota windows, spend, freshness, and stale error n
   assert.match(text, /Qwen KSU.*quota unsupported/);
 });
 
+test('usage formatter preserves unknown window names and never freshness', () => {
+  const text = formatUsageReport([{
+    provider: 'anthropic',
+    displayName: 'Anthropic',
+    modes: ['plan'],
+    windows: [{ type: 'tangelo', utilization: 0.075, resetsAt: null }],
+    observedAt: null,
+    freshness: 'never',
+  }]);
+
+  assert.match(text, /Anthropic.*never observed/);
+  assert.match(text, /tangelo.*7\.5%/);
+});
+
+test('usage formatter distinguishes an empty store from an unknown provider filter', () => {
+  assert.match(formatUsageReport([]), /No provider usage data has been collected yet/);
+  assert.match(
+    formatUsageReport(COMMAND_USAGE, 'missing-provider'),
+    /Unknown usage provider: `missing-provider`.*anthropic, openai-codex, deepseek, qwen-ksu/,
+  );
+});
+
 test('!usage uses exact and trailing-space prefix routes with provider filtering', async () => {
   const adapter = new MockAdapter();
   let statusCalls = 0;
