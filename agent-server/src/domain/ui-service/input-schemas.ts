@@ -1,5 +1,5 @@
 // input:  Zod, settings spec, UI-service op unions
-// output: UI input schemas/maps incl plugin ops
+// output: UI input schemas/maps incl plugin and usage ops
 // pos:    Runtime validation source for UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -113,6 +113,8 @@ export const threadTemplatesGetInput = z.object({});
 export const systemDaemonStatusInput = z.object({});
 
 export const systemRateLimitStatusInput = z.object({});
+
+export const systemUsageStatusInput = z.object({});
 
 // ── Subscription input schemas ────────────────────────────────────
 // Subscriptions are not part of the query/mutate keyed maps; their input schemas live here too so
@@ -619,6 +621,8 @@ export const systemClearRateLimitInput = z.object({
   provider: z.string().optional(),
 });
 
+export const systemRefreshUsageInput = z.object({});
+
 export const approvalsRequestInput = z
   .object({
     kind: z.enum(['reconnect-platform', 'add-machine']),
@@ -667,6 +671,7 @@ export const queryInputSchemas = {
   'threadTemplates.detail': threadTemplatesDetailInput,
   'system.daemonStatus': systemDaemonStatusInput,
   'system.rateLimitStatus': systemRateLimitStatusInput,
+  'system.usageStatus': systemUsageStatusInput,
 } satisfies Record<QueryScope, z.ZodType>;
 
 export const mutateInputSchemas = {
@@ -725,4 +730,5 @@ export const mutateInputSchemas = {
   'threadTemplates.remove': threadTemplatesRemoveInput,
   'system.restart': systemRestartInput,
   'system.clearRateLimit': systemClearRateLimitInput,
+  'system.refreshUsage': systemRefreshUsageInput,
 } satisfies Record<MutateOp, z.ZodType>;

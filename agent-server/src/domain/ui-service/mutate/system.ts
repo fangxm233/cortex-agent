@@ -1,9 +1,6 @@
-// input:  STORE_DIR paths (.restart trigger, daemon-child.pid), SIGTERM/SIGKILL, active throttle state
-// output: handleSystemRestart(args) → SystemRestartReturn; handleSystemClearRateLimit(args) → SystemClearRateLimitReturn
-// pos:    mutate handlers for 'system.restart' (three levels) and 'system.clearRateLimit' (early throttle lift)
-//           soft  — touch STORE_DIR/.restart (daemon's fs.watch picks it up, drains, respawns)
-//           hard  — SIGTERM the child PID from daemon-child.pid (daemon auto-recovers)
-//           force — SIGKILL the child PID (daemon auto-recovers)
+// input:  daemon files, process signals, throttle and usage services
+// output: restart, clear-rate-limit, and refresh-usage handlers
+// pos:    System UI mutation handlers
 // >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -11,7 +8,16 @@ import { utimesSync } from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';
 import { clearThrottle } from '@domain/costs/rate-limit-throttle.js';
-import type { SystemRestartArgs, SystemRestartReturn, SystemClearRateLimitArgs, SystemClearRateLimitReturn, Result } from '../types.js';
+import { usageService } from '@domain/costs/usage-service.js';
+import type {
+  Result,
+  SystemClearRateLimitArgs,
+  SystemClearRateLimitReturn,
+  SystemRefreshUsageArgs,
+  SystemRefreshUsageReturn,
+  SystemRestartArgs,
+  SystemRestartReturn,
+} from '../types.js';
 
 function readChildPid(): number | null {
   const childPidFile = path.join(STORE_DIR, 'daemon-child.pid');
@@ -46,6 +52,20 @@ export async function handleSystemClearRateLimit(
       ok: false,
       code: 'internal',
       message: `Failed to clear rate limit: ${(error as Error).message || String(error)}`,
+    };
+  }
+}
+
+export async function handleSystemRefreshUsage(
+  _args: SystemRefreshUsageArgs,
+): Promise<Result<SystemRefreshUsageReturn>> {
+  try {
+    return { ok: true, data: await usageService.refresh() };
+  } catch (error) {
+    return {
+      ok: false,
+      code: 'internal',
+      message: `Failed to refresh usage: ${(error as Error).message || String(error)}`,
     };
   }
 }

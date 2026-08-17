@@ -1,5 +1,5 @@
 // input:  built agent-server UI input schemas
-// output: shared query/mutate schema exports
+// output: shared query/mutate schemas incl usage
 // pos:    Shared browser/server input boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -75,7 +75,10 @@ export {
   threadTemplatesRemoveInput,
   systemDaemonStatusInput,
   systemRateLimitStatusInput,
+  systemUsageStatusInput,
   systemRestartInput,
+  systemClearRateLimitInput,
+  systemRefreshUsageInput,
   sessionsAnswerQuestionInput,
   sessionsRespondPlanInput,
   sessionsPendingInteractionInput,

@@ -1,5 +1,5 @@
 // input:  isolated test home, fake UiService, typed tRPC caller
-// output: AppRouter routing, draft ids, auth flows, and errors
+// output: AppRouter routing incl usage, draft ids, auth flows, and errors
 // pos:    Transport-contract regression coverage for UI routes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -98,6 +98,7 @@ const QUERY_CASES: Array<{ scope: QueryScope; call: (c: any) => Promise<unknown>
   { scope: 'auth.flowState', call: (c) => c.auth.flowState({ flowId: 'flow-1' }), input: {} },
   { scope: 'skills.list', call: (c) => c.skills.list({}), input: {} },
   { scope: 'system.rateLimitStatus', call: (c) => c.system.rateLimitStatus({}), input: {} },
+  { scope: 'system.usageStatus', call: (c) => c.system.usageStatus({}), input: {} },
 ];
 
 test('every query routes to the correct scope and unwraps Result.data', async () => {
@@ -132,6 +133,7 @@ const MUTATE_CASES: Array<{ op: MutateOp; call: (c: any) => Promise<unknown>; }>
   { op: 'tasks.complete', call: (c) => c.tasks.complete({ projectId: 'p', taskId: 'a1b2' }) },
   { op: 'tasks.block', call: (c) => c.tasks.block({ projectId: 'p', taskId: 'a1b2', reason: 'x' }) },
   { op: 'tasks.unblock', call: (c) => c.tasks.unblock({ projectId: 'p', taskId: 'a1b2' }) },
+  { op: 'system.refreshUsage', call: (c) => c.system.refreshUsage({}) },
 ];
 
 test('every mutation routes to the correct op and unwraps Result.data', async () => {
