@@ -43,6 +43,7 @@ Scopes cover approvals, config, executions, issues, memory, plugins, projects, s
 | query-skills.test.ts | test | Covers skills list grouping by source |
 | plugins.test.ts | test | Covers plugin list, assignment and hot reload |
 | query-system-rate-limit.test.ts | test | Covers throttle windows and waiting counts |
+| system-usage.test.ts | test | Covers persisted usage reads and forced refreshes |
 | query-task-verification.test.ts | test | Covers task evidence and dispatch history |
 | query-tasks.test.ts | test | Covers readiness, deps, claims and completion |
 | query-thread-detail.test.ts | test | Covers steps, child tree, and artifact reads |

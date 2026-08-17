@@ -1,5 +1,5 @@
 // input:  built UI-service declarations and cost types
-// output: browser DTO contract incl plugin exports
+// output: browser DTO contract incl plugin and usage exports
 // pos:    Shared server/client compile-time DTO boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -229,6 +229,13 @@ export type {
   SystemRateLimitStatus,
   RateLimitProviderInfo,
   RateLimitWindowInfo,
+  SystemUsageStatusParams,
+  SystemUsageStatus,
+  SystemRefreshUsageArgs,
+  SystemRefreshUsageReturn,
+  ProviderUsage,
+  UsageFreshness,
+  UsageWindow,
   SystemRestartArgs,
   SystemRestartReturn,
   SystemClearRateLimitArgs,

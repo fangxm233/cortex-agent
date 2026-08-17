@@ -1,5 +1,5 @@
 // input:  shared Zod schema maps
-// output: query/mutate schema coverage
+// output: query/mutate schema coverage incl usage routes
 // pos:    UI-contract runtime schema guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -28,6 +28,7 @@ const QUERY_SCOPES = [
   'memory.tree', 'memory.file', 'approvals.list', 'issues.list', 'notes.list', 'cost.summary', 'config.get',
   'auth.status', 'auth.flowState', 'auth.customProviders', 'hooks.list', 'machines.list', 'machines.detail', 'skills.list', 'plugins.list',
   'threadTemplates.get', 'threadTemplates.detail', 'system.daemonStatus', 'system.rateLimitStatus',
+  'system.usageStatus',
 ] as const;
 
 const MUTATE_OPS = [
@@ -44,7 +45,7 @@ const MUTATE_OPS = [
   'threadTemplates.validate', 'threadTemplates.save', 'threadTemplates.remove',
   'auth.startLogin', 'auth.respondPrompt', 'auth.cancelFlow', 'auth.logout',
   'auth.upsertCustomProvider', 'auth.removeCustomProvider',
-  'system.restart', 'system.clearRateLimit',
+  'system.restart', 'system.clearRateLimit', 'system.refreshUsage',
 ] as const;
 
 test('every QueryScope has an input schema', () => {
@@ -66,6 +67,8 @@ test('empty query schemas accept empty input', () => {
   assert.deepEqual(queryInputSchemas['auth.status'].parse({}), {});
   assert.deepEqual(queryInputSchemas['plugins.list'].parse({}), {});
   assert.deepEqual(queryInputSchemas['system.rateLimitStatus'].parse({}), {});
+  assert.deepEqual(queryInputSchemas['system.usageStatus'].parse({}), {});
+  assert.deepEqual(mutateInputSchemas['system.refreshUsage'].parse({}), {});
 });
 
 test('auth flow schemas accept both auth types and require the prompt response value', () => {

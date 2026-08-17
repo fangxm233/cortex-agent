@@ -5,7 +5,7 @@ Serves the TUI dashboard directly and the Web UI through the tRPC router bound h
 
 | filename | role | function |
 |---|---|---|
-| types.ts | types | UI DTOs, auth actions, and operation maps |
+| types.ts | types | UI DTOs, auth and usage actions, and operation maps |
 | input-schemas.ts | schemas | Validates UI inputs and plugin identities |
 | plugins-shared.ts | util | Normalizes plugin catalog entries and pluginDirs |
 | ui-service.ts | facade | routes UI operations through registered handlers |

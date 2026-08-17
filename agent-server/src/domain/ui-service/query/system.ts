@@ -1,6 +1,6 @@
-// input:  STORE_DIR process files, /proc uptime, active provider throttle state
-// output: daemon status and provider throttle snapshots with wait counts
-// pos:    system UI queries; process health plus active-only throttle truth
+// input:  process files, throttle state, persisted usage service
+// output: daemon, throttle, and provider usage snapshots
+// pos:    Read-only system UI queries
 // >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -8,12 +8,15 @@ import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
+import { usageService } from '@domain/costs/usage-service.js';
 import type {
   SystemDaemonStatus,
   DaemonProcessInfo,
   SystemDaemonStatusParams,
   SystemRateLimitStatus,
   SystemRateLimitStatusParams,
+  SystemUsageStatus,
+  SystemUsageStatusParams,
 } from '../types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -147,4 +150,10 @@ export async function handleSystemRateLimitStatus(
     windows: provider.windows.map((window) => ({ ...window })),
   }));
   return { providers };
+}
+
+export async function handleSystemUsageStatus(
+  _params: SystemUsageStatusParams,
+): Promise<SystemUsageStatus> {
+  return usageService.getStatus();
 }

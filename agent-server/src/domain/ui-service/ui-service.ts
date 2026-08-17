@@ -1,5 +1,5 @@
 // input:  UiServiceDeps and UI op handlers
-// output: createUiService with query/mutate routing
+// output: createUiService with query/mutate routing incl usage
 // pos:    Transport-neutral UI-service dispatcher
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -26,7 +26,11 @@ import { handleSkillsList } from './query/skills.js';
 import { handlePluginsList } from './query/plugins.js';
 import { handleThreadTemplatesGet } from './query/thread-templates.js';
 import { handleThreadTemplatesDetail } from './query/thread-template-detail.js';
-import { handleSystemDaemonStatus, handleSystemRateLimitStatus } from './query/system.js';
+import {
+  handleSystemDaemonStatus,
+  handleSystemRateLimitStatus,
+  handleSystemUsageStatus,
+} from './query/system.js';
 import { handleConfigSet } from './mutate/config.js';
 import {
   handleHooksCreate,
@@ -73,7 +77,11 @@ import {
   handleNotesSetCompleted,
   handleNotesUpdate,
 } from './mutate/notes.js';
-import { handleSystemRestart, handleSystemClearRateLimit } from './mutate/system.js';
+import {
+  handleSystemRestart,
+  handleSystemClearRateLimit,
+  handleSystemRefreshUsage,
+} from './mutate/system.js';
 import {
   handleAuthCancelFlow,
   handleAuthLogout,
@@ -121,6 +129,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'threadTemplates.detail': (deps, params) => handleThreadTemplatesDetail(deps, params),
   'system.daemonStatus': (_deps, params) => handleSystemDaemonStatus(params),
   'system.rateLimitStatus': (_deps, params) => handleSystemRateLimitStatus(params),
+  'system.usageStatus': (_deps, params) => handleSystemUsageStatus(params),
 };
 
 const mutateHandlers: Record<string, MutateHandler> = {
@@ -179,6 +188,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'threadTemplates.remove': (deps, args) => handleThreadTemplatesRemove(deps, args),
   'system.restart': (_deps, args) => handleSystemRestart(args),
   'system.clearRateLimit': (_deps, args) => handleSystemClearRateLimit(args),
+  'system.refreshUsage': (_deps, args) => handleSystemRefreshUsage(args),
 };
 
 export function redactMutationAuditArgs(op: MutateOp, args: unknown): unknown {

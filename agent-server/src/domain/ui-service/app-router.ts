@@ -1,5 +1,5 @@
 // input:  UiService, op schemas, tRPC init
-// output: createAppRouter with UI op procedures
+// output: createAppRouter with UI procedures incl usage
 // pos:    Typed tRPC mirror of UI operations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -86,8 +86,10 @@ import {
   threadTemplatesRemoveInput,
   systemDaemonStatusInput,
   systemRateLimitStatusInput,
+  systemUsageStatusInput,
   systemRestartInput,
   systemClearRateLimitInput,
+  systemRefreshUsageInput,
 } from './input-schemas.js';
 import type {
   UiService,
@@ -324,8 +326,10 @@ function systemRouter(service: UiService) {
   return router({
     daemonStatus: makeQuery(service, 'system.daemonStatus', systemDaemonStatusInput),
     rateLimitStatus: makeQuery(service, 'system.rateLimitStatus', systemRateLimitStatusInput),
+    usageStatus: makeQuery(service, 'system.usageStatus', systemUsageStatusInput),
     restart: makeMutation(service, 'system.restart', systemRestartInput),
     clearRateLimit: makeMutation(service, 'system.clearRateLimit', systemClearRateLimitInput),
+    refreshUsage: makeMutation(service, 'system.refreshUsage', systemRefreshUsageInput),
   });
 }
 

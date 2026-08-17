@@ -1,5 +1,5 @@
 // input:  shared schemas and UI op maps
-// output: exact parity guards incl plugin ops
+// output: exact parity guards incl plugin and usage ops
 // pos:    Anti-drift boundary for UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -77,7 +77,10 @@ import type {
   threadTemplatesRemoveInput,
   systemDaemonStatusInput,
   systemRateLimitStatusInput,
+  systemUsageStatusInput,
   systemRestartInput,
+  systemClearRateLimitInput,
+  systemRefreshUsageInput,
 } from './schemas.js';
 
 // Mutual assignability: true only when A and B are structurally equivalent.
@@ -121,6 +124,7 @@ const _threadTemplatesGet: QueryParity<'threadTemplates.get', typeof threadTempl
 const _threadTemplatesDetail: QueryParity<'threadTemplates.detail', typeof threadTemplatesDetailInput> = true;
 const _systemDaemonStatus: QueryParity<'system.daemonStatus', typeof systemDaemonStatusInput> = true;
 const _systemRateLimitStatus: QueryParity<'system.rateLimitStatus', typeof systemRateLimitStatusInput> = true;
+const _systemUsageStatus: QueryParity<'system.usageStatus', typeof systemUsageStatusInput> = true;
 
 // ── Mutate ops ────────────────────────────────────────────────────
 const _projectsCreate: MutateParity<'projects.create', typeof projectsCreateInput> = true;
@@ -170,6 +174,8 @@ const _authLogout: MutateParity<'auth.logout', typeof authLogoutInput> = true;
 const _authUpsertCustomProvider: MutateParity<'auth.upsertCustomProvider', typeof authUpsertCustomProviderInput> = true;
 const _authRemoveCustomProvider: MutateParity<'auth.removeCustomProvider', typeof authRemoveCustomProviderInput> = true;
 const _systemRestart: MutateParity<'system.restart', typeof systemRestartInput> = true;
+const _systemClearRateLimit: MutateParity<'system.clearRateLimit', typeof systemClearRateLimitInput> = true;
+const _systemRefreshUsage: MutateParity<'system.refreshUsage', typeof systemRefreshUsageInput> = true;
 
 // ── Subscriptions ─────────────────────────────────────────────────
 // Subscriptions have no query/mutate map entry; guard the input schema against its backend
@@ -192,5 +198,6 @@ export const _contractParityChecked = [
   _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
   _profilesCreate, _profilesUpdate, _profilesRemove, _pluginsAssign,
   _threadTemplatesDetail, _threadTemplatesValidate, _threadTemplatesSave, _threadTemplatesRemove,
-  _systemDaemonStatus, _systemRateLimitStatus, _systemRestart,
+  _systemDaemonStatus, _systemRateLimitStatus, _systemUsageStatus,
+  _systemRestart, _systemClearRateLimit, _systemRefreshUsage,
 ] as const;

@@ -1,10 +1,12 @@
-// input:  domain types, auth flows, settings, stores
-// output: UI DTOs/maps incl plugin and auth ops
+// input:  domain types, auth flows, settings, usage store
+// output: UI DTOs/maps incl plugin, auth, and usage ops
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
+import type { ProviderUsage } from '@domain/costs/usage-store.js';
+export type { ProviderUsage, UsageFreshness, UsageWindow } from '@domain/costs/usage-store.js';
 import type { EventBus } from '@events/index.js';
 import type { RunningExecutions } from '@core/running-executions.js';
 import type { Settings, SettingSnapshotEntry } from '@core/settings-spec.js';
@@ -109,7 +111,8 @@ export type QueryScope =
   | 'threadTemplates.get'
   | 'threadTemplates.detail'
   | 'system.daemonStatus'
-  | 'system.rateLimitStatus';
+  | 'system.rateLimitStatus'
+  | 'system.usageStatus';
 
 // ── Mutate ops ────────────────────────────────────────────────────
 
@@ -168,7 +171,8 @@ export type MutateOp =
   | 'threadTemplates.save'
   | 'threadTemplates.remove'
   | 'system.restart'
-  | 'system.clearRateLimit';
+  | 'system.clearRateLimit'
+  | 'system.refreshUsage';
 
 // ── Subscribe ─────────────────────────────────────────────────────
 
@@ -312,6 +316,8 @@ export type ThreadTemplatesGetParams = Record<string, never>;
 export type SystemDaemonStatusParams = Record<string, never>;
 
 export type SystemRateLimitStatusParams = Record<string, never>;
+
+export type SystemUsageStatusParams = Record<string, never>;
 
 // ── Mutate args ───────────────────────────────────────────────────
 
@@ -1767,6 +1773,12 @@ export interface SystemRateLimitStatus {
   providers: RateLimitProviderInfo[];
 }
 
+// ── system usage DTOs ─────────────────────────────────────────────
+
+export type SystemUsageStatus = ProviderUsage[];
+export type SystemRefreshUsageArgs = Record<string, never>;
+export type SystemRefreshUsageReturn = ProviderUsage[];
+
 // ── system.restart DTO ────────────────────────────────────────────
 
 export interface SystemRestartArgs {
@@ -1915,6 +1927,7 @@ export interface QueryParamMap {
   'threadTemplates.detail': ThreadTemplateDetailParams;
   'system.daemonStatus': SystemDaemonStatusParams;
   'system.rateLimitStatus': SystemRateLimitStatusParams;
+  'system.usageStatus': SystemUsageStatusParams;
 }
 
 export interface QueryReturnMap {
@@ -1948,6 +1961,7 @@ export interface QueryReturnMap {
   'threadTemplates.detail': ThreadTemplateDetail;
   'system.daemonStatus': SystemDaemonStatus;
   'system.rateLimitStatus': SystemRateLimitStatus;
+  'system.usageStatus': SystemUsageStatus;
 }
 
 export interface MutateArgsMap {
@@ -2006,6 +2020,7 @@ export interface MutateArgsMap {
   'threadTemplates.remove': ThreadTemplatesRemoveArgs;
   'system.restart': SystemRestartArgs;
   'system.clearRateLimit': SystemClearRateLimitArgs;
+  'system.refreshUsage': SystemRefreshUsageArgs;
 }
 
 export interface MutateReturnMap {
@@ -2064,6 +2079,7 @@ export interface MutateReturnMap {
   'threadTemplates.remove': ThreadTemplatesRemoveReturn;
   'system.restart': SystemRestartReturn;
   'system.clearRateLimit': SystemClearRateLimitReturn;
+  'system.refreshUsage': SystemRefreshUsageReturn;
 }
 
 export type QueryParams<S extends QueryScope> = S extends keyof QueryParamMap ? QueryParamMap[S] : never;
