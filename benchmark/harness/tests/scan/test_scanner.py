@@ -111,6 +111,42 @@ def test_scans_generalized_named_source(tmp_path: Path) -> None:
     assert report.exit_code == 0
 
 
+def test_distinguishes_nested_container_home_dotfile_from_host_home(tmp_path: Path) -> None:
+    launcher = tmp_path / "env"
+    launcher.write_text('export PATH="/logs/agent/trial-home/home/.local/bin:$PATH"\n')
+    leaked = tmp_path / "leaked.txt"
+    leaked.write_text("/home/alice/private/file.txt\n")
+    inventory = ArtifactInventory(
+        {"launcher": launcher, "leaked": leaked}, frozenset({"launcher", "leaked"}),
+        (tmp_path,),
+    )
+
+    report = scan_trial_artifacts(inventory, policy())
+
+    assert [(finding.source, finding.rule_id) for finding in report.findings] == [
+        ("leaked", "host:home_path"),
+    ]
+
+
+def test_exact_dot_prefixed_host_home_literal_remains_protected(tmp_path: Path) -> None:
+    source = tmp_path / "leaked.txt"
+    source.write_text("/home/.operator/private/file.txt\n")
+    scan_policy = ScanPolicy(
+        secrets={"synthetic_credential": CREDENTIAL},
+        repository_checkout=CHECKOUT_PATH, hostname=HOSTNAME,
+        home_path="/home/.operator",
+    )
+
+    report = scan_trial_artifacts(
+        ArtifactInventory({"leaked": source}, frozenset({"leaked"}), (tmp_path,)),
+        scan_policy,
+    )
+
+    assert [(finding.source, finding.rule_id) for finding in report.findings] == [
+        ("leaked", "host:home_path_literal"),
+    ]
+
+
 def test_rejects_noncanonical_harness_manifest_filename(tmp_path: Path) -> None:
     artifacts = make_artifacts(tmp_path, "none")
     wrong_manifest = tmp_path / "manifest.txt"
