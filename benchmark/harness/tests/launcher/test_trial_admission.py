@@ -1190,3 +1190,30 @@ def test_separate_verifier_environment_is_rejected_before_launch(
 
     with pytest.raises(HarborTrialAdmissionError, match="separate verifier"):
         asyncio.run(create_harbor_trial(**launch_kwargs(tmp_path, task)))
+
+
+@pytest.mark.parametrize("network,sidecar", [
+    (None, False),
+    (NetworkAccess(mode="filtered"), True),
+    (NetworkAccess(mode="filtered", allowlist=("example.com",)), True),
+    (NetworkAccess(mode="filtered", denylist=("192.0.2.1",)), True),
+])
+def test_the_egress_sidecar_exists_only_when_something_is_being_filtered(
+    tmp_path: Path, network: NetworkAccess | None, sidecar: bool,
+) -> None:
+    """Whether a trial can reach the internet is decided by whether this file is passed.
+
+    The sidecar service is defined only in Harbor's egress-control compose file, and Harbor
+    appends that file only when some policy is not PUBLIC. So under `open` there is no sidecar to
+    filter with, `main` keeps its own namespace, and the container is on the network Docker gives
+    it. This is the whole mechanism behind `mode: open`, asserted rather than assumed.
+    """
+    trial = create_trial(tmp_path, network=network)
+    environment = trial.agent_environment
+
+    names = [path.name for path in environment._docker_compose_paths]
+
+    assert ("docker-compose-egress-control.yaml" in names) is sidecar
+    assert environment._enable_egress_control is sidecar
+    assert environment._network_namespace_service() == (
+        "harbor-docker-egress-control-sidecar" if sidecar else "main")
