@@ -1,0 +1,66 @@
+{
+  "schema_version": "cortex-bench-campaign-result-summary/1",
+  "campaign": "zp-direct-leakfix",
+  "executed_at": "2026-08-18",
+  "paid": false,
+  "headline": "The production-direct ZERO-PAID campaign published its outer envelope after the scanner stopped treating the nested container path /logs/agent/trial-home/home/.local as a host home. The scan reported zero credential or host-identity matches. Its aggregate clean flag remained false because the stopped PI runtime left one absolute auth.json symlink unclassified.",
+  "execution": {
+    "entrypoint": "cortex-bench run --config benchmark/campaigns/zero-paid-production-direct.yaml",
+    "source_commit": "62b456c45ef2c3ec2bb94992f0d8241c5fee946f",
+    "state": "completed",
+    "trial_count": 1,
+    "trials_failed": 0,
+    "outer_envelope_count": 1,
+    "started_at": "2026-08-18T04:34:10.166Z",
+    "ended_at": "2026-08-18T04:35:11.414Z",
+    "provider_requests": 2
+  },
+  "reproducibility": {
+    "campaign_config": "benchmark/campaigns/zero-paid-production-direct.yaml",
+    "campaign_config_sha256": "38dc810586e46941e6af4fe2de084f632e5487d300ea72de49d22c0e1a7aaedc",
+    "runtime_image": "cortex-bench-zero-paid-runtime@sha256:8b075847d21e55633a0f2bc2f3d7f9920f91d8aaf47b0778cb1d528a7dbedf55",
+    "npm_artifact_sha256": "e788f80207c9ef245c70427af58cd42bfff6c23df51ed423294efb2b19c4e03e",
+    "wheel_sha256": "118392568230d10ed0c814bb55ebe8eac44c018849b2bc54fe824269671af698",
+    "launch_attestation_sha256": "ea7ce9aa53f6acc9d33865389b522381b71a2ae36c4d8034794e29265a5e93e3",
+    "container_boundary_sha256": "2321fb035bdf5c20287b3f6f8ca941abb9438221fef84c09d5427fb0f69fc9f4",
+    "proxy_export_sha256": "6fcd15dbd5f07beb6e2f9586b8d4d11e7008c7b0d218bd9919b9ef3dc65f69a0",
+    "outer_envelope_sha256": "0d5dbb14b3a080993b38312277d425937127914213b89bc53d3e8c464eb5f7bf",
+    "comparison_report_sha256": "e44d55011ffe6c3f18735af38b1488e68298ec614c5d5ed10abe245c0730ba18"
+  },
+  "trial": {
+    "trial_id": "zp-direct-leakfix-zero-paid-one-zero-paid-pi-direct",
+    "task_id": "zero-paid-one",
+    "reward": 1,
+    "grader_admission": {"admitted": true, "reason": "recorded"},
+    "evidence_file_count": 89,
+    "leak_scan": {
+      "sources_scanned": 88,
+      "matches": 0,
+      "missing_sources": 0,
+      "unclassified_files": ["production-cortex-home/data/pi/auth.json"],
+      "clean": false,
+      "unclassified_reason": "The production PI auth mirror is an absolute container symlink to /logs/agent/production-cortex-home/container-home/.pi/agent/auth.json; after collection on the host that absolute target is no longer resolvable even though the target file was scanned separately."
+    },
+    "proxy_usage": {"requests": 2, "input_tokens": 2, "output_tokens": 2},
+    "revocation_closed": true,
+    "container_boundary": {"exit_code": 137, "descendants_alive": 0, "process_namespace_alive": false}
+  },
+  "regression_evidence": {
+    "observed_paid_campaign_launcher_line": "export PATH=\"/logs/agent/trial-home/home/.local/bin:$PATH\"",
+    "focused_tests": [
+      "tests/scan/test_scanner.py::test_distinguishes_nested_container_home_dotfile_from_host_home",
+      "tests/scan/test_scanner.py::test_exact_dot_prefixed_host_home_literal_remains_protected",
+      "tests/launcher/test_host_finalization.py::test_container_home_env_launcher_is_collected_and_scans_clean"
+    ],
+    "protection_preserved": "Generic /home/<login> detection still catches normal login components, the exact host-home literal still catches dot-prefixed host paths, and all credential and host-identity literal rules are unchanged."
+  },
+  "safety": {
+    "paid_provider_requests": 0,
+    "upstream": "committed loopback synthetic DeepSeek server",
+    "real_credentials_used": false,
+    "image_pull_disabled_and_digest_pinned": true,
+    "no_paid_retry": true,
+    "no_push_release_deployment_or_host_daemon_restart": true
+  },
+  "remaining_blocker": "The required outer envelope exists and has no leak matches, but ScanReport.clean is false because of the independent absolute PI auth symlink classification. A paid rerun remains blocked until the clean-scan requirement is clarified or that alias is safely classified without weakening the inventory boundary."
+}
