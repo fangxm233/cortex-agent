@@ -31,8 +31,7 @@ cpus = 1
 memory_mb = 2048
 storage_mb = 10240
 gpus = 0
-network_mode = "allowlist"
-allowed_hosts = []
+network_mode = "public"
 os = "linux"
 mcp_servers = []
 

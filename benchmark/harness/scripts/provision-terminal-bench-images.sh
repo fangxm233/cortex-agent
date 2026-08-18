@@ -202,7 +202,7 @@ stage_task_directory() {
   install -m 0644 "$source_task/tests/test_outputs.py" "$target/tests/test_outputs.py"
   awk -v image="$image_ref" '
     /^docker_image = / { print "docker_image = \"" image "\""; next }
-    /^allow_internet = / { print "network_mode = \"allowlist\"\nallowed_hosts = []\nos = \"linux\""; next }
+    /^allow_internet = / { print "network_mode = \"public\"\nos = \"linux\""; next }
     { print }
   ' "$source_task/task.toml" > "$target/task.toml"
 }

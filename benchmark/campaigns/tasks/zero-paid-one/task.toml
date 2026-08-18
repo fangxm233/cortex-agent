@@ -1,7 +1,6 @@
 [environment]
 docker_image = "cortex-bench-zero-paid-runtime@sha256:8b075847d21e55633a0f2bc2f3d7f9920f91d8aaf47b0778cb1d528a7dbedf55"
-network_mode = "allowlist"
-allowed_hosts = []
+network_mode = "public"
 os = "linux"
 
 [agent]

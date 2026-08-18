@@ -331,7 +331,10 @@ def test_terminal_bench_builder_preserves_authentic_tasks_and_builds_pinned_imag
         ).read_bytes()
         task_config = (admitted / "task.toml").read_text(encoding="utf-8")
         assert "allow_internet" not in task_config
-        assert "network_mode = \"allowlist\"" in task_config
+        # The imported task declares the widest plan; the campaign's `network` block is what
+        # narrows it, so `allowed_hosts` is dropped entirely rather than emitted empty.
+        assert "network_mode = \"public\"" in task_config
+        assert "allowed_hosts" not in task_config
         assert f"@sha256:{task_ids.index(task_id) + 6:064x}" in task_config
     output = json.loads(completed.stdout)
     assert output["ok"] is True

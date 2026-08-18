@@ -73,6 +73,27 @@ arms:
       deadline_seconds: 1800
       max_output_tokens: 65536
 
+# THE NETWORK THIS CAMPAIGN SCORES ON
+#
+# `open` means the trial container reaches the internet. This is stated here rather than left to
+# the default because it decides whether a score measures the agent or measures its ability to
+# look the answer up: the Terminal-Bench 2.1 tasks and their reference solutions are in a public
+# repository, and an open trial can fetch them. Scores from this campaign are NOT comparable with
+# any recorded before 2026-08-18, which all ran proxy-only.
+#
+# To get a score that measures capability, switch to the filtered mode and declare what may be
+# reached. An empty `filtered` block is the proxy-only shape every earlier benchmark ran under:
+#
+#   network:
+#     mode: filtered          # credential route only -- nothing else is reachable
+#
+# `allowlist` widens it (gost enforces it, and the trial's own proxy host is added automatically).
+# `denylist` is best-effort ONLY: it is a set of addresses resolved once on the host at admission,
+# so DNS rotation, CDN re-mapping and direct-to-IP connections defeat it. It keeps an honest agent
+# off a host; it does not keep a determined one off.
+network:
+  mode: open
+
 tasks:
   - task_id: zero-paid-one
     path: tasks/zero-paid-one

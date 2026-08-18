@@ -54,7 +54,7 @@ EXPECTED_AGENT = {
     "profile": "benchmark-direct", "persistSession": False,
     "promptTemplate": "{{input}}", "directive": "file:benchmark-direct.md",
     "systemPrompt": "file:benchmark-direct.md",
-    "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,Write",
+    "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,WebFetch,WebSearch,Write",
     "pluginDirs": [], "mcpComposition": "none", "mcpToolAllowlist": [],
 }
 EXPECTED_TEMPLATE = {

@@ -12,7 +12,7 @@
       "promptTemplate": "{{input}}"
     }
   },
-  "tools": "Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,Write",
+  "tools": "Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,WebFetch,WebSearch,Write",
   "pluginDirs": [],
   "mcpComposition": "thread-control",
   "mcpToolAllowlist": [
