@@ -1,5 +1,5 @@
-// input:  PI spawn options, task context, MCP gate, server auth
-// output: Isolated PI argv and child environment without server auth
+// input:  PI spawn options, task context, MCP gate, trial controls
+// output: Isolated PI argv and sanitized child environment
 // pos:    Builds PI process arguments and environment
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -105,7 +105,6 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_THREAD_DEPTH', 'CORTEX_TASK_ID', 'CORTEX_TASK_PROJECT',
   'CORTEX_TASK_GENERATION',
   'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
-  'CORTEX_CLIENT_TOKEN', 'CORTEX_WEBHOOK_TOKEN',
   'CORTEX_CONFIG_IMMUTABLE', 'CORTEX_PRODUCTION_AUTH_FILE',
   'CORTEX_WEBHOOK_THREAD_OP_ONLY', 'CORTEX_WEBHOOK_SINGLE_ROOT',
   'CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE',

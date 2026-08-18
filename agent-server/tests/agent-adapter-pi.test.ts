@@ -1,5 +1,5 @@
 // input:  PI source, hooks, cache, transcripts, fake processes
-// output: Exact PI child auth isolation, lifecycle, and event tests
+// output: PI child auth inheritance, isolation, and lifecycle tests
 // pos:    Covers PI process construction and lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -326,17 +326,18 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
 });
 
 
-test('buildPiEnv scrubs server auth and production bootstrap controls from the child', () => {
-  const env = buildPiEnv({
-    piAgentDir: '/pi-agent',
-    extraEnv: {
-      CORTEX_CLIENT_TOKEN: 'extra-client-token',
-      CORTEX_WEBHOOK_TOKEN: 'extra-webhook-token',
-      CORTEX_PRODUCTION_AUTH_FILE: '/extra/auth.json',
-    },
-  }, {
-    CORTEX_CLIENT_TOKEN: 'inherited-client-token',
-    CORTEX_WEBHOOK_TOKEN: 'inherited-webhook-token',
+test('buildPiEnv preserves server auth for ordinary PI MCP sessions', () => {
+  const env = buildPiEnv({ piAgentDir: '/pi-agent' }, {
+    CORTEX_CLIENT_TOKEN: 'ordinary-client-token',
+    CORTEX_WEBHOOK_TOKEN: 'ordinary-webhook-token',
+  });
+
+  assert.equal(env.CORTEX_CLIENT_TOKEN, 'ordinary-client-token');
+  assert.equal(env.CORTEX_WEBHOOK_TOKEN, 'ordinary-webhook-token');
+});
+
+test('buildPiEnv scrubs production bootstrap controls from the child', () => {
+  const env = buildPiEnv({ piAgentDir: '/pi-agent' }, {
     CORTEX_CONFIG_IMMUTABLE: '1',
     CORTEX_PRODUCTION_AUTH_FILE: '/inherited/auth.json',
     CORTEX_WEBHOOK_THREAD_OP_ONLY: '1',
@@ -346,8 +347,6 @@ test('buildPiEnv scrubs server auth and production bootstrap controls from the c
   });
 
   for (const key of [
-    'CORTEX_CLIENT_TOKEN',
-    'CORTEX_WEBHOOK_TOKEN',
     'CORTEX_CONFIG_IMMUTABLE',
     'CORTEX_PRODUCTION_AUTH_FILE',
     'CORTEX_WEBHOOK_THREAD_OP_ONLY',
