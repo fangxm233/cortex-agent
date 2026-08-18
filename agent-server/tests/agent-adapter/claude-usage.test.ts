@@ -13,6 +13,7 @@ import {
   collectClaudeUsage,
   type ClaudeUsageProcess,
   type ClaudeUsageSpawn,
+  buildClaudeUsageEnv,
 } from '../../src/agent-adapter/claude/usage.js';
 import { UsageUnavailableError } from '../../src/domain/costs/usage-store.js';
 
@@ -325,4 +326,45 @@ test('bounds process lifetime and surfaces timeout for service downgrade', async
   vi.advanceTimersByTime(1);
   await assert.rejects(pending, /timed out/i);
   assert.deepEqual(child.killSignals, ['SIGKILL']);
+});
+
+test('builds a subscription-mode env that drops gateway routing and API-key auth', () => {
+  const env = buildClaudeUsageEnv({
+    HOME: '/home/agent',
+    PATH: '/usr/bin',
+    CLAUDE_CONFIG_DIR: '/home/agent/.claude',
+    HTTPS_PROXY: 'http://proxy.test:8080',
+    CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-subscription',
+    ANTHROPIC_API_KEY: 'cortex-gateway-managed',
+    ANTHROPIC_BASE_URL: 'http://127.0.0.1:9880/m/openai-codex/anthropic',
+    ANTHROPIC_AUTH_TOKEN: 'sk-ant-gateway',
+    SLACK_BOT_TOKEN: 'xoxb-unrelated',
+  });
+
+  assert.deepEqual(env, {
+    HOME: '/home/agent',
+    PATH: '/usr/bin',
+    CLAUDE_CONFIG_DIR: '/home/agent/.claude',
+    HTTPS_PROXY: 'http://proxy.test:8080',
+    CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-subscription',
+  });
+});
+
+test('spawns the usage probe without the daemon API key that suppresses the quota fetch', async (t) => {
+  const original = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'cortex-gateway-managed';
+  t.onTestFinished(() => {
+    if (original === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = original;
+  });
+  const { child, calls, spawn } = harness();
+  const pending = collectClaudeUsage(
+    { provider: 'anthropic', mode: 'plan' },
+    { spawn, requestId: () => 'usage-env' },
+  );
+  await nextTick();
+
+  assert.equal(calls[0].options.env.ANTHROPIC_API_KEY, undefined);
+  child.stdout.write(controlResponse('usage-env', { rate_limits: { five_hour: { utilization: 1 } } }));
+  await pending;
 });

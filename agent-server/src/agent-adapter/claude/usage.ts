@@ -1,5 +1,5 @@
 // input:  Claude control protocol, requested provider scope, usage model
-// output: Scoped normalized Claude account usage readings
+// output: Scoped normalized usage readings, subscription-mode probe env
 // pos:    Short-lived Claude account usage collector
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -16,6 +16,29 @@ import {
 import type { AgentUsageScope } from '../types.js';
 
 export const CLAUDE_USAGE_TIMEOUT_MS = 15_000;
+
+/** Platform keys the probe needs, plus the subscription token when the daemon holds one.
+ *  ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL are deliberately absent: an inherited API key puts the
+ *  CLI in API-key mode, where get_usage answers rate_limits_available=false without ever calling
+ *  the account quota endpoint. Account usage is a subscription question, so the probe asks it in
+ *  subscription mode regardless of which gateway route the daemon last configured. */
+const USAGE_ENV_ALLOWLIST = [
+  'HOME', 'PATH', 'SHELL', 'USER', 'LOGNAME',
+  'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM', 'TZ',
+  'TMPDIR', 'TMP', 'TEMP',
+  'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'CLAUDE_CONFIG_DIR',
+  'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'https_proxy', 'http_proxy', 'no_proxy',
+  'SSL_CERT_FILE', 'SSL_CERT_DIR', 'NODE_EXTRA_CA_CERTS',
+  'CLAUDE_CODE_OAUTH_TOKEN',
+] as const;
+
+export function buildClaudeUsageEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of USAGE_ENV_ALLOWLIST) {
+    if (source[key] !== undefined) env[key] = source[key];
+  }
+  return env;
+}
 
 export interface ClaudeUsageProcess {
   readonly stdin: Writable;
@@ -179,7 +202,7 @@ function runUsageProcess(
   const requestId = (deps.requestId ?? randomUUID)();
   const child = (deps.spawn ?? defaultSpawn)(
     deps.cliPath ?? 'claude', usageArgs(randomUUID()),
-    { cwd: deps.cwd ?? DATA_DIR, env: { ...process.env } },
+    { cwd: deps.cwd ?? DATA_DIR, env: buildClaudeUsageEnv() },
   );
   return new ClaudeUsageRequest(child, scope, requestId, deps).run();
 }
