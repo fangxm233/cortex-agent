@@ -905,6 +905,7 @@ function buildSpawnEnvironment(
     callbackSource: config.callbackSource,
     scheduleTaskId: config.scheduleTaskId,
     extraEnv: config.env,
+    unsetEnv: config.unsetEnv,
     context: config.cortexContext,
     piAgentDir: agentDir,
     allowedTools: spawnAllowedTools(config),

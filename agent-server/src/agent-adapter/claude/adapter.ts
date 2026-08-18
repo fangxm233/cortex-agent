@@ -171,6 +171,8 @@ interface ClaudeSessionOptions {
   pluginDirs?: string[] | null;
   anthropicBaseUrl?: string;
   extraEnv?: Record<string, string>;
+  /** Keys deleted from the child env after `extraEnv` is applied (AgentSpawnConfig.unsetEnv). */
+  unsetEnv?: string[];
   cwd?: string;
   mcpComposition?: McpComposition;
   mcpConfigPaths?: string[];
@@ -326,6 +328,7 @@ class ClaudeSession {
   private pluginDirs: string[] | null;
   private anthropicBaseUrl: string | undefined;
   private extraEnv: Record<string, string> | undefined;
+  private unsetEnv: string[] | undefined;
   private cwd: string;
   private mcpComposition: McpComposition;
   private mcpConfigPaths: string[] | undefined;
@@ -396,6 +399,7 @@ class ClaudeSession {
     this.pluginDirs = options.pluginDirs || null;
     this.anthropicBaseUrl = options.anthropicBaseUrl;
     this.extraEnv = options.extraEnv;
+    this.unsetEnv = options.unsetEnv;
     this.mcpComposition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
     this.mcpConfigPaths = options.mcpConfigPaths;
     this.mcpToolAllowlist = options.mcpToolAllowlist;
@@ -515,7 +519,7 @@ class ClaudeSession {
   private buildProcessLaunch(): { args: string[]; env: NodeJS.ProcessEnv } {
     const env = buildClaudeEnv(
       this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId,
-      this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv,
+      this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv, this.unsetEnv,
     );
     const options = this.toSpawnOptions();
     options.loadSlackMcp = this.channel.startsWith('slack:');
@@ -1353,6 +1357,7 @@ function tuiSessionConfig(
     scheduleTaskId: options.scheduleTaskId,
     anthropicBaseUrl: options.anthropicBaseUrl,
     extraEnv: options.extraEnv,
+    unsetEnv: options.unsetEnv,
     context: options.context,
     deps: { tmux: sharedTmux, tailFactory: defaultTailFactory },
   };
@@ -1441,6 +1446,7 @@ function sessionRuntimeOptions(
   return {
     anthropicBaseUrl: config.anthropicBaseUrl,
     extraEnv: config.env,
+    unsetEnv: config.unsetEnv,
     cwd: config.cwd ?? DATA_DIR,
     mcpComposition: composition,
     mcpConfigPaths: config.mcpConfigPaths,

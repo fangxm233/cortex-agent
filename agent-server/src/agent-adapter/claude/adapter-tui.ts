@@ -96,6 +96,8 @@ export interface ClaudeTuiSessionConfig {
   scheduleTaskId?: string | null;
   anthropicBaseUrl?: string;
   extraEnv?: Record<string, string>;
+  /** Keys deleted from the child env after `extraEnv` is applied (AgentSpawnConfig.unsetEnv). */
+  unsetEnv?: string[];
   context?: CortexAgentContext;
   // -- deps --
   deps: TuiSessionDeps;
@@ -265,6 +267,8 @@ export class ClaudeTuiSession {
       this.config.anthropicBaseUrl,
       this.config.extraEnv,
       this.config.context,
+      undefined, // pinnedEnv: the TUI path does not carry a pinned trial environment
+      this.config.unsetEnv,
     );
     // Mark TUI mode for downstream MCP server self-detection.
     env.CORTEX_TUI_MODE = '1';

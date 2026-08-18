@@ -84,6 +84,11 @@ export interface AgentSpawnConfig {
   pluginSkillDirs?: string[];
   model?: string;
   env?: Record<string, string>;
+  /** Keys deleted from the child environment AFTER `env` is applied. Needed because `env` can only
+   *  set: a per-spawn route may require a variable to be absent (plan mode must not carry
+   *  ANTHROPIC_API_KEY), and the empty string cannot serve as a delete sentinel — it is already a
+   *  legal value here (pi/discovery.ts passes PI_CODING_AGENT_DIR: ''). */
+  unsetEnv?: string[];
   extraOption?: Record<string, string>;
   mcpServers?: McpServerConfig[];
   pluginCapabilityFingerprint?: string;

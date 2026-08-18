@@ -85,6 +85,9 @@ export interface PIEnvOptions {
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
   extraEnv?: Record<string, string> | null;
+  /** Keys deleted after the `extraEnv` merge (AgentSpawnConfig.unsetEnv). PI routes purely through
+   *  env, so this is how a mode expresses "this spawn must not carry ANTHROPIC_API_KEY". */
+  unsetEnv?: string[] | null;
   context?: AgentSpawnConfig['cortexContext'];
   piAgentDir: string;
   allowedTools?: string | null;
@@ -139,6 +142,8 @@ export function buildPiEnv(
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...inheritedEnv, ...(options.extraEnv ?? {}) };
   for (const key of RESET_CONTEXT_KEYS) delete env[key];
+  // After the merge: deletion is the only way to express "absent", since '' is a legal value here.
+  for (const key of options.unsetEnv ?? []) delete env[key];
   env.PI_CODING_AGENT_DIR = options.piAgentDir;
   env.CORTEX_BACKEND = 'pi';
   if (options.channel) {

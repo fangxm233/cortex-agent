@@ -1310,6 +1310,47 @@ test('buildClaudeEnv — extraEnv survives CLAUDE_CODE_* strip and can override 
   assert.equal(env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:9880/m/qwen-ksu/anthropic');
 });
 
+// --- buildClaudeEnv unsetEnv (plan mode must be able to DELETE a key, not just set it) ---
+
+test('buildClaudeEnv — unsetEnv deletes a key inherited from process.env', () => {
+  const prevKey = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'sk-ant-inherited';
+  try {
+    const env = buildClaudeEnv(
+      'C1', 'sid-1', null, null, undefined, undefined, undefined, undefined,
+      ['ANTHROPIC_API_KEY'],
+    );
+    // Absent, not empty — an empty string is a legal value elsewhere, so it cannot be a sentinel.
+    assert.equal(Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_API_KEY'), false);
+  } finally {
+    if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = prevKey;
+  }
+});
+
+test('buildClaudeEnv — unsetEnv runs after extraEnv, so an extraEnv-set key is still deleted', () => {
+  const env = buildClaudeEnv(
+    'C1', 'sid-1', null, null, undefined,
+    { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
+    undefined, undefined, ['ANTHROPIC_API_KEY'],
+  );
+  assert.equal(Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_API_KEY'), false);
+  assert.equal(env.KEPT_ENV, 'kept');
+});
+
+test('buildClaudeEnv — unsetEnv applies to a pinnedEnv child and leaves CORTEX_* context intact', () => {
+  const env = buildClaudeEnv(
+    'C1', 'sid-1', null, null, undefined, undefined,
+    { threadId: 'thr_xyz' },
+    { PATH: '/usr/bin', ANTHROPIC_API_KEY: 'sk-ant-pinned' },
+    ['ANTHROPIC_API_KEY', 'CORTEX_THREAD_ID'],
+  );
+  assert.equal(Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_API_KEY'), false);
+  assert.equal(env.PATH, '/usr/bin');
+  // Context keys are resolved after unsetEnv: the authoritative context still wins.
+  assert.equal(env.CORTEX_THREAD_ID, 'thr_xyz');
+});
+
 // --- buildClaudeEnv: cortex context env vars (CORTEX_THREAD_ID/PROFILE/PROJECT/SESSION_NAME) ---
 
 test('buildClaudeEnv — context.threadId/profile/project/sessionName surface as CORTEX_* env vars', () => {
@@ -1511,6 +1552,33 @@ test('Claude print surfaces one valid model_refusal_fallback event from snake_ca
   assert.deepEqual(fallbacks, [{
     originalModel: 'claude-fable-5[1m]', fallbackModel: 'claude-opus-4-8[1m]',
   }]);
+});
+
+// --- ClaudeAdapter.spawn — AgentSpawnConfig.unsetEnv reaches the child ---
+
+test('ClaudeAdapter.spawn: config.unsetEnv removes the key from the spawned child env', async () => {
+  const prevKey = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'sk-ant-inherited';
+  const captured: NodeJS.ProcessEnv[] = [];
+  const adapter = new ClaudeAdapter();
+  try {
+    adapter.spawn({
+      sessionId: 'unset-env-key', sessionKey: 'unset-env-key', resume: false,
+      env: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
+      unsetEnv: ['ANTHROPIC_API_KEY'],
+      processSpawner: ((_cmd: string, _args: string[], opts: any) => {
+        captured.push(opts.env as NodeJS.ProcessEnv);
+        return { process: stubClaudeChild() };
+      }) as any,
+    });
+    assert.equal(captured.length, 1);
+    assert.equal(Object.prototype.hasOwnProperty.call(captured[0], 'ANTHROPIC_API_KEY'), false);
+    assert.equal(captured[0].KEPT_ENV, 'kept');
+  } finally {
+    await adapter.close('unset-env-key');
+    if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = prevKey;
+  }
 });
 
 // --- ClaudeAdapter.spawn — AgentSpawnConfig → CLI args parity (Blocker fix from Plan Review iter 1) ---

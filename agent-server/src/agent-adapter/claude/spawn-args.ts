@@ -255,6 +255,86 @@ export interface CortexAgentContext {
   taskGeneration?: string | null;
 }
 
+/** Ambient Cortex context keys re-derived on every spawn, so a stale parent value can never leak
+ *  in. CORTEX_EXECUTION_ID is deliberately absent: it is set from context but never reset. */
+const CORTEX_CONTEXT_RESET_KEYS = [
+  'CORTEX_THREAD_ID', 'CORTEX_PROFILE', 'CORTEX_PROJECT', 'CORTEX_SESSION_NAME',
+  'CORTEX_THREAD_DEPTH', 'CORTEX_TASK_ID', 'CORTEX_TASK_PROJECT', 'CORTEX_TASK_GENERATION',
+] as const;
+
+function setIfPresent(env: NodeJS.ProcessEnv, key: string, value?: string | null): void {
+  if (value) env[key] = value;
+}
+
+/** Startup-latency trims — kill network round-trips and first-run/IDE checks that Claude performs
+ *  at launch but Cortex never benefits from (headless tmux/-p, plugin-loaded skills, no IDE). These
+ *  only remove non-essential startup work; none change model behavior or disable experiment gates
+ *  (we deliberately do NOT set DISABLE_TELEMETRY / NONESSENTIAL_TRAFFIC, which would). Must be set
+ *  AFTER the CLAUDE_CODE* strip loop. See code.claude.com/docs/en/env-vars. */
+function applyClaudeStartupEnv(env: NodeJS.ProcessEnv): void {
+  env.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
+  env.DISABLE_AUTOUPDATER = '1';                                  // no npm registry update check at launch
+  env.CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL = '1'; // skip first-run marketplace install
+  env.CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL = '1';                    // no IDE extension auto-install
+  env.CLAUDE_CODE_AUTO_CONNECT_IDE = 'false';                     // no IDE auto-connect probe
+  env.CLAUDE_CODE_DISABLE_POLICY_SKILLS = '1';                    // skip system managed-skills dir (Cortex uses pluginDirs)
+  env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';                   // no title updates; also skips the title-gen Haiku call in -p
+}
+
+/** Drops every inherited CLAUDE_CODE* control; only an ambient OAuth token is re-admitted, and
+ *  never for a pinned trial environment. */
+function resetClaudeCodeEnv(env: NodeJS.ProcessEnv, admitAmbientOauth: boolean): void {
+  const oauthToken = admitAmbientOauth ? env.CLAUDE_CODE_OAUTH_TOKEN : undefined;
+  delete env.CLAUDECODE;
+  for (const key of Object.keys(env)) {
+    if (key.startsWith('CLAUDE_CODE')) delete env[key];
+  }
+  if (oauthToken) env.CLAUDE_CODE_OAUTH_TOKEN = oauthToken;
+  applyClaudeStartupEnv(env);
+}
+
+/** Chat-surface routing. A pinned trial keeps its exact environment and gets no host tokens. */
+function applyChannelEnv(env: NodeJS.ProcessEnv, channel: string, pinned: boolean): void {
+  if (pinned) return;
+  env.SLACK_CHANNEL = channel;
+  env.FEISHU_CHANNEL = channel;
+  env.SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+}
+
+/** Per-spawn env overrides: `extraEnv` sets (last-wins over everything above), then `unsetEnv`
+ *  deletes. Deletion is a separate channel because a value can never mean "absent" — the empty
+ *  string is a legal value elsewhere in the spawn path. */
+function applyEnvOverrides(
+  env: NodeJS.ProcessEnv,
+  extraEnv?: Record<string, string>,
+  unsetEnv?: string[],
+): void {
+  for (const [key, value] of Object.entries(extraEnv ?? {})) env[key] = value;
+  for (const key of unsetEnv ?? []) delete env[key];
+}
+
+function cortexContextEnv(context?: CortexAgentContext): Record<string, string | undefined> {
+  const depth = context?.threadDepth;
+  return {
+    CORTEX_THREAD_ID: context?.threadId,
+    CORTEX_THREAD_DEPTH: depth == null ? undefined : String(depth),
+    CORTEX_PROFILE: context?.profile,
+    CORTEX_PROJECT: context?.project,
+    CORTEX_SESSION_NAME: context?.sessionName,
+    CORTEX_EXECUTION_ID: context?.executionId,
+    CORTEX_TASK_ID: context?.taskId,
+    CORTEX_TASK_PROJECT: context?.taskProject,
+    CORTEX_TASK_GENERATION: context?.taskGeneration,
+  };
+}
+
+/** Authoritative last word on the Cortex context keys: a child can neither inherit a stale value
+ *  nor forge one through extraEnv/unsetEnv. */
+function applyCortexContextEnv(env: NodeJS.ProcessEnv, context?: CortexAgentContext): void {
+  for (const key of CORTEX_CONTEXT_RESET_KEYS) delete env[key];
+  for (const [key, value] of Object.entries(cortexContextEnv(context))) setIfPresent(env, key, value);
+}
+
 export function buildClaudeEnv(
   channel: string,
   sessionId: string,
@@ -264,59 +344,21 @@ export function buildClaudeEnv(
   extraEnv?: Record<string, string>,
   context?: CortexAgentContext,
   pinnedEnv?: NodeJS.ProcessEnv,
+  unsetEnv?: string[],
 ): NodeJS.ProcessEnv {
   // Allowlist-first for a pinned trial: the child starts from the exact trial environment and
   // inherits nothing from the host, so no denylist can leak a host credential or platform
   // surface into the trial (design §13 C5/C7).
   const env: NodeJS.ProcessEnv = pinnedEnv ? { ...pinnedEnv } : { ...process.env };
-  const oauthToken = pinnedEnv ? undefined : env.CLAUDE_CODE_OAUTH_TOKEN;
-  delete env.CLAUDECODE;
-  for (const key of Object.keys(env)) {
-    if (key.startsWith('CLAUDE_CODE')) delete env[key];
-  }
-  if (oauthToken) env.CLAUDE_CODE_OAUTH_TOKEN = oauthToken;
-  env.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
-  // Startup-latency trims — kill network round-trips and first-run/IDE checks that Claude performs
-  // at launch but Cortex never benefits from (headless tmux/-p, plugin-loaded skills, no IDE). These
-  // only remove non-essential startup work; none change model behavior or disable experiment gates
-  // (we deliberately do NOT set DISABLE_TELEMETRY / NONESSENTIAL_TRAFFIC, which would). Must be set
-  // AFTER the CLAUDE_CODE* strip loop above. See code.claude.com/docs/en/env-vars.
-  env.DISABLE_AUTOUPDATER = '1';                                  // no npm registry update check at launch
-  env.CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL = '1'; // skip first-run marketplace install
-  env.CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL = '1';                    // no IDE extension auto-install
-  env.CLAUDE_CODE_AUTO_CONNECT_IDE = 'false';                     // no IDE auto-connect probe
-  env.CLAUDE_CODE_DISABLE_POLICY_SKILLS = '1';                    // skip system managed-skills dir (Cortex uses pluginDirs)
-  env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';                   // no title updates; also skips the title-gen Haiku call in -p
-  if (!pinnedEnv) {
-    env.SLACK_CHANNEL = channel;
-    env.FEISHU_CHANNEL = channel;
-    env.SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
-  }
+  resetClaudeCodeEnv(env, !pinnedEnv);
+  applyChannelEnv(env, channel, !!pinnedEnv);
   // CORTEX_SESSION_ID is the stable Cortex tracking id (session-activity log routing + MCP context),
   // NOT the backend CLI's self-assigned session id. Falls back to the backend id when unset (threads).
   env.CORTEX_SESSION_ID = context?.trackSessionId ?? sessionId;
-  if (callbackSource) env.CORTEX_CALLBACK_SOURCE = callbackSource;
-  if (scheduleTaskId) env.CORTEX_SCHEDULE_TASK_ID = scheduleTaskId;
-  if (anthropicBaseUrl) env.ANTHROPIC_BASE_URL = anthropicBaseUrl;
-  if (extraEnv) {
-    for (const [key, value] of Object.entries(extraEnv)) env[key] = value;
-  }
-  delete env.CORTEX_THREAD_ID;
-  delete env.CORTEX_PROFILE;
-  delete env.CORTEX_PROJECT;
-  delete env.CORTEX_SESSION_NAME;
-  delete env.CORTEX_THREAD_DEPTH;
-  delete env.CORTEX_TASK_ID;
-  delete env.CORTEX_TASK_PROJECT;
-  delete env.CORTEX_TASK_GENERATION;
-  if (context?.threadId) env.CORTEX_THREAD_ID = context.threadId;
-  if (context?.threadDepth != null) env.CORTEX_THREAD_DEPTH = String(context.threadDepth);
-  if (context?.profile) env.CORTEX_PROFILE = context.profile;
-  if (context?.project) env.CORTEX_PROJECT = context.project;
-  if (context?.sessionName) env.CORTEX_SESSION_NAME = context.sessionName;
-  if (context?.executionId) env.CORTEX_EXECUTION_ID = context.executionId;
-  if (context?.taskId) env.CORTEX_TASK_ID = context.taskId;
-  if (context?.taskProject) env.CORTEX_TASK_PROJECT = context.taskProject;
-  if (context?.taskGeneration) env.CORTEX_TASK_GENERATION = context.taskGeneration;
+  setIfPresent(env, 'CORTEX_CALLBACK_SOURCE', callbackSource);
+  setIfPresent(env, 'CORTEX_SCHEDULE_TASK_ID', scheduleTaskId);
+  setIfPresent(env, 'ANTHROPIC_BASE_URL', anthropicBaseUrl);
+  applyEnvOverrides(env, extraEnv, unsetEnv);
+  applyCortexContextEnv(env, context);
   return env;
 }

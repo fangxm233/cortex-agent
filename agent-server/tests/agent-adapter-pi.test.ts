@@ -294,6 +294,32 @@ test('spawn forwards authoritative Cortex thread context to the PI subprocess', 
   void proc.close();
 });
 
+test('spawn forwards AgentSpawnConfig.unsetEnv to the PI subprocess env', () => {
+  const prevKey = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'sk-ant-inherited';
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn);
+  try {
+    const proc = adapter.spawn({
+      sessionId: 'unset-env-session',
+      sessionKey: 'unset-env',
+      resume: false,
+      env: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
+      unsetEnv: ['ANTHROPIC_API_KEY'],
+    });
+
+    const env = stub.calls[0].opts.env as NodeJS.ProcessEnv;
+    assert.equal(Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_API_KEY'), false);
+    assert.equal(env.KEPT_ENV, 'kept');
+
+    stub.children[0].emit('close', 0, null);
+    void proc.close();
+  } finally {
+    if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = prevKey;
+  }
+});
+
 test('buildPiEnv removes stale optional Cortex context from the parent env', () => {
   const stale = {
     SLACK_CHANNEL: 'stale-channel',
@@ -366,6 +392,36 @@ test('buildPiEnv resets and sets the PI plugin MCP config path through a dedicat
     pluginMcpConfigPath: '/runtime/pi-mcp/private-config.json',
   }, stale);
   assert.equal(updated[PI_PLUGIN_MCP_CONFIG_ENV], '/runtime/pi-mcp/private-config.json');
+});
+
+// --- buildPiEnv unsetEnv (PI routes by env only: env is its sole mode lever) ---
+
+test('buildPiEnv unsetEnv deletes a key inherited from the parent env', () => {
+  const env = buildPiEnv({
+    piAgentDir: '/pi-agent',
+    unsetEnv: ['ANTHROPIC_API_KEY'],
+  }, {
+    ANTHROPIC_API_KEY: 'sk-ant-inherited',
+    ANTHROPIC_BASE_URL: 'http://127.0.0.1:9880/m/openai-codex/anthropic',
+  });
+
+  // Absent, not empty — PI already treats an empty string as a legal value (PI_CODING_AGENT_DIR).
+  assert.equal(Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_API_KEY'), false);
+  assert.equal(env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:9880/m/openai-codex/anthropic');
+  assert.equal(env.PI_CODING_AGENT_DIR, '/pi-agent');
+});
+
+test('buildPiEnv unsetEnv runs after the extraEnv merge, so an extraEnv-set key is still deleted', () => {
+  const env = buildPiEnv({
+    piAgentDir: '/pi-agent',
+    extraEnv: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
+    unsetEnv: ['ANTHROPIC_API_KEY'],
+  }, {
+    ANTHROPIC_API_KEY: 'sk-ant-inherited',
+  });
+
+  assert.equal(Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_API_KEY'), false);
+  assert.equal(env.KEPT_ENV, 'kept');
 });
 
 test('buildPiEnv preserves an explicit PI subagent marker after reset', () => {
