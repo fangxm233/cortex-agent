@@ -22,9 +22,7 @@ def exact_inputs() -> dict[str, object]:
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_thread_starts": 0, "max_parent_questions": 0, "max_task_depth": 0,
-            "max_tasks": 0, "max_provider_requests": 1,
-            "max_resident_agent_processes": 1, "max_cost_usd": "0.05",
+            "max_provider_requests": 1, "max_cost_usd": "0.05",
             "deadline_seconds": 120, "max_output_tokens": 256,
         },
     }

@@ -7,7 +7,6 @@ import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { Type } from '@sinclair/typebox';
 import type { ExtensionAPI, ExtensionContext } from './pi-ext-types.js';
-import { resolvePiToolGate, type PiToolGate } from './policy-guard.js';
 import { createSubagentTool, type SubagentModelOption } from './subagent.js';
 import { webFetchTool } from './web-fetch.js';
 import { webSearchTool } from './web-search.js';
@@ -195,8 +194,7 @@ function registerRuntimeAgent(pi: ExtensionAPI): void {
   });
 }
 
-/** Every shim this extension can register, by PI-native name and its Claude-native label.
- *  The guard reads the native name (§6.6); the legacy allowlist reads the label. */
+/** Every shim this extension can register, by PI-native name and its Claude-native label. */
 const SHIM_REGISTRATIONS: Array<[native: string, label: string, register: (pi: ExtensionAPI) => void]> = [
   ['web_fetch', 'WebFetch', pi => pi.registerTool(webFetchTool)],
   ['web_search', 'WebSearch', pi => pi.registerTool(webSearchTool)],
@@ -206,27 +204,18 @@ const SHIM_REGISTRATIONS: Array<[native: string, label: string, register: (pi: E
   ['todo_write', 'TodoWrite', registerTodoWrite],
 ];
 
-/**
- * GT6 — the benchmark policy guard's PI application point. PI fires `tool_call` before a built-in
- * *or* a registered tool runs, so this is the one boundary that also covers `bash`/`write`/`edit`,
- * which §6.6 defect 3 records as ungated today. Registration gating alone cannot reach them.
- */
-function installDispatchGuard(pi: ExtensionAPI, gate: PiToolGate): void {
-  pi.on('tool_call', (event) => {
-    const decision = gate.decide(event.toolName);
-    return decision.allow ? undefined : { block: true, reason: decision.reason };
-  });
+function allowedToolLabels(env: NodeJS.ProcessEnv): Set<string> | null {
+  const value = env.CORTEX_PI_ALLOWED_TOOLS?.trim();
+  if (!value) return null;
+  return new Set(value.split(',').map(tool => tool.trim()).filter(Boolean));
 }
 
-export function installToolShims(
-  pi: ExtensionAPI,
-  env: NodeJS.ProcessEnv,
-  gate: PiToolGate = resolvePiToolGate(env),
-): void {
-  if (gate.guarded) installDispatchGuard(pi, gate);
-  if (gate.decide('agent', 'Agent').allow && env.CORTEX_PI_SUBAGENT !== '1') registerRuntimeAgent(pi);
-  for (const [native, label, register] of SHIM_REGISTRATIONS) {
-    if (gate.decide(native, label).allow) register(pi);
+export function installToolShims(pi: ExtensionAPI, env: NodeJS.ProcessEnv): void {
+  const allowed = allowedToolLabels(env);
+  const includes = (label: string): boolean => allowed === null || allowed.has(label);
+  if (includes('Agent') && env.CORTEX_PI_SUBAGENT !== '1') registerRuntimeAgent(pi);
+  for (const [, label, register] of SHIM_REGISTRATIONS) {
+    if (includes(label)) register(pi);
   }
 }
 

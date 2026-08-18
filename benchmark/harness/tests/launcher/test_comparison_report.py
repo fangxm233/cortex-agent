@@ -15,12 +15,7 @@ from cortex_bench_harness.launcher.comparison_report import (
 
 DIGEST = f"sha256:{'a' * 64}"
 LIMITS = {
-    "max_thread_starts": 1,
-    "max_parent_questions": 0,
-    "max_task_depth": 1,
-    "max_tasks": 2,
     "max_provider_requests": 8,
-    "max_resident_agent_processes": 3,
     "max_cost_usd": "2.50",
     "deadline_seconds": 90,
 }

@@ -55,7 +55,6 @@ export interface ProductionEvidenceExportInput {
   mode: OrchestrationModeName;
   expectedRoles: readonly string[];
   managerQa: 'on' | 'off' | null;
-  limits: { max_task_depth: number; max_tasks: number };
   proxyExport: ProxyExport;
   evaluatedChecks?: Readonly<Record<
     string, { result: PredicateCheckResult; detail: string | null }
@@ -134,11 +133,6 @@ function requireHash(value: unknown, label: string): string {
   return text;
 }
 
-function requireCount(value: unknown, label: string): number {
-  if (!Number.isSafeInteger(value) || Number(value) < 0) fail(`${label} is invalid`);
-  return Number(value);
-}
-
 function requireTimestamp(value: unknown, label: string): string {
   const text = requiredText(value, label);
   if (Number.isNaN(Date.parse(text)) || new Date(text).toISOString() !== text) {
@@ -198,9 +192,6 @@ export function assertProductionEvidenceExportInput(
   requiredText(input.armName, 'arm name');
   requireHash(input.armCanonicalSha256, 'arm canonical hash');
   requireHash(input.bundleManifestHash, 'bundle manifest hash');
-  const limits = requireRecord(input.limits, 'limits');
-  requireCount(limits.max_task_depth, 'max task depth');
-  requireCount(limits.max_tasks, 'max tasks');
   assertExpectedRoleInput(input.expectedRoles);
   assertModeInput(input);
   const proxy = requireRecord(input.proxyExport, 'proxy export');
@@ -634,7 +625,7 @@ export async function projectProductionBenchmarkEvidence(
     mode: input.mode, evaluatedChecks: input.evaluatedChecks,
   });
   const violations = validateCompositeManifest(manifest, {
-    limits: input.limits, lifecycleStems: projected.map(item => item.source.identity.attempt_id),
+    lifecycleStems: projected.map(item => item.source.identity.attempt_id),
   });
   if (violations.length > 0) fail(`composite invalid: ${violations.map(item => item.code).join(',')}`);
   return {

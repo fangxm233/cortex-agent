@@ -13,7 +13,6 @@ import { mkdirSync } from 'node:fs';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import type { PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
 import toolShims from '../src/agent-adapter/pi/tool-shims.js';
-import { resolvePiToolGate } from '../src/agent-adapter/pi/policy-guard.js';
 
 const SESSION_DIR = pathJoin(tmpdir(), 'pi-shims-test-' + process.pid);
 mkdirSync(SESSION_DIR, { recursive: true });
@@ -274,38 +273,6 @@ function makeCapturingSpawner() {
 }
 
 const CODER_TOOLS = 'Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write';
-
-// The allowlist gate is the *unguarded* daemon path. A benchmark spawn never reaches it: the
-// policy guard's presence selects the fail-closed gate first (see pi-policy-guard.test.ts).
-test('I: allowlist gate — unset/empty env allows all pseudo-tools', () => {
-  for (const value of [undefined, '', '   ']) {
-    const gate = resolvePiToolGate(value === undefined ? {} : { CORTEX_PI_ALLOWED_TOOLS: value });
-    assert.equal(gate.guarded, false);
-    for (const label of [
-      'Agent', 'AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'TodoWrite', 'WebFetch', 'WebSearch',
-    ]) {
-      assert.equal(gate.decide(label, label).allow, true, `${label} should be allowed when env=${JSON.stringify(value)}`);
-    }
-  }
-});
-
-test('I2: allowlist gate — coder allowlist excludes the three interaction tools', () => {
-  const gate = resolvePiToolGate({ CORTEX_PI_ALLOWED_TOOLS: CODER_TOOLS });
-  assert.equal(gate.decide('agent', 'Agent').allow, true);
-  assert.equal(gate.decide('todo_write', 'TodoWrite').allow, true);
-  assert.equal(gate.decide('web_fetch', 'WebFetch').allow, true);
-  assert.equal(gate.decide('web_search', 'WebSearch').allow, true);
-  assert.equal(gate.decide('ask_user_question', 'AskUserQuestion').allow, false);
-  assert.equal(gate.decide('enter_plan_mode', 'EnterPlanMode').allow, false);
-  assert.equal(gate.decide('exit_plan_mode', 'ExitPlanMode').allow, false);
-});
-
-test('I3: allowlist gate — trims surrounding whitespace in entries', () => {
-  const gate = resolvePiToolGate({ CORTEX_PI_ALLOWED_TOOLS: ' Bash , TodoWrite ' });
-  assert.equal(gate.decide('bash', 'Bash').allow, true);
-  assert.equal(gate.decide('todo_write', 'TodoWrite').allow, true);
-  assert.equal(gate.decide('exit_plan_mode', 'ExitPlanMode').allow, false);
-});
 
 test('J: coder allowlist registers one runtime-described Agent at session start', async () => {
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;

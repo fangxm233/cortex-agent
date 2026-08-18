@@ -23,7 +23,6 @@ const COMPLETE_INPUT = {
   mode: 'direct',
   expectedRoles: ['direct'],
   managerQa: null,
-  limits: { max_task_depth: 0, max_tasks: 0 },
   proxyExport: {
     schema_version: 'cortex-bench-proxy-export/1',
     trial_id: 'trial-1',

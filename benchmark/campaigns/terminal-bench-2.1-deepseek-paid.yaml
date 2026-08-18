@@ -179,10 +179,6 @@ arms:
       mode: direct
       ask_manager: false
     limits:
-      max_thread_starts: 0
-      max_parent_questions: 0
-      max_task_depth: 0
-      max_tasks: 0
       # The route's cap, and now the only statement of it: the proxy counts to this number and
       # refuses. It sits above what 900 seconds of agent time can physically issue.
       max_provider_requests: 500
@@ -191,7 +187,6 @@ arms:
       # the same reason as every other bound here: a run truncated at a limit still costs money and
       # yields no measurement. The r5 trials' own accounting came to $0.0505 and $0.0029.
       max_cost_usd: "100.00"
-      max_resident_agent_processes: 1
       # Twice the authentic task's own 900-second agent timeout, which is the real bound.
       deadline_seconds: 1800
       max_output_tokens: 65536

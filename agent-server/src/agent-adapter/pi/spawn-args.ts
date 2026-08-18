@@ -3,16 +3,11 @@
 // pos:    Builds PI process arguments and environment
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import type { IdentityJsonValue } from '../../domain/agent-run/identity.js';
 import type { AgentSpawnConfig, McpComposition } from '../types.js';
-import {
-  PI_LEASE_STATE_ENV, PI_MCP_COMPOSITION_ENV, PI_POLICY_GUARD_ENV, GATE2_LEASE_STATE,
-} from './policy-guard.js';
-import { PI_BENCHMARK_DEADLINE_ENV } from './mcp-duration.js';
 import { PI_PLUGIN_MCP_CONFIG_ENV } from './mcp-config.js';
 import { MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 
-export const PI_BENCHMARK_THREAD_POLICY_ENV = 'CORTEX_BENCHMARK_THREAD_POLICY_PATH';
+export const PI_MCP_COMPOSITION_ENV = 'CORTEX_PI_MCP_COMPOSITION';
 
 export interface PISpawnOptions {
   sessionDir: string;
@@ -93,21 +88,12 @@ export interface PIEnvOptions {
   context?: AgentSpawnConfig['cortexContext'];
   piAgentDir: string;
   allowedTools?: string | null;
-  /** Compiled benchmark policy guard. Present puts the child in guarded mode (§13 GT6). */
-  policyGuard?: IdentityJsonValue;
-  /** Which key of that guard this spawn selects. Absent keeps the one-shot parent's default
-   *  (design section 16 (16.1) LS7). */
-  leaseState?: string;
-  /** Resolved MCP composition; the bridge derives its server set from it (§5.6 P1). */
+  /** Resolved MCP composition; the bridge derives its server set from it. */
   mcpComposition?: McpComposition;
   /** Canonical per-tool MCP allowlist inherited by built-in stdio servers. */
   mcpToolAllowlist?: string[] | null;
-  /** Absolute trial deadline the MCP bridge bounds its calls against (§5.6 P2/P5). */
-  deadlineEpochMs?: number;
   /** Private path to the typed plugin MCP config written by the adapter. */
   pluginMcpConfigPath?: string | null;
-  /** Launcher-declared policy path for the restricted benchmark thread server. */
-  benchmarkThreadPolicyPath?: string | null;
   /** Explicit marker for the restricted PI subagent surface. */
   subagentMarker?: string | null;
 }
@@ -125,8 +111,7 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE',
   'CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE',
   'CORTEX_PI_ALLOWED_TOOLS', 'CORTEX_PI_SUBAGENT', PI_PLUGIN_MCP_CONFIG_ENV,
-  PI_BENCHMARK_THREAD_POLICY_ENV, PI_POLICY_GUARD_ENV, PI_LEASE_STATE_ENV,
-  PI_MCP_COMPOSITION_ENV, PI_BENCHMARK_DEADLINE_ENV, MCP_TOOL_ALLOWLIST_ENV,
+  PI_MCP_COMPOSITION_ENV, MCP_TOOL_ALLOWLIST_ENV,
 ] as const;
 
 function setOptional(env: NodeJS.ProcessEnv, key: string, value: unknown): void {
@@ -162,21 +147,11 @@ export function buildPiEnv(
     env.FEISHU_CHANNEL = options.channel;
   }
   setOptional(env, 'CORTEX_PI_ALLOWED_TOOLS', options.allowedTools);
-  // GT6: the guard travels as its own variable and carries its lease-state input with it. Presence
-  // alone puts the child in guarded mode, so an empty or malformed value denies rather than allows.
-  if (options.policyGuard !== undefined) {
-    env[PI_POLICY_GUARD_ENV] = JSON.stringify(options.policyGuard);
-    // The selected state, not a constant: an in-trial step names the state it was armed under, and
-    // the one-shot parent path — which supplies none — keeps Gate 2's default.
-    env[PI_LEASE_STATE_ENV] = options.leaseState ?? GATE2_LEASE_STATE;
-  }
   setOptional(env, PI_MCP_COMPOSITION_ENV, options.mcpComposition);
   if (options.mcpToolAllowlist !== undefined && options.mcpToolAllowlist !== null) {
     env[MCP_TOOL_ALLOWLIST_ENV] = JSON.stringify(options.mcpToolAllowlist);
   }
-  setOptional(env, PI_BENCHMARK_DEADLINE_ENV, options.deadlineEpochMs);
   setOptional(env, PI_PLUGIN_MCP_CONFIG_ENV, options.pluginMcpConfigPath);
-  setOptional(env, PI_BENCHMARK_THREAD_POLICY_ENV, options.benchmarkThreadPolicyPath);
   setOptional(env, 'CORTEX_PI_SUBAGENT', options.subagentMarker);
   applyContext(env, options);
   return env;

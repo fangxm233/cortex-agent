@@ -147,7 +147,7 @@ Portable MCP declaration 经过同一个 backend-neutral normalization layer。C
 
 Capability fingerprint 覆盖 effective plugin paths、portable skill content、projected manifest 与 normalized MCP declarations。Claude pooled session 只会复用 capability 相同的 process，因此 assignment 及这些 covered inputs 的变化会选择兼容的 process boundary。Legacy package content 与 executable bytes 等 auxiliary portable files 不做 content hash；只改变这些文件并不保证替换 process。Portable skill name、portable namespace 或 MCP runtime name 发生冲突时，该 assignment set 会 fail closed。
 
-在显式 `none`、benchmark thread-run composition 与受限 PI `Agent` subagent surface 上，portable MCP 会被抑制。这可避免 plugin capability 进入本来就有意收窄的 execution mode。
+在显式 `none` composition 与受限 PI `Agent` subagent surface 上，portable MCP 会被抑制。这可避免 plugin capability 进入本来就有意收窄的 execution mode。
 
 ## 信任与管理 {#trust-and-administration}
 

@@ -19,19 +19,18 @@ def closed_upstream() -> str:
 
 
 def cortex_arm(
-    capability_id: str, *, model: str, backend: str = "claude",
+    capability_id: str, *, model: str, backend: str = "pi",
     deadline_seconds: int = 120, max_cost_usd: str = "2.50",
 ) -> dict[str, object]:
     return {
         "schema_version": "cortex-benchmark-arm/2",
         "kind": "cortex", "name": ARM_NAME, "backend": backend,
-        "provider": "anthropic", "model": model,
+        "provider": "deepseek" if backend == "pi" else "anthropic", "model": model,
         "credential_capability": capability_id,
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_thread_starts": 0, "max_parent_questions": 0, "max_task_depth": 0,
-            "max_tasks": 0, "max_provider_requests": 8, "max_resident_agent_processes": 1,
-            "max_cost_usd": max_cost_usd, "deadline_seconds": deadline_seconds,
+            "max_provider_requests": 8, "max_cost_usd": max_cost_usd,
+            "deadline_seconds": deadline_seconds, "max_output_tokens": 65536,
         },
     }
 

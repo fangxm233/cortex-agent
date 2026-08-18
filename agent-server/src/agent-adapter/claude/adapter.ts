@@ -12,7 +12,6 @@ import * as crypto from 'crypto';
 import { DATA_DIR, readableTimestamp } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { handleRateLimitEvent } from '@domain/costs/rate-limit-throttle.js';
-import type { IdentityJsonValue } from '@domain/agent-run/identity.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import { resolveMcpComposition } from '../types.js';
@@ -184,14 +183,10 @@ interface ClaudeSessionOptions {
   captureTranscriptLogs?: boolean;
   preserveUnreportedAccounting?: boolean;
   processSpawner?: AgentProcessSpawner;
-  /** Absolute CLI path frozen by a trial policy; absent resolves `claude` from PATH. */
+  /** Optional absolute Claude CLI path. */
   cliPath?: string;
-  /** Compiled benchmark policy guard; present replaces the ambient hook surface entirely. */
-  benchmarkPolicyGuard?: IdentityJsonValue;
-  /** Exact allowlisted child environment for a pinned trial. */
+  /** Exact allowlisted child environment for an isolated process. */
   pinnedEnv?: NodeJS.ProcessEnv;
-  /** Absolute trial deadline the child's MCP call budget is derived from at each spawn. */
-  benchmarkDeadlineEpochMs?: number;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string>;
   /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
@@ -227,7 +222,6 @@ function deriveClaudeSpawnOptions(fields: ClaudeSpawnFields): ClaudeSpawnOptions
     mcpToolAllowlist: fields.mcpToolAllowlist,
     supplementalMcpConfigPath: fields.supplementalMcpConfigPath,
     disableHooks: fields.disableHooks,
-    benchmarkPolicyGuard: fields.benchmarkPolicyGuard,
     streamDeltas: fields.streamDeltas,
   };
 }
@@ -344,11 +338,7 @@ class ClaudeSession {
   private preserveUnreportedAccounting!: boolean;
   private processSpawner!: AgentProcessSpawner | undefined;
   private cliPath!: string | undefined;
-  private benchmarkPolicyGuard!: IdentityJsonValue | undefined;
   private pinnedEnv!: NodeJS.ProcessEnv | undefined;
-  /** The trial deadline as an instant. The MCP budget derived from it is not stored: every spawn
-   *  recomputes it, so a resumed or restarted process never inherits a stale budget. */
-  private benchmarkDeadlineEpochMs!: number | undefined;
   private supervision: AgentProcessSupervision | undefined;
   private extraOption!: Record<string, string> | undefined;
   private thinking!: string | null;
@@ -422,9 +412,7 @@ class ClaudeSession {
     this.preserveUnreportedAccounting = options.preserveUnreportedAccounting === true;
     this.processSpawner = options.processSpawner;
     this.cliPath = options.cliPath;
-    this.benchmarkPolicyGuard = options.benchmarkPolicyGuard;
     this.pinnedEnv = options.pinnedEnv;
-    this.benchmarkDeadlineEpochMs = options.benchmarkDeadlineEpochMs;
     this.extraOption = options.extraOption;
     this.thinking = options.thinking ?? null;
     this.context = options.context;
@@ -448,7 +436,6 @@ class ClaudeSession {
       mcpToolAllowlist: this.mcpToolAllowlist,
       supplementalMcpConfigPath: this.supplementalMcpConfigPath,
       disableHooks: this.disableHooks,
-      benchmarkPolicyGuard: this.benchmarkPolicyGuard,
       streamDeltas: this.streamDeltas,
     });
   }
@@ -529,7 +516,6 @@ class ClaudeSession {
     const env = buildClaudeEnv(
       this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId,
       this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv,
-      this.benchmarkDeadlineEpochMs,
     );
     const options = this.toSpawnOptions();
     options.loadSlackMcp = this.channel.startsWith('slack:');
@@ -1361,7 +1347,6 @@ function tuiSessionConfig(
     mcpToolAllowlist: options.mcpToolAllowlist ?? null,
     supplementalMcpConfigPath: options.supplementalMcpConfigPath ?? null,
     disableHooks: options.disableHooks,
-    benchmarkPolicyGuard: options.benchmarkPolicyGuard,
     pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
     supplementalMcpConfigIdentity: options.supplementalMcpConfigIdentity ?? null,
     callbackSource: options.callbackSource,
@@ -1469,9 +1454,7 @@ function sessionRuntimeOptions(
     preserveUnreportedAccounting: config.preserveUnreportedAccounting,
     processSpawner: config.processSpawner,
     cliPath: config.cliPath,
-    benchmarkPolicyGuard: config.benchmarkPolicyGuard,
     pinnedEnv: config.pinnedEnv,
-    benchmarkDeadlineEpochMs: config.benchmarkDeadlineEpochMs,
     extraOption: config.extraOption,
     context: config.cortexContext,
   };
@@ -1513,7 +1496,6 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
     mcpToolAllowlist: opts.mcpToolAllowlist,
     supplementalMcpConfigPath: opts.supplementalMcpConfigPath,
     disableHooks: opts.disableHooks,
-    benchmarkPolicyGuard: opts.benchmarkPolicyGuard,
     streamDeltas: opts.streamDeltas,
   });
   spawnOptions.isUserInitiated = config.isUserInitiated;

@@ -159,7 +159,6 @@ function inputFor(
     mode: manager ? 'manager' : scenario === 'direct' ? 'direct' : 'coder-review',
     expectedRoles: roles,
     managerQa: manager ? (scenario === 'manager-qa-on' ? 'on' : 'off') : null,
-    limits: { max_task_depth: manager ? 4 : 0, max_tasks: manager ? 8 : 0 },
     proxyExport: proxy(trialId),
   };
 }

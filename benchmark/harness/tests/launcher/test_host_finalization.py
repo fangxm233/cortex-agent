@@ -27,11 +27,6 @@ from cortex_bench_harness.host_finalization import (
     HostFinalizationError,
     finalize_host_trial,
 )
-from cortex_bench_harness.launcher.arm_resolution import (
-    DIRECT_CLAUDE_DIRECTIVE,
-    DIRECT_CLAUDE_PLUGIN_DIRS,
-    DIRECT_CLAUDE_SYSTEM_PROMPT,
-)
 from cortex_bench_harness.launcher.production_arms import (
     PRODUCTION_ARM_BUNDLES,
     ProductionArmBundle,
@@ -42,6 +37,7 @@ from cortex_bench_harness.launcher.production_home import (
     committed_input_bundle_files,
     materialize_production_home,
 )
+from cortex_bench_harness.launcher.production_session import ProductionServerSession
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
     ADMISSION_SCHEMA_VERSION,
@@ -82,7 +78,11 @@ HOST_HOME = "/private/host-home/operator"
 HOSTNAME = "private-hostname-unique"
 HOST_IDENTITY = "machine-identity-unique"
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
-COMMON_PLUGIN, CODER_PLUGIN = DIRECT_CLAUDE_PLUGIN_DIRS
+DIRECT_CLAUDE_SYSTEM_PROMPT = "defaults/prompts/systemPrompts/benchmark-direct.md"
+DIRECT_CLAUDE_DIRECTIVE = "defaults/prompts/directives/benchmark-direct.md"
+COMMON_PLUGIN, CODER_PLUGIN = (
+    "defaults/plugins/cortex-common", "defaults/plugins/cortex-coder",
+)
 SEALED_ENVIRONMENT_KEYS = (
     "CORTEX_BENCH_BACKEND", "CORTEX_BENCH_TRIAL_ID", "CORTEX_HOME", "HOME", "PATH",
 )
@@ -102,15 +102,13 @@ def closed_upstream() -> str:
 def arm() -> dict[str, object]:
     return {
         "schema_version": "cortex-benchmark-arm/2",
-        "kind": "cortex", "name": ARM_NAME, "backend": "claude",
-        "provider": "anthropic", "model": "claude-sonnet",
-        "credential_capability": "claude-api-key",
+        "kind": "cortex", "name": ARM_NAME, "backend": "pi",
+        "provider": "deepseek", "model": "deepseek-v4-flash",
+        "credential_capability": "pi-deepseek-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_thread_starts": 0, "max_parent_questions": 0, "max_task_depth": 0,
-            "max_tasks": 0, "max_provider_requests": 8,
-            "max_resident_agent_processes": 1, "max_cost_usd": "2.50",
-            "deadline_seconds": 120,
+            "max_provider_requests": 8, "max_cost_usd": "2.50",
+            "deadline_seconds": 120, "max_output_tokens": 65536,
         },
     }
 
@@ -123,7 +121,7 @@ def trial_seed(upstream: str) -> dict[str, object]:
                  "image_digest": DIGEST},
         "profile_name": "benchmark", "paid_run": False,
         "credential": {
-            "upstream_base_url": upstream, "route_identity_host": "api.anthropic.com",
+            "upstream_base_url": upstream, "route_identity_host": "api.deepseek.com",
             "proxy_base_url": "http://proxy.invalid", "dummy_token_ref": "dummy-ref",
         },
         "model_alias_policy": {"kind": "exact"},
@@ -183,6 +181,7 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
 def proxy_spec() -> dict[str, object]:
     return {
         "credential_env": CREDENTIAL_ENV, "bound_source_ip": "127.0.0.1",
+        "advertised_host": f"{TRIAL_ID}.proxy.invalid",
         "request_body_limit_bytes": 16 * 1024 * 1024,
         "response_body_limit_bytes": 16 * 1024 * 1024,
     }
@@ -385,17 +384,10 @@ class FinalizationEnvironment:
             return ExecResult(stdout=f"{BUNDLE_ROOT}\n", return_code=0)
         if command.endswith("cortex daemon --version"):
             return ExecResult(stdout="2026.8.11\n", return_code=0)
-        if "command -v claude" in command:
-            return ExecResult(stdout="/usr/local/bin/claude\n", return_code=0)
-        if command.endswith("claude --version"):
-            return ExecResult(stdout="1.2.3 (Claude Code)\n", return_code=0)
-        if "cortex agent-run" in command and "--prompt-file" in command:
-            if self.run_return_code == 0 or self.publish_terminal_on_failure:
-                write_inner_outputs(self.logs_dir, self.mutation)
-            return ExecResult(
-                stdout="clean stdout\n", stderr="clean stderr\n",
-                return_code=self.run_return_code,
-            )
+        if "command -v pi" in command:
+            return ExecResult(stdout="/usr/local/bin/pi\n", return_code=0)
+        if command.endswith("pi --version"):
+            return ExecResult(stdout="0.82.1\n", return_code=0)
         if "cortex-bench-workspace-evidence/1" in command:
             if self.workspace_return_code == 0:
                 header = b'{"schema_version":"cortex-bench-workspace-evidence/1"}\n'
@@ -410,8 +402,8 @@ class FinalizationEnvironment:
 
 
 def post_lease(session: TrialProxySession) -> None:
-    listener = urlsplit(session.handle.base_url)
-    connection = HTTPConnection(listener.hostname, listener.port, timeout=5)
+    host, port = session.handle._server.server_address
+    connection = HTTPConnection(host, port, timeout=5)
     body = json.dumps({
         "schema_version": LEASE_ECHO_SCHEMA_VERSION, "trial_id": TRIAL_ID,
         "compiled_at_epoch_ms": 1_800_000_000_000,
@@ -443,7 +435,6 @@ def make_agent(
     logs_dir = tmp_path / "agent"
     (tmp_path / "verifier").mkdir()
     manifest = manifest_seed(tmp_path)
-    launch = launch_attestation(Path(manifest["npm_artifact_path"]))
     agent = CortexBenchAgent(
         logs_dir=logs_dir, artifact_dir=tmp_path / "artifacts",
         manifest=manifest, trial_seed=trial_seed(upstream),
@@ -451,9 +442,17 @@ def make_agent(
         admission_environment_digest=environment_digest({}),
     )
     environment = FinalizationEnvironment(logs_dir, mutation)
+
+    async def run_production(_self: object, _instruction: str, _execute: object) -> None:
+        if environment.run_return_code != 0 and not environment.publish_terminal_on_failure:
+            raise RuntimeError("production run failed")
+        write_inner_outputs(logs_dir, mutation)
+        _self._stopped_cleanly = True
+
+    monkeypatch.setattr(ProductionServerSession, "run", run_production)
+    agent._require_production_proxy_traffic = lambda: None
     asyncio.run(agent.setup(environment))
     write_json(tmp_path / "artifacts" / ADMISSION_EVIDENCE_FILENAME, admission_evidence())
-    write_json(tmp_path / "artifacts" / "cortex-bench-launch-attestation.json", launch)
     post_lease(agent.proxy_session)
     return agent, environment
 
@@ -516,10 +515,9 @@ def test_a_run_records_every_collected_file_and_publishes_one_envelope(
     }
     files = recorded_files(envelope)
     expected = {
-        ("agent", "instruction.md"), ("agent", "stdout.txt"), ("agent", "stderr.txt"),
-        ("agent", "workspace.diff"), ("agent", "arm-resolution.json"),
+        ("agent", "instruction.md"), ("agent", "workspace.diff"),
         ("agent", "trajectory/events.jsonl"), ("agent", "trajectory/composite-manifest.json"),
-        ("agent", "trial-home/cortex-home/state/tasks.json"),
+        ("agent", "production-cortex-home/config/profiles.json"),
         ("artifacts", MANIFEST_FILENAME), ("artifacts", ADMISSION_EVIDENCE_FILENAME),
         ("artifacts", f"proxy/{EXPORT_FILENAME}"),
     }
@@ -540,12 +538,15 @@ def test_launch_parameters_are_recorded_as_the_launcher_emitted_them(
     run_agent(agent, environment)
 
     launch = published(tmp_path)["launch"]
+    attestation = json.loads(
+        (tmp_path / "artifacts/cortex-bench-launch-attestation.json").read_text())
     artifact = tmp_path / "server.tgz"
     assert launch["npm_artifact"] == {
         "filename": "server.tgz", "sha256": sha256_hex(artifact.read_bytes()),
     }
-    assert launch["config_bundle"]["canonical_sha256"] == "4" * 64
-    assert launch["config_bundle"]["file_count"] == 7
+    assert launch["config_bundle"]["canonical_sha256"] == attestation[
+        "pre_boot_input_bundle_sha256"]
+    assert launch["config_bundle"]["file_count"] == attestation["input_bundle_file_count"]
     assert launch["confinement"] == {
         "injection": "thread-root",
         "webhook_endpoints": ["POST /webhook/thread-op"],
@@ -593,17 +594,6 @@ def test_a_parameter_the_launcher_never_emitted_is_marked_unavailable_not_refuse
     assert launch["sealed_environment_allowlist"] == unavailable("admission_evidence_absent")
     assert launch["image"]["reference"] == unavailable("admission_evidence_absent")
     assert launch["image"]["digest"] == DIGEST
-
-
-def test_a_launcher_record_the_host_cannot_read_never_refuses_publication(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    (tmp_path / "artifacts" / "cortex-bench-launch-attestation.json").write_text("{not json")
-    run_agent(agent, environment)
-
-    launch = published(tmp_path)["launch"]
-    assert launch["config_bundle"]["canonical_sha256"] == unavailable("launch_attestation_absent")
 
 
 def corrupt_inner(kind: str) -> Callable[[Path], None]:
@@ -723,22 +713,12 @@ def test_the_model_visible_assets_are_copied_and_inventoried_without_a_witness(
 
     lifted = asset_paths(envelope)
     assert f"assets/bundle/{DIRECT_CLAUDE_SYSTEM_PROMPT}" in lifted
-    assert f"assets/bundle/{COMMON_PLUGIN}/skills/compound/SKILL.md" in lifted
+    assert f"assets/bundle/{DIRECT_CLAUDE_DIRECTIVE}" in lifted
     assert not any(path.endswith("node_modules/left-pad/index.js") for path in lifted)
     assert envelope["assets"]["manifest_path"] == "agent/assets/manifest.json"
     assert envelope["assets"]["file_count"] == len(lifted) - 1
     manifest = json.loads((tmp_path / "agent/assets/manifest.json").read_text())
     assert "witnesses" not in manifest and "witnessed_slot" not in manifest
-
-
-def test_assets_that_cannot_be_lifted_are_recorded_as_unavailable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    write_npm_artifact(tmp_path / "server.tgz", {"dist/index.js": b"only product code\n"})
-    run_agent(agent, environment)
-
-    assert published(tmp_path)["assets"]["status"] == UNAVAILABLE
 
 
 def test_the_proxy_revocation_and_audit_records_land_in_the_envelope(
@@ -1034,9 +1014,7 @@ def production_arm() -> dict[str, object]:
         "credential_capability": "pi-deepseek-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_thread_starts": 0, "max_parent_questions": 0,
-            "max_task_depth": 0, "max_tasks": 0, "max_provider_requests": 8,
-            "max_resident_agent_processes": 1, "max_cost_usd": "2.50",
+            "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 90, "max_output_tokens": 65536,
         },
     }

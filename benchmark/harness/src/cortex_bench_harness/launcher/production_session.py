@@ -417,7 +417,6 @@ class ProductionServerSession:
         )
 
     def _evidence_input(self) -> dict[str, object]:
-        limits = _required_mapping(self._spec.arm.get("limits"), "arm limits")
         return {
             "outputDirectory": str(self._container_path("trajectory")),
             "project": PROJECT_ID, "trialId": self._spec.trial_id,
@@ -427,7 +426,6 @@ class ProductionServerSession:
             "mode": self._arm_bundle.evidence_mode,
             "expectedRoles": list(self._arm_bundle.expected_roles),
             "managerQa": self._arm_bundle.manager_qa,
-            "limits": {"max_task_depth": limits["max_task_depth"], "max_tasks": limits["max_tasks"]},
             "proxyExport": _unavailable_proxy(self._spec.trial_id),
         }
 

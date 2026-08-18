@@ -44,9 +44,7 @@ def direct_arm() -> dict[str, object]:
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_thread_starts": 0, "max_parent_questions": 0,
-            "max_task_depth": 0, "max_tasks": 0, "max_provider_requests": 8,
-            "max_resident_agent_processes": 1, "max_cost_usd": "2.50",
+            "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 90, "max_output_tokens": 65536,
         },
     }
@@ -66,7 +64,6 @@ def manager_arm() -> dict[str, object]:
     arm = direct_arm()
     arm["name"] = "cortex-manager-qa-off"
     arm["orchestration"] = {"mode": "manager", "ask_manager": False}
-    arm["limits"] = {**arm["limits"], "max_task_depth": 1, "max_tasks": 1}
     return arm
 
 
@@ -343,7 +340,7 @@ def test_session_posts_validated_root_context_and_export_identity(tmp_path: Path
     assert evidence["mode"] == "direct"
     assert evidence["expectedRoles"] == ["benchmark-direct"]
     assert evidence["managerQa"] is None
-    assert evidence["limits"] == {"max_task_depth": 0, "max_tasks": 0}
+    assert "limits" not in evidence
     assert evidence["proxyExport"]["trial_id"] == "trial-direct"
 
 
@@ -509,7 +506,7 @@ def test_manager_arm_exports_its_own_evidence_shape(tmp_path: Path) -> None:
     assert evidence["expectedRoles"] == ["benchmark-manager"]
     assert evidence["managerQa"] == "off"
     assert evidence["armName"] == "cortex-manager-qa-off"
-    assert evidence["limits"] == {"max_task_depth": 1, "max_tasks": 1}
+    assert "limits" not in evidence
 
 
 def test_manager_arm_refuses_a_task_cli_that_did_not_add_the_task(tmp_path: Path) -> None:
@@ -555,7 +552,9 @@ def test_manager_arm_refuses_a_dispatch_that_never_runs(tmp_path: Path) -> None:
 
 def test_session_refuses_an_arm_its_bundle_does_not_declare(tmp_path: Path) -> None:
     arm = audit_retry_arm()
-    arm["limits"] = {**arm["limits"], "max_tasks": 2}
+    arm["orchestration"] = {
+        "mode": "coder-review", "coder_review_variant": "unknown", "ask_manager": False,
+    }
 
     with pytest.raises(ProductionArmError, match="production launcher"):
         session(tmp_path, arm=arm, bundle=AUDIT_RETRY_BUNDLE)

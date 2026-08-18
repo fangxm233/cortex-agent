@@ -15,13 +15,6 @@ from pathlib import Path
 
 BUNDLES_DIR = Path(__file__).resolve().parent / "bundles"
 BUNDLE_HOME_DIRNAME = "cortex-home"
-# The four containment limits every production arm holds at zero, restated per row so a row that
-# needs a different shape (a manager arm's task tree) has to say so.
-TASKLESS_LIMITS = {
-    "max_thread_starts": 0, "max_parent_questions": 0,
-    "max_task_depth": 0, "max_tasks": 0,
-}
-SERIAL_EXECUTION_LIMITS = {"max_resident_agent_processes": 1, "max_output_tokens": 65_536}
 # How the launcher hands the arm its one unit of work. A thread root is posted to the webhook and
 # runs under the single-root guard; a task root is added to the arm's own task store and is run by
 # the production dispatcher the bundle's settings enable.
@@ -54,7 +47,6 @@ class ProductionArmBundle:
     model: str
     credential_capability: str
     orchestration: Mapping[str, object]
-    limits: Mapping[str, object]
     injection: str
     writable_home_paths: tuple[str, ...]
     webhook_endpoints: tuple[str, ...]
@@ -84,7 +76,6 @@ def _bundle(
     *, key: str, profile_name: str, root_template: str, evidence_mode: str,
     expected_roles: tuple[str, ...], orchestration: Mapping[str, object],
     manager_qa: str | None = None,
-    limits: Mapping[str, object] = SERIAL_EXECUTION_LIMITS,
     injection: str = THREAD_ROOT,
     writable_home_paths: tuple[str, ...] = (),
     webhook_endpoints: tuple[str, ...] = THREAD_ONLY_ENDPOINTS,
@@ -95,8 +86,8 @@ def _bundle(
         evidence_mode=evidence_mode, expected_roles=expected_roles,
         manager_qa=manager_qa, backend="pi", provider="deepseek",
         model="deepseek-v4-flash", credential_capability="pi-deepseek-api-key",
-        orchestration=orchestration, limits={**TASKLESS_LIMITS, **limits},
-        injection=injection, writable_home_paths=writable_home_paths,
+        orchestration=orchestration, injection=injection,
+        writable_home_paths=writable_home_paths,
         webhook_endpoints=webhook_endpoints,
     )
 
@@ -136,7 +127,6 @@ PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
         root_template="benchmark-manager", evidence_mode="manager",
         expected_roles=("benchmark-manager",), manager_qa="off",
         orchestration={"mode": "manager", "ask_manager": False},
-        limits={**SERIAL_EXECUTION_LIMITS, "max_task_depth": 1, "max_tasks": 1},
         injection=TASK_ROOT, writable_home_paths=("context/projects/general",),
     ),
     _bundle(
@@ -144,10 +134,6 @@ PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
         root_template="benchmark-manager", evidence_mode="manager",
         expected_roles=("benchmark-manager",), manager_qa="on",
         orchestration={"mode": "manager", "ask_manager": True},
-        limits={
-            **SERIAL_EXECUTION_LIMITS, "max_parent_questions": 1,
-            "max_task_depth": 1, "max_tasks": 1,
-        },
         injection=TASK_ROOT, writable_home_paths=("context/projects/general",),
         webhook_endpoints=(THREAD_OP_ENDPOINT, MANAGER_QA_ENDPOINT),
     ),
@@ -196,14 +182,11 @@ def resolve_production_arm(arm: Mapping[str, object]) -> ProductionArmBundle | N
     bundle = production_arm_candidate(arm)
     if bundle is None:
         return None
-    limits = arm.get("limits")
     declared = (
         arm.get("schema_version") == "cortex-benchmark-arm/2",
         isinstance(arm.get("name"), str) and bool(arm.get("name")),
         arm.get("credential_capability") == bundle.credential_capability,
         dict(_orchestration(arm)) == dict(bundle.orchestration),
-        isinstance(limits, Mapping)
-        and all(limits.get(key) == value for key, value in bundle.limits.items()),
     )
     return bundle if all(declared) else None
 

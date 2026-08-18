@@ -3,15 +3,7 @@
 // pos:    Composite v2 attempt-node tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-// SEAM NOTE. `mintAttemptId` is proved against the stem the SHIPPED `writeStartedMarker` actually
-// writes to disk, not against a restatement of the grammar. §17 D1: `lifecycleStem`
-// (`manifest.ts:261`) is not exported and §10's Gate-4 grant does not cover exporting it, so the
-// equality is asserted rather than imported — which is the stronger check, because it proves the
-// id names the real lifecycle pair that §9.2 invariant 4's biconditional ranges over.
-
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -28,7 +20,6 @@ import {
   threadScopedIdentityHolds,
   type AttemptRecord,
 } from '../../../src/domain/benchmark/attempt-record.js';
-import { writeStartedMarker } from '../../../src/domain/agent-run/manifest.js';
 
 /** §9.1's declaration order (`design:2571-2603`), transcribed field by field. */
 const NINE_ONE_ORDER: readonly string[] = [
@@ -182,20 +173,6 @@ describe('attempt_id minting — G4-AI2 / G4-AI3 / G4-AI6', () => {
     expect(() => mintAttemptId('root-1', 'bad id')).toThrow();
   });
 
-  it('EQUALS the stem the SHIPPED writeStartedMarker puts on disk', () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'attempt-id-'));
-    try {
-      const rootRunId = 'root-abc';
-      writeStartedMarker({
-        trajectoryRoot: root, rootRunId, threadId: null,
-        journalPath: path.join(root, 'j.ndjson'),
-      });
-      const written = fs.readdirSync(root).filter(name => name.endsWith('.started.json'));
-      expect(written).toEqual([`${mintAttemptId(rootRunId, null)}.started.json`]);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
 });
 
 describe('attempt_ordinal — G4-AI4 / G4-AI5', () => {

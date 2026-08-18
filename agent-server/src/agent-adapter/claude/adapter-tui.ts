@@ -9,7 +9,6 @@ import * as path from 'path';
 import { createLogger } from '@core/log.js';
 import { TmuxControl } from './tmux-control.js';
 import { JsonlTail, JsonlEventNormalizer } from './jsonl-tail.js';
-import type { IdentityJsonValue } from '../../domain/agent-run/identity.js';
 import {
   CancelledError,
   TUI_TMUX_NAME_PREFIX,
@@ -90,7 +89,6 @@ export interface ClaudeTuiSessionConfig {
   mcpToolAllowlist?: string[] | null;
   supplementalMcpConfigPath?: string | null;
   disableHooks?: boolean;
-  benchmarkPolicyGuard?: IdentityJsonValue;
   pluginCapabilityFingerprint?: string | null;
   supplementalMcpConfigIdentity?: string | null;
   // -- runtime context surfaced to MCP servers via env --
@@ -252,7 +250,6 @@ export class ClaudeTuiSession {
       mcpToolAllowlist: this.config.mcpToolAllowlist ?? null,
       supplementalMcpConfigPath: this.config.supplementalMcpConfigPath ?? null,
       disableHooks: this.config.disableHooks,
-      benchmarkPolicyGuard: this.config.benchmarkPolicyGuard,
       needsResume: this.needsResume,
       sessionId: this.sessionId,
       mode: 'tui',

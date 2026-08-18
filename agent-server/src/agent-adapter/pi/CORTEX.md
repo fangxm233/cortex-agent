@@ -5,7 +5,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools.
 
 | filename | role | function |
 |---|---|---|
-| adapter.ts | adapter | Coordinates PI sessions, cached usage and benchmark policy |
+| adapter.ts | adapter | Coordinates PI sessions, routing and cached usage |
 | session-support.ts | core | PI session timers, queues, and probes |
 | spawn-args.ts | core | Builds PI args and scrubs server auth and trial controls from child environments |
 | defaults.ts | config | PI agent, session and extension path defaults |
@@ -14,9 +14,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools.
 | session-files.ts | core | Resolves an isolated PI transcript path |
 | providers-config.ts | config | writes the PI provider catalog at an explicit path |
 | custom-catalog.ts | config | Reads custom provider catalog entries |
-| policy-guard.ts | core | Guards PI tool dispatch fail-closed |
 | mcp-config.ts | config | Writes and reloads private plugin MCP config |
-| mcp-duration.ts | core | Bounds MCP calls by trial deadlines |
 | event-parser.ts | parser | translates PI events with exact nullable token splits |
 | framing.ts | codec | encodes and splits PI newline JSON records |
 | mcp-bridge.ts | bridge | Composes and validates gated MCP tools from process env |

@@ -62,20 +62,10 @@ export interface JournalEventInput {
   identity?: JournalEventIdentity;
 }
 
-export interface StateAdmissionEvidence {
-  schema_version: 'cortex-standalone-state-admission/1';
-  empty_before_projection: boolean;
-  roots: {
-    project: string; task: string; thread: string; session: string; execution: string;
-    cache: string; temp: string; backend: string;
-  };
-}
-
 export interface Journal {
   readonly path: string;
   readonly header: Readonly<Record<string, unknown>>;
   readonly eventCount: number;
-  writeStateAdmission(evidence: StateAdmissionEvidence): Readonly<Record<string, unknown>>;
   writeEvent(input: JournalEventInput): Readonly<Record<string, unknown>>;
   sha256(): string;
   closeSync(): void;
@@ -181,27 +171,6 @@ function buildHeader(input: JournalHeaderInput, ts: string): Record<string, unkn
   };
 }
 
-function buildStateAdmission(
-  evidence: StateAdmissionEvidence,
-  identity: IdentityFields,
-  seq: number,
-  ts: string,
-): Record<string, unknown> {
-  return {
-    schema_version: JOURNAL_SCHEMA,
-    type: 'state_admission',
-    root_run_id: identity.rootRunId,
-    thread_id: identity.threadId,
-    agent_slot: identity.agentSlot,
-    seq,
-    ts,
-    model_execution_identity_hash: identity.modelExecutionIdentityHash,
-    role_tool_surface_hash: identity.roleToolSurfaceHash,
-    bundle_manifest_hash: identity.bundleManifestHash,
-    evidence,
-  };
-}
-
 function buildEvent(
   input: JournalEventInput,
   headerIdentity: IdentityFields,
@@ -246,22 +215,6 @@ class FileJournal implements Journal {
 
   get eventCount(): number {
     return this.count;
-  }
-
-  writeStateAdmission(evidence: StateAdmissionEvidence): Readonly<Record<string, unknown>> {
-    if (this.nextSeq !== 1 || this.identity.threadId !== null || this.identity.agentSlot !== 'parent') {
-      throw trajectoryFailure('state admission write', [new Error('state admission must be first')]);
-    }
-    let record: Readonly<Record<string, unknown>>;
-    try {
-      const fd = this.requireOpenFd();
-      record = buildStateAdmission(evidence, this.identity, this.nextSeq, isoTimestamp(this.now));
-      writeFull(fd, serializeLine(record));
-    } catch (error) {
-      throwTrajectoryFailure('state admission write', error);
-    }
-    this.nextSeq += 1;
-    return record;
   }
 
   writeEvent(input: JournalEventInput): Readonly<Record<string, unknown>> {

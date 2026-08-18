@@ -1,21 +1,20 @@
 Please update me when files in this folder change
 
-MCP tool implementations — each module registers one group of Cortex tools onto an MCP server.
+MCP tool modules register one Cortex capability group each.
 
 | filename | role | function |
 |---|---|---|
-| benchmark-thread-run.ts | tool | Admits one policy-bound verdict-gated thread |
-| context.ts | tool | Reports the caller's current Cortex context |
-| cortex-md.ts | util | Builds CORTEX.md blocks for tool replies |
-| cost.ts | tool | Reports current cost and budget status |
-| executions.ts | tool | Queries execution status records |
-| manager-qa.ts | tool | Registers Q&A tools with caller thread identity |
-| schedule.ts | tool | Creates and manages scheduled tasks |
+| context.ts | tool | Reports caller execution context |
+| cortex-md.ts | util | Builds CORTEX.md response blocks |
+| cost.ts | tool | Reports cost and budget status |
+| executions.ts | tool | Queries execution records |
+| manager-qa.ts | tool | Registers manager question tools |
+| schedule.ts | tool | Manages scheduled tasks |
 | slack.ts | tool | Uploads files to Slack |
-| task-monitor.ts | tool | Reads task status, result, and lists |
-| task-ops.ts | tool | Runs file and shell operations on devices |
-| thread-ops.ts | tool | Aborts, splits, or suspends the caller thread |
-| time.ts | tool | Reports the current wall-clock time |
-| tui-ask.ts | tool | Asks the user a question from TUI mode |
-| tui-plan.ts | tool | Enters and exits TUI plan approval |
-| ui-file.ts | tool | Sends a file into a Web UI chat |
+| task-monitor.ts | tool | Reads task lifecycle state |
+| task-ops.ts | tool | Runs device file and shell operations |
+| thread-ops.ts | tool | Controls caller thread lifecycle |
+| time.ts | tool | Reports wall-clock time |
+| tui-ask.ts | tool | Handles TUI user questions |
+| tui-plan.ts | tool | Handles TUI plan approval |
+| ui-file.ts | tool | Sends files to Web UI chats |

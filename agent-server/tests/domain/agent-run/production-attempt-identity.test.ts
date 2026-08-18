@@ -370,27 +370,6 @@ test('hashes the effective Claude route after profile environment overrides', as
     }));
 });
 
-test('hashes the effective benchmark guard that replaces ambient hooks', async () => {
-  initialize('claude');
-  const resolvedProfile = profile('claude');
-  const guard = { 'workspace-write': { allow: ['Read', 'Write'] } };
-  const spawns: AgentSpawnConfig[] = [];
-  await facadeTest.runWithAdapter(adapter('claude', spawns), 'x', {
-    executionId: 'exec-guard', threadId: 'thr-guard', rootThreadId: 'thr-guard',
-    parentThreadId: null, taskId: null, taskGeneration: null,
-    templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct', stage: null,
-    profileName: resolvedProfile.name, resolvedProfileConfig: resolvedProfile,
-    identityDirective: '', tools: 'Read,Write', pluginDirs: [], mcpComposition: 'none',
-    benchmarkPolicyGuard: guard, loadCortexRules: false,
-  }, {
-    model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
-    provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
-    thinking: resolvedProfile.thinking,
-  }, 'http://proxy.invalid').promise;
-  const expected = computeRoleToolSurfaceHash(roleSurfaceFromSpawnConfig(spawns[0], '', guard));
-  assert.equal(getProductionAttemptIdentity('exec-guard')?.role_tool_surface_hash, expected);
-});
-
 for (const backend of ['claude', 'pi'] as const) {
   test(`refuses ${backend} spawn config that diverges from the resolved profile`, () => {
     initialize(backend);

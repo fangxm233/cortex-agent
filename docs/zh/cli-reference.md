@@ -138,14 +138,14 @@ cortex-evidence-export --input-file <路径|->
 从 `CORTEX_HOME` 下的生产 store 发布不可变的 terminal/composite benchmark evidence v2。
 命令初始化生产 attempt identity 与 journal store，加载 `data/executions.json` 和
 `data/threads.json`，读取归因后的 cost、任务状态与生产 topology，再把验证和原子发布委托给
-`exportProductionBenchmarkEvidence`。它不会导入 benchmark checkout 源码或 standalone
-benchmark runtime。
+`exportProductionBenchmarkEvidence`。Cortex benchmark arm 始终运行真实 production server；
+此命令只记录该 runtime 的 store，不定义第二条 orchestration path。
 
 `--input-file` 接收 JSON 编码的 `ProductionEvidenceExportInput`；传 `-` 表示从 stdin 读取。
 所有字段都由 launcher 持有：`outputDirectory`、`project`、`trialId`、`rootRunId`、
 `armName`、`armCanonicalSha256`、`bundleManifestHash`、`mode`、`expectedRoles`、
-`managerQa`、`limits`、`proxyExport`，以及可选的 `evaluatedChecks`。发布前会验证 hash、
-mode、role 集合、limit、proxy trial identity 和 predicate 结果。输入缺失或格式错误、持久记录
+`managerQa`、`proxyExport`，以及可选的 `evaluatedChecks`。发布前会验证 hash、mode、
+role 集合、proxy trial identity 和 predicate 结果。输入缺失或格式错误、持久记录
 不完整、或输出目录已存在时，命令以退出码 `1` fail closed。
 
 ```bash

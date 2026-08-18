@@ -44,14 +44,14 @@ REAL_CREDENTIAL = "sk-ant-STATE-GATE-UNIQUE"
 # arms. A structurally unsupported row would not do — `claude-subscription` has no registered
 # adapter and `codex-subscription` an unfilled protocol member, so both refuse at adapter
 # selection whether or not the gate is there, and the proofs below would survive its deletion.
-ADAPTED_ROW = "claude-api-key"
+ADAPTED_ROW = "pi-deepseek-api-key"
 
 
 def arm(tmp_path: Path, *, environ: dict[str, str] | None = None):
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir(parents=True, exist_ok=True)
     return arm_trial_proxy(
-        arm=cortex_arm(ADAPTED_ROW, model="claude-sonnet"),
+        arm=cortex_arm(ADAPTED_ROW, model="deepseek-v4-flash"),
         trial_id="trial-state-gate", upstream_base_url=closed_upstream(),
         spec=parse_trial_proxy_spec(proxy_spec()), proxy_dir=artifacts / "proxy",
         trial_roots=(artifacts,),
@@ -121,7 +121,7 @@ def test_the_public_entry_refuses_before_the_container_could_exist(
         CortexBenchAgent(
             logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
             manifest=manifest_seed(tmp_path),
-            trial_seed=trial_seed(upstream, ADAPTED_ROW, model="claude-sonnet"),
+            trial_seed=trial_seed(upstream, ADAPTED_ROW, model="deepseek-v4-flash"),
             trial_proxy=proxy_spec(),
         )
 
@@ -134,7 +134,7 @@ def test_an_offline_admitted_row_cannot_arm_a_paid_route(
     artifacts.mkdir(parents=True)
     with pytest.raises(CapabilityStateRefused, match="live-handshake-passed"):
         arm_trial_proxy(
-            arm=cortex_arm(ADAPTED_ROW, model="claude-sonnet"),
+            arm=cortex_arm(ADAPTED_ROW, model="deepseek-v4-flash"),
             trial_id="trial-paid-state-gate", upstream_base_url=closed_upstream(),
             spec=parse_trial_proxy_spec(proxy_spec()), proxy_dir=artifacts / "proxy",
             trial_roots=(artifacts,), environ={}, paid_run=True,

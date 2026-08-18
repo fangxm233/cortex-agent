@@ -17,25 +17,14 @@ from cortex_bench_harness.launcher.production_arms import (
     resolve_production_arm,
 )
 
-CONTAINMENT_LIMITS = {
-    "max_thread_starts": 0, "max_parent_questions": 0,
-    "max_task_depth": 0, "max_tasks": 0,
-}
 EXECUTION_LIMITS = {
-    "max_provider_requests": 200, "max_resident_agent_processes": 1,
-    "max_cost_usd": "2.00", "deadline_seconds": 1800, "max_output_tokens": 65536,
-}
-
-
-MANAGER_CONTAINMENT_LIMITS = {
-    "max_thread_starts": 0, "max_parent_questions": 0,
-    "max_task_depth": 1, "max_tasks": 1,
+    "max_provider_requests": 200, "max_cost_usd": "2.00",
+    "deadline_seconds": 1800, "max_output_tokens": 65536,
 }
 
 
 def arm(
     orchestration: dict[str, object],
-    containment: dict[str, object] = CONTAINMENT_LIMITS,
     **overrides: object,
 ) -> dict[str, object]:
     value: dict[str, object] = {
@@ -43,7 +32,7 @@ def arm(
         "name": "an-arm", "backend": "pi", "provider": "deepseek",
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
         "orchestration": orchestration,
-        "limits": {**containment, **EXECUTION_LIMITS},
+        "limits": dict(EXECUTION_LIMITS),
     }
     value.update(overrides)
     return value
@@ -70,23 +59,22 @@ def reviewer_fix_arm(**overrides: object) -> dict[str, object]:
 
 
 def manager_qa_off_arm(**overrides: object) -> dict[str, object]:
-    return arm(
-        {"mode": "manager", "ask_manager": False},
-        MANAGER_CONTAINMENT_LIMITS,
-        **overrides,
-    )
+    return arm({"mode": "manager", "ask_manager": False}, **overrides)
 
 
 def manager_qa_on_arm(**overrides: object) -> dict[str, object]:
-    return arm(
-        {"mode": "manager", "ask_manager": True},
-        {**MANAGER_CONTAINMENT_LIMITS, "max_parent_questions": 1},
-        **overrides,
-    )
+    return arm({"mode": "manager", "ask_manager": True}, **overrides)
 
 
 def read_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_arm_needs_no_standalone_orchestration_limits() -> None:
+    assert set(direct_arm()["limits"]) == {
+        "max_provider_requests", "max_cost_usd", "deadline_seconds", "max_output_tokens",
+    }
+    assert require_production_arm(direct_arm()).key == "direct-pi-deepseek"
 
 
 def test_direct_arm_resolves_to_the_committed_direct_bundle() -> None:
@@ -111,16 +99,6 @@ def test_audit_retry_arm_resolves_to_its_own_bundle_template_and_roles() -> None
     assert bundle.expected_roles == ("benchmark-coder", "benchmark-reviewer")
     assert bundle.manager_qa is None
     assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
-
-
-def test_a_candidate_whose_limits_do_not_match_its_declaration_is_refused() -> None:
-    mismatched = audit_retry_arm()
-    mismatched["limits"] = {**mismatched["limits"], "max_tasks": 3}
-
-    assert production_arm_candidate(mismatched) is not None
-    assert resolve_production_arm(mismatched) is None
-    with pytest.raises(ProductionArmError, match="production launcher"):
-        require_production_arm(mismatched)
 
 
 def test_reviewer_fix_arm_resolves_to_its_own_bundle_template_and_roles() -> None:
@@ -229,14 +207,6 @@ def test_manager_bundle_gates_ask_manager_out_of_its_agent_tool_surface() -> Non
     assert isinstance(allowlist, list) and allowlist
     assert "ask_manager" not in allowlist
     assert agent["mcpComposition"] == "thread-control"
-
-
-def test_manager_arm_limits_must_permit_the_task_it_injects() -> None:
-    taskless = manager_qa_off_arm()
-    taskless["limits"] = {**taskless["limits"], "max_tasks": 0}
-
-    assert production_arm_candidate(taskless) is not None
-    assert resolve_production_arm(taskless) is None
 
 
 def test_a_coder_review_variant_without_a_bundle_is_not_a_production_candidate() -> None:

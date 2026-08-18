@@ -14,7 +14,6 @@ import { stdin as processStdin } from 'process';
 import * as clack from '@clack/prompts';
 import * as yaml from 'yaml';
 import {
-  buildBenchmarkThreadConfig,
   buildCoreConfig,
   buildEmptyConfig,
   buildFullConfig,
@@ -1285,7 +1284,6 @@ function writeMcpConfigs(configDir: string): void {
     ['mcp-config-manager-qa.json', buildManagerQaConfig(INSTALL_ROOT)],
     ['mcp-config-thread.json', buildThreadConfig(INSTALL_ROOT)],
     ['mcp-config-empty.json', buildEmptyConfig()],
-    ['mcp-config-benchmark-thread.json', buildBenchmarkThreadConfig(INSTALL_ROOT)],
     ['mcp-config-tui.json', buildTuiConfig(INSTALL_ROOT)],
   ];
   for (const [fileName, config] of configs) {

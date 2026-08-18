@@ -66,14 +66,9 @@ arms:
       coder_review_variant: reviewer-fix
       ask_manager: false
     limits:
-      max_thread_starts: 0
-      max_parent_questions: 0
-      max_task_depth: 0
-      max_tasks: 0
       # Two template steps, each an agent turn with its own tool loop: half the audit-retry arm's
       # four-step request budget, cost cap and deadline.
       max_provider_requests: 200
-      max_resident_agent_processes: 1
       max_cost_usd: "2.00"
       deadline_seconds: 1800
       max_output_tokens: 65536

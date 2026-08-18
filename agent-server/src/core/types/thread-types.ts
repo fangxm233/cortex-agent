@@ -1,10 +1,9 @@
-// input:  thread config, tool gates, benchmark events, spawning
+// input:  thread config, tool gates, evidence context
 // output: thread state, evidence context, and runtime lifecycle types
 // pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
-import type { AgentProcessSpawner, Backend, McpComposition } from '../../agent-adapter/types.js';
+import type { Backend, McpComposition } from '../../agent-adapter/types.js';
 
 // --- Thread Identity ---
 
@@ -498,48 +497,6 @@ export interface TransitionResult {
 
 import type { PlatformAdapter, MessageRef, Destination } from '@platform/index.js';
 
-export interface BenchmarkThreadEvent {
-  step: number;
-  agentSlotId: AgentSlotId;
-  event: NormalizedEvent;
-}
-
-export interface BenchmarkThreadRunOptions {
-  /** Absolute shared writable grader workspace. It is the default cwd of a benchmark step's
-   *  backend process, and the cwd of every step unless `resolveStepWorkspace` places that step
-   *  somewhere else. */
-  workspaceCwd: string;
-  /** Frozen trial profile; benchmark templates cannot select a different identity. */
-  resolvedProfileName: string;
-  /** The backend the trial's compiled arm declares. A step whose profile disagrees is a protocol
-   *  violation, not a fallback. */
-  expectedBackend: Backend;
-  expectedModel: string;
-  disableHooks: true;
-  disableControlPlane: true;
-  failFastOnRateLimit: true;
-  /** Optional containment-aware process boundary forwarded to every step. */
-  spawner?: AgentProcessSpawner;
-  /** Per-step workspace placement: returns the cwd this step's backend process must run in.
-   *  Absent → every step runs in `workspaceCwd`. */
-  resolveStepWorkspace?: (input: { agentSlotId: AgentSlotId; stepIndex: number }) => string;
-  /** Step-boundary settlement of whatever `resolveStepWorkspace` placed: invoked once per step
-   *  after its process exited and before the next transition is evaluated, on the error path too. */
-  settleStepWorkspace?: (input: {
-    agentSlotId: AgentSlotId;
-    stepIndex: number;
-    stage: string | null;
-    terminalText: string | null;
-  }) => void;
-  /** Required trajectory sink invoked synchronously for every normalized event. */
-  requiredEventSink?: (input: BenchmarkThreadEvent) => void;
-  limits?: {
-    maxSteps: number;
-    maxCostUsd?: number;
-    deadlineMs?: number;
-  };
-}
-
 export interface RunThreadOptions {
   adapter: PlatformAdapter;
   channel: string;
@@ -566,6 +523,4 @@ export interface RunThreadOptions {
     onTransition?: ThreadHookConfig;
     onEnd?: ThreadHookConfig;
   };
-  /** Presence selects the isolated benchmark runtime; absence preserves daemon behavior. */
-  benchmark?: BenchmarkThreadRunOptions;
 }

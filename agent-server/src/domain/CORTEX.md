@@ -5,10 +5,10 @@ Consumed by orchestration and platform surfaces.
 
 | filename | role | function |
 |---|---|---|
-| agent-run/ | subdir | One-shot identity, trajectories and containment |
+| agent-run/ | subdir | Production benchmark identity and journals |
 | agents/ | subdir | Backend, model and profile selection per channel |
 | auth/ | subdir | Tracks provider auth, lifecycle, and notices |
-| benchmark/ | subdir | Compiled benchmark arm and trial policy |
+| benchmark/ | subdir | Production benchmark evidence projection |
 | costs/ | subdir | Spend, provider usage, budgets and rate-limit throttle |
 | executions/ | subdir | Lifecycle and live output of dispatched runs |
 | hooks/ | subdir | Derived view of hook declarations for the UI |

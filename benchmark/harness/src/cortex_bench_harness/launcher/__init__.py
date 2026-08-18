@@ -7,20 +7,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .arm_resolution import (
-        ARM_RESOLUTION_CONTAINER_PATH,
-        ARM_RESOLUTION_SCHEMA_VERSION,
-        ARM_RESOLUTION_SOURCE,
-        BENCHMARK_THREAD_POLICY_CONTAINER_PATH,
-        BENCHMARK_THREAD_POLICY_SOURCE,
-        ContainerFacts,
-        TrialSeed,
-        build_benchmark_thread_policy,
-        compose_arm_resolution,
-        parse_trial_seed,
-        write_arm_resolution,
-        write_benchmark_thread_policy,
-    )
+    from .trial_seed import TrialSeed, parse_trial_seed
     from .arms import (
         ArmCompositionUnsupportedError,
         BackendUnsupportedForKindError,
@@ -77,20 +64,7 @@ if TYPE_CHECKING:
     )
 
 _EXPORT_MODULES = {
-    **dict.fromkeys([
-        "ARM_RESOLUTION_CONTAINER_PATH",
-        "ARM_RESOLUTION_SCHEMA_VERSION",
-        "ARM_RESOLUTION_SOURCE",
-        "BENCHMARK_THREAD_POLICY_CONTAINER_PATH",
-        "BENCHMARK_THREAD_POLICY_SOURCE",
-        "ContainerFacts",
-        "TrialSeed",
-        "build_benchmark_thread_policy",
-        "compose_arm_resolution",
-        "parse_trial_seed",
-        "write_arm_resolution",
-        "write_benchmark_thread_policy",
-    ], ".arm_resolution"),
+    **dict.fromkeys(["TrialSeed", "parse_trial_seed"], ".trial_seed"),
     **dict.fromkeys([
         "ArmCompositionUnsupportedError",
         "BackendUnsupportedForKindError",

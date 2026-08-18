@@ -90,14 +90,6 @@ it('hashes a caller-supplied thread directive instead of the one-shot empty dire
   );
 });
 
-it('projects compiled benchmark guard rules separately from ambient hooks', () => {
-  const guard = { 'parent-writable': ['Read', 'Write'] };
-  const surface = roleSurfaceFromSpawnConfig(spawnConfig(), '', guard);
-  assert.deepEqual(surface.benchmarkPolicyGuard, guard);
-  assert.deepEqual(surface.hookPolicy, {});
-  assert.equal('benchmarkPolicyGuard' in roleSurfaceFromSpawnConfig(spawnConfig()), false);
-});
-
 it('hashes Claude default tools when the spawn omits or blanks raw tools', () => {
   const expected = DEFAULT_TOOLS.split(',');
   for (const rawTools of [undefined, '']) {

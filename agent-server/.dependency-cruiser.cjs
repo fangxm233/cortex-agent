@@ -21,78 +21,6 @@
 //
 const COMMON_OPTS = { dependencyTypesNot: ['type-only'] };
 
-// Standalone checks cover only production entry and factory seams. Direct runtime composition is
-// forbidden; reusable transitive dependencies and type-only contracts remain outside this static
-// boundary and are verified by construction/runtime evidence instead.
-const STANDALONE_COMPOSITION_SURFACES = {
-  path: '^src/domain/(agent-run/(runner|standalone-composition|standalone-stores|benchmark-output-adapter)|benchmark/trial-adapter-factory)\\.ts$',
-};
-const DIRECT_RUNTIME_ONLY = { dependencyTypesNot: ['type-only'] };
-
-const STANDALONE_COMPOSITION_RULES = [
-  {
-    name: 'standalone-root-no-daemon',
-    severity: 'error',
-    comment: 'standalone entry and factories may not compose daemon state, shared scheduling, or entry points',
-    from: STANDALONE_COMPOSITION_SURFACES,
-    to: {
-      path: '^src/(entry/(app|daemon)|domain/(scheduling/(job-registry|scheduler)|mcp/tools/(thread-ops|manager-qa)))\\.ts$',
-      ...DIRECT_RUNTIME_ONLY,
-    },
-  },
-  {
-    name: 'standalone-root-no-platform',
-    severity: 'error',
-    comment: 'standalone entry and factories may not compose platform delivery adapters',
-    from: STANDALONE_COMPOSITION_SURFACES,
-    to: { path: '^src/platform/', ...DIRECT_RUNTIME_ONLY },
-  },
-  {
-    name: 'standalone-root-no-remote',
-    severity: 'error',
-    comment: 'standalone entry and factories may not compose remote device clients',
-    from: STANDALONE_COMPOSITION_SURFACES,
-    to: { path: '^src/domain/remote/', ...DIRECT_RUNTIME_ONLY },
-  },
-  {
-    name: 'standalone-root-no-update',
-    severity: 'error',
-    comment: 'standalone entry and factories may not compose update or release machinery',
-    from: STANDALONE_COMPOSITION_SURFACES,
-    to: {
-      path: '^src/domain/system/(server-update-check|update-prompt|update-state|github-release|install-cli)\\.ts$',
-      ...DIRECT_RUNTIME_ONLY,
-    },
-  },
-  {
-    name: 'standalone-root-no-host-stores',
-    severity: 'error',
-    comment: 'standalone entry and factories may not compose ambient or host runtime stores',
-    from: STANDALONE_COMPOSITION_SURFACES,
-    to: {
-      path: '^src/(store/(task-repo|thread-repo|session-registry-repo|execution-repo|profile-repo|schedule-repo)\\.ts|domain/(projects|memory)/)',
-      ...DIRECT_RUNTIME_ONLY,
-    },
-  },
-  {
-    name: 'standalone-root-no-outbound',
-    severity: 'error',
-    comment: 'standalone entry and factories may not compose the daemon outbound queue',
-    from: STANDALONE_COMPOSITION_SURFACES,
-    to: {
-      path: '^src/(store/outbound-queue|domain/system/system-notice)\\.ts$',
-      ...DIRECT_RUNTIME_ONLY,
-    },
-  },
-  {
-    name: 'standalone-root-no-ambient-roots',
-    severity: 'error',
-    comment: 'standalone entry and factories may not resolve state from ambient Cortex roots',
-    from: STANDALONE_COMPOSITION_SURFACES,
-    to: { path: '^src/core/paths\\.ts$', ...DIRECT_RUNTIME_ONLY },
-  },
-];
-
 module.exports = {
   forbidden: [
     {
@@ -137,7 +65,6 @@ module.exports = {
       from: { path: '^src/orchestration/' },
       to: { path: '^src/entry/', ...COMMON_OPTS },
     },
-    ...STANDALONE_COMPOSITION_RULES,
   ],
   options: {
     doNotFollow: { path: 'node_modules' },

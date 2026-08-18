@@ -65,17 +65,10 @@ export interface RunAgentOptions {
   processSpawner?: AgentProcessSpawner;
   /** Pre-resolved spawn input used when identity must hash the exact object before launch. */
   preparedSpawnConfig?: AgentSpawnConfig;
-  /** Absolute backend CLI path frozen by a trial policy. Absent resolves the CLI from PATH. */
+  /** Optional absolute backend CLI path. */
   cliPath?: string;
-  /** Compiled benchmark policy guard for this role; present replaces the ambient hook surface. */
-  benchmarkPolicyGuard?: AgentSpawnConfig['benchmarkPolicyGuard'];
-  /** Benchmark thread slot this step runs as. Selects the trial's compiled role before the spawn
-   *  config is built, and is never written into it. */
-  benchmarkAgentSlot?: string;
-  /** Exact allowlisted child environment for an isolated trial; replaces host inheritance. */
+  /** Exact allowlisted child environment for an isolated process. */
   pinnedEnv?: NodeJS.ProcessEnv;
-  /** Absolute trial deadline a backend derives its in-process call budget from (§5.6 P5). */
-  benchmarkDeadlineEpochMs?: number;
   pluginDirs?: string[];
   /** Concrete MCP config paths frozen by a one-shot run config. */
   mcpConfigPaths?: string[];
@@ -251,9 +244,7 @@ function spawnPolicy(options: RunAgentOptions): Partial<AgentSpawnConfig> {
     preserveUnreportedAccounting: options.preserveUnreportedAccounting,
     processSpawner: options.processSpawner,
     cliPath: typeof options.cliPath === 'string' ? options.cliPath : undefined,
-    benchmarkPolicyGuard: options.benchmarkPolicyGuard,
     pinnedEnv: options.pinnedEnv,
-    benchmarkDeadlineEpochMs: options.benchmarkDeadlineEpochMs,
   };
 }
 
@@ -262,10 +253,6 @@ function pluginSpawnFields(
   config: AgentConfig,
   mcpComposition: McpComposition,
 ): Partial<AgentSpawnConfig> {
-  if (options.benchmarkPolicyGuard !== undefined) {
-    const frozenPluginDirs = Array.isArray(options.pluginDirs) ? options.pluginDirs : undefined;
-    return { pluginDirs: frozenPluginDirs };
-  }
   const selectedPluginDirs = filterChannelScopedPlugins(options.pluginDirs, options.channel);
   const runtime = resolvePluginRuntime({
     backend: config.backend, selectedPluginDirs, mcpComposition,

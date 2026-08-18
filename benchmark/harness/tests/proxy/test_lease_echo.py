@@ -4,8 +4,6 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import json
-import os
-import subprocess
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -670,63 +668,6 @@ def test_provisional_bound_is_the_named_setup_and_teardown_budget() -> None:
 
 
 # ---------------------------------------------------------------- writer to reader
-
-
-WRITER_SCRIPT = """
-const policy = JSON.parse(process.env.LEASE_ECHO_POLICY);
-policy.deadline.monotonic_origin_ns = BigInt(policy.deadline.monotonic_origin_ns);
-const module = await import(process.env.LEASE_ECHO_MODULE);
-const result = await module.publishLeaseEcho(policy, {
-  monotonic_ns: () => BigInt(process.env.LEASE_ECHO_MONOTONIC_NS),
-});
-process.stdout.write(JSON.stringify(result));
-"""
-
-
-def repository_root() -> Path:
-    return Path(__file__).resolve().parents[4]
-
-
-def test_container_writer_document_arms_the_host_lease(tmp_path: Path) -> None:
-    """The far side of the seam: the shipped container-side writer composes and posts the echo,
-    and the shipped host-side reader arms the lease from it."""
-    clocks = TrialClocks(600_000)
-    server = repository_root() / "agent-server"
-    with SyntheticUpstream() as upstream:
-        handle, deadline = run_trial(tmp_path, clocks, upstream)
-        try:
-            remaining_ms = BUDGET_MS - ELAPSED_MS
-            policy = {
-                "trial_id": TRIAL_ID,
-                "deadline": {**deadline, "monotonic_origin_ns": "0"},
-                "credential": {
-                    "proxy_base_url": handle.base_url,
-                    "dummy_token_ref": handle.dummy_token,
-                },
-            }
-            written = subprocess.run(
-                ["node", "--import", "tsx", "--input-type=module", "-e", WRITER_SCRIPT],
-                cwd=server, capture_output=True, text=True, timeout=120,
-                env={
-                    **os.environ,
-                    "LEASE_ECHO_POLICY": json.dumps(policy),
-                    "LEASE_ECHO_MODULE": (
-                        server / "src/domain/benchmark/lease-echo.ts"
-                    ).as_uri(),
-                    "LEASE_ECHO_MONOTONIC_NS": str(ELAPSED_MS * 1_000_000),
-                },
-            )
-            record = handle.lease_echo_record
-        finally:
-            handle.stop()
-
-    assert written.returncode == 0, written.stderr
-    assert json.loads(written.stdout) == {
-        "ok": True, "lease_state": "reconciled", "armed_remaining_ms": remaining_ms,
-    }
-    assert record["status"] == "available"
-    assert record["value"]["absolute_epoch_ms"] == deadline["absolute_epoch_ms"]
-    assert upstream.requests == []
 
 
 def test_model_route_still_reaches_upstream_under_the_lease(tmp_path: Path) -> None:

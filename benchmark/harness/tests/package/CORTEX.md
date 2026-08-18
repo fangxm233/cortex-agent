@@ -1,17 +1,14 @@
 Update this file whenever this directory changes
 
-Package tests cover cwd resolution, manifests, and Harbor adapter behavior.
+Package tests cover build reproducibility and the production Harbor wrapper.
 
 | filename | role | function |
 |---|---|---|
-| fake_claude_mcp_cli.mjs | fixture | Drives Claude direct and coder-review turns |
-| fake_pi_mcp_cli.mjs | fixture | Drives PI direct and coder-review turns |
-| test_artifact_build.py | test | Proves deterministic checkout pack serialization |
-| test_artifact_provenance.py | test | Proves the staleness gate refuses an artifact that no longer matches its source |
-| test_build_wheel.py | test | Verifies deterministic builds include every committed arm bundle |
-| test_cwd.py | test | Verifies dynamic container cwd resolution |
-| test_manifest.py | test | Verifies H3 digests and installed CLI version |
-| test_harbor_agent.py | test | Verifies proxy-confirmed production and preserved legacy dispatch |
-| test_install.py | integration | Proves pull-disabled installed arms, sealed server readiness and corrupt abort |
-| test_runtime_image_builder.py | test | Verifies offline runtime and Terminal-Bench image builds |
-| test_synthetic_deepseek.py | test | Verifies deterministic loopback tool turns |
+| test_artifact_build.py | test | Verifies deterministic artifacts |
+| test_artifact_provenance.py | test | Verifies build staleness refusal |
+| test_build_wheel.py | test | Verifies wheel bundle contents |
+| test_cwd.py | test | Verifies container cwd resolution |
+| test_harbor_agent.py | test | Verifies production Harbor lifecycle |
+| test_manifest.py | test | Verifies harness manifest records |
+| test_runtime_image_builder.py | test | Verifies offline runtime image builds |
+| test_synthetic_deepseek.py | test | Verifies synthetic DeepSeek turns |

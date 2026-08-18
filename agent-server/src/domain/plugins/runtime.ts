@@ -118,7 +118,7 @@ function selectedPath(dataDir: string, value: string): string {
 }
 
 function portableMcpEnabled(composition: McpComposition | undefined): boolean {
-  return composition !== 'none' && composition !== 'benchmark-thread-run';
+  return composition !== 'none';
 }
 
 function catalogRoots(

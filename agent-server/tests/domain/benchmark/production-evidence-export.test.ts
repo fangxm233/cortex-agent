@@ -4,7 +4,6 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -186,7 +185,6 @@ function exportInput(
     outputDirectory, project: 'cortex-self', trialId: 'trial-1', rootRunId: 'root-1',
     armName: `arm-${mode}`, armCanonicalSha256: 'c'.repeat(64),
     bundleManifestHash: BUNDLE, mode, expectedRoles, managerQa,
-    limits: { max_task_depth: mode === 'manager' ? 4 : 0, max_tasks: mode === 'manager' ? 8 : 0 },
     proxyExport: proxy(),
   } satisfies ProductionEvidenceExportInput;
 }
@@ -198,38 +196,6 @@ function readComposite(directory: string): CompositeManifest {
 function atifIds(value: Record<string, unknown>): string[] {
   const children = (value.subagent_trajectories ?? []) as Record<string, unknown>[];
   return [String(value.trajectory_id), ...children.flatMap(atifIds)];
-}
-
-function pythonMirrorAccepts(directory: string, input: ProductionEvidenceExportInput): boolean {
-  const composite = readComposite(directory);
-  const root = composite.nodes.find(node => node.attempt_id === composite.roots.root_attempt_id)!;
-  const terminalPath = path.join(directory, root.terminal_manifest_path);
-  const terminal = JSON.parse(fs.readFileSync(terminalPath, 'utf8'));
-  const payload = path.join(path.dirname(directory), `mirror-${path.basename(directory)}.json`);
-  fs.writeFileSync(payload, JSON.stringify({ composite, terminal, input }));
-  const script = [
-    'import json,sys,pathlib,typing',
-    'typing.override=getattr(typing,"override",lambda value:value)',
-    'from cortex_bench_harness.inner_validation import valid_composite_structure',
-    'from cortex_bench_harness.host_finalization import _parent_terminal_link,_validate_attempt_bytes',
-    'x=json.load(open(sys.argv[1])); root=pathlib.Path(sys.argv[2])',
-    'arm={"orchestration":{"mode":x["input"]["mode"]}}',
-    'c=x["composite"]; t=x["terminal"]',
-    'ok=valid_composite_structure(c,t,x["input"]["rootRunId"],x["input"]["trialId"],arm)',
-    'rn=next(n for n in c["nodes"] if n["attempt_id"]==c["roots"]["root_attempt_id"])',
-    'ok=ok and _parent_terminal_link(c,t,(root/rn["terminal_manifest_path"]).read_bytes(),x["input"]["rootRunId"])',
-    '[_validate_attempt_bytes(root,n,n["terminal_manifest_path"],n["journal_path"]) for n in c["nodes"]]',
-    'print("true" if ok else "false")',
-  ].join(';');
-  const env = {
-    ...process.env,
-    PYTHONPATH: path.resolve(process.cwd(), '../benchmark/harness/src'),
-  };
-  const harness = path.resolve(process.cwd(), '../benchmark/harness');
-  return execFileSync(
-    'uv', ['run', '--frozen', '--project', harness, 'python', '-c', script, payload, directory],
-    { env, encoding: 'utf8' },
-  ).trim() === 'true';
 }
 
 function coderScenario(root: string, withFixer: boolean): AttemptFixture[] {
@@ -346,7 +312,6 @@ describe('production evidence export', () => {
       ));
       const composite = readComposite(output);
       const violations = validateCompositeManifest(composite, {
-        limits: input.limits,
         lifecycleStems: composite.nodes.map(node => node.attempt_id),
       });
       expect(violations).toEqual([]);
@@ -362,7 +327,6 @@ describe('production evidence export', () => {
         fs.readFileSync(path.join(output, 'trajectory.json'), 'utf8'),
       ) as Record<string, unknown>;
       expect(new Set(atifIds(atif))).toEqual(new Set(composite.nodes.map(node => node.attempt_id)));
-      expect(pythonMirrorAccepts(output, input)).toBe(true);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -387,7 +351,6 @@ describe('production evidence export', () => {
         expect(composite.nodes[0].tokens.cache_creation).toBe(cacheCreationTokens);
         expect((terminal.tokens as Record<string, unknown>).cache_creation)
           .toBe(cacheCreationTokens);
-        expect(pythonMirrorAccepts(output, input)).toBe(true);
       } finally {
         fs.rmSync(root, { recursive: true, force: true });
       }
@@ -410,7 +373,6 @@ describe('production evidence export', () => {
         terminal_state: 'failed', terminal_reason: 'rate_limited',
         tokens: { cache_creation: 3 },
       });
-      expect(pythonMirrorAccepts(output, input)).toBe(true);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

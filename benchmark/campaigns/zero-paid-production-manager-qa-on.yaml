@@ -62,12 +62,7 @@ arms:
       mode: manager
       ask_manager: true
     limits:
-      max_thread_starts: 0
-      max_parent_questions: 1
-      max_task_depth: 1
-      max_tasks: 1
       max_provider_requests: 400
-      max_resident_agent_processes: 1
       max_cost_usd: "4.00"
       deadline_seconds: 3600
       max_output_tokens: 65536

@@ -17,7 +17,6 @@ import {
   SSEClientTransport,
   type SSEClientTransportOptions,
 } from '@modelcontextprotocol/sdk/client/sse.js';
-import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Type } from '@sinclair/typebox';
 import { createLogger } from '@core/log.js';
@@ -36,8 +35,7 @@ import {
   shouldLoadThreadControl,
   shouldLoadWeb,
 } from './mcp-bridge-logic.js';
-import { benchmarkCallOptions, remainingTrialMs } from './mcp-duration.js';
-import { PI_MCP_COMPOSITION_ENV } from './policy-guard.js';
+import { PI_MCP_COMPOSITION_ENV } from './spawn-args.js';
 import {
   PI_PLUGIN_MCP_CONFIG_ENV,
   loadPiPluginMcpConfig,
@@ -61,10 +59,6 @@ const EXT_SERVER_PATH = resolve(_dirname, '../../domain/mcp/server.js');
 const SLACK_SERVER_PATH = resolve(_dirname, '../../domain/mcp/slack-server.js');
 const FEISHU_SERVER_PATH = resolve(_dirname, '../../domain/mcp/feishu-server.js');
 const WEB_SERVER_PATH = resolve(_dirname, '../../domain/mcp/web-server.js');
-const BENCHMARK_THREAD_SERVER_PATH = resolve(_dirname, '../../domain/mcp/benchmark-thread-server.js');
-
-/** The one server `benchmark-thread-run` exposes, named as the Claude-side config names it. */
-export const BENCHMARK_THREAD_SERVER_NAME = 'cortex-benchmark-thread';
 
 const log = createLogger('pi-mcp-bridge');
 
@@ -155,7 +149,6 @@ const BUILTIN_TOOL_SERVERS: Readonly<Record<string, string>> = {
   core: 'cortex-core', tasks: 'cortex-tasks', 'manager-qa': 'cortex-manager-qa',
   thread: 'cortex-thread', ext: 'cortex-ext', slack: 'cortex-slack',
   feishu: 'cortex-feishu', web: 'cortex-web',
-  [BENCHMARK_THREAD_SERVER_NAME]: 'cortex-benchmark-thread',
 };
 
 function validateToolGatedStates(
@@ -240,23 +233,13 @@ function loadPluginStates(
   return states;
 }
 
-/**
- * §5.6 P1: under a restricted composition the server set is the composition's and nothing else —
- * decided before any plugin file or ambient switch is consulted, so a stray `CORTEX_THREAD_ID`,
- * `SLACK_CHANNEL`, or plugin config path cannot layer a server onto a benchmark trial.
- */
+/** Build the server set before connecting any MCP transport. */
 export function buildServerStates(
   env: NodeJS.ProcessEnv,
   options: BuildServerStatesOptions = {},
 ): ServerState[] {
   const composition = env[PI_MCP_COMPOSITION_ENV];
   if (composition === 'none') return validateToolGatedStates(env, []);
-  if (composition === 'benchmark-thread-run') {
-    return validateToolGatedStates(env, [createState(
-      BENCHMARK_THREAD_SERVER_NAME,
-      builtinServerConfig(BENCHMARK_THREAD_SERVER_NAME, BENCHMARK_THREAD_SERVER_PATH, env),
-    )]);
-  }
   const states = [createState('core', builtinServerConfig('core', CORE_SERVER_PATH, env))];
   if (env.CORTEX_PI_SUBAGENT === '1') return validateToolGatedStates(env, states);
   states.push(
@@ -452,22 +435,10 @@ class McpBridgeSession {
     state.registered = true;
   }
 
-  /**
-   * §5.6 P2/P5/P6: the options for one call, derived now. A trial deadline yields the explicit
-   * bounded window; its absence yields signal forwarding alone, because this bridge has no mandate
-   * to invent a ceiling for a daemon session.
-   */
-  private callOptions(signal: AbortSignal | undefined): RequestOptions {
-    const remainingMs = remainingTrialMs(this.deps.env);
-    if (remainingMs === null) return signal ? { signal } : {};
-    return benchmarkCallOptions(remainingMs, signal, () => {});
-  }
-
   private registerTool(state: ServerState, exposedName: string, tool: McpTool): void {
     if (!state.handle) throw new Error(`MCP server ${state.name} is not connected`);
     const parameters = Type.Unsafe(tool.inputSchema as Record<string, unknown>);
     const handle = state.handle;
-    const callOptions = (signal: AbortSignal | undefined): RequestOptions => this.callOptions(signal);
     this.pi.registerTool({
       name: exposedName,
       label: exposedName,
@@ -477,7 +448,7 @@ class McpBridgeSession {
         const result = await handle.client.callTool(
           { name: tool.name, arguments: params as Record<string, unknown> },
           undefined,
-          callOptions(signal),
+          signal ? { signal } : undefined,
         );
         const content = (result.content as any[]).map(mapMcpContent);
         return { content, details: { isError: result.isError ?? false } };

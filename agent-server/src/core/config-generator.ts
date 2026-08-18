@@ -21,7 +21,6 @@ const TASKS_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tasks.json');
 const MANAGER_QA_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-manager-qa.json');
 const THREAD_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-thread.json');
 const EMPTY_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-empty.json');
-const BENCHMARK_THREAD_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-benchmark-thread.json');
 const TUI_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tui.json');
 const SLACK_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-slack.json');
 const FEISHU_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-feishu.json');
@@ -153,15 +152,6 @@ export function buildEmptyConfig(): object {
   return { mcpServers: {} };
 }
 
-/** Benchmark composition declaration; the server implementation is supplied separately. */
-export function buildBenchmarkThreadConfig(serverRoot: string): object {
-  return {
-    mcpServers: {
-      'cortex-benchmark-thread': serverEntry('dist/domain/mcp/benchmark-thread-server.js', serverRoot),
-    },
-  };
-}
-
 /** TUI MCP config — loaded ONLY by Claude TUI-mode sessions (DR-0012). Isolated tool set:
  *  cortex_plan_enter / cortex_plan_exit / cortex_ask_user replace the native
  *  EnterPlanMode / ExitPlanMode / AskUserQuestion tools, which are excluded from --tools in TUI mode. */
@@ -217,7 +207,6 @@ export function generateMcpConfig(): void {
     ['manager-Q&A', MANAGER_QA_MCP_CONFIG_PATH, buildManagerQaConfig(SERVER_ROOT)],
     ['thread', THREAD_MCP_CONFIG_PATH, buildThreadConfig(SERVER_ROOT)],
     ['empty', EMPTY_MCP_CONFIG_PATH, buildEmptyConfig()],
-    ['benchmark thread', BENCHMARK_THREAD_MCP_CONFIG_PATH, buildBenchmarkThreadConfig(SERVER_ROOT)],
     ['TUI', TUI_MCP_CONFIG_PATH, buildTuiConfig(SERVER_ROOT)],
     ['Slack', SLACK_MCP_CONFIG_PATH, buildSlackConfig(SERVER_ROOT)],
     ['Feishu', FEISHU_MCP_CONFIG_PATH, buildFeishuConfig(SERVER_ROOT)],

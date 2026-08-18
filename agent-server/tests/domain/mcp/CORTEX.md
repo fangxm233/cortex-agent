@@ -1,16 +1,14 @@
 Please update me when files in this folder change
 
-MCP tool tests: registration and handler behaviour of the tool surfaces Cortex exposes to agents.
+MCP server and tool registration regression tests.
 
 | filename | role | function |
 |---|---|---|
-| benchmark-thread-policy-document.test.ts | test | pins the /2 thread-policy schema and refuses /1 and every composed member |
-| benchmark-thread-server-stdio.test.ts | test | benchmark stdio policy and v2 lifecycle paths |
-| cortex-schedule.test.ts | test | schedule target shorthand resolution |
-| feishu-file.test.ts | test | Feishu upload channel id prefix handling |
-| server-stdio.test.ts | test | MCP surfaces, tool gates and answerer identity |
-| slack-tools.test.ts | test | Slack upload channel id prefix handling |
-| task-monitor-tool.test.ts | test | read-only task status, result, list tools |
-| time-tool.test.ts | test | current time payload and bad timezone |
-| tools-registration.test.ts | test | remote write and edit response contract |
-| tui-tools.test.ts | test | TUI plan and ask bridge tools |
+| cortex-schedule.test.ts | test | Verifies schedule tools |
+| feishu-file.test.ts | test | Verifies Feishu file tools |
+| server-stdio.test.ts | test | Verifies stdio protocol isolation |
+| slack-tools.test.ts | test | Verifies Slack tools |
+| task-monitor-tool.test.ts | test | Verifies task monitor tools |
+| time-tool.test.ts | test | Verifies time tool output |
+| tools-registration.test.ts | test | Verifies tool registration |
+| tui-tools.test.ts | test | Verifies TUI interaction tools |

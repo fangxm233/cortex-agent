@@ -181,14 +181,14 @@ Publish immutable terminal/composite benchmark evidence v2 from the production s
 `CORTEX_HOME`. The command initializes the production attempt identity and journal stores, loads
 `data/executions.json` and `data/threads.json`, reads attributed costs, task state, and production
 topology, then delegates validation and atomic publication to
-`exportProductionBenchmarkEvidence`. It never imports benchmark checkout source or the standalone
-benchmark runtime.
+`exportProductionBenchmarkEvidence`. Cortex benchmark arms always run through the production
+server; this command records that runtime's stores and does not define a second orchestration path.
 
 `--input-file` contains one JSON-encoded `ProductionEvidenceExportInput`; use `-` to read it from
 stdin. The launcher owns every field: `outputDirectory`, `project`, `trialId`, `rootRunId`,
 `armName`, `armCanonicalSha256`, `bundleManifestHash`, `mode`, `expectedRoles`, `managerQa`,
-`limits`, `proxyExport`, and optional `evaluatedChecks`. Hashes, modes, role sets, limits, proxy
-trial identity, and predicate results are validated before publication. Missing or malformed input,
+`proxyExport`, and optional `evaluatedChecks`. Hashes, modes, role sets, proxy trial identity, and
+predicate results are validated before publication. Missing or malformed input,
 incomplete durable records, or an existing output directory fail closed with exit code `1`.
 
 ```bash

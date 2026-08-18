@@ -3,10 +3,9 @@
 # pos:    Per-trial asset collection
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
-# A trial record has to answer "what did the model actually see" out of its own directory. A
-# production arm reads prompts from its materialized CORTEX_HOME, while legacy plugin assets live
-# in the installed bundle. This module copies bytes from the path each runtime actually read and
-# writes them beside the trajectory.
+# A trial record has to answer "what did the model actually see" out of its own directory. The
+# production arm reads prompts from its materialized CORTEX_HOME and plugins from the installed
+# bundle, so this module copies those bytes beside the trajectory.
 #
 # Copying the whole 55.8 MB bundle into every trial would answer the same question and was what the
 # trial dir used to carry by accident of staging location. It is 400x the bytes, 99.6% of which is
@@ -33,7 +32,6 @@ ASSET_MANIFEST_PATH = f"{ASSETS_DIRNAME}/manifest.json"
 # `npm pack` roots every member at `package/`; the install prefix is stripped by the bundle root the
 # container reported, so the two halves of the path meet here and nowhere else.
 MEMBER_ROOT = "package"
-ARM_RESOLUTION_FILENAME = "arm-resolution.json"
 PRODUCTION_HOME_DIRNAME = "production-cortex-home"
 PRODUCTION_HOME_CONTAINER_ROOT = f"/logs/agent/{PRODUCTION_HOME_DIRNAME}"
 PRODUCTION_TEMPLATES_DIR = f"{PRODUCTION_HOME_DIRNAME}/config/thread-templates/templates"
@@ -66,12 +64,10 @@ def publish_trial_assets(
     *, logs_dir: Path, npm_artifact: Path, bundle_root: str,
     root_template: str | None = None,
 ) -> PublishedAssets:
-    production = not (logs_dir / ARM_RESOLUTION_FILENAME).is_file()
-    roles = _resolve_roles(logs_dir, bundle_root, root_template)
+    roles = _production_home_roles(logs_dir, bundle_root, root_template)
     files, trees = _asset_plan(roles, bundle_root)
-    home_files, container_paths = (
-        _production_prompt_assets(logs_dir, roles, bundle_root) if production else ({}, {})
-    )
+    home_files, container_paths = _production_prompt_assets(
+        logs_dir, roles, bundle_root)
     extracted = {
         **_extract(npm_artifact, files - home_files.keys(), trees), **home_files,
     }
@@ -81,19 +77,6 @@ def publish_trial_assets(
     )
     _write_manifest(logs_dir, manifest)
     return PublishedAssets(tuple(sorted(written.values())), manifest)
-
-
-def _resolve_roles(
-    logs_dir: Path, bundle_root: str, root_template: str | None,
-) -> Mapping[str, Mapping[str, object]]:
-    """Whichever record the launcher left behind. A legacy arm writes `arm-resolution.json`; the
-    production arm materializes a home instead and its composition is the root template in it,
-    together with every agent that template names. The arm is never consulted: the record on disk
-    decides, so both arms take one path.
-    """
-    if (logs_dir / ARM_RESOLUTION_FILENAME).is_file():
-        return _roles(_read_resolution(logs_dir))
-    return _production_home_roles(logs_dir, bundle_root, root_template)
 
 
 def _production_home_roles(
@@ -168,26 +151,6 @@ def _production_prompt_assets(
     return payloads, container_paths
 
 
-def _read_resolution(logs_dir: Path) -> Mapping[str, object]:
-    try:
-        value = json.loads((logs_dir / ARM_RESOLUTION_FILENAME).read_bytes())
-    except (OSError, ValueError, UnicodeDecodeError) as error:
-        raise TrialAssetError("arm_resolution_unreadable") from error
-    if not isinstance(value, Mapping):
-        raise TrialAssetError("arm_resolution_unreadable")
-    return value
-
-
-def _roles(resolution: Mapping[str, object]) -> Mapping[str, Mapping[str, object]]:
-    roles = resolution.get("roles")
-    if not isinstance(roles, Mapping) or not roles:
-        raise TrialAssetError("arm_resolution_unreadable")
-    for role in roles.values():
-        if not isinstance(role, Mapping):
-            raise TrialAssetError("arm_resolution_unreadable")
-    return {str(slot): role for slot, role in roles.items()}
-
-
 def _asset_plan(
     roles: Mapping[str, Mapping[str, object]], bundle_root: str,
 ) -> tuple[frozenset[str], frozenset[str]]:
@@ -208,15 +171,15 @@ def _asset_plan(
 
 def _string_sequence(value: object) -> tuple[str, ...]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
-        raise TrialAssetError("arm_resolution_unreadable")
+        raise TrialAssetError("production_home_unreadable")
     if any(not isinstance(item, str) for item in value):
-        raise TrialAssetError("arm_resolution_unreadable")
+        raise TrialAssetError("production_home_unreadable")
     return tuple(str(item) for item in value)
 
 
 def _bundle_relative(value: object, bundle_root: str) -> str:
     if not isinstance(value, str) or not value:
-        raise TrialAssetError("arm_resolution_unreadable")
+        raise TrialAssetError("production_home_unreadable")
     try:
         relative = PurePosixPath(value).relative_to(PurePosixPath(bundle_root))
     except ValueError as error:
