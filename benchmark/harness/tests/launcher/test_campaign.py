@@ -1730,7 +1730,6 @@ def test_a_declared_filtered_network_reaches_the_config(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("block,message", [
     ({"mode": "open", "allowlist": ["example.com"]}, "enforces nothing"),
-    ({"mode": "filtered"}, "must declare an allowlist"),
     ({"mode": "permissive"}, "mode must be one of"),
     ({"mode": "filtered", "allow": ["example.com"]}, "unknown field"),
     ({"mode": "filtered", "denylist": ["*.example.com"]}, "wildcard"),

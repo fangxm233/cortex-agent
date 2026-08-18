@@ -41,6 +41,15 @@ from ..container_boundary import ContainerBoundaryProbe, ContainerBoundaryUnprov
 from .trial_seed import TrialSeed, parse_trial_seed
 from .host_credential_vault import HOST_CREDENTIAL_VAULT
 from .arms import arm_backend, build_agent_config, require_pinned_image
+from .network_policy import (
+    MODE_OPEN,
+    DenylistEntry,
+    NetworkAccess,
+    denylist_addresses,
+    network_record,
+    parse_network_access,
+    resolve_denylist,
+)
 from .trial_admission_io import (
     HarborTrialAdmissionError, PullDisabledDockerEnvironment,
     atomic_write_json,
@@ -56,14 +65,6 @@ ADMISSION_ENVIRONMENT_IMPORT_PATH = "cortex_bench_harness.launcher.trial_admissi
 TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 FIXED_PATH = "/installed-agent/npm/bin:/usr/local/bin:/usr/bin:/bin"
 TRIAL_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
-DENIED_NETWORK_CATEGORIES = (
-    "arbitrary-egress",
-    "direct-provider",
-    "host-daemon",
-    "instance-metadata",
-    "public-network",
-    "sibling-route",
-)
 PROVIDER_ENV_KEYS = {
     "anthropic": frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"}),
     "deepseek": frozenset({"DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"}),
@@ -220,6 +221,7 @@ def _container_ipv4(trial_proxy: Mapping[str, object] | None) -> str:
 def _admission_contract(
     seed: TrialSeed, task_root: Path, trial_root: Path,
     environment: Mapping[str, str], proxy_host: str, container_ipv4: str,
+    network: NetworkAccess,
 ) -> dict[str, object]:
     _provider(seed.arm)
     return {
@@ -234,6 +236,11 @@ def _admission_contract(
         "configured_environment_keys": sorted(environment),
         "admitted_environment_keys": sorted(environment),
         "environment_digest": environment_digest(environment),
+        "network": {
+            "mode": network.mode,
+            "allowlist": list(network.allowlist),
+            "denylist": list(network.denylist),
+        },
     }
 
 
@@ -307,7 +314,11 @@ def _build_trial_agent_config(
         # digest-pinned task.toml.
         override_timeout_sec=float(agent_timeout_seconds),
         max_timeout_sec=float(agent_timeout_seconds),
-        extra_allowed_hosts=[proxy_host],
+        # No extra allowed hosts. Harbor's own plan is PUBLIC, so anything declared here is
+        # discarded rather than enforced (`trial/network_policy.merge_extra_allowlists`), and the
+        # trial proxy is already carried by the admitted network declaration. Leaving it set would
+        # be a second, silently ignored statement of the reachable set.
+        extra_allowed_hosts=[],
         trial_proxy=_sealed_trial_proxy(
             trial_proxy, proxy_host, _lease_seconds(seed.arm, agent_timeout_seconds)),
         host_scan_policy=host_scan_policy,
@@ -324,6 +335,7 @@ def build_harbor_trial_config(
     credential_handle: str | None = None,
     agent_timeout_seconds: int | None = None,
     verifier_timeout_seconds: int | None = None,
+    network: NetworkAccess | None = None,
 ) -> TrialConfig:
     seed = parse_trial_seed(trial_seed)
     task_root = Path(task_path).expanduser().resolve(strict=True)
@@ -334,7 +346,7 @@ def build_harbor_trial_config(
     _validate_environment_values(environment)
     contract = _admission_contract(
         seed, task_root, trial_root, environment, proxy_host,
-        _container_ipv4(trial_proxy),
+        _container_ipv4(trial_proxy), network or NetworkAccess(mode=MODE_OPEN),
     )
     agent = _build_trial_agent_config(
         arm, seed, trial_root, manifest, trial_seed, cli_version,
@@ -370,6 +382,7 @@ async def create_harbor_trial(
     credential_handle: str | None = None,
     agent_timeout_seconds: int | None = None,
     verifier_timeout_seconds: int | None = None,
+    network: NetworkAccess | None = None,
 ) -> Trial:
     try:
         config = build_harbor_trial_config(
@@ -379,7 +392,9 @@ async def create_harbor_trial(
             credential_handle=credential_handle,
             agent_timeout_seconds=agent_timeout_seconds,
             verifier_timeout_seconds=verifier_timeout_seconds,
+            network=network,
         )
+        _validate_no_extra_allowed_hosts(config)
         trial = await Trial.create(config)
         if type(trial.agent_environment) is not AdmittedDockerEnvironment:
             raise HarborTrialAdmissionError("Harbor did not construct the admitted environment")
@@ -390,13 +405,31 @@ async def create_harbor_trial(
             HOST_CREDENTIAL_VAULT.purge(credential_handle)
 
 
+def _validate_no_extra_allowed_hosts(config: TrialConfig) -> None:
+    """The admitted network declaration is the only statement of what a trial may reach.
+
+    Harbor would merge these into its own plan, and since that plan is PUBLIC it would discard
+    them with a warning -- so a host smuggled in here never widens anything. It is refused anyway,
+    because a caller that asked for a destination and was silently ignored is exactly the
+    ambiguity this boundary exists to remove.
+    """
+    declared = [
+        *(config.agent.extra_allowed_hosts or []),
+        *(config.environment.extra_allowed_hosts or []),
+    ]
+    if declared:
+        raise HarborTrialAdmissionError(
+            "trial config cannot declare extra allowed hosts; the campaign's network block is "
+            f"the only source of a trial's reachable set (got {sorted(set(declared))})")
+
+
 def _parse_contract(source: object) -> Mapping[str, object]:
     if not isinstance(source, Mapping):
         raise HarborTrialAdmissionError("admission policy must be a mapping")
     required = {
         "schema_version", "trial_id", "root_run_id", "task_root", "trial_root",
         "image_ref", "proxy_host", "container_ipv4", "configured_environment_keys",
-        "admitted_environment_keys", "environment_digest",
+        "admitted_environment_keys", "environment_digest", "network",
     }
     if set(source) != required or source.get("schema_version") != ADMISSION_SCHEMA_VERSION:
         raise HarborTrialAdmissionError("admission policy is incomplete or unsupported")
@@ -633,50 +666,54 @@ def _mount_records(
     return ordered, [_canonical_mount(record) for record in ordered]
 
 
-def _policy_record(policy: NetworkPolicy) -> dict[str, object]:
-    return {
-        "network_mode": policy.network_mode.value,
-        "allowed_hosts": list(policy.allowed_hosts),
-    }
+def _contract_network(contract: Mapping[str, object]) -> NetworkAccess:
+    """Read the network declaration back out of the sealed contract."""
+    declared = contract.get("network")
+    if not isinstance(declared, Mapping):
+        raise HarborTrialAdmissionError("admission policy network must be a mapping")
+    try:
+        return parse_network_access(declared)
+    except ValueError as error:
+        raise HarborTrialAdmissionError(f"admission policy network is invalid: {error}") from error
 
 
-def _validate_phase_policies(
-    policies: Sequence[NetworkPolicy], proxy_host: str,
-) -> None:
+def _validate_task_network_plan(policies: Sequence[NetworkPolicy | None]) -> None:
+    """The task's own plan must be the widest one, because admission is what narrows it.
+
+    Every committed task.toml declares `network_mode = "public"`. A task that declared anything
+    narrower would have Harbor applying its own policy on top of the admitted one, and two things
+    steering the same wheel is how a trial ends up on a network neither of them chose.
+    """
     if any(
-        policy.network_mode is not NetworkMode.ALLOWLIST for policy in policies
+        policy is not None and policy.network_mode is not NetworkMode.PUBLIC
+        for policy in policies
     ):
         raise HarborTrialAdmissionError(
-            "Harbor phase network policy must remain default-deny"
-        )
-    hosts = {host for policy in policies for host in policy.allowed_hosts}
-    if hosts != {proxy_host}:
-        raise HarborTrialAdmissionError(
-            "Harbor network allowlist must contain only the trial proxy"
-        )
+            "task network plan must be public; admission is what narrows a trial's network")
 
 
 def _network_record(
     startup: NetworkPolicy | None, phases: Sequence[NetworkPolicy] | None,
-    contract: Mapping[str, object],
+    contract: Mapping[str, object], denylist: Sequence[DenylistEntry],
 ) -> dict[str, object]:
-    if startup is None or startup.network_mode is not NetworkMode.ALLOWLIST:
-        raise HarborTrialAdmissionError("Harbor network baseline must be default-deny allowlist")
+    """State the network this trial actually runs on.
+
+    The policies handed in are the ones the environment is holding; they are checked against what
+    the sealed declaration says they should be, so a drift refuses the trial rather than producing
+    evidence describing a network the container is not on.
+    """
+    access = _contract_network(contract)
     proxy_host = _required_text(contract, "proxy_host")
-    policies = list(phases or [])
-    if startup.allowed_hosts or not policies:
-        raise HarborTrialAdmissionError("Harbor network allowlist is incomplete")
-    _validate_phase_policies(policies, proxy_host)
-    return {
-        "default": "deny", "loopback": "allow",
-        "startup_policy": _policy_record(startup),
-        "phase_policies": [_policy_record(policy) for policy in policies],
-        "proxy_route": {
-            "host": proxy_host, "scope": "current-trial",
-            "trial_id": _required_text(contract, "trial_id"),
-        },
-        "denied": list(DENIED_NETWORK_CATEGORIES),
+    expected = access.startup_policy()
+    if startup != expected or any(policy != expected for policy in phases or []):
+        raise HarborTrialAdmissionError(
+            "Harbor network policy differs from the sealed network declaration")
+    record = network_record(access, expected, access.effective_policy(proxy_host), denylist)
+    record["proxy_route"] = {
+        "host": proxy_host, "scope": "current-trial",
+        "trial_id": _required_text(contract, "trial_id"),
     }
+    return record
 
 
 def _evidence_document(
@@ -709,6 +746,7 @@ def _admit_final_inputs(
     network_policy: NetworkPolicy | None,
     phase_network_policies: Sequence[NetworkPolicy],
     extra_docker_compose: Sequence[Path | str],
+    denylist: Sequence[DenylistEntry],
 ) -> tuple[
     Mapping[str, object], list[dict[str, object]], dict[str, object],
     list[ServiceVolumeConfig],
@@ -722,7 +760,7 @@ def _admit_final_inputs(
     records, canonical_mounts = _mount_records(mounts, trial_paths, contract)
     _prepare_harbor_mount_modes(trial_paths)
     _refresh_mount_records(records)
-    network = _network_record(network_policy, phase_network_policies, contract)
+    network = _network_record(network_policy, phase_network_policies, contract, denylist)
     return contract, records, network, canonical_mounts
 
 
@@ -737,21 +775,30 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         phase_network_policies: Sequence[NetworkPolicy] = (),
         extra_docker_compose: Sequence[Path | str] = (), **kwargs: Any,
     ) -> None:
+        # The task declares the widest plan and admission narrows it, so what Harbor was handed is
+        # checked and then replaced. The direction is only ever tighter, never looser.
+        _validate_task_network_plan([network_policy, *phase_network_policies])
+        access = _contract_network(_parse_contract(admission))
+        denylist = resolve_denylist(access)
+        admitted_policy = access.startup_policy()
+        admitted_phases = tuple(admitted_policy for _ in phase_network_policies)
         contract, _, _, canonical_mounts = _admit_final_inputs(
             environment_dir, task_env_config, trial_paths, admission,
-            persistent_env, mounts, network_policy, phase_network_policies,
-            extra_docker_compose,
+            persistent_env, mounts, admitted_policy, admitted_phases,
+            extra_docker_compose, denylist,
         )
         super().__init__(
             environment_dir, environment_name, session_id, trial_paths,
             task_env_config, *args, persistent_env=persistent_env,
-            mounts=canonical_mounts, network_policy=network_policy,
-            phase_network_policies=phase_network_policies,
+            mounts=canonical_mounts, network_policy=admitted_policy,
+            phase_network_policies=admitted_phases,
             extra_docker_compose=extra_docker_compose,
             external_network_name=f"{session_id}_default",
             proxy_host=_required_text(contract, "proxy_host"),
             container_ipv4=_required_text(contract, "container_ipv4"), **kwargs,
         )
+        self._network_access = access
+        self._denylist = denylist
         self._seal_admission(contract, canonical_mounts, trial_paths)
 
     def _seal_admission(
@@ -782,7 +829,7 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             self.environment_dir, self.task_env_config, self.trial_paths,
             self._admission_contract, self._persistent_env, self._mounts,
             self.network_policy, self._phase_network_policies,
-            self.extra_docker_compose_paths,
+            self.extra_docker_compose_paths, self._denylist,
         )
         if mounts != self._sealed_mounts:
             raise HarborTrialAdmissionError("Docker mounts differ from the sealed paths")
@@ -822,8 +869,27 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         return {
             "scheme": parsed.scheme, "host": parsed.hostname, "port": parsed.port,
             "bound_source_ip": _required_text(source, "value"),
-            "enforcement": {"host": "harbor-allowlist", "port": "marked-egress-nftables"},
+            "enforcement": self._route_enforcement(expected_host),
             "scope": "current-trial", "trial_id": session.handle.trial_id,
+        }
+
+    def _route_enforcement(self, proxy_host: str) -> dict[str, str]:
+        """What actually constrains this route, rather than what once always did.
+
+        Under `open` nothing does: the container reaches the whole internet and the proxy is
+        simply where the credential lives. The port pin only exists for the proxy-only allowlist,
+        because it rejects every marked connection that is not to the proxy -- correct when the
+        proxy is the sole destination, and fatal to any broader allowlist.
+        """
+        if not self._network_access.filtered:
+            return {"host": "none", "port": "none"}
+        effective = self._network_access.effective_policy(proxy_host)
+        return {
+            "host": "harbor-allowlist" if effective.allowed_hosts else "none",
+            "port": (
+                "marked-egress-nftables"
+                if effective.allowed_hosts == [proxy_host] else "none"
+            ),
         }
 
     def _revoke_proxy(self) -> None:
@@ -840,7 +906,8 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             route = self._arm_proxy_route(contract)
             network["proxy_route"] = route
             await super().start(force_build=False)
-            await self._install_proxy_endpoint_filter(int(route["port"]))
+            await self._enforce_admitted_network(
+                _required_text(contract, "proxy_host"), int(route["port"]))
             atomic_write_json(
                 self._evidence_path, _evidence_document(contract, records, network),
             )
@@ -848,6 +915,25 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             self._evidence_path.unlink(missing_ok=True)
             self._revoke_proxy()
             raise
+
+    async def _enforce_admitted_network(self, proxy_host: str, proxy_port: int) -> None:
+        """Narrow the started container from its deny-all baseline to the declared policy.
+
+        Nothing happens under `open`: no sidecar exists, so there is no namespace to install rules
+        in and nothing claiming to filter. Under `filtered` the order is deliberate — the denylist
+        table goes in while the container is still denied everything, so there is no instant in
+        which egress is open and unfiltered.
+        """
+        if not self._network_access.filtered:
+            return
+        await self._install_denylist_filter(*denylist_addresses(self._denylist))
+        effective = self._network_access.effective_policy(proxy_host)
+        if effective.allowed_hosts == [proxy_host]:
+            # Proxy-only is the historical shape, and the only one where pinning every
+            # gost-forwarded connection to the proxy port is correct. With any other allowlist the
+            # same rule would reject the very hosts the campaign asked to reach.
+            await self._install_proxy_endpoint_filter(proxy_port)
+        await self.set_network_policy(effective)
 
     def _container_boundary_probe(self) -> ContainerBoundaryProbe:
         return ContainerBoundaryProbe()

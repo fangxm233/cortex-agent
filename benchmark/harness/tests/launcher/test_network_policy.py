@@ -68,9 +68,16 @@ def test_open_refuses_a_declared_list_rather_than_ignoring_it() -> None:
             parse_network_access({"mode": "open", field: ["example.com"]})
 
 
-def test_filtered_refuses_to_be_empty_because_it_would_deny_the_credential_route() -> None:
-    with pytest.raises(NetworkAccessError, match="must declare an allowlist"):
-        parse_network_access({"mode": "filtered"})
+def test_an_empty_filtered_block_is_the_proxy_only_shape_benchmarks_ran_under() -> None:
+    """`filtered` with nothing allowed means exactly that: the credential route and nothing else.
+
+    This is the configuration every benchmark ran under before the network was opened, so it has
+    to stay expressible -- it is what a campaign returns to when the score has to be trustworthy.
+    """
+    access = parse_network_access({"mode": "filtered"})
+
+    assert access.startup_policy().network_mode is NetworkMode.ALLOWLIST
+    assert access.effective_policy(PROXY).allowed_hosts == [PROXY]
 
 
 def test_unknown_fields_and_modes_are_refused() -> None:

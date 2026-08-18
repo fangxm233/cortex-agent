@@ -94,12 +94,17 @@ class NetworkAccess:
     def effective_policy(self, proxy_host: str) -> NetworkPolicy:
         """The policy the running container is left under.
 
-        A declared allowlist always gains the trial's own proxy host: the credential route is not
-        the campaign's to forget, and a campaign that had to restate it could get it wrong.
-        A denylist-only campaign resolves to PUBLIC here — gost is told to stop filtering, and the
-        only thing left enforcing anything is this harness's own address set.
+        Three shapes. An allowlist always gains the trial's own proxy host, because the credential
+        route is not the campaign's to forget and a campaign that had to restate it could get it
+        wrong. A denylist with no allowlist is "everything except these", so gost is told to stop
+        filtering and the address set is the only thing left enforcing anything. An empty
+        `filtered` block is the strictest reading of the word: nothing was allowed, so the trial
+        reaches its credential route and nothing else — which is the shape every benchmark ran
+        under before the network was opened, and the one to return to for a trustworthy score.
         """
-        if not self.filtered or not self.allowlist:
+        if not self.filtered:
+            return NetworkPolicy(network_mode=NetworkMode.PUBLIC)
+        if not self.allowlist and self.denylist:
             return NetworkPolicy(network_mode=NetworkMode.PUBLIC)
         hosts = sorted({*self.allowlist, proxy_host})
         return NetworkPolicy(network_mode=NetworkMode.ALLOWLIST, allowed_hosts=hosts)
@@ -131,10 +136,6 @@ def parse_network_access(value: object) -> NetworkAccess:
             "campaign network mode 'open' enforces nothing, so it cannot declare an allowlist or "
             "a denylist. Declaring a list that does not run is the one failure this block exists "
             "to prevent; use mode 'filtered' to enforce it")
-    if mode == MODE_FILTERED and not allowlist and not denylist:
-        raise NetworkAccessError(
-            "campaign network mode 'filtered' must declare an allowlist, a denylist, or both; "
-            "an empty filtered block would deny the trial its own credential route")
     for entry in denylist:
         if entry.startswith("*."):
             raise NetworkAccessError(

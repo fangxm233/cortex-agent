@@ -351,6 +351,7 @@ async def _arm_trial(config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot)
             trial_proxy=config.slot_proxy(slot),
             agent_timeout_seconds=config.timeouts.get("agent_seconds"),
             verifier_timeout_seconds=config.timeouts.get("verifier_seconds"),
+            network=config.network,
         )
         result = await trial.run()
         _require_completed_trial(plan, result)

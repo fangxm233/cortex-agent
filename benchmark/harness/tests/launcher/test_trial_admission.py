@@ -24,6 +24,8 @@ from harbor.trial.trial import Trial
 from capability_admission import admit_capability
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
+from cortex_bench_harness.launcher import trial_admission
+from cortex_bench_harness.launcher.network_policy import NetworkAccess
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
     ADMISSION_ENVIRONMENT_IMPORT_PATH,
@@ -84,6 +86,12 @@ def admitted_fake_proxy(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         AdmittedDockerEnvironment, "_install_proxy_endpoint_filter", AsyncMock(),
     )
+    # No container runs in these tests, so the two calls that address a live one are stubbed. What
+    # they do inside a real container is proved by the Docker-gated container boundary tests.
+    monkeypatch.setattr(
+        AdmittedDockerEnvironment, "_install_denylist_filter", AsyncMock(),
+    )
+    monkeypatch.setattr(DockerEnvironment, "_apply_network_policy", AsyncMock())
     yield
     for handle in LIVE_PROXY_HANDLES:
         handle.stop()
@@ -91,7 +99,7 @@ def admitted_fake_proxy(monkeypatch: pytest.MonkeyPatch):
 
 
 def write_task(
-    root: Path, *, network_mode: str = "allowlist",
+    root: Path, *, network_mode: str = "public",
     allowed_hosts: tuple[str, ...] = (), os_name: str = "linux",
 ) -> Path:
     task = root / "task"
@@ -195,7 +203,9 @@ def host_scan_policy() -> dict[str, object]:
     }
 
 
-def launch_kwargs(root: Path, task: Path | None = None) -> dict[str, object]:
+def launch_kwargs(
+    root: Path, task: Path | None = None, network: NetworkAccess | None = None,
+) -> dict[str, object]:
     manifest = {
         "root_run_id": "trial-one.cortex-direct",
         "trial_id": "trial-one",
@@ -210,11 +220,14 @@ def launch_kwargs(root: Path, task: Path | None = None) -> dict[str, object]:
         "trial_seed": seed(),
         "cli_version": "2026.8.10", "host_scan_policy": host_scan_policy(),
         "trial_proxy": trial_proxy_spec(),
+        "network": network,
     }
 
 
-def create_trial(root: Path, task: Path | None = None) -> Trial:
-    trial = asyncio.run(create_harbor_trial(**launch_kwargs(root, task)))
+def create_trial(
+    root: Path, task: Path | None = None, network: NetworkAccess | None = None,
+) -> Trial:
+    trial = asyncio.run(create_harbor_trial(**launch_kwargs(root, task, network)))
     assert isinstance(trial.agent, CortexBenchAgent)
     assert trial.agent.proxy_session is None
     return trial
@@ -263,7 +276,9 @@ def test_public_entry_builds_the_sealed_trial_config(tmp_path: Path) -> None:
     assert config.environment.type is None
     assert config.environment.mounts is None
     assert config.environment.extra_allowed_hosts == []
-    assert config.agent.extra_allowed_hosts == [PROXY_HOST]
+    # The campaign's network block is the only statement of what a trial may reach, so the agent
+    # config states nothing: Harbor's plan is PUBLIC and would discard these anyway.
+    assert config.agent.extra_allowed_hosts == []
     assert config.agent.env == config.environment.env
     assert config.agent.env == EXPECTED_ENVIRONMENT
 
@@ -353,41 +368,51 @@ def test_builder_binds_proxy_advertisement_to_the_admitted_host(
         build_harbor_trial_config(**kwargs)
 
 
+@pytest.mark.parametrize("network,service", [
+    (None, "main"),
+    (NetworkAccess(mode="filtered", allowlist=("example.com",)),
+     "harbor-docker-egress-control-sidecar"),
+])
 def test_admitted_environment_maps_only_its_proxy_host_to_the_docker_host_gateway(
-    tmp_path: Path,
+    tmp_path: Path, network: NetworkAccess | None, service: str,
 ) -> None:
-    trial = create_trial(tmp_path)
+    """The overlay follows whoever holds the namespace, which the network mode decides.
+
+    Under `filtered` an egress sidecar exists and `main` shares its namespace, so the sidecar is
+    the service to configure. Under `open` no sidecar is built at all and `main` holds its own.
+    """
+    trial = create_trial(tmp_path, network=network)
     environment = trial.agent_environment
 
     document = json.loads(environment._proxy_host_path.read_text())
 
     assert document == {"services": {
-        "harbor-docker-egress-control-sidecar": {
-            "extra_hosts": [f"{PROXY_HOST}:host-gateway"],
-        },
+        service: {"extra_hosts": [f"{PROXY_HOST}:host-gateway"]},
     }}
     assert environment._proxy_host_path in environment._docker_compose_paths
 
 
+@pytest.mark.parametrize("network,service", [
+    (None, "main"),
+    (NetworkAccess(mode="filtered", allowlist=("example.com",)),
+     "harbor-docker-egress-control-sidecar"),
+])
 def test_admitted_environment_pins_the_container_to_its_admitted_address(
-    tmp_path: Path,
+    tmp_path: Path, network: NetworkAccess | None, service: str,
 ) -> None:
     """The address the credential route will accept is DECLARED, not predicted.
 
-    The sidecar is the only member of the trial's network — `main` shares its namespace — so
-    pinning the sidecar pins the source address of every request the route sees. Concurrent
-    trials each sit on their own subnet, so reading the address off Docker's allocation order
-    would be a prediction made once per trial.
+    Only the namespace holder is a member of the trial's network, so pinning it pins the source
+    address of every request the route sees. Concurrent trials each sit on their own subnet, so
+    reading the address off Docker's allocation order would be a prediction made once per trial.
     """
-    trial = create_trial(tmp_path)
+    trial = create_trial(tmp_path, network=network)
     environment = trial.agent_environment
 
     document = json.loads(environment._container_address_path.read_text())
 
     assert document == {"services": {
-        "harbor-docker-egress-control-sidecar": {
-            "networks": {"default": {"ipv4_address": "172.19.0.2"}},
-        },
+        service: {"networks": {"default": {"ipv4_address": "172.19.0.2"}}},
     }}
     assert environment._container_address_path in environment._docker_compose_paths
     # Last wins in Compose merge order, and Harbor's own files come first.
@@ -496,9 +521,21 @@ def test_exact_public_entry_reaches_harbor_environment_factory(tmp_path: Path) -
     assert type(trial.agent) is CortexBenchAgent
     assert type(trial.agent_environment) is AdmittedDockerEnvironment
     assert trial.config.environment.import_path == ADMISSION_ENVIRONMENT_IMPORT_PATH
-    assert trial.agent_environment.network_policy.network_mode is NetworkMode.ALLOWLIST
+    # The default campaign declares nothing, which is `open`, so the environment is PUBLIC and no
+    # egress sidecar is constructed at all.
+    assert trial.agent_environment.network_policy.network_mode is NetworkMode.PUBLIC
     assert trial.agent_environment.network_policy.allowed_hosts == []
     assert evidence_path(trial).is_file()
+
+
+def test_a_filtered_campaign_is_born_denied_before_it_is_widened(tmp_path: Path) -> None:
+    trial = create_trial(
+        tmp_path, network=NetworkAccess(mode="filtered", allowlist=("example.com",)))
+
+    # Startup is the empty allowlist: it is what builds the sidecar, and it means the container is
+    # never up and unfiltered. The widening happens in `start`, against the running container.
+    assert trial.agent_environment.network_policy.network_mode is NetworkMode.ALLOWLIST
+    assert trial.agent_environment.network_policy.allowed_hosts == []
 
 
 def test_admitted_environment_pins_the_precreated_network_as_external(tmp_path: Path) -> None:
@@ -563,38 +600,72 @@ def test_launch_evidence_records_physical_harbor_mounts(tmp_path: Path) -> None:
         assert mounts[target]["source_mode"] == oct(source.stat().st_mode & 0o7777)
 
 
-def test_launch_evidence_records_default_deny_proxy_only_network(tmp_path: Path) -> None:
+def test_launch_evidence_states_an_open_trial_reaches_the_internet(tmp_path: Path) -> None:
+    """The default campaign declares nothing, and the evidence says so rather than the opposite.
+
+    The two egress categories this used to assert unconditionally are the ones an open trial does
+    not deny. Leaving them in would make the evidence document state the reverse of the truth.
+    """
     trial = create_trial(tmp_path)
     start_trial(trial)
 
     network = json.loads(evidence_path(trial).read_text())["network"]
-    phase_hosts = {
-        host for phase in network["phase_policies"] for host in phase["allowed_hosts"]
-    }
+
+    assert network["mode"] == "open"
+    assert network["default"] == "allow"
+    assert network["startup_policy"] == {"network_mode": "public", "allowed_hosts": []}
+    assert network["effective_policy"] == {"network_mode": "public", "allowed_hosts": []}
+    assert network["denied"] == [
+        "direct-provider", "host-daemon", "instance-metadata", "sibling-route",
+    ]
+    assert network["allowlist"]["enforcement"] == "none"
+    assert network["denylist"]["enforcement"] == "none"
+    # The credential route is unchanged: the key still never enters the container.
+    assert {
+        key: network["proxy_route"][key] for key in ("host", "scope", "trial_id")
+    } == {"host": PROXY_HOST, "scope": "current-trial", "trial_id": "trial-one"}
+    assert urlsplit(trial.agent.proxy_session.handle.base_url).hostname == PROXY_HOST
+
+
+def test_launch_evidence_records_a_filtered_trial_as_default_deny(tmp_path: Path) -> None:
+    trial = create_trial(
+        tmp_path, network=NetworkAccess(mode="filtered", allowlist=("example.com",)))
+    start_trial(trial)
+
+    network = json.loads(evidence_path(trial).read_text())["network"]
+
+    assert network["mode"] == "filtered"
     assert network["default"] == "deny"
     assert network["loopback"] == "allow"
-    assert network["startup_policy"] == {
-        "network_mode": "allowlist",
-        "allowed_hosts": [],
+    assert network["startup_policy"] == {"network_mode": "allowlist", "allowed_hosts": []}
+    assert network["effective_policy"] == {
+        "network_mode": "allowlist", "allowed_hosts": ["example.com", PROXY_HOST],
     }
-    assert phase_hosts == {PROXY_HOST}
-    assert {
-        key: network["proxy_route"][key]
-        for key in ("host", "scope", "trial_id")
-    } == {
-        "host": PROXY_HOST,
-        "scope": "current-trial",
-        "trial_id": "trial-one",
-    }
-    assert urlsplit(trial.agent.proxy_session.handle.base_url).hostname == PROXY_HOST
     assert network["denied"] == [
-        "arbitrary-egress",
-        "direct-provider",
-        "host-daemon",
-        "instance-metadata",
-        "public-network",
-        "sibling-route",
+        "arbitrary-egress", "direct-provider", "host-daemon", "instance-metadata",
+        "public-network", "sibling-route",
     ]
+
+
+def test_launch_evidence_records_the_denylist_snapshot_and_its_caveat(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A denylist entry is recorded with the addresses it resolved to and what that is worth."""
+    trial = create_trial(
+        tmp_path, network=NetworkAccess(mode="filtered", denylist=("192.0.2.7",)))
+    start_trial(trial)
+
+    network = json.loads(evidence_path(trial).read_text())["network"]
+
+    # A denylist-only trial runs under PUBLIC: gost stops filtering and only the address set
+    # remains, so the evidence must not claim the public network is denied.
+    assert network["effective_policy"]["network_mode"] == "public"
+    assert "public-network" not in network["denied"]
+    assert network["denylist"]["entries"] == [{
+        "host": "192.0.2.7", "resolved": ["192.0.2.7"],
+        "enforcement": "best-effort-dns-snapshot",
+    }]
+    assert "DNS rotation" in network["denylist"]["caveat"]
 
 
 def test_ambient_environment_and_agent_env_mutation_fail_closed(tmp_path: Path) -> None:
@@ -696,20 +767,35 @@ def test_image_inspection_does_not_block_other_coroutines(tmp_path: Path, monkey
     ],
 )
 def test_unrelated_network_destinations_fail_before_start(
-    tmp_path: Path, destination: str,
+    tmp_path: Path, destination: str, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = build_harbor_trial_config(**launch_kwargs(tmp_path))
-    config.agent.extra_allowed_hosts.append(destination)
+    """A trial config that names a destination of its own is refused at the launch entry.
 
-    with pytest.raises(HarborTrialAdmissionError, match="network allowlist"):
-        asyncio.run(Trial.create(config))
+    Harbor would not enforce it anyway -- the task plan is PUBLIC, so `merge_extra_allowlists`
+    discards extras with a warning -- but being quietly ignored and being refused are different
+    guarantees, and only the second one survives someone later making the plan narrower.
+    """
+    kwargs = launch_kwargs(tmp_path)
+    original = trial_admission.build_harbor_trial_config
+
+    def smuggle(*args: object, **inner: object) -> object:
+        config = original(*args, **inner)
+        config.agent.extra_allowed_hosts.append(destination)
+        return config
+
+    monkeypatch.setattr(trial_admission, "build_harbor_trial_config", smuggle)
+
+    with pytest.raises(HarborTrialAdmissionError, match="extra allowed hosts"):
+        asyncio.run(create_harbor_trial(**kwargs))
     assert not (tmp_path / "trials/trial-one/artifacts" / ADMISSION_EVIDENCE_FILENAME).exists()
 
 
-def test_public_harbor_network_mode_fails_closed(tmp_path: Path) -> None:
-    task = write_task(tmp_path, network_mode="public")
+def test_a_task_that_declares_its_own_narrower_network_fails_closed(tmp_path: Path) -> None:
+    # Admission is the only thing that narrows a trial's network. A task.toml that also narrowed it
+    # would leave two policies steering, so it is refused rather than merged.
+    task = write_task(tmp_path, network_mode="allowlist")
 
-    with pytest.raises(HarborTrialAdmissionError, match="default-deny"):
+    with pytest.raises(HarborTrialAdmissionError, match="must be public"):
         create_trial(tmp_path, task)
 
 
@@ -1013,6 +1099,43 @@ def test_environment_stop_revokes_before_agent_setup(
     assert proxy_route_is_dead(session)
 
 
+def test_a_proxy_only_allowlist_still_pins_the_route_to_its_port(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The historical shape: the proxy is the sole destination, so the port pin is correct.
+
+    With any broader allowlist the same rule would reject the hosts the campaign asked to reach,
+    so it is installed only for this one configuration.
+    """
+    trial = create_trial(tmp_path, network=NetworkAccess(mode="filtered", allowlist=()))
+    patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
+
+    asyncio.run(trial.agent_environment.start(force_build=False))
+
+    LIVE_PROXY_HANDLES.append(trial.agent.proxy_session.handle)
+    port = urlsplit(trial.agent.proxy_session.handle.base_url).port
+    route = json.loads(evidence_path(trial).read_text())["network"]["proxy_route"]
+    assert route["enforcement"] == {
+        "host": "harbor-allowlist", "port": "marked-egress-nftables",
+    }
+    trial.agent_environment._install_proxy_endpoint_filter.assert_awaited_once_with(port)
+
+
+def test_a_broader_allowlist_does_not_pin_the_route_port(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trial = create_trial(
+        tmp_path, network=NetworkAccess(mode="filtered", allowlist=("example.com",)))
+    patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
+
+    asyncio.run(trial.agent_environment.start(force_build=False))
+
+    LIVE_PROXY_HANDLES.append(trial.agent.proxy_session.handle)
+    route = json.loads(evidence_path(trial).read_text())["network"]["proxy_route"]
+    assert route["enforcement"] == {"host": "harbor-allowlist", "port": "none"}
+    trial.agent_environment._install_proxy_endpoint_filter.assert_not_awaited()
+
+
 def test_launch_evidence_records_the_actual_proxy_endpoint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1028,12 +1151,10 @@ def test_launch_evidence_records_the_actual_proxy_endpoint(
     assert route["scheme"] == parsed.scheme
     assert route["host"] == parsed.hostname
     assert route["port"] == parsed.port
-    assert route["enforcement"] == {
-        "host": "harbor-allowlist", "port": "marked-egress-nftables",
-    }
-    trial.agent_environment._install_proxy_endpoint_filter.assert_awaited_once_with(
-        parsed.port,
-    )
+    # This trial is `open`, so nothing constrains the route and the evidence says so. The port pin
+    # is not installed either -- there is no sidecar to install it in.
+    assert route["enforcement"] == {"host": "none", "port": "none"}
+    trial.agent_environment._install_proxy_endpoint_filter.assert_not_awaited()
     assert route["bound_source_ip"] == (
         session.handle.manifest_block["source_binding"]["value"]
     )

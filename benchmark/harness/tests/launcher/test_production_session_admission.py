@@ -98,7 +98,8 @@ def write_task(root: Path) -> Path:
     (task / "task.toml").write_text(
         "[environment]\n"
         f"docker_image = {json.dumps(IMAGE_REF)}\n"
-        'network_mode = "allowlist"\n'
+        # The committed tasks declare the widest plan; admission is what narrows it.
+        'network_mode = "public"\n'
         "allowed_hosts = []\n"
         'os = "linux"\n\n'
         "[agent]\n"
