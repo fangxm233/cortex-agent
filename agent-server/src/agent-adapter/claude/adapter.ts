@@ -32,7 +32,10 @@ import {
   TURN_IDLE_TIMEOUT,
 } from './defaults.js';
 import { buildHooksSettings } from './hooks-builder.js';
-import { buildClaudeEnv, buildSpawnArgs, ClaudeSpawnOptions, CortexAgentContext } from './spawn-args.js';
+import {
+  buildClaudeEnv, buildSpawnArgs, claudeRouteIdentity,
+  ClaudeSpawnOptions, CortexAgentContext,
+} from './spawn-args.js';
 import { ClaudeTuiSession, defaultTailFactory, computeJsonlPath, resolveTuiResume, type ClaudeTuiSessionConfig } from './adapter-tui.js';
 import { TmuxControl, type TmuxExec } from './tmux-control.js';
 import { TUI_TMUX_NAME_PREFIX } from './defaults.js';
@@ -230,6 +233,9 @@ function deriveClaudeSpawnOptions(fields: ClaudeSpawnFields): ClaudeSpawnOptions
 
 interface ClaudeSpawnCompatibility {
   cwd: string;
+  /** Endpoint plus credential digests. A mode switch changes it, and a live process cannot be
+   *  re-pointed once spawned, so a difference must force a fresh one. */
+  routeIdentity: string;
   composition: McpComposition;
   pluginCapabilityFingerprint: string | null;
   pluginDirs: string[];
@@ -262,6 +268,7 @@ function sameClaudeSpawnCompatibility(
   right: ClaudeSpawnCompatibility,
 ): boolean {
   return left.cwd === right.cwd
+    && left.routeIdentity === right.routeIdentity
     && left.composition === right.composition
     && left.pluginCapabilityFingerprint === right.pluginCapabilityFingerprint
     && left.supplementalMcpConfigIdentity === right.supplementalMcpConfigIdentity
@@ -273,6 +280,7 @@ function sameClaudeSpawnCompatibility(
 function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCompatibility {
   return {
     cwd: options.cwd ?? DATA_DIR,
+    routeIdentity: claudeRouteIdentity(options),
     composition: resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp),
     pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
     pluginDirs: cloneTextArray(options.pluginDirs),
@@ -1312,6 +1320,7 @@ function matchesTuiSession(
 ): boolean {
   return session.sessionId === sessionId
     && session.cwd === options.cwd
+    && session.routeIdentity === claudeRouteIdentity(options)
     && session.mcpComposition === composition
     && session.pluginCapabilityFingerprint === (options.pluginCapabilityFingerprint ?? null)
     && session.supplementalMcpConfigIdentity === (options.supplementalMcpConfigIdentity ?? null)

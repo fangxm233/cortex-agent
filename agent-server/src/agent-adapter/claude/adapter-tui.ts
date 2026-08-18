@@ -22,7 +22,9 @@ import {
   PANE_READY_POLL_MS,
   PANE_READY_MARKER,
 } from './defaults.js';
-import { buildSpawnArgs, buildClaudeEnv, type CortexAgentContext } from './spawn-args.js';
+import {
+  buildSpawnArgs, buildClaudeEnv, claudeRouteIdentity, type CortexAgentContext,
+} from './spawn-args.js';
 import { validateClaudeSupplementalMcpConfig } from './mcp-config.js';
 import { buildPrompt, mergeSubstantialOutput } from './event-parser.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
@@ -162,6 +164,8 @@ export class ClaudeTuiSession {
   readonly jsonlPath: string;
   readonly pluginCapabilityFingerprint: string | null;
   readonly supplementalMcpConfigIdentity: string | null;
+  /** Endpoint plus credential digests of the route this tmux session was launched on. */
+  readonly routeIdentity: string;
   readonly pluginDirs: string[];
   readonly mcpConfigPaths: string[];
   readonly mcpToolAllowlist: string[] | null;
@@ -204,6 +208,7 @@ export class ClaudeTuiSession {
     this.jsonlPath = computeJsonlPath(this.cwd, this.sessionId);
     this.pluginCapabilityFingerprint = config.pluginCapabilityFingerprint ?? null;
     this.supplementalMcpConfigIdentity = config.supplementalMcpConfigIdentity ?? null;
+    this.routeIdentity = claudeRouteIdentity(config);
     this.pluginDirs = [...(config.pluginDirs ?? [])];
     this.mcpConfigPaths = [...(config.mcpConfigPaths ?? [])];
     this.mcpToolAllowlist = config.mcpToolAllowlist === undefined

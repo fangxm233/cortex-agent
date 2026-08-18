@@ -1,8 +1,9 @@
 // input:  Claude options, context, composition, tool gate, hooks
-// output: Claude CLI args, gated MCP configs and isolated environment
+// output: Claude CLI args, gated env/MCP configs, route identity
 // pos:    Resolves Claude process configuration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+import { createHash } from 'crypto';
 import {
   CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
@@ -311,6 +312,62 @@ function applyEnvOverrides(
 ): void {
   for (const [key, value] of Object.entries(extraEnv ?? {})) env[key] = value;
   for (const key of unsetEnv ?? []) delete env[key];
+}
+
+/** Env keys that carry a credential. Their values only ever leave this module as a digest. */
+const ROUTE_CREDENTIAL_KEYS = [
+  'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN',
+] as const;
+
+/** The three per-spawn channels that decide where a child sends its requests and with which
+ *  credential: the dedicated base-URL field, the env overrides, and the env deletions. */
+export interface ClaudeRouteInputs {
+  anthropicBaseUrl?: string;
+  extraEnv?: Record<string, string>;
+  unsetEnv?: string[];
+}
+
+/** 8 hex of sha256: enough to tell two credentials apart, not enough to walk back to either. A
+ *  pooled session outlives the turn that created it, so the raw value must never enter a
+ *  comparison struct — that struct is exactly what ends up in a debug dump. */
+function credentialFingerprint(value: string): string {
+  return `sha256:${createHash('sha256').update(value).digest('hex').slice(0, 8)}`;
+}
+
+/** What the child ends up with for `key`, in the order {@link buildClaudeEnv} applies: the
+ *  dedicated field is the base, `extraEnv` overrides it, `unsetEnv` deletes it.
+ *  `null` = deleted, `undefined` = inherited from the daemon env. */
+function routeEnvValue(
+  key: string,
+  route: ClaudeRouteInputs,
+  base?: string,
+): string | null | undefined {
+  if (route.unsetEnv?.includes(key)) return null;
+  return route.extraEnv?.[key] ?? base;
+}
+
+/** `deleted` and `inherited` stay distinct on purpose: one pins the child to no credential at
+ *  all, the other leaves it to whatever the daemon env happens to hold at spawn time. */
+function routeToken(value: string | null | undefined, render: (v: string) => string): string {
+  if (value === null) return 'deleted';
+  if (value === undefined) return 'inherited';
+  return render(value);
+}
+
+/** Identity of the route this spawn would take: the endpoint verbatim (not a secret, and worth
+ *  reading when a pool mismatch is investigated) plus one digest per credential. Session pools
+ *  compare it so a mode switch can never hand a caller a live process that is still pointed at
+ *  the previous gateway or still holding the previous account's key (K-053). */
+export function claudeRouteIdentity(route: ClaudeRouteInputs): string {
+  const endpoint = routeToken(
+    // setIfPresent skips a falsy field, so an empty base URL means "no base URL", not "empty".
+    routeEnvValue('ANTHROPIC_BASE_URL', route, route.anthropicBaseUrl || undefined),
+    (value) => `url:${value}`,
+  );
+  const credentials = ROUTE_CREDENTIAL_KEYS.map(
+    (key) => `${key}=${routeToken(routeEnvValue(key, route), credentialFingerprint)}`,
+  );
+  return [endpoint, ...credentials].join(' ');
 }
 
 function cortexContextEnv(context?: CortexAgentContext): Record<string, string | undefined> {

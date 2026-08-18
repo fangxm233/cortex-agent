@@ -30,6 +30,7 @@ import { ClaudeAdapter, _test as claudeTest } from '../src/agent-adapter/claude/
 import {
   buildClaudeEnv,
   buildSpawnArgs,
+  claudeRouteIdentity,
 } from '../src/agent-adapter/claude/spawn-args.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import {
@@ -462,7 +463,7 @@ test('initialization writes the empty MCP composition file', () => {
   }
 });
 
-function stubPiChild(): ChildProcessWithoutNullStreams {
+function stubBackendChild(): ChildProcessWithoutNullStreams {
   const child = new EventEmitter() as unknown as ChildProcessWithoutNullStreams;
   Object.assign(child, {
     stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
@@ -476,7 +477,7 @@ test('PI carries the empty MCP composition strictly', () => {
   const spawned: NodeJS.ProcessEnv[] = [];
   const adapter = new PIAdapter((_cmd, _args, opts) => {
     spawned.push(opts.env ?? {});
-    return { process: stubPiChild() };
+    return { process: stubBackendChild() };
   }, root);
 
   adapter.spawn({
@@ -497,7 +498,7 @@ function capturingPiAdapter(capture: PiSpawnCapture): PIAdapter {
   return new PIAdapter((_cmd, args, opts) => {
     capture.argv.push(args);
     capture.envs.push(opts.env ?? {});
-    return { process: stubPiChild() };
+    return { process: stubBackendChild() };
   }, mkdtempSync(path.join(tmpdir(), 'pi-plugin-mcp-')));
 }
 
@@ -1000,4 +1001,127 @@ test('a key the profile sets explicitly is never deleted by the route', (t) => {
   const env = childEnvironment(spawn);
   assert.equal(env.ANTHROPIC_API_KEY, 'profile-key');
   assert.equal(env.ANTHROPIC_BASE_URL, 'https://profile.example');
+});
+
+// --- pool: a live session may only be reused when its child took the same route ---
+
+const POOL_ROUTE_URL = 'http://127.0.0.1:9880/m/plan/anthropic';
+const POOL_SECRET = 'sk-ant-oat01-pool-fixture-secret';
+const poolSpawner = (() => ({ process: stubBackendChild() })) as any;
+
+/** A pooled spawn whose route came out of the real mode resolver, so the pool sees what a mode
+ *  switch actually produces rather than a hand-written approximation of it. */
+function pooledRouteSpawn(
+  key: string,
+  route: ModeEnv,
+  config: AgentConfig = FIXTURE_CONFIG,
+): AgentSpawnConfig {
+  return facadeTest.buildSpawnConfig({
+    channel: key, sessionKey: key, sessionId: `${key}-session`, loadCortexRules: false,
+    processSpawner: poolSpawner,
+  }, config, route);
+}
+
+function pooledRouteConfig(key: string, overrides: Partial<AgentSpawnConfig>): AgentSpawnConfig {
+  return {
+    sessionId: key, sessionKey: key, resume: false, cwd: DATA_DIR,
+    processSpawner: poolSpawner, ...overrides,
+  };
+}
+
+test('the pooled route identity fingerprints a credential instead of keeping it', () => {
+  const route = { anthropicBaseUrl: POOL_ROUTE_URL, extraEnv: { ANTHROPIC_API_KEY: POOL_SECRET } };
+  const identity = claudeRouteIdentity(route);
+
+  assert.ok(!identity.includes(POOL_SECRET),
+    'a pooled session outlives its turn, so its comparison value may never carry the credential');
+  assert.ok(identity.includes(POOL_ROUTE_URL),
+    'the endpoint is not a secret and stays readable for a pool mismatch');
+  assert.equal(identity, claudeRouteIdentity({ ...route }),
+    'the same route must always produce the same identity');
+  assert.notEqual(identity, claudeRouteIdentity({
+    ...route, extraEnv: { ANTHROPIC_API_KEY: `${POOL_SECRET}-rotated` },
+  }), 'rotating the credential must change the identity');
+});
+
+test('a set, an inherited and a deleted credential are three different routes', () => {
+  const set = claudeRouteIdentity({ extraEnv: { ANTHROPIC_API_KEY: POOL_SECRET } });
+  const inherited = claudeRouteIdentity({});
+  const deleted = claudeRouteIdentity({ unsetEnv: ['ANTHROPIC_API_KEY'] });
+
+  assert.equal(new Set([set, inherited, deleted]).size, 3,
+    'inheriting the daemon key and deleting it leave the child with different credentials');
+  assert.equal(claudeRouteIdentity({
+    extraEnv: { ANTHROPIC_API_KEY: POOL_SECRET }, unsetEnv: ['ANTHROPIC_API_KEY'],
+  }), deleted, 'unsetEnv runs after extraEnv, exactly as buildClaudeEnv applies them');
+  assert.notEqual(claudeRouteIdentity({ unsetEnv: ['ANTHROPIC_BASE_URL'] }), inherited,
+    'a direct route deletes the base URL the daemon left behind — that is another endpoint');
+});
+
+test('a mode switch on one channel cannot reuse the session started on the old route', async (t) => {
+  t.onTestFinished(pinRouteEnvironment());
+  _testSetHealthy(true);
+  const adapter = new ClaudeAdapter();
+  const key = 'route-pool-switch';
+  const codex: AgentConfig = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
+
+  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+  const first = claudeTest.getPooledPrintSession(key);
+  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, codex), codex));
+
+  assert.ok(first);
+  assert.notEqual(claudeTest.getPooledPrintSession(key), first,
+    'the pooled process was launched against the plan gateway with no key — it cannot serve codex');
+  await adapter.close(key);
+});
+
+test('an unchanged mode route still reuses the pooled session', async (t) => {
+  t.onTestFinished(pinRouteEnvironment());
+  _testSetHealthy(true);
+  const adapter = new ClaudeAdapter();
+  const key = 'route-pool-stable';
+
+  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+  const first = claudeTest.getPooledPrintSession(key);
+  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+
+  assert.ok(first);
+  assert.equal(claudeTest.getPooledPrintSession(key), first,
+    'a re-resolved identical route must compare by value, or the pool stops pooling');
+  await adapter.close(key);
+});
+
+test('the pool separates two routes that differ only by credential', async () => {
+  const adapter = new ClaudeAdapter();
+  const key = 'route-pool-credential';
+  const endpoint = { anthropicBaseUrl: POOL_ROUTE_URL };
+
+  adapter.spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-a` } }));
+  const first = claudeTest.getPooledPrintSession(key);
+  adapter.spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-b` } }));
+
+  assert.ok(first);
+  assert.notEqual(claudeTest.getPooledPrintSession(key), first,
+    'one endpoint reached with another account is another route');
+  await adapter.close(key);
+});
+
+test('the TUI pool compares the route the same way', async () => {
+  const adapter = new ClaudeAdapter();
+  const key = 'route-pool-tui';
+  const tui: Partial<AgentSpawnConfig> = {
+    claudeBackend: 'tui', anthropicBaseUrl: POOL_ROUTE_URL,
+  };
+
+  adapter.spawn(pooledRouteConfig(key, tui));
+  const first = claudeTest.getPooledTuiSession(key);
+  adapter.spawn(pooledRouteConfig(key, tui));
+  assert.equal(claudeTest.getPooledTuiSession(key), first,
+    'an identical route keeps the tmux session alive');
+
+  adapter.spawn(pooledRouteConfig(key, { ...tui, unsetEnv: ['ANTHROPIC_API_KEY'] }));
+  assert.ok(first);
+  assert.notEqual(claudeTest.getPooledTuiSession(key), first,
+    'dropping the key changes which account the TUI session bills');
+  await adapter.close(key);
 });
