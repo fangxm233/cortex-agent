@@ -1,6 +1,6 @@
 # input:  one committed production-direct ZERO-PAID trial
 # output: one production webhook/exporter trial and one comparison report
-# pos:    Committed single-trial production-direct recording campaign
+# pos:    Single-runtime production-direct recording campaign
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # This is the single-trial counterpart to zero-paid-dry-run.yaml. It uses the same committed
@@ -10,9 +10,9 @@
 # used; paid remains false.
 
 schema_version: cortex-bench-campaign/1
-campaign: zp-direct-record
+campaign: zp-direct-single-runtime
 paid: false
-trials_dir: /var/tmp/cortex-bench/zp-direct-record
+trials_dir: /var/tmp/cortex-bench/zp-direct-single-runtime
 cli_version: "2026.8.6"
 
 manifest:
