@@ -17,7 +17,7 @@
       "promptTemplate": "Read the latest reviewer audit in {{artifactPath}}. Re-check each blocker against the current task workspace, fix only confirmed blockers, and run targeted verification for the revised behavior. Append a concise retry handoff to {{artifactPath}}. Do not write the reviewer approval token."
     }
   },
-  "tools": "bash,edit,glob,grep,read,skill,todo_write,write",
+  "tools": "Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,Write",
   "pluginDirs": [],
   "mcpComposition": "none",
   "mcpToolAllowlist": []

@@ -17,7 +17,7 @@
       "promptTemplate": "Read the retry handoff in {{artifactPath}}, inspect the current task workspace again, and run targeted verification for the revised behavior. Do not modify any workspace file and do not write any file. Report your final audit, with evidence, as your final message. If the implementation now satisfies the task, end with `[IMPL-APPROVED]`. Otherwise list the remaining blockers without the approval token; this is the final audit."
     }
   },
-  "tools": "bash,glob,grep,read,skill,todo_write",
+  "tools": "Bash,Glob,Grep,Read,Skill,TodoWrite",
   "pluginDirs": [],
   "mcpComposition": "none",
   "mcpToolAllowlist": []
