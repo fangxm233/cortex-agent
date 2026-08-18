@@ -223,10 +223,13 @@ def test_committed_bundle_is_the_exact_production_direct_surface(tmp_path: Path)
         "defaultAgent": "benchmark-direct", "channelProfiles": {},
     }
     assert (home / "context/projects/general/TASKS.yaml").read_text() == "tasks: []\n"
-    server_prompts = Path(__file__).resolve().parents[4] / "agent-server/defaults/prompts"
+    # The bundle is the only copy of these prompts. `agent-server/defaults` carried a second one
+    # that this test byte-compared against, but the architecture that read it (arm_resolution.py
+    # and policy-compiler.ts) was removed in 6102a101 and the orphaned copy was deleted with it.
+    # What remains worth asserting is that materialization carries both prompts into the home
+    # with content -- an empty or missing prompt is how a trial silently runs with no directive.
     for kind in ("directives", "systemPrompts"):
-        expected = (server_prompts / kind / "benchmark-direct.md").read_bytes()
-        assert (home / "prompts" / kind / "benchmark-direct.md").read_bytes() == expected
+        assert (home / "prompts" / kind / "benchmark-direct.md").read_bytes().strip()
 
 
 def test_manager_qa_route_is_opened_only_for_the_qa_on_arm(tmp_path: Path) -> None:

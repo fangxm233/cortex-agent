@@ -4,7 +4,7 @@ This is your Cortex data directory. Cortex is an autonomous agent system for lon
 
 ## Directory Structure
 
-- `config/` — Shipped budgets, hooks, MCP isolation, and production benchmark role templates
+- `config/` — Shipped budgets, hooks, and MCP isolation
 - `data/` — Persistent store for JSON state & config files
 - `logs/` — Runtime logs
 - `tmp/` — Workspace for thread artifacts and tool results

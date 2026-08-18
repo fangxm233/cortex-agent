@@ -155,7 +155,6 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |
 | thread-callback-tree.test.ts | test | safe child results and parent re-entry |
-| thread-benchmark-coder-review.e2e.test.ts | e2e | benchmark graph, tools, MCP and identity isolation |
 | thread-coder-review.e2e.test.ts | e2e | Coder-review stages and commit policy |
 | thread-contract.test.ts | test | delegation contracts and budget breaker |
 | thread-extra-hooks.test.ts | test | Covers lifecycle isolation and per-call HookBus routing |
