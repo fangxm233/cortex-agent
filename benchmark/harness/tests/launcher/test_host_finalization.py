@@ -738,6 +738,9 @@ def test_the_proxy_revocation_and_audit_records_land_in_the_envelope(
     assert usage["requests"] == 0
     assert usage["audit_entries"] == 1
     assert usage["audit_outcomes"] == {}
+    assert usage["lease_echo"] == {
+        "status": UNAVAILABLE, "reason": "unavailable_by_design",
+    }
     assert agent.proxy_session.handle.revocation_evidence["listener_present"] is False
 
 

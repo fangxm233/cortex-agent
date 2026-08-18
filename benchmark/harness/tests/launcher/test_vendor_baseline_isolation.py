@@ -54,14 +54,10 @@ def baseline_arm(
         "model": model,
         "credential_capability": f"{vendor_agent}-credential",
         "limits": {
-            "max_thread_starts": 0,
-            "max_parent_questions": 0,
-            "max_task_depth": 0,
-            "max_tasks": 0,
             "max_provider_requests": 8,
-            "max_resident_agent_processes": 1,
             "max_cost_usd": "2.50",
             "deadline_seconds": 90,
+            "max_output_tokens": 65_536,
         },
     }
 

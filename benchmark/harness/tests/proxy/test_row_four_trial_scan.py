@@ -69,9 +69,8 @@ def row_four_arm() -> dict[str, object]:
         "credential_capability": CAPABILITY_ID,
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_thread_starts": 0, "max_parent_questions": 0, "max_task_depth": 0,
-            "max_tasks": 0, "max_provider_requests": 8, "max_resident_agent_processes": 1,
-            "max_cost_usd": "50.00", "deadline_seconds": DEADLINE_SECONDS,
+            "max_provider_requests": 8, "max_cost_usd": "50.00",
+            "deadline_seconds": DEADLINE_SECONDS, "max_output_tokens": 65_536,
         },
     }
 
