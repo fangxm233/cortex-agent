@@ -13,4 +13,4 @@ Committed campaign result summaries preserve path-sanitized reproducibility evid
 | zero-paid-dry-run-2026-08-13.json | evidence | Records the accepted two-trial ZERO-PAID campaign hashes, counts and safety facts |
 | zero-paid-failed-agent-2026-08-13.json | evidence | Records the ZERO-PAID run proving a failed agent is published, scored 0 by its own verifier, followed by the next trial, and that each trial carries its own witnessed asset record instead of the bundle |
 | zero-paid-parallel-2026-08-13.json | evidence | Records the ZERO-PAID run proving concurrent trials hold distinct subnets, container addresses and live routes, that a slot is exclusive and reusable, and that every per-trial gate still holds |
-| zero-paid-production-direct-leakfix-2026-08-18.json | evidence | Records the production-direct envelope after the nested container-home false match fix and the remaining unclassified PI auth symlink |
+| zero-paid-production-direct-leakfix-2026-08-18.json | evidence | Records the clean production-direct envelope after safe container-root alias classification |

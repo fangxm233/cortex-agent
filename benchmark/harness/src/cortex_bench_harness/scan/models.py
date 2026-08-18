@@ -1,4 +1,4 @@
-# input:  artifact paths, roots, credential and host leak literals
+# input:  artifact paths, host/container roots, and leak literals
 # output: immutable scan inventory, policy, findings, and reports
 # pos:    Artifact scanner value contracts
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -13,6 +13,7 @@ class ArtifactInventory:
     sources: Mapping[str, Path]
     expected_sources: frozenset[str]
     trial_roots: tuple[Path, ...]
+    container_roots: Mapping[Path, Path] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,5 @@
-# input:  Harbor lifecycle, inner/proxy evidence, workspace and stop observation
-# output: auth-bootstrapped run whose evidence is recorded once Harbor confirms container stop
+# input:  Harbor lifecycle, proxy evidence, stop observation
+# output: authenticated production run and final envelope
 # pos:    Production Harbor lifecycle wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -603,6 +603,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             arm=self._trial_seed.arm, npm_artifact=self._npm_artifact,
             bundle_root=str(self._installed_server.bundle_root),
             revocation=revocation, scan_policy=self._host_scan_policy,
+            container_logs_dir=EnvironmentPaths().agent_dir,
         )
         self._outer_publication = publication
         self._grader_admitted = publication.admitted

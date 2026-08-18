@@ -1,5 +1,5 @@
-# input:  Harbor agent, collected trial roots, launcher records, proxy revocation
-# output: collect-and-record proofs for the outer envelope and its one refusal
+# input:  host finalizer fixtures, roots, proxy revocation
+# output: outer-envelope collection and leak-scan assertions
 # pos:    Host finalization recording tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -1058,6 +1058,7 @@ def agent_prompt_members(bundle: ProductionArmBundle) -> dict[str, bytes]:
 def finalize_production_trial(
     tmp_path: Path, bundle: ProductionArmBundle,
     *, npm_prompt_members: dict[str, bytes] | None = None,
+    runtime_auth_alias: bool = False,
 ) -> tuple[dict[str, object], object]:
     logs_dir = tmp_path / "agent"
     verifier_dir = tmp_path / "verifier"
@@ -1078,6 +1079,11 @@ def finalize_production_trial(
         ),
         inherited_environment={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
     )
+    if runtime_auth_alias:
+        auth = logs_dir / "production-cortex-home/data/pi/auth.json"
+        auth.unlink()
+        auth.symlink_to(
+            "/logs/agent/production-cortex-home/container-home/.pi/agent/auth.json")
     (logs_dir / "instruction.md").write_text("Solve the task.\n", encoding="utf-8")
     (logs_dir / "workspace.diff").write_text(
         '{"schema_version":"cortex-bench-workspace-evidence/1"}\n', encoding="utf-8")
@@ -1097,7 +1103,7 @@ def finalize_production_trial(
         logs_dir=logs_dir, verifier_dir=verifier_dir, artifact_dir=artifact_dir,
         root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=production_arm_for(bundle),
         npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT, revocation=revocation,
-        scan_policy=production_scan_policy(),
+        scan_policy=production_scan_policy(), container_logs_dir=Path("/logs/agent"),
     )
     return json.loads(result.path.read_bytes()), materialized
 
@@ -1121,6 +1127,22 @@ def test_the_production_layout_records_through_the_same_collect_and_record_path(
     assert recorded["file_count"] == materialized.input_bundle_file_count
     assert len(recorded["files"]) == materialized.input_bundle_file_count
     assert canonical_sha256(recorded["files"]) == materialized.input_bundle_sha256
+
+
+def test_production_auth_container_alias_scans_clean(tmp_path: Path) -> None:
+    bundle = production_arm_bundle("direct-pi-deepseek")
+
+    envelope, _ = finalize_production_trial(
+        tmp_path, bundle, runtime_auth_alias=True,
+    )
+
+    files = recorded_files(envelope)
+    assert files[("agent", "production-cortex-home/data/pi/auth.json")]["kind"] == "symlink"
+    assert files[(
+        "agent", "production-cortex-home/container-home/.pi/agent/auth.json",
+    )]["kind"] == "file"
+    assert envelope["leak_scan"]["unclassified_files"] == []
+    assert envelope["leak_scan"]["clean"] is True
 
 
 def test_a_coder_review_trial_never_records_the_direct_arm_bundle(tmp_path: Path) -> None:
@@ -1188,7 +1210,7 @@ def test_an_attestation_naming_no_committed_bundle_records_no_other_arms_list(
         logs_dir=logs_dir, verifier_dir=tmp_path / "verifier", artifact_dir=artifact_dir,
         root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=production_arm(),
         npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT, revocation=revocation,
-        scan_policy=production_scan_policy(),
+        scan_policy=production_scan_policy(), container_logs_dir=Path("/logs/agent"),
     )
 
     recorded = json.loads(result.path.read_bytes())["launch"]["config_bundle"]

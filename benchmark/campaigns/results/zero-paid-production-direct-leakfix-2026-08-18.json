@@ -1,34 +1,35 @@
 {
   "schema_version": "cortex-bench-campaign-result-summary/1",
-  "campaign": "zp-direct-leakfix",
+  "campaign": "zp-direct-clean",
   "executed_at": "2026-08-18",
   "paid": false,
-  "headline": "The production-direct ZERO-PAID campaign published its outer envelope after the scanner stopped treating the nested container path /logs/agent/trial-home/home/.local as a host home. The scan reported zero credential or host-identity matches. Its aggregate clean flag remained false because the stopped PI runtime left one absolute auth.json symlink unclassified.",
+  "headline": "The digest-pinned production-direct ZERO-PAID campaign published one admitted outer envelope with leak_scan.clean=true after the scanner mapped the host-owned /logs/agent namespace only to its corresponding collected agent root. The nested env launcher and PI auth alias produced zero credential or host-identity matches, zero missing sources, and zero unclassified files.",
   "execution": {
     "entrypoint": "cortex-bench run --config benchmark/campaigns/zero-paid-production-direct.yaml",
-    "source_commit": "62b456c45ef2c3ec2bb94992f0d8241c5fee946f",
+    "source_commit": "3738dad4c0af780c3f6fb8a4f7416fac428e36c4",
+    "fix_commit": "93d220880ddbdc99cdf6dc276e56854662de32a7",
     "state": "completed",
     "trial_count": 1,
     "trials_failed": 0,
     "outer_envelope_count": 1,
-    "started_at": "2026-08-18T04:34:10.166Z",
-    "ended_at": "2026-08-18T04:35:11.414Z",
+    "started_at": "2026-08-18T05:19:53.776Z",
+    "ended_at": "2026-08-18T05:20:58.111Z",
     "provider_requests": 2
   },
   "reproducibility": {
     "campaign_config": "benchmark/campaigns/zero-paid-production-direct.yaml",
-    "campaign_config_sha256": "38dc810586e46941e6af4fe2de084f632e5487d300ea72de49d22c0e1a7aaedc",
+    "campaign_config_sha256": "bff31460f5ca974fc4c7d9e34e8c301d03eb2018eea097f18e239b01ba70d6d1",
     "runtime_image": "cortex-bench-zero-paid-runtime@sha256:8b075847d21e55633a0f2bc2f3d7f9920f91d8aaf47b0778cb1d528a7dbedf55",
-    "npm_artifact_sha256": "e788f80207c9ef245c70427af58cd42bfff6c23df51ed423294efb2b19c4e03e",
-    "wheel_sha256": "118392568230d10ed0c814bb55ebe8eac44c018849b2bc54fe824269671af698",
-    "launch_attestation_sha256": "ea7ce9aa53f6acc9d33865389b522381b71a2ae36c4d8034794e29265a5e93e3",
-    "container_boundary_sha256": "2321fb035bdf5c20287b3f6f8ca941abb9438221fef84c09d5427fb0f69fc9f4",
-    "proxy_export_sha256": "6fcd15dbd5f07beb6e2f9586b8d4d11e7008c7b0d218bd9919b9ef3dc65f69a0",
-    "outer_envelope_sha256": "0d5dbb14b3a080993b38312277d425937127914213b89bc53d3e8c464eb5f7bf",
-    "comparison_report_sha256": "e44d55011ffe6c3f18735af38b1488e68298ec614c5d5ed10abe245c0730ba18"
+    "npm_artifact_sha256": "88cdfdf0a7a4a416e1948c1d1df563c2a9d1632739bb30fc7e6343b23eedb489",
+    "wheel_sha256": "15d8e7a9f9886bbfebc833860741ac3631d264d840ba9923d9a15747758459ae",
+    "launch_attestation_sha256": "6b797bf68ff2ddae67012aecc47ed3b39eedb644131363312ca9dfc2918db261",
+    "container_boundary_sha256": "c91e7d9b2e6f939b4daf8b6e4f0dfc18ecf0b88f97a21f84a4dfeb5995acb84f",
+    "proxy_export_sha256": "b2f61160ae5f12c903e3bf33469fcab4c406aa22cc391521a76032ac743be57a",
+    "outer_envelope_sha256": "40f2551006a760ad220834086830f136f6798fd564f9ba0e24334cd356711849",
+    "comparison_report_sha256": "731bccb6650bbd1e8d76e6d2cf91201c4bb0709c65b9620c42528753f426f93c"
   },
   "trial": {
-    "trial_id": "zp-direct-leakfix-zero-paid-one-zero-paid-pi-direct",
+    "trial_id": "zp-direct-clean-zero-paid-one-zero-paid-pi-direct",
     "task_id": "zero-paid-one",
     "reward": 1,
     "grader_admission": {"admitted": true, "reason": "recorded"},
@@ -37,9 +38,8 @@
       "sources_scanned": 88,
       "matches": 0,
       "missing_sources": 0,
-      "unclassified_files": ["production-cortex-home/data/pi/auth.json"],
-      "clean": false,
-      "unclassified_reason": "The production PI auth mirror is an absolute container symlink to /logs/agent/production-cortex-home/container-home/.pi/agent/auth.json; after collection on the host that absolute target is no longer resolvable even though the target file was scanned separately."
+      "unclassified_files": [],
+      "clean": true
     },
     "proxy_usage": {"requests": 2, "input_tokens": 2, "output_tokens": 2},
     "revocation_closed": true,
@@ -50,9 +50,14 @@
     "focused_tests": [
       "tests/scan/test_scanner.py::test_distinguishes_nested_container_home_dotfile_from_host_home",
       "tests/scan/test_scanner.py::test_exact_dot_prefixed_host_home_literal_remains_protected",
-      "tests/launcher/test_host_finalization.py::test_container_home_env_launcher_is_collected_and_scans_clean"
+      "tests/scan/test_scanner.py::test_classifies_container_absolute_alias_of_same_root_scanned_source",
+      "tests/scan/test_scanner.py::test_reports_container_absolute_alias_to_another_root",
+      "tests/scan/test_scanner.py::test_rejects_one_container_root_mapped_to_two_trial_roots",
+      "tests/launcher/test_host_finalization.py::test_container_home_env_launcher_is_collected_and_scans_clean",
+      "tests/launcher/test_host_finalization.py::test_production_auth_container_alias_scans_clean"
     ],
-    "protection_preserved": "Generic /home/<login> detection still catches normal login components, the exact host-home literal still catches dot-prefixed host paths, and all credential and host-identity literal rules are unchanged."
+    "full_suite": "PYTHONPATH=src:tests PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q: 888 passed, 5 skipped, 1 existing Harbor warning",
+    "protection_preserved": "Only an explicitly mapped, normalized, non-overlapping container root can translate an absolute alias back into the same collected host root, and the resolved target must be a regular file scanned from that root. Cross-root, escaping, dangling, and unscanned aliases remain unclassified; generic and exact host-home detection plus every credential and host-identity literal rule are unchanged."
   },
   "safety": {
     "paid_provider_requests": 0,
@@ -62,5 +67,5 @@
     "no_paid_retry": true,
     "no_push_release_deployment_or_host_daemon_restart": true
   },
-  "remaining_blocker": "The required outer envelope exists and has no leak matches, but ScanReport.clean is false because of the independent absolute PI auth symlink classification. A paid rerun remains blocked until the clean-scan requirement is clarified or that alias is safely classified without weakening the inventory boundary."
+  "remaining_blocker": null
 }
