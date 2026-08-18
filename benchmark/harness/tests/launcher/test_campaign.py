@@ -1704,3 +1704,43 @@ def test_the_committed_paid_campaign_names_the_launch_procedure_that_supplies_it
     assert str(config.proxy["credential_env"]) == "CORTEX_BENCH_DEEPSEEK_CREDENTIAL"
     assert LAUNCH_SCRIPT.is_file()
     assert str(LAUNCH_SCRIPT.name) in COMMITTED_PAID_CONFIG.read_text(encoding="utf-8")
+
+
+def test_an_absent_network_block_leaves_the_trial_open(tmp_path: Path) -> None:
+    document = campaign_document(tmp_path)
+    assert "network" not in document
+
+    config = parse_campaign_config(
+        yaml.safe_dump(document), base_dir=tmp_path, source="network-test")
+
+    assert config.network.mode == "open"
+    assert not config.network.filtered
+
+
+def test_a_declared_filtered_network_reaches_the_config(tmp_path: Path) -> None:
+    document = campaign_document(
+        tmp_path, network={"mode": "filtered", "allowlist": ["example.com"]})
+
+    config = parse_campaign_config(
+        yaml.safe_dump(document), base_dir=tmp_path, source="network-test")
+
+    assert config.network.filtered
+    assert config.network.allowlist == ("example.com",)
+
+
+@pytest.mark.parametrize("block,message", [
+    ({"mode": "open", "allowlist": ["example.com"]}, "enforces nothing"),
+    ({"mode": "filtered"}, "must declare an allowlist"),
+    ({"mode": "permissive"}, "mode must be one of"),
+    ({"mode": "filtered", "allow": ["example.com"]}, "unknown field"),
+    ({"mode": "filtered", "denylist": ["*.example.com"]}, "wildcard"),
+    ({"mode": "filtered", "allowlist": ["https://example.com"]}, "allowlist is invalid"),
+])
+def test_a_malformed_network_block_is_refused_as_a_campaign_refusal(
+    tmp_path: Path, block: dict, message: str,
+) -> None:
+    document = campaign_document(tmp_path, network=block)
+
+    with pytest.raises(CampaignConfigError, match=message):
+        parse_campaign_config(
+            yaml.safe_dump(document), base_dir=tmp_path, source="network-test")

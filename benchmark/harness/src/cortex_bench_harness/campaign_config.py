@@ -33,6 +33,7 @@ import yaml
 
 from .launcher.arms import IMAGE_DIGEST
 from .launcher.comparison_report import DIFFERENCE_CLASSES
+from .launcher.network_policy import NetworkAccess, NetworkAccessError, parse_network_access
 from .launcher.trial_proxy import TrialProxySpec, parse_trial_proxy_spec
 
 CAMPAIGN_SCHEMA_VERSION = "cortex-bench-campaign/1"
@@ -46,7 +47,11 @@ CAMPAIGN_REQUIRED_FIELDS = frozenset({
 })
 # `concurrency` is absent-means-one: a document that says nothing about parallelism gets the
 # serial campaign it has always described.
-CAMPAIGN_OPTIONAL_FIELDS = frozenset({"comparisons", "timeouts", "concurrency"})
+# `network` is absent-means-open: a document that says nothing about its network gets a trial
+# that can reach the internet. Every committed campaign still declares it, because the value
+# decides whether the resulting score measures the agent or measures its ability to look up the
+# answer, and that is not a fact to leave implicit.
+CAMPAIGN_OPTIONAL_FIELDS = frozenset({"comparisons", "timeouts", "concurrency", "network"})
 # Harbor bounds the agent and verifier phases separately from the arm's own deadline. Absent
 # means today's behaviour: the agent phase is cut at `limits.deadline_seconds`, and the verifier
 # at whatever the task's own `[verifier] timeout_sec` declares. Declaring them here overrides a
@@ -191,6 +196,7 @@ class CampaignConfig:
     concurrency: int
     proxy: Mapping[str, object]
     timeouts: Mapping[str, int]
+    network: NetworkAccess
     arms: tuple[Mapping[str, object], ...]
     tasks: tuple[CampaignTask, ...]
     comparisons: tuple[Mapping[str, object], ...]
@@ -289,12 +295,21 @@ def parse_campaign_config(
         concurrency=_concurrency(document, pool),
         proxy=_proxy(document["proxy"], pool),
         timeouts=_timeouts(document.get("timeouts")),
+        network=_network(document.get("network")),
         arms=arms,
         tasks=_tasks(document["tasks"], base_dir),
         comparisons=_comparisons(document.get("comparisons", []), arms),
     )
     _validate_trial_routes(config)
     return config
+
+
+def _network(value: object) -> NetworkAccess:
+    """Read the optional `network` block, restating its refusal as a campaign refusal."""
+    try:
+        return parse_network_access(value)
+    except NetworkAccessError as error:
+        raise CampaignConfigError(str(error)) from error
 
 
 def _timeouts(value: object) -> Mapping[str, int]:
