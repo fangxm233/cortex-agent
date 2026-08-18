@@ -50,51 +50,12 @@ export interface RoleToolSurfaceInput {
   mcpComposition: McpComposition;
   mcpToolAllowlist?: string[];
   hookPolicy: IdentityJsonValue;
-  benchmarkPolicyGuard?: IdentityJsonValue;
-}
-
-export interface BundleManifestInput {
-  runConfig: IdentityJsonValue;
-  limits: IdentityJsonValue;
-  resolvedPaths: IdentityJsonValue;
-  adapterHashes: IdentityJsonValue;
-  harnessHashes: IdentityJsonValue;
-  modelExecutionIdentityHash: string;
-  roleToolSurfaceHash: string;
 }
 
 export interface LauncherBundleManifestInput {
   npmArtifactSha256: string;
   backendCli: { name: string; version: string };
   preBootInputBundleSha256: string;
-}
-
-export interface FrozenIdentity {
-  modelExecutionIdentityHash: string;
-  roleToolSurfaceHash: string;
-  bundleManifestHash: string;
-}
-
-export class IdentityProfileFallbackError extends Error {
-  readonly reason = 'identity_profile_has_fallbacks' as const;
-
-  constructor() {
-    super('Cannot freeze identity for a profile with fallbacks');
-    this.name = 'IdentityProfileFallbackError';
-  }
-}
-
-export interface FrozenIdentityInput {
-  resolvedProfile: ResolvedProfileConfig;
-  modelExecution: Omit<
-    ModelExecutionIdentityInput,
-    'backend' | 'requestedModel' | 'providerProtocol' | 'reasoningEffort' | 'fallbackEmpty'
-  >;
-  roleToolSurface: RoleToolSurfaceInput;
-  bundleManifest: Omit<
-    BundleManifestInput,
-    'modelExecutionIdentityHash' | 'roleToolSurfaceHash'
-  >;
 }
 
 function canonicalPrimitive(value: unknown): string | undefined {
@@ -181,19 +142,6 @@ export function computeRoleToolSurfaceHash(input: RoleToolSurfaceInput): string 
     mcp_tool_allowlist: input.mcpToolAllowlist
       ? [...new Set(input.mcpToolAllowlist)].sort() : undefined,
     hook_policy: input.hookPolicy,
-    benchmark_policy_guard: input.benchmarkPolicyGuard,
-  });
-}
-
-export function computeBundleManifestHash(input: BundleManifestInput): string {
-  return canonicalJsonSha256({
-    run_config: input.runConfig,
-    limits: input.limits,
-    resolved_paths: input.resolvedPaths,
-    adapter_hashes: input.adapterHashes,
-    harness_hashes: input.harnessHashes,
-    model_execution_identity_hash: input.modelExecutionIdentityHash,
-    role_tool_surface_hash: input.roleToolSurfaceHash,
   });
 }
 
@@ -203,24 +151,4 @@ export function computeLauncherBundleManifestHash(input: LauncherBundleManifestI
     backend_cli: input.backendCli,
     pre_boot_input_bundle_sha256: input.preBootInputBundleSha256,
   });
-}
-
-export function freezeIdentity(input: FrozenIdentityInput): FrozenIdentity {
-  if (input.resolvedProfile.fallback.length > 0) throw new IdentityProfileFallbackError();
-  const modelExecutionIdentityHash = computeModelExecutionIdentityHash({
-    ...input.modelExecution,
-    backend: input.resolvedProfile.backend,
-    requestedModel: input.resolvedProfile.model,
-    providerProtocol: input.resolvedProfile.provider,
-    reasoningEffort: input.resolvedProfile.thinking,
-    maxOutputTokens: input.modelExecution.maxOutputTokens ?? null,
-    fallbackEmpty: true,
-  });
-  const roleToolSurfaceHash = computeRoleToolSurfaceHash(input.roleToolSurface);
-  const bundleManifestHash = computeBundleManifestHash({
-    ...input.bundleManifest,
-    modelExecutionIdentityHash,
-    roleToolSurfaceHash,
-  });
-  return { modelExecutionIdentityHash, roleToolSurfaceHash, bundleManifestHash };
 }

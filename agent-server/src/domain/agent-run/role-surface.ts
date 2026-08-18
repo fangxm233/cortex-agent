@@ -133,7 +133,6 @@ function systemPromptSha256(config: AgentSpawnConfig): string {
 export function roleSurfaceFromSpawnConfig(
   config: AgentSpawnConfig,
   directive = '',
-  benchmarkPolicyGuard?: IdentityJsonValue,
 ): RoleToolSurfaceInput {
   const pluginDirs = config.pluginDirs ?? [];
   const surface: RoleToolSurfaceInput = {
@@ -147,9 +146,6 @@ export function roleSurfaceFromSpawnConfig(
   };
   if (config.mcpToolAllowlist !== undefined) {
     surface.mcpToolAllowlist = config.mcpToolAllowlist;
-  }
-  if (benchmarkPolicyGuard !== undefined) {
-    surface.benchmarkPolicyGuard = benchmarkPolicyGuard;
   }
   return surface;
 }

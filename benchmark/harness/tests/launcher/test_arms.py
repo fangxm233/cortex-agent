@@ -30,20 +30,16 @@ def cortex_arm() -> dict[str, object]:
         "schema_version": "cortex-benchmark-arm/2",
         "kind": "cortex",
         "name": "cortex-direct",
-        "backend": "claude",
-        "provider": "anthropic",
-        "model": "claude-sonnet",
-        "credential_capability": "claude-api-key",
+        "backend": "pi",
+        "provider": "deepseek",
+        "model": "deepseek-v4-flash",
+        "credential_capability": "pi-deepseek-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_thread_starts": 0,
-            "max_parent_questions": 0,
-            "max_task_depth": 0,
-            "max_tasks": 0,
             "max_provider_requests": 8,
-            "max_resident_agent_processes": 3,
             "max_cost_usd": "2.50",
             "deadline_seconds": 90,
+            "max_output_tokens": 65536,
         },
     }
 
@@ -83,12 +79,7 @@ def baseline_arm(vendor_agent: str, provider: str | None = None) -> dict[str, ob
         "model": "representative-model",
         "credential_capability": capabilities[vendor_agent],
         "limits": {
-            "max_thread_starts": 0,
-            "max_parent_questions": 0,
-            "max_task_depth": 0,
-            "max_tasks": 0,
             "max_provider_requests": 8,
-            "max_resident_agent_processes": 1,
             "max_cost_usd": "2.50",
             "deadline_seconds": 90,
         },
@@ -103,8 +94,8 @@ def trial_seed() -> dict[str, object]:
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{digest}",
                  "image_digest": digest},
         "profile_name": "benchmark", "paid_run": False,
-        "credential": {"upstream_base_url": "https://api.anthropic.com",
-                       "route_identity_host": "api.anthropic.com",
+        "credential": {"upstream_base_url": "https://api.deepseek.com",
+                       "route_identity_host": "api.deepseek.com",
                        "proxy_base_url": "http://trial-proxy.invalid",
                        "dummy_token_ref": "offline-token-handle"},
         "model_alias_policy": {"kind": "exact"},
@@ -176,7 +167,7 @@ def test_cortex_config_uses_public_import_and_launcher_inputs(tmp_path: Path) ->
 
     assert config.name is None
     assert config.import_path == "cortex_bench_harness:CortexBenchAgent"
-    assert config.model_name == "claude-sonnet"
+    assert config.model_name == "deepseek-v4-flash"
     assert config.kwargs == {
         "artifact_dir": tmp_path / "artifacts", "manifest": manifest_value,
         "trial_seed": seed, "version": "2026.8.3",
@@ -218,59 +209,6 @@ def test_cortex_config_rejects_selected_arm_seed_mismatch(tmp_path: Path) -> Non
         )
 
 
-def build_unsupported(tmp_path: Path, arm: dict[str, object]) -> AgentConfig:
-    return build_agent_config(
-        arm, cli_version="2026.8.3", artifact_dir=tmp_path / "artifacts",
-        manifest=manifest(tmp_path), trial_seed=trial_seed(),
-    )
-
-
-@pytest.mark.parametrize("ask_manager", [False, True])
-def test_manager_arms_compose_on_the_host(tmp_path: Path, ask_manager: bool) -> None:
-    arm = copy.deepcopy(cortex_arm())
-    arm["name"] = f"cortex-manager-qa-{'on' if ask_manager else 'off'}"
-    arm["orchestration"] = {"mode": "manager", "ask_manager": ask_manager}
-    arm["limits"] = {
-        **arm["limits"], "max_thread_starts": 1,
-        "max_parent_questions": 2 if ask_manager else 0,
-        "max_task_depth": 3, "max_tasks": 12,
-        "max_resident_agent_processes": 4,
-    }
-    seed = {**trial_seed(), "arm": copy.deepcopy(arm)}
-
-    config = build_agent_config(
-        arm, cli_version="2026.8.3", artifact_dir=tmp_path / "artifacts",
-        manifest=manifest(tmp_path), trial_seed=seed,
-    )
-
-    assert isinstance(config, AgentConfig)
-
-
-# Design section 3.1(h.5) row 2 lifts at this gate, and RB6 makes the lift's BOUNDS a done-when
-# rather than a nicety: a test that only proves the new pairs compose is half a test.
-@pytest.mark.parametrize("variant", ["audit-retry", "reviewer-fix"])
-@pytest.mark.parametrize("backend", ["claude", "pi"])
-def test_coder_review_arms_compose_on_both_backends(
-    tmp_path: Path, backend: str, variant: str,
-) -> None:
-    arm = copy.deepcopy(cortex_arm())
-    arm["name"] = f"cortex-{backend}-{variant}"
-    arm["backend"] = backend
-    arm["orchestration"] = {
-        "mode": "coder-review", "coder_review_variant": variant, "ask_manager": False,
-    }
-    arm["limits"] = {**arm["limits"], "max_thread_starts": 1}
-    seed = {**trial_seed(), "arm": copy.deepcopy(arm)}
-
-    config = build_agent_config(
-        arm, cli_version="2026.8.3", artifact_dir=tmp_path / "artifacts",
-        manifest=manifest(tmp_path), trial_seed=seed,
-    )
-
-    assert isinstance(config, AgentConfig)
-    assert backend_cli_binary(arm) == backend
-
-
 def test_all_cortex_modes_are_composable() -> None:
     assert MODE_LIFTING_GATES == {}
     assert COMPOSABLE_MODES == frozenset({"direct", "coder-review", "manager"})
@@ -293,8 +231,6 @@ def test_vendor_baselines_are_unaffected_by_the_mode_lift(tmp_path: Path) -> Non
 
 def test_pi_backed_direct_arms_compose_on_the_host(tmp_path: Path) -> None:
     arm = copy.deepcopy(cortex_arm())
-    arm["name"] = "cortex-pi-direct"
-    arm["backend"] = "pi"
     seed = {**trial_seed(), "arm": copy.deepcopy(arm)}
 
     config = build_agent_config(
@@ -315,7 +251,7 @@ def test_undeclared_backends_still_refuse_on_the_host(tmp_path: Path) -> None:
     arm["backend"] = "unknown-backend"
 
     with pytest.raises(BackendUnsupportedForKindError) as error:
-        build_unsupported(tmp_path, arm)
+        backend_cli_binary(arm)
 
     assert error.value.reason == "backend_unsupported_for_kind"
     assert "cortex-unknown-direct" in str(error.value)

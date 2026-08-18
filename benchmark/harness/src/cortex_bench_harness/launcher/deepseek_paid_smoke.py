@@ -76,8 +76,7 @@ def _validate_execution(
     if any(orchestration.get(key) != value for key, value in exact.items()):
         raise ValueError("DeepSeek paid smoke contract orchestration differs")
     limits_exact = {
-        "max_provider_requests": 1, "max_thread_starts": 0,
-        "max_resident_agent_processes": 1, "max_cost_usd": "0.05",
+        "max_provider_requests": 1, "max_cost_usd": "0.05",
         "deadline_seconds": 120,
         # The completion cap is a declared per-trial limit rather than an adapter constant, so
         # this one-shot contract has to name the value it was approved for like any other run.

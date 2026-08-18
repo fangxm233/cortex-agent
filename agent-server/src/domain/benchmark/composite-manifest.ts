@@ -14,12 +14,6 @@ import {
   type EndpointRefKind,
 } from './attempt-record.js';
 import type { AccountingRecord } from './accounting-reconciliation.js';
-import {
-  BENCHMARK_FAILURES, type BenchmarkFailureClass, type BenchmarkFailureReason,
-} from './resolved-policy.js';
-import {
-  NODE_TRAJECTORY_MERGE_FS, type TrajectoryMergeFileSystem,
-} from '../agent-run/trajectory-merge.js';
 
 export type { AttemptEdge, AttemptEdgeKind, AttemptRecord, EndpointRef, EndpointRefKind };
 export { ATTEMPT_EDGE_KINDS, EDGE_ENDPOINT_LEGALITY };
@@ -123,8 +117,6 @@ export const COMPOSITE_MANIFEST_VIOLATION_CODES = [
   'edge_endpoint_type_invalid',
   // §9.2 invariant 2
   'attempt_dag_cycle', 'attempt_dag_unrooted',
-  // §9.2 invariant 3
-  'task_depth_exceeded', 'task_count_exceeded',
   // §9.2 invariant 4 (biconditional)
   'attempt_missing_lifecycle_pair', 'lifecycle_pair_missing_attempt',
   // canonical order and projection
@@ -145,10 +137,11 @@ const UNACCOUNTED_CODES = new Set<CompositeManifestViolationCode>([
   'attempt_missing_lifecycle_pair', 'lifecycle_pair_missing_attempt',
 ]);
 
-function failureCode(reason: BenchmarkFailureReason): number {
-  const failure = BENCHMARK_FAILURES.find(candidate => candidate.reason === reason);
-  if (!failure) throw new Error(`Unknown benchmark failure reason: ${reason}`);
-  return failure.code;
+type CompositeFailureReason = 'composite_manifest_invalid' | 'attempt_unaccounted';
+type BenchmarkFailureClass = 'R';
+
+function failureCode(reason: CompositeFailureReason): number {
+  return reason === 'attempt_unaccounted' ? 39 : 40;
 }
 
 export interface CompositeManifestViolation {
@@ -163,20 +156,15 @@ export class CompositeManifestError extends Error {
   readonly failureClass: BenchmarkFailureClass;
 
   constructor(
-    readonly reason: Extract<
-      BenchmarkFailureReason, 'composite_manifest_invalid' | 'attempt_unaccounted'
-    > | 'output_path_exists',
+    readonly reason: CompositeFailureReason | 'output_path_exists',
     detail: string,
     readonly violations: readonly CompositeManifestViolation[] = [],
   ) {
     super(`${reason}: ${detail}`);
     this.name = 'CompositeManifestError';
-    // `output_path_exists` is the merge taxonomy's reason (`trajectory-merge.ts:23`); as a benchmark
-    // failure it rides 40, because a manifest that could not be published is an invalid one.
-    const rides = reason === 'attempt_unaccounted' ? 'attempt_unaccounted' : 'composite_manifest_invalid';
-    const failure = BENCHMARK_FAILURES.find(candidate => candidate.reason === rides)!;
-    this.code = failure.code;
-    this.failureClass = failure.failureClass;
+    const rides = reason === 'attempt_unaccounted' ? reason : 'composite_manifest_invalid';
+    this.code = failureCode(rides);
+    this.failureClass = 'R';
   }
 
   record(): Record<string, unknown> {
@@ -423,7 +411,6 @@ export function canonicalCompositeManifestBytes(manifest: CompositeManifest): Bu
 // ---------------------------------------------------------------------------------------------
 
 export interface CompositeManifestContext {
-  readonly limits: { readonly max_task_depth: number; readonly max_tasks: number };
   /**
    * The lifecycle stems observed under the trajectory root, i.e. the `<stem>` of every
    * `<stem>.started.json`. Supplied as DATA so the validator stays pure — the same reason §17
@@ -590,37 +577,6 @@ export function validateCompositeManifest(
     add('nodes_out_of_order', 'nodes are not in (depth, attempt_ordinal, attempt_id) order');
   }
 
-  // ---- §9.2 invariant 3: policy bounds ------------------------------------------------------
-  // `max_task_depth` bounds TASK depth. Of the three depth kinds only `decompose` (manager attempt
-  // → child task) and `dispatch` (child task → child attempt) are task-denominated; `spawn` is
-  // attempt → child THREAD attempt (`design:2680`). §1.3 rule 7 forces `max_task_depth = 0` for
-  // every non-manager mode, i.e. exactly where there is no task table at all, so counting a THREAD
-  // edge against a TASK bound there is a category error: it made §9.4 C4's up-to-four-attempt
-  // `audit-retry` trial unpublishable, and with invariant 4's biconditional already forcing the
-  // child's on-disk lifecycle pair to BE a node, no member of the closed edge union could connect
-  // it — descent edges tripped this bound, everything else left the DAG unrooted.
-  //
-  // The taskless carve-out is the one three lines below, applied to the depth conjunct for the same
-  // reason: `roots.root_task_id === null` is the only place the taskless shape is visible
-  // (`design:8046`). A taskless trial is bounded by `max_thread_starts` (0 or 1, `arm-schema.ts`)
-  // and §9.4 C2's single admitted start, not by this limit. The depth WALK is deliberately
-  // unchanged: `depths` also orders nodes under G4-CM12, so narrowing it would move node order too.
-  const taskless = manifest.roots?.root_task_id === null;
-  for (const node of nodes) {
-    const depth = depths.get(node.attempt_id);
-    if (!taskless && depth !== undefined && depth > context.limits.max_task_depth) {
-      add('task_depth_exceeded', `${node.attempt_id} at depth ${depth}`);
-    }
-  }
-  // In a taskless mode (G4-CM11) `task_id` carries `trial_id` as a RE-USED identifier, not a task,
-  // and `roots.root_task_id === null` is the only place that shape is visible (17.1.6). Counting
-  // the placeholder would make every `direct` trial exceed its own `max_tasks = 0`, contradicting
-  // §9.4 D2, which declares such a trial valid.
-  const distinctTasks = manifest.roots?.root_task_id === null ? 0 : taskIds.size;
-  if (distinctTasks > context.limits.max_tasks) {
-    add('task_count_exceeded', `${distinctTasks} distinct task_id > ${context.limits.max_tasks}`);
-  }
-
   // ---- §9.2 invariant 4: the biconditional over lifecycle pairs -----------------------------
   const stems = new Set(context.lifecycleStems);
   for (const node of nodes) {
@@ -720,19 +676,41 @@ export function validateCompositeManifest(
 // F8 — the composite manifest's atomic publication (§9.5, §7.2 P22 `publishComposite`)
 // ---------------------------------------------------------------------------------------------
 
+export interface CompositeManifestFileSystem {
+  readFile(filePath: string): Buffer;
+  exists(filePath: string): boolean;
+  open(filePath: string, flags: number, mode: number): number;
+  write(fd: number, data: Buffer, offset: number, length?: number): number;
+  fsync(fd: number): void;
+  close(fd: number): void;
+  link(source: string, destination: string): void;
+  unlink(filePath: string): void;
+}
+
+export const NODE_COMPOSITE_MANIFEST_FS: CompositeManifestFileSystem = {
+  readFile: filePath => fs.readFileSync(filePath),
+  exists: filePath => fs.existsSync(filePath),
+  open: (filePath, flags, mode) => fs.openSync(filePath, flags, mode),
+  write: (fd, data, offset, length = data.length - offset) => fs.writeSync(fd, data, offset, length),
+  fsync: fd => fs.fsyncSync(fd),
+  close: fd => fs.closeSync(fd),
+  link: (source, destination) => fs.linkSync(source, destination),
+  unlink: filePath => fs.unlinkSync(filePath),
+};
+
 function temporaryPath(outputPath: string): string {
   const nonce = `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
   return `${outputPath}.tmp.${nonce}`;
 }
 
-function writeFull(fd: number, bytes: Buffer, fileSystem: TrajectoryMergeFileSystem): void {
+function writeFull(fd: number, bytes: Buffer, fileSystem: CompositeManifestFileSystem): void {
   let offset = 0;
   while (offset < bytes.length) {
     offset += fileSystem.write(fd, bytes, offset, bytes.length - offset);
   }
 }
 
-function safeCleanup(filePath: string, fileSystem: TrajectoryMergeFileSystem): void {
+function safeCleanup(filePath: string, fileSystem: CompositeManifestFileSystem): void {
   try {
     if (fileSystem.exists(filePath)) fileSystem.unlink(filePath);
   } catch { /* cleanup is best-effort; the publication result is what matters */ }
@@ -743,8 +721,8 @@ function isErrno(error: unknown, code: string): boolean {
 }
 
 /**
- * F8's manifest half. The atomicity is the shipped one (`trajectory-merge.ts:426-444`): temp opened
- * `O_EXCL`, written, fsynced, closed, then hard-LINKED to the final path. A pre-existing final path
+ * F8's manifest half opens a temp path with `O_EXCL`, writes, fsyncs, closes, then hard-links it
+ * to the final path. A pre-existing final path
  * is `output_path_exists` and a HARD failure — G4-PB6's ground for keeping one production writer,
  * because a second writer turns that hard failure into a race.
  *
@@ -756,7 +734,7 @@ function isErrno(error: unknown, code: string): boolean {
 export function publishComposite(
   manifest: CompositeManifest,
   outputPath: string,
-  fileSystem: TrajectoryMergeFileSystem = NODE_TRAJECTORY_MERGE_FS,
+  fileSystem: CompositeManifestFileSystem = NODE_COMPOSITE_MANIFEST_FS,
 ): { path: string; sha256: string } {
   const resolved = path.resolve(outputPath);
   const bytes = canonicalCompositeManifestBytes(manifest);

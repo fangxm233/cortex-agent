@@ -33,16 +33,12 @@ import {
 } from '../src/agent-adapter/claude/spawn-args.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import {
-  BENCHMARK_THREAD_SERVER_NAME,
   buildServerStates,
   pluginServerStateName,
 } from '../src/agent-adapter/pi/mcp-bridge.js';
 import { safeNativeComposite } from '../src/domain/plugins/native-name.js';
 import { PI_PLUGIN_MCP_CONFIG_ENV } from '../src/agent-adapter/pi/mcp-config.js';
-import { PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/policy-guard.js';
-import {
-  buildPiEnv, PI_BENCHMARK_THREAD_POLICY_ENV,
-} from '../src/agent-adapter/pi/spawn-args.js';
+import { buildPiEnv, PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/spawn-args.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
 import { CONFIG_DIR, DATA_DIR } from '../src/core/paths.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
@@ -186,7 +182,6 @@ test('resolveMcpComposition gives explicit values precedence over the legacy boo
     'direct',
     'thread-control',
     'none',
-    'benchmark-thread-run',
   ];
   for (const composition of explicit) {
     assert.equal(resolveMcpComposition(composition, false), composition);
@@ -412,27 +407,6 @@ function assertChannelPluginFiltering(): void {
 
 test('channel-scoped plugin filtering happens before runtime projection', assertChannelPluginFiltering);
 
-function assertFrozenBenchmarkPluginPath(): void {
-  const pluginDirs = ['frozen/plugins/cortex-feishu'];
-  const config = facadeTest.buildSpawnConfig({
-    pluginDirs,
-    benchmarkPolicyGuard: {} as never,
-    pinnedEnv: {},
-    mcpComposition: 'benchmark-thread-run',
-    loadCortexRules: false,
-  }, FIXTURE_CONFIG, undefined);
-
-  assert.deepEqual(config.pluginDirs, pluginDirs);
-  assert.equal(config.pluginSkillDirs, undefined);
-  assert.equal(config.mcpServers, undefined);
-  assert.equal(config.pluginCapabilityFingerprint, undefined);
-}
-
-test(
-  'benchmark spawn preserves frozen plugin paths without ambient catalog resolution',
-  assertFrozenBenchmarkPluginPath,
-);
-
 function assertMalformedPluginDirsIgnored(): void {
   const config = facadeTest.buildSpawnConfig({
     channel: 'general',
@@ -460,13 +434,12 @@ test('ordinary direct and thread spawn argv and environment match base goldens b
   }
 });
 
-test('restricted compositions are strict and expose only their declared MCP servers', () => {
+test('the empty composition is strict and exposes no MCP servers', () => {
   generateMcpConfig();
   assert.deepEqual(declaredServers('none'), []);
-  assert.deepEqual(declaredServers('benchmark-thread-run'), ['cortex-benchmark-thread']);
 });
 
-test('initialization writes both restricted MCP composition files', () => {
+test('initialization writes the empty MCP composition file', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'cortex-init-composition-'));
   const paths = getResolvedPaths(root);
   const answers: InitAnswers = {
@@ -478,12 +451,7 @@ test('initialization writes both restricted MCP composition files', () => {
   try {
     generateConfigs(paths, answers, false);
     const empty = JSON.parse(readFileSync(path.join(paths.CONFIG_DIR, 'mcp-config-empty.json'), 'utf8'));
-    const benchmark = JSON.parse(readFileSync(
-      path.join(paths.CONFIG_DIR, 'mcp-config-benchmark-thread.json'),
-      'utf8',
-    ));
     assert.deepEqual(Object.keys(empty.mcpServers), []);
-    assert.deepEqual(Object.keys(benchmark.mcpServers), ['cortex-benchmark-thread']);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -498,43 +466,20 @@ function stubPiChild(): ChildProcessWithoutNullStreams {
   return child;
 }
 
-// Design §13 P13 lifted the outright refusal this test used to pin. What replaced it is not "PI no
-// longer throws" but the strict composition itself: the restricted value reaches the child, and the
-// bridge on the far side of that variable yields exactly the composition's servers (§5.6 P1).
-test('PI accepts the restricted MCP compositions and carries them strictly', () => {
+test('PI carries the empty MCP composition strictly', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'pi-strict-'));
-  const policyPath = path.join(root, 'benchmark-thread-policy.json');
-  const mcpConfigPath = path.join(root, 'benchmark-thread-mcp.json');
-  writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: {
-    'cortex-benchmark-thread': {
-      command: 'node', args: ['/installed/benchmark-thread-server.js'],
-      cwd: '/installed', env: { [PI_BENCHMARK_THREAD_POLICY_ENV]: policyPath },
-    },
-  } }));
   const spawned: NodeJS.ProcessEnv[] = [];
   const adapter = new PIAdapter((_cmd, _args, opts) => {
     spawned.push(opts.env ?? {});
     return { process: stubPiChild() };
   }, root);
 
-  for (const composition of ['none', 'benchmark-thread-run'] as const) {
-    adapter.spawn({
-      sessionId: null, sessionKey: `pi-${composition}`, resume: false,
-      mcpComposition: composition,
-      mcpConfigPaths: composition === 'benchmark-thread-run' ? [mcpConfigPath] : undefined,
-    });
-  }
-  assert.equal(spawned.length, 2);
+  adapter.spawn({
+    sessionId: null, sessionKey: 'pi-none', resume: false,
+    mcpComposition: 'none',
+  });
   assert.equal(spawned[0][PI_MCP_COMPOSITION_ENV], 'none');
-  assert.equal(spawned[1][PI_MCP_COMPOSITION_ENV], 'benchmark-thread-run');
-  assert.equal(spawned[1][PI_BENCHMARK_THREAD_POLICY_ENV], policyPath);
-
-  // The far side of the env seam: the same values decide the bridge's server set.
   assert.deepEqual(buildServerStates(spawned[0]), []);
-  assert.deepEqual(
-    buildServerStates(spawned[1]).map(state => state.name),
-    [BENCHMARK_THREAD_SERVER_NAME],
-  );
   rmSync(root, { recursive: true, force: true });
 });
 

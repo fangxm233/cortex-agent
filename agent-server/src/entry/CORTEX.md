@@ -11,7 +11,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | boot-jobs.ts | wiring | registers optional client and archive timers |
 | cli-help.ts | cli | builds top-level and subcommand help |
 | cli.ts | entry | dispatches the full operator CLI handlers |
-| cortex-cli.ts | entry | isolates agent-run from the operator CLI graph |
+| cortex-cli.ts | entry | boots the operator CLI package command |
 | daemon.ts | entry | supervises app with shared resilient monitors |
 | daemon-notice.ts | wiring | broadcasts supervisor notices to the operator |
 | draft-attachments.ts | files | promotes draft uploads into session storage |

@@ -176,9 +176,9 @@ def _unavailable(reason: str) -> dict[str, str]:
 def _lift_assets(
     logs_dir: Path, npm_artifact: Path, bundle_root: str, root_template: str | None,
 ) -> PublishedAssets | str:
-    """Copy the model-visible assets this trial's composition named, so the record answers "what
-    did the model see" out of its own directory. Production prompts come from the materialized arm
-    home; legacy assets come from the installed bundle. A failed lift is recorded as unavailable.
+    """Copy the production arm's model-visible assets into the trial record.
+
+    A failed lift is recorded as unavailable.
     """
     try:
         return publish_trial_assets(
@@ -417,7 +417,8 @@ def _proxy_usage(
         return {
             "schema_version": absent, "trial_id": trial_id, "requests": absent,
             "input_tokens": absent, "output_tokens": absent, "cached_tokens": absent,
-            "audit_entries": absent, "audit_outcomes": absent, "lease_echo": absent,
+            "audit_entries": absent, "audit_outcomes": absent,
+            "lease_echo": _unavailable("unavailable_by_design"),
         }
     audit = _as_emitted(export.get("audit_log"))
     return {
@@ -428,7 +429,7 @@ def _proxy_usage(
         "cached_tokens": _as_emitted(export.get("cached_tokens")),
         "audit_entries": _audit_field(audit, "entries"),
         "audit_outcomes": _audit_field(audit, "outcomes"),
-        "lease_echo": _as_emitted(export.get("lease_echo")),
+        "lease_echo": _unavailable("unavailable_by_design"),
     }
 
 

@@ -4,7 +4,6 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import {
-  BENCHMARK_THREAD_MCP_CONFIG,
   CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
   EMPTY_MCP_CONFIG,
@@ -22,11 +21,7 @@ import {
 } from './defaults.js';
 import { getSettings } from '@core/settings.js';
 import { materializeMcpToolAllowlistConfigs } from '@core/config-generator.js';
-import type { IdentityJsonValue } from '../../domain/agent-run/identity.js';
 import type { McpComposition } from '../types.js';
-// The cleanup grace is one backend-neutral quantity: design §5.7 C3 defines the Claude budget as
-// "the same quantity as P2", so a second copy of `1000 + 5000` here could only ever drift from it.
-import { MCP_CLEANUP_GRACE_MS } from '../pi/mcp-duration.js';
 import { buildHooksSettings } from './hooks-builder.js';
 
 /**
@@ -53,10 +48,8 @@ export interface ClaudeSpawnOptions {
   mcpToolAllowlist?: string[] | null;
   /** Supplemental Claude MCP config written from portable runtime servers. */
   supplementalMcpConfigPath?: string | null;
-  /** Omit all configured **ambient** hooks for isolated one-shot execution. */
+  /** Omit all configured ambient hooks. */
   disableHooks?: boolean;
-  /** Compiled benchmark policy guard. Present makes the guard the entire hooks surface. */
-  benchmarkPolicyGuard?: IdentityJsonValue;
   /** Explicit partial-message policy; absent reads the daemon setting. */
   streamDeltas?: boolean;
   /** Layer the cortex-slack MCP server on top of the base config. Set by the adapter for sessions
@@ -92,7 +85,6 @@ const MCP_CONFIGS: Record<McpComposition, readonly string[]> = {
   direct: [MCP_CONFIG],
   'thread-control': [CORE_MCP_CONFIG, TASKS_MCP_CONFIG, MANAGER_QA_MCP_CONFIG, THREAD_MCP_CONFIG],
   none: [EMPTY_MCP_CONFIG],
-  'benchmark-thread-run': [BENCHMARK_THREAD_MCP_CONFIG],
 };
 
 function appendDirectMcpConfigs(
@@ -167,9 +159,7 @@ function appendCoreArgs(
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', ...configs,
   );
-  if (composition === 'none' || composition === 'benchmark-thread-run') {
-    args.push('--strict-mcp-config');
-  }
+  if (composition === 'none') args.push('--strict-mcp-config');
   args.push('--tools', tools);
 }
 
@@ -208,12 +198,9 @@ function appendExtraOptions(
   for (const [flag, value] of Object.entries(options ?? {})) args.push(flag, value);
 }
 
-/** A compiled benchmark guard replaces the ambient hook surface completely. */
 function buildClaudeSettings(options: ClaudeSpawnOptions): Record<string, any> {
   const settings: Record<string, any> = {
-    hooks: options.benchmarkPolicyGuard !== undefined
-      ? options.benchmarkPolicyGuard
-      : (options.disableHooks ? {} : buildHooksSettings(options.tools)),
+    hooks: options.disableHooks ? {} : buildHooksSettings(options.tools),
   };
   if (options.outputStyle) settings.outputStyle = options.outputStyle;
   return settings;
@@ -277,7 +264,6 @@ export function buildClaudeEnv(
   extraEnv?: Record<string, string>,
   context?: CortexAgentContext,
   pinnedEnv?: NodeJS.ProcessEnv,
-  benchmarkDeadlineEpochMs?: number,
 ): NodeJS.ProcessEnv {
   // Allowlist-first for a pinned trial: the child starts from the exact trial environment and
   // inherits nothing from the host, so no denylist can leak a host credential or platform
@@ -314,17 +300,6 @@ export function buildClaudeEnv(
   if (anthropicBaseUrl) env.ANTHROPIC_BASE_URL = anthropicBaseUrl;
   if (extraEnv) {
     for (const [key, value] of Object.entries(extraEnv)) env[key] = value;
-  }
-  // The CLI owns the MCP client on this backend, so the only budget Cortex can supply is the pair it
-  // reads from its environment: `MCP_TOOL_TIMEOUT` per tool call and `MCP_TIMEOUT` for server
-  // startup. Both carry the remaining trial time plus the cleanup grace, so a benchmark call
-  // outlives the CLI's native default yet is still cut off with the trial rather than after it.
-  // Derived here, at the instant the child environment is built, and never carried as a stored
-  // duration; written after the `extraEnv` merge so an inherited value cannot raise the bound.
-  if (benchmarkDeadlineEpochMs !== undefined) {
-    const budgetMs = Math.max(0, benchmarkDeadlineEpochMs - Date.now()) + MCP_CLEANUP_GRACE_MS;
-    env.MCP_TOOL_TIMEOUT = String(budgetMs);
-    env.MCP_TIMEOUT = String(budgetMs);
   }
   delete env.CORTEX_THREAD_ID;
   delete env.CORTEX_PROFILE;

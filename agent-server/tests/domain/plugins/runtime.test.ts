@@ -143,7 +143,7 @@ function unmanagedRoot(harness: Harness, name: string): string {
 function resolveRuntime(
   harness: Harness,
   selectedPluginDirs: string[],
-  options: { backend?: 'claude' | 'pi'; mcpComposition?: 'direct' | 'thread-control' | 'none' | 'benchmark-thread-run' } = {},
+  options: { backend?: 'claude' | 'pi'; mcpComposition?: 'direct' | 'thread-control' | 'none' } = {},
 ) {
   return resolvePluginRuntime({
     backend: options.backend ?? 'claude',
@@ -770,12 +770,7 @@ test('suppresses portable MCP for restricted compositions only', () => {
     backend: 'pi',
     mcpComposition: 'none',
   });
-  const benchmark = resolveRuntime(harness, ['plugins/portable-restricted'], {
-    backend: 'pi',
-    mcpComposition: 'benchmark-thread-run',
-  });
 
   assert.equal(direct.mcpServers?.length, 1);
   assert.equal(none.mcpServers, undefined);
-  assert.equal(benchmark.mcpServers, undefined);
 });

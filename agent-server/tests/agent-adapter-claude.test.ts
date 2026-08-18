@@ -26,7 +26,6 @@ import {
 } from '../src/agent-adapter/claude/hooks-builder.js';
 import { summarizeToolInput } from '../src/agent-adapter/claude/tool-summarizers.js';
 import {
-  BENCHMARK_THREAD_MCP_CONFIG,
   CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
   EMPTY_MCP_CONFIG,
@@ -192,7 +191,6 @@ function supplementalCompositionArgs(): Record<string, string[]> {
       mcpComposition: 'none',
       mcpConfigPaths: ['/fixture/empty.json'],
     }),
-    benchmark: buildSupplementalArgs({ mcpComposition: 'benchmark-thread-run' }),
   };
 }
 
@@ -210,7 +208,6 @@ function assertSupplementalCompositionPaths(args: Record<string, string[]>): voi
     '/fixture/supplemental.json',
   ]);
   assert.deepEqual(mcpConfigPaths(args.none), ['/fixture/empty.json']);
-  assert.deepEqual(mcpConfigPaths(args.benchmark), [BENCHMARK_THREAD_MCP_CONFIG]);
 }
 
 // --- buildSpawnArgs (pure) ---

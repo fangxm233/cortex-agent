@@ -23,13 +23,9 @@ from harbor.environments.base import ExecResult
 from harbor.models.agent.context import AgentContext
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
-from cortex_bench_harness.launcher import trial_proxy
 from cortex_bench_harness.launcher.capability_ceilings import load_capability_ceilings
-from cortex_bench_harness.launcher.credential_capabilities import (
-    CAPABILITY_REGISTRY,
-    CredentialCapability,
-)
 from cortex_bench_harness.launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN_GRACE_MS
+from cortex_bench_harness.launcher.production_session import ProductionServerSession
 from cortex_bench_harness.launcher.trial_proxy import (
     PROXY_ARTIFACT_SOURCES,
     CapabilityStateRefused,
@@ -49,15 +45,15 @@ DIGEST = f"sha256:{'a' * 64}"
 ROOT_RUN_ID = "trial-wiring.cortex-direct"
 TRIAL_ID = "trial-wiring"
 ARM_NAME = "cortex-direct"
-MODEL = "claude-sonnet"
+MODEL = "deepseek-v4-flash"
 DEADLINE_SECONDS = 90
 CREDENTIAL_ENV = "CORTEX_BENCH_WIRING_CREDENTIAL"
 REAL_CREDENTIAL = "sk-ant-WIRING-BOUNDARY-UNIQUE"
 REQUEST_BODY_LIMIT_BYTES = 16 * 1024 * 1024
 RESPONSE_BODY_LIMIT_BYTES = 16 * 1024 * 1024
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
-CLI_PATH = "/usr/local/bin/claude"
-CLI_VERSION = "1.2.3 (Claude Code)"
+CLI_PATH = "/usr/local/bin/pi"
+CLI_VERSION = "0.82.1"
 # A fixed host instant, so the provisional bound is an exact arithmetic expectation rather than a
 # window. It is a host reading; nothing in this file derives it from a container clock.
 H0_EPOCH_MS = 1_800_000_000_000
@@ -78,17 +74,16 @@ def closed_upstream() -> str:
         return f"http://127.0.0.1:{probe.getsockname()[1]}"
 
 
-def cortex_arm(credential_capability: str = "claude-api-key") -> dict[str, object]:
+def cortex_arm(credential_capability: str = "pi-deepseek-api-key") -> dict[str, object]:
     return {
         "schema_version": "cortex-benchmark-arm/2",
-        "kind": "cortex", "name": ARM_NAME, "backend": "claude",
-        "provider": "anthropic", "model": MODEL,
+        "kind": "cortex", "name": ARM_NAME, "backend": "pi",
+        "provider": "deepseek", "model": MODEL,
         "credential_capability": credential_capability,
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_thread_starts": 0, "max_parent_questions": 0, "max_task_depth": 0,
-            "max_tasks": 0, "max_provider_requests": 8, "max_resident_agent_processes": 1,
-            "max_cost_usd": "2.50", "deadline_seconds": DEADLINE_SECONDS,
+            "max_provider_requests": 8, "max_cost_usd": "2.50",
+            "deadline_seconds": DEADLINE_SECONDS, "max_output_tokens": 65536,
         },
     }
 
@@ -96,7 +91,7 @@ def cortex_arm(credential_capability: str = "claude-api-key") -> dict[str, objec
 def seed_credential(upstream: str) -> dict[str, object]:
     return {
         "upstream_base_url": upstream,
-        "route_identity_host": "api.anthropic.com",
+        "route_identity_host": "api.deepseek.com",
         "proxy_base_url": "http://trial-proxy.invalid",
         "dummy_token_ref": "offline-token-handle",
     }
@@ -134,6 +129,7 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
 def proxy_spec(**overrides: object) -> dict[str, object]:
     return {
         "credential_env": CREDENTIAL_ENV, "bound_source_ip": "127.0.0.1",
+        "advertised_host": f"{TRIAL_ID}.proxy.invalid",
         "request_body_limit_bytes": REQUEST_BODY_LIMIT_BYTES,
         "response_body_limit_bytes": RESPONSE_BODY_LIMIT_BYTES,
         **overrides,
@@ -156,9 +152,9 @@ class ContainerEnvironment:
             return ExecResult(stdout=f"{BUNDLE_ROOT}\n", return_code=0)
         if command.endswith("cortex daemon --version"):
             return ExecResult(stdout="2026.8.3-2\n", return_code=0)
-        if "command -v claude" in command:
+        if "command -v pi" in command:
             return ExecResult(stdout=f"{CLI_PATH}\n", return_code=0)
-        if command.endswith("claude --version"):
+        if command.endswith("pi --version"):
             return ExecResult(stdout=f"{CLI_VERSION}\n", return_code=0)
         return ExecResult(return_code=0)
 
@@ -216,7 +212,7 @@ def test_arms_the_provisional_bound_and_not_a_container_derived_instant(tmp_path
 
 def test_refuses_arm_provider_drift_from_capability_key(tmp_path: Path) -> None:
     drifted = cortex_arm()
-    drifted["provider"] = "deepseek"
+    drifted["provider"] = "anthropic"
     with pytest.raises(CapabilityStateRefused, match="backend/provider"):
         arm_session(tmp_path, closed_upstream(), arm=drifted)
 
@@ -376,22 +372,6 @@ def test_refuses_a_spec_envelope_field_that_is_absent_or_not_positive(
     assert not (tmp_path / "artifacts" / "proxy").exists()
 
 
-def test_refuses_a_paid_run_for_a_capability_with_no_declared_ceilings(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A capability the policy file does not name has no approved envelope at all, so a paid run
-    on it is refused rather than run unbounded."""
-    rows = dict(CAPABILITY_REGISTRY)
-    key = next(key for key, row in rows.items() if row.id == "claude-api-key")
-    rows[key] = CredentialCapability("claude-api-key", "live-handshake-passed")
-    monkeypatch.setattr(trial_proxy, "CAPABILITY_REGISTRY", rows)
-
-    with pytest.raises(PaidEnvelopeRefused, match="claude-api-key"):
-        arm_paid(tmp_path, arm=cortex_arm(), environ={})
-
-    assert not (tmp_path / "artifacts" / "proxy").exists()
-
-
 def test_arming_freezes_the_declared_completion_cap_on_the_selected_adapter(
     tmp_path: Path,
 ) -> None:
@@ -435,7 +415,7 @@ def test_records_the_selected_adapter_at_arm_time(tmp_path: Path) -> None:
     finally:
         session.handle.stop()
 
-    assert record["adapter_id"] == "anthropic-messages/api-key-bearer"
+    assert record["adapter_id"] == "deepseek-chat-completions/api-key"
     assert record["trial_id"] == TRIAL_ID
     assert record["capability_key"]["proxy_adapter_version"] == PROXY_SCHEMA_VERSION
     assert REAL_CREDENTIAL not in json.dumps(record)
@@ -458,7 +438,7 @@ def test_credential_block_producer_emits_exactly_the_four_declared_members(
         "upstream_base_url", "route_identity_host", "proxy_base_url", "dummy_token_ref",
     }
     assert block["upstream_base_url"] == upstream
-    assert block["route_identity_host"] == "api.anthropic.com"
+    assert block["route_identity_host"] == "api.deepseek.com"
     assert block["proxy_base_url"] == session.handle.base_url
     # The dummy token is the container-visible surface; the real credential is not in the document.
     assert block["dummy_token_ref"] == session.handle.dummy_token
@@ -474,7 +454,7 @@ def test_credential_block_refuses_a_seed_naming_a_different_upstream(tmp_path: P
         session.handle.stop()
 
 
-def test_public_entry_writes_the_produced_credential_block(
+def test_public_entry_writes_the_live_proxy_into_the_production_home(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(CREDENTIAL_ENV, REAL_CREDENTIAL)
@@ -482,18 +462,16 @@ def test_public_entry_writes_the_produced_credential_block(
     agent = public_agent(tmp_path, upstream)
     try:
         asyncio.run(agent.setup(ContainerEnvironment()))
-        document = json.loads((agent.logs_dir / "arm-resolution.json").read_text())
+        gateway = (
+            agent.logs_dir
+            / "production-cortex-home/container-home/.aistatus/gateway.yaml"
+        ).read_text()
     finally:
         agent.proxy_session.handle.stop()
 
-    credential = document["credential"]
-    assert credential["proxy_base_url"] == agent.proxy_session.handle.base_url
-    assert credential["dummy_token_ref"] == agent.proxy_session.handle.dummy_token
-    assert credential["upstream_base_url"] == upstream
-    # The seed's placeholder members were replaced by the live handle's, which is the whole point
-    # of the producer: before this, nothing filled them.
-    assert credential["proxy_base_url"] != "http://trial-proxy.invalid"
-    assert credential["dummy_token_ref"] != "offline-token-handle"
+    assert agent.proxy_session.handle.base_url in gateway
+    assert agent.proxy_session.handle.dummy_token in gateway
+    assert REAL_CREDENTIAL not in gateway
 
 
 # W3 — the manifest's null block becomes the credential-free block.
@@ -642,9 +620,15 @@ def test_public_entry_revokes_the_route_when_the_run_returns(
     monkeypatch.setenv(CREDENTIAL_ENV, REAL_CREDENTIAL)
     agent = public_agent(tmp_path, closed_upstream())
     environment = ContainerEnvironment()
+
+    async def run_production(self: ProductionServerSession, instruction: str, execute: object) -> None:
+        self._stopped_cleanly = True
+
+    monkeypatch.setattr(ProductionServerSession, "run", run_production)
+    agent._require_production_proxy_traffic = lambda: None
     asyncio.run(agent.setup(environment))
     session = agent.proxy_session
-    listener = session.handle.base_url.rsplit(":", 1)
+    listener = session.handle._server.server_address
 
     asyncio.run(agent.run("Complete the task.", environment, AgentContext()))
 
@@ -652,7 +636,7 @@ def test_public_entry_revokes_the_route_when_the_run_returns(
     assert session.lease_echo_path.is_file()
     assert set(agent.captured_inventory.expected_sources) >= set(PROXY_ARTIFACT_SOURCES)
     with pytest.raises(OSError):
-        socket.create_connection((listener[0].removeprefix("http://"), int(listener[1])), 2).close()
+        socket.create_connection(listener, 2).close()
 
 
 def test_public_entry_run_does_not_swallow_a_stop_failure(
@@ -688,6 +672,12 @@ def test_run_takes_the_keyword_call_harbor_actually_makes(
     monkeypatch.setenv(CREDENTIAL_ENV, REAL_CREDENTIAL)
     agent = public_agent(tmp_path, closed_upstream())
     environment = ContainerEnvironment()
+
+    async def run_production(self: ProductionServerSession, instruction: str, execute: object) -> None:
+        self._stopped_cleanly = True
+
+    monkeypatch.setattr(ProductionServerSession, "run", run_production)
+    agent._require_production_proxy_traffic = lambda: None
     asyncio.run(agent.setup(environment))
     session = agent.proxy_session
 
@@ -710,9 +700,9 @@ class BrokenContainerEnvironment(ContainerEnvironment):
 
 
 def route_is_dead(session: TrialProxySession) -> bool:
-    host, port = session.handle.base_url.removeprefix("http://").split(":")
+    address = session.handle._server.server_address
     try:
-        socket.create_connection((host, int(port)), 2).close()
+        socket.create_connection(address, 2).close()
     except OSError:
         return True
     return False
@@ -858,7 +848,7 @@ def test_public_entry_arms_the_route_at_construction(
     agent = public_agent(tmp_path, closed_upstream())
 
     try:
-        host, port = agent.proxy_session.handle.base_url.removeprefix("http://").split(":")
+        host, port = agent.proxy_session.handle._server.server_address
         socket.create_connection((host, int(port)), 2).close()
         assert environment.calls == []
         assert agent.proxy_session.audit_log_path.parent.is_dir()

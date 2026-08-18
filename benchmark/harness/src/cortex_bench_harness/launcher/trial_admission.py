@@ -38,7 +38,7 @@ from harbor.models.trial.paths import EnvironmentPaths, TrialPaths
 from harbor.trial.trial import Trial
 
 from ..container_boundary import ContainerBoundaryProbe, ContainerBoundaryUnproven
-from .arm_resolution import TrialSeed, parse_trial_seed
+from .trial_seed import TrialSeed, parse_trial_seed
 from .host_credential_vault import HOST_CREDENTIAL_VAULT
 from .arms import arm_backend, build_agent_config, require_pinned_image
 from .trial_admission_io import (

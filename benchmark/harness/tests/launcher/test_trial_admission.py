@@ -38,8 +38,7 @@ IMAGE_REF = f"registry.invalid/task@{DIGEST}"
 PROXY_HOST = "trial-one.proxy.invalid"
 PROXY_URL = f"http://{PROXY_HOST}:4317"
 EXPECTED_ENVIRONMENT = {
-    "CLAUDE_CONFIG_DIR": "/logs/agent/trial-home/claude-config",
-    "CORTEX_BENCH_BACKEND": "claude",
+    "CORTEX_BENCH_BACKEND": "pi",
     "CORTEX_BENCH_DEADLINE_SECONDS": "90",
     "CORTEX_BENCH_ROOT_RUN_ID": "trial-one.cortex-direct",
     "CORTEX_BENCH_TRIAL_ID": "trial-one",
@@ -59,7 +58,7 @@ LIVE_PROXY_HANDLES: list[object] = []
 
 @pytest.fixture(autouse=True)
 def admitted_fake_proxy(monkeypatch: pytest.MonkeyPatch):
-    admit_capability(monkeypatch, "claude-api-key")
+    admit_capability(monkeypatch, "pi-deepseek-api-key")
     for name, value in {
         "CORTEX_BENCH_TEST_CREDENTIAL": "fake-host-credential",
         "CORTEX_BENCH_TEST_FORBIDDEN": "ambient-forbidden-value",
@@ -138,20 +137,16 @@ def arm() -> dict[str, object]:
         "schema_version": "cortex-benchmark-arm/2",
         "kind": "cortex",
         "name": "cortex-direct",
-        "backend": "claude",
-        "provider": "anthropic",
-        "model": "claude-sonnet",
-        "credential_capability": "claude-api-key",
+        "backend": "pi",
+        "provider": "deepseek",
+        "model": "deepseek-v4-flash",
+        "credential_capability": "pi-deepseek-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_thread_starts": 0,
-            "max_parent_questions": 0,
-            "max_task_depth": 0,
-            "max_tasks": 0,
             "max_provider_requests": 8,
-            "max_resident_agent_processes": 1,
             "max_cost_usd": "2.50",
             "deadline_seconds": 90,
+            "max_output_tokens": 65536,
         },
     }
 

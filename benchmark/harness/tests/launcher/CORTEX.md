@@ -1,33 +1,26 @@
 Update this file whenever this directory changes
 
-Launcher tests cover arm routing, credential projections, and vendor isolation.
+Launcher tests cover production arm routing, admission and evidence recording.
 
 | filename | role | function |
 |---|---|---|
-| trial_fixtures.py | fixture | Builds arm, seed and spec documents and admits a row |
-| test_arm_resolution.py | test | Verifies seed parsing and frozen phase-A composition |
-| test_arms.py | test | Verifies selection, seed binding, routing, and refusals |
-| test_campaign.py | test | Proves campaign routing, refusals, request accounting, bounded concurrency with per-slot addresses, declared-order reporting, host-fault stop, resume and continuation past a failed trial |
-| test_capability_ceilings.py | test | Proves the committed ceiling policy and its refusals |
-| test_capability_evidence.py | test | Proves schema migration, evidence binding and manifest validity |
-| test_capability_state_gate.py | test | Proves an unadmitted row never reaches an armed route |
-| test_comparison_report.py | test | Verifies campaign pins and comparison semantics |
-| test_container_stop_observation.py | test | Proves stop ordering and observed process census recording |
-| test_credential_capabilities.py | test | Verifies non-secret capability projections |
-| test_deepseek_paid_smoke.py | test | Proves exact paid contract and vault cleanup |
-| test_host_credential_vault.py | test | Proves consume-once host credential transfer |
-| test_host_finalization.py | test | Proves the collected evidence record, the recorded launch parameters and the single leak refusal |
-| test_paid_campaign_launch.py | test | Proves the host-only launcher resolves all five references, refuses artifacts that no longer match current source, and never exposes the credential |
-| test_production_arms.py | test | Proves each committed arm resolves to the bundle it declares and ships what that bundle states |
-| test_production_home.py | test | Proves fresh per-arm homes, isolated server auth, route sealing and attestations |
-| test_production_session.py | test | Proves root injection, retry selection, evidence and stop |
-| test_production_session_admission.py | test | Proves each arm's attested root reaches the server through real sealed-environment exec |
-| test_independent_entry_parity.py | test | Second witness: shipped entry composes with no helper |
-| test_public_entry_parity.py | test | Proves seed-only composition through the shipped loader |
-| test_thread_policy.py | test | Verifies the composed in-trial thread-policy document and its file |
-| test_trial_admission.py | test | Proves sealed admission and host scan reference safety |
-| test_trial_admission_container.py | test | Proves admitted isolation and post-stop evidence in Docker |
-| fake_containment_claude.mjs | fixture | Probes sibling state, process and route denial |
-| test_trial_proxy_wiring.py | test | Proves declared-envelope refusals, final accounting and handler-free revocation |
-| test_variant_role_sets.py | test | Verifies both coder-review variant role sets on both backends |
-| test_vendor_baseline_isolation.py | test | Proves native baselines exclude Cortex imports and config |
+| trial_fixtures.py | fixture | Builds production trial documents |
+| test_arms.py | test | Verifies arm and vendor routing |
+| test_campaign.py | test | Verifies campaign execution and reports |
+| test_capability_ceilings.py | test | Verifies host envelope ceilings |
+| test_capability_evidence.py | test | Verifies capability provenance |
+| test_capability_state_gate.py | test | Verifies credential capability admission |
+| test_comparison_report.py | test | Verifies comparison report semantics |
+| test_container_stop_observation.py | test | Verifies post-stop observations |
+| test_credential_capabilities.py | test | Verifies capability projections |
+| test_deepseek_paid_smoke.py | test | Verifies paid smoke inputs |
+| test_host_credential_vault.py | test | Verifies opaque credential transfer |
+| test_host_finalization.py | test | Verifies outer evidence recording |
+| test_paid_campaign_launch.py | test | Verifies paid campaign preflight |
+| test_production_arms.py | test | Verifies committed arm bundles |
+| test_production_home.py | test | Verifies sealed production homes |
+| test_production_session.py | test | Verifies production server sessions |
+| test_production_session_admission.py | test | Verifies sealed session execution |
+| test_trial_admission.py | test | Verifies Harbor trial admission |
+| test_trial_proxy_wiring.py | test | Verifies proxy lifecycle wiring |
+| test_vendor_baseline_isolation.py | test | Verifies vendor baseline isolation |

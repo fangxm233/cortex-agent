@@ -37,7 +37,6 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | builtin-jobs.test.ts | test | covers job registration, timers and shutdown |
 | benchmark-cli-artifact-stub | fixture | Frozen CLI golden fixture |
 | benchmark-policy-system-prompt.txt | fixture | Pins representative compiled policy prompt bytes |
-| benchmark-resolved-run-config.golden.json | golden | Pins the cross-language run-config projection |
 | claim-recovery.test.ts | test | Generation-fenced orphan claim recovery |
 | cli-utils.test.ts | test | shared CLI help and error rendering |
 | cli.test.ts | test | cortex CLI routing, output framing and size limit |
@@ -99,7 +98,6 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | message-router.test.ts | test | message routing, mention normalization and edits |
 | mode-manager.test.ts | test | per-request mode routing and API key policy |
 | module-loader.ts | helper | fresh ESM import and root path helpers |
-| native/ | subdir | real Linux native process integration tests |
 | orch/ | subdir | orchestration runtime and session flow tests |
 | orchestration/ | subdir | session compact, rewind and coalescer tests |
 | output-stream.test.ts | test | Slack, Feishu and mock output streams |
@@ -156,7 +154,6 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |
-| thread-benchmark-run.test.ts | test | benchmark identity inheritance and accounting |
 | thread-callback-tree.test.ts | test | safe child results and parent re-entry |
 | thread-benchmark-coder-review.e2e.test.ts | e2e | benchmark graph, tools, MCP and identity isolation |
 | thread-coder-review.e2e.test.ts | e2e | Coder-review stages and commit policy |

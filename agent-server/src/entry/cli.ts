@@ -625,17 +625,6 @@ function main(): void {
   const cmd = args[0];
   const rest = args.slice(1);
 
-  if (cmd === 'agent-run') {
-    void import('@domain/agent-run/agent-run-cli.js')
-      .then(({ runAgentRunCli }) => runAgentRunCli(rest))
-      .then(code => { process.exitCode = code; })
-      .catch((error) => {
-        process.stderr.write(`${(error as Error)?.message ?? String(error)}\n`);
-        process.exitCode = 1;
-      });
-    return;
-  }
-
   // Handle --help / -h for subcommands
   if (rest.includes('--help') || rest.includes('-h')) {
     if (cmd === 'daemon') {

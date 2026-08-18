@@ -1,5 +1,5 @@
 # input:  Harbor base class, fake exec results, manifest and production trial seed
-# output: production route proof plus preserved legacy dispatch
+# output: production route proof and non-production refusal
 # pos:    Contract tests for the production Harbor agent wrapper
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -135,9 +135,7 @@ def direct_arm() -> dict[str, object]:
         "credential_capability": "pi-deepseek-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_thread_starts": 0, "max_parent_questions": 0, "max_task_depth": 0,
-            "max_tasks": 0, "max_provider_requests": 8,
-            "max_resident_agent_processes": 1, "max_cost_usd": "2.50",
+            "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 90, "max_output_tokens": 65536,
         },
     }
@@ -408,9 +406,9 @@ def test_a_misaligned_production_arm_never_falls_back_to_standalone(
     tmp_path: Path, builder,
 ) -> None:
     arm = builder()
-    limits = dict(arm["limits"])
-    limits["max_output_tokens"] = 8192
-    arm["limits"] = limits
+    orchestration = dict(arm["orchestration"])
+    orchestration["ask_manager"] = True
+    arm["orchestration"] = orchestration
 
     with pytest.raises(ProductionArmError, match="production launcher"):
         CortexBenchAgent(
@@ -436,29 +434,6 @@ def legacy_agent(tmp_path: Path) -> CortexBenchAgent:
     )
 
 
-def test_nonproduction_arm_remains_on_the_legacy_path(tmp_path: Path) -> None:
-    environment = FakeEnvironment(setup_results())
-    agent = legacy_agent(tmp_path)
-
-    asyncio.run(agent.setup(environment))
-
-    assert any("cortex agent-run --help" in command for command, _ in environment.calls)
-    assert (tmp_path / "agent/arm-resolution.json").is_file()
-    assert not (tmp_path / "agent/production-cortex-home").exists()
-
-
-def test_nonproduction_run_still_executes_and_collects_the_legacy_agent_run(
-    tmp_path: Path,
-) -> None:
-    environment = FakeEnvironment([
-        *setup_results(), ok(), ExecResult(stdout="legacy stdout", stderr="", return_code=0),
-    ])
-    agent = legacy_agent(tmp_path)
-    asyncio.run(agent.setup(environment))
-
-    asyncio.run(agent.run("Solve through legacy.", environment, None))
-
-    commands = [command for command, _ in environment.calls]
-    assert any("cortex agent-run --prompt-file" in command for command in commands)
-    assert all("dist/entry/production-app-bootstrap.js" not in command for command in commands)
-    assert (tmp_path / "agent/stdout.txt").read_text() == "legacy stdout"
+def test_nonproduction_arm_is_refused_instead_of_using_a_second_runtime(tmp_path: Path) -> None:
+    with pytest.raises(ProductionArmError, match="production launcher"):
+        legacy_agent(tmp_path)

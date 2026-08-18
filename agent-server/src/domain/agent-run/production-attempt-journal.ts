@@ -202,7 +202,6 @@ function valueSha256(value: unknown): string {
 function promptHashes(input: ProductionAttemptJournalInput) {
   const role = roleSurfaceFromSpawnConfig(
     input.spawnConfig, input.canonicalInstruction,
-    input.spawnConfig.benchmarkPolicyGuard,
   );
   if (computeRoleToolSurfaceHash(role) !== input.identity.role_tool_surface_hash) {
     throw new Error('Production attempt journal role identity drifted before open');

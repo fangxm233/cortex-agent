@@ -522,9 +522,7 @@ function attemptModel(
   const profile = assertProfile(input, context);
   const directive = typeof input.options.identityDirective === 'string'
     ? input.options.identityDirective : '';
-  const roleSurface = roleSurfaceFromSpawnConfig(
-    input.spawnConfig, directive, input.spawnConfig.benchmarkPolicyGuard,
-  );
+  const roleSurface = roleSurfaceFromSpawnConfig(input.spawnConfig, directive);
   return {
     profile_name: profile.name,
     backend: profile.backend,

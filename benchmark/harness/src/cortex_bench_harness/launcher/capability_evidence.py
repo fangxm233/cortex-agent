@@ -24,7 +24,7 @@ DEEPSEEK_OFFLINE_CONTRACT = {
 }
 # Evidence attests only independently auditable claims. The historical `pi_tree_sha256` had no
 # committed canonical producer, so version checks remain while that unverifiable digest is refused.
-# Run envelope numbers are recorded in each run's arm-resolution and proxy manifest instead.
+# Run envelope numbers are recorded in each campaign arm and proxy manifest instead.
 COMMON_FIELDS = frozenset({
     "schema_version", "capability_id", "state", "capability_key", "adapter_id",
     "implementation_commit", "pi_version", "model_metadata_sha256",

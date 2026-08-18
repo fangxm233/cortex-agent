@@ -11,23 +11,15 @@ import { WORKSPACE_DIR } from '@core/utils.js';
 import { ensureTaskArtifact } from '@core/task-node.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
-import { threadStore as daemonThreadStore } from '@store/thread-repo.js';
+import { threadStore } from '@store/thread-repo.js';
 
 const log = createLogger('state-machine');
+import { getTemplate, getAgent } from './template-loader.js';
 import {
-  getTemplate as daemonGetTemplate, getAgent as daemonGetAgent,
-} from './template-loader.js';
-import {
-  resolveAgentSlotConfigByName,
-  resolveTemplateAgents as daemonResolveTemplateAgents,
-  resolveActiveAgentName,
+  resolveAgentSlotConfigByName, resolveTemplateAgents, resolveActiveAgentName,
 } from './prompt-builder.js';
-import {
-  getLocalThreadRuntimeDeps, scopedLocalThreadService,
-} from './local-runtime-deps.js';
 import { resolveStageName, parseTarget } from './utils.js';
 import { checkContractBudget } from './contract.js';
-import { getLocalThreadRuntimeScope } from './local-runtime-scope.js';
 import { scanAllTasks } from '@core/task-parser.js';
 import { resolveThreadEvidenceMetadata } from './evidence-context.js';
 import type {
@@ -36,25 +28,12 @@ import type {
   StepResult, TransitionResult, TransitionRule,
 } from '@core/types/thread-types.js';
 
-const threadStore = scopedLocalThreadService(daemonThreadStore, deps => deps.threadStore);
-const getTemplate: typeof daemonGetTemplate = (...args) => (
-  (getLocalThreadRuntimeDeps()?.getTemplate ?? daemonGetTemplate)(...args)
-);
-const resolveTemplateAgents: typeof daemonResolveTemplateAgents = (...args) => (
-  (getLocalThreadRuntimeDeps()?.resolveTemplateAgents ?? daemonResolveTemplateAgents)(...args)
-);
-const getAgent: typeof daemonGetAgent = (name) => {
-  const deps = getLocalThreadRuntimeDeps();
-  return deps ? deps.loadTemplates().agents[name] : daemonGetAgent(name);
-};
-
 // --- Thread lifecycle events ---
 // Published on the shared bus (job-registry ctx — the same seam the runner's session.message
 // publish uses) so the web UI / TUI thread views refetch on lifecycle edges. No-op without a bus.
 
 function publishThreadEvent(e: Record<string, unknown>): void {
-  const scope = getLocalThreadRuntimeScope();
-  (scope ? scope.eventBus : jobCtx.bus)?.publish(e as any);
+  jobCtx.bus?.publish(e as any);
 }
 
 /** `agent` or `agent:stage` — matches the transition endpoint syntax (runner's status label). */
@@ -188,7 +167,7 @@ export function createThread(channel: string, options: {
     ? buildTemplateSlots(options.templateName!)
     : buildAdHocSlots(options.agentName!);
   const metadata = resolveThreadEvidenceMetadata(options.metadata, id => threadStore.get(id));
-  const id = daemonThreadStore.generateId();
+  const id = threadStore.generateId();
   const { workspacePath, artifactPath: workspaceArtifact } = createWorkspace(id);
   // DR-0017 W1: a manager-template dispatch thread anchors its artifact on the task node
   // (context/projects/{project}/manager/{taskId}/artifact.md). An existing artifact is

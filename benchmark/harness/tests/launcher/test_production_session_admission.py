@@ -84,7 +84,7 @@ def production_arm(bundle: ProductionArmBundle = DIRECT_BUNDLE) -> dict[str, obj
         "orchestration": dict(bundle.orchestration),
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.00",
-            "deadline_seconds": 90, **bundle.limits,
+            "deadline_seconds": 90, "max_output_tokens": 65536,
         },
     }
 

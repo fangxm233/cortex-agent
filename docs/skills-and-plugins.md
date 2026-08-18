@@ -147,7 +147,7 @@ Portable MCP declarations pass through one backend-neutral normalization layer. 
 
 A capability fingerprint covers the effective plugin paths, portable skill content, projected manifest, and normalized MCP declarations. Claude pooled sessions reuse a process only when that capability matches, so assignment changes and changes to those covered inputs select a compatible process boundary. Legacy package contents and auxiliary portable files such as executable bytes are not content-hashed; changing only those files does not promise process replacement. Duplicate portable skill names, duplicate portable namespaces, or colliding MCP runtime names fail closed for the selected assignment set.
 
-Portable MCP is suppressed for explicit `none` and benchmark thread-run compositions and for the restricted PI `Agent` subagent surface. This keeps plugin capabilities out of execution modes that intentionally expose a narrower tool set.
+Portable MCP is suppressed for the explicit `none` composition and for the restricted PI `Agent` subagent surface. This keeps plugin capabilities out of execution modes that intentionally expose a narrower tool set.
 
 ## Trust and administration
 

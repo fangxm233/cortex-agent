@@ -94,7 +94,7 @@ export const agentSchema = z.object({
   outputStyle: z.string().optional(),
   tools: z.string().optional(),
   pluginDirs: z.array(z.string()).optional(),
-  mcpComposition: z.enum(['direct', 'thread-control', 'none', 'benchmark-thread-run']).optional(),
+  mcpComposition: z.enum(['direct', 'thread-control', 'none']).optional(),
   mcpToolAllowlist: z.array(z.string()).optional(),
   stages: z.record(z.string(), stageSchema).optional(),
   entryStage: z.string().optional(),

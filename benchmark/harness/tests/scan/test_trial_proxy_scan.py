@@ -19,6 +19,7 @@ from harbor.environments.base import ExecResult
 from harbor.models.agent.context import AgentContext
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
+from cortex_bench_harness.launcher.production_session import ProductionServerSession
 from cortex_bench_harness.launcher.trial_proxy import (
     PROXY_ARTIFACT_SOURCES,
     PROXY_EXPORT_SOURCE,
@@ -33,13 +34,13 @@ DIGEST = f"sha256:{'a' * 64}"
 ROOT_RUN_ID = "trial-scan.cortex-direct"
 TRIAL_ID = "trial-scan"
 ARM_NAME = "cortex-direct"
-MODEL = "claude-sonnet"
+MODEL = "deepseek-v4-flash"
 DEADLINE_SECONDS = 120
 CREDENTIAL_ENV = "CORTEX_BENCH_SCAN_CREDENTIAL"
 REAL_CREDENTIAL = "sk-ant-SCAN-BOUNDARY-UNIQUE"
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
-CLI_PATH = "/usr/local/bin/claude"
-MESSAGES_TARGET = "/v1/messages?beta=true"
+CLI_PATH = "/usr/local/bin/pi"
+MESSAGES_TARGET = "/v1/chat/completions"
 COMPILED_AT_EPOCH_MS = 1_800_000_240_000
 
 
@@ -56,14 +57,13 @@ def closed_upstream() -> str:
 def cortex_arm() -> dict[str, object]:
     return {
         "schema_version": "cortex-benchmark-arm/2",
-        "kind": "cortex", "name": ARM_NAME, "backend": "claude",
-        "provider": "anthropic", "model": MODEL,
-        "credential_capability": "claude-api-key",
+        "kind": "cortex", "name": ARM_NAME, "backend": "pi",
+        "provider": "deepseek", "model": MODEL,
+        "credential_capability": "pi-deepseek-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_thread_starts": 0, "max_parent_questions": 0, "max_task_depth": 0,
-            "max_tasks": 0, "max_provider_requests": 8, "max_resident_agent_processes": 1,
-            "max_cost_usd": "2.50", "deadline_seconds": DEADLINE_SECONDS,
+            "max_provider_requests": 8, "max_cost_usd": "2.50",
+            "deadline_seconds": DEADLINE_SECONDS, "max_output_tokens": 65536,
         },
     }
 
@@ -76,7 +76,7 @@ def trial_seed(upstream: str) -> dict[str, object]:
                  "image_digest": DIGEST},
         "profile_name": "benchmark", "paid_run": False,
         "credential": {
-            "upstream_base_url": upstream, "route_identity_host": "api.anthropic.com",
+            "upstream_base_url": upstream, "route_identity_host": "api.deepseek.com",
             "proxy_base_url": "http://trial-proxy.invalid",
             "dummy_token_ref": "offline-token-handle",
         },
@@ -113,10 +113,10 @@ class ContainerEnvironment:
             return ExecResult(stdout=f"{BUNDLE_ROOT}\n", return_code=0)
         if command.endswith("cortex daemon --version"):
             return ExecResult(stdout="2026.8.3-2\n", return_code=0)
-        if "command -v claude" in command:
+        if "command -v pi" in command:
             return ExecResult(stdout=f"{CLI_PATH}\n", return_code=0)
-        if command.endswith("claude --version"):
-            return ExecResult(stdout="1.2.3 (Claude Code)\n", return_code=0)
+        if command.endswith("pi --version"):
+            return ExecResult(stdout="0.82.1\n", return_code=0)
         return ExecResult(return_code=0)
 
     async def upload_file(self, source_path: Path | str, target_path: str) -> None:
@@ -151,16 +151,15 @@ class OfflineTrial:
         self.agent = agent
         self.artifact_dir = tmp_path / "artifacts"
         self.logs_dir = tmp_path / "agent"
-        self.dummy_token = agent.proxy_session.handle.dummy_token
-        self.proxy_base_url = agent.proxy_session.handle.base_url
+        handle = agent.proxy_session.handle
+        self.dummy_token = handle.dummy_token
+        self.proxy_base_url = handle.base_url
+        host, port = handle._server.server_address
+        self.listener_base_url = f"http://{host}:{port}"
 
     @property
     def manifest_path(self) -> Path:
         return self.artifact_dir / MANIFEST_FILENAME
-
-    @property
-    def arm_resolution_path(self) -> Path:
-        return self.logs_dir / "arm-resolution.json"
 
     def artifact_files(self) -> list[Path]:
         roots = (self.artifact_dir, self.logs_dir)
@@ -180,21 +179,29 @@ def offline_trial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> OfflineTri
         manifest=manifest_seed(tmp_path), trial_seed=trial_seed(upstream),
         trial_proxy={
             "credential_env": CREDENTIAL_ENV, "bound_source_ip": "127.0.0.1",
+            "advertised_host": f"{TRIAL_ID}.proxy.invalid",
             "request_body_limit_bytes": 16 * 1024 * 1024,
             "response_body_limit_bytes": 16 * 1024 * 1024,
         },
     )
     environment = ContainerEnvironment()
+
+    async def run_production(self: ProductionServerSession, instruction: str, execute: object) -> None:
+        self._stopped_cleanly = True
+
+    monkeypatch.setattr(ProductionServerSession, "run", run_production)
     asyncio.run(agent.setup(environment))
     trial = OfflineTrial(agent, tmp_path)
     assert post(
-        trial.proxy_base_url, trial.dummy_token, LEASE_ECHO_TARGET, lease_echo_document(),
+        trial.listener_base_url, trial.dummy_token, LEASE_ECHO_TARGET, lease_echo_document(),
     ) == 200
     # Route, body and auth injection all run; the upstream port is closed, so the attempt is
     # recorded as unreachable instead of reaching any provider.
     assert post(
-        trial.proxy_base_url, trial.dummy_token, MESSAGES_TARGET,
-        {"model": MODEL, "prompt": "offline"},
+        trial.listener_base_url, trial.dummy_token, MESSAGES_TARGET,
+        {"model": MODEL, "messages": [{"role": "user", "content": "offline"}],
+         "stream": True, "stream_options": {"include_usage": True},
+         "max_completion_tokens": 65536},
     ) == 502
     asyncio.run(agent.run("Complete the task.", environment, AgentContext()))
     return trial
@@ -260,15 +267,11 @@ def test_container_visible_surface_is_only_a_scoped_endpoint_and_a_dummy_token(
     internet host refused from inside the container — which are properties of the trial network
     namespace and carry the Gate-10 obligation O-G10-EGRESS."""
     trial = offline_trial(tmp_path, monkeypatch)
-    resolution = json.loads(trial.arm_resolution_path.read_text())
-    credential = resolution["credential"]
-
-    assert set(credential) == {
-        "upstream_base_url", "route_identity_host", "proxy_base_url", "dummy_token_ref",
-    }
-    assert credential["proxy_base_url"] == trial.proxy_base_url
-    assert credential["dummy_token_ref"] == trial.dummy_token
-    for path in (trial.arm_resolution_path, trial.manifest_path):
+    gateway = trial.logs_dir / "production-cortex-home/container-home/.aistatus/gateway.yaml"
+    payload = gateway.read_bytes()
+    assert trial.proxy_base_url.encode() in payload
+    assert trial.dummy_token.encode() in payload
+    for path in (gateway, trial.manifest_path):
         payload = path.read_bytes()
         assert REAL_CREDENTIAL.encode() not in payload
         assert str(repo_root()).encode() not in payload

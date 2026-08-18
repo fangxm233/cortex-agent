@@ -4,7 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { type ChildProcess } from 'child_process';
-import { existsSync, mkdirSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import * as path from 'path';
 import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
@@ -14,9 +14,7 @@ import { resolveMcpComposition } from '../types.js';
 import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentProcessSupervision, AgentSpawnConfig, AgentUsageScope, Backend, InjectionAckSink, McpComposition, UserMessage } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
-import {
-  buildPiEnv, buildSpawnArgs, PI_BENCHMARK_THREAD_POLICY_ENV, type PISpawnOptions,
-} from './spawn-args.js';
+import { buildPiEnv, buildSpawnArgs, type PISpawnOptions } from './spawn-args.js';
 import { writePiPluginMcpConfig } from './mcp-config.js';
 import { createLineSplitter, encodeCommand } from './framing.js';
 import { piRpcLineToNormalized, createPIEventParserState, piContextUsageFromStats, type PIEventParserState } from './event-parser.js';
@@ -62,33 +60,11 @@ import {
 export type { PIAgentProcess } from './session-support.js';
 const log = createLogger('pi-adapter');
 
-/** Discovery that reports nothing. The daemon injects the cached host scanner; a trial injects its
- *  single-provider catalog. Neither is a module default here (§13 A7/A8). */
+/** Discovery that reports nothing when the daemon does not inject its cached scanner. */
 const NO_PROVIDER_DISCOVERY: PIProviderDiscovery = {
   getProviders: () => [],
   refresh: () => {},
 };
-
-/**
- * A benchmark spawn is one carrying a compiled policy guard: §6.8 G1 makes the guard mandatory for
- * every benchmark role, so its presence is the marker. Everything a trial must not fall back to is
- * required here, which is what makes each ambient default unreachable rather than merely unused
- * (§13 S6.1, A12, A13).
- */
-function assertBenchmarkSpawn(config: AgentSpawnConfig, agentDir: string | undefined): void {
-  const missing = [
-    ['processSpawner', config.processSpawner],
-    ['cliPath', config.cliPath],
-    ['cwd', config.cwd],
-    ['pinnedEnv', config.pinnedEnv],
-    ['agentDir', agentDir],
-    ['piGatewayBaseUrl', config.piGatewayBaseUrl],
-    ['streamDeltas', config.streamDeltas],
-  ].filter(([, value]) => value === undefined).map(([name]) => name);
-  if (missing.length > 0) {
-    throw new Error(`PI benchmark spawn is missing required inputs: ${missing.join(', ')}`);
-  }
-}
 type PiTurnComplete = Extract<NormalizedEvent, { type: 'turn_complete' }>;
 type CompactBase = Omit<AgentCompactResult, 'contextUsage'>;
 
@@ -848,15 +824,10 @@ class PISession {
   }
 }
 
-type QuotaReportingConfig = Pick<AgentSpawnConfig, 'piGatewayBaseUrl' | 'benchmarkPolicyGuard'>;
+type QuotaReportingConfig = Pick<AgentSpawnConfig, 'piGatewayBaseUrl'>;
 
-/**
- * A spawn reports provider quota when Cortex routes its traffic (`piGatewayBaseUrl`) and it is not
- * a benchmark trial. The compiled guard is the trial marker (§6.8 G1), and a trial must stay out of
- * daemon-wide state: its readings would throttle production work on behalf of an experiment.
- */
 function reportsProviderQuota(config: QuotaReportingConfig): boolean {
-  return !!config.piGatewayBaseUrl && config.benchmarkPolicyGuard === undefined;
+  return !!config.piGatewayBaseUrl;
 }
 
 function buildExtensionPaths(config: Pick<AgentSpawnConfig, 'disableHooks'> & QuotaReportingConfig): string[] {
@@ -866,7 +837,6 @@ function buildExtensionPaths(config: Pick<AgentSpawnConfig, 'disableHooks'> & Qu
   return paths;
 }
 
-type BenchmarkGuard = AgentSpawnConfig['benchmarkPolicyGuard'];
 type ProviderQuotaReporter = NonNullable<PISessionOptions['onProviderQuota']>;
 
 interface PreparedPISpawn {
@@ -896,8 +866,7 @@ function piSpawnOptions(
   };
 }
 
-function spawnAllowedTools(config: AgentSpawnConfig, guard: BenchmarkGuard): string | undefined {
-  if (guard !== undefined) return undefined;
+function spawnAllowedTools(config: AgentSpawnConfig): string | undefined {
   const canonical = config.tools && config.tools.length > 0
     ? config.tools.map((tool) => fromCanonical('claude', tool))
       .filter((name): name is string => !!name).join(',')
@@ -924,53 +893,24 @@ function spawnPluginMcpPath(
   return writePiPluginMcpConfig(config.mcpServers).path;
 }
 
-type BenchmarkServerConfig = { env?: Record<string, unknown> };
-
-function benchmarkServerConfig(file: string): BenchmarkServerConfig[] {
-  const document = JSON.parse(readFileSync(file, 'utf8')) as {
-    mcpServers?: Record<string, BenchmarkServerConfig>;
-  };
-  const server = document.mcpServers?.['cortex-benchmark-thread'];
-  return server === undefined ? [] : [server];
-}
-
-function benchmarkThreadPolicyPath(
-  config: AgentSpawnConfig,
-  composition: McpComposition,
-): string | undefined {
-  if (composition !== 'benchmark-thread-run') return undefined;
-  const servers = (config.mcpConfigPaths ?? []).flatMap(benchmarkServerConfig);
-  if (servers.length !== 1) throw new Error('Benchmark PI spawn requires one thread MCP server');
-  const policyPath = servers[0].env?.[PI_BENCHMARK_THREAD_POLICY_ENV];
-  if (typeof policyPath !== 'string' || !path.isAbsolute(policyPath)) {
-    throw new Error(`Benchmark PI spawn requires absolute ${PI_BENCHMARK_THREAD_POLICY_ENV}`);
-  }
-  return policyPath;
-}
-
 function buildSpawnEnvironment(
   config: AgentSpawnConfig,
   agentDir: string,
   composition: McpComposition,
 ): NodeJS.ProcessEnv {
-  const guard = config.benchmarkPolicyGuard;
   const subagentMarker = piSubagentMarker(config);
   return buildPiEnv({
     sessionId: config.sessionId,
-    channel: guard === undefined ? config.channel : undefined,
+    channel: config.channel,
     callbackSource: config.callbackSource,
     scheduleTaskId: config.scheduleTaskId,
     extraEnv: config.env,
     context: config.cortexContext,
     piAgentDir: agentDir,
-    allowedTools: spawnAllowedTools(config, guard),
-    policyGuard: guard,
-    leaseState: config.benchmarkLeaseState,
+    allowedTools: spawnAllowedTools(config),
     mcpComposition: composition,
     mcpToolAllowlist: config.mcpToolAllowlist,
-    deadlineEpochMs: config.benchmarkDeadlineEpochMs,
     pluginMcpConfigPath: spawnPluginMcpPath(config, composition, subagentMarker),
-    benchmarkThreadPolicyPath: benchmarkThreadPolicyPath(config, composition),
     subagentMarker,
   }, config.pinnedEnv);
 }
@@ -1082,11 +1022,10 @@ export class PIAdapter implements AgentAdapter {
     return sessionPath;
   }
 
-  private prepareGatewayAgentDir(agentDir: string, guard: BenchmarkGuard): void {
+  private prepareGatewayAgentDir(agentDir: string): void {
     try {
       this.prepareAgentDir?.(agentDir);
     } catch (error) {
-      if (guard !== undefined) throw error;
       log.warn(`Failed to prepare the PI agent dir: ${(error as Error).message}`);
     }
   }
@@ -1095,12 +1034,10 @@ export class PIAdapter implements AgentAdapter {
     config: AgentSpawnConfig,
     agentDir: string,
     gatewayBaseUrl: string,
-    guard: BenchmarkGuard,
   ): void {
     try {
       this.writeGatewayProvidersUnchecked(config, agentDir, gatewayBaseUrl);
     } catch (error) {
-      if (guard !== undefined) throw error;
       log.warn(`Failed to write PI models.json: ${(error as Error).message}`);
     }
   }
@@ -1127,23 +1064,21 @@ export class PIAdapter implements AgentAdapter {
     writeProvidersConfig(overrides, gatewayBaseUrl, { modelsPath: piModelsPath(agentDir) });
   }
 
-  private syncGatewayConfig(config: AgentSpawnConfig, agentDir: string, guard: BenchmarkGuard): void {
+  private syncGatewayConfig(config: AgentSpawnConfig, agentDir: string): void {
     const gatewayBaseUrl = config.piGatewayBaseUrl;
     if (!gatewayBaseUrl) return;
-    this.prepareGatewayAgentDir(agentDir, guard);
-    this.writeGatewayProviders(config, agentDir, gatewayBaseUrl, guard);
+    this.prepareGatewayAgentDir(agentDir);
+    this.writeGatewayProviders(config, agentDir, gatewayBaseUrl);
   }
 
   private prepareSpawn(config: AgentSpawnConfig): PreparedPISpawn {
-    const guard = config.benchmarkPolicyGuard;
-    if (guard !== undefined) assertBenchmarkSpawn(config, this.configuredAgentDir);
     const composition = resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp);
     const agentDir = this.configuredAgentDir ?? PI_AGENT_DIR;
     const sessionDir = this.sessionDir;
     mkdirSync(sessionDir, { recursive: true });
     const sessionPath = this.resolveSpawnSessionPath(config, sessionDir);
     const cliArgs = buildSpawnArgs(piSpawnOptions(config, sessionDir, sessionPath));
-    this.syncGatewayConfig(config, agentDir, guard);
+    this.syncGatewayConfig(config, agentDir);
     const env = buildSpawnEnvironment(config, agentDir, composition);
     const cwd = config.cwd ?? DATA_DIR;
     return { sessionDir, cliArgs, cwd, env };

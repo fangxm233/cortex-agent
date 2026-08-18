@@ -226,7 +226,9 @@ def _cortex_config(
     defer_proxy_arm: bool,
     credential_handle: str | None,
 ) -> AgentConfig:
-    require_composable_arm(arm)
+    from .production_arms import require_production_arm
+
+    require_production_arm(arm)
     kwargs = _cortex_kwargs(
         arm, artifact_dir, manifest, trial_seed, version, trial_proxy,
         host_scan_policy, admission_environment_digest, defer_proxy_arm,

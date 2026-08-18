@@ -91,19 +91,12 @@ ARM_REQUIRED_FIELDS = frozenset({
 })
 ORCHESTRATION_REQUIRED_FIELDS = frozenset({"mode", "ask_manager"})
 ORCHESTRATION_OPTIONAL_FIELDS = frozenset({"coder_review_variant"})
-# The four zero-valued containment limits and the four positive execution limits the compiler and
-# the paid envelope both read; `max_cost_usd` is decimal and validated apart. That last one is the
-# INNER run's own limit, enforced by the run's own cache-aware accounting - not the proxy's. The
-# proxy holds no price list at all now, which is why nothing here declares a per-token price.
-ARM_NON_NEGATIVE_LIMITS = (
-    "max_thread_starts", "max_parent_questions", "max_task_depth", "max_tasks",
-)
+# Campaign limits describe the host envelope. Orchestration and concurrency live in the committed
+# production config bundle rather than a second arm schema.
 ARM_POSITIVE_LIMITS = (
-    "max_provider_requests", "max_resident_agent_processes", "deadline_seconds",
-    "max_output_tokens",
+    "max_provider_requests", "deadline_seconds", "max_output_tokens",
 )
-ARM_LIMIT_FIELDS = frozenset(
-    ARM_NON_NEGATIVE_LIMITS + ARM_POSITIVE_LIMITS + ("max_cost_usd",))
+ARM_LIMIT_FIELDS = frozenset(ARM_POSITIVE_LIMITS + ("max_cost_usd",))
 TASK_REQUIRED_FIELDS = frozenset({"task_id", "path", "image_ref"})
 TASK_OPTIONAL_FIELDS = frozenset({"image_size_bytes"})
 COMPARISON_FIELDS = frozenset({"left_arm", "right_arm", "difference_class"})
@@ -593,11 +586,8 @@ def _limits(source: object) -> dict[str, object]:
     document = _mapping(source, "campaign arm limits")
     _require_fields(document, ARM_LIMIT_FIELDS, frozenset(), "campaign arm limits")
     limits: dict[str, object] = {
-        field: _integer(document, field, minimum=0) for field in ARM_NON_NEGATIVE_LIMITS
-    }
-    limits.update({
         field: _integer(document, field, minimum=1) for field in ARM_POSITIVE_LIMITS
-    })
+    }
     limits["max_cost_usd"] = str(
         _positive_decimal(document, "max_cost_usd", "campaign arm limits"))
     return limits
