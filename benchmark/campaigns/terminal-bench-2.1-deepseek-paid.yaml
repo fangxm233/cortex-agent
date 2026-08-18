@@ -1,6 +1,6 @@
-# input:  the approved paid Cortex-direct campaign over authentic Terminal-Bench 2.1 tasks
-# output: three concurrent production trials and one campaign report
-# pos:    Committed first real Terminal-Bench paid campaign
+# input:  the approved paid production-server direct-arm re-baseline over the r7 tasks
+# output: three concurrent production-direct trials and one campaign report
+# pos:    Committed Terminal-Bench 2.1 paid direct-arm re-baseline campaign
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The three task directories and runtime images are byte/digest pinned to upstream commit
@@ -27,10 +27,10 @@
 # spend by 12.7x ($0.642 against the run's own $0.0505). The disagreement between those two correct
 # numbers then failed the cost reconciliation and discarded a finished trial.
 #
-# Every declared bound is placed beyond what a trial can reach, because a run truncated at a limit
-# still costs money and yields no measurement (the 2026-08-13 r1 attempt declared $0.50 against a
-# $2.00 trial, bought four turns and exhausted the route on the fifth; see
-# results/terminal-bench-2.1-deepseek-paid-2026-08-13.json).
+# Request, output and time bounds are placed beyond what a trial is expected to reach, because a
+# run truncated at a limit still costs money and yields no measurement. This approved re-baseline
+# separately declares a $2.00 per-trial cost envelope; three trials therefore declare at most
+# 3 * $2.00 = $6.00 for the campaign, below the approved $10.00 campaign ceiling.
 #
 #   - 500 requests exceeds what 1800 seconds of agent time can physically issue.
 #   - 65,536 output tokens is 14x the largest response of the r3 trial and 2.3x the historical
@@ -94,10 +94,11 @@ schema_version: cortex-bench-campaign/1
 # earlier beside an agent-server tarball packed 34 hours earlier, so the D2 journal-grouping fix it
 # was meant to measure was in the host's source and not in the container's package; all three
 # trials then failed on the already-fixed bug. The launcher now refuses to start when either pinned
-# artifact does not match the checkout it is launching from.
-campaign: tb21-paid-r7
+# artifact does not match the checkout it is launching from. r7 completed under the retired
+# standalone architecture; this fresh r8 identity is the one approved production-server rerun.
+campaign: tb21-paid-r8
 paid: true
-trials_dir: /var/tmp/cortex-bench/tb21-paid-r7-2026-08-15-85db
+trials_dir: /var/tmp/cortex-bench/tb21-paid-r8-2026-08-18-128c
 cli_version: "2026.8.6"
 
 # All three trials in one wave. Each holds its own credential route for its own 1800s lease, so
@@ -182,11 +183,10 @@ arms:
       # The route's cap, and now the only statement of it: the proxy counts to this number and
       # refuses. It sits above what 900 seconds of agent time can physically issue.
       max_provider_requests: 500
-      # The INNER run's own cost limit, enforced by the agent runtime against its cache-aware
-      # accounting — not by the proxy, which no longer prices anything. It is set beyond reach for
-      # the same reason as every other bound here: a run truncated at a limit still costs money and
-      # yields no measurement. The r5 trials' own accounting came to $0.0505 and $0.0029.
-      max_cost_usd: "100.00"
+      # Approved paid re-baseline envelope. Three trials * $2.00 = $6.00 declared campaign
+      # maximum, below the separately approved $10.00 campaign ceiling. A failed or zero-reward
+      # trial is recorded once and is not retried without new approval.
+      max_cost_usd: "2.00"
       # Twice the authentic task's own 900-second agent timeout, which is the real bound.
       deadline_seconds: 1800
       max_output_tokens: 65536

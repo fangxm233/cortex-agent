@@ -1,0 +1,149 @@
+{
+  "schema_version": "cortex-bench-campaign-attempt-summary/1",
+  "campaign": "tb21-paid-r8",
+  "executed_at": "2026-08-18",
+  "paid": true,
+  "headline": "The production-server direct arm ran all three r7 Terminal-Bench 2.1 tasks exactly once. The authentic Harbor verifier rewards were 0, 1 and 1 (observed score 2/3), but the unchanged leak scan found host:home_path in one collected launcher file per trial and therefore published no outer envelopes. This failed campaign is recorded and was not retried.",
+  "execution": {
+    "entrypoint": "setsid env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --offline --frozen python scripts/launch-paid-campaign.py --config ../campaigns/terminal-bench-2.1-deepseek-paid.yaml --run",
+    "source_commit": "1711e841fefaf0d6300cf18d6cb4d8eeb2fc79ae",
+    "campaign_config_commit": "1711e841fefaf0d6300cf18d6cb4d8eeb2fc79ae",
+    "state": "completed-with-trial-failures",
+    "exit_code": 1,
+    "concurrency": 3,
+    "trial_count": 3,
+    "trials_ran": 3,
+    "trials_failed": 3,
+    "outer_envelope_count": 0,
+    "started_at": "2026-08-18T03:38:40.044Z",
+    "ended_at": "2026-08-18T03:59:36.511Z",
+    "wall_clock_seconds": 1256.467,
+    "provider_requests": 73,
+    "provider_requests_complete": true,
+    "retry": "not performed; a failed trial is a result and a new paid run requires new approval"
+  },
+  "launch_parameters": {
+    "arm_bundle": "direct-pi-deepseek",
+    "root_template": "benchmark-direct",
+    "injection": "thread-root",
+    "backend": "pi",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "max_cost_usd_per_trial": "2.00",
+    "declared_campaign_max_usd": "6.00",
+    "approved_campaign_ceiling_usd": "10.00",
+    "max_provider_requests_per_trial": 500,
+    "deadline_seconds": 1800,
+    "max_output_tokens": 65536,
+    "agent_seconds": 2100,
+    "verifier_seconds": 1800,
+    "npm_artifact_sha256": "8c89e18ec208f03728aba3b56ba0f52a215673f2587aaaa3231134cfd7b46f44",
+    "wheel_sha256": "6571f2986fce63d347ff7ff510ebdb2726eec0508ea054832980534bc74f37ab",
+    "pre_boot_input_bundle_sha256": "7b163faf76016fdbd1b13b2d1d3c9a1ec2d51da61e384ab4f4d0245aff995232",
+    "credential": "loaded at execution time through launch-paid-campaign.py's strict gateway loader; never passed through argv or written to committed output"
+  },
+  "score": {
+    "benchmark": "Terminal-Bench 2.1",
+    "tasks_attempted": 3,
+    "raw_harbor_rewards": [0, 1, 1],
+    "tasks_solved": 2,
+    "observed_score": 0.6666666666666666,
+    "status": "unsealed",
+    "reason": "All three task verifiers wrote finite rewards, but host finalization refused each trial before outer-envelope publication because the leak scan found host:home_path."
+  },
+  "trials": [
+    {
+      "trial_id": "tb21-paid-r8-chess-best-move-cortex-direct",
+      "task_id": "chess-best-move",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b",
+      "state": "failed-finalization",
+      "reward": 0,
+      "estimated_cost_usd": 0.0178702272,
+      "cost_source": "production costs.jsonl source=estimate",
+      "production_execution_latency_seconds": 1098.331,
+      "provider_requests": 57,
+      "outer_envelope": {"status": "absent", "reason": "output_leak_detected"},
+      "leak_scan": {"rule_id": "host:home_path", "source": "agent/trial-home/home/.local/bin/env", "line": 1, "column": 36},
+      "container_boundary": {"status": "exited", "exit_code": 137, "descendants_alive": 0, "process_namespace_alive": false}
+    },
+    {
+      "trial_id": "tb21-paid-r8-constraints-scheduling-cortex-direct",
+      "task_id": "constraints-scheduling",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c",
+      "state": "failed-finalization",
+      "reward": 1,
+      "estimated_cost_usd": 0.0039482464,
+      "cost_source": "production costs.jsonl source=estimate",
+      "production_execution_latency_seconds": 76.101,
+      "provider_requests": 6,
+      "outer_envelope": {"status": "absent", "reason": "output_leak_detected"},
+      "leak_scan": {"rule_id": "host:home_path", "source": "agent/trial-home/home/.local/bin/env", "line": 1, "column": 36},
+      "container_boundary": {"status": "exited", "exit_code": 137, "descendants_alive": 0, "process_namespace_alive": false}
+    },
+    {
+      "trial_id": "tb21-paid-r8-db-wal-recovery-cortex-direct",
+      "task_id": "db-wal-recovery",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a",
+      "state": "failed-finalization",
+      "reward": 1,
+      "estimated_cost_usd": 0.0021268184,
+      "cost_source": "production costs.jsonl source=estimate",
+      "production_execution_latency_seconds": 37.399,
+      "provider_requests": 10,
+      "outer_envelope": {"status": "absent", "reason": "output_leak_detected"},
+      "leak_scan": {"rule_id": "host:home_path", "source": "agent/trial-home/home/.local/bin/env", "line": 1, "column": 36},
+      "container_boundary": {"status": "exited", "exit_code": 137, "descendants_alive": 0, "process_namespace_alive": false}
+    }
+  ],
+  "paid_spend": {
+    "estimated_cost_usd": 0.023945292,
+    "provider_requests": 73,
+    "input_tokens": 1618185,
+    "cached_tokens": 1578240,
+    "output_tokens": 49764,
+    "within_declared_envelope": true,
+    "note": "Cost is the sum of the three production costs.jsonl estimate entries: 0.0178702272 + 0.0039482464 + 0.0021268184 = 0.0239452920."
+  },
+  "comparison_to_r7": {
+    "r7_score": "1/3",
+    "r8_observed_score": "2/3",
+    "score_delta_solved_tasks": 1,
+    "did_the_observed_score_move": true,
+    "plain_statement": "Yes. The observed three-task score moved from r7's 1/3 to r8's 2/3: db-wal-recovery changed from 0 to 1, while chess-best-move stayed 0 and constraints-scheduling stayed 1.",
+    "causal_caveat": "This one stochastic rerun shows that the score moved; it does not by itself prove that the runtime migration caused the move. The r8 score is unsealed because every outer envelope was blocked by the leak scan.",
+    "per_task": [
+      {
+        "task_id": "chess-best-move",
+        "r7": {"reward": 0, "cost_usd": null, "cost_note": "not reported", "latency_seconds": 1800.308, "provider_requests": 27},
+        "r8": {"reward": 0, "estimated_cost_usd": 0.0178702272, "production_execution_latency_seconds": 1098.331, "provider_requests": 57}
+      },
+      {
+        "task_id": "constraints-scheduling",
+        "r7": {"reward": 1, "cost_usd": 0.0033091464, "latency_seconds": 77.52, "provider_requests": 8},
+        "r8": {"reward": 1, "estimated_cost_usd": 0.0039482464, "production_execution_latency_seconds": 76.101, "provider_requests": 6}
+      },
+      {
+        "task_id": "db-wal-recovery",
+        "r7": {"reward": 0, "cost_usd": null, "cost_note": "not reported", "latency_seconds": 1800.214, "provider_requests": 16},
+        "r8": {"reward": 1, "estimated_cost_usd": 0.0021268184, "production_execution_latency_seconds": 37.399, "provider_requests": 10}
+      }
+    ]
+  },
+  "safety_and_containment": {
+    "leak_scan": "ran and refused all three publications; the refusal was preserved rather than bypassed",
+    "credential_proxy": "trial-scoped strict-loader path used unchanged",
+    "images": "the same three digest-pinned task images as r7",
+    "container_boundaries": "all three stopped, each with descendants_alive=0 and process_namespace_alive=false",
+    "post_run_host_check": "no tb21-paid-r8 containers or Docker networks remained",
+    "prohibitions_observed": ["no retry", "no vendor-baseline arm", "no push", "no release", "no deployment", "no host daemon restart"]
+  },
+  "raw_sources": {
+    "campaign_result": "<trials_dir>/campaign-result.json",
+    "per_trial_harbor_result": "<trials_dir>/<trial_id>/result.json",
+    "per_trial_cost": "<trials_dir>/<trial_id>/agent/production-cortex-home/data/costs.jsonl",
+    "per_trial_latency": "<trials_dir>/<trial_id>/agent/production-cortex-home/data/executions.json",
+    "per_trial_requests": "<trials_dir>/<trial_id>/artifacts/proxy/proxy-export.json",
+    "per_trial_boundary": "<trials_dir>/<trial_id>/artifacts/cortex-bench-container-boundary-attestation.json"
+  },
+  "blocker": "The required outer envelopes and sealed comparison report do not exist because the unchanged safety scan rejected a collected env launcher whose first-line interpreter path matched host:home_path. A new paid run requires a code/config decision plus new user approval; this attempt must not be retried as-is."
+}
