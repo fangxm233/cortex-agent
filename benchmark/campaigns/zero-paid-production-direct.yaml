@@ -10,9 +10,9 @@
 # used; paid remains false.
 
 schema_version: cortex-bench-campaign/1
-campaign: zp-direct-single-runtime
+campaign: zp-direct-leakfix
 paid: false
-trials_dir: /var/tmp/cortex-bench/zp-direct-single-runtime
+trials_dir: /var/tmp/cortex-bench/zp-direct-leakfix
 cli_version: "2026.8.6"
 
 manifest:

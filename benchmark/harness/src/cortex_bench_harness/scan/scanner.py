@@ -20,7 +20,9 @@ from .models import (
     UnclassifiedFile,
 )
 
-HOME_PATH = re.compile(rb"/home/[^/\x00\s]+")
+# A login component cannot start with a dot. This avoids treating a nested container HOME's
+# `/home/.local` launcher path as a host identity while the exact host-home literal still applies.
+HOME_PATH = re.compile(rb"/home/(?!\.)[^/\x00\s]+")
 Rule = tuple[str, str, bytes]
 
 

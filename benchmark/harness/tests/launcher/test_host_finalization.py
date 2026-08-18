@@ -531,6 +531,21 @@ def test_a_run_records_every_collected_file_and_publishes_one_envelope(
     }
 
 
+def test_container_home_env_launcher_is_collected_and_scans_clean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    launcher = tmp_path / "agent/trial-home/home/.local/bin/env"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text('export PATH="/logs/agent/trial-home/home/.local/bin:$PATH"\n')
+
+    run_agent(agent, environment)
+
+    envelope = published(tmp_path)
+    assert envelope["leak_scan"]["clean"] is True
+    assert ("agent", "trial-home/home/.local/bin/env") in recorded_files(envelope)
+
+
 def test_launch_parameters_are_recorded_as_the_launcher_emitted_them(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
