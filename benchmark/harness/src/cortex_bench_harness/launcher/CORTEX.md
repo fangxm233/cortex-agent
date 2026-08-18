@@ -13,6 +13,7 @@ Host launcher modules materialize production arms and record bounded trials.
 | deepseek_paid_smoke.py | boundary | Runs the bounded paid smoke contract |
 | host_credential_vault.py | boundary | Transfers opaque host credentials |
 | lease_bound.py | policy | Computes credential lease bounds |
+| network_policy.py | boundary | Resolves a campaign's declared trial network |
 | production_arms.py | registry | Resolves committed production bundles |
 | production_home.py | boundary | Materializes sealed production homes |
 | production_session.py | lifecycle | Runs production server arm sessions |

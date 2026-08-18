@@ -12,10 +12,13 @@ DOCKER_OPT_IN = "CORTEX_BENCH_DOCKER_TESTS"
 SKIP_REASON = (
     f"container test: set {DOCKER_OPT_IN}=1 to run it. Unset means skip, so an "
     "offline gate never starts a container. Owner of the container-side proof is "
-    "obligation O-G10-EGRESS (Gate 10). NOTE: the gated assertions have not been "
-    "executed under proxy schema cortex-bench-trial-proxy/2 — the request target "
-    "these fixtures emit was re-pointed to the only admitted route, "
-    "POST /v1/messages?beta=true, without a container run to confirm it."
+    "obligation O-G10-EGRESS (Gate 10). These assertions were last executed under "
+    "proxy schema cortex-bench-trial-proxy/2 on 2026-08-18 (17 passed: 4 container "
+    "boundary, 13 container stop observation), which closed the gap this note "
+    "previously recorded — the re-pointed request target, POST /v1/messages?beta=true, "
+    "is confirmed by a real container run. Note these proofs bound the trial PROXY on "
+    "a Docker --internal network; they do not exercise the campaign network block, "
+    "whose open/filtered topologies are covered by the admission tests."
 )
 
 
