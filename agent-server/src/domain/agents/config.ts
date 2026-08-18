@@ -1,5 +1,5 @@
 // input:  mode/profile, Claude auth files, atomic env writes
-// output: modes, expiring Claude credentials, retry policy
+// output: mode env, expiring Claude credentials, retry policy
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -219,17 +219,6 @@ export async function removeClaudeCodeOAuthToken(): Promise<void> {
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
 }
 
-function applySavedApiEnv(): void {
-  const apiEnv = getSavedApiEnv();
-  if (apiEnv.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = apiEnv.ANTHROPIC_API_KEY;
-  else delete process.env.ANTHROPIC_API_KEY;
-  if (apiEnv.ANTHROPIC_BASE_URL) process.env.ANTHROPIC_BASE_URL = apiEnv.ANTHROPIC_BASE_URL;
-  else delete process.env.ANTHROPIC_BASE_URL;
-  if (apiEnv.CLAUDE_CODE_OAUTH_TOKEN) {
-    process.env.CLAUDE_CODE_OAUTH_TOKEN = apiEnv.CLAUDE_CODE_OAUTH_TOKEN;
-  } else delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
-}
-
 function hasClaudeOwnedOAuthCredential(): boolean {
   const home = process.env.HOME || os.homedir();
   const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(home, '.claude');
@@ -429,38 +418,66 @@ export function isRetryableError(error: Error | null | undefined): boolean {
     || TRANSIENT_PROVIDER_GUIDANCE.test(message);
 }
 
-function configureGatewayEnv(mode: string, metadata?: Record<string, string>): string {
-  const url = gatewayModeUrl(mode, metadata);
-  process.env.ANTHROPIC_BASE_URL = url;
-  if (mode === 'plan') {
-    // An API key takes precedence over the subscription token on the passthrough route.
-    delete process.env.ANTHROPIC_API_KEY;
-    return url;
-  }
-  const saved = getSavedApiEnv();
-  process.env.ANTHROPIC_API_KEY = saved.ANTHROPIC_API_KEY || GATEWAY_MANAGED_KEY_PLACEHOLDER;
-  return url;
+/**
+ * Which Anthropic route one connection needs. The base URL is always fully decided by the
+ * route, so `undefined` there means "this route has no base URL" (unset the variable).
+ * For the credentials, absent = the route has no opinion (leave as-is), null = must be deleted.
+ */
+export interface ModeEnv {
+  ANTHROPIC_BASE_URL?: string;
+  ANTHROPIC_API_KEY?: string | null;
+  CLAUDE_CODE_OAUTH_TOKEN?: string | null;
 }
 
-function configureDirectEnv(mode: string): string | undefined {
-  log.debug(`Gateway unhealthy — using direct Anthropic connection (mode=${mode})`);
-  if (mode === 'plan') {
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_BASE_URL;
-    return undefined;
-  }
-  applySavedApiEnv();
-  const baseUrl = getSavedApiEnv().ANTHROPIC_BASE_URL;
-  if (baseUrl) process.env.ANTHROPIC_BASE_URL = baseUrl;
-  else delete process.env.ANTHROPIC_BASE_URL;
-  return baseUrl;
+function gatewayModeEnv(mode: string, metadata?: Record<string, string>): ModeEnv {
+  const ANTHROPIC_BASE_URL = gatewayModeUrl(mode, metadata);
+  // An API key takes precedence over the subscription token on the passthrough route.
+  if (mode === 'plan') return { ANTHROPIC_BASE_URL, ANTHROPIC_API_KEY: null };
+  const saved = getSavedApiEnv();
+  return {
+    ANTHROPIC_BASE_URL,
+    ANTHROPIC_API_KEY: saved.ANTHROPIC_API_KEY || GATEWAY_MANAGED_KEY_PLACEHOLDER,
+  };
+}
+
+function directModeEnv(mode: string): ModeEnv {
+  if (mode === 'plan') return { ANTHROPIC_API_KEY: null };
+  const saved = getSavedApiEnv();
+  return {
+    ANTHROPIC_BASE_URL: saved.ANTHROPIC_BASE_URL,
+    ANTHROPIC_API_KEY: saved.ANTHROPIC_API_KEY || null,
+    CLAUDE_CODE_OAUTH_TOKEN: saved.CLAUDE_CODE_OAUTH_TOKEN || null,
+  };
+}
+
+/**
+ * The mode decision as a value: reads the saved credentials, writes no env. Callers choose
+ * where to apply it — the global process.env (configureEnvForMode) or one spawn's env.
+ */
+export function resolveModeEnv(mode: string, metadata?: Record<string, string>): ModeEnv {
+  return isGatewayHealthy() ? gatewayModeEnv(mode, metadata) : directModeEnv(mode);
+}
+
+function assignEnvVar(name: string, value: string | null | undefined): void {
+  if (value === undefined) return;
+  if (value === null) delete process.env[name];
+  else process.env[name] = value;
+}
+
+function applyModeEnv(modeEnv: ModeEnv): void {
+  assignEnvVar('ANTHROPIC_BASE_URL', modeEnv.ANTHROPIC_BASE_URL ?? null);
+  assignEnvVar('ANTHROPIC_API_KEY', modeEnv.ANTHROPIC_API_KEY);
+  assignEnvVar('CLAUDE_CODE_OAUTH_TOKEN', modeEnv.CLAUDE_CODE_OAUTH_TOKEN);
 }
 
 export function configureEnvForMode(mode: string, metadata?: Record<string, string>): string | undefined {
   applySavedOAuthToken();
-  return isGatewayHealthy()
-    ? configureGatewayEnv(mode, metadata)
-    : configureDirectEnv(mode);
+  const modeEnv = resolveModeEnv(mode, metadata);
+  if (!isGatewayHealthy()) {
+    log.debug(`Gateway unhealthy — using direct Anthropic connection (mode=${mode})`);
+  }
+  applyModeEnv(modeEnv);
+  return modeEnv.ANTHROPIC_BASE_URL;
 }
 
 export function setGatewayMode(mode: string): Promise<string> {
