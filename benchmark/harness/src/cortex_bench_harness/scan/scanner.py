@@ -7,6 +7,7 @@ import os
 import re
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
+from itertools import combinations
 from pathlib import Path
 
 from ..manifest import MANIFEST_FILENAME
@@ -46,6 +47,7 @@ def scan_trial_artifacts(
 def _validate_inventory(inventory: ArtifactInventory, policy: ScanPolicy) -> None:
     _validate_inventory_shape(inventory)
     _validate_source_roots(inventory)
+    _validate_container_roots(inventory)
     _validate_source_names(inventory, policy)
     manifest = inventory.sources.get("manifest")
     if manifest is not None and manifest.name != MANIFEST_FILENAME:
@@ -70,6 +72,23 @@ def _validate_source_roots(inventory: ArtifactInventory) -> None:
         raise ArtifactReadError("artifact_inventory") from error
     if outside_root:
         raise ValueError("artifact sources must be physically contained by trial roots")
+
+
+def _validate_container_roots(inventory: ArtifactInventory) -> None:
+    roots = {_root_location(root) for root in inventory.trial_roots}
+    aliases: list[Path] = []
+    for host_root, container_root in inventory.container_roots.items():
+        alias = _normalized_path(container_root)
+        if _root_location(host_root) not in roots:
+            raise ValueError("container root must map a declared trial root")
+        if not container_root.is_absolute() or alias == Path("/") or alias != container_root:
+            raise ValueError("container root must be a normalized absolute non-root path")
+        aliases.append(alias)
+    if any(
+        left.is_relative_to(right) or right.is_relative_to(left)
+        for left, right in combinations(aliases, 2)
+    ):
+        raise ValueError("container roots must not overlap")
 
 
 def _root_location(root: Path) -> Path:
@@ -136,6 +155,7 @@ class _ScannedSources:
 
     roots: tuple[Path, ...]
     targets_by_root: tuple[frozenset[Path], ...]
+    container_roots: tuple[Path | None, ...]
 
     def is_present(self, path: Path) -> bool:
         return _is_regular_file(path) or self.is_alias(path)
@@ -144,10 +164,13 @@ class _ScannedSources:
         if not path.is_symlink():
             return False
         location = _normalized_path(path)
-        for root, targets in zip(self.roots, self.targets_by_root, strict=True):
+        rows = zip(
+            self.roots, self.targets_by_root, self.container_roots, strict=True,
+        )
+        for root, targets, container_root in rows:
             if not location.is_relative_to(root):
                 continue
-            target = _resolved_file_within(path, root)
+            target = _resolved_file_within(path, root, container_root)
             return target is not None and target in targets
         return False
 
@@ -159,12 +182,17 @@ def _scanned_sources(inventory: ArtifactInventory) -> _ScannedSources:
             path.resolve(strict=True) for source, path in inventory.sources.items()
             if source in inventory.expected_sources and _is_regular_file(path)
         )
+        container_roots = {
+            _root_location(root): _normalized_path(container)
+            for root, container in inventory.container_roots.items()
+        }
         return _ScannedSources(
             roots=roots,
             targets_by_root=tuple(
                 frozenset(target for target in targets if target.is_relative_to(root))
                 for root in roots
             ),
+            container_roots=tuple(container_roots.get(root) for root in roots),
         )
     except OSError as error:
         raise ArtifactReadError("artifact_inventory") from error
@@ -174,8 +202,10 @@ def _is_regular_file(path: Path) -> bool:
     return path.is_file() and not path.is_symlink()
 
 
-def _resolved_file_within(path: Path, root: Path) -> Path | None:
-    """Resolve one file path while refusing any symlink hop that leaves its trial root."""
+def _resolved_file_within(
+    path: Path, root: Path, container_root: Path | None,
+) -> Path | None:
+    """Resolve one file path while refusing any symlink hop outside its mapped root."""
     location = _normalized_path(path)
     if not location.is_relative_to(root):
         return None
@@ -191,16 +221,27 @@ def _resolved_file_within(path: Path, root: Path) -> Path | None:
             if candidate in visited:
                 return None
             visited.add(candidate)
-            target = Path(os.readlink(candidate))
-            target = _normalized_path(
-                target if target.is_absolute() else candidate.parent / target)
-            if not target.is_relative_to(root):
+            target = _alias_target(candidate, root, container_root)
+            if target is None:
                 return None
             pending = [*target.relative_to(root).parts, *pending]
             current = root
     except OSError:
         return None
     return current if _is_regular_file(current) else None
+
+
+def _alias_target(
+    candidate: Path, root: Path, container_root: Path | None,
+) -> Path | None:
+    target = Path(os.readlink(candidate))
+    target = _normalized_path(
+        target if target.is_absolute() else candidate.parent / target)
+    if target.is_relative_to(root):
+        return target
+    if container_root is None or not target.is_relative_to(container_root):
+        return None
+    return root / target.relative_to(container_root)
 
 
 def _unclassified_files(

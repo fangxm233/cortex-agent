@@ -252,6 +252,63 @@ def test_classifies_in_root_alias_of_a_scanned_source(tmp_path: Path) -> None:
     assert report.exit_code == 0
 
 
+def test_classifies_container_absolute_alias_of_same_root_scanned_source(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "agent"
+    target = root / "production-home/container-home/.pi/agent/auth.json"
+    target.parent.mkdir(parents=True)
+    target.write_text("clean\n")
+    alias = root / "production-home/data/pi/auth.json"
+    alias.parent.mkdir(parents=True)
+    alias.symlink_to("/logs/agent/production-home/container-home/.pi/agent/auth.json")
+    inventory = ArtifactInventory(
+        {"auth": target}, frozenset({"auth"}), (root,),
+        container_roots={root: Path("/logs/agent")},
+    )
+
+    report = scan_trial_artifacts(inventory, policy())
+
+    assert report.unclassified_files == ()
+    assert report.clean is True
+
+
+def test_reports_container_absolute_alias_to_another_root(tmp_path: Path) -> None:
+    agent = tmp_path / "agent"
+    verifier = tmp_path / "verifier"
+    agent.mkdir()
+    target = verifier / "reward.json"
+    verifier.mkdir()
+    target.write_text("clean\n")
+    alias = agent / "reward.json"
+    alias.symlink_to("/logs/verifier/reward.json")
+    inventory = ArtifactInventory(
+        {"reward": target}, frozenset({"reward"}), (agent, verifier),
+        container_roots={agent: Path("/logs/agent"), verifier: Path("/logs/verifier")},
+    )
+
+    report = scan_trial_artifacts(inventory, policy())
+
+    assert report.unclassified_files == (UnclassifiedFile(0, "reward.json"),)
+    assert report.clean is False
+
+
+def test_rejects_one_container_root_mapped_to_two_trial_roots(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    source = first / "source.txt"
+    source.write_text("clean\n")
+    inventory = ArtifactInventory(
+        {"source": source}, frozenset({"source"}), (first, second),
+        container_roots={first: Path("/logs/shared"), second: Path("/logs/shared")},
+    )
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        scan_trial_artifacts(inventory, policy())
+
+
 def test_reports_alias_whose_resolved_target_leaves_every_trial_root(tmp_path: Path) -> None:
     root = tmp_path / "trial"
     root.mkdir()

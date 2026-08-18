@@ -1,5 +1,5 @@
-# input:  trial output roots, launcher records, proxy revocation, host scan policy
-# output: collected evidence inventory, recorded launch parameters, outer envelope
+# input:  trial roots, launcher/proxy records, scan policy
+# output: collected inventory and published outer envelope
 # pos:    Host-side benchmark trial recorder
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -133,23 +133,20 @@ def _environment_mapping(
 
 
 def finalize_host_trial(
-    *, logs_dir: Path, verifier_dir: Path, artifact_dir: Path,
-    root_run_id: str, trial_id: str, arm: Mapping[str, object],
-    npm_artifact: Path, bundle_root: str, revocation: TrialRevocation | None,
-    scan_policy: ScanPolicy,
+    *, logs_dir: Path, verifier_dir: Path, artifact_dir: Path, root_run_id: str,
+    trial_id: str, arm: Mapping[str, object], npm_artifact: Path, bundle_root: str,
+    revocation: TrialRevocation | None, scan_policy: ScanPolicy, container_logs_dir: Path,
 ) -> HostFinalizationResult:
-    roots = {"agent": logs_dir, VERIFIER_ROOT: verifier_dir, "artifacts": artifact_dir}
     attestation = _read_record(artifact_dir / LAUNCH_ATTESTATION_FILENAME)
     launch_record = _launch_record(attestation, artifact_dir, npm_artifact)
-    assets = _lift_assets(
-        logs_dir, npm_artifact, bundle_root, _attested_arm(attestation, "root_template"))
-    walked, collected = _collect_roots(roots)
-    scan_roots = {name: root for name, root in roots.items() if walked[name] == "collected"}
-    scan = _scan_collected(collected, scan_roots, scan_policy)
+    assets = _lift_assets(logs_dir, npm_artifact, bundle_root, _attested_arm(attestation, "root_template"))
+    walked, collected, scan = _collect_and_scan(
+        logs_dir, verifier_dir, artifact_dir, container_logs_dir, scan_policy,
+    )
     envelope = {
         "schema_version": OUTER_ENVELOPE_SCHEMA_VERSION,
-        "identity": {"trial_id": trial_id, "root_run_id": root_run_id,
-                     "arm_name": arm.get("name")},
+        "identity": {
+            "trial_id": trial_id, "root_run_id": root_run_id, "arm_name": arm.get("name")},
         "evidence": {
             "roots": [{"root": name, "status": status} for name, status in walked.items()],
             "files": [item.as_dict() for item in collected],
@@ -160,13 +157,24 @@ def finalize_host_trial(
         "proxy_usage": _proxy_usage(revocation, trial_id),
         "revocation": _revocation_record(revocation),
         "leak_scan": scan,
-        "publication": {
-            "root": "artifacts", "relative_path": OUTER_ENVELOPE_FILENAME,
-            "atomic": True, "post_publication_reread": True,
-        },
+        "publication": {"root": "artifacts", "relative_path": OUTER_ENVELOPE_FILENAME,
+                        "atomic": True, "post_publication_reread": True},
         "grader_admission": {"admitted": True, "reason": "recorded"},
     }
     return _publish_outer(artifact_dir / OUTER_ENVELOPE_FILENAME, envelope)
+
+
+def _collect_and_scan(
+    logs_dir: Path, verifier_dir: Path, artifact_dir: Path,
+    container_logs_dir: Path, scan_policy: ScanPolicy,
+) -> tuple[dict[str, str], tuple[CollectedFile, ...], dict[str, object]]:
+    roots = {"agent": logs_dir, VERIFIER_ROOT: verifier_dir, "artifacts": artifact_dir}
+    walked, collected = _collect_roots(roots)
+    scan_roots = {name: root for name, root in roots.items() if walked[name] == "collected"}
+    scan = _scan_collected(
+        collected, scan_roots, {"agent": container_logs_dir}, scan_policy,
+    )
+    return walked, collected, scan
 
 
 def _unavailable(reason: str) -> dict[str, str]:
@@ -258,11 +266,10 @@ def _sha256_file(path: Path) -> str | None:
 
 
 def _scan_collected(
-    collected: Sequence[CollectedFile], roots: Mapping[str, Path], policy: ScanPolicy,
+    collected: Sequence[CollectedFile], roots: Mapping[str, Path],
+    container_roots: Mapping[str, Path], policy: ScanPolicy,
 ) -> dict[str, object]:
-    """The one remaining refusal. Only a finding stops publication: a missing or unclassified
-    source is a statement about the inventory, which is now a record like everything else.
-    """
+    """Scan all collected files; only a leak finding stops publication."""
     if any(contains_sensitive_literal(item.relative_path, policy) for item in collected):
         raise HostFinalizationError("output_leak_detected")
     if not roots:
@@ -271,9 +278,16 @@ def _scan_collected(
         item.source: roots[item.root] / item.relative_path
         for item in collected if item.kind == "file"
     }
+    root_aliases = {
+        roots[name]: container for name, container in container_roots.items()
+        if name in roots
+    }
     try:
         report = scan_trial_artifacts(
-            ArtifactInventory(sources, frozenset(sources), tuple(roots.values())), policy,
+            ArtifactInventory(
+                sources, frozenset(sources), tuple(roots.values()), root_aliases,
+            ),
+            policy,
         )
     except Exception as error:
         raise HostFinalizationError("output_scan_failed") from error
