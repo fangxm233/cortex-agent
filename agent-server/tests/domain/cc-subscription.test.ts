@@ -25,7 +25,7 @@ import {
 } from '../../src/domain/auth/cc-subscription.js';
 import { initAuthEvents } from '../../src/domain/auth/auth-events.js';
 import {
-  configureEnvForMode,
+  applyAuthEnv,
   removeClaudeCodeOAuthToken,
   saveClaudeCodeOAuthToken,
 } from '../../src/domain/agents/config.js';
@@ -160,7 +160,7 @@ test('subscription maps CLI cancellation and timeout to stable LoginFlow errors'
   }
 });
 
-test('plan mode admits a legacy token only until Claude owns a credential', async (t) => {
+test('the daemon env admits a legacy token only until Claude owns a credential', async (t) => {
   const previousHome = process.env.HOME;
   const home = process.env.CORTEX_HOME!;
   const credentialsPath = path.join(home, '.claude', '.credentials.json');
@@ -173,14 +173,14 @@ test('plan mode admits a legacy token only until Claude owns a credential', asyn
   await saveClaudeCodeOAuthToken('sk-ant-oat01-legacy-fixture');
   _testSetHealthy(false);
 
-  configureEnvForMode('plan');
+  applyAuthEnv();
   assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, 'sk-ant-oat01-legacy-fixture');
 
   fs.mkdirSync(path.dirname(credentialsPath), { recursive: true });
   fs.writeFileSync(credentialsPath, JSON.stringify({ claudeAiOauth: {
     accessToken: 'fixture-access', refreshToken: 'fixture-refresh',
   } }), { mode: 0o600 });
-  configureEnvForMode('plan');
+  applyAuthEnv();
   assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, undefined);
 });
 

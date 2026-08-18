@@ -136,7 +136,12 @@ function assertSuccessfulLogin(evidence: LoginEvidence): void {
   assert.equal(evidence.account.authType, 'api_key');
   assert.equal(evidence.account.state, 'logged-in');
   assert.equal(evidence.savedKey, NEW_KEY);
-  assert.equal(process.env.ANTHROPIC_API_KEY, undefined);
+  // The daemon env holds the saved credential — the aistatus gateway child inherits this env and
+  // resolves keys: [$ANTHROPIC_API_KEY] from it. Mode routing no longer decides what lands here,
+  // so plan mode no longer strips the key a login just saved.
+  assert.equal(process.env.ANTHROPIC_API_KEY, NEW_KEY);
+  assert.notEqual(process.env.ANTHROPIC_API_KEY, PLACEHOLDER,
+    'the placeholder the fixture started from is not a credential and must not survive a login');
   assert.equal(evidence.persisted.includes('OTHER_SETTING=keep'), true);
   assert.equal(evidence.persisted.includes(NEW_KEY), true);
   assert.equal(evidence.persisted.includes(PLACEHOLDER), false);

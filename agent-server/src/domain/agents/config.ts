@@ -231,15 +231,21 @@ function hasClaudeOwnedOAuthCredential(): boolean {
   }
 }
 
-function applySavedOAuthToken(): void {
-  if (hasClaudeOwnedOAuthCredential()) {
-    delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
-    delete process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT;
-    return;
-  }
-  const token = getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN;
-  if (token) process.env.CLAUDE_CODE_OAUTH_TOKEN = token;
-  else delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+/**
+ * Which OAuth token the daemon may hold. Two stores can answer — `CONFIG_DIR/.env` and
+ * `~/.claude/.credentials.json` — and the two old writers disagreed: `applySavedApiEnv`
+ * projected the .env copy unconditionally while `applySavedOAuthToken` deleted it as soon as
+ * Claude owned a credential, so which one won came down to call order.
+ *
+ * Arbitration: Claude's own credential wins. It is the one `claude login` writes and refreshes,
+ * while the .env copy is a static token nobody rotates — leaving it in the env would silently
+ * shadow the live credential in every child that inherits it, and it would outlive a logout that
+ * only Claude's store recorded. So the .env token is a fallback for machines where Claude owns
+ * nothing, never an override.
+ */
+function savedOAuthToken(saved: ApiEnv): string | null {
+  if (hasClaudeOwnedOAuthCredential()) return null;
+  return saved.CLAUDE_CODE_OAUTH_TOKEN ?? null;
 }
 
 function normalizeClaudeMode(mode: string): string {
@@ -387,7 +393,6 @@ export function setDefaultAgent(name: string | null): void {
 export function switchMode(): { oldMode: string; newMode: string } {
   const oldMode = claudeMode;
   claudeMode = claudeMode === 'plan' ? 'api' : 'plan';
-  configureEnvForMode(claudeMode);
   saveModeFile(claudeMode, activeBackend, claudeModel);
   return { oldMode, newMode: claudeMode };
 }
@@ -451,11 +456,14 @@ function directModeEnv(mode: string): ModeEnv {
 }
 
 /**
- * The mode decision as a value: reads the saved credentials, writes no env. Callers choose
- * where to apply it — the global process.env (configureEnvForMode) or one spawn's env.
+ * The mode decision as a value: reads the saved credentials, writes no env. It is applied to one
+ * spawn's environment only (facade.configureRunRoute → spawn-config.routeEnvFields); nothing
+ * projects it onto the daemon's own env, which carries saved credentials alone (applyAuthEnv).
  */
 export function resolveModeEnv(mode: string, metadata?: Record<string, string>): ModeEnv {
-  return isGatewayHealthy() ? gatewayModeEnv(mode, metadata) : directModeEnv(mode);
+  if (isGatewayHealthy()) return gatewayModeEnv(mode, metadata);
+  log.debug(`Gateway unhealthy — using direct Anthropic connection (mode=${mode})`);
+  return directModeEnv(mode);
 }
 
 function assignEnvVar(name: string, value: string | null | undefined): void {
@@ -464,20 +472,23 @@ function assignEnvVar(name: string, value: string | null | undefined): void {
   else process.env[name] = value;
 }
 
-function applyModeEnv(modeEnv: ModeEnv): void {
-  assignEnvVar('ANTHROPIC_BASE_URL', modeEnv.ANTHROPIC_BASE_URL ?? null);
-  assignEnvVar('ANTHROPIC_API_KEY', modeEnv.ANTHROPIC_API_KEY);
-  assignEnvVar('CLAUDE_CODE_OAUTH_TOKEN', modeEnv.CLAUDE_CODE_OAUTH_TOKEN);
-}
-
-export function configureEnvForMode(mode: string, metadata?: Record<string, string>): string | undefined {
-  applySavedOAuthToken();
-  const modeEnv = resolveModeEnv(mode, metadata);
-  if (!isGatewayHealthy()) {
-    log.debug(`Gateway unhealthy — using direct Anthropic connection (mode=${mode})`);
-  }
-  applyModeEnv(modeEnv);
-  return modeEnv.ANTHROPIC_BASE_URL;
+/**
+ * Projects the saved credentials onto the daemon's own env — and nothing else. Mode routing never
+ * lands here: it is resolved per spawn (resolveModeEnv) and applied to that child only, so the
+ * daemon env can no longer decide how an unrelated process authenticates (K-053: the usage probe
+ * inherited whichever mode configured the daemon last).
+ *
+ * What stays global is what other processes read out of this env: the aistatus gateway child
+ * resolves `keys: ['$ANTHROPIC_API_KEY']` from it, and Claude spawns re-admit an ambient
+ * CLAUDE_CODE_OAUTH_TOKEN. Both therefore see a real credential or none — never the gateway
+ * placeholder, which normalizeApiKey has already dropped from the saved snapshot.
+ */
+export function applyAuthEnv(): void {
+  const saved = getSavedApiEnv();
+  const token = savedOAuthToken(saved);
+  assignEnvVar('ANTHROPIC_API_KEY', saved.ANTHROPIC_API_KEY ?? null);
+  assignEnvVar('CLAUDE_CODE_OAUTH_TOKEN', token);
+  if (token === null) assignEnvVar('CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT', null);
 }
 
 export function setGatewayMode(mode: string): Promise<string> {
@@ -527,12 +538,10 @@ export function detectBillingMode(): string {
   return 'api';
 }
 
-// NOTE: deliberately NO configureEnvForMode() call at module scope. This module is imported
-// transitively by CLI processes (cortex init / setup-gateway via domain/threads), where the
-// gateway is always unhealthy — an import-time call would delete ANTHROPIC_API_KEY (plan mode)
-// before gateway-generator discovery runs, breaking api endpoint generation. The server entry
-// (app.ts) applies the persisted mode explicitly after dotenv loads; every agent spawn also
-// calls configureEnvForMode() per-request (facade.runAgentOnce).
+// NOTE: deliberately NO env write at module scope. This module is imported transitively by CLI
+// processes (cortex init / setup-gateway via domain/threads), and an import-time write would
+// rewrite ANTHROPIC_API_KEY before gateway-generator discovery runs, breaking api endpoint
+// generation. The server entry (app.ts) calls applyAuthEnv() explicitly after dotenv loads.
 
 export {
   GATEWAY_ANTHROPIC_URL,

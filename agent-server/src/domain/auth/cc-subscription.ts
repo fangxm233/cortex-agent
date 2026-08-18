@@ -4,8 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import {
-  configureEnvForMode,
-  getClaudeMode,
+  applyAuthEnv,
   removeClaudeCodeOAuthToken,
 } from '../agents/config.js';
 import {
@@ -75,7 +74,7 @@ async function clearLegacyToken(
 ): Promise<void> {
   try {
     await (dependencies.removeLegacyToken ?? removeClaudeCodeOAuthToken)();
-    (dependencies.reloadAuth ?? (() => configureEnvForMode(getClaudeMode())))();
+    (dependencies.reloadAuth ?? applyAuthEnv)();
   } catch {
     throw loginError(
       'claude_subscription_cleanup_failed',

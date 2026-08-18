@@ -24,7 +24,7 @@ import type { ResolvedProfileConfig } from './profile-manager.js';
 import type { AgentHandle, AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import { recordCost, type CostAttribution } from '../costs/cost-tracker.js';
 import {
-  configureEnvForMode, isApiRateLimitError, isRetryableResult, isRetryableError, resolveModeEnv,
+  isApiRateLimitError, isRetryableResult, isRetryableError, resolveModeEnv,
 } from './config.js';
 import type { ModeEnv } from './config.js';
 import { isProviderRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
@@ -496,7 +496,7 @@ export interface CompactAgentDeps {
 const compactAgentDeps: CompactAgentDeps = {
   resolveProfile: resolveProfileConfig,
   getAdapter,
-  configureMode: configureModeRoute,
+  configureMode: resolveModeEnv,
   recordCost,
 };
 
@@ -585,21 +585,14 @@ export async function compactAgentContext(
   }
 }
 
-/** Resolves the Anthropic route one connection must use. The returned value is what actually
- *  reaches this spawn's child environment; the global write is kept as a fallback for the spawn
- *  paths that do not carry a route yet (plan S3 keeps both). Resolving AFTER the global write is
- *  deliberate: getSavedApiEnv() folds live process.env back into the saved snapshot, so this
- *  order is the one that makes the returned route identical to the applied one. */
-function configureModeRoute(mode: string, metadata?: Record<string, string>): ModeEnv {
-  configureEnvForMode(mode, metadata);
-  return resolveModeEnv(mode, metadata);
-}
-
+/** Resolves the Anthropic route one connection must use. The returned value is the only thing
+ *  that carries the mode: it reaches this spawn's child environment and nothing else, so two
+ *  connections on different modes can no longer overwrite each other's routing (K-053). */
 function configureRunRoute(options: RunAgentOptions, config: AgentConfig): ModeEnv {
   const metadata: Record<string, string> = {};
   if (options.project) metadata.project = options.project;
   if (options.trigger) metadata.trigger = options.trigger;
-  return configureModeRoute(
+  return resolveModeEnv(
     config.mode || 'api', Object.keys(metadata).length > 0 ? metadata : undefined,
   );
 }

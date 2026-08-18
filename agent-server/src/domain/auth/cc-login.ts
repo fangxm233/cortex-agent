@@ -4,8 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import {
-  configureEnvForMode,
-  getClaudeMode,
+  applyAuthEnv,
   saveAnthropicApiKey,
 } from '../agents/config.js';
 import { publishAuthRecovered } from './auth-events.js';
@@ -25,7 +24,7 @@ export async function loginClaudeApiKey(
     message: 'Enter your Anthropic API key.',
   });
   await saveAnthropicApiKey(apiKey);
-  configureEnvForMode(getClaudeMode());
+  applyAuthEnv();
   publishAuthRecovered({ backend: 'claude', provider: 'anthropic' });
   return { provider: 'anthropic', authType: 'api_key', expiresAt: null };
 }

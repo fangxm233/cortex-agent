@@ -920,12 +920,12 @@ test('interleaved mode configuration cannot cross-contaminate two concurrent spa
   const codex = facadeTest.configureRunRoute(
     { project: 'beta' }, { ...FIXTURE_CONFIG, mode: 'openai-codex' },
   );
-  // The daemon global now belongs to whichever mode configured last — that is the race.
-  assert.equal(
-    process.env.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/openai-codex/project=beta/anthropic`,
-  );
+  // Neither configuration wrote the daemon global — the race has nothing left to lose.
+  assert.equal(process.env.ANTHROPIC_BASE_URL, STALE_ROUTE_URL,
+    'resolving a route may not repoint the daemon: that global is what the usage probe inherits');
+  assert.equal(process.env.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY);
 
-  // The global keeps flipping while the two spawns launch; neither may read it.
+  // An unrelated writer flips the global while the two spawns launch; neither may read it.
   repointDaemonGlobals();
   const planEnv = childEnvironment(routeSpawnConfig('route-plan', plan));
   delete process.env.ANTHROPIC_API_KEY;
@@ -933,10 +933,10 @@ test('interleaved mode configuration cannot cross-contaminate two concurrent spa
 
   assert.equal(planEnv.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/plan/project=alpha/anthropic`);
   assert.equal(planEnv.ANTHROPIC_API_KEY, undefined,
-    'the plan spawn must not inherit the key the later non-plan configuration set globally');
+    'the plan spawn must not inherit the key sitting in the daemon env when it launches');
   assert.equal(codexEnv.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/openai-codex/project=beta/anthropic`);
   assert.equal(codexEnv.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY,
-    'the non-plan spawn must carry its own key even after a plan configuration cleared the global');
+    'the non-plan spawn must carry its own key even though the daemon env has none when it launches');
 });
 
 test('a plan route deletes the API key and carries its base URL on exactly one field', (t) => {

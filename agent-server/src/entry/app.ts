@@ -52,7 +52,7 @@ import { executionRepo } from '@store/execution-repo.js';
 import { getThreadConfigRevision, loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier, migrateThreadTemplatesToDir, mergeThreadTemplates } from '@domain/threads/index.js';
 import { initializeProductionAttemptIdentity } from '@domain/agent-run/production-attempt-identity.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
-import { getActiveBackend, configureEnvForMode, loadMode } from '@domain/agents/index.js';
+import { getActiveBackend, applyAuthEnv } from '@domain/agents/index.js';
 import { createEditHandler } from '@orch/routing/edit-handler.js';
 import { setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
@@ -134,10 +134,11 @@ if (!shouldSyncManagedStartupAssets()) {
   captureAuthTokensForRuntime({ scrubEnv: true });
 }
 
-// Apply the persisted mode to env now that .env is loaded. This used to be an import-time
-// side effect inside domain/agents/config.ts; it is explicit here so that CLI processes
-// (cortex init / setup-gateway) importing that module don't get their env mutated.
-configureEnvForMode(loadMode());
+// Project the saved credentials onto this process's env now that .env is loaded — the gateway
+// child inherits them. This used to be an import-time side effect inside domain/agents/config.ts;
+// it is explicit here so that CLI processes (cortex init / setup-gateway) importing that module
+// don't get their env mutated. Mode routing is resolved per spawn, never here.
+applyAuthEnv();
 
 // Resolve the UI language for all system-generated user-facing text. Precedence:
 // CORTEX_LANG env (escape hatch, now that .env is loaded) > config/preferences.json > 'en'.

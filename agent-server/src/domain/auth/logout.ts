@@ -7,8 +7,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import {
-  configureEnvForMode,
-  getClaudeMode,
+  applyAuthEnv,
   getSavedApiEnv,
   removeAnthropicApiKey,
   removeClaudeCodeOAuthToken,
@@ -121,8 +120,7 @@ function selectedCredential(
 }
 
 function reloadClaude(dependencies: LogoutAccountDependencies): void {
-  const reload = dependencies.configureClaudeEnv
-    ?? (() => configureEnvForMode(getClaudeMode()));
+  const reload = dependencies.configureClaudeEnv ?? applyAuthEnv;
   reload();
 }
 
