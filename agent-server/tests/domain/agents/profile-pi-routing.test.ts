@@ -78,7 +78,7 @@ test('buildAgentSpawnConfig: a pi spawn keeps the gateway origin when a Claude m
   const spawn = buildAgentSpawnConfig(
     { loadCortexRules: false },
     { model: 'gpt-x', backend: 'pi', mode: 'openai-codex', provider: 'openai-codex' },
-    `${GATEWAY_URL}/m/openai-codex/project=nimbus,trigger=user/anthropic`,
+    { ANTHROPIC_BASE_URL: `${GATEWAY_URL}/m/openai-codex/project=nimbus,trigger=user/anthropic` },
   );
   assert.equal(spawn.piGatewayBaseUrl, GATEWAY_URL);
   assert.equal(spawn.piGatewayPath, '/m/openai-codex/openai-codex');

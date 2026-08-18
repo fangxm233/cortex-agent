@@ -23,7 +23,10 @@ import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
 import type { AgentHandle, AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import { recordCost, type CostAttribution } from '../costs/cost-tracker.js';
-import { configureEnvForMode, isApiRateLimitError, isRetryableResult, isRetryableError } from './config.js';
+import {
+  configureEnvForMode, isApiRateLimitError, isRetryableResult, isRetryableError, resolveModeEnv,
+} from './config.js';
+import type { ModeEnv } from './config.js';
 import { isProviderRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
@@ -386,10 +389,10 @@ function productionJournalSink(
 
 function prepareAttemptEvidence(
   adapter: AgentAdapter, message: string, options: RunAgentOptions,
-  config: AgentConfig, anthropicBaseUrl: string | undefined,
+  config: AgentConfig, route: ModeEnv | undefined,
 ) {
   const spawnConfig = options.preparedSpawnConfig
-    ?? buildAgentSpawnConfig(options, config, anthropicBaseUrl);
+    ?? buildAgentSpawnConfig(options, config, route);
   const attemptIdentity = freezeProductionAttemptIdentity({
     adapterBackend: adapter.backend, spawnConfig, options,
     resolvedProfile: options.resolvedProfileConfig,
@@ -439,10 +442,10 @@ function runHandle(proc: AgentProcess, promise: Promise<AgentResult>): AgentHand
 
 export function runWithAdapter(
   adapter: AgentAdapter, message: string, options: RunAgentOptions,
-  config: AgentConfig, anthropicBaseUrl: string | undefined,
+  config: AgentConfig, route: ModeEnv | undefined,
 ): AgentHandle {
   const { spawnConfig, attemptIdentity, attemptJournal } = prepareAttemptEvidence(
-    adapter, message, options, config, anthropicBaseUrl,
+    adapter, message, options, config, route,
   );
   const attribution = costAttribution(options, attemptIdentity);
   const { proc, tee, turnPromise } = spawnAdapterAttempt(
@@ -486,14 +489,14 @@ interface CompactCostEntry {
 export interface CompactAgentDeps {
   resolveProfile: (profileName: string | null) => ResolvedProfileConfig;
   getAdapter: (backend: Backend) => AgentAdapter;
-  configureMode: (mode: string, metadata?: Record<string, string>) => string | undefined;
+  configureMode: (mode: string, metadata?: Record<string, string>) => ModeEnv;
   recordCost: (entry: CompactCostEntry) => Promise<void>;
 }
 
 const compactAgentDeps: CompactAgentDeps = {
   resolveProfile: resolveProfileConfig,
   getAdapter,
-  configureMode: configureEnvForMode,
+  configureMode: configureModeRoute,
   recordCost,
 };
 
@@ -556,7 +559,7 @@ export async function compactAgentContext(
     throw new Error(`${request.backend} profile does not support manual context compaction`);
   }
   const config = compactAgentConfig(profile);
-  const baseUrl = deps.configureMode(profile.mode || 'api', {
+  const route = deps.configureMode(profile.mode || 'api', {
     project: request.projectId,
     trigger: 'manual-compact',
   });
@@ -570,7 +573,7 @@ export async function compactAgentContext(
     trigger: 'manual-compact',
     sessionName: request.sessionName,
     isUserInitiated: true,
-  }, config, baseUrl));
+  }, config, route));
   try {
     if (!proc.compact) throw new Error(`${request.backend} process does not support manual context compaction`);
     const result = await proc.compact();
@@ -582,19 +585,29 @@ export async function compactAgentContext(
   }
 }
 
-function configureRunRoute(options: RunAgentOptions, config: AgentConfig): string | undefined {
+/** Resolves the Anthropic route one connection must use. The returned value is what actually
+ *  reaches this spawn's child environment; the global write is kept as a fallback for the spawn
+ *  paths that do not carry a route yet (plan S3 keeps both). Resolving AFTER the global write is
+ *  deliberate: getSavedApiEnv() folds live process.env back into the saved snapshot, so this
+ *  order is the one that makes the returned route identical to the applied one. */
+function configureModeRoute(mode: string, metadata?: Record<string, string>): ModeEnv {
+  configureEnvForMode(mode, metadata);
+  return resolveModeEnv(mode, metadata);
+}
+
+function configureRunRoute(options: RunAgentOptions, config: AgentConfig): ModeEnv {
   const metadata: Record<string, string> = {};
   if (options.project) metadata.project = options.project;
   if (options.trigger) metadata.trigger = options.trigger;
-  return configureEnvForMode(
+  return configureModeRoute(
     config.mode || 'api', Object.keys(metadata).length > 0 ? metadata : undefined,
   );
 }
 
 export function runAgentOnce(message: string, options: RunAgentOptions, config: AgentConfig): AgentHandle {
-  const anthropicBaseUrl = configureRunRoute(options, config);
+  const route = configureRunRoute(options, config);
   const adapter = getAdapter(config.backend as Backend);
-  const handle = runWithAdapter(adapter, message, options, config, anthropicBaseUrl);
+  const handle = runWithAdapter(adapter, message, options, config, route);
   const attributed = withRateLimitProvider(handle, resolveRateLimitProvider(config));
   return withAuthLifecycle(attributed, options, config);
 }
@@ -706,6 +719,7 @@ export function allConfigsRateLimited(profileName: string | null): boolean {
 // Exposed for tests/run-with-adapter.test.ts; not intended as a public API.
 export const _test = {
   runWithAdapter,
+  configureRunRoute,
   AttemptNoticeTracker,
   withTerminalNotices,
   resolveRateLimitProvider,

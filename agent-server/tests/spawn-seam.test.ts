@@ -1,5 +1,5 @@
 // input:  spawn facade, context, tool gates, adapters, goldens
-// output: cwd, accounting, gating, composition and pool tests
+// output: cwd, accounting, gating, composition, route, pool tests
 // pos:    Verifies the backend process spawn contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -42,7 +42,10 @@ import { buildPiEnv, PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/spaw
 import { generateMcpConfig } from '../src/core/config-generator.js';
 import { CONFIG_DIR, DATA_DIR } from '../src/core/paths.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
+import { getSavedApiEnv, type ModeEnv } from '../src/domain/agents/config.js';
 import { _test as facadeTest } from '../src/domain/agents/facade.js';
+import type { AgentConfig } from '../src/domain/agents/spawn-config.js';
+import { GATEWAY_URL, _testSetHealthy } from '../src/domain/costs/gateway-manager.js';
 import { generateConfigs, getResolvedPaths, type InitAnswers } from '../src/entry/init.js';
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -108,6 +111,8 @@ function childEnvironment(config: AgentSpawnConfig): NodeJS.ProcessEnv {
     config.anthropicBaseUrl,
     config.env,
     config.cortexContext,
+    config.pinnedEnv,
+    config.unsetEnv,
   );
 }
 
@@ -857,3 +862,142 @@ test.each(replacementCases)(
   'a delayed old-session close cannot unregister its $label replacement',
   runReplacementProbe,
 );
+
+// --- per-spawn mode route: the mode decision must travel with one spawn, not the daemon global ---
+
+const ROUTE_FIXTURE_KEY = 'sk-fixture-route-key';
+const STALE_ROUTE_URL = 'http://127.0.0.1:9880/m/stale-mode/anthropic';
+const ROUTE_ENV_KEYS = [
+  'ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CONFIG_DIR',
+] as const;
+
+/** Pins every input the mode decision reads — the saved key, the stale daemon global, and the
+ *  Claude-owned credential probe — so a resolved route is a function of the mode alone. */
+function pinRouteEnvironment(): () => void {
+  const previous = ROUTE_ENV_KEYS.map((key) => [key, process.env[key]] as const);
+  const claudeConfigDir = mkdtempSync(path.join(tmpdir(), 'cortex-route-claude-'));
+  process.env.CLAUDE_CONFIG_DIR = claudeConfigDir;
+  process.env.ANTHROPIC_API_KEY = ROUTE_FIXTURE_KEY;
+  process.env.ANTHROPIC_BASE_URL = STALE_ROUTE_URL;
+  delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  getSavedApiEnv(); // fold the fixture key into the module's saved-credential snapshot
+  return () => {
+    _testSetHealthy(null);
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(claudeConfigDir, { recursive: true, force: true });
+  };
+}
+
+function routeSpawnConfig(
+  key: string,
+  route: ModeEnv,
+  config: AgentConfig = FIXTURE_CONFIG,
+): AgentSpawnConfig {
+  return facadeTest.buildSpawnConfig({
+    channel: key, sessionKey: key, sessionId: `${key}-session`, loadCortexRules: false,
+  }, config, route);
+}
+
+function planConfig(extraEnv?: Record<string, string>): AgentConfig {
+  return { ...FIXTURE_CONFIG, mode: 'plan', extraEnv };
+}
+
+/** Simulates another mode configuring the daemon between this spawn's route resolution and its
+ *  actual launch — the K-053 race, reproduced deterministically. */
+function repointDaemonGlobals(): void {
+  process.env.ANTHROPIC_BASE_URL = STALE_ROUTE_URL;
+  process.env.ANTHROPIC_API_KEY = ROUTE_FIXTURE_KEY;
+}
+
+test('interleaved mode configuration cannot cross-contaminate two concurrent spawns', (t) => {
+  t.onTestFinished(pinRouteEnvironment());
+  _testSetHealthy(true);
+  const plan = facadeTest.configureRunRoute({ project: 'alpha' }, planConfig());
+  const codex = facadeTest.configureRunRoute(
+    { project: 'beta' }, { ...FIXTURE_CONFIG, mode: 'openai-codex' },
+  );
+  // The daemon global now belongs to whichever mode configured last — that is the race.
+  assert.equal(
+    process.env.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/openai-codex/project=beta/anthropic`,
+  );
+
+  // The global keeps flipping while the two spawns launch; neither may read it.
+  repointDaemonGlobals();
+  const planEnv = childEnvironment(routeSpawnConfig('route-plan', plan));
+  delete process.env.ANTHROPIC_API_KEY;
+  const codexEnv = childEnvironment(routeSpawnConfig('route-codex', codex));
+
+  assert.equal(planEnv.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/plan/project=alpha/anthropic`);
+  assert.equal(planEnv.ANTHROPIC_API_KEY, undefined,
+    'the plan spawn must not inherit the key the later non-plan configuration set globally');
+  assert.equal(codexEnv.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/openai-codex/project=beta/anthropic`);
+  assert.equal(codexEnv.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY,
+    'the non-plan spawn must carry its own key even after a plan configuration cleared the global');
+});
+
+test('a plan route deletes the API key and carries its base URL on exactly one field', (t) => {
+  t.onTestFinished(pinRouteEnvironment());
+  _testSetHealthy(true);
+  const spawn = routeSpawnConfig(
+    'route-plan-gateway', facadeTest.configureRunRoute({}, planConfig()),
+  );
+
+  assert.equal(spawn.anthropicBaseUrl, `${GATEWAY_URL}/m/plan/anthropic`);
+  assert.equal(spawn.env?.ANTHROPIC_BASE_URL, undefined,
+    'the base URL needs one source: production-attempt-identity reads config.env before the field');
+  assert.deepEqual(spawn.unsetEnv, ['ANTHROPIC_API_KEY']);
+
+  repointDaemonGlobals();
+  const env = childEnvironment(spawn);
+  assert.equal(env.ANTHROPIC_API_KEY, undefined);
+  assert.equal(env.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/plan/anthropic`);
+});
+
+test('a route without a base URL deletes the one the daemon left behind', (t) => {
+  t.onTestFinished(pinRouteEnvironment());
+  _testSetHealthy(false);
+  const route = facadeTest.configureRunRoute({}, planConfig());
+  assert.equal(route.ANTHROPIC_BASE_URL, undefined, 'the direct plan route has no base URL');
+
+  const spawn = routeSpawnConfig('route-plan-direct', route);
+  assert.equal(spawn.anthropicBaseUrl, undefined);
+  assert.deepEqual([...spawn.unsetEnv!].sort(), ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL']);
+
+  repointDaemonGlobals();
+  const env = childEnvironment(spawn);
+  assert.equal(env.ANTHROPIC_BASE_URL, undefined,
+    'the route fully decides the base URL, so its absence means delete, not inherit');
+  assert.equal(env.ANTHROPIC_API_KEY, undefined);
+});
+
+test('profile extraEnv outranks the credentials a mode route sets', (t) => {
+  t.onTestFinished(pinRouteEnvironment());
+  _testSetHealthy(true);
+  const codex: AgentConfig = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
+  const route = facadeTest.configureRunRoute({}, codex);
+  assert.equal(route.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY, 'the route sets a key to be overridden');
+  const spawn = routeSpawnConfig('route-extra-wins', route, {
+    ...codex, extraEnv: { ANTHROPIC_API_KEY: 'profile-key' },
+  });
+
+  assert.equal(spawn.env?.ANTHROPIC_API_KEY, 'profile-key');
+  assert.equal(childEnvironment(spawn).ANTHROPIC_API_KEY, 'profile-key');
+});
+
+test('a key the profile sets explicitly is never deleted by the route', (t) => {
+  t.onTestFinished(pinRouteEnvironment());
+  _testSetHealthy(false);
+  const route = facadeTest.configureRunRoute({}, planConfig());
+  const spawn = routeSpawnConfig('route-extra-kept', route, planConfig({
+    ANTHROPIC_API_KEY: 'profile-key', ANTHROPIC_BASE_URL: 'https://profile.example',
+  }));
+
+  assert.equal(spawn.unsetEnv, undefined,
+    'the profile configured both keys explicitly, so the mode may not delete either');
+  const env = childEnvironment(spawn);
+  assert.equal(env.ANTHROPIC_API_KEY, 'profile-key');
+  assert.equal(env.ANTHROPIC_BASE_URL, 'https://profile.example');
+});

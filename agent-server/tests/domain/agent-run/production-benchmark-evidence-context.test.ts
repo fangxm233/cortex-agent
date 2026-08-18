@@ -25,6 +25,9 @@ import { _test as facadeTest } from '../../../src/domain/agents/facade.js';
 import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
 import type { RunAgentOptions } from '../../../src/domain/agents/spawn-config.js';
 
+/** The Anthropic route one attempt resolved; only the host is ever attested. */
+const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };
+
 const SHA = 'c'.repeat(64);
 let root: string;
 let storePath: string;
@@ -150,7 +153,7 @@ function runAttempt(
   return facadeTest.runWithAdapter(adapter(backend, spawns, input.preparedSpawnConfig), 'work', options, {
     model: resolved.model, backend, mode: resolved.mode, provider: resolved.provider,
     extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
-  }, backend === 'claude' ? 'http://proxy.invalid' : undefined);
+  }, backend === 'claude' ? PROXY_ROUTE : undefined);
 }
 
 for (const backend of ['claude', 'pi'] as const) {

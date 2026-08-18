@@ -31,6 +31,8 @@ import { canonicalJsonSha256 } from '../../../src/domain/agent-run/identity.js';
 import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
 import { _test as facadeTest } from '../../../src/domain/agents/facade.js';
 
+const TRIAL_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid/m/trial/anthropic' };
+
 const SHA = 'a'.repeat(64);
 const EVENTS: NormalizedEvent[] = [
   { type: 'session_started', sessionId: 'backend-session' },
@@ -184,7 +186,7 @@ function runAttempt(
     model: resolved.model, backend, mode: resolved.mode, provider: resolved.provider,
     extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
     claudeBackend: resolved.claudeBackend, thinking: resolved.thinking,
-  }, backend === 'claude' ? 'http://proxy.invalid/m/trial/anthropic' : undefined);
+  }, backend === 'claude' ? TRIAL_ROUTE : undefined);
 }
 
 function sha256(filePath: string): string {

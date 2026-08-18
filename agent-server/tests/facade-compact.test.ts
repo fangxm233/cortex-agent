@@ -66,7 +66,10 @@ test('compactAgentContext resumes one native control process, closes it, and rec
       spawn: (config: any) => { calls.push(['spawn', config]); return process as any; },
       close: async () => {}, kill: () => false, listSessions: () => [],
     }),
-    configureMode: (mode, metadata) => { calls.push(['mode', mode, metadata]); return 'http://gateway'; },
+    configureMode: (mode, metadata) => {
+      calls.push(['mode', mode, metadata]);
+      return { ANTHROPIC_BASE_URL: 'http://gateway', ANTHROPIC_API_KEY: null };
+    },
     recordCost: async (entry) => { calls.push(['cost', entry]); },
   };
 
@@ -77,6 +80,9 @@ test('compactAgentContext resumes one native control process, closes it, and rec
   assert.equal(spawn.resume, true);
   assert.equal(spawn.sessionKey, 'web:track-1');
   assert.equal(spawn.channel, 'web:track-1');
+  // The compact spawn carries the same per-spawn route a run would, deletes included.
+  assert.equal(spawn.anthropicBaseUrl, 'http://gateway');
+  assert.deepEqual(spawn.unsetEnv, ['ANTHROPIC_API_KEY']);
   assert.deepEqual(calls.filter((entry) => entry[0] === 'close'), [['close']]);
   assert.deepEqual(calls.find((entry) => entry[0] === 'cost')[1], {
     project: 'nimbus', trigger: 'manual-compact', cost_usd: 0.25,
@@ -93,7 +99,7 @@ test('compactAgentContext rejects unsupported mode before spawning', async () =>
       {
         resolveProfile: () => profile({ backend: 'claude', claudeBackend: 'tui' }),
         getAdapter: () => { spawned = true; throw new Error('must not spawn'); },
-        configureMode: () => undefined,
+        configureMode: () => ({}),
         recordCost: async () => {},
       },
     ),

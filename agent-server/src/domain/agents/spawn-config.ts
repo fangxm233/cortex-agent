@@ -1,4 +1,4 @@
-// input:  run options, resolved profile, tool gate, route URL
+// input:  run options, resolved profile, tool gate, mode route
 // output: canonical spawn config with execution and evidence context
 // pos:    Registry-free spawn-config builder
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -14,6 +14,7 @@ import type { ProductionBenchmarkEvidenceContext } from '@core/types/thread-type
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
 import { resolvePluginRuntime } from '../plugins/runtime.js';
+import type { ModeEnv } from './config.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
 
 // --- Types ---
@@ -265,13 +266,50 @@ function pluginSpawnFields(
   };
 }
 
+/** The credentials a mode route decides. ANTHROPIC_BASE_URL is deliberately absent: it travels on
+ *  the dedicated `anthropicBaseUrl` spawn field, and writing it into `env` as well would give
+ *  production-attempt-identity two sources for the attested route host — a drift source. */
+const ROUTE_CREDENTIAL_KEYS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'] as const;
+
+function routeEnvSets(route: ModeEnv): Record<string, string> {
+  const sets: Record<string, string> = {};
+  for (const key of ROUTE_CREDENTIAL_KEYS) {
+    const value = route[key];
+    if (typeof value === 'string') sets[key] = value;
+  }
+  return sets;
+}
+
+/** A route fully decides the base URL, so an absent one means "delete": otherwise this spawn
+ *  inherits whatever mode configured the daemon last. A key the profile set explicitly is never
+ *  deleted — profile configuration outranks the mode's delete intent. */
+function routeEnvDeletes(route: ModeEnv, extraEnv?: Record<string, string>): string[] {
+  const deletes: string[] = ROUTE_CREDENTIAL_KEYS.filter(key => route[key] === null);
+  if (!route.ANTHROPIC_BASE_URL) deletes.push('ANTHROPIC_BASE_URL');
+  return deletes.filter(key => !extraEnv || !(key in extraEnv));
+}
+
+/** Per-spawn env: the route's sets first, then the profile's extraEnv (last-wins), then the
+ *  route's deletes. An absent route states no routing opinion and touches neither channel. */
+function routeEnvFields(
+  route: ModeEnv | undefined,
+  extraEnv?: Record<string, string>,
+): Partial<AgentSpawnConfig> {
+  const env = { ...(route ? routeEnvSets(route) : {}), ...extraEnv };
+  const unsetEnv = route ? routeEnvDeletes(route, extraEnv) : [];
+  return {
+    env: Object.keys(env).length > 0 ? env : undefined,
+    unsetEnv: unsetEnv.length > 0 ? unsetEnv : undefined,
+  };
+}
+
 function adapterSpawnFields(
   options: RunAgentOptions,
   config: AgentConfig,
-  anthropicBaseUrl: string | undefined,
+  route: ModeEnv | undefined,
 ): Partial<AgentSpawnConfig> {
   return {
-    env: config.extraEnv && Object.keys(config.extraEnv).length > 0 ? config.extraEnv : undefined,
+    ...routeEnvFields(route, config.extraEnv),
     extraOption: config.extraOption && Object.keys(config.extraOption).length > 0 ? config.extraOption : undefined,
     claudeBackend: config.claudeBackend,
     thinking: config.thinking || undefined,
@@ -281,7 +319,7 @@ function adapterSpawnFields(
     scheduleTaskId: options.scheduleTaskId ?? undefined,
     isUserInitiated: !!options.isUserInitiated,
     rawTools: typeof options.tools === 'string' ? options.tools : undefined,
-    anthropicBaseUrl,
+    anthropicBaseUrl: route?.ANTHROPIC_BASE_URL,
   };
 }
 
@@ -300,7 +338,7 @@ function piSpawnFields(config: AgentConfig): Partial<AgentSpawnConfig> {
 export function buildAgentSpawnConfig(
   options: RunAgentOptions,
   config: AgentConfig,
-  anthropicBaseUrl: string | undefined,
+  route: ModeEnv | undefined,
 ): AgentSpawnConfig {
   const mcpComposition = resolveMcpComposition(options.mcpComposition, options.useCoreMcp);
   const context = spawnContext(options);
@@ -309,7 +347,7 @@ export function buildAgentSpawnConfig(
     ...spawnIdentity(options, config, mcpComposition),
     ...spawnPolicy(options),
     ...pluginSpawnFields(options, config, mcpComposition),
-    ...adapterSpawnFields(options, config, anthropicBaseUrl),
+    ...adapterSpawnFields(options, config, route),
     ...piSpawnFields(config),
     cortexContext: hasSpawnContext(context) ? context : undefined,
     appendSystemPrompt,

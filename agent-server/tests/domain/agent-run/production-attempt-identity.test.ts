@@ -1,5 +1,5 @@
 // input:  production facade seam, injected benchmark identity, temp plugins
-// output: pre-spawn identity, root linkage, drift, and reload proofs
+// output: identity freeze, linkage, drift, reload, secret containment
 // pos:    Verifies production benchmark attempt identity freezing
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -25,6 +25,10 @@ import {
 import { roleSurfaceFromSpawnConfig } from '../../../src/domain/agent-run/role-surface.js';
 import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
 import { _test as rawFacadeTest } from '../../../src/domain/agents/facade.js';
+
+/** The Anthropic route one attempt resolved; only the host of it is ever attested. */
+const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };
+const TRIAL_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid/m/trial/anthropic' };
 
 const SHA = 'a'.repeat(64);
 let root: string;
@@ -188,7 +192,7 @@ for (const backend of ['claude', 'pi'] as const) {
         systemPrompt: 'Resolved system prompt', tools: 'Read,Write',
         pluginDirs: [], mcpComposition: 'none', disableHooks: true,
         loadCortexRules: false,
-      }, config, backend === 'claude' ? 'http://proxy.invalid/m/trial/anthropic' : undefined);
+      }, config, backend === 'claude' ? TRIAL_ROUTE : undefined);
 
       await handle.promise;
       assert.equal(spawns.length, 1);
@@ -245,7 +249,7 @@ test('binds every execution to a unique attempt and the persisted first root exe
       agentSlotId: 'benchmark-coder', stage: 'implement', profileName: resolvedProfile.name,
       resolvedProfileConfig: resolvedProfile, identityDirective: '', tools: 'Read', pluginDirs: [],
       mcpComposition: 'none', disableHooks: true, loadCortexRules: false,
-    }, config, 'http://proxy.invalid').promise;
+    }, config, PROXY_ROUTE).promise;
   };
 
   await run('exec-root-first', 'thr-root', 'thr-root');
@@ -280,7 +284,7 @@ test('fails closed when a child attempt arrives before the production root attem
     model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
     provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
     thinking: resolvedProfile.thinking,
-  }, 'http://proxy.invalid'), /root attempt|root execution/i);
+  }, PROXY_ROUTE), /root attempt|root execution/i);
 });
 
 test('keeps production identity observability absent without typed evidence context', async () => {
@@ -298,7 +302,7 @@ test('keeps production identity observability absent without typed evidence cont
     model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
     provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
     thinking: resolvedProfile.thinking,
-  }, 'http://proxy.invalid').promise;
+  }, PROXY_ROUTE).promise;
   assert.equal(getProductionAttemptIdentity('exec-without-context'), null);
   assert.equal(spawns.length, 1);
 });
@@ -327,18 +331,18 @@ test('fails closed before spawn for fallback profiles, missing identity inputs, 
       model: 'fallback', backend: 'claude', mode: null, provider: 'anthropic',
       extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
     }] },
-  }, config, 'http://proxy.invalid'), /fallback/i);
+  }, config, PROXY_ROUTE), /fallback/i);
   assert.equal(spawns.length, 0);
 
   assert.throws(() => facadeTest.runWithAdapter(adapter('claude', spawns), 'x', {
     ...baseOptions, executionId: null,
-  }, config, 'http://proxy.invalid'), /execution/i);
+  }, config, PROXY_ROUTE), /execution/i);
   assert.equal(spawns.length, 0);
 
   revision.threads += 1;
   assert.throws(() => facadeTest.runWithAdapter(adapter('claude', spawns), 'x', {
     ...baseOptions, executionId: 'exec-drift',
-  }, config, 'http://proxy.invalid'), /hot.reload|drift/i);
+  }, config, PROXY_ROUTE), /hot.reload|drift/i);
   assert.equal(spawns.length, 0);
 });
 
@@ -359,7 +363,7 @@ test('hashes the effective Claude route after profile environment overrides', as
     model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
     provider: resolvedProfile.provider, extraEnv: resolvedProfile.extraEnv,
     extraOption: {}, claudeBackend: 'print', thinking: resolvedProfile.thinking,
-  }, 'http://gateway-route.invalid/m/trial/anthropic').promise;
+  }, { ANTHROPIC_BASE_URL: 'http://gateway-route.invalid/m/trial/anthropic' }).promise;
   assert.equal(getProductionAttemptIdentity('exec-route')?.model_execution_identity_hash,
     computeModelExecutionIdentityHash({
       backend: 'claude', requestedModel: resolvedProfile.model,
@@ -392,10 +396,62 @@ for (const backend of ['claude', 'pi'] as const) {
       model: resolvedProfile.model, backend, mode: resolvedProfile.mode,
       provider: resolvedProfile.provider, extraEnv: {}, extraOption: {},
       claudeBackend: resolvedProfile.claudeBackend, thinking: resolvedProfile.thinking,
-    }, backend === 'claude' ? 'http://proxy.invalid' : undefined), /model.*drift|diverge/i);
+    }, backend === 'claude' ? PROXY_ROUTE : undefined), /model.*drift|diverge/i);
     assert.equal(spawns.length, 0);
   });
 }
+
+/** Every file the attempt evidence writes under the store root. */
+function evidenceFiles(directory: string): string[] {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const absolute = path.join(directory, entry.name);
+    return entry.isDirectory() ? evidenceFiles(absolute) : [absolute];
+  });
+}
+
+test('per-spawn route credentials reach the child env but never the attestation', async () => {
+  initialize('claude');
+  const resolvedProfile = profile('claude');
+  const spawns: AgentSpawnConfig[] = [];
+  const route = {
+    ...TRIAL_ROUTE,
+    ANTHROPIC_API_KEY: 'sk-must-not-be-attested',
+    CLAUDE_CODE_OAUTH_TOKEN: 'oauth-must-not-be-attested',
+  };
+  await facadeTest.runWithAdapter(adapter('claude', spawns), 'x', {
+    executionId: 'exec-route-secret', threadId: 'thr-route-secret',
+    rootThreadId: 'thr-route-secret', parentThreadId: null, taskId: null, taskGeneration: null,
+    templateName: 'benchmark-direct', agentSlotId: 'benchmark-direct', stage: null,
+    profileName: resolvedProfile.name, resolvedProfileConfig: resolvedProfile,
+    identityDirective: '', tools: 'Read', pluginDirs: [], mcpComposition: 'none',
+    disableHooks: true, loadCortexRules: false,
+  }, {
+    model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
+    provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
+    thinking: resolvedProfile.thinking,
+  }, route).promise;
+
+  assert.equal(spawns[0].env?.ANTHROPIC_API_KEY, 'sk-must-not-be-attested');
+  assert.equal(spawns[0].env?.CLAUDE_CODE_OAUTH_TOKEN, 'oauth-must-not-be-attested');
+  const record = getProductionAttemptIdentity('exec-route-secret');
+  assert.ok(record);
+  const written = evidenceFiles(path.dirname(storePath()))
+    .map((file) => fs.readFileSync(file, 'utf8'))
+    .concat(JSON.stringify(record))
+    .join('\n');
+  assert.ok(written.includes('exec-route-secret'), 'the evidence under test must be non-empty');
+  for (const secret of ['sk-must-not-be-attested', 'oauth-must-not-be-attested']) {
+    assert.ok(!written.includes(secret), `attestation leaked ${secret}`);
+  }
+  // Only the host of the route is attested — never the path, query, or any credential.
+  assert.equal(record.model_execution_identity_hash, computeModelExecutionIdentityHash({
+    backend: 'claude', requestedModel: resolvedProfile.model,
+    modelAliasPolicy: { policy: 'exact' }, providerProtocol: resolvedProfile.provider,
+    configuredRouteBaseHost: 'proxy.invalid', claudeCliVersion: 'claude-fixture-1',
+    cliName: 'claude', cliVersion: 'claude-fixture-1',
+    reasoningEffort: resolvedProfile.thinking, maxOutputTokens: null, fallbackEmpty: true,
+  }));
+});
 
 test('does not expose mutable in-memory identity records', async () => {
   initialize('claude');
@@ -411,7 +467,7 @@ test('does not expose mutable in-memory identity records', async () => {
     model: resolvedProfile.model, backend: 'claude', mode: resolvedProfile.mode,
     provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
     thinking: resolvedProfile.thinking,
-  }, 'http://proxy.invalid').promise;
+  }, PROXY_ROUTE).promise;
   const record = getProductionAttemptIdentity('exec-immutable');
   assert.ok(record);
   assert.throws(() => { (record as { role: string }).role = 'mutated'; }, TypeError);
@@ -447,7 +503,7 @@ test('fails closed for unapplied output caps and incomplete task-dispatch identi
     model: claudeProfile.model, backend: 'claude', mode: claudeProfile.mode,
     provider: claudeProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print',
     thinking: claudeProfile.thinking,
-  }, 'http://proxy.invalid'), /task project|dispatch generation/i);
+  }, PROXY_ROUTE), /task project|dispatch generation/i);
 });
 
 test('refuses reuse of an execution identity with a changed resolved spawn surface', async () => {
@@ -468,10 +524,10 @@ test('refuses reuse of an execution identity with a changed resolved spawn surfa
     thinking: resolvedProfile.thinking,
   };
   await facadeTest.runWithAdapter(
-    adapter('claude', spawns), 'x', options, config, 'http://proxy.invalid',
+    adapter('claude', spawns), 'x', options, config, PROXY_ROUTE,
   ).promise;
   assert.throws(() => facadeTest.runWithAdapter(
-    adapter('claude', spawns), 'x', { ...options, tools: 'Write' }, config, 'http://proxy.invalid',
+    adapter('claude', spawns), 'x', { ...options, tools: 'Write' }, config, PROXY_ROUTE,
   ), /identity changed|baseline.*drift/i);
   assert.equal(spawns.length, 1);
 });

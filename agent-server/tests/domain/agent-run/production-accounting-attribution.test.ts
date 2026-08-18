@@ -24,6 +24,9 @@ import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-m
 import { getCostSummary } from '../../../src/domain/costs/cost-tracker.js';
 import { CostRepo, costRepo } from '../../../src/store/cost-repo.js';
 
+/** The Anthropic route one attempt resolved; only the host is ever attested. */
+const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };
+
 const SHA = 'b'.repeat(64);
 let root: string;
 let costsPath: string;
@@ -137,7 +140,7 @@ async function runAttempt(
   }, {
     model: resolved.model, backend, mode: resolved.mode, provider: resolved.provider,
     extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
-  }, backend === 'claude' ? 'http://proxy.invalid' : undefined).promise;
+  }, backend === 'claude' ? PROXY_ROUTE : undefined).promise;
 }
 
 for (const backend of ['claude', 'pi'] as const) {
