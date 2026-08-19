@@ -371,6 +371,8 @@ def build_harbor_trial_config(
     verifier_timeout_seconds: int | None = None, network: NetworkAccess | None = None,
 ) -> TrialConfig:
     seed = parse_trial_seed(trial_seed)
+    if seed.arm != arm:
+        raise ValueError("trial_seed.arm must equal the selected arm")
     task_root = Path(task_path).expanduser().resolve(strict=True)
     _validate_task_topology(task_root)
     trials_root, trial_root = _trial_paths(trials_dir, seed.trial_id)
@@ -990,7 +992,9 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         return VendorRuntimeProjection(projection.vendor_agent, dict(sorted(actual.items())))
 
     def _reseal_vendor_environment(self, projection: VendorRuntimeProjection) -> None:
-        environment = dict(sorted({**self._persistent_env, **projection.environment}.items()))
+        static_environment = dict(self._persistent_env)
+        _validate_persistent_environment(static_environment, self._admission_contract)
+        environment = dict(sorted({**static_environment, **projection.environment}.items()))
         if any(key.startswith("CORTEX_") for key in environment):
             raise HarborTrialAdmissionError("vendor runtime environment contains Cortex keys")
         digest = environment_digest(environment)
