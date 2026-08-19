@@ -215,6 +215,34 @@ def _incomplete_trial(tmp_path: Path, secret: str) -> Path:
     return trial_root
 
 
+@pytest.mark.parametrize(
+    "state",
+    ("terminal-agent-failure", "terminal-verifier-failure", "security-failed"),
+)
+def test_failed_terminal_outcomes_do_not_report_launcher_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str,
+) -> None:
+    class FixedOutcomeReader:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def read(self) -> object:
+            return type("Outcome", (), {
+                "outcome_state": state, "score_status": "failed",
+                "verifier_rewards": None, "envelope": None,
+            })()
+
+    monkeypatch.setattr(launcher, "TrialOutcomeReader", FixedOutcomeReader)
+    record = launcher.path_safe_evidence(
+        trial_root=tmp_path, trial_id="smoke-trial", arm_name=launcher.SMOKE_ARM_NAME,
+        image_digest=CORTEX_IMAGE.rsplit("@", 1)[1],
+        scan_policy=launcher.synthetic_scan_policy("secret", tmp_path),
+        network_removed=True,
+    )
+
+    assert record["ok"] is False
+
+
 def test_path_safe_evidence_omits_paths_credentials_and_raw_reasons(tmp_path: Path) -> None:
     secret = "synthetic-smoke-secret"
     record = launcher.path_safe_evidence(
