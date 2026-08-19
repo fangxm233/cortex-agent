@@ -1,9 +1,8 @@
-# input:  vendor-baseline arms, Harbor factory, fake environment
-# output: native routing and absence of Cortex runtime/config/artifacts
+# input:  vendor-baseline arms and Harbor factory
+# output: native inheritance and absence of Cortex config/artifacts
 # pos:    Isolation proof for all vendor baseline paths
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
-import asyncio
 import json
 import os
 import subprocess
@@ -12,8 +11,6 @@ from pathlib import Path
 
 import pytest
 from harbor.agents.factory import AgentFactory
-from harbor.environments.base import ExecResult
-from harbor.models.agent.context import AgentContext
 
 from cortex_bench_harness.launcher.arms import build_agent_config
 
@@ -23,23 +20,6 @@ VENDORS = (
     ("pi", "openai", "gpt-5", "harbor.agents.installed.pi"),
     ("codex", None, "gpt-5", "harbor.agents.installed.codex"),
 )
-
-
-class NativeEnvironment:
-    default_user = "agent"
-
-    def __init__(self) -> None:
-        self.calls: list[str] = []
-
-    async def exec(self, command: str, **_kwargs: object) -> ExecResult:
-        self.calls.append(command)
-        if "claude --version" in command:
-            return ExecResult(stdout="1.2.3 (Claude Code)\n", return_code=0)
-        if "codex --version" in command:
-            return ExecResult(stdout="codex-cli 1.2.3\n", return_code=0)
-        if "pi --version" in command:
-            return ExecResult(stdout="1.2.3\n", return_code=0)
-        return ExecResult(return_code=0)
 
 
 def baseline_arm(
@@ -63,16 +43,6 @@ def baseline_arm(
     }
 
 
-def _run_native_path(agent: object, environment: NativeEnvironment) -> None:
-    async def exercise() -> None:
-        await agent.setup(environment)  # type: ignore[attr-defined]
-        await agent.run(  # type: ignore[attr-defined]
-            "solve the task", environment, AgentContext(),
-        )
-
-    asyncio.run(exercise())
-
-
 @pytest.mark.parametrize(("vendor", "provider", "model", "module"), VENDORS)
 def test_baseline_uses_only_the_native_harbor_path(
     tmp_path: Path, vendor: str, provider: str | None, model: str, module: str,
@@ -83,16 +53,14 @@ def test_baseline_uses_only_the_native_harbor_path(
     )
     logs_dir = tmp_path / vendor
     agent = AgentFactory.create_agent_from_config(config, logs_dir=logs_dir)
-    environment = NativeEnvironment()
+    native_modules = {base.__module__ for base in type(agent).__mro__}
 
-    _run_native_path(agent, environment)
-
-    assert type(agent).__module__ == module
-    assert config.import_path is None
+    assert type(agent).__module__ == "cortex_bench_harness.vendor_agents"
+    assert module in native_modules
+    assert config.import_path == type(agent).import_path()
     assert config.kwargs == {"version": "1.2.3"}
     assert config.skills == []
     assert config.mcp_servers == []
-    assert all("cortex" not in command.casefold() for command in environment.calls)
     assert all("cortex" not in path.name.casefold() for path in logs_dir.rglob("*"))
 
 

@@ -12,7 +12,12 @@ from typing import Any, cast
 from harbor.models.trial.config import AgentConfig
 
 CORTEX_IMPORT_PATH = "cortex_bench_harness:CortexBenchAgent"
-VENDOR_AGENTS = frozenset({"claude-code", "pi", "codex"})
+VENDOR_IMPORT_PATHS = {
+    "claude-code": "cortex_bench_harness.vendor_agents:PreinstalledClaudeCode",
+    "pi": "cortex_bench_harness.vendor_agents:PreinstalledPi",
+    "codex": "cortex_bench_harness.vendor_agents:PreinstalledCodex",
+}
+VENDOR_AGENTS = frozenset(VENDOR_IMPORT_PATHS)
 VENDOR_CORTEX_FIELDS = frozenset({
     "artifact_inventory_spec", "backend", "coordinator", "orchestration",
     "plugin_dirs", "task_store",
@@ -245,10 +250,31 @@ def _vendor_model(arm: ArmDefinition, vendor_agent: str) -> str:
     return f"{provider}/{model}"
 
 
-def _vendor_config(
-    arm: ArmDefinition,
-    common: dict[str, Any],
-) -> AgentConfig:
+def _vendor_kwargs(
+    arm: ArmDefinition, artifact_dir: Path | str | None,
+    manifest: Mapping[str, object] | None,
+    trial_seed: Mapping[str, object] | None,
+    trial_proxy: Mapping[str, object] | None,
+    host_scan_policy: Mapping[str, object] | None,
+    admission_environment_digest: str | None,
+    defer_proxy_arm: bool, credential_handle: str | None,
+) -> dict[str, object]:
+    kwargs: dict[str, object] = {
+        "version": _required_text(arm, "vendor_cli_version"),
+    }
+    optional = {
+        "artifact_dir": artifact_dir, "manifest": manifest, "trial_seed": trial_seed,
+        "trial_proxy": trial_proxy, "host_scan_policy": host_scan_policy,
+        "admission_environment_digest": admission_environment_digest,
+        "credential_handle": credential_handle,
+    }
+    kwargs.update({key: value for key, value in optional.items() if value is not None})
+    if defer_proxy_arm:
+        kwargs["defer_proxy_arm"] = True
+    return kwargs
+
+
+def _validate_vendor_config(arm: ArmDefinition, common: Mapping[str, Any]) -> str:
     cortex_fields = sorted(VENDOR_CORTEX_FIELDS.intersection(arm))
     if cortex_fields:
         raise ValueError(
@@ -264,11 +290,26 @@ def _vendor_config(
     vendor_agent = _required_text(arm, "vendor_agent")
     if vendor_agent not in VENDOR_AGENTS:
         raise ValueError(f"unsupported vendor agent: {vendor_agent}")
+    return vendor_agent
+
+
+def _vendor_config(
+    arm: ArmDefinition, common: dict[str, Any],
+    artifact_dir: Path | str | None, manifest: Mapping[str, object] | None,
+    trial_seed: Mapping[str, object] | None,
+    trial_proxy: Mapping[str, object] | None,
+    host_scan_policy: Mapping[str, object] | None,
+    admission_environment_digest: str | None,
+    defer_proxy_arm: bool, credential_handle: str | None,
+) -> AgentConfig:
+    vendor_agent = _validate_vendor_config(arm, common)
     common["model_name"] = _vendor_model(arm, vendor_agent)
+    kwargs = _vendor_kwargs(
+        arm, artifact_dir, manifest, trial_seed, trial_proxy, host_scan_policy,
+        admission_environment_digest, defer_proxy_arm, credential_handle,
+    )
     return AgentConfig(
-        name=vendor_agent,
-        kwargs={"version": _required_text(arm, "vendor_cli_version")},
-        **common,
+        import_path=VENDOR_IMPORT_PATHS[vendor_agent], kwargs=kwargs, **common,
     )
 
 
@@ -302,5 +343,9 @@ def build_agent_config(
             credential_handle,
         )
     if arm.get("kind") == "vendor-baseline":
-        return _vendor_config(arm, common)
+        return _vendor_config(
+            arm, common, artifact_dir, manifest, trial_seed, trial_proxy,
+            host_scan_policy, admission_environment_digest, defer_proxy_arm,
+            credential_handle,
+        )
     raise ValueError("arm kind must be cortex or vendor-baseline")

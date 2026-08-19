@@ -72,7 +72,6 @@ VENDOR_PROJECTIONS = {
     },
     "codex": {
         "CODEX_HOME": "/logs/agent/trial-home/codex-home",
-        "OPENAI_BASE_URL": PROXY_URL,
     },
 }
 LIVE_PROXY_HANDLES: list[object] = []
@@ -391,8 +390,18 @@ def test_vendor_projection_is_recorded_before_start_and_reseals_exec(
     final_environment = {**EXPECTED_VENDOR_STATIC_ENVIRONMENT, **VENDOR_PROJECTIONS[vendor_agent]}
     observed = docker_start_observations[0]["environment"]
     assert controller.calls == ["arm", "project", "docker-start"]
-    assert trial.config.agent.import_path is None
-    assert trial.config.agent.kwargs == {"version": "1.2.3"}
+    class_name = {
+        "pi": "PreinstalledPi", "claude-code": "PreinstalledClaudeCode",
+        "codex": "PreinstalledCodex",
+    }[vendor_agent]
+    assert trial.config.agent.import_path == (
+        f"cortex_bench_harness.vendor_agents:{class_name}"
+    )
+    assert trial.config.agent.kwargs["version"] == "1.2.3"
+    assert set(trial.config.agent.kwargs) == {
+        "version", "artifact_dir", "manifest", "trial_seed", "trial_proxy",
+        "host_scan_policy", "admission_environment_digest", "defer_proxy_arm",
+    }
     assert trial.config.environment.env == EXPECTED_VENDOR_STATIC_ENVIRONMENT
     assert trial.agent_environment._persistent_env == final_environment
     assert observed["runtime_projection"] == {
