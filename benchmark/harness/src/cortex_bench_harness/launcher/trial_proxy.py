@@ -55,7 +55,9 @@ SPEC_REQUIRED_FIELDS = frozenset({
     # default for a bounded run on either side of the route.
     "request_body_limit_bytes", "response_body_limit_bytes",
 })
-SPEC_OPTIONAL_FIELDS = frozenset({"listen_host", "advertised_host", "lease_seconds"})
+SPEC_OPTIONAL_FIELDS = frozenset({
+    "listen_host", "advertised_host", "lease_seconds", "access_expires_at_ms",
+})
 
 # The paid envelope: what a run declares it may consume, wait for, and carry. It no longer carries
 # a cost pair. That pair was never a spend authorization — the reservation it funded was never
@@ -90,6 +92,8 @@ class TrialProxySpec:
     advertised_host: str | None = None
     #: Sealed by admission: the credential window, min(deadline_seconds, agent timeout).
     lease_seconds: int | None = None
+    #: Parsed by the campaign-wide Codex preflight; never read from a container auth file.
+    access_expires_at_ms: int | None = None
 
 
 def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
@@ -112,6 +116,9 @@ def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
         advertised_host=advertised,
         lease_seconds=(
             _positive_int(source, "lease_seconds") if "lease_seconds" in source else None),
+        access_expires_at_ms=(
+            _positive_int(source, "access_expires_at_ms")
+            if "access_expires_at_ms" in source else None),
     )
 
 
@@ -273,14 +280,8 @@ def arm_trial_proxy(
     if paid_run:
         validate_paid_envelope(arm, spec, capability_id)
     credential = host_credential or _host_credential(spec.credential_env, environ)
-    adapter = select_adapter(
-        key, upstream_base_url=upstream_base_url,
-        credential=credential,
-        frozen_model=_text(arm, "model"),
-        # The declared cap, frozen per trial: the same number the envelope validated is the one
-        # the adapter admits, so nothing downstream re-derives it from the capability id.
-        frozen_completion_cap=_declared_positive_int(_limits(arm), "max_output_tokens"),
-    )
+    adapter = _select_trial_adapter(
+        key, arm, upstream_base_url, credential, spec.access_expires_at_ms)
     session = _start_proxy_session(
         arm, trial_id, upstream_base_url, spec, proxy_dir, adapter, now_ms,
     )
@@ -291,6 +292,19 @@ def arm_trial_proxy(
         session.handle.stop()
         raise
     return session
+
+
+def _select_trial_adapter(
+    key: CredentialCapabilityKey, arm: Mapping[str, object], upstream_base_url: str,
+    credential: str, access_expires_at_ms: int | None,
+) -> ProviderAdapter:
+    return select_adapter(
+        key, upstream_base_url=upstream_base_url, credential=credential,
+        frozen_model=_text(arm, "model"),
+        # The same declared cap the envelope validated is the one the adapter admits.
+        frozen_completion_cap=_declared_positive_int(_limits(arm), "max_output_tokens"),
+        access_expires_at_ms=access_expires_at_ms,
+    )
 
 
 def revoke_trial_proxy(
@@ -345,11 +359,18 @@ def _adapter_selection_record(
 def _validate_arm_capability(
     arm: Mapping[str, object], key: CredentialCapabilityKey,
 ) -> None:
-    backend = _text(arm, "backend")
+    runner = _arm_runner(arm)
     provider = _text(arm, "provider")
-    if backend != key.runner_or_backend or provider != key.provider:
+    if runner != key.runner_or_backend or provider != key.provider:
         raise CapabilityStateRefused(
-            "arm backend/provider differs from credential capability key")
+            "arm runner/provider differs from credential capability key")
+
+
+def _arm_runner(arm: Mapping[str, object]) -> str:
+    if arm.get("kind") != "vendor-baseline":
+        return _text(arm, "backend")
+    vendor_agent = _text(arm, "vendor_agent")
+    return "codex-cli" if vendor_agent == "codex" else vendor_agent
 
 
 def validate_paid_envelope(

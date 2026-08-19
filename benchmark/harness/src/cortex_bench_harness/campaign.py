@@ -1,4 +1,4 @@
-# input:  campaign config from the public cortex-bench CLI
+# input:  campaign config and host Codex OAuth expiry
 # output: terminal outcomes, verifier rewards and comparison report
 # pos:    Public campaign runner
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -30,8 +30,10 @@ import argparse
 import asyncio
 import hashlib
 import json
+import os
 import subprocess
 import sys
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -45,7 +47,13 @@ from .campaign_config import (
     parse_campaign_config,
 )
 from .launcher.comparison_report import build_comparison_report, render_comparison_report
+from .launcher.credential_capabilities import (
+    CODEX_CLI_CAPABILITY_KEY,
+    capability_key_for,
+)
+from .launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN_GRACE_MS
 from .launcher.trial_admission import create_harbor_trial
+from .proxy.adapters.openai_codex_responses import extract_access_expiry_ms
 from .outcome import (
     HARNESS_INCOMPLETE,
     SCORE_UNAVAILABLE,
@@ -63,6 +71,8 @@ TRIAL_RAN = "ran"
 TRIAL_SKIPPED = "skipped"
 TRIAL_FAILED = "failed"
 TRIAL_NOT_ARMED = "not-armed"
+CODEX_CLOCK_SKEW_MARGIN_MS = 60_000
+NETWORK_CREATE_TIMEOUT_MS = 30_000
 
 EPILOG = """Examples:
   cortex-bench run --config benchmark/campaigns/zero-paid-dry-run.yaml
@@ -267,7 +277,10 @@ class _Schedule:
         self._recorded: dict[str, TrialOutcome] = {}
         self._queue: asyncio.Queue[TrialPlan] = asyncio.Queue()
         self.fault: HostFaultError | None = None
-        for plan, resumed in _partition(config, self._plans):
+        partitioned = _partition(config, self._plans)
+        pending = tuple(plan for plan, resumed in partitioned if resumed is None)
+        self._access_expires_at_ms = _codex_wave_preflight(config, pending)
+        for plan, resumed in partitioned:
             if resumed is not None:
                 self._recorded[plan.trial_id] = resumed
             else:
@@ -297,7 +310,8 @@ class _Schedule:
         started_at = _timestamp()
         trial_root = self._config.trials_dir / plan.trial_id
         try:
-            await _arm_trial(self._config, plan, slot)
+            await _arm_trial(
+                self._config, plan, slot, self._access_expires_at_ms)
         except HostFaultError as error:
             # The machine, not the trial: stop the other workers before they arm anything else.
             self.fault = self.fault or error
@@ -349,7 +363,83 @@ def _partition(
     return partitioned
 
 
-async def _arm_trial(config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot) -> None:
+def _codex_wave_preflight(
+    config: CampaignConfig, pending: Sequence[TrialPlan],
+) -> int | None:
+    codex = _codex_plans(pending)
+    if not codex:
+        return None
+    if len(codex) != len(pending):
+        raise CampaignError("pending Codex trials must be a single-provider concurrent wave")
+    if len(codex) > config.concurrency:
+        raise CampaignError(
+            "all pending Codex trials must fit in one concurrent wave before any route is armed")
+    credential_name = str(config.proxy["credential_env"])
+    credential = os.environ.get(credential_name)
+    if not credential:
+        raise CampaignError(f"host credential {credential_name} is not set for Codex preflight")
+    try:
+        expiry_ms = extract_access_expiry_ms(credential)
+    except ValueError as error:
+        raise CampaignError(f"Codex token expiry preflight refused the campaign: {error}") from error
+    now_ms = _now_ms()
+    if expiry_ms <= now_ms:
+        raise CampaignError("Codex token is expired; no route was armed and no refresh was attempted")
+    required_ms = _codex_required_expiry_ms(config, codex, now_ms)
+    if expiry_ms < required_ms:
+        raise CampaignError(
+            "Codex token cannot cover setup, lease, teardown, and clock skew for the "
+            "whole concurrent wave; zero routes were armed")
+    return expiry_ms
+
+
+def _codex_plans(pending: Sequence[TrialPlan]) -> tuple[TrialPlan, ...]:
+    codex: list[TrialPlan] = []
+    for plan in pending:
+        vendor_agent = plan.arm.get("vendor_agent")
+        capability_id = str(plan.arm["credential_capability"])
+        if vendor_agent != "codex" and capability_id != "codex-subscription":
+            continue
+        if vendor_agent != "codex" or capability_id != "codex-subscription":
+            raise CampaignError(
+                "Codex vendor arms must name the exact codex-subscription capability")
+        try:
+            key = capability_key_for(capability_id)
+        except LookupError as error:
+            raise CampaignError("the exact codex-subscription capability is not registered") from error
+        if key != CODEX_CLI_CAPABILITY_KEY or plan.arm.get("provider") != key.provider:
+            raise CampaignError("Codex vendor arm differs from the exact registered capability key")
+        codex.append(plan)
+    return tuple(codex)
+
+
+def _codex_required_expiry_ms(
+    config: CampaignConfig, plans: Sequence[TrialPlan], now_ms: int,
+) -> int:
+    leases = (_declared_lease_ms(config, plan) for plan in plans)
+    return (
+        now_ms + len(plans) * NETWORK_CREATE_TIMEOUT_MS
+        + SETUP_TIMEOUT_MS + max(leases) + TEARDOWN_GRACE_MS
+        + CODEX_CLOCK_SKEW_MARGIN_MS
+    )
+
+
+def _declared_lease_ms(config: CampaignConfig, plan: TrialPlan) -> int:
+    limits = plan.arm["limits"]
+    assert isinstance(limits, Mapping)
+    deadline_seconds = int(limits["deadline_seconds"])
+    agent_seconds = config.timeouts.get("agent_seconds", deadline_seconds)
+    return min(deadline_seconds, agent_seconds) * 1000
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+async def _arm_trial(
+    config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot,
+    access_expires_at_ms: int | None = None,
+) -> None:
     """One trial, through the production trial path and nothing else."""
     network_id = ""
     trial_error: CampaignError | None = None
@@ -359,7 +449,7 @@ async def _arm_trial(config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot)
             arm=dict(plan.arm), task_path=plan.task.path, trials_dir=config.trials_dir,
             manifest=config.trial_manifest(plan), trial_seed=config.trial_seed(plan),
             cli_version=config.cli_version, host_scan_policy=dict(config.host_scan_policy),
-            trial_proxy=config.slot_proxy(slot),
+            trial_proxy=_slot_proxy(config, slot, access_expires_at_ms),
             agent_timeout_seconds=config.timeouts.get("agent_seconds"),
             verifier_timeout_seconds=config.timeouts.get("verifier_seconds"),
             network=config.network,
@@ -375,6 +465,15 @@ async def _arm_trial(config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot)
     _cleanup_trial_network(network_id, trial_error)
     if trial_error is not None:
         raise trial_error
+
+
+def _slot_proxy(
+    config: CampaignConfig, slot: NetworkSlot, access_expires_at_ms: int | None,
+) -> dict[str, object]:
+    proxy = config.slot_proxy(slot)
+    if access_expires_at_ms is not None:
+        proxy["access_expires_at_ms"] = access_expires_at_ms
+    return proxy
 
 
 def _cleanup_trial_network(
@@ -403,7 +502,10 @@ def _create_trial_network(
         "docker", "network", "create", "--driver", "bridge",
         "--subnet", slot.subnet, "--gateway", slot.gateway, name,
     ]
-    result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    result = subprocess.run(
+        command, capture_output=True, text=True,
+        timeout=NETWORK_CREATE_TIMEOUT_MS / 1000,
+    )
     if result.returncode != 0 or not result.stdout.strip():
         raise HostFaultError(
             f"trial {plan.trial_id} could not create Docker network {name} on slot "

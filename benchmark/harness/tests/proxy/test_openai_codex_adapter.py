@@ -30,6 +30,7 @@ from cortex_bench_harness.proxy.adapters.openai_codex_responses import (
     RESPONSES_ROUTE,
     ZSTD_MAGIC,
     OpenAICodexResponsesOAuthAdapter,
+    extract_access_expiry_ms,
     extract_account_id,
 )
 from cortex_bench_harness.proxy.models import PROXY_SCHEMA_VERSION
@@ -47,15 +48,21 @@ HOST_ACCOUNT_ID = "acct-synthetic-host-7"
 ROW_FOUR_KEY = CredentialCapabilityKey(
     "pi", "openai-codex", "openai-codex-responses", "oauth",
 )
+CODEX_CLI_KEY = CredentialCapabilityKey(
+    "codex-cli", "openai-codex", "openai-codex-responses", "oauth",
+)
 
 
-def codex_token(account_id: str | None, *, nonce: str = "n0") -> str:
+def codex_token(
+    account_id: str | None, *, nonce: str = "n0", expires_at_seconds: object = None,
+) -> str:
     # A Codex access token is a three-part JWT whose payload carries the account
     # claim; the client decodes it locally rather than fetching the account id.
     claim = {} if account_id is None else {JWT_ACCOUNT_CLAIM: {"chatgpt_account_id": account_id}}
+    expiry = {} if expires_at_seconds is None else {"exp": expires_at_seconds}
     return ".".join((
         _segment({"alg": "none", "typ": "JWT"}),
-        _segment({**claim, "nonce": nonce}),
+        _segment({**claim, **expiry, "nonce": nonce}),
         base64.b64encode(nonce.encode()).decode().rstrip("="),
     ))
 
@@ -165,11 +172,35 @@ def codex_request_from(handle, source_ip: str) -> tuple[int, bytes]:
 # --- R3: selection returns this adapter for the row-4 tuple and for no other ---
 
 
-def test_selects_the_row_four_adapter_for_the_exact_key() -> None:
-    adapter = select_adapter(ROW_FOUR_KEY)
+@pytest.mark.parametrize("key", [ROW_FOUR_KEY, CODEX_CLI_KEY])
+def test_selects_the_codex_adapter_for_each_registered_exact_key(
+    key: CredentialCapabilityKey,
+) -> None:
+    adapter = select_adapter(key)
     assert isinstance(adapter, OpenAICodexResponsesOAuthAdapter)
     assert adapter.adapter_id == ADAPTER_ID
     assert adapter.schema_version == PROXY_SCHEMA_VERSION
+
+
+def test_codex_cli_selection_passes_the_parsed_expiry_into_the_reused_adapter() -> None:
+    token = codex_token(HOST_ACCOUNT_ID, expires_at_seconds=1)
+    adapter = select_adapter(
+        CODEX_CLI_KEY, credential=token, frozen_model=CODEX_MODEL,
+        access_expires_at_ms=1000,
+    )
+
+    with pytest.raises(AuthInjectionUnavailable, match="expired"):
+        adapter.inject_auth({}, RESPONSES_ROUTE)
+
+
+def test_adapter_refuses_an_expiry_parsed_from_a_different_access_token() -> None:
+    token = codex_token(HOST_ACCOUNT_ID, expires_at_seconds=1_900_000_000)
+
+    with pytest.raises(ValueError, match="does not match"):
+        select_adapter(
+            CODEX_CLI_KEY, credential=token, frozen_model=CODEX_MODEL,
+            access_expires_at_ms=1_900_000_001_000,
+        )
 
 
 @pytest.mark.parametrize(
@@ -180,7 +211,10 @@ def test_selects_the_row_four_adapter_for_the_exact_key() -> None:
         CredentialCapabilityKey("pi", "openai", "openai-codex-responses", "oauth"),
         CredentialCapabilityKey("pi", "openai-codex", "openai-responses", "oauth"),
         CredentialCapabilityKey("pi-cli", "openai-codex", "openai-codex-responses", "oauth"),
-        CredentialCapabilityKey("codex-cli", "openai-codex", "openai-codex-responses", "oauth"),
+        CredentialCapabilityKey("codex-cli", "openai", "openai-codex-responses", "oauth"),
+        CredentialCapabilityKey("codex-cli", "openai-codex", "openai-responses", "oauth"),
+        CredentialCapabilityKey(
+            "codex-cli", "openai-codex", "openai-codex-responses", "subscription"),
     ],
 )
 def test_no_neighbouring_key_selects_the_row_four_adapter(
@@ -231,6 +265,20 @@ def test_an_opaque_dummy_fails_the_client_side_account_claim_precondition() -> N
 def test_account_claim_extraction_refuses_malformed_tokens(token: str) -> None:
     with pytest.raises(ValueError):
         extract_account_id(token)
+
+
+def test_access_expiry_is_parsed_from_the_host_jwt() -> None:
+    token = codex_token(HOST_ACCOUNT_ID, expires_at_seconds=1_900_000_000)
+
+    assert extract_access_expiry_ms(token) == 1_900_000_000_000
+
+
+@pytest.mark.parametrize("expiry", [None, True, 0, -1, "1900000000"])
+def test_access_expiry_refuses_missing_or_invalid_claims(expiry: object) -> None:
+    token = codex_token(HOST_ACCOUNT_ID, expires_at_seconds=expiry)
+
+    with pytest.raises(ValueError, match="expiry"):
+        extract_access_expiry_ms(token)
 
 
 def test_this_row_arms_the_proxy_with_a_jwt_shaped_dummy(tmp_path: Path) -> None:
