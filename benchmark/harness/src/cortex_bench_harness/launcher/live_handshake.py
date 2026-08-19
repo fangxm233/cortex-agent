@@ -1,16 +1,18 @@
-# input:  one offline capability, bounded request, host credential, scan policy
-# output: one no-retry provider request and schema-v2 promotion evidence
+# input:  offline capability, bounded request, credential, scan policy
+# output: no-retry request, redacted response diagnostic, promotion evidence
 # pos:    Bootstrap authorization for one live provider handshake
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import base64
 import hashlib
 import json
+import re
 import threading
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from http.client import HTTPConnection
+from http.client import HTTPConnection, HTTPResponse, IncompleteRead
 from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import urlsplit
@@ -47,7 +49,14 @@ MAX_BODY_BYTES = 67_108_864
 RUN_CONFIG_FILENAME = "live-handshake-run-config.json"
 REQUEST_METADATA_FILENAME = "live-handshake-request.json"
 REQUEST_BODY_FILENAME = "live-handshake-request.body"
+RESPONSE_DIAGNOSTIC_FILENAME = "live-handshake-response.json"
 RUN_CONFIG_SCHEMA_VERSION = "cortex-bench-live-handshake-run/1"
+RESPONSE_DIAGNOSTIC_SCHEMA_VERSION = "cortex-bench-live-handshake-response/1"
+_SENSITIVE_RESPONSE_HEADERS = frozenset({
+    "authorization", "proxy-authorization", "set-cookie", "x-api-key",
+    "chatgpt-account-id",
+})
+_HOME_PATH = re.compile(rb"/home/(?!\.)[^/\x00\s\"']+(?:/[^\x00\s\"']*)?")
 
 
 class LiveHandshakePermitRefused(Exception):
@@ -154,17 +163,20 @@ def run_live_handshake(
         artifact_dir / "proxy", host_credential,
     )
     try:
-        status, revocation = _request_and_revoke(
-            session, grant.request, grant.spec, artifact_dir)
+        status, revocation, request_error = _request_and_revoke(
+            session, grant.request, grant.spec, artifact_dir, scan_policy)
     except BaseException:
         session.proxy.handle.stop()
         raise
+    scan_clean = _scan_clean(revocation.inventory, scan_policy)
+    if request_error is not None:
+        raise request_error
+    assert status is not None
     if not 200 <= status < 300:
         raise LiveHandshakePermitRefused(
             f"live handshake provider request failed with HTTP {status}")
-    scan = scan_trial_artifacts(revocation.inventory, scan_policy)
     return _complete(
-        session, revocation, scan.clean, evidence_dir, implementation_commit,
+        session, revocation, scan_clean, evidence_dir, implementation_commit,
         grant.request.body, conservative_cost_usd,
     )
 
@@ -340,17 +352,23 @@ def _start_handshake_proxy(
 
 def _request_and_revoke(
     session: _HandshakeSession, request: LiveHandshakeRequest,
-    spec: TrialProxySpec, artifact_dir: Path,
-) -> tuple[int, TrialRevocation]:
+    spec: TrialProxySpec, artifact_dir: Path, scan_policy: ScanPolicy,
+) -> tuple[int | None, TrialRevocation, LiveHandshakePermitRefused | None]:
     sources = _artifact_sources(artifact_dir)
     inventory = _inventory(artifact_dir, sources, session.proxy)
+    status = None
+    request_error = None
     try:
         _write_run_artifacts(session, request, spec, sources)
-        status = _perform_request(session.proxy, request)
+        try:
+            status = _perform_request(
+                session.proxy, request, sources["response_diagnostic"], scan_policy)
+        except LiveHandshakePermitRefused as error:
+            request_error = error
     finally:
         revocation = revoke_trial_proxy(
             session.proxy, capture_inventory=lambda: inventory)
-    return status, revocation
+    return status, revocation, request_error
 
 
 def _artifact_sources(artifact_dir: Path) -> dict[str, Path]:
@@ -358,6 +376,7 @@ def _artifact_sources(artifact_dir: Path) -> dict[str, Path]:
         "run_config": artifact_dir / RUN_CONFIG_FILENAME,
         "request_metadata": artifact_dir / REQUEST_METADATA_FILENAME,
         "request_body": artifact_dir / REQUEST_BODY_FILENAME,
+        "response_diagnostic": artifact_dir / RESPONSE_DIAGNOSTIC_FILENAME,
     }
 
 
@@ -399,21 +418,94 @@ def _inventory(
     return ArtifactInventory(declared, frozenset(declared), (root,))
 
 
-def _perform_request(session: TrialProxySession, request: LiveHandshakeRequest) -> int:
+def _scan_clean(inventory: ArtifactInventory, policy: ScanPolicy) -> bool:
+    scan = scan_trial_artifacts(inventory, policy)
+    if not scan.clean:
+        raise LiveHandshakePermitRefused("live handshake artifact scan was not clean")
+    return True
+
+
+def _perform_request(
+    session: TrialProxySession, request: LiveHandshakeRequest,
+    diagnostic_path: Path, scan_policy: ScanPolicy,
+) -> int:
     endpoint = urlsplit(session.handle.base_url)
     connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=120)
     headers = dict(request.headers)
     headers["authorization"] = f"Bearer {session.handle.dummy_token}"
+    status = None
+    response_headers: tuple[tuple[str, str], ...] = ()
+    body = bytearray()
+    failure = None
     try:
         connection.request("POST", request.target, body=request.body, headers=headers)
         response = connection.getresponse()
-        response.read()
-        return response.status
+        status = response.status
+        response_headers = tuple(response.getheaders())
+        _read_response(response, body)
+        return status
     except Exception as error:
+        failure = type(error).__name__
         raise LiveHandshakePermitRefused(
             "live handshake provider request failed before completion") from error
     finally:
-        connection.close()
+        try:
+            _write_response_diagnostic(
+                diagnostic_path, status, response_headers, bytes(body), failure, scan_policy)
+        finally:
+            connection.close()
+
+
+def _read_response(response: HTTPResponse, body: bytearray) -> None:
+    while True:
+        try:
+            chunk = response.read1(64 * 1024)
+        except IncompleteRead as error:
+            body.extend(error.partial)
+            raise
+        if not chunk:
+            return
+        body.extend(chunk)
+
+
+def _write_response_diagnostic(
+    path: Path, status: int | None, headers: tuple[tuple[str, str], ...],
+    body: bytes, failure: str | None, policy: ScanPolicy,
+) -> None:
+    redacted_body = _redact_bytes(body, policy)
+    _write_json(path, {
+        "schema_version": RESPONSE_DIAGNOSTIC_SCHEMA_VERSION,
+        "status": status,
+        "headers": _redact_headers(headers, policy),
+        "body_bytes_received": len(body),
+        "body_base64": base64.b64encode(redacted_body).decode("ascii"),
+        "body_latin1": redacted_body.decode("latin-1"),
+        "complete": failure is None,
+        "failure": failure,
+    })
+
+
+def _redact_headers(
+    headers: tuple[tuple[str, str], ...], policy: ScanPolicy,
+) -> list[list[str]]:
+    return [
+        [name, "" if name.lower() in _SENSITIVE_RESPONSE_HEADERS else
+         _redact_bytes(value.encode(), policy).decode(errors="replace")]
+        for name, value in headers
+    ]
+
+
+def _redact_bytes(payload: bytes, policy: ScanPolicy) -> bytes:
+    redacted = payload
+    literals = (
+        *policy.secrets.values(), *policy.forbidden_environment.values(),
+        *policy.forbidden_argv.values(), policy.repository_checkout,
+        policy.hostname, *policy.host_identities.values(),
+        *((policy.home_path,) if policy.home_path else ()),
+    )
+    for literal in sorted(literals, key=len, reverse=True):
+        redacted = redacted.replace(literal.encode(), b"")
+    return _HOME_PATH.sub(b"", redacted)
 
 
 def _complete(
