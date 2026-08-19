@@ -558,7 +558,11 @@ def test_response_diagnostic_redacts_secrets_account_and_host_paths(tmp_path: Pa
     )
     with handshake_upstream(
         body=json.dumps(response).encode(),
-        headers={"content-type": "application/json", "authorization": authorization},
+        headers={
+            "content-type": "application/json",
+            "authorization": authorization,
+            account_id: "synthetic",
+        },
     ) as upstream:
         url = f"http://127.0.0.1:{upstream.server_port}"
         run_handshake(tmp_path, upstream=url, policy=policy)

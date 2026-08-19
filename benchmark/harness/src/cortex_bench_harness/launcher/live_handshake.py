@@ -505,7 +505,8 @@ def _redact_headers(
     headers: tuple[tuple[str, str], ...], policy: ScanPolicy,
 ) -> list[list[str]]:
     return [
-        [name, "" if name.lower() in _SENSITIVE_RESPONSE_HEADERS else
+        [_redact_bytes(name.encode(), policy).decode(errors="replace"),
+         "" if name.lower() in _SENSITIVE_RESPONSE_HEADERS else
          _redact_bytes(value.encode(), policy).decode(errors="replace")]
         for name, value in headers
     ]
