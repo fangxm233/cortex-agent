@@ -5,6 +5,7 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 | filename | role | function |
 |---|---|---|
 | terminal-bench-2.1-deepseek-paid.yaml | campaign | Declares the approved three-task paid production-server direct-arm DeepSeek re-baseline with a $2/trial, $6/campaign envelope |
+| terminal-bench-2.1-deepseek-paid-smoke.yaml | campaign | Declares one bounded Cortex-compatible DeepSeek smoke |
 | terminal-bench-2.1-vendor-claude-code.yaml | campaign | Declares the dry-run-only three-task Claude Code vendor baseline |
 | terminal-bench-2.1-vendor-codex.yaml | campaign | Declares the dry-run-only three-task Codex vendor baseline |
 | terminal-bench-2.1-vendor-pi.yaml | campaign | Declares the paid three-task PI vendor baseline against the host DeepSeek relay |

@@ -1,6 +1,6 @@
-# input:  vendor image scripts, pinned manifests and local CLI fixtures
-# output: nine offline single-vendor image and task-selector proofs
-# pos:    Contract tests for benchmark vendor runtime images
+# input:  runtime image scripts, pinned manifests and local CLI fixtures
+# output: vendor isolation and Cortex-smoke image proofs
+# pos:    Contract tests for benchmark runtime images
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import hashlib
@@ -69,6 +69,19 @@ def test_terminal_bench_manifest_has_one_digest_pinned_variant_per_vendor_and_ta
             assert variant["final_image_digest"].startswith("sha256:")
             assert len(variant["final_image_digest"]) == 71
             assert set(variant) == {"final_image_tag", "final_image_digest"}
+    smoke = document["cortex_smoke"]
+    selected = next(task for task in document["tasks"] if task["task_id"] == smoke["task_id"])
+    assert smoke["final_image_tag"].endswith("-cortex-smoke-2026.8.6")
+    assert smoke["final_image_digest"].startswith("sha256:")
+    campaign = yaml.safe_load(
+        (HARNESS_DIR.parent / "campaigns/terminal-bench-2.1-deepseek-paid-smoke.yaml").read_text()
+    )
+    assert campaign["tasks"] == [{
+        "task_id": smoke["task_id"],
+        "path": f"tasks/terminal-bench-2.1/{smoke['task_id']}",
+        "image_ref": f"{smoke['final_image_tag'].split(':')[0]}@{smoke['final_image_digest']}",
+    }]
+    assert selected["task_id"] == "constraints-scheduling"
 
 
 def test_vendor_campaigns_select_the_matching_task_variant() -> None:
@@ -384,6 +397,11 @@ def terminal_bench_manifest(
             "claude-code": {"version": "2.1.232"},
             "codex": {"version": "0.117.0"},
         },
+        "cortex_smoke": {
+            "task_id": task_ids[0], "version": "2026.8.6",
+            "final_image_tag": f"cortex-terminal-bench-2.1:{task_ids[0]}-cortex-smoke-2026.8.6",
+            "final_image_digest": f"sha256:{15:064x}",
+        },
         "verifier": {
             "python_version": "3.12",
             "packages": [{
@@ -464,6 +482,7 @@ def fake_task_builder_tools(root: Path, source_commit: str) -> Path:
         "    pi) test -x \"$context/vendor-runtime/dist/cli.js\";;\n"
         "    claude-code) test -x \"$context/vendor-runtime/claude\";;\n"
         "    codex) test -x \"$context/vendor-runtime/bin/codex.js\";;\n"
+        "    cortex-smoke) test -x \"$context/pi-agent/dist/cli.js\"; test -f \"$context/npm/package.json\";;\n"
         "    *) exit 97;;\n"
         "  esac\n"
         "  exit 0\n"
@@ -477,6 +496,7 @@ def fake_task_builder_tools(root: Path, source_commit: str) -> Path:
         "    alpha-pi-0.82.1) n=6;; alpha-claude-code-2.1.232) n=7;; alpha-codex-0.117.0) n=8;;\n"
         "    beta-pi-0.82.1) n=9;; beta-claude-code-2.1.232) n=10;; beta-codex-0.117.0) n=11;;\n"
         "    gamma-pi-0.82.1) n=12;; gamma-claude-code-2.1.232) n=13;; gamma-codex-0.117.0) n=14;;\n"
+        "    alpha-cortex-smoke-2026.8.6) n=15;;\n"
         "    *) exit 98;;\n"
         "  esac\n"
         "  printf '%s@sha256:%064x\\n' \"${tag%%:*}\" \"$n\"; exit 0\n"
@@ -551,6 +571,36 @@ def test_terminal_bench_builder_preserves_authentic_tasks_and_builds_pinned_imag
     assert [(variant["task_id"], variant["vendor"]) for variant in output["variants"]] == [
         (task_id, vendor) for task_id in task_ids for vendor in VENDORS
     ]
+
+
+def test_terminal_bench_builder_reproduces_the_cortex_smoke_image(tmp_path: Path) -> None:
+    task_ids = ("alpha", "beta", "gamma")
+    inputs = fixture_inputs(tmp_path)
+    source = terminal_bench_source(tmp_path, task_ids)
+    empty_verifier = tmp_path / "empty-verifier"; empty_verifier.mkdir()
+    manifest = terminal_bench_manifest(tmp_path, inputs, task_ids, tree_sha256(empty_verifier))
+    tools = fake_task_builder_tools(tmp_path, "1" * 40)
+    wheelhouse = tmp_path / "wheelhouse"; wheelhouse.mkdir()
+    (wheelhouse / "pytest-8.4.1-py3-none-any.whl").write_bytes(b"fixture wheel")
+    environment = {
+        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:/usr/bin:/bin",
+        "SOURCE_COMMIT": "1" * 40, "SOURCE_DIR": str(source),
+        "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),
+        "WHEELHOUSE": str(wheelhouse), "NODE_BIN": str(inputs["node"]),
+        "NPM_ROOT": str(inputs["npm"]), "PI_ROOT": str(inputs["pi"]),
+        "CLAUDE_BIN": str(inputs["claude"]), "CODEX_ROOT": str(inputs["codex"]),
+        "DOCKER_CALLS": str(tmp_path / "docker-calls.txt"),
+    }
+    completed = subprocess.run(
+        [str(TASK_BUILD_SCRIPT), "--cortex-smoke"], cwd=HARNESS_DIR,
+        env=environment, check=True, capture_output=True, text=True,
+    )
+    calls = Path(environment["DOCKER_CALLS"]).read_text(encoding="utf-8")
+    assert calls.count("buildx build") == 1
+    assert calls.count("run --rm --network none --pull never") == 1
+    task = tmp_path / "admitted-tasks/alpha/task.toml"
+    assert f"@sha256:{15:064x}" in task.read_text(encoding="utf-8")
+    assert json.loads(completed.stdout)["image_digest"] == f"sha256:{15:064x}"
 
 
 def test_terminal_bench_builder_refuses_a_source_image_digest_mismatch(

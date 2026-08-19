@@ -13,7 +13,7 @@ script supplies the host references a campaign run needs.
 | launch-paid-campaign.py | launch | Resolves every host-scan reference and the just-in-time credential, refuses artifacts that no longer match current source, then runs a paid campaign |
 | migrate-capability-evidence.py | evidence | Reproduces canonical v2 evidence and digests |
 | mutation-suite.py | evidence | Kills every listed mutation and regenerates offline evidence |
-| provision-terminal-bench-images.sh | build | Provisions pinned Terminal-Bench task images |
-| terminal-bench-2.1-images.json | config | Pins task sources, vendor variants and verifier inputs |
+| provision-terminal-bench-images.sh | build | Provisions pinned vendor and Cortex-smoke task images |
+| terminal-bench-2.1-images.json | config | Pins task sources, runtime variants and verifier inputs |
 | vendor-runtime-preflight.js | verify | Exercises one isolated CLI against loopback synthetic upstream |
 | zero-paid-runtime-inputs.json | config | Pins exact Node, npm and three vendor build inputs |

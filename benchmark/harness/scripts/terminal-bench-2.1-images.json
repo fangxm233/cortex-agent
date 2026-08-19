@@ -11,6 +11,12 @@
     "claude-code": {"version": "2.1.232"},
     "codex": {"version": "0.117.0"}
   },
+  "cortex_smoke": {
+    "task_id": "constraints-scheduling",
+    "version": "2026.8.6",
+    "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-cortex-smoke-2026.8.6",
+    "final_image_digest": "sha256:002574fdff7d6c7fa3ae377253d36c86eebdbc05eb53a34995154944ea7420f1"
+  },
   "verifier": {
     "python_version": "3.12",
     "packages": [

@@ -232,6 +232,22 @@ def test_committed_bundle_is_the_exact_production_direct_surface(tmp_path: Path)
         assert (home / "prompts" / kind / "benchmark-direct.md").read_bytes().strip()
 
 
+def test_declared_output_cap_is_projected_into_the_sealed_profile(tmp_path: Path) -> None:
+    launch = dataclasses.replace(facts(tmp_path), max_output_tokens=256)
+    result = materialize_production_home(
+        cortex_home=tmp_path / "smoke-home",
+        runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
+        artifacts_dir=tmp_path / "artifacts",
+        facts=launch,
+        inherited_environment={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
+    )
+
+    profile = read_json(result.cortex_home / "config/profiles.json")
+    assert profile["profiles"]["benchmark-direct"]["maxOutputTokens"] == 256
+    context = result.production_evidence_context
+    assert context["model_execution"]["max_output_tokens"] == 256
+
+
 def test_manager_qa_route_is_opened_only_for_the_qa_on_arm(tmp_path: Path) -> None:
     qa_on = production_arm_bundle("manager-qa-on-pi-deepseek")
     on_root, off_root = tmp_path / "on", tmp_path / "off"

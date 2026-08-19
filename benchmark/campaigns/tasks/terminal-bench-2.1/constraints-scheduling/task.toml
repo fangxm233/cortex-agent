@@ -27,7 +27,7 @@ timeout_sec = 1200.0
 
 [environment]
 build_timeout_sec = 600.0
-docker_image = "cortex-terminal-bench-2.1@sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c"
+docker_image = "cortex-terminal-bench-2.1@sha256:002574fdff7d6c7fa3ae377253d36c86eebdbc05eb53a34995154944ea7420f1"
 cpus = 1
 memory_mb = 2048
 storage_mb = 10240
