@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock
 from urllib.parse import urlsplit
 
 import pytest
+from harbor.environments.base import ExecResult
 from harbor.environments.docker.docker import DockerEnvironment
 from harbor.models.task.config import NetworkMode
 from harbor.trial.trial import Trial
@@ -31,6 +32,7 @@ from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_ENVIRONMENT_IMPORT_PATH,
     AdmittedDockerEnvironment,
     HarborTrialAdmissionError,
+    VendorRuntimeProjection,
     build_harbor_trial_config,
     create_harbor_trial,
 )
@@ -54,6 +56,24 @@ EXPECTED_ENVIRONMENT = {
     "TMPDIR": "/logs/agent/trial-home/tmp", "TZ": "UTC",
     "XDG_CACHE_HOME": "/logs/agent/trial-home/xdg-cache",
     "XDG_CONFIG_HOME": "/logs/agent/trial-home/xdg-config",
+}
+EXPECTED_VENDOR_STATIC_ENVIRONMENT = {
+    key: value for key, value in EXPECTED_ENVIRONMENT.items()
+    if not key.startswith("CORTEX_")
+}
+VENDOR_PROJECTIONS = {
+    "pi": {
+        "PI_CODING_AGENT_DIR": "/logs/agent/trial-home/pi-agent",
+        "PI_OFFLINE": "1", "PI_SKIP_VERSION_CHECK": "1", "PI_TELEMETRY": "0",
+    },
+    "claude-code": {
+        "ANTHROPIC_BASE_URL": PROXY_URL,
+        "ANTHROPIC_AUTH_TOKEN": "trial-scoped-dummy-token",
+    },
+    "codex": {
+        "CODEX_HOME": "/logs/agent/trial-home/codex-home",
+        "OPENAI_BASE_URL": PROXY_URL,
+    },
 }
 LIVE_PROXY_HANDLES: list[object] = []
 
@@ -170,6 +190,19 @@ def deepseek_arm() -> dict[str, object]:
     return value
 
 
+def vendor_arm(vendor_agent: str) -> dict[str, object]:
+    provider = {"pi": "deepseek", "claude-code": "anthropic", "codex": "openai"}[
+        vendor_agent
+    ]
+    return {
+        "schema_version": "cortex-benchmark-arm/2", "kind": "vendor-baseline",
+        "name": f"pure-{vendor_agent}", "vendor_agent": vendor_agent,
+        "vendor_cli_version": "1.2.3", "provider": provider,
+        "model": "representative-model", "credential_capability": "fixture-capability",
+        "limits": dict(arm()["limits"]),
+    }
+
+
 def seed() -> dict[str, object]:
     return {
         "arm": arm(),
@@ -222,6 +255,62 @@ def launch_kwargs(
         "trial_proxy": trial_proxy_spec(),
         "network": network,
     }
+
+
+def vendor_launch_kwargs(root: Path, vendor_agent: str) -> dict[str, object]:
+    kwargs = launch_kwargs(root)
+    selected_arm = vendor_arm(vendor_agent)
+    vendor_seed = dict(kwargs["trial_seed"])
+    vendor_seed.update(
+        arm=selected_arm, arm_path=f"arm://pure-{vendor_agent}",
+        root_run_id=f"trial-one.pure-{vendor_agent}",
+    )
+    kwargs.update(arm=selected_arm, trial_seed=vendor_seed)
+    return kwargs
+
+
+class VendorProxyController:
+    def __init__(
+        self, vendor_agent: str, environment: dict[str, str] | None = None,
+        projection_error: BaseException | None = None,
+    ) -> None:
+        handle = SimpleNamespace(
+            base_url=PROXY_URL, trial_id="trial-one",
+            dummy_token="trial-scoped-dummy-token",
+            manifest_block={"source_binding": {"kind": "ip", "value": "172.19.0.2"}},
+        )
+        self.session = SimpleNamespace(handle=handle)
+        self.projection = VendorRuntimeProjection(
+            vendor_agent=vendor_agent,
+            environment=environment or VENDOR_PROJECTIONS[vendor_agent],
+        )
+        self.projection_error = projection_error
+        self.calls: list[str] = []
+        self.revoke_count = 0
+        self.real_credential = "real-provider-secret-must-not-cross"
+
+    def arm_admitted_proxy(self) -> object:
+        self.calls.append("arm")
+        return self.session
+
+    def project_vendor_runtime(self, session: object) -> VendorRuntimeProjection:
+        assert session is self.session
+        self.calls.append("project")
+        if self.projection_error is not None:
+            raise self.projection_error
+        return self.projection
+
+    def revoke_admitted_proxy(self) -> None:
+        self.revoke_count += 1
+
+
+def create_vendor_trial(
+    root: Path, vendor_agent: str, controller: VendorProxyController,
+) -> Trial:
+    config = build_harbor_trial_config(**vendor_launch_kwargs(root, vendor_agent))
+    trial = asyncio.run(Trial.create(config))
+    trial.agent_environment.bind_proxy_controller(controller)
+    return trial
 
 
 def create_trial(
@@ -281,6 +370,106 @@ def test_public_entry_builds_the_sealed_trial_config(tmp_path: Path) -> None:
     assert config.agent.extra_allowed_hosts == []
     assert config.agent.env == config.environment.env
     assert config.agent.env == EXPECTED_ENVIRONMENT
+
+
+@pytest.mark.parametrize("vendor_agent", ["pi", "claude-code", "codex"])
+def test_vendor_projection_is_recorded_before_start_and_reseals_exec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, vendor_agent: str,
+) -> None:
+    controller = VendorProxyController(vendor_agent)
+    trial = create_vendor_trial(tmp_path, vendor_agent, controller)
+    docker_start_observations: list[dict[str, object]] = []
+
+    async def observe_projection(*_args: object, **_kwargs: object) -> None:
+        controller.calls.append("docker-start")
+        docker_start_observations.append(json.loads(evidence_path(trial).read_text()))
+    monkeypatch.setattr(DockerEnvironment, "start", AsyncMock(side_effect=observe_projection))
+    asyncio.run(trial.agent_environment.start(force_build=False))
+    compose_exec = AsyncMock(return_value=ExecResult(return_code=0))
+    monkeypatch.setattr(trial.agent_environment, "_compose_exec", compose_exec)
+    asyncio.run(trial.agent_environment.exec("vendor --version"))
+    final_environment = {**EXPECTED_VENDOR_STATIC_ENVIRONMENT, **VENDOR_PROJECTIONS[vendor_agent]}
+    observed = docker_start_observations[0]["environment"]
+    assert controller.calls == ["arm", "project", "docker-start"]
+    assert trial.config.agent.import_path is None
+    assert trial.config.agent.kwargs == {"version": "1.2.3"}
+    assert trial.config.environment.env == EXPECTED_VENDOR_STATIC_ENVIRONMENT
+    assert trial.agent_environment._persistent_env == final_environment
+    assert observed["runtime_projection"] == {
+        "vendor_agent": vendor_agent,
+        "environment": VENDOR_PROJECTIONS[vendor_agent],
+    }
+    assert observed["admitted_keys"] == sorted(final_environment)
+    assert all(not key.startswith("CORTEX_") for key in final_environment)
+    command = compose_exec.await_args.args[0]
+    assert "real-provider-secret-must-not-cross" not in command
+
+
+@pytest.mark.parametrize(
+    ("environment", "message"),
+    [
+        ({**VENDOR_PROJECTIONS["pi"], "UNEXPECTED": "value"}, "unknown keys"),
+        ({**VENDOR_PROJECTIONS["pi"], "PI_OFFLINE": "0"}, "value drift"),
+    ],
+)
+def test_vendor_projection_drift_revokes_before_container_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    environment: dict[str, str], message: str,
+) -> None:
+    controller = VendorProxyController("pi", environment)
+    trial = create_vendor_trial(tmp_path, "pi", controller)
+    start = patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
+
+    with pytest.raises(HarborTrialAdmissionError, match=message):
+        asyncio.run(trial.agent_environment.start(force_build=False))
+
+    assert controller.calls == ["arm", "project"]
+    assert controller.revoke_count == 1
+    start.assert_not_awaited()
+
+
+def test_vendor_projection_failure_revokes_before_container_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = VendorProxyController(
+        "codex", projection_error=RuntimeError("projection failed"),
+    )
+    trial = create_vendor_trial(tmp_path, "codex", controller)
+    start = patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
+
+    with pytest.raises(RuntimeError, match="projection failed"):
+        asyncio.run(trial.agent_environment.start(force_build=False))
+
+    assert controller.calls == ["arm", "project"]
+    assert controller.revoke_count == 1
+    start.assert_not_awaited()
+
+
+def test_vendor_arm_with_cortex_composition_field_is_refused(tmp_path: Path) -> None:
+    kwargs = vendor_launch_kwargs(tmp_path, "claude-code")
+    selected_arm = dict(kwargs["arm"])
+    selected_arm["backend"] = "claude"
+    selected_seed = dict(kwargs["trial_seed"])
+    selected_seed["arm"] = selected_arm
+    kwargs.update(arm=selected_arm, trial_seed=selected_seed)
+
+    with pytest.raises(ValueError, match="Cortex composition"):
+        build_harbor_trial_config(**kwargs)
+
+
+def test_vendor_trial_config_and_admission_record_exclude_real_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = VendorProxyController("claude-code")
+    config = build_harbor_trial_config(**vendor_launch_kwargs(tmp_path, "claude-code"))
+    assert controller.real_credential not in config.model_dump_json()
+    trial = asyncio.run(Trial.create(config))
+    trial.agent_environment.bind_proxy_controller(controller)
+    monkeypatch.setattr(DockerEnvironment, "start", AsyncMock())
+
+    asyncio.run(trial.agent_environment.start(force_build=False))
+
+    assert controller.real_credential not in evidence_path(trial).read_text()
 
 
 def test_agent_phase_defaults_to_the_arm_deadline_and_leases_for_it(tmp_path: Path) -> None:
