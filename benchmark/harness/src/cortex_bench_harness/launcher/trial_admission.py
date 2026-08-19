@@ -39,6 +39,7 @@ from harbor.models.trial.paths import EnvironmentPaths, TrialPaths
 from harbor.trial.trial import Trial
 
 from ..container_boundary import ContainerBoundaryProbe, ContainerBoundaryUnproven
+from ..vendor_agents import VENDOR_FIXED_ENVIRONMENT
 from .trial_seed import TrialSeed, parse_trial_seed
 from .host_credential_vault import HOST_CREDENTIAL_VAULT
 from .arms import VENDOR_AGENTS, arm_backend, build_agent_config, require_pinned_image
@@ -70,7 +71,7 @@ PROVIDER_ENV_KEYS = {
     "anthropic": frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"}),
     "deepseek": frozenset({"DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"}),
     "openai": frozenset({"OPENAI_API_KEY", "OPENAI_BASE_URL"}),
-    "openai-codex": frozenset({"OPENAI_API_KEY", "OPENAI_BASE_URL"}),
+    "openai-codex": frozenset({"OPENAI_API_KEY"}),
 }
 CREDENTIAL_ENV_KEYS = (
     "AWS_SHARED_CREDENTIALS_FILE",
@@ -87,15 +88,6 @@ SENSITIVE_HOME_PATHS = (
     ".cortex", ".claude", ".anthropic", ".pi", ".ssh", ".gnupg", ".aws",
     ".azure", ".docker", ".kube", ".config/gcloud", ".config/gh",
 )
-VENDOR_FIXED_ENVIRONMENT = {
-    "pi": {
-        "PI_CODING_AGENT_DIR": str(TRIAL_ROOT / "pi-agent"),
-        "PI_OFFLINE": "1", "PI_SKIP_VERSION_CHECK": "1", "PI_TELEMETRY": "0",
-    },
-    "codex": {"CODEX_HOME": str(TRIAL_ROOT / "codex-home")},
-}
-
-
 @dataclass(frozen=True)
 class VendorRuntimeProjection:
     vendor_agent: str
@@ -967,7 +959,7 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
                 raise HarborTrialAdmissionError("vendor projection requires a dummy token")
             return {"ANTHROPIC_BASE_URL": base_url, "ANTHROPIC_AUTH_TOKEN": token}
         if vendor_agent == "codex":
-            return {**VENDOR_FIXED_ENVIRONMENT["codex"], "OPENAI_BASE_URL": base_url}
+            return dict(VENDOR_FIXED_ENVIRONMENT["codex"])
         if vendor_agent == "pi":
             return dict(VENDOR_FIXED_ENVIRONMENT["pi"])
         raise HarborTrialAdmissionError(f"unsupported vendor agent: {vendor_agent}")

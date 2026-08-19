@@ -15,6 +15,7 @@ from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.arms import (
     COMPOSABLE_MODES,
     MODE_LIFTING_GATES,
+    VENDOR_IMPORT_PATHS,
     BackendUnsupportedForKindError,
     ImageDigestUnpinnedError,
     backend_cli_binary,
@@ -265,7 +266,8 @@ def test_vendor_baselines_need_no_seed_and_no_composition(tmp_path: Path) -> Non
     config = build_agent_config(baseline_arm("claude-code"), cli_version="2026.8.6")
 
     assert config.kwargs == {"version": "1.2.3"}
-    assert config.import_path is None
+    assert config.name is None
+    assert config.import_path == VENDOR_IMPORT_PATHS["claude-code"]
 
 
 @pytest.mark.parametrize(
@@ -291,8 +293,8 @@ def test_vendor_config_routes_by_harbor_name_without_cortex_kwargs(
     agent = AgentFactory.create_agent_from_config(
         config, logs_dir=tmp_path / vendor_agent,
     )
-    assert config.name == vendor_agent
-    assert config.import_path is None
+    assert config.name is None
+    assert config.import_path == VENDOR_IMPORT_PATHS[vendor_agent]
     assert config.model_name == expected_model
     assert config.kwargs == {"version": "1.2.3"}
     assert agent.name() == vendor_agent

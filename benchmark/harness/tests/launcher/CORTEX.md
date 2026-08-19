@@ -23,4 +23,5 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_production_session_admission.py | test | Verifies sealed session execution |
 | test_trial_admission.py | test | Verifies Harbor trial admission |
 | test_trial_proxy_wiring.py | test | Verifies proxy lifecycle wiring |
+| test_vendor_agents.py | test | Verifies pinned vendor setup and dummy runtime files |
 | test_vendor_baseline_isolation.py | test | Verifies vendor baseline isolation |
