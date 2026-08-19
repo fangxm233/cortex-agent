@@ -1,5 +1,5 @@
-# input:  campaign configs, a recording production trial path and published envelopes
-# output: routing, refusal, request-accounting, serial-order, hard-stop, resume and report proofs
+# input:  campaign configs, trial recorder and published envelopes
+# output: routing, terminal outcome, resume and report proofs
 # pos:    Campaign runner behaviour tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -154,8 +154,26 @@ def envelope_document(
         "schema_version": OUTER_ENVELOPE_SCHEMA_VERSION,
         "identity": {"trial_id": trial_id, "root_run_id": f"{trial_id}.{arm_name}",
                      "arm_name": arm_name},
+        "evidence": {"roots": [
+            {"root": root, "status": "collected"}
+            for root in ("agent", "verifier", "artifacts")
+        ]},
         "proxy_usage": {"requests": requests, "input_tokens": 11,
                         "output_tokens": 7, "reconciled": True},
+        "revocation": {
+            "schema_version": "cortex-bench-proxy-revocation/1",
+            "trial_id": trial_id, "route_active": False,
+            "listener_present": False, "serving_thread_alive": False,
+            "active_handlers": 0, "body_handlers": 0,
+        },
+        "leak_scan": {
+            "ok": True, "clean": True, "matches": [],
+            "missing_sources": [], "unclassified_files": [],
+        },
+        "publication": {
+            "root": "artifacts", "relative_path": OUTER_ENVELOPE_FILENAME,
+            "atomic": True, "post_publication_reread": True,
+        },
         "grader_admission": {"admitted": True},
     }
 
@@ -1064,8 +1082,12 @@ def test_a_host_fault_still_publishes_the_report_of_what_did_run(
 
     assert status == 1
     report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
-    assert set(report["run_order"]) <= {first, second}
-    assert report["run_order"], "the trial that finished is in the report"
+    reported = {
+        trial["trial_id"] for trial in result["trials"]
+        if trial["state"] != "not-armed"
+    }
+    assert set(report["run_order"]) == reported
+    assert {first, second} <= reported, "successful and failed terminal trials are reported"
 
 
 def test_a_campaign_whose_every_trial_failed_reports_that_instead_of_crashing(
@@ -1081,7 +1103,9 @@ def test_a_campaign_whose_every_trial_failed_reports_that_instead_of_crashing(
     status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
     assert [trial["state"] for trial in result["trials"]] == ["failed"] * 4
-    assert result["report_path"] is None and result["report_sha256"] is None
+    report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
+    assert report["run_order"] == plans
+    assert all(run["score_status"] == "unavailable" for run in report["runs"])
     # The r5 campaign exited 0 with ok true while three of three trials failed. A caller that
     # gates on the exit code would have read that as a clean benchmark run.
     assert result["ok"] is False, "a campaign that graded nothing did not succeed"
@@ -1148,17 +1172,18 @@ def test_a_campaign_arms_every_declared_trial(
 
 
 @pytest.mark.parametrize(
-    ("result", "fragment"),
+    ("result", "fragment", "score_status"),
     [
-        (RecordingResult(exception_info=RuntimeError("verifier failed")), "failed"),
-        (RecordingResult(rewards=None), "verifier result"),
-        (RecordingResult(rewards={}), "verifier rewards"),
-        (RecordingResult(rewards={"reward": float("nan")}), "non-finite"),
+        (RecordingResult(exception_info=RuntimeError("verifier failed")), "failed", "failed"),
+        (RecordingResult(rewards=None), "verifier result", "unavailable"),
+        (RecordingResult(rewards={}), "verifier rewards", "unavailable"),
+        (RecordingResult(rewards={"reward": float("nan")}), "non-finite", "unavailable"),
+        (RecordingResult(rewards={"reward": float("inf")}), "non-finite", "unavailable"),
     ],
 )
 def test_a_trial_result_without_completed_verification_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-    result: RecordingResult, fragment: str,
+    result: RecordingResult, fragment: str, score_status: str,
 ) -> None:
     """Refused for that trial, which is recorded as failed; the campaign is not the thing at
     fault, so it keeps going."""
@@ -1172,25 +1197,36 @@ def test_a_trial_result_without_completed_verification_is_refused(
     refused = next(
         trial for trial in document["trials"] if trial["trial_id"] == trial_id)
     assert refused["state"] == "failed"
+    assert refused["outcome_state"] == "terminal-verifier-failure"
+    assert refused["verifier_rewards"] is None
+    assert refused["score_status"] == score_status
     assert fragment in str(refused["reason"])
     assert [trial["state"] for trial in document["trials"]].count("ran") == 3
 
 
 @pytest.mark.parametrize("reward", [0.0, -1.0])
-def test_a_completed_trial_accepts_any_finite_reward(
+def test_a_completed_trial_accepts_and_reports_any_finite_reward(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
     reward: float,
 ) -> None:
     trial_id = "camp-01-task-one-cortex-a"
     RecordingTrialPath(results={
-        trial_id: RecordingResult(rewards={"reward": reward}),
+        trial_id: RecordingResult(rewards={"reward": reward, "auxiliary": 0.0}),
     }).install(monkeypatch)
 
     status, result, stderr = run_cli(
         capsys, "run", "--config", str(write_campaign(tmp_path)))
 
     assert (status, stderr) == (0, "")
-    assert result["state"] == "completed"
+    outcome = result["trials"][0]
+    assert outcome["outcome_state"] == "terminal-success"
+    assert outcome["verifier_rewards"] == {"reward": reward, "auxiliary": 0.0}
+    assert outcome["score_status"] == "available"
+    report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
+    assert report["runs"][0]["verifier_rewards"] == {
+        "reward": reward, "auxiliary": 0.0,
+    }
+    assert report["runs"][0]["score_status"] == "available"
 
 
 def drop_request_count(document: dict[str, object]) -> dict[str, object]:
@@ -1198,16 +1234,16 @@ def drop_request_count(document: dict[str, object]) -> dict[str, object]:
     return document
 
 
-def test_a_published_envelope_without_a_request_count_is_refused(
+def test_a_published_envelope_without_a_request_count_is_harness_incomplete(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
     RecordingTrialPath(envelope_mutation=drop_request_count).install(monkeypatch)
 
-    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
-    error = failure_document(capsys)
     assert status == 1
-    assert "proxy_usage.requests" in error["error"]
+    assert result["trials"][0]["outcome_state"] == "harness-incomplete"
+    assert "proxy_usage.requests" in result["trials"][0]["reason"]
 
 
 # --- resume, idempotency and non-clobbering -----------------------------------------------------
@@ -1310,25 +1346,131 @@ def test_an_envelope_that_will_not_say_whether_it_is_gradable_is_refused(
 
     RecordingTrialPath(envelope_mutation=no_admission).install(monkeypatch)
 
-    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
     assert status == 1
-    assert "grader_admission" in failure_document(capsys)["error"]
+    assert result["trials"][0]["outcome_state"] == "harness-incomplete"
+    assert "grader_admission" in result["trials"][0]["reason"]
 
 
-def test_a_resumed_envelope_without_a_successful_harbor_result_is_refused(
+def test_a_harbor_agent_exception_keeps_its_finite_verifier_rewards(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    RecordingTrialPath().install(monkeypatch)
+    trial_id = "camp-01-task-one-cortex-a"
+    RecordingTrialPath(results={
+        trial_id: RecordingResult(
+            exception_info=RuntimeError("agent failed"),
+            rewards={"reward": 0.0, "auxiliary": 1.0},
+        ),
+    }).install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 1
+    failed = result["trials"][0]
+    assert failed["state"] == "failed"
+    assert failed["outcome_state"] == "terminal-agent-failure"
+    assert failed["verifier_rewards"] == {"reward": 0.0, "auxiliary": 1.0}
+    assert failed["score_status"] == "available"
+
+
+def test_an_agent_timeout_without_rewards_is_not_mislabeled_as_a_verifier_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    class AgentTimeoutError(RuntimeError):
+        pass
+
+    trial_id = "camp-01-task-one-cortex-a"
+    RecordingTrialPath(results={
+        trial_id: RecordingResult(exception_info=AgentTimeoutError("timed out")),
+    }).install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 1
+    assert result["trials"][0]["outcome_state"] == "terminal-agent-failure"
+    assert result["trials"][0]["verifier_rewards"] is None
+    assert result["trials"][0]["score_status"] == "failed"
+
+
+def test_resuming_a_terminal_verifier_failure_keeps_it_failed_without_rearming(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
     trials_dir = tmp_path / "trials"
     trial_id = "camp-01-task-one-cortex-a"
     publish_envelope(trials_dir, trial_id, "cortex-a", 1)
     write_result(trials_dir, trial_id, RecordingResult(exception_info=RuntimeError("bad verifier")))
+    document = campaign_document(tmp_path)
+    document["tasks"] = [document["tasks"][0]]
+    document["arms"] = [document["arms"][0]]
+    document["comparisons"] = []
+
+    status, result, stderr = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert (status, stderr) == (1, "")
+    assert recorder.armed == []
+    assert result["trials"] == [{
+        "trial_id": trial_id, "arm": "cortex-a", "task_id": "task-one",
+        "state": "failed", "outcome_state": "terminal-verifier-failure",
+        "requests": 1, "metered_requests": 1,
+        "outer_envelope_path": str(
+            trials_dir / trial_id / "artifacts" / OUTER_ENVELOPE_FILENAME),
+        "grader_admission": {"admitted": True},
+        "verifier_rewards": None, "score_status": "failed",
+        "reason": "RuntimeError: bad verifier",
+    }]
+    report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
+    assert report["run_order"] == [trial_id]
+    assert report["runs"][0]["outcome_state"] == "terminal-verifier-failure"
+    assert report["runs"][0]["score_status"] == "failed"
+
+
+@pytest.mark.parametrize("untrustworthy", ["scan", "revocation"])
+def test_untrustworthy_security_evidence_never_exposes_a_score(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    untrustworthy: str,
+) -> None:
+    def fail_security(document: dict[str, object]) -> dict[str, object]:
+        if untrustworthy == "scan":
+            document["leak_scan"] = {
+                "ok": False, "clean": False, "matches": [{"rule": "secret"}],
+                "missing_sources": [], "unclassified_files": [],
+            }
+        else:
+            document["revocation"]["route_active"] = True
+        return document
+
+    RecordingTrialPath(envelope_mutation=fail_security).install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 1
+    first = result["trials"][0]
+    assert first["state"] == "failed"
+    assert first["outcome_state"] == "security-failed"
+    assert first["verifier_rewards"] is None
+    assert first["score_status"] == "unavailable"
+    assert first["grader_admission"] == {"admitted": False, "reason": "security_failed"}
+
+
+def test_a_partial_outer_envelope_is_rejected_before_any_new_route_is_armed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    trials_dir = tmp_path / "trials"
+    trial_id = "camp-01-task-one-cortex-a"
+    partial = envelope_document(trial_id, "cortex-a", 1)
+    del partial["publication"]
+    write_envelope(trials_dir, trial_id, partial)
+    write_result(trials_dir, trial_id)
 
     status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
 
     assert status == 1
-    assert "bad verifier" in failure_document(capsys)["error"]
+    assert "harness-incomplete" in failure_document(capsys)["error"]
+    assert recorder.armed == []
 
 
 def test_an_existing_trial_root_without_a_published_envelope_is_refused(
@@ -1418,19 +1560,23 @@ def test_the_report_telemetry_is_read_from_each_published_envelope(
     }
 
 
-def test_the_report_carries_the_trials_that_published_and_not_the_ones_that_failed(
+def test_the_report_carries_failed_trials_instead_of_silently_dropping_them(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    RecordingTrialPath(
-        default_requests=6, failures=("camp-01-task-two-cortex-b",)).install(monkeypatch)
+    failed = "camp-01-task-two-cortex-b"
+    RecordingTrialPath(default_requests=6, failures=(failed,)).install(monkeypatch)
 
     _, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
     report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
     assert report["run_order"] == [
         "camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b",
-        "camp-01-task-two-cortex-a",
+        "camp-01-task-two-cortex-a", failed,
     ]
+    failed_run = report["runs"][-1]
+    assert failed_run["outcome_state"] == "harness-incomplete"
+    assert failed_run["verifier_rewards"] is None
+    assert failed_run["score_status"] == "unavailable"
 
 
 # --- structured success, failure and dry run ----------------------------------------------------
@@ -1454,7 +1600,9 @@ def test_a_successful_campaign_returns_structured_state(
     assert {key: value for key, value in first.items()
             if key not in {"started_at", "finished_at"}} == {
         "trial_id": "camp-01-task-one-cortex-a", "arm": "cortex-a", "task_id": "task-one",
-        "state": "ran", "requests": 1, "metered_requests": 1, "slot": 0,
+        "state": "ran", "outcome_state": "terminal-success",
+        "verifier_rewards": {"reward": 1.0}, "score_status": "available",
+        "requests": 1, "metered_requests": 1, "slot": 0,
         "outer_envelope_path": str(
             tmp_path / "trials" / "camp-01-task-one-cortex-a" / "artifacts"
             / OUTER_ENVELOPE_FILENAME),

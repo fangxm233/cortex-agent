@@ -8,7 +8,7 @@ Host launcher modules materialize production arms and record bounded trials.
 | arms.py | core | Builds arm-versioned vendor and Cortex agent configs |
 | capability_ceilings.py | policy | Reads host envelope ceilings |
 | capability_evidence.py | boundary | Validates capability provenance |
-| comparison_report.py | report | Builds campaign comparison reports |
+| comparison_report.py | report | Reports every terminal outcome with canonical rewards |
 | credential_capabilities.py | registry | Projects credential capabilities |
 | deepseek_paid_smoke.py | boundary | Runs the bounded paid smoke contract |
 | host_credential_vault.py | boundary | Transfers opaque host credentials |

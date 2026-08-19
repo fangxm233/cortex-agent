@@ -1,5 +1,5 @@
 # input:  ordered comparison runs, contrasts, and Cortex telemetry
-# output: frozen report pins, contrast classes, unavailable baselines
+# output: report pins, rewards, outcomes and unavailable fields
 # pos:    Contract tests for comparable benchmark reporting
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -54,6 +54,9 @@ def run(
         "arm": arm_value,
         "task": {"task_id": "terminal-task", "image_digest": DIGEST},
         "cli_version": cli_version,
+        "outcome_state": "terminal-success",
+        "verifier_rewards": {"reward": 1.0, "auxiliary": 0.0},
+        "score_status": "available",
     }
     if telemetry is not None:
         value["cortex_telemetry"] = telemetry
@@ -74,6 +77,9 @@ def expected_run(
                    "cost_usd": "2.50"},
         "cortex_telemetry": telemetry,
         "grader_admission": admission,
+        "outcome_state": "terminal-success",
+        "verifier_rewards": {"reward": 1.0, "auxiliary": 0.0},
+        "score_status": "available",
     }
 
 
@@ -94,7 +100,7 @@ def test_report_pins_inputs_order_and_difference_classes() -> None:
     )
 
     assert report == {
-        "schema_version": "cortex-benchmark-comparison-report/2",
+        "schema_version": "cortex-benchmark-comparison-report/3",
         "campaign_id": "campaign-001",
         "run_order": ["run-vendor", "run-manager", "run-direct"],
         "runs": [expected_run("run-vendor", "pure-claude-code", "vendor-baseline", "claude-code",
@@ -148,6 +154,24 @@ def test_a_report_says_of_every_cortex_run_whether_it_is_comparable() -> None:
     )
 
     assert [item["grader_admission"] for item in report["runs"]] == [ADMITTED, failed]
+
+
+def test_a_terminal_failure_without_an_outer_envelope_remains_in_the_report() -> None:
+    failed = run("run-failed", arm("cortex-direct", "cortex", "claude"), "1.2.3")
+    failed.update({
+        "outcome_state": "harness-incomplete", "verifier_rewards": None,
+        "score_status": "unavailable", "grader_admission": None,
+    })
+
+    report = build_comparison_report(
+        campaign_id="campaign-001", runs=[failed], comparisons=[])
+
+    assert report["runs"][0]["outcome_state"] == "harness-incomplete"
+    assert report["runs"][0]["verifier_rewards"] is None
+    assert report["runs"][0]["score_status"] == "unavailable"
+    assert report["runs"][0]["grader_admission"] == {
+        "status": "unavailable", "reason": "outer_envelope_unavailable",
+    }
 
 
 def test_a_cortex_run_that_will_not_say_whether_it_is_comparable_is_refused() -> None:
