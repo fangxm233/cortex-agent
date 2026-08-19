@@ -1,4 +1,4 @@
-# input:  the approved per-capability ceiling for every paid envelope field
+# input:  approved paid ceilings and committed vendor envelopes
 # output: the upper bound a declared run envelope is validated against
 # pos:    Committed capability ceiling policy
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -49,4 +49,22 @@ capabilities:
     # input median ~0.40 MiB, max ~2.04 MiB; 64 MiB
     request_body_limit_bytes: 67108864
     # streamed SSE framing multiplies raw output text several times over; 64 MiB
+    response_body_limit_bytes: 67108864
+  claude-subscription:
+    # Approved per-trial bounds; no broader than the envelope the committed vendor campaign
+    # document for this capability already declares.
+    max_cost_usd: "2.00"
+    max_provider_requests: 500
+    deadline_seconds: 1800
+    max_output_tokens: 65536
+    request_body_limit_bytes: 67108864
+    response_body_limit_bytes: 67108864
+  codex-subscription:
+    # Approved per-trial bounds; no broader than the envelope the committed vendor campaign
+    # document for this capability already declares.
+    max_cost_usd: "2.00"
+    max_provider_requests: 500
+    deadline_seconds: 1800
+    max_output_tokens: 65536
+    request_body_limit_bytes: 67108864
     response_body_limit_bytes: 67108864

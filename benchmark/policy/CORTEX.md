@@ -4,4 +4,4 @@ Committed benchmark policy documents bound what a declared run may ask for.
 
 | filename | role | function |
 |---|---|---|
-| capability-ceilings.yaml | policy | Declares the approved paid-envelope ceiling per capability |
+| capability-ceilings.yaml | policy | Declares each capability's approved paid-envelope ceiling |

@@ -1,4 +1,4 @@
-# input:  a test-local capability state, the arming entry and the public agent class
+# input:  test capability states, arming entry, public agent class
 # output: proofs that a row no authority admits never reaches an armed route
 # pos:    Capability-state gate at the arming point
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -24,11 +24,9 @@ from cortex_bench_harness.launcher import trial_proxy
 from cortex_bench_harness.launcher.credential_capabilities import CAPABILITY_REGISTRY
 from cortex_bench_harness.launcher.trial_proxy import (
     CapabilityStateRefused,
-    PaidEnvelopeRefused,
     arm_trial_proxy,
     parse_trial_proxy_spec,
     require_capability_admission,
-    validate_paid_envelope,
 )
 from capability_admission import admit_capability, refuse_capability
 from trial_fixtures import (
@@ -158,17 +156,6 @@ def test_shipped_codex_cli_row_cannot_arm_a_live_or_paid_route() -> None:
 
     with pytest.raises(CapabilityStateRefused, match="unsupported"):
         require_capability_admission(arm, paid_run=True)
-
-
-def test_claude_subscription_has_no_paid_ceiling_even_if_state_were_later_live() -> None:
-    arm = cortex_arm(
-        "claude-subscription", model="claude-sonnet-5", backend="claude-code",
-    )
-
-    with pytest.raises(PaidEnvelopeRefused, match="no paid envelope ceiling"):
-        validate_paid_envelope(
-            arm, parse_trial_proxy_spec(proxy_spec()), "claude-subscription",
-        )
 
 
 def test_an_admitted_row_still_arms(
