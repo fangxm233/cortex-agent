@@ -70,6 +70,7 @@ PROVIDER_ENV_KEYS = {
     "anthropic": frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"}),
     "deepseek": frozenset({"DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"}),
     "openai": frozenset({"OPENAI_API_KEY", "OPENAI_BASE_URL"}),
+    "openai-codex": frozenset({"OPENAI_API_KEY", "OPENAI_BASE_URL"}),
 }
 CREDENTIAL_ENV_KEYS = (
     "AWS_SHARED_CREDENTIALS_FILE",

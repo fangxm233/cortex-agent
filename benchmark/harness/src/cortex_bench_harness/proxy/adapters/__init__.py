@@ -38,6 +38,8 @@ ADAPTER_REGISTRY: Mapping[tuple[str, ...], AdapterFactory] = MappingProxyType({
         DeepSeekChatCompletionsApiKeyAdapter,
     ("pi", "openai-codex", "openai-codex-responses", "oauth", PROXY_SCHEMA_VERSION):
         OpenAICodexResponsesOAuthAdapter,
+    ("codex-cli", "openai-codex", "openai-codex-responses", "oauth",
+     PROXY_SCHEMA_VERSION): OpenAICodexResponsesOAuthAdapter,
 })
 
 # The adapters whose protocol carries a request-side completion cap, and which therefore take the
@@ -48,10 +50,17 @@ ADAPTER_REGISTRY: Mapping[tuple[str, ...], AdapterFactory] = MappingProxyType({
 CAP_BINDING_ADAPTERS: frozenset[AdapterFactory] = frozenset({
     DeepSeekChatCompletionsApiKeyAdapter,
 })
+EXPIRY_BINDING_ADAPTERS: frozenset[AdapterFactory] = frozenset({
+    OpenAICodexResponsesOAuthAdapter,
+})
+EXPIRY_VALIDATION_KEYS = frozenset({
+    ("codex-cli", "openai-codex", "openai-codex-responses", "oauth", PROXY_SCHEMA_VERSION),
+})
 
 __all__ = [
     "ADAPTER_REGISTRY",
     "CAP_BINDING_ADAPTERS",
+    "EXPIRY_BINDING_ADAPTERS",
     "UNKNOWN_MEMBER",
     "AdapterUnavailable",
     "AdapterVersionMismatch",
@@ -69,11 +78,11 @@ __all__ = [
 def select_adapter(
     key: "CredentialCapabilityKey", *, upstream_base_url: str | None = None,
     credential: str | None = None, frozen_model: str | None = None,
-    frozen_completion_cap: int | None = None,
+    frozen_completion_cap: int | None = None, access_expires_at_ms: int | None = None,
 ) -> ProviderAdapter:
     members = (
-        key.runner_or_backend, key.provider, key.protocol,
-        key.credential_kind, key.proxy_adapter_version,
+        key.runner_or_backend, key.provider, key.protocol, key.credential_kind,
+        key.proxy_adapter_version,
     )
     if UNKNOWN_MEMBER in members:
         raise AdapterUnavailable(
@@ -88,13 +97,29 @@ def select_adapter(
         raise AdapterUnavailable(
             f"no provider adapter for capability key {members}; "
             f"adapted keys: {sorted(ADAPTER_REGISTRY)}")
-    cap = (
-        {"frozen_completion_cap": frozen_completion_cap}
-        if factory in CAP_BINDING_ADAPTERS else {}
+    adapter = _construct_adapter(
+        factory, members, upstream_base_url, credential, frozen_model,
+        frozen_completion_cap, access_expires_at_ms,
     )
-    adapter = factory(upstream_base_url, credential, frozen_model, **cap)
     if adapter.schema_version != key.proxy_adapter_version:
         raise AdapterVersionMismatch(
             f"adapter {adapter.adapter_id} is {adapter.schema_version}; "
             f"capability key declares {key.proxy_adapter_version}")
     return adapter
+
+
+def _construct_adapter(
+    factory: AdapterFactory, members: tuple[str, ...], upstream_base_url: str | None,
+    credential: str | None, frozen_model: str | None,
+    frozen_completion_cap: int | None, access_expires_at_ms: int | None,
+) -> ProviderAdapter:
+    bindings: dict[str, object] = {}
+    if factory in CAP_BINDING_ADAPTERS:
+        bindings["frozen_completion_cap"] = frozen_completion_cap
+    if factory in EXPIRY_BINDING_ADAPTERS:
+        bindings["access_expires_at_ms"] = access_expires_at_ms
+    if members in EXPIRY_VALIDATION_KEYS and (
+        credential is not None or access_expires_at_ms is not None
+    ):
+        bindings["validate_access_expiry"] = True
+    return factory(upstream_base_url, credential, frozen_model, **bindings)

@@ -191,7 +191,7 @@ def deepseek_arm() -> dict[str, object]:
 
 
 def vendor_arm(vendor_agent: str) -> dict[str, object]:
-    provider = {"pi": "deepseek", "claude-code": "anthropic", "codex": "openai"}[
+    provider = {"pi": "deepseek", "claude-code": "anthropic", "codex": "openai-codex"}[
         vendor_agent
     ]
     return {

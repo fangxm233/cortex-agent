@@ -152,6 +152,14 @@ def test_shipped_claude_offline_row_has_no_live_handshake_authority() -> None:
         require_capability_admission(arm, paid_run=True)
 
 
+def test_shipped_codex_cli_row_cannot_arm_a_live_or_paid_route() -> None:
+    arm = cortex_arm("codex-subscription", model="gpt-5.4", backend="codex-cli")
+    arm["provider"] = "openai-codex"
+
+    with pytest.raises(CapabilityStateRefused, match="unsupported"):
+        require_capability_admission(arm, paid_run=True)
+
+
 def test_claude_subscription_has_no_paid_ceiling_even_if_state_were_later_live() -> None:
     arm = cortex_arm(
         "claude-subscription", model="claude-sonnet-5", backend="claude-code",

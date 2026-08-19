@@ -47,9 +47,9 @@ EXPECTED_PROJECTION = [
         "state": "unsupported",
         "key": {
             "runner_or_backend": "codex-cli",
-            "provider": "openai",
-            "protocol": "??",
-            "credential_kind": "subscription",
+            "provider": "openai-codex",
+            "protocol": "openai-codex-responses",
+            "credential_kind": "oauth",
             "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
     },
@@ -130,10 +130,13 @@ def test_registry_projection_contains_no_credential_shaped_value() -> None:
     )
 
 
-def test_projection_never_reads_the_real_claude_credentials_file(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "credentials",
+    [Path.home() / ".claude" / ".credentials.json", Path.home() / ".codex" / "auth.json"],
+)
+def test_projection_never_reads_real_vendor_credentials_files(
+    monkeypatch: pytest.MonkeyPatch, credentials: Path,
 ) -> None:
-    credentials = Path.home() / ".claude" / ".credentials.json"
     original = Path.read_bytes
     reads: list[Path] = []
 

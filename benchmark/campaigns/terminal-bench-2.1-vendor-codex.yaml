@@ -52,7 +52,7 @@ arms:
     kind: vendor-baseline
     vendor_agent: codex
     vendor_cli_version: "0.117.0"
-    provider: openai
+    provider: openai-codex
     model: gpt-5.4
     credential_capability: codex-subscription
     limits:

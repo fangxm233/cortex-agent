@@ -9,6 +9,7 @@
 # same failure the production path would raise rather than by a mock's politeness.
 
 import asyncio
+import base64
 import hashlib
 import json
 import tomllib
@@ -22,6 +23,7 @@ from cortex_bench_harness.launcher.production_session import (
     SERVER_READY_TIMEOUT_SECONDS,
     SERVER_STOP_TIMEOUT_SECONDS,
 )
+from cortex_bench_harness.launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN_GRACE_MS
 from cortex_bench_harness.campaign_config import (
     CAMPAIGN_SCHEMA_VERSION,
     CampaignConfigError,
@@ -44,6 +46,7 @@ from cortex_bench_harness.launcher.trial_proxy import (
     parse_trial_proxy_spec,
     validate_paid_envelope,
 )
+from cortex_bench_harness.proxy.adapters.openai_codex_responses import JWT_ACCOUNT_CLAIM
 
 DIGEST = f"sha256:{'a' * 64}"
 IMAGE_REF = f"registry.invalid/task@{DIGEST}"
@@ -58,6 +61,8 @@ COMMITTED_VENDOR_CONFIGS = {
     "codex": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-codex.yaml",
 }
 LAUNCH_SCRIPT = HARNESS_ROOT / "scripts" / "launch-paid-campaign.py"
+CODEX_CREDENTIAL_ENV = "CORTEX_BENCH_TEST_CODEX_CREDENTIAL"
+CODEX_NOW_MS = 1_900_000_000_000
 
 
 def arm_document(name: str, **overrides: object) -> dict[str, object]:
@@ -139,6 +144,45 @@ def campaign_document(root: Path, **overrides: object) -> dict[str, object]:
         ],
         **overrides,
     }
+
+
+def codex_campaign_document(root: Path, *, concurrency: int = 3) -> dict[str, object]:
+    document = campaign_document(root, concurrency=concurrency, comparisons=[])
+    document["arms"] = [vendor_arm_document(
+        "pure-codex", vendor_agent="codex", vendor_cli_version="0.117.0",
+        provider="openai-codex", model="gpt-5.4",
+        credential_capability="codex-subscription",
+    )]
+    document["tasks"].append({
+        "task_id": "task-three", "path": str(root / "tasks" / "three"),
+        "image_ref": IMAGE_REF,
+    })
+    document["proxy"]["credential_env"] = CODEX_CREDENTIAL_ENV
+    document["credential"]["route_identity_host"] = "chatgpt.com"
+    return document
+
+
+def codex_token(expiry_ms: int) -> str:
+    def segment(document: dict[str, object]) -> str:
+        encoded = json.dumps(document, separators=(",", ":")).encode()
+        return base64.b64encode(encoded).decode().rstrip("=")
+
+    return ".".join((
+        segment({"alg": "none", "typ": "JWT"}),
+        segment({
+            JWT_ACCOUNT_CLAIM: {"chatgpt_account_id": "dummy-campaign-account"},
+            "exp": expiry_ms // 1000,
+        }),
+        segment({"synthetic": True}),
+    ))
+
+
+def required_codex_expiry_ms() -> int:
+    return (
+        CODEX_NOW_MS + 3 * campaign.NETWORK_CREATE_TIMEOUT_MS
+        + SETUP_TIMEOUT_MS + 1_800_000 + TEARDOWN_GRACE_MS
+        + campaign.CODEX_CLOCK_SKEW_MARGIN_MS
+    )
 
 
 def write_campaign(root: Path, document: dict[str, object] | None = None) -> Path:
@@ -536,15 +580,15 @@ def test_a_concurrency_the_declared_pool_cannot_address_is_refused(tmp_path: Pat
     assert "4 trial networks" in str(error.value)
 
 
-def test_a_declared_bound_source_ip_is_refused(tmp_path: Path) -> None:
-    """One literal can describe one container; concurrent trials need one address each."""
+@pytest.mark.parametrize("field", ["bound_source_ip", "access_expires_at_ms"])
+def test_campaign_proxy_refuses_host_derived_fields(tmp_path: Path, field: str) -> None:
     document = campaign_document(tmp_path)
-    document["proxy"] = {**document["proxy"], "bound_source_ip": "172.30.240.2"}
+    document["proxy"] = {**document["proxy"], field: 1}
 
     with pytest.raises(CampaignConfigError) as error:
         load_campaign_config(write_campaign(tmp_path, document))
 
-    assert "derived per concurrency slot" in str(error.value)
+    assert "host-derived" in str(error.value)
 
 
 def test_each_slot_owns_a_distinct_subnet_gateway_and_container_address(
@@ -756,6 +800,96 @@ class _StringStdin:
 
 
 # --- execution through the production trial path -------------------------------------------------
+
+
+def test_codex_three_trial_wave_passes_one_expiry_to_every_trial_without_auth_file_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    expiry_ms = required_codex_expiry_ms()
+    monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(expiry_ms))
+    real_auth = Path.home() / ".codex" / "auth.json"
+    original = Path.read_text
+
+    def tracked(path: Path, *args: object, **kwargs: object) -> str:
+        assert path != real_auth
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", tracked)
+    status, _, _ = run_cli(capsys, "run", "--config", str(write_campaign(
+        tmp_path, codex_campaign_document(tmp_path))))
+
+    assert status == 0
+    assert recorder.max_in_flight == 3
+    assert len(recorder.armed) == 3
+    assert {call["trial_proxy"]["access_expires_at_ms"] for call in recorder.calls} == {
+        expiry_ms}
+    assert all(
+        call["trial_seed"]["credential"]["upstream_base_url"].startswith("http://127.0.0.1")
+        for call in recorder.calls
+    )
+
+
+def test_short_codex_token_refuses_the_whole_campaign_with_zero_routes_armed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(required_codex_expiry_ms() - 1000))
+
+    status = campaign.main(["run", "--config", str(write_campaign(
+        tmp_path, codex_campaign_document(tmp_path)))])
+
+    assert status == 1
+    assert "whole concurrent wave" in failure_document(capsys)["error"]
+    assert recorder.armed == []
+    assert recorder.calls == []
+
+
+def test_expired_codex_token_is_refused_before_native_refresh_or_route_arming(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(CODEX_NOW_MS - 1000))
+
+    status = campaign.main(["run", "--config", str(write_campaign(
+        tmp_path, codex_campaign_document(tmp_path)))])
+
+    assert status == 1
+    assert "expired" in failure_document(capsys)["error"]
+    assert recorder.armed == []
+    assert recorder.calls == []
+
+
+def test_codex_pending_trials_must_fit_one_concurrent_wave_before_arming(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(required_codex_expiry_ms()))
+
+    status = campaign.main(["run", "--config", str(write_campaign(
+        tmp_path, codex_campaign_document(tmp_path, concurrency=2)))])
+
+    assert status == 1
+    assert "one concurrent wave" in failure_document(capsys)["error"]
+    assert recorder.armed == []
+
+
+def test_codex_vendor_arm_must_name_the_exact_codex_capability_before_arming(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    document = codex_campaign_document(tmp_path)
+    document["arms"][0]["credential_capability"] = "claude-subscription"
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path, document))])
+
+    assert status == 1
+    assert "exact codex-subscription capability" in failure_document(capsys)["error"]
+    assert recorder.armed == []
 
 
 def test_an_undeclared_concurrency_runs_trials_one_at_a_time_in_declared_order(

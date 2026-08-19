@@ -37,6 +37,10 @@ from cortex_bench_harness.launcher.trial_proxy import (
 )
 from cortex_bench_harness.manifest import MANIFEST_FILENAME
 from cortex_bench_harness.proxy.adapters import AdapterUnavailable
+from cortex_bench_harness.proxy.adapters.openai_codex_responses import (
+    ADAPTER_ID as CODEX_ADAPTER_ID,
+    JWT_ACCOUNT_CLAIM,
+)
 from cortex_bench_harness.proxy.manifest import fill_proxy_manifest
 from cortex_bench_harness.proxy.models import PROXY_SCHEMA_VERSION, utc_text
 from capability_admission import admit_every_capability
@@ -177,6 +181,7 @@ def arm_session(
     tmp_path: Path, upstream: str, *, arm: dict[str, object] | None = None,
     proxy_dir: Path | None = None, trial_roots: tuple[Path, ...] | None = None,
     now_ms: int = H0_EPOCH_MS, spec: dict[str, object] | None = None,
+    credential: str = REAL_CREDENTIAL,
 ) -> TrialProxySession:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir(parents=True, exist_ok=True)
@@ -185,12 +190,38 @@ def arm_session(
         spec=parse_trial_proxy_spec(spec or proxy_spec()),
         proxy_dir=proxy_dir or artifacts / "proxy",
         trial_roots=trial_roots or (artifacts,),
-        environ={CREDENTIAL_ENV: REAL_CREDENTIAL}, now_ms=lambda: now_ms,
+        environ={CREDENTIAL_ENV: credential}, now_ms=lambda: now_ms,
     )
 
 
 def epoch_datetime(epoch_ms: int) -> datetime:
     return datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=epoch_ms)
+
+
+def codex_vendor_arm() -> dict[str, object]:
+    arm = cortex_arm("codex-subscription")
+    arm.pop("backend")
+    arm.pop("orchestration")
+    arm.update({
+        "kind": "vendor-baseline", "name": "pure-codex", "vendor_agent": "codex",
+        "vendor_cli_version": "0.117.0", "provider": "openai-codex", "model": "gpt-5.4",
+    })
+    return arm
+
+
+def codex_token(expiry_ms: int) -> str:
+    import base64
+
+    def segment(document: dict[str, object]) -> str:
+        encoded = json.dumps(document, separators=(",", ":")).encode()
+        return base64.b64encode(encoded).decode().rstrip("=")
+
+    return ".".join((
+        segment({"alg": "none"}),
+        segment({JWT_ACCOUNT_CLAIM: {"chatgpt_account_id": "acct-wiring"},
+                 "exp": expiry_ms // 1000}),
+        segment({"synthetic": True}),
+    ))
 
 
 # W1 — the launcher arms the provisional bound P, never a container-derived instant.
@@ -213,8 +244,25 @@ def test_arms_the_provisional_bound_and_not_a_container_derived_instant(tmp_path
 def test_refuses_arm_provider_drift_from_capability_key(tmp_path: Path) -> None:
     drifted = cortex_arm()
     drifted["provider"] = "anthropic"
-    with pytest.raises(CapabilityStateRefused, match="backend/provider"):
+    with pytest.raises(CapabilityStateRefused, match="runner/provider"):
         arm_session(tmp_path, closed_upstream(), arm=drifted)
+
+
+def test_codex_vendor_arm_selects_the_exact_reused_adapter_with_bound_expiry(
+    tmp_path: Path,
+) -> None:
+    expiry_ms = 1_900_000_000_000
+    session = arm_session(
+        tmp_path, closed_upstream(), arm=codex_vendor_arm(),
+        spec=proxy_spec(access_expires_at_ms=expiry_ms),
+        credential=codex_token(expiry_ms),
+    )
+    try:
+        selection = json.loads(session.adapter_selection_path.read_text(encoding="utf-8"))
+        assert selection["adapter_id"] == CODEX_ADAPTER_ID
+        assert selection["capability_key"]["runner_or_backend"] == "codex-cli"
+    finally:
+        session.handle.stop()
 
 
 # The declared paid envelope, and its refusals against the committed ceilings.

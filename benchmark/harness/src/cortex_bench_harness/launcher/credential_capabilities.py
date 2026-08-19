@@ -43,6 +43,11 @@ def _key(
     return CredentialCapabilityKey(runner, provider, protocol, credential_kind)
 
 
+CODEX_CLI_CAPABILITY_KEY = _key(
+    "codex-cli", "openai-codex", "openai-codex-responses", "oauth",
+)
+
+
 CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = MappingProxyType({
     # `offline-contract-passed` means only that a synthetic upstream observed the frozen contract.
     # It does not authorize a paid run; trial_proxy.py requires live evidence separately.
@@ -70,7 +75,7 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
     # reach the token-host leg.
     _key("pi", "openai-codex", "??", "oauth"):
         CredentialCapability("pi-openai-codex-oauth", "unsupported"),
-    _key("codex-cli", "openai", "??", "subscription"):
+    CODEX_CLI_CAPABILITY_KEY:
         CredentialCapability("codex-subscription", "unsupported"),
 })
 

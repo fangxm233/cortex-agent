@@ -1,5 +1,5 @@
 # input:  codex request targets, request bodies, and streamed upstream payloads
-# output: row-4 route, body, auth, and usage decisions
+# output: Codex route, auth, expiry, body, and usage decisions
 # pos:    OpenAI Codex responses adapter for an OAuth credential
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -52,6 +52,16 @@ def extract_account_id(token: str) -> str:
     return account_id
 
 
+def extract_access_expiry_ms(token: str) -> int:
+    parts = token.split(".")
+    if len(parts) != 3:
+        raise ValueError("codex access token must be a three-part JWT")
+    expires_at_seconds = _jwt_payload(parts[1]).get("exp")
+    if type(expires_at_seconds) is not int or expires_at_seconds <= 0:
+        raise ValueError("codex access token carries no valid expiry claim")
+    return expires_at_seconds * 1000
+
+
 def mint_dummy_codex_token() -> str:
     # The container's dummy must satisfy the same local decode as a real token,
     # or the client never emits the request the proxy exists to bound.
@@ -76,6 +86,7 @@ class OpenAICodexResponsesOAuthAdapter:
         refresh_token: str | None = None, client_id: str | None = None,
         access_expires_at_ms: int | None = None,
         refresh_timeout_seconds: float = REFRESH_TIMEOUT_SECONDS,
+        validate_access_expiry: bool = False,
     ) -> None:
         self._token_target = _token_target(token_endpoint_url)
         self.upstream_hosts = _upstream_hosts(upstream_base_url, self._token_target)
@@ -83,6 +94,8 @@ class OpenAICodexResponsesOAuthAdapter:
         self._account_id = (
             extract_account_id(self._access_token) if self._access_token else None
         )
+        if validate_access_expiry:
+            _validate_bound_expiry(self._access_token, access_expires_at_ms)
         self._frozen_model = frozen_model
         self._refresh_token = refresh_token
         self._client_id = client_id
@@ -278,6 +291,13 @@ def _upstream_hosts(
     if token_target is not None and token_target.hostname not in hosts:
         hosts.append(token_target.hostname or "")
     return tuple(hosts)
+
+
+def _validate_bound_expiry(token: str | None, expires_at_ms: int | None) -> None:
+    if token is None or expires_at_ms is None:
+        raise ValueError("codex-cli requires a preflight-bound access token expiry")
+    if extract_access_expiry_ms(token) != expires_at_ms:
+        raise ValueError("codex access token expiry does not match the preflight expiry")
 
 
 def _validated_credential(credential: str | None) -> str | None:

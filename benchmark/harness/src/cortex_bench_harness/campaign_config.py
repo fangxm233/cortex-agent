@@ -543,11 +543,11 @@ def _concurrency(document: Mapping[str, object], pool: DockerNetworkPool) -> int
 
 def _proxy(source: object, pool: DockerNetworkPool) -> dict[str, object]:
     document = _mapping(source, "campaign proxy")
-    if "bound_source_ip" in document:
+    host_derived = sorted({"bound_source_ip", "access_expires_at_ms"}.intersection(document))
+    if host_derived:
         raise CampaignConfigError(
-            "campaign proxy rejects bound_source_ip: the address a trial's route binds to is "
-            "derived per concurrency slot from docker_network, because one literal can describe "
-            "at most one concurrent container")
+            f"campaign proxy rejects host-derived fields {host_derived}; source addresses come "
+            "from concurrency slots and access expiry comes from the host credential preflight")
     # The trial proxy spec already owns its own closed field set and value rules; parsing it here
     # keeps one definition of the route's envelope rather than a second, drifting copy. It is
     # parsed with the address slot 0 will really use, so the document is validated against a real
