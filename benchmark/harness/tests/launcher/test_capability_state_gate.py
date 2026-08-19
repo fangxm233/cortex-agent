@@ -21,7 +21,10 @@ import pytest
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher import trial_proxy
-from cortex_bench_harness.launcher.credential_capabilities import CAPABILITY_REGISTRY
+from cortex_bench_harness.launcher.credential_capabilities import (
+    CAPABILITY_REGISTRY,
+    CODEX_CLI_CAPABILITY_KEY,
+)
 from cortex_bench_harness.launcher.trial_proxy import (
     CapabilityStateRefused,
     arm_trial_proxy,
@@ -41,9 +44,7 @@ from trial_fixtures import (
 REAL_CREDENTIAL = "sk-ant-STATE-GATE-UNIQUE"
 # The state has to be the ONLY thing standing between this row and an armed route, or a refusal
 # here proves nothing about the gate. This key qualifies: it carries no `??` member and
-# `ADAPTER_REGISTRY` adapts it, so with the gate's refusal removed the same call arms. A
-# structurally unsupported row would not do — `codex-subscription` has an unfilled protocol
-# member and still refuses at adapter selection whether or not the gate is there.
+# `ADAPTER_REGISTRY` adapts it, so with the gate's refusal removed the same call arms.
 ADAPTED_ROW = "pi-deepseek-api-key"
 
 
@@ -150,11 +151,12 @@ def test_shipped_claude_offline_row_has_no_live_handshake_authority() -> None:
         require_capability_admission(arm, paid_run=True)
 
 
-def test_shipped_codex_cli_row_cannot_arm_a_live_or_paid_route() -> None:
+def test_shipped_codex_offline_row_admits_non_paid_but_refuses_paid() -> None:
     arm = cortex_arm("codex-subscription", model="gpt-5.4", backend="codex-cli")
     arm["provider"] = "openai-codex"
 
-    with pytest.raises(CapabilityStateRefused, match="unsupported"):
+    assert require_capability_admission(arm) == CODEX_CLI_CAPABILITY_KEY
+    with pytest.raises(CapabilityStateRefused, match="live-handshake-passed"):
         require_capability_admission(arm, paid_run=True)
 
 

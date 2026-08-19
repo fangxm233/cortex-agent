@@ -1,4 +1,4 @@
-# input:  capability row, expected digest, versioned JSON evidence
+# input:  capability row, bound evidence, committed proof sources
 # output: strict promotion-evidence validation or refusal
 # pos:    Capability-state provenance validator
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -25,6 +25,16 @@ DEEPSEEK_OFFLINE_CONTRACT = {
 }
 CLAUDE_OFFLINE_CONTRACT = {
     "claude_code_version": "2.1.232",
+}
+CODEX_OFFLINE_CONTRACT = {
+    "implementation_commit": "d8a15809c097f0267aba48715cd59cbd976b5c89",
+    "codex_cli_version": "0.117.0",
+    "p0_wire_capture_sha256":
+        "6e7afca2e767ac7c4c12a8a2fa735cdaf00461d09178369fc8b7dd63df6c7eda",
+    "vendor_lifecycle_test_sha256":
+        "d33fa9b686cb9776b72221337ae9cb26aa00a17939152d67ece5a1305ee47880",
+    "model_freeze_test_sha256":
+        "f5a89b99eb0153a64d3337c03bba28f60a29d3d5f03fddbdf928dd0e83aab6d6",
 }
 CLAUDE_P0_CAPTURE_SHA256 = "fcc17df7ff3e2d7e618856e11479a315b72c7dcdfa85984e45c6f2564eccda45"
 CLAUDE_P0_BETA_HEADER = (
@@ -74,6 +84,23 @@ CAPABILITY_EVIDENCE_METADATA: Mapping[str, CapabilityEvidenceMetadata] = Mapping
             "synthetic_observation_sha256": "claude-subscription.synthetic-observation.json",
         }),
         offline_proof="synthetic-observation",
+    ),
+    "codex-subscription": CapabilityEvidenceMetadata(
+        adapter_id="openai-codex-responses/oauth",
+        metadata_fields=frozenset({"codex_cli_version"}),
+        offline_fields=frozenset({
+            "p0_wire_capture_sha256", "vendor_lifecycle_test_sha256",
+            "model_freeze_test_sha256",
+        }),
+        text_fields=frozenset({"codex_cli_version"}),
+        hex_fields=MappingProxyType({
+            "p0_wire_capture_sha256": 64,
+            "vendor_lifecycle_test_sha256": 64,
+            "model_freeze_test_sha256": 64,
+        }),
+        offline_contract=MappingProxyType(CODEX_OFFLINE_CONTRACT),
+        supporting_artifacts=MappingProxyType({}),
+        offline_proof="committed-source-suite",
     ),
 })
 # Evidence attests only independently auditable claims. The historical `pi_tree_sha256` had no
@@ -133,8 +160,12 @@ def validate_offline_supporting_artifacts(
         _validate_mutation_manifest(
             _document(artifacts["mutation_manifest_sha256"].read_bytes()), document)
         return
-    _validate_synthetic_observation(
-        _document(artifacts["synthetic_observation_sha256"].read_bytes()), document)
+    if metadata.offline_proof == "synthetic-observation":
+        _validate_synthetic_observation(
+            _document(artifacts["synthetic_observation_sha256"].read_bytes()), document)
+        return
+    if metadata.offline_proof != "committed-source-suite":
+        raise ValueError(f"unknown offline proof kind {metadata.offline_proof!r}")
 
 
 def _validate_synthetic_observation(
@@ -268,6 +299,10 @@ def _validate_state(
             _hex(document.get("synthetic_observation_sha256"),
                  "synthetic_observation_sha256", 64)
             return
+        if metadata.offline_proof == "committed-source-suite":
+            return
+        if metadata.offline_proof != "mutation-manifest":
+            raise ValueError(f"unknown offline proof kind {metadata.offline_proof!r}")
         _hex(document.get("mutation_manifest_sha256"), "mutation_manifest_sha256", 64)
         _positive_ints(document, "mutations_total", "mutations_killed")
         if document["mutations_total"] != document["mutations_killed"]:
