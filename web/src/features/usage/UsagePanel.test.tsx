@@ -1,11 +1,11 @@
-// input:  UsagePanel with tRPC query/mutation fakes and bilingual vocab
-// output: query, refresh spin, severity, error-note, and provider rendering regressions
-// pos:    Verifies the desktop Settings Usage surface
+// input:  UsagePanel with tRPC query/mutation fakes, config snapshots, and vocab
+// output: query, refresh, provider policy, severity, and error rendering regressions
+// pos:    Verifies the desktop Settings Usage surface and shared hook wiring
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SystemUsageStatus } from '@cortex-agent/ui-contract';
+import type { ConfigSnapshot, ConfigSettingEntry, SystemUsageStatus } from '@cortex-agent/ui-contract';
 import { en, LangProvider, zh } from '@/i18n';
 import { getSettingsNav, getSectionMeta } from '@/features/settings/settings-nav';
 
@@ -39,15 +39,38 @@ const usage: SystemUsageStatus = [
   },
 ];
 
+function policyEntry(value: ConfigSettingEntry['value']): ConfigSettingEntry {
+  return { key: 'providerRateLimits', value, source: 'file' };
+}
+
+const baseConfig: ConfigSnapshot = {
+  budget: null,
+  profiles: null,
+  machines: [],
+  mcp: null,
+  threadTemplates: { agents: [], templates: [], shells: [] },
+  hooks: [],
+  env: [],
+  settings: [policyEntry({
+    anthropic: { enabled: true, threshold: 0.82 },
+    openrouter: { enabled: false },
+  })],
+};
+
 let currentUsage = usage;
+let currentConfig = baseConfig;
 
 const harness = vi.hoisted(() => ({
   queried: [] as string[],
   mutations: [] as { kind: string; args: unknown }[],
-  invalidations: [] as unknown[],
-  pending: false,
-  queryError: null as Error | null,
+  queryWrites: [] as { key: unknown; value: unknown }[],
+  refreshPending: false,
+  usageQueryError: null as Error | null,
   refreshError: null as Error | null,
+  configLoading: false,
+  configError: null as Error | null,
+  deferredPolicySaves: {} as Record<string, Promise<unknown>>,
+  policyErrorsByProvider: {} as Record<string, Error | null>,
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -61,6 +84,15 @@ vi.mock('@/lib/trpc', () => ({
         mutationOptions: (options: object) => ({ __kind: 'system.refreshUsage', ...options }),
       },
     },
+    config: {
+      get: {
+        queryOptions: () => ({ __kind: 'config.get', queryKey: ['config.get', {}] }),
+        queryFilter: () => ({ queryKey: ['config.get', {}] }),
+      },
+      setProviderRateLimitPolicy: {
+        mutationOptions: (options: object) => ({ __kind: 'config.setProviderRateLimitPolicy', ...options }),
+      },
+    },
   }),
 }));
 
@@ -68,24 +100,63 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
   ...await importOriginal<typeof import('@tanstack/react-query')>(),
   useQuery: (options: any) => {
     harness.queried.push(options.__kind);
+    if (options.__kind === 'config.get') {
+      return {
+        data: harness.configError || harness.configLoading ? undefined : currentConfig,
+        isLoading: harness.configLoading,
+        isError: harness.configError !== null,
+        error: harness.configError,
+      };
+    }
     return {
-      data: harness.queryError ? undefined : currentUsage,
+      data: harness.usageQueryError ? undefined : currentUsage,
       isLoading: false,
-      isError: harness.queryError !== null,
-      error: harness.queryError,
+      isError: harness.usageQueryError !== null,
+      error: harness.usageQueryError,
     };
   },
-  useMutation: (options: any) => ({
-    mutate: (args: unknown) => {
-      harness.mutations.push({ kind: options.__kind, args });
-      options.onSuccess?.(currentUsage);
-    },
-    isPending: harness.pending,
-    isError: harness.refreshError !== null,
-    error: harness.refreshError,
-  }),
+  useMutation: (options: any) => {
+    if (options.__kind === 'config.setProviderRateLimitPolicy') {
+      return {
+        mutateAsync: async (args: any) => {
+          harness.mutations.push({ kind: options.__kind, args });
+          const deferred = harness.deferredPolicySaves[args.provider];
+          if (deferred) await deferred;
+          const error = harness.policyErrorsByProvider[args.provider] ?? null;
+          if (error) throw error;
+          return { written: true, policy: args };
+        },
+        mutate: undefined,
+        isPending: false,
+        isError: false,
+        error: null,
+      };
+    }
+    return {
+      mutate: (args: unknown) => {
+        harness.mutations.push({ kind: options.__kind, args });
+        options.onSuccess?.(currentUsage);
+      },
+      mutateAsync: async (args: unknown) => {
+        harness.mutations.push({ kind: options.__kind, args });
+        options.onSuccess?.(currentUsage);
+        return currentUsage;
+      },
+      isPending: harness.refreshPending,
+      isError: harness.refreshError !== null,
+      error: harness.refreshError,
+    };
+  },
   useQueryClient: () => ({
-    setQueryData: (key: unknown, value: unknown) => harness.invalidations.push({ key, value }),
+    setQueryData: (key: unknown, value: unknown) => {
+      const resolved = typeof value === 'function'
+        ? (value as (current: unknown) => unknown)(Array.isArray(key) && key[0] === 'config.get' ? currentConfig : currentUsage)
+        : value;
+      harness.queryWrites.push({ key, value: resolved });
+      if (Array.isArray(key) && key[0] === 'config.get') currentConfig = resolved as ConfigSnapshot;
+      if (Array.isArray(key) && key[0] === 'system.usageStatus') currentUsage = resolved as SystemUsageStatus;
+      return resolved;
+    },
   }),
 }));
 
@@ -97,14 +168,35 @@ function mount(): ReactTestRenderer {
   return renderer;
 }
 
+function policyToggle(renderer: ReactTestRenderer, provider: string) {
+  return renderer.root.findByProps({ 'aria-label': `Usage throttle ${provider}` });
+}
+
+function thresholdInput(renderer: ReactTestRenderer, provider: string) {
+  return renderer.root.findByProps({ 'data-usage-threshold-input': provider });
+}
+
+function saveButton(renderer: ReactTestRenderer, provider: string) {
+  return renderer.root.findByProps({ 'data-usage-threshold-save': provider });
+}
+
+function resetButton(renderer: ReactTestRenderer, provider: string) {
+  return renderer.root.findByProps({ 'data-usage-threshold-reset': provider });
+}
+
 beforeEach(() => {
   currentUsage = usage;
+  currentConfig = baseConfig;
   harness.queried = [];
   harness.mutations = [];
-  harness.invalidations = [];
-  harness.pending = false;
-  harness.queryError = null;
+  harness.queryWrites = [];
+  harness.refreshPending = false;
+  harness.usageQueryError = null;
   harness.refreshError = null;
+  harness.configLoading = false;
+  harness.configError = null;
+  harness.deferredPolicySaves = {};
+  harness.policyErrorsByProvider = {};
 });
 
 afterEach(() => vi.useRealTimers());
@@ -117,32 +209,96 @@ describe('desktop Settings Usage panel', () => {
     expect(getSectionMeta(zh, 'usage').sub).toContain('system.usageStatus');
   });
 
-  it('queries usage independently and separates quota windows from provider spend', () => {
+  it('queries usage and config independently, keeps spend separate, and renders policy controls only for supported providers', () => {
     const renderer = mount();
     const html = JSON.stringify(renderer.toJSON());
 
-    expect(harness.queried).toEqual(['system.usageStatus']);
+    expect(harness.queried).toEqual(['system.usageStatus', 'config.get']);
     expect(renderer.root.findAllByProps({ 'data-usage-quota': 'anthropic' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-usage-quota': 'openai-codex' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-usage-spend': 'deepseek' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-usage-spend': 'qwen-ksu' })).toHaveLength(1);
-    expect(html).toContain('5 hours');
-    expect(html).toContain('Primary');
-    expect(html).toContain('Secondary');
-    expect(html).toContain('Reset elapsed');
+    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'anthropic' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'openai-codex' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'openrouter' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'deepseek' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'qwen-ksu' })).toHaveLength(0);
+    expect(html).toContain('System default: 90%; 7-day windows: 95%');
+    expect(html).toContain('Changes apply to future observations.');
+    expect(html).toContain('82');
     expect(html).toContain('$1.25');
   });
 
-  it('hides the quota section for unsupported providers while keeping the never empty state', () => {
-    const renderer = mount();
-    const html = JSON.stringify(renderer.toJSON());
+  it('hides policy controls while config is loading, missing, or failed without hiding usage', () => {
+    const cases = [
+      () => { harness.configLoading = true; },
+      () => { currentConfig = { ...baseConfig, settings: [] }; },
+      () => { harness.configError = new Error('config unavailable'); },
+    ];
 
-    expect(renderer.root.findAllByProps({ 'data-usage-quota': 'deepseek' })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'data-usage-quota': 'qwen-ksu' })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'data-usage-quota-state': 'unsupported' })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'data-usage-quota-state': 'never' })).toHaveLength(1);
-    expect(html).not.toContain('Quota is unsupported');
-    expect(html).toContain('No quota observation yet');
+    for (const setup of cases) {
+      setup();
+      const renderer = mount();
+      const html = JSON.stringify(renderer.toJSON());
+      expect(html).toContain('Anthropic');
+      expect(renderer.root.findAllByProps({ 'data-usage-quota': 'anthropic' })).toHaveLength(1);
+      expect(renderer.root.findAllByProps({ 'data-usage-spend': 'deepseek' })).toHaveLength(1);
+      expect(renderer.root.findAllByProps({ 'data-usage-policy': 'anthropic' })).toHaveLength(0);
+      expect(renderer.root.findAllByProps({ 'aria-label': 'Usage throttle anthropic' })).toHaveLength(0);
+      expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': 'anthropic' })).toHaveLength(0);
+      expect(renderer.root.findAllByProps({ 'data-usage-threshold-save': 'anthropic' })).toHaveLength(0);
+      currentConfig = baseConfig;
+      harness.configLoading = false;
+      harness.configError = null;
+    }
+  });
+
+  it('saves custom thresholds, resets defaults, and keeps never-observed providers configurable', async () => {
+    const renderer = mount();
+
+    act(() => thresholdInput(renderer, 'anthropic').props.onChange({ target: { value: '83' } }));
+    await act(async () => { await saveButton(renderer, 'anthropic').props.onClick(); });
+    await act(async () => { await resetButton(renderer, 'anthropic').props.onClick(); });
+    await act(async () => { await policyToggle(renderer, 'openrouter').props.onClick(); });
+
+    expect(harness.mutations).toContainEqual({
+      kind: 'config.setProviderRateLimitPolicy',
+      args: { provider: 'anthropic', enabled: true, threshold: 0.83 },
+    });
+    expect(harness.mutations).toContainEqual({
+      kind: 'config.setProviderRateLimitPolicy',
+      args: { provider: 'anthropic', enabled: true },
+    });
+    expect(harness.mutations).toContainEqual({
+      kind: 'config.setProviderRateLimitPolicy',
+      args: { provider: 'openrouter', enabled: true },
+    });
+    expect(harness.queryWrites.some(write => Array.isArray(write.key) && write.key[0] === 'config.get')).toBe(true);
+  });
+
+  it('tracks policy save pending/error per provider without blocking refresh or other cards', async () => {
+    let resolveAnthropic!: () => void;
+    harness.deferredPolicySaves.anthropic = new Promise<void>((resolve) => { resolveAnthropic = resolve; });
+    const renderer = mount();
+
+    act(() => thresholdInput(renderer, 'anthropic').props.onChange({ target: { value: '84' } }));
+    await act(async () => {
+      saveButton(renderer, 'anthropic').props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(saveButton(renderer, 'anthropic').props.disabled).toBe(true);
+    expect(policyToggle(renderer, 'anthropic').props['aria-disabled']).toBe(true);
+    expect(policyToggle(renderer, 'openrouter').props['aria-disabled']).toBe(false);
+    act(() => renderer.root.findByProps({ 'data-usage-refresh': true }).props.onClick());
+    expect(harness.mutations).toContainEqual({ kind: 'system.refreshUsage', args: {} });
+
+    act(() => { resolveAnthropic(); });
+    await act(async () => { await Promise.resolve(); });
+
+    harness.policyErrorsByProvider.openrouter = new Error('write failed');
+    await act(async () => { await policyToggle(renderer, 'openrouter').props.onClick(); });
+    expect(JSON.stringify(renderer.toJSON())).toContain('write failed');
   });
 
   it('shows a freshness badge only for live providers', () => {
@@ -192,10 +348,7 @@ describe('desktop Settings Usage panel', () => {
       { kind: 'system.refreshUsage', args: {} },
       { kind: 'system.refreshUsage', args: {} },
     ]);
-    expect(harness.invalidations).toEqual([
-      { key: ['system.usageStatus', {}], value: usage },
-      { key: ['system.usageStatus', {}], value: usage },
-    ]);
+    expect(harness.queryWrites).toContainEqual({ key: ['system.usageStatus', {}], value: usage });
   });
 
   it('escalates meter severity and renders only error-tone notes', () => {
@@ -224,13 +377,13 @@ describe('desktop Settings Usage panel', () => {
     expect(html).not.toContain('push-only: waiting for next call');
   });
 
-  it('renders query and refresh failures without hiding successful snapshots', () => {
-    harness.queryError = new Error('status unavailable');
+  it('renders usage query and refresh failures without hiding successful snapshots', () => {
+    harness.usageQueryError = new Error('status unavailable');
     const failedQuery = JSON.stringify(mount().toJSON());
     expect(failedQuery).toContain('Failed to load usage');
     expect(failedQuery).toContain('status unavailable');
 
-    harness.queryError = null;
+    harness.usageQueryError = null;
     harness.refreshError = new Error('refresh unavailable');
     const failedRefresh = mount();
     const html = JSON.stringify(failedRefresh.toJSON());
@@ -243,7 +396,7 @@ describe('desktop Settings Usage panel', () => {
     const idle = mount();
     expect(idle.root.findAllByType('animateTransform')).toHaveLength(0);
 
-    harness.pending = true;
+    harness.refreshPending = true;
     const renderer = mount();
     const refresh = renderer.root.findByProps({ 'data-usage-refresh': true });
     const html = JSON.stringify(renderer.toJSON());

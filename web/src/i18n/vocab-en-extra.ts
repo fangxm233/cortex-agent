@@ -1,4 +1,4 @@
-// input:  shared English product copy
+// input:  shared English product copy and usage policy strings
 // output: trailing English vocabulary chunk
 // pos:    Extra English web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -91,6 +91,14 @@ export const enExtra = {
   usageToday: 'today',
   usageMonth: 'this month',
   usageUnavailable: 'Unavailable',
+  usagePolicyTitle: 'Usage throttle',
+  usagePolicyEnabled: 'Enabled',
+  usagePolicyThreshold: 'Custom threshold %',
+  usagePolicySave: 'Save',
+  usagePolicySaving: 'Saving…',
+  usagePolicyResetDefault: 'Reset to default',
+  usagePolicyDefaultHint: 'System default: 90%; 7-day windows: 95%',
+  usagePolicyFutureHint: 'Changes apply to future observations.',
   usageFreshLive: 'Live',
   usageFreshStale: 'Stale',
   usageFreshNever: 'Never observed',

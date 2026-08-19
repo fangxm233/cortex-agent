@@ -286,6 +286,15 @@ enum. Each provider keeps its own window types and reset times. A provider
 and route mode are gated without blocking another provider that happens to
 use the same mode name.
 
+The policy is configured in [`config/settings.json`](./configuration.md#configsettingsjson)
+as `providerRateLimits`, an object keyed by provider id. Each entry has the
+shape `{ enabled, threshold? }`. `threshold` is a ratio greater than `0` and
+at most `1`; leaving a provider out keeps throttling enabled for that
+provider and uses the built-in thresholds: `0.90` for most windows, `0.95`
+for `seven_day` and `seven_day_overage_included`. The desktop and mobile
+Usage screens edit this policy. Providers that expose spend only, with no
+quota windows, do not show throttle controls.
+
 Interrupted direct conversations and threads are stored with the provider
 that limited them. When one provider fully recovers, Cortex resumes only that
 provider's work; entries belonging to other active providers remain queued.
@@ -304,12 +313,19 @@ Automatic recovery also requires a reset-bearing provider event. The Claude
 print adapter supplies that event; an adapter that only reports a failed call
 or low remaining usage does not create a timed throttle by itself.
 
+Policy edits apply only to future quota observations. They do not rewrite a
+window that is already active. An active quota window or outage retry window
+stays in force until its reset time or a manual **Resume now** clear. Outage
+retry behavior uses its own outage windows and is unaffected by quota-policy
+threshold edits.
+
 Throttle windows and provider-attributed resume entries persist in
-`schedules.json`. On startup Cortex re-arms active timers and immediately
-resumes entries whose provider window expired during downtime, even when a
-different provider remains limited. Provider-less entries from older data
-wait until every active provider clears. A busy direct channel or a thread
-that has since finished is skipped; elapsed age alone does not discard work.
+`data/provider-state.json`. On startup Cortex re-arms active timers and
+immediately resumes entries whose provider window expired during downtime,
+even when a different provider remains limited. Provider-less entries from
+older data wait until every active provider clears. A busy direct channel or
+a thread that has since finished is skipped; elapsed age alone does not
+discard work.
 
 Auto-resume is on by default. Set `"autoResume": false` in
 [`config/settings.json`](./configuration.md#configsettingsjson) to drop ready

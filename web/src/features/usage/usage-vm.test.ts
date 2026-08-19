@@ -1,10 +1,10 @@
-// input:  ProviderUsage fixtures, language, and current epoch
-// output: quota filtering, spend, freshness, severity, and timing regressions
-// pos:    Verifies the shared usage presentation model
+// input:  ProviderUsage fixtures, provider policies, language, and current epoch
+// output: quota, policy, spend, freshness, severity, and timing regressions
+// pos:    Verifies the shared desktop/mobile usage presentation model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
-import type { SystemUsageStatus } from '@cortex-agent/ui-contract';
+import type { ProviderRateLimits, SystemUsageStatus } from '@cortex-agent/ui-contract';
 import { buildUsageView, formatUsageDuration, utilizationSeverity } from './usage-vm';
 
 const NOW = 1_800_000_000;
@@ -39,27 +39,36 @@ const status: SystemUsageStatus = [
   },
 ];
 
+const policies: ProviderRateLimits = {
+  anthropic: { enabled: true, threshold: 0.82 },
+  openrouter: { enabled: false },
+};
+
 describe('buildUsageView', () => {
-  it('keeps provider quotas and gateway spend as separate presentation groups', () => {
-    const vm = buildUsageView(status, NOW, 'en');
+  it('keeps provider quotas, throttle policy, and gateway spend as separate presentation groups', () => {
+    const vm = buildUsageView(status, policies, NOW, 'en');
 
     expect(vm.providers.map(provider => provider.provider)).toEqual([
       'anthropic', 'openai-codex', 'deepseek', 'qwen-ksu',
     ]);
     expect(vm.providers[0]).toMatchObject({ freshness: 'live', observedAgo: '1m', quotaState: 'available' });
+    expect(vm.providers[0].rateLimitPolicy).toEqual({ enabled: true, customThresholdPercent: 82 });
     expect(vm.providers[1]).toMatchObject({ freshness: 'stale', observedAgo: '30m', quotaState: 'available' });
+    expect(vm.providers[1].rateLimitPolicy).toEqual({ enabled: true, customThresholdPercent: null });
     expect(vm.providers[2]).toMatchObject({
       freshness: 'unsupported', quotaState: 'unsupported',
       spend: { today: '$1.23', month: '$12.50' },
+      rateLimitPolicy: null,
     });
     expect(vm.providers[3]).toMatchObject({
       freshness: 'unsupported', quotaState: 'unsupported',
       spend: { today: '$0.00', month: '$3.00' },
+      rateLimitPolicy: null,
     });
   });
 
   it('renders known and labeled model windows while dropping unknown experiment buckets', () => {
-    const vm = buildUsageView(status, NOW, 'en');
+    const vm = buildUsageView(status, policies, NOW, 'en');
 
     expect(vm.providers[0].windows.map(window => ({
       type: window.type, label: window.label, utilization: window.utilizationLabel,
@@ -78,23 +87,30 @@ describe('buildUsageView', () => {
       observedAt: NOW - 3600, windows: [
         { type: 'five_hour', utilization: 0.54, resetsAt: NOW - 60 },
       ],
-    }], NOW, 'en');
+    }], policies, NOW, 'en');
 
     expect(vm.providers[0].windows[0]).toMatchObject({
       resetsAt: NOW - 60, resetIn: null, resetElapsed: true,
     });
   });
 
-  it('represents a supported push source with no observation as never', () => {
+  it('keeps never-observed providers configurable with an explicit policy override', () => {
     const vm = buildUsageView([{
-      provider: 'openai-codex', displayName: 'OpenAI Codex', modes: ['openai-codex'],
+      provider: 'openrouter', displayName: 'OpenRouter', modes: ['openrouter'],
       freshness: 'never', observedAt: null, windows: [], note: 'push-only: waiting for next call',
-    }], NOW, 'en');
+    }], policies, NOW, 'en');
 
     expect(vm.providers[0]).toMatchObject({
       freshness: 'never', observedAgo: null, quotaState: 'never',
       note: 'push-only: waiting for next call',
+      rateLimitPolicy: { enabled: false, customThresholdPercent: null },
     });
+  });
+
+  it('treats provider policy as unknown until config is ready', () => {
+    const vm = buildUsageView(status.slice(0, 2), null, NOW, 'en');
+
+    expect(vm.providers.map(provider => provider.rateLimitPolicy)).toEqual([null, null]);
   });
 
   it('classifies utilization severity at the 70% and 90% thresholds', () => {
@@ -124,7 +140,7 @@ describe('buildUsageView', () => {
         provider: 'openrouter', displayName: 'OpenRouter', modes: ['openrouter'], freshness: 'never',
         observedAt: null, windows: [], note: 'push-only: waiting for next call',
       },
-    ], NOW, 'en');
+    ], policies, NOW, 'en');
 
     expect(vm.providers[0].windows.map(window => window.severity)).toEqual([
       'normal', 'warning', 'danger',
@@ -134,7 +150,7 @@ describe('buildUsageView', () => {
   });
 
   it('localizes window labels while keeping compact observed and reset timing', () => {
-    const vm = buildUsageView(status.slice(0, 2), NOW, 'zh');
+    const vm = buildUsageView(status.slice(0, 2), policies, NOW, 'zh');
 
     expect(vm.providers[0].windows.slice(0, 2).map(window => window.label)).toEqual(['5 小时', '7 天']);
     expect(vm.providers[1].windows.map(window => window.label)).toEqual(['主窗口', '次窗口']);

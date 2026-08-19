@@ -200,11 +200,15 @@ MiB 大小，可直接修改。网关会自己热重载配置，路由和请求�
 
 回退链处理单次调用失败，滚动用量窗口由独立的限流机制处理。Provider 标识是任意字符串，不受固定枚举限制，因此 Cortex 可以同时维护任意数量的 provider、窗口类型和重置时间。限流门禁同时匹配 provider 与 route mode；两个 provider 即使使用相同 mode 名称，也不会互相阻塞。
 
+这套策略通过 [`config/settings.json`](./configuration.md#configsettingsjson) 里的 `providerRateLimits` 配置。它是一个按 provider id 建立的对象，每个条目的结构都是 `{ enabled, threshold? }`。`threshold` 是一个大于 `0` 且不超过 `1` 的比率；省略某个 provider 时，该 provider 的限流仍保持启用，并继续使用内置阈值：大多数窗口为 `0.90`，`seven_day` 与 `seven_day_overage_included` 为 `0.95`。桌面端和移动端的 Usage 页面都编辑这套策略。只暴露花费、不暴露额度窗口的 provider 不显示限流控件。
+
 被中断的直接会话和线程会连同其 provider 一起持久化。某个 provider 完全恢复后，Cortex 只恢复属于该 provider 的工作，其他仍处于限流状态的 provider 继续等待。直接会话在原频道恢复并保留上下文；线程若被中断的 step 已经产生过实际工作，则复用该 step 的后端会话并发送一段简短的续跑提醒，保留已完成的部分进度；未产生任何活动的 step 仍从原始 prompt 重新执行。多项恢复会错开启动，避免刚开放的窗口立即再次耗尽。
 
 限流详情会显示每个 provider 正在等待的直接会话数和线程数。Provider key 是当前隔离边界：如果多个账户或额度池使用同一个 provider key，它们共享同一条 provider 记录；同类型窗口保留较晚的重置时间。自动恢复还要求 adapter 提供带重置时间的 provider 事件。Claude print adapter 会提供该事件；只报告单次调用失败或低剩余额度的 adapter 不会自行建立定时限流。
 
-限流窗口与带 provider 归属的恢复队列持久化在 `schedules.json` 中。启动时 Cortex 会重新装载仍有效的计时器，并立即恢复在停机期间已经解除限流的 provider 工作，即使另一个 provider 仍在限流。旧数据中没有 provider 的条目会等待所有 provider 都解除。已有活跃直接会话的频道或此后已结束的线程会被跳过；等待时长本身不会导致条目被丢弃。
+策略改动只作用于未来收到的额度观测，不会回写已经处于激活状态的窗口。已经激活的额度窗口或 outage 重试窗口会保持生效，直到窗口自然重置，或被手动 **Resume now** 清除。Outage 重试行为使用自己独立的 outage 窗口，不受额度阈值策略改动影响。
+
+限流窗口与带 provider 归属的恢复队列持久化在 `data/provider-state.json` 中。启动时 Cortex 会重新装载仍有效的计时器，并立即恢复在停机期间已经解除限流的 provider 工作，即使另一个 provider 仍在限流。旧数据中没有 provider 的条目会等待所有 provider 都解除。已有活跃直接会话的频道或此后已结束的线程会被跳过；等待时长本身不会导致条目被丢弃。
 
 自动恢复默认开启。在 [`config/settings.json`](./configuration.md#configsettingsjson) 中设置 `"autoResume": false` 后，已经满足恢复条件的队列条目会被移除，但不会自动派发；改动无需重启守护进程即刻生效。`.env` 中的旧变量 `CORTEX_AUTO_RESUME=0` 仍作为已弃用的回退被读取。
 

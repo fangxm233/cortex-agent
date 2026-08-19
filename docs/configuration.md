@@ -279,6 +279,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `showToolCalls` | boolean | `false` | Inline tool-call rendering in VirtualMessage tails | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | Show the "New (quiet)" button on status messages (`=!newq`, which skips the pre-close hook) | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | When a usage-limit window resets, automatically continue the conversations and threads the limit interrupted, injecting a note to pick up where they left off. Set to `false` to leave interrupted work paused for manual continuation | `CORTEX_AUTO_RESUME` |
+| `providerRateLimits` | object | `{}` | Per-provider usage-limit throttle policy keyed by provider id. Each entry is `{ enabled, threshold? }`; `threshold` is a ratio greater than `0` and at most `1` | — |
 | `streamDeltas` | boolean | `true` | Stream assistant text token by token. Disable to deliver each assistant message in one piece | `CORTEX_STREAM_DELTAS` |
 | `bgContinuation` | boolean | `true` | Forward the output of background tasks back into the conversation when they finish | `CORTEX_BG_CONTINUATION` |
 | `eventLog` | boolean | `true` | Write the event bus to the daily rolling JSONL event log | `CORTEX_EVENT_LOG` |
@@ -304,10 +305,20 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `feishuAdminChannel` | string \| null | `null` | Feishu admin `chat_id` (`oc_...`) for the same notices. Independent of `adminChannel` — Slack channel ids are not usable on Feishu | `FEISHU_ADMIN_CHANNEL` |
 
 The Web workbench writes a subset of these from **Settings → Notifications**
-(`turnNotify`, `autoResume`, `notifyCompaction`) and **Settings → Advanced**
+(`turnNotify`, `autoResume`, `notifyCompaction`), **Settings → Advanced**
 (`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
 `serverUpdateDisable`, `sessionRetentionDays`, and the built-in job switches
-and intervals). Every other key is edited by hand in the file.
+and intervals), and the desktop/mobile **Usage** screens (`providerRateLimits`).
+Every other key is edited by hand in the file.
+
+`providerRateLimits` is a `settings.json` object keyed by provider id. Each
+value has the shape `{ enabled, threshold? }`. Leaving a provider out keeps
+throttling enabled for that provider and uses the built-in thresholds: `0.90`
+for most windows, `0.95` for `seven_day` and
+`seven_day_overage_included`. The Usage screens hide these controls on
+spend-only provider cards that do not expose quota windows. Policy edits apply
+only to future quota observations; an already-active quota or outage window
+keeps its current state until its reset time or a manual **Resume now** clear.
 
 Built-in job intervals must be integer milliseconds from `1000` through
 `2147483647`, the safe range for Node timers. Enabled jobs run once at daemon

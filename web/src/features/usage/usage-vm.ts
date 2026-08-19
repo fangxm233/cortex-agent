@@ -1,9 +1,14 @@
-// input:  ProviderUsage snapshots, language, and current epoch
-// output: known-bucket quota, spend, freshness, severity, and timing views
+// input:  ProviderUsage snapshots, optional policy config, language, and current epoch
+// output: known-bucket quota, spend, freshness, severity, timing, and policy views
 // pos:    Shared desktop/mobile usage presentation model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import type { ProviderUsage, UsageFreshness, UsageWindow } from '@cortex-agent/ui-contract';
+import type {
+  ProviderRateLimits,
+  ProviderUsage,
+  UsageFreshness,
+  UsageWindow,
+} from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
 
 export type UsageQuotaState = 'available' | 'never' | 'unsupported';
@@ -30,6 +35,11 @@ export interface ProviderSpendView {
   month: string;
 }
 
+export interface ProviderRateLimitView {
+  enabled: boolean;
+  customThresholdPercent: number | null;
+}
+
 export interface ProviderUsageView {
   provider: string;
   displayName: string;
@@ -40,6 +50,7 @@ export interface ProviderUsageView {
   observedAgo: string | null;
   freshness: UsageFreshness;
   quotaState: UsageQuotaState;
+  rateLimitPolicy: ProviderRateLimitView | null;
   note?: string;
   noteTone?: UsageNoteTone;
 }
@@ -136,7 +147,36 @@ function noteTone(note: string): UsageNoteTone {
   return /fail(?:ed|ure)|error|失败/i.test(note) ? 'error' : 'info';
 }
 
-function buildProvider(record: ProviderUsage, nowSec: number, lang: Lang): ProviderUsageView {
+function percentFromRatio(value: number): number {
+  return Math.round(value * 10_000) / 100;
+}
+
+function configuredPolicy(provider: string, providerRateLimits: ProviderRateLimits): ProviderRateLimitView {
+  const policy = providerRateLimits[provider];
+  return {
+    enabled: policy?.enabled ?? true,
+    customThresholdPercent: typeof policy?.threshold === 'number'
+      ? percentFromRatio(policy.threshold)
+      : null,
+  };
+}
+
+function rateLimitPolicyView(
+  provider: string,
+  status: UsageQuotaState,
+  providerRateLimits: ProviderRateLimits | null,
+): ProviderRateLimitView | null {
+  if (status === 'unsupported' || providerRateLimits === null) return null;
+  return configuredPolicy(provider, providerRateLimits);
+}
+
+function buildProvider(
+  record: ProviderUsage,
+  providerRateLimits: ProviderRateLimits | null,
+  nowSec: number,
+  lang: Lang,
+): ProviderUsageView {
+  const status = quotaState(record.freshness);
   return {
     provider: record.provider,
     displayName: record.displayName,
@@ -146,7 +186,8 @@ function buildProvider(record: ProviderUsage, nowSec: number, lang: Lang): Provi
     observedAt: record.observedAt,
     observedAgo: record.observedAt === null ? null : formatUsageDuration(nowSec - record.observedAt, lang),
     freshness: record.freshness,
-    quotaState: quotaState(record.freshness),
+    quotaState: status,
+    rateLimitPolicy: rateLimitPolicyView(record.provider, status, providerRateLimits),
     ...(record.note ? { note: record.note, noteTone: noteTone(record.note) } : {}),
   };
 }
@@ -158,8 +199,13 @@ function providerCompare(a: ProviderUsageView, b: ProviderUsageView): number {
 
 export function buildUsageView(
   status: ProviderUsage[] | null | undefined,
+  providerRateLimits: ProviderRateLimits | null,
   nowSec: number,
   lang: Lang,
 ): UsageView {
-  return { providers: (status ?? []).map(record => buildProvider(record, nowSec, lang)).sort(providerCompare) };
+  return {
+    providers: (status ?? [])
+      .map(record => buildProvider(record, providerRateLimits, nowSec, lang))
+      .sort(providerCompare),
+  };
 }

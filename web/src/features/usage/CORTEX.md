@@ -5,9 +5,10 @@ Desktop owns the Settings panel while mobile can reuse data without sharing layo
 
 | filename | role | function |
 |---|---|---|
-| index.ts | barrel | Exports the public usage feature API |
-| usage-vm.ts | vm | Builds known-bucket quota, spend, freshness, severity and reset views |
-| usage-vm.test.ts | test | Tests provider states, window filtering, severity, notes and timing |
-| useUsage.ts | hook | Queries status, ticks timing and refreshes immediately |
-| UsagePanel.tsx | view | Renders usage cards with meters, live badge, spend tiles and refresh toolbar |
-| UsagePanel.test.tsx | test | Tests querying, refresh spin, severity and error-only notes |
+| index.ts | barrel | Exports the usage API and policy-control types |
+| usage-vm.ts | vm | Builds quota, spend, freshness, timing and ready/unknown policy views |
+| usage-vm.test.ts | test | Tests provider policy, unknown config, windows, severity and timing |
+| usage-policy-controls.ts | util | Shares threshold draft sync and policy button disabled state |
+| useUsage.ts | hook | Queries usage/config, hides unknown policies, tracks saves and refreshes |
+| UsagePanel.tsx | view | Renders usage cards, spend tiles and ready-state policy controls |
+| UsagePanel.test.tsx | test | Tests config wiring, hidden unknown policies, saves and refresh states |

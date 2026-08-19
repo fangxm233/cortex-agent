@@ -1,4 +1,4 @@
-// input:  shared Chinese product copy
+// input:  shared Chinese product copy and usage policy strings
 // output: trailing Chinese vocabulary chunk
 // pos:    Extra Chinese web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -91,6 +91,14 @@ export const zhExtra = {
   usageToday: '今日',
   usageMonth: '本月',
   usageUnavailable: '不可用',
+  usagePolicyTitle: '用量限流',
+  usagePolicyEnabled: '启用',
+  usagePolicyThreshold: '自定义阈值 %',
+  usagePolicySave: '保存',
+  usagePolicySaving: '保存中…',
+  usagePolicyResetDefault: '恢复默认',
+  usagePolicyDefaultHint: '系统默认阈值：90%；7 天窗口：95%。',
+  usagePolicyFutureHint: '更改仅对后续观测生效。',
   usageFreshLive: '实时',
   usageFreshStale: '陈旧',
   usageFreshNever: '从未观测',

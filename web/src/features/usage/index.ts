@@ -1,14 +1,20 @@
-// input:  usage view model, query hook, and desktop panel modules
-// output: public web usage feature API
+// input:  usage vm, hook, and desktop/mobile policy panel modules
+// output: public usage feature API and policy-control types
 // pos:    Reusable usage feature barrel for desktop and mobile
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 export { UsagePanel } from './UsagePanel';
-export { useUsage, type UsageFeatureState } from './useUsage';
+export {
+  useUsage,
+  type UsageFeatureState,
+  type UsagePolicyControlsState,
+  type UsagePolicyDraft,
+} from './useUsage';
 export {
   buildUsageView,
   formatUsageDuration,
   utilizationSeverity,
+  type ProviderRateLimitView,
   type ProviderSpendView,
   type ProviderUsageView,
   type UsageNoteTone,

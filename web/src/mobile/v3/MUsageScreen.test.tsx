@@ -1,4 +1,4 @@
-// input:  mobile Usage screen with navigation and public hook fakes
+// input:  mobile Usage screen with navigation and public hook-policy fakes
 // output: settings-back and refresh container wiring regressions
 // pos:    Verifies the mobile Usage screen bindings
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 const harness = vi.hoisted(() => ({
   navigate: vi.fn(),
   refresh: vi.fn(),
+  savePolicy: vi.fn(),
 }));
 
 vi.mock('react-router-dom', async importOriginal => ({
@@ -24,8 +25,16 @@ vi.mock('@/i18n', async importOriginal => ({
 vi.mock('@/features/usage', async importOriginal => ({
   ...await importOriginal<typeof import('@/features/usage')>(),
   useUsage: () => ({
-    view: { providers: [] }, isLoading: false, queryError: null, refreshError: null,
-    isRefreshing: false, refresh: harness.refresh,
+    view: { providers: [] },
+    isLoading: false,
+    queryError: null,
+    refreshError: null,
+    isRefreshing: false,
+    refresh: harness.refresh,
+    policyControlsState: 'ready',
+    isPolicySaving: () => false,
+    getPolicyError: () => null,
+    savePolicy: harness.savePolicy,
   }),
 }));
 
@@ -40,5 +49,6 @@ describe('MUsageScreen bindings', () => {
 
     expect(harness.navigate).toHaveBeenCalledWith('/m/settings', { replace: true });
     expect(harness.refresh).toHaveBeenCalledTimes(1);
+    expect(harness.savePolicy).not.toHaveBeenCalled();
   });
 });

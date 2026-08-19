@@ -1,17 +1,23 @@
-// input:  shared usage hook, provider usage view, and localized copy
-// output: desktop Settings Usage cards with meters, live badge, and spend tiles
+// input:  shared usage hook, provider usage view, settings UI, and localized copy
+// output: desktop Settings Usage cards with meters, spend, and policy visibility/controls
 // pos:    Independently queried desktop usage settings panel
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { CSSProperties, ReactNode } from 'react';
 import { useVocab } from '@/i18n';
-import { SButton, SCard } from '@/features/settings/settings-ui';
+import {
+  SButton,
+  SCard,
+  S_CONTROL_DISABLED_STYLE,
+  S_CONTROL_STYLE,
+  Toggle,
+} from '@/features/settings/settings-ui';
+import { policyActionState, usePolicyThresholdDraft } from './usage-policy-controls';
 import { useUsage } from './useUsage';
-import type { ProviderUsageView, UsageSeverity, UsageWindowView } from './usage-vm';
+import type { ProviderRateLimitView, ProviderUsageView, UsageSeverity, UsageWindowView } from './usage-vm';
 
 const MONO = "'IBM Plex Mono',monospace";
 
-// Meter fill escalates with utilization; the track stays neutral in both themes.
 const SEVERITY_FILL: Record<UsageSeverity, string> = {
   normal: 'var(--proto-accent)',
   warning: 'var(--proto-amber)',
@@ -27,12 +33,14 @@ const SECTION_LABEL: CSSProperties = {
 };
 
 const META_TEXT: CSSProperties = { font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' };
+const POLICY_TEXT: CSSProperties = { fontSize: 9.5, lineHeight: 1.55, color: 'var(--proto-muted-2)' };
+const POLICY_INPUT: CSSProperties = { ...S_CONTROL_STYLE, width: 84, paddingRight: 24 };
+const POLICY_INPUT_DISABLED: CSSProperties = { ...S_CONTROL_DISABLED_STYLE, width: 84, paddingRight: 24 };
 
 function isoTime(epochSeconds: number): string {
   return new Date(epochSeconds * 1000).toISOString();
 }
 
-// Staleness is already conveyed by the observed-ago line; only live earns a badge.
 function LiveBadge() {
   const L = useVocab();
   return (
@@ -129,7 +137,6 @@ function QuietState({ children }: { children: ReactNode }) {
   );
 }
 
-// Unsupported providers show only spend; never keeps its short empty state.
 function QuotaBlock({ provider }: { provider: ProviderUsageView }) {
   const L = useVocab();
   if (provider.quotaState === 'unsupported') return null;
@@ -166,7 +173,169 @@ function SpendBlock({ provider }: { provider: ProviderUsageView }) {
   );
 }
 
-// Info-tone notes never render on desktop; only failures earn a banner.
+function ThresholdField(props: {
+  disabled: boolean;
+  provider: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div style={{ position: 'relative', width: 84 }}>
+      <input
+        data-usage-threshold-input={props.provider}
+        type="number"
+        min={1}
+        max={100}
+        step="0.1"
+        inputMode="decimal"
+        value={props.value}
+        disabled={props.disabled}
+        onChange={(event) => props.onChange(event.target.value)}
+        style={props.disabled ? POLICY_INPUT_DISABLED : POLICY_INPUT}
+      />
+      <span style={{ position: 'absolute', right: 8, top: 6, font: `500 10px ${MONO}`, color: 'var(--proto-muted-2)' }}>%</span>
+    </div>
+  );
+}
+
+type SavePolicyHandler = ReturnType<typeof useUsage>['savePolicy'];
+
+interface PolicyToggleLineProps {
+  provider: string;
+  policy: ProviderRateLimitView;
+  disabled: boolean;
+  onSavePolicy: SavePolicyHandler;
+}
+
+function PolicyToggleLine(props: PolicyToggleLineProps) {
+  const L = useVocab();
+  const toggleClick = props.disabled
+    ? undefined
+    : () => props.onSavePolicy(props.provider, {
+        enabled: !props.policy.enabled,
+        thresholdPercent: props.policy.customThresholdPercent,
+      });
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 7 }}>
+      <Toggle on={props.policy.enabled} onClick={toggleClick} ariaLabel={`Usage throttle ${props.provider}`} inert={props.disabled} />
+      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.usagePolicyEnabled}</span>
+    </div>
+  );
+}
+
+interface PolicyThresholdButtonProps {
+  provider: string;
+  policy: ProviderRateLimitView;
+  disabled: boolean;
+  onSavePolicy: SavePolicyHandler;
+}
+
+interface PolicyThresholdSaveButtonProps extends PolicyThresholdButtonProps {
+  pending: boolean;
+  parsedThreshold: number | null;
+}
+
+function PolicyThresholdSaveButton(props: PolicyThresholdSaveButtonProps) {
+  const L = useVocab();
+  return (
+    <SButton
+      tone="neutral"
+      data-usage-threshold-save={props.provider}
+      disabled={props.disabled}
+      onClick={() => props.parsedThreshold !== null && props.onSavePolicy(props.provider, {
+        enabled: props.policy.enabled,
+        thresholdPercent: props.parsedThreshold,
+      })}
+    >
+      {props.pending ? L.usagePolicySaving : L.usagePolicySave}
+    </SButton>
+  );
+}
+
+function PolicyThresholdResetButton(props: PolicyThresholdButtonProps) {
+  const L = useVocab();
+  return (
+    <SButton
+      tone="neutral"
+      data-usage-threshold-reset={props.provider}
+      disabled={props.disabled}
+      onClick={() => props.onSavePolicy(props.provider, {
+        enabled: props.policy.enabled,
+        thresholdPercent: null,
+      })}
+    >
+      {L.usagePolicyResetDefault}
+    </SButton>
+  );
+}
+
+interface PolicyThresholdRowProps extends Omit<PolicyThresholdSaveButtonProps, 'disabled'> {
+  controlsDisabled: boolean;
+  saveDisabled: boolean;
+  resetDisabled: boolean;
+  draft: string;
+  setDraft: (value: string) => void;
+}
+
+function PolicyThresholdRow(props: PolicyThresholdRowProps) {
+  const L = useVocab();
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+      <span style={{ ...META_TEXT, minWidth: 92 }}>{L.usagePolicyThreshold}</span>
+      <ThresholdField disabled={props.controlsDisabled} provider={props.provider} value={props.draft} onChange={props.setDraft} />
+      <PolicyThresholdSaveButton {...props} disabled={props.saveDisabled} />
+      <PolicyThresholdResetButton {...props} disabled={props.resetDisabled} />
+    </div>
+  );
+}
+
+interface PolicyHintsProps {
+  provider: string;
+  error: { message: string } | null;
+}
+
+function PolicyHints(props: PolicyHintsProps) {
+  const L = useVocab();
+  return (
+    <>
+      <div style={{ ...POLICY_TEXT, marginTop: 8 }}>{L.usagePolicyDefaultHint}</div>
+      <div style={{ ...POLICY_TEXT, marginTop: 2 }}>{L.usagePolicyFutureHint}</div>
+      {props.error
+        ? <div data-usage-policy-error={props.provider} style={{ ...POLICY_TEXT, color: 'var(--proto-danger)', marginTop: 7 }}>{props.error.message}</div>
+        : null}
+    </>
+  );
+}
+
+function ProviderPolicyBlock({ provider, usage }: { provider: ProviderUsageView; usage: ReturnType<typeof useUsage> }) {
+  const L = useVocab();
+  const policy = provider.rateLimitPolicy;
+  const pending = usage.isPolicySaving(provider.provider);
+  const error = usage.getPolicyError(provider.provider);
+  const { draft, parsedThreshold, setDraft } = usePolicyThresholdDraft(policy);
+  if (!policy) return null;
+  const state = policyActionState(usage.policyControlsState !== 'ready', pending, parsedThreshold, policy.customThresholdPercent);
+  return (
+    <section data-usage-policy={provider.provider} style={{ borderTop: '1px solid var(--proto-line-2)', padding: '10px 14px 12px' }}>
+      <div style={SECTION_LABEL}>{L.usagePolicyTitle}</div>
+      <PolicyToggleLine provider={provider.provider} policy={policy} disabled={state.disabled} onSavePolicy={usage.savePolicy} />
+      <PolicyThresholdRow
+        provider={provider.provider}
+        policy={policy}
+        controlsDisabled={state.disabled}
+        saveDisabled={state.saveDisabled}
+        resetDisabled={state.resetDisabled}
+        pending={pending}
+        draft={draft}
+        setDraft={setDraft}
+        parsedThreshold={parsedThreshold}
+        onSavePolicy={usage.savePolicy}
+      />
+      <PolicyHints provider={provider.provider} error={error} />
+    </section>
+  );
+}
+
 function NoteBlock({ provider }: { provider: ProviderUsageView }) {
   if (!provider.note || provider.noteTone !== 'error') return null;
   return (
@@ -183,12 +352,13 @@ function NoteBlock({ provider }: { provider: ProviderUsageView }) {
   );
 }
 
-function ProviderCard({ provider }: { provider: ProviderUsageView }) {
+function ProviderCard({ provider, usage }: { provider: ProviderUsageView; usage: ReturnType<typeof useUsage> }) {
   return (
     <SCard style={{ display: 'flex', flexDirection: 'column' }}>
       <CardHeader provider={provider} />
       <QuotaBlock provider={provider} />
       <SpendBlock provider={provider} />
+      <ProviderPolicyBlock provider={provider} usage={usage} />
       <NoteBlock provider={provider} />
     </SCard>
   );
@@ -208,7 +378,6 @@ function ErrorChip({ label, message }: { label: string; message: string }) {
   );
 }
 
-// Circular-arrows glyph; the SMIL rotation runs only while a refresh is pending.
 function RefreshIcon({ spinning }: { spinning: boolean }) {
   return (
     <svg
@@ -229,7 +398,6 @@ function RefreshIcon({ spinning }: { spinning: boolean }) {
   );
 }
 
-// Right-aligned toolbar; the button stays clickable while a refresh is pending.
 function RefreshToolbar({ usage }: { usage: ReturnType<typeof useUsage> }) {
   const L = useVocab();
   return (
@@ -255,9 +423,7 @@ export function UsagePanel() {
   const L = useVocab();
   const usage = useUsage();
   if (usage.isLoading) return <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.usageLoading}</div>;
-  if (usage.queryError) {
-    return <div style={{ marginTop: 16 }}><ErrorChip label={L.usageLoadError} message={usage.queryError.message} /></div>;
-  }
+  if (usage.queryError) return <div style={{ marginTop: 16 }}><ErrorChip label={L.usageLoadError} message={usage.queryError.message} /></div>;
   return (
     <div style={{ marginTop: 12, maxWidth: 980 }}>
       <RefreshToolbar usage={usage} />
@@ -270,7 +436,7 @@ export function UsagePanel() {
               gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))',
             }}
           >
-            {usage.view.providers.map(provider => <ProviderCard key={provider.provider} provider={provider} />)}
+            {usage.view.providers.map(provider => <ProviderCard key={provider.provider} provider={provider} usage={usage} />)}
           </div>
         )}
     </div>
