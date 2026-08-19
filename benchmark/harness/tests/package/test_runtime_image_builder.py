@@ -1,6 +1,6 @@
-# input:  runtime-image build script, local Node/npm/PI fixtures
-# output: offline build invocation and digest-pinned image reference
-# pos:    Contract test for the ZERO-PAID runtime image builder
+# input:  vendor image scripts, pinned manifests and local CLI fixtures
+# output: nine offline single-vendor image and task-selector proofs
+# pos:    Contract tests for benchmark vendor runtime images
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import hashlib
@@ -8,11 +8,84 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+import yaml
+
 HARNESS_DIR = Path(__file__).resolve().parents[2]
 BUILD_SCRIPT = HARNESS_DIR / "scripts" / "build-zero-paid-runtime-image.sh"
 TASK_BUILD_SCRIPT = HARNESS_DIR / "scripts" / "provision-terminal-bench-images.sh"
+PREFLIGHT_SCRIPT = HARNESS_DIR / "scripts" / "vendor-runtime-preflight.js"
 DIGEST = f"sha256:{'a' * 64}"
 IMAGE_REF = f"cortex-bench-zero-paid-runtime@{DIGEST}"
+RUNTIME_MANIFEST = HARNESS_DIR / "scripts" / "zero-paid-runtime-inputs.json"
+TERMINAL_BENCH_MANIFEST = HARNESS_DIR / "scripts" / "terminal-bench-2.1-images.json"
+VENDORS = ("pi", "claude-code", "codex")
+TASKS = ("chess-best-move", "constraints-scheduling", "db-wal-recovery")
+
+
+def test_runtime_manifest_pins_the_three_p0_vendor_artifacts() -> None:
+    document = json.loads(RUNTIME_MANIFEST.read_text(encoding="utf-8"))
+
+    assert document["schema_version"] == "cortex-bench-vendor-runtime-inputs/2"
+    assert document["vendors"]["pi"] == {
+        "package": "@earendil-works/pi-coding-agent",
+        "version": "0.82.1",
+        "tree_sha256": "6bc5e821c034136ad52ae104fe3bc51f954950bc895ce35abc1e64a25f2375d8",
+    }
+    assert document["vendors"]["claude-code"] == {
+        "distribution": "native",
+        "platform": "linux-x64",
+        "version": "2.1.232",
+        "sha256": "61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1",
+        "size_bytes": 323021104,
+    }
+    codex = document["vendors"]["codex"]
+    assert codex["package"] == "@openai/codex"
+    assert codex["version"] == "0.117.0"
+    assert codex["npm_integrity"] == (
+        "sha512-UmWo39UCGqFB2ImWwtI/TOnVQ1M2JIbCeDVBzOtG57WuTIPBNvDyluPNrzNv6eAcTYpyDLC5+nT5k49LrzEwow=="
+    )
+    assert codex["platform_package"] == "@openai/codex@0.117.0-linux-x64"
+    assert codex["platform_npm_integrity"] == (
+        "sha512-kvOZtyLAgFEFSFRJXVzTnFYoZgZya9ttpxDYHR+diBgDBlcBp1B6pRiIGUmCOauxpHtTFUEyisvhKQquZbAtfg=="
+    )
+    assert codex["native_binary_sha256"] == (
+        "2bee4e33ec222241606e6c5ac3e89a0d3c860fb1684a66e9f134da227b0a2699"
+    )
+
+
+def test_terminal_bench_manifest_has_one_digest_pinned_variant_per_vendor_and_task() -> None:
+    document = json.loads(TERMINAL_BENCH_MANIFEST.read_text(encoding="utf-8"))
+
+    assert document["schema_version"] == "cortex-terminal-bench-images/2"
+    assert tuple(document["vendors"]) == VENDORS
+    assert tuple(task["task_id"] for task in document["tasks"]) == TASKS
+    for task in document["tasks"]:
+        assert tuple(task["variants"]) == VENDORS
+        assert "final_image_tag" not in task
+        assert "final_image_digest" not in task
+        for vendor, variant in task["variants"].items():
+            assert variant["final_image_tag"].endswith(f"-{vendor}-{document['vendors'][vendor]['version']}")
+            assert variant["final_image_digest"].startswith("sha256:")
+            assert len(variant["final_image_digest"]) == 71
+            assert set(variant) == {"final_image_tag", "final_image_digest"}
+
+
+def test_vendor_campaigns_select_the_matching_task_variant() -> None:
+    manifest = json.loads(TERMINAL_BENCH_MANIFEST.read_text(encoding="utf-8"))
+    tasks = {task["task_id"]: task for task in manifest["tasks"]}
+
+    for vendor in VENDORS:
+        campaign_path = HARNESS_DIR.parent / "campaigns" / f"terminal-bench-2.1-vendor-{vendor}.yaml"
+        campaign = yaml.safe_load(campaign_path.read_text(encoding="utf-8"))
+        for selected in campaign["tasks"]:
+            variant = tasks[selected["task_id"]]["variants"][vendor]
+            expected_ref = f"{variant['final_image_tag'].split(':')[0]}@{variant['final_image_digest']}"
+            assert selected == {
+                "task_id": selected["task_id"],
+                "path": f"tasks/terminal-bench-2.1/{vendor}/{selected['task_id']}",
+                "image_ref": expected_ref,
+            }
 
 
 def executable(path: Path, content: str) -> Path:
@@ -32,6 +105,9 @@ def fixture_inputs(root: Path) -> dict[str, Path]:
         "    value = json.load(open(sys.argv[3]))\n"
         "    keys = sys.argv[2].split(').', 1)[1].split('.') if ').' in sys.argv[2] else ['version']\n"
         "    for key in keys: value = value[key]\n"
+        "    print(value)\n"
+        "elif sys.argv[1] == '-e':\n"
+        "    value = json.load(open(sys.argv[3]))['vendors'][sys.argv[4]][sys.argv[5]]\n"
         "    print(value)\n",
     )
     npm = root / "node-dist/lib/node_modules/npm"
@@ -43,7 +119,27 @@ def fixture_inputs(root: Path) -> dict[str, Path]:
         json.dumps({"name": "@earendil-works/pi-coding-agent", "version": "0.82.1"}),
         encoding="utf-8",
     )
-    return {"node": node, "npm": npm, "pi": pi}
+    claude = executable(
+        root / "claude/claude",
+        "#!/bin/sh\nprintf '2.1.232 (Claude Code)\\n'\n",
+    )
+    codex = root / "codex"
+    executable(codex / "bin/codex.js", "#!/usr/bin/env node\n")
+    (codex / "package.json").write_text(
+        json.dumps({"name": "@openai/codex", "version": "0.117.0"}), encoding="utf-8",
+    )
+    platform = codex / "node_modules/@openai/codex-linux-x64"
+    native = executable(
+        platform / "vendor/x86_64-unknown-linux-musl/codex/codex", "fixture codex native\n",
+    )
+    (platform / "package.json").write_text(
+        json.dumps({"name": "@openai/codex", "version": "0.117.0-linux-x64"}),
+        encoding="utf-8",
+    )
+    return {
+        "node": node, "npm": npm, "pi": pi, "claude": claude,
+        "codex": codex, "codex_native": native,
+    }
 
 
 def tree_sha256(root: Path) -> str:
@@ -58,11 +154,29 @@ def tree_sha256(root: Path) -> str:
 def runtime_manifest(root: Path, inputs: dict[str, Path]) -> Path:
     path = root / "runtime-inputs.json"
     path.write_text(json.dumps({
-        "schema_version": "cortex-bench-zero-paid-runtime-inputs/1",
+        "schema_version": "cortex-bench-vendor-runtime-inputs/2",
         "node": {"version": "v22.19.0", "sha256": hashlib.sha256(
             inputs["node"].read_bytes()).hexdigest()},
         "npm": {"version": "10.9.3", "tree_sha256": tree_sha256(inputs["npm"])},
-        "pi": {"version": "0.82.1", "tree_sha256": tree_sha256(inputs["pi"])},
+        "vendors": {
+            "pi": {
+                "package": "@earendil-works/pi-coding-agent", "version": "0.82.1",
+                "tree_sha256": tree_sha256(inputs["pi"]),
+            },
+            "claude-code": {
+                "distribution": "native", "platform": "linux-x64", "version": "2.1.232",
+                "sha256": hashlib.sha256(inputs["claude"].read_bytes()).hexdigest(),
+                "size_bytes": inputs["claude"].stat().st_size,
+            },
+            "codex": {
+                "package": "@openai/codex", "version": "0.117.0",
+                "npm_integrity": "sha512-fixture-main", "tree_sha256": tree_sha256(inputs["codex"]),
+                "platform_package": "@openai/codex@0.117.0-linux-x64",
+                "platform_npm_integrity": "sha512-fixture-platform",
+                "native_binary_sha256": hashlib.sha256(inputs["codex_native"].read_bytes()).hexdigest(),
+                "target": "x86_64-unknown-linux-musl",
+            },
+        },
     }), encoding="utf-8")
     return path
 
@@ -75,11 +189,31 @@ set -eu
 printf '%s\n' "$*" >> "$DOCKER_CALLS"
 if [ "$1" = build ]; then
   for context do :; done
-  test -x "$context/node-runtime/bin/node"
-  test -f "$context/node-runtime/lib/node_modules/npm/bin/npm-cli.js"
-  test -x "$context/pi-agent/dist/cli.js"
   grep -q 'debian@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818' "$context/Dockerfile"
-  grep -q '/opt/pi-agent/dist/cli.js' "$context/Dockerfile"
+  case "$VENDOR" in
+    pi)
+      test -x "$context/node-runtime/bin/node"
+      test -x "$context/vendor-runtime/dist/cli.js"
+      grep -q '@earendil-works/pi-coding-agent' "$context/vendor-runtime/package.json"
+      grep -q '/opt/vendor-runtime/dist/cli.js' "$context/Dockerfile"
+      ! grep -Eq '/usr/local/bin/(claude|codex)' "$context/Dockerfile"
+      ;;
+    claude-code)
+      test -x "$context/vendor-runtime/claude"
+      test -x "$context/node-runtime/bin/node"
+      grep -q '/usr/local/bin/claude' "$context/Dockerfile"
+      ! grep -Eq '/usr/local/bin/(pi|codex)' "$context/Dockerfile"
+      ;;
+    codex)
+      test -x "$context/node-runtime/bin/node"
+      test -x "$context/vendor-runtime/bin/codex.js"
+      grep -q '@openai/codex' "$context/vendor-runtime/package.json"
+      grep -q '/usr/local/bin/codex' "$context/Dockerfile"
+      ! grep -Eq '/usr/local/bin/(pi|claude)' "$context/Dockerfile"
+      ;;
+    *) exit 97;;
+  esac
+  ! grep -Rq 'mariozechner/pi-coding-agent' "$context"
   exit 0
 fi
 if [ "$1" = image ] && [ "$2" = inspect ]; then
@@ -87,6 +221,10 @@ if [ "$1" = image ] && [ "$2" = inspect ]; then
   exit 0
 fi
 if [ "$1" = run ]; then
+  case "$*" in
+    *'/tmp/vendor-runtime-preflight.js'*) ;;
+    *) exit 96;;
+  esac
   exit 0
 fi
 exit 99
@@ -99,19 +237,31 @@ def explicit_environment(
 ) -> dict[str, str]:
     return {
         "HOME": str(root / "home"), "PATH": f"{docker.parent}:/usr/bin:/bin",
+        "VENDOR": "pi",
         "DOCKER_CALLS": str(root / "docker-calls.txt"), "FAKE_IMAGE_REF": IMAGE_REF,
         "NODE_BIN": str(inputs["node"]), "NPM_ROOT": str(inputs["npm"]),
-        "PI_ROOT": str(inputs["pi"]), "RUNTIME_INPUTS": str(runtime_manifest(root, inputs)),
+        "PI_ROOT": str(inputs["pi"]), "CLAUDE_BIN": str(inputs["claude"]),
+        "CODEX_ROOT": str(inputs["codex"]),
+        "RUNTIME_INPUTS": str(runtime_manifest(root, inputs)),
         "IMAGE_TAG": "cortex-bench-zero-paid-runtime:test",
     }
 
 
-def test_builder_stages_the_pinned_runtime_and_builds_without_network_or_pull(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("vendor", "version"),
+    (("pi", "0.82.1"), ("claude-code", "2.1.232"), ("codex", "0.117.0")),
+)
+def test_builder_stages_only_the_selected_vendor_and_preflights_offline(
+    tmp_path: Path, vendor: str, version: str,
 ) -> None:
     inputs = fixture_inputs(tmp_path)
     docker = fake_docker(tmp_path)
     environment = explicit_environment(tmp_path, inputs, docker)
+    environment["VENDOR"] = vendor
+    target_input = {"pi": "PI_ROOT", "claude-code": "CLAUDE_BIN", "codex": "CODEX_ROOT"}[vendor]
+    for name in ("PI_ROOT", "CLAUDE_BIN", "CODEX_ROOT"):
+        if name != target_input:
+            environment[name] = "/unavailable-non-target-runtime"
 
     completed = subprocess.run(
         [str(BUILD_SCRIPT)], cwd=HARNESS_DIR, env=environment,
@@ -120,10 +270,40 @@ def test_builder_stages_the_pinned_runtime_and_builds_without_network_or_pull(
 
     invoked = Path(environment["DOCKER_CALLS"]).read_text(encoding="utf-8").splitlines()
     assert any("build --network none --pull=false --provenance=false" in call for call in invoked)
-    assert any(call.startswith("run --rm --network none --pull never") for call in invoked)
+    preflight = next(call for call in invoked if call.startswith("run --rm --network none --pull never"))
+    assert "--mount type=bind" in preflight
+    assert "/tmp/vendor-runtime-preflight.js" in preflight
     assert completed.stdout.splitlines() == [
-        "pi_version=0.82.1", f"image_ref={IMAGE_REF}", f"image_digest={DIGEST}",
+        f"vendor={vendor}", f"vendor_version={version}",
+        f"image_ref={IMAGE_REF}", f"image_digest={DIGEST}",
     ]
+
+
+def test_preflight_requires_cli_isolation_and_one_loopback_request(tmp_path: Path) -> None:
+    binary = executable(
+        tmp_path / "bin/pi",
+        "#!/usr/bin/python3\n"
+        "import json, os, sys, urllib.request\n"
+        "if sys.argv[1:] == ['--version']:\n"
+        "    print('0.82.1')\n"
+        "else:\n"
+        "    root = os.environ['PI_CODING_AGENT_DIR']\n"
+        "    base = json.load(open(root + '/models.json'))['providers']['deepseek']['baseUrl']\n"
+        "    request = urllib.request.Request(base + '/chat/completions', data=b'{\"model\":\"deepseek-chat\"}', headers={'content-type': 'application/json'})\n"
+        "    urllib.request.urlopen(request).read()\n",
+    )
+    environment = {
+        "HOME": str(tmp_path), "PATH": str(binary.parent),
+    }
+
+    completed = subprocess.run(
+        ["/usr/bin/node", str(PREFLIGHT_SCRIPT), "--vendor", "pi", "--cli", str(binary)],
+        env=environment, check=True, capture_output=True, text=True, timeout=30,
+    )
+
+    assert json.loads(completed.stdout) == {
+        "ok": True, "vendor": "pi", "version": "0.82.1", "requests": 1,
+    }
 
 
 def test_builder_resolves_node_npm_and_pi_from_their_executable_symlinks(
@@ -143,7 +323,7 @@ def test_builder_resolves_node_npm_and_pi_from_their_executable_symlinks(
         check=True, capture_output=True, text=True,
     )
 
-    assert completed.stdout.splitlines()[1] == f"image_ref={IMAGE_REF}"
+    assert completed.stdout.splitlines()[2] == f"image_ref={IMAGE_REF}"
 
 
 def test_builder_refuses_a_runtime_whose_digest_differs_from_the_manifest(
@@ -192,13 +372,18 @@ def terminal_bench_manifest(
 ) -> Path:
     source = root / "terminal-bench-source/tasks"
     document = {
-        "schema_version": "cortex-terminal-bench-images/1",
+        "schema_version": "cortex-terminal-bench-images/2",
         "source": {
             "repository": "https://github.com/harbor-framework/terminal-bench-2-1.git",
             "commit": "1" * 40,
         },
         "runtime_inputs": str(runtime_manifest(root, inputs)),
         "build_epoch": 1786481201,
+        "vendors": {
+            "pi": {"version": "0.82.1"},
+            "claude-code": {"version": "2.1.232"},
+            "codex": {"version": "0.117.0"},
+        },
         "verifier": {
             "python_version": "3.12",
             "packages": [{
@@ -214,8 +399,18 @@ def terminal_bench_manifest(
                 "task_id": task_id,
                 "source_image_ref": f"registry.invalid/{task_id}:mutable",
                 "source_image_digest": f"sha256:{index + 3:064x}",
-                "final_image_tag": f"cortex-terminal-bench-2.1:{task_id}-pi-0.82.1",
-                "final_image_digest": f"sha256:{index + 6:064x}",
+                "variants": {
+                    vendor: {
+                        "final_image_tag": (
+                            f"cortex-terminal-bench-2.1:{task_id}-{vendor}-{version}"
+                        ),
+                        "final_image_digest": f"sha256:{index * 3 + vendor_index + 6:064x}",
+                    }
+                    for vendor_index, (vendor, version) in enumerate((
+                        ("pi", "0.82.1"), ("claude-code", "2.1.232"),
+                        ("codex", "0.117.0"),
+                    ))
+                },
                 "source_files": {
                     relative: hashlib.sha256((source / task_id / relative).read_bytes()).hexdigest()
                     for relative in (
@@ -264,14 +459,26 @@ def fake_task_builder_tools(root: Path, source_commit: str) -> Path:
         "if [ \"$1\" = buildx ] && [ \"$2\" = build ]; then\n"
         "  for context do :; done\n"
         "  test -x \"$context/verifier/bin/apt-get\"\n"
+        "  vendor=${context##*/}\n"
+        "  case $vendor in\n"
+        "    pi) test -x \"$context/vendor-runtime/dist/cli.js\";;\n"
+        "    claude-code) test -x \"$context/vendor-runtime/claude\";;\n"
+        "    codex) test -x \"$context/vendor-runtime/bin/codex.js\";;\n"
+        "    *) exit 97;;\n"
+        "  esac\n"
         "  exit 0\n"
         "fi\n"
         "if [ \"$1\" = image ] && [ \"$2\" = inspect ]; then\n"
         "  case \"$*\" in *--format*) :;; *) exit 0;; esac\n"
         "  case \"$*\" in *'{{.Id}}'*) printf '%s\\n' \"${SOURCE_IMAGE_ID:-${3##*@}}\"; exit 0;; esac\n"
         "  case \"$*\" in *'{{json .Config}}'*) printf '%s\\n' '{\"Env\":[\"PATH=/usr/bin\"],\"Volumes\":null}'; exit 0;; esac\n"
-        "  tag=$3; task=${tag#*:}; task=${task%-pi-0.82.1}\n"
-        "  case $task in alpha) n=6;; beta) n=7;; gamma) n=8;; *) exit 98;; esac\n"
+        "  tag=$3; key=${tag#*:}\n"
+        "  case $key in\n"
+        "    alpha-pi-0.82.1) n=6;; alpha-claude-code-2.1.232) n=7;; alpha-codex-0.117.0) n=8;;\n"
+        "    beta-pi-0.82.1) n=9;; beta-claude-code-2.1.232) n=10;; beta-codex-0.117.0) n=11;;\n"
+        "    gamma-pi-0.82.1) n=12;; gamma-claude-code-2.1.232) n=13;; gamma-codex-0.117.0) n=14;;\n"
+        "    *) exit 98;;\n"
+        "  esac\n"
         "  printf '%s@sha256:%064x\\n' \"${tag%%:*}\" \"$n\"; exit 0\n"
         "fi\n"
         "if [ \"$1\" = load ]; then exit 0; fi\n"
@@ -303,7 +510,8 @@ def test_terminal_bench_builder_preserves_authentic_tasks_and_builds_pinned_imag
         "TASKS_DIR": str(tasks_dir), "MANIFEST": str(manifest),
         "WHEELHOUSE": str(wheelhouse),
         "NODE_BIN": str(inputs["node"]), "NPM_ROOT": str(inputs["npm"]),
-        "PI_ROOT": str(inputs["pi"]),
+        "PI_ROOT": str(inputs["pi"]), "CLAUDE_BIN": str(inputs["claude"]),
+        "CODEX_ROOT": str(inputs["codex"]),
         "DOCKER_CALLS": str(tmp_path / "docker-calls.txt"),
     }
 
@@ -316,29 +524,33 @@ def test_terminal_bench_builder_preserves_authentic_tasks_and_builds_pinned_imag
     assert calls.count(
         "1786481201 buildx build --network none --pull=false --no-cache "
         "--provenance=false --build-arg SOURCE_DATE_EPOCH=1786481201"
-    ) == 3
-    assert calls.count("type=oci,name=cortex-terminal-bench-2.1:") == 3
-    assert calls.count("rewrite-timestamp=true") == 3
-    assert calls.count("1786481201 load --input") == 3
-    assert calls.count("1786481201 run --rm --network none --pull never") >= 3
-    for task_id in task_ids:
+    ) == 9
+    assert calls.count("type=oci,name=cortex-terminal-bench-2.1:") == 9
+    assert calls.count("rewrite-timestamp=true") == 9
+    assert calls.count("1786481201 load --input") == 9
+    assert calls.count("1786481201 run --rm --network none --pull never") >= 9
+    for task_index, task_id in enumerate(task_ids):
         original = source / "tasks" / task_id
-        admitted = tasks_dir / task_id
-        assert (admitted / "instruction.md").read_bytes() == (original / "instruction.md").read_bytes()
-        assert (admitted / "tests/test.sh").read_bytes() == (original / "tests/test.sh").read_bytes()
-        assert (admitted / "tests/test_outputs.py").read_bytes() == (
-            original / "tests/test_outputs.py"
-        ).read_bytes()
-        task_config = (admitted / "task.toml").read_text(encoding="utf-8")
-        assert "allow_internet" not in task_config
-        # The imported task declares the widest plan; the campaign's `network` block is what
-        # narrows it, so `allowed_hosts` is dropped entirely rather than emitted empty.
-        assert "network_mode = \"public\"" in task_config
-        assert "allowed_hosts" not in task_config
-        assert f"@sha256:{task_ids.index(task_id) + 6:064x}" in task_config
+        task_documents = []
+        for vendor_index, vendor in enumerate(VENDORS):
+            admitted = tasks_dir / vendor / task_id
+            assert (admitted / "instruction.md").read_bytes() == (original / "instruction.md").read_bytes()
+            assert (admitted / "tests/test.sh").read_bytes() == (original / "tests/test.sh").read_bytes()
+            assert (admitted / "tests/test_outputs.py").read_bytes() == (
+                original / "tests/test_outputs.py"
+            ).read_bytes()
+            task_config = (admitted / "task.toml").read_text(encoding="utf-8")
+            assert "allow_internet" not in task_config
+            assert "network_mode = \"public\"" in task_config
+            assert "allowed_hosts" not in task_config
+            assert f"@sha256:{task_index * 3 + vendor_index + 6:064x}" in task_config
+            task_documents.append(task_config.replace(task_config.split("docker_image = ")[1].splitlines()[0], '"<IMAGE>"'))
+        assert len(set(task_documents)) == 1
     output = json.loads(completed.stdout)
     assert output["ok"] is True
-    assert [task["task_id"] for task in output["tasks"]] == list(task_ids)
+    assert [(variant["task_id"], variant["vendor"]) for variant in output["variants"]] == [
+        (task_id, vendor) for task_id in task_ids for vendor in VENDORS
+    ]
 
 
 def test_terminal_bench_builder_refuses_a_source_image_digest_mismatch(
@@ -363,7 +575,8 @@ def test_terminal_bench_builder_refuses_a_source_image_digest_mismatch(
         "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),
         "WHEELHOUSE": str(wheelhouse),
         "NODE_BIN": str(inputs["node"]), "NPM_ROOT": str(inputs["npm"]),
-        "PI_ROOT": str(inputs["pi"]), "SOURCE_IMAGE_ID": f"sha256:{'f' * 64}",
+        "PI_ROOT": str(inputs["pi"]), "CLAUDE_BIN": str(inputs["claude"]),
+        "CODEX_ROOT": str(inputs["codex"]), "SOURCE_IMAGE_ID": f"sha256:{'f' * 64}",
         "DOCKER_CALLS": str(tmp_path / "docker-calls.txt"),
     }
 
@@ -396,7 +609,9 @@ def test_terminal_bench_builder_refuses_a_missing_pinned_wheel_without_acquire(
         "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),
         "WHEELHOUSE": str(tmp_path / "empty-wheelhouse"),
         "NODE_BIN": str(inputs["node"]), "NPM_ROOT": str(inputs["npm"]),
-        "PI_ROOT": str(inputs["pi"]), "DOCKER_CALLS": str(tmp_path / "docker-calls.txt"),
+        "PI_ROOT": str(inputs["pi"]), "CLAUDE_BIN": str(inputs["claude"]),
+        "CODEX_ROOT": str(inputs["codex"]),
+        "DOCKER_CALLS": str(tmp_path / "docker-calls.txt"),
     }
 
     completed = subprocess.run(

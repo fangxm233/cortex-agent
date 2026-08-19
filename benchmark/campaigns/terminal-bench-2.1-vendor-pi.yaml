@@ -3,9 +3,7 @@
 # pos:    PI vendor-baseline campaign declaration
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
-# This schema-only document proves campaign composition. Do not run it without --dry-run until the
-# PI-specific runtime image and vendor lifecycle land; the current task image pins are placeholders
-# inherited from the Cortex campaign so the parser can validate the complete task set.
+# The image selectors below bind every task to the offline PI-only runtime variant.
 
 schema_version: cortex-bench-campaign/1
 campaign: tb21-vendor-pi
@@ -66,13 +64,13 @@ network:
 
 tasks:
   - task_id: chess-best-move
-    path: tasks/terminal-bench-2.1/chess-best-move
-    image_ref: cortex-terminal-bench-2.1@sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b
+    path: tasks/terminal-bench-2.1/pi/chess-best-move
+    image_ref: cortex-terminal-bench-2.1@sha256:5f16cd3f75c54b22866a823b35e39305155c784886d1db5f894272d89f7cbbed
   - task_id: constraints-scheduling
-    path: tasks/terminal-bench-2.1/constraints-scheduling
-    image_ref: cortex-terminal-bench-2.1@sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c
+    path: tasks/terminal-bench-2.1/pi/constraints-scheduling
+    image_ref: cortex-terminal-bench-2.1@sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353
   - task_id: db-wal-recovery
-    path: tasks/terminal-bench-2.1/db-wal-recovery
-    image_ref: cortex-terminal-bench-2.1@sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a
+    path: tasks/terminal-bench-2.1/pi/db-wal-recovery
+    image_ref: cortex-terminal-bench-2.1@sha256:7199e472b87adc22c356e9a364d453c6f825938de6ab7f6422b787735dbf47f7
 
 comparisons: []

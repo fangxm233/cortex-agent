@@ -1,0 +1,42 @@
+schema_version = "1.1"
+artifacts = []
+
+[task]
+name = "terminal-bench/chess-best-move"
+description = "Evaluates the agent's ability to analyze a chess position from an image, use a chess engine to find the best move(s), and handle multiple valid solutions."
+keywords = ["games"]
+[[task.authors]]
+name = "Nicholas Carlini"
+email = "nicholas@carlini.com"
+
+[metadata]
+author_name = "Nicholas Carlini"
+author_email = "nicholas@carlini.com"
+difficulty = "medium"
+category = "games"
+tags = []
+expert_time_estimate_min = 45.0
+junior_time_estimate_min = 180.0
+
+[verifier]
+timeout_sec = 900.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+build_timeout_sec = 600.0
+docker_image = "cortex-terminal-bench-2.1@sha256:4a8e42fae8518797c628a0da09a2afb518d4723ee040856e21d1a2d12072bec5"
+cpus = 1
+memory_mb = 2048
+storage_mb = 10240
+gpus = 0
+network_mode = "public"
+os = "linux"
+mcp_servers = []
+
+[verifier.env]
+
+[environment.env]
+
+[solution.env]

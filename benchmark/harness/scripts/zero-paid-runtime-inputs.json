@@ -1,5 +1,5 @@
 {
-  "schema_version": "cortex-bench-zero-paid-runtime-inputs/1",
+  "schema_version": "cortex-bench-vendor-runtime-inputs/2",
   "node": {
     "version": "v22.19.0",
     "sha256": "596b5144ff242737f1c1be6a5f0ccb3907dbba2482344143cb1a6898633402a9"
@@ -8,8 +8,28 @@
     "version": "10.9.3",
     "tree_sha256": "8bedb5d7c88e5ca6466963944a826f20bc9ffee3783001366122ab0d918e5af8"
   },
-  "pi": {
-    "version": "0.82.1",
-    "tree_sha256": "6bc5e821c034136ad52ae104fe3bc51f954950bc895ce35abc1e64a25f2375d8"
+  "vendors": {
+    "pi": {
+      "package": "@earendil-works/pi-coding-agent",
+      "version": "0.82.1",
+      "tree_sha256": "6bc5e821c034136ad52ae104fe3bc51f954950bc895ce35abc1e64a25f2375d8"
+    },
+    "claude-code": {
+      "distribution": "native",
+      "platform": "linux-x64",
+      "version": "2.1.232",
+      "sha256": "61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1",
+      "size_bytes": 323021104
+    },
+    "codex": {
+      "package": "@openai/codex",
+      "version": "0.117.0",
+      "npm_integrity": "sha512-UmWo39UCGqFB2ImWwtI/TOnVQ1M2JIbCeDVBzOtG57WuTIPBNvDyluPNrzNv6eAcTYpyDLC5+nT5k49LrzEwow==",
+      "tree_sha256": "1e37021472075411067efe1a0d4690e1f3f1eb4a2872bb86d3a83044dbb17227",
+      "platform_package": "@openai/codex@0.117.0-linux-x64",
+      "platform_npm_integrity": "sha512-kvOZtyLAgFEFSFRJXVzTnFYoZgZya9ttpxDYHR+diBgDBlcBp1B6pRiIGUmCOauxpHtTFUEyisvhKQquZbAtfg==",
+      "native_binary_sha256": "2bee4e33ec222241606e6c5ac3e89a0d3c860fb1684a66e9f134da227b0a2699",
+      "target": "x86_64-unknown-linux-musl"
+    }
   }
 }
