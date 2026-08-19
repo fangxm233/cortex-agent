@@ -1,5 +1,5 @@
 # input:  campaign configs, trial recorder and published envelopes
-# output: routing, terminal outcome, resume and report proofs
+# output: routing, terminal outcome, resume and delivery proofs
 # pos:    Campaign runner behaviour tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -1733,6 +1733,108 @@ def test_the_report_carries_failed_trials_instead_of_silently_dropping_them(
     assert failed_run["outcome_state"] == "harness-incomplete"
     assert failed_run["verifier_rewards"] is None
     assert failed_run["score_status"] == "unavailable"
+
+
+def test_delivery_summary_projects_every_trial_and_sanitizes_host_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    agent_failed = "camp-01-task-one-cortex-b"
+    harness_incomplete = "camp-01-task-two-cortex-a"
+    security_failed = "camp-01-task-two-cortex-b"
+    credential = "fixture-credential-value"
+    private_home = "/home/private-user"
+
+    def mutate(document: dict[str, object]) -> dict[str, object]:
+        if document["identity"]["trial_id"] != security_failed:
+            return document
+        document["leak_scan"] = {
+            "ok": False, "clean": False,
+            "matches": [{"path": f"{private_home}/.secrets/token", "value": credential}],
+            "missing_sources": [], "unclassified_files": [],
+        }
+        document["proxy_usage"]["cached_tokens"] = {
+            "status": "unavailable", "reason": f"read failed at {private_home}",
+        }
+        document["revocation"]["diagnostic_path"] = f"{private_home}/route.json"
+        return document
+
+    recorder = RecordingTrialPath(
+        failures=(harness_incomplete,), envelope_mutation=mutate,
+        spends={harness_incomplete: 2},
+        results={agent_failed: RecordingResult(
+            exception_info=RuntimeError(f"failed under {private_home}"),
+            rewards={"reward": 0.25},
+        )},
+    ).install(monkeypatch)
+    source = campaign_document(tmp_path)
+    source["credential"]["dummy_token_ref"] = credential
+
+    status, public_result, _ = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, source)))
+
+    trials_dir = tmp_path / "trials"
+    persisted_result = json.loads(
+        (trials_dir / "campaign-result.json").read_text(encoding="utf-8"))
+    summary_path = trials_dir / "result-summary.json"
+    summary_text = summary_path.read_text(encoding="utf-8")
+    summary = json.loads(summary_text)
+    assert status == 1
+    assert persisted_result == public_result
+    assert "result_path" not in public_result and "summary_path" not in public_result
+    assert (trials_dir / "comparison-report.json").is_file()
+    assert summary["schema_version"] == "cortex-bench-campaign-result-summary/2"
+    assert [trial["trial_id"] for trial in summary["trials"]] == [
+        "camp-01-task-one-cortex-a", agent_failed, harness_incomplete, security_failed,
+    ]
+    assert [trial["terminal_state"] for trial in summary["trials"]] == [
+        "terminal-success", "terminal-agent-failure", "harness-incomplete", "security-failed",
+    ]
+    assert summary["trials"][1]["verifier_rewards"] == {"reward": 0.25}
+    assert summary["trials"][1]["score_status"] == "available"
+    assert summary["trials"][2]["counters"]["requests"] == {
+        "status": "available", "value": 2,
+    }
+    assert summary["trials"][3]["leak_scan"] == {"ok": False, "clean": False}
+    assert summary["trials"][3]["counters"]["cached_tokens"] == {
+        "status": "unavailable",
+    }
+    assert set(summary) == {"schema_version", "campaign", "trials"}
+    assert set(summary["trials"][0]) == {
+        "trial_id", "task_id", "terminal_state", "score_status", "verifier_rewards",
+        "counters", "leak_scan", "revocation", "cli", "model", "image_digest",
+    }
+    for forbidden in (str(tmp_path), private_home, "private-user", credential):
+        assert forbidden not in summary_text
+
+
+@pytest.mark.parametrize(("vendor_agent", "config_path"), COMMITTED_VENDOR_CONFIGS.items())
+def test_committed_vendor_shapes_persist_all_three_delivery_artifacts(
+    vendor_agent: str, config_path: Path, tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    source["trials_dir"] = str(tmp_path / vendor_agent / "trials")
+    source["campaign"] = f"delivery-{vendor_agent}"
+    config_copy = write_campaign(tmp_path, source)
+    RecordingTrialPath(default_requests=1).install(monkeypatch)
+    monkeypatch.setattr(campaign, "_codex_wave_preflight", lambda *_: None)
+
+    status, result, stderr = run_cli(capsys, "run", "--config", str(config_copy))
+
+    trials_dir = Path(source["trials_dir"])
+    summary = json.loads((trials_dir / "result-summary.json").read_text(encoding="utf-8"))
+    assert (status, stderr) == (0, "")
+    assert json.loads((trials_dir / "campaign-result.json").read_text()) == result
+    assert (trials_dir / "comparison-report.json").is_file()
+    assert len(summary["trials"]) == 3
+    arm = source["arms"][0]
+    assert all(trial["cli"] == {
+        "name": vendor_agent, "version": arm["vendor_cli_version"],
+    } for trial in summary["trials"])
+    assert [trial["model"] for trial in summary["trials"]] == [arm["model"]] * 3
+    assert [trial["image_digest"] for trial in summary["trials"]] == [
+        task["image_ref"].split("@", 1)[1] for task in source["tasks"]
+    ]
 
 
 # --- structured success, failure and dry run ----------------------------------------------------

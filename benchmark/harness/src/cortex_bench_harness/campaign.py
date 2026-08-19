@@ -1,5 +1,5 @@
 # input:  campaign config and host Codex OAuth expiry
-# output: terminal outcomes, verifier rewards and comparison report
+# output: CLI result, comparison report and sanitized summary
 # pos:    Public campaign runner
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -55,6 +55,11 @@ from .launcher.credential_capabilities import (
 from .launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN_GRACE_MS
 from .launcher.trial_admission import create_harbor_trial
 from .proxy.adapters.openai_codex_responses import extract_access_expiry_ms
+from .result_summary import (
+    RESULT_SUMMARY_FILENAME,
+    build_result_summary,
+    render_result_summary,
+)
 from .outcome import (
     HARNESS_INCOMPLETE,
     SCORE_UNAVAILABLE,
@@ -64,6 +69,7 @@ from .outcome import (
 )
 
 CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/5"
+CAMPAIGN_RESULT_FILENAME = "campaign-result.json"
 COMPARISON_REPORT_FILENAME = "comparison-report.json"
 PROXY_EXPORT_FILENAME = "proxy-export.json"
 STATE_COMPLETED = "completed"
@@ -247,6 +253,7 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
     }
     if fault is not None:
         document["fault"] = str(fault)
+    _write_delivery_artifacts(config, outcomes, document)
     return document
 
 
@@ -689,6 +696,22 @@ def _dry_run_document(
     }
 
 
+def _write_delivery_artifacts(
+    config: CampaignConfig, outcomes: Sequence[TrialOutcome],
+    document: Mapping[str, object],
+) -> None:
+    config.trials_dir.mkdir(parents=True, exist_ok=True)
+    (config.trials_dir / CAMPAIGN_RESULT_FILENAME).write_text(
+        _render_public_result(document), encoding="utf-8")
+    summary = build_result_summary(config, outcomes)
+    (config.trials_dir / RESULT_SUMMARY_FILENAME).write_text(
+        render_result_summary(summary), encoding="utf-8")
+
+
+def _render_public_result(document: Mapping[str, object]) -> str:
+    return json.dumps(document, sort_keys=True) + "\n"
+
+
 def _timestamp() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
@@ -716,5 +739,5 @@ def _emit(document: Mapping[str, object]) -> int:
 
     Only the exit code says the campaign did not complete.
     """
-    print(json.dumps(document, sort_keys=True), flush=True)
+    print(_render_public_result(document), end="", flush=True)
     return 0 if document.get("ok") else 1
