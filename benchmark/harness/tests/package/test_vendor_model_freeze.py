@@ -31,7 +31,6 @@ from vendor_wire_capture import text_events, tool_events
 HARNESS_DIR = Path(__file__).resolve().parents[2]
 CAMPAIGN_DIR = HARNESS_DIR.parent / "campaigns"
 ISOLATED_ENV = "CORTEX_VENDOR_MODEL_FREEZE_ISOLATED"
-VERSIONS = {"pi": "0.82.1", "claude-code": "2.1.232", "codex": "0.117.0"}
 COMMANDS = {"pi": "pi", "claude-code": "claude", "codex": "codex"}
 MISMATCH_MODELS = {
     "pi": "deepseek-model-not-declared",
@@ -75,13 +74,29 @@ def real_cli(vendor: str) -> Path:
     completed = subprocess.run(
         [str(binary), "--version"], capture_output=True, text=True, timeout=10,
     )
-    expected = VERSIONS[vendor]
+    expected = str(arm(vendor)["vendor_cli_version"])
     if vendor == "claude-code":
         expected = f"{expected} (Claude Code)"
     elif vendor == "codex":
         expected = f"codex-cli {expected}"
     assert completed.returncode == 0 and completed.stdout.strip() == expected
     return binary
+
+
+def test_real_cli_version_check_uses_the_campaign_pin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binary = tmp_path / "pi"
+    binary.touch()
+    completed = subprocess.CompletedProcess([str(binary), "--version"], 0, "0.82.1\n", "")
+    monkeypatch.setattr(shutil, "which", lambda _command: str(binary))
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: completed)
+    monkeypatch.setattr(
+        sys.modules[__name__], "arm", lambda _vendor: {"vendor_cli_version": "9.9.9"},
+    )
+
+    with pytest.raises(AssertionError):
+        real_cli("pi")
 
 
 def sse(events: list[dict[str, object]]) -> bytes:
