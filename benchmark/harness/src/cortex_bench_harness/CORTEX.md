@@ -13,7 +13,7 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | cwd.py | core | Resolves the live container workdir |
 | manifest.py | core | Records artifacts and the installed CLI version |
 | harbor_agent.py | adapter | Bootstraps production and finalizes after stop |
-| host_finalization.py | boundary | Collects, scans and publishes trial evidence |
+| host_finalization.py | boundary | Collects and publishes Cortex/vendor trial evidence |
 | outcome.py | boundary | Classifies Harbor results and canonical verifier rewards |
 | launcher/ | core | Selects arms and builds non-secret Harbor inputs |
 | proxy/ | network | Injects credentials through a bounded trial route |

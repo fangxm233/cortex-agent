@@ -1,9 +1,10 @@
 # input:  host finalizer fixtures, roots, proxy revocation
-# output: outer-envelope collection and leak-scan assertions
+# output: Cortex/vendor envelope and fail-closed assertions
 # pos:    Host finalization recording tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
+import gzip
 import hashlib
 import io
 import json
@@ -54,6 +55,7 @@ from cortex_bench_harness.launcher.trial_proxy import (
     TrialRevocation,
 )
 from cortex_bench_harness.manifest import MANIFEST_FILENAME, SCHEMA_VERSION
+from cortex_bench_harness.outcome import TrialOutcomeReader
 from cortex_bench_harness.proxy.lease import LEASE_ECHO_SCHEMA_VERSION, LEASE_ECHO_TARGET
 from cortex_bench_harness.scan import ScanPolicy
 from capability_admission import admit_every_capability
@@ -150,6 +152,17 @@ def write_npm_artifact(path: Path, members: Mapping[str, bytes] | None = None) -
             info = tarfile.TarInfo(f"package/{relative}")
             info.size = len(payload)
             tar.addfile(info, io.BytesIO(payload))
+
+
+def write_deterministic_npm_artifact(
+    path: Path, members: Mapping[str, bytes] | None = None,
+) -> None:
+    with path.open("wb") as output, gzip.GzipFile(fileobj=output, mode="wb", mtime=0) as zipped:
+        with tarfile.open(fileobj=zipped, mode="w") as tar:
+            for relative, payload in sorted((members or bundle_members()).items()):
+                info = tarfile.TarInfo(f"package/{relative}")
+                info.size = len(payload)
+                tar.addfile(info, io.BytesIO(payload))
 
 
 def sha256_hex(payload: bytes) -> str:
@@ -1038,6 +1051,19 @@ def production_arm() -> dict[str, object]:
     }
 
 
+def vendor_arm() -> dict[str, object]:
+    return {
+        "schema_version": "cortex-benchmark-arm/2", "kind": "vendor-baseline",
+        "name": "pi-vendor", "vendor_agent": "pi", "vendor_cli_version": "0.82.1",
+        "provider": "deepseek", "model": "deepseek-v4-flash",
+        "credential_capability": "pi-deepseek-api-key",
+        "limits": {
+            "max_provider_requests": 8, "max_cost_usd": "2.50",
+            "deadline_seconds": 90, "max_output_tokens": 65536,
+        },
+    }
+
+
 def production_arm_for(bundle: ProductionArmBundle) -> dict[str, object]:
     arm = production_arm()
     arm["orchestration"] = dict(bundle.orchestration)
@@ -1108,6 +1134,48 @@ def finalize_production_trial(
     return json.loads(result.path.read_bytes()), materialized
 
 
+def finalize_vendor_trial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    *, revocation_failure: str | None = None,
+) -> Mapping[str, object]:
+    logs_dir = tmp_path / "agent"
+    verifier_dir = tmp_path / "verifier"
+    artifact_dir = tmp_path / "artifacts"
+    logs_dir.mkdir()
+    verifier_dir.mkdir()
+    (logs_dir / "instruction.md").write_text("Solve the task.\n", encoding="utf-8")
+    write_json(artifact_dir / MANIFEST_FILENAME, {
+        "schema_version": SCHEMA_VERSION, "trial_id": TRIAL_ID,
+        "root_run_id": ROOT_RUN_ID, "arm": "pi-vendor",
+        "container": {"image_ref": f"task@{DIGEST}", "image_digest": DIGEST},
+    })
+    write_json(artifact_dir / ADMISSION_EVIDENCE_FILENAME, admission_evidence())
+    write_json(
+        artifact_dir / finalization.CONTAINER_BOUNDARY_ATTESTATION_FILENAME,
+        container_boundary_observation().document(TRIAL_ID),
+    )
+    revocation = production_proxy_outputs(artifact_dir)
+    if revocation_failure is not None:
+        field, value = (
+            ("listener_present", True) if revocation_failure == "active"
+            else ("trial_id", "foreign-trial")
+        )
+        revocation = TrialRevocation(
+            revocation.inventory, revocation.export_path, revocation.lease_echo_path,
+            {**revocation.revocation, field: value},
+        )
+    monkeypatch.setattr(finalization.socket, "gethostname", lambda: "fixture-host")
+    result = finalize_host_trial(
+        logs_dir=logs_dir, verifier_dir=verifier_dir, artifact_dir=artifact_dir,
+        root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=vendor_arm(),
+        revocation=revocation, scan_policy=production_scan_policy(),
+        container_logs_dir=Path("/logs/agent"),
+        task={"task_id": "terminal-task", "image_ref": f"task@{DIGEST}",
+              "image_digest": DIGEST},
+    )
+    return json.loads(result.path.read_bytes())
+
+
 @pytest.mark.parametrize("bundle", PRODUCTION_ARM_BUNDLES, ids=lambda item: item.key)
 def test_the_production_layout_records_through_the_same_collect_and_record_path(
     tmp_path: Path, bundle: ProductionArmBundle,
@@ -1143,6 +1211,82 @@ def test_production_auth_container_alias_scans_clean(tmp_path: Path) -> None:
     )]["kind"] == "file"
     assert envelope["leak_scan"]["unclassified_files"] == []
     assert envelope["leak_scan"]["clean"] is True
+
+
+def test_the_cortex_envelope_bytes_match_the_pre_vendor_baseline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(globals(), "write_npm_artifact", write_deterministic_npm_artifact)
+    finalize_production_trial(tmp_path, production_arm_bundle("direct-pi-deepseek"))
+
+    assert sha256_hex(envelope_path(tmp_path).read_bytes()) == (
+        "0c31100174176263ef12e345700709fd5da9d9be0f049b16fe7d5a23da6d36af"
+    )
+
+
+def test_vendor_uses_the_shared_envelope_with_explicit_cortex_unavailability(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    envelope = finalize_vendor_trial(tmp_path, monkeypatch)
+
+    assert envelope["identity"] == {
+        "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID,
+        "arm_name": "pi-vendor", "arm_kind": "vendor-baseline",
+    }
+    assert envelope["task"] == {
+        "task_id": "terminal-task", "image_ref": f"task@{DIGEST}",
+        "image_digest": DIGEST,
+    }
+    assert envelope["launch"]["image"] == {
+        "reference": f"task@{DIGEST}", "digest": DIGEST, "pinned": True,
+    }
+    assert envelope["launch"]["container_exit"]["status"] == "exited"
+    marker = unavailable("not_applicable_to_vendor")
+    assert envelope["launch"]["npm_artifact"] == marker
+    assert envelope["launch"]["arm_bundle"] == marker
+    assert envelope["launch"]["config_bundle"] == marker
+    assert envelope["assets"] == marker
+    assert envelope["telemetry"] == marker
+    assert envelope["leak_scan"]["clean"] is True
+    assert envelope["revocation"]["listener_present"] is False
+    assert ("agent", "instruction.md") in recorded_files(envelope)
+    write_json(tmp_path / "result.json", {
+        "verifier_result": {"rewards": {"reward": 0.0}},
+    })
+    outcome = TrialOutcomeReader(
+        trial_id=TRIAL_ID, arm_name="pi-vendor", trial_root=tmp_path,
+    ).read()
+    assert outcome.outcome_state == "terminal-success"
+    assert outcome.verifier_rewards == {"reward": 0.0}
+
+
+@pytest.mark.parametrize(
+    "failure", ["scan-dirty", "scan-incomplete", "revocation-active",
+                "revocation-foreign", "harness"],
+)
+def test_vendor_security_or_harness_failure_publishes_no_gradable_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:
+    if failure.startswith("scan"):
+        clean = failure == "scan-incomplete"
+        monkeypatch.setattr(finalization, "_scan_collected", lambda *_args: {
+            "ok": True, "clean": clean, "matches": [], "missing_sources": [],
+            "unclassified_files": ["collected:0000"] if clean else [],
+        })
+    elif failure == "harness":
+        def fail_collection(*_args: object) -> object:
+            raise HostFinalizationError("trial_output_collection_failed")
+        monkeypatch.setattr(finalization, "_collect_and_scan", fail_collection)
+
+    with pytest.raises(HostFinalizationError):
+        revocation_failure = (
+            failure.removeprefix("revocation-") if failure.startswith("revocation-") else None
+        )
+        finalize_vendor_trial(
+            tmp_path, monkeypatch, revocation_failure=revocation_failure,
+        )
+
+    assert not envelope_path(tmp_path).exists()
 
 
 def test_a_coder_review_trial_never_records_the_direct_arm_bundle(tmp_path: Path) -> None:
