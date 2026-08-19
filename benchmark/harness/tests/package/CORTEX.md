@@ -13,5 +13,5 @@ Package tests cover build reproducibility and the production Harbor wrapper.
 | test_harbor_agent.py | test | Verifies production Harbor lifecycle |
 | test_manifest.py | test | Verifies harness manifest records |
 | test_pi_vendor_wire.py | test | Verifies the real PI loopback wire fixture |
-| test_runtime_image_builder.py | test | Verifies offline runtime image builds |
+| test_runtime_image_builder.py | test | Verifies nine isolated offline vendor images |
 | test_synthetic_deepseek.py | test | Verifies synthetic DeepSeek turns |

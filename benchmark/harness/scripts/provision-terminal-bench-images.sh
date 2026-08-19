@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# input:  pinned Terminal-Bench sources and local Node/npm/PI inputs
-# output: authentic admitted tasks and immutable local runtime images
-# pos:    Provisions pull-disabled Terminal-Bench 2.1 task images
+# input:  pinned Terminal-Bench sources and three local vendor runtimes
+# output: authentic tasks and nine immutable single-vendor images
+# pos:    Provisions pull-disabled Terminal-Bench 2.1 variants
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 set -euo pipefail
@@ -14,36 +14,44 @@ TASKS_DIR="${TASKS_DIR:-$REPOSITORY_ROOT/benchmark/campaigns/tasks/terminal-benc
 SOURCE_DIR="${SOURCE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/cortex-bench/terminal-bench-2.1}"
 BUILD_ROOT="$(mktemp -d)"
 WHEELHOUSE="${WHEELHOUSE:-${XDG_CACHE_HOME:-$HOME/.cache}/cortex-bench/verifier-wheels}"
+PREFLIGHT_SCRIPT="$SCRIPT_DIR/vendor-runtime-preflight.js"
 ACQUIRE=0
+CAPTURE_DIGESTS=0
+VENDORS=(pi claude-code codex)
 
 cleanup() {
   rm -r "$BUILD_ROOT"
 }
 trap cleanup EXIT
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+usage() {
   cat <<'EOF'
-Usage: provision-terminal-bench-images.sh
+Usage: provision-terminal-bench-images.sh [--acquire] [--capture-digests]
 
-Provision every task declared in terminal-bench-2.1-images.json. The command
-acquires only digest-pinned base images, emits admitted task directories, and
-prints a JSON result containing immutable final image references.
+Provision every task/vendor variant declared in terminal-bench-2.1-images.json.
+The command builds with no network or pull and prints immutable image references.
 
 Options:
-  --acquire   Fetch missing pinned sources, images, and verifier wheels.
-  -h, --help  Show this help.
+  --acquire          Fetch missing pinned sources, images, and verifier wheels.
+  --capture-digests  Bootstrap newly declared image digests without accepting them.
+  -h, --help         Show this help.
 
 Examples:
   benchmark/harness/scripts/provision-terminal-bench-images.sh
   benchmark/harness/scripts/provision-terminal-bench-images.sh --acquire
+  benchmark/harness/scripts/provision-terminal-bench-images.sh --capture-digests
 EOF
-  exit 0
-fi
-if [[ "${1:-}" == "--acquire" ]]; then ACQUIRE=1; shift; fi
-if [[ $# -ne 0 ]]; then
-  printf 'unknown argument: %s (valid options: --acquire, --help, -h)\n' "$1" >&2
-  exit 2
-fi
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --acquire) ACQUIRE=1 ;;
+    --capture-digests) CAPTURE_DIGESTS=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) printf 'unknown argument: %s (valid options: --acquire, --capture-digests, --help, -h)\n' "$1" >&2; exit 2 ;;
+  esac
+  shift
+done
 
 manifest() {
   node -e 'const v=require(process.argv[1]); console.log(JSON.stringify(eval(`v.${process.argv[2]}`)))' \
@@ -57,6 +65,11 @@ json_text() {
 resolve_input() {
   node -e 'const p=require("path"); console.log(p.resolve(p.dirname(process.argv[1]), process.argv[2]))' \
     "$MANIFEST" "$1"
+}
+
+runtime_field() {
+  node -e 'console.log(require(process.argv[1]).vendors[process.argv[2]][process.argv[3]])' \
+    "$RUNTIME_INPUTS" "$1" "$2"
 }
 
 require_file() {
@@ -90,27 +103,84 @@ acquire_source() {
   verify 'Terminal-Bench source commit' "$(git -C "$SOURCE_DIR" rev-parse HEAD)" "$commit"
 }
 
-stage_runtime() {
-  local runtime_inputs="$1" node_bin npm_root pi_root
+stage_node() {
+  local node_bin npm_root
   node_bin="${NODE_BIN:-$(readlink -f "$(command -v node)")}"
   npm_root="${NPM_ROOT:-$(dirname "$(dirname "$(readlink -f "$(command -v npm)")")")}"
-  pi_root="${PI_ROOT:-$(dirname "$(dirname "$(readlink -f "$(command -v pi)")")")}"
-  require_file "$node_bin"; require_file "$npm_root/package.json"; require_file "$pi_root/package.json"
-  verify 'node version' "$($node_bin --version)" "$(node -p 'require(process.argv[1]).node.version' "$runtime_inputs")"
-  verify 'node sha256' "$(sha256sum "$node_bin" | cut -d' ' -f1)" "$(node -p 'require(process.argv[1]).node.sha256' "$runtime_inputs")"
-  verify 'npm tree sha256' "$(tree_sha256 "$npm_root")" "$(node -p 'require(process.argv[1]).npm.tree_sha256' "$runtime_inputs")"
-  verify 'PI version' "$(node -p 'require(process.argv[1]).version' "$pi_root/package.json")" '0.82.1'
-  verify 'PI tree sha256' "$(tree_sha256 "$pi_root")" "$(node -p 'require(process.argv[1]).pi.tree_sha256' "$runtime_inputs")"
-  mkdir -p "$BUILD_ROOT/runtime/node/bin" "$BUILD_ROOT/runtime/node/lib/node_modules"
+  require_file "$node_bin"; require_file "$npm_root/package.json"
+  verify 'node version' "$($node_bin --version)" "$(node -p 'require(process.argv[1]).node.version' "$RUNTIME_INPUTS")"
+  verify 'node sha256' "$(sha256sum "$node_bin" | cut -d' ' -f1)" \
+    "$(node -p 'require(process.argv[1]).node.sha256' "$RUNTIME_INPUTS")"
+  verify 'npm tree sha256' "$(tree_sha256 "$npm_root")" \
+    "$(node -p 'require(process.argv[1]).npm.tree_sha256' "$RUNTIME_INPUTS")"
+  mkdir -p "$BUILD_ROOT/runtime/node/bin"
   install -m 0755 "$node_bin" "$BUILD_ROOT/runtime/node/bin/node"
-  cp -a "$npm_root" "$BUILD_ROOT/runtime/node/lib/node_modules/npm"
-  ln -s ../lib/node_modules/npm/bin/npm-cli.js "$BUILD_ROOT/runtime/node/bin/npm"
-  cp -a "$pi_root" "$BUILD_ROOT/runtime/pi-agent"
+}
+
+stage_pi() {
+  local root
+  root="${PI_ROOT:-$(dirname "$(dirname "$(readlink -f "$(command -v pi)")")")}"
+  require_file "$root/package.json"; require_file "$root/dist/cli.js"
+  verify 'PI package' "$(node -p 'require(process.argv[1]).name' "$root/package.json")" \
+    '@earendil-works/pi-coding-agent'
+  verify 'PI package pin' "$(runtime_field pi package)" '@earendil-works/pi-coding-agent'
+  verify 'PI version' "$(node -p 'require(process.argv[1]).version' "$root/package.json")" \
+    "$(runtime_field pi version)"
+  verify 'PI tree sha256' "$(tree_sha256 "$root")" "$(runtime_field pi tree_sha256)"
+  cp -a "$root" "$BUILD_ROOT/runtime/vendors/pi"
+}
+
+stage_claude() {
+  local binary
+  binary="${CLAUDE_BIN:-$(readlink -f "$(command -v claude)")}"
+  require_file "$binary"
+  verify 'Claude platform' "$(runtime_field claude-code platform)" 'linux-x64'
+  verify 'Claude sha256' "$(sha256sum "$binary" | cut -d' ' -f1)" \
+    "$(runtime_field claude-code sha256)"
+  verify 'Claude size' "$(stat -c '%s' "$binary")" "$(runtime_field claude-code size_bytes)"
+  verify 'Claude version' "$($binary --version)" \
+    "$(runtime_field claude-code version) (Claude Code)"
+  mkdir -p "$BUILD_ROOT/runtime/vendors/claude-code"
+  install -m 0755 "$binary" "$BUILD_ROOT/runtime/vendors/claude-code/claude"
+}
+
+stage_codex() {
+  local root platform native
+  root="${CODEX_ROOT:-$(dirname "$(dirname "$(readlink -f "$(command -v codex)")")")}"
+  platform="$root/node_modules/@openai/codex-linux-x64/package.json"
+  native="$root/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex/codex"
+  require_file "$root/package.json"; require_file "$root/bin/codex.js"
+  require_file "$platform"; require_file "$native"
+  verify 'Codex package' "$(node -p 'require(process.argv[1]).name' "$root/package.json")" \
+    "$(runtime_field codex package)"
+  verify 'Codex version' "$(node -p 'require(process.argv[1]).version' "$root/package.json")" \
+    "$(runtime_field codex version)"
+  verify 'Codex tree sha256' "$(tree_sha256 "$root")" "$(runtime_field codex tree_sha256)"
+  verify 'Codex platform package' \
+    "$(node -e 'const p=require(process.argv[1]); console.log(`${p.name}@${p.version}`)' "$platform")" \
+    "$(runtime_field codex platform_package)"
+  verify 'Codex native sha256' "$(sha256sum "$native" | cut -d' ' -f1)" \
+    "$(runtime_field codex native_binary_sha256)"
+  cp -a "$root" "$BUILD_ROOT/runtime/vendors/codex"
+}
+
+stage_runtimes() {
+  verify 'runtime schema' "$(node -p 'require(process.argv[1]).schema_version' "$RUNTIME_INPUTS")" \
+    'cortex-bench-vendor-runtime-inputs/2'
+  stage_node
+  mkdir -p "$BUILD_ROOT/runtime/vendors"
+  stage_pi
+  stage_claude
+  stage_codex
+  for vendor in "${VENDORS[@]}"; do
+    verify "$vendor manifest version" "$(json_text "vendors['$vendor'].version")" \
+      "$(runtime_field "$vendor" version)"
+  done
 }
 
 stage_verifier() {
-  local python_version tree expected wheel requirement
-  local -a requirements=()
+  local python_version tree expected wheel requirement record
+  local -a requirements=() wheels=()
   python_version="$(json_text 'verifier.python_version')"
   tree="$BUILD_ROOT/runtime/verifier/site-packages"
   mkdir -p "$tree"
@@ -138,14 +208,7 @@ stage_verifier() {
 write_verifier_wrappers() {
   local bin="$BUILD_ROOT/runtime/verifier/bin"
   mkdir -p "$bin"
-  write_uvx_wrapper "$bin/uvx"
-  write_apt_wrapper "$bin/apt-get"
-  write_curl_wrapper "$bin/curl"
-  chmod 0755 "$bin/apt-get" "$bin/uvx" "$bin/curl"
-}
-
-write_uvx_wrapper() {
-  cat > "$1" <<'EOF'
+  cat > "$bin/uvx" <<'EOF'
 #!/bin/sh
 set -eu
 while [ "$#" -gt 0 ]; do
@@ -156,10 +219,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 EOF
-}
-
-write_apt_wrapper() {
-  cat > "$1" <<'EOF'
+  cat > "$bin/apt-get" <<'EOF'
 #!/bin/sh
 case "${1:-}" in
   update) exit 0 ;;
@@ -168,22 +228,18 @@ esac
 printf 'offline apt-get supports only update and install -y curl\n' >&2
 exit 2
 EOF
-}
-
-write_curl_wrapper() {
-  cat > "$1" <<'EOF'
+  cat > "$bin/curl" <<'EOF'
 #!/bin/sh
 case "$*" in
   *https://astral.sh/uv/0.9.5/install.sh*)
-    cat <<'INSTALL'
-mkdir -p "$HOME/.local/bin"
-ln -sf /opt/terminal-bench-verifier/bin/uvx "$HOME/.local/bin/uvx"
-printf 'export PATH="%s/.local/bin:$PATH"\n' "$HOME" > "$HOME/.local/bin/env"
-INSTALL
+    printf '%s\n' 'mkdir -p "$HOME/.local/bin"' \
+      'ln -sf /opt/terminal-bench-verifier/bin/uvx "$HOME/.local/bin/uvx"' \
+      'printf '\''export PATH="%s/.local/bin:$PATH"\\n'\'' "$HOME" > "$HOME/.local/bin/env"'
     ;;
   *) printf 'network curl is unavailable in the offline trial\n' >&2; exit 22 ;;
 esac
 EOF
+  chmod 0755 "$bin/apt-get" "$bin/uvx" "$bin/curl"
 }
 
 verify_source_file() {
@@ -194,8 +250,9 @@ verify_source_file() {
 }
 
 stage_task_directory() {
-  local task_id="$1" image_ref="$2" source_task="$SOURCE_DIR/tasks/$task_id" target
-  target="$TASKS_DIR/$task_id"
+  local task_id="$1" vendor="$2" image_ref="$3" source_task target
+  source_task="$SOURCE_DIR/tasks/$task_id"
+  target="$TASKS_DIR/$vendor/$task_id"
   mkdir -p "$target/tests"
   install -m 0644 "$source_task/instruction.md" "$target/instruction.md"
   install -m 0755 "$source_task/tests/test.sh" "$target/tests/test.sh"
@@ -205,10 +262,6 @@ stage_task_directory() {
     /^allow_internet = / { print "network_mode = \"public\"\nos = \"linux\""; next }
     { print }
   ' "$source_task/task.toml" > "$target/task.toml"
-}
-
-normalize_context() {
-  find "$BUILD_ROOT/runtime" -exec touch -h -d '1980-01-01T00:00:00Z' {} +
 }
 
 source_image_ref() {
@@ -227,22 +280,36 @@ ensure_source_image() {
   verify 'source image digest' "$actual" "$expected_digest"
 }
 
+vendor_target() {
+  case "$1" in
+    pi) printf /opt/vendor-runtime/dist/cli.js ;;
+    claude-code) printf /opt/vendor-runtime/claude ;;
+    codex) printf /opt/vendor-runtime/bin/codex.js ;;
+  esac
+}
+
+vendor_command() {
+  case "$1" in pi) printf pi;; claude-code) printf claude;; codex) printf codex;; esac
+}
+
 write_dockerfile() {
-  local source_image="$1" context="$2"
+  local source_image="$1" vendor="$2" context="$3" command target
+  command="$(vendor_command "$vendor")"; target="$(vendor_target "$vendor")"
   mkdir -p "$context"
-  cp -a "$BUILD_ROOT/runtime/." "$context/"
+  cp -a "$BUILD_ROOT/runtime/node" "$context/node"
+  cp -a "$BUILD_ROOT/runtime/verifier" "$context/verifier"
+  cp -a "$BUILD_ROOT/runtime/vendors/$vendor" "$context/vendor-runtime"
   cat > "$context/Dockerfile" <<EOF
 FROM $source_image
 ARG SOURCE_DATE_EPOCH
 COPY node /opt/node
-COPY pi-agent /opt/pi-agent
 COPY verifier /opt/terminal-bench-verifier
+COPY vendor-runtime /opt/vendor-runtime
 RUN ln -s /opt/node/bin/node /usr/local/bin/node \\
- && ln -s /opt/node/bin/npm /usr/local/bin/npm \\
- && ln -s /opt/pi-agent/dist/cli.js /usr/local/bin/pi \\
+ && ln -s $target /usr/local/bin/$command \\
  && ln -s /opt/terminal-bench-verifier/bin/apt-get /usr/local/bin/apt-get \\
  && ln -s /opt/terminal-bench-verifier/bin/curl /usr/local/bin/curl \\
- && chmod +x /opt/pi-agent/dist/cli.js
+ && chmod +x $target
 EOF
   find "$context" -exec touch -h -d '1980-01-01T00:00:00Z' {} +
 }
@@ -250,7 +317,9 @@ EOF
 inspect_final_image() {
   local image_tag="$1" expected_digest="$2" image_ref config
   image_ref="$(docker image inspect "$image_tag" --format '{{index .RepoDigests 0}}')"
-  verify "$image_tag digest" "${image_ref##*@}" "$expected_digest"
+  if [[ "$CAPTURE_DIGESTS" == 0 ]]; then
+    verify "$image_tag digest" "${image_ref##*@}" "$expected_digest"
+  fi
   config="$(docker image inspect "$image_ref" --format '{{json .Config}}')"
   node -e '
     const c=JSON.parse(process.argv[1]);
@@ -262,37 +331,43 @@ inspect_final_image() {
 }
 
 runtime_preflight() {
-  local image_ref="$1"
-  docker run --rm --network none --pull never --entrypoint /bin/sh "$image_ref" -lc \
-    'node --version >/dev/null && npm --version >/dev/null && test "$(pi --version)" = 0.82.1 && python3 -c "import sys; sys.path.insert(0, \"/opt/terminal-bench-verifier/site-packages\"); import pytest"'
+  local vendor="$1" image_ref="$2" command
+  command="$(vendor_command "$vendor")"
+  docker run --rm --network none --pull never \
+    --mount "type=bind,src=$PREFLIGHT_SCRIPT,dst=/tmp/vendor-runtime-preflight.js,ro" \
+    --entrypoint /opt/node/bin/node "$image_ref" /tmp/vendor-runtime-preflight.js \
+    --vendor "$vendor" --cli "/usr/local/bin/$command" >/dev/null
 }
 
-build_task() {
-  local index="$1" task_id source_ref image_tag expected_digest context image_ref
+build_variant() {
+  local index="$1" vendor="$2" task_id source_ref image_tag expected context archive image_ref
   task_id="$(node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].task_id)' "$MANIFEST" "$index")"
   source_ref="$(source_image_ref "$index")"
-  image_tag="$(node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].final_image_tag)' "$MANIFEST" "$index")"
-  expected_digest="$(node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].final_image_digest)' "$MANIFEST" "$index")"
-  ensure_source_image "$source_ref"
-  context="$BUILD_ROOT/$task_id"
-  write_dockerfile "$source_ref" "$context"
-  local archive="$BUILD_ROOT/$task_id.tar"
+  image_tag="$(node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].variants[process.argv[3]].final_image_tag)' "$MANIFEST" "$index" "$vendor")"
+  expected="$(node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].variants[process.argv[3]].final_image_digest)' "$MANIFEST" "$index" "$vendor")"
+  context="$BUILD_ROOT/build/$task_id/$vendor"
+  write_dockerfile "$source_ref" "$vendor" "$context"
+  archive="$BUILD_ROOT/$task_id-$vendor.tar"
   docker buildx build --network none --pull=false --no-cache --provenance=false \
     --build-arg "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH" \
     --output "type=oci,name=$image_tag,dest=$archive,rewrite-timestamp=true" \
     "$context" >/dev/null
   docker load --input "$archive" >/dev/null
-  image_ref="$(inspect_final_image "$image_tag" "$expected_digest")"
-  runtime_preflight "$image_ref"
-  stage_task_directory "$task_id" "$image_ref"
-  printf '{"task_id":%s,"task_path":%s,"image_ref":%s}' \
-    "$(printf '%s' "$task_id" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.stringify(s)))')" \
-    "$(printf '%s' "$TASKS_DIR/$task_id" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.stringify(s)))')" \
-    "$(printf '%s' "$image_ref" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.stringify(s)))')"
+  image_ref="$(inspect_final_image "$image_tag" "$expected")"
+  runtime_preflight "$vendor" "$image_ref"
+  stage_task_directory "$task_id" "$vendor" "$image_ref"
+  printf '{"task_id":%s,"vendor":%s,"task_path":%s,"image_ref":%s}' \
+    "$(json_string "$task_id")" "$(json_string "$vendor")" \
+    "$(json_string "$TASKS_DIR/$vendor/$task_id")" "$(json_string "$image_ref")"
+}
+
+json_string() {
+  printf '%s' "$1" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.stringify(s)))'
 }
 
 require_file "$MANIFEST"
-verify 'manifest schema' "$(json_text 'schema_version')" 'cortex-terminal-bench-images/1'
+require_file "$PREFLIGHT_SCRIPT"
+verify 'manifest schema' "$(json_text 'schema_version')" 'cortex-terminal-bench-images/2'
 SOURCE_REPOSITORY="$(json_text 'source.repository')"
 SOURCE_COMMIT="$(json_text 'source.commit')"
 SOURCE_DATE_EPOCH="$(json_text 'build_epoch')"
@@ -300,9 +375,9 @@ export SOURCE_DATE_EPOCH
 acquire_source "$SOURCE_REPOSITORY" "$SOURCE_COMMIT"
 RUNTIME_INPUTS="$(resolve_input "$(json_text 'runtime_inputs')")"
 require_file "$RUNTIME_INPUTS"
-stage_runtime "$RUNTIME_INPUTS"
+stage_runtimes
 stage_verifier
-normalize_context
+find "$BUILD_ROOT/runtime" -exec touch -h -d '1980-01-01T00:00:00Z' {} +
 mkdir -p "$TASKS_DIR"
 TASK_COUNT="$(node -p 'require(process.argv[1]).tasks.length' "$MANIFEST")"
 RESULTS=()
@@ -310,9 +385,11 @@ for ((index = 0; index < TASK_COUNT; index++)); do
   task_id="$(node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].task_id)' "$MANIFEST" "$index")"
   while IFS=$'\t' read -r relative digest; do verify_source_file "$task_id" "$relative" "$digest"; done \
     < <(node -e 'const t=require(process.argv[1]).tasks[+process.argv[2]]; for(const [p,h] of Object.entries(t.source_files)) console.log(`${p}\t${h}`)' "$MANIFEST" "$index")
-  RESULTS+=("$(build_task "$index")")
+  source_ref="$(source_image_ref "$index")"
+  ensure_source_image "$source_ref"
+  for vendor in "${VENDORS[@]}"; do RESULTS+=("$(build_variant "$index" "$vendor")"); done
 done
-printf '{"ok":true,"source_commit":%s,"tasks":[' "$(printf '%s' "$SOURCE_COMMIT" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.stringify(s)))')"
+printf '{"ok":true,"source_commit":%s,"variants":[' "$(json_string "$SOURCE_COMMIT")"
 printf '%s' "${RESULTS[0]}"
 for ((index = 1; index < ${#RESULTS[@]}; index++)); do printf ',%s' "${RESULTS[$index]}"; done
 printf ']}\n'

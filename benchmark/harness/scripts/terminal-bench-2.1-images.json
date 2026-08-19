@@ -1,11 +1,16 @@
 {
-  "schema_version": "cortex-terminal-bench-images/1",
+  "schema_version": "cortex-terminal-bench-images/2",
   "source": {
     "repository": "https://github.com/harbor-framework/terminal-bench-2-1.git",
     "commit": "7131e4375048a0e408a8fb404b5f499d726b695b"
   },
   "runtime_inputs": "zero-paid-runtime-inputs.json",
   "build_epoch": 1786481201,
+  "vendors": {
+    "pi": {"version": "0.82.1"},
+    "claude-code": {"version": "2.1.232"},
+    "codex": {"version": "0.117.0"}
+  },
   "verifier": {
     "python_version": "3.12",
     "packages": [
@@ -53,8 +58,20 @@
       "task_id": "chess-best-move",
       "source_image_ref": "alexgshaw/chess-best-move:20251031",
       "source_image_digest": "sha256:bb447f94d9e2a8ed879f85c85a514b213b7418f9fe11fd7b2428a0b0e436e647",
-      "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-pi-0.82.1",
-      "final_image_digest": "sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b",
+      "variants": {
+        "pi": {
+          "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-pi-0.82.1",
+          "final_image_digest": "sha256:5f16cd3f75c54b22866a823b35e39305155c784886d1db5f894272d89f7cbbed"
+        },
+        "claude-code": {
+          "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-claude-code-2.1.232",
+          "final_image_digest": "sha256:0e75f455072cc3b4a407e922b87f5a382f689cf8290d2219d4e9d70c133b9b41"
+        },
+        "codex": {
+          "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-codex-0.117.0",
+          "final_image_digest": "sha256:4a8e42fae8518797c628a0da09a2afb518d4723ee040856e21d1a2d12072bec5"
+        }
+      },
       "source_files": {
         "instruction.md": "6ba25be4e291a4ad04ae42b2dddefcdaef67ca45ca9d5dce661a2e517b19ce7a",
         "task.toml": "d8f01d3c84ed5836edbb49c6c3b3cc7b5b96d951cf01a0987467c9206fb22f9e",
@@ -66,8 +83,20 @@
       "task_id": "constraints-scheduling",
       "source_image_ref": "alexgshaw/constraints-scheduling:20251031",
       "source_image_digest": "sha256:567ce5a189f8d11ac461790876e934cc7af38391baf89a78f95f4dafc1fec3b0",
-      "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-pi-0.82.1",
-      "final_image_digest": "sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c",
+      "variants": {
+        "pi": {
+          "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-pi-0.82.1",
+          "final_image_digest": "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353"
+        },
+        "claude-code": {
+          "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-claude-code-2.1.232",
+          "final_image_digest": "sha256:defe6b6e045c409994d9c26cb1b70670353e49483b6e23d50f28de835c564978"
+        },
+        "codex": {
+          "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-codex-0.117.0",
+          "final_image_digest": "sha256:2e7dc993cfb9ccf308fb818db66731660f9d2dcf1a15e67f196c700ac8603046"
+        }
+      },
       "source_files": {
         "instruction.md": "342def78177f9bc41bea4d11af679bc385a9dda2ac8a1e425be384a5b7f937b6",
         "task.toml": "7b9842de16d74e8faf8c7c0aa03b0b81145941cb12dd322d81ae23fc48607250",
@@ -79,8 +108,20 @@
       "task_id": "db-wal-recovery",
       "source_image_ref": "alexgshaw/db-wal-recovery:20251031",
       "source_image_digest": "sha256:0e33ea5ec823975d1bd6c3778395c9f94251dd88f571146057bff6adb7e4594e",
-      "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-pi-0.82.1",
-      "final_image_digest": "sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a",
+      "variants": {
+        "pi": {
+          "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-pi-0.82.1",
+          "final_image_digest": "sha256:7199e472b87adc22c356e9a364d453c6f825938de6ab7f6422b787735dbf47f7"
+        },
+        "claude-code": {
+          "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-claude-code-2.1.232",
+          "final_image_digest": "sha256:b33bed1d275441266a169e2a320287485acef1afebc4a5202cc51a284d18dbc6"
+        },
+        "codex": {
+          "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-codex-0.117.0",
+          "final_image_digest": "sha256:f7c0302e7d223938b9d46bc81ad0bf3df7be162d90073add0fecda0b210791eb"
+        }
+      },
       "source_files": {
         "instruction.md": "5a20375162921b8911c67035d1905df7fd335d1bed03044271e608b2c3c93b26",
         "task.toml": "1cdc2c615e259bc10265efbe71b518332070c1c002e226566399e9788f18d0aa",
