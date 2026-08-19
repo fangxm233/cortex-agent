@@ -1,0 +1,102 @@
+{
+  "schema_version": "cortex-bench-credential-broker-determination/1",
+  "decision": "direct-trial-proxy-bearer-injection-supported",
+  "scope": "static request-time bearer substitution only",
+  "required_container_inputs": [
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_AUTH_TOKEN"
+  ],
+  "required_host_proxy_behavior": [
+    "accept only the trial-scoped loopback route",
+    "remove the container Authorization value",
+    "set Authorization to Bearer plus the host-held subscription OAuth token",
+    "retain the observed Claude Code beta and version headers"
+  ],
+  "gateway_requirement": "not-required-for-static-bearer-injection",
+  "conclusions": [
+    {
+      "claim": "A trial proxy can broker a static host-held subscription bearer directly: the real CLI authenticates to the trial route with its dummy bearer, FixedUpstream strips container auth, and the capture adapter writes a distinct host-side dummy bearer observed by the synthetic upstream.",
+      "evidence": [
+        "wire-capture.json#/runs/trial_proxy_bearer_substitution/proxy_observation",
+        "wire-capture.json#/runs/trial_proxy_bearer_substitution/proxy_inbound_headers",
+        "wire-capture.json#/runs/trial_proxy_bearer_substitution/requests/0/headers/Authorization",
+        "benchmark/harness/src/cortex_bench_harness/proxy/server.py:114-119",
+        "benchmark/harness/src/cortex_bench_harness/proxy/upstream.py:11-16,134-142"
+      ]
+    },
+    {
+      "claim": "The existing gateway is not required for static request-time bearer substitution; P5 instead needs a subscription-OAuth adapter because the current Anthropic adapter only writes x-api-key.",
+      "evidence": [
+        "wire-capture.json#/runs/trial_proxy_bearer_substitution/proxy_observation",
+        "benchmark/harness/src/cortex_bench_harness/proxy/adapters/anthropic.py:63-72",
+        "benchmark/harness/src/cortex_bench_harness/proxy/adapters/__init__.py:20-36"
+      ]
+    },
+    {
+      "claim": "The container input names for the exercised path are ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN; CLAUDE_CODE_OAUTH_TOKEN alone did not produce a request in bare mode.",
+      "evidence": [
+        "wire-capture.json#/runs/sonnet_success/credential_environment",
+        "wire-capture.json#/runs/oauth_env_local_error/credential_environment",
+        "wire-capture.json#/runs/oauth_env_local_error/requests"
+      ]
+    }
+  ],
+  "observed": [
+    {
+      "claim": "Claude Code 2.1.232 accepts a loopback ANTHROPIC_BASE_URL and sends POST /v1/messages?beta=true.",
+      "evidence": [
+        "wire-capture.json#/runs/sonnet_success/requests/0/path",
+        "wire-capture.json#/runs/sonnet_success/requests/0/query"
+      ]
+    },
+    {
+      "claim": "With only dummy ANTHROPIC_AUTH_TOKEN auth, the real process sends Authorization: Bearer <dummy> and no x-api-key.",
+      "evidence": [
+        "wire-capture.json#/runs/sonnet_success/credential_environment",
+        "wire-capture.json#/runs/sonnet_success/requests/0/headers/Authorization"
+      ]
+    },
+    {
+      "claim": "The same real process emits exact sonnet, opus, haiku, and explicit subagent-haiku model identifiers recorded by the fixture.",
+      "evidence": [
+        "wire-capture.json#/observed_model_identifiers",
+        "wire-capture.json#/runs/subagent_haiku_success/requests"
+      ]
+    },
+    {
+      "claim": "CLAUDE_CODE_OAUTH_TOKEN alone is not a usable dummy input in isolated bare mode: the CLI emits a local authentication_failed terminal result and sends no request.",
+      "evidence": [
+        "wire-capture.json#/runs/oauth_env_local_error/requests",
+        "wire-capture.json#/runs/oauth_env_local_error/cli_events"
+      ]
+    },
+    {
+      "claim": "The real process completed through the actual TrialProxy while the capture adapter received no container auth and the synthetic upstream received a distinct host-side bearer, not the trial dummy.",
+      "evidence": [
+        "wire-capture.json#/runs/trial_proxy_bearer_substitution/proxy_observation",
+        "wire-capture.json#/runs/trial_proxy_bearer_substitution/requests/0/headers/Authorization"
+      ]
+    },
+    {
+      "claim": "The current Anthropic adapter cannot perform this substitution because it writes only x-api-key; the exact subscription OAuth registry row is absent.",
+      "evidence": [
+        "benchmark/harness/src/cortex_bench_harness/proxy/adapters/anthropic.py:63-72",
+        "benchmark/harness/src/cortex_bench_harness/proxy/adapters/__init__.py:20-36"
+      ]
+    },
+    {
+      "claim": "The capture process could not read the real home and strace observed no non-loopback connect.",
+      "evidence": [
+        "wire-capture.json#/containment/real_home_mounted",
+        "wire-capture.json#/containment/non_loopback_connects"
+      ]
+    }
+  ],
+  "unverified": [
+    "A real host subscription OAuth bearer was not read or sent, so Anthropic acceptance and account entitlements are unverified.",
+    "OAuth expiry, refresh, revocation, and live upstream error behavior were not exercised.",
+    "The existing gateway was not exercised as a credential broker; only its necessity for static bearer substitution was resolved.",
+    "Live model availability, provider-side alias remapping, and fallback behavior remain unverified.",
+    "No claim is made that CLAUDE_CODE_OAUTH_TOKEN is unsupported outside the isolated bare-mode invocation."
+  ]
+}
