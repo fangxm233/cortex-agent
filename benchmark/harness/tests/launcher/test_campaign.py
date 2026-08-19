@@ -471,6 +471,9 @@ def test_the_package_declares_the_public_console_script() -> None:
 
     assert project["project"]["scripts"] == {
         "cortex-bench": "cortex_bench_harness.campaign:main",
+        "cortex-bench-deepseek-smoke": (
+            "cortex_bench_harness.launcher.deepseek_paid_smoke_launcher:main"
+        ),
     }
 
 
