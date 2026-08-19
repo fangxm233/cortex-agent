@@ -204,7 +204,7 @@ def codex_vendor_arm() -> dict[str, object]:
     arm.pop("orchestration")
     arm.update({
         "kind": "vendor-baseline", "name": "pure-codex", "vendor_agent": "codex",
-        "vendor_cli_version": "0.117.0", "provider": "openai-codex", "model": "gpt-5.4",
+        "vendor_cli_version": "0.117.0", "provider": "openai-codex", "model": "gpt-5.3-codex",
     })
     return arm
 

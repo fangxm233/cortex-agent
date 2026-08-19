@@ -32,6 +32,15 @@ HARNESS_DIR = Path(__file__).resolve().parents[2]
 CAMPAIGN_DIR = HARNESS_DIR.parent / "campaigns"
 ISOLATED_ENV = "CORTEX_VENDOR_MODEL_FREEZE_ISOLATED"
 COMMANDS = {"pi": "pi", "claude-code": "claude", "codex": "codex"}
+FROZEN_MODELS = {
+    "claude-code": "claude-sonnet-5",
+    "codex": "gpt-5.3-codex",
+}
+CLAUDE_MODEL_ENVIRONMENT = {
+    "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "CLAUDE_CODE_SUBAGENT_MODEL",
+}
 MISMATCH_MODELS = {
     "pi": "deepseek-model-not-declared",
     "claude-code": "claude-haiku-4-5-20251001",
@@ -81,6 +90,26 @@ def real_cli(vendor: str) -> Path:
         expected = f"codex-cli {expected}"
     assert completed.returncode == 0 and completed.stdout.strip() == expected
     return binary
+
+
+def test_subscription_campaigns_freeze_the_p0_observed_models() -> None:
+    claude = arm("claude-code")
+    codex = arm("codex")
+    codex_wire = json.loads(
+        (HARNESS_DIR / "tests/fixtures/vendor-wire/codex/contract.json")
+        .read_text(encoding="utf-8")
+    )
+    claude_wire = json.loads(
+        (HARNESS_DIR / "tests/fixtures/vendor-wire/claude-code/wire-capture.json")
+        .read_text(encoding="utf-8")
+    )
+
+    assert claude["vendor_cli_version"] == "2.1.232"
+    assert codex["vendor_cli_version"] == "0.117.0"
+    assert claude["model"] == FROZEN_MODELS["claude-code"]
+    assert codex["model"] == FROZEN_MODELS["codex"]
+    assert claude_wire["observed_model_identifiers"]["sonnet"] == claude["model"]
+    assert codex_wire["request"]["model"] == codex["model"]
 
 
 def test_real_cli_version_check_uses_the_campaign_pin(
@@ -235,6 +264,15 @@ def claude_environment(root: Path, proxy_url: str, token: str, model: str) -> di
         "DISABLE_ERROR_REPORTING": "1", "DISABLE_AUTOUPDATER": "1",
         "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
     }
+
+
+def test_claude_environment_collapses_aliases_and_subagents_to_one_model(
+    tmp_path: Path,
+) -> None:
+    model = FROZEN_MODELS["claude-code"]
+    environment = claude_environment(tmp_path, "http://127.0.0.1:1", "dummy", model)
+
+    assert {environment[name] for name in CLAUDE_MODEL_ENVIRONMENT} == {model}
 
 
 def run_claude(

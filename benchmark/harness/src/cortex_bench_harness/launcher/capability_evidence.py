@@ -34,7 +34,7 @@ CODEX_OFFLINE_CONTRACT = {
     "vendor_lifecycle_test_sha256":
         "d33fa9b686cb9776b72221337ae9cb26aa00a17939152d67ece5a1305ee47880",
     "model_freeze_test_sha256":
-        "f5a89b99eb0153a64d3337c03bba28f60a29d3d5f03fddbdf928dd0e83aab6d6",
+        "bda9873f7f64a291fde565ee20d8094e5f85c212e56869cf552880ad1adf74c7",
 }
 CLAUDE_P0_CAPTURE_SHA256 = "fcc17df7ff3e2d7e618856e11479a315b72c7dcdfa85984e45c6f2564eccda45"
 CLAUDE_P0_BETA_HEADER = (
