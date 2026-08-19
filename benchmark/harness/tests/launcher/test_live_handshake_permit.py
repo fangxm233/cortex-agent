@@ -1,5 +1,5 @@
-# input:  offline capability rows, one-use permits, proxy observations
-# output: handshake-only admission, hard-bound, no-retry, and evidence proofs
+# input:  offline rows, one-use permits, synthetic response failures
+# output: admission, bounds, redacted diagnostics, and evidence proofs
 # pos:    Live-handshake bootstrap authorization tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -33,7 +33,7 @@ from cortex_bench_harness.launcher.trial_proxy import (
     arm_trial_proxy,
     parse_trial_proxy_spec,
 )
-from cortex_bench_harness.scan.models import ScanPolicy
+from cortex_bench_harness.scan.models import ArtifactInventory, ScanPolicy
 from trial_fixtures import closed_upstream
 
 CAPABILITY_ID = "claude-subscription"
@@ -51,6 +51,7 @@ CODEX_HOST_CREDENTIAL = ".".join((
     }, separators=(",", ":")).encode()).decode().rstrip("="),
     base64.b64encode(b'{"dummy":true}').decode().rstrip("="),
 ))
+PARTIAL_SSE = b"data: " + b"x" * 45 + b"\n\n"
 TRUNCATED_SSE_53_BYTES = (
     b'data: {"type":"error","code":"synthetic_refusal_1"}\n\n'
 )
@@ -101,17 +102,18 @@ class HandshakeUpstreamHandler(BaseHTTPRequestHandler):
         self.server.requests.append(body)  # type: ignore[attr-defined]
         self.server.authorization = self.headers.get("authorization")  # type: ignore[attr-defined]
         status = self.server.response_status  # type: ignore[attr-defined]
-        response = {
-            "model": MODEL,
-            "usage": {"input_tokens": 9, "output_tokens": 2},
-            "content": [{"type": "text", "text": "ok"}],
-        }
-        configured = self.server.response_body  # type: ignore[attr-defined]
-        payload = configured or json.dumps(
-            response if status == 200 else {"error": "refused"}).encode()
+        payload = self.server.response_body  # type: ignore[attr-defined]
         self.send_response(status)
-        self.send_header(
-            "content-type", self.server.content_type)  # type: ignore[attr-defined]
+        for name, value in self.server.response_headers.items():  # type: ignore[attr-defined]
+            self.send_header(name, value)
+        if self.server.truncate_chunked:  # type: ignore[attr-defined]
+            self.send_header("transfer-encoding", "chunked")
+            self.end_headers()
+            self.wfile.write(f"{len(payload):x}\r\n".encode() + payload + b"\r\n")
+            self.wfile.flush()
+            self.server.response_bytes_sent += len(payload)  # type: ignore[attr-defined]
+            self.close_connection = True
+            return
         self.send_header("content-length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
@@ -122,16 +124,37 @@ class HandshakeUpstreamHandler(BaseHTTPRequestHandler):
         return
 
 
+class TimeoutConnection:
+    def __init__(self, *_args, **_kwargs) -> None:
+        return
+
+    def request(self, *_args, **_kwargs) -> None:
+        return
+
+    def getresponse(self):
+        raise TimeoutError("synthetic timeout")
+
+    def close(self) -> None:
+        return
+
+
 @contextmanager
 def handshake_upstream(
-    status: int = 200, *, response_body: bytes | None = None,
-    content_type: str = "application/json",
+    status: int = 200, *, body: bytes | None = None,
+    headers: dict[str, str] | None = None, truncate_chunked: bool = False,
 ) -> Iterator[ThreadingHTTPServer]:
+    response = {
+        "model": MODEL,
+        "usage": {"input_tokens": 9, "output_tokens": 2},
+        "content": [{"type": "text", "text": "ok"}],
+    }
+    default_body = json.dumps(response if status == 200 else {"error": "refused"}).encode()
     server = ThreadingHTTPServer(("127.0.0.1", 0), HandshakeUpstreamHandler)
     server.requests = []  # type: ignore[attr-defined]
     server.response_status = status  # type: ignore[attr-defined]
-    server.response_body = response_body  # type: ignore[attr-defined]
-    server.content_type = content_type  # type: ignore[attr-defined]
+    server.response_body = default_body if body is None else body  # type: ignore[attr-defined]
+    server.response_headers = headers or {"content-type": "application/json"}  # type: ignore[attr-defined]
+    server.truncate_chunked = truncate_chunked  # type: ignore[attr-defined]
     server.response_bytes_sent = 0  # type: ignore[attr-defined]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -143,12 +166,16 @@ def handshake_upstream(
         thread.join(timeout=2)
 
 
-def scan_policy(credential: str = HOST_CREDENTIAL) -> ScanPolicy:
-    return ScanPolicy(
-        secrets={"host_credential": credential},
-        repository_checkout="REPOSITORY-CHECKOUT-PRIVATE",
-        hostname="HOSTNAME-PRIVATE",
-    )
+def scan_policy(
+    credential: str = HOST_CREDENTIAL, **overrides: object,
+) -> ScanPolicy:
+    values = {
+        "secrets": {"host_credential": credential},
+        "repository_checkout": "REPOSITORY-CHECKOUT-PRIVATE",
+        "hostname": "HOSTNAME-PRIVATE",
+        **overrides,
+    }
+    return ScanPolicy(**values)
 
 
 def codex_request() -> LiveHandshakeRequest:
@@ -218,6 +245,7 @@ def run_handshake(
     capability_id: str = CAPABILITY_ID, upstream: str | None = None,
     limits: dict[str, object] | None = None, spec=None,
     request: LiveHandshakeRequest | None = None,
+    policy: ScanPolicy | None = None,
 ) -> Path:
     sealed = permit or issue_permit(
         capability_id=capability_id, upstream=upstream, limits=limits,
@@ -225,9 +253,32 @@ def run_handshake(
     return run_live_handshake(
         permit=sealed, capability_id=capability_id,
         artifact_dir=tmp_path / "artifacts", evidence_dir=tmp_path / "evidence",
-        host_credential=HOST_CREDENTIAL, scan_policy=scan_policy(),
+        host_credential=HOST_CREDENTIAL, scan_policy=policy or scan_policy(),
         implementation_commit="a" * 40, conservative_cost_usd="0.00000182",
     )
+
+
+def response_diagnostic(tmp_path: Path) -> dict[str, object]:
+    path = tmp_path / "artifacts" / live_handshake.RESPONSE_DIAGNOSTIC_FILENAME
+    return json.loads(path.read_bytes())
+
+
+def diagnostic_body(document: dict[str, object]) -> bytes:
+    return base64.b64decode(document["body_base64"])
+
+
+def capture_scan_inventories(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[ArtifactInventory]:
+    inventories = []
+    original = live_handshake.scan_trial_artifacts
+
+    def capture(inventory, policy):
+        inventories.append(inventory)
+        return original(inventory, policy)
+
+    monkeypatch.setattr(live_handshake, "scan_trial_artifacts", capture)
+    return inventories
 
 
 def assert_live_evidence(tmp_path: Path, evidence_path: Path) -> None:
@@ -267,6 +318,10 @@ def test_offline_capability_consumes_one_request_and_writes_schema_v2_evidence(
         (tmp_path / "artifacts" / "live-handshake-run-config.json").read_bytes())
     assert run_config["absolute_deadline_epoch_ms"] - run_config["armed_at_epoch_ms"] == 120_000
     assert run_config["proxy"]["retry"] is False
+    diagnostic = response_diagnostic(tmp_path)
+    assert diagnostic["status"] == 200
+    assert diagnostic["complete"] is True
+    assert diagnostic_body(diagnostic).startswith(b'{"model":')
     assert_live_evidence(tmp_path, evidence_path)
 
 
@@ -342,7 +397,10 @@ def test_permit_refuses_a_request_exceeding_the_output_cap(tmp_path: Path) -> No
         run_handshake(tmp_path, request=handshake_request(257))
 
 
-def test_failed_provider_attempt_is_not_retried_or_promoted(tmp_path: Path) -> None:
+def test_failed_provider_attempt_is_not_retried_or_promoted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inventories = capture_scan_inventories(monkeypatch)
     with handshake_upstream(status=500) as upstream:
         url = f"http://127.0.0.1:{upstream.server_port}"
         with pytest.raises(
@@ -350,6 +408,10 @@ def test_failed_provider_attempt_is_not_retried_or_promoted(tmp_path: Path) -> N
             match="proxy ended HTTP 500 response.*usage_accounting_unavailable",
         ):
             run_handshake(tmp_path, upstream=url)
+    diagnostic = response_diagnostic(tmp_path)
+    assert diagnostic["status"] == 500
+    assert b"refused" in diagnostic_body(diagnostic)
+    assert "response_diagnostic" in inventories[0].expected_sources
     assert len(upstream.requests) == 1  # type: ignore[attr-defined]
     assert not (tmp_path / "evidence").exists()
 
@@ -359,7 +421,8 @@ def test_codex_53_byte_complete_upstream_refusal_is_attributed_to_proxy_accounti
 ) -> None:
     assert len(TRUNCATED_SSE_53_BYTES) == 53
     with handshake_upstream(
-        response_body=TRUNCATED_SSE_53_BYTES, content_type="text/event-stream",
+        body=TRUNCATED_SSE_53_BYTES,
+        headers={"content-type": "text/event-stream"},
     ) as upstream:
         url = f"http://127.0.0.1:{upstream.server_port}"
         with pytest.raises(
@@ -396,7 +459,7 @@ def test_codex_completed_sse_is_the_offline_gate_for_a_new_live_permit(
         "data: [DONE]\n\n"
     ).encode()
     with handshake_upstream(
-        response_body=body, content_type="text/event-stream",
+        body=body, headers={"content-type": "text/event-stream"},
     ) as upstream:
         path = run_codex_handshake(
             tmp_path, f"http://127.0.0.1:{upstream.server_port}")
@@ -407,6 +470,104 @@ def test_codex_completed_sse_is_the_offline_gate_for_a_new_live_permit(
     assert evidence["adapter_id"] == "openai-codex-responses/oauth"
     assert (evidence["request_count"], evidence["input_tokens"],
             evidence["output_tokens"]) == (1, 3, 2)
+
+
+def test_truncated_chunked_response_persists_partial_status_headers_and_body(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inventories = capture_scan_inventories(monkeypatch)
+    with handshake_upstream(
+        body=PARTIAL_SSE,
+        headers={"content-type": "text/event-stream", "x-upstream": "synthetic"},
+        truncate_chunked=True,
+    ) as upstream:
+        url = f"http://127.0.0.1:{upstream.server_port}"
+        with pytest.raises(LiveHandshakePermitRefused, match="proxy ended HTTP 200"):
+            run_handshake(tmp_path, upstream=url)
+
+    diagnostic = response_diagnostic(tmp_path)
+    assert diagnostic["status"] == 200
+    assert diagnostic["complete"] is False
+    assert diagnostic["failure"] == "IncompleteRead"
+    assert diagnostic["body_bytes_received"] == 53
+    assert diagnostic_body(diagnostic) == PARTIAL_SSE
+    assert ["x-upstream", "synthetic"] in diagnostic["headers"]
+    assert "response_diagnostic" in inventories[0].expected_sources
+
+
+def test_timeout_persists_an_empty_response_diagnostic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inventories = capture_scan_inventories(monkeypatch)
+    monkeypatch.setattr(live_handshake, "HTTPConnection", TimeoutConnection)
+    with pytest.raises(LiveHandshakePermitRefused):
+        run_handshake(tmp_path)
+
+    diagnostic = response_diagnostic(tmp_path)
+    assert diagnostic == {
+        "body_base64": "",
+        "body_bytes_received": 0,
+        "body_latin1": "",
+        "complete": False,
+        "failure": "TimeoutError",
+        "headers": [],
+        "schema_version": "cortex-bench-live-handshake-response/1",
+        "status": None,
+    }
+    assert "response_diagnostic" in inventories[0].expected_sources
+
+
+def test_omitting_response_diagnostic_from_inventory_fails_the_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = live_handshake._inventory
+
+    def omit_response(*args, **kwargs):
+        inventory = original(*args, **kwargs)
+        sources = dict(inventory.sources)
+        sources.pop("response_diagnostic")
+        return ArtifactInventory(
+            sources, inventory.expected_sources - {"response_diagnostic"},
+            inventory.trial_roots, inventory.container_roots,
+        )
+
+    monkeypatch.setattr(live_handshake, "_inventory", omit_response)
+    with handshake_upstream() as upstream:
+        url = f"http://127.0.0.1:{upstream.server_port}"
+        with pytest.raises(LiveHandshakePermitRefused, match="scan was not clean"):
+            run_handshake(tmp_path, upstream=url)
+
+
+def test_response_diagnostic_redacts_secrets_account_and_host_paths(tmp_path: Path) -> None:
+    authorization = "Bearer RESPONSE-AUTHORIZATION-PRIVATE"
+    account_id = "acct-RESPONSE-PRIVATE"
+    host_path = "/home/private-user/provider/auth.json"
+    response = {
+        "model": MODEL,
+        "usage": {"input_tokens": 9, "output_tokens": 2},
+        "content": [{"type": "text", "text": "ok"}],
+        "diagnostic": [HOST_CREDENTIAL, authorization, account_id, host_path],
+    }
+    policy = scan_policy(
+        secrets={
+            "host_credential": HOST_CREDENTIAL,
+            "response_authorization": authorization,
+        },
+        home_path="/home/private-user",
+        host_identities={"account_id": account_id},
+    )
+    with handshake_upstream(
+        body=json.dumps(response).encode(),
+        headers={"content-type": "application/json", "authorization": authorization},
+    ) as upstream:
+        url = f"http://127.0.0.1:{upstream.server_port}"
+        run_handshake(tmp_path, upstream=url, policy=policy)
+
+    artifact = (
+        tmp_path / "artifacts" / live_handshake.RESPONSE_DIAGNOSTIC_FILENAME
+    ).read_bytes()
+    for sensitive in (HOST_CREDENTIAL, authorization, account_id, host_path):
+        assert sensitive.encode() not in artifact
 
 
 def test_scan_policy_must_name_the_actual_host_credential(tmp_path: Path) -> None:
