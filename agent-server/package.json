@@ -71,7 +71,7 @@
     "@slack/bolt": "^4.6.0",
     "@slack/web-api": "^7.14.1",
     "@trpc/server": "^11",
-    "aistatus": "file:vendor/aistatus-0.0.8.tgz",
+    "aistatus": "file:vendor/aistatus-0.0.9.tgz",
     "dotenv": "^16.4.7",
     "ink": "^5.2.1",
     "ink-text-input": "^6.0.0",
