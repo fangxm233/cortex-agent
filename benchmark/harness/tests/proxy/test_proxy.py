@@ -14,7 +14,9 @@ from urllib.parse import urlsplit
 import pytest
 
 import cortex_bench_harness.proxy.server as proxy_server
+from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
 from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
+from cortex_bench_harness.proxy.adapters import select_adapter
 from synthetic import (
     LEASE_TERMS,
     MESSAGES_TARGET,
@@ -62,6 +64,48 @@ def test_injects_host_credential_without_forwarding_dummy(tmp_path: Path) -> Non
     assert "authorization" not in headers
     assert handle.dummy_token not in json.dumps(headers)
     assert REAL_CREDENTIAL not in repr(handle)
+
+
+def test_claude_subscription_offline_contract_reaches_only_synthetic_upstream(
+    tmp_path: Path,
+) -> None:
+    host_token = "sk-ant-oat01-SYNTHETIC-HOST-SUBSCRIPTION"
+    beta = "claude-code-20250219,interleaved-thinking-2025-05-14"
+    with SyntheticUpstream() as upstream:
+        adapter = select_adapter(
+            CredentialCapabilityKey(
+                "claude-code", "anthropic", "anthropic-messages", "subscription-oauth",
+            ),
+            upstream_base_url=upstream.base_url, credential=host_token,
+            frozen_model="claude-synthetic-1",
+        )
+        handle = start_trial_proxy(
+            trial_id="trial-claude-subscription-synthetic",
+            upstream_base_url=upstream.base_url, adapter=adapter,
+            bound_source_ip="127.0.0.1",
+            absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
+            limits=limits(), log_path=tmp_path / "claude-subscription.jsonl",
+            lease_terms=LEASE_TERMS,
+        )
+        try:
+            status, _ = proxy_request(
+                handle.base_url, handle.dummy_token, PLANTED_PROMPT,
+                extra_headers={
+                    "anthropic-beta": beta,
+                    "anthropic-version": "2023-06-01",
+                },
+            )
+        finally:
+            handle.stop()
+
+    headers = {key.lower(): value for key, value in upstream.requests[0].headers.items()}
+    assert status == 200
+    assert upstream.base_url.startswith("http://127.0.0.1:")
+    assert headers["authorization"] == f"Bearer {host_token}"
+    assert headers["anthropic-beta"] == beta
+    assert headers["anthropic-version"] == "2023-06-01"
+    assert "x-api-key" not in headers
+    assert handle.dummy_token not in json.dumps(headers)
 
 
 def audit_rows(tmp_path: Path) -> list[dict]:

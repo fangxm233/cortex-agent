@@ -1,6 +1,6 @@
 # input:  container request lines, request bodies, and upstream payloads
-# output: row-1 route, body, auth, and usage decisions
-# pos:    Anthropic messages adapter for a static API key
+# output: Anthropic route, body, auth, and usage decisions
+# pos:    Anthropic messages API-key and subscription adapters
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import json
@@ -104,6 +104,22 @@ class AnthropicMessagesApiKeyAdapter:
 
     def clear_credential(self) -> None:
         self._credential = None
+
+
+class AnthropicMessagesSubscriptionOAuthAdapter(AnthropicMessagesApiKeyAdapter):
+    adapter_id = "anthropic-messages/subscription-oauth"
+
+    def inject_auth(self, headers, route_id: str) -> dict[str, str]:
+        if route_id != MESSAGES_BETA_ROUTE:
+            raise AuthInjectionUnavailable("route carries no auth form")
+        if self._credential is None:
+            raise AuthInjectionUnavailable("no OAuth token is bound to this adapter")
+        outbound = {
+            key: value for key, value in headers.items()
+            if key.lower() != "authorization"
+        }
+        outbound["authorization"] = f"Bearer {self._credential}"
+        return outbound
 
 
 def _upstream_hosts(upstream_base_url: str | None) -> tuple[str, ...]:

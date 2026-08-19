@@ -1,6 +1,6 @@
-# input:  row-1 adapter duties over synthetic routes, bodies, and payloads
-# output: allow-list, body-model, auth-form, usage, and billable proofs
-# pos:    Row-1 Anthropic adapter unit tests
+# input:  Anthropic adapter duties over synthetic requests and payloads
+# output: route, model, API-key, OAuth bearer, and usage proofs
+# pos:    Anthropic messages adapter unit tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import json
@@ -11,6 +11,7 @@ from cortex_bench_harness.proxy.adapters import AuthInjectionUnavailable
 from cortex_bench_harness.proxy.adapters.anthropic import (
     MESSAGES_BETA_ROUTE,
     AnthropicMessagesApiKeyAdapter,
+    AnthropicMessagesSubscriptionOAuthAdapter,
 )
 from cortex_bench_harness.proxy.models import ProxyUsage
 
@@ -153,6 +154,44 @@ def test_inject_auth_strips_an_inbound_api_key_whatever_casing_it_arrives_in() -
     assert [key for key in outbound if key.lower() == "x-api-key"] == ["x-api-key"]
     assert outbound["x-api-key"] == CREDENTIAL
     assert forged not in outbound.values()
+
+
+def test_subscription_oauth_replaces_container_authorization_with_host_bearer() -> None:
+    host_token = "sk-ant-oat01-SYNTHETIC-HOST-SUBSCRIPTION"
+    container_token = "container-dummy-bearer"
+    oauth = AnthropicMessagesSubscriptionOAuthAdapter(
+        "http://127.0.0.1:9000", host_token, FROZEN_MODEL,
+    )
+
+    outbound = oauth.inject_auth({
+        "Authorization": f"Bearer {container_token}",
+        "anthropic-beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }, MESSAGES_BETA_ROUTE)
+
+    assert [key for key in outbound if key.lower() == "authorization"] == ["authorization"]
+    assert outbound["authorization"] == f"Bearer {host_token}"
+    assert container_token not in outbound.values()
+    assert outbound["anthropic-beta"] == (
+        "claude-code-20250219,interleaved-thinking-2025-05-14"
+    )
+    assert outbound["anthropic-version"] == "2023-06-01"
+    assert "x-api-key" not in {key.lower() for key in outbound}
+
+
+def test_subscription_oauth_uses_the_same_frozen_model_contract() -> None:
+    oauth = AnthropicMessagesSubscriptionOAuthAdapter(
+        "http://127.0.0.1:9000", CREDENTIAL, FROZEN_MODEL,
+    )
+
+    admitted = oauth.validate_body(
+        MESSAGES_BETA_ROUTE, json.dumps({"model": FROZEN_MODEL}).encode())
+    refused = oauth.validate_body(
+        MESSAGES_BETA_ROUTE, json.dumps({"model": "claude-sonnet-fallback"}).encode())
+
+    assert admitted.allow is True
+    assert refused.reason == "request_model_mismatch"
 
 
 def test_missing_credential_refuses_rather_than_injecting_nothing() -> None:

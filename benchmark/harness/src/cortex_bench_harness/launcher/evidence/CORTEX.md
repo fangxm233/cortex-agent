@@ -5,6 +5,8 @@ migration is pinned by the harness regeneration command.
 
 | filename | role | function |
 |---|---|---|
+| claude-subscription.offline-contract-passed.json | evidence | Binds Claude subscription synthetic proof |
+| claude-subscription.synthetic-observation.json | evidence | Records the Claude loopback request contract |
 | pi-deepseek-api-key.live-handshake-passed.json | evidence | Binds one production PI live handshake |
 | pi-deepseek-api-key.model-metadata.json | evidence | Freezes PI DeepSeek model metadata |
 | pi-deepseek-api-key.mutation-manifest.json | evidence | Lists killed security mutations |

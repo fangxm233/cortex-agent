@@ -44,19 +44,15 @@ def _key(
 
 
 CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = MappingProxyType({
-    # The only row proven under proxy schema /2. It was lowered to `unsupported` when the schema
-    # bump re-keyed every row, because evidence gathered under the previous version does not carry
-    # across it, and restored only after each of the adapter-seam paths it rests on — selection,
-    # the route/body/auth/usage/limit failure branches, the offline containment properties and the
-    # upstream-host rules — was shown to have a test that FAILS when the behaviour is removed.
-    # That is the bar: 24 mutations, 24 killed. Five of them survived on the first pass and were
-    # real gaps, so this state is not a formality and must not be carried across the next bump.
-    # `offline-contract-passed` means the boundary holds against a synthetic upstream. It does NOT
-    # authorise a paid run — see the arming-point note in trial_proxy.py.
+    # `offline-contract-passed` means only that a synthetic upstream observed the frozen contract.
+    # It does not authorize a paid run; trial_proxy.py requires live evidence separately.
     _key("claude", "anthropic", "anthropic-messages", "api-key-bearer"):
         CredentialCapability("claude-api-key", "offline-contract-passed"),
-    _key("claude", "anthropic", "anthropic-messages", "subscription-oauth"):
-        CredentialCapability("claude-subscription", "unsupported"),
+    _key("claude-code", "anthropic", "anthropic-messages", "subscription-oauth"):
+        CredentialCapability(
+            "claude-subscription", "offline-contract-passed",
+            "50ebdbae35cf82f50dc7ec03f500f529a16003e0320fbc6ad6425683bfbb7c76",
+        ),
     _key("pi", "??", "??", "api-key"):
         CredentialCapability("pi-api-key", "unsupported"),
     # Exact DeepSeek transport row, promoted only after one bounded production-PI handshake.
@@ -110,24 +106,27 @@ def _project_row(
 def _validate_evidence_binding(
     key: CredentialCapabilityKey, capability: CredentialCapability,
 ) -> None:
-    required = capability.state == "live-handshake-passed" or (
-        capability.id == "pi-deepseek-api-key"
-        and capability.state == "offline-contract-passed"
-    )
-    if not required:
-        return
-    digest = capability.evidence_sha256
-    if digest is None:
-        raise ValueError(f"credential capability {capability.id} requires evidence")
     from .capability_evidence import (
+        CAPABILITY_EVIDENCE_METADATA,
         validate_capability_evidence,
         validate_offline_supporting_artifacts,
     )
+    metadata = CAPABILITY_EVIDENCE_METADATA.get(capability.id)
+    required = capability.state == "live-handshake-passed" or (
+        capability.state == "offline-contract-passed" and metadata is not None
+    )
+    if not required:
+        return
+    if metadata is None:
+        raise ValueError(f"credential capability {capability.id} has no evidence metadata")
+    digest = capability.evidence_sha256
+    if digest is None:
+        raise ValueError(f"credential capability {capability.id} requires evidence")
     path = _evidence_path(capability.id, capability.state)
     document = validate_capability_evidence(
         path, digest,
         capability_id=capability.id, key=key, state=capability.state,
-        adapter_id="deepseek-chat-completions/api-key",
+        adapter_id=metadata.adapter_id,
     )
     if capability.state == "offline-contract-passed":
         validate_offline_supporting_artifacts(path.parent, document)
