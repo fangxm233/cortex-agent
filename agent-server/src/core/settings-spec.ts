@@ -3,6 +3,13 @@
 // pos:    Browser-safe runtime settings contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+export interface ProviderRateLimitPolicyOverride {
+  enabled: boolean;
+  threshold?: number;
+}
+
+export type ProviderRateLimits = Record<string, ProviderRateLimitPolicyOverride>;
+
 export interface Settings {
   turnNotify: boolean;
   turnNotifyThresholdS: number;
@@ -26,6 +33,7 @@ export interface Settings {
   anthropicSubscriptionModes: string[];
   providerUsageCollectionEnabled: boolean;
   providerUsageCollectionIntervalMs: number;
+  providerRateLimits: ProviderRateLimits;
   taskDispatchMaxConcurrent: number | null;
   taskDispatchEnabled: boolean;
   taskDispatchIntervalMs: number;
@@ -49,7 +57,7 @@ export interface SettingSnapshotEntry<K extends SettingKey = SettingKey> {
   source: SettingSource;
 }
 
-export type SettingType = 'boolean' | 'number' | 'number|null' | 'string[]' | 'string|null';
+export type SettingType = 'boolean' | 'number' | 'number|null' | 'string[]' | 'string|null' | 'provider-rate-limits';
 type EnvVar = string | readonly string[];
 
 export interface SettingSpecEntry<T> {
@@ -215,6 +223,10 @@ export const SETTINGS_SPEC = {
     type: 'number',
     default: 5 * 60 * 1000,
     validate: validateJobInterval,
+  },
+  providerRateLimits: {
+    type: 'provider-rate-limits',
+    default: {},
   },
   taskDispatchMaxConcurrent: {
     envVar: 'TASK_DISPATCH_MAX_CONCURRENT',

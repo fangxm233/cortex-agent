@@ -1,16 +1,27 @@
-// input:  config.set schema, CONFIG_DIR, runtime settings API
-// output: validated budget, profile, and settings writes
-// pos:    Mutation handler for the writable config sections
+// input:  config schemas, CONFIG_DIR, runtime settings API
+// output: validated budget, profile, settings, and provider policy writes
+// pos:    Mutation handlers for writable config sections and provider policies
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
-import { updateSettings } from '@core/settings.js';
+import { setProviderRateLimitPolicy, updateSettings } from '@core/settings.js';
 import { costRepo } from '@store/cost-repo.js';
-import { configSetInput } from '../input-schemas.js';
-import type { UiServiceDeps, Result, ConfigSetArgs, ConfigSetReturn, BudgetValue } from '../types.js';
+import {
+  configSetInput,
+  configSetProviderRateLimitPolicyInput,
+} from '../input-schemas.js';
+import type {
+  UiServiceDeps,
+  Result,
+  ConfigSetArgs,
+  ConfigSetReturn,
+  ConfigSetProviderRateLimitPolicyArgs,
+  ConfigSetProviderRateLimitPolicyReturn,
+  BudgetValue,
+} from '../types.js';
 
 /**
  * Validate and atomically write budget.json into `configDir`. Pure over its dir argument
@@ -116,6 +127,27 @@ export async function handleConfigSet(
     return { ok: true, data: { written: true, section: 'settings' } };
   } catch (err: any) {
     const code = err?.code === 'invalid-args' ? 'invalid-args' : 'internal';
+    return { ok: false, code, message: err?.message || String(err) };
+  }
+}
+
+export async function handleConfigSetProviderRateLimitPolicy(
+  _deps: UiServiceDeps,
+  args: ConfigSetProviderRateLimitPolicyArgs,
+): Promise<Result<ConfigSetProviderRateLimitPolicyReturn>> {
+  const parsed = configSetProviderRateLimitPolicyInput.safeParse(args);
+  if (!parsed.success) {
+    return { ok: false, code: 'invalid-args', message: parsed.error.message };
+  }
+  try {
+    const policy = await setProviderRateLimitPolicy({
+      provider: parsed.data.provider,
+      enabled: parsed.data.enabled,
+      threshold: parsed.data.threshold ?? null,
+    });
+    return { ok: true, data: { written: true, policy } };
+  } catch (err: any) {
+    const code = err?.code === 'invalid-args' || err instanceof TypeError ? 'invalid-args' : 'internal';
     return { ok: false, code, message: err?.message || String(err) };
   }
 }

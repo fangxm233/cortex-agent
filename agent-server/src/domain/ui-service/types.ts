@@ -9,7 +9,12 @@ import type { ProviderUsage } from '@domain/costs/usage-store.js';
 export type { ProviderUsage, UsageFreshness, UsageWindow } from '@domain/costs/usage-store.js';
 import type { EventBus } from '@events/index.js';
 import type { RunningExecutions } from '@core/running-executions.js';
-import type { Settings, SettingSnapshotEntry } from '@core/settings-spec.js';
+import type {
+  ProviderRateLimitPolicyOverride,
+  ProviderRateLimits,
+  Settings,
+  SettingSnapshotEntry,
+} from '@core/settings-spec.js';
 import type {
   AuthNoticeAction,
   ChatNoticeLevel,
@@ -72,6 +77,10 @@ export type {
   CustomProviderModelSpec,
   CustomProviderView,
 } from '@domain/pi-providers/index.js';
+export type {
+  ProviderRateLimitPolicyOverride,
+  ProviderRateLimits,
+} from '@core/settings-spec.js';
 
 // ── Result ────────────────────────────────────────────────────────
 
@@ -152,6 +161,7 @@ export type MutateOp =
   | 'notes.delete'
   | 'notes.clearCompleted'
   | 'config.set'
+  | 'config.setProviderRateLimitPolicy'
   | 'auth.startLogin'
   | 'auth.respondPrompt'
   | 'auth.cancelFlow'
@@ -536,7 +546,19 @@ export interface ProfilesValue {
   defaultProfile: string;
 }
 
-export type SettingsValue = Partial<Settings>;
+export type SettingsValue = Partial<Omit<Settings, 'providerRateLimits'>>;
+
+export interface ProviderRateLimitPolicy {
+  provider: string;
+  enabled: boolean;
+  threshold: number | null;
+}
+
+export interface ConfigSetProviderRateLimitPolicyArgs {
+  provider: string;
+  enabled: boolean;
+  threshold?: number | null;
+}
 
 /**
  * `project` absent/null targets the global limits; a project id targets that project's override.
@@ -1864,6 +1886,11 @@ export interface ConfigSetReturn {
   section: 'budget' | 'profiles' | 'settings';
 }
 
+export interface ConfigSetProviderRateLimitPolicyReturn {
+  written: true;
+  policy: ProviderRateLimitPolicy;
+}
+
 export interface ApprovalMutateReturn {
   id: string;
   status: ApprovalStatus;
@@ -2000,6 +2027,7 @@ export interface MutateArgsMap {
   'notes.delete': NoteActionArgs;
   'notes.clearCompleted': NotesClearCompletedArgs;
   'config.set': ConfigSetArgs;
+  'config.setProviderRateLimitPolicy': ConfigSetProviderRateLimitPolicyArgs;
   'auth.startLogin': AuthStartLoginArgs;
   'auth.respondPrompt': AuthRespondPromptArgs;
   'auth.cancelFlow': AuthCancelFlowArgs;
@@ -2059,6 +2087,7 @@ export interface MutateReturnMap {
   'notes.delete': NotesDeleteReturn;
   'notes.clearCompleted': NotesClearCompletedReturn;
   'config.set': ConfigSetReturn;
+  'config.setProviderRateLimitPolicy': ConfigSetProviderRateLimitPolicyReturn;
   'auth.startLogin': LoginFlowState;
   'auth.respondPrompt': LoginFlowState;
   'auth.cancelFlow': LoginFlowState;

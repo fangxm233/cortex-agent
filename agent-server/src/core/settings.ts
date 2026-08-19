@@ -12,6 +12,8 @@ import { CONFIG_DIR } from './paths.js';
 import { createFileWatchMonitor, type WatchMonitor } from './resilient-watch.js';
 import {
   SETTINGS_SPEC,
+  type ProviderRateLimitPolicyOverride,
+  type ProviderRateLimits,
   type SettingKey,
   type SettingSnapshotEntry,
   type SettingSpecEntry,
@@ -21,12 +23,19 @@ import {
 
 export {
   SETTINGS_SPEC,
+  type ProviderRateLimitPolicyOverride,
+  type ProviderRateLimits,
   type SettingKey,
   type SettingSnapshotEntry,
   type Settings,
 } from './settings-spec.js';
 
 export type SettingsChangeCallback = (changedKeys: SettingKey[]) => void;
+export interface ProviderRateLimitPolicyPatch {
+  provider: string;
+  enabled: boolean;
+  threshold: number | null;
+}
 
 const log = createLogger('settings');
 const SETTINGS_FILE = path.join(CONFIG_DIR, 'settings.json');
@@ -35,6 +44,8 @@ const TRUTHY_ENV_KEYS = new Set<SettingKey>(['adminChannel', 'feishuAdminChannel
 const callbacks = new Set<SettingsChangeCallback>();
 const loggedEnvFallbacks = new Set<string>();
 const writeMutex = new AsyncMutex();
+const FORBIDDEN_PROVIDER_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+const MAX_PROVIDER_KEY_LENGTH = 120;
 
 let initialized = false;
 let cachedOverrides: Record<string, unknown> = {};
@@ -50,7 +61,94 @@ const typeValidators: Record<SettingType, (value: unknown) => boolean> = {
   'number|null': (value) => value === null || (typeof value === 'number' && Number.isFinite(value)),
   'string[]': (value) => Array.isArray(value) && value.every((item) => typeof item === 'string'),
   'string|null': (value) => value === null || typeof value === 'string',
+  'provider-rate-limits': isPlainObject,
 };
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function validateProviderKey(provider: string): string | null {
+  const trimmed = provider.trim();
+  if (trimmed.length === 0) return 'provider keys must not be empty';
+  if (trimmed !== provider) return 'provider keys must not have leading or trailing whitespace';
+  if (trimmed.length > MAX_PROVIDER_KEY_LENGTH) {
+    return `provider keys must be at most ${MAX_PROVIDER_KEY_LENGTH} characters`;
+  }
+  if (FORBIDDEN_PROVIDER_KEYS.has(trimmed)) return `provider key "${trimmed}" is reserved`;
+  return null;
+}
+
+function validateThreshold(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'threshold must be a finite number';
+  if (value <= 0) return 'threshold must be greater than 0';
+  if (value > 1) return 'threshold must be at most 1';
+  return null;
+}
+
+function validateProviderPolicyOverride(
+  value: unknown,
+  provider: string,
+): string | null {
+  if (!isPlainObject(value)) return `providerRateLimits.${provider} must be a plain object`;
+  const keys = Object.keys(value);
+  for (const key of keys) {
+    if (key === 'enabled' || key === 'threshold') continue;
+    return `providerRateLimits.${provider} has unknown field "${key}"`;
+  }
+  if (typeof value.enabled !== 'boolean') {
+    return `providerRateLimits.${provider}.enabled must be a boolean`;
+  }
+  if (!Object.hasOwn(value, 'threshold')) return null;
+  const thresholdError = validateThreshold(value.threshold);
+  return thresholdError ? `providerRateLimits.${provider}.${thresholdError}` : null;
+}
+
+function validateProviderRateLimits(value: unknown): string | null {
+  if (!isPlainObject(value)) return 'must be a plain object';
+  for (const [provider, policy] of Object.entries(value)) {
+    const providerError = validateProviderKey(provider);
+    if (providerError) return providerError;
+    const policyError = validateProviderPolicyOverride(policy, provider);
+    if (policyError) return policyError;
+  }
+  return null;
+}
+
+function normalizeProviderRateLimitPatch(
+  patch: ProviderRateLimitPolicyPatch,
+): ProviderRateLimitPolicyPatch {
+  const provider = patch.provider.trim();
+  const providerError = validateProviderKey(provider);
+  if (providerError) throw new TypeError(providerError);
+  if (typeof patch.enabled !== 'boolean') throw new TypeError('enabled must be a boolean');
+  if (patch.threshold !== null) {
+    const thresholdError = validateThreshold(patch.threshold);
+    if (thresholdError) throw new TypeError(thresholdError);
+  }
+  return { provider, enabled: patch.enabled, threshold: patch.threshold };
+}
+
+function cloneProviderRateLimits(value: unknown): ProviderRateLimits {
+  const validationError = validateProviderRateLimits(value);
+  if (validationError) throw new TypeError(validationError);
+  const next: ProviderRateLimits = {};
+  for (const [provider, policy] of Object.entries(value as Record<string, ProviderRateLimitPolicyOverride>)) {
+    next[provider] = Object.hasOwn(policy, 'threshold')
+      ? { enabled: policy.enabled, threshold: policy.threshold }
+      : { enabled: policy.enabled };
+  }
+  return next;
+}
+
+function providerRateLimitOverrides(
+  overrides: Record<string, unknown>,
+): ProviderRateLimits {
+  if (!Object.hasOwn(overrides, 'providerRateLimits')) return {};
+  return cloneProviderRateLimits(overrides.providerRateLimits);
+}
 
 export function validateSettingsOverrides(value: unknown): asserts value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -61,6 +159,11 @@ export function validateSettingsOverrides(value: unknown): asserts value is Reco
     const entry = SETTINGS_SPEC[key] as SettingSpecEntry<Settings[SettingKey]>;
     if (!typeValidators[entry.type](value[key])) {
       throw new TypeError(`settings.json key "${key}" must have type ${entry.type}`);
+    }
+    if (entry.type === 'provider-rate-limits') {
+      const providerError = validateProviderRateLimits(value[key]);
+      if (providerError) throw new TypeError(`settings.json key "${key}" ${providerError}`);
+      continue;
     }
     const validationError = entry.validate?.(value[key] as never);
     if (validationError) throw new TypeError(`settings.json key "${key}" ${validationError}`);
@@ -127,11 +230,22 @@ function resolveSettings(overrides: Record<string, unknown>): Settings {
   ) as unknown as Settings;
 }
 
-function sameValue(left: Settings[SettingKey], right: Settings[SettingKey]): boolean {
+function sameDataValue(left: unknown, right: unknown): boolean {
   if (Array.isArray(left) && Array.isArray(right)) {
-    return left.length === right.length && left.every((value, index) => value === right[index]);
+    return left.length === right.length && left.every((value, index) => sameDataValue(value, right[index]));
+  }
+  if (isPlainObject(left) && isPlainObject(right)) {
+    const leftKeys = Object.keys(left).sort();
+    const rightKeys = Object.keys(right).sort();
+    return leftKeys.length === rightKeys.length
+      && leftKeys.every((key, index) => key === rightKeys[index]
+        && sameDataValue(left[key], right[key]));
   }
   return Object.is(left, right);
+}
+
+function sameValue(left: Settings[SettingKey], right: Settings[SettingKey]): boolean {
+  return sameDataValue(left, right);
 }
 
 function changedKeys(previous: Settings, next: Settings): SettingKey[] {
@@ -178,7 +292,7 @@ function acceptSnapshot(
 }
 
 function sameOverrides(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return sameDataValue(left, right);
 }
 
 function scheduleReload(): void {
@@ -275,5 +389,35 @@ export async function updateSettings(partial: Partial<Settings>): Promise<void> 
     } finally {
       selfWriting = false;
     }
+  });
+}
+
+export async function setProviderRateLimitPolicy(
+  patch: ProviderRateLimitPolicyPatch,
+): Promise<ProviderRateLimitPolicyPatch> {
+  initialize();
+  const env = { ...process.env };
+  const normalized = normalizeProviderRateLimitPatch(patch);
+  return writeMutex.run(async () => {
+    const nextOverrides = { ...readOverridesForUpdate() };
+    const providerRateLimits = providerRateLimitOverrides(nextOverrides);
+    if (normalized.enabled && normalized.threshold === null) {
+      delete providerRateLimits[normalized.provider];
+    } else {
+      providerRateLimits[normalized.provider] = normalized.threshold === null
+        ? { enabled: normalized.enabled }
+        : { enabled: normalized.enabled, threshold: normalized.threshold };
+    }
+    nextOverrides.providerRateLimits = providerRateLimits;
+    const nextSnapshot = resolveSettingsSnapshot(nextOverrides, env);
+    const nextSettings = settingsFromSnapshot(nextSnapshot);
+    selfWriting = true;
+    try {
+      await atomicWrite(SETTINGS_FILE, `${JSON.stringify(nextOverrides, null, 2)}\n`);
+      acceptSnapshot(nextOverrides, nextSettings, nextSnapshot);
+    } finally {
+      selfWriting = false;
+    }
+    return normalized;
   });
 }

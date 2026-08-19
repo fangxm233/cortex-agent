@@ -56,6 +56,7 @@ import {
   executionsLogInput,
   configGetInput,
   configSetInput,
+  configSetProviderRateLimitPolicyInput,
   authStatusInput,
   authFlowStateInput,
   authStartLoginInput,
@@ -341,6 +342,11 @@ function configRouter(service: UiService) {
   return router({
     get: makeQuery(service, 'config.get', configGetInput),
     set: makeMutation(service, 'config.set', configSetInput),
+    setProviderRateLimitPolicy: makeMutation(
+      service,
+      'config.setProviderRateLimitPolicy',
+      configSetProviderRateLimitPolicyInput,
+    ),
   });
 }
 

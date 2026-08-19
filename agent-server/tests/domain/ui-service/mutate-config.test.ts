@@ -9,9 +9,18 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { writeBudget, writeDefaultProfile, handleConfigSet } from '../../../src/domain/ui-service/mutate/config.js';
-import { configSetInput } from '../../../src/domain/ui-service/input-schemas.js';
+import {
+  writeBudget,
+  writeDefaultProfile,
+  handleConfigSet,
+  handleConfigSetProviderRateLimitPolicy,
+} from '../../../src/domain/ui-service/mutate/config.js';
+import {
+  configSetInput,
+  configSetProviderRateLimitPolicyInput,
+} from '../../../src/domain/ui-service/input-schemas.js';
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
+import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
 import { CONFIG_DIR } from '../../../src/core/paths.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
@@ -82,6 +91,28 @@ test('configSetInput accepts partial settings and rejects unknown or wrongly typ
   assert.throws(() => configSetInput.parse({ section: 'settings', value: { turnNotify: 'false' } }));
   assert.throws(() => configSetInput.parse({ section: 'settings', value: { turnNotify: undefined } }));
   assert.throws(() => configSetInput.parse({ section: 'settings', value: { uiCorsOrigins: [42] } }));
+  assert.throws(() => configSetInput.parse({
+    section: 'settings',
+    value: { providerRateLimits: { 'openai-codex': { enabled: false } } },
+  }));
+});
+
+test('configSetProviderRateLimitPolicyInput accepts a provider patch and rejects invalid policies', () => {
+  assert.deepEqual(
+    configSetProviderRateLimitPolicyInput.parse({
+      provider: 'openai-codex', enabled: false, threshold: 0.91,
+    }),
+    { provider: 'openai-codex', enabled: false, threshold: 0.91 },
+  );
+  assert.deepEqual(
+    configSetProviderRateLimitPolicyInput.parse({
+      provider: 'openai-codex', enabled: true, threshold: null,
+    }),
+    { provider: 'openai-codex', enabled: true, threshold: null },
+  );
+  assert.throws(() => configSetProviderRateLimitPolicyInput.parse({ provider: '', enabled: true, threshold: null }));
+  assert.throws(() => configSetProviderRateLimitPolicyInput.parse({ provider: 'openai-codex', enabled: true, threshold: 0 }));
+  assert.throws(() => configSetProviderRateLimitPolicyInput.parse({ provider: 'openai-codex', enabled: true, threshold: 1.1 }));
 });
 
 test('configSetInput rejects built-in job intervals outside safe timer bounds', () => {
@@ -176,6 +207,44 @@ test('config.set via facade writes to the isolated CONFIG_DIR and returns writte
   const got = await ui.query('config.get', {});
   assert.ok(got.ok);
   assert.deepEqual(got.data.budget, { daily_usd: 55, monthly_usd: 1234, projects: {} });
+});
+
+test('handleConfigSetProviderRateLimitPolicy writes the committed provider policy', async () => {
+  await fs.rm(path.join(CONFIG_DIR, 'settings.json'), { force: true });
+
+  const written = await handleConfigSetProviderRateLimitPolicy(makeMinimalDeps(), {
+    provider: 'openai-codex', enabled: false, threshold: 0.91,
+  } as any);
+  const cleared = await handleConfigSetProviderRateLimitPolicy(makeMinimalDeps(), {
+    provider: 'openai-codex', enabled: true, threshold: null,
+  } as any);
+
+  assert.deepEqual(written, {
+    ok: true,
+    data: {
+      written: true,
+      policy: { provider: 'openai-codex', enabled: false, threshold: 0.91 },
+    },
+  });
+  assert.deepEqual(cleared, {
+    ok: true,
+    data: {
+      written: true,
+      policy: { provider: 'openai-codex', enabled: true, threshold: null },
+    },
+  });
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(CONFIG_DIR, 'settings.json'), 'utf8')), {
+    providerRateLimits: {},
+  });
+});
+
+test('handleConfigSetProviderRateLimitPolicy rejects invalid provider policies with invalid-args', async () => {
+  const result = await handleConfigSetProviderRateLimitPolicy(makeMinimalDeps(), {
+    provider: 'openai-codex', enabled: true, threshold: 0,
+  } as any);
+
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.code, 'invalid-args');
 });
 
 // ── per-project budget overrides ────────────────────────────────────
@@ -283,4 +352,32 @@ test('config.set settings remains successful when async CC retention sync fails 
   assert.deepEqual(result, { ok: true, data: { written: true, section: 'settings' } });
   const settings = JSON.parse(await fs.readFile(path.join(CONFIG_DIR, 'settings.json'), 'utf8'));
   assert.equal(settings.sessionRetentionDays, 60);
+});
+
+test('config.setProviderRateLimitPolicy is reachable via the facade and app router', async () => {
+  await fs.rm(path.join(CONFIG_DIR, 'settings.json'), { force: true });
+  const ui = createUiService(makeMinimalDeps());
+  const facade = await ui.mutate('config.setProviderRateLimitPolicy', {
+    provider: 'openai-codex', enabled: false, threshold: null,
+  });
+  assert.deepEqual(facade, {
+    ok: true,
+    data: {
+      written: true,
+      policy: { provider: 'openai-codex', enabled: false, threshold: null },
+    },
+  });
+
+  const caller = createAppRouter(createUiService(makeMinimalDeps())).createCaller({});
+  const routed = await caller.config.setProviderRateLimitPolicy({
+    provider: 'anthropic', enabled: false, threshold: 0.88,
+  });
+  assert.deepEqual(routed, {
+    written: true,
+    policy: { provider: 'anthropic', enabled: false, threshold: 0.88 },
+  });
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(CONFIG_DIR, 'settings.json'), 'utf8')).providerRateLimits, {
+    'openai-codex': { enabled: false },
+    anthropic: { enabled: false, threshold: 0.88 },
+  });
 });

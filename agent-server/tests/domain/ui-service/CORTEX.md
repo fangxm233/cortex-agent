@@ -7,7 +7,7 @@ Scopes cover approvals, config, executions, issues, memory, plugins, projects, s
 |---|---|---|
 | mutate-approvals.test.ts | test | Covers approve, reject and request writes |
 | mutate-auth.test.ts | test | Covers login flow and account logout mutations |
-| mutate-config.test.ts | test | Covers budget, profile and settings writes |
+| mutate-config.test.ts | test | Covers config writes and provider policy mutation |
 | mutate-executions.test.ts | test | Covers execution cancellation outcomes |
 | mutate-hooks.test.ts | test | Covers hook draft rebuild and test clamping |
 | mutate-profiles.test.ts | test | Covers profile create, edit, remove and guards |

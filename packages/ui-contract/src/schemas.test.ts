@@ -40,7 +40,7 @@ const MUTATE_OPS = [
   'schedules.remove', 'schedules.add', 'schedules.update', 'tasks.claim', 'tasks.unclaim', 'tasks.complete',
   'tasks.block', 'tasks.unblock', 'approvals.approve', 'approvals.reject', 'approvals.request',
   'issues.handle', 'issues.delete', 'notes.add', 'notes.update', 'notes.setCompleted', 'notes.delete',
-  'notes.clearCompleted', 'config.set', 'hooks.create', 'hooks.update', 'hooks.setEnabled', 'hooks.remove',
+  'notes.clearCompleted', 'config.set', 'config.setProviderRateLimitPolicy', 'hooks.create', 'hooks.update', 'hooks.setEnabled', 'hooks.remove',
   'hooks.test', 'profiles.create', 'profiles.update', 'profiles.remove', 'plugins.assign',
   'threadTemplates.validate', 'threadTemplates.save', 'threadTemplates.remove',
   'auth.startLogin', 'auth.respondPrompt', 'auth.cancelFlow', 'auth.logout',
@@ -272,6 +272,26 @@ test('config.set accepts valid budget / profiles sections and rejects illegal va
   assert.throws(() => configSet.parse({ section: 'profiles', value: { defaultProfile: '' } }));
   // unknown section rejected
   assert.throws(() => configSet.parse({ section: 'mcp', value: {} }));
+  assert.throws(() => configSet.parse({
+    section: 'settings',
+    value: { providerRateLimits: { 'openai-codex': { enabled: false } } },
+  }));
+});
+
+test('config.setProviderRateLimitPolicy accepts committed provider policies and rejects invalid ones', async () => {
+  const liveSchemas = await reloadSchemas();
+  const setPolicy = liveSchemas.mutateInputSchemas['config.setProviderRateLimitPolicy'];
+  assert.deepEqual(
+    setPolicy.parse({ provider: 'openai-codex', enabled: false, threshold: 0.91 }),
+    { provider: 'openai-codex', enabled: false, threshold: 0.91 },
+  );
+  assert.deepEqual(
+    setPolicy.parse({ provider: 'openai-codex', enabled: true, threshold: null }),
+    { provider: 'openai-codex', enabled: true, threshold: null },
+  );
+  assert.throws(() => setPolicy.parse({ provider: '', enabled: true, threshold: null }));
+  assert.throws(() => setPolicy.parse({ provider: 'openai-codex', enabled: true, threshold: 0 }));
+  assert.throws(() => setPolicy.parse({ provider: 'openai-codex', enabled: true, threshold: 1.1 }));
 });
 
 test('approvals.request enforces per-kind required fields', () => {

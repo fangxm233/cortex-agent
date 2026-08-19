@@ -31,7 +31,10 @@ import {
   handleSystemRateLimitStatus,
   handleSystemUsageStatus,
 } from './query/system.js';
-import { handleConfigSet } from './mutate/config.js';
+import {
+  handleConfigSet,
+  handleConfigSetProviderRateLimitPolicy,
+} from './mutate/config.js';
 import {
   handleHooksCreate,
   handleHooksUpdate,
@@ -168,6 +171,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'notes.delete': (deps, args) => handleNotesDelete(deps, args),
   'notes.clearCompleted': (deps, args) => handleNotesClearCompleted(deps, args),
   'config.set': (deps, args) => handleConfigSet(deps, args),
+  'config.setProviderRateLimitPolicy': (deps, args) => handleConfigSetProviderRateLimitPolicy(deps, args),
   'auth.startLogin': (deps, args) => handleAuthStartLogin(deps, args),
   'auth.respondPrompt': (deps, args) => handleAuthRespondPrompt(deps, args),
   'auth.cancelFlow': (deps, args) => handleAuthCancelFlow(deps, args),

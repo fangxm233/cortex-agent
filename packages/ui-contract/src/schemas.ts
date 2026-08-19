@@ -45,6 +45,7 @@ export {
   executionsLogInput,
   configGetInput,
   configSetInput,
+  configSetProviderRateLimitPolicyInput,
   authStatusInput,
   authFlowStateInput,
   authStartLoginInput,

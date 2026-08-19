@@ -1,12 +1,16 @@
-// input:  Vitest timers, provider events, deferred saves
-// output: committed-view and retry-order assertions
-// pos:    Covers provider-scoped throttle and outage state
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Vitest timers, settings writes, throttle events
+// output: throttle window, policy, and retry assertions
+// pos:    Covers provider-scoped quota and outage throttles
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
+import path from 'node:path';
 import { importFresh } from './module-loader.js';
 import { MockAdapter } from '../src/platform/testing.js';
+import { CONFIG_DIR } from '../src/core/paths.js';
+import { resetSettingsForTests, updateSettings } from '../src/core/settings.js';
 
 function makePersistenceStub(initial: any = null) {
   let savedState: any = initial;
@@ -51,9 +55,15 @@ async function freshModule() {
 // before reaching its trailing `_testReset()`, the timer leaks and Node's event
 // loop refuses to drain — `npm test` hangs. Register reset via `t.after()` so
 // it runs even when assertions throw.
+const SETTINGS_FILE = path.join(CONFIG_DIR, 'settings.json');
+
 async function freshModuleWithCleanup(t: { onTestFinished: (fn: () => unknown) => void }) {
   const mod = await freshModule();
   t.onTestFinished(() => mod._testReset());
+  t.onTestFinished(() => {
+    resetSettingsForTests();
+    rmSync(SETTINGS_FILE, { force: true });
+  });
   // vitest does not auto-restore fake timers; no-op when a test never faked them.
   t.onTestFinished(() => vi.useRealTimers());
   return mod;
@@ -642,6 +652,47 @@ test('provider-aware mode gates do not collide when providers share a mode name'
   assert.equal(mod.isProviderModeRateLimited('provider-a', 'shared'), true);
   assert.equal(mod.isProviderModeRateLimited('provider-b', 'shared'), false);
   assert.equal(mod.isProviderModeRateLimited('provider-a', 'other'), false);
+});
+
+test('provider policies apply per provider and custom thresholds override every window type', async (t) => {
+  await updateSettings({
+    providerRateLimits: {
+      'provider-a': { enabled: true, threshold: 0.99 },
+      'provider-b': { enabled: true, threshold: 0.8 },
+    },
+  });
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(makeAdapterStub(), makePersistenceStub() as any);
+  const now = Math.floor(Date.now() / 1000);
+
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'seven_day', utilization: 0.96, resetsAt: now + 300 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'shared' },
+  );
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'seven_day', utilization: 0.85, resetsAt: now + 300 },
+    { provider: 'provider-b', displayName: 'Provider B', mode: 'shared' },
+  );
+
+  assert.equal(mod.isProviderUsageRateLimited('provider-a'), false);
+  assert.equal(mod.isProviderUsageRateLimited('provider-b'), true);
+});
+
+test('disabled quota policy ignores new usage windows while outage windows still activate', async (t) => {
+  await updateSettings({ providerRateLimits: { 'provider-a': { enabled: false } } });
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(makeAdapterStub(), makePersistenceStub() as any);
+  const now = Math.floor(Date.now() / 1000);
+
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.99, resetsAt: now + 300 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+  );
+  assert.equal(mod.isProviderUsageRateLimited('provider-a'), false);
+
+  await mod.activateOutageWindow('provider-a', 60_000);
+  assert.equal(mod.isProviderRateLimited('provider-a'), true);
+  assert.deepEqual(mod.getThrottleState().providers[0].windows.map((window) => window.type), ['outage']);
 });
 
 test('groups multiple active window types under one provider', async (t) => {

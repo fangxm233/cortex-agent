@@ -25,5 +25,5 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools.
 | subagent.ts | tool | describes role names and runs scoped PI children |
 | tool-shims.ts | bridge | gates Agent, interaction, todo, and web tools |
 | quota-probe.ts | bridge | reports provider quota read off response headers |
-| quota-sink.ts | core | persists quota usage and preserves throttle submissions |
+| quota-sink.ts | core | persists quota under routed provider keys and feeds throttle |
 | pi-ext-types.ts | types | types PI extension events, models, and tools |

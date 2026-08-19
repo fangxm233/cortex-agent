@@ -14,6 +14,7 @@ import {
   getSettingsSnapshot,
   onSettingsChange,
   resolveSettingsSnapshot,
+  setProviderRateLimitPolicy,
   updateSettings,
 } from '../../src/core/settings.js';
 
@@ -106,6 +107,7 @@ const expectedKeys = [
   'anthropicSubscriptionModes',
   'providerUsageCollectionEnabled',
   'providerUsageCollectionIntervalMs',
+  'providerRateLimits',
   'taskDispatchMaxConcurrent',
   'taskDispatchEnabled',
   'taskDispatchIntervalMs',
@@ -144,6 +146,7 @@ const expectedDefaults = {
   anthropicSubscriptionModes: ['plan'],
   providerUsageCollectionEnabled: true,
   providerUsageCollectionIntervalMs: 5 * 60 * 1000,
+  providerRateLimits: {},
   taskDispatchMaxConcurrent: null,
   taskDispatchEnabled: true,
   taskDispatchIntervalMs: 30_000,
@@ -189,6 +192,7 @@ describe.sequential('core settings', () => {
         anthropicSubscriptionModes: undefined,
         providerUsageCollectionEnabled: undefined,
         providerUsageCollectionIntervalMs: undefined,
+        providerRateLimits: undefined,
         taskDispatchMaxConcurrent: 'TASK_DISPATCH_MAX_CONCURRENT',
         taskDispatchEnabled: undefined,
         taskDispatchIntervalMs: undefined,
@@ -390,6 +394,37 @@ describe.sequential('core settings', () => {
     assert.deepEqual(batches, []);
   });
 
+  test('providerRateLimits defaults to an empty map and validates nested provider policies', () => {
+    assert.deepEqual(getSettings().providerRateLimits, {});
+    assert.doesNotThrow(() => resolveSettingsSnapshot({
+      providerRateLimits: {
+        'openai-codex': { enabled: false, threshold: 0.91 },
+        anthropic: { enabled: true },
+      },
+    }));
+    assert.throws(() => resolveSettingsSnapshot({
+      providerRateLimits: { '   ': { enabled: true } },
+    }));
+    assert.throws(() => resolveSettingsSnapshot({
+      providerRateLimits: { __proto__: { enabled: true } },
+    }));
+    assert.throws(() => resolveSettingsSnapshot({
+      providerRateLimits: { constructor: { enabled: true } },
+    }));
+    assert.throws(() => resolveSettingsSnapshot({
+      providerRateLimits: { prototype: { enabled: true } },
+    }));
+    assert.throws(() => resolveSettingsSnapshot({
+      providerRateLimits: { 'openai-codex': { enabled: true, threshold: 0 } },
+    }));
+    assert.throws(() => resolveSettingsSnapshot({
+      providerRateLimits: { 'openai-codex': { enabled: true, threshold: 1.01 } },
+    }));
+    assert.throws(() => resolveSettingsSnapshot({
+      providerRateLimits: { 'openai-codex': { enabled: true, extra: 1 } },
+    }));
+  });
+
   test('built-in job intervals enforce integer Node timer bounds', () => {
     const valid = {
       taskDispatchIntervalMs: 1_000,
@@ -509,6 +544,18 @@ describe.sequential('core settings', () => {
     assert.equal(batches.length, 2, 'the atomic rename must not trigger a duplicate callback');
   });
 
+  test('unchanged providerRateLimits does not appear in change batches for unrelated writes', async (t) => {
+    const batches: string[][] = [];
+    const unsubscribe = onSettingsChange((keys) => batches.push([...keys]));
+    t.onTestFinished(unsubscribe);
+
+    await updateSettings({ providerRateLimits: { 'openai-codex': { enabled: false, threshold: 0.91 } } });
+    batches.length = 0;
+    await updateSettings({ managerRotateSteps: getSettings().managerRotateSteps + 1 });
+
+    assert.deepEqual(batches, [['managerRotateSteps']]);
+  });
+
   test('concurrent partial updates serialize without losing fields', async () => {
     await Promise.all([
       updateSettings({ turnNotify: false }),
@@ -517,6 +564,35 @@ describe.sequential('core settings', () => {
     const parsed = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
     assert.equal(parsed.turnNotify, false);
     assert.equal(parsed.showToolCalls, true);
+  });
+
+  test('setProviderRateLimitPolicy preserves concurrent provider patches and unrelated settings', async () => {
+    await updateSettings({ eventLog: false, providerRateLimits: {} });
+
+    await Promise.all([
+      setProviderRateLimitPolicy({ provider: 'openai-codex', enabled: false, threshold: 0.91 }),
+      setProviderRateLimitPolicy({ provider: 'anthropic', enabled: false, threshold: null }),
+    ]);
+
+    const parsed = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
+    assert.equal(parsed.eventLog, false);
+    assert.deepEqual(parsed.providerRateLimits, {
+      'openai-codex': { enabled: false, threshold: 0.91 },
+      anthropic: { enabled: false },
+    });
+  });
+
+  test('setProviderRateLimitPolicy serializes same-provider writes and keeps enabled when clearing threshold', async () => {
+    await updateSettings({ providerRateLimits: {} });
+
+    const first = setProviderRateLimitPolicy({ provider: 'openai-codex', enabled: false, threshold: 0.91 });
+    const second = setProviderRateLimitPolicy({ provider: 'openai-codex', enabled: false, threshold: null });
+    const [, committed] = await Promise.all([first, second]);
+
+    assert.deepEqual(committed, { provider: 'openai-codex', enabled: false, threshold: null });
+    assert.deepEqual(JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')).providerRateLimits, {
+      'openai-codex': { enabled: false },
+    });
   });
 
   test('deleting settings.json hot-reloads env and default fallbacks', async (t) => {

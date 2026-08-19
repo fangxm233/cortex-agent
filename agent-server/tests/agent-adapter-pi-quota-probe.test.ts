@@ -1,7 +1,7 @@
-// input:  Vitest, PI quota probes, usage persistence, throttle
-// output: quota emission, durable visibility, unchanged throttle assertions
-// pos:    Covers PI provider quota from child probe to stored usage
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  PI quota probes, usage persistence, throttle keys
+// output: quota emission, routed usage, and throttle assertions
+// pos:    Covers PI quota flow from probe notices into provider stores
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -194,6 +194,28 @@ test('attributes the reading to the profile provider, not the name the headers u
     },
   );
   assert.deepEqual(new Set(calls.map((c) => (c.source as { provider: string }).provider)), new Set(['my-codex']));
+});
+
+test('persists usage under source provider and displayName even when the reading provider differs', async () => {
+  const records: any[] = [];
+  await reportCodexQuota(
+    { ...READING, provider: 'openai-codex' },
+    { provider: 'my-codex', displayName: 'My Codex', mode: 'api' },
+    {
+      submit: async () => {},
+      usageStore: { update: async (record) => { records.push(record); } },
+      now: () => 1_786_000_000_999,
+    },
+  );
+
+  assert.deepEqual(records, [{
+    provider: 'my-codex',
+    displayName: 'My Codex',
+    modes: ['api'],
+    windows: READING.windows,
+    observedAt: 1_786_000_000,
+    freshness: 'stale',
+  }]);
 });
 
 test('persists every below-threshold window across restart with its observation time', async () => {

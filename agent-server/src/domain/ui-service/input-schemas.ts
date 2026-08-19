@@ -331,12 +331,55 @@ export const taskBlockInput = z.object({
   reason: z.string(),
 });
 
+const FORBIDDEN_PROVIDER_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+const MAX_PROVIDER_KEY_LENGTH = 120;
+
+const providerRateLimitOverrideInput = z.object({
+  enabled: z.boolean(),
+  threshold: z.number().finite().gt(0).lte(1).optional(),
+}).strict();
+
+const providerRateLimitsSettingInput = z.record(z.string(), providerRateLimitOverrideInput)
+  .superRefine((value, ctx) => {
+    for (const provider of Object.keys(value)) {
+      if (provider.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [provider],
+          message: 'provider keys must not be empty',
+        });
+      }
+      if (provider !== provider.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [provider],
+          message: 'provider keys must not have leading or trailing whitespace',
+        });
+      }
+      if (provider.length > MAX_PROVIDER_KEY_LENGTH) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [provider],
+          message: `provider keys must be at most ${MAX_PROVIDER_KEY_LENGTH} characters`,
+        });
+      }
+      if (FORBIDDEN_PROVIDER_KEYS.has(provider)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [provider],
+          message: `provider key "${provider}" is reserved`,
+        });
+      }
+    }
+  });
+
 const settingTypeSchemas = {
   boolean: z.boolean(),
   number: z.number().finite(),
   'number|null': z.number().finite().nullable(),
   'string[]': z.array(z.string()),
   'string|null': z.string().nullable(),
+  'provider-rate-limits': providerRateLimitsSettingInput,
 } as const;
 
 type SettingsShape = {
@@ -358,6 +401,10 @@ const settingsShape = Object.fromEntries(
   Object.entries(SETTINGS_SPEC).map(([key, spec]) => [key, settingSchema(spec)]),
 ) as unknown as SettingsShape;
 
+const writableSettingsShape = Object.fromEntries(
+  Object.entries(settingsShape).filter(([key]) => key !== 'providerRateLimits'),
+);
+
 function rejectUndefinedSettings(value: Record<string, unknown>, ctx: z.RefinementCtx): void {
   for (const [key, setting] of Object.entries(value)) {
     if (setting !== undefined) continue;
@@ -369,7 +416,7 @@ function rejectUndefinedSettings(value: Record<string, unknown>, ctx: z.Refineme
   }
 }
 
-const settingsValueInput = z.object(settingsShape).partial().strict()
+const settingsValueInput = z.object(writableSettingsShape).partial().strict()
   .superRefine(rejectUndefinedSettings);
 
 // config.set: a discriminated union of the safely-writable sections. `budget` numbers must be
@@ -410,6 +457,13 @@ export const configSetInput = z.discriminatedUnion('section', [
     value: settingsValueInput,
   }),
 ]);
+
+export const configSetProviderRateLimitPolicyInput = z.object({
+  provider: z.string().trim().min(1).max(MAX_PROVIDER_KEY_LENGTH)
+    .refine((value) => !FORBIDDEN_PROVIDER_KEYS.has(value), 'provider key is reserved'),
+  enabled: z.boolean(),
+  threshold: z.union([z.number().finite().gt(0).lte(1), z.null()]).optional(),
+});
 
 // ── hooks.* ───────────────────────────────────────────────────────
 // The declarative hook registry. `hooks.list` is unparameterised; the write ops take a FLAT draft
@@ -710,6 +764,7 @@ export const mutateInputSchemas = {
   'notes.delete': noteActionInput,
   'notes.clearCompleted': notesClearCompletedInput,
   'config.set': configSetInput,
+  'config.setProviderRateLimitPolicy': configSetProviderRateLimitPolicyInput,
   'auth.startLogin': authStartLoginInput,
   'auth.respondPrompt': authRespondPromptInput,
   'auth.cancelFlow': authCancelFlowInput,

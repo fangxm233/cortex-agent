@@ -1,7 +1,7 @@
 // input:  spawn config, Codex quota readings, usage store, throttle
 // output: resolveQuotaSource and durable reportCodexQuota
-// pos:    Persists PI quota visibility and feeds the throttle
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// pos:    Persists PI quota under routed provider keys and feeds throttle
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { handleRateLimitEvent, type RateLimitSource } from '@domain/costs/rate-limit-throttle.js';
 import { usageStore, type ProviderUsage, type UsageStore } from '@domain/costs/usage-store.js';
@@ -48,8 +48,8 @@ function providerUsage(
   observedAtMs: number,
 ): ProviderUsage {
   return {
-    provider: reading.provider,
-    displayName: DISPLAY_NAMES[reading.provider] ?? reading.provider,
+    provider: source.provider,
+    displayName: source.displayName,
     modes: source.mode ? [source.mode] : [],
     windows: reading.windows.map((window) => ({ ...window })),
     observedAt: Math.floor(observedAtMs / 1000),

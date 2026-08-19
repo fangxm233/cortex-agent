@@ -1,10 +1,11 @@
-// input:  provider state, persistence, timer generations
+// input:  provider state, runtime settings, timer generations
 // output: committed throttle gates, clear callbacks, and manual early-release
-// pos:    Provider-scoped limit and outage state machine
+// pos:    Provider-scoped quota and outage throttle state machine
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { PlatformAdapter, ActionElement } from '@platform/index.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
+import { getSettings } from '@core/settings.js';
 import { createLogger } from '@core/log.js';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { Icons } from '../../core/icons.js';
@@ -185,13 +186,36 @@ function formatRemaining(epochSec: number): string {
   return `${totalSec}s`;
 }
 
-function thresholdFor(type: string): number {
-  return TYPE_THRESHOLDS[type] ?? DEFAULT_THRESHOLD;
+function thresholdFor(type: string, override: number | null): number {
+  return override ?? TYPE_THRESHOLDS[type] ?? DEFAULT_THRESHOLD;
+}
+
+function canonicalProvider(provider: string | null | undefined): string | null {
+  const trimmed = provider?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function resolveProviderPolicy(provider: string): { enabled: boolean; threshold: number | null } {
+  const override = getSettings().providerRateLimits[provider];
+  return {
+    enabled: override?.enabled ?? true,
+    threshold: override?.threshold ?? null,
+  };
 }
 
 function normalizeSource(source?: string | RateLimitSource): RateLimitSource {
-  if (typeof source === 'string') return { provider: source, displayName: source, mode: source };
-  if (source?.provider) return source;
+  if (typeof source === 'string') {
+    const provider = canonicalProvider(source) ?? 'unknown';
+    return { provider, displayName: provider, mode: provider };
+  }
+  const provider = canonicalProvider(source?.provider);
+  if (provider) {
+    return {
+      provider,
+      displayName: source?.displayName?.trim() || provider,
+      ...(source?.mode ? { mode: source.mode } : {}),
+    };
+  }
   return { provider: 'unknown', displayName: 'Unknown provider' };
 }
 
@@ -419,10 +443,16 @@ async function activateOutageWindow(provider: string | null, durationMs: number)
   await _mutationMutex.run(() => activateOutageWindowLocked(provider, durationMs));
 }
 
+function shouldActivateQuota(info: RateLimitInfo, source: RateLimitSource): boolean {
+  if (typeof info.utilization !== 'number' || !info.rateLimitType) return false;
+  const policy = resolveProviderPolicy(source.provider);
+  return policy.enabled && info.utilization >= thresholdFor(info.rateLimitType, policy.threshold);
+}
+
 async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
   if (!info || !_persistence || !info.rateLimitType || !info.resetsAt) return;
-  if (typeof info.utilization !== 'number' || info.utilization < thresholdFor(info.rateLimitType)) return;
   const source = normalizeSource(rawSource);
+  if (!shouldActivateQuota(info, source)) return;
   const candidate = cloneProviders();
   let provider = candidate.get(source.provider);
   const isNewProvider = !provider;

@@ -47,6 +47,7 @@ import type {
   executionsLogInput,
   configGetInput,
   configSetInput,
+  configSetProviderRateLimitPolicyInput,
   authStatusInput,
   authFlowStateInput,
   authStartLoginInput,
@@ -145,6 +146,10 @@ const _tasksComplete: MutateParity<'tasks.complete', typeof taskCompleteInput> =
 const _tasksBlock: MutateParity<'tasks.block', typeof taskBlockInput> = true;
 const _tasksUnblock: MutateParity<'tasks.unblock', typeof taskActionInput> = true;
 const _configSet: MutateParity<'config.set', typeof configSetInput> = true;
+const _configSetProviderRateLimitPolicy: MutateParity<
+  'config.setProviderRateLimitPolicy',
+  typeof configSetProviderRateLimitPolicyInput
+> = true;
 const _hooksCreate: MutateParity<'hooks.create', typeof hooksCreateInput> = true;
 const _hooksUpdate: MutateParity<'hooks.update', typeof hooksUpdateInput> = true;
 const _hooksSetEnabled: MutateParity<'hooks.setEnabled', typeof hooksSetEnabledInput> = true;
@@ -193,7 +198,8 @@ export const _contractParityChecked = [
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
   _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
   _notesAdd, _notesUpdate, _notesSetCompleted, _notesDelete, _notesClearCompleted,
-  _configSet, _authStartLogin, _authRespondPrompt, _authCancelFlow, _authLogout, _executionsLog,
+  _configSet, _configSetProviderRateLimitPolicy,
+  _authStartLogin, _authRespondPrompt, _authCancelFlow, _authLogout, _executionsLog,
   _authCustomProviders, _authUpsertCustomProvider, _authRemoveCustomProvider,
   _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
   _profilesCreate, _profilesUpdate, _profilesRemove, _pluginsAssign,
