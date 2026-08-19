@@ -255,13 +255,18 @@ def _revocation_reason(envelope: Mapping[str, object], trial_id: str) -> str | N
     revocation = envelope.get("revocation")
     if not isinstance(revocation, Mapping):
         return "proxy revocation is unavailable"
-    expected: Mapping[str, object] = {
-        "schema_version": REVOCATION_SCHEMA_VERSION, "trial_id": trial_id,
-        "route_active": False, "listener_present": False,
-        "serving_thread_alive": False, "active_handlers": 0, "body_handlers": 0,
-    }
-    if any(revocation.get(key) != value for key, value in expected.items()):
+    if (
+        revocation.get("schema_version") != REVOCATION_SCHEMA_VERSION
+        or revocation.get("trial_id") != trial_id
+    ):
         return "proxy revocation is untrustworthy"
+    boolean_fields = ("route_active", "listener_present", "serving_thread_alive")
+    if any(revocation.get(field) is not False for field in boolean_fields):
+        return "proxy revocation is untrustworthy"
+    for field in ("active_handlers", "body_handlers"):
+        value = revocation.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value != 0:
+            return "proxy revocation is untrustworthy"
     return None
 
 

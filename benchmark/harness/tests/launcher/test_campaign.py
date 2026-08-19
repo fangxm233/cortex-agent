@@ -1427,7 +1427,7 @@ def test_resuming_a_terminal_verifier_failure_keeps_it_failed_without_rearming(
     assert report["runs"][0]["score_status"] == "failed"
 
 
-@pytest.mark.parametrize("untrustworthy", ["scan", "revocation"])
+@pytest.mark.parametrize("untrustworthy", ["scan", "revocation", "revocation-types"])
 def test_untrustworthy_security_evidence_never_exposes_a_score(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
     untrustworthy: str,
@@ -1438,8 +1438,11 @@ def test_untrustworthy_security_evidence_never_exposes_a_score(
                 "ok": False, "clean": False, "matches": [{"rule": "secret"}],
                 "missing_sources": [], "unclassified_files": [],
             }
-        else:
+        elif untrustworthy == "revocation":
             document["revocation"]["route_active"] = True
+        else:
+            document["revocation"]["route_active"] = 0
+            document["revocation"]["active_handlers"] = False
         return document
 
     RecordingTrialPath(envelope_mutation=fail_security).install(monkeypatch)
