@@ -7,13 +7,14 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | __init__.py | export | Lazily exposes the Harbor wrapper class |
 | artifact_build.py | build | Serializes checkout packing and builds both trial artifacts |
 | artifact_provenance.py | boundary | Binds each built artifact to the source it came from, and refuses one that no longer matches the checkout |
-| campaign.py | CLI | Runs one campaign's trials concurrently across its address slots, accounts every trial's spend whether or not it published, and writes the report |
+| campaign.py | CLI | Runs campaigns, resumes terminal outcomes and reports every trial |
 | campaign_config.py | boundary | Reads Cortex and vendor campaigns and scopes trial addresses |
 | container_boundary.py | boundary | Records post-stop container exit and process census |
 | cwd.py | core | Resolves the live container workdir |
 | manifest.py | core | Records artifacts and the installed CLI version |
 | harbor_agent.py | adapter | Bootstraps production and finalizes after stop |
 | host_finalization.py | boundary | Collects, scans and publishes trial evidence |
+| outcome.py | boundary | Classifies Harbor results and canonical verifier rewards |
 | launcher/ | core | Selects arms and builds non-secret Harbor inputs |
 | proxy/ | network | Injects credentials through a bounded trial route |
 | scan/ | audit | Finds credential and host-identity leaks |

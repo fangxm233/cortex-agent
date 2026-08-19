@@ -1,20 +1,17 @@
-# input:  one campaign config path (or `-`), through the public cortex-bench CLI
-# output: concurrent trial roots, one deterministic comparison report and a structured result
+# input:  campaign config from the public cortex-bench CLI
+# output: terminal outcomes, verifier rewards and comparison report
 # pos:    Public campaign runner
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The driver owns exactly three policies the trial path does not: which trials run and in what
 # order, how many run at once, and the resume rule. It delegates execution to `create_harbor_trial`,
-# then validates Harbor completion without imposing a reward threshold; cost comes only from each
-# admitted outer envelope, and reporting remains delegated to the existing comparison builder.
+# then reads Harbor's result and the host envelope into one terminal outcome. Reporting remains
+# delegated to the comparison builder.
 #
-# Two rules make a campaign resumable and re-runnable without ever paying twice. A trial root that
-# already carries a published envelope is READ, never re-armed and never written to; a trial root
-# without one is a refusal, because a half-finished trial has no cost this driver may account for
-# and no result it may report. Both are decided BEFORE anything is armed, and the refusal names
-# every incomplete root at once — over a suite-sized campaign, learning them one run at a time is
-# its own failure. Cost is read only from published envelopes: an arm's declared budget is a bound
-# on what a trial may spend, never evidence of what it did spend.
+# Resume classifies every existing root BEFORE anything is armed. Terminal success, failure, and
+# security failure are read without writing the root again. A harness-incomplete root is refused
+# wholesale because it cannot be trusted or overwritten. At suite scale, naming every incomplete
+# root in one refusal avoids one campaign run per root.
 #
 # CONCURRENCY. Worker `k` holds network slot `k` for the whole campaign and pulls plans off a
 # shared queue in declared order. A slot owns one subnet, one gateway and one container address, so
@@ -33,7 +30,6 @@ import argparse
 import asyncio
 import hashlib
 import json
-import math
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
@@ -48,11 +44,17 @@ from .campaign_config import (
     load_campaign_config,
     parse_campaign_config,
 )
-from .host_finalization import OUTER_ENVELOPE_FILENAME, OUTER_ENVELOPE_SCHEMA_VERSION
 from .launcher.comparison_report import build_comparison_report, render_comparison_report
 from .launcher.trial_admission import create_harbor_trial
+from .outcome import (
+    HARNESS_INCOMPLETE,
+    SCORE_UNAVAILABLE,
+    SECURITY_FAILED,
+    TERMINAL_SUCCESS,
+    TrialOutcomeReader,
+)
 
-CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/4"
+CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/5"
 COMPARISON_REPORT_FILENAME = "comparison-report.json"
 PROXY_EXPORT_FILENAME = "proxy-export.json"
 STATE_COMPLETED = "completed"
@@ -67,8 +69,8 @@ EPILOG = """Examples:
   cortex-bench run --config campaign.yaml --dry-run
   cat campaign.yaml | cortex-bench run --config -
 
-A campaign is resumable: re-running the same config skips every trial root that already
-published its outer envelope, so a retry arms nothing and spends nothing.
+A campaign is resumable: re-running the same config reads every terminal trial root,
+including failures, so a retry arms nothing and spends nothing.
 """
 RUN_DESCRIPTION = """Run one campaign: every declared trial is armed through the production
 trial path, up to `concurrency` of them at a time, each on its own slot of the declared address
@@ -125,6 +127,9 @@ class TrialOutcome:
     envelope: Mapping[str, object] | None = None
     envelope_path: Path | None = None
     envelope_sha256: str | None = None
+    outcome_state: str | None = None
+    verifier_rewards: Mapping[str, int | float] | None = None
+    score_status: str | None = None
     reason: str | None = None
     slot: int | None = None
     started_at: str | None = None
@@ -132,7 +137,9 @@ class TrialOutcome:
 
     @property
     def admission(self) -> Mapping[str, object] | None:
-        """What the trial's own envelope said about being gradable, or None if it never ran."""
+        """What the terminal record says about being gradable."""
+        if self.outcome_state == SECURITY_FAILED:
+            return {"admitted": False, "reason": "security_failed"}
         admission = (self.envelope or {}).get("grader_admission")
         return admission if isinstance(admission, Mapping) else None
 
@@ -153,6 +160,11 @@ class TrialOutcome:
             record["outer_envelope_path"] = str(self.envelope_path)
         if self.admission is not None:
             record["grader_admission"] = dict(self.admission)
+        if self.outcome_state is not None:
+            record["outcome_state"] = self.outcome_state
+            record["verifier_rewards"] = (
+                None if self.verifier_rewards is None else dict(self.verifier_rewards))
+            record["score_status"] = self.score_status
         if self.reason is not None:
             record["reason"] = self.reason
         # The schedule, not the declaration: trials are reported in declared order, so without
@@ -205,12 +217,8 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
     report_path, report_sha256 = _write_comparison_report(config, outcomes)
     failed = sum(outcome.state in (TRIAL_FAILED, TRIAL_NOT_ARMED) for outcome in outcomes)
     document: dict[str, object] = {
-        # `ok` answers "did this campaign produce the results it declared", which is what a caller
-        # gates on. A host fault is not the only way to produce none of them: r5 ran to completion
-        # with every trial failing and reported ok, so a caller reading the exit code saw success.
         "ok": fault is None and failed == 0,
-        "schema_version": CAMPAIGN_RESULT_SCHEMA_VERSION,
-        "campaign": config.campaign,
+        "schema_version": CAMPAIGN_RESULT_SCHEMA_VERSION, "campaign": config.campaign,
         "state": STATE_COMPLETED if fault is None else STATE_HOST_FAULT,
         "paid": config.paid, "trials_dir": str(config.trials_dir),
         "concurrency": config.concurrency,
@@ -306,8 +314,10 @@ class _Schedule:
     ) -> TrialOutcome:
         """A trial that failed still spent whatever its proxy metered before it failed."""
         return TrialOutcome(
-            plan=plan, state=TRIAL_FAILED, reason=str(error), slot=slot.index,
-            started_at=started_at, finished_at=_timestamp(), armed=True,
+            plan=plan, state=TRIAL_FAILED, outcome_state=HARNESS_INCOMPLETE,
+            verifier_rewards=None, score_status=SCORE_UNAVAILABLE,
+            reason=str(error), slot=slot.index, started_at=started_at,
+            finished_at=_timestamp(), armed=True,
             metered_requests=_metered_requests(trial_root))
 
 
@@ -320,21 +330,22 @@ def _partition(
     to move aside in one message, rather than one campaign run per root.
     """
     partitioned: list[tuple[TrialPlan, TrialOutcome | None]] = []
-    unfinished: list[Path] = []
+    unfinished: list[tuple[Path, str | None]] = []
     for plan in plans:
         trial_root = config.trials_dir / plan.trial_id
         if not trial_root.exists():
             partitioned.append((plan, None))
-        elif (trial_root / "artifacts" / OUTER_ENVELOPE_FILENAME).exists():
-            partitioned.append((plan, _read_outcome(plan, trial_root, TRIAL_SKIPPED)))
-        else:
-            unfinished.append(trial_root)
+            continue
+        outcome = _read_outcome(plan, trial_root, TRIAL_SKIPPED)
+        if outcome.outcome_state == HARNESS_INCOMPLETE:
+            unfinished.append((trial_root, outcome.reason))
+            continue
+        partitioned.append((plan, outcome))
     if unfinished:
+        details = ", ".join(f"{root} ({reason})" for root, reason in unfinished)
         raise CampaignError(
-            f"{len(unfinished)} trial root(s) exist without a published "
-            f"{OUTER_ENVELOPE_FILENAME}, so those trials did not finish: "
-            f"{', '.join(str(root) for root in unfinished)}. Move them aside to re-run those "
-            "trials; this driver never overwrites one")
+            f"{len(unfinished)} trial root(s) are harness-incomplete: {details}. "
+            "Move them aside to re-run those trials; this driver never overwrites one")
     return partitioned
 
 
@@ -353,8 +364,7 @@ async def _arm_trial(config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot)
             verifier_timeout_seconds=config.timeouts.get("verifier_seconds"),
             network=config.network,
         )
-        result = await trial.run()
-        _require_completed_trial(plan, result)
+        await trial.run()
     except HostFaultError:
         raise
     except CampaignError as error:
@@ -362,39 +372,22 @@ async def _arm_trial(config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot)
     except Exception as error:
         trial_error = CampaignError(f"trial {plan.trial_id} failed: {error}")
         trial_error.__cause__ = error
-    if network_id:
-        try:
-            _remove_trial_network(network_id)
-        except Exception as cleanup_error:
-            if trial_error is not None:
-                raise TrialCleanupError(trial_error, cleanup_error) from trial_error
-            raise
+    _cleanup_trial_network(network_id, trial_error)
     if trial_error is not None:
         raise trial_error
 
 
-def _require_completed_trial(plan: TrialPlan, result: object) -> None:
-    exception = getattr(result, "exception_info", None)
-    if exception is not None:
-        kind = getattr(exception, "exception_type", type(exception).__name__)
-        message = getattr(exception, "exception_message", str(exception))
-        raise CampaignError(f"trial {plan.trial_id} failed: {kind}: {message}")
-    verifier = getattr(result, "verifier_result", None)
-    if verifier is None:
-        raise CampaignError(f"trial {plan.trial_id} published no verifier result")
-    _require_finite_rewards(plan, getattr(verifier, "rewards", None))
-
-
-def _require_finite_rewards(plan: TrialPlan, rewards: object) -> None:
-    if not isinstance(rewards, Mapping) or not rewards:
-        raise CampaignError(f"trial {plan.trial_id} published no verifier rewards")
-    if any(
-        not isinstance(value, (int, float)) or isinstance(value, bool)
-        or not math.isfinite(value)
-        for value in rewards.values()
-    ):
-        raise CampaignError(
-            f"trial {plan.trial_id} published a non-finite or non-numeric verifier reward")
+def _cleanup_trial_network(
+    network_id: str, trial_error: CampaignError | None,
+) -> None:
+    if not network_id:
+        return
+    try:
+        _remove_trial_network(network_id)
+    except Exception as cleanup_error:
+        if trial_error is not None:
+            raise TrialCleanupError(trial_error, cleanup_error) from trial_error
+        raise
 
 
 def _create_trial_network(
@@ -434,90 +427,19 @@ def _read_outcome(
     plan: TrialPlan, trial_root: Path, state: str, *, slot: int | None = None,
     started_at: str | None = None, finished_at: str | None = None,
 ) -> TrialOutcome:
-    _require_published_success(plan, trial_root)
-    path = trial_root / "artifacts" / OUTER_ENVELOPE_FILENAME
-    try:
-        payload = path.read_bytes()
-        envelope = json.loads(payload)
-    except (OSError, ValueError) as error:
-        raise CampaignError(
-            f"trial {plan.trial_id} published an unreadable {path}: {error}") from error
-    if not isinstance(envelope, Mapping):
-        raise CampaignError(f"trial {plan.trial_id} published a non-mapping {path}")
-    if envelope.get("schema_version") != OUTER_ENVELOPE_SCHEMA_VERSION:
-        raise CampaignError(
-            f"trial {plan.trial_id} published {path} with schema_version "
-            f"{envelope.get('schema_version')!r}; this driver reads "
-            f"{OUTER_ENVELOPE_SCHEMA_VERSION}")
-    _validate_identity(plan, path, envelope)
-    # A published trial's envelope carries the very figure its proxy metered, validated on the way
-    # through finalization, so it is the accounting record for that trial and the raw export is
-    # only needed for a trial that never got to publish one.
-    requests = _envelope_requests(plan, path, envelope)
+    read = TrialOutcomeReader(
+        trial_id=plan.trial_id, arm_name=plan.arm_name, trial_root=trial_root,
+    ).read()
+    requests = read.requests
+    metered = requests if requests is not None else _metered_requests(trial_root)
     return TrialOutcome(
-        plan=plan, state=state, requests=requests,
-        metered_requests=requests, armed=True,
-        envelope=envelope, envelope_path=path,
-        envelope_sha256=hashlib.sha256(payload).hexdigest(),
-        slot=slot, started_at=started_at, finished_at=finished_at,
+        plan=plan, state=state if read.outcome_state == TERMINAL_SUCCESS else TRIAL_FAILED,
+        requests=requests, metered_requests=metered, armed=True,
+        envelope=read.envelope, envelope_path=read.envelope_path,
+        envelope_sha256=read.envelope_sha256, outcome_state=read.outcome_state,
+        verifier_rewards=read.verifier_rewards, score_status=read.score_status,
+        reason=read.reason, slot=slot, started_at=started_at, finished_at=finished_at,
     )
-
-
-def _require_published_success(plan: TrialPlan, trial_root: Path) -> None:
-    path = trial_root / "result.json"
-    try:
-        result = json.loads(path.read_bytes())
-    except (OSError, ValueError) as error:
-        raise CampaignError(
-            f"trial {plan.trial_id} published no readable Harbor result {path}: {error}") from error
-    if not isinstance(result, Mapping):
-        raise CampaignError(f"trial {plan.trial_id} published a non-mapping {path}")
-    exception = result.get("exception_info")
-    if exception is not None:
-        kind = exception.get("exception_type") if isinstance(exception, Mapping) else "unknown"
-        message = exception.get("exception_message") if isinstance(exception, Mapping) else exception
-        raise CampaignError(f"trial {plan.trial_id} failed: {kind}: {message}")
-    verifier = result.get("verifier_result")
-    rewards = verifier.get("rewards") if isinstance(verifier, Mapping) else None
-    _require_finite_rewards(plan, rewards)
-
-
-def _validate_identity(
-    plan: TrialPlan, path: Path, envelope: Mapping[str, object],
-) -> None:
-    """A resumed root is trusted only for the trial it says it is.
-
-    Admission used to be checked here too, and a non-admitted envelope ended the campaign. It is
-    now read and carried instead: an inner run that failed is a result about the agent, and the
-    reward beside it came from the authentic verifier scoring what the agent actually left
-    behind. What still ends a campaign is a harness fault, which never reaches this function —
-    it raises during finalization and publishes no envelope at all.
-    """
-    identity = envelope.get("identity")
-    identity = identity if isinstance(identity, Mapping) else {}
-    declared = (identity.get("trial_id"), identity.get("arm_name"))
-    if declared != (plan.trial_id, plan.arm_name):
-        raise CampaignError(
-            f"{path} identifies trial {declared[0]!r} on arm {declared[1]!r}, but this campaign "
-            f"expects {plan.trial_id!r} on {plan.arm_name!r}")
-    admission = envelope.get("grader_admission")
-    admitted = admission.get("admitted") if isinstance(admission, Mapping) else None
-    if not isinstance(admitted, bool):
-        raise CampaignError(
-            f"trial {plan.trial_id} published {path} with grader_admission.admitted "
-            f"{admitted!r}; an envelope must state whether its result is gradable")
-
-
-def _envelope_requests(
-    plan: TrialPlan, path: Path, envelope: Mapping[str, object],
-) -> int:
-    usage = envelope.get("proxy_usage")
-    value = usage.get("requests") if isinstance(usage, Mapping) else None
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise CampaignError(
-            f"trial {plan.trial_id} published {path} without a proxy_usage.requests "
-            "count, so its provider traffic cannot be accounted")
-    return value
 
 
 def _metered_requests(trial_root: Path) -> int | None:
@@ -567,12 +489,11 @@ def _total_is_complete(outcomes: Sequence[TrialOutcome]) -> bool:
 def _write_comparison_report(
     config: CampaignConfig, outcomes: Sequence[TrialOutcome],
 ) -> tuple[Path | None, str | None]:
-    """The report over every trial that published an envelope, or nothing when none did.
-
-    A campaign whose trials all failed has no runs to compare, and that is a result to report
-    rather than a crash on the way to reporting it.
-    """
-    runs = [_report_run(config, outcome) for outcome in outcomes if outcome.envelope is not None]
+    """The report over every terminal trial, including explicit failed outcomes."""
+    runs = [
+        _report_run(config, outcome) for outcome in outcomes
+        if outcome.outcome_state is not None
+    ]
     if not runs:
         return None, None
     report = build_comparison_report(
@@ -598,25 +519,33 @@ def _reported(
 
 
 def _report_run(config: CampaignConfig, outcome: TrialOutcome) -> dict[str, object]:
-    envelope = outcome.envelope or {}
-    usage = envelope.get("proxy_usage")
-    usage = usage if isinstance(usage, Mapping) else {}
-    identity = envelope.get("identity")
-    identity = identity if isinstance(identity, Mapping) else {}
+    arm = dict(outcome.plan.arm)
     return {
-        "run_id": outcome.plan.trial_id, "arm": dict(outcome.plan.arm),
-        "cli_version": config.cli_version,
+        "run_id": outcome.plan.trial_id, "arm": arm,
+        "cli_version": arm.get("vendor_cli_version", config.cli_version),
         "task": {"task_id": outcome.plan.task.task_id,
                  "image_digest": outcome.plan.task.image_digest},
-        "cortex_telemetry": {
-            "trial_id": outcome.plan.trial_id,
-            "root_run_id": identity.get("root_run_id"),
-            "requests": usage.get("requests"),
-            "input_tokens": usage.get("input_tokens"),
-            "output_tokens": usage.get("output_tokens"),
-            "outer_envelope_sha256": outcome.envelope_sha256,
-        },
+        "cortex_telemetry": _cortex_telemetry(outcome),
         "grader_admission": dict(outcome.admission) if outcome.admission else None,
+        "outcome_state": outcome.outcome_state,
+        "verifier_rewards": (
+            None if outcome.verifier_rewards is None else dict(outcome.verifier_rewards)),
+        "score_status": outcome.score_status,
+    }
+
+
+def _cortex_telemetry(outcome: TrialOutcome) -> Mapping[str, object] | None:
+    if outcome.plan.arm.get("kind") != "cortex" or outcome.envelope is None:
+        return None
+    usage = outcome.envelope.get("proxy_usage")
+    usage = usage if isinstance(usage, Mapping) else {}
+    identity = outcome.envelope.get("identity")
+    identity = identity if isinstance(identity, Mapping) else {}
+    return {
+        "trial_id": outcome.plan.trial_id, "root_run_id": identity.get("root_run_id"),
+        "requests": usage.get("requests"), "input_tokens": usage.get("input_tokens"),
+        "output_tokens": usage.get("output_tokens"),
+        "outer_envelope_sha256": outcome.envelope_sha256,
     }
 
 

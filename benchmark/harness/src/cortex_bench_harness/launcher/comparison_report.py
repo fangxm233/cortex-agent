@@ -1,16 +1,23 @@
 # input:  ordered campaign runs, arm/task pins, contrast declarations
-# output: deterministic comparison report with explicit telemetry and admission states
+# output: terminal outcomes, rewards, telemetry and admission
 # pos:    Host-side comparison provenance and classification builder
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import json
+import math
 from collections.abc import Mapping, Sequence
 from decimal import Decimal, InvalidOperation
+from typing import cast
 
 from .arms import IMAGE_DIGEST, VENDOR_AGENTS
 
-COMPARISON_REPORT_SCHEMA_VERSION = "cortex-benchmark-comparison-report/2"
+COMPARISON_REPORT_SCHEMA_VERSION = "cortex-benchmark-comparison-report/3"
 DIFFERENCE_CLASSES = frozenset({"bundle-level", "orchestration"})
+OUTCOME_STATES = frozenset({
+    "terminal-success", "terminal-agent-failure", "terminal-verifier-failure",
+    "harness-incomplete", "security-failed",
+})
+SCORE_STATUSES = frozenset({"available", "failed", "unavailable"})
 VENDOR_TELEMETRY_UNAVAILABLE = {
     "status": "unavailable",
     "reason": "not_exposed_by_vendor_runner",
@@ -18,6 +25,10 @@ VENDOR_TELEMETRY_UNAVAILABLE = {
 VENDOR_ADMISSION_UNAVAILABLE = {
     "status": "unavailable",
     "reason": "vendor_runner_publishes_no_outer_envelope",
+}
+CORTEX_OUTER_UNAVAILABLE = {
+    "status": "unavailable",
+    "reason": "outer_envelope_unavailable",
 }
 
 
@@ -80,18 +91,20 @@ def _task(run: Mapping[str, object]) -> dict[str, str]:
     return {"task_id": _text(source, "task_id", "task"), "image_digest": digest}
 
 
-def _telemetry(run: Mapping[str, object], kind: str) -> object:
+def _telemetry(run: Mapping[str, object], kind: str, outcome_state: str) -> object:
     telemetry = run.get("cortex_telemetry")
     if kind == "vendor-baseline":
         if telemetry is not None:
             raise ValueError("vendor baseline Cortex telemetry must be unavailable")
         return dict(VENDOR_TELEMETRY_UNAVAILABLE)
-    if not isinstance(telemetry, Mapping):
-        raise ValueError("Cortex runs must provide cortex_telemetry")
-    return json.loads(json.dumps(telemetry))
+    if isinstance(telemetry, Mapping):
+        return json.loads(json.dumps(telemetry))
+    if outcome_state != "terminal-success":
+        return dict(CORTEX_OUTER_UNAVAILABLE)
+    raise ValueError("successful Cortex runs must provide cortex_telemetry")
 
 
-def _admission(run: Mapping[str, object], kind: str) -> object:
+def _admission(run: Mapping[str, object], kind: str, outcome_state: str) -> object:
     """Whether this run's result may be compared with the others, carried per run.
 
     A campaign no longer stops at the first inner run that failed, so a report can hold runs that
@@ -103,9 +116,48 @@ def _admission(run: Mapping[str, object], kind: str) -> object:
         if admission is not None:
             raise ValueError("vendor baseline grader admission must be unavailable")
         return dict(VENDOR_ADMISSION_UNAVAILABLE)
-    if not isinstance(admission, Mapping) or not isinstance(admission.get("admitted"), bool):
-        raise ValueError("Cortex runs must state grader_admission.admitted")
-    return json.loads(json.dumps(admission))
+    if isinstance(admission, Mapping) and isinstance(admission.get("admitted"), bool):
+        return json.loads(json.dumps(admission))
+    if outcome_state != "terminal-success" and admission is None:
+        return dict(CORTEX_OUTER_UNAVAILABLE)
+    raise ValueError("Cortex runs must state grader_admission.admitted")
+
+
+def _outcome_state(run: Mapping[str, object]) -> str:
+    state = _text(run, "outcome_state", "run")
+    if state not in OUTCOME_STATES:
+        raise ValueError(f"unsupported comparison outcome_state: {state}")
+    return state
+
+
+def _score(run: Mapping[str, object], outcome_state: str) -> dict[str, object]:
+    status = _text(run, "score_status", "run")
+    if status not in SCORE_STATUSES:
+        raise ValueError(f"unsupported comparison score_status: {status}")
+    rewards = run.get("verifier_rewards")
+    if status == "available":
+        rewards = _finite_rewards(rewards)
+    elif rewards is not None:
+        raise ValueError("unavailable or failed scores cannot carry verifier_rewards")
+    if outcome_state == "terminal-success" and status != "available":
+        raise ValueError("terminal-success must carry an available score")
+    return {"verifier_rewards": rewards, "score_status": status}
+
+
+def _finite_rewards(rewards: object) -> dict[str, int | float]:
+    if not isinstance(rewards, Mapping) or not rewards:
+        raise ValueError("available score must carry verifier_rewards")
+    if any(not _finite_number(value) for value in rewards.values()):
+        raise ValueError("verifier_rewards must be finite numbers")
+    return cast(dict[str, int | float], dict(rewards))
+
+
+def _finite_number(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def _build_run(run: Mapping[str, object]) -> dict[str, object]:
@@ -113,18 +165,17 @@ def _build_run(run: Mapping[str, object]) -> dict[str, object]:
     if not isinstance(arm, Mapping):
         raise ValueError("comparison report must pin run.arm")
     kind = _text(arm, "kind", "arm")
+    outcome_state = _outcome_state(run)
     return {
-        "run_id": _text(run, "run_id", "run"),
-        "arm": _text(arm, "name", "arm"),
-        "arm_kind": kind,
-        "provider": _text(arm, "provider", "arm"),
+        "run_id": _text(run, "run_id", "run"), "arm": _text(arm, "name", "arm"),
+        "arm_kind": kind, "provider": _text(arm, "provider", "arm"),
         "model": _text(arm, "model", "arm"),
         "cli": {"name": _arm_cli(arm, kind),
                 "version": _text(run, "cli_version", "run")},
-        "task": _task(run),
-        "limits": _limits(arm),
-        "cortex_telemetry": _telemetry(run, kind),
-        "grader_admission": _admission(run, kind),
+        "task": _task(run), "limits": _limits(arm),
+        "cortex_telemetry": _telemetry(run, kind, outcome_state),
+        "grader_admission": _admission(run, kind, outcome_state),
+        "outcome_state": outcome_state, **_score(run, outcome_state),
     }
 
 

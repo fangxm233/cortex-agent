@@ -6,11 +6,11 @@ Launcher tests cover production arm routing, admission and evidence recording.
 |---|---|---|
 | trial_fixtures.py | fixture | Builds production trial documents |
 | test_arms.py | test | Verifies arm routing and vendor version isolation |
-| test_campaign.py | test | Verifies campaign schemas, execution and reports |
+| test_campaign.py | test | Verifies campaign execution, terminal outcomes and reports |
 | test_capability_ceilings.py | test | Verifies host envelope ceilings |
 | test_capability_evidence.py | test | Verifies capability provenance |
 | test_capability_state_gate.py | test | Verifies credential capability admission |
-| test_comparison_report.py | test | Verifies comparison report semantics |
+| test_comparison_report.py | test | Verifies comparison rewards and outcome semantics |
 | test_container_stop_observation.py | test | Verifies post-stop observations |
 | test_credential_capabilities.py | test | Verifies capability projections |
 | test_deepseek_paid_smoke.py | test | Verifies paid smoke inputs |
