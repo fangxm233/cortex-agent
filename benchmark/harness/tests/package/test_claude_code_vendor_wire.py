@@ -41,6 +41,28 @@ def test_pin_fixes_host_artifact_and_harbor_version_contract() -> None:
     assert pin["harbor_version_check"]["comparison"] == "installed_version == requested_version"
 
 
+def test_capture_refuses_version_matching_unpinned_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import vendor_wire_capture as capture
+
+    binary = tmp_path / "claude"
+    binary.write_bytes(b"not-the-pinned-artifact")
+    version_check_called = False
+
+    def version_check(*_args: object, **_kwargs: object) -> object:
+        nonlocal version_check_called
+        version_check_called = True
+        return type("Result", (), {"stdout": "2.1.232 (Claude Code)"})()
+
+    monkeypatch.setattr(capture.shutil, "which", lambda _command: "/usr/bin/tool")
+    monkeypatch.setattr(capture.subprocess, "run", version_check)
+
+    with pytest.raises(RuntimeError, match="artifact sha256"):
+        capture._check_prerequisites(binary)
+    assert version_check_called is False
+
+
 def test_capture_records_complete_redacted_wire_and_model_aliases() -> None:
     capture = load(CAPTURE_PATH)
     assert capture["claude_code_version"] == EXPECTED_VERSION
