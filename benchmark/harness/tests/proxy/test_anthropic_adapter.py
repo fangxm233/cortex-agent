@@ -194,6 +194,24 @@ def test_subscription_oauth_uses_the_same_frozen_model_contract() -> None:
     assert refused.reason == "request_model_mismatch"
 
 
+def test_subscription_oauth_refuses_when_no_host_token_is_bound() -> None:
+    oauth = AnthropicMessagesSubscriptionOAuthAdapter(
+        "http://127.0.0.1:9000", None, FROZEN_MODEL,
+    )
+
+    with pytest.raises(AuthInjectionUnavailable, match="no OAuth token"):
+        oauth.inject_auth({}, MESSAGES_BETA_ROUTE)
+
+
+def test_subscription_oauth_refuses_auth_on_an_unadmitted_route() -> None:
+    oauth = AnthropicMessagesSubscriptionOAuthAdapter(
+        "http://127.0.0.1:9000", CREDENTIAL, FROZEN_MODEL,
+    )
+
+    with pytest.raises(AuthInjectionUnavailable, match="route carries no auth form"):
+        oauth.inject_auth({}, "batches")
+
+
 def test_missing_credential_refuses_rather_than_injecting_nothing() -> None:
     with pytest.raises(AuthInjectionUnavailable):
         adapter(credential=None).inject_auth({}, MESSAGES_BETA_ROUTE)
