@@ -1,0 +1,120 @@
+{
+  "schema_version": "cortex-bench-vendor-staged-attempt-summary/1",
+  "campaign": "tb21-vendor-pi",
+  "task_id": "3ff1",
+  "executed_at": "2026-08-19",
+  "paid": true,
+  "source_commit": "43e7d793c2bed0c582cbb0c903e292fb2d10e64f",
+  "headline": "The staged vendor-PI sequence stopped permanently at stage 1. The bounded run_deepseek_paid_smoke trial failed during agent setup before any provider request because the pinned PI-only image had no npm executable for the Cortex smoke agent installer. No retry was made, and the single-task and three-task vendor campaigns were not started.",
+  "campaign_config": {
+    "path": "benchmark/campaigns/terminal-bench-2.1-vendor-pi.yaml",
+    "sha256": "40170b6482a2b8224ebc956fc3a1494797594168f53aec84f67308791b7f75df",
+    "paid": true,
+    "upstream_identity": "127.0.0.1:9880/m/deepseek/deepseek",
+    "per_trial_envelope": {
+      "max_provider_requests": 500,
+      "max_cost_usd": "2.00",
+      "deadline_seconds": 1800,
+      "max_output_tokens": 65536
+    }
+  },
+  "sequence": [
+    {
+      "stage": 1,
+      "name": "bounded-live-handshake",
+      "state": "harness-incomplete",
+      "attempts": 1,
+      "retry": "not-performed",
+      "entrypoint": "run_deepseek_paid_smoke",
+      "contract": {
+        "max_provider_requests": 1,
+        "deadline_seconds": 120,
+        "max_output_tokens": 256,
+        "max_cost_usd": "0.05"
+      },
+      "trial_id": "ds-smoke-3ff1-constraints-scheduling-ds-smoke",
+      "started_at": "2026-08-19T17:01:46.723107Z",
+      "finished_at": "2026-08-19T17:02:13.381579Z",
+      "provider_requests": 0,
+      "verifier_rewards": null,
+      "score_status": "unavailable",
+      "outer_envelope": "absent",
+      "failure": {
+        "exception_type": "NonZeroAgentExitCodeError",
+        "phase": "agent-setup",
+        "exit_code": 127,
+        "reason": "The Cortex smoke agent installer invoked npm in the pinned PI-only task image, where npm was not present."
+      },
+      "raw_evidence_sha256": {
+        "smoke_config": "58efe150de9e826543d0e25bb0bf2dcb11b97ba661f69910064b813c170a7e99",
+        "stage_outcome": "b4390ded91a6dae878a5a22733c9a776f625756741d5e65fc9327b45cec128a0",
+        "harbor_result": "5a808243d41442c0e81e9efe7bc226843761f93e3f1264dab61eee4fee151757",
+        "proxy_export": "72e5dfe216fbca277240d83503275729902f7402745664d0040beea0c01bfdda",
+        "launch_admission": "101cf84aedbd6a09bf7e1aa114c238e087cee6d1d4fd1987d098ee45027df581",
+        "postfailure_security_evidence": "bdc18d88200aa5efdd71a1da38bdbede30f952e8842bf648ea0eff97919f399f"
+      }
+    },
+    {
+      "stage": 2,
+      "name": "single-task-live-vendor-pi",
+      "state": "not-run-after-stage-1-failure",
+      "attempts": 0,
+      "provider_requests": 0
+    },
+    {
+      "stage": 3,
+      "name": "three-task-live-vendor-pi",
+      "state": "not-run-after-stage-1-failure",
+      "attempts": 0,
+      "planned_trials": [
+        "chess-best-move",
+        "constraints-scheduling",
+        "db-wal-recovery"
+      ],
+      "provider_requests": 0
+    }
+  ],
+  "security": {
+    "credential_delivery": "The real relay credential was loaded host-side from the strict gateway loader and passed to admission only through an opaque vault handle. The serialized TrialConfig and admitted container environment contain no real credential.",
+    "postfailure_leak_scan": {
+      "scope": "all 10 regular files in the incomplete Harbor trial root",
+      "bytes_scanned": 44528,
+      "credential_matches": 0,
+      "clean": false,
+      "host_path_findings": {
+        "host:home_path": 38,
+        "host:home_path_literal": 38,
+        "host:repository_checkout": 36
+      },
+      "missing_sources": 0,
+      "unclassified_files": 0
+    },
+    "revocation_evidence": {
+      "route_active_after_run": false,
+      "listener_port": 46865,
+      "listener_absent_after_run": true,
+      "matching_containers_after_run": 0,
+      "matching_networks_after_run": 0,
+      "internal_revocation_record": "unavailable because host finalization did not run"
+    }
+  },
+  "artifacts": {
+    "wheel_sha256": "f570f2e5d787490683a8b0eab743897cabb7c9da58424e811d045166db8ce6c4",
+    "npm_artifact_sha256": "5ba39211a30978ad608b12c735804b72a3a3f8ccba00e3fa3aa8caf3af35ddf4",
+    "artifact_source_commit": "43e7d793c2bed0c582cbb0c903e292fb2d10e64f"
+  },
+  "raw_sources": {
+    "smoke_outcome": "<run-evidence>/cortex-bench-3ff1-smoke-outcome.json",
+    "postfailure_security_evidence": "<run-evidence>/cortex-bench-3ff1-smoke-postfailure-evidence.json",
+    "harbor_result": "<trials_dir>/<trial_id>/result.json",
+    "proxy_export": "<trials_dir>/<trial_id>/artifacts/proxy/proxy-export.json",
+    "launch_admission": "<trials_dir>/<trial_id>/artifacts/harbor-launch-admission.json"
+  },
+  "prohibitions_observed": {
+    "automatic_retry": false,
+    "second_campaign_run": false,
+    "stage_2_started": false,
+    "stage_3_started": false,
+    "push": false
+  }
+}
