@@ -1,0 +1,190 @@
+{
+  "schema_version": "cortex-bench-vendor-staged-attempt-summary/2",
+  "campaign": "tb21-vendor-pi",
+  "task_id": "3ff0",
+  "executed_at": "2026-08-19",
+  "paid": true,
+  "source_commit": "bbaa122b4935dc067a6f6b3cc6d37b0d17e7cfb0",
+  "headline": "The vendor-native staged sequence stopped permanently at stage 1. PI issued exactly one request to the trial proxy, but the proxy rejected it before forwarding because the request completion cap did not match the frozen 256-token handshake cap; therefore no valid response came from the real DeepSeek relay. No retry was made, and stages 2 and 3 were not started.",
+  "stage_1_option": {
+    "selected": "separate-vendor-native-handshake",
+    "reason": "The pinned PI-only image had already passed vendor setup and a separate one-request trial could directly test the native PI route without pairing a Cortex agent with the vendor image.",
+    "not_selected": "fold-stage-1-into-stage-2"
+  },
+  "pre_start": {
+    "other_cortex_bench_campaign_running": false,
+    "campaign_container_running": false,
+    "campaign_pool_overlap": false,
+    "observed_existing_network": "cortex-trial-egress:172.31.0.0/24",
+    "planned_stage_pools": [
+      "172.30.238.0/30",
+      "172.30.239.0/30",
+      "172.30.240.0/20"
+    ]
+  },
+  "campaign_configs": {
+    "stage_1": {
+      "path": "benchmark/campaigns/terminal-bench-2.1-vendor-pi-handshake.yaml",
+      "sha256": "21b3e8eacf18cca9253d121fd7be58ec6dc579aa147db4c38df361aa1e95ac69"
+    },
+    "stage_2": {
+      "path": "benchmark/campaigns/terminal-bench-2.1-vendor-pi-single.yaml",
+      "sha256": "0d79476bfa477a7079a1eca1ff8ee78b1c64812e1a6281e3613e6ee42bf1aacf"
+    },
+    "stage_3": {
+      "path": "benchmark/campaigns/terminal-bench-2.1-vendor-pi.yaml",
+      "sha256": "40170b6482a2b8224ebc956fc3a1494797594168f53aec84f67308791b7f75df"
+    }
+  },
+  "sequence": [
+    {
+      "stage": 1,
+      "name": "vendor-native-bounded-live-handshake",
+      "entrypoint": "launch-paid-campaign.py",
+      "arm": "pure-pi",
+      "arm_kind": "vendor-baseline",
+      "vendor_agent": "pi",
+      "image_digest": "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353",
+      "state": "failed-handshake-gate",
+      "attempts": 1,
+      "retry": "not-performed",
+      "contract": {
+        "max_provider_requests": 1,
+        "deadline_seconds": 120,
+        "max_output_tokens": 256,
+        "max_cost_usd": "0.05"
+      },
+      "trial_id": "tb21-vendor-pi-3ff0-handshake-constraints-scheduling-pure-pi",
+      "started_at": "2026-08-19T18:40:31.188Z",
+      "finished_at": "2026-08-19T18:40:55.889Z",
+      "launcher_exit_code": 1,
+      "proxy_request_counter": 1,
+      "proxy_audit_entries": 1,
+      "proxy_audit_outcome": "request_completion_cap_mismatch",
+      "upstream_forwarded_requests": 0,
+      "upstream_model": null,
+      "real_relay_valid_response": false,
+      "proxy_tokens": {
+        "input": 0,
+        "output": 0,
+        "cached": 0
+      },
+      "pi_runtime_declared_max_tokens": 8192,
+      "pi_terminal_error": "400 request_model_rejected",
+      "harbor_terminal": {
+        "outcome_state": "harness-incomplete",
+        "raw_verifier_rewards": {
+          "reward": 0.0
+        },
+        "score_status": "unavailable",
+        "exception_type": "HostFinalizationError",
+        "exception_message": "output_scan_untrusted",
+        "outer_envelope": "absent"
+      },
+      "gate_reason": "The sole proxy request was rejected by the DeepSeek adapter's frozen-completion-cap check before credential injection/upstream forwarding, so the required real-relay valid response did not occur. The request counter alone is not a passing handshake signal."
+    },
+    {
+      "stage": 2,
+      "name": "single-task-live-vendor-pi",
+      "state": "not-run-after-stage-1-failure",
+      "attempts": 0,
+      "provider_requests": 0,
+      "declared_envelope": {
+        "max_provider_requests": 500,
+        "max_cost_usd": "2.00",
+        "deadline_seconds": 1800,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "stage": 3,
+      "name": "three-task-live-vendor-pi",
+      "state": "not-run-after-stage-1-failure",
+      "attempts": 0,
+      "provider_requests": 0,
+      "planned_trials": [
+        "chess-best-move",
+        "constraints-scheduling",
+        "db-wal-recovery"
+      ],
+      "declared_envelope_per_trial": {
+        "max_provider_requests": 500,
+        "max_cost_usd": "2.00",
+        "deadline_seconds": 1800,
+        "max_output_tokens": 65536
+      }
+    }
+  ],
+  "security": {
+    "credential_delivery": "The real relay credential was loaded from the host gateway by the paid launcher, held only in the launcher/proxy process, and not placed in argv, the serialized TrialConfig, container environment, logs, or committed artifacts.",
+    "leak_scan": {
+      "files_scanned": 25,
+      "bytes_scanned": 72370,
+      "credential_matches": 0,
+      "clean": false,
+      "host_path_findings": {
+        "host:home_path": 32,
+        "host:home_path_literal": 32,
+        "host:repository_checkout": 32
+      },
+      "missing_sources": 0,
+      "unclassified_files": [
+        "agent/trial-home/home/.local/bin/uvx"
+      ],
+      "classification": "untrusted because host paths and one absolute verifier uvx symlink were present; no provider credential match was found"
+    },
+    "revocation_evidence": {
+      "listener_port": 46107,
+      "listener_present_after_run": false,
+      "matching_containers_after_run": 0,
+      "matching_networks_after_run": 0,
+      "internal_revocation_record": "unavailable because outer publication failed"
+    },
+    "proxy_traversal": {
+      "observed": true,
+      "requests": 1,
+      "consistent_with_trial": true,
+      "real_upstream_forwarding": false
+    },
+    "direct_provider_egress": {
+      "evidence_observed": false,
+      "agent_files_named_only_trial_proxy": true,
+      "agent_log_direct_provider_endpoint_matches": 0,
+      "limitation": "network mode was open and no host packet capture was collected, so absence of log/config evidence is not a proof that arbitrary direct egress was impossible"
+    }
+  },
+  "artifacts": {
+    "wheel_sha256": "b359d0a92bea414bc8ee421fb3560ea2ae85d571aa2a08c440048069761edb4a",
+    "npm_artifact_sha256": "b26e76370c3d7e2dc0b29b2f26029105c929ddc394bdcfcb9b97a594622654c2",
+    "artifact_source_commit": "bbaa122b4935dc067a6f6b3cc6d37b0d17e7cfb0"
+  },
+  "raw_evidence_sha256": {
+    "campaign_result": "151381d881d6d32742332f308432812328284cd6d1a6559e462b47f5d6687c0a",
+    "comparison_report": "32462a5d015bfe63515a992a246ccc3e6e10a958db1ec84a9a14a9fbc13138bc",
+    "result_summary": "b900bc53884ebda098a3752b8ca8262020c8edc6f8d33ae9b6695a1634954888",
+    "proxy_export": "ad3ec23010c81d1a53f7bdb4c05137679b704581f96b3d033ff85d9ecc444d97",
+    "proxy_audit": "265319e74acc5f5c77e0356f00336b5f73d8e8b1eb5643289f13acb4d042c0fa",
+    "harbor_result": "f9af1306e62952cdcb7bfa0c222396a12b22f254fda2c0a1f8a10b1f828afdb9",
+    "pi_session": "e30c77d018301d4be48c7fe7a69f370e636892e5a7d71010165fc6ec28567dd1",
+    "postfailure_security_evidence": "7e4f65e3c21c352d1874a9671cbf277e4c5bc6aed2005a4c22db7b923969cb83"
+  },
+  "raw_sources": {
+    "campaign_result": "<trials_dir>/campaign-result.json",
+    "comparison_report": "<trials_dir>/comparison-report.json",
+    "result_summary": "<trials_dir>/result-summary.json",
+    "proxy_export": "<trial_root>/artifacts/proxy/proxy-export.json",
+    "proxy_audit": "<trial_root>/artifacts/proxy/proxy-audit.jsonl",
+    "harbor_result": "<trial_root>/result.json",
+    "pi_session": "<trial_root>/agent/pi/sessions/<session>.jsonl",
+    "postfailure_security_evidence": "<run-evidence>/cortex-bench-3ff0-stage1-security.json"
+  },
+  "prohibitions_observed": {
+    "run_deepseek_paid_smoke_used": false,
+    "cortex_arm_paired_with_vendor_image": false,
+    "automatic_retry": false,
+    "second_stage_1_campaign_run": false,
+    "stage_2_started": false,
+    "stage_3_started": false,
+    "push": false
+  }
+}
