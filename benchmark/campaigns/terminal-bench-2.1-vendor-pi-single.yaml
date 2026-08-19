@@ -1,0 +1,68 @@
+# input:  the PI vendor arm and one pinned Terminal-Bench 2.1 task
+# output: one paid PI vendor trial with the committed production envelope
+# pos:    Stage-2 single-task live vendor campaign declaration for task 3ff0
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+
+schema_version: cortex-bench-campaign/1
+campaign: tb21-vendor-pi-3ff0-single
+paid: true
+trials_dir: /var/tmp/cortex-bench/tb21-vendor-pi-3ff0-single
+cli_version: "2026.8.6"
+concurrency: 1
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: http://127.0.0.1:9880/m/deepseek/deepseek
+  route_identity_host: api.deepseek.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: vendor-pi-3ff0-single-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_VENDOR_PI_CREDENTIAL
+  forbidden_environment:
+    host_provider_credential: CORTEX_BENCH_VENDOR_PI_FORBIDDEN
+  forbidden_argv_environment:
+    host_provider_credential: CORTEX_BENCH_VENDOR_PI_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_VENDOR_PI_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_VENDOR_PI_IDENTITY
+
+docker_network:
+  subnet_pool: 172.30.239.0/30
+  subnet_prefix: 30
+
+proxy:
+  credential_env: CORTEX_BENCH_VENDOR_PI_CREDENTIAL
+  request_body_limit_bytes: 67108864
+  response_body_limit_bytes: 67108864
+  listen_host: 0.0.0.0
+
+arms:
+  - name: pure-pi
+    kind: vendor-baseline
+    vendor_agent: pi
+    vendor_cli_version: "0.82.1"
+    provider: deepseek
+    model: deepseek-v4-flash
+    credential_capability: pi-deepseek-api-key
+    limits:
+      max_provider_requests: 500
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+network:
+  mode: open
+
+tasks:
+  - task_id: constraints-scheduling
+    path: tasks/terminal-bench-2.1/pi/constraints-scheduling
+    image_ref: cortex-terminal-bench-2.1@sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353
+
+comparisons: []

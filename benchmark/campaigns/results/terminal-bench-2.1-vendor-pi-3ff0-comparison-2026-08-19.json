@@ -1,0 +1,48 @@
+{
+  "schema_version": "cortex-bench-vendor-comparison-report/1",
+  "campaign": "tb21-vendor-pi",
+  "task_id": "3ff0",
+  "generated_at": "2026-08-19",
+  "comparison_status": "unavailable",
+  "reason": "The mandatory vendor-native stage-1 handshake produced one proxy request but no valid real-relay response, so the staged contract permanently stopped before either score-producing campaign.",
+  "handshake": {
+    "task_id": "constraints-scheduling",
+    "proxy_requests": 1,
+    "upstream_forwarded_requests": 0,
+    "proxy_audit_outcome": "request_completion_cap_mismatch",
+    "outcome_state": "harness-incomplete",
+    "raw_verifier_rewards": {
+      "reward": 0.0
+    },
+    "score_status": "unavailable"
+  },
+  "planned_tasks": [
+    {
+      "task_id": "chess-best-move",
+      "vendor_pi_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    },
+    {
+      "task_id": "constraints-scheduling",
+      "vendor_pi_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "vendor_pi_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    }
+  ],
+  "aggregate": {
+    "planned_trials": 3,
+    "score_campaign_trials_started": 0,
+    "trials_with_reward": 0,
+    "trials_with_explicit_campaign_failure": 0,
+    "trials_not_run_by_staged_stop": 3,
+    "score": null
+  },
+  "source_summary": "terminal-bench-2.1-vendor-pi-3ff0-2026-08-19.json"
+}
