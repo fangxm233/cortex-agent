@@ -5,6 +5,7 @@
 
 import base64
 import json
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -75,6 +76,19 @@ def test_request_and_sse_fixture_records_the_native_contract() -> None:
     assert [event["type"] for event in events] == fixture["sse"]["completed_sequence"]
     assert events[-1]["type"] == "response.completed"
     assert TERMINAL_WIRE_EVENT == events[-1]["type"]
+
+
+def test_capture_probe_records_the_complete_json_body() -> None:
+    observe_request = runpy.run_path(
+        str(FIXTURE_DIR / "capture.py"), run_name="codex_capture_test",
+    )["observe_request"]
+    body = {"model": "gpt-5.3-codex", "input": [{"role": "user"}], "stream": True}
+    observed = observe_request(
+        "/codex/responses", {"authorization": "Bearer dummy"},
+        json.dumps(body).encode(),
+    )
+    assert observed["body"] == body
+    assert observed["headers"]["authorization"] == "Bearer <REDACTED_DUMMY_JWT>"
 
 
 def test_capture_probe_has_a_copyable_zero_paid_interface() -> None:
