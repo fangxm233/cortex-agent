@@ -7,7 +7,10 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Callable, Mapping
 
 from ..models import PROXY_SCHEMA_VERSION
-from .anthropic import AnthropicMessagesApiKeyAdapter
+from .anthropic import (
+    AnthropicMessagesApiKeyAdapter,
+    AnthropicMessagesSubscriptionOAuthAdapter,
+)
 from .base import (
     AdapterUnavailable,
     AdapterVersionMismatch,
@@ -29,6 +32,8 @@ AdapterFactory = Callable[..., ProviderAdapter]
 ADAPTER_REGISTRY: Mapping[tuple[str, ...], AdapterFactory] = MappingProxyType({
     ("claude", "anthropic", "anthropic-messages", "api-key-bearer", PROXY_SCHEMA_VERSION):
         AnthropicMessagesApiKeyAdapter,
+    ("claude-code", "anthropic", "anthropic-messages", "subscription-oauth",
+     PROXY_SCHEMA_VERSION): AnthropicMessagesSubscriptionOAuthAdapter,
     ("pi", "deepseek", "openai-completions", "api-key", PROXY_SCHEMA_VERSION):
         DeepSeekChatCompletionsApiKeyAdapter,
     ("pi", "openai-codex", "openai-codex-responses", "oauth", PROXY_SCHEMA_VERSION):
@@ -52,6 +57,7 @@ __all__ = [
     "AdapterVersionMismatch",
     "AuthInjectionUnavailable",
     "BodyDecision",
+    "AnthropicMessagesSubscriptionOAuthAdapter",
     "DeepSeekChatCompletionsApiKeyAdapter",
     "OpenAICodexResponsesOAuthAdapter",
     "ProviderAdapter",

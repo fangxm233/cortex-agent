@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from cortex_bench_harness.launcher.capability_evidence import (
+    CAPABILITY_EVIDENCE_METADATA,
     CAPABILITY_EVIDENCE_SCHEMA_VERSION,
     DEEPSEEK_OFFLINE_CONTRACT,
     MUTATION_MANIFEST_SCHEMA_VERSION,
@@ -22,6 +23,9 @@ from cortex_bench_harness.launcher.capability_evidence import (
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
 
 KEY = CredentialCapabilityKey("pi", "deepseek", "openai-completions", "api-key")
+CLAUDE_KEY = CredentialCapabilityKey(
+    "claude-code", "anthropic", "anthropic-messages", "subscription-oauth",
+)
 # The three numbers the run declares per trial. Evidence attests the mechanism that enforces a
 # declared envelope, never one run's choice of values, so none of these may appear in it.
 NUMERIC_ENVELOPE_FIELDS = ("max_output_tokens", "request_limit_bytes", "response_limit_bytes")
@@ -33,6 +37,7 @@ UNVERIFIABLE_TREE_IDENTITY_FIELDS = ("pi_tree_sha256",)
 HARNESS_DIR = Path(__file__).resolve().parents[2]
 EVIDENCE_DIR = HARNESS_DIR / "src/cortex_bench_harness/launcher/evidence"
 MIGRATION_SCRIPT = HARNESS_DIR / "scripts/migrate-capability-evidence.py"
+CLAUDE_WIRE_PATH = HARNESS_DIR / "tests/fixtures/vendor-wire/claude-code/wire-capture.json"
 
 
 def document(state: str = "offline-contract-passed") -> dict[str, object]:
@@ -77,6 +82,69 @@ def test_validates_strict_offline_evidence_and_hash(tmp_path: Path) -> None:
         file, digest, capability_id="pi-deepseek-api-key", key=KEY,
         state="offline-contract-passed", adapter_id="deepseek-chat-completions/api-key",
     )["mutations_killed"] == 20
+
+
+def test_capability_metadata_is_declared_per_capability() -> None:
+    deepseek = CAPABILITY_EVIDENCE_METADATA["pi-deepseek-api-key"]
+    claude = CAPABILITY_EVIDENCE_METADATA["claude-subscription"]
+
+    assert deepseek.metadata_fields == frozenset({"pi_version", "model_metadata_sha256"})
+    assert claude.metadata_fields == frozenset({"claude_code_version"})
+    assert deepseek.offline_fields == frozenset({
+        "mutation_manifest_sha256", "mutations_total", "mutations_killed",
+    })
+    assert claude.offline_fields == frozenset({"synthetic_observation_sha256"})
+
+
+def test_deepseek_evidence_output_is_byte_for_byte_unchanged() -> None:
+    path = EVIDENCE_DIR / "pi-deepseek-api-key.offline-contract-passed.json"
+
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == (
+        "c4f3b548cb77fb486c20a765063275449c67c33ddba7eb8cc32a494fc276cad7"
+    )
+
+
+def test_validates_shipped_claude_synthetic_evidence_and_supporting_observation() -> None:
+    import cortex_bench_harness.launcher.credential_capabilities as registry
+
+    key = next(key for key, row in registry.CAPABILITY_REGISTRY.items()
+               if row.id == "claude-subscription")
+    row = registry.CAPABILITY_REGISTRY[key]
+    path = registry._evidence_path(row.id, row.state)
+
+    assert key == CLAUDE_KEY
+    assert row.state == "offline-contract-passed"
+    assert row.evidence_sha256 is not None
+    evidence = validate_capability_evidence(
+        path, row.evidence_sha256, capability_id=row.id, key=key, state=row.state,
+        adapter_id="anthropic-messages/subscription-oauth",
+    )
+    validate_offline_supporting_artifacts(path.parent, evidence)
+    assert evidence["claude_code_version"] == "2.1.232"
+
+
+def test_claude_synthetic_observation_is_generated_from_the_p0_loopback_capture() -> None:
+    observation = json.loads(
+        (EVIDENCE_DIR / "claude-subscription.synthetic-observation.json").read_bytes())
+    capture = json.loads(CLAUDE_WIRE_PATH.read_bytes())
+    run = capture["runs"]["trial_proxy_bearer_substitution"]
+    request = run["requests"][0]
+
+    assert observation == {
+        "schema_version": "cortex-bench-synthetic-capability-observation/1",
+        "source_capture_sha256": hashlib.sha256(CLAUDE_WIRE_PATH.read_bytes()).hexdigest(),
+        "claude_code_version": capture["claude_code_version"],
+        "request": {
+            "method": request["method"],
+            "target": f'{request["path"]}?{request["query"]}',
+            "model": request["body"]["model"],
+            "retained_headers": {
+                "anthropic-beta": request["headers"]["anthropic-beta"],
+                "anthropic-version": request["headers"]["anthropic-version"],
+            },
+        },
+        "proxy_observation": run["proxy_observation"],
+    }
 
 
 def test_validates_the_shipped_deepseek_live_evidence() -> None:

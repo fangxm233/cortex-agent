@@ -24,8 +24,11 @@ from cortex_bench_harness.launcher import trial_proxy
 from cortex_bench_harness.launcher.credential_capabilities import CAPABILITY_REGISTRY
 from cortex_bench_harness.launcher.trial_proxy import (
     CapabilityStateRefused,
+    PaidEnvelopeRefused,
     arm_trial_proxy,
     parse_trial_proxy_spec,
+    require_capability_admission,
+    validate_paid_envelope,
 )
 from capability_admission import admit_capability, refuse_capability
 from trial_fixtures import (
@@ -39,11 +42,10 @@ from trial_fixtures import (
 
 REAL_CREDENTIAL = "sk-ant-STATE-GATE-UNIQUE"
 # The state has to be the ONLY thing standing between this row and an armed route, or a refusal
-# here proves nothing about the gate. This is the one shipped key that qualifies: it carries no
-# `??` member and `ADAPTER_REGISTRY` adapts it, so with the gate's refusal removed the same call
-# arms. A structurally unsupported row would not do — `claude-subscription` has no registered
-# adapter and `codex-subscription` an unfilled protocol member, so both refuse at adapter
-# selection whether or not the gate is there, and the proofs below would survive its deletion.
+# here proves nothing about the gate. This key qualifies: it carries no `??` member and
+# `ADAPTER_REGISTRY` adapts it, so with the gate's refusal removed the same call arms. A
+# structurally unsupported row would not do — `codex-subscription` has an unfilled protocol
+# member and still refuses at adapter selection whether or not the gate is there.
 ADAPTED_ROW = "pi-deepseek-api-key"
 
 
@@ -138,6 +140,26 @@ def test_an_offline_admitted_row_cannot_arm_a_paid_route(
             trial_id="trial-paid-state-gate", upstream_base_url=closed_upstream(),
             spec=parse_trial_proxy_spec(proxy_spec()), proxy_dir=artifacts / "proxy",
             trial_roots=(artifacts,), environ={}, paid_run=True,
+        )
+
+
+def test_shipped_claude_offline_row_has_no_live_handshake_authority() -> None:
+    arm = cortex_arm(
+        "claude-subscription", model="claude-sonnet-5", backend="claude-code",
+    )
+
+    with pytest.raises(CapabilityStateRefused, match="live-handshake-passed"):
+        require_capability_admission(arm, paid_run=True)
+
+
+def test_claude_subscription_has_no_paid_ceiling_even_if_state_were_later_live() -> None:
+    arm = cortex_arm(
+        "claude-subscription", model="claude-sonnet-5", backend="claude-code",
+    )
+
+    with pytest.raises(PaidEnvelopeRefused, match="no paid envelope ceiling"):
+        validate_paid_envelope(
+            arm, parse_trial_proxy_spec(proxy_spec()), "claude-subscription",
         )
 
 

@@ -6,6 +6,7 @@
 import json
 import re
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -30,14 +31,16 @@ EXPECTED_PROJECTION = [
     },
     {
         "id": "claude-subscription",
-        "state": "unsupported",
+        "state": "offline-contract-passed",
         "key": {
-            "runner_or_backend": "claude",
+            "runner_or_backend": "claude-code",
             "provider": "anthropic",
             "protocol": "anthropic-messages",
             "credential_kind": "subscription-oauth",
             "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
+        "evidence_sha256":
+            "50ebdbae35cf82f50dc7ec03f500f529a16003e0320fbc6ad6425683bfbb7c76",
     },
     {
         "id": "codex-subscription",
@@ -125,3 +128,22 @@ def test_registry_projection_contains_no_credential_shaped_value() -> None:
         }
         for row in projection
     )
+
+
+def test_projection_never_reads_the_real_claude_credentials_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    credentials = Path.home() / ".claude" / ".credentials.json"
+    original = Path.read_bytes
+    reads: list[Path] = []
+
+    def tracked(path: Path) -> bytes:
+        assert path != credentials
+        reads.append(path)
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", tracked)
+
+    project_credential_capabilities()
+
+    assert reads

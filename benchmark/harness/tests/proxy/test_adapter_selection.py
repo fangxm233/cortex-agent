@@ -17,11 +17,17 @@ from cortex_bench_harness.proxy.adapters import (
     AdapterVersionMismatch,
     select_adapter,
 )
-from cortex_bench_harness.proxy.adapters.anthropic import AnthropicMessagesApiKeyAdapter
+from cortex_bench_harness.proxy.adapters.anthropic import (
+    AnthropicMessagesApiKeyAdapter,
+    AnthropicMessagesSubscriptionOAuthAdapter,
+)
 from cortex_bench_harness.proxy.models import PROXY_SCHEMA_VERSION
 
 ROW_ONE = CredentialCapabilityKey(
     "claude", "anthropic", "anthropic-messages", "api-key-bearer",
+)
+CLAUDE_SUBSCRIPTION_ROW = CredentialCapabilityKey(
+    "claude-code", "anthropic", "anthropic-messages", "subscription-oauth",
 )
 DEEPSEEK_ROW = CredentialCapabilityKey(
     "pi", "deepseek", "openai-completions", "api-key",
@@ -60,10 +66,27 @@ def test_selects_the_exact_deepseek_openai_completions_key() -> None:
     assert adapter.schema_version == PROXY_SCHEMA_VERSION
 
 
-def test_unregistered_key_raises_instead_of_falling_back() -> None:
-    key = CredentialCapabilityKey(
-        "claude", "anthropic", "anthropic-messages", "subscription-oauth",
-    )
+def test_selects_claude_code_subscription_oauth_only_by_its_exact_key() -> None:
+    adapter = select_adapter(CLAUDE_SUBSCRIPTION_ROW)
+
+    assert isinstance(adapter, AnthropicMessagesSubscriptionOAuthAdapter)
+    assert adapter.adapter_id == "anthropic-messages/subscription-oauth"
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        CredentialCapabilityKey(
+            "claude", "anthropic", "anthropic-messages", "subscription-oauth",
+        ),
+        CredentialCapabilityKey(
+            "claude-code", "anthropic", "anthropic-messages", "api-key-bearer",
+        ),
+    ],
+)
+def test_claude_subscription_partial_keys_raise_instead_of_falling_back(
+    key: CredentialCapabilityKey,
+) -> None:
     with pytest.raises(AdapterUnavailable):
         select_adapter(key)
 
