@@ -1,4 +1,4 @@
-# input:  trial policy, requests, provider adapter, fixed upstream
+# input:  trial/retry policy, requests, provider adapter, fixed upstream
 # output: proxy handle with usage, delivery outcomes and proven revocation evidence
 # pos:    Proxy admission and lifecycle core
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -38,6 +38,7 @@ class ProxyState:
     def __init__(
         self, source_ip: str, dummy_token: str, deadline_ms: int,
         limits: ProxyLimits, log_path: Path, now_ms: Callable[[], int],
+        *, allow_retry: bool = True,
     ) -> None:
         self.source_ip = source_ip
         self.dummy_token = dummy_token
@@ -56,6 +57,7 @@ class ProxyState:
         # counts against the cap. This replaces a reservation denominated in dollars that could
         # only ever express `floor(max_cost_usd / max_request_cost_usd)` requests anyway.
         self.reserved_requests = 0
+        self.allow_retry = allow_retry
 
     def admission_error(self, source_ip: str, authorization: str | None):
         lifecycle_error = self.lifecycle_error()
@@ -64,7 +66,10 @@ class ProxyState:
         caller_error = self.caller_error(source_ip, authorization)
         if caller_error is not None:
             return caller_error
+        attempts = self.request_count + self.reserved_requests
         if self.reserved_requests >= self.limits.max_requests:
+            return 429, "requests_exhausted"
+        if not self.allow_retry and attempts >= 1:
             return 429, "requests_exhausted"
         return None
 
@@ -670,7 +675,7 @@ def start_trial_proxy(
     log_path: Path, lease_terms: LeaseTerms, listen_host: str = "127.0.0.1",
     advertised_host: str | None = None, now_ms: Callable[[], int] = host_now_ms,
     request_body_limit_bytes: int | None = None,
-    response_body_limit_bytes: int | None = None,
+    response_body_limit_bytes: int | None = None, allow_retry: bool = True,
 ) -> TrialProxyHandle:
     """Start one per-trial proxy. `absolute_deadline` is the provisional bound `P`: the container
     may shorten the lease from it by echoing back a duration, and may never lengthen it past it."""
@@ -680,6 +685,7 @@ def start_trial_proxy(
     provisional_bound_ms = int(absolute_deadline.timestamp() * 1000)
     state = ProxyState(
         bound_source_ip, dummy_token, provisional_bound_ms, limits, log_path, now_ms,
+        allow_retry=allow_retry,
     )
     upstream = FixedUpstream(
         upstream_base_url, adapter, response_body_limit_bytes=response_body_limit_bytes,
