@@ -1,0 +1,150 @@
+{
+  "schema_version": "cortex-bench-vendor-wire/codex/1",
+  "captured_at": "2026-08-18T18:13:57-06:00",
+  "artifact_pin": {
+    "cli_output": "codex-cli 0.117.0",
+    "npm_package": "@openai/codex@0.117.0",
+    "npm_integrity": "sha512-UmWo39UCGqFB2ImWwtI/TOnVQ1M2JIbCeDVBzOtG57WuTIPBNvDyluPNrzNv6eAcTYpyDLC5+nT5k49LrzEwow==",
+    "npm_shasum": "578675b849fbd79cfaa6fd38f08505b120fd78c6",
+    "platform_package": "@openai/codex@0.117.0-linux-x64",
+    "platform_npm_integrity": "sha512-kvOZtyLAgFEFSFRJXVzTnFYoZgZya9ttpxDYHR+diBgDBlcBp1B6pRiIGUmCOauxpHtTFUEyisvhKQquZbAtfg==",
+    "platform_npm_shasum": "6249330c2d4faa4be1bd08391a1223dd5d6a2fe9",
+    "native_binary_sha256": "2bee4e33ec222241606e6c5ac3e89a0d3c860fb1684a66e9f134da227b0a2699",
+    "target": "x86_64-unknown-linux-musl"
+  },
+  "harbor_version_check": {
+    "install_check_command": "if [ -s ~/.nvm/nvm.sh ]; then . ~/.nvm/nvm.sh; fi; command -v codex >/dev/null 2>&1",
+    "version_command": "if [ -s ~/.nvm/nvm.sh ]; then . ~/.nvm/nvm.sh; fi; codex --version",
+    "requested_version": "0.117.0",
+    "parsed_version": "0.117.0",
+    "match_required": true
+  },
+  "minimal_auth_json": {
+    "tokens": {
+      "id_token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiZHVtbXktYWNjb3VudC13aXJlLWNhcHR1cmUifX0.eyJkdW1teSI6dHJ1ZX0",
+      "access_token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiZHVtbXktYWNjb3VudC13aXJlLWNhcHR1cmUifX0.eyJkdW1teSI6dHJ1ZX0",
+      "refresh_token": "dummy-refresh-never-forward"
+    },
+    "last_refresh": "2026-08-18T18:13:57-06:00"
+  },
+  "auth_observations": {
+    "accepted_top_level_keys": ["tokens", "last_refresh"],
+    "optional_top_level_keys_removed": ["auth_mode", "OPENAI_API_KEY"],
+    "required_token_keys": ["id_token", "access_token", "refresh_token"],
+    "missing_id_token_error": "missing field `id_token`",
+    "missing_refresh_token_error": "missing field `refresh_token`",
+    "missing_last_refresh_result": "no request; retries report Token data is not available",
+    "adapter_consistency": "access_token is a three-part JWT whose https://api.openai.com/auth object carries chatgpt_account_id; this is the shape minted and decoded by openai_codex_responses.py"
+  },
+  "request": {
+    "method": "POST",
+    "target": {"path": "/codex/responses", "query": ""},
+    "headers": {
+      "x-codex-turn-metadata": "<REDACTED_DYNAMIC_JSON>",
+      "x-client-request-id": "<REDACTED_DYNAMIC_ID>",
+      "session_id": "<REDACTED_DYNAMIC_ID>",
+      "authorization": "Bearer <REDACTED_DUMMY_JWT>",
+      "accept": "text/event-stream",
+      "content-type": "application/json",
+      "user-agent": "codex_exec/0.117.0 (<PLATFORM>) (<TERMINAL>; codex-exec; 0.117.0)",
+      "originator": "codex_exec",
+      "host": "127.0.0.1:<EPHEMERAL_PORT>",
+      "content-length": "39223"
+    },
+    "secret_header_values_redacted": ["authorization"],
+    "model": "gpt-5.3-codex",
+    "observed_body_bytes": 39223,
+    "body_fixture": "request-body.json",
+    "compression": {
+      "content_encoding_header": null,
+      "zstd_magic_present": false,
+      "decoded_as": "json"
+    }
+  },
+  "sse": {
+    "content_type": "text/event-stream",
+    "content_encoding_header": null,
+    "zstd_used": false,
+    "completed_sequence": [
+      "response.created",
+      "response.in_progress",
+      "response.output_item.added",
+      "response.content_part.added",
+      "response.output_text.delta",
+      "response.output_text.done",
+      "response.content_part.done",
+      "response.output_item.done",
+      "response.completed"
+    ],
+    "terminal_marker_after_events": "data: [DONE]",
+    "completed_cli_result": "exit 0; item.completed WIRE_CAPTURE_OK; turn.completed with usage",
+    "terminal_observations": {
+      "response.done": {
+        "accepted": false,
+        "requests": 6,
+        "result": "five retries then turn.failed: stream closed before response.completed"
+      },
+      "response.completed": {
+        "accepted": true,
+        "requests": 1,
+        "result": "turn.completed"
+      },
+      "response.incomplete": {
+        "accepted": false,
+        "requests": 6,
+        "result": "five retries then turn.failed with incomplete reason"
+      },
+      "response.failed": {
+        "accepted": false,
+        "requests": 6,
+        "result": "five retries then turn.failed with response error message"
+      },
+      "error": {
+        "accepted": false,
+        "requests": 6,
+        "result": "five retries then turn.failed: stream closed before response.completed"
+      }
+    }
+  },
+  "jwt_expiry_observations": {
+    "no_exp_claim": {
+      "request_emitted": true,
+      "refresh_attempted": false,
+      "meaning": "the adapter's current no-exp dummy shape bypasses native expiry refresh"
+    },
+    "ten_seconds_remaining": {
+      "request_emitted": true,
+      "refresh_attempted": false
+    },
+    "sixty_seconds_remaining": {
+      "request_emitted": true,
+      "refresh_attempted": false
+    },
+    "expired": {
+      "request_emitted_after_refresh_failure": true,
+      "refresh_attempted": true,
+      "observed_log": "Failed to refresh token: Your access token could not be refreshed because you have since logged out or signed in to another account. Please sign in again."
+    },
+    "threshold": "observed refresh at exp <= wall clock and no refresh at exp = wall clock + 10 seconds; finer positive threshold unverified",
+    "refresh_exchange_wire_details": {
+      "verified": false,
+      "reason": "TLS was blocked inside the isolated network namespace; only repeated CONNECT attempts to chatgpt.com:443 were visible"
+    },
+    "p6_input": "do not rely on native proactive refresh; campaign TTL preflight must reject a host token whose remaining lifetime does not cover the wave"
+  },
+  "containment": {
+    "real_auth_json_read": false,
+    "home": "fresh temporary directory",
+    "codex_home": "fresh temporary directory",
+    "network_namespace": "unshare --user --map-root-user --net with loopback only",
+    "real_openai_requests": 0,
+    "blocked_incidental_connect_hosts": ["github.com:443", "api.github.com:443", "chatgpt.com:443", "ab.chatgpt.com:443"],
+    "note": "all non-loopback CONNECT attempts terminated at the loopback synthetic proxy"
+  },
+  "reproduction": {
+    "probe": "capture.py",
+    "example": "unshare --user --map-root-user --net sh -c 'ip link set lo up && python capture.py --codex-binary /path/to/codex --event-mode completed --exp-offset-seconds none'",
+    "real_credentials_required": false,
+    "paid_requests": 0
+  }
+}
