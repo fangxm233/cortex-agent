@@ -1,6 +1,6 @@
-# input:  trial roots, launcher/proxy records, scan policy
-# output: collected inventory and published outer envelope
-# pos:    Host-side benchmark trial recorder
+# input:  trial roots, arm records, proxy records, scan policy
+# output: Cortex/vendor inventory and published outer envelope
+# pos:    Shared host-side benchmark trial recorder
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # This module records; it does not verify. The launcher's parameters are written down as they were
@@ -134,16 +134,56 @@ def _environment_mapping(
 
 def finalize_host_trial(
     *, logs_dir: Path, verifier_dir: Path, artifact_dir: Path, root_run_id: str,
-    trial_id: str, arm: Mapping[str, object], npm_artifact: Path, bundle_root: str,
-    revocation: TrialRevocation | None, scan_policy: ScanPolicy, container_logs_dir: Path,
+    trial_id: str, arm: Mapping[str, object], npm_artifact: Path | None = None,
+    bundle_root: str | None = None, revocation: TrialRevocation | None,
+    scan_policy: ScanPolicy, container_logs_dir: Path,
+    task: Mapping[str, object] | None = None,
 ) -> HostFinalizationResult:
-    attestation = _read_record(artifact_dir / LAUNCH_ATTESTATION_FILENAME)
-    launch_record = _launch_record(attestation, artifact_dir, npm_artifact)
-    assets = _lift_assets(logs_dir, npm_artifact, bundle_root, _attested_arm(attestation, "root_template"))
+    arm_kind = _arm_kind(arm)
+    launch, assets = _arm_records(
+        arm_kind, logs_dir, artifact_dir, npm_artifact, bundle_root,
+    )
     walked, collected, scan = _collect_and_scan(
         logs_dir, verifier_dir, artifact_dir, container_logs_dir, scan_policy,
     )
-    envelope = {
+    _require_trusted_security(scan, revocation, trial_id)
+    envelope = _common_envelope(
+        walked, collected, scan, verifier_dir, root_run_id, trial_id, arm,
+        revocation,
+    )
+    _add_arm_records(envelope, arm_kind, launch, assets, task)
+    return _publish_outer(artifact_dir / OUTER_ENVELOPE_FILENAME, envelope)
+
+
+def _arm_kind(arm: Mapping[str, object]) -> str:
+    kind = arm.get("kind")
+    if kind not in {"cortex", "vendor-baseline"}:
+        raise HostFinalizationError("unsupported_arm_kind")
+    return str(kind)
+
+
+def _arm_records(
+    arm_kind: str, logs_dir: Path, artifact_dir: Path,
+    npm_artifact: Path | None, bundle_root: str | None,
+) -> tuple[dict[str, object], dict[str, object]]:
+    if arm_kind == "vendor-baseline":
+        marker = _unavailable("not_applicable_to_vendor")
+        return _vendor_launch_record(artifact_dir, marker), marker
+    if npm_artifact is None or bundle_root is None:
+        raise HostFinalizationError("cortex_launch_inputs_unavailable")
+    attestation = _read_record(artifact_dir / LAUNCH_ATTESTATION_FILENAME)
+    assets = _lift_assets(
+        logs_dir, npm_artifact, bundle_root, _attested_arm(attestation, "root_template"),
+    )
+    return _launch_record(attestation, artifact_dir, npm_artifact), _asset_record(assets)
+
+
+def _common_envelope(
+    walked: Mapping[str, str], collected: Sequence[CollectedFile], scan: dict[str, object],
+    verifier_dir: Path, root_run_id: str, trial_id: str, arm: Mapping[str, object],
+    revocation: TrialRevocation | None,
+) -> dict[str, object]:
+    return {
         "schema_version": OUTER_ENVELOPE_SCHEMA_VERSION,
         "identity": {
             "trial_id": trial_id, "root_run_id": root_run_id, "arm_name": arm.get("name")},
@@ -151,8 +191,6 @@ def finalize_host_trial(
             "roots": [{"root": name, "status": status} for name, status in walked.items()],
             "files": [item.as_dict() for item in collected],
         },
-        "launch": launch_record,
-        "assets": _asset_record(assets),
         "verifier": _verifier_record(verifier_dir),
         "proxy_usage": _proxy_usage(revocation, trial_id),
         "revocation": _revocation_record(revocation),
@@ -161,7 +199,49 @@ def finalize_host_trial(
                         "atomic": True, "post_publication_reread": True},
         "grader_admission": {"admitted": True, "reason": "recorded"},
     }
-    return _publish_outer(artifact_dir / OUTER_ENVELOPE_FILENAME, envelope)
+
+
+def _add_arm_records(
+    envelope: dict[str, object], arm_kind: str, launch: dict[str, object],
+    assets: dict[str, object], task: Mapping[str, object] | None,
+) -> None:
+    envelope["launch"] = launch
+    envelope["assets"] = assets
+    if arm_kind != "vendor-baseline":
+        return
+    identity = envelope["identity"]
+    assert isinstance(identity, dict)
+    identity["arm_kind"] = arm_kind
+    envelope["task"] = _vendor_task_record(task)
+    envelope["telemetry"] = _unavailable("not_applicable_to_vendor")
+
+
+def _vendor_task_record(task: Mapping[str, object] | None) -> dict[str, str]:
+    required = ("task_id", "image_ref", "image_digest")
+    if task is None or any(not isinstance(task.get(key), str) or not task[key] for key in required):
+        raise HostFinalizationError("vendor_task_pin_unavailable")
+    return {key: str(task[key]) for key in required}
+
+
+def _require_trusted_security(
+    scan: Mapping[str, object], revocation: TrialRevocation | None, trial_id: str,
+) -> None:
+    if scan.get("ok") is not True or scan.get("clean") is not True:
+        raise HostFinalizationError("output_scan_untrusted")
+    if any(scan.get(key) != [] for key in (
+        "matches", "missing_sources", "unclassified_files",
+    )):
+        raise HostFinalizationError("output_scan_untrusted")
+    record = _revocation_record(revocation)
+    expected = {
+        "schema_version": "cortex-bench-proxy-revocation/1", "trial_id": trial_id,
+        "route_active": False, "listener_present": False,
+        "serving_thread_alive": False, "active_handlers": 0, "body_handlers": 0,
+    }
+    for key, value in expected.items():
+        actual = record.get(key)
+        if type(actual) is not type(value) or actual != value:
+            raise HostFinalizationError("proxy_revocation_uncertain")
 
 
 def _collect_and_scan(
@@ -322,15 +402,31 @@ def _launch_record(
     attestation: Mapping[str, object] | None, artifact_dir: Path, npm_artifact: Path,
 ) -> dict[str, object]:
     """The parameters the launcher passed the container, written down as it emitted them."""
-    admission = _read_record(artifact_dir / ADMISSION_EVIDENCE_FILENAME)
-    boundary = _read_record(artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME)
-    manifest = _read_record(artifact_dir / MANIFEST_FILENAME)
-    image = _block(admission, "image")
     return {
         "npm_artifact": _npm_artifact_record(attestation, npm_artifact),
         "arm_bundle": _field(attestation, "arm_bundle", "launch_attestation_absent"),
         "confinement": _field(attestation, "arm_confinement", "launch_attestation_absent"),
         "config_bundle": _config_bundle_record(attestation),
+        **_boundary_launch_record(artifact_dir),
+    }
+
+
+def _vendor_launch_record(
+    artifact_dir: Path, marker: dict[str, str],
+) -> dict[str, object]:
+    return {
+        "npm_artifact": marker, "arm_bundle": marker,
+        "confinement": marker, "config_bundle": marker,
+        **_boundary_launch_record(artifact_dir),
+    }
+
+
+def _boundary_launch_record(artifact_dir: Path) -> dict[str, object]:
+    admission = _read_record(artifact_dir / ADMISSION_EVIDENCE_FILENAME)
+    boundary = _read_record(artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME)
+    manifest = _read_record(artifact_dir / MANIFEST_FILENAME)
+    image = _block(admission, "image")
+    return {
         "sealed_environment_allowlist": _field(
             _block(admission, "environment"), "admitted_keys", "admission_evidence_absent"),
         "image": {
