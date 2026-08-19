@@ -15,3 +15,4 @@ Package tests cover build reproducibility and the production Harbor wrapper.
 | test_pi_vendor_wire.py | test | Verifies the real PI loopback wire fixture |
 | test_runtime_image_builder.py | test | Verifies nine isolated offline vendor images |
 | test_synthetic_deepseek.py | test | Verifies synthetic DeepSeek turns |
+| test_vendor_model_freeze.py | test | Proves real vendor CLIs preserve frozen models |

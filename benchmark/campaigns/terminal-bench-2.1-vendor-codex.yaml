@@ -51,6 +51,8 @@ arms:
     vendor_agent: codex
     vendor_cli_version: "0.117.0"
     provider: openai-codex
+    # CLI 0.117.0 loopback proof observes this exact request model without substitution.
+    # Provider acceptance: unverified-until-live; no live provider request was made.
     model: gpt-5.4
     credential_capability: codex-subscription
     limits:

@@ -51,6 +51,8 @@ arms:
     vendor_agent: claude-code
     vendor_cli_version: "2.1.232"
     provider: anthropic
+    # CLI 2.1.232 loopback proof observes this exact model for primary, aliases, and subagents.
+    # Provider acceptance: unverified-until-live; no live provider request was made.
     model: claude-sonnet-4-5-20250929
     credential_capability: claude-subscription
     limits:

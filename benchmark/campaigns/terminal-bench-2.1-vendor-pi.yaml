@@ -51,6 +51,8 @@ arms:
     vendor_agent: pi
     vendor_cli_version: "0.82.1"
     provider: deepseek
+    # CLI 0.82.1 loopback proof observes this exact request model without substitution.
+    # Provider acceptance: unverified-until-live; no live provider request was made.
     model: deepseek-v4-flash
     credential_capability: pi-deepseek-api-key
     limits:
