@@ -1,13 +1,13 @@
 # input:  the PI vendor arm and three pinned Terminal-Bench 2.1 tasks
-# output: a schema-valid, dry-run-only PI vendor campaign
-# pos:    PI vendor-baseline campaign declaration
+# output: a schema-valid paid PI vendor campaign against the host DeepSeek relay
+# pos:    Live PI vendor-baseline campaign declaration
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The image selectors below bind every task to the offline PI-only runtime variant.
 
 schema_version: cortex-bench-campaign/1
 campaign: tb21-vendor-pi
-paid: false
+paid: true
 trials_dir: /var/tmp/cortex-bench/tb21-vendor-pi
 cli_version: "2026.8.6"
 concurrency: 3
@@ -19,7 +19,7 @@ manifest:
   lockfile_manifest_path: benchmark/harness/uv.lock
 
 credential:
-  upstream_base_url: http://127.0.0.1:9099
+  upstream_base_url: http://127.0.0.1:9880/m/deepseek/deepseek
   route_identity_host: api.deepseek.com
   proxy_host_suffix: proxy.invalid
   dummy_token_ref: vendor-pi-dummy-token
