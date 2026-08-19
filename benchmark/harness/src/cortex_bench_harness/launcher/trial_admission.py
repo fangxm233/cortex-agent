@@ -9,6 +9,7 @@ import os
 import re
 import stat
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, override
 from urllib.parse import urlsplit
@@ -40,7 +41,7 @@ from harbor.trial.trial import Trial
 from ..container_boundary import ContainerBoundaryProbe, ContainerBoundaryUnproven
 from .trial_seed import TrialSeed, parse_trial_seed
 from .host_credential_vault import HOST_CREDENTIAL_VAULT
-from .arms import arm_backend, build_agent_config, require_pinned_image
+from .arms import VENDOR_AGENTS, arm_backend, build_agent_config, require_pinned_image
 from .network_policy import (
     MODE_OPEN,
     DenylistEntry,
@@ -85,6 +86,19 @@ SENSITIVE_HOME_PATHS = (
     ".cortex", ".claude", ".anthropic", ".pi", ".ssh", ".gnupg", ".aws",
     ".azure", ".docker", ".kube", ".config/gcloud", ".config/gh",
 )
+VENDOR_FIXED_ENVIRONMENT = {
+    "pi": {
+        "PI_CODING_AGENT_DIR": str(TRIAL_ROOT / "pi-agent"),
+        "PI_OFFLINE": "1", "PI_SKIP_VERSION_CHECK": "1", "PI_TELEMETRY": "0",
+    },
+    "codex": {"CODEX_HOME": str(TRIAL_ROOT / "codex-home")},
+}
+
+
+@dataclass(frozen=True)
+class VendorRuntimeProjection:
+    vendor_agent: str
+    environment: Mapping[str, str]
 
 
 def _required_text(values: Mapping[str, object], field: str) -> str:
@@ -155,15 +169,9 @@ def _forbidden_network_hosts(seed: TrialSeed) -> set[str]:
     }
 
 
-def _trial_environment(seed: TrialSeed, backend: str) -> dict[str, str]:
+def _common_trial_environment(seed: TrialSeed) -> dict[str, str]:
     root = TRIAL_ROOT
-    environment = {
-        "CORTEX_BENCH_BACKEND": backend,
-        "CORTEX_BENCH_DEADLINE_SECONDS": str(_deadline_seconds(seed.arm)),
-        "CORTEX_BENCH_ROOT_RUN_ID": seed.root_run_id,
-        "CORTEX_BENCH_TRIAL_ID": seed.trial_id,
-        "CORTEX_HOME": str(root / "cortex-home"),
-        "CORTEX_PROJECTS_DIR": str(root / "projects"),
+    return {
         "HOME": str(root / "home"), "HOSTNAME": seed.trial_id,
         "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
         "NODE_DISABLE_COMPILE_CACHE": "1", "PATH": FIXED_PATH,
@@ -172,9 +180,37 @@ def _trial_environment(seed: TrialSeed, backend: str) -> dict[str, str]:
         "XDG_CACHE_HOME": str(root / "xdg-cache"),
         "XDG_CONFIG_HOME": str(root / "xdg-config"),
     }
+
+
+def _trial_environment(seed: TrialSeed, backend: str) -> dict[str, str]:
+    root = TRIAL_ROOT
+    environment = {
+        **_common_trial_environment(seed),
+        "CORTEX_BENCH_BACKEND": backend,
+        "CORTEX_BENCH_DEADLINE_SECONDS": str(_deadline_seconds(seed.arm)),
+        "CORTEX_BENCH_ROOT_RUN_ID": seed.root_run_id,
+        "CORTEX_BENCH_TRIAL_ID": seed.trial_id,
+        "CORTEX_HOME": str(root / "cortex-home"),
+        "CORTEX_PROJECTS_DIR": str(root / "projects"),
+    }
     if backend == "claude":
         environment["CLAUDE_CONFIG_DIR"] = str(root / "claude-config")
     return dict(sorted(environment.items()))
+
+
+def _vendor_agent(arm: Mapping[str, object]) -> str | None:
+    if arm.get("kind") != "vendor-baseline":
+        return None
+    vendor_agent = _required_text(arm, "vendor_agent")
+    if vendor_agent not in VENDOR_AGENTS:
+        raise HarborTrialAdmissionError(f"unsupported vendor agent: {vendor_agent}")
+    return vendor_agent
+
+
+def _initial_trial_environment(seed: TrialSeed) -> dict[str, str]:
+    if _vendor_agent(seed.arm) is not None:
+        return dict(sorted(_common_trial_environment(seed).items()))
+    return _trial_environment(seed, arm_backend(seed.arm))
 
 
 def _validate_environment_values(environment: Mapping[str, str]) -> None:
@@ -328,21 +364,18 @@ def _build_trial_agent_config(
 
 
 def build_harbor_trial_config(
-    arm: Mapping[str, object], *, task_path: Path | str,
-    trials_dir: Path | str, manifest: Mapping[str, object],
-    trial_seed: Mapping[str, object], cli_version: str,
+    arm: Mapping[str, object], *, task_path: Path | str, trials_dir: Path | str,
+    manifest: Mapping[str, object], trial_seed: Mapping[str, object], cli_version: str,
     host_scan_policy: Mapping[str, object], trial_proxy: Mapping[str, object] | None = None,
-    credential_handle: str | None = None,
-    agent_timeout_seconds: int | None = None,
-    verifier_timeout_seconds: int | None = None,
-    network: NetworkAccess | None = None,
+    credential_handle: str | None = None, agent_timeout_seconds: int | None = None,
+    verifier_timeout_seconds: int | None = None, network: NetworkAccess | None = None,
 ) -> TrialConfig:
     seed = parse_trial_seed(trial_seed)
     task_root = Path(task_path).expanduser().resolve(strict=True)
     _validate_task_topology(task_root)
     trials_root, trial_root = _trial_paths(trials_dir, seed.trial_id)
     proxy_host = _proxy_host(seed)
-    environment = _trial_environment(seed, arm_backend(seed.arm))
+    environment = _initial_trial_environment(seed)
     _validate_environment_values(environment)
     contract = _admission_contract(
         seed, task_root, trial_root, environment, proxy_host,
@@ -353,17 +386,39 @@ def build_harbor_trial_config(
         environment, proxy_host, trial_proxy, host_scan_policy, credential_handle,
         agent_timeout_seconds or _deadline_seconds(seed.arm),
     )
-    trial_environment = TrialEnvironmentConfig(
-        import_path=ADMISSION_ENVIRONMENT_IMPORT_PATH,
-        env=environment, kwargs={"admission": contract},
+    trial_environment = _trial_environment_config(
+        environment, contract, _vendor_agent(seed.arm),
     )
+    return _reserve_trial_config(
+        task_root, trials_root, trial_root, seed.trial_id, agent,
+        trial_environment, verifier_timeout_seconds,
+    )
+
+
+def _reserve_trial_config(
+    task_root: Path, trials_root: Path, trial_root: Path, trial_id: str,
+    agent: AgentConfig, environment: TrialEnvironmentConfig,
+    verifier_timeout_seconds: int | None,
+) -> TrialConfig:
     config = TrialConfig(
-        task=TaskConfig(path=task_root), trial_name=seed.trial_id,
-        trials_dir=trials_root, agent=agent, environment=trial_environment,
-        **_verifier_config(verifier_timeout_seconds),
+        task=TaskConfig(path=task_root), trial_name=trial_id, trials_dir=trials_root,
+        agent=agent, environment=environment, **_verifier_config(verifier_timeout_seconds),
     )
     _reserve_trial_root(trials_root, trial_root)
     return config
+
+
+def _trial_environment_config(
+    environment: Mapping[str, str], contract: Mapping[str, object], vendor_agent: str | None,
+) -> TrialEnvironmentConfig:
+    kwargs: dict[str, object] = {"admission": contract}
+    if vendor_agent is not None:
+        kwargs["vendor_agent"] = vendor_agent
+    return TrialEnvironmentConfig(
+        import_path=ADMISSION_ENVIRONMENT_IMPORT_PATH,
+        env=dict(environment), kwargs=kwargs,
+    )
+
 
 def _verifier_config(verifier_timeout_seconds: int | None) -> dict[str, object]:
     """An undeclared verifier timeout leaves the task's own `[verifier] timeout_sec` in force."""
@@ -474,8 +529,8 @@ def _validate_persistent_environment(
     environment: Mapping[str, str] | None, contract: Mapping[str, object],
 ) -> None:
     values = dict(environment or {})
-    configured = _contract_keys(contract, "configured_environment_keys")
-    if set(values) != configured or environment_digest(values) != contract["environment_digest"]:
+    admitted = _contract_keys(contract, "admitted_environment_keys")
+    if set(values) != admitted or environment_digest(values) != contract["environment_digest"]:
         raise HarborTrialAdmissionError("container environment differs from the sealed allowlist")
     _validate_environment_values(values)
 
@@ -716,23 +771,30 @@ def _network_record(
     return record
 
 
+def _projection_record(projection: VendorRuntimeProjection) -> dict[str, object]:
+    return {
+        "vendor_agent": projection.vendor_agent,
+        "environment": dict(sorted(projection.environment.items())),
+    }
+
+
 def _evidence_document(
     contract: Mapping[str, object], mounts: list[dict[str, object]], network: Mapping[str, object],
+    projection: VendorRuntimeProjection | None = None,
 ) -> dict[str, object]:
+    environment: dict[str, object] = {
+        "admitted_keys": sorted(_contract_keys(contract, "admitted_environment_keys")),
+        "configured_keys": sorted(_contract_keys(contract, "configured_environment_keys")),
+        "inheritance": "none",
+    }
+    if projection is not None:
+        environment["runtime_projection"] = _projection_record(projection)
     return {
         "schema_version": ADMISSION_SCHEMA_VERSION,
         "trial_id": _required_text(contract, "trial_id"),
         "root_run_id": _required_text(contract, "root_run_id"),
         "image": {"reference": _required_text(contract, "image_ref"), "pinned": True},
-        "environment": {
-            "admitted_keys": sorted(_contract_keys(
-                contract, "admitted_environment_keys",
-            )),
-            "configured_keys": sorted(_contract_keys(
-                contract, "configured_environment_keys",
-            )),
-            "inheritance": "none",
-        },
+        "environment": environment,
         "mounts": redact_mount_sources(mounts),
         "network": dict(network),
     }
@@ -764,29 +826,42 @@ def _admit_final_inputs(
     return contract, records, network, canonical_mounts
 
 
+def _prepare_admitted_environment(
+    environment_dir: Path, task_env_config: TaskEnvironmentConfig, trial_paths: TrialPaths,
+    admission: Mapping[str, object], persistent_env: Mapping[str, str] | None,
+    mounts: Sequence[ServiceVolumeConfig] | None, network_policy: NetworkPolicy | None,
+    phase_network_policies: Sequence[NetworkPolicy], extra_docker_compose: Sequence[Path | str],
+) -> tuple[NetworkAccess, Sequence[DenylistEntry], NetworkPolicy,
+           tuple[NetworkPolicy, ...], Mapping[str, object], list[ServiceVolumeConfig]]:
+    _validate_task_network_plan([network_policy, *phase_network_policies])
+    access = _contract_network(_parse_contract(admission))
+    denylist = resolve_denylist(access)
+    admitted_policy = access.startup_policy()
+    admitted_phases = tuple(admitted_policy for _ in phase_network_policies)
+    contract, _, _, canonical_mounts = _admit_final_inputs(
+        environment_dir, task_env_config, trial_paths, admission,
+        persistent_env, mounts, admitted_policy, admitted_phases,
+        extra_docker_compose, denylist,
+    )
+    return access, denylist, admitted_policy, admitted_phases, contract, canonical_mounts
+
+
 class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
     def __init__(
         self, environment_dir: Path, environment_name: str, session_id: str,
         trial_paths: TrialPaths, task_env_config: TaskEnvironmentConfig,
-        *args: object, admission: Mapping[str, object],
+        *args: object, admission: Mapping[str, object], vendor_agent: str | None = None,
         persistent_env: dict[str, str] | None = None,
         mounts: list[ServiceVolumeConfig] | None = None,
         network_policy: NetworkPolicy | None = None,
         phase_network_policies: Sequence[NetworkPolicy] = (),
         extra_docker_compose: Sequence[Path | str] = (), **kwargs: Any,
     ) -> None:
-        # The task declares the widest plan and admission narrows it, so what Harbor was handed is
-        # checked and then replaced. The direction is only ever tighter, never looser.
-        _validate_task_network_plan([network_policy, *phase_network_policies])
-        access = _contract_network(_parse_contract(admission))
-        denylist = resolve_denylist(access)
-        admitted_policy = access.startup_policy()
-        admitted_phases = tuple(admitted_policy for _ in phase_network_policies)
-        contract, _, _, canonical_mounts = _admit_final_inputs(
-            environment_dir, task_env_config, trial_paths, admission,
-            persistent_env, mounts, admitted_policy, admitted_phases,
-            extra_docker_compose, denylist,
+        prepared = _prepare_admitted_environment(
+            environment_dir, task_env_config, trial_paths, admission, persistent_env,
+            mounts, network_policy, phase_network_policies, extra_docker_compose,
         )
+        access, denylist, admitted_policy, admitted_phases, contract, canonical_mounts = prepared
         super().__init__(
             environment_dir, environment_name, session_id, trial_paths,
             task_env_config, *args, persistent_env=persistent_env,
@@ -799,6 +874,7 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         )
         self._network_access = access
         self._denylist = denylist
+        self._vendor_agent = vendor_agent
         self._seal_admission(contract, canonical_mounts, trial_paths)
 
     def _seal_admission(
@@ -847,7 +923,9 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
                 f"image environment contains unadmitted keys: {unknown}"
             )
 
-    def _arm_proxy_route(self, contract: Mapping[str, object]) -> dict[str, object]:
+    def _arm_proxy_route(
+        self, contract: Mapping[str, object],
+    ) -> tuple[dict[str, object], object]:
         if self._proxy_controller is None:
             raise HarborTrialAdmissionError("trial proxy controller is not bound")
         session = self._proxy_controller.arm_admitted_proxy()
@@ -866,12 +944,62 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         if _required_text(source, "value") != _required_text(contract, "container_ipv4"):
             raise HarborTrialAdmissionError(
                 "armed proxy source binding differs from the admitted container address")
-        return {
+        route = {
             "scheme": parsed.scheme, "host": parsed.hostname, "port": parsed.port,
             "bound_source_ip": _required_text(source, "value"),
             "enforcement": self._route_enforcement(expected_host),
             "scope": "current-trial", "trial_id": session.handle.trial_id,
         }
+        return route, session
+
+    def _expected_vendor_environment(self, session: object) -> dict[str, str]:
+        vendor_agent = self._vendor_agent
+        handle = getattr(session, "handle", None)
+        base_url = getattr(handle, "base_url", None)
+        if not isinstance(base_url, str) or not base_url:
+            raise HarborTrialAdmissionError("vendor projection requires an armed proxy URL")
+        if vendor_agent == "claude-code":
+            token = getattr(handle, "dummy_token", None)
+            if not isinstance(token, str) or not token:
+                raise HarborTrialAdmissionError("vendor projection requires a dummy token")
+            return {"ANTHROPIC_BASE_URL": base_url, "ANTHROPIC_AUTH_TOKEN": token}
+        if vendor_agent == "codex":
+            return {**VENDOR_FIXED_ENVIRONMENT["codex"], "OPENAI_BASE_URL": base_url}
+        if vendor_agent == "pi":
+            return dict(VENDOR_FIXED_ENVIRONMENT["pi"])
+        raise HarborTrialAdmissionError(f"unsupported vendor agent: {vendor_agent}")
+
+    def _project_vendor_runtime(self, session: object) -> VendorRuntimeProjection:
+        project = getattr(self._proxy_controller, "project_vendor_runtime", None)
+        if not callable(project):
+            raise HarborTrialAdmissionError("vendor runtime projection is unavailable")
+        projection = project(session)
+        if not isinstance(projection, VendorRuntimeProjection):
+            raise HarborTrialAdmissionError("vendor runtime projection is invalid")
+        if projection.vendor_agent != self._vendor_agent:
+            raise HarborTrialAdmissionError("vendor runtime projection names another vendor")
+        actual = dict(projection.environment)
+        expected = self._expected_vendor_environment(session)
+        unknown = sorted(set(actual) - set(expected))
+        if unknown:
+            raise HarborTrialAdmissionError(
+                f"vendor runtime projection has unknown keys: {unknown}")
+        if actual != expected:
+            raise HarborTrialAdmissionError("vendor runtime projection has value drift")
+        _validate_environment_values(actual)
+        return VendorRuntimeProjection(projection.vendor_agent, dict(sorted(actual.items())))
+
+    def _reseal_vendor_environment(self, projection: VendorRuntimeProjection) -> None:
+        environment = dict(sorted({**self._persistent_env, **projection.environment}.items()))
+        if any(key.startswith("CORTEX_") for key in environment):
+            raise HarborTrialAdmissionError("vendor runtime environment contains Cortex keys")
+        digest = environment_digest(environment)
+        self._persistent_env = environment
+        self._admitted_environment_keys = frozenset(environment)
+        self._admitted_environment_digest = digest
+        self._admission_contract.update(
+            admitted_environment_keys=sorted(environment), environment_digest=digest,
+        )
 
     def _route_enforcement(self, proxy_host: str) -> dict[str, str]:
         """What actually constrains this route, rather than what once always did.
@@ -896,21 +1024,34 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         if self._proxy_controller is not None:
             self._proxy_controller.revoke_admitted_proxy()
 
+    def _admit_vendor_runtime(
+        self, session: object,
+    ) -> tuple[VendorRuntimeProjection | None, Mapping[str, object], list[dict[str, object]], dict[str, object]]:
+        if self._vendor_agent is None:
+            contract, records, network = self._current_admission()
+            return None, contract, records, network
+        projection = self._project_vendor_runtime(session)
+        self._reseal_vendor_environment(projection)
+        contract, records, network = self._current_admission()
+        return projection, contract, records, network
+
     @override
     async def start(self, force_build: bool) -> None:
         if force_build:
             raise HarborTrialAdmissionError("force_build bypasses the admitted pinned image")
-        contract, records, network = self._current_admission()
+        contract, _, _ = self._current_admission()
         await asyncio.to_thread(self._validate_image_configuration)
         try:
-            route = self._arm_proxy_route(contract)
+            route, session = self._arm_proxy_route(contract)
+            projection, contract, records, network = self._admit_vendor_runtime(session)
             network["proxy_route"] = route
+            document = _evidence_document(contract, records, network, projection)
+            if projection is not None:
+                atomic_write_json(self._evidence_path, document)
             await super().start(force_build=False)
             await self._enforce_admitted_network(
                 _required_text(contract, "proxy_host"), int(route["port"]))
-            atomic_write_json(
-                self._evidence_path, _evidence_document(contract, records, network),
-            )
+            atomic_write_json(self._evidence_path, document)
         except BaseException:
             self._evidence_path.unlink(missing_ok=True)
             self._revoke_proxy()
