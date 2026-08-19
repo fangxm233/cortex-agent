@@ -213,6 +213,8 @@ def run_pi(pi_path: Path, scenario: str, root: Path, env: dict[str, str]) -> dic
 
 def redact_request(request: dict[str, Any], root: Path) -> dict[str, Any]:
     headers = {key.lower(): value for key, value in request["headers"].items()}
+    if headers.get("authorization") != f"Bearer {DUMMY_KEY}":
+        raise RuntimeError("expected dummy PI authorization bearer")
     headers["authorization"] = "<REDACTED>"
     headers["host"] = "127.0.0.1:<PORT>"
     headers["content-length"] = "<CONTENT_LENGTH>"

@@ -5,11 +5,13 @@
 
 import json
 import os
+import runpy
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from harbor.agents.installed.pi import Pi
 
 HARNESS_DIR = Path(__file__).resolve().parents[2]
@@ -42,6 +44,20 @@ def isolated_pi_wrapper(root: Path, rejected_agent_dir: Path, rejected_bin: Path
         "name": "@earendil-works/pi-coding-agent", "version": "0.82.1",
     }), encoding="utf-8")
     return executable
+
+
+@pytest.mark.parametrize("authorization", [None, "Bearer unexpected-key"])
+def test_redaction_rejects_non_dummy_authorization(
+    authorization: str | None, tmp_path: Path,
+) -> None:
+    redact_request = runpy.run_path(str(CAPTURE_SCRIPT))["redact_request"]
+    headers = {"Host": "127.0.0.1:1234", "Content-Length": "2"}
+    if authorization is not None:
+        headers["Authorization"] = authorization
+    request = {"method": "POST", "path": "/v1/chat/completions", "query": "", "headers": headers, "body": {}}
+
+    with pytest.raises(RuntimeError, match="expected dummy PI authorization bearer"):
+        redact_request(request, tmp_path)
 
 
 def test_real_pi_fixture_regenerates_without_egress(tmp_path: Path) -> None:
