@@ -1,6 +1,6 @@
 Update this file whenever this directory changes
 
-Deterministic external-system fixtures support harness contract tests.
+Deterministic redacted vendor-wire fixtures support harness contract tests.
 
 | filename | role | function |
 |---|---|---|

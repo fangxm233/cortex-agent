@@ -1,0 +1,33 @@
+{
+  "schema_version": "cortex-bench-cli-pin/1",
+  "artifact": {
+    "distribution": "native",
+    "platform": "linux-x64",
+    "sha256": "61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1",
+    "size_bytes": 323021104,
+    "version": "2.1.232"
+  },
+  "upstream_manifest": {
+    "artifact_url": "https://downloads.claude.ai/claude-code-releases/2.1.232/linux-x64/claude",
+    "build_date": "2026-08-13T17:52:06Z",
+    "commit": "a640e96821ee108129c1eed84b67aac4e7cff181",
+    "manifest_url": "https://downloads.claude.ai/claude-code-releases/2.1.232/manifest.json"
+  },
+  "host_observation": {
+    "command": "claude --version",
+    "stdout": "2.1.232 (Claude Code)",
+    "resolved_executable": "$HOME/.local/share/claude/versions/2.1.232",
+    "sha256_command": "sha256sum $HOME/.local/share/claude/versions/2.1.232",
+    "sha256_stdout": "61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1",
+    "size_bytes": 323021104,
+    "matches_manifest": true
+  },
+  "harbor_version_check": {
+    "package_version": "0.20.0",
+    "source": "harbor/agents/installed/claude_code.py:121-155",
+    "command": "export PATH=\"$HOME/.local/bin:$PATH\"; claude --version",
+    "parser": "first dotted three-component numeric version",
+    "comparison": "installed_version == requested_version",
+    "mismatch_behavior": "install path is entered; the planned preinstalled wrapper must instead fail closed"
+  }
+}
