@@ -1,0 +1,170 @@
+{
+  "schema_version": "cortex-bench-vendor-staged-attempt-summary/1",
+  "campaign": "tb21-vendor-codex",
+  "task_id": "429c",
+  "executed_at": "2026-08-19",
+  "source_commit": "bbaa122b4935dc067a6f6b3cc6d37b0d17e7cfb0",
+  "headline": "The staged Codex sequence stopped permanently at stage 1. The single consume-once live-handshake permit emitted exactly one provider request with retry disabled, then the host client received 53 bytes before the upstream chunked SSE stream ended incompletely. No retry was made, no live-handshake evidence was published, the capability row was not promoted, and neither score-producing campaign was started.",
+  "version_drift_preflight": {
+    "host_cli": {
+      "observed_version": "codex-cli 0.148.0",
+      "role": "host credential minting only"
+    },
+    "pinned_container_cli": {
+      "declared_version": "0.117.0",
+      "image_digest": "sha256:4a8e42fae8518797c628a0da09a2afb518d4723ee040856e21d1a2d12072bec5",
+      "preflight_output": {
+        "ok": true,
+        "vendor": "codex",
+        "version": "codex-cli 0.117.0",
+        "synthetic_requests": 1
+      },
+      "model_freeze_selectors": {
+        "runtime": "0.117.0 wrapper and node_modules extracted from the pinned container into a temporary host path",
+        "passed": 2,
+        "failed": 0
+      }
+    },
+    "host_token_adapter_acceptance": {
+      "adapter_id": "openai-codex-responses/oauth",
+      "accepted": true,
+      "access_expiry_utc": "2026-08-29T16:34:33+00:00",
+      "host_cli_version_that_minted_token": "codex-cli 0.148.0",
+      "provider_requests": 0
+    },
+    "decision": "The drift did not require or authorize a re-pin: the committed 0.117.0 runtime remained runnable and the 0.148.0-minted host JWT satisfied the committed host-side adapter."
+  },
+  "upstream_derivation": {
+    "selected_base_url": "https://chatgpt.com/backend-api",
+    "derived_not_guessed": true,
+    "evidence": [
+      "benchmark/harness/tests/fixtures/vendor-wire/codex/contract.json records the native incoming target /codex/responses and the fixed provider host chatgpt.com.",
+      "benchmark/harness/src/cortex_bench_harness/proxy/upstream.py appends the admitted incoming path to the configured base path.",
+      "benchmark/harness/tests/proxy/test_openai_codex_adapter.py records /backend-api/codex/responses as the provider-side composed path that must never be accepted as a container-originated route."
+    ]
+  },
+  "campaign_config_at_stop": {
+    "path": "benchmark/campaigns/terminal-bench-2.1-vendor-codex.yaml",
+    "sha256": "737221fa0452708e16bf2fe83dce311e45534f1d1c328079c6a8b2ea5603d6d0",
+    "state": "unchanged-after-stage-1-failure",
+    "paid": false,
+    "later-stage_changes_not_applied": [
+      "paid true",
+      "real derived upstream base URL",
+      "non-overlapping Docker subnet pool"
+    ],
+    "reason": "The ordered task requires a permanent stop at the first failure."
+  },
+  "sequence": [
+    {
+      "stage": 1,
+      "name": "consume-once-live-handshake",
+      "state": "live-handshake-failed",
+      "attempts": 1,
+      "retry": "not-performed",
+      "permit": {
+        "capability_id": "codex-subscription",
+        "model": "gpt-5.4",
+        "max_provider_requests": 1,
+        "deadline_seconds": 120,
+        "max_output_tokens": 256,
+        "retry_enabled": false
+      },
+      "provider_requests": 1,
+      "proxy_accounting": {
+        "requests": 1,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_tokens": 0,
+        "audit_agrees_with_counters": true,
+        "outcome": "usage_accounting_unavailable"
+      },
+      "failure": {
+        "exception_type": "http.client.IncompleteRead",
+        "phase": "live-handshake response read",
+        "bytes_received_before_incomplete_chunked_stream": 53,
+        "wrapper_exception": "LiveHandshakePermitRefused: live handshake provider request failed before completion"
+      },
+      "promotion_evidence": "absent",
+      "capability_state_after_run": "offline-contract-passed",
+      "raw_evidence_sha256": {
+        "live-handshake-run-config.json": "3370356f74a33eacf996ddddcabd7bb4572af0fdaefd165c24206a0a5c732dfb",
+        "live-handshake-request.json": "e1bb22a7755f5e06a3687e908c938808d9c49a025cf934563743af2a3bdc1f22",
+        "live-handshake-request.body": "948ed64a9f4251edbeb62b590027a7dfe2524400205f273964fcf4138acbd8fa",
+        "proxy/proxy-audit.jsonl": "11d84b18b88a763b8f8eb354675e15d56d14cccdf5a5de42a785632a12ad01a4",
+        "proxy/proxy-export.json": "f903d1c64b3767a7cf43f5a1dac13f76bd5c596b041045f867251acc117f5a64",
+        "proxy/lease-echo.json": "5127df64a177b930d9b2b0d032a62d1ba490d728b794c65102718a089c7ce44a",
+        "proxy/adapter-selection.json": "90ad45a3c0c41b7f2986a1c874054d4826891a5891eb91f7dfd8f405661a3ef7"
+      }
+    },
+    {
+      "stage": 2,
+      "name": "single-task-live-vendor-codex",
+      "state": "not-run-after-stage-1-failure",
+      "attempts": 0,
+      "provider_requests": 0
+    },
+    {
+      "stage": 3,
+      "name": "three-task-live-vendor-codex-one-wave",
+      "state": "not-run-after-stage-1-failure",
+      "attempts": 0,
+      "planned_trials": [
+        "chess-best-move",
+        "constraints-scheduling",
+        "db-wal-recovery"
+      ],
+      "provider_requests": 0
+    }
+  ],
+  "security": {
+    "credential_delivery": "The real ChatGPT access token remained host-side. The request artifact contains no authorization or account-id header; the adapter injected both only on the host-side upstream leg.",
+    "proxy_traversal": {
+      "proven": true,
+      "adapter_id": "openai-codex-responses/oauth",
+      "upstream_hosts": [
+        "chatgpt.com"
+      ],
+      "durable_requests": 1,
+      "evidence": "The proxy export and adapter-selection record account the sole provider request."
+    },
+    "direct_egress": {
+      "container_started": false,
+      "evidence": "Stage 1 was host-only; no campaign container existed, so there was no container direct-egress path to observe."
+    },
+    "token_refresh": {
+      "attempted": false,
+      "evidence": "The non-expired access token was bound directly; no token endpoint was configured and adapter-selection lists only chatgpt.com."
+    },
+    "postfailure_leak_scan": {
+      "files_scanned": 7,
+      "bytes_scanned": 2902,
+      "matches": 0,
+      "missing_sources": 0,
+      "unclassified_files": 0,
+      "clean": true,
+      "scan_record_sha256": "9f241fe0207c624c0c127d3fdd461142de0ba2701ed99c2ea29e7a4276b59a81"
+    },
+    "revocation_evidence": {
+      "ordered_revoke_path_executed": true,
+      "active_handshake_processes_after_run": 0,
+      "active_paid_campaign_processes_after_run": 0,
+      "internal_revocation_record": "not persisted because the response-read exception left _request_and_revoke after its finally-ordered revoke",
+      "route_reuse": "not attempted"
+    }
+  },
+  "raw_sources": {
+    "handshake_artifacts": "<run-evidence>/codex-live-handshake-429c/",
+    "postfailure_scan": "<run-evidence>/codex-live-handshake-429c-postfailure-scan.json"
+  },
+  "prohibitions_observed": {
+    "automatic_retry": false,
+    "manual_retry": false,
+    "capability_promotion": false,
+    "stage_2_started": false,
+    "stage_3_started": false,
+    "campaign_route_arming": false,
+    "re_pin_to_host_0_148_0": false,
+    "push": false
+  }
+}
