@@ -1,0 +1,16 @@
+{
+  "artifact": {
+    "ecosystem": "npm",
+    "package": "@earendil-works/pi-coding-agent",
+    "version": "0.82.1"
+  },
+  "cli": {
+    "command": "pi --version",
+    "observed_stdout": "0.82.1"
+  },
+  "harbor": {
+    "package_version": "0.20.0",
+    "version_check_command": ". ~/.nvm/nvm.sh; pi --version"
+  },
+  "schema_version": "cortex-bench-vendor-artifact-pin/1"
+}

@@ -1,0 +1,837 @@
+{
+  "error_process": {
+    "argv": [
+      "pi",
+      "--print",
+      "--mode",
+      "json",
+      "--no-session",
+      "--no-tools",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--no-context-files",
+      "--system-prompt",
+      "synthetic system prompt",
+      "--provider",
+      "deepseek",
+      "--model",
+      "deepseek-chat",
+      "wire error"
+    ],
+    "event_types": [
+      "session",
+      "agent_start",
+      "turn_start",
+      "message_start",
+      "message_end",
+      "message_start",
+      "message_end",
+      "turn_end",
+      "agent_end",
+      "agent_settled"
+    ],
+    "events": [
+      {
+        "cwd": "<CAPTURE_CWD>",
+        "id": "<SESSION_ID>",
+        "timestamp": "<TIMESTAMP>",
+        "type": "session",
+        "version": 3
+      },
+      {
+        "type": "agent_start"
+      },
+      {
+        "type": "turn_start"
+      },
+      {
+        "message": {
+          "content": [
+            {
+              "text": "wire error",
+              "type": "text"
+            }
+          ],
+          "role": "user",
+          "timestamp": "<TIMESTAMP>"
+        },
+        "type": "message_start"
+      },
+      {
+        "message": {
+          "content": [
+            {
+              "text": "wire error",
+              "type": "text"
+            }
+          ],
+          "role": "user",
+          "timestamp": "<TIMESTAMP>"
+        },
+        "type": "message_end"
+      },
+      {
+        "message": {
+          "api": "openai-completions",
+          "content": [],
+          "errorMessage": "401: {\"message\":\"synthetic rejected\",\"type\":\"authentication_error\"}",
+          "model": "deepseek-chat",
+          "provider": "deepseek",
+          "role": "assistant",
+          "stopReason": "error",
+          "timestamp": "<TIMESTAMP>",
+          "usage": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "cost": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "input": 0,
+              "output": 0,
+              "total": 0
+            },
+            "input": 0,
+            "output": 0,
+            "totalTokens": 0
+          }
+        },
+        "type": "message_start"
+      },
+      {
+        "message": {
+          "api": "openai-completions",
+          "content": [],
+          "errorMessage": "401: {\"message\":\"synthetic rejected\",\"type\":\"authentication_error\"}",
+          "model": "deepseek-chat",
+          "provider": "deepseek",
+          "role": "assistant",
+          "stopReason": "error",
+          "timestamp": "<TIMESTAMP>",
+          "usage": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "cost": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "input": 0,
+              "output": 0,
+              "total": 0
+            },
+            "input": 0,
+            "output": 0,
+            "totalTokens": 0
+          }
+        },
+        "type": "message_end"
+      },
+      {
+        "message": {
+          "api": "openai-completions",
+          "content": [],
+          "errorMessage": "401: {\"message\":\"synthetic rejected\",\"type\":\"authentication_error\"}",
+          "model": "deepseek-chat",
+          "provider": "deepseek",
+          "role": "assistant",
+          "stopReason": "error",
+          "timestamp": "<TIMESTAMP>",
+          "usage": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "cost": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "input": 0,
+              "output": 0,
+              "total": 0
+            },
+            "input": 0,
+            "output": 0,
+            "totalTokens": 0
+          }
+        },
+        "toolResults": [],
+        "type": "turn_end"
+      },
+      {
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "wire error",
+                "type": "text"
+              }
+            ],
+            "role": "user",
+            "timestamp": "<TIMESTAMP>"
+          },
+          {
+            "api": "openai-completions",
+            "content": [],
+            "errorMessage": "401: {\"message\":\"synthetic rejected\",\"type\":\"authentication_error\"}",
+            "model": "deepseek-chat",
+            "provider": "deepseek",
+            "role": "assistant",
+            "stopReason": "error",
+            "timestamp": "<TIMESTAMP>",
+            "usage": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "cost": {
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "input": 0,
+                "output": 0,
+                "total": 0
+              },
+              "input": 0,
+              "output": 0,
+              "totalTokens": 0
+            }
+          }
+        ],
+        "type": "agent_end",
+        "willRetry": false
+      },
+      {
+        "type": "agent_settled"
+      }
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stop_reasons": [
+      "error",
+      "error",
+      "error"
+    ]
+  },
+  "error_request": {
+    "body": {
+      "max_completion_tokens": 8192,
+      "messages": [
+        {
+          "content": "synthetic system prompt\nCurrent working directory: <CAPTURE_CWD>",
+          "role": "system"
+        },
+        {
+          "content": [
+            {
+              "text": "wire error",
+              "type": "text"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "model": "deepseek-chat",
+      "store": false,
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      }
+    },
+    "headers": {
+      "accept": "application/json",
+      "accept-encoding": "gzip, deflate",
+      "accept-language": "*",
+      "authorization": "<REDACTED>",
+      "connection": "keep-alive",
+      "content-length": "<CONTENT_LENGTH>",
+      "content-type": "application/json",
+      "host": "127.0.0.1:<PORT>",
+      "sec-fetch-mode": "cors",
+      "user-agent": "OpenAI/JS 6.26.0",
+      "x-stainless-arch": "x64",
+      "x-stainless-lang": "js",
+      "x-stainless-os": "Linux",
+      "x-stainless-package-version": "6.26.0",
+      "x-stainless-retry-count": "0",
+      "x-stainless-runtime": "node",
+      "x-stainless-runtime-version": "v22.19.0",
+      "x-stainless-timeout": "300"
+    },
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "query": ""
+  },
+  "error_response": {
+    "body": {
+      "error": {
+        "message": "synthetic rejected",
+        "type": "authentication_error"
+      }
+    },
+    "headers": {
+      "content-type": "application/json"
+    },
+    "status": 401
+  },
+  "network_isolation": "linux-user-network-namespace",
+  "observations": {
+    "PI_CODING_AGENT_DIR": {
+      "effect": "PI loaded auth.json and models.json only from this isolated directory.",
+      "status": "observed",
+      "value": "<TEMP>/agent"
+    },
+    "PI_OFFLINE": {
+      "effect": "The real capture ran with offline startup mode inside a private network namespace; only loopback provider requests were possible.",
+      "status": "observed",
+      "value": "1"
+    },
+    "PI_SKIP_VERSION_CHECK": {
+      "effect": "Independent version-check suppression was masked by PI_OFFLINE=1.",
+      "status": "not-exercised",
+      "value": "1"
+    },
+    "PI_TELEMETRY": {
+      "effect": "Independent telemetry suppression was masked by PI_OFFLINE=1.",
+      "status": "not-exercised",
+      "value": "0"
+    },
+    "auth.json": {
+      "effect": "The dummy key became the redacted Authorization bearer value.",
+      "mode": "0600",
+      "path": "$PI_CODING_AGENT_DIR/auth.json",
+      "shape": {
+        "deepseek": {
+          "key": "<DUMMY_API_KEY>",
+          "type": "api_key"
+        }
+      },
+      "status": "observed"
+    },
+    "models.json": {
+      "effect": "The baseUrl selected loopback /v1/chat/completions and the declared deepseek-chat model.",
+      "mode": "0644",
+      "path": "$PI_CODING_AGENT_DIR/models.json",
+      "shape": {
+        "providers": {
+          "deepseek": {
+            "api": "openai-completions",
+            "baseUrl": "http://127.0.0.1:<PORT>/v1",
+            "models": [
+              {
+                "contextWindow": 128000,
+                "cost": {
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "input": 0,
+                  "output": 0
+                },
+                "id": "deepseek-chat",
+                "input": [
+                  "text"
+                ],
+                "maxTokens": 8192,
+                "name": "Synthetic DeepSeek",
+                "reasoning": false
+              }
+            ]
+          }
+        }
+      },
+      "status": "observed"
+    }
+  },
+  "request": {
+    "body": {
+      "max_completion_tokens": 8192,
+      "messages": [
+        {
+          "content": "synthetic system prompt\nCurrent working directory: <CAPTURE_CWD>",
+          "role": "system"
+        },
+        {
+          "content": [
+            {
+              "text": "wire success",
+              "type": "text"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "model": "deepseek-chat",
+      "store": false,
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      }
+    },
+    "headers": {
+      "accept": "application/json",
+      "accept-encoding": "gzip, deflate",
+      "accept-language": "*",
+      "authorization": "<REDACTED>",
+      "connection": "keep-alive",
+      "content-length": "<CONTENT_LENGTH>",
+      "content-type": "application/json",
+      "host": "127.0.0.1:<PORT>",
+      "sec-fetch-mode": "cors",
+      "user-agent": "OpenAI/JS 6.26.0",
+      "x-stainless-arch": "x64",
+      "x-stainless-lang": "js",
+      "x-stainless-os": "Linux",
+      "x-stainless-package-version": "6.26.0",
+      "x-stainless-retry-count": "0",
+      "x-stainless-runtime": "node",
+      "x-stainless-runtime-version": "v22.19.0",
+      "x-stainless-timeout": "300"
+    },
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "query": ""
+  },
+  "schema_version": "cortex-bench-vendor-wire-capture/1",
+  "success_process": {
+    "argv": [
+      "pi",
+      "--print",
+      "--mode",
+      "json",
+      "--no-session",
+      "--no-tools",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--no-context-files",
+      "--system-prompt",
+      "synthetic system prompt",
+      "--provider",
+      "deepseek",
+      "--model",
+      "deepseek-chat",
+      "wire success"
+    ],
+    "event_types": [
+      "session",
+      "agent_start",
+      "turn_start",
+      "message_start",
+      "message_end",
+      "message_start",
+      "message_update",
+      "message_update",
+      "message_update",
+      "message_end",
+      "turn_end",
+      "agent_end",
+      "agent_settled"
+    ],
+    "events": [
+      {
+        "cwd": "<CAPTURE_CWD>",
+        "id": "<SESSION_ID>",
+        "timestamp": "<TIMESTAMP>",
+        "type": "session",
+        "version": 3
+      },
+      {
+        "type": "agent_start"
+      },
+      {
+        "type": "turn_start"
+      },
+      {
+        "message": {
+          "content": [
+            {
+              "text": "wire success",
+              "type": "text"
+            }
+          ],
+          "role": "user",
+          "timestamp": "<TIMESTAMP>"
+        },
+        "type": "message_start"
+      },
+      {
+        "message": {
+          "content": [
+            {
+              "text": "wire success",
+              "type": "text"
+            }
+          ],
+          "role": "user",
+          "timestamp": "<TIMESTAMP>"
+        },
+        "type": "message_end"
+      },
+      {
+        "message": {
+          "api": "openai-completions",
+          "content": [],
+          "model": "deepseek-chat",
+          "provider": "deepseek",
+          "responseId": "chatcmpl-wire",
+          "responseModel": "wire-model",
+          "role": "assistant",
+          "stopReason": "stop",
+          "timestamp": "<TIMESTAMP>",
+          "usage": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "cost": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "input": 0,
+              "output": 0,
+              "total": 0
+            },
+            "input": 0,
+            "output": 0,
+            "totalTokens": 0
+          }
+        },
+        "type": "message_start"
+      },
+      {
+        "assistantMessageEvent": {
+          "contentIndex": 0,
+          "partial": {
+            "api": "openai-completions",
+            "content": [
+              {
+                "text": "synthetic ok",
+                "type": "text"
+              }
+            ],
+            "model": "deepseek-chat",
+            "provider": "deepseek",
+            "responseId": "chatcmpl-wire",
+            "responseModel": "wire-model",
+            "role": "assistant",
+            "stopReason": "stop",
+            "timestamp": "<TIMESTAMP>",
+            "usage": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "cost": {
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "input": 0,
+                "output": 0,
+                "total": 0
+              },
+              "input": 5,
+              "output": 2,
+              "reasoning": 0,
+              "totalTokens": 7
+            }
+          },
+          "type": "text_start"
+        },
+        "message": {
+          "api": "openai-completions",
+          "content": [
+            {
+              "text": "synthetic ok",
+              "type": "text"
+            }
+          ],
+          "model": "deepseek-chat",
+          "provider": "deepseek",
+          "responseId": "chatcmpl-wire",
+          "responseModel": "wire-model",
+          "role": "assistant",
+          "stopReason": "stop",
+          "timestamp": "<TIMESTAMP>",
+          "usage": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "cost": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "input": 0,
+              "output": 0,
+              "total": 0
+            },
+            "input": 5,
+            "output": 2,
+            "reasoning": 0,
+            "totalTokens": 7
+          }
+        },
+        "type": "message_update"
+      },
+      {
+        "assistantMessageEvent": {
+          "contentIndex": 0,
+          "delta": "synthetic ok",
+          "partial": {
+            "api": "openai-completions",
+            "content": [
+              {
+                "text": "synthetic ok",
+                "type": "text"
+              }
+            ],
+            "model": "deepseek-chat",
+            "provider": "deepseek",
+            "responseId": "chatcmpl-wire",
+            "responseModel": "wire-model",
+            "role": "assistant",
+            "stopReason": "stop",
+            "timestamp": "<TIMESTAMP>",
+            "usage": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "cost": {
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "input": 0,
+                "output": 0,
+                "total": 0
+              },
+              "input": 5,
+              "output": 2,
+              "reasoning": 0,
+              "totalTokens": 7
+            }
+          },
+          "type": "text_delta"
+        },
+        "message": {
+          "api": "openai-completions",
+          "content": [
+            {
+              "text": "synthetic ok",
+              "type": "text"
+            }
+          ],
+          "model": "deepseek-chat",
+          "provider": "deepseek",
+          "responseId": "chatcmpl-wire",
+          "responseModel": "wire-model",
+          "role": "assistant",
+          "stopReason": "stop",
+          "timestamp": "<TIMESTAMP>",
+          "usage": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "cost": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "input": 0,
+              "output": 0,
+              "total": 0
+            },
+            "input": 5,
+            "output": 2,
+            "reasoning": 0,
+            "totalTokens": 7
+          }
+        },
+        "type": "message_update"
+      },
+      {
+        "assistantMessageEvent": {
+          "content": "synthetic ok",
+          "contentIndex": 0,
+          "partial": {
+            "api": "openai-completions",
+            "content": [
+              {
+                "text": "synthetic ok",
+                "type": "text"
+              }
+            ],
+            "model": "deepseek-chat",
+            "provider": "deepseek",
+            "responseId": "chatcmpl-wire",
+            "responseModel": "wire-model",
+            "role": "assistant",
+            "stopReason": "stop",
+            "timestamp": "<TIMESTAMP>",
+            "usage": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "cost": {
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "input": 0,
+                "output": 0,
+                "total": 0
+              },
+              "input": 5,
+              "output": 2,
+              "reasoning": 0,
+              "totalTokens": 7
+            }
+          },
+          "type": "text_end"
+        },
+        "message": {
+          "api": "openai-completions",
+          "content": [
+            {
+              "text": "synthetic ok",
+              "type": "text"
+            }
+          ],
+          "model": "deepseek-chat",
+          "provider": "deepseek",
+          "responseId": "chatcmpl-wire",
+          "responseModel": "wire-model",
+          "role": "assistant",
+          "stopReason": "stop",
+          "timestamp": "<TIMESTAMP>",
+          "usage": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "cost": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "input": 0,
+              "output": 0,
+              "total": 0
+            },
+            "input": 5,
+            "output": 2,
+            "reasoning": 0,
+            "totalTokens": 7
+          }
+        },
+        "type": "message_update"
+      },
+      {
+        "message": {
+          "api": "openai-completions",
+          "content": [
+            {
+              "text": "synthetic ok",
+              "type": "text"
+            }
+          ],
+          "model": "deepseek-chat",
+          "provider": "deepseek",
+          "responseId": "chatcmpl-wire",
+          "responseModel": "wire-model",
+          "role": "assistant",
+          "stopReason": "stop",
+          "timestamp": "<TIMESTAMP>",
+          "usage": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "cost": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "input": 0,
+              "output": 0,
+              "total": 0
+            },
+            "input": 5,
+            "output": 2,
+            "reasoning": 0,
+            "totalTokens": 7
+          }
+        },
+        "type": "message_end"
+      },
+      {
+        "message": {
+          "api": "openai-completions",
+          "content": [
+            {
+              "text": "synthetic ok",
+              "type": "text"
+            }
+          ],
+          "model": "deepseek-chat",
+          "provider": "deepseek",
+          "responseId": "chatcmpl-wire",
+          "responseModel": "wire-model",
+          "role": "assistant",
+          "stopReason": "stop",
+          "timestamp": "<TIMESTAMP>",
+          "usage": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "cost": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "input": 0,
+              "output": 0,
+              "total": 0
+            },
+            "input": 5,
+            "output": 2,
+            "reasoning": 0,
+            "totalTokens": 7
+          }
+        },
+        "toolResults": [],
+        "type": "turn_end"
+      },
+      {
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "wire success",
+                "type": "text"
+              }
+            ],
+            "role": "user",
+            "timestamp": "<TIMESTAMP>"
+          },
+          {
+            "api": "openai-completions",
+            "content": [
+              {
+                "text": "synthetic ok",
+                "type": "text"
+              }
+            ],
+            "model": "deepseek-chat",
+            "provider": "deepseek",
+            "responseId": "chatcmpl-wire",
+            "responseModel": "wire-model",
+            "role": "assistant",
+            "stopReason": "stop",
+            "timestamp": "<TIMESTAMP>",
+            "usage": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "cost": {
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "input": 0,
+                "output": 0,
+                "total": 0
+              },
+              "input": 5,
+              "output": 2,
+              "reasoning": 0,
+              "totalTokens": 7
+            }
+          }
+        ],
+        "type": "agent_end",
+        "willRetry": false
+      },
+      {
+        "type": "agent_settled"
+      }
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stop_reasons": [
+      "stop",
+      "stop",
+      "stop",
+      "stop",
+      "stop",
+      "stop"
+    ]
+  },
+  "upstream_stream": [
+    "data: {\"id\":\"chatcmpl-wire\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"wire-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}",
+    "data: {\"id\":\"chatcmpl-wire\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"wire-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"synthetic ok\"},\"finish_reason\":null}]}",
+    "data: {\"id\":\"chatcmpl-wire\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"wire-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":2,\"total_tokens\":7}}",
+    "data: [DONE]"
+  ]
+}
