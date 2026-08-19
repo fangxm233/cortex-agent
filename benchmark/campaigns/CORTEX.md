@@ -5,6 +5,9 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 | filename | role | function |
 |---|---|---|
 | terminal-bench-2.1-deepseek-paid.yaml | campaign | Declares the approved three-task paid production-server direct-arm DeepSeek re-baseline with a $2/trial, $6/campaign envelope |
+| terminal-bench-2.1-vendor-claude-code.yaml | campaign | Declares the dry-run-only three-task Claude Code vendor baseline |
+| terminal-bench-2.1-vendor-codex.yaml | campaign | Declares the dry-run-only three-task Codex vendor baseline |
+| terminal-bench-2.1-vendor-pi.yaml | campaign | Declares the dry-run-only three-task PI vendor baseline |
 | zero-paid-dry-run.yaml | campaign | Declares the neutral ZERO-PAID campaign the runner is proven against |
 | zero-paid-failed-agent.yaml | campaign | Declares the ZERO-PAID campaign proving a failed agent is published, scored and followed by the next trial |
 | zero-paid-parallel.yaml | campaign | Declares the ZERO-PAID campaign proving concurrent trials hold distinct subnets, addresses and live routes |

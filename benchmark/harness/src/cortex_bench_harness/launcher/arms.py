@@ -248,7 +248,6 @@ def _vendor_model(arm: ArmDefinition, vendor_agent: str) -> str:
 def _vendor_config(
     arm: ArmDefinition,
     common: dict[str, Any],
-    version: str,
 ) -> AgentConfig:
     cortex_fields = sorted(VENDOR_CORTEX_FIELDS.intersection(arm))
     if cortex_fields:
@@ -266,7 +265,11 @@ def _vendor_config(
     if vendor_agent not in VENDOR_AGENTS:
         raise ValueError(f"unsupported vendor agent: {vendor_agent}")
     common["model_name"] = _vendor_model(arm, vendor_agent)
-    return AgentConfig(name=vendor_agent, kwargs={"version": version}, **common)
+    return AgentConfig(
+        name=vendor_agent,
+        kwargs={"version": _required_text(arm, "vendor_cli_version")},
+        **common,
+    )
 
 
 def build_agent_config(
@@ -299,5 +302,5 @@ def build_agent_config(
             credential_handle,
         )
     if arm.get("kind") == "vendor-baseline":
-        return _vendor_config(arm, common, cli_version)
+        return _vendor_config(arm, common)
     raise ValueError("arm kind must be cortex or vendor-baseline")

@@ -64,7 +64,9 @@ def manifest(tmp_path: Path) -> dict[str, object]:
     }
 
 
-def baseline_arm(vendor_agent: str, provider: str | None = None) -> dict[str, object]:
+def baseline_arm(
+    vendor_agent: str, provider: str | None = None, vendor_cli_version: str = "1.2.3",
+) -> dict[str, object]:
     capabilities = {
         "claude-code": "claude-api-key",
         "pi": "pi-api-key",
@@ -75,6 +77,7 @@ def baseline_arm(vendor_agent: str, provider: str | None = None) -> dict[str, ob
         "kind": "vendor-baseline",
         "name": f"pure-{vendor_agent}",
         "vendor_agent": vendor_agent,
+        "vendor_cli_version": vendor_cli_version,
         "provider": provider,
         "model": "representative-model",
         "credential_capability": capabilities[vendor_agent],
@@ -259,7 +262,7 @@ def test_undeclared_backends_still_refuse_on_the_host(tmp_path: Path) -> None:
 
 
 def test_vendor_baselines_need_no_seed_and_no_composition(tmp_path: Path) -> None:
-    config = build_agent_config(baseline_arm("claude-code"), cli_version="1.2.3")
+    config = build_agent_config(baseline_arm("claude-code"), cli_version="2026.8.6")
 
     assert config.kwargs == {"version": "1.2.3"}
     assert config.import_path is None

@@ -50,6 +50,7 @@ def baseline_arm(
         "kind": "vendor-baseline",
         "name": f"pure-{vendor_agent}",
         "vendor_agent": vendor_agent,
+        "vendor_cli_version": "1.2.3",
         "provider": provider,
         "model": model,
         "credential_capability": f"{vendor_agent}-credential",

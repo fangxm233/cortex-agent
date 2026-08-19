@@ -31,7 +31,7 @@ import re
 
 import yaml
 
-from .launcher.arms import IMAGE_DIGEST
+from .launcher.arms import IMAGE_DIGEST, VENDOR_AGENTS
 from .launcher.comparison_report import DIFFERENCE_CLASSES
 from .launcher.network_policy import NetworkAccess, NetworkAccessError, parse_network_access
 from .launcher.trial_proxy import TrialProxySpec, parse_trial_proxy_spec
@@ -90,9 +90,14 @@ HOST_SCAN_POLICY_MAPPING_FIELDS = (
 HOST_SCAN_POLICY_TEXT_FIELDS = ("repository_checkout_environment",)
 HOST_SCAN_POLICY_FIELDS = frozenset(
     HOST_SCAN_POLICY_MAPPING_FIELDS + HOST_SCAN_POLICY_TEXT_FIELDS)
-ARM_REQUIRED_FIELDS = frozenset({
-    "name", "kind", "backend", "provider", "model", "credential_capability",
-    "orchestration", "limits",
+ARM_COMMON_REQUIRED_FIELDS = frozenset({
+    "name", "kind", "provider", "model", "credential_capability", "limits",
+})
+CORTEX_ARM_REQUIRED_FIELDS = ARM_COMMON_REQUIRED_FIELDS | frozenset({
+    "backend", "orchestration",
+})
+VENDOR_ARM_REQUIRED_FIELDS = ARM_COMMON_REQUIRED_FIELDS | frozenset({
+    "vendor_agent", "vendor_cli_version",
 })
 ORCHESTRATION_REQUIRED_FIELDS = frozenset({"mode", "ask_manager"})
 ORCHESTRATION_OPTIONAL_FIELDS = frozenset({"coder_review_variant"})
@@ -566,19 +571,46 @@ def _arms(source: object) -> tuple[Mapping[str, object], ...]:
 
 def _arm(source: object) -> dict[str, object]:
     document = _mapping(source, "campaign arm")
-    _require_fields(document, ARM_REQUIRED_FIELDS, frozenset(), "campaign arm")
     kind = _text(document, "kind", "campaign arm")
-    if kind != "cortex":
-        raise CampaignConfigError(
-            f"campaign arm kind must be 'cortex'; got {kind!r}. Vendor baselines are declared "
-            "outside a campaign document")
+    if kind == "cortex":
+        return _cortex_arm(document)
+    if kind == "vendor-baseline":
+        return _vendor_arm(document)
+    raise CampaignConfigError(
+        "campaign arm kind must be 'cortex' or 'vendor-baseline'; "
+        f"got {kind!r}")
+
+
+def _arm_common(document: Mapping[str, object], kind: str) -> dict[str, object]:
     return {
-        "schema_version": ARM_SCHEMA_VERSION, "kind": "cortex",
+        "schema_version": ARM_SCHEMA_VERSION, "kind": kind,
         "name": _identifier(document, "name", "campaign arm"),
         **{field: _text(document, field, "campaign arm")
-           for field in ("backend", "provider", "model", "credential_capability")},
-        "orchestration": _orchestration(document["orchestration"]),
+           for field in ("provider", "model", "credential_capability")},
         "limits": _limits(document["limits"]),
+    }
+
+
+def _cortex_arm(document: Mapping[str, object]) -> dict[str, object]:
+    _require_fields(document, CORTEX_ARM_REQUIRED_FIELDS, frozenset(), "campaign arm")
+    return {
+        **_arm_common(document, "cortex"),
+        "backend": _text(document, "backend", "campaign arm"),
+        "orchestration": _orchestration(document["orchestration"]),
+    }
+
+
+def _vendor_arm(document: Mapping[str, object]) -> dict[str, object]:
+    _require_fields(document, VENDOR_ARM_REQUIRED_FIELDS, frozenset(), "campaign arm")
+    vendor_agent = _text(document, "vendor_agent", "campaign arm")
+    if vendor_agent not in VENDOR_AGENTS:
+        raise CampaignConfigError(
+            f"campaign arm vendor_agent must be one of {sorted(VENDOR_AGENTS)}; "
+            f"got {vendor_agent!r}")
+    return {
+        **_arm_common(document, "vendor-baseline"),
+        "vendor_agent": vendor_agent,
+        "vendor_cli_version": _text(document, "vendor_cli_version", "campaign arm"),
     }
 
 

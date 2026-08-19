@@ -52,6 +52,11 @@ REPO_ROOT = HARNESS_ROOT.parents[1]
 CAMPAIGNS_DIR = REPO_ROOT / "benchmark" / "campaigns"
 COMMITTED_ZERO_PAID_CONFIG = CAMPAIGNS_DIR / "zero-paid-dry-run.yaml"
 COMMITTED_PAID_CONFIG = CAMPAIGNS_DIR / "terminal-bench-2.1-deepseek-paid.yaml"
+COMMITTED_VENDOR_CONFIGS = {
+    "pi": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-pi.yaml",
+    "claude-code": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-claude-code.yaml",
+    "codex": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-codex.yaml",
+}
 LAUNCH_SCRIPT = HARNESS_ROOT / "scripts" / "launch-paid-campaign.py"
 
 
@@ -60,6 +65,22 @@ def arm_document(name: str, **overrides: object) -> dict[str, object]:
         "name": name, "kind": "cortex", "backend": "pi", "provider": "deepseek",
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
+        "limits": {
+            "max_provider_requests": 200, "max_cost_usd": "2.00",
+            "deadline_seconds": 1800, "max_output_tokens": 32768,
+        },
+        **overrides,
+    }
+
+
+def vendor_arm_document(
+    name: str, vendor_agent: str = "pi", vendor_cli_version: str = "0.82.1",
+    **overrides: object,
+) -> dict[str, object]:
+    return {
+        "name": name, "kind": "vendor-baseline", "provider": "deepseek",
+        "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
+        "vendor_agent": vendor_agent, "vendor_cli_version": vendor_cli_version,
         "limits": {
             "max_provider_requests": 200, "max_cost_usd": "2.00",
             "deadline_seconds": 1800, "max_output_tokens": 32768,
@@ -574,14 +595,77 @@ def test_duplicate_task_ids_are_refused(tmp_path: Path) -> None:
     assert "task-one" in str(error.value)
 
 
-def test_a_vendor_baseline_arm_is_refused_by_this_schema(tmp_path: Path) -> None:
+def test_a_vendor_baseline_arm_parses_with_its_own_cli_version(tmp_path: Path) -> None:
     document = campaign_document(
-        tmp_path, arms=[arm_document("vendor", kind="vendor-baseline")])
+        tmp_path, arms=[vendor_arm_document("pure-pi")], comparisons=[])
+
+    (arm,) = load_campaign_config(write_campaign(tmp_path, document)).arms
+
+    assert arm == {
+        "schema_version": "cortex-benchmark-arm/2",
+        "name": "pure-pi", "kind": "vendor-baseline", "provider": "deepseek",
+        "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
+        "vendor_agent": "pi", "vendor_cli_version": "0.82.1",
+        "limits": {
+            "max_provider_requests": 200, "max_cost_usd": "2.00",
+            "deadline_seconds": 1800, "max_output_tokens": 32768,
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("backend", "pi"),
+        ("orchestration", {"mode": "direct", "ask_manager": False}),
+        ("environment", {"CORTEX_HOME": "/tmp/cortex-home"}),
+    ],
+)
+def test_a_vendor_arm_declaring_cortex_fields_is_refused(
+    tmp_path: Path, field: str, value: object,
+) -> None:
+    arm = vendor_arm_document("pure-pi")
+    arm[field] = value
+    document = campaign_document(tmp_path, arms=[arm], comparisons=[])
 
     with pytest.raises(CampaignConfigError) as error:
         load_campaign_config(write_campaign(tmp_path, document))
 
-    assert "cortex" in str(error.value)
+    assert field in str(error.value)
+
+
+def test_an_unknown_vendor_agent_is_refused(tmp_path: Path) -> None:
+    document = campaign_document(
+        tmp_path, arms=[vendor_arm_document("pure-unknown", vendor_agent="unknown")],
+        comparisons=[])
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "unknown" in str(error.value)
+    assert "vendor_agent" in str(error.value)
+
+
+def test_a_vendor_arm_missing_its_cli_version_is_refused(tmp_path: Path) -> None:
+    arm = vendor_arm_document("pure-pi")
+    del arm["vendor_cli_version"]
+    document = campaign_document(tmp_path, arms=[arm], comparisons=[])
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "vendor_cli_version" in str(error.value)
+
+
+def test_an_unknown_arm_kind_is_refused(tmp_path: Path) -> None:
+    document = campaign_document(
+        tmp_path, arms=[vendor_arm_document("pure-pi", kind="unknown")], comparisons=[])
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
+
+    assert "unknown" in str(error.value)
+    assert "kind" in str(error.value)
 
 
 def test_an_arm_missing_a_declared_limit_is_refused(tmp_path: Path) -> None:
@@ -1376,6 +1460,25 @@ def test_a_successful_campaign_returns_structured_state(
             / OUTER_ENVELOPE_FILENAME),
         "grader_admission": {"admitted": True},
     }
+
+
+@pytest.mark.parametrize(("vendor_agent", "config_path"), COMMITTED_VENDOR_CONFIGS.items())
+def test_a_committed_vendor_campaign_dry_run_arms_nothing(
+    vendor_agent: str, config_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+
+    status, result, stderr = run_cli(
+        capsys, "run", "--config", str(config_path), "--dry-run")
+
+    assert (status, stderr) == (0, "")
+    assert recorder.events == []
+    assert result["dry_run"] is True
+    assert len(result["trials"]) == 3
+    (arm,) = load_campaign_config(config_path).arms
+    assert arm["vendor_agent"] == vendor_agent
+    assert arm["vendor_cli_version"]
 
 
 def test_a_dry_run_plans_every_trial_without_arming_one(
