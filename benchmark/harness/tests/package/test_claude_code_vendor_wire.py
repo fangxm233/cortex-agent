@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+import vendor_wire_capture as capture
+
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures/vendor-wire/claude-code"
 PIN_PATH = FIXTURE_DIR / "pin.json"
 CAPTURE_PATH = FIXTURE_DIR / "wire-capture.json"
@@ -44,8 +46,6 @@ def test_pin_fixes_host_artifact_and_harbor_version_contract() -> None:
 def test_capture_refuses_version_matching_unpinned_binary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import vendor_wire_capture as capture
-
     binary = tmp_path / "claude"
     binary.write_bytes(b"not-the-pinned-artifact")
     version_check_called = False
@@ -61,6 +61,65 @@ def test_capture_refuses_version_matching_unpinned_binary(
     with pytest.raises(RuntimeError, match="artifact sha256"):
         capture._check_prerequisites(binary)
     assert version_check_called is False
+
+
+def test_proxy_capture_cleans_server_when_proxy_start_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class Server:
+        server_address = ("127.0.0.1", 12345)
+        serve_forever = object()
+        shutdown = lambda self: events.append("shutdown")
+        server_close = lambda self: events.append("close")
+
+    class Thread:
+        def __init__(self, **_kwargs: object) -> None: pass
+        def start(self) -> None: events.append("start")
+        def join(self, timeout: int) -> None: events.append(f"join:{timeout}")
+
+    monkeypatch.setattr(capture, "CaptureServer", lambda _spec: Server())
+    monkeypatch.setattr(capture.threading, "Thread", Thread)
+    monkeypatch.setattr(
+        capture, "_start_proxy",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("proxy start failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="proxy start failed"):
+        capture._capture_proxy_run(tmp_path / "claude", tmp_path / "capture")
+    assert events == ["start", "shutdown", "close", "join:2"]
+
+
+def test_proxy_capture_cleans_server_when_proxy_stop_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class Server:
+        server_address = ("127.0.0.1", 12345)
+        serve_forever = object()
+        shutdown = lambda self: events.append("shutdown")
+        server_close = lambda self: events.append("close")
+
+    class Thread:
+        def __init__(self, **_kwargs: object) -> None: pass
+        def start(self) -> None: events.append("start")
+        def join(self, timeout: int) -> None: events.append(f"join:{timeout}")
+
+    handle = type("Handle", (), {
+        "base_url": "http://127.0.0.1:1", "dummy_token": "dummy",
+        "stop": lambda self: (events.append("proxy-stop"),
+                              (_ for _ in ()).throw(RuntimeError("proxy stop failed")))[1],
+    })()
+    monkeypatch.setattr(capture, "CaptureServer", lambda _spec: Server())
+    monkeypatch.setattr(capture.threading, "Thread", Thread)
+    monkeypatch.setattr(capture, "_start_proxy", lambda *_args, **_kwargs: handle)
+    monkeypatch.setattr(capture.subprocess, "run", lambda *_args, **_kwargs: object())
+
+    with pytest.raises(RuntimeError, match="proxy stop failed"):
+        capture._capture_proxy_run(tmp_path / "claude", tmp_path / "capture")
+    assert events == ["start", "proxy-stop", "shutdown", "close", "join:2"]
 
 
 def test_capture_records_complete_redacted_wire_and_model_aliases() -> None:

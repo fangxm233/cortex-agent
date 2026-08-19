@@ -275,20 +275,24 @@ def _capture_proxy_run(binary: Path, root: Path) -> dict[str, object]:
     thread.start()
     upstream_url = f"http://127.0.0.1:{server.server_address[1]}"
     adapter = CaptureBearerAdapter(upstream_url)
-    handle = _start_proxy(root, upstream_url, adapter)
     trace_path = root / "connect.trace"
     argv = _sandbox_argv(binary, spec)
+    handle: TrialProxyHandle | None = None
     try:
+        handle = _start_proxy(root, upstream_url, adapter)
         completed = subprocess.run(
             ["strace", "-f", "-qq", "-e", "trace=connect", "-o", str(trace_path), *argv],
             env=_environment(handle.base_url, spec, handle.dummy_token),
             capture_output=True, text=True, timeout=30,
         )
     finally:
-        handle.stop()
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
+        try:
+            if handle is not None:
+                handle.stop()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
     document = _run_document(spec, argv, completed, server, trace_path)
     document["proxy_inbound_headers"] = _normalize(adapter.inbound_headers)
     document["proxy_observation"] = _proxy_observation(adapter, server, handle.dummy_token)
