@@ -1629,6 +1629,26 @@ def test_a_committed_vendor_campaign_dry_run_arms_nothing(
     assert arm["vendor_cli_version"]
 
 
+def test_a_vendor_success_root_carries_rewards_into_the_comparison_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    RecordingTrialPath(default_requests=1).install(monkeypatch)
+    document = campaign_document(tmp_path)
+    document["arms"] = [vendor_arm_document("pure-pi")]
+    document["tasks"] = [document["tasks"][0]]
+    document["comparisons"] = []
+
+    status, result, stderr = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert (status, stderr) == (0, "")
+    report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
+    assert report["runs"][0]["outcome_state"] == "terminal-success"
+    assert report["runs"][0]["verifier_rewards"] == {"reward": 1.0}
+    assert report["runs"][0]["score_status"] == "available"
+    assert report["runs"][0]["grader_admission"] == {"admitted": True}
+
+
 def test_a_dry_run_plans_every_trial_without_arming_one(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
