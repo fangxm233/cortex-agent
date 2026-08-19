@@ -18,7 +18,7 @@ from typing import Any
 
 from ..campaign_config import CampaignConfig, TrialPlan, load_campaign_config
 from ..host_finalization import parse_host_scan_policy
-from ..outcome import TrialOutcomeReader
+from ..outcome import TERMINAL_SUCCESS, TrialOutcomeReader
 from ..scan import ArtifactInventory, ScanPolicy, scan_trial_artifacts
 from .deepseek_paid_smoke import (
     CAPABILITY_ID,
@@ -230,7 +230,7 @@ def path_safe_evidence(
         trial_id=trial_id, arm_name=arm_name, trial_root=trial_root,
     ).read()
     return {
-        "ok": outcome.outcome_state != "harness-incomplete" and network_removed,
+        "ok": outcome.outcome_state == TERMINAL_SUCCESS and network_removed,
         "schema_version": EVIDENCE_SCHEMA_VERSION,
         "trial_id": trial_id, "image_digest": image_digest,
         "terminal": {
