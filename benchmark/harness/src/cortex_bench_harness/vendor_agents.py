@@ -1,6 +1,6 @@
-# input:  Harbor vendor agents, sealed trial proxy, projected runtime
-# output: preinstalled PI/Claude/Codex lifecycle subclasses
-# pos:    Fail-closed vendor setup and proxy lifecycle boundary
+# input:  Harbor vendor agents, proxy projection, host finalizer
+# output: preinstalled PI/Claude/Codex complete lifecycle subclasses
+# pos:    Fail-closed vendor execution and finalization boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import hashlib
@@ -18,10 +18,13 @@ from harbor.agents.installed.codex import Codex
 from harbor.agents.installed.pi import Pi
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
+from harbor.models.trial.paths import EnvironmentPaths
 
+from .container_boundary import ContainerBoundaryObservation
 from .launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 from .launcher.trial_admission_io import (
     HarborTrialAdmissionError,
+    atomic_write_json,
     environment_digest,
 )
 from .launcher.trial_proxy import (
@@ -34,7 +37,8 @@ from .launcher.trial_proxy import (
     revoke_trial_proxy,
 )
 from .launcher.trial_seed import TrialSeed, parse_trial_seed
-from .scan.models import ArtifactInventory
+from .manifest import MANIFEST_FILENAME, SCHEMA_VERSION
+from .scan.models import ArtifactInventory, ScanPolicy
 
 TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 EVIDENCE_PATH = PurePosixPath("/logs/agent/vendor-runtime-files.json")
@@ -85,6 +89,7 @@ class VendorLifecycleMixin:
             admission_environment_digest, defer_proxy_arm, credential_handle,
             extra_env,
         )
+        self._verifier_dir = Path(logs_dir).parent / EnvironmentPaths().verifier_dir.name
         super().__init__(
             logs_dir, *args, version=version, extra_env=extra_env, **kwargs,
         )
@@ -103,15 +108,25 @@ class VendorLifecycleMixin:
         self._manifest = dict(manifest or {})
         self._trial_seed = parse_trial_seed(trial_seed) if trial_seed is not None else None
         self._deferred_proxy = dict(trial_proxy) if trial_proxy is not None else None
-        self._host_scan_policy = dict(host_scan_policy or {})
+        self._host_scan_policy = self._parse_scan_policy(host_scan_policy)
         self._proxy_arm_deferred = defer_proxy_arm
         self._proxy_session: TrialProxySession | None = None
         self._captured_inventory: ArtifactInventory | None = None
         self._revocation: TrialRevocation | None = None
         self._revoked = False
+        self._setup_complete = False
         self._post_stop_finalization_pending = False
+        self._outer_publication: object | None = None
         self._host_credential = self._consume_credential(credential_handle)
         self._validate_lifecycle_inputs()
+
+    @staticmethod
+    def _parse_scan_policy(source: Mapping[str, object] | None) -> ScanPolicy | None:
+        if source is None:
+            return None
+        from .host_finalization import parse_host_scan_policy
+
+        return parse_host_scan_policy(source)
 
     @staticmethod
     def _validate_environment(
@@ -348,9 +363,28 @@ class VendorLifecycleMixin:
             if result.return_code != 0:
                 raise VendorPreflightError("vendor dummy runtime setup failed")
             await self._preflight_version(environment)
+            self._write_vendor_manifest()
+            self._setup_complete = True
         except BaseException:
             self.revoke_admitted_proxy()
             raise
+
+    def _write_vendor_manifest(self) -> None:
+        if self._artifact_dir is None or self._trial_seed is None:
+            return
+        task = self._trial_seed.task
+        document = {
+            "schema_version": SCHEMA_VERSION,
+            "root_run_id": self._trial_seed.root_run_id,
+            "trial_id": self._trial_seed.trial_id,
+            "arm": self._trial_seed.arm["name"],
+            "container": {
+                "image_ref": task["image_ref"], "image_digest": task["image_digest"],
+                "image_size_bytes": self._manifest.get("image_size_bytes"),
+            },
+            "vendor_cli": {"name": self.VENDOR_AGENT, "version": self._version},
+        }
+        atomic_write_json(self._artifact_dir / MANIFEST_FILENAME, document)
 
     async def _preflight_version(self, environment: BaseEnvironment) -> None:
         command = self.get_version_command()
@@ -371,11 +405,64 @@ class VendorLifecycleMixin:
     async def run(
         self, instruction: str, environment: BaseEnvironment, context: AgentContext,
     ) -> None:
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        (self.logs_dir / "instruction.md").write_text(instruction, encoding="utf-8")
+        execution_error: BaseException | None = None
         try:
             await super().run(instruction, environment, context)
-        except BaseException:
+        except BaseException as error:
+            execution_error = error
+        self._finish_vendor_run(execution_error is not None)
+        if execution_error is not None:
+            raise execution_error
+
+    def _finish_vendor_run(self, failed: bool) -> None:
+        if self._trial_seed is None:
+            if failed:
+                self.revoke_admitted_proxy()
+            return
+        try:
             self.revoke_admitted_proxy()
-            raise
+        except Exception as error:
+            from .host_finalization import HostFinalizationError
+
+            raise HostFinalizationError("proxy_revocation_uncertain") from error
+        if self._setup_complete and self._host_scan_policy is not None:
+            self._post_stop_finalization_pending = True
+
+    def finalize_after_container_stop(
+        self, observation: ContainerBoundaryObservation | None,
+    ) -> None:
+        if not self._post_stop_finalization_pending:
+            return
+        self._post_stop_finalization_pending = False
+        self._write_container_boundary(observation)
+        self._finalize_outer()
+
+    def _write_container_boundary(
+        self, observation: ContainerBoundaryObservation | None,
+    ) -> None:
+        from .host_finalization import CONTAINER_BOUNDARY_ATTESTATION_FILENAME
+
+        assert self._artifact_dir is not None
+        path = self._artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME
+        path.unlink(missing_ok=True)
+        if observation is not None and self._trial_seed is not None:
+            atomic_write_json(path, observation.document(self._trial_seed.trial_id))
+
+    def _finalize_outer(self) -> None:
+        from .host_finalization import finalize_host_trial
+
+        assert self._artifact_dir is not None
+        assert self._trial_seed is not None
+        assert self._host_scan_policy is not None
+        self._outer_publication = finalize_host_trial(
+            logs_dir=self.logs_dir, verifier_dir=self._verifier_dir,
+            artifact_dir=self._artifact_dir, root_run_id=self._trial_seed.root_run_id,
+            trial_id=self._trial_seed.trial_id, arm=self._trial_seed.arm,
+            revocation=self._revocation, scan_policy=self._host_scan_policy,
+            container_logs_dir=EnvironmentPaths().agent_dir, task=self._trial_seed.task,
+        )
 
     async def _exec(
         self, environment: BaseEnvironment, command: str,

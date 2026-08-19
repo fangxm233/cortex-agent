@@ -25,3 +25,4 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_trial_proxy_wiring.py | test | Verifies proxy lifecycle wiring |
 | test_vendor_agents.py | test | Verifies pinned vendor setup and dummy runtime files |
 | test_vendor_baseline_isolation.py | test | Verifies vendor baseline isolation |
+| test_vendor_lifecycle_docker.py | test | Proves vendor lifecycle and failures in real Docker |
