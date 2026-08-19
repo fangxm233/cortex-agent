@@ -1,5 +1,5 @@
-# input:  launcher admission, arm, home, credential and report modules
-# output: lazy public trial, materialization, projection, and report exports
+# input:  launcher admission, arm, handshake, credential and report modules
+# output: lazy public trial, handshake, projection, and report exports
 # pos:    Import surface for host benchmark launching
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -25,6 +25,13 @@ if TYPE_CHECKING:
         render_comparison_report,
     )
     from .deepseek_paid_smoke import run_deepseek_paid_smoke
+    from .live_handshake import (
+        LiveHandshakePermit,
+        LiveHandshakePermitRefused,
+        LiveHandshakeRequest,
+        issue_live_handshake_permit,
+        run_live_handshake,
+    )
     from .credential_capabilities import (
         CAPABILITY_REGISTRY,
         CAPABILITY_STATES,
@@ -82,6 +89,13 @@ _EXPORT_MODULES = {
         "render_comparison_report",
     ], ".comparison_report"),
     "run_deepseek_paid_smoke": ".deepseek_paid_smoke",
+    **dict.fromkeys([
+        "LiveHandshakePermit",
+        "LiveHandshakePermitRefused",
+        "LiveHandshakeRequest",
+        "issue_live_handshake_permit",
+        "run_live_handshake",
+    ], ".live_handshake"),
     **dict.fromkeys([
         "CAPABILITY_REGISTRY",
         "CAPABILITY_STATES",
