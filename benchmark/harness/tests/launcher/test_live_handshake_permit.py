@@ -3,10 +3,12 @@
 # pos:    Live-handshake bootstrap authorization tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import base64
 import hashlib
 import json
 import threading
 from contextlib import contextmanager
+from http.client import IncompleteRead
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Iterator
@@ -38,6 +40,20 @@ CAPABILITY_ID = "claude-subscription"
 HOST_CREDENTIAL = "sk-ant-oat01-LIVE-HANDSHAKE-HOST-ONLY"
 MODEL = "claude-sonnet-5"
 BODY_LIMIT = 67_108_864
+CODEX_CAPABILITY_ID = "codex-subscription"
+CODEX_MODEL = "gpt-5.3-codex"
+CODEX_EXPIRY_SECONDS = 2_000_000_000
+CODEX_HOST_CREDENTIAL = ".".join((
+    base64.b64encode(b'{"alg":"none","typ":"JWT"}').decode().rstrip("="),
+    base64.b64encode(json.dumps({
+        "https://api.openai.com/auth": {"chatgpt_account_id": "acct-synthetic"},
+        "exp": CODEX_EXPIRY_SECONDS,
+    }, separators=(",", ":")).encode()).decode().rstrip("="),
+    base64.b64encode(b'{"dummy":true}').decode().rstrip("="),
+))
+TRUNCATED_SSE_53_BYTES = (
+    b'data: {"type":"error","code":"synthetic_refusal_1"}\n\n'
+)
 
 
 def handshake_limits(**overrides: object) -> dict[str, object]:
@@ -90,22 +106,33 @@ class HandshakeUpstreamHandler(BaseHTTPRequestHandler):
             "usage": {"input_tokens": 9, "output_tokens": 2},
             "content": [{"type": "text", "text": "ok"}],
         }
-        payload = json.dumps(response if status == 200 else {"error": "refused"}).encode()
+        configured = self.server.response_body  # type: ignore[attr-defined]
+        payload = configured or json.dumps(
+            response if status == 200 else {"error": "refused"}).encode()
         self.send_response(status)
-        self.send_header("content-type", "application/json")
+        self.send_header(
+            "content-type", self.server.content_type)  # type: ignore[attr-defined]
         self.send_header("content-length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+        self.wfile.flush()
+        self.server.response_bytes_sent += len(payload)  # type: ignore[attr-defined]
 
     def log_message(self, _format: str, *_args: object) -> None:
         return
 
 
 @contextmanager
-def handshake_upstream(status: int = 200) -> Iterator[ThreadingHTTPServer]:
+def handshake_upstream(
+    status: int = 200, *, response_body: bytes | None = None,
+    content_type: str = "application/json",
+) -> Iterator[ThreadingHTTPServer]:
     server = ThreadingHTTPServer(("127.0.0.1", 0), HandshakeUpstreamHandler)
     server.requests = []  # type: ignore[attr-defined]
     server.response_status = status  # type: ignore[attr-defined]
+    server.response_body = response_body  # type: ignore[attr-defined]
+    server.content_type = content_type  # type: ignore[attr-defined]
+    server.response_bytes_sent = 0  # type: ignore[attr-defined]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -116,11 +143,58 @@ def handshake_upstream(status: int = 200) -> Iterator[ThreadingHTTPServer]:
         thread.join(timeout=2)
 
 
-def scan_policy() -> ScanPolicy:
+def scan_policy(credential: str = HOST_CREDENTIAL) -> ScanPolicy:
     return ScanPolicy(
-        secrets={"host_credential": HOST_CREDENTIAL},
+        secrets={"host_credential": credential},
         repository_checkout="REPOSITORY-CHECKOUT-PRIVATE",
         hostname="HOSTNAME-PRIVATE",
+    )
+
+
+def codex_request() -> LiveHandshakeRequest:
+    document = {
+        "model": CODEX_MODEL,
+        "instructions": "Reply with exactly ok.",
+        "input": [{
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Reply with exactly ok."}],
+        }],
+        "tools": [],
+        "tool_choice": "none",
+        "parallel_tool_calls": False,
+        "reasoning": {"effort": "low"},
+        "store": False,
+        "stream": True,
+        "max_output_tokens": 16,
+    }
+    import zstandard
+    return LiveHandshakeRequest(
+        target="/codex/responses",
+        headers={
+            "accept": "text/event-stream",
+            "content-type": "application/json",
+            "content-encoding": "zstd",
+            "originator": "codex_exec",
+            "user-agent": "codex_exec/0.117.0",
+        },
+        body=zstandard.ZstdCompressor().compress(
+            json.dumps(document, separators=(",", ":")).encode()),
+    )
+
+
+def run_codex_handshake(tmp_path: Path, upstream: str) -> Path:
+    spec = handshake_spec(access_expires_at_ms=CODEX_EXPIRY_SECONDS * 1000)
+    permit = issue_live_handshake_permit(
+        capability_id=CODEX_CAPABILITY_ID, model=CODEX_MODEL,
+        limits=handshake_limits(), upstream_base_url=upstream,
+        spec=spec, request=codex_request(),
+    )
+    return run_live_handshake(
+        permit=permit, capability_id=CODEX_CAPABILITY_ID,
+        artifact_dir=tmp_path / "artifacts", evidence_dir=tmp_path / "evidence",
+        host_credential=CODEX_HOST_CREDENTIAL,
+        scan_policy=scan_policy(CODEX_HOST_CREDENTIAL),
+        implementation_commit="a" * 40, conservative_cost_usd="0",
     )
 
 
@@ -271,10 +345,68 @@ def test_permit_refuses_a_request_exceeding_the_output_cap(tmp_path: Path) -> No
 def test_failed_provider_attempt_is_not_retried_or_promoted(tmp_path: Path) -> None:
     with handshake_upstream(status=500) as upstream:
         url = f"http://127.0.0.1:{upstream.server_port}"
-        with pytest.raises(LiveHandshakePermitRefused, match="provider request failed"):
+        with pytest.raises(
+            LiveHandshakePermitRefused,
+            match="proxy ended HTTP 500 response.*usage_accounting_unavailable",
+        ):
             run_handshake(tmp_path, upstream=url)
     assert len(upstream.requests) == 1  # type: ignore[attr-defined]
     assert not (tmp_path / "evidence").exists()
+
+
+def test_codex_53_byte_complete_upstream_refusal_is_attributed_to_proxy_accounting(
+    tmp_path: Path,
+) -> None:
+    assert len(TRUNCATED_SSE_53_BYTES) == 53
+    with handshake_upstream(
+        response_body=TRUNCATED_SSE_53_BYTES, content_type="text/event-stream",
+    ) as upstream:
+        url = f"http://127.0.0.1:{upstream.server_port}"
+        with pytest.raises(
+            LiveHandshakePermitRefused,
+            match=(
+                "proxy ended HTTP 200 response after 53 bytes: "
+                "usage_accounting_unavailable"
+            ),
+        ) as raised:
+            run_codex_handshake(tmp_path, url)
+
+    assert len(upstream.requests) == 1  # type: ignore[attr-defined]
+    assert upstream.response_bytes_sent == 53  # type: ignore[attr-defined]
+    assert isinstance(raised.value.__cause__, IncompleteRead)
+    assert raised.value.__cause__.partial == TRUNCATED_SSE_53_BYTES
+    audit = json.loads(
+        (tmp_path / "artifacts" / "proxy" / "proxy-audit.jsonl").read_text())
+    assert audit["outcome"] == "usage_accounting_unavailable"
+    assert not (tmp_path / "evidence").exists()
+
+
+def test_codex_completed_sse_is_the_offline_gate_for_a_new_live_permit(
+    tmp_path: Path,
+) -> None:
+    event = {
+        "type": "response.completed",
+        "response": {
+            "model": CODEX_MODEL,
+            "usage": {"input_tokens": 3, "output_tokens": 2},
+        },
+    }
+    body = (
+        f"event: response.completed\ndata: {json.dumps(event)}\n\n"
+        "data: [DONE]\n\n"
+    ).encode()
+    with handshake_upstream(
+        response_body=body, content_type="text/event-stream",
+    ) as upstream:
+        path = run_codex_handshake(
+            tmp_path, f"http://127.0.0.1:{upstream.server_port}")
+
+    evidence = json.loads(path.read_bytes())
+    assert upstream.response_bytes_sent == len(body)  # type: ignore[attr-defined]
+    assert evidence["capability_id"] == CODEX_CAPABILITY_ID
+    assert evidence["adapter_id"] == "openai-codex-responses/oauth"
+    assert (evidence["request_count"], evidence["input_tokens"],
+            evidence["output_tokens"]) == (1, 3, 2)
 
 
 def test_scan_policy_must_name_the_actual_host_credential(tmp_path: Path) -> None:

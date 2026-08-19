@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from http.client import HTTPConnection
+from http.client import HTTPConnection, IncompleteRead
 from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import urlsplit
@@ -126,6 +126,12 @@ class _HandshakeSession:
     upstream_identity: str
 
 
+@dataclass(frozen=True)
+class _HandshakeResponse:
+    status: int
+    incomplete: IncompleteRead | None = None
+
+
 def issue_live_handshake_permit(
     *, capability_id: str, model: str, limits: Mapping[str, object],
     upstream_base_url: str, spec: TrialProxySpec, request: LiveHandshakeRequest,
@@ -154,14 +160,20 @@ def run_live_handshake(
         artifact_dir / "proxy", host_credential,
     )
     try:
-        status, revocation = _request_and_revoke(
+        response, revocation = _request_and_revoke(
             session, grant.request, grant.spec, artifact_dir)
     except BaseException:
         session.proxy.handle.stop()
         raise
-    if not 200 <= status < 300:
+    if response.incomplete is not None:
+        outcome = _proxy_failure_outcome(revocation.export_path)
         raise LiveHandshakePermitRefused(
-            f"live handshake provider request failed with HTTP {status}")
+            f"live handshake proxy ended HTTP {response.status} response after "
+            f"{len(response.incomplete.partial)} bytes: {outcome}"
+        ) from response.incomplete
+    if not 200 <= response.status < 300:
+        raise LiveHandshakePermitRefused(
+            f"live handshake provider request failed with HTTP {response.status}")
     scan = scan_trial_artifacts(revocation.inventory, scan_policy)
     return _complete(
         session, revocation, scan.clean, evidence_dir, implementation_commit,
@@ -341,16 +353,16 @@ def _start_handshake_proxy(
 def _request_and_revoke(
     session: _HandshakeSession, request: LiveHandshakeRequest,
     spec: TrialProxySpec, artifact_dir: Path,
-) -> tuple[int, TrialRevocation]:
+) -> tuple[_HandshakeResponse, TrialRevocation]:
     sources = _artifact_sources(artifact_dir)
     inventory = _inventory(artifact_dir, sources, session.proxy)
     try:
         _write_run_artifacts(session, request, spec, sources)
-        status = _perform_request(session.proxy, request)
+        response = _perform_request(session.proxy, request)
     finally:
         revocation = revoke_trial_proxy(
             session.proxy, capture_inventory=lambda: inventory)
-    return status, revocation
+    return response, revocation
 
 
 def _artifact_sources(artifact_dir: Path) -> dict[str, Path]:
@@ -399,7 +411,9 @@ def _inventory(
     return ArtifactInventory(declared, frozenset(declared), (root,))
 
 
-def _perform_request(session: TrialProxySession, request: LiveHandshakeRequest) -> int:
+def _perform_request(
+    session: TrialProxySession, request: LiveHandshakeRequest,
+) -> _HandshakeResponse:
     endpoint = urlsplit(session.handle.base_url)
     connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=120)
     headers = dict(request.headers)
@@ -407,13 +421,32 @@ def _perform_request(session: TrialProxySession, request: LiveHandshakeRequest) 
     try:
         connection.request("POST", request.target, body=request.body, headers=headers)
         response = connection.getresponse()
-        response.read()
-        return response.status
+        try:
+            response.read()
+        except IncompleteRead as error:
+            # The proxy deliberately withholds the chunk terminator when its post-body policy
+            # rejects a response. Preserve that observation until the finally-ordered export can
+            # name the policy outcome instead of misreporting it as upstream framing failure.
+            return _HandshakeResponse(response.status, error)
+        return _HandshakeResponse(response.status)
     except Exception as error:
         raise LiveHandshakePermitRefused(
             "live handshake provider request failed before completion") from error
     finally:
         connection.close()
+
+
+def _proxy_failure_outcome(path: Path) -> str:
+    document = json.loads(path.read_bytes())
+    audit = _available_value(document, "audit_log")
+    outcomes = audit.get("outcomes") if isinstance(audit, Mapping) else None
+    if not isinstance(outcomes, Mapping):
+        return "proxy_outcome_unavailable"
+    observed = [
+        outcome for outcome, count in outcomes.items()
+        if isinstance(outcome, str) and count == 1
+    ]
+    return observed[0] if len(observed) == 1 else "proxy_outcome_unavailable"
 
 
 def _complete(

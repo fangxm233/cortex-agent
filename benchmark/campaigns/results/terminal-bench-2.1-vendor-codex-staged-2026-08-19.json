@@ -43,6 +43,33 @@
       "benchmark/harness/tests/proxy/test_openai_codex_adapter.py records /backend-api/codex/responses as the provider-side composed path that must never be accepted as a container-originated route."
     ]
   },
+  "postfailure_diagnosis": {
+    "performed_without_provider_request": true,
+    "synthetic_reproduction": {
+      "fixture": "benchmark/harness/tests/launcher/test_live_handshake_permit.py::test_codex_53_byte_complete_upstream_refusal_is_attributed_to_proxy_accounting",
+      "result": "A loopback upstream sent a complete 53-byte, Content-Length-delimited SSE error body. The proxy relayed all 53 bytes, then intentionally withheld its downstream chunk terminator because Codex usage extraction returned unaccounted; the client reproduced IncompleteRead(53 bytes read).",
+      "provider_requests": 0
+    },
+    "attribution": {
+      "upstream_framing": "ruled out for the recorded 429c symptom: proxy/proxy-audit.jsonl recorded usage_accounting_unavailable, which is written only after FixedUpstream has finished reading the upstream body and called the adapter. An incomplete upstream read is classified as upstream_unavailable instead.",
+      "proxy_relay": "working as designed, not corrupting an accepted response: RelaySink withholds the terminating zero chunk after any post-body accounting refusal so a client cannot accept an unaccounted answer as complete.",
+      "live_handshake_consumption": "diagnostic defect confirmed: _perform_request collapsed the intentional proxy truncation into a generic provider-request failure. It now preserves HTTP status and IncompleteRead byte count until revocation exports the exact proxy outcome.",
+      "promotion_evidence_validation": "independent harness defect found by the successful Codex synthetic path: common evidence validation re-required offline-only Codex proof hashes in strict live evidence. Validation now checks those hashes only when the state schema includes them.",
+      "original_53_bytes": "The original response body was not persisted, so its exact SSE event text remains unverified; only its complete-upstream/unaccounted classification is recoverable from the durable audit outcome."
+    },
+    "new_permit_request_gate": {
+      "historical_request_gate": "The diagnosis and both focused zero-provider tests below must pass at integrated HEAD before a replacement consume-once authorization is requested; the 429c permit remains permanently consumed.",
+      "current_authorization_state": "A replacement request has since been authorized exactly once by the parent plan. Before task 0ec1 consumes it, task 4d11 redacted response capture and task 6f7e gpt-5.3-codex re-pin must both be integrated, the row must remain offline-contract-passed, the pinned 0.117.0 request must replay through the synthetic upstream with the model verbatim, and the campaign TTL preflight must pass.",
+      "focused_tests": [
+        "tests/launcher/test_live_handshake_permit.py::test_codex_53_byte_complete_upstream_refusal_is_attributed_to_proxy_accounting",
+        "tests/launcher/test_live_handshake_permit.py::test_codex_completed_sse_is_the_offline_gate_for_a_new_live_permit"
+      ],
+      "selector_pair": [
+        "tests/launcher/test_live_handshake_permit.py",
+        "tests/launcher/test_capability_evidence.py"
+      ]
+    }
+  },
   "campaign_config_at_stop": {
     "path": "benchmark/campaigns/terminal-bench-2.1-vendor-codex.yaml",
     "sha256": "737221fa0452708e16bf2fe83dce311e45534f1d1c328079c6a8b2ea5603d6d0",

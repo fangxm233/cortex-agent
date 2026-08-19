@@ -283,7 +283,11 @@ def _validate_common(
         raise ValueError("capability evidence identity differs from registry")
     _hex(document.get("implementation_commit"), "implementation_commit", 40)
     for field, length in metadata.hex_fields.items():
-        _hex(document.get(field), field, length)
+        # Some hashes prove only the offline state. The strict state schema above requires them
+        # there and excludes them from live evidence, so common validation must not re-require
+        # an inapplicable offline field after a successful handshake.
+        if field in document:
+            _hex(document[field], field, length)
     for field in metadata.text_fields:
         if not isinstance(document.get(field), str) or not document[field]:
             raise ValueError(f"capability evidence {field} must be non-empty")
