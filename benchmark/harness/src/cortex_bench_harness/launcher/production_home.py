@@ -68,6 +68,7 @@ class ProductionArmLaunchFacts:
     proxy_base_url: str
     dummy_token_ref: str
     model_alias_policy: object
+    max_output_tokens: int = MAX_OUTPUT_TOKENS
 
 
 @dataclass(frozen=True)
@@ -136,6 +137,12 @@ def _validate_facts(facts: ProductionArmLaunchFacts) -> str:
     if not SAFE_DUMMY_TOKEN.fullmatch(token):
         raise ProductionHomeError("dummy_token_ref contains unsupported YAML characters")
     _canonical_sha256(facts.model_alias_policy)
+    if (
+        isinstance(facts.max_output_tokens, bool)
+        or not isinstance(facts.max_output_tokens, int)
+        or facts.max_output_tokens <= 0
+    ):
+        raise ProductionHomeError("max_output_tokens must be a positive integer")
     if not facts.npm_artifact.is_file() or facts.npm_artifact.is_symlink():
         raise ProductionHomeError("npm_artifact must be one regular file")
     return _validate_proxy(
@@ -225,6 +232,23 @@ def _write_dynamic_inputs(
             cortex_home / EVIDENCE_CONTEXT_FILENAME,
             (json.dumps(dict(evidence_context), indent=2, ensure_ascii=False) + "\n").encode(),
         )
+
+
+def _write_profile_output_cap(cortex_home: Path, max_output_tokens: int) -> None:
+    path = cortex_home / "config/profiles.json"
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        profile_name = document["defaultProfile"]
+        profile = document["profiles"][profile_name]
+        current = profile["maxOutputTokens"]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise ProductionHomeError("bundle profile output cap is unavailable") from error
+    if not isinstance(current, int) or isinstance(current, bool) or current <= 0:
+        raise ProductionHomeError("bundle profile output cap is invalid")
+    if current == max_output_tokens:
+        return
+    profile["maxOutputTokens"] = max_output_tokens
+    _write_bytes(path, (json.dumps(document, indent=2, ensure_ascii=False) + "\n").encode())
 
 
 def _is_residue(key: str) -> bool:
@@ -364,7 +388,7 @@ def _evidence_context(
             "model_alias_policy": facts.model_alias_policy,
             "cli_name": BACKEND_CLI_NAME,
             "cli_version": facts.backend_cli_version,
-            "max_output_tokens": MAX_OUTPUT_TOKENS,
+            "max_output_tokens": facts.max_output_tokens,
         },
     }
     return value
@@ -397,25 +421,19 @@ def materialize_production_home(
     environment = _sealed_environment(inherited_environment, runtime_home, facts)
     client_token, webhook_token = _auth_token(), _auth_token()
     npm_sha256 = _sha256_file(facts.npm_artifact)
-    manifest_hash = _bundle_manifest_hash(
-        npm_sha256, facts.backend_cli_version, bundle.sha256)
+    manifest_hash = _bundle_manifest_hash(npm_sha256, facts.backend_cli_version, bundle.sha256)
     evidence_context = _evidence_context(facts, manifest_hash)
     _copy_snapshot(bundle, home)
-    _write_dynamic_inputs(
-        home, proxy_base_url, facts.dummy_token_ref,
-        evidence_context if facts.arm_bundle.injection == TASK_ROOT else None,
-    )
+    _write_profile_output_cap(home, facts.max_output_tokens)
+    _write_dynamic_inputs(home, proxy_base_url, facts.dummy_token_ref, evidence_context if facts.arm_bundle.injection == TASK_ROOT else None)
     _make_read_only(home, facts.arm_bundle.writable_home_paths)
     home_sha256, home_count = _digest_tree(home)
-    attestation = _launch_attestation(
-        facts, npm_sha256, bundle, home_sha256, home_count, manifest_hash)
+    attestation = _launch_attestation(facts, npm_sha256, bundle, home_sha256, home_count, manifest_hash)
     _write_json_atomic(attestation_path, attestation)
     return MaterializedProductionHome(
-        arm_bundle=facts.arm_bundle,
-        cortex_home=home, process_environment=environment,
+        arm_bundle=facts.arm_bundle, cortex_home=home, process_environment=environment,
         client_token=client_token, webhook_token=webhook_token,
-        launch_attestation_path=attestation_path,
-        production_evidence_context=evidence_context,
+        launch_attestation_path=attestation_path, production_evidence_context=evidence_context,
         input_bundle_sha256=bundle.sha256, input_bundle_file_count=bundle.count,
         cortex_home_tree_sha256=home_sha256, cortex_home_file_count=home_count,
         bundle_manifest_hash=manifest_hash,

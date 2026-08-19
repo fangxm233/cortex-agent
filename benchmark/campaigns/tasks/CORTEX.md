@@ -1,7 +1,7 @@
 Update this file whenever this directory changes
 
 Harbor task directories include synthetic ZERO-PAID fixtures and authentic Terminal-Bench 2.1
-vendor variants. A task directory is mounted into the trial container, so it has no index file.
+Cortex and vendor variants. A task directory is mounted into the trial container, so it has no index file.
 
 | filename | role | function |
 |---|---|---|

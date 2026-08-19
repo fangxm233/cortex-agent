@@ -11,6 +11,7 @@ Host launcher modules materialize production arms and record bounded trials.
 | comparison_report.py | report | Reports every terminal outcome with canonical rewards |
 | credential_capabilities.py | registry | Projects credential capabilities |
 | deepseek_paid_smoke.py | boundary | Runs the bounded paid smoke contract |
+| deepseek_paid_smoke_launcher.py | CLI | Preflights and records one pinned-image smoke |
 | host_credential_vault.py | boundary | Transfers opaque host credentials |
 | lease_bound.py | policy | Computes credential lease bounds |
 | live_handshake.py | boundary | Bootstraps one no-retry live capability request |

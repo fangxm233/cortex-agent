@@ -434,6 +434,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             proxy_base_url=str(credential["proxy_base_url"]),
             dummy_token_ref=str(credential["dummy_token_ref"]),
             model_alias_policy=self._trial_seed.model_alias_policy,
+            max_output_tokens=int(self._trial_seed.arm["limits"]["max_output_tokens"]),
         )
         return materialize_production_home(
             cortex_home=self.logs_dir / PRODUCTION_HOME_NAME,
