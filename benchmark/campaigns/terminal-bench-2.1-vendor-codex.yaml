@@ -53,7 +53,7 @@ arms:
     provider: openai-codex
     # CLI 0.117.0 loopback proof observes this exact request model without substitution.
     # Provider acceptance: unverified-until-live; no live provider request was made.
-    model: gpt-5.4
+    model: gpt-5.3-codex
     credential_capability: codex-subscription
     limits:
       max_provider_requests: 500

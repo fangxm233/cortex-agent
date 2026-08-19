@@ -51,9 +51,10 @@ arms:
     vendor_agent: claude-code
     vendor_cli_version: "2.1.232"
     provider: anthropic
-    # CLI 2.1.232 loopback proof observes this exact model for primary, aliases, and subagents.
+    # Deliberate controlled-baseline normalization: primary, Sonnet/Opus/Haiku aliases, and
+    # subagents all resolve to the single CLI 2.1.232-observed default below.
     # Provider acceptance: unverified-until-live; no live provider request was made.
-    model: claude-sonnet-4-5-20250929
+    model: claude-sonnet-5
     credential_capability: claude-subscription
     limits:
       max_provider_requests: 500

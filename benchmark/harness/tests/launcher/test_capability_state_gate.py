@@ -152,7 +152,7 @@ def test_shipped_claude_offline_row_has_no_live_handshake_authority() -> None:
 
 
 def test_shipped_codex_offline_row_admits_non_paid_but_refuses_paid() -> None:
-    arm = cortex_arm("codex-subscription", model="gpt-5.4", backend="codex-cli")
+    arm = cortex_arm("codex-subscription", model="gpt-5.3-codex", backend="codex-cli")
     arm["provider"] = "openai-codex"
 
     assert require_capability_admission(arm) == CODEX_CLI_CAPABILITY_KEY
