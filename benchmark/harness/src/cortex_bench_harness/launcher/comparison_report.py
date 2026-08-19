@@ -112,9 +112,7 @@ def _admission(run: Mapping[str, object], kind: str, outcome_state: str) -> obje
     average refusable rather than accidental.
     """
     admission = run.get("grader_admission")
-    if kind == "vendor-baseline":
-        if admission is not None:
-            raise ValueError("vendor baseline grader admission must be unavailable")
+    if kind == "vendor-baseline" and admission is None:
         return dict(VENDOR_ADMISSION_UNAVAILABLE)
     if isinstance(admission, Mapping) and isinstance(admission.get("admitted"), bool):
         return json.loads(json.dumps(admission))

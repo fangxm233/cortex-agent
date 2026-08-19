@@ -198,13 +198,14 @@ def _publication_reason(
     envelope: Mapping[str, object], _trial_id: str, _arm_name: str,
 ) -> str | None:
     publication = envelope.get("publication")
-    expected = {
-        "root": "artifacts", "relative_path": OUTER_ENVELOPE_FILENAME,
-        "atomic": True, "post_publication_reread": True,
-    }
     if not isinstance(publication, Mapping):
         return "outer envelope publication marker is unavailable"
-    if any(publication.get(key) != value for key, value in expected.items()):
+    if (
+        publication.get("root") != "artifacts"
+        or publication.get("relative_path") != OUTER_ENVELOPE_FILENAME
+        or publication.get("atomic") is not True
+        or publication.get("post_publication_reread") is not True
+    ):
         return "outer envelope publication marker is incomplete"
     return None
 
@@ -255,13 +256,18 @@ def _revocation_reason(envelope: Mapping[str, object], trial_id: str) -> str | N
     revocation = envelope.get("revocation")
     if not isinstance(revocation, Mapping):
         return "proxy revocation is unavailable"
-    expected: Mapping[str, object] = {
-        "schema_version": REVOCATION_SCHEMA_VERSION, "trial_id": trial_id,
-        "route_active": False, "listener_present": False,
-        "serving_thread_alive": False, "active_handlers": 0, "body_handlers": 0,
-    }
-    if any(revocation.get(key) != value for key, value in expected.items()):
+    if (
+        revocation.get("schema_version") != REVOCATION_SCHEMA_VERSION
+        or revocation.get("trial_id") != trial_id
+    ):
         return "proxy revocation is untrustworthy"
+    boolean_fields = ("route_active", "listener_present", "serving_thread_alive")
+    if any(revocation.get(field) is not False for field in boolean_fields):
+        return "proxy revocation is untrustworthy"
+    for field in ("active_handlers", "body_handlers"):
+        value = revocation.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value != 0:
+            return "proxy revocation is untrustworthy"
     return None
 
 
