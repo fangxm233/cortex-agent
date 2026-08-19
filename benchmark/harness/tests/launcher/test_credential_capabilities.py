@@ -44,7 +44,7 @@ EXPECTED_PROJECTION = [
     },
     {
         "id": "codex-subscription",
-        "state": "unsupported",
+        "state": "offline-contract-passed",
         "key": {
             "runner_or_backend": "codex-cli",
             "provider": "openai-codex",
@@ -52,6 +52,8 @@ EXPECTED_PROJECTION = [
             "credential_kind": "oauth",
             "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
+        "evidence_sha256":
+            "245fd91ebd38790ee8db51f869080c2b01a50ef2937f89539691674715131fc4",
     },
     {
         "id": "pi-api-key",

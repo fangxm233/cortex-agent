@@ -76,7 +76,10 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
     _key("pi", "openai-codex", "??", "oauth"):
         CredentialCapability("pi-openai-codex-oauth", "unsupported"),
     CODEX_CLI_CAPABILITY_KEY:
-        CredentialCapability("codex-subscription", "unsupported"),
+        CredentialCapability(
+            "codex-subscription", "offline-contract-passed",
+            "245fd91ebd38790ee8db51f869080c2b01a50ef2937f89539691674715131fc4",
+        ),
 })
 
 

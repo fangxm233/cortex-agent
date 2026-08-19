@@ -8,8 +8,8 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_arms.py | test | Verifies arm routing and vendor version isolation |
 | test_campaign.py | test | Verifies campaign execution, outcomes and delivery artifacts |
 | test_capability_ceilings.py | test | Verifies host envelope ceilings |
-| test_capability_evidence.py | test | Verifies per-capability provenance metadata |
-| test_capability_state_gate.py | test | Verifies credential capability admission |
+| test_capability_evidence.py | test | Verifies capability provenance and proof sources |
+| test_capability_state_gate.py | test | Verifies offline and live capability admission |
 | test_comparison_report.py | test | Verifies comparison rewards and outcome semantics |
 | test_container_stop_observation.py | test | Verifies post-stop observations |
 | test_credential_capabilities.py | test | Verifies capability projections and evidence bindings |

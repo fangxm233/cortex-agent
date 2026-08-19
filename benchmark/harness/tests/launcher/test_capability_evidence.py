@@ -15,6 +15,7 @@ import pytest
 from cortex_bench_harness.launcher.capability_evidence import (
     CAPABILITY_EVIDENCE_METADATA,
     CAPABILITY_EVIDENCE_SCHEMA_VERSION,
+    CODEX_OFFLINE_CONTRACT,
     DEEPSEEK_OFFLINE_CONTRACT,
     MUTATION_MANIFEST_SCHEMA_VERSION,
     validate_capability_evidence,
@@ -25,6 +26,9 @@ from cortex_bench_harness.launcher.credential_capabilities import CredentialCapa
 KEY = CredentialCapabilityKey("pi", "deepseek", "openai-completions", "api-key")
 CLAUDE_KEY = CredentialCapabilityKey(
     "claude-code", "anthropic", "anthropic-messages", "subscription-oauth",
+)
+CODEX_KEY = CredentialCapabilityKey(
+    "codex-cli", "openai-codex", "openai-codex-responses", "oauth",
 )
 # The three numbers the run declares per trial. Evidence attests the mechanism that enforces a
 # declared envelope, never one run's choice of values, so none of these may appear in it.
@@ -38,6 +42,11 @@ HARNESS_DIR = Path(__file__).resolve().parents[2]
 EVIDENCE_DIR = HARNESS_DIR / "src/cortex_bench_harness/launcher/evidence"
 MIGRATION_SCRIPT = HARNESS_DIR / "scripts/migrate-capability-evidence.py"
 CLAUDE_WIRE_PATH = HARNESS_DIR / "tests/fixtures/vendor-wire/claude-code/wire-capture.json"
+CODEX_PROOF_PATHS = {
+    "p0_wire_capture_sha256": HARNESS_DIR / "tests/fixtures/vendor-wire/codex/contract.json",
+    "vendor_lifecycle_test_sha256": HARNESS_DIR / "tests/launcher/test_vendor_lifecycle_docker.py",
+    "model_freeze_test_sha256": HARNESS_DIR / "tests/package/test_vendor_model_freeze.py",
+}
 
 
 def document(state: str = "offline-contract-passed") -> dict[str, object]:
@@ -87,13 +96,16 @@ def test_validates_strict_offline_evidence_and_hash(tmp_path: Path) -> None:
 def test_capability_metadata_is_declared_per_capability() -> None:
     deepseek = CAPABILITY_EVIDENCE_METADATA["pi-deepseek-api-key"]
     claude = CAPABILITY_EVIDENCE_METADATA["claude-subscription"]
+    codex = CAPABILITY_EVIDENCE_METADATA["codex-subscription"]
 
     assert deepseek.metadata_fields == frozenset({"pi_version", "model_metadata_sha256"})
     assert claude.metadata_fields == frozenset({"claude_code_version"})
+    assert codex.metadata_fields == frozenset({"codex_cli_version"})
     assert deepseek.offline_fields == frozenset({
         "mutation_manifest_sha256", "mutations_total", "mutations_killed",
     })
     assert claude.offline_fields == frozenset({"synthetic_observation_sha256"})
+    assert codex.offline_fields == frozenset(CODEX_PROOF_PATHS)
 
 
 def test_deepseek_evidence_output_is_byte_for_byte_unchanged() -> None:
@@ -121,6 +133,31 @@ def test_validates_shipped_claude_synthetic_evidence_and_supporting_observation(
     )
     validate_offline_supporting_artifacts(path.parent, evidence)
     assert evidence["claude_code_version"] == "2.1.232"
+
+
+def test_validates_shipped_codex_zero_paid_evidence_suite() -> None:
+    import cortex_bench_harness.launcher.credential_capabilities as registry
+
+    row = registry.CAPABILITY_REGISTRY[CODEX_KEY]
+    path = registry._evidence_path(row.id, row.state)
+
+    assert row.state == "offline-contract-passed"
+    assert row.evidence_sha256 is not None
+    evidence = validate_capability_evidence(
+        path, row.evidence_sha256, capability_id=row.id, key=CODEX_KEY, state=row.state,
+        adapter_id="openai-codex-responses/oauth",
+    )
+    validate_offline_supporting_artifacts(path.parent, evidence)
+    assert evidence["codex_cli_version"] == "0.117.0"
+    assert evidence["implementation_commit"] == CODEX_OFFLINE_CONTRACT[
+        "implementation_commit"
+    ]
+    assert {
+        field: evidence[field] for field in CODEX_PROOF_PATHS
+    } == {
+        field: hashlib.sha256(source.read_bytes()).hexdigest()
+        for field, source in CODEX_PROOF_PATHS.items()
+    }
 
 
 def test_claude_synthetic_observation_is_generated_from_the_p0_loopback_capture() -> None:
