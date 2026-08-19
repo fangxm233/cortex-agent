@@ -677,10 +677,32 @@ def start_trial_proxy(
     request_body_limit_bytes: int | None = None,
     response_body_limit_bytes: int | None = None, allow_retry: bool = True,
 ) -> TrialProxyHandle:
-    """Start one per-trial proxy. `absolute_deadline` is the provisional bound `P`: the container
-    may shorten the lease from it by echoing back a duration, and may never lengthen it past it."""
+    """Start one per-trial proxy under its provisional deadline bound."""
     _validate_inputs(trial_id, upstream_base_url, adapter, absolute_deadline)
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    base_url, dummy_token, provisional_bound_ms, server, metadata = _proxy_runtime(
+        trial_id, upstream_base_url, adapter, bound_source_ip, absolute_deadline,
+        limits, log_path, listen_host, advertised_host, now_ms,
+        request_body_limit_bytes, response_body_limit_bytes, allow_retry,
+    )
+    lease = TrialLease(
+        trial_id=trial_id, state=server.state, server=server,
+        provisional_bound_ms=provisional_bound_ms, terms=lease_terms, now_ms=now_ms,
+    )
+    server.lease = lease
+    lease.arm_provisional_bound()
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return TrialProxyHandle(base_url, dummy_token, metadata, server, thread, lease)
+
+
+def _proxy_runtime(
+    trial_id: str, upstream_base_url: str, adapter: ProviderAdapter,
+    bound_source_ip: str, absolute_deadline: datetime, limits: ProxyLimits,
+    log_path: Path, listen_host: str, advertised_host: str | None,
+    now_ms: Callable[[], int], request_body_limit_bytes: int | None,
+    response_body_limit_bytes: int | None, allow_retry: bool,
+) -> tuple[str, str, int, TrialHttpServer, ProxyMetadata]:
     dummy_token = _dummy_token(adapter)
     provisional_bound_ms = int(absolute_deadline.timestamp() * 1000)
     state = ProxyState(
@@ -700,17 +722,7 @@ def start_trial_proxy(
         limits, log_path.name, adapter.adapter_id,
         request_body_limit_bytes, response_body_limit_bytes,
     )
-    lease = TrialLease(
-        trial_id=trial_id, state=state, server=server,
-        provisional_bound_ms=provisional_bound_ms, terms=lease_terms, now_ms=now_ms,
-    )
-    server.lease = lease
-    lease.arm_provisional_bound()
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    return TrialProxyHandle(
-        f"http://{host}:{port}", dummy_token, metadata, server, thread, lease,
-    )
+    return f"http://{host}:{port}", dummy_token, provisional_bound_ms, server, metadata
 
 
 def _dummy_token(adapter: ProviderAdapter) -> str:
