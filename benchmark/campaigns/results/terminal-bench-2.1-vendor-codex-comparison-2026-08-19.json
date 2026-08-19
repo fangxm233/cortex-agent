@@ -1,0 +1,37 @@
+{
+  "schema_version": "cortex-bench-vendor-comparison-report/1",
+  "campaign": "tb21-vendor-codex",
+  "task_id": "429c",
+  "generated_at": "2026-08-19",
+  "comparison_status": "unavailable",
+  "reason": "The mandatory stage-1 consume-once live handshake failed after its sole provider request, so the ordered contract prohibited capability promotion and both score-producing vendor campaigns.",
+  "planned_tasks": [
+    {
+      "task_id": "chess-best-move",
+      "vendor_codex_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    },
+    {
+      "task_id": "constraints-scheduling",
+      "vendor_codex_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "vendor_codex_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    }
+  ],
+  "aggregate": {
+    "planned_trials": 3,
+    "trials_started": 0,
+    "trials_with_reward": 0,
+    "trials_with_explicit_campaign_failure": 0,
+    "trials_not_run_by_staged_stop": 3,
+    "score": null
+  },
+  "source_summary": "terminal-bench-2.1-vendor-codex-staged-2026-08-19.json"
+}
