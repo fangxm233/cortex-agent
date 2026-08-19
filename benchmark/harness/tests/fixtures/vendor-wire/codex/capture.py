@@ -157,6 +157,7 @@ def observe_request(
         "body_bytes": len(body),
         "body_sha256": hashlib.sha256(body).hexdigest(),
         "body_keys": list(document),
+        "body": document,
         "model": document.get("model"),
         "stream": document.get("stream"),
         "zstd_magic_present": body.startswith(b"\x28\xb5\x2f\xfd"),
