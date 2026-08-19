@@ -445,6 +445,28 @@ def test_vendor_projection_failure_revokes_before_container_start(
     start.assert_not_awaited()
 
 
+def test_vendor_projection_cannot_reseal_concurrent_static_environment_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = VendorProxyController("pi")
+    trial = create_vendor_trial(tmp_path, "pi", controller)
+    start = patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
+
+    def project_with_drift(session: object) -> VendorRuntimeProjection:
+        controller.calls.append("project")
+        trial.agent_environment._persistent_env["AWS_SECRET_ACCESS_KEY"] = "host-secret"
+        return controller.projection
+
+    monkeypatch.setattr(controller, "project_vendor_runtime", project_with_drift)
+
+    with pytest.raises(HarborTrialAdmissionError, match="sealed allowlist"):
+        asyncio.run(trial.agent_environment.start(force_build=False))
+
+    assert controller.calls == ["arm", "project"]
+    assert controller.revoke_count == 1
+    start.assert_not_awaited()
+
+
 def test_vendor_arm_with_cortex_composition_field_is_refused(tmp_path: Path) -> None:
     kwargs = vendor_launch_kwargs(tmp_path, "claude-code")
     selected_arm = dict(kwargs["arm"])
@@ -454,6 +476,16 @@ def test_vendor_arm_with_cortex_composition_field_is_refused(tmp_path: Path) -> 
     kwargs.update(arm=selected_arm, trial_seed=selected_seed)
 
     with pytest.raises(ValueError, match="Cortex composition"):
+        build_harbor_trial_config(**kwargs)
+
+
+def test_vendor_config_rejects_selected_arm_seed_mismatch(tmp_path: Path) -> None:
+    kwargs = vendor_launch_kwargs(tmp_path, "pi")
+    mismatched_seed = dict(kwargs["trial_seed"])
+    mismatched_seed["arm"] = vendor_arm("codex")
+    kwargs["trial_seed"] = mismatched_seed
+
+    with pytest.raises(ValueError, match="trial_seed.arm"):
         build_harbor_trial_config(**kwargs)
 
 
