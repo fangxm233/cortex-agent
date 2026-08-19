@@ -5,8 +5,9 @@
 
 import json
 import math
+import os
 from collections.abc import Mapping, Sequence
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Protocol
 
 from .campaign_config import CampaignConfig, TrialPlan
@@ -50,7 +51,7 @@ def _trial_summary(
         "task_id": outcome.plan.task.task_id,
         "terminal_state": outcome.outcome_state,
         "score_status": outcome.score_status,
-        "verifier_rewards": _rewards(outcome.verifier_rewards),
+        "verifier_rewards": _rewards(config, outcome.verifier_rewards),
         "counters": _counters(config.trials_dir, outcome),
         "leak_scan": _leak_scan(outcome.envelope),
         "revocation": _revocation(outcome.envelope),
@@ -61,9 +62,41 @@ def _trial_summary(
 
 
 def _rewards(
-    rewards: Mapping[str, int | float] | None,
+    config: CampaignConfig, rewards: Mapping[str, int | float] | None,
 ) -> dict[str, int | float] | None:
-    return None if rewards is None else dict(rewards)
+    if rewards is None:
+        return None
+    credentials = _credential_values(config)
+    occupied = set(rewards)
+    projected: dict[str, int | float] = {}
+    for ordinal, (name, value) in enumerate(rewards.items(), start=1):
+        key = name
+        if _unsafe_reward_name(name, credentials):
+            key = _redacted_reward_key(ordinal, occupied | set(projected))
+        projected[key] = value
+    return projected
+
+
+def _credential_values(config: CampaignConfig) -> tuple[str, ...]:
+    dummy = config.credential.get("dummy_token_ref")
+    environment_name = config.proxy.get("credential_env")
+    credential = os.environ.get(environment_name) if isinstance(environment_name, str) else None
+    return tuple(value for value in (dummy, credential) if isinstance(value, str) and value)
+
+
+def _unsafe_reward_name(name: str, credentials: Sequence[str]) -> bool:
+    return (
+        PurePosixPath(name).is_absolute()
+        or PureWindowsPath(name).is_absolute()
+        or any(credential in name for credential in credentials)
+    )
+
+
+def _redacted_reward_key(ordinal: int, occupied: set[str]) -> str:
+    candidate = f"redacted-reward-{ordinal}"
+    while candidate in occupied:
+        candidate += "-redacted"
+    return candidate
 
 
 def _cli_pin(

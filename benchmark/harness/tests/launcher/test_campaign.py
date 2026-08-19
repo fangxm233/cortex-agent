@@ -1763,7 +1763,11 @@ def test_delivery_summary_projects_every_trial_and_sanitizes_host_values(
         spends={harness_incomplete: 2},
         results={agent_failed: RecordingResult(
             exception_info=RuntimeError(f"failed under {private_home}"),
-            rewards={"reward": 0.25},
+            rewards={
+                "reward": 0.25,
+                f"{private_home}/verifier/reward": 0.5,
+                credential: 0.75,
+            },
         )},
     ).install(monkeypatch)
     source = campaign_document(tmp_path)
@@ -1789,7 +1793,11 @@ def test_delivery_summary_projects_every_trial_and_sanitizes_host_values(
     assert [trial["terminal_state"] for trial in summary["trials"]] == [
         "terminal-success", "terminal-agent-failure", "harness-incomplete", "security-failed",
     ]
-    assert summary["trials"][1]["verifier_rewards"] == {"reward": 0.25}
+    assert summary["trials"][1]["verifier_rewards"] == {
+        "redacted-reward-2": 0.5,
+        "redacted-reward-3": 0.75,
+        "reward": 0.25,
+    }
     assert summary["trials"][1]["score_status"] == "available"
     assert summary["trials"][2]["counters"]["requests"] == {
         "status": "available", "value": 2,
