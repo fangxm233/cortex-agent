@@ -1,0 +1,147 @@
+{
+  "content_type": "text/event-stream",
+  "content_encoding": null,
+  "events": [
+    {
+      "type": "response.created",
+      "response": {
+        "id": "resp_wire_capture",
+        "object": "response",
+        "status": "in_progress",
+        "model": "gpt-5.3-codex",
+        "output": [],
+        "usage": null
+      }
+    },
+    {
+      "type": "response.in_progress",
+      "response": {
+        "id": "resp_wire_capture",
+        "object": "response",
+        "status": "in_progress",
+        "model": "gpt-5.3-codex",
+        "output": [],
+        "usage": null
+      }
+    },
+    {
+      "type": "response.output_item.added",
+      "output_index": 0,
+      "item": {
+        "id": "msg_wire_capture",
+        "type": "message",
+        "status": "in_progress",
+        "role": "assistant",
+        "content": []
+      }
+    },
+    {
+      "type": "response.content_part.added",
+      "item_id": "msg_wire_capture",
+      "output_index": 0,
+      "content_index": 0,
+      "part": {
+        "type": "output_text",
+        "text": "",
+        "annotations": [],
+        "logprobs": []
+      }
+    },
+    {
+      "type": "response.output_text.delta",
+      "item_id": "msg_wire_capture",
+      "output_index": 0,
+      "content_index": 0,
+      "delta": "WIRE_CAPTURE_OK",
+      "logprobs": []
+    },
+    {
+      "type": "response.output_text.done",
+      "item_id": "msg_wire_capture",
+      "output_index": 0,
+      "content_index": 0,
+      "text": "WIRE_CAPTURE_OK",
+      "logprobs": []
+    },
+    {
+      "type": "response.content_part.done",
+      "item_id": "msg_wire_capture",
+      "output_index": 0,
+      "content_index": 0,
+      "part": {
+        "type": "output_text",
+        "text": "WIRE_CAPTURE_OK",
+        "annotations": [],
+        "logprobs": []
+      }
+    },
+    {
+      "type": "response.output_item.done",
+      "output_index": 0,
+      "item": {
+        "id": "msg_wire_capture",
+        "type": "message",
+        "status": "completed",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "WIRE_CAPTURE_OK",
+            "annotations": [],
+            "logprobs": []
+          }
+        ]
+      }
+    },
+    {
+      "type": "response.completed",
+      "response": {
+        "id": "resp_wire_capture",
+        "object": "response",
+        "created_at": 0,
+        "status": "completed",
+        "error": null,
+        "incomplete_details": null,
+        "instructions": null,
+        "max_output_tokens": null,
+        "model": "gpt-5.3-codex",
+        "output": [
+          {
+            "id": "msg_wire_capture",
+            "type": "message",
+            "status": "completed",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "WIRE_CAPTURE_OK",
+                "annotations": [],
+                "logprobs": []
+              }
+            ]
+          }
+        ],
+        "parallel_tool_calls": true,
+        "previous_response_id": null,
+        "reasoning": {"effort": "high", "summary": null},
+        "store": false,
+        "temperature": null,
+        "text": {"format": {"type": "text"}, "verbosity": "medium"},
+        "tool_choice": "auto",
+        "tools": [],
+        "top_p": null,
+        "truncation": "disabled",
+        "usage": {
+          "input_tokens": 10,
+          "input_tokens_details": {"cached_tokens": 0},
+          "output_tokens": 2,
+          "output_tokens_details": {"reasoning_tokens": 0},
+          "total_tokens": 12
+        },
+        "user": null,
+        "metadata": {}
+      }
+    }
+  ],
+  "terminal_marker": "[DONE]"
+}

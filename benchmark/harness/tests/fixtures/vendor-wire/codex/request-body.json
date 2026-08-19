@@ -1,0 +1,61 @@
+{
+  "model": "gpt-5.3-codex",
+  "instructions": {
+    "capture_representation": "sha256 projection of the observed string",
+    "characters": 12343,
+    "canonical_json_bytes": 12561,
+    "sha256": "1598e8c5759c9ee8bfe012b706052c76ceb9763e0abdb3e98d4c0bb4433ae69b"
+  },
+  "input": {
+    "capture_representation": "sha256 projection with dynamic CODEX_HOME and workdir paths redacted",
+    "items": 3,
+    "roles": ["developer", "user", "user"],
+    "canonical_json_bytes_before_redaction": 5463,
+    "sha256_before_redaction": "26395e2b14d4b96e1b372603388da5ac0a9319792bdad00b95969a4917d5186f",
+    "final_user_text": "Reply with exactly WIRE_CAPTURE_OK"
+  },
+  "tools": {
+    "capture_representation": "ordered names plus sha256 projection of the full observed schemas",
+    "count": 14,
+    "names": [
+      "exec_command",
+      "write_stdin",
+      "list_mcp_resources",
+      "list_mcp_resource_templates",
+      "read_mcp_resource",
+      "update_plan",
+      "request_user_input",
+      "apply_patch",
+      "view_image",
+      "spawn_agent",
+      "send_input",
+      "resume_agent",
+      "wait_agent",
+      "close_agent"
+    ],
+    "canonical_json_bytes": 20958,
+    "sha256": "e869fed2867b746a1fcbd3caea694026bb1663a07c110248af3629d4cfc9056d"
+  },
+  "tool_choice": "auto",
+  "parallel_tool_calls": true,
+  "reasoning": {"effort": "high"},
+  "store": false,
+  "stream": true,
+  "include": ["reasoning.encrypted_content"],
+  "prompt_cache_key": "<REDACTED_DYNAMIC_SESSION_ID>",
+  "text": {"verbosity": "low"},
+  "observed_top_level_key_order": [
+    "model",
+    "instructions",
+    "input",
+    "tools",
+    "tool_choice",
+    "parallel_tool_calls",
+    "reasoning",
+    "store",
+    "stream",
+    "include",
+    "prompt_cache_key",
+    "text"
+  ]
+}

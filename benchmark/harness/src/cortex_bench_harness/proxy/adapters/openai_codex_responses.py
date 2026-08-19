@@ -25,11 +25,11 @@ TOKEN_PATH = "/oauth/token"
 ACCOUNT_ID_HEADER = "chatgpt-account-id"
 JWT_ACCOUNT_CLAIM = "https://api.openai.com/auth"
 ACCOUNT_ID_FIELD = "chatgpt_account_id"
-# The client normalizes its terminal event to response.completed internally, so
-# reading its downstream code alone would name the wrong event on the wire.
-TERMINAL_WIRE_EVENT = "response.done"
+# Native codex-cli 0.117.0 accepts response.completed as success. It retries a
+# response.done stream as incomplete, while older callers may still emit it.
+TERMINAL_WIRE_EVENT = "response.completed"
 TERMINAL_EVENTS = frozenset({
-    TERMINAL_WIRE_EVENT, "response.completed", "response.incomplete",
+    "response.done", TERMINAL_WIRE_EVENT, "response.incomplete",
 })
 FAILURE_EVENTS = frozenset({"error", "response.failed"})
 ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
