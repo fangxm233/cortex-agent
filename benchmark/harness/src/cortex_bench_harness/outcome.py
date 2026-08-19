@@ -198,13 +198,14 @@ def _publication_reason(
     envelope: Mapping[str, object], _trial_id: str, _arm_name: str,
 ) -> str | None:
     publication = envelope.get("publication")
-    expected = {
-        "root": "artifacts", "relative_path": OUTER_ENVELOPE_FILENAME,
-        "atomic": True, "post_publication_reread": True,
-    }
     if not isinstance(publication, Mapping):
         return "outer envelope publication marker is unavailable"
-    if any(publication.get(key) != value for key, value in expected.items()):
+    if (
+        publication.get("root") != "artifacts"
+        or publication.get("relative_path") != OUTER_ENVELOPE_FILENAME
+        or publication.get("atomic") is not True
+        or publication.get("post_publication_reread") is not True
+    ):
         return "outer envelope publication marker is incomplete"
     return None
 

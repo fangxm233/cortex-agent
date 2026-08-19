@@ -1476,6 +1476,25 @@ def test_a_partial_outer_envelope_is_rejected_before_any_new_route_is_armed(
     assert recorder.armed == []
 
 
+def test_a_type_confused_publication_marker_is_rejected_before_arming(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    trials_dir = tmp_path / "trials"
+    trial_id = "camp-01-task-one-cortex-a"
+    partial = envelope_document(trial_id, "cortex-a", 1)
+    partial["publication"]["atomic"] = 1
+    partial["publication"]["post_publication_reread"] = 1
+    write_envelope(trials_dir, trial_id, partial)
+    write_result(trials_dir, trial_id)
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+
+    assert status == 1
+    assert "publication marker" in failure_document(capsys)["error"]
+    assert recorder.armed == []
+
+
 def test_an_existing_trial_root_without_a_published_envelope_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
