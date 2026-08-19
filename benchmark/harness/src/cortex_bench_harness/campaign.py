@@ -46,6 +46,7 @@ from .campaign_config import (
     load_campaign_config,
     parse_campaign_config,
 )
+from .host_finalization import OUTER_ENVELOPE_FILENAME
 from .launcher.comparison_report import build_comparison_report, render_comparison_report
 from .launcher.credential_capabilities import (
     CODEX_CLI_CAPABILITY_KEY,
@@ -460,11 +461,24 @@ async def _arm_trial(
     except CampaignError as error:
         trial_error = error
     except Exception as error:
-        trial_error = CampaignError(f"trial {plan.trial_id} failed: {error}")
-        trial_error.__cause__ = error
+        trial_error = _failed_trial_error(config, plan, error)
     _cleanup_trial_network(network_id, trial_error)
     if trial_error is not None:
         raise trial_error
+
+
+def _failed_trial_error(
+    config: CampaignConfig, plan: TrialPlan, error: Exception,
+) -> CampaignError:
+    trial_error = CampaignError(f"trial {plan.trial_id} failed: {error}")
+    trial_error.__cause__ = error
+    marker = config.trials_dir / plan.trial_id / "artifacts" / OUTER_ENVELOPE_FILENAME
+    try:
+        marker.unlink(missing_ok=True)
+    except OSError as cleanup_error:
+        return HostFaultError(
+            f"{trial_error}; gradable marker cleanup also failed: {cleanup_error}")
+    return trial_error
 
 
 def _slot_proxy(

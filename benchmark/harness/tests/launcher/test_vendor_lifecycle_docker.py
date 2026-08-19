@@ -114,7 +114,8 @@ def _campaign_document(
     agent_seconds: int = 30, verifier_seconds: int = 30,
     verifier: str | None = None,
 ) -> dict[str, object]:
-    subnet = 16 + uuid.uuid4().int % 12
+    subnet = uuid.uuid4().int % 512
+    subnet_pool = f"198.{18 + subnet // 256}.{subnet % 256}.0/24"
     return {
         "schema_version": "cortex-bench-campaign/1", "campaign": "vendor-docker",
         "paid": False, "trials_dir": str(root / "trials"),
@@ -122,7 +123,7 @@ def _campaign_document(
         "credential": {"upstream_base_url": upstream, "route_identity_host": "api.deepseek.com",
                        "proxy_host_suffix": "proxy.invalid", "dummy_token_ref": "dummy-only"},
         "host_scan_policy": _host_scan_policy(),
-        "docker_network": {"subnet_pool": f"172.{subnet}.253.0/24", "subnet_prefix": 24},
+        "docker_network": {"subnet_pool": subnet_pool, "subnet_prefix": 24},
         "proxy": {"credential_env": CREDENTIAL_ENV, "listen_host": "0.0.0.0",
                   "request_body_limit_bytes": 4 * 1024 * 1024,
                   "response_body_limit_bytes": 4 * 1024 * 1024},
@@ -326,8 +327,14 @@ def _fail_docker_stop(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
 
 
 def _fail_publication(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
-    failure = lambda *_: (_ for _ in ()).throw(OSError("synthetic publication failure"))
-    monkeypatch.setattr(finalization, "_write_all", failure)
+    original = Path.write_text
+
+    def fail_result(path: Path, *args: object, **kwargs: object) -> int:
+        if path.name == "result.json":
+            raise OSError("synthetic result publication failure")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", fail_result)
     return {}
 
 
