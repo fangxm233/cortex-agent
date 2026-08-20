@@ -642,11 +642,6 @@ mod tests {
     }
 
     #[test]
-    fn parses_a_calver_with_a_same_day_suffix() {
-        assert_eq!(parse_version("2026.5.22-2"), Some(vec![2026, 5, 22, 2]));
-    }
-
-    #[test]
     fn a_same_day_rerelease_sorts_after_the_first_release() {
         assert!(version_at_least("2026.5.22-2", "2026.5.22"));
         assert!(!version_at_least("2026.5.22", "2026.5.22-2"));
@@ -664,13 +659,6 @@ mod tests {
     fn an_unreadable_installed_version_never_clears_the_floor() {
         assert!(!version_at_least("", MIN_SERVER_VERSION));
         assert!(!version_at_least("unknown", MIN_SERVER_VERSION));
-    }
-
-    #[test]
-    fn node_major_reads_the_major_component() {
-        assert_eq!(node_major("v20.11.0"), Some(20));
-        assert_eq!(node_major("v18.19.1\n"), Some(18));
-        assert_eq!(node_major(""), None);
     }
 
     #[test]

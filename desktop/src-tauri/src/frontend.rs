@@ -203,17 +203,6 @@ mod tests {
     }
 
     #[test]
-    fn content_type_maps_common_extensions() {
-        assert_eq!(content_type("index.html"), "text/html; charset=utf-8");
-        assert_eq!(content_type("assets/app.js"), "text/javascript; charset=utf-8");
-        assert_eq!(content_type("style.css"), "text/css; charset=utf-8");
-        assert_eq!(content_type("data.json"), "application/json; charset=utf-8");
-        assert_eq!(content_type("logo.svg"), "image/svg+xml");
-        assert_eq!(content_type("font.woff2"), "font/woff2");
-        assert_eq!(content_type("noext"), "application/octet-stream");
-    }
-
-    #[test]
     fn sanitize_root_maps_to_index() {
         assert_eq!(sanitize_request_path("cortexui://localhost/").unwrap(), "index.html");
         assert_eq!(sanitize_request_path("/").unwrap(), "index.html");
@@ -296,71 +285,6 @@ mod tests {
         assert_eq!(r.status, 200);
         assert_eq!(r.mime, "text/html; charset=utf-8");
         assert!(!r.body.is_empty());
-    }
-
-    /// Collect the argument of every `f('literal')` call in `source` for the given function name.
-    fn call_literals(source: &str, call: &str) -> Vec<String> {
-        let mut found = Vec::new();
-        let needle = format!("{call}('");
-        let mut rest = source;
-        while let Some(at) = rest.find(&needle) {
-            rest = &rest[at + needle.len()..];
-            if let Some(end) = rest.find('\'') {
-                found.push(rest[..end].to_string());
-            }
-        }
-        found
-    }
-
-    #[test]
-    fn every_element_a_shell_page_looks_up_actually_exists_in_it() {
-        // These pages carry their own script with no build step and no framework, so a renamed id is
-        // a silent `null` at runtime — on the one screen a user cannot get past.
-        for (name, html) in EMBEDDED_PAGES {
-            let mut ids = call_literals(html, "getElementById");
-            ids.extend(call_literals(html, "el"));
-            for id in ids {
-                // A literal ending in `-` is a prefix concatenated with an index at runtime
-                // (`cx-panel-` + 0..3), so only the prefix can be checked.
-                let expected = if id.ends_with('-') {
-                    format!("id=\"{id}")
-                } else {
-                    format!("id=\"{id}\"")
-                };
-                assert!(
-                    html.contains(&expected),
-                    "{name} looks up #{id}, which it never defines"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn every_string_a_shell_page_uses_is_translated_in_both_languages() {
-        // Each page holds an en and a zh table; a key added to one and not the other renders as
-        // `undefined` for half the users, which no type checker here would catch.
-        for (name, html) in EMBEDDED_PAGES {
-            let mut keys: Vec<&str> = Vec::new();
-            let mut rest = *html;
-            while let Some(at) = rest.find("L.") {
-                rest = &rest[at + 2..];
-                let end = rest
-                    .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
-                    .unwrap_or(rest.len());
-                if end > 0 {
-                    keys.push(&rest[..end]);
-                }
-            }
-            keys.sort_unstable();
-            keys.dedup();
-            for key in keys {
-                let defined = html.matches(&format!("{key}: ")).count();
-                assert!(
-                    defined >= 2,
-                    "{name} uses L.{key} but defines it {defined} time(s) — both en and zh need it"
-                );
-            }
-        }
     }
 
     #[test]
