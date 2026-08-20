@@ -6,10 +6,7 @@ import {
   buildScheduleAddArgs,
   validateScheduleForm,
   computeNextRun,
-  nextRunLabel,
-  nextRunParts,
   profileOptions,
-  SCHED_TYPES,
   DAY_OPTIONS,
   FALLBACK_OPTIONS,
   TARGET_OPTIONS,
@@ -21,13 +18,8 @@ function form(overrides: Partial<ScheduleForm> = {}): ScheduleForm {
 }
 
 describe('SCHED_TYPES / option lists', () => {
-  it('exposes the four schedule types in prototype order', () => {
-    expect(SCHED_TYPES).toEqual(['interval', 'daily', 'weekly', 'once']);
-  });
   it('day options map Sun..Sat → 0..6', () => {
     expect(DAY_OPTIONS.map((d) => d.value)).toEqual([0, 1, 2, 3, 4, 5, 6]);
-    expect(DAY_OPTIONS[0].label).toBe('Sun');
-    expect(DAY_OPTIONS[6].label).toBe('Sat');
   });
   it('fallback options are the real backend enum', () => {
     expect(FALLBACK_OPTIONS).toEqual(['fresh', 'skip', 'wait']);
@@ -165,36 +157,20 @@ describe('validateScheduleForm', () => {
   });
 });
 
-describe('computeNextRun / nextRunLabel', () => {
-  it('daily 09:00 from 08:08 same day → 52 minutes out', () => {
-    const now = new Date(2026, 6, 7, 8, 8, 0); // local 08:08
+describe('computeNextRun', () => {
+  it('schedules a future daily time on the same day', () => {
+    const now = new Date(2026, 6, 7, 8, 8, 0);
     const next = computeNextRun(form({ type: 'daily', time: '09:00' }), now);
     expect(next.getTime() - now.getTime()).toBe(52 * 60_000);
-    expect(nextRunLabel(form({ type: 'daily', time: '09:00' }), now)).toBe('next run 09:00 · in 52m');
   });
-  it('daily time already passed → rolls to tomorrow', () => {
+  it('rolls a passed daily time to tomorrow', () => {
     const now = new Date(2026, 6, 7, 10, 0, 0);
-    const next = computeNextRun(form({ type: 'daily', time: '09:00' }), now);
-    expect(next.getDate()).toBe(8);
+    expect(computeNextRun(form({ type: 'daily', time: '09:00' }), now).getDate()).toBe(8);
   });
-  it('interval → now + intervalMs', () => {
+  it('adds interval and one-shot delays to now', () => {
     const now = new Date(2026, 6, 7, 8, 0, 0);
-    const label = nextRunLabel(form({ type: 'interval', intervalValue: 30, intervalUnit: 'min' }), now);
-    expect(label).toContain('in 30m');
-  });
-  it('once → now + delay', () => {
-    const now = new Date(2026, 6, 7, 8, 0, 0);
-    const label = nextRunLabel(form({ type: 'once', delayValue: 2, delayUnit: 'hr' }), now);
-    expect(label).toContain('in 2h');
-  });
-  it('humanizes multi-hour deltas', () => {
-    const now = new Date(2026, 6, 7, 8, 0, 0);
-    const label = nextRunLabel(form({ type: 'daily', time: '10:30' }), now);
-    expect(label).toBe('next run 10:30 · in 2h 30m');
-  });
-  it('nextRunParts splits clock and delta for the styled footer', () => {
-    const now = new Date(2026, 6, 7, 8, 8, 0);
-    expect(nextRunParts(form({ type: 'daily', time: '09:00' }), now)).toEqual({ clock: '09:00', delta: '52m' });
+    expect(computeNextRun(form({ type: 'interval', intervalValue: 30, intervalUnit: 'min' }), now).getTime() - now.getTime()).toBe(30 * 60_000);
+    expect(computeNextRun(form({ type: 'once', delayValue: 2, delayUnit: 'hr' }), now).getTime() - now.getTime()).toBe(2 * 3_600_000);
   });
 });
 

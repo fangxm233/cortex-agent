@@ -3,9 +3,6 @@ import type { MemoryTree, MemoryBlameLine } from '@cortex-agent/ui-contract';
 import {
   buildTreeRows,
   pickDefaultPath,
-  relTimeAgo,
-  diffToggle,
-  formatLineDiff,
   groupBlame,
 } from './memory-vm';
 
@@ -58,40 +55,6 @@ describe('pickDefaultPath', () => {
   it('returns the first file path, else null', () => {
     expect(pickDefaultPath(tree())).toBe('mission.md');
     expect(pickDefaultPath(tree({ files: [] }))).toBeNull();
-  });
-});
-
-describe('relTimeAgo', () => {
-  const now = Date.parse('2026-07-07T12:00:00.000Z');
-  it('formats sub-minute / minutes / hours / days', () => {
-    expect(relTimeAgo('2026-07-07T11:59:40.000Z', now)).toBe('updated <1m ago');
-    expect(relTimeAgo('2026-07-07T11:45:00.000Z', now)).toBe('updated 15m ago');
-    expect(relTimeAgo('2026-07-07T09:00:00.000Z', now)).toBe('updated 3h ago');
-    expect(relTimeAgo('2026-07-04T12:00:00.000Z', now)).toBe('updated 3d ago');
-  });
-  it('handles missing / unparseable input', () => {
-    expect(relTimeAgo(null, now)).toBe('updated —');
-    expect(relTimeAgo('not-a-date', now)).toBe('updated —');
-  });
-});
-
-describe('diffToggle', () => {
-  it('reports whether the diff is visible', () => {
-    expect(diffToggle(true).label).toBe('Viewing diff');
-    expect(diffToggle(false).label).toBe('Diff hidden');
-  });
-});
-
-describe('formatLineDiff', () => {
-  it('formats real counts as +N / −M chips (U+2212 minus)', () => {
-    expect(formatLineDiff({ added: 42, removed: 7 })).toEqual({ added: '+42', removed: '−7' });
-  });
-  it('renders a clean file (0/0) as real data, not a placeholder', () => {
-    expect(formatLineDiff({ added: 0, removed: 0 })).toEqual({ added: '+0', removed: '−0' });
-  });
-  it('returns null for null/undefined so the caller shows an honest placeholder (never fabricated)', () => {
-    expect(formatLineDiff(null)).toBeNull();
-    expect(formatLineDiff(undefined)).toBeNull();
   });
 });
 

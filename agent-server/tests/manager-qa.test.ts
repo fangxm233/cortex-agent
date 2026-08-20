@@ -180,6 +180,49 @@ test('origin-session escalation keeps the human backstop armed — a human reply
   assert.equal(got.answer, 'Prioritize accuracy.');
 });
 
+test('answer_subtask disarms the human backstop before the asker polls', async () => {
+  _testResetManagerQa();
+  const channel = 'C-origin-agent-answer';
+  const { child, readTask } = makeManagerChild({ parentTaskId: null, originChannel: channel });
+  const res = await askManager(child.id, 'speed or accuracy?', { readTask, wakeOriginSession: () => {} });
+  assert.equal(res.ok, true);
+  const qid = res.ok ? res.questionId : '';
+
+  assert.equal((await submitAnswer(qid, 'Prioritize accuracy.')).ok, true);
+  assert.equal((await submitAnswer(qid, 'Overwrite it.')).ok, true);
+  assert.equal(tryAnswerFromHuman(channel, 'This is a new user turn.'), false);
+  assert.deepEqual(getAnswer(qid), { found: true, answered: true, answer: 'Prioritize accuracy.' });
+});
+
+test('a human answer disarms its backstop immediately and cannot be overwritten', async () => {
+  _testResetManagerQa();
+  const channel = 'C-human-first-answer';
+  const { child, readTask } = makeManagerChild({ parentTaskId: null, originChannel: channel });
+  const res = await askManager(child.id, 'A or B?', { readTask, wakeOriginSession: () => {} });
+  assert.equal(res.ok, true);
+  const qid = res.ok ? res.questionId : '';
+
+  assert.equal(tryAnswerFromHuman(channel, 'Use A.'), true);
+  assert.equal(tryAnswerFromHuman(channel, 'Unrelated later message.'), false);
+  assert.deepEqual(getAnswer(qid), { found: true, answered: true, answer: 'Use A.' });
+});
+
+test('answering an older question does not disarm a newer question on the same channel', async () => {
+  _testResetManagerQa();
+  const channel = 'C-overlapping-origin-questions';
+  const first = makeManagerChild({ parentTaskId: null, originChannel: channel });
+  const second = makeManagerChild({ parentTaskId: null, originChannel: channel });
+  const q1 = await askManager(first.child.id, 'first?', { readTask: first.readTask, wakeOriginSession: () => {} });
+  const q2 = await askManager(second.child.id, 'second?', { readTask: second.readTask, wakeOriginSession: () => {} });
+  assert.equal(q1.ok, true);
+  assert.equal(q2.ok, true);
+
+  assert.equal((await submitAnswer(q1.ok ? q1.questionId : '', 'First answer.')).ok, true);
+  assert.deepEqual(getAnswer(q1.ok ? q1.questionId : ''), { found: true, answered: true, answer: 'First answer.' });
+  assert.equal(tryAnswerFromHuman(channel, 'Second answer.'), true);
+  assert.deepEqual(getAnswer(q2.ok ? q2.questionId : ''), { found: true, answered: true, answer: 'Second answer.' });
+});
+
 test('buildOriginSessionNotice is agent-facing: carries the subtask id, question, questionId, and answer_subtask guidance', () => {
   const notice = buildOriginSessionNotice({ questionId: 'q_xyz789', fromTaskId: 'CH7', question: 'Which eval split?' });
   assert.match(notice, /q_xyz789/);

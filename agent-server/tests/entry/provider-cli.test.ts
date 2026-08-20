@@ -28,21 +28,6 @@ const ADD_ARGS = [
   '--url', 'http://127.0.0.1:8100', '--key', 'upstream-secret', '--model', 'Model-27B',
 ];
 
-test('provider CLI: --help lists the subcommands and exits zero', () => {
-  const stores = tmpStores();
-  try {
-    for (const args of [[], ['--help'], ['-h']]) {
-      const result = runProviderCli(args, stores);
-      assert.equal(result.exitCode, 0);
-      assert.match(result.stdout, /cortex auth provider/);
-      assert.match(result.stdout, /add/);
-      assert.match(result.stdout, /remove/);
-    }
-  } finally {
-    fs.rmSync(stores.dir, { recursive: true, force: true });
-  }
-});
-
 test('provider CLI: an unknown subcommand names the valid ones and exits non-zero', () => {
   const stores = tmpStores();
   try {

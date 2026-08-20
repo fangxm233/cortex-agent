@@ -24,13 +24,11 @@ Scopes cover approvals, config, executions, issues, memory, plugins, projects, s
 | mutate-sessions-rewind.test.ts | test | Covers session rewind guards and outcomes |
 | mutate-sessions-send.test.ts | test | Covers session message send routing |
 | mutate-sessions-set-profile.test.ts | test | Covers session profile switch outcomes |
-| mutate-tasks.test.ts | test | Covers task lock acquire, release and force |
 | mutate-threads.test.ts | test | Covers thread cancellation outcomes |
 | query-approvals.test.ts | test | Covers approval queue parsing and listing |
-| query-auth.test.ts | test | Covers handler, facade and tRPC auth passthrough |
+| query-auth.test.ts | test | Covers login flow metadata and secret isolation |
 | custom-providers.test.ts | test | Covers custom provider list, writes and redaction |
 | query-config.test.ts | test | Covers redaction and settings source snapshots |
-| query-cost.test.ts | test | Covers cost summary and project filter |
 | query-hooks.test.ts | test | Covers the hook registry read model DTO |
 | query-executions-get.test.ts | test | Covers execution detail lookup |
 | query-executions.test.ts | test | Covers execution list filters and order |
@@ -51,4 +49,3 @@ Scopes cover approvals, config, executions, issues, memory, plugins, projects, s
 | query-threads.test.ts | test | Covers list status normalization and projection |
 | subscribe-execution-log.test.ts | test | Covers log subscription and backpressure |
 | subscribe.test.ts | test | Covers event subscription filters and close |
-| tasks-integration.test.ts | test | Covers task lock cycle on a real store |

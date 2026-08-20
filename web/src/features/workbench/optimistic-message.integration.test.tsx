@@ -262,15 +262,6 @@ afterEach(() => {
 });
 
 describe('mounted optimistic sender wiring', () => {
-  it('mounts the real profile, attach and commands controls in the composer action row', () => {
-    mounted = mountCenterChat();
-    const row = mounted.root.findByProps({ 'data-composer-actions': true });
-
-    expect(row.findAllByProps({ 'data-chip': 'profile' })).toHaveLength(1);
-    expect(row.findAllByProps({ 'data-chip': 'attach' })).toHaveLength(1);
-    expect(row.findAllByProps({ 'data-chip': 'commands' })).toHaveLength(1);
-  });
-
   it('renders an existing-session send before settlement and trusts pending authority before rejection', async () => {
     const gate = deferred<{ accepted: boolean }>();
     harness.sendMutateAsync.mockReturnValue(gate.promise);

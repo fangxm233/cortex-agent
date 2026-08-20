@@ -11,4 +11,4 @@ Shows the memory file tree, rendered Markdown, line diff counts and per-line bla
 | markdown.ts | core | Parses frontmatter, Markdown and opt-in math nodes |
 | markdown.test.ts | test | Tests Markdown and math parser behavior |
 | memory-vm.ts | vm | Derives tree rows, diffs and blame groups |
-| memory-vm.test.ts | test | Unit tests for the memory view model |
+| memory-vm.test.ts | test | Tests tree selection and blame-row state |

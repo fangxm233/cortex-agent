@@ -3,7 +3,6 @@
 // pos:    Shared Web UI slash-command behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it, vi } from 'vitest';
-import { SLASH_COMMANDS } from './chat-content';
 import {
   buildSlashSuggestions,
   resolveSlashInput,
@@ -19,16 +18,6 @@ const profiles: SlashProfileOption[] = [
 ];
 
 describe('UI slash command model', () => {
-  it('defines only the five UI-local shortcuts', () => {
-    expect(SLASH_COMMANDS).toEqual([
-      { cmd: '/new', desc: 'Start a new session' },
-      { cmd: '/cancel', desc: 'Cancel the current run' },
-      { cmd: '/compact', desc: 'Compact this session' },
-      { cmd: '/profile', desc: 'Switch this session profile' },
-      { cmd: '/settings', desc: 'Open settings' },
-    ]);
-  });
-
   it('resolves exact local actions and rejects extra arguments', () => {
     expect(resolveSlashInput('/new', profiles)).toEqual({ kind: 'action', action: { type: 'new' } });
     expect(resolveSlashInput('/cancel', profiles)).toEqual({ kind: 'action', action: { type: 'cancel' } });

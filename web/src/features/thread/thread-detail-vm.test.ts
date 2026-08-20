@@ -10,7 +10,7 @@ import type {
   ThreadChildNode,
   ThreadDispatchInfo,
 } from '@cortex-agent/ui-contract';
-import { buildThreadDetailVm, threadPill, fmtClock } from './thread-detail-vm';
+import { buildThreadDetailVm } from './thread-detail-vm';
 
 function step(p: Partial<ThreadStepDetail> & { stepIndex: number }): ThreadStepDetail {
   return {
@@ -94,26 +94,6 @@ function detail(p: Partial<ThreadDetail>): ThreadDetail {
 }
 
 const NOW = Date.parse('2026-07-06T00:42:18.000Z');
-
-describe('threadPill', () => {
-  it.each([
-    ['running', 'Running'],
-    ['waiting', 'Waiting'],
-    ['completed', 'Done'],
-    ['failed', 'Failed'],
-    ['cancelled', 'Cancelled'],
-  ] as const)('maps %s to its semantic label', (status, label) => {
-    expect(threadPill(status).text).toBe(label);
-  });
-});
-
-describe('fmtClock', () => {
-  it('zero-pads MM:SS and does not roll minutes into hours', () => {
-    expect(fmtClock(21)).toBe('00:21');
-    expect(fmtClock(42 * 60 + 18)).toBe('42:18');
-    expect(fmtClock(0)).toBe('00:00');
-  });
-});
 
 describe('buildThreadDetailVm', () => {
   const expDetail = detail({

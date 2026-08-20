@@ -11,18 +11,6 @@ import {
   findSlashCommand,
 } from '../../src/tui/slash-commands.js';
 
-test('registry contains the button-replacement commands', () => {
-  const names = SLASH_COMMANDS.map(c => c.name);
-  for (const n of ['new', 'newx', 'resume']) {
-    assert.ok(names.includes(n), `expected /${n} in the registry`);
-  }
-});
-
-test('registry contains the restart command', () => {
-  const names = SLASH_COMMANDS.map(c => c.name);
-  assert.ok(names.includes('restart'), 'expected /restart in the registry');
-});
-
 test('parseSlashInput: non-slash text is not a command', () => {
   const p = parseSlashInput('hello world');
   assert.equal(p.isSlash, false);

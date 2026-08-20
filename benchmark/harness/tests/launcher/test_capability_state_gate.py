@@ -151,13 +151,12 @@ def test_shipped_claude_offline_row_has_no_live_handshake_authority() -> None:
         require_capability_admission(arm, paid_run=True)
 
 
-def test_shipped_codex_offline_row_admits_non_paid_but_refuses_paid() -> None:
-    arm = cortex_arm("codex-subscription", model="gpt-5.3-codex", backend="codex-cli")
+def test_shipped_codex_live_row_admits_paid_runs() -> None:
+    arm = cortex_arm("codex-subscription", model="gpt-5.6-sol", backend="codex-cli")
     arm["provider"] = "openai-codex"
 
     assert require_capability_admission(arm) == CODEX_CLI_CAPABILITY_KEY
-    with pytest.raises(CapabilityStateRefused, match="live-handshake-passed"):
-        require_capability_admission(arm, paid_run=True)
+    assert require_capability_admission(arm, paid_run=True) == CODEX_CLI_CAPABILITY_KEY
 
 
 def test_an_admitted_row_still_arms(

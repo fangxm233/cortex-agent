@@ -8,8 +8,8 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | conversation-history-repo.test.ts | test | Covers history append, rewind and idempotency |
 | conversation-ledger-repo.test.ts | test | Covers bulk clearing by tracked session ids |
 | cost-repo.test.ts | test | Covers cost entry writes, pruning and budget |
-| execution-repo.test.ts | test | Covers execution records, staleness and archival |
-| hook-registry.test.ts | test | Covers capabilities, sources, defaults and TTL |
+| execution-repo.test.ts | test | Covers lifecycle, concurrency, recovery and archival |
+| hook-registry.test.ts | test | Covers schema, sources, loading and filtering |
 | hook-sync.test.ts | test | Covers managed asset sync and I/O diagnostics |
 | hook-writer.test.ts | test | Covers create, edit, remove and toggle guards |
 | json-repository.test.ts | test | Covers concurrent mutate, atomic write, cache |
@@ -20,7 +20,7 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | profile-watcher-fallback.test.ts | test | Covers profile polling after watcher failure |
 | project-dir-repo.test.ts | test | Covers per-machine project directory mapping |
 | project-notes-repo.test.ts | test | Covers private notes CRUD, stable timestamps, and concurrency |
-| prompt-migrations.test.ts | test | Covers coder assets, prompt migrations and customization |
+| prompt-migrations.test.ts | test | Covers coder, reviewer and manager prompt migrations |
 | provider-state-repo.test.ts | test | Covers provider state defaults, writes and migration |
 | schedule-repo.test.ts | test | Covers scheduled tasks and channel migration |
 | retention-candidate-repo.test.ts | test | Covers orphan candidate persistence and clearing |

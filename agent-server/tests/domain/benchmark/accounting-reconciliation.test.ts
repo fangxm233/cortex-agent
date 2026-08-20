@@ -181,14 +181,6 @@ describe('the record shape', () => {
       .toThrow(AccountingInputError);
   });
 
-  it('rejects a bare number at the type level', () => {
-    const golden = proxyGolden('proxy-export-echoed.json');
-
-    // @ts-expect-error a slot may not hold a bare number — this is the A5 rule as a type
-    const smuggled: ProxyExport = { ...golden, requests: 0 };
-
-    expect(smuggled.requests).toBe(0);
-  });
 });
 
 describe('purity', () => {

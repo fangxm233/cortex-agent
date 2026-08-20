@@ -7,8 +7,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { PluginAssignmentTarget, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
-import { en } from '@/i18n/vocab';
-import { getSettingsNav } from './settings-nav';
 import { PluginsPanelView, type PluginsPanelViewProps } from './PluginsPanel';
 import { createPluginDraft, setPluginDraftMode, type PluginsPanelDraft } from './plugins-panel-vm';
 
@@ -177,13 +175,6 @@ function inheritDraft(): PluginsPanelDraft {
   const targets = [agent({ managedPluginIds: ['gamma', 'alpha'] }), slot()];
   return setPluginDraftMode(createPluginDraft(targets[1], targets), targets[1], targets, 'inherit');
 }
-
-describe('plugins settings navigation', () => {
-  it('places plugins after thread templates', () => {
-    const keys = getSettingsNav(en).map(entry => entry.key);
-    expect(keys.indexOf('plugins')).toBe(keys.indexOf('templates') + 1);
-  });
-});
 
 describe('PluginsPanelView catalog metadata', () => {
   it('shows metadata, localized kind/transport labels, and sanitized MCP summaries', () => {

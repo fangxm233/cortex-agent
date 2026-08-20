@@ -8,6 +8,7 @@ import hashlib
 import json
 import threading
 from contextlib import contextmanager
+from dataclasses import replace
 from http.client import IncompleteRead
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -15,6 +16,7 @@ from typing import Iterator
 
 import pytest
 
+import cortex_bench_harness.launcher.credential_capabilities as capabilities
 import cortex_bench_harness.launcher.live_handshake as live_handshake
 from cortex_bench_harness.launcher.capability_evidence import validate_capability_evidence
 from cortex_bench_harness.launcher.credential_capabilities import (
@@ -208,7 +210,16 @@ def codex_request() -> LiveHandshakeRequest:
     )
 
 
-def run_codex_handshake(tmp_path: Path, upstream: str) -> Path:
+def run_codex_handshake(
+    tmp_path: Path, upstream: str, monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    key = capability_key_for(CODEX_CAPABILITY_ID)
+    rows = dict(CAPABILITY_REGISTRY)
+    rows[key] = replace(
+        rows[key], state="offline-contract-passed",
+        evidence_sha256="da3a6cbdafa52f395dda33721a157195bf021b8bf2878bcc34d7ec8bfd09179e",
+    )
+    monkeypatch.setattr(capabilities, "CAPABILITY_REGISTRY", rows)
     spec = handshake_spec(access_expires_at_ms=CODEX_EXPIRY_SECONDS * 1000)
     permit = issue_live_handshake_permit(
         capability_id=CODEX_CAPABILITY_ID, model=CODEX_MODEL,
@@ -416,7 +427,7 @@ def test_failed_provider_attempt_is_not_retried_or_promoted(
 
 
 def test_codex_53_byte_complete_upstream_refusal_is_attributed_to_proxy_accounting(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     assert len(TRUNCATED_SSE_53_BYTES) == 53
     with handshake_upstream(
@@ -431,7 +442,7 @@ def test_codex_53_byte_complete_upstream_refusal_is_attributed_to_proxy_accounti
                 "usage_accounting_unavailable"
             ),
         ) as raised:
-            run_codex_handshake(tmp_path, url)
+            run_codex_handshake(tmp_path, url, monkeypatch)
 
     assert len(upstream.requests) == 1  # type: ignore[attr-defined]
     forwarded = live_handshake._request_document(  # type: ignore[attr-defined]
@@ -447,7 +458,7 @@ def test_codex_53_byte_complete_upstream_refusal_is_attributed_to_proxy_accounti
 
 
 def test_codex_completed_sse_is_the_offline_gate_for_a_new_live_permit(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     event = {
         "type": "response.completed",
@@ -464,7 +475,7 @@ def test_codex_completed_sse_is_the_offline_gate_for_a_new_live_permit(
         body=body, headers={"content-type": "text/event-stream"},
     ) as upstream:
         path = run_codex_handshake(
-            tmp_path, f"http://127.0.0.1:{upstream.server_port}")
+            tmp_path, f"http://127.0.0.1:{upstream.server_port}", monkeypatch)
 
     evidence = json.loads(path.read_bytes())
     assert upstream.response_bytes_sent == len(body)  # type: ignore[attr-defined]

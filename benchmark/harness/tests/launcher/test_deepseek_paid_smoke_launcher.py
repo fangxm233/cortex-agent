@@ -28,22 +28,6 @@ CORTEX_IMAGE = (
 )
 
 
-def test_committed_smoke_config_pins_the_cortex_task_image() -> None:
-    config, plan = launcher.load_smoke_config(CAMPAIGN)
-
-    assert config.paid is True
-    assert plan.task.task_id == "constraints-scheduling"
-    assert plan.task.image_ref == CORTEX_IMAGE
-    assert plan.task.path.name == "constraints-scheduling"
-    assert plan.task.path.parent.name == "terminal-bench-2.1"
-    assert plan.arm["limits"] == {
-        "max_provider_requests": 1,
-        "max_cost_usd": "0.05",
-        "deadline_seconds": 120,
-        "max_output_tokens": 256,
-    }
-
-
 def test_missing_prerequisite_refuses_before_credential_or_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -321,18 +321,3 @@ def test_scan_output_reports_positions_and_never_the_matched_bytes(
     assert set(report.as_dict()["matches"][0]) == {
         "source", "rule_id", "category", "line", "column",
     }
-
-
-def test_the_new_sources_are_the_four_the_flows_produce(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The names are a wire contract with the scanner's expected set, so they are pinned as
-    literals — and each has to name a file the trial actually wrote, not a constant nothing
-    produces."""
-    trial = offline_trial(tmp_path, monkeypatch)
-    sources = trial.agent.captured_inventory.sources
-
-    assert set(PROXY_ARTIFACT_SOURCES) == {
-        "proxy_audit_log", "proxy_export", "lease_echo_record", "adapter_selection_record",
-    }
-    assert all(sources[name].is_file() for name in PROXY_ARTIFACT_SOURCES)

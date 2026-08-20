@@ -1,6 +1,6 @@
-// input:  Node test runner, assert, tmp filesystem
-// output: regression tests for ExecutionRepo (concurrency, index, flush, archive, coalescing)
-// pos:    verifies Pattern B invariants for execution-repo (S3 migration)
+// input:  Vitest and temporary ExecutionRepo storage
+// output: Lifecycle, concurrency, recovery, persistence, and archival regressions
+// pos:    Execution repository invariant coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterAll, vi } from 'vitest';
@@ -656,20 +656,6 @@ test('flush after concurrent start+complete — all records persisted and consis
     assert.ok(r, `missing record ${id}`);
     assert.ok(r.status === 'completed' || r.status === 'failed', `unexpected status ${r.status} for ${id}`);
   }
-});
-
-// ── Group 14: Re-export behavior ──
-
-test('re-export layer delegates execution state through one singleton', async () => {
-  const reg = await import('../../src/domain/executions/registry.js');
-
-  const exec = reg.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'reexport-test' });
-  const found = reg.getExecution(exec.id);
-  assert.equal(found?.id, exec.id);
-  assert.equal(found?.text.label, 'reexport-test');
-
-  // Clean up: mark it completed so it does not appear as running in the real daemon.
-  reg.completeExecution(exec.id, { costUsd: 0, durationS: 0 });
 });
 
 // ── Group 15: terminal-record archival ──

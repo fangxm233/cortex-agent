@@ -1,13 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
-import {
-  fmtConnectedZh,
-  machineCardVm,
-} from './mobile-machines-vm';
+import { machineCardVm } from './mobile-machines-vm';
 
 // Fixtures ──────────────────────────────────────────────────────────────────────────────────────
-
-const NOW = new Date('2026-07-10T12:00:00Z').getTime();
 
 function mk(p: Partial<MachineInfo> & { name: string }): MachineInfo {
   return {
@@ -23,47 +18,6 @@ function mk(p: Partial<MachineInfo> & { name: string }): MachineInfo {
     liveRuns: p.liveRuns ?? 0,
   };
 }
-
-// fmtConnectedZh ──────────────────────────────────────────────────────────────────────────────
-
-describe('fmtConnectedZh', () => {
-  it('returns — for null', () => {
-    expect(fmtConnectedZh(null, NOW)).toBe('—');
-  });
-
-  it('returns — for undefined', () => {
-    expect(fmtConnectedZh(undefined, NOW)).toBe('—');
-  });
-
-  it('returns — for unparseable string', () => {
-    expect(fmtConnectedZh('not-a-date', NOW)).toBe('—');
-  });
-
-  it('returns — when timestamp is in the future', () => {
-    const future = new Date(NOW + 60_000).toISOString();
-    expect(fmtConnectedZh(future, NOW)).toBe('—');
-  });
-
-  it('formats sub-60s as "Ns 前"', () => {
-    const iso = new Date(NOW - 30_000).toISOString();
-    expect(fmtConnectedZh(iso, NOW)).toBe('30s 前');
-  });
-
-  it('formats sub-60min as "Nm 前"', () => {
-    const iso = new Date(NOW - 5 * 60_000).toISOString();
-    expect(fmtConnectedZh(iso, NOW)).toBe('5m 前');
-  });
-
-  it('formats sub-24h as "Nh 前"', () => {
-    const iso = new Date(NOW - 3 * 3600_000).toISOString();
-    expect(fmtConnectedZh(iso, NOW)).toBe('3h 前');
-  });
-
-  it('formats 1+ days as "Nd 前"', () => {
-    const iso = new Date(NOW - 2 * 86400_000).toISOString();
-    expect(fmtConnectedZh(iso, NOW)).toBe('2d 前');
-  });
-});
 
 // machineCardVm ──────────────────────────────────────────────────────────────────────────────
 

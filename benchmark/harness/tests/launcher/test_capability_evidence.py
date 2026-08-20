@@ -135,25 +135,37 @@ def test_validates_shipped_claude_synthetic_evidence_and_supporting_observation(
     assert evidence["claude_code_version"] == "2.1.232"
 
 
-def test_validates_shipped_codex_zero_paid_evidence_suite() -> None:
+def test_validates_shipped_codex_live_and_preserved_zero_paid_evidence() -> None:
     import cortex_bench_harness.launcher.credential_capabilities as registry
 
     row = registry.CAPABILITY_REGISTRY[CODEX_KEY]
-    path = registry._evidence_path(row.id, row.state)
+    live_path = registry._evidence_path(row.id, row.state)
 
-    assert row.state == "offline-contract-passed"
+    assert row.state == "live-handshake-passed"
     assert row.evidence_sha256 is not None
-    evidence = validate_capability_evidence(
-        path, row.evidence_sha256, capability_id=row.id, key=CODEX_KEY, state=row.state,
+    live = validate_capability_evidence(
+        live_path, row.evidence_sha256, capability_id=row.id, key=CODEX_KEY, state=row.state,
         adapter_id="openai-codex-responses/oauth",
     )
-    validate_offline_supporting_artifacts(path.parent, evidence)
-    assert evidence["codex_cli_version"] == "0.148.0"
-    assert evidence["implementation_commit"] == CODEX_OFFLINE_CONTRACT[
+    assert live["codex_cli_version"] == "0.148.0"
+    assert live["implementation_commit"] == "8fad24e9c56ae5fef91a640516c094458824bbb9"
+    assert live["request_count"] == 1
+    assert live["scan_clean"] is True
+    assert live["revocation_proven"] is True
+
+    offline_path = registry._evidence_path(row.id, "offline-contract-passed")
+    offline = validate_capability_evidence(
+        offline_path,
+        "da3a6cbdafa52f395dda33721a157195bf021b8bf2878bcc34d7ec8bfd09179e",
+        capability_id=row.id, key=CODEX_KEY, state="offline-contract-passed",
+        adapter_id="openai-codex-responses/oauth",
+    )
+    validate_offline_supporting_artifacts(offline_path.parent, offline)
+    assert offline["implementation_commit"] == CODEX_OFFLINE_CONTRACT[
         "implementation_commit"
     ]
     assert {
-        field: evidence[field] for field in CODEX_PROOF_PATHS
+        field: offline[field] for field in CODEX_PROOF_PATHS
     } == {
         field: hashlib.sha256(source.read_bytes()).hexdigest()
         for field, source in CODEX_PROOF_PATHS.items()

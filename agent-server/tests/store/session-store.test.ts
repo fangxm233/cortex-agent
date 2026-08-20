@@ -146,7 +146,7 @@ test('session store migration dedups old-format duplicate session ids by latest 
   assert.equal((await repo.getById('sess-a'))?.lastUsedAt, '2025-06-01T00:00:00.000Z');
 });
 
-test('session store old-format migration backfills projectId from reverse channel map without sync fs io', async () => {
+test('session store old-format migration backfills projectId from reverse channel map', async () => {
   const { filePath, legacyPath } = nextPaths();
   const channelRegistryPath = path.join(STORE_DIR, 'channel-registry.json');
   const priorChannelRegistry = await readMaybe(channelRegistryPath);
@@ -160,8 +160,6 @@ test('session store old-format migration backfills projectId from reverse channe
     assert.equal(sessions[0]?.projectId, 'projMapped');
     assert.equal((await repo.getById('sess-a'))?.projectId, 'projMapped');
 
-    const source = await fs.readFile(new URL('../../src/store/session-registry-journal.ts', import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /\breadFileSync\b|\breaddirSync\b|\bstatSync\b|\bwriteFileSync\b/);
   } finally {
     if (priorChannelRegistry === null) await fs.rm(channelRegistryPath, { force: true });
     else await fs.writeFile(channelRegistryPath, priorChannelRegistry);

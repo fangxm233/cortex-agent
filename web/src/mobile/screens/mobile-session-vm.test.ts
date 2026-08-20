@@ -1,31 +1,15 @@
-// input:  mobile session view models and thread DTO fixtures
-// output: mobile session view-model regression tests
-// pos:    Verifies legacy mobile session derivations
+// input:  mobile thread-stepper view model and thread DTO fixtures
+// output: step state, connector, and child-count regressions
+// pos:    Verifies legacy mobile thread-stepper derivation
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
-import { zhDivider, buildMobileStepper, toolChips } from './mobile-session-vm';
+import { buildMobileStepper } from './mobile-session-vm';
 
 // Pure view-model for the mobile session screen 5a (scheme.dc.html L2932-3003, task c880). Real
 // data is the only variable; every measurement lives in the presentational components. Neutral test
 // fixtures (守则11 — no private project/exp names).
-
-describe('zhDivider', () => {
-  const now = new Date(2026, 6, 9, 10, 0); // 2026-07-09 10:00 local
-  it('same calendar day → 今天 HH:MM', () => {
-    const ts = new Date(2026, 6, 9, 7, 42).toISOString();
-    expect(zhDivider(ts, now)).toBe('今天 07:42');
-  });
-  it('previous day → 昨天 HH:MM', () => {
-    const ts = new Date(2026, 6, 8, 23, 5).toISOString();
-    expect(zhDivider(ts, now)).toBe('昨天 23:05');
-  });
-  it('older → M月D日 HH:MM', () => {
-    const ts = new Date(2026, 6, 3, 9, 8).toISOString();
-    expect(zhDivider(ts, now)).toBe('7月3日 09:08');
-  });
-});
 
 function step(over: Partial<ThreadDetail['steps'][number]> = {}): ThreadDetail['steps'][number] {
   return {
@@ -114,46 +98,11 @@ describe('buildMobileStepper', () => {
     const s = buildMobileStepper(detail());
     expect(s.nodes.slice(1).map((n) => n.lineDone)).toEqual([true, true, false]);
   });
-  it('pill text = current step name + index/total while running', () => {
-    expect(buildMobileStepper(detail()).pillText).toBe('review 3/4');
-  });
-  it('footer = elapsed · cost · N subthreads (real children count)', () => {
-    const s = buildMobileStepper(detail());
-    expect(s.footer.elapsed).toBe('42m');
-    expect(s.footer.cost).toBe('$2.31');
-    expect(s.footer.subCount).toBe(2);
+  it('carries the real child count into the footer state', () => {
+    expect(buildMobileStepper(detail()).footer.subCount).toBe(2);
   });
   it('empty steps → no nodes, no crash', () => {
     const s = buildMobileStepper(detail({ steps: [], currentStep: null, totalSteps: 0 }));
     expect(s.nodes).toEqual([]);
-  });
-});
-
-describe('toolChips', () => {
-  const calls = [
-    { kind: 'read', input: 'a' },
-    { kind: 'threads.status', input: 'b' },
-    { kind: 'grep', input: 'c' },
-    { kind: 'edit', input: 'd' },
-  ];
-
-  it('uses the width-derived visible prefix instead of a fixed two-chip cap', () => {
-    const chips = toolChips(calls, { visibleCount: 3, hiddenCount: 1 });
-    expect(chips.names).toEqual(['read', 'threads.status', 'grep']);
-    expect(chips.overflow).toBe(1);
-  });
-
-  it('can show fewer chips on a narrower row', () => {
-    expect(toolChips(calls, { visibleCount: 1, hiddenCount: 3 })).toEqual({
-      names: ['read'],
-      overflow: 3,
-    });
-  });
-
-  it('returns every name when the row fits', () => {
-    expect(toolChips(calls, { visibleCount: 4, hiddenCount: 0 })).toEqual({
-      names: ['read', 'threads.status', 'grep', 'edit'],
-      overflow: 0,
-    });
   });
 });

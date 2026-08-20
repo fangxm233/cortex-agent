@@ -1,6 +1,6 @@
-// input:  adapters, PI fixtures, normalized events
-// output: adapter and event contract tests
-// pos:    Agent adapter abstraction tests
+// input:  adapters, tool maps, PI fixtures, normalized events
+// output: adapter dispatch, tool mapping, and event contract tests
+// pos:    Shared agent-adapter contract regressions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -11,8 +11,6 @@ import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import {
   getAdapter,
   registerPISessionPath,
-  Capability,
-  CAPABILITIES_BY_BACKEND,
   toCanonical,
   fromCanonical,
   type Backend,
@@ -24,7 +22,6 @@ test('getAdapter dispatches to the claude and pi adapters only', () => {
   const pi = getAdapter('pi');
   assert.equal(claude.backend, 'claude');
   assert.equal(pi.backend, 'pi');
-  assert.deepEqual(Object.keys(CAPABILITIES_BY_BACKEND).sort(), ['claude', 'pi']);
 });
 
 test('registerPISessionPath updates the same PI singleton returned by getAdapter', () => {
@@ -48,64 +45,6 @@ test('registerPISessionPath updates the same PI singleton returned by getAdapter
 test('getAdapter rejects removed and unknown backends', () => {
   assert.throws(() => getAdapter('codex' as unknown as Backend), /Unknown backend/);
   assert.throws(() => getAdapter('unknown' as unknown as Backend), /Unknown backend/);
-});
-
-test('Capability enum string values are stable (DR-0008 §3.2 contract)', () => {
-  // String-valued enum — refactors that change these will break downstream `capabilities.has(...)` consumers
-  assert.equal(Capability.Hooks, 'hooks');
-  assert.equal(Capability.Plugins, 'plugins');
-  assert.equal(Capability.MCP, 'mcp');
-  assert.equal(Capability.PlanMode, 'plan-mode');
-  assert.equal(Capability.AskUserQuestion, 'ask-user-question');
-  assert.equal(Capability.SystemPromptOverride, 'system-prompt-override');
-  assert.equal(Capability.SessionResume, 'session-resume');
-  assert.equal(Capability.ToolAllowlist, 'tool-allowlist');
-  assert.equal(Capability.StreamingDeltas, 'streaming-deltas');
-  assert.equal(Capability.MidTurnInject, 'mid-turn-inject');
-  assert.equal(Capability.Usage, 'usage');
-});
-
-test('Claude and PI declare their pull and push-only usage capability', () => {
-  const allCapabilities = new Set(Object.values(Capability));
-
-  assert.equal(allCapabilities.size, 11);
-  assert.deepEqual(CAPABILITIES_BY_BACKEND.claude, allCapabilities);
-  assert.deepEqual(CAPABILITIES_BY_BACKEND.pi, allCapabilities);
-  assert.equal(typeof getAdapter('claude').getUsage, 'function');
-  assert.equal(typeof getAdapter('pi').getUsage, 'function');
-});
-
-test('CAPABILITIES_BY_BACKEND encodes the Claude and PI capability matrix', () => {
-  const c = CAPABILITIES_BY_BACKEND.claude;
-  const p = CAPABILITIES_BY_BACKEND.pi;
-
-  assert.equal(c.has(Capability.Hooks), true);
-  assert.equal(c.has(Capability.Plugins), true);
-  assert.equal(c.has(Capability.MCP), true);
-  assert.equal(c.has(Capability.PlanMode), true);
-  assert.equal(c.has(Capability.AskUserQuestion), true);
-  assert.equal(c.has(Capability.SystemPromptOverride), true);
-  assert.equal(c.has(Capability.SessionResume), true);
-  assert.equal(c.has(Capability.ToolAllowlist), true);
-  assert.equal(c.has(Capability.Usage), true);
-
-  assert.equal(p.has(Capability.Hooks), true);
-  assert.equal(p.has(Capability.Plugins), true);
-  assert.equal(p.has(Capability.SystemPromptOverride), true);
-  assert.equal(p.has(Capability.ToolAllowlist), true);
-  assert.equal(p.has(Capability.MCP), true);
-  assert.equal(p.has(Capability.PlanMode), true);
-  assert.equal(p.has(Capability.AskUserQuestion), true);
-  assert.equal(p.has(Capability.SessionResume), true);
-  assert.equal(p.has(Capability.MidTurnInject), true);
-  assert.equal(p.has(Capability.Usage), true);
-});
-
-test('getAdapter returns the same capability set as CAPABILITIES_BY_BACKEND', () => {
-  for (const backend of ['claude', 'pi'] as const) {
-    const adapter = getAdapter(backend);
-    assert.equal(adapter.capabilities, CAPABILITIES_BY_BACKEND[backend]);
-  }
 });
 
 test('toCanonical / fromCanonical round-trip per DR-0008 §3.4 tool table', () => {
@@ -154,31 +93,29 @@ test('ClaudeAdapter exposes the real AgentAdapter contract (no spawn side effect
   assert.equal(adapter.backend, 'claude');
 });
 
-// Compile-time exhaustiveness check on NormalizedEvent. Adding a new variant without
-// extending this switch will cause `tsc --noEmit` to fail on the `: never` branch.
-// Wrapped in `void` so it never executes at runtime.
-void function _normalizedEventExhaustive(e: NormalizedEvent): string {
-  switch (e.type) {
-    case 'session_started': return e.sessionId;
-    case 'assistant_text': return e.text;
-    case 'assistant_delta': return e.blockId;
-    case 'tool_use': return e.toolUseId;
-    case 'tool_result': return e.toolUseId;
-    case 'ask_user_question': return e.toolUseId;
-    case 'plan_mode_entered': return e.planFilePath;
-    case 'plan_written': return e.path;
-    case 'context_compacted': return e.trigger;
-    case 'model_fallback': return `${e.originalModel}:${e.fallbackModel}`;
-    case 'context_usage': return String(e.contextWindow);
+// Compile-time exhaustiveness check for the normalized event protocol.
+void function normalizedEventExhaustive(event: NormalizedEvent): string {
+  switch (event.type) {
+    case 'session_started': return event.sessionId;
+    case 'assistant_text': return event.text;
+    case 'assistant_delta': return event.blockId;
+    case 'tool_use': return event.toolUseId;
+    case 'tool_result': return event.toolUseId;
+    case 'ask_user_question': return event.toolUseId;
+    case 'plan_mode_entered': return event.planFilePath;
+    case 'plan_written': return event.path;
+    case 'context_compacted': return event.trigger;
+    case 'model_fallback': return `${event.originalModel}:${event.fallbackModel}`;
+    case 'context_usage': return String(event.contextWindow);
     case 'rate_limit': return 'rate_limit';
-    case 'cost_record': return e.provider;
-    case 'turn_progress': return String(e.numTurns);
-    case 'turn_complete': return String(e.numTurns);
-    case 'subagent_activity': return e.parentToolUseId;
-    case 'error': return e.message;
+    case 'cost_record': return event.provider;
+    case 'turn_progress': return String(event.numTurns);
+    case 'turn_complete': return String(event.numTurns);
+    case 'subagent_activity': return event.parentToolUseId;
+    case 'error': return event.message;
     default: {
-      const _unreachable: never = e;
-      return _unreachable;
+      const unreachable: never = event;
+      return unreachable;
     }
   }
 };

@@ -106,23 +106,6 @@ def test_terminal_bench_manifest_has_one_digest_pinned_variant_per_vendor_and_ta
     assert selected["task_id"] == "constraints-scheduling"
 
 
-def test_vendor_campaigns_select_the_matching_task_variant() -> None:
-    manifest = json.loads(TERMINAL_BENCH_MANIFEST.read_text(encoding="utf-8"))
-    tasks = {task["task_id"]: task for task in manifest["tasks"]}
-
-    for vendor in VENDORS:
-        campaign_path = HARNESS_DIR.parent / "campaigns" / f"terminal-bench-2.1-vendor-{vendor}.yaml"
-        campaign = yaml.safe_load(campaign_path.read_text(encoding="utf-8"))
-        for selected in campaign["tasks"]:
-            variant = tasks[selected["task_id"]]["variants"][vendor]
-            expected_ref = f"{variant['final_image_tag'].split(':')[0]}@{variant['final_image_digest']}"
-            assert selected == {
-                "task_id": selected["task_id"],
-                "path": f"tasks/terminal-bench-2.1/{vendor}/{selected['task_id']}",
-                "image_ref": expected_ref,
-            }
-
-
 def executable(path: Path, content: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")

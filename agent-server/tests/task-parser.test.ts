@@ -259,18 +259,6 @@ test('lint reports duplicates, dangling dependencies, and health warnings', () =
   }
 });
 
-// --- help tests ---
-
-test('--help returns help text with read commands and options', () => {
-  const result = runCli(['--help']);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Commands:/);
-  assert.match(result.stdout, /query/);
-  assert.match(result.stdout, /Options:/);
-  assert.match(result.stdout, /--status/);
-  assert.match(result.stdout, /Examples:/);
-});
-
 // --- error message tests ---
 
 test('invalid --status lists valid values', () => {

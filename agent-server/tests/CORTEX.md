@@ -21,11 +21,11 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP gates, surfaces, env and retry policy |
 | agent-adapter-pi-quota-probe.test.ts | test | PI quota labels, persistence, and throttle failure parity |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
-| agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
+| agent-adapter-pi-subagent.test.ts | test | PI role schema, execution isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
-| agent-adapter-pi.test.ts | test | PI spawn auth inheritance, isolation, resume and lifecycle |
-| agent-adapter.test.ts | test | adapter dispatch, events and usage capabilities |
+| agent-adapter-pi.test.ts | test | PI spawn env, provider discovery, RPC lifecycle and resume |
+| agent-adapter.test.ts | test | adapter dispatch, tool mapping and event contracts |
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
 | auth-events.test.ts | test | auth case, boundary, privacy and recovery events |
@@ -38,8 +38,8 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | benchmark-cli-artifact-stub | fixture | Frozen CLI golden fixture |
 | benchmark-policy-system-prompt.txt | fixture | Pins representative compiled policy prompt bytes |
 | claim-recovery.test.ts | test | Generation-fenced orphan claim recovery |
-| cli-utils.test.ts | test | shared CLI help and error rendering |
-| cli.test.ts | test | cortex CLI routing, output framing and size limit |
+| cli-utils.test.ts | test | shared CLI error rendering |
+| cli.test.ts | test | cortex CLI routing, auth JSON framing and daemon control |
 | client-hot-reload.test.ts | test | local cortex-client release update flow |
 | client-manager.test.ts | test | client lifecycle hooks, auth and commands |
 | codex-quota.test.ts | test | Codex quota headers and the notice wire form |
@@ -55,9 +55,8 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | cortex-run-callback-handler.test.ts | test | Remote callback generation and state-first fencing |
 | cortex-run-cli-dispatch.test.ts | test | Cortex-run parsing and unowned linkage rejection |
 | daemon.test.ts | test | daemon import, rebuild and abort notice behavior |
-| disk-monitor.test.ts | test | disk path, toggle, alerts and byte formatting |
+| disk-monitor.test.ts | test | disk path, hot toggle and alert decisions |
 | dispatch-utils-watcher.test.ts | test | machine config polling after watcher failure |
-| dispatch-utils.test.ts | test | device registry, task id and session names |
 | domain/ | subdir | domain service, agent-run, MCP and UI tests |
 | entry/ | subdir | Runtime wiring and CLI entry-point tests |
 | events/ | subdir | event bus tests |
@@ -102,10 +101,9 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | module-loader.ts | helper | fresh ESM import and root path helpers |
 | orch/ | subdir | orchestration runtime and session flow tests |
 | orchestration/ | subdir | session compact, rewind and coalescer tests |
-| output-stream.test.ts | test | Slack, Feishu and mock output streams |
+| output-stream.test.ts | test | Slack and Feishu batching, retries and mutable regions |
 | pi-cost-record.test.ts | test | PI per-run cost recording end to end |
 | platform/ | subdir | platform adapters and UI HTTP transport tests |
-| platform-mock-adapter.test.ts | test | Mock contract and nullable admin routing |
 | preferences.test.ts | test | operator display preferences store |
 | project-store.test.ts | test | project lookup, task scaffolding and cache |
 | rate-limit-throttle.test.ts | test | exact window policy, committed views, and queued expiry retries |
@@ -157,7 +155,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |
 | thread-callback-tree.test.ts | test | safe child results and parent re-entry |
-| thread-coder-review.e2e.test.ts | e2e | Coder-review stages and commit policy |
+| thread-coder-review.e2e.test.ts | e2e | Coder-to-reviewer transitions and step sequencing |
 | thread-contract.test.ts | test | delegation contracts and budget breaker |
 | thread-extra-hooks.test.ts | test | Covers lifecycle isolation and per-call HookBus routing |
 | thread-ledger-dedupe.test.ts | test | child dedupe across runs and same-ID reissues |
@@ -174,7 +172,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | thread-wait-deadlock.test.ts | test | stuck wait-set detection and wake |
 | thread-wait-tasks.test.ts | test | manager suspension on child tasks |
 | threads/ | subdir | thread config, template and transcript tests |
-| tool-trace.test.ts | test | tool trace rendering with settings reset |
+| tool-trace.test.ts | test | tool-trace gating, grouping, ordering and flush |
 | tui/ | subdir | TUI rendering, hooks and protocol tests |
 | ui-service-compact.test.ts | test | session compact mutation outcome mapping |
 | update-prompt-slack.test.ts | test | Slack update prompt buttons and timeout |

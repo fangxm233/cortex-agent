@@ -12,7 +12,6 @@ Non-previewable types fall back to an authenticated download; also owns the dock
 | pinned-preview.ts | core | Parses pin state and routes preview items |
 | pinned-preview.test.ts | test | Unit tests for the pinned preview model |
 | media-kind.ts | util | Maps an attachment type to image, video or none |
-| media-kind.test.ts | test | Unit tests for the media kind classifier |
 | doc-kind.ts | util | Classifies a name or type as pdf, text or none |
 | doc-kind.test.ts | test | Unit tests for the document kind classifier |
 | pdf-worker.ts | util | Lazily loads the PDF engine with its worker |

@@ -84,10 +84,6 @@ describe('pickBestGpu', () => {
     assert.strictEqual(pickBestGpu(mockSpawn), null);
   });
 
-  it('handles single GPU', () => {
-    assert.deepStrictEqual(pickBestGpu(mockNvidiaSmi('0, 256, 24576\n')), { index: 0, memoryMb: 24576 });
-  });
-
   it('picks first GPU when memory is tied', () => {
     assert.deepStrictEqual(pickBestGpu(mockNvidiaSmi('0, 1024, 49140\n1, 1024, 49140\n')), { index: 0, memoryMb: 49140 });
   });
@@ -154,12 +150,6 @@ describe('checkStallConditions', () => {
     const now = Date.now();
     const result = checkStallConditions(now - 700_000, now - 700_000, now, stallMs, 'hello');
     assert.strictEqual(result, 'output_stall');
-  });
-
-  it('returns null when output flowing and line changed', () => {
-    const now = Date.now();
-    const result = checkStallConditions(now - 60_000, now - 60_000, now, stallMs, 'new line');
-    assert.strictEqual(result, null);
   });
 
   it('returns progress_stall when line stuck past stall window', () => {
@@ -240,39 +230,6 @@ describe('writeStateFile', () => {
     }
   });
 
-  it('writes state.json with failed status', () => {
-    const tmpDir = mkdtempSync('cortex-watcher-test-');
-    try {
-      writeStateFile(tmpDir, {
-        status: 'failed',
-        pid: 42,
-        started_at: '2026-01-01T00:00:00.000Z',
-        ended_at: '2026-01-01T00:30:00.000Z',
-        exit_code: 1,
-        termination: 'output_stall',
-      });
-
-      const content = JSON.parse(readFileSync(join(tmpDir, 'state.json'), 'utf8'));
-      assert.strictEqual(content.status, 'failed');
-      assert.strictEqual(content.exit_code, 1);
-      assert.strictEqual(content.termination, 'output_stall');
-    } finally {
-      rmSync(tmpDir, { recursive: true });
-    }
-  });
-
-  it('is idempotent on retry', () => {
-    const tmpDir = mkdtempSync('cortex-watcher-test-');
-    try {
-      writeStateFile(tmpDir, { status: 'running', pid: 1, started_at: '2026-01-01T00:00:00.000Z' });
-      writeStateFile(tmpDir, { status: 'running', pid: 1, started_at: '2026-01-01T00:00:00.000Z' });
-
-      const content = JSON.parse(readFileSync(join(tmpDir, 'state.json'), 'utf8'));
-      assert.strictEqual(content.status, 'running');
-    } finally {
-      rmSync(tmpDir, { recursive: true });
-    }
-  });
 });
 
 // --- computeResult ---

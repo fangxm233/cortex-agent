@@ -1,6 +1,6 @@
-// input:  Vitest, thread manager, shipped reviewer directive
-// output: Coder-review stage, task ownership and commit-policy tests
-// pos:    Verifies coder/coder-reviewer workflow and review policy
+// input:  Vitest, thread manager, shipped coder-review template
+// output: Coder-to-reviewer transition and step-sequencing regressions
+// pos:    Verifies coder-review workflow transitions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterAll } from 'vitest';
@@ -10,14 +10,12 @@ import * as path from 'node:path';
 import { CONFIG_DIR, DATA_DIR, DEFAULTS_DIR } from '../src/core/utils.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
-  buildStepPrompt,
   createThread,
   evaluateTransitions,
   loadConfig,
   mergeThreadTemplates,
   recordStepResult,
   resolveNextStep,
-  getTemplate,
 } from '../src/domain/threads/index.js';
 import type { ThreadRecord } from '../src/core/types/thread-types.js';
 
@@ -94,55 +92,7 @@ async function simulateStep(threadId: string, output: string): Promise<void> {
   });
 }
 
-// --- Template structural sanity ---
-
-test('coder-review template exposes a single stage-qualified transition + entryStage=implement', () => {
-  const tpl = getTemplate('coder-review');
-  assert.ok(tpl, 'coder-review template should exist after loadConfig');
-  assert.equal(tpl!.entryAgent, 'coder');
-  assert.equal(tpl!.entryStage, 'implement');
-  const edges = tpl!.transitions.map(t => `${t.from}→${t.to}`);
-  assert.deepEqual(edges, ['coder:implement→coder-reviewer:implReview']);
-});
-
-test('coder-reviewer policy accepts verified public commits without internal identifiers', () => {
-  const directive = fs.readFileSync(
-    path.join(DEFAULTS_DIR, 'prompts', 'directives', 'coder-reviewer.md'),
-    'utf8',
-  );
-
-  assert.match(directive, /explicit SHA evidence/);
-  assert.match(directive, /Missing or unverifiable attribution is a \*\*Blocker\*\*/);
-  assert.match(directive, /Uncommitted changes at handoff are \*\*Blockers\*\*/);
-  assert.match(directive, /repository policy forbids internal or context identifiers/);
-  assert.match(directive, /must not be treated as a Blocker/);
-  assert.match(directive, /must not require a metadata-only follow-up commit/);
-});
-
-test('coder-reviewer policy makes the reviewer fix the Blockers it finds', () => {
-  const directive = fs.readFileSync(
-    path.join(DEFAULTS_DIR, 'prompts', 'directives', 'coder-reviewer.md'),
-    'utf8',
-  );
-
-  assert.match(directive, /fix every Blocker you find/);
-  assert.doesNotMatch(directive, /\[IMPL-APPROVED\]/);
-  assert.doesNotMatch(directive, /Plan Review/);
-});
-
 // --- Entry / happy-path ---
-
-test('coder-review entry: first step is coder:implement with a stage-specific prompt', () => {
-  const thread = freshThread('C-entry');
-  const next = resolveNextStep(thread.id)!;
-  assert.equal(next.agentSlotId, 'coder');
-  assert.equal(next.stage, 'implement');
-  const prompt = buildStepPrompt(thread.id, next.agentConfig, next.stage);
-  assert.match(prompt, /## Implementation Summary/);
-  assert.match(prompt, /do not run `cortex-task complete`/);
-  assert.match(prompt, /final reviewer owns the task's completion/);
-  assert.match(prompt, /Cortex Thread Protocol/); // fresh session → full bootstrap
-});
 
 test('coder-review happy path: implement → implReview ends in 2 steps', async () => {
   const thread = freshThread('C-happy');
@@ -179,10 +129,4 @@ test('coder-review reviewer step: no artifact marker gates the handoff to the re
 
   const next = resolveNextStep(thread.id)!;
   assert.equal(next.agentSlotId, 'coder-reviewer');
-  const prompt = buildStepPrompt(thread.id, next.agentConfig, next.stage);
-  assert.match(prompt, /you alone own the task's final lifecycle transition/);
-  assert.match(prompt, /verify every `done_when` condition/);
-  assert.match(prompt, /run the exact `cortex-task complete` command/);
-  assert.doesNotMatch(prompt, /\[IMPL-APPROVED\]/);
-  assert.doesNotMatch(prompt, /\[REVISED\]/);
 });

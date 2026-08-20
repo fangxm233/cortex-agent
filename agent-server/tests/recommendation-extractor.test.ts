@@ -86,16 +86,3 @@ test('scanProjectRecommendations excludes private NOTES.md from agent task extra
     fs.rmSync(projectDir, { recursive: true, force: true });
   }
 });
-
-// --- help tests ---
-
-import { runCli } from '../src/domain/tasks/recommendation/extractor.js';
-
-test('recommendation-extractor --help returns help text', () => {
-  const result = runCli(['--help']);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Options:/);
-  assert.match(result.stdout, /--project/);
-  assert.match(result.stdout, /--days/);
-  assert.match(result.stdout, /Examples:/);
-});

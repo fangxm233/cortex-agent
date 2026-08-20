@@ -15,17 +15,15 @@ Interactive parts wrap Radix for accessibility; pure modules hold the tested sta
 | Tabs.tsx | core | Tab set as data-driven form and styled parts |
 | Tooltip.tsx | core | Hover tooltip plus its provider export |
 | Modal.tsx | core | Accessible dialog with hidden descriptions and layers |
-| Modal.test.ts | test | Tests nested dialog stacking order |
 | Drawer.tsx | core | Side sheet dialog anchored left or right |
 | Popover.tsx | core | Anchored popover panel with arrow |
 | Select.tsx | core | Compact accessible profile-styled selection menu |
-| Select.test.tsx | test | Tests value mapping, option states and call-site sizing |
+| Select.test.tsx | test | Tests typed value mapping, trigger metadata and option states |
 | controls.ts | util | Shared heights for mixed select, input and button rows |
 | Toast.tsx | provider | Toast context, viewport and imperative hook |
 | EmptyState.tsx | core | Centered empty placeholder with optional action |
 | DegradedState.tsx | core | Degraded or exception status card |
 | tone.ts | util | Maps contract status strings to five tones |
-| tone.test.ts | test | Unit tests for status-to-tone mapping |
 | degraded.ts | util | Maps degraded severities to pill tones |
 | toast-store.ts | util | Toast queue add and remove with a max cap |
 | toast-store.test.ts | test | Unit tests for the toast queue |

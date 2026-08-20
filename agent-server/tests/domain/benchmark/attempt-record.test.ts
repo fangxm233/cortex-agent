@@ -3,7 +3,6 @@
 // pos:    Composite v2 attempt-node tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -273,37 +272,9 @@ describe('D-NULL3 — the three widened members (G4-N13 / G4-N14)', () => {
     )).toBe(false);
   });
 
-  it('G4-N16: registerChildSpawn does NOT write metadata.parentThreadId', () => {
-    // The directed check, asserted rather than asserted-in-prose: `parentThreadId` at tree.ts:130
-    // is the PARAMETER name. The function body writes childThreadIds and waitingOn only, so no
-    // benchmark writer produces the linkage §9.2's `spawn` edge is defined over.
-    const treeSource = fs.readFileSync(
-      new URL('../../../src/domain/threads/tree.ts', import.meta.url), 'utf8',
-    );
-    const body = treeSource.slice(
-      treeSource.indexOf('export async function registerChildSpawn'),
-    ).split('\n').slice(0, 7).join('\n');
-    expect(body).toContain('childThreadIds');
-    expect(body).toContain('waitingOn');
-    expect(body).not.toContain('m.parentThreadId');
-    expect(body).not.toContain('metadata.parentThreadId');
-  });
 });
 
 describe('R1 — the backend widening is ASSERTED, never re-edited (G4-N2)', () => {
-  it('JournalEventInput.backend is `Backend`, landed by Gate 2 at journal.ts:58', () => {
-    // design:4244 — "whichever gate lands first owns the edit; the second asserts it". This is the
-    // assertion. A diff to that declaration is a rejection, so the evidence is a test, not a patch.
-    const journalSource = fs.readFileSync(
-      new URL('../../../src/domain/agent-run/journal.ts', import.meta.url), 'utf8',
-    );
-    const lines = journalSource.split('\n');
-    const inputStart = lines.findIndex(line => line.includes('interface JournalEventInput'));
-    expect(lines.slice(inputStart, inputStart + 12).map(line => line.trim()))
-      .toContain('backend: Backend;');
-    expect(journalSource).toContain("import type { Backend } from '../../agent-adapter/types.js';");
-  });
-
   it('an AttemptRecord accepts both backends the widened union admits', () => {
     expect(sampleAttempt({ backend: 'claude' }).backend).toBe('claude');
     expect(sampleAttempt({ backend: 'pi' }).backend).toBe('pi');

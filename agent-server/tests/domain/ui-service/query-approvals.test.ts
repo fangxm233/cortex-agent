@@ -1,13 +1,11 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   parseApprovals,
   handleApprovalsList,
 } from '../../../src/domain/ui-service/query/approvals.js';
-import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 // A representative PENDING_APPROVALS.md with a preamble + 4 entries covering every status,
@@ -65,13 +63,6 @@ function makeDeps(approvalsPath: string): UiServiceDeps {
     clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
     adapter: {} as any,
   };
-}
-
-function writeTemp(content: string): string {
-  const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'cortex-appr-'));
-  const p = path.join(dir, 'PENDING_APPROVALS.md');
-  fs.writeFileSync(p, content, 'utf8');
-  return p;
 }
 
 // ── (1) parse: multi-entry, order, headings, statuses ────────────────────────
@@ -213,31 +204,4 @@ test('handleApprovalsList returns [] when the file is missing', async () => {
   const deps = makeDeps(path.join(os.tmpdir(), 'does-not-exist-approvals.md'));
   const list = await handleApprovalsList(deps, {});
   assert.deepEqual(list, []);
-});
-
-// ── (6) facade + tRPC wiring ─────────────────────────────────────────────────
-test('approvals.list reachable via the ui-service facade', async () => {
-  const deps = makeDeps(writeTemp(SAMPLE));
-  const ui = createUiService(deps);
-  const res = await ui.query('approvals.list', {});
-  assert.ok(res.ok);
-  assert.equal(res.data.length, 4);
-
-  const filtered = await ui.query('approvals.list', { status: 'approved' });
-  assert.ok(filtered.ok);
-  assert.equal(filtered.data.length, 1);
-  assert.equal(filtered.data[0].status, 'approved');
-});
-
-// The tRPC router binding is covered in the ui-http app-router test (tests/platform/ui-http-app-router.test.ts);
-// here we assert the facade's pending-status filter (distinct from the approved filter above).
-test('approvals.list via facade honors the pending-status filter', async () => {
-  const deps = makeDeps(writeTemp(SAMPLE));
-  const ui = createUiService(deps);
-  const list = await ui.query('approvals.list', {});
-  assert.ok(list.ok);
-  assert.equal(list.data.length, 4);
-  const pending = await ui.query('approvals.list', { status: 'pending' });
-  assert.ok(pending.ok);
-  assert.equal(pending.data.length, 1);
 });

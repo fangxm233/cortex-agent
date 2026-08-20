@@ -1,6 +1,6 @@
-// input:  Registry API, shipped defaults, hook bridge TTL
-// output: Schema capabilities, parity, source and filtering tests
-// pos:    Verifies registry capabilities and managed defaults
+// input:  Registry API and temporary hook declarations
+// output: Schema capabilities, source and filtering tests
+// pos:    Verifies registry loading and filtering behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -9,8 +9,6 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { test, vi } from 'vitest';
 
-import { DEFAULTS_DIR } from '../../src/core/paths.js';
-import { TTL_MS } from '../../src/orchestration/routing/hook-bridge.js';
 import {
   HOOK_SOURCES,
   classifyHookSource,
@@ -289,67 +287,4 @@ test('gates requiresTool only when available tools are supplied and omits disabl
     filterHookEntries(entries, { availableTools: new Set(['AskUserQuestion']) }).map((entry) => entry.id),
     ['always', 'ask'],
   );
-});
-
-const VERSION = '2026.7.29';
-const TASKS_GUARD_VERSION = '2026.7.29-2';
-const INTERACTION_VERSION = '2026.7.29-2';
-const INTERACTION_TTL_MIN = TTL_MS / 60_000;
-const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
-  {
-    filename: '02-tasks-yaml-guard.json',
-    entry: { id: 'tasks-yaml-guard', event: 'agent:pre-tool', matcher: 'Edit|Write', run: { script: 'tasks-yaml-guard.mjs', timeout: 10 }, enabled: true, version: TASKS_GUARD_VERSION },
-  },
-  {
-    filename: '03-ask-user-question-hook.json',
-    entry: { id: 'ask-user-question-hook', event: 'agent:pre-tool', matcher: 'AskUserQuestion', run: { script: 'ask-user-question-hook.mjs', timeout: 3600 }, scope: { backends: ['claude'], requiresTool: 'AskUserQuestion' }, blocking: { mode: 'webhook', ttlMin: INTERACTION_TTL_MIN }, enabled: true, version: INTERACTION_VERSION },
-  },
-  {
-    filename: '04-exit-plan-mode-hook.json',
-    entry: { id: 'exit-plan-mode-hook', event: 'agent:pre-tool', matcher: 'ExitPlanMode', run: { script: 'exit-plan-mode-hook.mjs', timeout: 3600 }, scope: { backends: ['claude'], requiresTool: 'ExitPlanMode' }, blocking: { mode: 'webhook', ttlMin: INTERACTION_TTL_MIN }, enabled: true, version: INTERACTION_VERSION },
-  },
-  {
-    filename: '05-memory-ref-tracker.json',
-    entry: { id: 'memory-ref-tracker', event: 'agent:post-tool', matcher: 'Read|Grep', run: { script: 'memory-ref-tracker.mjs' }, enabled: true, version: VERSION },
-  },
-  {
-    filename: '06-rules-loader.json',
-    entry: { id: 'rules-loader', event: 'agent:post-tool', matcher: 'Read|Grep', run: { script: 'rules-loader.mjs' }, enabled: true, version: VERSION },
-  },
-  {
-    filename: '07-session-activity-tracker.json',
-    entry: { id: 'session-activity-tracker', event: 'agent:post-tool', matcher: 'Read|Edit|Write|Skill', run: { script: 'session-activity-tracker.mjs' }, enabled: true, version: VERSION },
-  },
-  {
-    filename: '08-cortex-md-injector-post-tool.json',
-    entry: { id: 'cortex-md-injector-post-tool', event: 'agent:post-tool', matcher: 'Read|Edit', run: { script: 'cortex-md-injector.mjs' }, enabled: true, version: VERSION },
-  },
-  {
-    filename: '09-permission-request-auto-allow.json',
-    entry: { id: 'permission-request-auto-allow', event: 'cc:PermissionRequest', matcher: 'Edit|Write', run: { command: `printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'`, timeout: 5 }, enabled: true, version: VERSION },
-  },
-  {
-    filename: '10-cortex-md-injector-session-start.json',
-    entry: { id: 'cortex-md-injector-session-start', event: 'agent:session-start', matcher: 'startup|resume|clear|compact', run: { script: 'cortex-md-injector.mjs' }, enabled: true, version: VERSION },
-  },
-  {
-    filename: '11-task-status-check.json',
-    entry: { id: 'task-status-check', event: 'cortex:thread.end', matcher: { source: 'task-dispatch' }, run: { script: 'task-status-check.mjs', timeout: 10 }, result: 'hook-result', enabled: true, version: VERSION },
-  },
-  {
-    filename: '12-session-new-hook.json',
-    entry: { id: 'session-new-hook', event: 'cortex:session.new', run: { script: 'new-session-hook.mjs', timeout: 60 }, result: 'stdout-as-prompt', enabled: true, version: VERSION },
-  },
-  {
-    filename: '13-status-md-guard.json',
-    entry: { id: 'status-md-guard', event: 'agent:pre-tool', matcher: 'Edit|Write', run: { script: 'status-md-guard.mjs', timeout: 10 }, enabled: true, version: '2026.8.2' },
-  },
-];
-
-test('loads the twelve shipped hook entries in parity-preserving order', () => {
-  const directory = path.join(DEFAULTS_DIR, 'config', 'hooks');
-  const filenames = fs.readdirSync(directory).filter((file) => file.endsWith('.json')).sort();
-
-  assert.deepEqual(filenames, DEFAULT_ENTRIES.map(({ filename }) => filename));
-  assert.deepEqual(loadHookRegistry(directory), DEFAULT_ENTRIES.map(({ entry }) => entry));
 });

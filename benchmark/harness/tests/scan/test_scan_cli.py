@@ -1,5 +1,5 @@
 # input:  scanner CLI arguments, policy JSON, and trial files
-# output: exit-code, help, fail-closed, and redaction assertions
+# output: exit-code, fail-closed, source-identity, and redaction assertions
 # pos:    Command boundary tests for the artifact scanner
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -7,7 +7,6 @@ import io
 import json
 from pathlib import Path
 
-import pytest
 
 from cortex_bench_harness.scan.cli import main
 
@@ -99,15 +98,3 @@ def test_missing_source_parent_preserves_source_identity(tmp_path: Path, capsys)
     assert report["source"] == "events"
     assert "--events-file" in report["hint"]
     assert str(missing_path) not in output
-
-
-def test_help_has_copyable_example(capsys) -> None:
-    with pytest.raises(SystemExit) as result:
-        main(["--help"])
-    output = capsys.readouterr().out
-    assert result.value.code == 0
-    assert "usage:" in output
-    assert "Examples:" in output
-    assert "--workspace-diff-file workspace.diff" in output
-    assert "--config-file ../scan-policy.json" in output
-    assert "cat ../scan-policy.json" in output

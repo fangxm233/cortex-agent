@@ -21,4 +21,3 @@ Core infrastructure tests: paths, config and profile generation, auth, locks, i1
 | settings-watcher.test.ts | test | settings watcher ordering and polling fallback |
 | settings.test.ts | test | settings defaults, provider policy, reload and writes |
 | singleton-lock.test.ts | test | pidfile parent creation, acquire and release |
-| status-format.test.ts | test | thread status message formatting |

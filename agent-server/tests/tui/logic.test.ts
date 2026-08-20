@@ -1,27 +1,21 @@
 // input:  src/tui/logic.js (pure helpers)
-// output: Unit tests for TUI pure logic — focus zone, response-frame detection,
-//         stream text collection, visible-window computation
+// output: Unit tests for TUI input, focus, frame, stream, and selection logic
 // pos:    Guards the behavioral fixes for input/focus/scroll defects
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   computeFocusZone,
+  computeFocusWindow,
+  computeVisibleWindow,
   isAgentResponseFrame,
   collectStreamText,
-  computeVisibleWindow,
-  computeFocusWindow,
-  estimateLines,
-  computeLineWindow,
   historyPrev,
   historyNext,
   pushHistory,
   matchResumeTarget,
   isMouseSequence,
   parseWheelEvents,
-  wrapToWidth,
-  flattenMessageLines,
-  flattenTranscript,
   detectUserMessage,
   cursorToRowCol,
   rowColToCursor,
@@ -34,77 +28,27 @@ import {
   normalizeSelection,
   extractSelectionText,
   osc52Copy,
-  padToWidth,
-  splitByDisplayCols,
 } from '../../src/tui/logic.js';
 
-// ── estimateLines ──
+// ── viewport state ──
 
-test('estimateLines: wraps by width and counts newlines', () => {
-  assert.equal(estimateLines('', 80), 0);
-  assert.equal(estimateLines('short', 80), 1);
-  assert.equal(estimateLines('a'.repeat(81), 80), 2);
-  assert.equal(estimateLines('line1\nline2', 80), 2);
-  assert.equal(estimateLines('a'.repeat(160) + '\nx', 80), 3);
+test('computeFocusWindow keeps the focused row visible and clamps at list boundaries', () => {
+  assert.deepEqual(computeFocusWindow(0, 0, 6), {
+    start: 0, end: 0, hiddenAbove: 0, hiddenBelow: 0,
+  });
+  const middle = computeFocusWindow(20, 15, 6);
+  assert.ok(15 >= middle.start && 15 < middle.end);
+  assert.equal(middle.end - middle.start, 6);
+  assert.deepEqual(computeFocusWindow(20, 19, 6), {
+    start: 14, end: 20, hiddenAbove: 14, hiddenBelow: 0,
+  });
 });
 
-// ── computeLineWindow ──
-
-test('computeLineWindow: fits as many bottom rows as the budget allows', () => {
-  // five rows, 2 lines each = 10 lines; budget 5 → last 2 rows (4 lines), 3rd would overflow
-  const counts = [2, 2, 2, 2, 2];
-  const w = computeLineWindow(counts, 5, 0);
-  assert.equal(w.end, 5);
-  assert.equal(w.start, 3); // rows 3,4 fit (4 lines); row 2 would make 6 > 5
-});
-
-test('computeLineWindow: always includes at least the last row even if taller than budget', () => {
-  const w = computeLineWindow([3, 20], 5, 0);
-  assert.deepEqual(w, { start: 1, end: 2 });
-});
-
-test('computeLineWindow: scrollOffset hides rows from the bottom', () => {
-  const counts = [1, 1, 1, 1, 1];
-  const w = computeLineWindow(counts, 2, 2); // offset 2 → end=3
-  assert.equal(w.end, 3);
-  assert.equal(w.start, 1);
-});
-
-test('computeLineWindow: empty list', () => {
-  assert.deepEqual(computeLineWindow([], 10, 0), { start: 0, end: 0 });
-});
-
-// ── computeFocusWindow ──
-
-test('computeFocusWindow: short list renders fully, nothing hidden', () => {
-  const w = computeFocusWindow(3, 0, 8);
-  assert.deepEqual(w, { start: 0, end: 3, hiddenAbove: 0, hiddenBelow: 0 });
-});
-
-test('computeFocusWindow: empty list is a no-op', () => {
-  assert.deepEqual(computeFocusWindow(0, 0, 8), { start: 0, end: 0, hiddenAbove: 0, hiddenBelow: 0 });
-});
-
-test('computeFocusWindow: long list caps the slice and reports hidden counts', () => {
-  const w = computeFocusWindow(20, 0, 6);
-  assert.equal(w.end - w.start, 6, 'window is capped at maxVisible');
-  assert.equal(w.start, 0);
-  assert.equal(w.hiddenAbove, 0);
-  assert.equal(w.hiddenBelow, 14);
-});
-
-test('computeFocusWindow: focused row stays inside the window when scrolled down', () => {
-  const w = computeFocusWindow(20, 15, 6);
-  assert.ok(15 >= w.start && 15 < w.end, 'focused index is visible');
-  assert.equal(w.end - w.start, 6);
-});
-
-test('computeFocusWindow: window clamps to the end (no overscroll past last row)', () => {
-  const w = computeFocusWindow(20, 19, 6);
-  assert.equal(w.end, 20);
-  assert.equal(w.start, 14);
-  assert.equal(w.hiddenBelow, 0);
-  assert.equal(w.hiddenAbove, 14);
+test('computeVisibleWindow follows scroll offset without crossing the list bounds', () => {
+  assert.deepEqual(computeVisibleWindow(0, 10, 0), { start: 0, end: 0 });
+  assert.deepEqual(computeVisibleWindow(5, 3, 0), { start: 2, end: 5 });
+  assert.deepEqual(computeVisibleWindow(5, 3, 2), { start: 0, end: 3 });
+  assert.deepEqual(computeVisibleWindow(5, 3, 99), { start: 0, end: 1 });
 });
 
 // ── computeFocusZone ──
@@ -159,28 +103,6 @@ test('collectStreamText: multiple streams joined per line in insertion order', (
   streams.set('s1', { blocks: [{ kind: 'text', text: 'a' }, { kind: 'text', text: 'b' }] });
   streams.set('s2', { blocks: [{ kind: 'text', text: 'c' }] });
   assert.equal(collectStreamText(streams), 'a\nb\nc');
-});
-
-// ── computeVisibleWindow ──
-
-test('computeVisibleWindow: empty list', () => {
-  assert.deepEqual(computeVisibleWindow(0, 10, 0), { start: 0, end: 0 });
-});
-
-test('computeVisibleWindow: list shorter than viewport shows all', () => {
-  assert.deepEqual(computeVisibleWindow(5, 10, 0), { start: 0, end: 5 });
-});
-
-test('computeVisibleWindow: anchored to bottom when offset 0', () => {
-  assert.deepEqual(computeVisibleWindow(5, 3, 0), { start: 2, end: 5 });
-});
-
-test('computeVisibleWindow: scroll up reveals earlier messages', () => {
-  assert.deepEqual(computeVisibleWindow(5, 3, 2), { start: 0, end: 3 });
-});
-
-test('computeVisibleWindow: offset clamped so window never goes past top', () => {
-  assert.deepEqual(computeVisibleWindow(5, 3, 99), { start: 0, end: 1 });
 });
 
 // ── input history navigation ──
@@ -273,42 +195,6 @@ test('parseWheelEvents: extracts up/down from SGR wheel codes', () => {
   assert.deepEqual(parseWheelEvents('\x1b[<64;1;1M\x1b[<65;1;1M'), ['up', 'down']);
 });
 
-// ── wrapToWidth ──
-
-test('wrapToWidth: word-wraps and hard-splits over-long words', () => {
-  assert.deepEqual(wrapToWidth('', 10), ['']);
-  assert.deepEqual(wrapToWidth('hello world', 5), ['hello', 'world']);
-  assert.deepEqual(wrapToWidth('abcdefghijk', 5), ['abcde', 'fghij', 'k']);
-  assert.deepEqual(wrapToWidth('hi there friend', 8), ['hi there', 'friend']);
-});
-
-// ── flattenMessageLines / flattenTranscript ──
-
-test('flattenMessageLines: text message wraps into markdown lines (no truncation)', () => {
-  const lines = flattenMessageLines({ text: 'a'.repeat(25) }, 10);
-  assert.equal(lines.length, 3); // 25 chars / 10 → 3 lines, all kept
-  assert.ok(lines.every(l => l.markdown && !l.dim));
-  assert.equal(lines.map(l => l.text).join(''), 'a'.repeat(25));
-});
-
-test('flattenMessageLines: context rich blocks render dim and non-markdown', () => {
-  const lines = flattenMessageLines({ richBlocks: [{ type: 'context', text: '🔧 Bash' }] }, 80);
-  assert.equal(lines.length, 1);
-  assert.equal(lines[0].dim, true);
-  assert.equal(lines[0].markdown, false);
-});
-
-test('flattenMessageLines: streamed text is dim, queued marker appended', () => {
-  const lines = flattenMessageLines({ streamText: 'reply', queued: true }, 80);
-  assert.deepEqual(lines.map(l => l.text), ['reply', '⏳ queued']);
-  assert.ok(lines[0].dim);
-});
-
-test('flattenTranscript: inserts a blank separator line between messages', () => {
-  const lines = flattenTranscript([{ text: 'one' }, { text: 'two' }], 80);
-  assert.deepEqual(lines.map(l => l.text), ['one', '', 'two']);
-});
-
 // ── detectUserMessage ──
 
 test('detectUserMessage: strips the "**You:** " prefix and marks user', () => {
@@ -321,20 +207,6 @@ test('detectUserMessage: honours the isUser flag without a prefix', () => {
 
 test('detectUserMessage: plain assistant text is not a user message', () => {
   assert.deepEqual(detectUserMessage('some answer'), { text: 'some answer', user: false });
-});
-
-// ── user-message flattening ──
-
-test('flattenMessageLines: user message marks lines user + plain (no markdown)', () => {
-  const lines = flattenMessageLines({ text: 'my question', user: true }, 80);
-  assert.ok(lines.length >= 1);
-  assert.ok(lines.every(l => l.user === true), 'all user lines flagged');
-  assert.ok(lines.every(l => l.markdown === false), 'user lines render plain (grey bg, no markdown)');
-});
-
-test('flattenMessageLines: non-user message lines are not flagged user', () => {
-  const lines = flattenMessageLines({ text: 'assistant reply' }, 80);
-  assert.ok(lines.every(l => l.user === false));
 });
 
 // ── multi-line cursor navigation ──
@@ -552,27 +424,6 @@ test('osc52Copy: writes the correct OSC 52 escape to stdout', () => {
 // ── Display-width-aware helpers (CJK / full-width support) ──
 // Terminal columns are display cells; CJK chars occupy 2 columns but 1 JS char. These helpers
 // keep wrapping / padding / selection aligned to what the terminal actually shows.
-
-test('padToWidth: pads to display columns, accounting for full-width chars', () => {
-  assert.equal(padToWidth('ab', 5), 'ab   ');        // 2 cols + 3 spaces
-  assert.equal(padToWidth('你好', 6), '你好  ');      // 4 cols + 2 spaces
-  assert.equal(padToWidth('你好', 4), '你好');        // already 4 cols, no pad
-  assert.equal(padToWidth('你好', 3), '你好');        // wider than target → unchanged
-});
-
-test('splitByDisplayCols: splits a line by display columns (CJK aware)', () => {
-  // "a你b" → cols: a@0, 你@1-2, b@3
-  assert.deepEqual(splitByDisplayCols('a你b', 1, 3), { before: 'a', selected: '你', after: 'b' });
-  assert.deepEqual(splitByDisplayCols('你好世界', 2, 6), { before: '你', selected: '好世', after: '界' });
-  assert.deepEqual(splitByDisplayCols('hello', 1, 3), { before: 'h', selected: 'el', after: 'lo' });
-});
-
-test('wrapToWidth: wraps CJK by display width, not char count', () => {
-  assert.deepEqual(wrapToWidth('你好世界', 4), ['你好', '世界']); // each char 2 cols → 2 per line
-  assert.deepEqual(wrapToWidth('你好世界', 5), ['你好', '世界']); // 你好=4 cols, +世=6 > 5 → wrap
-  // ASCII behaviour unchanged
-  assert.deepEqual(wrapToWidth('abcdef', 3), ['abc', 'def']);
-});
 
 test('extractSelectionText: uses display columns for CJK lines', () => {
   // single line, select the middle two full-width chars (cols 2..6)

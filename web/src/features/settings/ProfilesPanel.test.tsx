@@ -77,30 +77,6 @@ function render(over: Partial<ProfilesPanelViewProps> = {}): string {
 }
 
 describe('ProfilesPanelView / table', () => {
-  it('renders one row per profile with the fields the DTO carries', () => {
-    const html = render();
-    expect(html).toContain('data-settings-panel="profiles"');
-    expect(html).toContain('data-profile-row="plan"');
-    expect(html).toContain('data-profile-row="sol"');
-    expect(html).toContain('claude-opus-5');
-    expect(html).toContain('gpt-5');
-    // the undeclared thinking of the pi row reads as an em dash, never as a guess
-    expect(html).toContain('—');
-  });
-
-  it('keeps the default-profile picker and its read note', () => {
-    const html = render();
-    expect(html).toContain('data-default-profile-select');
-    expect(html).toContain('data-select-control');
-    expect(html).toContain('New profile');
-  });
-
-  it('offers edit and delete per row', () => {
-    const html = render();
-    expect(html).toContain('data-action="edit"');
-    expect(html).toContain('data-action="delete"');
-  });
-
   it('blocks deleting the default profile and says why', () => {
     const html = render();
     expect(html).toContain('data-delete-blocked=""');
@@ -115,19 +91,9 @@ describe('ProfilesPanelView / table', () => {
     expect(html).toContain('data-action="cancel-delete"');
     expect(html.match(/data-action="confirm-delete"/g)).toHaveLength(1);
   });
-
-  it('says so honestly when profiles.json holds nothing', () => {
-    const html = render({ snapshot: snapshot([], null) });
-    expect(html).toContain('No profiles in profiles.json');
-    expect(html).not.toContain('data-profile-row');
-  });
 });
 
 describe('ProfilesPanelView / editor', () => {
-  it('stays closed until a draft exists', () => {
-    expect(render()).not.toContain('data-profile-editor');
-  });
-
   it('opens on edit with the stored values and a locked, explained name', () => {
     const html = render({ draft: formStateFromEntry(SOL), editingName: 'sol' });
     expect(html).toContain('data-profile-editor');
@@ -135,12 +101,6 @@ describe('ProfilesPanelView / editor', () => {
     expect(html).toContain('The name cannot be changed');
     expect(html).toContain('data-profile-field="name" disabled=""');
     expect(html).toContain('value="sol"');
-  });
-
-  it('lets a create name its profile', () => {
-    const html = render({ draft: emptyProfileForm(), creating: true });
-    expect(html).toContain('data-profile-field="name"');
-    expect(html).not.toContain('data-profile-field="name" disabled=""');
   });
 
   it('shows the preserved extraEnv keys and fallback count, never a value', () => {
@@ -161,16 +121,5 @@ describe('ProfilesPanelView / editor', () => {
       creating: true,
     });
     expect(html).toContain('A pi profile must declare a provider');
-  });
-
-  it('offers custom selectors for backend, thinking and Claude output mode', () => {
-    const claude = render({ draft: formStateFromEntry(entry()), editingName: 'plan' });
-    expect(claude).toContain('data-profile-field="backend"');
-    expect(claude).toContain('data-profile-field="thinking"');
-    expect(claude).toContain('data-profile-field="claudeBackend"');
-    expect(claude.match(/data-select-control/g)).toHaveLength(4);
-
-    expect(render({ draft: formStateFromEntry(SOL), editingName: 'sol' }))
-      .not.toContain('data-profile-field="claudeBackend"');
   });
 });

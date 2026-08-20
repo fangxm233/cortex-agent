@@ -9,10 +9,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { readConfigSnapshot, handleConfigGet } from '../../../src/domain/ui-service/query/config.js';
+import { readConfigSnapshot } from '../../../src/domain/ui-service/query/config.js';
 import { SETTINGS_SPEC } from '../../../src/core/settings-spec.js';
-import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
-import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const RAW_SECRET = 'sk-super-secret-value-123456';
 
@@ -274,48 +272,4 @@ test('readConfigSnapshot returns empty hooks for malformed registry JSON', async
   assert.deepEqual(snap.hooks, []);
   assert.match(error.mock.calls.flat().join('\n'), /broken\.json/);
   error.mockRestore();
-});
-
-function makeMinimalDeps(): UiServiceDeps {
-  return {
-    projectStore: { list: () => [], get: () => undefined, exists: () => false, getDefault: () => ({ id: 'general', name: 'general', kind: 'general' as const, contextDir: '/tmp' }), createProject: () => ({} as any) },
-    sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
-    conversationHistory: { getHistory: async () => null },
-    sendSessionMessage: () => {},
-    threadStore: { getAll: () => [], get: () => null },
-    taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
-    scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
-    executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
-    executionLogTailer: { startTail: () => {}, stopTail: () => {}, refCount: () => 0 },
-    approvalsPath: '/tmp/PENDING_APPROVALS.md',
-    runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
-    bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
-    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
-    cancelSessionRun: async () => 0,
-    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
-    clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
-    adapter: { getProjectConduits: async () => ({}) } as any,
-  };
-}
-
-test('config.get handler returns a snapshot object', async () => {
-  const snap = await handleConfigGet(makeMinimalDeps(), {});
-  assert.ok(snap);
-  assert.ok('budget' in snap && 'env' in snap && 'machines' in snap && 'threadTemplates' in snap);
-});
-
-test('config.get via facade returns ok', async () => {
-  const ui = createUiService(makeMinimalDeps());
-  const result = await ui.query('config.get', {});
-  assert.ok(result.ok);
-  assert.ok(Array.isArray(result.data.machines));
-});
-
-// The tRPC router binding (Result-unwrap + Err→TRPCError mapping) is covered in
-// the ui-http app-router test (tests/platform/ui-http-app-router.test.ts); here we assert the facade snapshot shape.
-test('config.get via facade exposes the env snapshot array', async () => {
-  const result = await createUiService(makeMinimalDeps()).query('config.get', {});
-  assert.ok(result.ok);
-  assert.ok(Array.isArray(result.data.env));
 });

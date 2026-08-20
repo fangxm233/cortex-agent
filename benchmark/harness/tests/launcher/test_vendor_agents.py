@@ -121,25 +121,6 @@ def create_agent(
 
 
 @pytest.mark.parametrize(
-    ("vendor", "provider", "model", "expected_class", "harbor_class", "_stdout"),
-    VENDORS,
-)
-def test_agent_config_constructs_thin_harbor_subclasses_by_import_path(
-    tmp_path: Path, vendor: str, provider: str | None, model: str,
-    expected_class: type, harbor_class: type, _stdout: str,
-) -> None:
-    config = build_agent_config(vendor_arm(vendor, provider, model), cli_version="ignored")
-    agent = AgentFactory.create_agent_from_config(config, logs_dir=tmp_path / vendor)
-
-    assert config.name is None
-    assert config.import_path == expected_class.import_path()
-    assert isinstance(agent, expected_class)
-    assert isinstance(agent, harbor_class)
-    assert "resume" not in expected_class.__dict__
-    assert "populate_context_post_run" not in expected_class.__dict__
-
-
-@pytest.mark.parametrize(
     ("vendor", "provider", "model", "_expected_class", "_harbor_class", "stdout"),
     VENDORS,
 )

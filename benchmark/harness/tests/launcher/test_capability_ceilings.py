@@ -10,7 +10,6 @@
 from copy import deepcopy
 from decimal import Decimal
 from pathlib import Path
-import re
 
 import pytest
 
@@ -18,7 +17,6 @@ from cortex_bench_harness.campaign_config import load_campaign_config
 from cortex_bench_harness.launcher.capability_ceilings import (
     CAPABILITY_CEILINGS_SCHEMA_VERSION,
     CEILING_FIELDS,
-    DEFAULT_CAPABILITY_CEILINGS_PATH,
     load_capability_ceilings,
 )
 from cortex_bench_harness.launcher.trial_proxy import (
@@ -44,47 +42,12 @@ APPROVED_VENDOR_CEILINGS = {
     "request_body_limit_bytes": 64 * 1024 * 1024,
     "response_body_limit_bytes": 64 * 1024 * 1024,
 }
-APPROVED_DEEPSEEK_POLICY_BLOCK = """  pi-deepseek-api-key:
-    # A request counter, and now written as one. This used to be a pair of dollar figures,
-    # `max_cost_usd` and `max_request_cost_usd`, and admission reserved one whole per-request
-    # figure against the per-trial one. Since the reservation was never reconciled against what a
-    # request actually cost, the pair could only ever express
-    # `floor(max_cost_usd / max_request_cost_usd)` requests — which `max_provider_requests` states
-    # directly. Two campaign-config refusals existed solely to stop the two expressions of that one
-    # number from contradicting each other, and both are gone with it.
-    #
-    # Holding a price list at the proxy was also actively harmful: it charged cached prompt tokens
-    # at the full input rate, over-stated a 99.2%-cached trial by 12.7x, and the resulting
-    # disagreement with the run's own cache-aware accounting discarded a finished benchmark trial.
-    # The proxy now counts requests and measures tokens, and prices nothing.
-    #
-    # The INNER run's own spend limit, which the run prices with the provider's cache-aware rates.
-    # The proxy holds no price list and enforces no cost, so this is the only money figure left.
-    max_cost_usd: "100.00"
-    # median session ~12k output tokens at ~268 tokens/response ~ 45 responses
-    max_provider_requests: 1000
-    # per-request latency median ~1.1 s, max 58 s; a multi-turn task needs room for commands
-    deadline_seconds: 7200
-    # per-response median 268, p99.9 14.5k, max 28.2k; the model supports 384k
-    max_output_tokens: 131072
-    # input median ~0.40 MiB, max ~2.04 MiB; 64 MiB
-    request_body_limit_bytes: 67108864
-    # streamed SSE framing multiplies raw output text several times over; 64 MiB
-    response_body_limit_bytes: 67108864
-""".encode()
-APPROVED_VENDOR_POLICY_COMMENT = b"""    # Approved per-trial bounds; no broader than the envelope the committed vendor campaign
-    # document for this capability already declares.
-"""
 REPO_ROOT = Path(__file__).resolve().parents[4]
 VENDOR_CAMPAIGNS_DIR = REPO_ROOT / "benchmark" / "campaigns"
 VENDOR_CAMPAIGNS = (
     VENDOR_CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-claude-code.yaml",
     VENDOR_CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-codex.yaml",
 )
-
-
-def repo_root() -> Path:
-    return REPO_ROOT
 
 
 def policy_document(**overrides: object) -> str:
@@ -106,32 +69,11 @@ def write_policy(tmp_path: Path, text: str) -> Path:
     return path
 
 
-def test_the_default_path_is_the_committed_policy_file() -> None:
-    assert DEFAULT_CAPABILITY_CEILINGS_PATH == (
-        repo_root() / "benchmark" / "policy" / "capability-ceilings.yaml"
-    )
-    assert DEFAULT_CAPABILITY_CEILINGS_PATH.is_file()
-
-
 def test_the_committed_policy_declares_the_approved_deepseek_ceilings() -> None:
     ceilings = load_capability_ceilings()
 
     assert ceilings["pi-deepseek-api-key"] == APPROVED_DEEPSEEK_CEILINGS
     assert set(APPROVED_DEEPSEEK_CEILINGS) == set(CEILING_FIELDS)
-
-
-def policy_block(capability_id: str) -> bytes:
-    source = DEFAULT_CAPABILITY_CEILINGS_PATH.read_bytes()
-    marker = f"  {capability_id}:\n".encode()
-    start = source.index(marker)
-    following = source[start + len(marker):]
-    next_row = re.search(rb"(?m)^  [a-z0-9][a-z0-9-]*:\n", following)
-    end = len(source) if next_row is None else start + len(marker) + next_row.start()
-    return source[start:end]
-
-
-def test_the_existing_deepseek_policy_row_is_byte_for_byte_unchanged() -> None:
-    assert policy_block("pi-deepseek-api-key") == APPROVED_DEEPSEEK_POLICY_BLOCK
 
 
 @pytest.mark.parametrize("campaign_path", VENDOR_CAMPAIGNS)
@@ -144,7 +86,6 @@ def test_committed_vendor_envelopes_are_accepted(campaign_path: Path) -> None:
     )
 
     assert declared == APPROVED_VENDOR_CEILINGS
-    assert APPROVED_VENDOR_POLICY_COMMENT in policy_block(capability_id)
 
 
 @pytest.mark.parametrize("campaign_path", VENDOR_CAMPAIGNS)

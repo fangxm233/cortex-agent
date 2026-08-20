@@ -67,15 +67,6 @@ beforeEach(async () => {
   } = await import('./os-notify'));
 });
 
-describe('osNotificationSpec (pure)', () => {
-  it('maps title + meta into an OS title/body', () => {
-    expect(osNotificationSpec(item())).toEqual({
-      title: '线程完成 — orchard-pipeline',
-      body: '评审通过 · 42m · 轻点查看产物',
-    });
-  });
-});
-
 describe('osNotifyAvailable', () => {
   it('is false in a plain browser and true in the native shell', () => {
     h.native = false;

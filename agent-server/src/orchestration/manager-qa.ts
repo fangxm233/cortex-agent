@@ -37,6 +37,12 @@ const questions = new Map<string, PendingQuestion>();
 /** channel → questionId, for routing a human's free-text reply back to the right pending ask. */
 const channelIndex = new Map<string, string>();
 
+function disarmHumanBackstop(question: PendingQuestion): void {
+  if (question.channel && channelIndex.get(question.channel) === question.questionId) {
+    channelIndex.delete(question.channel);
+  }
+}
+
 let hydrated = false;
 
 /** Test hook: clear all in-memory Q&A state without reloading durable history. */
@@ -311,13 +317,16 @@ export async function submitAnswer(
   ensureQaHydrated();
   const rec = questions.get(questionId);
   if (!rec) return { ok: false, error: `unknown question ${questionId} (expired or already consumed)` };
-  rec.answer = answer ?? '';
-  const answerer = options.answererThreadId === undefined
-    ? rec.managerThreadId : options.answererThreadId;
-  try { recordAnswerFact(rec, answerer); } catch (error) {
-    rec.answer = null;
-    return { ok: false, error: `answer persistence failed: ${(error as Error).message}` };
+  if (rec.answer === null) {
+    rec.answer = answer ?? '';
+    const answerer = options.answererThreadId === undefined
+      ? rec.managerThreadId : options.answererThreadId;
+    try { recordAnswerFact(rec, answerer); } catch (error) {
+      rec.answer = null;
+      return { ok: false, error: `answer persistence failed: ${(error as Error).message}` };
+    }
   }
+  disarmHumanBackstop(rec);
   if (rec.managerThreadId) {
     await threadStore.mutate(rec.managerThreadId, (t) => {
       const m = (t.metadata ??= {});
@@ -346,7 +355,7 @@ export function getAnswer(questionId: string): { found: boolean; answered: boole
       return { found: true, answered: false, answer: null };
     }
     questions.delete(questionId);
-    if (rec.channel) channelIndex.delete(rec.channel);
+    disarmHumanBackstop(rec);
     return { found: true, answered: true, answer: rec.answer };
   }
   return { found: true, answered: false, answer: null };
@@ -360,12 +369,17 @@ export function tryAnswerFromHuman(channel: string, text: string): boolean {
   if (!qid) return false;
   const rec = questions.get(qid);
   if (!rec || !rec.awaitingHuman) { channelIndex.delete(channel); return false; }
+  if (rec.answer !== null) {
+    disarmHumanBackstop(rec);
+    return false;
+  }
   rec.answer = text ?? '';
   try { recordAnswerFact(rec, null); } catch (error) {
     rec.answer = null;
     log.error(`human manager-Q&A persistence failed: ${(error as Error).message}`);
     return false;
   }
+  disarmHumanBackstop(rec);
   log.info(`ask_manager: human answered ${qid} on ${channel}`);
   return true;
 }

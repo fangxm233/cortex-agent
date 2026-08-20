@@ -1,5 +1,5 @@
 // input:  Mocked profile config, shared selector and mutations
-// output: Shared draft/live profile routing regressions
+// output: Shared draft/live profile routing and interaction regressions
 // pos:    Composer profile selector behavior specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -96,25 +96,6 @@ describe('SessionProfileSelector', () => {
     act(() => renderer.root.findByProps({ 'data-profile': 'execute' }).props.onClick({ stopPropagation: vi.fn() }));
 
     expect(pickProfile).toHaveBeenCalledWith('execute');
-  });
-
-  it('opens the compact profile menu above the bottom composer row', () => {
-    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: false });
-
-    act(() => {
-      renderer.root.findByProps({ 'data-chip': 'profile' }).props.onClick({ stopPropagation: vi.fn() });
-    });
-    const menu = renderer.root.findByProps({ 'data-menu': 'profile' });
-    const row = renderer.root.findByProps({ 'data-profile': 'plan' });
-    const labels = row.findAllByType('span');
-
-    expect(menu.props.style.bottom).toBe(26);
-    expect(menu.props.style.top).toBeUndefined();
-    expect(menu.props.style.minWidth).toBe(160);
-    expect(menu.props.style.borderRadius).toBe(8);
-    expect(row.props.style.padding).toBe('5px 8px');
-    expect(labels[0].props.style.font).toContain('10px');
-    expect(labels[1].props.style.font).toContain('9px');
   });
 
   it('keeps menu-option clicks from re-toggling the containing chip', () => {

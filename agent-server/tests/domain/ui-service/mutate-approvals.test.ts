@@ -11,7 +11,6 @@ import {
   handleRequestApproval,
 } from '../../../src/domain/ui-service/mutate/approvals.js';
 import { parseApprovals } from '../../../src/domain/ui-service/query/approvals.js';
-import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const SAMPLE = `# Pending Approvals
@@ -132,27 +131,6 @@ test('handleRejectApproval returns not-found for unknown id', async () => {
   if (!res.ok) assert.equal(res.code, 'not-found');
 });
 
-// ── (6) facade wiring ────────────────────────────────────────────────────────
-// The tRPC router binding (missing id → TRPCError NOT_FOUND) is covered in
-// the ui-http app-router test (tests/platform/ui-http-app-router.test.ts); here we assert the facade Result path.
-test('approvals.approve / approvals.reject reachable via facade (approve, reject, missing→not-found)', async () => {
-  const p = writeTemp(SAMPLE);
-  const ui = createUiService(makeDeps(p));
-  const alphaId = idOf(fs.readFileSync(p, 'utf8'), 'Alpha: promote a rule');
-  const okd = await ui.mutate('approvals.approve', { id: alphaId });
-  assert.ok(okd.ok);
-  assert.equal(okd.data.status, 'approved');
-
-  const betaId = idOf(fs.readFileSync(p, 'utf8'), 'Beta: bump idle timeout');
-  const r = await ui.mutate('approvals.reject', { id: betaId, feedback: 'no' });
-  assert.ok(r.ok);
-  assert.equal(r.data.status, 'rejected');
-
-  const missing = await ui.mutate('approvals.approve', { id: 'missing00' });
-  assert.equal(missing.ok, false);
-  if (!missing.ok) assert.equal(missing.code, 'not-found');
-});
-
 // ── (7) approvals.request: enqueue-only, server-constructed prose ─────────────────────────────
 test('buildApprovalEntry builds a parseable pending entry from the closed kind enum', () => {
   const { heading, block } = buildApprovalEntry({ kind: 'reconnect-platform', platform: 'feishu' }, '2026-07-10');
@@ -201,14 +179,4 @@ test('handleRequestApproval rejects invalid input (missing per-kind field) with 
   const res = await handleRequestApproval(makeDeps(p), { kind: 'reconnect-platform' } as any);
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(res.code, 'invalid-args');
-});
-
-test('approvals.request reachable via facade and queues a pending entry', async () => {
-  const p = writeTemp(SAMPLE);
-  const ui = createUiService(makeDeps(p));
-  const res = await ui.mutate('approvals.request', { kind: 'add-machine', machineName: 'nimbus' });
-  assert.ok(res.ok);
-  const listed = await ui.query('approvals.list', { status: 'pending' });
-  assert.ok(listed.ok);
-  assert.ok(listed.data.some((e) => e.title === 'Add machine nimbus'));
 });

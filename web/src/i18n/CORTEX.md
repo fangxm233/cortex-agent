@@ -8,7 +8,7 @@ Language stays in local storage and falls back to browser choice.
 | index.ts | barrel | Re-exports hooks and vocab tables |
 | LangProvider.tsx | provider | Holds active language state |
 | lang.ts | util | Resolves and persists language choice |
-| lang.test.ts | test | Covers language derivation and copy |
+| lang.test.ts | test | Covers viewport language derivation and breakpoint handling |
 | vocab.ts | compose | Merges split chunks into en and zh |
 | plugins-vocab.ts | copy | Holds plugin and stale-draft copy |
 | vocab-en-base.ts | copy | English chunk before plugin copy |

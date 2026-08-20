@@ -10,4 +10,4 @@ Applying relaunches the app so the staged bundle is promoted; in a plain browser
 | useHotUpdate.ts | hook | Exposes the staged update with apply and dismiss |
 | useHotUpdate.test.ts | test | Unit tests for the hot update hook |
 | frontend-update.ts | core | Bridges staged bundle events and apply to shell |
-| frontend-update.test.ts | test | Unit tests for the native update bridge |
+| frontend-update.test.ts | test | Tests staged shell payload parsing and malformed fields |

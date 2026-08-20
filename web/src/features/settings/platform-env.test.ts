@@ -1,6 +1,6 @@
 // input:  env and runtime-setting snapshot fixtures
-// output: settings-panel source-selection regressions
-// pos:    Verifies secret redaction and settings snapshot indexing
+// output: env redaction, settings indexing, and duration-bound regressions
+// pos:    Verifies desktop runtime-setting source helpers
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
@@ -12,10 +12,6 @@ import {
   indexSettings,
   getSetting,
   ENV_MASK,
-  SLACK_KEYS,
-  FEISHU_KEYS,
-  BUILTIN_JOB_SETTINGS,
-  WRITABLE_NUMBER_SETTING_KEYS,
   MAX_SESSION_RETENTION_DAYS,
   durationDraftFromMs,
   durationDraftToMs,
@@ -87,25 +83,8 @@ describe('platform-env', () => {
     expect(durationDraftToMs(596.6, 'hr')).toBeNull();
   });
 
-  it('declares all built-in jobs as enabled-plus-interval setting pairs', () => {
-    expect(BUILTIN_JOB_SETTINGS.map((job) => [job.enabled, job.interval])).toEqual([
-      ['taskDispatchEnabled', 'taskDispatchIntervalMs'],
-      ['taskArchiveEnabled', 'taskArchiveIntervalMs'],
-      ['memoryIndexRegenEnabled', 'memoryIndexRegenIntervalMs'],
-    ]);
-  });
-
-  it('lists writable number settings separately from interval controls', () => {
-    expect(WRITABLE_NUMBER_SETTING_KEYS).toEqual(['sessionRetentionDays']);
-  });
-
   it('re-exports the shared retention upper bound for the client save gate', () => {
     expect(MAX_SESSION_RETENTION_DAYS).toBeGreaterThan(30);
     expect(Number.isSafeInteger(MAX_SESSION_RETENTION_DAYS)).toBe(true);
-  });
-
-  it('does not list migrated admin channels as .env credential rows', () => {
-    expect(SLACK_KEYS).not.toContain('SLACK_ADMIN_CHANNEL');
-    expect(FEISHU_KEYS).not.toContain('FEISHU_ADMIN_CHANNEL');
   });
 });

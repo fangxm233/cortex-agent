@@ -1,5 +1,5 @@
 // input:  shared Zod schema maps
-// output: query/mutate schema coverage incl window-target policy routes
+// output: query/mutate schema behavior incl window-target policy routes
 // pos:    UI-contract runtime schema guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -22,49 +22,10 @@ async function reloadSchemas(): Promise<typeof import('./schemas.js')> {
   return reloadedSchemasPromise;
 }
 
-const QUERY_SCOPES = [
-  'projects.list', 'sessions.list', 'sessions.transcript', 'sessions.pendingInteraction', 'threads.list',
-  'threads.get', 'tasks.list', 'tasks.verification', 'schedules.list', 'executions.list', 'executions.get',
-  'memory.tree', 'memory.file', 'approvals.list', 'issues.list', 'notes.list', 'cost.summary', 'config.get',
-  'auth.status', 'auth.flowState', 'auth.customProviders', 'hooks.list', 'machines.list', 'machines.detail', 'skills.list', 'plugins.list',
-  'threadTemplates.get', 'threadTemplates.detail', 'system.daemonStatus', 'system.rateLimitStatus',
-  'system.usageStatus',
-] as const;
-
-const MUTATE_OPS = [
-  'projects.create', 'sessions.create', 'sessions.send', 'sessions.cancel', 'sessions.compact', 'sessions.setProfile',
-  'sessions.createAndSend', 'sessions.markRead', 'sessions.answerQuestion', 'sessions.respondPlan',
-  'sessions.cancelResume',
-  'sessions.rewind',
-  'threads.cancel', 'executions.cancel', 'schedules.pause', 'schedules.resume',
-  'schedules.remove', 'schedules.add', 'schedules.update', 'tasks.claim', 'tasks.unclaim', 'tasks.complete',
-  'tasks.block', 'tasks.unblock', 'approvals.approve', 'approvals.reject', 'approvals.request',
-  'issues.handle', 'issues.delete', 'notes.add', 'notes.update', 'notes.setCompleted', 'notes.delete',
-  'notes.clearCompleted', 'config.set', 'config.setProviderRateLimitPolicy', 'hooks.create', 'hooks.update', 'hooks.setEnabled', 'hooks.remove',
-  'hooks.test', 'profiles.create', 'profiles.update', 'profiles.remove', 'plugins.assign',
-  'threadTemplates.validate', 'threadTemplates.save', 'threadTemplates.remove',
-  'auth.startLogin', 'auth.respondPrompt', 'auth.cancelFlow', 'auth.logout',
-  'auth.upsertCustomProvider', 'auth.removeCustomProvider',
-  'system.restart', 'system.clearRateLimit', 'system.refreshUsage',
-] as const;
-
-test('every QueryScope has an input schema', () => {
-  for (const scope of QUERY_SCOPES) {
-    assert.ok(queryInputSchemas[scope], `missing query schema: ${scope}`);
-  }
-  assert.equal(Object.keys(queryInputSchemas).length, QUERY_SCOPES.length);
-});
-
-test('every MutateOp has an input schema', () => {
-  for (const op of MUTATE_OPS) {
-    assert.ok(mutateInputSchemas[op], `missing mutate schema: ${op}`);
-  }
-  assert.equal(Object.keys(mutateInputSchemas).length, MUTATE_OPS.length);
-});
-
 test('empty query schemas accept empty input', () => {
   assert.deepEqual(queryInputSchemas['projects.list'].parse({}), {});
   assert.deepEqual(queryInputSchemas['auth.status'].parse({}), {});
+  assert.deepEqual(queryInputSchemas['config.get'].parse({}), {});
   assert.deepEqual(queryInputSchemas['plugins.list'].parse({}), {});
   assert.deepEqual(queryInputSchemas['system.rateLimitStatus'].parse({}), {});
   assert.deepEqual(queryInputSchemas['system.usageStatus'].parse({}), {});
@@ -222,10 +183,6 @@ test('mutate schemas require their mandatory fields', () => {
   );
   assert.throws(() => mutateInputSchemas['notes.add'].parse({ projectId: 'p', text: 'two\nlines' }));
   assert.throws(() => mutateInputSchemas['notes.update'].parse({ projectId: 'p', id: 'n1', text: '' }));
-});
-
-test('config.get accepts an empty object', () => {
-  assert.deepEqual(queryInputSchemas['config.get'].parse({}), {});
 });
 
 test('config.set accepts valid budget / profiles sections and rejects illegal values / sections', async () => {

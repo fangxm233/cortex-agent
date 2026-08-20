@@ -7,7 +7,6 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 
 import {
-  getProductionEvidenceExportHelp,
   runProductionEvidenceExportCli,
   type ProductionEvidenceExportCliDeps,
 } from '../../src/entry/production-evidence-export-cli.js';
@@ -107,14 +106,11 @@ describe('production evidence export CLI', () => {
     }
   });
 
-  it('rejects unknown or missing flags and documents file and stdin forms', async () => {
+  it('rejects unknown or missing flags', async () => {
     for (const args of [[], ['--unknown']] as const) {
       const output = capture();
       assert.equal(await runProductionEvidenceExportCli([...args], output.io, deps()), 1);
       assert.equal(JSON.parse(output.stderr()).ok, false);
     }
-    const help = getProductionEvidenceExportHelp();
-    assert.match(help, /--input-file <path\|->/);
-    assert.match(help, /cat .* \| cortex-evidence-export --input-file -/);
   });
 });

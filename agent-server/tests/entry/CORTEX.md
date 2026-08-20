@@ -10,9 +10,8 @@ Entry-point regressions for runtime wiring and CLI subcommands.
 | cli-ui-command.test.ts | test | `cortex ui enable` output, idempotency and errors |
 | doctor-cli.test.ts | test | doctor auth probes, output modes and exit codes |
 | draft-attachments.test.ts | test | verifies canonical no-overwrite draft promotion |
-| hook-cli.test.ts | test | hook metadata, state, execution, ask, packaging |
+| hook-cli.test.ts | test | hook metadata, state, execution and ask flows |
 | production-app-bootstrap.test.ts | test | Proves one-shot server auth is consumed and unlinked before app import |
 | production-evidence-export-cli.test.ts | test | Tests evidence export CLI JSON and failures |
 | provider-cli.test.ts | test | custom provider CLI parsing, output and exit codes |
-| session-retention-app-seam.test.ts | test | guards app retention wiring and startup helpers |
 | startup-helpers.test.ts | test | Guards sealed production homes from managed startup config mutation |

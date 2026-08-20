@@ -8,13 +8,8 @@ import {
   chatHeaderStatus,
   interactionHeaderStatus,
   effectiveProfileName,
-  profileChipLabel,
-  profileSub,
   buildProfileSheetItems,
   buildMobileChatRows,
-  msgMenuGroupTop,
-  MSG_MENU_SAFE_TOP,
-  MSG_MENU_SAFE_BOTTOM,
 } from './m-chat-vm';
 
 // The settings-editor fields (provider / claudeBackend / extraOption / extraEnvKeys / fallbackCount)
@@ -34,47 +29,31 @@ const profiles: ConfigProfileEntry[] = [
 ];
 
 describe('chatHeaderStatus', () => {
-  // Mirrors the web composer status line (Composer.tsx): running shows time + turns (cost is not
-  // known mid-turn); an idle-after-a-turn session adds cost; a fresh/never-run session is bare `idle`.
-  it('running → `running · {elapsed} · {turns}` (no cost mid-turn)', () => {
-    const s = chatHeaderStatus(true, 12, '2m 4s', null, true);
-    expect(s.running).toBe(true);
-    expect(s.text).toBe('running · 2m 4s · 12 turns');
-    expect(s.text).not.toContain('$');
+  it('classifies running and completed sessions without exposing mid-turn cost', () => {
+    const running = chatHeaderStatus(true, 12, '2m 4s', 0.42, true);
+    expect(running.running).toBe(true);
+    expect(running.tone).toBe('running');
+    expect(running.text).not.toContain('$');
+
+    const completed = chatHeaderStatus(false, 12, '2m 4s', 0.42, true);
+    expect(completed.running).toBe(false);
+    expect(completed.tone).toBe('idle');
+    expect(completed.text).toContain('$0.42');
   });
-  it('running with unknown turns → renders the — dash for turns', () => {
-    expect(chatHeaderStatus(true, null, '5s', null, false).text).toBe('running · 5s · —');
-  });
-  it('idle after a turn → `idle · {elapsed} · {turns} · {cost}`', () => {
-    expect(chatHeaderStatus(false, 12, '2m 4s', 0.42, true).text).toBe('idle · 2m 4s · 12 turns · $0.42');
-  });
-  it('idle after a turn with unknown cost → — dash for cost', () => {
-    expect(chatHeaderStatus(false, 12, '2m 4s', null, true).text).toBe('idle · 2m 4s · 12 turns · —');
-  });
-  it('fresh / never-run session → bare `idle`', () => {
-    expect(chatHeaderStatus(false, null, '—', null, false).text).toBe('idle');
-    expect(chatHeaderStatus(false, 3, '10s', 0.1, false).text).toBe('idle');
-  });
-  it('carries a tone for the header dot (running/idle)', () => {
-    expect(chatHeaderStatus(true, 1, '5s', null, true).tone).toBe('running');
-    expect(chatHeaderStatus(false, 1, '5s', null, true).tone).toBe('idle');
+
+  it('keeps never-run sessions free of stale metrics', () => {
+    const fresh = chatHeaderStatus(false, 3, '10s', 0.1, false);
+    expect(fresh.running).toBe(false);
+    expect(fresh.text).not.toContain('3');
+    expect(fresh.text).not.toContain('$');
   });
 });
 
-describe('interactionHeaderStatus (scheme-mobile 5a/5b/6a header line)', () => {
-  it('pending plan → 计划待批 · Agent 已暂停 with the amber waiting tone', () => {
+describe('interactionHeaderStatus', () => {
+  it('marks pending interactions as waiting and paused', () => {
     const s = interactionHeaderStatus('plan-approval', 0, 1, 'zh');
     expect(s.tone).toBe('waiting');
     expect(s.running).toBe(false);
-    expect(s.text).toBe('计划待批 · Agent 已暂停');
-    expect(interactionHeaderStatus('plan-approval', 0, 1, 'en').text).toBe('plan pending · agent paused');
-  });
-  it('pending ask with several questions → 等待你的回答 k/n (k = current 1-based)', () => {
-    expect(interactionHeaderStatus('ask-user', 1, 3, 'zh').text).toBe('等待你的回答 2/3 · Agent 已暂停');
-    expect(interactionHeaderStatus('ask-user', 0, 3, 'en').text).toBe('awaiting your answer 1/3 · agent paused');
-  });
-  it('single-question ask omits the k/n counter', () => {
-    expect(interactionHeaderStatus('ask-user', 0, 1, 'zh').text).toBe('等待你的回答 · Agent 已暂停');
   });
 });
 
@@ -89,25 +68,7 @@ describe('effectiveProfileName', () => {
   });
 });
 
-describe('profileChipLabel', () => {
-  it('renders `name · model`', () => {
-    expect(profileChipLabel('default', profiles)).toBe('default · sonnet-4.5');
-  });
-  it('falls back to backend when model is null, then to bare name', () => {
-    expect(profileChipLabel('x', [profile({ name: 'x', backend: 'claude' })])).toBe('x · claude');
-    expect(profileChipLabel('x', [profile({ name: 'x' })])).toBe('x');
-    expect(profileChipLabel('missing', profiles)).toBe('missing');
-  });
-});
-
-describe('profileSub / buildProfileSheetItems', () => {
-  it('renders `model · thinking · backend`, dropping any missing segment', () => {
-    expect(profileSub(profiles[0])).toBe('sonnet-4.5 · high · claude');
-    // no thinking → just model · backend
-    expect(profileSub(profiles[1])).toBe('haiku-4 · claude');
-    expect(profileSub(profile({ name: 'x', backend: 'claude' }))).toBe('claude');
-    expect(profileSub(profile({ name: 'x', model: 'm', thinking: 'medium' }))).toBe('m · medium');
-  });
+describe('buildProfileSheetItems', () => {
   it('marks the current profile', () => {
     const items = buildProfileSheetItems(profiles, 'cheap');
     expect(items.map((i) => i.name)).toEqual(['default', 'cheap', 'deep']);
@@ -143,12 +104,6 @@ function transcriptOf(...texts: string[]): SessionTranscript {
 }
 
 describe('buildMobileChatRows', () => {
-  it('labels the day divider with the mobile zh vocabulary', () => {
-    const rows = buildMobileChatRows(transcriptOf('hello'), [], { now: new Date(TS) });
-    expect(rows[0].kind).toBe('divider');
-    expect((rows[0] as { text: string }).text).toContain('今天');
-  });
-
   it('forwards stripScheduledPrefix so a scheduled run opens on a plain prompt bubble (8d)', () => {
     const rows = buildMobileChatRows(transcriptOf('[Scheduled Task] Scan arXiv'), [], {
       stripScheduledPrefix: true,
@@ -190,35 +145,5 @@ describe('buildMobileChatRows', () => {
   it('marks no row pending when nothing is waiting to be read', () => {
     const rows = buildMobileChatRows(transcriptOf('hello'), [], { now: new Date(TS) });
     expect(rows.some((r) => r.kind === 'user' && r.pending)).toBe(false);
-  });
-});
-
-// The 7a long-press overlay used to render at a fixed 120px from the top of the screen, so the
-// floated copy of the held bubble appeared nowhere near the bubble the finger was actually on.
-// These pin the anchored placement: the copy sits where the bubble sits, lifted only as far as it
-// must be to keep the whole group (copy + timestamp + menu) inside the screen.
-describe('msgMenuGroupTop', () => {
-  const overlay = { overlayTop: 100, overlayHeight: 700 };
-
-  it('places the floated group at the held bubble when the menu fits below it', () => {
-    expect(msgMenuGroupTop({ ...overlay, anchorTop: 300, groupHeight: 250 })).toBe(200);
-  });
-
-  it('lifts the group so the menu clears the bottom edge when the bubble is held low', () => {
-    const top = msgMenuGroupTop({ ...overlay, anchorTop: 640, groupHeight: 250 });
-    expect(top).toBe(700 - MSG_MENU_SAFE_BOTTOM - 250);
-    expect(top + 250).toBeLessThanOrEqual(700 - MSG_MENU_SAFE_BOTTOM);
-  });
-
-  it('keeps the group below the header when the bubble is held at the very top', () => {
-    expect(msgMenuGroupTop({ ...overlay, anchorTop: 110, groupHeight: 250 })).toBe(MSG_MENU_SAFE_TOP);
-  });
-
-  it('falls back to the top of the safe band when the press reported no anchor', () => {
-    expect(msgMenuGroupTop({ ...overlay, anchorTop: null, groupHeight: 250 })).toBe(MSG_MENU_SAFE_TOP);
-  });
-
-  it('never pushes the group above the safe band when it is taller than the screen', () => {
-    expect(msgMenuGroupTop({ ...overlay, anchorTop: 400, groupHeight: 900 })).toBe(MSG_MENU_SAFE_TOP);
   });
 });

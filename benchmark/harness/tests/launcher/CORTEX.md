@@ -5,7 +5,7 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | filename | role | function |
 |---|---|---|
 | trial_fixtures.py | fixture | Builds production trial documents |
-| test_arms.py | test | Verifies arm routing and vendor version isolation |
+| test_arms.py | test | Verifies arm/task selection, seed binding and direct-arm routing |
 | test_campaign.py | test | Verifies campaign execution, outcomes and delivery artifacts |
 | test_capability_ceilings.py | test | Verifies committed paid-envelope ceilings |
 | test_capability_evidence.py | test | Verifies current capability provenance and proof sources |

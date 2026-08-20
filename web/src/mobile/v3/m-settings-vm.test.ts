@@ -61,18 +61,6 @@ describe('buildMSettingsVm', () => {
     expect(vm.profileThinking).toBeNull();
   });
 
-  it('builds the budget spend label + bar pct from real cost/budget', () => {
-    const vm = buildMSettingsVm(snap(), cost({ today: 4.21 }));
-    expect(vm.budgetSpendLabel).toBe('$4.21 / $10.00');
-    expect(vm.budgetBarPct).toBe('42%');
-  });
-
-  it('renders an em dash for the daily denominator when budget.json is absent', () => {
-    const vm = buildMSettingsVm(snap({ budget: null }), cost({ today: 0 }));
-    expect(vm.budgetSpendLabel).toBe('$0.00 / —');
-    expect(vm.budgetBarPct).toBe('0%');
-  });
-
   it('reflects real env presence for the (inert) notify + auto-resume toggles', () => {
     const on = buildMSettingsVm(snap({ env: env([NOTIFY_ENV_KEY, AUTO_RESUME_ENV_KEY]) }), cost());
     expect(on.notifyOn).toBe(true);

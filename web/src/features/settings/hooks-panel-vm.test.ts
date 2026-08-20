@@ -6,9 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import type { HookDetail } from '@cortex-agent/ui-contract';
 import {
-  HOOK_FILTER_KEYS,
   HOOK_NAMESPACE_ORDER,
-  KNOWN_HOOK_EVENTS,
   buildHookCreateArgs,
   buildHookUpdateArgs,
   claudeAlternativeEvent,
@@ -79,10 +77,6 @@ describe('hooks-panel-vm / filters + grouping', () => {
       phase: 'end',
     }),
   ];
-
-  it('exposes the six filter chips in prototype order', () => {
-    expect(HOOK_FILTER_KEYS).toEqual(['all', 'agent', 'claude', 'pi', 'server', 'template']);
-  });
 
   it('all returns every hook, untouched in load order', () => {
     expect(filterHooks(hooks, 'all', '').map((h) => h.id)).toEqual([
@@ -492,17 +486,6 @@ describe('hooks-panel-vm / mutation args', () => {
 });
 
 describe('hooks-panel-vm / event options and sample payloads', () => {
-  it('offers every agent event plus the documented cc / pi / cortex mount points', () => {
-    for (const e of [
-      'agent:pre-tool', 'agent:post-tool', 'agent:session-start', 'agent:session-end',
-      'agent:pre-compact', 'agent:user-prompt', 'agent:turn-end',
-      'cc:PermissionRequest', 'cc:SessionEnd', 'cc:PreCompact', 'cc:UserPromptSubmit', 'cc:Stop',
-      'cortex:server.start', 'cortex:thread.end', 'cortex:session.messageEnd', 'cortex:task.blocked',
-    ]) {
-      expect(KNOWN_HOOK_EVENTS).toContain(e);
-    }
-  });
-
   it('merges events already present in the registry, without duplicates', () => {
     const options = hookEventOptions([
       hook({ event: 'pi:before_provider_headers' }),
