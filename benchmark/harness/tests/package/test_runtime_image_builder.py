@@ -27,7 +27,7 @@ FAKE_CODEX_PREFLIGHT = """#!/usr/bin/python3
 import json, os, re, sys, urllib.request
 from pathlib import Path
 if sys.argv[1:] == ['--version']:
-    print('codex-cli 0.117.0')
+    print('codex-cli 0.148.0')
     raise SystemExit(0)
 config = (Path(os.environ['CODEX_HOME']) / 'config.toml').read_text()
 expected = "__EXPECTED_MODEL__"
@@ -60,16 +60,19 @@ def test_runtime_manifest_pins_the_three_p0_vendor_artifacts() -> None:
     }
     codex = document["vendors"]["codex"]
     assert codex["package"] == "@openai/codex"
-    assert codex["version"] == "0.117.0"
+    assert codex["version"] == "0.148.0"
     assert codex["npm_integrity"] == (
-        "sha512-UmWo39UCGqFB2ImWwtI/TOnVQ1M2JIbCeDVBzOtG57WuTIPBNvDyluPNrzNv6eAcTYpyDLC5+nT5k49LrzEwow=="
+        "sha512-bh5kH9+BMrFaHGmLeoSansPdfRksvr4UXzjQInns/KRO7r8VJ+6AAW+SqUsE8XcG3+OW/mI4EEy8Gpo9UDXGvQ=="
     )
-    assert codex["platform_package"] == "@openai/codex@0.117.0-linux-x64"
+    assert codex["platform_package"] == "@openai/codex@0.148.0-linux-x64"
     assert codex["platform_npm_integrity"] == (
-        "sha512-kvOZtyLAgFEFSFRJXVzTnFYoZgZya9ttpxDYHR+diBgDBlcBp1B6pRiIGUmCOauxpHtTFUEyisvhKQquZbAtfg=="
+        "sha512-uDT9s7AfMr9xLuJX3ZLVWHgHkUpCnZ33CZjZEdVQhrYCIErkDHsCW5TG290nNjaKngK0WxGt5uCcxeUHv9MWWA=="
+    )
+    assert codex["native_binary_path"] == (
+        "vendor/x86_64-unknown-linux-musl/bin/codex"
     )
     assert codex["native_binary_sha256"] == (
-        "2bee4e33ec222241606e6c5ac3e89a0d3c860fb1684a66e9f134da227b0a2699"
+        "ac2cfed85fb647d61e0150b8548102b330e4799d9d81ad5d354de701edf6b074"
     )
 
 
@@ -145,7 +148,7 @@ def test_codex_runtime_preflight_selects_the_campaign_model(tmp_path: Path) -> N
 
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == {
-        "ok": True, "vendor": "codex", "version": "codex-cli 0.117.0", "requests": 1,
+        "ok": True, "vendor": "codex", "version": "codex-cli 0.148.0", "requests": 1,
     }
 
 
@@ -180,14 +183,14 @@ def fixture_inputs(root: Path) -> dict[str, Path]:
     codex = root / "codex"
     executable(codex / "bin/codex.js", "#!/usr/bin/env node\n")
     (codex / "package.json").write_text(
-        json.dumps({"name": "@openai/codex", "version": "0.117.0"}), encoding="utf-8",
+        json.dumps({"name": "@openai/codex", "version": "0.148.0"}), encoding="utf-8",
     )
     platform = codex / "node_modules/@openai/codex-linux-x64"
     native = executable(
-        platform / "vendor/x86_64-unknown-linux-musl/codex/codex", "fixture codex native\n",
+        platform / "vendor/x86_64-unknown-linux-musl/bin/codex", "fixture codex native\n",
     )
     (platform / "package.json").write_text(
-        json.dumps({"name": "@openai/codex", "version": "0.117.0-linux-x64"}),
+        json.dumps({"name": "@openai/codex", "version": "0.148.0-linux-x64"}),
         encoding="utf-8",
     )
     return {
@@ -223,10 +226,11 @@ def runtime_manifest(root: Path, inputs: dict[str, Path]) -> Path:
                 "size_bytes": inputs["claude"].stat().st_size,
             },
             "codex": {
-                "package": "@openai/codex", "version": "0.117.0",
+                "package": "@openai/codex", "version": "0.148.0",
                 "npm_integrity": "sha512-fixture-main", "tree_sha256": tree_sha256(inputs["codex"]),
-                "platform_package": "@openai/codex@0.117.0-linux-x64",
+                "platform_package": "@openai/codex@0.148.0-linux-x64",
                 "platform_npm_integrity": "sha512-fixture-platform",
+                "native_binary_path": "vendor/x86_64-unknown-linux-musl/bin/codex",
                 "native_binary_sha256": hashlib.sha256(inputs["codex_native"].read_bytes()).hexdigest(),
                 "target": "x86_64-unknown-linux-musl",
             },
@@ -303,7 +307,7 @@ def explicit_environment(
 
 @pytest.mark.parametrize(
     ("vendor", "version"),
-    (("pi", "0.82.1"), ("claude-code", "2.1.232"), ("codex", "0.117.0")),
+    (("pi", "0.82.1"), ("claude-code", "2.1.232"), ("codex", "0.148.0")),
 )
 def test_builder_stages_only_the_selected_vendor_and_preflights_offline(
     tmp_path: Path, vendor: str, version: str,
@@ -436,7 +440,7 @@ def terminal_bench_manifest(
         "vendors": {
             "pi": {"version": "0.82.1"},
             "claude-code": {"version": "2.1.232"},
-            "codex": {"version": "0.117.0"},
+            "codex": {"version": "0.148.0"},
         },
         "cortex_smoke": {
             "task_id": task_ids[0], "version": "2026.8.6",
@@ -467,7 +471,7 @@ def terminal_bench_manifest(
                     }
                     for vendor_index, (vendor, version) in enumerate((
                         ("pi", "0.82.1"), ("claude-code", "2.1.232"),
-                        ("codex", "0.117.0"),
+                        ("codex", "0.148.0"),
                     ))
                 },
                 "source_files": {
@@ -499,6 +503,7 @@ def fake_task_builder_tools(root: Path, source_commit: str) -> Path:
         binary / "uv",
         "#!/bin/sh\n"
         "set -eu\n"
+        "if [ \"${1:-}\" = python ] && [ \"${2:-}\" = find ]; then printf '/usr/bin/python3\\n'; exit 0; fi\n"
         "target=\n"
         "while [ $# -gt 0 ]; do [ \"$1\" = --target ] && { target=$2; break; }; shift; done\n"
         "mkdir -p \"$target\"\n",
@@ -534,9 +539,9 @@ def fake_task_builder_tools(root: Path, source_commit: str) -> Path:
         "  case \"$*\" in *'{{json .Config}}'*) printf '%s\\n' '{\"Env\":[\"PATH=/usr/bin\"],\"Volumes\":null}'; exit 0;; esac\n"
         "  tag=$3; key=${tag#*:}\n"
         "  case $key in\n"
-        "    alpha-pi-0.82.1) n=6;; alpha-claude-code-2.1.232) n=7;; alpha-codex-0.117.0) n=8;;\n"
-        "    beta-pi-0.82.1) n=9;; beta-claude-code-2.1.232) n=10;; beta-codex-0.117.0) n=11;;\n"
-        "    gamma-pi-0.82.1) n=12;; gamma-claude-code-2.1.232) n=13;; gamma-codex-0.117.0) n=14;;\n"
+        "    alpha-pi-0.82.1) n=6;; alpha-claude-code-2.1.232) n=7;; alpha-codex-0.148.0) n=8;;\n"
+        "    beta-pi-0.82.1) n=9;; beta-claude-code-2.1.232) n=10;; beta-codex-0.148.0) n=11;;\n"
+        "    gamma-pi-0.82.1) n=12;; gamma-claude-code-2.1.232) n=13;; gamma-codex-0.148.0) n=14;;\n"
         "    alpha-cortex-smoke-2026.8.6) n=15;;\n"
         "    *) exit 98;;\n"
         "  esac\n"
@@ -612,6 +617,46 @@ def test_terminal_bench_builder_preserves_authentic_tasks_and_builds_pinned_imag
     assert [(variant["task_id"], variant["vendor"]) for variant in output["variants"]] == [
         (task_id, vendor) for task_id in task_ids for vendor in VENDORS
     ]
+
+
+def test_terminal_bench_builder_can_rebuild_only_three_codex_variants(
+    tmp_path: Path,
+) -> None:
+    task_ids = ("alpha", "beta", "gamma")
+    inputs = fixture_inputs(tmp_path)
+    source = terminal_bench_source(tmp_path, task_ids)
+    empty_verifier = tmp_path / "empty-verifier"
+    empty_verifier.mkdir()
+    manifest = terminal_bench_manifest(
+        tmp_path, inputs, task_ids, tree_sha256(empty_verifier),
+    )
+    tools = fake_task_builder_tools(tmp_path, "1" * 40)
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir()
+    (wheelhouse / "pytest-8.4.1-py3-none-any.whl").write_bytes(b"fixture wheel")
+    environment = {
+        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:/usr/bin:/bin",
+        "SOURCE_COMMIT": "1" * 40, "SOURCE_DIR": str(source),
+        "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),
+        "WHEELHOUSE": str(wheelhouse), "NODE_BIN": str(inputs["node"]),
+        "NPM_ROOT": str(inputs["npm"]), "PI_ROOT": "/unavailable-pi",
+        "CLAUDE_BIN": "/unavailable-claude", "CODEX_ROOT": str(inputs["codex"]),
+        "DOCKER_CALLS": str(tmp_path / "docker-calls.txt"),
+    }
+
+    completed = subprocess.run(
+        [str(TASK_BUILD_SCRIPT), "--vendor", "codex"], cwd=HARNESS_DIR,
+        env=environment, check=True, capture_output=True, text=True,
+    )
+
+    calls = Path(environment["DOCKER_CALLS"]).read_text(encoding="utf-8")
+    assert calls.count("buildx build") == 3
+    output = json.loads(completed.stdout)
+    assert [(variant["task_id"], variant["vendor"]) for variant in output["variants"]] == [
+        (task_id, "codex") for task_id in task_ids
+    ]
+    assert not (tmp_path / "admitted-tasks/pi").exists()
+    assert not (tmp_path / "admitted-tasks/claude-code").exists()
 
 
 def test_terminal_bench_builder_reproduces_the_cortex_smoke_image(tmp_path: Path) -> None:

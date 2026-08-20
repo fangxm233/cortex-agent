@@ -9,7 +9,7 @@
   "vendors": {
     "pi": {"version": "0.82.1"},
     "claude-code": {"version": "2.1.232"},
-    "codex": {"version": "0.117.0"}
+    "codex": {"version": "0.148.0"}
   },
   "cortex_smoke": {
     "task_id": "constraints-scheduling",
@@ -74,8 +74,8 @@
           "final_image_digest": "sha256:0e75f455072cc3b4a407e922b87f5a382f689cf8290d2219d4e9d70c133b9b41"
         },
         "codex": {
-          "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-codex-0.117.0",
-          "final_image_digest": "sha256:4a8e42fae8518797c628a0da09a2afb518d4723ee040856e21d1a2d12072bec5"
+          "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-codex-0.148.0",
+          "final_image_digest": "sha256:7ec70cbe5726a332ec7c559d7145f82c67317a529457b071b7eae44032b6e728"
         }
       },
       "source_files": {
@@ -99,8 +99,8 @@
           "final_image_digest": "sha256:defe6b6e045c409994d9c26cb1b70670353e49483b6e23d50f28de835c564978"
         },
         "codex": {
-          "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-codex-0.117.0",
-          "final_image_digest": "sha256:2e7dc993cfb9ccf308fb818db66731660f9d2dcf1a15e67f196c700ac8603046"
+          "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-codex-0.148.0",
+          "final_image_digest": "sha256:31859b5bb36e1d507e330c3c75dc7adf830137fc72e0e4d1a88e68f48fdb903c"
         }
       },
       "source_files": {
@@ -124,8 +124,8 @@
           "final_image_digest": "sha256:b33bed1d275441266a169e2a320287485acef1afebc4a5202cc51a284d18dbc6"
         },
         "codex": {
-          "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-codex-0.117.0",
-          "final_image_digest": "sha256:f7c0302e7d223938b9d46bc81ad0bf3df7be162d90073add0fecda0b210791eb"
+          "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-codex-0.148.0",
+          "final_image_digest": "sha256:d2a78b8e5aa9c842d9dfa21ceed714859ff5f06b141eb15880c62850158ff5cc"
         }
       },
       "source_files": {

@@ -149,8 +149,8 @@ def campaign_document(root: Path, **overrides: object) -> dict[str, object]:
 def codex_campaign_document(root: Path, *, concurrency: int = 3) -> dict[str, object]:
     document = campaign_document(root, concurrency=concurrency, comparisons=[])
     document["arms"] = [vendor_arm_document(
-        "pure-codex", vendor_agent="codex", vendor_cli_version="0.117.0",
-        provider="openai-codex", model="gpt-5.3-codex",
+        "pure-codex", vendor_agent="codex", vendor_cli_version="0.148.0",
+        provider="openai-codex", model="gpt-5.6-sol",
         credential_capability="codex-subscription",
     )]
     document["tasks"].append({
