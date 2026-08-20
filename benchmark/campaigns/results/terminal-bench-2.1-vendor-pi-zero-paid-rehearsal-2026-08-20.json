@@ -1,0 +1,180 @@
+{
+  "schema_version": "cortex-bench-vendor-zero-paid-rehearsal-summary/1",
+  "campaign": "tb21-vendor-pi-zp2700",
+  "executed_at": "2026-08-20",
+  "paid": false,
+  "provider_cost_usd": "0.00",
+  "source_commit": "7f3db65295e18c8fc454632142064583ebe07ca4",
+  "fixes_exercised": {
+    "vendor_pi_completion_cap_projection": "7f7c494f5cc733b652fb7ad42054bfafa16aa34f",
+    "verifier_alias_leak_scan_publication": "ecb5971d360723add4e0dc7eba2ae63f48d3c8a8"
+  },
+  "headline": "The complete three-task pure-PI vendor campaign reached terminal-success for every pinned Terminal-Bench task against a loopback synthetic upstream at zero provider cost. Each verifier reward remained the finite machine-readable value 0.0, each outer envelope published with a clean leak scan and proven revocation, PI serialized the admitted 65536-token completion cap, and a resume pass skipped every terminal trial without rewriting its files or issuing another request.",
+  "execution": {
+    "base_campaign_config": "benchmark/campaigns/terminal-bench-2.1-vendor-pi.yaml",
+    "base_campaign_config_sha256": "40170b6482a2b8224ebc956fc3a1494797594168f53aec84f67308791b7f75df",
+    "run_config_sha256": "334011e2ddf7c386c487d60895c7869f3cfdd386512f10d6e8e4960cd6e66dab",
+    "run_local_overrides": {
+      "paid": false,
+      "upstream": "loopback synthetic DeepSeek fixture",
+      "network_mode": "filtered",
+      "trials_root": "<run-local-trials-root>"
+    },
+    "arm": {
+      "name": "pure-pi",
+      "kind": "vendor-baseline",
+      "vendor_agent": "pi",
+      "vendor_cli_version": "0.82.1",
+      "model": "deepseek-v4-flash",
+      "max_output_tokens": 65536
+    },
+    "campaign_state": "completed",
+    "planned_trials": 3,
+    "terminal_trials": 3,
+    "published_outer_envelopes": 3,
+    "automatic_retry": false
+  },
+  "upstream_accounting": {
+    "proxy_forwarded_requests_total": 3,
+    "loopback_synthetic_requests": 3,
+    "real_provider_forwarded_requests": 0,
+    "reconciliation": "3 proxy requests - 3 requests observed by the fixed loopback synthetic upstream = 0 requests available for any real provider",
+    "containment": "The trial network was filtered and the proxy's fixed upstream URL was loopback; no real provider endpoint or credential was configured."
+  },
+  "trials": [
+    {
+      "task_id": "chess-best-move",
+      "trial_id": "tb21-vendor-pi-zp2700-chess-best-move-pure-pi",
+      "image_digest": "sha256:5f16cd3f75c54b22866a823b35e39305155c784886d1db5f894272d89f7cbbed",
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {
+        "reward": 0.0
+      },
+      "outer_envelope_sha256": "c9fdb81a893ea8e3ee8ee1df6359229e67bcff6f77677e0d0fd17f00e47b768f",
+      "proxy": {
+        "requests": 1,
+        "audit_outcomes": {
+          "usage_accounting_unavailable": 1
+        },
+        "request_completion_cap_mismatch": 0
+      },
+      "serialized_completion_cap": 65536,
+      "leak_scan": {
+        "ok": true,
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "unclassified_files": 0
+      },
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {
+        "route_active": false,
+        "listener_present": false,
+        "serving_thread_alive": false,
+        "active_handlers": 0,
+        "body_handlers": 0
+      }
+    },
+    {
+      "task_id": "constraints-scheduling",
+      "trial_id": "tb21-vendor-pi-zp2700-constraints-scheduling-pure-pi",
+      "image_digest": "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353",
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {
+        "reward": 0.0
+      },
+      "outer_envelope_sha256": "139ab8c29bec731fe6ad5160073ff642059eb53315f60a6e64a17bedadcb8cbb",
+      "proxy": {
+        "requests": 1,
+        "audit_outcomes": {
+          "usage_accounting_unavailable": 1
+        },
+        "request_completion_cap_mismatch": 0
+      },
+      "serialized_completion_cap": 65536,
+      "leak_scan": {
+        "ok": true,
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "unclassified_files": 0
+      },
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {
+        "route_active": false,
+        "listener_present": false,
+        "serving_thread_alive": false,
+        "active_handlers": 0,
+        "body_handlers": 0
+      }
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "trial_id": "tb21-vendor-pi-zp2700-db-wal-recovery-pure-pi",
+      "image_digest": "sha256:7199e472b87adc22c356e9a364d453c6f825938de6ab7f6422b787735dbf47f7",
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {
+        "reward": 0.0
+      },
+      "outer_envelope_sha256": "f22ea342d1e031d5d53e9c795069b9613fcf2400cf09587e6da129d9872da873",
+      "proxy": {
+        "requests": 1,
+        "audit_outcomes": {
+          "usage_accounting_unavailable": 1
+        },
+        "request_completion_cap_mismatch": 0
+      },
+      "serialized_completion_cap": 65536,
+      "leak_scan": {
+        "ok": true,
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "unclassified_files": 0
+      },
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {
+        "route_active": false,
+        "listener_present": false,
+        "serving_thread_alive": false,
+        "active_handlers": 0,
+        "body_handlers": 0
+      }
+    }
+  ],
+  "resume": {
+    "campaign_state": "completed",
+    "all_trials_skipped": true,
+    "synthetic_requests_before": 3,
+    "synthetic_requests_after": 3,
+    "terminal_trial_file_count": 75,
+    "terminal_tree_snapshot_before_sha256": "a1a53ce394d38c41a5d64a1a647296296498b4b4137077f4b95552b565589646",
+    "terminal_tree_snapshot_after_sha256": "a1a53ce394d38c41a5d64a1a647296296498b4b4137077f4b95552b565589646",
+    "terminal_roots_rewritten": false,
+    "routes_rearmed": 0,
+    "routes_rerevoked": 0
+  },
+  "runtime_artifact_sha256": {
+    "campaign_result_after_resume": "4f7a126c6cb11c5c8a30f601807230c6e9ec35015e14f71db4cbda54a2e34096",
+    "path_sanitized_result_summary": "36ae205ddb806e223b1f5dbd60e59a3fecbd9850cf9d7b2238495713bb6fb484",
+    "comparison_report": "b02494c41a59ead532ce7d79e7ee3b133b3e5d25bb897bcf0428b38d5d622eea",
+    "execution_evidence": "b261fc29b32896ccae7518681418bf182795e6340c8404ce507cba596b145c18"
+  },
+  "built_artifact_sha256": {
+    "wheel": "6420d495fb4498e98db4e68634a56946ff8b445c7c4842397deda827c1e93a02",
+    "npm_artifact": "8f24cf556d564a6e2f825473285b7cac98038c6247fdfe9c7a9eb423dad22b27"
+  },
+  "safety": {
+    "real_credentials_used": false,
+    "real_provider_requests": 0,
+    "automatic_retry": false,
+    "runtime_paths_published": false,
+    "push_performed": false
+  }
+}
