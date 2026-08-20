@@ -1,0 +1,37 @@
+{
+  "schema_version": "cortex-bench-vendor-comparison-report/1",
+  "campaign": "tb21-vendor-claude",
+  "task_id": "8674",
+  "generated_at": "2026-08-20",
+  "comparison_status": "unavailable",
+  "reason": "The mandatory stage-1 consume-once live handshake failed after its sole provider request with HTTP 429 rate_limit_error, so the ordered contract prohibited capability promotion and both score-producing vendor campaigns.",
+  "planned_tasks": [
+    {
+      "task_id": "chess-best-move",
+      "vendor_claude_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    },
+    {
+      "task_id": "constraints-scheduling",
+      "vendor_claude_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "vendor_claude_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    }
+  ],
+  "aggregate": {
+    "planned_trials": 3,
+    "trials_started": 0,
+    "trials_with_reward": 0,
+    "trials_with_explicit_campaign_failure": 0,
+    "trials_not_run_by_staged_stop": 3,
+    "score": null
+  },
+  "source_summary": "terminal-bench-2.1-vendor-claude-staged-2026-08-20.json"
+}
