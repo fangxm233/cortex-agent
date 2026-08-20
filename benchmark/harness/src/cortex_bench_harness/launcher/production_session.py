@@ -137,6 +137,15 @@ def _unavailable_proxy(trial_id: str) -> dict[str, object]:
     }
 
 
+def _exec_timed_out(error: Exception) -> bool:
+    """Whether Harbor's executor exhausted the declared per-command timeout."""
+    return (
+        isinstance(error, TimeoutError)
+        or isinstance(error, RuntimeError)
+        and str(error).startswith("Command timed out after ")
+    )
+
+
 class ProductionServerSession:
     def __init__(
         self, spec: ProductionSessionSpec, *,
@@ -391,10 +400,19 @@ class ProductionServerSession:
     async def _wait_for_result(self, thread_id: str, execute: Executor) -> ProductionThreadResult:
         deadline = self._run_deadline()
         while time.monotonic() < deadline:
-            response = await self._post(
-                "production-thread-result.json",
-                {"action": "result", "threadId": thread_id}, execute,
-            )
+            try:
+                response = await self._post(
+                    "production-thread-result.json",
+                    {"action": "result", "threadId": thread_id}, execute,
+                )
+            except Exception as error:
+                # A result poll is observational. Harbor may time out one Docker exec while the
+                # server is busy even though the thread and its campaign deadline remain live.
+                # Retry only that typed/message-shaped timeout; all other exec failures stay fatal.
+                if not _exec_timed_out(error):
+                    raise
+                await asyncio.sleep(self._poll_seconds)
+                continue
             data = self._response_data(response)
             if data.get("terminal") is True:
                 return self._parse_result(data, thread_id)
