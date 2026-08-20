@@ -10,7 +10,7 @@ Package tests cover build reproducibility and the production Harbor wrapper.
 | test_claude_code_vendor_wire.py | test | Verifies Claude artifact and real wire capture |
 | test_codex_vendor_wire.py | test | Verifies current and historical native Codex wire evidence |
 | test_cwd.py | test | Verifies container cwd resolution |
-| test_harbor_agent.py | test | Verifies production Harbor lifecycle |
+| test_harbor_agent.py | test | Verifies offline setup and production Harbor lifecycle |
 | test_manifest.py | test | Verifies harness manifest records |
 | test_pi_vendor_wire.py | test | Verifies the real PI loopback wire fixture |
 | test_runtime_image_builder.py | test | Verifies selected vendor isolation and Cortex-smoke images |
