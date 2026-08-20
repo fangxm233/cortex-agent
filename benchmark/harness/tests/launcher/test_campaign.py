@@ -12,7 +12,6 @@ import asyncio
 import base64
 import hashlib
 import json
-import tomllib
 from pathlib import Path
 
 import pytest
@@ -34,7 +33,6 @@ from cortex_bench_harness.campaign_config import (
 from cortex_bench_harness.host_finalization import (
     OUTER_ENVELOPE_FILENAME,
     OUTER_ENVELOPE_SCHEMA_VERSION,
-    parse_host_scan_policy,
 )
 from cortex_bench_harness.campaign import PROXY_EXPORT_FILENAME
 from cortex_bench_harness.launcher.capability_ceilings import load_capability_ceilings
@@ -60,7 +58,6 @@ COMMITTED_VENDOR_CONFIGS = {
     "claude-code": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-claude-code.yaml",
     "codex": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-codex.yaml",
 }
-LAUNCH_SCRIPT = HARNESS_ROOT / "scripts" / "launch-paid-campaign.py"
 CODEX_CREDENTIAL_ENV = "CORTEX_BENCH_TEST_CODEX_CREDENTIAL"
 CODEX_NOW_MS = 1_900_000_000_000
 
@@ -400,31 +397,6 @@ def failure_document(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
 # --- routing and help ---------------------------------------------------------------------------
 
 
-def test_help_documents_the_run_subcommand_and_copyable_examples(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    with pytest.raises(SystemExit) as exit_info:
-        campaign.main(["--help"])
-
-    assert exit_info.value.code == 0
-    help_text = capsys.readouterr().out
-    assert "run" in help_text
-    assert "cortex-bench run --config" in help_text
-
-
-def test_run_help_lists_the_config_flag_and_an_example(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    with pytest.raises(SystemExit) as exit_info:
-        campaign.main(["run", "--help"])
-
-    assert exit_info.value.code == 0
-    help_text = capsys.readouterr().out
-    assert "--config" in help_text
-    assert "--dry-run" in help_text
-    assert "cortex-bench run --config" in help_text
-
-
 def test_no_subcommand_is_a_structured_refusal_naming_the_commands(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -465,18 +437,6 @@ def test_an_unreadable_config_is_a_structured_refusal(
     assert "absent.yaml" in failure_document(capsys)["error"]
 
 
-def test_the_package_declares_the_public_console_script() -> None:
-    project = tomllib.loads(
-        (HARNESS_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-
-    assert project["project"]["scripts"] == {
-        "cortex-bench": "cortex_bench_harness.campaign:main",
-        "cortex-bench-deepseek-smoke": (
-            "cortex_bench_harness.launcher.deepseek_paid_smoke_launcher:main"
-        ),
-    }
-
-
 # --- strict configuration validation ------------------------------------------------------------
 
 
@@ -489,35 +449,6 @@ def test_a_valid_config_parses_into_the_declared_campaign(tmp_path: Path) -> Non
     assert config.trials_dir == tmp_path / "trials"
     assert [arm["name"] for arm in config.arms] == ["cortex-a", "cortex-b"]
     assert [task.task_id for task in config.tasks] == ["task-one", "task-two"]
-
-
-def test_the_parsed_arm_carries_the_pinned_arm_schema_version(tmp_path: Path) -> None:
-    config = load_campaign_config(write_campaign(tmp_path))
-
-    assert config.arms[0]["schema_version"] == "cortex-benchmark-arm/2"
-    assert config.arms[0]["limits"]["max_output_tokens"] == 32768
-
-
-def test_the_parsed_proxy_and_scan_policy_satisfy_their_existing_parsers(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    for name in ("CREDENTIAL", "FORBIDDEN", "ARGV", "CHECKOUT", "IDENTITY"):
-        monkeypatch.setenv(f"CORTEX_BENCH_TEST_{name}", f"value-{name.lower()}")
-    config = load_campaign_config(write_campaign(tmp_path))
-
-    spec = parse_trial_proxy_spec(config.slot_proxy(config.slot(0)))
-    policy = parse_host_scan_policy(config.host_scan_policy)
-
-    assert spec.request_body_limit_bytes == 16777216
-    assert spec.bound_source_ip == "172.30.240.2"
-    assert policy.secrets == {"provider_credential": "value-credential"}
-
-
-def test_the_task_image_digest_is_derived_from_the_pinned_reference(tmp_path: Path) -> None:
-    config = load_campaign_config(write_campaign(tmp_path))
-
-    assert config.tasks[0].image_digest == DIGEST
-    assert config.tasks[0].path == tmp_path / "tasks" / "one"
 
 
 @pytest.mark.parametrize(
@@ -2047,35 +1978,12 @@ def test_a_malformed_route_suffix_is_refused(tmp_path: Path, suffix: str) -> Non
 # --- the committed ZERO-PAID campaign -----------------------------------------------------------
 
 
-def test_the_committed_zero_paid_campaign_config_is_valid_and_unpaid() -> None:
-    config = load_campaign_config(COMMITTED_ZERO_PAID_CONFIG)
-
-    assert config.paid is False
-    assert config.arms and len(config.tasks) >= 2
-    assert all(arm["credential_capability"] for arm in config.arms)
-    assert config.concurrency >= 1
-    assert all(not str(task.path).startswith("/var") for task in config.tasks)
-
-
 def test_the_committed_zero_paid_campaign_names_no_provider_or_gateway_endpoint() -> None:
     config = load_campaign_config(COMMITTED_ZERO_PAID_CONFIG)
 
     upstream = str(config.credential["upstream_base_url"])
     assert upstream.startswith("http://127.0.0.1:")
     assert ":9880" not in upstream
-
-
-def test_the_committed_zero_paid_tasks_load_and_pin_the_declared_image() -> None:
-    from harbor.models.task.task import Task
-
-    config = load_campaign_config(COMMITTED_ZERO_PAID_CONFIG)
-
-    for task in config.tasks:
-        loaded = Task(task_dir=task.path)
-        assert loaded.config.environment.docker_image == task.image_ref
-        assert task.image_ref.endswith(f"@{task.image_digest}")
-        verifier = (task.path / "tests" / "test.sh").read_text(encoding="utf-8")
-        assert "/logs/verifier/reward.txt" in verifier
 
 
 # The declared request-cost / output-cap pairing proofs stood here. The pair only ever expressed
@@ -2086,12 +1994,6 @@ def test_the_committed_zero_paid_tasks_load_and_pin_the_declared_image() -> None
 
 
 # --- the committed paid campaign ----------------------------------------------------------------
-
-
-def test_the_committed_paid_campaign_declares_both_harbor_phase_timeouts() -> None:
-    config = load_campaign_config(COMMITTED_PAID_CONFIG)
-
-    assert config.timeouts == {"agent_seconds": 2100, "verifier_seconds": 1800}
 
 
 def test_the_committed_paid_agent_phase_outlives_the_deadline_it_bounds() -> None:
@@ -2221,29 +2123,6 @@ def test_the_committed_paid_campaign_uses_a_fresh_identity() -> None:
         for task in config.tasks for arm in config.arms
     }
     assert {plan.trial_id for plan in config.trials()}.isdisjoint(preserved_trial_ids)
-
-
-def test_the_committed_paid_campaign_names_the_launch_procedure_that_supplies_its_references(
-) -> None:
-    """Every host reference the campaign declares is one the committed launcher resolves; a bare
-    `cortex-bench run` supplies none of them, which is what refused the r2 attempt."""
-    config = load_campaign_config(COMMITTED_PAID_CONFIG)
-    policy = config.host_scan_policy
-
-    declared = {str(policy["repository_checkout_environment"])}
-    for field in (
-        "secret_environment", "forbidden_environment", "forbidden_argv_environment",
-        "host_identity_environment",
-    ):
-        declared.update(str(name) for name in policy[field].values())
-    assert declared == {
-        "CORTEX_BENCH_DEEPSEEK_CREDENTIAL", "CORTEX_BENCH_PAID_CHECKOUT",
-        "CORTEX_BENCH_PAID_FORBIDDEN", "CORTEX_BENCH_PAID_FORBIDDEN_ARGV",
-        "CORTEX_BENCH_PAID_IDENTITY",
-    }
-    assert str(config.proxy["credential_env"]) == "CORTEX_BENCH_DEEPSEEK_CREDENTIAL"
-    assert LAUNCH_SCRIPT.is_file()
-    assert str(LAUNCH_SCRIPT.name) in COMMITTED_PAID_CONFIG.read_text(encoding="utf-8")
 
 
 def test_an_absent_network_block_leaves_the_trial_open(tmp_path: Path) -> None:

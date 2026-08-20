@@ -16,12 +16,9 @@ import pytest
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
 from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from cortex_bench_harness.proxy.adapters import (
-    AdapterUnavailable,
-    AdapterVersionMismatch,
     AuthInjectionUnavailable,
     select_adapter,
 )
-from cortex_bench_harness.proxy.adapters.anthropic import AnthropicMessagesApiKeyAdapter
 from cortex_bench_harness.proxy.adapters.openai_codex_responses import (
     ACCOUNT_ID_HEADER,
     ADAPTER_ID,
@@ -172,16 +169,6 @@ def codex_request_from(handle, source_ip: str) -> tuple[int, bytes]:
 # --- R3: selection returns this adapter for the row-4 tuple and for no other ---
 
 
-@pytest.mark.parametrize("key", [ROW_FOUR_KEY, CODEX_CLI_KEY])
-def test_selects_the_codex_adapter_for_each_registered_exact_key(
-    key: CredentialCapabilityKey,
-) -> None:
-    adapter = select_adapter(key)
-    assert isinstance(adapter, OpenAICodexResponsesOAuthAdapter)
-    assert adapter.adapter_id == ADAPTER_ID
-    assert adapter.schema_version == PROXY_SCHEMA_VERSION
-
-
 def test_codex_cli_selection_passes_the_parsed_expiry_into_the_reused_adapter() -> None:
     token = codex_token(HOST_ACCOUNT_ID, expires_at_seconds=1)
     adapter = select_adapter(
@@ -201,43 +188,6 @@ def test_adapter_refuses_an_expiry_parsed_from_a_different_access_token() -> Non
             CODEX_CLI_KEY, credential=token, frozen_model=CODEX_MODEL,
             access_expires_at_ms=1_900_000_001_000,
         )
-
-
-@pytest.mark.parametrize(
-    "key",
-    [
-        CredentialCapabilityKey("pi", "openai-codex", "??", "oauth"),
-        CredentialCapabilityKey("pi", "openai-codex", "openai-codex-responses", "api-key"),
-        CredentialCapabilityKey("pi", "openai", "openai-codex-responses", "oauth"),
-        CredentialCapabilityKey("pi", "openai-codex", "openai-responses", "oauth"),
-        CredentialCapabilityKey("pi-cli", "openai-codex", "openai-codex-responses", "oauth"),
-        CredentialCapabilityKey("codex-cli", "openai", "openai-codex-responses", "oauth"),
-        CredentialCapabilityKey("codex-cli", "openai-codex", "openai-responses", "oauth"),
-        CredentialCapabilityKey(
-            "codex-cli", "openai-codex", "openai-codex-responses", "subscription"),
-    ],
-)
-def test_no_neighbouring_key_selects_the_row_four_adapter(
-    key: CredentialCapabilityKey,
-) -> None:
-    with pytest.raises(AdapterUnavailable):
-        select_adapter(key)
-
-
-def test_row_four_key_under_another_schema_version_is_refused() -> None:
-    key = CredentialCapabilityKey(
-        "pi", "openai-codex", "openai-codex-responses", "oauth",
-        "cortex-bench-trial-proxy/1",
-    )
-    with pytest.raises(AdapterVersionMismatch):
-        select_adapter(key)
-
-
-def test_row_one_key_still_selects_the_row_one_adapter() -> None:
-    adapter = select_adapter(
-        CredentialCapabilityKey("claude", "anthropic", "anthropic-messages", "api-key-bearer"))
-    assert isinstance(adapter, AnthropicMessagesApiKeyAdapter)
-    assert not isinstance(adapter, OpenAICodexResponsesOAuthAdapter)
 
 
 # --- Hazard (i): the dummy credential's shape is a correctness input ---

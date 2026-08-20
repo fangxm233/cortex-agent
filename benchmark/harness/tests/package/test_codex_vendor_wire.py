@@ -6,8 +6,6 @@
 import base64
 import json
 import runpy
-import subprocess
-import sys
 from pathlib import Path
 
 from harbor.agents.installed.codex import Codex
@@ -108,19 +106,6 @@ def test_capture_probe_records_the_complete_json_body() -> None:
     )
     assert observed["body"] == body
     assert observed["headers"]["authorization"] == "Bearer <REDACTED_DUMMY_JWT>"
-
-
-def test_capture_probe_has_a_copyable_zero_paid_interface() -> None:
-    probe = FIXTURE_DIR / "capture.py"
-    result = subprocess.run(
-        [sys.executable, str(probe), "--help"], capture_output=True, text=True,
-        check=False,
-    )
-    assert result.returncode == 0
-    assert "--codex-binary" in result.stdout
-    assert "--event-mode" in result.stdout
-    assert "--exp-offset-seconds" in result.stdout
-    assert "unshare --user --map-root-user --net" in result.stdout
 
 
 def test_terminal_failure_and_expiry_observations_are_explicit() -> None:

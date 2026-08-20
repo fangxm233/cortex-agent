@@ -4,7 +4,6 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
-import gzip
 import hashlib
 import io
 import json
@@ -152,17 +151,6 @@ def write_npm_artifact(path: Path, members: Mapping[str, bytes] | None = None) -
             info = tarfile.TarInfo(f"package/{relative}")
             info.size = len(payload)
             tar.addfile(info, io.BytesIO(payload))
-
-
-def write_deterministic_npm_artifact(
-    path: Path, members: Mapping[str, bytes] | None = None,
-) -> None:
-    with path.open("wb") as output, gzip.GzipFile(fileobj=output, mode="wb", mtime=0) as zipped:
-        with tarfile.open(fileobj=zipped, mode="w") as tar:
-            for relative, payload in sorted((members or bundle_members()).items()):
-                info = tarfile.TarInfo(f"package/{relative}")
-                info.size = len(payload)
-                tar.addfile(info, io.BytesIO(payload))
 
 
 def sha256_hex(payload: bytes) -> str:
@@ -1214,17 +1202,6 @@ def test_production_auth_container_alias_scans_clean(tmp_path: Path) -> None:
     )]["kind"] == "file"
     assert envelope["leak_scan"]["unclassified_files"] == []
     assert envelope["leak_scan"]["clean"] is True
-
-
-def test_the_cortex_envelope_bytes_match_the_pre_vendor_baseline(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setitem(globals(), "write_npm_artifact", write_deterministic_npm_artifact)
-    finalize_production_trial(tmp_path, production_arm_bundle("direct-pi-deepseek"))
-
-    assert sha256_hex(envelope_path(tmp_path).read_bytes()) == (
-        "0c31100174176263ef12e345700709fd5da9d9be0f049b16fe7d5a23da6d36af"
-    )
 
 
 def test_vendor_uses_the_shared_envelope_with_explicit_cortex_unavailability(

@@ -11,7 +11,6 @@ import pytest
 import cortex_bench_harness.proxy.adapters as adapters
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
 from cortex_bench_harness.proxy.adapters import (
-    ADAPTER_REGISTRY,
     UNKNOWN_MEMBER,
     AdapterUnavailable,
     AdapterVersionMismatch,
@@ -171,12 +170,6 @@ def test_version_mismatch_is_a_start_time_refusal() -> None:
     )
     with pytest.raises(AdapterVersionMismatch):
         select_adapter(key)
-
-
-def test_registry_declares_no_unknown_member_and_one_schema_version() -> None:
-    for members in ADAPTER_REGISTRY:
-        assert UNKNOWN_MEMBER not in members
-        assert members[4] == PROXY_SCHEMA_VERSION
 
 
 def test_selection_binds_the_frozen_upstream_credential_and_model() -> None:

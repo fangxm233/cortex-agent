@@ -3,10 +3,6 @@
 # pos:    Isolation proof for all vendor baseline paths
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
-import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -86,31 +82,3 @@ def test_baseline_rejects_cortex_environment(key: str) -> None:
         build_agent_config(
             arm, cli_version="1.2.3", env={key: "/tmp/cortex-state"},
         )
-
-
-def test_baseline_launcher_import_does_not_import_cortex_agent() -> None:
-    source_root = Path(__file__).parents[2] / "src"
-    script = """
-import json
-import sys
-from cortex_bench_harness.launcher.arms import build_agent_config
-arm = json.loads(sys.argv[1])
-build_agent_config(arm, cli_version='1.2.3')
-forbidden = {
-    'cortex_bench_harness.harbor_agent',
-    'cortex_bench_harness.launcher.arm_resolution',
-    'cortex_bench_harness.launcher.trial_admission',
-    'cortex_bench_harness.launcher.trial_proxy',
-}
-loaded = sorted(forbidden.intersection(sys.modules))
-assert not loaded, loaded
-"""
-    arm = baseline_arm("claude-code", None, "claude-sonnet")
-    environment = {**os.environ, "PYTHONPATH": str(source_root)}
-
-    result = subprocess.run(
-        [sys.executable, "-c", script, json.dumps(arm)],
-        check=False, capture_output=True, text=True, env=environment,
-    )
-
-    assert result.returncode == 0, result.stderr

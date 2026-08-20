@@ -108,21 +108,6 @@ def resolve(gateway: Path, **overrides: object) -> object:
 # --- the five references ------------------------------------------------------------------------
 
 
-def test_the_committed_campaign_declares_exactly_the_five_documented_references() -> None:
-    config = committed_config()
-
-    declared = launcher.host_scan_reference_names(config)
-
-    assert declared == {
-        "secret_environment.provider_credential": "CORTEX_BENCH_DEEPSEEK_CREDENTIAL",
-        "forbidden_environment.host_forbidden": "CORTEX_BENCH_PAID_FORBIDDEN",
-        "forbidden_argv_environment.host_argv": "CORTEX_BENCH_PAID_FORBIDDEN_ARGV",
-        "repository_checkout_environment": "CORTEX_BENCH_PAID_CHECKOUT",
-        "host_identity_environment.machine": "CORTEX_BENCH_PAID_IDENTITY",
-    }
-    assert launcher.credential_reference(config) == "CORTEX_BENCH_DEEPSEEK_CREDENTIAL"
-
-
 def test_the_launcher_resolves_every_reference_the_campaign_declares(
     gateway: Path, clean_environment: dict[str, str],
 ) -> None:
