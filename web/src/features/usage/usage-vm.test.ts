@@ -1,5 +1,5 @@
-// input:  ProviderUsage fixtures, provider policies, language, and current epoch
-// output: quota, policy, spend, freshness, severity, and timing regressions
+// input:  ProviderUsage fixtures, per-window policies, language, and current epoch
+// output: quota, per-row policy, fallback, spend, severity, and timing regressions
 // pos:    Verifies the shared desktop/mobile usage presentation model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -16,8 +16,10 @@ const status: SystemUsageStatus = [
     windows: [
       { type: 'five_hour', utilization: 0.54, resetsAt: NOW + 2 * 3600 },
       { type: 'seven_day', utilization: 0.31, resetsAt: NOW + 3 * 86400 },
+      { type: 'seven_day_overage_included', utilization: 0.76, resetsAt: NOW + 4 * 86400 },
       { type: 'model_scoped', label: 'Fable', utilization: 0.1, resetsAt: null },
-      { type: 'model_scoped', utilization: 0.2, resetsAt: null },
+      { type: 'model_scoped', label: 'Lyric', utilization: 0.2, resetsAt: null },
+      { type: 'model_scoped', utilization: 0.3, resetsAt: null },
       { type: 'nimbus_quill', utilization: null, resetsAt: null },
     ],
   },
@@ -34,40 +36,57 @@ const status: SystemUsageStatus = [
     observedAt: NOW - 120, windows: [], spend: { today: 1.234, month: 12.5 },
   },
   {
-    provider: 'qwen-ksu', displayName: 'Qwen KSU', modes: ['qwen-ksu'], freshness: 'unsupported',
-    observedAt: null, windows: [], spend: { today: 0, month: 3 },
+    provider: 'openrouter', displayName: 'OpenRouter', modes: ['openrouter'], freshness: 'never',
+    observedAt: null, windows: [], note: 'push-only: waiting for next call',
   },
 ];
 
 const policies: ProviderRateLimits = {
-  anthropic: { enabled: true, threshold: 0.82 },
-  openrouter: { enabled: false },
+  anthropic: {
+    enabled: false,
+    threshold: 0.82,
+    windows: [
+      { type: 'five_hour', enabled: true, threshold: 0.76 },
+      { type: 'seven_day', enabled: true },
+      { type: 'model_scoped', label: 'Fable', enabled: false },
+    ],
+  },
+  'openai-codex': { windows: [{ type: 'codex_primary', enabled: true, threshold: 0.91 }] },
 };
 
 describe('buildUsageView', () => {
-  it('keeps provider quotas, throttle policy, and gateway spend as separate presentation groups', () => {
+  it('attaches per-window policy views, exact defaults, and a legacy fallback notice to rendered rows', () => {
     const vm = buildUsageView(status, policies, NOW, 'en');
+    const anthropic = vm.providers[0] as any;
+    const codex = vm.providers[1] as any;
 
     expect(vm.providers.map(provider => provider.provider)).toEqual([
-      'anthropic', 'openai-codex', 'deepseek', 'qwen-ksu',
+      'anthropic', 'openai-codex', 'deepseek', 'openrouter',
     ]);
-    expect(vm.providers[0]).toMatchObject({ freshness: 'live', observedAgo: '1m', quotaState: 'available' });
-    expect(vm.providers[0].rateLimitPolicy).toEqual({ enabled: true, customThresholdPercent: 82 });
-    expect(vm.providers[1]).toMatchObject({ freshness: 'stale', observedAgo: '30m', quotaState: 'available' });
-    expect(vm.providers[1].rateLimitPolicy).toEqual({ enabled: true, customThresholdPercent: null });
-    expect(vm.providers[2]).toMatchObject({
-      freshness: 'unsupported', quotaState: 'unsupported',
-      spend: { today: '$1.23', month: '$12.50' },
-      rateLimitPolicy: null,
+    expect(anthropic.legacyFallback).toEqual({
+      target: { provider: 'anthropic', windowType: null, windowLabel: null },
+      enabled: false,
+      thresholdPercent: 82,
     });
-    expect(vm.providers[3]).toMatchObject({
-      freshness: 'unsupported', quotaState: 'unsupported',
-      spend: { today: '$0.00', month: '$3.00' },
-      rateLimitPolicy: null,
-    });
+    expect(anthropic.windows.map((window: any) => ({
+      type: window.type,
+      label: window.label,
+      threshold: window.policy?.thresholdPercent ?? null,
+      defaultThreshold: window.policy?.defaultThresholdPercent ?? null,
+      enabled: window.policy?.enabled ?? null,
+      fallback: window.policy?.usesLegacyFallback ?? null,
+    }))).toEqual([
+      { type: 'five_hour', label: '5 hours', threshold: 76, defaultThreshold: 90, enabled: true, fallback: false },
+      { type: 'seven_day', label: '7 days', threshold: 95, defaultThreshold: 95, enabled: true, fallback: false },
+      { type: 'seven_day_overage_included', label: '7 days (incl. overage)', threshold: 82, defaultThreshold: 95, enabled: false, fallback: true },
+      { type: 'model_scoped', label: 'Fable', threshold: 90, defaultThreshold: 90, enabled: false, fallback: false },
+      { type: 'model_scoped', label: 'Lyric', threshold: 82, defaultThreshold: 90, enabled: false, fallback: true },
+    ]);
+    expect(codex.legacyFallback).toBeNull();
+    expect(codex.windows.map((window: any) => window.policy?.thresholdPercent)).toEqual([91, 90]);
   });
 
-  it('renders known and labeled model windows while dropping unknown experiment buckets', () => {
+  it('renders known windows plus labeled model rows while dropping unknown and unlabeled buckets', () => {
     const vm = buildUsageView(status, policies, NOW, 'en');
 
     expect(vm.providers[0].windows.map(window => ({
@@ -76,7 +95,9 @@ describe('buildUsageView', () => {
     }))).toEqual([
       { type: 'five_hour', label: '5 hours', utilization: '54%', resetIn: '2h' },
       { type: 'seven_day', label: '7 days', utilization: '31%', resetIn: '3d' },
+      { type: 'seven_day_overage_included', label: '7 days (incl. overage)', utilization: '76%', resetIn: '4d' },
       { type: 'model_scoped', label: 'Fable', utilization: '10%', resetIn: null },
+      { type: 'model_scoped', label: 'Lyric', utilization: '20%', resetIn: null },
     ]);
     expect(vm.providers[1].windows.map(window => window.label)).toEqual(['Primary', 'Secondary']);
   });
@@ -94,23 +115,12 @@ describe('buildUsageView', () => {
     });
   });
 
-  it('keeps never-observed providers configurable with an explicit policy override', () => {
-    const vm = buildUsageView([{
-      provider: 'openrouter', displayName: 'OpenRouter', modes: ['openrouter'],
-      freshness: 'never', observedAt: null, windows: [], note: 'push-only: waiting for next call',
-    }], policies, NOW, 'en');
-
-    expect(vm.providers[0]).toMatchObject({
-      freshness: 'never', observedAgo: null, quotaState: 'never',
-      note: 'push-only: waiting for next call',
-      rateLimitPolicy: { enabled: false, customThresholdPercent: null },
-    });
-  });
-
-  it('treats provider policy as unknown until config is ready', () => {
+  it('keeps windows configurable only while config is ready', () => {
     const vm = buildUsageView(status.slice(0, 2), null, NOW, 'en');
 
-    expect(vm.providers.map(provider => provider.rateLimitPolicy)).toEqual([null, null]);
+    expect((vm.providers[0].windows[0] as any).policy).toBeNull();
+    expect((vm.providers[0] as any).legacyFallback).toBeNull();
+    expect((vm.providers[1].windows[0] as any).policy).toBeNull();
   });
 
   it('classifies utilization severity at the 70% and 90% thresholds', () => {
@@ -149,10 +159,26 @@ describe('buildUsageView', () => {
     expect(vm.providers[1].noteTone).toBe('info');
   });
 
-  it('localizes window labels while keeping compact observed and reset timing', () => {
+  it('keeps a legacy fallback clearable before a never-observed provider has quota rows', () => {
+    const openrouter = status.find((provider) => provider.provider === 'openrouter')!;
+    const vm = buildUsageView([openrouter], {
+      openrouter: { enabled: false, threshold: 0.8 },
+    }, NOW, 'en');
+
+    expect(vm.providers[0].windows).toEqual([]);
+    expect(vm.providers[0].legacyFallback).toEqual({
+      target: { provider: 'openrouter', windowType: null, windowLabel: null },
+      enabled: false,
+      thresholdPercent: 80,
+    });
+  });
+
+  it('localizes weekly-overage and Codex labels while keeping compact timing', () => {
     const vm = buildUsageView(status.slice(0, 2), policies, NOW, 'zh');
 
-    expect(vm.providers[0].windows.slice(0, 2).map(window => window.label)).toEqual(['5 小时', '7 天']);
+    expect(vm.providers[0].windows.slice(0, 3).map(window => window.label)).toEqual([
+      '5 小时', '7 天', '7 天（含超额）',
+    ]);
     expect(vm.providers[1].windows.map(window => window.label)).toEqual(['主窗口', '次窗口']);
     expect(formatUsageDuration(3 * 86400 + 2 * 3600, 'zh')).toBe('3天 2小时');
   });

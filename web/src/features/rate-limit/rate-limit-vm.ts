@@ -1,5 +1,5 @@
 // input:  provider throttle snapshot, epoch time, UI language
-// output: compact labels, countdowns, and provider detail rows
+// output: compact labels, model labels, countdowns, and detail rows
 // pos:    Shared desktop/mobile rate-limit presentation model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -55,6 +55,18 @@ function waitingLabel(sessions: number, threads: number, lang: Lang): string {
   return `${sessions} ${sessionWord} · ${threads} ${threadWord} waiting`;
 }
 
+type RawRateLimitWindow = SystemRateLimitStatus['providers'][number]['windows'][number];
+
+function buildWindow(window: RawRateLimitWindow, nowSec: number): RateLimitWindowView {
+  return {
+    type: window.type,
+    typeLabel: window.label ?? formatWindowType(window.type),
+    utilization: window.utilization,
+    resetsAt: window.resetsAt,
+    countdown: formatRateLimitCountdown(window.resetsAt - nowSec),
+  };
+}
+
 function buildProvider(
   raw: SystemRateLimitStatus['providers'][number],
   nowSec: number,
@@ -62,27 +74,19 @@ function buildProvider(
 ): RateLimitProviderView | null {
   const windows = raw.windows
     .filter((window) => window.resetsAt > nowSec)
-    .sort((a, b) => a.resetsAt - b.resetsAt || a.type.localeCompare(b.type))
-    .map((window) => ({
-      type: window.type,
-      typeLabel: formatWindowType(window.type),
-      utilization: window.utilization,
-      resetsAt: window.resetsAt,
-      countdown: formatRateLimitCountdown(window.resetsAt - nowSec),
-    }));
+    .sort((a, b) => a.resetsAt - b.resetsAt
+      || a.type.localeCompare(b.type)
+      || (a.label ?? '').localeCompare(b.label ?? ''))
+    .map((window) => buildWindow(window, nowSec));
   if (windows.length === 0) return null;
   const recoveryAt = Math.max(...windows.map((window) => window.resetsAt));
   const waitingSessions = raw.waitingSessions ?? 0;
   const waitingThreads = raw.waitingThreads ?? 0;
   return {
-    provider: raw.provider,
-    displayName: raw.displayName,
-    recoveryAt,
+    provider: raw.provider, displayName: raw.displayName, recoveryAt,
     recoveryCountdown: formatRateLimitCountdown(recoveryAt - nowSec),
-    waitingSessions,
-    waitingThreads,
-    waitingLabel: waitingLabel(waitingSessions, waitingThreads, lang),
-    windows,
+    waitingSessions, waitingThreads,
+    waitingLabel: waitingLabel(waitingSessions, waitingThreads, lang), windows,
   };
 }
 

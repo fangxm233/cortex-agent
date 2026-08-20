@@ -287,13 +287,14 @@ and route mode are gated without blocking another provider that happens to
 use the same mode name.
 
 The policy is configured in [`config/settings.json`](./configuration.md#configsettingsjson)
-as `providerRateLimits`, an object keyed by provider id. Each entry has the
-shape `{ enabled, threshold? }`. `threshold` is a ratio greater than `0` and
-at most `1`; leaving a provider out keeps throttling enabled for that
-provider and uses the built-in thresholds: `0.90` for most windows, `0.95`
-for `seven_day` and `seven_day_overage_included`. The desktop and mobile
-Usage screens edit this policy. Providers that expose spend only, with no
-quota windows, do not show throttle controls.
+as `providerRateLimits`, an object keyed by provider id. Each provider can
+hold a `windows` array of `{ type, label?, enabled, threshold? }` entries, so
+5-hour, weekly, weekly-overage, Codex primary/secondary, and labeled model
+windows are independently configurable. `threshold` is a ratio greater than
+`0` and at most `1`; an omitted value uses `0.95` for known weekly windows and
+`0.90` otherwise. Exact window policy takes precedence over the visible,
+clearable legacy provider fallback. Desktop and mobile Usage edit these rows;
+spend-only providers do not show quota controls.
 
 Interrupted direct conversations and threads are stored with the provider
 that limited them. When one provider fully recovers, Cortex resumes only that
@@ -306,12 +307,14 @@ from its original prompt. Resume starts are staggered so a freshly opened
 window is not immediately exhausted.
 
 The active rate-limit details show the waiting direct-session and thread
-counts for each provider. The provider key is the isolation boundary:
-multiple accounts or quota pools reported under the same provider key share
-one provider record, and same-type windows retain the later reset time.
-Automatic recovery also requires a reset-bearing provider event. The Claude
-print adapter supplies that event; an adapter that only reports a failed call
-or low remaining usage does not create a timed throttle by itself.
+counts for each provider and preserve labels for simultaneous model-scoped
+windows. The provider key is the isolation boundary: multiple accounts or
+quota pools reported under the same provider key share one provider record,
+and windows with the same type and label retain the later reset time. Timed
+throttling requires a reset-bearing observation. Claude live account-usage
+pulls submit every reported window for each configured Anthropic mode, while
+stale PI cache reads are never replayed; PI response-header observations
+continue to arrive through their push path.
 
 Policy edits apply only to future quota observations. They do not rewrite a
 window that is already active. An active quota window or outage retry window

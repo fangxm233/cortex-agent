@@ -1,5 +1,5 @@
-// input:  React clock, usage/config queries, policy writes, and selected language
-// output: queried usage view with refresh state and provider policy visibility/controls
+// input:  React clock, usage/config queries, row-policy writes, and selected language
+// output: queried usage view with refresh state and per-target policy visibility/controls
 // pos:    Shared usage data hook for desktop and mobile consumers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -8,12 +8,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ConfigSnapshot,
   ProviderRateLimitPolicy,
+  ProviderRateLimitPolicyOverride,
+  ProviderRateLimitWindowPolicyOverride,
   ProviderRateLimits,
   SystemUsageStatus,
 } from '@cortex-agent/ui-contract';
 import { useLang } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { buildUsageView, type UsageView } from './usage-vm';
+import { buildUsageView, type UsagePolicyTarget, type UsageView, usagePolicyTargetKey } from './usage-vm';
 
 export type UsagePolicyControlsState = 'ready' | 'loading' | 'error' | 'missing';
 
@@ -29,10 +31,22 @@ export interface UsageFeatureState {
   refreshError: { message: string } | null;
   isRefreshing: boolean;
   policyControlsState: UsagePolicyControlsState;
-  isPolicySaving: (provider: string) => boolean;
-  getPolicyError: (provider: string) => { message: string } | null;
+  isPolicySaving: (target: UsagePolicyTarget) => boolean;
+  getPolicyError: (target: UsagePolicyTarget) => { message: string } | null;
   refresh: () => void;
-  savePolicy: (provider: string, draft: UsagePolicyDraft) => void;
+  savePolicy: (target: UsagePolicyTarget, draft: UsagePolicyDraft) => void;
+}
+
+interface PolicyMutationInput {
+  provider: string;
+  windowType?: string;
+  windowLabel?: string;
+  enabled: boolean;
+  threshold?: number;
+}
+
+interface PolicyMutation {
+  mutateAsync: (args: PolicyMutationInput) => Promise<{ policy: ProviderRateLimitPolicy }>;
 }
 
 function currentEpochSeconds(): number {
@@ -79,23 +93,88 @@ function readViewPolicyConfig(
   return controlsState === 'ready' ? providerRateLimits : null;
 }
 
-function nextPendingByProvider(
-  current: Record<string, number>,
-  provider: string,
-  delta: 1 | -1,
-): Record<string, number> {
-  const nextCount = Math.max(0, (current[provider] ?? 0) + delta);
-  return nextCount > 0
-    ? { ...current, [provider]: nextCount }
-    : Object.fromEntries(Object.entries(current).filter(([key]) => key !== provider));
+function pendingKey(target: UsagePolicyTarget): string {
+  return usagePolicyTargetKey(target);
 }
 
-function setProviderError(
+function nextPendingByTarget(
+  current: Record<string, number>,
+  target: UsagePolicyTarget,
+  delta: 1 | -1,
+): Record<string, number> {
+  const key = pendingKey(target);
+  const nextCount = Math.max(0, (current[key] ?? 0) + delta);
+  if (nextCount > 0) return { ...current, [key]: nextCount };
+  return Object.fromEntries(Object.entries(current).filter(([item]) => item !== key));
+}
+
+function setTargetError(
   setPolicyErrors: Dispatch<SetStateAction<Record<string, string | null>>>,
-  provider: string,
+  target: UsagePolicyTarget,
   message: string | null,
 ): void {
-  setPolicyErrors(current => ({ ...current, [provider]: message }));
+  setPolicyErrors((current) => ({ ...current, [pendingKey(target)]: message }));
+}
+
+function cloneWindowPolicy(window: ProviderRateLimitWindowPolicyOverride): ProviderRateLimitWindowPolicyOverride {
+  return { ...window };
+}
+
+function cloneProviderPolicy(policy: ProviderRateLimitPolicyOverride | undefined): ProviderRateLimitPolicyOverride {
+  if (!policy) return {};
+  return {
+    ...(policy.enabled === undefined ? {} : { enabled: policy.enabled }),
+    ...(policy.threshold === undefined ? {} : { threshold: policy.threshold }),
+    ...(policy.windows ? { windows: policy.windows.map(cloneWindowPolicy) } : {}),
+  };
+}
+
+function matchesWindow(
+  window: ProviderRateLimitWindowPolicyOverride,
+  patch: ProviderRateLimitPolicy,
+): boolean {
+  return window.type === patch.windowType && window.label === patch.windowLabel;
+}
+
+function nextWindowPolicy(patch: ProviderRateLimitPolicy): ProviderRateLimitWindowPolicyOverride {
+  return {
+    type: patch.windowType!,
+    ...(patch.windowLabel ? { label: patch.windowLabel } : {}),
+    enabled: patch.enabled,
+    ...(patch.threshold !== null ? { threshold: patch.threshold } : {}),
+  };
+}
+
+function cleanProviderPolicy(policy: ProviderRateLimitPolicyOverride): ProviderRateLimitPolicyOverride | null {
+  const next = cloneProviderPolicy(policy);
+  if (!next.windows?.length) delete next.windows;
+  if (next.enabled === undefined && next.threshold === undefined && !next.windows) return null;
+  return next;
+}
+
+function hasLegacyProviderOverride(policy: ProviderRateLimitPolicyOverride): boolean {
+  return policy.enabled === false || policy.threshold !== undefined;
+}
+
+function applyProviderPolicyPatch(
+  current: ProviderRateLimitPolicyOverride | undefined,
+  patch: ProviderRateLimitPolicy,
+): ProviderRateLimitPolicyOverride | null {
+  const next = cloneProviderPolicy(current);
+  if (!patch.windowType) {
+    delete next.enabled;
+    delete next.threshold;
+    if (!patch.enabled || patch.threshold !== null) next.enabled = patch.enabled;
+    if (patch.threshold !== null) next.threshold = patch.threshold;
+    return cleanProviderPolicy(next);
+  }
+  const windows = next.windows?.filter(
+    (window: ProviderRateLimitWindowPolicyOverride) => !matchesWindow(window, patch),
+  ) ?? [];
+  const mustMaskLegacy = patch.enabled && patch.threshold === null && hasLegacyProviderOverride(next);
+  if (!patch.enabled || patch.threshold !== null || mustMaskLegacy) windows.push(nextWindowPolicy(patch));
+  next.windows = windows;
+  return cleanProviderPolicy(next);
 }
 
 function applyPolicyToSnapshot(
@@ -103,14 +182,16 @@ function applyPolicyToSnapshot(
   policy: ProviderRateLimitPolicy,
 ): ConfigSnapshot | undefined {
   if (!snapshot?.settings) return snapshot;
-  const settings = snapshot.settings;
-  const index = settings.findIndex((entry) => entry.key === 'providerRateLimits');
+  const index = snapshot.settings.findIndex(
+    (entry: NonNullable<ConfigSnapshot['settings']>[number]) => entry.key === 'providerRateLimits',
+  );
   if (index < 0) return snapshot;
-  const current = settings[index];
+  const current = snapshot.settings[index];
   const nextValue = isPlainObject(current.value) ? { ...current.value } as ProviderRateLimits : {};
-  if (policy.enabled && policy.threshold === null) delete nextValue[policy.provider];
-  else nextValue[policy.provider] = policy.threshold === null ? { enabled: policy.enabled } : { enabled: policy.enabled, threshold: policy.threshold };
-  const nextSettings = [...settings];
+  const nextPolicy = applyProviderPolicyPatch(nextValue[policy.provider], policy);
+  if (nextPolicy) nextValue[policy.provider] = nextPolicy;
+  else delete nextValue[policy.provider];
+  const nextSettings = [...snapshot.settings];
   nextSettings[index] = { ...current, value: nextValue };
   return { ...snapshot, settings: nextSettings };
 }
@@ -120,19 +201,15 @@ function percentToRatio(percent: number | null): number | null {
   return Math.round(percent * 100) / 10_000;
 }
 
-interface PolicyMutationInput {
-  provider: string;
-  enabled: boolean;
-  threshold?: number;
-}
-
-function mutationArgs(provider: string, draft: UsagePolicyDraft): PolicyMutationInput {
+function mutationArgs(target: UsagePolicyTarget, draft: UsagePolicyDraft): PolicyMutationInput {
   const threshold = percentToRatio(draft.thresholdPercent);
-  return { provider, enabled: draft.enabled, ...(threshold === null ? {} : { threshold }) };
-}
-
-interface PolicyMutation {
-  mutateAsync: (args: PolicyMutationInput) => Promise<{ policy: ProviderRateLimitPolicy }>;
+  return {
+    provider: target.provider,
+    enabled: draft.enabled,
+    ...(target.windowType ? { windowType: target.windowType } : {}),
+    ...(target.windowLabel ? { windowLabel: target.windowLabel } : {}),
+    ...(threshold === null ? {} : { threshold }),
+  };
 }
 
 function saveCommittedPolicy(
@@ -140,10 +217,9 @@ function saveCommittedPolicy(
   queryKey: readonly unknown[],
   result: { policy: ProviderRateLimitPolicy },
 ): void {
-  const committed = result.policy;
   queryClient.setQueryData(queryKey, (current: unknown) => applyPolicyToSnapshot(
     current as ConfigSnapshot | undefined,
-    committed,
+    result.policy,
   ));
 }
 
@@ -156,19 +232,19 @@ function usePolicySave(
   const [policyPending, setPolicyPending] = useState<Record<string, number>>({});
   const [policyErrors, setPolicyErrors] = useState<Record<string, string | null>>({});
 
-  const savePolicy = (provider: string, draft: UsagePolicyDraft) => {
+  const savePolicy = (target: UsagePolicyTarget, draft: UsagePolicyDraft) => {
     if (controlsState !== 'ready') return;
-    setProviderError(setPolicyErrors, provider, null);
-    setPolicyPending(current => nextPendingByProvider(current, provider, 1));
-    void mutation.mutateAsync(mutationArgs(provider, draft))
+    setTargetError(setPolicyErrors, target, null);
+    setPolicyPending((current) => nextPendingByTarget(current, target, 1));
+    void mutation.mutateAsync(mutationArgs(target, draft))
       .then((result) => saveCommittedPolicy(queryClient, configKey, result))
-      .catch((error: Error) => setProviderError(setPolicyErrors, provider, error instanceof Error ? error.message : String(error)))
-      .finally(() => setPolicyPending(current => nextPendingByProvider(current, provider, -1)));
+      .catch((error: Error) => setTargetError(setPolicyErrors, target, error instanceof Error ? error.message : String(error)))
+      .finally(() => setPolicyPending((current) => nextPendingByTarget(current, target, -1)));
   };
 
   return {
-    isPolicySaving: (provider) => (policyPending[provider] ?? 0) > 0,
-    getPolicyError: (provider) => policyErrors[provider] ? { message: policyErrors[provider] ?? '' } : null,
+    isPolicySaving: (target) => (policyPending[pendingKey(target)] ?? 0) > 0,
+    getPolicyError: (target) => policyErrors[pendingKey(target)] ? { message: policyErrors[pendingKey(target)] ?? '' } : null,
     savePolicy,
   };
 }
@@ -183,11 +259,11 @@ export function useUsage(): UsageFeatureState {
   const query = useQuery(statusOptions);
   const configQuery = useQuery(configOptions);
   const refresh = useMutation(trpc.system.refreshUsage.mutationOptions({
-    onSuccess: (data) => queryClient.setQueryData(statusOptions.queryKey, data),
+    onSuccess: (data: SystemUsageStatus) => queryClient.setQueryData(statusOptions.queryKey, data),
   }));
   const providerRateLimits = readProviderRateLimits(configQuery.data);
   const controlsState = readPolicyControlsState(configQuery.isLoading, configQuery.isError, providerRateLimits);
-  const saveMutation = useMutation(trpc.config.setProviderRateLimitPolicy.mutationOptions());
+  const saveMutation = useMutation(trpc.config.setProviderRateLimitPolicy.mutationOptions()) as unknown as PolicyMutation;
   const policySave = usePolicySave(controlsState, saveMutation, queryClient, configOptions.queryKey);
 
   return {

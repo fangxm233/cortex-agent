@@ -1,5 +1,5 @@
 // input:  provider throttle snapshots, language, current time
-// output: compact-label, countdown, expiry, and order assertions
+// output: compact-label, model-label, countdown, expiry, and order assertions
 // pos:    Regression tests for the shared rate-limit view model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -8,8 +8,8 @@ import { buildRateLimitView } from './rate-limit-vm';
 
 const NOW = 1_800_000_000;
 
-function window(type: string, seconds: number, utilization = 0.96) {
-  return { type, utilization, resetsAt: NOW + seconds, activatedAt: (NOW - 30) * 1000 };
+function window(type: string, seconds: number, utilization = 0.96, label?: string) {
+  return { type, ...(label ? { label } : {}), utilization, resetsAt: NOW + seconds, activatedAt: (NOW - 30) * 1000 };
 }
 
 describe('buildRateLimitView', () => {
@@ -34,6 +34,20 @@ describe('buildRateLimitView', () => {
     expect(vm?.label).toBe('Anthropic · 14h 43m');
     expect(vm?.providers[0].windows[0]).toMatchObject({ typeLabel: '7d', countdown: '14h 43m' });
     expect(vm?.providers[0].waitingLabel).toBe('1 session · 2 threads waiting');
+  });
+
+  it('keeps active model-scoped labels distinguishable', () => {
+    const vm = buildRateLimitView({
+      providers: [{
+        provider: 'anthropic', displayName: 'Anthropic', waitingSessions: 0, waitingThreads: 0,
+        windows: [
+          window('model_scoped', 600, 0.96, 'Sonnet'),
+          window('model_scoped', 600, 0.97, 'Opus'),
+        ],
+      }],
+    }, NOW, 'en');
+
+    expect(vm?.providers[0].windows.map((item) => item.typeLabel)).toEqual(['Opus', 'Sonnet']);
   });
 
   it('uses earliest provider recovery for aggregate copy, not the earliest individual window', () => {

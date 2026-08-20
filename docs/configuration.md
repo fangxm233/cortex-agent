@@ -279,7 +279,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `showToolCalls` | boolean | `false` | Inline tool-call rendering in VirtualMessage tails | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | Show the "New (quiet)" button on status messages (`=!newq`, which skips the pre-close hook) | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | When a usage-limit window resets, automatically continue the conversations and threads the limit interrupted, injecting a note to pick up where they left off. Set to `false` to leave interrupted work paused for manual continuation | `CORTEX_AUTO_RESUME` |
-| `providerRateLimits` | object | `{}` | Per-provider usage-limit throttle policy keyed by provider id. Each entry is `{ enabled, threshold? }`; `threshold` is a ratio greater than `0` and at most `1` | — |
+| `providerRateLimits` | object | `{}` | Per-provider, per-quota-window throttle policy. Provider entries contain a `windows` array of `{ type, label?, enabled, threshold? }`; `threshold` is a ratio greater than `0` and at most `1` | — |
 | `streamDeltas` | boolean | `true` | Stream assistant text token by token. Disable to deliver each assistant message in one piece | `CORTEX_STREAM_DELTAS` |
 | `bgContinuation` | boolean | `true` | Forward the output of background tasks back into the conversation when they finish | `CORTEX_BG_CONTINUATION` |
 | `eventLog` | boolean | `true` | Write the event bus to the daily rolling JSONL event log | `CORTEX_EVENT_LOG` |
@@ -312,13 +312,23 @@ and intervals), and the desktop/mobile **Usage** screens (`providerRateLimits`).
 Every other key is edited by hand in the file.
 
 `providerRateLimits` is a `settings.json` object keyed by provider id. Each
-value has the shape `{ enabled, threshold? }`. Leaving a provider out keeps
-throttling enabled for that provider and uses the built-in thresholds: `0.90`
-for most windows, `0.95` for `seven_day` and
-`seven_day_overage_included`. The Usage screens hide these controls on
-spend-only provider cards that do not expose quota windows. Policy edits apply
-only to future quota observations; an already-active quota or outage window
-keeps its current state until its reset time or a manual **Resume now** clear.
+provider entry can contain a `windows` array whose entries are
+`{ type, label?, enabled, threshold? }`. The identity of an ordinary quota row
+is its provider-reported `type`; a model-scoped row uses both `type` and its
+exact provider-reported `label`. An exact window entry takes precedence over
+older provider-level `enabled`/`threshold` fields. Those root fields remain a
+backward-compatible fallback and, when non-default, appear in Usage with an
+action to clear them.
+
+Desktop and mobile Usage place separate controls on every displayed 5-hour,
+weekly, weekly-overage, Codex primary/secondary, and labeled model row. Leaving
+`threshold` out uses the row default: `0.95` for `seven_day` and
+`seven_day_overage_included`, `0.90` for other rows. Spend-only cards have no
+quota controls. Model policy identity follows the reported display label; if a
+provider renames that label, the old entry no longer matches. Policy edits
+apply only to future quota observations; an already-active quota or outage
+window keeps its current state until its reset time or a manual **Resume now**
+clear.
 
 Built-in job intervals must be integer milliseconds from `1000` through
 `2147483647`, the safe range for Node timers. Enabled jobs run once at daemon

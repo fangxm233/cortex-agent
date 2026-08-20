@@ -227,7 +227,7 @@ $CORTEX_HOME/
 | `showToolCalls` | boolean | `false` | 在 VirtualMessage 尾部内联渲染工具调用 | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | 在状态消息上显示「New (quiet)」按钮（`=!newq`，跳过 pre-close 钩子） | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | 当用量限制窗口重置后，自动继续被该限制中断的对话与线程，并注入一条提示让其从中断处接着做。设为 `false` 可让被中断的工作保持暂停、由人工继续 | `CORTEX_AUTO_RESUME` |
-| `providerRateLimits` | object | `{}` | 按 provider id 建立的逐 provider 用量限流策略。每个条目的结构是 `{ enabled, threshold? }`；其中 `threshold` 是一个大于 `0` 且不超过 `1` 的比率 | — |
+| `providerRateLimits` | object | `{}` | 按 provider 和额度窗口配置限流策略。Provider 条目通过 `windows` 数组保存 `{ type, label?, enabled, threshold? }`；`threshold` 是大于 `0` 且不超过 `1` 的比率 | — |
 | `streamDeltas` | boolean | `true` | 按 token 流式输出助手文本。关闭后每条助手消息整条投递 | `CORTEX_STREAM_DELTAS` |
 | `bgContinuation` | boolean | `true` | 后台任务结束时，把其输出续投回会话 | `CORTEX_BG_CONTINUATION` |
 | `eventLog` | boolean | `true` | 把事件总线写入按日滚动的 JSONL 事件日志 | `CORTEX_EVENT_LOG` |
@@ -254,7 +254,9 @@ $CORTEX_HOME/
 
 Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`sessionRetentionDays`，以及内置任务的开关和间隔），以及桌面端/移动端 **Usage** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
 
-`providerRateLimits` 是 `settings.json` 中按 provider id 建立的对象。每个值的结构都是 `{ enabled, threshold? }`。省略某个 provider 时，该 provider 的限流仍保持启用，并继续使用内置阈值：大多数窗口为 `0.90`，`seven_day` 与 `seven_day_overage_included` 为 `0.95`。Usage 页面会在只显示花费、没有额度窗口的 provider 卡片上隐藏这些控件。策略改动只作用于未来收到的额度观测；已经处于激活状态的额度窗口或 outage 窗口会保持当前状态，直到窗口自然重置，或被手动 **Resume now** 清除。
+`providerRateLimits` 是 `settings.json` 中按 provider id 建立的对象。每个 provider 条目可包含 `windows` 数组，数组元素为 `{ type, label?, enabled, threshold? }`。普通额度行以 provider 上报的 `type` 为身份；模型额度行同时使用 `type` 和 provider 上报的精确 `label`。精确窗口策略优先于旧版 provider 级 `enabled`/`threshold` 字段；这些根字段只作为兼容回退，非默认时会在 Usage 中明确显示并可一键清除。
+
+桌面端和移动端 Usage 会分别在每条 5 小时、weekly、含超额 weekly、Codex 主/次窗口及带名称的模型额度行上显示独立控件。省略 `threshold` 时使用该行系统默认值：`seven_day` 与 `seven_day_overage_included` 为 `0.95`，其他窗口为 `0.90`。只显示花费的卡片没有额度控件。模型策略依赖 provider 上报的显示名称；名称变化后旧条目不会再匹配。策略改动只作用于后续额度观测；已经激活的额度窗口或 outage 窗口会保持当前状态，直到自然重置或被手动 **Resume now** 清除。
 
 内置任务间隔必须是 `1000` 到 `2147483647` 之间的整数毫秒，这是 Node timer 的安全范围。启用的任务会在 daemon 启动时执行一次。任务归档和记忆索引重建不会重叠运行；运行期间修改间隔会在本轮结束后生效。
 

@@ -1,5 +1,5 @@
-// input:  shared usage view model, mobile Usage view, copy, and policy callbacks
-// output: quota, policy, spend, freshness, refresh, and save-feedback regressions
+// input:  shared usage view model, mobile Usage view, copy, and row-policy callbacks
+// output: quota, row policy, legacy fallback, spend, freshness, refresh, and save-feedback regressions
 // pos:    Verifies the focused mobile Usage presentation
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -18,6 +18,9 @@ const status: SystemUsageStatus = [
     windows: [
       { type: 'five_hour', utilization: 0.54, resetsAt: NOW + 3600 },
       { type: 'seven_day', utilization: 0.31, resetsAt: NOW + 86400 },
+      { type: 'seven_day_overage_included', utilization: 0.74, resetsAt: NOW + 172800 },
+      { type: 'model_scoped', label: 'Fable', utilization: 0.33, resetsAt: null },
+      { type: 'model_scoped', label: 'Lyric', utilization: null, resetsAt: null },
     ],
   },
   {
@@ -43,8 +46,16 @@ const status: SystemUsageStatus = [
 ];
 
 const policies: ProviderRateLimits = {
-  anthropic: { enabled: true, threshold: 0.82 },
-  openrouter: { enabled: false },
+  anthropic: {
+    enabled: false,
+    threshold: 0.82,
+    windows: [
+      { type: 'five_hour', enabled: true, threshold: 0.76 },
+      { type: 'seven_day', enabled: true },
+      { type: 'model_scoped', label: 'Fable', enabled: false },
+    ],
+  },
+  'openai-codex': { windows: [{ type: 'codex_primary', enabled: true, threshold: 0.91 }] },
 };
 
 const copy: MUsageCopy = {
@@ -55,13 +66,18 @@ const copy: MUsageCopy = {
   unavailable: 'Unavailable', gatewaySpend: 'Gateway spend', today: 'Today', month: 'Month',
   observed: 'Observed', ago: 'ago', resetsIn: 'Resets in', resetElapsed: 'Reset elapsed',
   policy: {
-    title: 'Usage throttle', enabled: 'Enabled', threshold: 'Custom threshold %',
-    save: 'Save', saving: 'Saving…', resetDefault: 'Reset to default',
-    defaultHint: 'System default: 90%; 7-day windows: 95%',
-    futureHint: 'Changes apply to future observations.',
+    enabled: 'Enabled', disabled: 'Disabled', threshold: 'Custom threshold %', save: 'Save', saving: 'Saving…',
+    resetDefault: 'Reset to default', futureHint: 'Changes apply to future observations.',
+    defaultPrefix: 'Default', legacyFallbackTitle: 'Legacy fallback',
+    legacyFallbackBody: 'Unset rows inherit the old provider-wide policy until you clear it.',
+    clearLegacy: 'Clear legacy fallback', usingLegacy: 'Using legacy fallback',
   },
   freshness: { live: 'Live', stale: 'Stale', never: 'Never observed', unsupported: 'Unsupported' },
 };
+
+function targetKey(provider: string, windowType?: string, windowLabel?: string | null): string {
+  return [provider, windowType ?? '', windowLabel ?? ''].join('::');
+}
 
 function view(overrides: Partial<Parameters<typeof MUsageView>[0]> = {}) {
   return (
@@ -84,21 +100,25 @@ function view(overrides: Partial<Parameters<typeof MUsageView>[0]> = {}) {
 }
 
 describe('MUsageView provider presentation', () => {
-  it('keeps Anthropic/Codex quotas separate from deepseek/qwen spend and hides controls for unsupported providers', () => {
+  it('renders row-local controls, a compact legacy fallback notice, and one future hint per provider', () => {
     const html = renderToStaticMarkup(view());
 
     expect(html).toContain('data-usage-window="five_hour"');
+    expect(html).toContain('data-usage-window="seven_day_overage_included"');
     expect(html).toContain('data-usage-window="codex_primary"');
     expect(html).toContain('data-usage-spend="deepseek"');
     expect(html).toContain('data-usage-spend="qwen-ksu"');
-    expect(html).toContain('data-usage-policy="anthropic"');
-    expect(html).toContain('data-usage-policy="openai-codex"');
-    expect(html).toContain('data-usage-policy="openrouter"');
-    expect(html).not.toContain('data-usage-policy="deepseek"');
-    expect(html).not.toContain('data-usage-policy="qwen-ksu"');
-    expect(html.match(/data-usage-quota-state="unsupported"/g)).toHaveLength(2);
-    expect(html).toContain('System default: 90%; 7-day windows: 95%');
-    expect(html).toContain('Changes apply to future observations.');
+    expect(html).not.toContain('data-usage-policy="anthropic"');
+    expect(html).toContain(`data-usage-policy-row="${targetKey('anthropic', 'five_hour')}"`);
+    expect(html).toContain(`data-usage-policy-row="${targetKey('anthropic', 'seven_day_overage_included')}"`);
+    expect(html).toContain(`data-usage-policy-row="${targetKey('anthropic', 'model_scoped', 'Fable')}"`);
+    expect(html).toContain(`data-usage-policy-row="${targetKey('openai-codex', 'codex_secondary')}"`);
+    expect(html).toContain('data-usage-legacy-fallback="anthropic"');
+    expect(html).toContain('data-usage-policy-future-hint="anthropic"');
+    expect(html).toContain('data-usage-policy-future-hint="openai-codex"');
+    expect(html).toContain('7 days (incl. overage)');
+    expect(html).toContain('Default 95%');
+    expect(html).toContain('Legacy fallback');
     expect(html).toContain('$1.25');
   });
 
@@ -133,37 +153,46 @@ describe('MUsageView provider presentation', () => {
 });
 
 describe('MUsageView policy controls', () => {
-  it('saves custom thresholds, resets defaults, and keeps never-observed providers configurable', () => {
+  it('saves exact row targets, resets fallback rows to explicit defaults, and clears legacy fallback', () => {
     const onSavePolicy = vi.fn();
     let renderer!: ReturnType<typeof create>;
-    act(() => { renderer = create(view({ onSavePolicy })); });
+    act(() => { renderer = create(view({ onSavePolicy: onSavePolicy as any })); });
 
-    act(() => renderer.root.findByProps({ 'data-usage-threshold-input': 'anthropic' }).props.onChange({ target: { value: '83' } }));
-    act(() => renderer.root.findByProps({ 'data-usage-threshold-save': 'anthropic' }).props.onClick());
-    act(() => renderer.root.findByProps({ 'data-usage-threshold-reset': 'anthropic' }).props.onClick());
-    act(() => renderer.root.findByProps({ 'aria-label': 'Usage throttle openrouter' }).props.onClick());
+    const fiveHour = targetKey('anthropic', 'five_hour');
+    const overage = targetKey('anthropic', 'seven_day_overage_included');
+    act(() => renderer.root.findByProps({ 'data-usage-threshold-input': fiveHour }).props.onChange({ target: { value: '83' } }));
+    act(() => renderer.root.findByProps({ 'data-usage-threshold-save': fiveHour }).props.onClick());
+    act(() => renderer.root.findByProps({ 'data-usage-threshold-reset': overage }).props.onClick());
+    act(() => renderer.root.findByProps({ 'data-usage-legacy-clear': 'anthropic' }).props.onClick());
 
-    expect(onSavePolicy).toHaveBeenNthCalledWith(1, 'anthropic', { enabled: true, thresholdPercent: 83 });
-    expect(onSavePolicy).toHaveBeenNthCalledWith(2, 'anthropic', { enabled: true, thresholdPercent: null });
-    expect(onSavePolicy).toHaveBeenNthCalledWith(3, 'openrouter', { enabled: true, thresholdPercent: null });
+    expect(onSavePolicy).toHaveBeenNthCalledWith(1,
+      { provider: 'anthropic', windowType: 'five_hour', windowLabel: null },
+      { enabled: true, thresholdPercent: 83 },
+    );
+    expect(onSavePolicy).toHaveBeenNthCalledWith(2,
+      { provider: 'anthropic', windowType: 'seven_day_overage_included', windowLabel: null },
+      { enabled: true, thresholdPercent: null },
+    );
+    expect(onSavePolicy).toHaveBeenNthCalledWith(3,
+      { provider: 'anthropic', windowType: null, windowLabel: null },
+      { enabled: true, thresholdPercent: null },
+    );
   });
 
-  it('hides policy controls while config is unavailable without hiding quota or spend', () => {
+  it('hides row policy controls while config is unavailable without hiding quota or spend', () => {
     const renderer = create(view({
       view: buildUsageView(status, null, NOW, 'en'),
       policyControlsState: 'missing',
-      isPolicySaving: (provider) => provider === 'anthropic',
-      getPolicyError: (provider) => provider === 'openrouter' ? new Error('write failed') : null,
+      isPolicySaving: () => true,
+      getPolicyError: () => new Error('write failed'),
     }));
     const html = JSON.stringify(renderer.toJSON());
 
     expect(renderer.root.findAllByProps({ 'data-usage-quota': 'anthropic' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-usage-spend': 'deepseek' })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'anthropic' })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'openrouter' })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'aria-label': 'Usage throttle anthropic' })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': 'anthropic' })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'data-usage-threshold-save': 'anthropic' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-legacy-fallback': 'anthropic' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
     expect(html).not.toContain('Saving…');
     expect(html).not.toContain('write failed');
   });

@@ -1,5 +1,5 @@
 // input:  public usage feature hook, language state, and navigation
-// output: data-bound mobile Usage settings screen
+// output: data-bound mobile Usage settings screen with row-policy save and legacy-clear wiring
 // pos:    Mobile Usage query, refresh, policy-save, and routing container
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -18,10 +18,12 @@ const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
     unavailable: 'Unavailable', gatewaySpend: 'Gateway spend', today: 'Today', month: 'Month',
     observed: 'Observed', ago: 'ago', resetsIn: 'Resets in', resetElapsed: 'Reset elapsed',
     policy: {
-      title: 'Usage throttle', enabled: 'Enabled', threshold: 'Custom threshold %',
+      enabled: 'Enabled', disabled: 'Disabled', threshold: 'Custom threshold %',
       save: 'Save', saving: 'Saving…', resetDefault: 'Reset to default',
-      defaultHint: 'System default: 90%; 7-day windows: 95%',
-      futureHint: 'Changes apply to future observations.',
+      futureHint: 'Changes apply to future observations.', defaultPrefix: 'Default',
+      legacyFallbackTitle: 'Legacy fallback',
+      legacyFallbackBody: 'Unset rows inherit the old provider-wide policy until you clear it.',
+      clearLegacy: 'Clear legacy fallback', usingLegacy: 'Using legacy fallback',
     },
     freshness: { live: 'Live', stale: 'Stale', never: 'Never observed', unsupported: 'Unsupported' },
   },
@@ -32,10 +34,12 @@ const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
     unavailable: '不可用', gatewaySpend: '网关消费额', today: '今日', month: '本月',
     observed: '观测于', ago: '前', resetsIn: '重置还需', resetElapsed: '重置时间已过',
     policy: {
-      title: '用量限流', enabled: '启用', threshold: '自定义阈值 %',
+      enabled: '启用', disabled: '关闭', threshold: '自定义阈值 %',
       save: '保存', saving: '保存中…', resetDefault: '恢复默认',
-      defaultHint: '系统默认阈值：90%；7 天窗口：95%。',
-      futureHint: '更改仅对后续观测生效。',
+      futureHint: '更改仅对后续观测生效。', defaultPrefix: '默认',
+      legacyFallbackTitle: '旧版兜底',
+      legacyFallbackBody: '未单独设置的行会继续继承旧的 provider 级策略，直到你清除它。',
+      clearLegacy: '清除旧版兜底', usingLegacy: '正在使用旧版兜底',
     },
     freshness: { live: '实时', stale: '陈旧', never: '尚未观测', unsupported: '不支持' },
   },

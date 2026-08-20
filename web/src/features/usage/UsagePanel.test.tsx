@@ -1,5 +1,5 @@
-// input:  UsagePanel with tRPC query/mutation fakes, config snapshots, and vocab
-// output: query, refresh, provider policy, severity, and error rendering regressions
+// input:  UsagePanel with tRPC query/mutation fakes, per-window config snapshots, and vocab
+// output: query, refresh, row policy, legacy fallback, severity, and error rendering regressions
 // pos:    Verifies the desktop Settings Usage surface and shared hook wiring
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -16,6 +16,9 @@ const usage: SystemUsageStatus = [
     windows: [
       { type: 'five_hour', utilization: 0.54, resetsAt: NOW + 3600 },
       { type: 'seven_day', utilization: 0.31, resetsAt: NOW - 60 },
+      { type: 'seven_day_overage_included', utilization: 0.74, resetsAt: NOW + 2 * 86400 },
+      { type: 'model_scoped', label: 'Fable', utilization: 0.33, resetsAt: null },
+      { type: 'model_scoped', label: 'Lyric', utilization: null, resetsAt: null },
     ],
   },
   {
@@ -52,13 +55,29 @@ const baseConfig: ConfigSnapshot = {
   hooks: [],
   env: [],
   settings: [policyEntry({
-    anthropic: { enabled: true, threshold: 0.82 },
-    openrouter: { enabled: false },
+    anthropic: {
+      enabled: false,
+      threshold: 0.82,
+      windows: [
+        { type: 'five_hour', enabled: true, threshold: 0.76 },
+        { type: 'seven_day', enabled: true },
+        { type: 'model_scoped', label: 'Fable', enabled: false },
+      ],
+    },
+    'openai-codex': { windows: [{ type: 'codex_primary', enabled: true, threshold: 0.91 }] },
   })],
 };
 
 let currentUsage = usage;
 let currentConfig = baseConfig;
+
+function targetKey(provider: string, windowType?: string, windowLabel?: string | null): string {
+  return [provider, windowType ?? '', windowLabel ?? ''].join('::');
+}
+
+function providerRateLimitsValue(snapshot: ConfigSnapshot) {
+  return snapshot.settings?.find((entry: ConfigSettingEntry) => entry.key === 'providerRateLimits')?.value as any;
+}
 
 const harness = vi.hoisted(() => ({
   queried: [] as string[],
@@ -70,7 +89,7 @@ const harness = vi.hoisted(() => ({
   configLoading: false,
   configError: null as Error | null,
   deferredPolicySaves: {} as Record<string, Promise<unknown>>,
-  policyErrorsByProvider: {} as Record<string, Error | null>,
+  policyErrorsByTarget: {} as Record<string, Error | null>,
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -120,11 +139,21 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
       return {
         mutateAsync: async (args: any) => {
           harness.mutations.push({ kind: options.__kind, args });
-          const deferred = harness.deferredPolicySaves[args.provider];
+          const key = targetKey(args.provider, args.windowType, args.windowLabel);
+          const deferred = harness.deferredPolicySaves[key];
           if (deferred) await deferred;
-          const error = harness.policyErrorsByProvider[args.provider] ?? null;
+          const error = harness.policyErrorsByTarget[key] ?? null;
           if (error) throw error;
-          return { written: true, policy: args };
+          return {
+            written: true,
+            policy: {
+              provider: args.provider,
+              windowType: args.windowType,
+              windowLabel: args.windowLabel,
+              enabled: args.enabled,
+              threshold: args.threshold ?? null,
+            },
+          };
         },
         mutate: undefined,
         isPending: false,
@@ -168,20 +197,20 @@ function mount(): ReactTestRenderer {
   return renderer;
 }
 
-function policyToggle(renderer: ReactTestRenderer, provider: string) {
-  return renderer.root.findByProps({ 'aria-label': `Usage throttle ${provider}` });
+function toggle(renderer: ReactTestRenderer, key: string) {
+  return renderer.root.findByProps({ 'aria-label': `Usage throttle ${key}` });
 }
 
-function thresholdInput(renderer: ReactTestRenderer, provider: string) {
-  return renderer.root.findByProps({ 'data-usage-threshold-input': provider });
+function thresholdInput(renderer: ReactTestRenderer, key: string) {
+  return renderer.root.findByProps({ 'data-usage-threshold-input': key });
 }
 
-function saveButton(renderer: ReactTestRenderer, provider: string) {
-  return renderer.root.findByProps({ 'data-usage-threshold-save': provider });
+function saveButton(renderer: ReactTestRenderer, key: string) {
+  return renderer.root.findByProps({ 'data-usage-threshold-save': key });
 }
 
-function resetButton(renderer: ReactTestRenderer, provider: string) {
-  return renderer.root.findByProps({ 'data-usage-threshold-reset': provider });
+function resetButton(renderer: ReactTestRenderer, key: string) {
+  return renderer.root.findByProps({ 'data-usage-threshold-reset': key });
 }
 
 beforeEach(() => {
@@ -196,7 +225,7 @@ beforeEach(() => {
   harness.configLoading = false;
   harness.configError = null;
   harness.deferredPolicySaves = {};
-  harness.policyErrorsByProvider = {};
+  harness.policyErrorsByTarget = {};
 });
 
 afterEach(() => vi.useRealTimers());
@@ -209,27 +238,35 @@ describe('desktop Settings Usage panel', () => {
     expect(getSectionMeta(zh, 'usage').sub).toContain('system.usageStatus');
   });
 
-  it('queries usage and config independently, keeps spend separate, and renders policy controls only for supported providers', () => {
+  it('renders row-local controls, a compact legacy fallback notice, and one future hint per provider', () => {
     const renderer = mount();
     const html = JSON.stringify(renderer.toJSON());
 
     expect(harness.queried).toEqual(['system.usageStatus', 'config.get']);
-    expect(renderer.root.findAllByProps({ 'data-usage-quota': 'anthropic' })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-usage-quota': 'openai-codex' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-usage-spend': 'deepseek' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-usage-spend': 'qwen-ksu' })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'anthropic' })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'openai-codex' })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'openrouter' })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'deepseek' })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'qwen-ksu' })).toHaveLength(0);
-    expect(html).toContain('System default: 90%; 7-day windows: 95%');
-    expect(html).toContain('Changes apply to future observations.');
-    expect(html).toContain('82');
+    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'anthropic' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy': 'openai-codex' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('anthropic', 'five_hour') })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('anthropic', 'seven_day') })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('anthropic', 'seven_day_overage_included') })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('anthropic', 'model_scoped', 'Fable') })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('anthropic', 'model_scoped', 'Lyric') })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('openai-codex', 'codex_primary') })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('openai-codex', 'codex_secondary') })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': targetKey('openrouter', 'five_hour') })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-legacy-fallback': 'anthropic' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-legacy-fallback': 'openai-codex' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy-future-hint': 'anthropic' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy-future-hint': 'openai-codex' })).toHaveLength(1);
+    expect(html).toContain('7 days (incl. overage)');
+    expect(html).toContain('Legacy fallback');
+    expect(html).toContain('Default 95%');
+    expect(html).toContain('Default 90%');
     expect(html).toContain('$1.25');
   });
 
-  it('hides policy controls while config is loading, missing, or failed without hiding usage', () => {
+  it('hides row policy controls while config is loading, missing, or failed without hiding usage', () => {
     const cases = [
       () => { harness.configLoading = true; },
       () => { currentConfig = { ...baseConfig, settings: [] }; },
@@ -243,61 +280,75 @@ describe('desktop Settings Usage panel', () => {
       expect(html).toContain('Anthropic');
       expect(renderer.root.findAllByProps({ 'data-usage-quota': 'anthropic' })).toHaveLength(1);
       expect(renderer.root.findAllByProps({ 'data-usage-spend': 'deepseek' })).toHaveLength(1);
-      expect(renderer.root.findAllByProps({ 'data-usage-policy': 'anthropic' })).toHaveLength(0);
-      expect(renderer.root.findAllByProps({ 'aria-label': 'Usage throttle anthropic' })).toHaveLength(0);
-      expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': 'anthropic' })).toHaveLength(0);
-      expect(renderer.root.findAllByProps({ 'data-usage-threshold-save': 'anthropic' })).toHaveLength(0);
+      expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
+      expect(renderer.root.findAllByProps({ 'data-usage-legacy-fallback': 'anthropic' })).toHaveLength(0);
+      expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
       currentConfig = baseConfig;
       harness.configLoading = false;
       harness.configError = null;
     }
   });
 
-  it('saves custom thresholds, resets defaults, and keeps never-observed providers configurable', async () => {
+  it('saves exact row targets, clears legacy fallback, and keeps fallback resets explicit in cache', async () => {
     const renderer = mount();
+    const fiveHour = targetKey('anthropic', 'five_hour');
+    const overage = targetKey('anthropic', 'seven_day_overage_included');
 
-    act(() => thresholdInput(renderer, 'anthropic').props.onChange({ target: { value: '83' } }));
-    await act(async () => { await saveButton(renderer, 'anthropic').props.onClick(); });
-    await act(async () => { await resetButton(renderer, 'anthropic').props.onClick(); });
-    await act(async () => { await policyToggle(renderer, 'openrouter').props.onClick(); });
+    act(() => thresholdInput(renderer, fiveHour).props.onChange({ target: { value: '83' } }));
+    await act(async () => { await saveButton(renderer, fiveHour).props.onClick(); });
+    await act(async () => { await resetButton(renderer, overage).props.onClick(); });
+    await act(async () => {
+      await renderer.root.findByProps({ 'data-usage-legacy-clear': 'anthropic' }).props.onClick();
+    });
 
     expect(harness.mutations).toContainEqual({
       kind: 'config.setProviderRateLimitPolicy',
-      args: { provider: 'anthropic', enabled: true, threshold: 0.83 },
+      args: { provider: 'anthropic', windowType: 'five_hour', enabled: true, threshold: 0.83 },
+    });
+    expect(harness.mutations).toContainEqual({
+      kind: 'config.setProviderRateLimitPolicy',
+      args: { provider: 'anthropic', windowType: 'seven_day_overage_included', enabled: true },
     });
     expect(harness.mutations).toContainEqual({
       kind: 'config.setProviderRateLimitPolicy',
       args: { provider: 'anthropic', enabled: true },
     });
-    expect(harness.mutations).toContainEqual({
-      kind: 'config.setProviderRateLimitPolicy',
-      args: { provider: 'openrouter', enabled: true },
+    expect(providerRateLimitsValue(currentConfig).anthropic).toEqual({
+      windows: [
+        { type: 'seven_day', enabled: true },
+        { type: 'model_scoped', label: 'Fable', enabled: false },
+        { type: 'five_hour', enabled: true, threshold: 0.83 },
+        { type: 'seven_day_overage_included', enabled: true },
+      ],
     });
-    expect(harness.queryWrites.some(write => Array.isArray(write.key) && write.key[0] === 'config.get')).toBe(true);
   });
 
-  it('tracks policy save pending/error per provider without blocking refresh or other cards', async () => {
-    let resolveAnthropic!: () => void;
-    harness.deferredPolicySaves.anthropic = new Promise<void>((resolve) => { resolveAnthropic = resolve; });
+  it('tracks pending and errors per row without blocking sibling rows or refresh', async () => {
+    const fiveHour = targetKey('anthropic', 'five_hour');
+    const sevenDay = targetKey('anthropic', 'seven_day');
+    const codexPrimary = targetKey('openai-codex', 'codex_primary');
+    let resolveFiveHour!: () => void;
+    harness.deferredPolicySaves[fiveHour] = new Promise<void>((resolve) => { resolveFiveHour = resolve; });
     const renderer = mount();
 
-    act(() => thresholdInput(renderer, 'anthropic').props.onChange({ target: { value: '84' } }));
+    act(() => thresholdInput(renderer, fiveHour).props.onChange({ target: { value: '84' } }));
     await act(async () => {
-      saveButton(renderer, 'anthropic').props.onClick();
+      saveButton(renderer, fiveHour).props.onClick();
       await Promise.resolve();
     });
 
-    expect(saveButton(renderer, 'anthropic').props.disabled).toBe(true);
-    expect(policyToggle(renderer, 'anthropic').props['aria-disabled']).toBe(true);
-    expect(policyToggle(renderer, 'openrouter').props['aria-disabled']).toBe(false);
+    expect(saveButton(renderer, fiveHour).props.disabled).toBe(true);
+    expect(toggle(renderer, fiveHour).props['aria-disabled']).toBe(true);
+    expect(thresholdInput(renderer, sevenDay).props.disabled).toBe(false);
+    expect(toggle(renderer, sevenDay).props['aria-disabled']).toBe(false);
     act(() => renderer.root.findByProps({ 'data-usage-refresh': true }).props.onClick());
     expect(harness.mutations).toContainEqual({ kind: 'system.refreshUsage', args: {} });
 
-    act(() => { resolveAnthropic(); });
+    act(() => { resolveFiveHour(); });
     await act(async () => { await Promise.resolve(); });
 
-    harness.policyErrorsByProvider.openrouter = new Error('write failed');
-    await act(async () => { await policyToggle(renderer, 'openrouter').props.onClick(); });
+    harness.policyErrorsByTarget[codexPrimary] = new Error('write failed');
+    await act(async () => { await toggle(renderer, codexPrimary).props.onClick(); });
     expect(JSON.stringify(renderer.toJSON())).toContain('write failed');
   });
 
