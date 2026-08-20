@@ -20,6 +20,7 @@ from cortex_bench_harness.launcher.production_arms import ProductionArmError
 from cortex_bench_harness.launcher.production_session import (
     ProductionServerSession,
     ProductionSessionError,
+    ProductionThreadResult,
 )
 from cortex_bench_harness.launcher.trial_admission import HarborTrialAdmissionError
 
@@ -281,9 +282,10 @@ def test_direct_run_dispatches_the_production_session_not_agent_run(
 
     async def run_production(
         self: ProductionServerSession, instruction: str, execute: object,
-    ) -> None:
+    ) -> ProductionThreadResult:
         observed.append(instruction)
         self._stopped_cleanly = True
+        return ProductionThreadResult("thr-production", "completed", None, None)
 
     monkeypatch.setattr(ProductionServerSession, "run", run_production)
     asyncio.run(agent.setup(environment))
@@ -303,8 +305,9 @@ def test_direct_run_refuses_without_positive_trial_proxy_traffic(
 
     async def run_production(
         self: ProductionServerSession, instruction: str, execute: object,
-    ) -> None:
+    ) -> ProductionThreadResult:
         self._stopped_cleanly = True
+        return ProductionThreadResult("thr-production", "completed", None, None)
 
     monkeypatch.setattr(ProductionServerSession, "run", run_production)
     asyncio.run(agent.setup(environment))

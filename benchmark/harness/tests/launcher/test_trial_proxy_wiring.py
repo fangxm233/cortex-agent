@@ -25,7 +25,10 @@ from harbor.models.agent.context import AgentContext
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.capability_ceilings import load_capability_ceilings
 from cortex_bench_harness.launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN_GRACE_MS
-from cortex_bench_harness.launcher.production_session import ProductionServerSession
+from cortex_bench_harness.launcher.production_session import (
+    ProductionServerSession,
+    ProductionThreadResult,
+)
 from cortex_bench_harness.launcher.trial_proxy import (
     PROXY_ARTIFACT_SOURCES,
     CapabilityStateRefused,
@@ -669,8 +672,11 @@ def test_public_entry_revokes_the_route_when_the_run_returns(
     agent = public_agent(tmp_path, closed_upstream())
     environment = ContainerEnvironment()
 
-    async def run_production(self: ProductionServerSession, instruction: str, execute: object) -> None:
+    async def run_production(
+        self: ProductionServerSession, instruction: str, execute: object,
+    ) -> ProductionThreadResult:
         self._stopped_cleanly = True
+        return ProductionThreadResult("thr-production", "completed", None, None)
 
     monkeypatch.setattr(ProductionServerSession, "run", run_production)
     agent._require_production_proxy_traffic = lambda: None
@@ -721,8 +727,11 @@ def test_run_takes_the_keyword_call_harbor_actually_makes(
     agent = public_agent(tmp_path, closed_upstream())
     environment = ContainerEnvironment()
 
-    async def run_production(self: ProductionServerSession, instruction: str, execute: object) -> None:
+    async def run_production(
+        self: ProductionServerSession, instruction: str, execute: object,
+    ) -> ProductionThreadResult:
         self._stopped_cleanly = True
+        return ProductionThreadResult("thr-production", "completed", None, None)
 
     monkeypatch.setattr(ProductionServerSession, "run", run_production)
     agent._require_production_proxy_traffic = lambda: None
