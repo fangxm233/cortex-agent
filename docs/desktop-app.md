@@ -4,6 +4,10 @@ Cortex provides a Tauri v2 native shell for Linux, macOS, Windows, and Android. 
 
 The native apps require a reachable Web UI endpoint and the server's `CORTEX_CLIENT_TOKEN`. Browser access uses a separate Cloudflare Access path described in [Browser Access](browser-access.md).
 
+The desktop app can either install a Cortex server on the computer it runs on or connect to one that already exists. The first screen asks which, and the local path needs no terminal: it installs the package, writes the configuration, starts the daemon, and connects. Android is remote-only, since it has no place to run a Node process.
+
+Browser access uses a separate Cloudflare Access path described in [Browser Access](browser-access.md).
+
 ## Installation
 
 For server releases that include native packages, download the platform asset from the [GitHub Releases page](https://github.com/fangxm233/cortex-agent/releases). The release policy assigns the native UI exactly the same CalVer as the corresponding server release: `YYYY.M.D[-N]`. The version embedded in the app and shown in the asset name must match the `server-v<version>` tag.
@@ -26,6 +30,33 @@ Windows 10 and 11 normally include WebView2. If Cortex reports that WebView2 is 
 A macOS package without a Developer ID certificate is ad-hoc signed but not notarized. Gatekeeper may prevent the first normal double-click launch. Open Cortex once with Finder's **Open** action or approve it under **System Settings → Privacy & Security**. Ad-hoc signing verifies the bundle structure but does not establish a trusted publisher identity.
 
 The Android APK is intended for arm64 devices and is distributed outside the Play Store. Android therefore asks for permission to install from the browser or file manager used to open it.
+
+## Installing a server from the app
+
+Choose **Install on this computer** on the first screen. Node.js 20 or newer must already be present; the wizard checks for it and stops with instructions rather than installing a runtime of its own. If Node was installed through nvm and the app cannot see it, launch the app from a terminal once so it inherits that shell's `PATH`.
+
+The wizard runs four steps and streams the output of every command it runs:
+
+| Step | What happens |
+|---|---|
+| Check | Reports the versions of Node.js, npm, git, and any Cortex install already present, and whether this machine already has a configuration. |
+| Install | Runs `npm install -g @cortex-agent/server@latest`. Skipped when a supported version is already installed. An npm permission failure is answered with the user-owned-prefix remedy. |
+| Configure | Asks for the machine name, which agent backends to install, whether to start Cortex with the computer, and — under Advanced — the local port. |
+| Start | Writes the configuration, starts the daemon, waits for it to answer, and opens the workbench. |
+
+The wizard asks nothing about Slack or Feishu: the app is the interface, and a server with no messaging platform runs on its built-in gateway. It also asks nothing about accounts or models. Sign in to a backend afterwards under **Settings → Accounts**; the server regenerates the gateway modes and profiles for whatever that login makes reachable, and **Settings → Profiles** owns any further model choice.
+
+A machine that already has a Cortex configuration keeps it. The wizard only switches on the endpoint the app needs, which is also the repair path for an install created before the app existed. An install older than the version the app requires is offered an explicit upgrade instead of being replaced silently.
+
+Because a local server has nothing else to start it, the app starts the daemon at launch whenever it is not already answering. Enabling autostart in the wizard additionally registers the service the server writes — a systemd user unit on Linux, a launchd agent on macOS — so scheduled tasks fire while the app is closed. Windows has no service registration, so the app's launch-time start is the only autostart there.
+
+To enable the endpoint on an existing install without the wizard, run one command on the server:
+
+```bash
+cortex ui enable
+```
+
+This generates the client token if needed, sets `CORTEX_UI_HTTP` and `CORTEX_UI_PORT`, and adds the app's origins to `uiCorsOrigins`. Restart the daemon afterwards when it reports that the configuration changed. The rest of this section describes the same settings by hand.
 
 ## Server configuration
 
@@ -63,7 +94,7 @@ Current builds serve the shell through the `cortexui` custom protocol, which app
 
 ## First connection
 
-Open Cortex and enter the server URL, including `https://` or `http://`, together with `CORTEX_CLIENT_TOKEN`. The connection test distinguishes an unreachable endpoint from an unauthorized token. A successful connection opens the workbench and stores the credentials for later launches.
+Choose **Connect to a remote server** on the first screen, then enter the server URL, including `https://` or `http://`, together with `CORTEX_CLIENT_TOKEN`. The connection test distinguishes an unreachable endpoint from an unauthorized token. A successful connection opens the workbench and stores the credentials for later launches. A server installed by the wizard skips this screen — it connects with credentials it generated itself.
 
 Linux, macOS, and Windows store the connection JSON in the operating-system keychain: Secret Service, Keychain, or Windows Credential Manager. Android stores it in the app's private data directory because the desktop keychain library has no Android backend. Disconnecting clears the platform store and returns to the connection screen.
 
@@ -132,6 +163,21 @@ Confirm that the app contains the value of `CORTEX_CLIENT_TOKEN`, not the webhoo
 ### Network error
 
 Confirm that the daemon is running, `CORTEX_UI_HTTP=1` is loaded, the URL reaches the configured port, and the tunnel is active. A successful page load with failed API calls usually indicates a token or CORS problem. Confirm that the current `cortexui` origins are present in the `uiCorsOrigins` setting in `config/settings.json`; retain the `tauri` origins when older app builds also connect to the server.
+
+### The wizard cannot find Node.js
+
+A GUI launch inherits a reduced `PATH`, so a Node installed through nvm or a shell profile may be invisible to the app even though `node --version` works in a terminal. The wizard resolves the login shell's `PATH` and shows the one it used in the check step. If Node is still not found, launch the app once from a terminal so it inherits that environment, or install Node system-wide.
+
+### The server does not answer after the wizard starts it
+
+A cold start loads the whole agent runtime and can outlast the wizard's wait on a slow machine. The streamed log shows what the daemon reported. Check the state from a terminal:
+
+```bash
+cortex daemon status
+cortex doctor
+```
+
+The app also starts a local server at launch, so reopening it retries.
 
 ### Credentials do not persist on Linux
 

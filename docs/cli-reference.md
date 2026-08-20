@@ -37,6 +37,23 @@ Options:
 - `--home <path>` — set `CORTEX_HOME` (default: `$CORTEX_HOME` or `~/.cortex/`)
 - `--gateway-config-dir <path>` — gateway config output directory (default: `~/.aistatus/`)
 - `--force` — overwrite existing configs (`.env`, `budget.json`, `mode.json`, etc.)
+- `--answers <file>` — read every answer from a JSON document instead of prompting. Each field is optional and falls back to what the wizard would default to, so `{}` yields a working single-machine install. Used by the desktop app's setup wizard.
+- `--json` — emit newline-delimited progress events on stdout and move human-readable output to stderr. The final event reports the home directory, the version, the client token, and the local Web UI URL.
+
+**`cortex ui enable [--port <n>] [--home <path>] [--json]`**
+
+Make this install reachable by the Cortex desktop app. Generates the client
+token if it is missing, sets `CORTEX_UI_HTTP=1` and `CORTEX_UI_PORT`, and adds
+the app's origins to `uiCorsOrigins`. Idempotent — running it twice changes
+nothing the second time.
+
+Restart the daemon when it reports that the configuration changed: `.env` is
+read once at process start.
+
+Options:
+- `--port <n>` — the port to listen on (default: 3004)
+- `--home <path>` — set `CORTEX_HOME`
+- `--json` — print the endpoint, token, port, and whether anything changed as JSON
 
 **`cortex start`**
 

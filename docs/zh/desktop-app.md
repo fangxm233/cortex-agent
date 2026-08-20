@@ -4,6 +4,8 @@ Cortex 提供面向 Linux、macOS、Windows 与 Android 的 Tauri v2 原生壳�
 
 原生应用需要可访问的 Web UI 端点和服务器的 `CORTEX_CLIENT_TOKEN`。浏览器访问采用独立的 Cloudflare Access 路径，详见[浏览器访问](browser-access.md)。
 
+桌面应用既可以在自己运行的这台电脑上安装 Cortex 服务端，也可以连接到已有的服务端。首屏会询问选择哪一种，本机安装无需终端：安装软件包、写入配置、启动 daemon 并完成连接。Android 只支持远程连接，因为它没有运行 Node 进程的位置。
+
 ## 安装 {#installation}
 
 对于包含原生安装包的 server release，可从 [GitHub Releases 页面](https://github.com/fangxm233/cortex-agent/releases)下载对应平台附件。Release policy 要求原生 UI 与对应 server release 使用完全相同的 CalVer，格式为 `YYYY.M.D[-N]`。应用内嵌版本和附件文件名中的版本必须与 `server-v<version>` tag 一致。
@@ -26,6 +28,33 @@ Windows 10 和 11 通常已包含 WebView2。如果 Cortex 报告缺少 WebView2
 没有 Developer ID 证书的 macOS 安装包使用 ad-hoc 签名，但未经过 notarization。Gatekeeper 可能阻止首次普通双击启动。可在 Finder 中对 Cortex 使用一次**打开**操作，或在**系统设置 → 隐私与安全性**中批准。Ad-hoc 签名可校验 bundle 结构，但不提供受信任的发布者身份。
 
 Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。因此，Android 会要求允许用于打开 APK 的浏览器或文件管理器安装未知来源应用。
+
+## 从应用内安装服务端 {#installing-a-server-from-the-app}
+
+在首屏选择**在本机安装并启动**。本机需已安装 Node.js 20 或更高版本；向导会检查，若缺失则给出指引并停止，而不会自行安装运行时。如果 Node 通过 nvm 安装而应用看不到它，从终端启动一次应用，让它继承该 shell 的 `PATH`。
+
+向导分四步执行，并实时输出每条命令的日志：
+
+| 步骤 | 内容 |
+|---|---|
+| 检查 | 报告 Node.js、npm、git 的版本，已安装的 Cortex 版本（若有），以及本机是否已有配置。 |
+| 安装 | 执行 `npm install -g @cortex-agent/server@latest`。已安装且版本满足要求时跳过。npm 权限失败会直接给出改用自有 prefix 目录的解决方案。 |
+| 配置 | 询问机器名称、要安装的 agent 后端、是否开机自启，以及高级选项中的本地端口。 |
+| 启动 | 写入配置、启动 daemon、等待其响应，然后打开工作台。 |
+
+向导不询问 Slack 或飞书：应用本身就是交互界面，没有消息平台的服务端使用内置 gateway 运行。它同样不询问账号与模型。安装完成后在 **Settings → Accounts** 登录后端，服务端会据此重新生成 gateway 模式与 profile；进一步的模型选择由 **Settings → Profiles** 负责。
+
+已有 Cortex 配置的机器会保留原配置，向导只开启应用所需的端点——这也是修复早于本功能的旧安装的路径。版本低于应用要求的安装会得到一次明确的升级确认，而不是被静默替换。
+
+本机服务端没有其他进程负责拉起它，因此应用在启动时若发现服务端未响应就会启动 daemon。在向导中勾选开机自启，还会启用服务端写入的服务单元——Linux 上是 systemd user unit，macOS 上是 launchd agent——使定时任务在应用关闭时也能触发。Windows 没有服务注册，应用启动时拉起 daemon 是该平台上唯一的自启方式。
+
+若不使用向导，在已有安装上开启端点只需一条命令：
+
+```bash
+cortex ui enable
+```
+
+它会在需要时生成客户端 token，设置 `CORTEX_UI_HTTP` 与 `CORTEX_UI_PORT`，并把应用的 origin 合并进 `uiCorsOrigins`。当它提示配置已改变时，重启 daemon 生效。下一节说明如何手工完成同样的设置。
 
 ## 服务器配置 {#server-configuration}
 
@@ -63,7 +92,7 @@ grep CORTEX_CLIENT_TOKEN "${CORTEX_HOME:-$HOME/.cortex}/config/.env"
 
 ## 首次连接 {#first-connection}
 
-打开 Cortex，输入包含 `https://` 或 `http://` 的服务器 URL，以及 `CORTEX_CLIENT_TOKEN`。连接测试会区分端点不可访问和 token 未授权。连接成功后，应用打开工作台并保存凭据，供后续启动使用。
+在首屏选择**连接到远程服务器**，然后输入包含 `https://` 或 `http://` 的服务器 URL，以及 `CORTEX_CLIENT_TOKEN`。连接测试会区分端点不可访问和 token 未授权。连接成功后，应用打开工作台并保存凭据，供后续启动使用。由向导安装的服务端会跳过此界面——它使用自己生成的凭据直接连接。
 
 Linux、macOS 与 Windows 将连接 JSON 保存到操作系统密钥链，即 Secret Service、钥匙串或 Windows 凭据管理器。Android 将其保存到应用私有数据目录，因为桌面 keychain 库没有 Android backend。执行 Disconnect 会清除相应平台存储并返回连接界面。
 
@@ -132,6 +161,21 @@ Server release 也可以在 GitHub Release 中携带原生安装包。服务器�
 ### Network error
 
 确认 daemon 正在运行、`CORTEX_UI_HTTP=1` 已加载、URL 能访问配置端口，且隧道正在工作。页面可加载但 API 全部失败时，通常是 token 或 CORS 问题。确认 `config/settings.json` 中的 `uiCorsOrigins` 设置包含当前的 `cortexui` origins；如果还有旧版应用连接服务器，请保留 `tauri` origins。
+
+### 向导找不到 Node.js {#the-wizard-cannot-find-nodejs}
+
+图形界面启动继承的 `PATH` 通常被裁剪过，因此通过 nvm 或 shell 配置安装的 Node 可能对应用不可见，即使在终端里 `node --version` 正常。向导会解析登录 shell 的 `PATH`，并在检查步骤中显示实际使用的值。若仍找不到 Node，从终端启动一次应用以继承该环境，或将 Node 安装到系统级路径。
+
+### 向导启动后服务端没有响应 {#the-server-does-not-answer-after-the-wizard-starts-it}
+
+冷启动需要加载整个 agent 运行时，在较慢的机器上可能超过向导的等待时间。实时日志会显示 daemon 的输出。也可从终端检查状态：
+
+```bash
+cortex daemon status
+cortex doctor
+```
+
+应用在每次启动时也会拉起本机服务端，重新打开应用即可重试。
 
 ### Linux 上凭据无法持久化 {#credentials-do-not-persist-on-linux}
 

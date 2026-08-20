@@ -9,6 +9,10 @@ run both at once. `cortex init` does almost everything. You will not edit
 a single config file by hand. This guide tells you what to expect at each
 prompt and shows you exactly where to click.
 
+## Prefer not to use a terminal?
+
+The [desktop app](desktop-app.md) can install and configure the server for you: choose **Install on this computer** on its first screen, and it installs the package, runs the same setup this guide walks through, starts the daemon, and connects. Node.js is still a prerequisite, and Slack or Feishu is skipped entirely — the app is the interface. Come back here when you want a server that also talks to a chat platform.
+
 ## Prerequisites
 
 - **Node.js ≥ 20** (Cortex itself targets 20+; the bundled coding-agent

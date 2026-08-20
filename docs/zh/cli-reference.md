@@ -33,6 +33,19 @@ cortex <command> [options]
 - `--home <path>` — 设置 `CORTEX_HOME`（默认：`$CORTEX_HOME` 或 `~/.cortex/`）
 - `--gateway-config-dir <path>` — 网关配置输出目录（默认：`~/.aistatus/`）
 - `--force` — 覆盖已有配置（`.env`、`budget.json`、`mode.json` 等）
+- `--answers <file>` — 从 JSON 文档读取全部回答，不再交互提问。每个字段都可省略，缺省时回退到向导的默认值，因此 `{}` 即可得到一台可用的单机安装。桌面应用的安装向导使用此选项。
+- `--json` — 在 stdout 输出按行分隔的 JSON 进度事件，并将面向人的输出改到 stderr。最后一条事件报告 home 目录、版本、客户端 token 与本地 Web UI 地址。
+
+**`cortex ui enable [--port <n>] [--home <path>] [--json]`**
+
+让本安装可被 Cortex 桌面应用连接。缺失时生成客户端 token，设置 `CORTEX_UI_HTTP=1` 与 `CORTEX_UI_PORT`，并把应用的 origin 合并进 `uiCorsOrigins`。该命令幂等——第二次运行不会改变任何内容。
+
+当它提示配置已改变时需重启 daemon：`.env` 只在进程启动时读取一次。
+
+选项：
+- `--port <n>` — 监听端口（默认：3004）
+- `--home <path>` — 设置 `CORTEX_HOME`
+- `--json` — 以 JSON 打印端点、token、端口以及是否发生变更
 
 **`cortex start`**
 
