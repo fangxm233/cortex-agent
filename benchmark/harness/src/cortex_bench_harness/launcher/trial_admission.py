@@ -65,6 +65,8 @@ ADMISSION_SCHEMA_VERSION = "cortex-harbor-launch-admission/1"
 ADMISSION_EVIDENCE_FILENAME = "harbor-launch-admission.json"
 ADMISSION_ENVIRONMENT_IMPORT_PATH = "cortex_bench_harness.launcher.trial_admission:AdmittedDockerEnvironment"
 TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
+VERIFIER_UVX_ALIAS = TRIAL_ROOT / "home/.local/bin/uvx"
+VERIFIER_UVX_TARGET = PurePosixPath("/opt/terminal-bench-verifier/bin/uvx")
 FIXED_PATH = "/installed-agent/npm/bin:/usr/local/bin:/usr/bin:/bin"
 TRIAL_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 PROVIDER_ENV_KEYS = {
@@ -1083,10 +1085,29 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             raise HarborTrialAdmissionError("trial container identity is unobservable")
         return values[0]
 
+    async def _remove_verifier_uvx_alias(self) -> None:
+        """Remove only the verifier installer's known alias before output collection."""
+        alias = str(VERIFIER_UVX_ALIAS)
+        target = str(VERIFIER_UVX_TARGET)
+        command = (
+            f"set -eu; alias={alias}; target={target}; "
+            "if [ -L \"$alias\" ] "
+            "&& [ \"$(readlink -- \"$alias\")\" = \"$target\" ] "
+            "&& [ -f \"$target\" ] && [ ! -L \"$target\" ]; then "
+            "unlink -- \"$alias\"; fi"
+        )
+        result = await self._compose_exec(
+            command, service="main", cwd=self.task_env_config.workdir,
+            env=None, timeout_sec=None, user=self._resolve_user("root"),
+        )
+        if result.return_code != 0:
+            raise HarborTrialAdmissionError("verifier uvx alias removal failed")
+
     async def _finalize_after_container_stop(self) -> None:
         controller = self._proxy_controller
         if controller is None or not getattr(controller, "post_stop_finalization_pending", False):
             return
+        await self._remove_verifier_uvx_alias()
         probe = self._container_boundary_probe()
         census = None
         try:

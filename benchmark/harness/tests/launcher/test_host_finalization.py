@@ -1137,6 +1137,7 @@ def finalize_production_trial(
 def finalize_vendor_trial(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     *, revocation_failure: str | None = None,
+    mutation: Callable[[Path], None] | None = None,
 ) -> Mapping[str, object]:
     logs_dir = tmp_path / "agent"
     verifier_dir = tmp_path / "verifier"
@@ -1164,6 +1165,8 @@ def finalize_vendor_trial(
             revocation.inventory, revocation.export_path, revocation.lease_echo_path,
             {**revocation.revocation, field: value},
         )
+    if mutation is not None:
+        mutation(tmp_path)
     monkeypatch.setattr(finalization.socket, "gethostname", lambda: "fixture-host")
     result = finalize_host_trial(
         logs_dir=logs_dir, verifier_dir=verifier_dir, artifact_dir=artifact_dir,
@@ -1286,6 +1289,52 @@ def test_vendor_security_or_harness_failure_publishes_no_gradable_envelope(
             tmp_path, monkeypatch, revocation_failure=revocation_failure,
         )
 
+    assert not envelope_path(tmp_path).exists()
+
+
+def test_collected_provider_credential_refuses_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def inject_credential(root: Path) -> None:
+        credential = production_scan_policy().secrets["provider_credential"]
+        (root / "agent/provider-output.txt").write_text(credential)
+
+    with pytest.raises(HostFinalizationError) as raised:
+        finalize_vendor_trial(tmp_path, monkeypatch, mutation=inject_credential)
+
+    assert raised.value.reason == "output_leak_detected"
+    assert not envelope_path(tmp_path).exists()
+
+
+@pytest.mark.parametrize("target", ["missing-target", "/etc/passwd"])
+def test_dangling_or_escaping_collected_symlink_refuses_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: str,
+) -> None:
+    def inject_symlink(root: Path) -> None:
+        (root / "agent/unsafe-link").symlink_to(target)
+
+    with pytest.raises(HostFinalizationError) as raised:
+        finalize_vendor_trial(tmp_path, monkeypatch, mutation=inject_symlink)
+
+    assert raised.value.reason == "output_scan_untrusted"
+    assert not envelope_path(tmp_path).exists()
+
+
+def test_collected_source_missing_before_scan_refuses_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = finalization._collect_roots
+
+    def remove_after_collection(roots: Mapping[str, Path]) -> object:
+        result = original(roots)
+        (roots["agent"] / "instruction.md").unlink()
+        return result
+
+    monkeypatch.setattr(finalization, "_collect_roots", remove_after_collection)
+    with pytest.raises(HostFinalizationError) as raised:
+        finalize_vendor_trial(tmp_path, monkeypatch)
+
+    assert raised.value.reason == "output_scan_untrusted"
     assert not envelope_path(tmp_path).exists()
 
 

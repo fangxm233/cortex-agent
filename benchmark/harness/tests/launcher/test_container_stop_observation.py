@@ -10,6 +10,7 @@ import subprocess
 import uuid
 from collections import defaultdict
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from harbor.environments.base import ExecResult
@@ -291,6 +292,7 @@ def test_admitted_environment_finalizes_between_stop_wait_and_container_removal(
         events.append(("remove", delete))
 
     environment._run_docker_compose_command = compose
+    environment._remove_verifier_uvx_alias = AsyncMock()
     environment._container_boundary_probe = lambda: Probe()
     monkeypatch.setattr(PullDisabledDockerEnvironment, "stop", base_stop)
 
@@ -335,6 +337,7 @@ def test_unobservable_stop_census_is_recorded_after_stop_and_container_is_remove
         events.append(("remove", delete))
 
     environment._run_docker_compose_command = compose
+    environment._remove_verifier_uvx_alias = AsyncMock()
     environment._container_boundary_probe = lambda: Probe()
     monkeypatch.setattr(PullDisabledDockerEnvironment, "stop", base_stop)
 
@@ -375,6 +378,7 @@ def test_capture_failure_still_stops_before_recording_unavailable(
         events.append(("remove", delete))
 
     environment._run_docker_compose_command = compose
+    environment._remove_verifier_uvx_alias = AsyncMock()
     environment._container_boundary_probe = lambda: Probe()
     monkeypatch.setattr(PullDisabledDockerEnvironment, "stop", base_stop)
 
