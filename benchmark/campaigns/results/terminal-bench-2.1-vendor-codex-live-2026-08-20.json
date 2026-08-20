@@ -1,0 +1,260 @@
+{
+  "schema_version": "cortex-bench-vendor-live-baseline-summary/1",
+  "campaign": "tb21-vendor-codex",
+  "executed_at": "2026-08-20",
+  "paid": true,
+  "provider": "openai-codex",
+  "model": "gpt-5.6-sol",
+  "cli": {
+    "package": "@openai/codex",
+    "version": "0.148.0"
+  },
+  "source_commits": {
+    "headerless_sse_fix": "8fad24e9c56ae5fef91a640516c094458824bbb9",
+    "live_promotion_and_campaigns": "666c53f1baad84c82da6805ba7e978a84d785f31"
+  },
+  "headline": "The authorized latest-Codex sequence completed after one diagnosed handshake compatibility correction. The single-task gate passed, then all three pinned tasks reached terminal-success in one concurrent wave with Harbor rewards 0.0, 1.0 and 1.0. Every terminal envelope had a clean scan and proven route revocation; the resume pass skipped all trials, armed no route and left 81 terminal files byte-identical.",
+  "latest_version_validation": {
+    "source": "terminal-bench-2.1-vendor-codex-upgrade-validation-2026-08-20.json",
+    "source_sha256": "bad2c8b53ab9d42c2fadd33b22e8b70e5163c37492e7b62527ceaed2d7fb85c0",
+    "status": "passed",
+    "cli_version": "0.148.0",
+    "model": "gpt-5.6-sol",
+    "native_request_max_output_tokens_present": false
+  },
+  "runtime_contract": {
+    "max_provider_requests_per_trial": 500,
+    "max_cost_usd_per_trial": "2.00",
+    "deadline_seconds_per_trial": 1800,
+    "max_output_tokens_declared_per_trial": 65536,
+    "request_body_limit_bytes": 67108864,
+    "response_body_limit_bytes": 67108864,
+    "credential_boundary": "The real ChatGPT access token was read from the host auth file inside the launcher process and held only by the host proxy. Trial containers received a trial-scoped dummy JWT.",
+    "campaign_cost_usd": null,
+    "campaign_cost_status": "subscription_transport_has_no_usd_price_accounting"
+  },
+  "ttl_preflight": {
+    "status": "passed",
+    "pending_trials": 3,
+    "concurrency": 3,
+    "observed_at_epoch_ms": 1787259456415,
+    "expiry_epoch_ms": 1788021273000,
+    "required_expiry_epoch_ms": 1787262426415,
+    "remaining_after_required_ms": 758846585,
+    "required_expiry_arithmetic": "1787259456415 + 3*30000 network-create + 900000 setup + 1800000 lease + 120000 teardown + 60000 clock-skew = 1787262426415",
+    "routes_armed_before_pass": 0,
+    "refresh_attempted": false
+  },
+  "handshake": {
+    "native_default_contract": {
+      "model": "gpt-5.6-sol",
+      "max_output_tokens_field_present": false,
+      "declared_output_ceiling": 65536,
+      "max_provider_requests": 1,
+      "deadline_seconds": 120,
+      "retry": false
+    },
+    "attempts": [
+      {
+        "iteration": 1,
+        "state": "failed-accounting-compatibility",
+        "provider_requests": 1,
+        "http_status": 200,
+        "response_bytes": 5533,
+        "terminal_event": "response.completed",
+        "terminal_usage_in_response": {
+          "input_tokens": 20,
+          "output_tokens": 5
+        },
+        "diagnosis": "ChatGPT omitted Content-Type on a complete terminal SSE. The strict adapter treated the headerless response as non-SSE and closed the downstream stream as usage_accounting_unavailable.",
+        "request_sha256": "09aacba3dc9ff0beb3470dda0b32e20f26a833ab78c84f5a6683e8e2143ea495",
+        "response_diagnostic_sha256": "f4a11a6ddc55fa4d47689e24242d9e0595c6419386138ead65370a827b09a39f",
+        "proxy_export_sha256": "f903d1c64b3767a7cf43f5a1dac13f76bd5c596b041045f867251acc117f5a64",
+        "automatic_retry": false
+      },
+      {
+        "iteration": 2,
+        "state": "live-handshake-passed",
+        "provider_requests": 1,
+        "input_tokens": 20,
+        "output_tokens": 5,
+        "scan_clean": true,
+        "revocation_proven": true,
+        "request_sha256": "09aacba3dc9ff0beb3470dda0b32e20f26a833ab78c84f5a6683e8e2143ea495",
+        "run_config_sha256": "394e3be00c25ef9881eff95374b7d891b0f4abcd39c68a6edaef440403eb1bcd",
+        "proxy_export_sha256": "4a4ab7e1ad0b0827431a203ca96b76a5a968bdec9cd35a6c154cba977189b416",
+        "promotion_evidence_sha256": "e0184b5fd292a30f6ad102a01739bf6c885a31b907c89305d8f48441ae2f8aa4"
+      }
+    ],
+    "corrective_change": {
+      "commit": "8fad24e9c56ae5fef91a640516c094458824bbb9",
+      "behavior": "A missing Content-Type is parsed by the existing strict terminal-event and usage validator; an explicit non-SSE content type remains refused.",
+      "scoped_tests": "74 passed"
+    }
+  },
+  "single_task_gate": {
+    "campaign": "tb21-vendor-codex-single",
+    "config_sha256": "c0ec39908b915b1da96dd76485c8b7c7ea538aecbf0ee299638ef1988bc8db63",
+    "campaign_state": "completed",
+    "campaign_exit_code": 0,
+    "started_at": "2026-08-20T20:53:33.989Z",
+    "ended_at": "2026-08-20T20:56:18.574Z",
+    "task_id": "constraints-scheduling",
+    "terminal_state": "terminal-success",
+    "verifier_rewards": {
+      "reward": 1.0
+    },
+    "requests": 7,
+    "input_tokens": 92680,
+    "output_tokens": 2551,
+    "scan_clean": true,
+    "scan_matches": 0,
+    "missing_sources": 0,
+    "unclassified_files": 0,
+    "route_arm_count": 1,
+    "route_revoke_count": 1,
+    "revocation": {
+      "route_active": false,
+      "listener_present": false,
+      "serving_thread_alive": false,
+      "active_handlers": 0,
+      "body_handlers": 0
+    },
+    "outer_envelope_sha256": "3cfb20ec360c5de162d9ebc8bd8365b3654e1b581032fbacb4a8615c01970842",
+    "campaign_result_sha256": "c67a06b4ff8e779007d009e0d3368f22e3a3e57cbf794717f3f02df1ee50c788",
+    "comparison_report_sha256": "be026d76849fd11b1477e5dec89b873d7907c9ac9020da7faf7c5f99241b501e",
+    "result_summary_sha256": "df6896168f4bdb4aeeb585a487fc37a3bdf720e579944bf4d2244f7ecaf9a5a3"
+  },
+  "execution": {
+    "config_sha256": "adf1ffbad965d37071e59a7bcad10130bfc2df7721690b3d074c48753854f438",
+    "campaign_state": "completed",
+    "campaign_exit_code": 0,
+    "started_at": "2026-08-20T20:57:51.065Z",
+    "ended_at": "2026-08-20T21:00:49.471Z",
+    "concurrency": 3,
+    "planned_trials": 3,
+    "terminal_trials": 3,
+    "published_outer_envelopes": 3,
+    "failed_trials": [],
+    "automatic_retry": false,
+    "campaign_executions": 1,
+    "provider_requests_total": 21,
+    "input_tokens_total": 249645,
+    "output_tokens_total": 6190
+  },
+  "trials": [
+    {
+      "task_id": "chess-best-move",
+      "image_digest": "sha256:7ec70cbe5726a332ec7c559d7145f82c67317a529457b071b7eae44032b6e728",
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {
+        "reward": 0.0
+      },
+      "requests": 9,
+      "input_tokens": 105944,
+      "output_tokens": 2149,
+      "scan_clean": true,
+      "scan_matches": 0,
+      "missing_sources": 0,
+      "unclassified_files": 0,
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {
+        "route_active": false,
+        "listener_present": false,
+        "serving_thread_alive": false,
+        "active_handlers": 0,
+        "body_handlers": 0
+      },
+      "outer_envelope_sha256": "95d8c93ec79086c475fd06c308ec50fc1678aff13643cfad381bf0e7c5fef883"
+    },
+    {
+      "task_id": "constraints-scheduling",
+      "image_digest": "sha256:31859b5bb36e1d507e330c3c75dc7adf830137fc72e0e4d1a88e68f48fdb903c",
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {
+        "reward": 1.0
+      },
+      "requests": 5,
+      "input_tokens": 60917,
+      "output_tokens": 1643,
+      "scan_clean": true,
+      "scan_matches": 0,
+      "missing_sources": 0,
+      "unclassified_files": 0,
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {
+        "route_active": false,
+        "listener_present": false,
+        "serving_thread_alive": false,
+        "active_handlers": 0,
+        "body_handlers": 0
+      },
+      "outer_envelope_sha256": "cc21e3e3dead796278075910983d1b63f400b3ec145ad9341d2de2889c74bdd1"
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "image_digest": "sha256:d2a78b8e5aa9c842d9dfa21ceed714859ff5f06b141eb15880c62850158ff5cc",
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {
+        "reward": 1.0
+      },
+      "requests": 7,
+      "input_tokens": 82784,
+      "output_tokens": 2398,
+      "scan_clean": true,
+      "scan_matches": 0,
+      "missing_sources": 0,
+      "unclassified_files": 0,
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {
+        "route_active": false,
+        "listener_present": false,
+        "serving_thread_alive": false,
+        "active_handlers": 0,
+        "body_handlers": 0
+      },
+      "outer_envelope_sha256": "6bcace0479e7362814e70d4902397bf6dc5b3e3b8b76193a8a3ab2a2476e57f1"
+    }
+  ],
+  "resume": {
+    "kind": "terminal-only no-arm resume pass",
+    "campaign_state": "completed",
+    "exit_code": 0,
+    "all_trials_skipped": true,
+    "route_arm_attempts": 0,
+    "new_provider_requests": 0,
+    "retained_terminal_provider_requests_reported": 21,
+    "terminal_trial_file_count": 81,
+    "terminal_tree_snapshot_before_sha256": "659152b8646b4817757f6de225278fd5646f66a31cc47b072164119e57ddad66",
+    "terminal_tree_snapshot_after_sha256": "659152b8646b4817757f6de225278fd5646f66a31cc47b072164119e57ddad66",
+    "terminal_roots_rewritten": false,
+    "comparison_report_sha256_before_after": "eddde2082d452e29a01610fd0c8dc724657dde70f749f5104ec44ded0b772cc0",
+    "result_summary_sha256_before_after": "8c37c4a2568c015196a53622f84f1a89b32c22199e933f5a9b4d234d19be681a",
+    "proof_sha256": "3df4146897ce790261d4e0441b0fdcdf8c65e646b1b095a694b0b765aed607e4"
+  },
+  "runtime_artifact_sha256": {
+    "initial_campaign_result": "ed5979bac9b5638c7523a991938695a3273c11ed7ff9bdbc94efe9a2abdcfbd8",
+    "resume_campaign_result": "533a3a12ca4e41fecece250157d5e3352df4c771c703497f147467fc026ee5bb",
+    "path_sanitized_result_summary": "8c37c4a2568c015196a53622f84f1a89b32c22199e933f5a9b4d234d19be681a",
+    "comparison_report": "eddde2082d452e29a01610fd0c8dc724657dde70f749f5104ec44ded0b772cc0"
+  },
+  "built_artifact_sha256": {
+    "wheel": "be0d3328c9e0e2c6a693605f72f21db0a1ab06e9987a3ca0c239805788a598c2",
+    "npm_artifact": "d2a1095a90b6bde9b1b5d1276d65e885851a37d8cd2f04bdf3ec288dfc2efe1a"
+  },
+  "safety": {
+    "credential_matches": 0,
+    "automatic_retry": false,
+    "concurrent_duplicate_campaign": false,
+    "post_run_campaign_containers": 0,
+    "post_run_campaign_networks": 0,
+    "runtime_paths_published": false,
+    "push_performed": false
+  }
+}
