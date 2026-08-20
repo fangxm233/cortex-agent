@@ -24,6 +24,7 @@ Committed campaign result summaries preserve path-sanitized reproducibility evid
 | terminal-bench-2.1-vendor-codex-comparison-r2-2026-08-20.json | report | Records no Codex comparison because the final stage-1 request failed before promotion and both campaigns |
 | terminal-bench-2.1-vendor-claude-staged-2026-08-20.json | evidence | Records the sole Claude handshake HTTP 429, clean scan, revocation proof and permanent staged stop |
 | terminal-bench-2.1-vendor-claude-comparison-2026-08-20.json | report | Records no comparison because stage 1 prevented promotion and both campaigns |
+| terminal-bench-2.1-vendor-claude-conditional-f077-2026-08-20.json | evidence | Records the forced live usage GO reading, the single authorized Claude HTTP 429, clean scan, no promotion and stopped campaign stages |
 | zero-paid-dry-run-2026-08-13.json | evidence | Records the accepted two-trial ZERO-PAID campaign hashes, counts and safety facts |
 | zero-paid-failed-agent-2026-08-13.json | evidence | Records the ZERO-PAID run proving a failed agent is published, scored 0 by its own verifier, followed by the next trial, and that each trial carries its own witnessed asset record instead of the bundle |
 | zero-paid-parallel-2026-08-13.json | evidence | Records the ZERO-PAID run proving concurrent trials hold distinct subnets, container addresses and live routes, that a slot is exclusive and reusable, and that every per-trial gate still holds |
