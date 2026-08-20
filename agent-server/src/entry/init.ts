@@ -29,7 +29,10 @@ import type { ModelChoice } from '@core/profile-generator.js';
 import { createLogger } from '@core/log.js';
 import { INSTALL_ROOT, DEFAULTS_DIR } from '@core/utils.js';
 import { t, setLocale, normalizeLocale, detectSystemLocale, type Locale } from '../core/i18n.js';
+import { CLIENT_TOKEN_ENV } from '@core/auth.js';
+import { CORTEX_VERSION } from '@core/version.js';
 import { cmdFeishu, type CliResult } from './feishu-login.js';
+import { enableLocalUi, readEnvValue, type LocalUiResult } from './local-ui.js';
 
 // ─── Path computation (DATA_DIR resolved locally to support --home override) ──
 
@@ -117,6 +120,97 @@ export interface InitAnswers {
   executeChoice?: ModelChoice;
   /** Additional models to register as standalone named profiles. Non-interactive only. */
   extraProfiles?: ModelChoice[];
+  /**
+   * Enable the loopback Web UI endpoint the native desktop app connects to. Set by the desktop
+   * setup wizard (`--answers`); the terminal wizard leaves it undefined, so a normal `cortex init`
+   * is unchanged and the endpoint stays opt-in.
+   */
+  localUi?: { enabled: boolean; port?: number };
+}
+
+// ─── JSON answers (machine-driven init) ──────────────────────────
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
+
+/** Parse a `{mode, model}` object; undefined when either half is missing. */
+function parseChoiceValue(value: unknown): ModelChoice | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const { mode, model } = value as { mode?: unknown; model?: unknown };
+  if (typeof mode !== 'string' || typeof model !== 'string') return undefined;
+  if (!mode.trim() || !model.trim()) return undefined;
+  return { mode: mode.trim(), model: model.trim() };
+}
+
+function parseLocalUi(value: unknown): InitAnswers['localUi'] {
+  if (!value || typeof value !== 'object') return undefined;
+  const { enabled, port } = value as { enabled?: unknown; port?: unknown };
+  if (enabled !== true) return undefined;
+  const parsedPort = typeof port === 'number' && Number.isInteger(port) && port > 0 && port < 65536
+    ? port
+    : undefined;
+  return { enabled: true, port: parsedPort };
+}
+
+/**
+ * Parse the answers document used by `cortex init --answers <file>`.
+ *
+ * This is the interface the desktop setup wizard drives init through. It exists because the legacy
+ * piped-stdin protocol (`collectAnswersNonInteractive`) is positional — a fixed line order with
+ * platform-dependent offsets — which a GUI cannot extend without breaking scripted installs.
+ * Every field is optional and falls back to what the interactive wizard would default to, so a
+ * minimal `{}` yields a working single-machine install.
+ */
+export function parseInitAnswersJson(raw: string): InitAnswers {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`--answers file is not valid JSON: ${(error as Error).message}`);
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('--answers file must contain a JSON object');
+  }
+  const input = parsed as Record<string, unknown>;
+
+  const backends = asStringArray(input.backends)
+    .filter((b): b is InitBackend => b === 'claude' || b === 'pi');
+  const platforms: PlatformChoice[] = [];
+  for (const raw of asStringArray(input.platforms)) {
+    const p = raw.trim().toLowerCase();
+    if ((p === 'slack' || p === 'feishu') && !platforms.includes(p)) platforms.push(p);
+  }
+
+  const usage = (input.gatewayUsage ?? {}) as Record<string, unknown>;
+  const gatewayUsage: GatewayUsageConfig = usage.enabled === true
+    ? {
+      enabled: true,
+      name: typeof usage.name === 'string' ? usage.name : '',
+      org: typeof usage.org === 'string' ? usage.org : '',
+      email: typeof usage.email === 'string' ? usage.email : '',
+    }
+    : { enabled: false };
+
+  return {
+    lang: typeof input.lang === 'string' ? normalizeLocale(input.lang) : detectSystemLocale(),
+    backends: backends.length > 0 ? backends : ['claude'],
+    machineName: typeof input.machineName === 'string' && input.machineName.trim()
+      ? input.machineName.trim()
+      : os.hostname(),
+    gpuCount: typeof input.gpuCount === 'number' ? input.gpuCount : detectGpuCount(),
+    platforms,
+    slackConfig: input.slackConfig as SlackInitConfig | undefined,
+    feishuConfig: input.feishuConfig as FeishuInitConfig | undefined,
+    gatewayUsage,
+    installService: input.installService === true,
+    planChoice: parseChoiceValue(input.planChoice),
+    executeChoice: parseChoiceValue(input.executeChoice),
+    extraProfiles: Array.isArray(input.extraProfiles)
+      ? input.extraProfiles.map(parseChoiceValue).filter((c): c is ModelChoice => !!c)
+      : undefined,
+    localUi: parseLocalUi(input.localUi),
+  };
 }
 
 /** Parse "mode:model" stdin string into a ModelChoice. Returns undefined for empty/invalid. */
@@ -1491,19 +1585,20 @@ async function pickPlanExecuteInteractive(
   };
 }
 
+/** Returns false when no backend is logged in yet, so nothing could be generated. */
 async function runGatewaySetup(
   backends: InitBackend[],
   paths: InitPaths,
   gatewayConfigDir?: string,
   answers?: Pick<InitAnswers, 'planChoice' | 'executeChoice' | 'extraProfiles'>,
-): Promise<void> {
+): Promise<boolean> {
   // Discover endpoints from Claude/PI local configs — filtered by user-selected backends
   const endpoints = discoverEndpoints(backends);
 
   if (endpoints.length === 0) {
     clack.log.warn(t('init.gatewaySetup.noBackends'));
     clack.log.info(t('init.gatewaySetup.rerunHint'));
-    return;
+    return false;
   }
 
   // Show discovered summary
@@ -1573,6 +1668,35 @@ async function runGatewaySetup(
     clack.log.warn(t('init.gatewaySetup.profileIssues', { count: issues.length, lines }));
     clack.log.info(t('init.gatewaySetup.profileIssuesHint'));
   }
+  return true;
+}
+
+// ─── JSON progress stream (machine-driven init) ──────────────────
+
+interface JsonEmitter {
+  emit(event: Record<string, unknown>): void;
+  restore(): void;
+}
+
+/**
+ * Route human-facing output to stderr and hand back a writer for the NDJSON event stream on stdout.
+ *
+ * clack (used for every log line, spinner and note in this module) writes to stdout, which would
+ * interleave ANSI-decorated prose with the events the desktop wizard parses. Rather than thread a
+ * sink through ~40 call sites, the stream is swapped for the duration of the run: stdout carries
+ * exactly one JSON object per line, stderr carries everything a human would read. Always undone via
+ * `restore()` in a finally, so a failed init does not leave the process with a patched stdout.
+ */
+function createJsonEmitter(): JsonEmitter {
+  type Write = typeof process.stdout.write;
+  const stdout = process.stdout as NodeJS.WriteStream & { write: Write };
+  const original = stdout.write.bind(stdout) as Write;
+  stdout.write = ((chunk: unknown, encoding?: unknown, callback?: unknown) =>
+    (process.stderr.write as (...args: unknown[]) => boolean)(chunk, encoding, callback)) as Write;
+  return {
+    emit(event) { original(`${JSON.stringify(event)}\n`); },
+    restore() { stdout.write = original; },
+  };
 }
 
 // ─── Main entry point ────────────────────────────────────────────
@@ -1582,24 +1706,52 @@ export interface InitOptions {
   force?: boolean;
   /** Override gateway.yaml output directory (defaults to ~/.aistatus/ when unset). */
   gatewayConfigDir?: string;
+  /**
+   * Pre-collected answers (from `--answers <file>`). When present, every prompt is skipped even on
+   * a TTY — the caller has already asked the questions in its own UI.
+   */
+  answers?: InitAnswers;
+  /** Emit NDJSON progress on stdout and move human output to stderr (`--json`). */
+  jsonEvents?: boolean;
 }
 
 export async function runInit(options: InitOptions = {}): Promise<void> {
   const paths = getResolvedPaths(options.homeDir);
   const force = options.force ?? false;
+  const emitter = options.jsonEvents ? createJsonEmitter() : null;
+  try {
+    await runInitSteps(paths, force, options, emitter);
+  } finally {
+    emitter?.restore();
+  }
+}
 
-  // 1. Collect user choices
-  const answers = processStdin.isTTY
-    ? await collectAnswersInteractive(paths)
-    : await collectAnswersNonInteractive();
+async function runInitSteps(
+  paths: InitPaths,
+  force: boolean,
+  options: InitOptions,
+  emitter: JsonEmitter | null,
+): Promise<void> {
+  const emit = (event: Record<string, unknown>): void => emitter?.emit(event);
+
+  // 1. Collect user choices. Supplied answers win over both prompt paths; a TTY without answers
+  //    still gets the full interactive wizard, so `cortex init` by hand is unchanged.
+  const answers = options.answers
+    ?? (processStdin.isTTY
+      ? await collectAnswersInteractive(paths)
+      : await collectAnswersNonInteractive());
+  const interactive = !options.answers && processStdin.isTTY;
+  emit({ step: 'answers', state: 'ok', machine: answers.machineName, backends: answers.backends });
 
   // 2. Check & install backends
   await checkAndInstallBackends(answers.backends);
+  emit({ step: 'backends', state: 'ok' });
 
   // 3. Ensure git + directory structure
   ensureGitInstalled();
   createDirectories(paths);
   ensureGitRepo(paths.DATA_DIR);
+  emit({ step: 'home', state: 'ok', home: paths.DATA_DIR });
 
   // 4. Write configs
   writeDotEnv(paths, answers, force);
@@ -1607,17 +1759,28 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   deployHooks(paths, force);
   generateConfigs(paths, answers, force);
   seedSchedules(paths, answers, force);
+  emit({ step: 'config', state: 'ok' });
 
   // 5. Gateway usage
   writeGatewayUsageConfig(answers.gatewayUsage, options.gatewayConfigDir);
 
+  // 5b. Local Web UI endpoint — opt-in, driven by the desktop setup wizard. Must run after the
+  //     .env exists so the generated client token is the one the native app is handed back.
+  let localUi: LocalUiResult | null = null;
+  if (answers.localUi?.enabled) {
+    localUi = await enableLocalUi({ configDir: paths.CONFIG_DIR, port: answers.localUi.port });
+    clack.log.success(t('init.localUi.enabled', { url: localUi.url }));
+    emit({ step: 'local-ui', state: 'ok', url: localUi.url, port: localUi.port });
+  }
+
   // 6. Service registration
   if (answers.installService) {
     installService(paths.DATA_DIR);
+    emit({ step: 'service', state: 'ok' });
   }
 
   // 7. Gateway & profile auto-setup (detect from Claude/PI local configs)
-  if (processStdin.isTTY) {
+  if (interactive) {
     const loginHints = answers.backends.map(b => {
       const info = BACKEND_INFO[b];
       return `  • ${t(info.labelKey)}:  ${t(info.loginHintKey).replace(/^Run /, '').replace(/\.$/, '')}`;
@@ -1658,11 +1821,15 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
       }
     }
   } else {
-    // Non-interactive: auto-detect silently, passing stdin-supplied choices
+    // Non-interactive: auto-detect silently, passing caller-supplied choices. A machine with no
+    // backend logged in yet yields no endpoints — expected on a fresh desktop install, where the
+    // user logs in from the workbench afterwards and the server syncs profiles from that login.
     try {
-      await runGatewaySetup(answers.backends, paths, options.gatewayConfigDir, answers);
+      const configured = await runGatewaySetup(answers.backends, paths, options.gatewayConfigDir, answers);
+      emit({ step: 'gateway', state: configured ? 'ok' : 'skip', reason: configured ? undefined : 'no-backend-login' });
     } catch (e) {
       log.warn(`Gateway setup failed (non-interactive): ${(e as Error).message}`);
+      emit({ step: 'gateway', state: 'skip', reason: (e as Error).message });
     }
   }
 
@@ -1685,4 +1852,14 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
 
   // 9. Done
   clack.outro(t('init.outro', { dataDir: paths.DATA_DIR }));
+  emit({
+    step: 'result',
+    state: 'ok',
+    home: paths.DATA_DIR,
+    version: CORTEX_VERSION,
+    // The bearer the native app must send as `x-cortex-token`. Read back from the file rather than
+    // kept in memory so it is correct whether .env was just written or already existed.
+    clientToken: readEnvValue(path.join(paths.CONFIG_DIR, '.env'), CLIENT_TOKEN_ENV) ?? null,
+    uiUrl: localUi?.url ?? null,
+  });
 }

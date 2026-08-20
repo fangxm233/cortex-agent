@@ -15,6 +15,7 @@ import {
   getResolvedPaths,
   formatConfigOutput,
   runInit,
+  parseInitAnswersJson,
 } from './init.js';
 import type { ConfigStatus } from './init.js';
 import { cmdFeishu } from './feishu-login.js';
@@ -31,8 +32,9 @@ import {
   getSetupGatewayHelp,
   getTuiHelp,
 } from './cli-help.js';
+import { runUiCli } from './ui-cli.js';
 
-export { getAuthHelp, getCliHelp, getInitHelp, getSetupGatewayHelp, getTuiHelp } from './cli-help.js';
+export { getAuthHelp, getCliHelp, getInitHelp, getSetupGatewayHelp, getTuiHelp, getUiHelp } from './cli-help.js';
 
 // ─── Paths ──────────────────────────────────────────────────────
 
@@ -447,8 +449,21 @@ async function runInitCli(args: string[]): Promise<CliResult> {
   }
   const homeDir = optionValue(args, '--home');
   const gatewayConfigDir = optionValue(args, '--gateway-config-dir');
+  const answersFile = optionValue(args, '--answers');
   try {
-    await runInit({ homeDir, gatewayConfigDir, force: args.includes('--force') });
+    // --answers replaces every prompt with a JSON document, which is how the desktop setup wizard
+    // (and any scripted install) drives init. Parsed before anything is written so a malformed file
+    // fails fast, leaving the home untouched.
+    const answers = answersFile
+      ? parseInitAnswersJson(readFileSync(path.resolve(answersFile), 'utf-8'))
+      : undefined;
+    await runInit({
+      homeDir,
+      gatewayConfigDir,
+      force: args.includes('--force'),
+      answers,
+      jsonEvents: args.includes('--json'),
+    });
     return { exitCode: 0, stdout: '', stderr: '' };
   } catch (error: any) {
     return { exitCode: 1, stdout: '', stderr: error.message || String(error) };
@@ -595,6 +610,7 @@ const CLI_HANDLERS: Record<string, CliHandler> = {
   feishu: (args) => cmdFeishu(args),
   restart: () => runRestartCli(),
   'setup-gateway': (args) => runSetupGatewayCli(args),
+  ui: (args) => runUiCli(args),
   task: (args) => runTaskCli(args),
   install: (args) => runInstallCli(args),
   start: () => ({ exitCode: 0, stdout: '', stderr: `'start' must be run from the main entry point, not imported.\nUse: node dist/entry/cli.js start` }),

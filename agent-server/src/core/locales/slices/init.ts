@@ -170,6 +170,9 @@ export const initEn = {
   'init.gatewaySetup.profileIssues': '${count} profile(s) reference a gateway mode that is not configured:\n${lines}',
   'init.gatewaySetup.profileIssuesHint': 'These would fail at runtime with "Unknown mode". Add the mode to gateway.yaml or fix the profile.',
 
+  // ── Local Web UI endpoint (desktop app setup) ──
+  'init.localUi.enabled': 'Local Web UI endpoint enabled at ${url}',
+
   // ── Gateway & profile setup note + readiness loop ──
   'init.gatewayProfile.note': [
     'Cortex can auto-detect your Claude Code and PI configurations',
@@ -373,6 +376,9 @@ export const initZh: Record<keyof typeof initEn, string> = {
   'init.gatewaySetup.generatedProfiles': '已生成配置：${names}（默认：${default}）',
   'init.gatewaySetup.profileIssues': '${count} 个配置引用了未配置的网关模式：\n${lines}',
   'init.gatewaySetup.profileIssuesHint': '这些在运行时会因 "Unknown mode" 而失败。请将该模式添加到 gateway.yaml，或修正该配置。',
+
+  // ── Local Web UI endpoint (desktop app setup) ──
+  'init.localUi.enabled': '本机 Web UI 端点已启用：${url}',
 
   // ── Gateway & profile setup note + readiness loop ──
   'init.gatewayProfile.note': [

@@ -59,6 +59,28 @@ export function getTuiHelp(): string {
   ].join('\n');
 }
 
+export function getUiHelp(): string {
+  return formatHelp({
+    name: 'cortex ui',
+    description: 'Manage the local Web UI endpoint used by the Cortex desktop app',
+    usage: 'cortex ui enable [--port <port>] [--home <path>] [--json]',
+    commands: [
+      { name: 'enable', description: 'Turn on the loopback Web UI endpoint and print how to reach it' },
+    ],
+    options: [
+      { flag: '--port <port>', description: 'TCP port to serve the Web UI on', default: '3004' },
+      { flag: '--home <path>', description: 'CORTEX_HOME to configure', default: '$CORTEX_HOME or ~/.cortex' },
+      { flag: '--json', description: 'Print the endpoint, token and change state as JSON' },
+      { flag: '--help, -h', description: 'Show this help' },
+    ],
+    examples: [
+      { description: 'Enable the endpoint on the default port', command: 'cortex ui enable' },
+      { description: 'Serve on another port', command: 'cortex ui enable --port 4000' },
+      { description: 'Machine-readable output for the desktop setup flow', command: 'cortex ui enable --json' },
+    ],
+  });
+}
+
 function getCliCommands() {
   return [
     { name: 'init', description: 'Initialize CORTEX_HOME directory with configs and API keys' },
@@ -78,6 +100,7 @@ function getCliCommands() {
     { name: 'auth status', description: t('cmd.auth.cli.statusDescription') },
     { name: 'feishu', description: 'Manage Feishu user-identity login (login / status / logout)' },
     { name: 'setup-gateway', description: 'Auto-detect Claude/PI configs and generate gateway.yaml + profiles.json' },
+    { name: 'ui enable', description: 'Enable the local Web UI endpoint the desktop app connects to' },
     { name: 'tui', description: 'Start the Terminal UI (TUI) client for local interaction' },
   ];
 }
@@ -92,6 +115,7 @@ function getCliExamples() {
     { description: t('cmd.auth.cli.exampleJson'), command: 'cortex auth status --json' },
     { description: 'Diagnose and auto-repair', command: 'cortex doctor --fix' },
     { description: 'Re-generate gateway config', command: 'cortex setup-gateway' },
+    { description: 'Enable the local Web UI endpoint', command: 'cortex ui enable' },
     { description: 'Start the server', command: 'cortex start' },
     { description: 'Stop the daemon', command: 'cortex daemon stop' },
     { description: 'Check daemon status', command: 'cortex daemon status' },

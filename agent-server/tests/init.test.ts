@@ -26,6 +26,7 @@ import {
   generateSystemdUnit,
   generateLaunchdPlist,
   runFeishuUserLogin,
+  parseInitAnswersJson,
   SLACK_APP_MANIFEST,
 } from '../src/entry/init.js';
 
@@ -655,4 +656,71 @@ test('runFeishuUserLogin omits FEISHU_DOMAIN when unset and surfaces stderr on f
   assert.equal(res.exitCode, 1);
   assert.equal('FEISHU_DOMAIN' in seen[0].env, false);
   assert.ok(out.join('').includes('boom'));
+});
+
+// ─── parseInitAnswersJson (machine-driven init) ─────────────────
+
+test('parseInitAnswersJson falls back to interactive defaults for an empty document', () => {
+  const answers = parseInitAnswersJson('{}');
+
+  assert.deepEqual(answers.backends, ['claude']);
+  assert.deepEqual(answers.platforms, []);
+  assert.equal(answers.installService, false);
+  assert.deepEqual(answers.gatewayUsage, { enabled: false });
+  assert.equal(answers.localUi, undefined);
+  assert.equal(answers.machineName, os.hostname());
+});
+
+test('parseInitAnswersJson reads the full desktop-wizard document', () => {
+  const answers = parseInitAnswersJson(JSON.stringify({
+    lang: 'zh',
+    backends: ['pi', 'claude'],
+    machineName: '  workstation  ',
+    gpuCount: 2,
+    platforms: ['slack', 'slack', 'feishu', 'bogus'],
+    installService: true,
+    gatewayUsage: { enabled: true, name: 'n', org: 'o', email: 'e' },
+    planChoice: { mode: 'cc', model: 'opus' },
+    executeChoice: { mode: 'cc', model: 'sonnet' },
+    extraProfiles: [{ mode: 'cc', model: 'haiku' }, { mode: 'cc' }],
+    localUi: { enabled: true, port: 4321 },
+  }));
+
+  assert.equal(answers.lang, 'zh');
+  assert.deepEqual(answers.backends, ['pi', 'claude']);
+  assert.equal(answers.machineName, 'workstation');
+  assert.equal(answers.gpuCount, 2);
+  assert.deepEqual(answers.platforms, ['slack', 'feishu'], 'duplicates and unknown platforms dropped');
+  assert.equal(answers.installService, true);
+  assert.deepEqual(answers.gatewayUsage, { enabled: true, name: 'n', org: 'o', email: 'e' });
+  assert.deepEqual(answers.planChoice, { mode: 'cc', model: 'opus' });
+  assert.deepEqual(answers.extraProfiles, [{ mode: 'cc', model: 'haiku' }], 'half-specified choice dropped');
+  assert.deepEqual(answers.localUi, { enabled: true, port: 4321 });
+});
+
+test('parseInitAnswersJson treats a disabled or malformed localUi block as absent', () => {
+  assert.equal(parseInitAnswersJson('{"localUi":{"enabled":false,"port":4000}}').localUi, undefined);
+  assert.equal(parseInitAnswersJson('{"localUi":"yes"}').localUi, undefined);
+  assert.deepEqual(
+    parseInitAnswersJson('{"localUi":{"enabled":true,"port":"4000"}}').localUi,
+    { enabled: true, port: undefined },
+    'a non-numeric port falls back to the default rather than failing the install',
+  );
+  assert.deepEqual(
+    parseInitAnswersJson('{"localUi":{"enabled":true,"port":70000}}').localUi,
+    { enabled: true, port: undefined },
+    'an out-of-range port falls back to the default',
+  );
+});
+
+test('parseInitAnswersJson rejects documents that are not JSON objects', () => {
+  assert.throws(() => parseInitAnswersJson('{ nope'), /not valid JSON/);
+  assert.throws(() => parseInitAnswersJson('[1,2]'), /must contain a JSON object/);
+  assert.throws(() => parseInitAnswersJson('"a string"'), /must contain a JSON object/);
+});
+
+test('parseInitAnswersJson drops unknown backends and keeps the claude default', () => {
+  assert.deepEqual(parseInitAnswersJson('{"backends":["gpt","pi"]}').backends, ['pi']);
+  assert.deepEqual(parseInitAnswersJson('{"backends":[]}').backends, ['claude']);
+  assert.deepEqual(parseInitAnswersJson('{"backends":"claude"}').backends, ['claude']);
 });
