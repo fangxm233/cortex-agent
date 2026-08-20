@@ -561,6 +561,9 @@ def test_response_diagnostic_blanks_provider_identifiers_in_headers_and_error_bo
         (
             ("Content-Type", "application/json"),
             ("x-should-retry", "true"),
+            ("Retry-After", "90"),
+            ("anthropic-ratelimit-requests-reset", "2026-08-20T03:00:00Z"),
+            ("anthropic-ratelimit-tokens-reset", "2026-08-20T03:00:00Z"),
             ("request-id", identifiers["request"]),
             ("anthropic-organization-id", identifiers["organization"]),
             ("anthropic-workspace-id", identifiers["workspace"]),
@@ -592,6 +595,9 @@ def test_response_diagnostic_blanks_provider_identifiers_in_headers_and_error_bo
     assert headers == {
         "content-type": "application/json",
         "x-should-retry": "true",
+        "retry-after": "90",
+        "anthropic-ratelimit-requests-reset": "2026-08-20T03:00:00Z",
+        "anthropic-ratelimit-tokens-reset": "2026-08-20T03:00:00Z",
         "request-id": "",
         "anthropic-organization-id": "",
         "anthropic-workspace-id": "",
