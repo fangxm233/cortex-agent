@@ -1,0 +1,37 @@
+{
+  "schema_version": "cortex-bench-vendor-comparison-report/1",
+  "campaign": "tb21-vendor-codex",
+  "task_id": "0ec1",
+  "generated_at": "2026-08-20",
+  "comparison_status": "unavailable",
+  "reason": "The final authorized stage-1 live handshake received an explicit HTTP 400 provider rejection for gpt-5.3-codex. The ordered contract permanently stopped Codex before capability promotion and both score-producing campaigns.",
+  "planned_tasks": [
+    {
+      "task_id": "chess-best-move",
+      "vendor_codex_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    },
+    {
+      "task_id": "constraints-scheduling",
+      "vendor_codex_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "vendor_codex_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    }
+  ],
+  "aggregate": {
+    "planned_trials": 3,
+    "trials_started": 0,
+    "trials_with_reward": 0,
+    "trials_with_explicit_campaign_failure": 0,
+    "trials_not_run_by_staged_stop": 3,
+    "score": null
+  },
+  "source_summary": "terminal-bench-2.1-vendor-codex-staged-r2-2026-08-20.json"
+}

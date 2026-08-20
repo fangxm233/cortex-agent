@@ -1,0 +1,192 @@
+{
+  "schema_version": "cortex-bench-vendor-staged-attempt-summary/1",
+  "campaign": "tb21-vendor-codex",
+  "task_id": "0ec1",
+  "executed_at": "2026-08-20",
+  "source_commit": "468a98dfe2247275bdb23861a82ed8626dff32d5",
+  "headline": "The second and final authorized Codex live-handshake request reached the committed ChatGPT upstream through the host proxy and was rejected with HTTP 400: gpt-5.3-codex is not supported for Codex with a ChatGPT account. Exactly one provider request was made with retry disabled. Codex is stopped permanently: no promotion, single-task campaign, or three-task campaign was run.",
+  "preconditions": {
+    "redacted_response_capture": {
+      "present": true,
+      "commits": [
+        "8fc20158",
+        "9669098c"
+      ]
+    },
+    "model_repin": {
+      "present": true,
+      "commit": "06f6a7a4",
+      "model": "gpt-5.3-codex"
+    },
+    "capability_state_before_request": "offline-contract-passed",
+    "offline_evidence_sha256": "b903b2330d911c813346f1ac4ab101598841284d5ae5e0a4e6cd41c2532175e3",
+    "pinned_container_cli": {
+      "image_digest": "sha256:4a8e42fae8518797c628a0da09a2afb518d4723ee040856e21d1a2d12072bec5",
+      "version": "codex-cli 0.117.0",
+      "network": "none",
+      "synthetic_requests": 1,
+      "preflight_passed": true
+    },
+    "synthetic_model_replay": {
+      "runtime": "image-extracted codex-cli 0.117.0",
+      "model_observed_at_upstream": "gpt-5.3-codex",
+      "verbatim": true,
+      "mismatch_refused_before_upstream": true,
+      "selectors_passed": 2
+    },
+    "campaign_ttl_preflight": {
+      "passed": true,
+      "planned_trials": 3,
+      "concurrency": 3,
+      "routes_armed": 0,
+      "required_through_utc": "2026-08-20T01:04:40.382000+00:00",
+      "token_expiry_utc": "2026-08-29T16:34:33+00:00",
+      "remaining_margin_seconds": 833392,
+      "short_token_zero-route_refusal_selector_passed": true
+    },
+    "overlap_check_before_request": {
+      "overlapping_campaign_processes": 0,
+      "overlapping_benchmark_containers": 0,
+      "overlapping_trial_networks": 0
+    }
+  },
+  "sequence": [
+    {
+      "stage": 1,
+      "name": "consume-once-live-handshake",
+      "state": "live-handshake-failed-provider-rejection",
+      "attempts": 1,
+      "retry": "not-performed",
+      "provider_requests": 1,
+      "permit": {
+        "capability_id": "codex-subscription",
+        "model": "gpt-5.3-codex",
+        "max_provider_requests": 1,
+        "deadline_seconds": 120,
+        "max_output_tokens": 256,
+        "retry_enabled": false
+      },
+      "proxy_accounting": {
+        "requests": 1,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_tokens": 0,
+        "audit_agrees_with_counters": true,
+        "outcome": "usage_accounting_unavailable"
+      },
+      "promotion_evidence": "absent",
+      "capability_state_after_run": "offline-contract-passed"
+    },
+    {
+      "stage": 2,
+      "name": "single-task-live-vendor-codex",
+      "state": "not-run-after-stage-1-failure",
+      "attempts": 0,
+      "provider_requests": 0
+    },
+    {
+      "stage": 3,
+      "name": "three-task-live-vendor-codex-one-wave",
+      "state": "not-run-after-stage-1-failure",
+      "attempts": 0,
+      "provider_requests": 0,
+      "planned_trials": [
+        "chess-best-move",
+        "constraints-scheduling",
+        "db-wal-recovery"
+      ]
+    }
+  ],
+  "redacted_response_diagnostic": {
+    "schema_version": "cortex-bench-live-handshake-response/1",
+    "status": 400,
+    "headers": [
+      ["Server", "BaseHTTP/0.6 Python/3.12.13"],
+      ["Date", "Thu, 20 Aug 2026 00:17:10 GMT"],
+      ["Date", "Thu, 20 Aug 2026 00:17:10 GMT"],
+      ["Content-Type", "application/json"],
+      ["Server", "cloudflare"],
+      ["Cross-Origin-Opener-Policy", "same-origin-allow-popups"],
+      ["x-oai-request-id", "2521c482-9312-4df1-b2cc-4af65e22a25f"],
+      ["x-openai-proxy-wasm", "v0.1"],
+      ["X-Content-Type-Options", "nosniff"],
+      ["Referrer-Policy", "strict-origin-when-cross-origin"],
+      ["cf-cache-status", "DYNAMIC"],
+      ["Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload"],
+      ["Set-Cookie", ""],
+      ["set-cookie", ""],
+      ["Report-To", "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=OC7Ybha0%2B0EmINwYfSOkrObaIHvH9L2lYMo%2FYuX6ryJVpZXYdYc83CaSal7xGS%2Blw6jxnhGeHl7jkTnuXt7Vi%2BHjfV31GhdbxCUH%2BDEXyg4MFDvwGDiOfmG7vRO4\"}]}"],
+      ["Nel", "{\"report_to\":\"cf-nel\",\"success_fraction\":0.01,\"max_age\":604800}"],
+      ["CF-RAY", "a2dd36a33a10c72f-DEN"],
+      ["transfer-encoding", "chunked"],
+      ["connection", "close"]
+    ],
+    "body_bytes_received": 96,
+    "body_base64": "eyJkZXRhaWwiOiJUaGUgJ2dwdC01LjMtY29kZXgnIG1vZGVsIGlzIG5vdCBzdXBwb3J0ZWQgd2hlbiB1c2luZyBDb2RleCB3aXRoIGEgQ2hhdEdQVCBhY2NvdW50LiJ9",
+    "body_latin1": "{\"detail\":\"The 'gpt-5.3-codex' model is not supported when using Codex with a ChatGPT account.\"}",
+    "complete": false,
+    "failure": "IncompleteRead",
+    "body_sha256": "d92a14c969943f4ab9e369bdc7f439c76c32067e9768b193b2efaa4999b795b9",
+    "interpretation": "The upstream returned an explicit JSON provider rejection. The proxy relayed the 96 bytes but intentionally withheld downstream completion because an error response has no accountable usage."
+  },
+  "security": {
+    "credential_delivery": "The real ChatGPT access token remained host-side. The committed request metadata contains no authorization or account-id header; the host adapter injected both only on the upstream leg.",
+    "proxy_traversal": {
+      "proven": true,
+      "adapter_id": "openai-codex-responses/oauth",
+      "upstream_hosts": ["chatgpt.com"],
+      "durable_requests": 1,
+      "evidence": "proxy-export.json and adapter-selection.json account the sole request."
+    },
+    "direct_egress": {
+      "container_started": false,
+      "evidence": "Stage 1 was host-only; the ordered stop prevented both campaign container stages."
+    },
+    "token_refresh": {
+      "attempted": false,
+      "evidence": "The access token passed TTL preflight, no token endpoint was configured, and adapter-selection lists only chatgpt.com."
+    }
+  },
+  "postfailure_leak_scan": {
+    "files_scanned": 8,
+    "bytes_scanned": 4821,
+    "matches": 0,
+    "missing_sources": 0,
+    "unclassified_files": 0,
+    "clean": true
+  },
+  "revocation_evidence": {
+    "ordered_revoke_path_completed": true,
+    "reason": "The proxy export and lease-echo files were published by revoke_trial_proxy, and the observed exception was raised only afterward by response validation; no stop/cleanup exception occurred.",
+    "proxy_export_sha256": "f903d1c64b3767a7cf43f5a1dac13f76bd5c596b041045f867251acc117f5a64",
+    "lease_echo_sha256": "5127df64a177b930d9b2b0d032a62d1ba490d728b794c65102718a089c7ce44a",
+    "matching_codex_campaign_containers_after_run": 0,
+    "matching_codex_trial_networks_after_run": 0,
+    "persisted_internal_revocation_record": false,
+    "limitation": "The failure path does not persist the in-memory listener/thread revocation structure; successful completion of revoke_trial_proxy plus process exit is the available evidence."
+  },
+  "raw_evidence_sha256": {
+    "live-handshake-run-config.json": "f4b4a93994dafcf98cb4c86efd8ff84eb0e2cb0a81256b1ae0240e741cabc667",
+    "live-handshake-request.json": "e1bb22a7755f5e06a3687e908c938808d9c49a025cf934563743af2a3bdc1f22",
+    "live-handshake-request.body": "21f9ceff7afa05a387c70b7e5a8a707f3fdea48abc46793cedce2dc8bae54202",
+    "live-handshake-response.json": "5579e18b47f41745717020f10dc32030190af847fbe279fbb017328b21c1bf94",
+    "proxy/proxy-audit.jsonl": "11d84b18b88a763b8f8eb354675e15d56d14cccdf5a5de42a785632a12ad01a4",
+    "proxy/proxy-export.json": "f903d1c64b3767a7cf43f5a1dac13f76bd5c596b041045f867251acc117f5a64",
+    "proxy/lease-echo.json": "5127df64a177b930d9b2b0d032a62d1ba490d728b794c65102718a089c7ce44a",
+    "proxy/adapter-selection.json": "90ad45a3c0c41b7f2986a1c874054d4826891a5891eb91f7dfd8f405661a3ef7"
+  },
+  "raw_sources": {
+    "handshake_artifacts": "<run-evidence>/codex-live-handshake-0ec1-20260820/"
+  },
+  "prohibitions_observed": {
+    "automatic_retry": false,
+    "manual_retry": false,
+    "capability_promotion": false,
+    "stage_2_started": false,
+    "stage_3_started": false,
+    "campaign_route_arming": false,
+    "re_pin_to_host_0_148_0": false,
+    "push": false
+  },
+  "final_vendor_state": "stopped-permanently-after-final-authorized-handshake-failure"
+}
