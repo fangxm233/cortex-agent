@@ -508,13 +508,7 @@ class VendorLifecycleMixin:
     def _claude_process_environment(
         self, env: Mapping[str, str] | None,
     ) -> dict[str, str]:
-        model = self.model_name or ""
         values = {
-            "ANTHROPIC_MODEL": model,
-            "ANTHROPIC_DEFAULT_SONNET_MODEL": model,
-            "ANTHROPIC_DEFAULT_OPUS_MODEL": model,
-            "ANTHROPIC_DEFAULT_HAIKU_MODEL": model,
-            "CLAUDE_CODE_SUBAGENT_MODEL": model,
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
             "CLAUDE_CONFIG_DIR": "/logs/agent/sessions",
             "ENABLE_BACKGROUND_TASKS": "1", "FORCE_AUTO_BACKGROUND_TASKS": "1",

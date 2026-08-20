@@ -230,6 +230,23 @@ def test_codex_uses_p0_proven_provider_config_and_dummy_jwt(tmp_path: Path) -> N
     assert "OPENAI_BASE_URL" not in config
 
 
+def test_claude_uses_native_default_while_proxy_freezes_observed_model(
+    tmp_path: Path,
+) -> None:
+    agent = create_agent(tmp_path, "claude-code", None, "claude-opus-5")
+
+    environment = agent._claude_process_environment({})  # type: ignore[attr-defined]
+
+    assert not {
+        "ANTHROPIC_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        "CLAUDE_CODE_SUBAGENT_MODEL",
+    }.intersection(environment)
+    assert agent.model_name == "claude-opus-5"  # type: ignore[attr-defined]
+
+
 def test_file_evidence_records_verified_mode_and_content_digest(tmp_path: Path) -> None:
     agent = create_agent(
         tmp_path, "pi", "deepseek", "deepseek-chat", admitted=True,
