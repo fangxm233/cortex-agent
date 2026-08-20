@@ -22,6 +22,7 @@ Committed campaign result summaries preserve path-sanitized reproducibility evid
 | terminal-bench-2.1-vendor-codex-comparison-2026-08-19.json | report | Records no comparison because the first stage-1 request prevented promotion and both campaigns |
 | terminal-bench-2.1-vendor-codex-staged-r2-2026-08-20.json | evidence | Records the final one-request HTTP 400 model rejection, redacted response, clean scan, revocation and permanent Codex stop |
 | terminal-bench-2.1-vendor-codex-comparison-r2-2026-08-20.json | report | Records no Codex comparison because the final stage-1 request failed before promotion and both campaigns |
+| terminal-bench-2.1-vendor-codex-upgrade-validation-2026-08-20.json | evidence | Pins Codex 0.148.0, account models, exact images, probes, TTL and validation results |
 | terminal-bench-2.1-vendor-claude-staged-2026-08-20.json | evidence | Records the sole Claude handshake HTTP 429, clean scan, revocation proof and permanent staged stop |
 | terminal-bench-2.1-vendor-claude-comparison-2026-08-20.json | report | Records no comparison because stage 1 prevented promotion and both campaigns |
 | terminal-bench-2.1-vendor-claude-conditional-f077-2026-08-20.json | evidence | Records the forced live usage GO reading, the single authorized Claude HTTP 429, clean scan, no promotion and stopped campaign stages |
