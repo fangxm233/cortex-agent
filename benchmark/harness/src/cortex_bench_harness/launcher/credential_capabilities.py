@@ -78,7 +78,7 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
     CODEX_CLI_CAPABILITY_KEY:
         CredentialCapability(
             "codex-subscription", "offline-contract-passed",
-            "f19c046bd83a8b01ee5406051e6e852c8bc5b84e8c9d981354beb6fcd2e0755e",
+            "da3a6cbdafa52f395dda33721a157195bf021b8bf2878bcc34d7ec8bfd09179e",
         ),
 })
 

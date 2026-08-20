@@ -43,8 +43,8 @@ EVIDENCE_DIR = HARNESS_DIR / "src/cortex_bench_harness/launcher/evidence"
 MIGRATION_SCRIPT = HARNESS_DIR / "scripts/migrate-capability-evidence.py"
 CLAUDE_WIRE_PATH = HARNESS_DIR / "tests/fixtures/vendor-wire/claude-code/wire-capture.json"
 CODEX_PROOF_PATHS = {
-    "p0_wire_capture_sha256": HARNESS_DIR / "tests/fixtures/vendor-wire/codex/contract.json",
-    "vendor_lifecycle_test_sha256": HARNESS_DIR / "tests/launcher/test_vendor_lifecycle_docker.py",
+    "p0_wire_capture_sha256": HARNESS_DIR / "tests/fixtures/vendor-wire/codex/current-contract.json",
+    "vendor_lifecycle_test_sha256": HARNESS_DIR / "tests/launcher/test_vendor_codex_lifecycle_docker.py",
     "model_freeze_test_sha256": HARNESS_DIR / "tests/package/test_vendor_model_freeze.py",
 }
 
@@ -148,7 +148,7 @@ def test_validates_shipped_codex_zero_paid_evidence_suite() -> None:
         adapter_id="openai-codex-responses/oauth",
     )
     validate_offline_supporting_artifacts(path.parent, evidence)
-    assert evidence["codex_cli_version"] == "0.117.0"
+    assert evidence["codex_cli_version"] == "0.148.0"
     assert evidence["implementation_commit"] == CODEX_OFFLINE_CONTRACT[
         "implementation_commit"
     ]
