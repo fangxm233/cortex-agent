@@ -110,13 +110,15 @@ class FakeExecutor:
     def __init__(
         self, logs_dir: Path, *, export_failure: bool = False,
         malformed_evidence: bool = False, gateway_failure: bool = False,
-        dispatch_never_runs: bool = False, result_timeout_once: bool = False,
+        dispatch_never_runs: bool = False, dispatch_error_once: Exception | None = None,
+        result_timeout_once: bool = False,
     ) -> None:
         self.logs_dir = logs_dir
         self.export_failure = export_failure
         self.malformed_evidence = malformed_evidence
         self.gateway_failure = gateway_failure
         self.dispatch_never_runs = dispatch_never_runs
+        self.dispatch_error_once = dispatch_error_once
         self.result_timeout_once = result_timeout_once
         self.calls: list[tuple[str, dict[str, str] | None, str | None]] = []
         self.timeouts: list[int | None] = []
@@ -167,6 +169,8 @@ class FakeExecutor:
         if "production-thread-list.json" in command:
             self._capture("production-thread-list.json")
             self.list_thread_polls += 1
+            if self.dispatch_error_once is not None and self.list_thread_polls == 1:
+                raise self.dispatch_error_once
             dispatched = (
                 [] if self.dispatch_never_runs or self.list_thread_polls < 2
                 else self.dispatched_threads
@@ -482,6 +486,32 @@ def test_manager_arm_waits_on_the_thread_the_dispatcher_started(tmp_path: Path) 
         "action": "list-threads", "scope": "project", "projectId": "general",
     }
     assert runner.payloads["production-thread-result.json"]["threadId"] == "thr_dispatched"
+    assert production.stopped_cleanly is True
+
+
+def test_manager_dispatch_poll_retries_one_exec_timeout(tmp_path: Path) -> None:
+    runner = FakeExecutor(
+        tmp_path, dispatch_error_once=RuntimeError("Command timed out after 10 seconds"),
+    )
+
+    result = asyncio.run(session(
+        tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE,
+    ).run("Solve only this task.", runner))
+
+    assert result.status == "completed"
+    assert runner.list_thread_polls == 2
+
+
+def test_manager_dispatch_poll_keeps_non_timeout_exec_failures_fatal(tmp_path: Path) -> None:
+    runner = FakeExecutor(
+        tmp_path, dispatch_error_once=RuntimeError("Docker exec failed"),
+    )
+    production = session(tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE)
+
+    with pytest.raises(RuntimeError, match="Docker exec failed"):
+        asyncio.run(production.run("Solve only this task.", runner))
+
+    assert runner.list_thread_polls == 1
     assert production.stopped_cleanly is True
 
 
