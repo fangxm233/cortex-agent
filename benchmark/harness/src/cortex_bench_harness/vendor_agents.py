@@ -1,5 +1,5 @@
-# input:  Harbor vendor agents, proxy projection, host finalizer
-# output: preinstalled PI/Claude/Codex complete lifecycle subclasses
+# input:  Harbor vendor agents, admitted arm, proxy projection
+# output: preinstalled PI/Claude/Codex lifecycle subclasses
 # pos:    Fail-closed vendor execution and finalization boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -266,20 +266,40 @@ class VendorLifecycleMixin:
         provider, model = self.model_name.split("/", 1)
         root = TRIAL_ROOT / "pi-agent"
         auth = {provider: {"type": "api_key", "key": dummy_token}}
-        models = {"providers": {provider: self._pi_provider(base_url, model)}}
+        models = {
+            "providers": {
+                provider: self._pi_provider(
+                    base_url, model, self._pi_completion_cap(),
+                ),
+            },
+        }
         return (
             RuntimeFile(root / "auth.json", 0o600, self._json(auth)),
             RuntimeFile(root / "models.json", 0o644, self._json(models)),
             RuntimeFile(TRIAL_ROOT / "home/.nvm/nvm.sh", 0o644, ""),
         )
 
+    def _pi_completion_cap(self) -> int:
+        if self._trial_seed is None:
+            raise VendorPreflightError("PI runtime requires an admitted trial seed")
+        limits = self._trial_seed.arm.get("limits")
+        cap = limits.get("max_output_tokens") if isinstance(limits, Mapping) else None
+        if not isinstance(cap, int) or isinstance(cap, bool) or cap <= 0:
+            raise VendorPreflightError(
+                "PI runtime requires admitted arm max_output_tokens"
+            )
+        return cap
+
     @staticmethod
-    def _pi_provider(base_url: str, model: str) -> dict[str, object]:
+    def _pi_provider(
+        base_url: str, model: str, completion_cap: int,
+    ) -> dict[str, object]:
         return {
             "api": "openai-completions", "baseUrl": f"{base_url}/v1",
             "models": [{
                 "id": model, "name": model, "reasoning": False,
-                "input": ["text"], "contextWindow": 128000, "maxTokens": 8192,
+                "input": ["text"], "contextWindow": 128000,
+                "maxTokens": completion_cap,
                 "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
             }],
         }
