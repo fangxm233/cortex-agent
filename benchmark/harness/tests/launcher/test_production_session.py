@@ -111,7 +111,7 @@ class FakeExecutor:
         self, logs_dir: Path, *, export_failure: bool = False,
         malformed_evidence: bool = False, gateway_failure: bool = False,
         dispatch_never_runs: bool = False, dispatch_error_once: Exception | None = None,
-        result_timeout_once: bool = False,
+        dispatch_error_always: bool = False, result_timeout_once: bool = False,
     ) -> None:
         self.logs_dir = logs_dir
         self.export_failure = export_failure
@@ -119,6 +119,7 @@ class FakeExecutor:
         self.gateway_failure = gateway_failure
         self.dispatch_never_runs = dispatch_never_runs
         self.dispatch_error_once = dispatch_error_once
+        self.dispatch_error_always = dispatch_error_always
         self.result_timeout_once = result_timeout_once
         self.calls: list[tuple[str, dict[str, str] | None, str | None]] = []
         self.timeouts: list[int | None] = []
@@ -169,7 +170,9 @@ class FakeExecutor:
         if "production-thread-list.json" in command:
             self._capture("production-thread-list.json")
             self.list_thread_polls += 1
-            if self.dispatch_error_once is not None and self.list_thread_polls == 1:
+            if self.dispatch_error_once is not None and (
+                self.dispatch_error_always or self.list_thread_polls == 1
+            ):
                 raise self.dispatch_error_once
             dispatched = (
                 [] if self.dispatch_never_runs or self.list_thread_polls < 2
@@ -512,6 +515,25 @@ def test_manager_dispatch_poll_keeps_non_timeout_exec_failures_fatal(tmp_path: P
         asyncio.run(production.run("Solve only this task.", runner))
 
     assert runner.list_thread_polls == 1
+    assert production.stopped_cleanly is True
+
+
+def test_manager_dispatch_poll_stops_retrying_exec_timeouts_at_deadline(
+    tmp_path: Path,
+) -> None:
+    runner = FakeExecutor(
+        tmp_path,
+        dispatch_error_once=RuntimeError("Command timed out after 10 seconds"),
+        dispatch_error_always=True,
+    )
+    production = session(
+        tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE, dispatch_timeout_seconds=0.01,
+    )
+
+    with pytest.raises(ProductionSessionError, match="task dispatch"):
+        asyncio.run(production.run("Solve only this task.", runner))
+
+    assert runner.list_thread_polls > 1
     assert production.stopped_cleanly is True
 
 
