@@ -466,11 +466,14 @@ def make_agent(
     )
     environment = FinalizationEnvironment(logs_dir, mutation)
 
-    async def run_production(_self: object, _instruction: str, _execute: object) -> None:
+    async def run_production(
+        _self: object, _instruction: str, _execute: object,
+    ) -> ProductionThreadResult:
         if environment.run_return_code != 0 and not environment.publish_terminal_on_failure:
             raise RuntimeError("production run failed")
         write_inner_outputs(logs_dir, mutation)
         _self._stopped_cleanly = True
+        return ProductionThreadResult("thr-production-root", "completed", None, None)
 
     monkeypatch.setattr(ProductionServerSession, "run", run_production)
     agent._require_production_proxy_traffic = lambda: None
