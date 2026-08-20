@@ -178,22 +178,30 @@ function ProviderRow({ provider, actions }: { provider: PiProviderVm; actions: O
   );
 }
 
-function PiProviderList({ providers, filter, onFilter, actions }: {
+function PiProviderList({ providers, filter, onFilter, actions, onRescan, rescanning }: {
   providers: PiProviderVm[];
   filter: string;
   onFilter: (value: string) => void;
   actions: Omit<ActionsProps, 'backend' | 'provider' | 'loginTypes' | 'logoutTypes'>;
+  onRescan: () => void;
+  rescanning: boolean;
 }) {
   const L = useVocab();
   return (
     <SCard style={{ marginTop: 12, maxWidth: 980, overflow: 'hidden' }}>
       <SCardHeader title={L.accountsPiProviders} right={`${providers.length}`} />
       <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--proto-line-2)' }}>
-        <input
-          data-accounts-filter aria-label={L.accountsFilter}
-          value={filter} onChange={event => onFilter(event.target.value)}
-          placeholder={L.accountsFilterPlaceholder} style={S_CONTROL_STYLE}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            data-accounts-filter aria-label={L.accountsFilter}
+            value={filter} onChange={event => onFilter(event.target.value)}
+            placeholder={L.accountsFilterPlaceholder} style={S_CONTROL_STYLE}
+          />
+          <SButton data-accounts-sync tone="neutral" disabled={rescanning} onClick={onRescan}>
+            {L.accountsSyncModels}
+          </SButton>
+        </div>
+        <div style={{ marginTop: 6, fontSize: 10, color: 'var(--proto-muted-3)' }}>{L.accountsSyncModelsHint}</div>
       </div>
       {providers.length > 0
         ? providers.map(provider => <ProviderRow key={provider.provider} provider={provider} actions={actions} />)
@@ -217,6 +225,22 @@ export function AccountsPanel({ onLogin }: AccountsPanelProps) {
     },
     onError: error => toast({ title: `${L.accountsLogoutFailed}: ${error.message}`, tone: 'failed' }),
   }));
+  // Model routing is derived from what the logged-in backends expose, and the server re-derives it
+  // automatically when a login lands. This is the manual path for the cases that misses: a
+  // credential created before that behaviour existed, or a provider scan that failed transiently.
+  // Finding nothing is a legitimate outcome, so it is reported as guidance rather than an error.
+  const syncGateway = useMutation(trpc.auth.syncGateway.mutationOptions({
+    onSuccess: (result: { configured: boolean }) => {
+      if (!result.configured) {
+        toast({ title: L.accountsSyncModelsEmpty, tone: 'waiting' });
+        return;
+      }
+      void queryClient.invalidateQueries(trpc.auth.status.queryFilter({}));
+      void queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
+      toast({ title: L.accountsSyncModelsDone, tone: 'done' });
+    },
+    onError: error => toast({ title: `${L.accountsSyncModelsFailed}: ${error.message}`, tone: 'failed' }),
+  }));
   if (status.isLoading) return <div style={{ marginTop: 16 }}>{L.accountsLoading}</div>;
   if (status.isError || !status.data) return <div style={{ marginTop: 16, color: 'var(--proto-danger)' }}>{L.accountsLoadFailed}</div>;
   const vm = buildAccountsVm(status.data, filter);
@@ -228,7 +252,10 @@ export function AccountsPanel({ onLogin }: AccountsPanelProps) {
   return (
     <>
       {vm.claude ? <ClaudeCard account={vm.claude} actions={actions} /> : null}
-      <PiProviderList providers={vm.piProviders} filter={filter} onFilter={setFilter} actions={actions} />
+      <PiProviderList
+        providers={vm.piProviders} filter={filter} onFilter={setFilter} actions={actions}
+        onRescan={() => syncGateway.mutate({})} rescanning={syncGateway.isPending}
+      />
       <CustomProvidersCard />
     </>
   );

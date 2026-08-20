@@ -13,6 +13,9 @@ const harness = vi.hoisted(() => ({
   loginCalls: [] as unknown[],
   logoutCalls: [] as unknown[],
   invalidations: [] as unknown[],
+  syncCalls: [] as unknown[],
+  syncResult: { configured: true, endpoints: 2, profiles: ['plan', 'execute'] } as Record<string, unknown>,
+  toasts: [] as unknown[],
 }));
 
 const status: AuthStatusSnapshot = {
@@ -52,7 +55,7 @@ vi.mock('@/features/auth/LoginFlowProvider', () => ({
 
 vi.mock('@/design', async importOriginal => ({
   ...await importOriginal<typeof import('@/design')>(),
-  useToast: () => ({ toast: () => {} }),
+  useToast: () => ({ toast: (value: unknown) => harness.toasts.push(value) }),
 }));
 
 vi.mock('@/lib/trpc', () => {
@@ -70,6 +73,10 @@ vi.mock('@/lib/trpc', () => {
       customProviders: query('auth.customProviders'),
       upsertCustomProvider: mutation('auth.upsertCustomProvider'),
       removeCustomProvider: mutation('auth.removeCustomProvider'),
+      syncGateway: mutation('auth.syncGateway'),
+    },
+    config: {
+      get: query('config.get'),
     },
   }) };
 });
@@ -81,6 +88,11 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
     : { data: status, isLoading: false, isError: false, error: null }),
   useMutation: (options: any) => ({
     mutate: (variables: unknown) => {
+      if (options.__kind === 'auth.syncGateway') {
+        harness.syncCalls.push(variables);
+        options.onSuccess?.(harness.syncResult, variables);
+        return;
+      }
       harness.logoutCalls.push(variables);
       options.onSuccess?.({}, variables);
     },
@@ -111,6 +123,9 @@ beforeEach(() => {
   harness.loginCalls = [];
   harness.logoutCalls = [];
   harness.invalidations = [];
+  harness.syncCalls = [];
+  harness.toasts = [];
+  harness.syncResult = { configured: true, endpoints: 2, profiles: ['plan', 'execute'] };
 });
 
 describe('desktop accounts settings', () => {
@@ -182,5 +197,32 @@ describe('desktop accounts settings', () => {
     const html = JSON.stringify(renderer.toJSON());
     expect(html).toContain('DeepSeek');
     expect(html).not.toContain('OpenRouter');
+  });
+});
+
+describe('model rescan after a login', () => {
+  function rescanButton(renderer: ReactTestRenderer) {
+    return renderer.root.findAll(node => node.type === 'button' && node.props['data-accounts-sync'] !== undefined)[0];
+  }
+
+  it('offers a rescan action that refreshes model routing and profile lists', () => {
+    const renderer = mount();
+
+    act(() => { rescanButton(renderer).props.onClick(); });
+
+    expect(harness.syncCalls).toEqual([{}]);
+    expect(harness.toasts).toEqual([{ title: en.accountsSyncModelsDone, tone: 'done' }]);
+    const invalidated = JSON.stringify(harness.invalidations);
+    expect(invalidated).toContain('auth.status');
+    expect(invalidated).toContain('config.get');
+  });
+
+  it('explains an empty rescan instead of claiming success', () => {
+    harness.syncResult = { configured: false, endpoints: 0, profiles: [], reason: 'no-endpoints' };
+    const renderer = mount();
+
+    act(() => { rescanButton(renderer).props.onClick(); });
+
+    expect(harness.toasts).toEqual([{ title: en.accountsSyncModelsEmpty, tone: 'waiting' }]);
   });
 });

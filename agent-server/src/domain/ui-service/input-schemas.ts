@@ -142,6 +142,10 @@ export const authCancelFlowInput = z.object({
   flowId: z.string().min(1),
 });
 
+export const authSyncGatewayInput = z.object({
+  backend: z.enum(['claude', 'pi']).optional(),
+});
+
 export const authLogoutInput = z.object({
   backend: z.enum(['claude', 'pi']),
   provider: z.string().min(1),
@@ -798,6 +802,7 @@ export const mutateInputSchemas = {
   'auth.respondPrompt': authRespondPromptInput,
   'auth.cancelFlow': authCancelFlowInput,
   'auth.logout': authLogoutInput,
+  'auth.syncGateway': authSyncGatewayInput,
   'auth.upsertCustomProvider': authUpsertCustomProviderInput,
   'auth.removeCustomProvider': authRemoveCustomProviderInput,
   'hooks.create': hooksCreateInput,

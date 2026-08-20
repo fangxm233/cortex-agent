@@ -10,6 +10,7 @@ import {
   handleAuthLogout,
   handleAuthRespondPrompt,
   handleAuthStartLogin,
+  handleAuthSyncGateway,
 } from '../../../src/domain/ui-service/mutate/auth.js';
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
@@ -235,4 +236,50 @@ test('auth.logout tRPC maps external credentials to a client error with guidance
       return true;
     },
   );
+});
+
+test('auth.syncGateway rebuilds model routing and reports what it produced', async () => {
+  const calls: unknown[] = [];
+  const deps = {
+    syncGateway: async (options: unknown) => {
+      calls.push(options);
+      return { configured: true, endpoints: 2, profiles: ['plan', 'execute'] };
+    },
+  } as unknown as UiServiceDeps;
+
+  const result = await handleAuthSyncGateway(deps, {});
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.ok && result.data, {
+    configured: true, endpoints: 2, profiles: ['plan', 'execute'],
+  });
+  assert.equal(calls.length, 1);
+});
+
+test('auth.syncGateway surfaces a discovery miss as a successful no-op', async () => {
+  const deps = {
+    syncGateway: async () => ({
+      configured: false, endpoints: 0, profiles: [], reason: 'no-endpoints',
+    }),
+  } as unknown as UiServiceDeps;
+
+  const result = await handleAuthSyncGateway(deps, {});
+
+  assert.equal(result.ok, true, 'nothing to sync is a valid outcome, not an error');
+  assert.equal(result.ok && result.data.configured, false);
+  assert.equal(result.ok && result.data.reason, 'no-endpoints');
+});
+
+test('auth.syncGateway passes an explicit backend filter through', async () => {
+  const seen: Array<{ backends?: string[] }> = [];
+  const deps = {
+    syncGateway: async (options: { backends?: string[] }) => {
+      seen.push(options);
+      return { configured: true, endpoints: 1, profiles: ['plan'] };
+    },
+  } as unknown as UiServiceDeps;
+
+  await handleAuthSyncGateway(deps, { backend: 'pi' });
+
+  assert.deepEqual(seen, [{ backends: ['pi'] }]);
 });

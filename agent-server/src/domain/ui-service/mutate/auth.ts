@@ -9,6 +9,7 @@ import {
   isLoginFlowError,
   logoutAccount,
   resolveAuthNoticeFlow,
+  syncGatewayFromBackends,
   type AuthLoginService,
   type LoginFlowState,
 } from '@domain/auth/index.js';
@@ -18,6 +19,8 @@ import type {
   AuthLogoutReturn,
   AuthRespondPromptArgs,
   AuthStartLoginArgs,
+  AuthSyncGatewayArgs,
+  AuthSyncGatewayReturn,
   Result,
   UiServiceDeps,
 } from '../types.js';
@@ -117,4 +120,29 @@ export async function handleAuthLogout(
   const result = await (deps.logoutAccount ?? logoutAccount)(args);
   if (result.ok === true) return { ok: true, data: result };
   return { ok: false, code: result.error.code, message: result.error.message };
+}
+
+/**
+ * Re-derive gateway modes and profiles from the backends this machine can reach.
+ *
+ * Runs automatically after a login (see the `onLoginSuccess` wiring in entry/app.ts); this is the
+ * manual entry point for the cases that misses — a credential that predates the automatic sync, or
+ * a provider scan that failed transiently. Finding nothing to configure is a legitimate outcome and
+ * comes back as `ok` with `configured: false`, so the caller can explain rather than show an error.
+ */
+export async function handleAuthSyncGateway(
+  deps: UiServiceDeps,
+  args: AuthSyncGatewayArgs,
+): Promise<Result<AuthSyncGatewayReturn>> {
+  const sync = deps.syncGateway ?? syncGatewayFromBackends;
+  const result = await sync({ backends: args.backend ? [args.backend] : undefined });
+  return {
+    ok: true,
+    data: {
+      configured: result.configured,
+      endpoints: result.endpoints,
+      profiles: result.profiles,
+      ...(result.reason ? { reason: result.reason } : {}),
+    },
+  };
 }

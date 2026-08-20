@@ -66,6 +66,8 @@ export type {
   AuthCancelFlowArgs,
   AuthLogoutArgs,
   AuthLogoutReturn,
+  AuthSyncGatewayArgs,
+  AuthSyncGatewayReturn,
   AuthUpsertCustomProviderArgs,
   AuthRemoveCustomProviderArgs,
   AuthRemoveCustomProviderReturn,

@@ -273,6 +273,41 @@ function canSettleConsumer(flow: InternalFlow): boolean {
   return flows.get(flow.state.flowId) === flow && !isTerminal(flow);
 }
 
+// ─── Success notifications ─────────────────────────────────────────
+// A credential becoming valid is interesting outside this coordinator: model routing is derived
+// from what the machine can reach, so the set of usable models changes exactly when a login lands.
+// Observers register here instead of polling flow state, and this module stays a pure coordinator —
+// it announces the transition and knows nothing about what anyone does with it.
+
+/** The backend pair whose credential just became valid. */
+export interface LoginSuccessEvent {
+  backend: 'claude' | 'pi';
+  provider: string;
+  authType: AuthType;
+}
+
+export type LoginSuccessListener = (event: LoginSuccessEvent) => void;
+
+const loginSuccessListeners = new Set<LoginSuccessListener>();
+
+/** Observe successful logins. Returns an unsubscribe function. */
+export function onLoginSuccess(listener: LoginSuccessListener): () => void {
+  loginSuccessListeners.add(listener);
+  return () => { loginSuccessListeners.delete(listener); };
+}
+
+/** Fan out to every listener; one that throws must not affect the login or the other listeners. */
+function notifyLoginSuccess(event: LoginSuccessEvent): void {
+  for (const listener of loginSuccessListeners) {
+    try {
+      listener(event);
+    } catch {
+      // Deliberately swallowed: the credential is already saved, and an observer's failure is not
+      // the user's problem. Observers own their own error reporting.
+    }
+  }
+}
+
 function settleConsumerSuccess(flow: InternalFlow, outcome: LoginOutcome): void {
   if (!canSettleConsumer(flow)) return;
   flow.state.step = 'done';
@@ -281,6 +316,11 @@ function settleConsumerSuccess(flow: InternalFlow, outcome: LoginOutcome): void 
   flow.state.error = null;
   flow.state.errorCode = null;
   releasePair(flow);
+  notifyLoginSuccess({
+    backend: flow.state.backend,
+    provider: outcome.provider || flow.state.provider || '',
+    authType: outcome.authType,
+  });
 }
 
 function settleConsumerFailure(flow: InternalFlow, error: unknown): void {

@@ -10,6 +10,8 @@ Domain-layer tests, one folder per business capability of the agent server.
 | auth-logout.test.ts | test | Auth logout ownership, state, and privacy |
 | auth-login-service.test.ts | test | Auth selection, notice reuse and cancel fencing |
 | auth-status.test.ts | test | Auth state, CLI authority, capabilities and output |
+| auth-gateway-sync.test.ts | test | Post-login gateway and profile regeneration |
+| auth-login-success-hook.test.ts | test | Login success listener delivery and isolation |
 | cc-auth-cli.test.ts | test | Claude auth command I/O, privacy and lifecycle |
 | cc-login.test.ts | test | Claude API-key persistence, concurrency and recovery |
 | cc-subscription.test.ts | test | Claude subscription relay, cleanup and recovery |

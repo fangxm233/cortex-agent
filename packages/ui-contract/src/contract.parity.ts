@@ -54,6 +54,7 @@ import type {
   authRespondPromptInput,
   authCancelFlowInput,
   authLogoutInput,
+  authSyncGatewayInput,
   authCustomProvidersInput,
   authUpsertCustomProviderInput,
   authRemoveCustomProviderInput,
@@ -176,6 +177,7 @@ const _authStartLogin: MutateParity<'auth.startLogin', typeof authStartLoginInpu
 const _authRespondPrompt: MutateParity<'auth.respondPrompt', typeof authRespondPromptInput> = true;
 const _authCancelFlow: MutateParity<'auth.cancelFlow', typeof authCancelFlowInput> = true;
 const _authLogout: MutateParity<'auth.logout', typeof authLogoutInput> = true;
+const _authSyncGateway: MutateParity<'auth.syncGateway', typeof authSyncGatewayInput> = true;
 const _authUpsertCustomProvider: MutateParity<'auth.upsertCustomProvider', typeof authUpsertCustomProviderInput> = true;
 const _authRemoveCustomProvider: MutateParity<'auth.removeCustomProvider', typeof authRemoveCustomProviderInput> = true;
 const _systemRestart: MutateParity<'system.restart', typeof systemRestartInput> = true;
@@ -199,7 +201,7 @@ export const _contractParityChecked = [
   _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
   _notesAdd, _notesUpdate, _notesSetCompleted, _notesDelete, _notesClearCompleted,
   _configSet, _configSetProviderRateLimitPolicy,
-  _authStartLogin, _authRespondPrompt, _authCancelFlow, _authLogout, _executionsLog,
+  _authStartLogin, _authRespondPrompt, _authCancelFlow, _authLogout, _authSyncGateway, _executionsLog,
   _authCustomProviders, _authUpsertCustomProvider, _authRemoveCustomProvider,
   _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
   _profilesCreate, _profilesUpdate, _profilesRemove, _pluginsAssign,

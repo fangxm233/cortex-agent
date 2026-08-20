@@ -8,6 +8,7 @@ export * from './cc-login.js';
 export * from './cc-subscription.js';
 export * from './claude-user-settings.js';
 export * from './auth-format.js';
+export * from './gateway-sync.js';
 export * from './auth-status.js';
 export * from './auth-watch.js';
 export * from './login-flow.js';

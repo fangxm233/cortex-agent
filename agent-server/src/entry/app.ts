@@ -121,6 +121,8 @@ import { enqueue, conduitQueues } from '@orch/conduit-queue.js';
 import { getCostSummary } from '@domain/costs/cost-tracker.js';
 import { initAuthEvents } from '@domain/auth/auth-events.js';
 import { registerAuthWatch } from '@domain/auth/auth-watch.js';
+import { onLoginSuccess } from '@domain/auth/login-flow.js';
+import { syncGatewayFromBackends } from '@domain/auth/gateway-sync.js';
 import { createSessionRetentionController } from '@orch/session-retention-controller.js';
 
 loadRuntimeDotenv(path.join(CONFIG_DIR, '.env'));
@@ -257,6 +259,17 @@ process.on('uncaughtException', (err) => {
 const bus = new EventBus();
 createEventLogger(bus);
 initAuthEvents(bus);
+// A login only becomes useful once the models it unlocks are routable, and that mapping is derived
+// by scanning local backend state. Re-derive it whenever a login lands, so a user who authenticates
+// from the workbench gets working profiles without dropping to a terminal for `cortex setup-gateway`.
+// Merge-aware and non-throwing (see gateway-sync.ts) — hand-edited profiles are never overwritten.
+onLoginSuccess((event) => {
+  void syncGatewayFromBackends({ backends: [event.backend] }).then((result) => {
+    if (!result.configured && result.reason !== 'no-endpoints') {
+      log.warn(`Gateway sync after ${event.backend} login did not complete: ${result.reason}`);
+    }
+  });
+});
 initHookBridge(bus); // S5: wire hook-bridge to publish ask-user.requested / plan.submitted
 interactionRecords.init({ history: conversationHistory, bus }); // web-interactions-redesign: persistent interaction entities
 // TTL expiry: mark the web interaction entity expired + clean the live resolver maps, so every

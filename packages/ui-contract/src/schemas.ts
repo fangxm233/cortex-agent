@@ -52,6 +52,7 @@ export {
   authRespondPromptInput,
   authCancelFlowInput,
   authLogoutInput,
+  authSyncGatewayInput,
   authCustomProvidersInput,
   authUpsertCustomProviderInput,
   authRemoveCustomProviderInput,

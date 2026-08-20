@@ -14,6 +14,7 @@ It routes required/recovered events into debounced user notices.
 | cc-login.ts | adapter | Persists Claude API keys and reloads auth |
 | cc-subscription.ts | adapter | Bridges Claude auth CLI into LoginFlow |
 | claude-user-settings.ts | adapter | Syncs Claude user settings cleanupPeriodDays with atomic temp-write and race guards |
+| gateway-sync.ts | service | Regenerates gateway modes and profiles after a login |
 | index.ts | entry | Exports the authentication domain API |
 | login-flow.ts | core | Coordinates login outcomes, aborts, and safe errors |
 | login-service.ts | service | Selects consumers and binds notice flow identity |
