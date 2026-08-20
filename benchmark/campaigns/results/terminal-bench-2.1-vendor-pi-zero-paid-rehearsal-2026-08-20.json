@@ -38,6 +38,11 @@
     "proxy_forwarded_requests_total": 3,
     "loopback_synthetic_requests": 3,
     "real_provider_forwarded_requests": 0,
+    "upstream_forwarded_requests": {
+      "proxy_counter_total": 3,
+      "loopback_synthetic_counter": 3,
+      "real_provider": 0
+    },
     "reconciliation": "3 proxy requests - 3 requests observed by the fixed loopback synthetic upstream = 0 requests available for any real provider",
     "containment": "The trial network was filtered and the proxy's fixed upstream URL was loopback; no real provider endpoint or credential was configured."
   },
