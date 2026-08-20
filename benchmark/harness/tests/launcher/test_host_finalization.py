@@ -836,6 +836,22 @@ def install_paid_accounting(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(TrialProxySession, "write_accounting", write_accounting)
 
 
+def install_unavailable_accounting(monkeypatch: pytest.MonkeyPatch) -> None:
+    original = TrialProxySession.write_accounting
+
+    def write_accounting(self: TrialProxySession) -> tuple[Path, Path]:
+        paths = original(self)
+        document = json.loads(self.export_path.read_text())
+        document.update({
+            field: unavailable(f"{field}_unreadable")
+            for field in ("requests", "input_tokens", "output_tokens", "cached_tokens")
+        })
+        write_json(self.export_path, document)
+        return paths
+
+    monkeypatch.setattr(TrialProxySession, "write_accounting", write_accounting)
+
+
 def assert_deadline_evidence(envelope: Mapping[str, object]) -> None:
     assert envelope["agent_outcome"] == {
         **deadline_outcome_record(),
@@ -880,6 +896,33 @@ def test_deadline_outcome_revokes_and_publishes_paid_evidence_without_zero_filli
     )
     assert reread.envelope_sha256 == sha256_hex(envelope_path(tmp_path).read_bytes())
     assert agent.proxy_session.handle.revocation_evidence["listener_present"] is False
+
+
+def test_deadline_outcome_rereads_with_unavailable_counters_not_zeroes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    install_deadline_run(monkeypatch, environment)
+    install_unavailable_accounting(monkeypatch)
+    agent._require_production_proxy_traffic = lambda: pytest.fail(
+        "deadline finalization must not require provider traffic"
+    )
+
+    run_agent(agent, environment)
+    write_json(tmp_path / "result.json", {
+        "verifier_result": {"rewards": {"reward": 0}},
+    })
+
+    envelope = published(tmp_path)
+    assert envelope["proxy_usage"]["requests"] == unavailable("requests_unreadable")
+    assert envelope["proxy_usage"]["input_tokens"] == unavailable(
+        "input_tokens_unreadable")
+    reread = TrialOutcomeReader(
+        trial_id=TRIAL_ID, arm_name=ARM_NAME, trial_root=tmp_path,
+    ).read()
+    assert (reread.outcome_state, reread.reason, reread.requests) == (
+        "terminal-agent-failure", "run_deadline_reached", None,
+    )
 
 
 def test_an_unaccountable_proxy_export_is_recorded_and_still_published(

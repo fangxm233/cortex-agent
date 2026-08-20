@@ -55,7 +55,7 @@ class _Envelope:
     document: Mapping[str, object]
     path: Path
     sha256: str
-    requests: int
+    requests: int | None
 
 
 class TrialOutcomeReader:
@@ -201,9 +201,18 @@ def _requests_reason(
 ) -> str | None:
     usage = envelope.get("proxy_usage")
     value = usage.get("requests") if isinstance(usage, Mapping) else None
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        return "outer envelope has no proxy_usage.requests count"
-    return None
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return None
+    if _deadline_outcome(envelope) and _unavailable_evidence(value):
+        return None
+    return "outer envelope has no valid proxy_usage.requests evidence"
+
+
+def _unavailable_evidence(value: object) -> bool:
+    return (
+        isinstance(value, Mapping) and value.get("status") == "unavailable"
+        and isinstance(value.get("reason"), str) and bool(value["reason"])
+    )
 
 
 def _agent_outcome_reason(
@@ -248,12 +257,11 @@ def _publication_reason(
     return None
 
 
-def _request_count(envelope: Mapping[str, object]) -> int:
+def _request_count(envelope: Mapping[str, object]) -> int | None:
     usage = envelope["proxy_usage"]
     assert isinstance(usage, Mapping)
     value = usage["requests"]
-    assert isinstance(value, int) and not isinstance(value, bool)
-    return value
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 def _security_reason(envelope: Mapping[str, object], trial_id: str) -> str | None:
