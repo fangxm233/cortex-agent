@@ -65,9 +65,6 @@ def _write_task(
     script = verifier or (
         "#!/bin/sh\nset -eu\n"
         "test \"$(cat /tmp/answer.txt)\" = one\n"
-        "mkdir -p /logs/agent/trial-home/home/.local/bin\n"
-        "ln -sf /opt/terminal-bench-verifier/bin/uvx "
-        "/logs/agent/trial-home/home/.local/bin/uvx\n"
         "printf '1\\n' > /logs/verifier/reward.txt\n"
     )
     test_path = tests / "test.sh"
@@ -243,23 +240,13 @@ def test_real_docker_vendor_trial_reseals_prepares_cli_and_resumes_without_rewri
         document = _campaign_document(tmp_path, upstream.base_url)
         first = _run_document(tmp_path, document)
         paths = (_envelope_path(tmp_path), _trial_root(tmp_path) / "result.json")
-        assert all(path.exists() for path in paths), first["trials"][0]
+        assert all(path.exists() for path in paths), first
         before = {path: path.read_bytes() for path in paths}
         resumed = _run_document(tmp_path, document)
     _assert_one_route(counts)
     assert upstream.request_count == 2
     assert first["trials"][0]["outcome_state"] == "terminal-success"
     assert first["trials"][0]["verifier_rewards"] == {"reward": 1.0}
-    envelope = json.loads(_envelope_path(tmp_path).read_text())
-    scan = envelope["leak_scan"]
-    assert scan["clean"] is True
-    assert scan["matches"] == []
-    assert scan["missing_sources"] == []
-    assert scan["unclassified_files"] == []
-    assert not any(
-        item["relative_path"] == "trial-home/home/.local/bin/uvx"
-        for item in envelope["evidence"]["files"]
-    )
     assert resumed["trials"][0]["state"] == "skipped"
     assert {path: path.read_bytes() for path in paths} == before
     _assert_runtime_evidence(tmp_path)

@@ -18,6 +18,7 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_host_credential_vault.py | test | Verifies opaque credential transfer |
 | test_host_finalization.py | test | Verifies Cortex/vendor envelopes and mapped-root scans |
 | test_live_handshake_permit.py | test | Verifies live bootstrap bounds and publish-safe diagnostics |
+| test_leak_scan_finalization_docker.py | test | Proves clean publication after verifier alias cleanup |
 | test_paid_campaign_launch.py | test | Verifies paid campaign preflight |
 | test_production_arms.py | test | Verifies committed arm bundles |
 | test_production_home.py | test | Verifies sealed production homes |
