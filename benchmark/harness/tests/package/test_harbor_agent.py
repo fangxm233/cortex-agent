@@ -1,5 +1,5 @@
 # input:  Harbor base class, fake exec results, manifest and production trial seed
-# output: production route proof and non-production refusal
+# output: offline setup, production route proof and refusal contracts
 # pos:    Contract tests for the production Harbor agent wrapper
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -30,9 +30,22 @@ BACKEND_CLI_VERSION = "0.82.1"
 DIGEST = f"sha256:{'a' * 64}"
 CAMPAIGNS_DIR = Path(__file__).resolve().parents[3] / "campaigns"
 INSTALL_COMMAND = (
-    "set -o pipefail; npm install --global --prefix /installed-agent/npm "
-    f"--cache /installed-agent/npm-cache --offline --no-audit --no-fund "
-    f"/installed-agent/{ARTIFACT_NAME}"
+    "set -o pipefail; package_root="
+    "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
+    " && mkdir -p \"$package_root\" /installed-agent/npm/bin"
+    f" && tar -xzf /installed-agent/{ARTIFACT_NAME} --strip-components=1"
+    " --exclude=package/node_modules -C \"$package_root\""
+    " && mv \"$package_root/bundled-dependencies\" \"$package_root/node_modules\""
+    " && ln -sfn \"$package_root/dist/entry/cortex-cli.js\""
+    " /installed-agent/npm/bin/cortex"
+    " && ln -sfn \"$package_root/dist/entry/production-evidence-export-cli.js\""
+    " /installed-agent/npm/bin/cortex-evidence-export"
+    " && ln -sfn \"$package_root/dist/entry/hook-cli.js\""
+    " /installed-agent/npm/bin/cortex-hook"
+    " && ln -sfn \"$package_root/dist/domain/tasks/system/cortex-run.js\""
+    " /installed-agent/npm/bin/cortex-run"
+    " && ln -sfn \"$package_root/dist/domain/tasks/system/task-cli.js\""
+    " /installed-agent/npm/bin/cortex-task"
     " && ln -sfn /installed-agent/npm/bin/cortex /usr/local/bin/cortex"
 )
 VERIFY_COMMANDS = [
@@ -183,9 +196,11 @@ def test_setup_installs_attests_fresh_home_and_never_composes_standalone(
 ) -> None:
     environment = FakeEnvironment(setup_results())
     agent = make_agent(tmp_path, attach_proxy=True)
+    agent._proxy_session = FakeProxySession(request_count=0)
 
     asyncio.run(agent.setup(environment))
 
+    assert agent._proxy_session.handle.accounting_export["requests"]["value"] == 0
     assert environment.calls == [
         ("pwd", None), ("realpath -- /app", None), ("test -d /app", None),
         ("[ -d /installed-agent ] || mkdir -p /installed-agent", "root"),

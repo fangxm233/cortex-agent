@@ -1,5 +1,5 @@
 # input:  Harbor lifecycle, proxy evidence, stop observation
-# output: authenticated production run and final envelope
+# output: offline-installed production run and final envelope
 # pos:    Production Harbor lifecycle wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -348,13 +348,26 @@ class CortexBenchAgent(BaseInstalledAgent):
         return source, PurePosixPath("/installed-agent") / source.name
 
     def _install_command(self, artifact: PurePosixPath) -> str:
-        prefix = shlex.quote(str(NPM_INSTALL_PREFIX))
-        package = shlex.quote(str(artifact))
-        binary = shlex.quote(str(NPM_INSTALL_PREFIX / "bin" / "cortex"))
+        package_root = NPM_INSTALL_PREFIX / "lib/node_modules" / BUNDLE_PACKAGE
+        links = (
+            ("dist/entry/cortex-cli.js", "cortex"),
+            ("dist/entry/production-evidence-export-cli.js", "cortex-evidence-export"),
+            ("dist/entry/hook-cli.js", "cortex-hook"),
+            ("dist/domain/tasks/system/cortex-run.js", "cortex-run"),
+            ("dist/domain/tasks/system/task-cli.js", "cortex-task"),
+        )
+        link_commands = " && ".join(
+            f'ln -sfn "$package_root/{target}" {NPM_INSTALL_PREFIX / "bin" / name}'
+            for target, name in links
+        )
         return (
-            f"npm install --global --prefix {prefix} --cache /installed-agent/npm-cache"
-            f" --offline --no-audit --no-fund {package}"
-            f" && ln -sfn {binary} /usr/local/bin/cortex"
+            f"package_root={shlex.quote(str(package_root))}"
+            f' && mkdir -p "$package_root" {NPM_INSTALL_PREFIX / "bin"}'
+            f" && tar -xzf {shlex.quote(str(artifact))} --strip-components=1"
+            f' --exclude=package/node_modules -C "$package_root"'
+            f' && mv "$package_root/bundled-dependencies" "$package_root/node_modules"'
+            f" && {link_commands}"
+            f" && ln -sfn {NPM_INSTALL_PREFIX / 'bin/cortex'} /usr/local/bin/cortex"
         )
 
     def _verification_commands(self) -> tuple[str, str]:
