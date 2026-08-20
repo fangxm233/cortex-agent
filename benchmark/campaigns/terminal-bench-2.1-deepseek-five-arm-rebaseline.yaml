@@ -1,0 +1,147 @@
+# input:  approved open-network five-arm re-baseline over the three r7/r8 tasks
+# output: fifteen production Cortex trials and four orchestration comparisons
+# pos:    Committed paid five-arm Terminal-Bench 2.1 campaign for task c982
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# This is one campaign: CampaignConfig.trials() expands the task-major arm×task Cartesian product.
+# The first direct/chess trial is launched alone with a temporary one-trial projection carrying
+# this same campaign identity and trials_dir. Only after its outer envelope is verified does the
+# full config resume that published root and arm the remaining fourteen trials concurrently.
+#
+# Paid safety: every trial is limited to 500 provider requests and a $0.66 inner-run cost envelope;
+# 15 * $0.66 = $9.90, below the user-approved $10 campaign ceiling. Images are digest-pinned and
+# admission is pull-disabled. Each credential route is trial-scoped and revoked during teardown.
+
+schema_version: cortex-bench-campaign/1
+campaign: tb21-five-r1
+paid: true
+trials_dir: /var/tmp/cortex-bench/tb21-five-r1-2026-08-20-c982
+cli_version: "2026.8.6"
+concurrency: 15
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: http://127.0.0.1:9880/m/deepseek/deepseek
+  route_identity_host: api.deepseek.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: paid-trial-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_DEEPSEEK_CREDENTIAL
+  forbidden_environment:
+    host_forbidden: CORTEX_BENCH_PAID_FORBIDDEN
+  forbidden_argv_environment:
+    host_argv: CORTEX_BENCH_PAID_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_PAID_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_PAID_IDENTITY
+
+timeouts:
+  agent_seconds: 2100
+  verifier_seconds: 1800
+
+docker_network:
+  subnet_pool: 172.30.240.0/20
+  subnet_prefix: 24
+
+proxy:
+  credential_env: CORTEX_BENCH_DEEPSEEK_CREDENTIAL
+  request_body_limit_bytes: 67108864
+  response_body_limit_bytes: 67108864
+  listen_host: 0.0.0.0
+
+arms:
+  - name: cortex-direct
+    kind: cortex
+    backend: pi
+    provider: deepseek
+    model: deepseek-v4-flash
+    credential_capability: pi-deepseek-api-key
+    orchestration:
+      mode: direct
+      ask_manager: false
+    limits: &trial_limits
+      max_provider_requests: 500
+      max_cost_usd: "0.66"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+  - name: cortex-audit-retry
+    kind: cortex
+    backend: pi
+    provider: deepseek
+    model: deepseek-v4-flash
+    credential_capability: pi-deepseek-api-key
+    orchestration:
+      mode: coder-review
+      coder_review_variant: audit-retry
+      ask_manager: false
+    limits: *trial_limits
+
+  - name: cortex-reviewer-fix
+    kind: cortex
+    backend: pi
+    provider: deepseek
+    model: deepseek-v4-flash
+    credential_capability: pi-deepseek-api-key
+    orchestration:
+      mode: coder-review
+      coder_review_variant: reviewer-fix
+      ask_manager: false
+    limits: *trial_limits
+
+  - name: cortex-manager-qa-off
+    kind: cortex
+    backend: pi
+    provider: deepseek
+    model: deepseek-v4-flash
+    credential_capability: pi-deepseek-api-key
+    orchestration:
+      mode: manager
+      ask_manager: false
+    limits: *trial_limits
+
+  - name: cortex-manager-qa-on
+    kind: cortex
+    backend: pi
+    provider: deepseek
+    model: deepseek-v4-flash
+    credential_capability: pi-deepseek-api-key
+    orchestration:
+      mode: manager
+      ask_manager: true
+    limits: *trial_limits
+
+network:
+  mode: open
+
+tasks:
+  - task_id: chess-best-move
+    path: tasks/terminal-bench-2.1/chess-best-move
+    image_ref: cortex-terminal-bench-2.1@sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b
+  - task_id: constraints-scheduling
+    path: tasks/terminal-bench-2.1/constraints-scheduling
+    image_ref: cortex-terminal-bench-2.1@sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c
+  - task_id: db-wal-recovery
+    path: tasks/terminal-bench-2.1/db-wal-recovery
+    image_ref: cortex-terminal-bench-2.1@sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a
+
+comparisons:
+  - left_arm: cortex-direct
+    right_arm: cortex-audit-retry
+    difference_class: orchestration
+  - left_arm: cortex-direct
+    right_arm: cortex-reviewer-fix
+    difference_class: orchestration
+  - left_arm: cortex-direct
+    right_arm: cortex-manager-qa-off
+    difference_class: orchestration
+  - left_arm: cortex-direct
+    right_arm: cortex-manager-qa-on
+    difference_class: orchestration
