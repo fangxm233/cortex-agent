@@ -1,0 +1,204 @@
+{
+  "schema_version": "cortex-bench-vendor-claude-429-diagnosis/1",
+  "campaign": "tb21-vendor-claude",
+  "task_id": "448a",
+  "diagnosed_at": "2026-08-20T06:04:26Z",
+  "source_commit": "3bef3462ecafddba16ec948289b5d3001fdb8205",
+  "provider_requests_during_diagnosis": 0,
+  "determination": {
+    "classification": "explicitly-inconclusive",
+    "ruled_out": [
+      "The returned get_usage five_hour, seven_day, and returned model-scoped windows are a sufficient readiness gate for this benchmark Messages request. A genuinely fresh below-saturation reading was followed by the same HTTP 429 as the earlier request."
+    ],
+    "not_distinguished": [
+      "A Messages-path quota or entitlement not represented by the get_usage windows.",
+      "A subscription-OAuth request compatibility problem involving the selected model, omitted native CLI headers, the reduced request body, token identity or token refresh state."
+    ],
+    "reason": "The observations cross different local execution paths and are not identity-linked at the token or model-bucket level. Static strings in the pinned CLI are consistent with get_usage using a distinct OAuth usage route, but do not prove that f077 executed that route. The 429 response names no exhausted quota and carries no retry-after or anthropic-ratelimit reset header. Offline fixtures prove the core route, bearer substitution, and model freeze mechanics, but they do not prove provider acceptance; the handcrafted live request is not full native-Claude-Code wire parity. Existing evidence therefore supports both candidate classes and attributes neither."
+  },
+  "observations": {
+    "get_usage_control_path": {
+      "local_entrypoint": "A short-lived Claude Code 2.1.232 process receives stdin control_request subtype get_usage; the request contains no model.",
+      "provider_path_inference": "The pinned CLI binary contains the static diagnostic and route strings 'fetchUtilization: GET /api/oauth/usage (attempt ' and '/api/oauth/usage' near byte offset 125426694. The binary SHA-256 and size exactly match the committed pin. Static string presence is offline corroboration, not proof that the f077 invocation executed this route.",
+      "credential_context": "The collector deliberately removes ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL and retains subscription-owned credential inputs, so this path is not sent through the benchmark trial proxy.",
+      "f077_reading": {
+        "freshness": "live",
+        "observed_at_before": "2026-08-20T05:44:29Z",
+        "refresh_action_at": "2026-08-20T05:46:20.922Z",
+        "observed_at_after": "2026-08-20T05:46:26Z",
+        "windows": [
+          {"type": "five_hour", "utilization": 0.55},
+          {"type": "seven_day", "utilization": 0.31},
+          {"type": "model_scoped", "label": "nimbus_quill", "utilization": 0.0},
+          {"type": "model_scoped", "label": "Fable", "utilization": 0.14}
+        ],
+        "model_mapping_limit": "No cited artifact maps either returned label to claude-sonnet-5, and the control request itself carries no model."
+      },
+      "evidence": [
+        "agent-server/src/agent-adapter/claude/usage.ts:18-40",
+        "agent-server/src/agent-adapter/claude/usage.ts:127-151",
+        "agent-server/src/agent-adapter/claude/usage.ts:240-249",
+        "benchmark/harness/tests/fixtures/vendor-wire/claude-code/pin.json",
+        "benchmark/campaigns/results/terminal-bench-2.1-vendor-claude-conditional-f077-2026-08-20.json:17-63"
+      ]
+    },
+    "benchmark_handshake_path": {
+      "local_entrypoint": "The Python live-handshake runner sends a handcrafted POST through a host trial proxy; it does not invoke the Claude Code process.",
+      "provider_path": "POST /v1/messages?beta=true to api.anthropic.com.",
+      "credential_context": "The request artifact carries a trial dummy bearer only to the local proxy. The subscription adapter removes inbound Authorization and injects Authorization: Bearer plus the host-held token on the upstream leg.",
+      "request": {
+        "model": "claude-sonnet-5",
+        "max_tokens": 16,
+        "retry_count": 0,
+        "core_native_fixture_match": [
+          "method/path/query",
+          "model",
+          "anthropic-beta",
+          "anthropic-version",
+          "anthropic-dangerous-direct-browser-access",
+          "user-agent",
+          "x-app"
+        ],
+        "native_fixture_x_headers_absent": [
+          "X-Claude-Code-Session-Id",
+          "X-Stainless-Arch",
+          "X-Stainless-Lang",
+          "X-Stainless-OS",
+          "X-Stainless-Package-Version",
+          "X-Stainless-Runtime",
+          "X-Stainless-Runtime-Version",
+          "X-Stainless-Timeout"
+        ],
+        "body_parity_limit": "The committed native sonnet fixture has a full CLI-generated body and max_tokens 64000; the live handshake body is a minimal one-message JSON with max_tokens 16. The evidence does not establish whether any omitted header or body field is provider-significant."
+      },
+      "repeated_response": {
+        "request_body_and_metadata_identical_between_8674_and_f077": true,
+        "adapter_selection_and_proxy_accounting_identical_between_8674_and_f077": true,
+        "8674": {"status": 429, "error_type": "rate_limit_error", "body_bytes": 114},
+        "f077": {"status": 429, "error_type": "rate_limit_error", "body_bytes": 114},
+        "both": {
+          "x_should_retry": "true",
+          "retry_after": null,
+          "anthropic_ratelimit_reset_headers": [],
+          "usage_accounting": "unavailable"
+        }
+      },
+      "evidence": [
+        "benchmark/harness/src/cortex_bench_harness/launcher/live_handshake.py:258-288",
+        "benchmark/harness/src/cortex_bench_harness/launcher/live_handshake.py:441-474",
+        "benchmark/harness/src/cortex_bench_harness/proxy/adapters/anthropic.py:32-62",
+        "benchmark/harness/src/cortex_bench_harness/proxy/adapters/anthropic.py:109-122",
+        "benchmark/harness/tests/fixtures/vendor-wire/claude-code/wire-capture.json:1456-1947",
+        "benchmark/campaigns/results/terminal-bench-2.1-vendor-claude-staged-2026-08-20.json:67-136",
+        "benchmark/campaigns/results/terminal-bench-2.1-vendor-claude-conditional-f077-2026-08-20.json:75-136"
+      ]
+    }
+  },
+  "candidate_assessment": [
+    {
+      "candidate": "distinct-quota-scope",
+      "status": "possible-not-proven",
+      "support": "The benchmark handshake is proven to use /v1/messages, while the pinned CLI's static get_usage strings name /api/oauth/usage; the fresh response has generic and opaque model-scoped labels, and the Messages response supplies no reset or bucket identity.",
+      "counterlimit": "No provider contract or same-token path-local observation in the allowed evidence says a hidden Messages quota exists or that it caused this 429."
+    },
+    {
+      "candidate": "subscription-oauth-request-model-header-incompatibility",
+      "status": "possible-not-proven",
+      "support": "The live request is manually reduced rather than emitted by the native CLI and omits eight native X-* headers plus a session identifier; the model-to-returned-bucket mapping and token identity/refresh linkage are unproven.",
+      "counterlimit": "The core native route/model/beta/version fields match, synthetic bearer substitution passes, and the retained accounting proves the request was forwarded before the upstream HTTP 429 rather than refused locally. None of those facts proves authentication success, live provider compatibility, quota scope or the fault."
+    }
+  ],
+  "future_availability_gate_recommendation": {
+    "get_usage_role": "Telemetry only. Do not mint or spend a benchmark permit because its visible windows are below saturation.",
+    "zero_provider_preflight": [
+      "Require full native-wire parity (prefer the pinned native CLI through the trial proxy) rather than only core-field parity.",
+      "Bind a one-way fingerprint and expiry of the exact host access token used by both the readiness observation and the handshake, treat the fingerprint as sensitive metadata, and never persist the token.",
+      "Keep model and alias freeze checks, but label them compatibility checks rather than availability evidence."
+    ],
+    "live_gate": "The cited evidence establishes no predictive zero-request availability gate for the exact /v1/messages OAuth/model path. Unless a provider-documented no-billing signal for that path is obtained, the only promotion gate is a separately approved consume-once request on the exact path. Failure remains fail-closed with no automatic or manual retry; success may promote the capability.",
+    "required_follow_up_before_another_live_request": "First resolve native-wire and token-identity parity offline. Any later provider request requires a new explicit authorization and is outside this diagnosis."
+  },
+  "zero_provider_checks": [
+    {
+      "id": "usage-fake-process-suite",
+      "command": "cd /home/fangxin/Cortex/agent-server && strace -f -e trace=connect -o /tmp/448a-vitest-connect.trace npx --no-install vitest run tests/agent-adapter/claude-usage.test.ts",
+      "trace_assertion": "python3 -c \"from pathlib import Path; s=Path('/tmp/448a-vitest-connect.trace').read_text(errors='replace'); r=[x for x in s.splitlines() if 'connect(' in x and ('AF_INET' in x or 'AF_INET6' in x) and not any(y in x for y in ('127.0.0.1','::1'))]; print(len(r)); assert not r\"",
+      "exit_code": 0,
+      "result": "13 passed; 0 non-loopback AF_INET/AF_INET6 connect calls observed",
+      "trace_sha256": "d51bdb9ee2e86e259933bd61b6ce911676721255ad25c58f92db4ba24647533c",
+      "basis": "--no-install forbids npx package acquisition. The suite injects FakeUsageProcess streams and does not spawn the real CLI."
+    },
+    {
+      "id": "handshake-adapter-fixture-suite",
+      "command": "cd /home/fangxin/Cortex/benchmark/harness && env -u RUN_CLAUDE_CODE_VENDOR_WIRE PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 strace -f -e trace=connect -o /tmp/448a-pytest-connect.trace .venv/bin/pytest -q tests/proxy/test_anthropic_adapter.py tests/package/test_claude_code_vendor_wire.py tests/launcher/test_live_handshake_permit.py",
+      "trace_assertion": "python3 -c \"from pathlib import Path; s=Path('/tmp/448a-pytest-connect.trace').read_text(errors='replace'); i=[x for x in s.splitlines() if 'connect(' in x and ('AF_INET' in x or 'AF_INET6' in x)]; r=[x for x in i if not any(y in x for y in ('127.0.0.1','::1'))]; print(len(i),len(r)); assert not r\"",
+      "exit_code": 0,
+      "result": "81 passed, 1 skipped; 16 loopback connects; 0 non-loopback AF_INET/AF_INET6 connect calls observed",
+      "trace_sha256": "40aca060f5ee4cce1e3587972a1b9b5d9eda2c1716b57ce9eee8cf9de0c2cac9",
+      "basis": "The configured local venv is used directly. RUN_CLAUDE_CODE_VENDOR_WIRE is removed, so the only real-CLI recapture test is skipped; handshake tests use loopback synthetic upstreams."
+    },
+    {
+      "id": "raw-artifact-native-fixture-and-safety-audit",
+      "wrapper": "strace -f -e trace=connect -o /tmp/448a-offline-audit-connect.trace python3 - <<'PY'",
+      "program_lines": [
+        "import hashlib, json",
+        "from pathlib import Path",
+        "repo=Path('/home/fangxin/Cortex')",
+        "roots={k:Path(v) for k,v in {'8674':'/var/tmp/cortex-bench/claude-live-handshake-8674','f077':'/var/tmp/cortex-bench/claude-live-handshake-f077'}.items()}",
+        "fixture=json.loads((repo/'benchmark/harness/tests/fixtures/vendor-wire/claude-code/wire-capture.json').read_text())",
+        "request=json.loads((roots['f077']/'live-handshake-request.json').read_text()); body=json.loads((roots['f077']/'live-handshake-request.body').read_text()); native=fixture['runs']['sonnet_success']['requests'][0]",
+        "assert request['target']==f\"{native['path']}?{native['query']}\" and body['model']==native['body']['model']=='claude-sonnet-5'",
+        "nh={k.lower():v for k,v in native['headers'].items()}",
+        "for h in ('anthropic-beta','anthropic-version','anthropic-dangerous-direct-browser-access','user-agent','x-app'): assert request['headers'][h].lower()==nh[h].lower()",
+        "missing=sorted(k for k in native['headers'] if k.lower().startswith('x-') and k.lower() not in {h.lower() for h in request['headers']})",
+        "for name in ('live-handshake-request.body','live-handshake-request.json','proxy/adapter-selection.json','proxy/proxy-audit.jsonl','proxy/proxy-export.json'): assert (roots['8674']/name).read_bytes()==(roots['f077']/name).read_bytes()",
+        "for root in roots.values(): d=json.loads((root/'live-handshake-response.json').read_text()); hs={k.lower():v for k,v in d['headers']}; decoded=json.loads(d['body_latin1']); assert d['status']==429 and decoded['error']['type']=='rate_limit_error' and hs.get('retry-after') is None and not [k for k in hs if k.startswith('anthropic-ratelimit-') and k.endswith('-reset')]",
+        "cli=Path('/home/fangxin/.local/share/claude/versions/2.1.232').read_bytes(); assert hashlib.sha256(cli).hexdigest()=='61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1' and b'fetchUtilization: GET /api/oauth/usage (attempt ' in cli",
+        "registry=(repo/'benchmark/harness/src/cortex_bench_harness/launcher/credential_capabilities.py').read_text(); assert '\"claude-subscription\", \"offline-contract-passed\"' in registry and not (repo/'benchmark/harness/src/cortex_bench_harness/launcher/evidence/claude-subscription.live-handshake-passed.json').exists()",
+        "assert hashlib.sha256((repo/'benchmark/policy/capability-ceilings.yaml').read_bytes()).hexdigest()=='213bfb4699985ca4398c22e84c7337acecf6211ae7f613dc875e480734f310c6'",
+        "assert hashlib.sha256((repo/'benchmark/campaigns/terminal-bench-2.1-vendor-claude-code.yaml').read_bytes()).hexdigest()=='0e18b2ca9161845c3ab8335fc83deea617b45294219a6e7eb0f8165d898a1da9'",
+        "print(json.dumps({'missing_native_x_headers':missing,'capability':'offline-contract-passed','promotion_evidence_exists':False},sort_keys=True))"
+      ],
+      "terminator": "PY",
+      "trace_assertion": "python3 -c \"from pathlib import Path; s=Path('/tmp/448a-offline-audit-connect.trace').read_text(errors='replace'); i=[x for x in s.splitlines() if 'connect(' in x and ('AF_INET' in x or 'AF_INET6' in x)]; print(len(i)); assert not i\"",
+      "exit_code": 0,
+      "result": "Core native fields matched; eight native X-* headers were absent; repeat artifacts and response classification matched; capability/promotion/ceiling/campaign safety checks passed; 0 AF_INET/AF_INET6 connects observed",
+      "trace_sha256": "eec232305270e53f4738dd22a679f40b172096f012969fe92d316e6332a54481"
+    }
+  ],
+  "safety_proof": {
+    "capability_state": {
+      "before_and_after": "offline-contract-passed",
+      "source": "benchmark/harness/src/cortex_bench_harness/launcher/credential_capabilities.py:52-61"
+    },
+    "promotion_evidence": {
+      "path": "benchmark/harness/src/cortex_bench_harness/launcher/evidence/claude-subscription.live-handshake-passed.json",
+      "exists": false
+    },
+    "diagnosis_execution": {
+      "provider_requests": 0,
+      "proof_scope": "Every empirical comparison used by the determination was repeated by the traced offline audit above, which made zero INET connects. Both scoped suites were separately traced and made zero non-loopback connects. The remaining task actions were repository/raw-artifact reads, writing this JSON/index, JSON/diff validation, and git operations; no live-handshake runner, campaign command, provider client or web tool was invoked.",
+      "prior_live_requests_not_counted": "The retained 8674 and f077 roots each record one historical provider request. Task 448a only read them and did not create or mutate a live root."
+    },
+    "campaign": {
+      "paid": false,
+      "sha256_before_and_after": "0e18b2ca9161845c3ab8335fc83deea617b45294219a6e7eb0f8165d898a1da9",
+      "role_in_proof": "Unchanged campaign state; paid:false alone is not treated as proof of zero traffic.",
+      "source": "benchmark/campaigns/terminal-bench-2.1-vendor-claude-code.yaml:10"
+    },
+    "ceiling": {
+      "sha256_before_and_after": "213bfb4699985ca4398c22e84c7337acecf6211ae7f613dc875e480734f310c6",
+      "unchanged_values": {
+        "max_cost_usd": "2.00",
+        "max_provider_requests": 500,
+        "deadline_seconds": 1800,
+        "max_output_tokens": 65536,
+        "request_body_limit_bytes": 67108864,
+        "response_body_limit_bytes": 67108864
+      },
+      "source": "benchmark/policy/capability-ceilings.yaml:53-61"
+    },
+    "retained_live_artifacts": "The diagnosis only read retained 8674/f077 artifacts. Their request/body/response/accounting hashes remained those already published by the two result summaries; no live-handshake runner or campaign command was executed.",
+    "repository_change_scope": "Only this diagnosis record and the results directory index are changed by task 448a."
+  }
+}
