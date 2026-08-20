@@ -107,7 +107,7 @@
       ["Content-Type", "application/json"],
       ["Server", "cloudflare"],
       ["Cross-Origin-Opener-Policy", "same-origin-allow-popups"],
-      ["x-oai-request-id", "2521c482-9312-4df1-b2cc-4af65e22a25f"],
+      ["x-oai-request-id", ""],
       ["x-openai-proxy-wasm", "v0.1"],
       ["X-Content-Type-Options", "nosniff"],
       ["Referrer-Policy", "strict-origin-when-cross-origin"],
@@ -115,9 +115,9 @@
       ["Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload"],
       ["Set-Cookie", ""],
       ["set-cookie", ""],
-      ["Report-To", "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=OC7Ybha0%2B0EmINwYfSOkrObaIHvH9L2lYMo%2FYuX6ryJVpZXYdYc83CaSal7xGS%2Blw6jxnhGeHl7jkTnuXt7Vi%2BHjfV31GhdbxCUH%2BDEXyg4MFDvwGDiOfmG7vRO4\"}]}"],
-      ["Nel", "{\"report_to\":\"cf-nel\",\"success_fraction\":0.01,\"max_age\":604800}"],
-      ["CF-RAY", "a2dd36a33a10c72f-DEN"],
+      ["Report-To", ""],
+      ["Nel", ""],
+      ["CF-RAY", ""],
       ["transfer-encoding", "chunked"],
       ["connection", "close"]
     ],
@@ -127,6 +127,10 @@
     "complete": false,
     "failure": "IncompleteRead",
     "body_sha256": "d92a14c969943f4ab9e369bdc7f439c76c32067e9768b193b2efaa4999b795b9",
+    "publication_redaction": {
+      "blanked_header_values": ["x-oai-request-id", "Report-To", "Nel", "CF-RAY"],
+      "reason": "Provider request, reporting-endpoint, and CDN correlation identifiers are not needed to diagnose status, framing, or byte count."
+    },
     "interpretation": "The upstream returned an explicit JSON provider rejection. The proxy relayed the 96 bytes but intentionally withheld downstream completion because an error response has no accountable usage."
   },
   "security": {
