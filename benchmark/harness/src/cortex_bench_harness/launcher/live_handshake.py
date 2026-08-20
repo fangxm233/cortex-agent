@@ -1,5 +1,5 @@
 # input:  offline capability, bounded request, credential, scan policy
-# output: no-retry request, redacted response diagnostic, promotion evidence
+# output: no-retry request, provider-identifier-safe response diagnostic, promotion evidence
 # pos:    Bootstrap authorization for one live provider handshake
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -54,7 +54,14 @@ RUN_CONFIG_SCHEMA_VERSION = "cortex-bench-live-handshake-run/1"
 RESPONSE_DIAGNOSTIC_SCHEMA_VERSION = "cortex-bench-live-handshake-response/1"
 _SENSITIVE_RESPONSE_HEADERS = frozenset({
     "authorization", "proxy-authorization", "set-cookie", "x-api-key",
-    "chatgpt-account-id",
+    "chatgpt-account-id", "request-id", "x-request-id",
+    "anthropic-organization-id", "anthropic-workspace-id",
+    "traceresponse", "traceparent", "tracestate", "cf-ray", "x-amz-cf-id",
+})
+_PROVIDER_IDENTIFIER_BODY_KEYS = frozenset({
+    "account_id", "accountid", "cdn_id", "cdnid", "organization_id",
+    "organizationid", "request_id", "requestid", "trace_id", "traceid",
+    "workspace_id", "workspaceid",
 })
 _HOME_PATH = re.compile(rb"/home/(?!\.)[^/\x00\s\"']+(?:/[^\x00\s\"']*)?")
 
@@ -488,7 +495,7 @@ def _write_response_diagnostic(
     path: Path, status: int | None, headers: tuple[tuple[str, str], ...],
     body: bytes, failure: str | None, policy: ScanPolicy,
 ) -> None:
-    redacted_body = _redact_bytes(body, policy)
+    redacted_body = _redact_response_body(body, policy)
     _write_json(path, {
         "schema_version": RESPONSE_DIAGNOSTIC_SCHEMA_VERSION,
         "status": status,
@@ -510,6 +517,37 @@ def _redact_headers(
          _redact_bytes(value.encode(), policy).decode(errors="replace")]
         for name, value in headers
     ]
+
+
+def _redact_response_body(payload: bytes, policy: ScanPolicy) -> bytes:
+    redacted = _redact_bytes(payload, policy)
+    try:
+        document = json.loads(redacted)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return redacted
+    sanitized = _blank_provider_identifier_fields(document)
+    return json.dumps(
+        sanitized, ensure_ascii=False, separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _blank_provider_identifier_fields(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {
+            key: "" if _provider_identifier_body_key(key) else
+            _blank_provider_identifier_fields(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_blank_provider_identifier_fields(item) for item in value]
+    return value
+
+
+def _provider_identifier_body_key(key: object) -> bool:
+    if not isinstance(key, str):
+        return False
+    normalized = key.lower().replace("-", "_")
+    return normalized in _PROVIDER_IDENTIFIER_BODY_KEYS
 
 
 def _redact_bytes(payload: bytes, policy: ScanPolicy) -> bytes:
