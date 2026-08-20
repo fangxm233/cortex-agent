@@ -28,7 +28,7 @@ Committed campaign result summaries preserve path-sanitized reproducibility evid
 | terminal-bench-2.1-vendor-claude-conditional-f077-2026-08-20.json | evidence | Records the forced live usage GO reading, the single authorized Claude HTTP 429, clean scan, no promotion and stopped campaign stages |
 | terminal-bench-2.1-vendor-claude-429-diagnosis-2026-08-20.json | evidence | Offline path comparison: cause inconclusive; get_usage retired as readiness gate |
 | terminal-bench-2.1-vendor-claude-preflight-stop-10ba-2026-08-20.json | evidence | Records the auth-status network stop, zero Messages requests, no route and no promotion |
-| terminal-bench-2.1-vendor-claude-10ba-2026-08-20.json | evidence | Records native-wire HTTP 429, control-plane accounting, clean revoke and three explicit task failures |
+| terminal-bench-2.1-vendor-claude-10ba-2026-08-20.json | evidence | Records the native-default correction, live promotion and three terminal Claude rewards |
 | zero-paid-dry-run-2026-08-13.json | evidence | Records the accepted two-trial ZERO-PAID campaign hashes, counts and safety facts |
 | zero-paid-failed-agent-2026-08-13.json | evidence | Records the ZERO-PAID run proving a failed agent is published, scored 0 by its own verifier, followed by the next trial, and that each trial carries its own witnessed asset record instead of the bundle |
 | zero-paid-parallel-2026-08-13.json | evidence | Records the ZERO-PAID run proving concurrent trials hold distinct subnets, container addresses and live routes, that a slot is exclusive and reusable, and that every per-trial gate still holds |

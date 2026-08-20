@@ -1,111 +1,72 @@
 {
-  "schema_version": "cortex-bench-vendor-claude-terminal-summary/1",
+  "schema_version": "cortex-bench-vendor-claude-terminal-summary/2",
   "campaign": "tb21-vendor-claude-10ba",
   "task_id": "10ba",
-  "executed_at": "2026-08-20T20:47:10.247Z",
-  "source_commit": "cea45c67ed9863126e54c8b4d28ee394a1001f40",
-  "headline": "Pinned native Claude Code 2.1.232 emitted one full native Messages request with max_tokens 64000 through the trial proxy and received HTTP 429. The route was revoked, the artifact scan was clean, auth status did not refresh the token identity, and a get_usage control request timed out without a control response. No second Messages request was made because it would be a blind retry. The capability was not promoted, the single-task and full campaigns were not armed, and all three planned tasks terminate here with explicit failure states.",
-  "authorization": {
-    "scope": "native-wire and token-identity preflight, native handshake, single-task gate, and three-task campaign with diagnosed corrective iterations",
-    "supersedes_single_request_256_token_scope": true,
-    "message_requests_made": 1,
-    "message_retries_made": 0,
-    "auth_status_invocations": 1,
-    "get_usage_invocations": 1
+  "executed_at": {
+    "handshake": "2026-08-20T22:49:08Z",
+    "single_task_started": "2026-08-20T23:03:18.222Z",
+    "single_task_ended": "2026-08-20T23:04:35.030Z",
+    "three_task_started": "2026-08-20T23:04:47.616Z",
+    "three_task_ended": "2026-08-20T23:07:38.245Z"
   },
-  "preflight": {
-    "claude_code": {
-      "version": "2.1.232",
-      "artifact_sha256": "61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1",
-      "native_wire_recap": "passed",
-      "native_wire_test": "tests/package/test_claude_code_vendor_wire.py::test_real_claude_process_reproduces_committed_wire_fixture"
+  "source_commits": {
+    "native_default_correction": "5963078fb2540d64c1cb95c504c766e9b713d9a4",
+    "live_capability_promotion": "abd84ad6"
+  },
+  "headline": "Claude Code 2.1.232 completed the native-default handshake, single-task gate, and all three pinned Harbor trials after removing the explicit Sonnet and alias overrides that produced the prior HTTP 429. The corrected native request selected claude-opus-5 with max_tokens 64000 and no proxy rewrite. All three score trials reached terminal-success with reward 1.0, clean scans, one arm and one proven revoke each, and resumable terminal roots.",
+  "corrective_change": {
+    "prior_request": {
+      "model_argument": "sonnet",
+      "model": "claude-sonnet-5",
+      "max_tokens": 64000,
+      "body_sha256": "e4b46ddf78ceba832010df2cc9153dec3cfc7c403b8a2ec76be2f608b98082e7",
+      "http_status": 429
     },
-    "model_freeze": {
-      "declared_model": "claude-sonnet-5",
-      "aliases_and_subagents": "synthetic fixture retained; no fallback observed"
+    "zero_paid_observation": {
+      "model_argument": null,
+      "model": "claude-opus-5",
+      "max_tokens": 64000,
+      "body_sha256": "b8bf2effe346e9991386481901e81d05935eaf7993ae87d5ab6dddae0c3637e0",
+      "request_count": 1,
+      "non_loopback_connects": 0
     },
-    "runtime_images": [
-      "cortex-terminal-bench-2.1@sha256:0e75f455072cc3b4a407e922b87f5a382f689cf8290d2219d4e9d70c133b9b41",
-      "cortex-terminal-bench-2.1@sha256:defe6b6e045c409994d9c26cb1b70670353e49483b6e23d50f28de835c564978",
-      "cortex-terminal-bench-2.1@sha256:b33bed1d275441266a169e2a320287485acef1afebc4a5202cc51a284d18dbc6"
-    ],
-    "runtime_image_preflight": {
-      "images_passed": 3,
-      "requests_per_image": 1,
-      "upstream": "loopback synthetic",
-      "provider_requests": 0
-    },
-    "token_identity": {
-      "source": "host Claude credential file",
-      "access_token_present": true,
-      "refresh_token_present": true,
-      "remaining_seconds_at_preflight": 23451,
-      "required_seconds": 5820,
-      "passed": true,
-      "fingerprint_persisted_publicly": false
-    },
-    "overlap": {
-      "matching_claude_campaigns": 0,
-      "running_benchmark_containers": 0,
-      "overlapping_docker_networks": 0
-    },
-    "campaign_config_dry_runs": {
-      "single_task": "passed-one-would-arm",
-      "three_task": "passed-three-would-arm"
-    }
+    "implementation": "The Claude vendor wrapper no longer exports ANTHROPIC_MODEL, model-alias, or subagent-model overrides. The campaign records claude-opus-5 only as the proxy-side exact model freeze observed from the CLI-native default request.",
+    "commit": "5963078fb2540d64c1cb95c504c766e9b713d9a4",
+    "blind_retry_performed": false
   },
   "handshake": {
-    "state": "terminal-live-handshake-failure",
-    "native_cli_executed": true,
-    "container_started": false,
-    "proxy_arm_count": 1,
-    "proxy_revoke_count": 1,
+    "state": "live-handshake-passed",
+    "native_cli_version": "2.1.232",
+    "binary_sha256": "61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1",
+    "model_selection": "native-default-no-model-override",
     "request": {
       "method": "POST",
       "target": "/v1/messages?beta=true",
-      "model": "claude-sonnet-5",
+      "model": "claude-opus-5",
       "max_tokens": 64000,
       "stream": true,
-      "body_size_bytes": 1217,
-      "body_sha256": "e4b46ddf78ceba832010df2cc9153dec3cfc7c403b8a2ec76be2f608b98082e7",
-      "proxy_output_token_rewrite": false,
-      "native_cli_non_loopback_connects": 0
+      "body_size_bytes": 1184,
+      "body_sha256": "1d8deb505b1c49b7fa75bcfe190e5671cc571c5a0da7680cea696cf883742592",
+      "proxy_output_token_rewrite": false
     },
     "response": {
-      "http_status": 429,
-      "error_type": "rate_limit",
-      "terminal_reason": "api_error",
-      "retry_performed": false
-    },
-    "proxy_accounting": {
+      "http_status": 200,
+      "result": "OK",
       "requests": 1,
-      "input_tokens": 0,
-      "output_tokens": 0,
-      "cached_tokens": 0,
-      "durable_requests": 1,
-      "outcomes": {
-        "usage_accounting_unavailable": 1
-      },
-      "audit_agrees_with_counters": true,
-      "provider_reported_cost_usd": null,
-      "native_cli_total_cost_usd": 0
-    }
-  },
-  "corrective_diagnosis": {
-    "auth_status": {
-      "state": "logged-in-first-party-max",
-      "token_identity_changed": false,
-      "external_tls_connect_lines": 4,
-      "http_request_count": null,
-      "identifiers_omitted": true
+      "input_tokens": 152,
+      "output_tokens": 4
     },
-    "get_usage": {
-      "state": "timed-out-without-control-response",
-      "timeout_seconds": 120,
-      "external_tls_connect_lines": 10,
-      "http_request_count": null
+    "scan_clean": true,
+    "route_arm_count": 1,
+    "route_revoke_count": 1,
+    "revocation": {
+      "route_active": false,
+      "listener_present": false,
+      "serving_thread_alive": false,
+      "active_handlers": 0,
+      "body_handlers": 0
     },
-    "conclusion": "Full native wire parity reproduces the 429 and the authorized auth-status call leaves the access-token identity unchanged. The usage control path supplied no new response. A second Messages attempt would repeat the same token, model, wire and provider state without a corrective change, so the staged run stops rather than blind-looping."
+    "promotion_evidence_sha256": "68c7c62cdd57e3ebc5fdeb395e57eab76fe228ad4c33f7c1633ad5c8c7794987"
   },
   "limits": {
     "per_trial": {
@@ -116,111 +77,126 @@
       "request_body_limit_bytes": 67108864,
       "response_body_limit_bytes": 67108864
     },
-    "handshake": {
-      "max_provider_requests": 1,
-      "deadline_seconds": 120,
-      "native_request_max_tokens": 64000,
-      "proxy_output_token_clamp": null
-    }
+    "native_request_max_tokens": 64000,
+    "proxy_output_token_rewrite": false
   },
-  "planned_tasks": [
+  "credential_boundary": "The real Claude subscription access token was read from the host credential file by the launcher process and held only by each host proxy. Trial containers received only trial-scoped dummy credentials and proxy URLs.",
+  "single_task_gate": {
+    "campaign": "tb21-cc-gate",
+    "task_id": "constraints-scheduling",
+    "terminal_state": "terminal-success",
+    "verifier_rewards": {"reward": 1.0},
+    "requests": 5,
+    "scan_clean": true,
+    "route_arm_count": 1,
+    "route_revoke_count": 1,
+    "outer_envelope_sha256": "411f70a65a86e4e8547be300e5d9b130e10c3cb3a128e31e96c59603e5bb523a",
+    "harbor_result_sha256": "32ee48f651d4a91f2cbed01d9686401c04eaf78a5af1a30dd583612402828fd5",
+    "campaign_result_sha256": "bc6f594a26b091cca7c2eee89e872e0eacd80e35e67a6989156b5b576ed4d6ee"
+  },
+  "execution": {
+    "campaign_state": "completed",
+    "planned_trials": 3,
+    "terminal_trials": 3,
+    "published_outer_envelopes": 3,
+    "provider_requests_total": 27,
+    "failed_trials": [],
+    "automatic_retry": false,
+    "campaign_executions": 1,
+    "campaign_result_sha256": "0b64573816a20d7c9a305a2400d98c3f388b5b3e688c737223bd411161c61124",
+    "result_summary_sha256": "9d77b2743660d61bc114a990cf9010a0e723acb849b15b040945c7ecd40f240a",
+    "comparison_report_sha256": "4c53e95498b0adf1b131183f7e8acfdf0441a7905a954635c65d1208914d88f6"
+  },
+  "trials": [
     {
       "task_id": "chess-best-move",
-      "terminal_state": "explicit-failure-before-trial-admission",
-      "verifier_rewards": null,
-      "score_status": "unavailable",
-      "provider_requests": 0,
-      "reason": "native-handshake-http-429-capability-not-promoted"
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {"reward": 1.0},
+      "requests": 7,
+      "input_tokens": 14,
+      "output_tokens": 8259,
+      "native_model": "claude-opus-5",
+      "native_max_tokens": 64000,
+      "scan_clean": true,
+      "scan_matches": 0,
+      "missing_sources": 0,
+      "unclassified_files": 0,
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {"route_active": false, "listener_present": false, "serving_thread_alive": false, "active_handlers": 0, "body_handlers": 0},
+      "outer_envelope_sha256": "37abac071dbb64c5a8c7fcc9ce3ee8c65a3b1a570a8ef929a1f9c4480f9742de",
+      "harbor_result_sha256": "139bfe68ed0311ec1c7e533c7d921511a30149b2b101ba5859431721d42ce331"
     },
     {
       "task_id": "constraints-scheduling",
-      "terminal_state": "explicit-failure-before-trial-admission",
-      "verifier_rewards": null,
-      "score_status": "unavailable",
-      "provider_requests": 0,
-      "reason": "native-handshake-http-429-capability-not-promoted"
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {"reward": 1.0},
+      "requests": 4,
+      "input_tokens": 8,
+      "output_tokens": 3245,
+      "native_model": "claude-opus-5",
+      "native_max_tokens": 64000,
+      "scan_clean": true,
+      "scan_matches": 0,
+      "missing_sources": 0,
+      "unclassified_files": 0,
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {"route_active": false, "listener_present": false, "serving_thread_alive": false, "active_handlers": 0, "body_handlers": 0},
+      "outer_envelope_sha256": "85bf28fd246cd121b263d459403b4932db719064c7644dad531c01ff15f270f7",
+      "harbor_result_sha256": "8c25fa34d88491977fcb8a5df4d85128ff0db87d62c34415c5a795e536d93763"
     },
     {
       "task_id": "db-wal-recovery",
-      "terminal_state": "explicit-failure-before-trial-admission",
-      "verifier_rewards": null,
-      "score_status": "unavailable",
-      "provider_requests": 0,
-      "reason": "native-handshake-http-429-capability-not-promoted"
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {"reward": 1.0},
+      "requests": 16,
+      "input_tokens": 30,
+      "output_tokens": 8544,
+      "native_model": "claude-opus-5",
+      "native_max_tokens": 64000,
+      "scan_clean": true,
+      "scan_matches": 0,
+      "missing_sources": 0,
+      "unclassified_files": 0,
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {"route_active": false, "listener_present": false, "serving_thread_alive": false, "active_handlers": 0, "body_handlers": 0},
+      "outer_envelope_sha256": "2f0250134387fcbb1ff421a933451d7edaa3e34a7d8a826632cca9952a0c74dd",
+      "harbor_result_sha256": "f483e881ab713bacafd457ca10fd4c6f61a9ae19ec9ff5acb8cd62495096654d"
     }
   ],
-  "campaign_stages": [
-    {
-      "stage": "native-live-handshake",
-      "state": "terminal-failure",
-      "provider_requests": 1
-    },
-    {
-      "stage": "single-task-gate",
-      "state": "not-armed-after-handshake-failure",
-      "provider_requests": 0
-    },
-    {
-      "stage": "three-task-campaign",
-      "state": "not-armed-after-handshake-failure",
-      "provider_requests": 0
-    }
-  ],
-  "capability": {
-    "id": "claude-subscription",
-    "state_before": "offline-contract-passed",
-    "state_after": "offline-contract-passed",
-    "promotion_evidence_exists": false
-  },
-  "security": {
-    "credential_delivery": "The real access token stayed in the host proxy adapter. The native Claude process received only a trial dummy token and connected only to the loopback proxy.",
-    "scan": {
-      "files_scanned": 14,
-      "bytes_scanned": 13579,
-      "matches": [],
-      "missing_sources": [],
-      "unclassified_files": [],
-      "clean": true
-    },
-    "revocation": {
-      "proven": true,
-      "route_active": false,
-      "listener_present": false,
-      "serving_thread_alive": false,
-      "active_handlers": 0,
-      "body_handlers": 0,
-      "post_run_connection_refused": true
-    },
-    "request_response_body_ceilings_preserved": true
-  },
   "resume": {
-    "single_trial_root_exists": false,
-    "three_task_root_exists": false,
-    "campaign_resume_attempted": false,
-    "reason": "No score campaign was admitted, so no Harbor terminal root exists to resume. The explicit task failures in this summary are the terminal machine result; no route was re-armed after the failed handshake."
+    "campaign_state": "completed",
+    "trials_skipped": 3,
+    "route_arm_attempts": 0,
+    "new_provider_requests": 0,
+    "retained_provider_requests_reported": 27,
+    "terminal_trial_file_count": 87,
+    "terminal_trial_snapshot_sha256": "3ea9448ea43c234ea7aa96a144263174d97563954426f0829ec3eab6bc321aaf",
+    "terminal_trial_files_rewritten": false,
+    "root_campaign_result_note": "campaign-result.json records each resume invocation timestamp; terminal trial files, result-summary.json, and comparison-report.json remained byte-identical"
+  },
+  "artifacts": {
+    "wheel_sha256": "89dbbf9a4a49519a271fed942540de6aa2c676023185748d6df81a279e947988",
+    "npm_artifact_sha256": "b1ae8ffa853475eca21b10159688f07dba5c5dbd29b03cf0f3630e69d74a6db2",
+    "campaign_config_sha256": "d2e227a445e943482d27e091c3a72dec0373d8ecae061f71793dea827f99e4cf",
+    "single_config_sha256": "b7ccf3ef6a914015e93128feb2b10d217d10c19573b9a982f90084818d2aa72c"
+  },
+  "safety": {
+    "all_scans_clean": true,
+    "credential_matches": 0,
+    "post_run_campaign_containers": 0,
+    "post_run_campaign_networks": 0,
+    "concurrent_duplicate_campaign": false,
+    "push_performed": false
   },
   "raw_sources": {
-    "artifact_root": "<run-evidence>/claude-native-handshake-10ba/",
-    "sha256": {
-      "run-config.json": "9baf0e654a4b92bf411f5b321f49ec8fe85288029c4fbb666a3203e26f99ab53",
-      "native-request.json": "19a2617a16a4d89eb39538249d07b77611f488fe990df0bfcc34837ab5bbc41b",
-      "claude.stdout.jsonl": "02ced89f3cefa2cd9cdf33894cdf59d365b3bae48bd03fe99ba00727d3a0e274",
-      "proxy/proxy-export.json": "07d1f27f13e0de014698898ec20eec978506c40cfcbc6b2e096489fd9f6e6d21",
-      "proxy/revocation-evidence.json": "8a3a26c510869d39c7666f2ef4f55f45f365d7dbf323eec817d96d8bfb2bc6a2",
-      "control-plane-accounting.json": "b63e1b83486d592915dbe068324df5c83a2a7dcab9a067a8d0294d0cc0dd3b09",
-      "scan-report.json": "9ca3480810eb1dcadfa4c546848207dfa03f789a4e5392d213f991ff003d6cd8"
-    },
-    "campaign_sha256": {
-      "single": "d73e638f534f2735c37499b07c313179cd85ad8fedcba8ed134176b30826cbee",
-      "three_task": "680e8071c224aa161ab84a124c20ee0f61036face3bdf84e213882a2d6f348bf"
-    }
-  },
-  "prohibitions_observed": {
-    "blind_messages_retry": false,
-    "concurrent_duplicate_campaign": false,
-    "capability_promotion": false,
-    "single_task_campaign_arming": false,
-    "three_task_campaign_arming": false,
-    "push": false
+    "handshake_root": "<run-evidence>/claude-native-default-10ba/",
+    "single_root": "<run-evidence>/tb21-vendor-claude-10ba-single/",
+    "three_task_root": "<run-evidence>/tb21-vendor-claude-10ba/"
   }
 }
