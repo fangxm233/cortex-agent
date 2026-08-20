@@ -5,7 +5,7 @@ Cortex and vendor variants. A task directory is mounted into the trial container
 
 | filename | role | function |
 |---|---|---|
-| terminal-bench-2.1/ | tasks | Holds three tasks across PI, Claude Code and Codex variants |
+| terminal-bench-2.1/ | tasks | Holds three tasks across PI, Claude Code and Codex variants, including the r7/r8 constraints image fixture |
 | zero-paid-one/ | task | Asks for one literal file and verifies it offline |
 | zero-paid-two/ | task | Asks for a second literal file so the campaign runs two trials |
 | zero-paid-refused/ | task | Asks in a shape the synthetic model refuses, so the agent run fails and the verifier scores it 0 |

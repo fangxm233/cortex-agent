@@ -6,7 +6,7 @@
 # This is one campaign: CampaignConfig.trials() expands the task-major arm×task Cartesian product.
 # The first direct/chess trial is launched alone with a temporary one-trial projection carrying
 # this same campaign identity and trials_dir. Only after its outer envelope is verified does the
-# full config resume that published root and arm the remaining fourteen trials concurrently.
+# full config resume that published root and arm the remaining fourteen trials at concurrency 3.
 #
 # Paid safety: every trial is limited to 500 provider requests and a $0.66 inner-run cost envelope;
 # 15 * $0.66 = $9.90, below the user-approved $10 campaign ceiling. Images are digest-pinned and
@@ -17,7 +17,8 @@ campaign: tb21-five-r1
 paid: true
 trials_dir: /var/tmp/cortex-bench/tb21-five-r1-2026-08-20-c982
 cli_version: "2026.8.6"
-concurrency: 15
+# Three workers match the prior stable paid wave while avoiding setup-time I/O contention.
+concurrency: 3
 
 manifest:
   wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
@@ -126,7 +127,7 @@ tasks:
     path: tasks/terminal-bench-2.1/chess-best-move
     image_ref: cortex-terminal-bench-2.1@sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b
   - task_id: constraints-scheduling
-    path: tasks/terminal-bench-2.1/constraints-scheduling
+    path: tasks/terminal-bench-2.1/constraints-scheduling-r7-r8
     image_ref: cortex-terminal-bench-2.1@sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c
   - task_id: db-wal-recovery
     path: tasks/terminal-bench-2.1/db-wal-recovery
