@@ -1,0 +1,197 @@
+{
+  "schema_version": "cortex-bench-vendor-staged-attempt-summary/3",
+  "campaign": "tb21-vendor-pi",
+  "task_id": "a9b3",
+  "executed_at": "2026-08-20",
+  "paid": true,
+  "source_commit": "468a98dfe2247275bdb23861a82ed8626dff32d5",
+  "headline": "The approved vendor-PI sequence had no separate handshake stage and stopped permanently after its one allowed stage-1 single-task campaign failed. PI issued exactly one request to the trial proxy, but the proxy rejected it before upstream forwarding because PI's serialized 8192-token completion cap did not match the unchanged 65536-token campaign cap. No retry was made and the three-task campaign was not started.",
+  "pre_start": {
+    "other_cortex_bench_campaign_running": false,
+    "claude_or_codex_campaign_running": false,
+    "campaign_container_running": false,
+    "campaign_pool_overlap": false,
+    "stage_1_pool": "172.30.239.0/30",
+    "stage_2_pool": "172.30.240.0/20"
+  },
+  "campaign_configs": {
+    "stage_1": {
+      "path": "benchmark/campaigns/terminal-bench-2.1-vendor-pi-single.yaml",
+      "sha256": "0d79476bfa477a7079a1eca1ff8ee78b1c64812e1a6281e3613e6ee42bf1aacf",
+      "paid": true,
+      "upstream_identity": "127.0.0.1:9880/m/deepseek/deepseek",
+      "per_trial_envelope": {
+        "max_provider_requests": 500,
+        "max_cost_usd": "2.00",
+        "deadline_seconds": 1800,
+        "max_output_tokens": 65536
+      }
+    },
+    "stage_2": {
+      "path": "benchmark/campaigns/terminal-bench-2.1-vendor-pi.yaml",
+      "sha256": "40170b6482a2b8224ebc956fc3a1494797594168f53aec84f67308791b7f75df",
+      "paid": true,
+      "upstream_identity": "127.0.0.1:9880/m/deepseek/deepseek",
+      "per_trial_envelope": {
+        "max_provider_requests": 500,
+        "max_cost_usd": "2.00",
+        "deadline_seconds": 1800,
+        "max_output_tokens": 65536
+      }
+    }
+  },
+  "sequence": [
+    {
+      "stage": 1,
+      "name": "single-task-live-vendor-pi",
+      "entrypoint": "launch-paid-campaign.py",
+      "arm": "pure-pi",
+      "arm_kind": "vendor-baseline",
+      "vendor_agent": "pi",
+      "vendor_cli_version": "0.82.1",
+      "task_id": "constraints-scheduling",
+      "image_digest": "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353",
+      "state": "harness-incomplete",
+      "attempts": 1,
+      "retry": "not-performed",
+      "started_at": "2026-08-20T00:18:35.826Z",
+      "finished_at": "2026-08-20T00:19:04.312Z",
+      "launcher_exit_code": 1,
+      "campaign_ok": false,
+      "proxy_request_counter": 1,
+      "proxy_request_counter_complete": true,
+      "proxy_audit_entries": 1,
+      "proxy_audit_outcome": "request_completion_cap_mismatch",
+      "upstream_forwarded_requests": 0,
+      "upstream_model": null,
+      "proxy_tokens": {
+        "input": 0,
+        "output": 0,
+        "cached": 0
+      },
+      "campaign_frozen_completion_cap": 65536,
+      "pi_runtime_serialized_max_tokens": 8192,
+      "pi_terminal_error": "400 request_model_rejected",
+      "harbor_terminal": {
+        "raw_verifier_rewards": {
+          "reward": 0.0
+        },
+        "score_status": "unavailable",
+        "exception_type": "HostFinalizationError",
+        "exception_message": "output_scan_untrusted",
+        "outer_envelope": "absent"
+      },
+      "failure_reason": "The PI wrapper serialized maxTokens=8192 while the paid envelope and proxy adapter correctly remained frozen at max_output_tokens=65536. The adapter rejected the sole request before credential injection and upstream forwarding. Host finalization then refused outer publication because the stopped-container output scan was untrusted."
+    },
+    {
+      "stage": 2,
+      "name": "three-task-live-vendor-pi",
+      "state": "not-run-after-stage-1-failure",
+      "attempts": 0,
+      "provider_requests": 0,
+      "planned_trials": [
+        {
+          "task_id": "chess-best-move",
+          "state": "not-run-after-stage-1-failure",
+          "verifier_rewards": null,
+          "score_status": "unavailable"
+        },
+        {
+          "task_id": "constraints-scheduling",
+          "state": "not-run-after-stage-1-failure",
+          "verifier_rewards": null,
+          "score_status": "unavailable"
+        },
+        {
+          "task_id": "db-wal-recovery",
+          "state": "not-run-after-stage-1-failure",
+          "verifier_rewards": null,
+          "score_status": "unavailable"
+        }
+      ]
+    }
+  ],
+  "security": {
+    "credential_delivery": "The real relay credential was loaded host-side by the strict paid launcher and held only in the launcher/proxy process. It was never passed in a container environment, serialized TrialConfig, argv, or command line.",
+    "postfailure_leak_scan": {
+      "regular_files_scanned": 25,
+      "bytes_scanned": 72025,
+      "credential_matches": 0,
+      "clean": false,
+      "host_path_findings": {
+        "host:home_path": 32,
+        "host:home_path_literal": 32,
+        "host:repository_checkout": 32
+      },
+      "missing_sources": 0,
+      "unclassified_files": [
+        "agent/trial-home/home/.local/bin/uvx"
+      ],
+      "classification": "untrusted because host paths and one absolute uvx symlink were present; no provider credential match was found"
+    },
+    "host_launch_output_scan": {
+      "files_scanned": 2,
+      "bytes_scanned": 3290,
+      "credential_matches": 0,
+      "argv_credential_refused_by_launcher": true
+    },
+    "revocation_evidence": {
+      "listener_port": 42315,
+      "listener_present_after_run": false,
+      "matching_containers_after_run": 0,
+      "matching_networks_after_run": 0,
+      "internal_revocation_record": "unavailable because outer publication failed"
+    },
+    "proxy_traversal": {
+      "observed": true,
+      "requests": 1,
+      "proxy_audit_entries": 1,
+      "consistent_with_pi_session_provider_attempts": true,
+      "upstream_forwarded_requests": 0,
+      "interpretation": "PI's sole provider attempt traversed the trial proxy; the proxy rejected it locally before any request reached the relay."
+    },
+    "direct_provider_egress": {
+      "evidence_observed": false,
+      "agent_files_proxy_host_matches": 1,
+      "agent_files_api_deepseek_com_matches": 0,
+      "agent_files_relay_endpoint_matches": 0,
+      "limitation": "The campaign used network mode open and no packet capture was collected, so absence of agent-file evidence is not proof that arbitrary direct egress was impossible."
+    }
+  },
+  "artifacts": {
+    "wheel_sha256": "74904207a3e98d5d5a8b406f976f1a3b26a962c0e0f6c13cb43e431516be4ce8",
+    "npm_artifact_sha256": "8cec9422c15f93d47ddff50097e27a10e054817c17bf1830043bdfd0155a64f9",
+    "artifact_source_commit": "468a98dfe2247275bdb23861a82ed8626dff32d5"
+  },
+  "raw_evidence_sha256": {
+    "campaign_result": "08d5e292b4b76b102d59fc4a91211e425d56a8a03b55e229517edb837176b5fd",
+    "comparison_report": "94521450a4e01d0a76f7bb3b311eee419f98ca56255883e0fe0379cb850ede4f",
+    "result_summary": "d6a3cfabbd8065fbc82f03aff95677eee38d238ed1aecadf8ee2a51f4fbd2816",
+    "proxy_export": "dd92af219b96b8592c7decc195a5feebe4a49c8cdea099c2e8bf1caa96e8ac19",
+    "proxy_audit": "265319e74acc5f5c77e0356f00336b5f73d8e8b1eb5643289f13acb4d042c0fa",
+    "harbor_result": "470ca68c214e32dd4a23adf95667fd03261591e529d426226beab2953632c26e",
+    "pi_session": "07770352ac6ef0fd5b4d379f5ffced079cf4e4bbc572ada92f892a7b76d630c2",
+    "launch_admission": "b6a98d378ecbc67f3776043c9cedcf1947cd1d8f4edf3c752d2795e4ca6698b0",
+    "container_boundary": "e7cc9ce67c4f1b39b8c09372b60c023fe0ca53019947b01fea599e382b9db05f",
+    "postfailure_security_evidence": "9dafdfd4802e8bb87753993c0fb1fed881eb17912c242429aaa36092f6a0bc6e"
+  },
+  "raw_sources": {
+    "campaign_result": "<stage-1-trials-dir>/campaign-result.json",
+    "comparison_report": "<stage-1-trials-dir>/comparison-report.json",
+    "result_summary": "<stage-1-trials-dir>/result-summary.json",
+    "proxy_export": "<stage-1-trial-root>/artifacts/proxy/proxy-export.json",
+    "proxy_audit": "<stage-1-trial-root>/artifacts/proxy/proxy-audit.jsonl",
+    "harbor_result": "<stage-1-trial-root>/result.json",
+    "pi_session": "<stage-1-trial-root>/agent/pi/sessions/<session>.jsonl",
+    "launch_admission": "<stage-1-trial-root>/artifacts/harbor-launch-admission.json",
+    "container_boundary": "<stage-1-trial-root>/artifacts/cortex-bench-container-boundary-attestation.json",
+    "postfailure_security_evidence": "<run-evidence>/a9b3-stage1-postfailure-security.json"
+  },
+  "prohibitions_observed": {
+    "separate_handshake_stage_used": false,
+    "automatic_retry": false,
+    "second_stage_1_campaign_run": false,
+    "stage_2_started": false,
+    "push": false
+  }
+}

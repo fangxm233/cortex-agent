@@ -1,0 +1,53 @@
+{
+  "schema_version": "cortex-bench-vendor-comparison-report/1",
+  "campaign": "tb21-vendor-pi",
+  "task_id": "a9b3",
+  "generated_at": "2026-08-20",
+  "comparison_status": "unavailable",
+  "reason": "The authorized stage-1 single-task vendor-PI campaign failed after one proxy-rejected request, so the no-retry staged contract permanently stopped before the three-task campaign.",
+  "stage_1": {
+    "task_id": "constraints-scheduling",
+    "state": "harness-incomplete",
+    "proxy_requests": 1,
+    "upstream_forwarded_requests": 0,
+    "proxy_audit_outcome": "request_completion_cap_mismatch",
+    "campaign_frozen_completion_cap": 65536,
+    "pi_runtime_serialized_max_tokens": 8192,
+    "raw_verifier_rewards": {
+      "reward": 0.0
+    },
+    "verifier_rewards": null,
+    "score_status": "unavailable"
+  },
+  "stage_2_planned_tasks": [
+    {
+      "task_id": "chess-best-move",
+      "vendor_pi_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    },
+    {
+      "task_id": "constraints-scheduling",
+      "vendor_pi_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "vendor_pi_state": "not-run-after-stage-1-failure",
+      "verifier_rewards": null,
+      "score_status": "unavailable"
+    }
+  ],
+  "aggregate": {
+    "stage_1_planned_trials": 1,
+    "stage_1_trials_started": 1,
+    "stage_1_trials_with_explicit_failure": 1,
+    "stage_2_planned_trials": 3,
+    "stage_2_trials_started": 0,
+    "stage_2_trials_not_run_by_staged_stop": 3,
+    "trials_with_available_reward": 0,
+    "score": null
+  },
+  "source_summary": "terminal-bench-2.1-vendor-pi-a9b3-2026-08-20.json"
+}

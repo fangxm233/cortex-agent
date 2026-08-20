@@ -14,6 +14,8 @@ Committed campaign result summaries preserve path-sanitized reproducibility evid
 | terminal-bench-2.1-vendor-pi-comparison-2026-08-19.json | report | Records that no vendor-PI task comparison is available because the mandatory staged stop prevented both score-producing campaigns |
 | terminal-bench-2.1-vendor-pi-3ff0-2026-08-19.json | evidence | Records task 3ff0's vendor-native one-request handshake rejection, proxy/leak/revocation evidence, and permanent staged stop |
 | terminal-bench-2.1-vendor-pi-3ff0-comparison-2026-08-19.json | report | Records that task 3ff0 produced no vendor score because the real-relay handshake gate failed before stages 2 and 3 |
+| terminal-bench-2.1-vendor-pi-a9b3-2026-08-20.json | evidence | Records the direct single-task vendor-PI failure under the unchanged production envelope, proxy/leak/revocation evidence, and permanent stop before the three-task campaign |
+| terminal-bench-2.1-vendor-pi-a9b3-comparison-2026-08-20.json | report | Records that no vendor-PI comparison is available because the authorized single-task stage failed and all three full-campaign trials were explicitly not run |
 | terminal-bench-2.1-vendor-codex-staged-2026-08-19.json | evidence | Records the one-request handshake failure, version drift checks, clean scan, revocation path and staged stop |
 | terminal-bench-2.1-vendor-codex-comparison-2026-08-19.json | report | Records no comparison because stage 1 prevented promotion and both campaigns |
 | zero-paid-dry-run-2026-08-13.json | evidence | Records the accepted two-trial ZERO-PAID campaign hashes, counts and safety facts |
