@@ -150,8 +150,10 @@ class OpenAICodexResponsesOAuthAdapter:
 
     def extract_usage(self, body: bytes, content_type: str) -> ProxyUsage:
         # This row has no non-streaming shape: the request body sets stream true
-        # unconditionally, so a non-SSE payload carries no usage to read.
-        if "text/event-stream" not in content_type:
+        # unconditionally, so an explicit non-SSE payload carries no usage to read. ChatGPT may
+        # omit Content-Type on an otherwise complete SSE response; in that case the strict event
+        # parser below remains the authority and accepts only a terminal event with valid usage.
+        if content_type and "text/event-stream" not in content_type:
             return ProxyUsage(None, 0, 0, False)
         model: str | None = None
         input_tokens = 0

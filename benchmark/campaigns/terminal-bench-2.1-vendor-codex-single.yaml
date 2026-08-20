@@ -1,16 +1,14 @@
-# input:  the Codex vendor arm and three pinned Terminal-Bench 2.1 tasks
-# output: one paid three-task Codex vendor campaign with a concurrent TTL-bound wave
-# pos:    Codex vendor-baseline live campaign declaration
+# input:  the Codex vendor arm and one pinned Terminal-Bench 2.1 task
+# output: one paid Codex vendor trial with the committed production envelope
+# pos:    Stage-2 single-task live Codex campaign declaration
 # >>> If I am updated, update my header and folder CORTEX.md <<<
-#
-# The image selectors below bind every task to the offline Codex-only runtime variant.
 
 schema_version: cortex-bench-campaign/1
-campaign: tb21-vendor-codex
+campaign: tb21-vendor-codex-single
 paid: true
-trials_dir: /var/tmp/cortex-bench/tb21-vendor-codex
+trials_dir: /var/tmp/cortex-bench/tb21-vendor-codex-single
 cli_version: "2026.8.6"
-concurrency: 3
+concurrency: 1
 
 manifest:
   wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
@@ -22,7 +20,7 @@ credential:
   upstream_base_url: https://chatgpt.com/backend-api
   route_identity_host: chatgpt.com
   proxy_host_suffix: proxy.invalid
-  dummy_token_ref: vendor-codex-dummy-token
+  dummy_token_ref: vendor-codex-single-dummy-token
 
 host_scan_policy:
   secret_environment:
@@ -36,8 +34,8 @@ host_scan_policy:
     machine: CORTEX_BENCH_VENDOR_CODEX_IDENTITY
 
 docker_network:
-  subnet_pool: 172.30.240.0/20
-  subnet_prefix: 24
+  subnet_pool: 172.30.238.0/30
+  subnet_prefix: 30
 
 proxy:
   credential_env: CORTEX_BENCH_VENDOR_CODEX_CREDENTIAL
@@ -51,9 +49,6 @@ arms:
     vendor_agent: codex
     vendor_cli_version: "0.148.0"
     provider: openai-codex
-    # The authenticated 0.148.0 account catalog ranks gpt-5.6-sol first, and the isolated native
-    # CLI loopback proof observes this exact request model without substitution.
-    # Provider acceptance: unverified-until-live; transport-only doctor probes made no generation.
     model: gpt-5.6-sol
     credential_capability: codex-subscription
     limits:
@@ -66,14 +61,8 @@ network:
   mode: open
 
 tasks:
-  - task_id: chess-best-move
-    path: tasks/terminal-bench-2.1/codex/chess-best-move
-    image_ref: cortex-terminal-bench-2.1@sha256:7ec70cbe5726a332ec7c559d7145f82c67317a529457b071b7eae44032b6e728
   - task_id: constraints-scheduling
     path: tasks/terminal-bench-2.1/codex/constraints-scheduling
     image_ref: cortex-terminal-bench-2.1@sha256:31859b5bb36e1d507e330c3c75dc7adf830137fc72e0e4d1a88e68f48fdb903c
-  - task_id: db-wal-recovery
-    path: tasks/terminal-bench-2.1/codex/db-wal-recovery
-    image_ref: cortex-terminal-bench-2.1@sha256:d2a78b8e5aa9c842d9dfa21ceed714859ff5f06b141eb15880c62850158ff5cc
 
 comparisons: []
