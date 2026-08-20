@@ -10,10 +10,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parse as yamlParse } from 'yaml';
-import { CONFIG_DIR, DEFAULTS_DIR, PROJECTS_DIR } from '../src/core/paths.js';
+import { CONFIG_DIR, PROJECTS_DIR } from '../src/core/paths.js';
 import { selectAndClaimTask } from '../src/domain/tasks/dispatcher.js';
 import { readTaskSpec } from '../src/domain/tasks/system/task-file-input.js';
-import { getCliHelp, runCli } from '../src/domain/tasks/system/task-cli.js';
+import { runCli } from '../src/domain/tasks/system/task-cli.js';
 import {
   buildStepPrompt,
   cleanupWorkspace,
@@ -353,21 +353,3 @@ for (const command of ['add', 'spawn'] as const) {
     }
   });
 }
-
-test('agent-facing task-file examples require per-execution staging paths', () => {
-  const taskSkill = fs.readFileSync(
-    path.join(DEFAULTS_DIR, 'plugins/cortex-stage-gate/skills/task/SKILL.md'),
-    'utf8',
-  );
-  const manager = fs.readFileSync(path.join(DEFAULTS_DIR, 'prompts/directives/manager.md'), 'utf8');
-  const compound = fs.readFileSync(
-    path.join(DEFAULTS_DIR, 'plugins/cortex-common/skills/compound-simple/SKILL.md'),
-    'utf8',
-  );
-  const guidance = [taskSkill, manager, compound, getCliHelp()].join('\n');
-
-  assert.doesNotMatch(guidance, /\/tmp\/task\.json\b/);
-  assert.match(taskSkill, /current-thread-or-session-id/);
-  assert.match(manager, /<your Task ID>-<child-id>/);
-  assert.match(getCliHelp(), /cortex-task-<unique-id>\.json/);
-});

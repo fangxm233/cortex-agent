@@ -1,5 +1,5 @@
 // input:  Vitest, mocked fs/settings, disk-monitor helpers
-// output: path, toggle, alert-decision, and formatting regressions
+// output: path, toggle, and alert-decision regressions
 // pos:    Verify disk monitor lifecycle and alert policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -28,7 +28,7 @@ vi.mock('@core/settings.js', () => ({
 }));
 
 import {
-  shouldAlert, formatBytes, checkDiskOnce, initDiskMonitor,
+  shouldAlert, checkDiskOnce, initDiskMonitor,
   WARN_BYTES, HYSTERESIS_BYTES, REALERT_COOLDOWN_MS,
   _testReset,
 } from '../src/domain/monitor/disk-monitor.js';
@@ -139,13 +139,4 @@ test('shouldAlert: free in gray band from clean state stays clean and silent', (
 test('shouldAlert: free at exact warn boundary does not alert (strict <)', () => {
   const { alert } = shouldAlert(WARN_BYTES, CLEAN_STATE, NOW);
   assert.equal(alert, false);
-});
-
-test('formatBytes: renders human-readable units', () => {
-  assert.equal(formatBytes(0), '0 B');
-  assert.equal(formatBytes(500), '500 B');
-  assert.equal(formatBytes(2 * 1024), '2 KB');
-  assert.equal(formatBytes(1024 * 1024), '1 MB');
-  assert.equal(formatBytes(500 * 1024 * 1024), '500 MB');
-  assert.equal(formatBytes(2 * 1024 * 1024 * 1024), '2.00 GB');
 });

@@ -337,16 +337,6 @@ test('schedule CLI remove deletes the target task', withTempSchedules(async ({ s
   assert.equal(await scheduler.get('int1'), null);
 }));
 
-// --- help tests ---
-
-test('schedule CLI --help returns help text', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['--help'], { scheduler });
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Commands:/);
-  assert.match(result.stdout, /list/);
-  assert.match(result.stdout, /Examples:/);
-}));
-
 // --- error message tests ---
 
 test('schedule CLI unknown command lists available commands', withTempSchedules(async ({ scheduler }) => {

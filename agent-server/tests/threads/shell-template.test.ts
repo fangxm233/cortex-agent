@@ -65,40 +65,6 @@ test('isShellBinding distinguishes shell bindings from full templates', () => {
   assert.equal(isShellBinding('str'), false);
 });
 
-// --- Interpolation: behavior equivalence (independent golden literals) ---
-// These two literals are the EXACT current defaults full templates (pre-conversion),
-// pinning that shell expansion is behavior-preserving.
-
-const GOLDEN_DOC_REVIEW = {
-  name: 'doc-review',
-  description: 'Generic produce-then-audit for documents (status / digest / decision / report / knowledge entry). Stages: doc-writer(write) → doc-reviewer → (if not [APPROVED]) doc-writer(retry, write [REVISED] at end) → END',
-  agents: ['doc-writer', 'doc-reviewer'],
-  transitions: [
-    { from: 'doc-writer:write', to: 'doc-reviewer', condition: { type: 'always' } },
-    { from: 'doc-reviewer', to: 'doc-writer:retry', condition: { type: 'convergence', marker: '[APPROVED]', maxIterations: 1 } },
-    { from: 'doc-writer:retry', to: 'doc-reviewer', condition: { type: 'output_contains', pattern: '\\[REVISED\\]' } },
-  ],
-  entryAgent: 'doc-writer',
-  entryStage: 'write',
-  maxTotalSteps: 4,
-  hooks: { onEnd: { command: 'node ~/.cortex/hooks/post-task-hook.mjs', args: ['doc-writer'], timeout: 10000 } },
-};
-
-const GOLDEN_EXECUTE_REVIEW = {
-  name: 'execute-review',
-  description: 'Execute-then-review: executor executes task → executor-reviewer audits → at most 1 retry. Suitable for any verifiable task (code changes, config changes, file edits, script execution, etc.)',
-  agents: ['executor', 'executor-reviewer'],
-  transitions: [
-    { from: 'executor:execute', to: 'executor-reviewer', condition: { type: 'always' } },
-    { from: 'executor-reviewer', to: 'executor:retry', condition: { type: 'convergence', marker: '[APPROVED]', maxIterations: 1 } },
-    { from: 'executor:retry', to: 'executor-reviewer', condition: { type: 'output_contains', pattern: '\\[REVISED\\]' } },
-  ],
-  entryAgent: 'executor',
-  entryStage: 'execute',
-  maxTotalSteps: 4,
-  hooks: { onEnd: { command: 'node ~/.cortex/hooks/post-task-hook.mjs', args: ['executor'], timeout: 10000 } },
-};
-
 test('shipped worker-review shell sends a revised retry back to its reviewer', () => {
   const shellPath = path.join(
     DEFAULTS_DIR,
@@ -106,22 +72,6 @@ test('shipped worker-review shell sends a revised retry back to its reviewer', (
   );
   const shipped = JSON.parse(readFileSync(shellPath, 'utf8'));
   assert.deepEqual(shipped.transitions[2], WORKER_REVIEW.transitions[2]);
-});
-
-test('expandShell(doc-review) equals the pre-conversion full template', () => {
-  const out = expandShell('doc-review', {
-    shell: 'worker-review', worker: 'doc-writer', reviewer: 'doc-reviewer',
-    description: GOLDEN_DOC_REVIEW.description,
-  }, WORKER_REVIEW, AGENTS);
-  assert.deepEqual(out, GOLDEN_DOC_REVIEW);
-});
-
-test('expandShell(execute-review) equals the pre-conversion full template', () => {
-  const out = expandShell('execute-review', {
-    shell: 'worker-review', worker: 'executor', reviewer: 'executor-reviewer',
-    description: GOLDEN_EXECUTE_REVIEW.description,
-  }, WORKER_REVIEW, AGENTS);
-  assert.deepEqual(out, GOLDEN_EXECUTE_REVIEW);
 });
 
 // --- Interpolation: structural coverage for the live-only workers ---

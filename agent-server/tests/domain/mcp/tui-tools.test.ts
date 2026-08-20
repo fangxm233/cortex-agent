@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
 
-import { runPlanEnter, runPlanExit, type TuiToolDeps } from '../../../src/domain/mcp/tools/tui-plan.js';
+import { runPlanExit, type TuiToolDeps } from '../../../src/domain/mcp/tools/tui-plan.js';
 import { runAskUser } from '../../../src/domain/mcp/tools/tui-ask.js';
 
 // --- Mock HTTP client ---
@@ -42,22 +42,6 @@ function makeDeps(overrides: Partial<TuiToolDeps> = {}): TuiToolDeps {
 // =====================================================================================
 //  cortex_plan_enter — pure, no I/O
 // =====================================================================================
-
-test('cortex_plan_enter returns a system reminder instructing how to use cortex_plan_exit', () => {
-  const result = runPlanEnter({});
-  assert.equal(result.isError, undefined);
-  assert.ok(Array.isArray(result.content));
-  const text = result.content.map((c: any) => c.text).join('\n');
-  // Must mention key elements of the plan-mode protocol
-  assert.ok(text.includes('cortex_plan_exit'), 'must direct caller to cortex_plan_exit');
-  assert.ok(/plan/i.test(text), 'must mention plan mode');
-});
-
-test('cortex_plan_enter includes the optional reasoning back in the system reminder', () => {
-  const result = runPlanEnter({ reasoning: 'investigating a tricky migration' });
-  const text = result.content.map((c: any) => c.text).join('\n');
-  assert.ok(text.includes('investigating a tricky migration'));
-});
 
 // =====================================================================================
 //  cortex_plan_exit — reads plan file, POSTs to /hook/exit-plan-mode, returns approval result

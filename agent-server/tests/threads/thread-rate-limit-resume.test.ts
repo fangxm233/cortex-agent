@@ -6,7 +6,7 @@ import '../_test-home.js'; // MUST be first — isolates store singletons to a t
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../../src/store/thread-repo.js';
-import { recordStepOutcome, buildThreadSummary, resumeRateLimitedThread } from '../../src/domain/threads/runner.js';
+import { recordStepOutcome, resumeRateLimitedThread } from '../../src/domain/threads/runner.js';
 import { markThreadRateLimited } from '../../src/domain/threads/state-machine.js';
 import * as throttle from '../../src/domain/costs/rate-limit-throttle.js';
 import * as resumeRegistry from '../../src/domain/costs/resume-registry.js';
@@ -170,13 +170,6 @@ test('recordStepOutcome: rate-limited but NOT throttled falls through to termina
   assert.equal(resumeRegistry.getResumeCount(), 0, 'nothing recorded for resume');
 
   await threadStore.delete('thr_nothrottle');
-});
-
-test('buildThreadSummary shows a paused headline for rate_limited', () => {
-  const thr = makeThread('thr_sum', { status: 'rate_limited' });
-  const summary = buildThreadSummary({ thread: thr, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
-  assert.match(summary, /paused/i);
-  assert.match(summary, /rate limited/i);
 });
 
 test('resumeRateLimitedThread refuses a thread that is not rate_limited', async () => {

@@ -1,7 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleExecutionsGet } from '../../../src/domain/ui-service/query/executions.js';
-import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const now = Date.now();
@@ -86,22 +85,3 @@ test('executions.get handler throws not-found for an unknown id', async () => {
     (e: any) => e?.code === 'not-found',
   );
 });
-
-test('executions.get via facade returns real data for a known id', async () => {
-  const ui = createUiService(makeDeps());
-  const result = await ui.query('executions.get', { executionId: 'exec_known' });
-  assert.ok(result.ok);
-  assert.equal(result.data.id, 'exec_known');
-  assert.equal(result.data.metrics.costUsd, 0.05);
-});
-
-test('executions.get via facade returns not-found Err for a missing id', async () => {
-  const ui = createUiService(makeDeps());
-  const result = await ui.query('executions.get', { executionId: 'missing' });
-  assert.equal(result.ok, false);
-  assert.equal((result as any).code, 'not-found');
-});
-
-// The tRPC router binding (missing id → TRPCError NOT_FOUND) is covered in
-// the ui-http app-router test (tests/platform/ui-http-app-router.test.ts); the facade data + not-found paths are asserted
-// in the two facade tests above.

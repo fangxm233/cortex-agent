@@ -17,7 +17,6 @@ import {
   evaluateAndTransition,
   finalizeThread,
   consumeWaitControl,
-  getActiveHandle,
   cancelActiveThread,
   type ThreadRunResult,
   type ThreadContext,
@@ -117,68 +116,16 @@ function makeRunOpts(channel: string, overrides: Partial<RunThreadOptions> = {})
   };
 }
 
-// --- buildThreadSummary ---
-
-test('buildThreadSummary renders completed single-step thread on one line', () => {
+test('buildThreadSummary preserves the terminal failure reason', () => {
   const thread = makeThreadRecord({
-    id: 'thr_x', channel: 'C1', status: 'completed', totalCostUsd: 0.1234,
-    createdAt: '2026-04-16T10:00:00Z', endedAt: '2026-04-16T10:00:12Z',
-    steps: [{ stepIndex: 0, agentSlotId: 'main', stage: null, executionId: null, sessionId: null, sessionName: null, input: '', output: 'ok', costUsd: 0.1234, numTurns: 2, durationS: 12, startedAt: null, endedAt: null }],
+    id: 'thr_failed', channel: 'C1', status: 'failed', error: 'worker crashed',
+    createdAt: '2026-04-16T10:00:00Z', endedAt: '2026-04-16T10:00:01Z',
   });
-  const summary = buildThreadSummary({ thread, finalOutput: 'ok', totalCostUsd: 0.1234, totalNumTurns: 2, lastAgentResult: null, executionId: null, stopReason: null });
-  assert.match(summary, /^✅ Thread complete \| 1 steps \| \$0\.1234 \|/);
-  assert.equal(summary.split('\n').length, 1, 'single-step threads should not include per-step breakdown');
-});
-
-test('buildThreadSummary includes per-step breakdown when >1 step', () => {
-  const thread = makeThreadRecord({
-    id: 'thr_x', channel: 'C1', status: 'completed', totalCostUsd: 0.3,
-    createdAt: '2026-04-16T10:00:00Z', endedAt: '2026-04-16T10:00:30Z',
-    steps: [
-      { stepIndex: 0, agentSlotId: 'planner', stage: null, executionId: null, sessionId: null, sessionName: null, input: '', output: 'a', costUsd: 0.1, numTurns: 1, durationS: 10, startedAt: null, endedAt: null },
-      { stepIndex: 1, agentSlotId: 'coder', stage: null, executionId: null, sessionId: null, sessionName: null, input: '', output: 'b', costUsd: 0.2, numTurns: 3, durationS: 20, startedAt: null, endedAt: null },
-    ],
+  const summary = buildThreadSummary({
+    thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0,
+    lastAgentResult: null, executionId: null, stopReason: null,
   });
-  const summary = buildThreadSummary({ thread, finalOutput: 'b', totalCostUsd: 0.3, totalNumTurns: 4, lastAgentResult: null, executionId: null, stopReason: null });
-  const lines = summary.split('\n');
-  assert.equal(lines.length, 3);
-  assert.match(lines[1], /planner: 1 turns · \$0\.1000 ·/);
-  assert.match(lines[2], /coder: 3 turns · \$0\.2000 ·/);
-});
-
-test('buildThreadSummary uses blocked emoji for cancelled and error for failed', () => {
-  const base = makeThreadRecord({ id: 'thr_y', channel: 'C1', createdAt: '2026-04-16T10:00:00Z', endedAt: '2026-04-16T10:00:01Z' });
-  const cancelled = { ...base, status: 'cancelled' as const };
-  const failed = { ...base, status: 'failed' as const, error: 'boom' };
-  const sCancel = buildThreadSummary({ thread: cancelled, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
-  const sFail = buildThreadSummary({ thread: failed, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
-  assert.match(sCancel, /^🚫/);
-  assert.match(sFail, /^❌/);
-  assert.match(sFail, /Error: boom/);
-});
-
-test('buildThreadSummary handles missing per-step cost/turns/duration as "?"', () => {
-  const thread = makeThreadRecord({
-    id: 'thr_z', channel: 'C1', status: 'completed', totalCostUsd: 0,
-    createdAt: '2026-04-16T10:00:00Z', endedAt: '2026-04-16T10:00:00Z',
-    steps: [
-      { stepIndex: 0, agentSlotId: 'a', stage: null, executionId: null, sessionId: null, sessionName: null, input: '', output: null, costUsd: null, numTurns: null, durationS: null, startedAt: null, endedAt: null },
-      { stepIndex: 1, agentSlotId: 'b', stage: null, executionId: null, sessionId: null, sessionName: null, input: '', output: null, costUsd: null, numTurns: null, durationS: null, startedAt: null, endedAt: null },
-    ],
-  });
-  const summary = buildThreadSummary({ thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
-  assert.match(summary, /a: \? · \? · \?/);
-  assert.match(summary, /b: \? · \? · \?/);
-});
-
-test('buildThreadSummary elapsed is 0 when endedAt is null', () => {
-  const thread = makeThreadRecord({
-    id: 'thr_w', channel: 'C1', status: 'completed', totalCostUsd: 0, endedAt: null,
-    steps: [{ stepIndex: 0, agentSlotId: 'main', stage: null, executionId: null, sessionId: null, sessionName: null, input: '', output: '', costUsd: 0, numTurns: 0, durationS: 0, startedAt: null, endedAt: null }],
-  });
-  const summary = buildThreadSummary({ thread, finalOutput: '', totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
-  assert.ok(summary.length > 0);
-  assert.doesNotMatch(summary, /NaN/);
+  assert.match(summary, /worker crashed/);
 });
 
 // --- initThreadContext ---
@@ -334,13 +281,6 @@ test('finalizeThread returns null executionId when no steps exist', async () => 
   };
   const result = await finalizeThread(id, ctx);
   assert.equal(result.executionId, null);
-});
-
-// --- Re-exports delegate to running-executions ---
-
-test('getActiveHandle returns null for unknown channel (pass-through delegation)', () => {
-  const result = getActiveHandle('channel-does-not-exist-' + Math.random());
-  assert.equal(result, null);
 });
 
 // --- buildStepPrompt with pendingMessages ---

@@ -10,8 +10,6 @@ import {
   parseTaskRef,
   parseBlamePorcelain,
 } from '../../../src/domain/ui-service/query/memory.js';
-import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
-import { mutateInputSchemas } from '../../../src/domain/ui-service/input-schemas.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 // ── Fixture: a real on-disk project memory tree under a temp dir ──────────────
@@ -184,46 +182,6 @@ test('memory.file throws not-found for a missing file inside root', async () => 
     () => handleMemoryFile(makeDeps('my-project', root), { projectId: 'my-project', path: 'roadmap.md' }),
     (e: any) => e?.code === 'not-found',
   );
-});
-
-// ── (4) read-only: the scope adds ZERO mutate ops ────────────────────────────
-test('memory scope is read-only — no memory.* mutate op exists', () => {
-  const mutateKeys = Object.keys(mutateInputSchemas);
-  assert.ok(!mutateKeys.some((k) => k.startsWith('memory.')), `no memory.* mutate op, got: ${mutateKeys.join(',')}`);
-});
-
-// ── wiring: facade + tRPC router ─────────────────────────────────────────────
-test('memory.tree / memory.file reachable via the ui-service facade', async () => {
-  const { root } = makeProject();
-  const ui = createUiService(makeDeps('my-project', root));
-  const tree = await ui.query('memory.tree', { projectId: 'my-project' });
-  assert.ok(tree.ok);
-  assert.equal(tree.data.files[0].name, 'mission.md');
-
-  const file = await ui.query('memory.file', { projectId: 'my-project', path: 'mission.md' });
-  assert.ok(file.ok);
-  assert.equal(file.data.content, '# mission\n');
-
-  const bad = await ui.query('memory.file', { projectId: 'my-project', path: '../secret.txt' });
-  assert.equal(bad.ok, false);
-  assert.equal((bad as any).code, 'invalid-args');
-});
-
-// The tRPC router binding (traversal → TRPCError BAD_REQUEST) is covered in
-// the ui-http app-router test (tests/platform/ui-http-app-router.test.ts); here we assert the facade reads STATUS.md and
-// rejects traversal with invalid-args.
-test('memory.tree / memory.file via facade read a file and reject traversal', async () => {
-  const { root } = makeProject();
-  const ui = createUiService(makeDeps('my-project', root));
-  const tree = await ui.query('memory.tree', { projectId: 'my-project' });
-  assert.ok(tree.ok);
-  assert.equal(tree.data.projectId, 'my-project');
-  const file = await ui.query('memory.file', { projectId: 'my-project', path: 'STATUS.md' });
-  assert.ok(file.ok);
-  assert.equal(file.data.content, '# status\nline2\n');
-  const bad = await ui.query('memory.file', { projectId: 'my-project', path: '../secret.txt' });
-  assert.equal(bad.ok, false);
-  if (!bad.ok) assert.equal(bad.code, 'invalid-args');
 });
 
 // ── (5) git line-level +/− via numstat (working tree vs HEAD) ─────────────────

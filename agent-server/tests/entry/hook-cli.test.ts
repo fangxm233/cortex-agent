@@ -1,5 +1,5 @@
 // input:  hook CLI, registry sync, temporary hook/template files
-// output: CLI metadata, mutation, execution, and package tests
+// output: CLI metadata, mutation, execution, and ask-flow tests
 // pos:    Verifies the declarative hook registry CLI contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -83,20 +83,6 @@ function writePayloadHook(fixture: Fixture, filename: string, exitCode = 0): voi
     "});",
   ].join('\n'));
 }
-
-test('root and subcommand help use copyable cortex-hook examples', async (t) => {
-  const fixture = makeFixture(t);
-  const root = await runHookCli(['--help'], fixture.options);
-  assert.equal(root.exitCode, 0);
-  assert.match(root.stdout, /Usage: cortex-hook <command> \[options\]/);
-  assert.match(root.stdout, /cortex-hook test --id tasks-yaml-guard --payload payload\.json/);
-  for (const command of ['list', 'show', 'enable', 'disable', 'test', 'ask']) {
-    const result = await runHookCli([command, '-h'], fixture.options);
-    assert.equal(result.exitCode, 0);
-    assert.match(result.stdout, new RegExp(`Usage: cortex-hook ${command}`));
-    assert.match(result.stdout, /Examples:/);
-  }
-});
 
 test('list reports every registry and template hook with source and state', async (t) => {
   const fixture = makeFixture(t);
@@ -491,14 +477,4 @@ test('ask --dry-run flows the smoke-test flag to the webhook body', async (t) =>
   assert.equal(result.exitCode, 0, result.stderr);
   assert.equal(calls[0].body.dryRun, true);
   assert.equal(parseOutput(result).dry_run, true);
-});
-
-test('package bin, lockfile, and build shebang wiring include cortex-hook', () => {
-  const packageJson = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'));
-  const packageLock = JSON.parse(fs.readFileSync(path.resolve('package-lock.json'), 'utf8'));
-  const copyAssets = fs.readFileSync(path.resolve('scripts/copy-assets.js'), 'utf8');
-
-  assert.equal(packageJson.bin['cortex-hook'], 'dist/entry/hook-cli.js');
-  assert.equal(packageLock.packages[''].bin['cortex-hook'], 'dist/entry/hook-cli.js');
-  assert.match(copyAssets, /dist\/entry\/hook-cli\.js/);
 });

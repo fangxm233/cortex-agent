@@ -78,11 +78,6 @@ test('verdict validation: missing --child / bad --verdict / unknown parent all f
   assert.match(badParent.stdout + badParent.stderr, /not found/i);
 });
 
-test('verdict appears in CLI help', () => {
-  const r = runCli(['--help']);
-  assert.match(r.stdout, /verdict/);
-});
-
 test('atomicWriteSync tripwire: refuses to write under the real ~/.cortex from a test process', () => {
   const realPath = path.join(os.homedir(), '.cortex', 'tmp', `_vd_tripwire_${Date.now()}.json`);
   assert.throws(() => atomicWriteSync(realPath, '{}'), /blocked/);

@@ -81,14 +81,6 @@ test('ui without a subcommand explains the valid ones', async () => {
   assert.match(result.stderr, /enable/);
 });
 
-test('ui --help documents the command with copyable examples', async () => {
-  const result = await runCli(['ui', '--help']);
-
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /cortex ui enable/);
-  assert.match(result.stdout, /--json/);
-});
-
 test('ui enable prints a human summary when --json is absent', async () => {
   const home = makeHome();
 

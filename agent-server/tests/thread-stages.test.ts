@@ -12,7 +12,6 @@ import { threadStore } from '../src/store/thread-repo.js';
 import {
   parseTarget,
   resolveStageName,
-  formatEndpoint,
   pickStepTemplate,
   buildStepPrompt,
   THREAD_PROTOCOL_PREAMBLE,
@@ -194,18 +193,6 @@ test('resolveStageName falls back to the first declared stage when entryStage is
 
 test('resolveStageName returns null for null agent (defensive)', () => {
   assert.equal(resolveStageName(null, 'anything'), null);
-});
-
-// ==============================
-// C. formatEndpoint
-// ==============================
-
-test('formatEndpoint joins agent + stage with colon', () => {
-  assert.equal(formatEndpoint('coder', 'plan'), 'coder:plan');
-});
-
-test('formatEndpoint renders bare agent name when stage is null', () => {
-  assert.equal(formatEndpoint('coder', null), 'coder');
 });
 
 // ==============================

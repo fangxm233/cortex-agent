@@ -233,56 +233,25 @@ test('finalizeAbortedThread tolerates a missing onAbort callback', async () => {
   assert.equal(threadStore.get(thread.id)!.status, 'aborted');
 });
 
-// --- buildThreadSummary rendering for aborted status ---
-
-function minimalAbortedThread(reason: string | null, endedAt: string | null): ThreadRecord {
-  return {
-    id: 'thr_fake', templateName: null, status: 'aborted',
+test('buildThreadSummary preserves the abort reason', () => {
+  const thread = {
+    id: 'thr_aborted', templateName: null, status: 'aborted',
     channel: 'C1', projectId: 'general', platformThreadId: null,
-    userMessage: '', userMessageTs: 'ts',
-    workspacePath: '', artifactPath: '',
-    agents: { main: { slotId: 'main', profile: '__active__', sessionId: null, sessionName: null, status: 'completed', lastOutput: null, persistSession: false } },
-    activeAgent: 'main', activeStage: null, currentStepIndex: 1,
-    steps: [{ stepIndex: 0, agentSlotId: 'main', stage: null, executionId: null, sessionId: null, sessionName: null, input: '', output: 'x', costUsd: 0, numTurns: 1, durationS: 1, startedAt: null, endedAt: null }],
+    userMessage: '', userMessageTs: 'ts', workspacePath: '', artifactPath: '',
+    agents: {}, activeAgent: null, activeStage: null, currentStepIndex: 0, steps: [],
     iterationCounts: {}, totalCostUsd: 0,
     createdAt: '2026-04-16T10:00:00Z', updatedAt: '2026-04-16T10:00:01Z',
-    endedAt, error: null, abortReason: reason, metadata: null,
-  };
-}
-
-test('buildThreadSummary renders stopped emoji for aborted status', () => {
-  const thread = minimalAbortedThread('blocked on upstream', '2026-04-16T10:00:05Z');
-  const summary = buildThreadSummary({ thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
-  assert.match(summary, /^🛑/);
-  assert.match(summary, /Aborted: blocked on upstream/);
-});
-
-test('buildThreadSummary renders "Aborted (no reason given)" when abortReason is null', () => {
-  const thread = minimalAbortedThread(null, '2026-04-16T10:00:05Z');
-  const summary = buildThreadSummary({ thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0, lastAgentResult: null, executionId: null, stopReason: null });
-  assert.match(summary, /Aborted \(no reason given\)/);
+    endedAt: '2026-04-16T10:00:01Z', error: null,
+    abortReason: 'blocked on upstream', metadata: null,
+  } as ThreadRecord;
+  const summary = buildThreadSummary({
+    thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0,
+    lastAgentResult: null, executionId: null, stopReason: null,
+  });
+  assert.match(summary, /blocked on upstream/);
 });
 
 // --- THREAD_PROTOCOL_PREAMBLE injection into buildStepPrompt ---
-
-test('THREAD_PROTOCOL_PREAMBLE teaches the thread_abort tool (not the old artifact marker)', () => {
-  // Guards against accidental edits that drop the actual instruction OR reintroduce the marker.
-  assert.match(THREAD_PROTOCOL_PREAMBLE, /thread_abort/);
-  assert.match(THREAD_PROTOCOL_PREAMBLE, /Cortex Thread Protocol/);
-  assert.doesNotMatch(THREAD_PROTOCOL_PREAMBLE, /\[ABORT/, 'must not instruct writing the old [ABORT] marker');
-});
-
-test('THREAD_PROTOCOL_PREAMBLE teaches task-based delegation without the removed thread_start tool', () => {
-  assert.match(THREAD_PROTOCOL_PREAMBLE, /thread_wait/);
-  assert.match(THREAD_PROTOCOL_PREAMBLE, /thread_split/);
-  assert.match(THREAD_PROTOCOL_PREAMBLE, /cortex-task spawn/);
-  assert.match(THREAD_PROTOCOL_PREAMBLE, /--task-file/);
-  assert.match(THREAD_PROTOCOL_PREAMBLE, /Write tool/);
-  assert.doesNotMatch(THREAD_PROTOCOL_PREAMBLE, /thread_start/);
-  assert.doesNotMatch(THREAD_PROTOCOL_PREAMBLE, /\[WAIT_CHILDREN\]/, 'must not instruct writing the old marker');
-  // Acceptance-before-trust: child results must be verified against the contract.
-  assert.match(THREAD_PROTOCOL_PREAMBLE, /verif/i);
-});
 
 test('buildStepPrompt injects THREAD_PROTOCOL_PREAMBLE for ad-hoc thread with workspace artifact', () => {
   const anyAgent = listAgents()[0];

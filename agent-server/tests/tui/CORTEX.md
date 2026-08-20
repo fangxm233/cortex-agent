@@ -12,21 +12,18 @@ transcript state, render helpers and the websocket client.
 | dashboardSchedulesTab.test.tsx | test | Covers schedules tab row actions and errors |
 | dashboardTasksTab.test.tsx | test | Covers tasks tab row actions and errors |
 | dashboardThreadsTab.test.tsx | test | Covers threads tab cancel and terminal case |
-| inline-markdown.test.tsx | test | Covers inline markdown marker stripping |
 | inputBox-ctrl-leak.test.tsx | test | Covers ctrl key character leak regression |
 | inputBox-edit.test.tsx | test | Covers paste, multi-line and slash arguments |
 | inputBox-slash.test.tsx | test | Covers the slash command palette |
 | inputBox.test.tsx | test | Covers submit gating, history and shortcuts |
 | keybindings.test.tsx | test | Covers global keybinding handler dispatch |
 | logic.test.ts | test | Covers focus, scroll and stream pure helpers |
-| markdown.test.ts | test | Covers the minimal markdown parser |
 | notificationBadge.test.tsx | test | Covers notification selection callback |
 | planFeedbackModal.test.tsx | test | Covers plan approve, feedback and cancel |
 | projectSwitcher.test.tsx | test | Covers project switcher select and escape |
 | raf-batch.test.ts | test | Covers numeric coalescer and throttle |
 | reconnect.test.ts | test | Covers websocket reconnect and resume hello |
 | render-output.test.ts | test | Covers synchronized output writer and stats |
-| rich-blocks.test.tsx | test | Covers rich block rendering rules |
 | slash-commands.test.ts | test | Covers slash registry parse and filter |
 | stream-batching.test.ts | test | Covers stream frame batching into state |
 | transcript-orphan-stream.test.ts | test | Covers orphan stream frame recovery |

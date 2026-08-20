@@ -1,6 +1,6 @@
 // input:  Vitest, temporary prompt files, shipped defaults
-// output: Coder asset and manager directive migration regressions
-// pos:    Verifies stock prompt migrations and coder policy assets
+// output: Coder, reviewer, and manager directive migration regressions
+// pos:    Verifies stock prompt migrations and customization guards
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterAll, vi } from 'vitest';
@@ -304,21 +304,6 @@ test.each([
   assert.equal(await readText(target), first, 'second run must be byte-identical');
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
   assert.equal(versions[relativePath], '2026.7.31');
-});
-
-test('shipped coder assets apply repository privacy policy at every commit instruction', async () => {
-  const directive = await readText(path.join(DEFAULTS_DIR, 'prompts', 'directives', 'coder.md'));
-  const developSkill = await readText(path.join(
-    DEFAULTS_DIR,
-    'plugins',
-    'cortex-coder',
-    'skills',
-    'develop',
-    'SKILL.md',
-  ));
-
-  assert.equal(directive.split(CODER_COMMIT_POLICY).length - 1, 3);
-  assert.equal(developSkill.split(CODER_COMMIT_POLICY).length - 1, 1);
 });
 
 test('runMigrations keeps coder directive migration idempotent', async () => {

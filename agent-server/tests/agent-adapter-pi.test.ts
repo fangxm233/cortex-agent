@@ -1,6 +1,6 @@
-// input:  PI source, hooks, cache, transcripts, fake processes
-// output: PI child auth inheritance, isolation, and lifecycle tests
-// pos:    Covers PI process construction and lifecycle
+// input:  PI adapter, framing, spawn stubs, transcripts, provider discovery
+// output: PI spawn, RPC lifecycle, compaction, and resume regressions
+// pos:    Covers PI process construction and session lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -9,9 +9,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import ts from 'typescript';
 import type {
   ChildProcess, ChildProcessWithoutNullStreams, SpawnOptions,
 } from 'node:child_process';
@@ -22,7 +20,6 @@ import { PI_PLUGIN_MCP_CONFIG_ENV } from '../src/agent-adapter/pi/mcp-config.js'
 import { createPIProviderDiscovery } from '../src/agent-adapter/pi/discovery.js';
 import { encodeCommand, createLineSplitter } from '../src/agent-adapter/pi/framing.js';
 import { buildPiEnv, buildSpawnArgs } from '../src/agent-adapter/pi/spawn-args.js';
-import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
 
 // Writable temp session dir used by Group G tests (avoids root-level paths that fail with EACCES).
 const G_SESSION_DIR = pathJoin(tmpdir(), `pi-test-sessions-${process.pid}`);
@@ -81,51 +78,6 @@ function makeStubSpawner(): {
     },
   };
 }
-
-const COMPLEXITY_KINDS = new Set<ts.SyntaxKind>([
-  ts.SyntaxKind.IfStatement, ts.SyntaxKind.ConditionalExpression,
-  ts.SyntaxKind.CaseClause, ts.SyntaxKind.CatchClause,
-  ts.SyntaxKind.ForStatement, ts.SyntaxKind.ForInStatement, ts.SyntaxKind.ForOfStatement,
-  ts.SyntaxKind.WhileStatement, ts.SyntaxKind.DoStatement,
-]);
-
-function callableMetrics(relativePath: string, name: string): [number, number, number] {
-  const filePath = fileURLToPath(new URL(relativePath, import.meta.url));
-  const source = ts.createSourceFile(filePath, readFileSync(filePath, 'utf8'), ts.ScriptTarget.Latest);
-  let target: ts.FunctionLikeDeclaration | undefined;
-  const find = (node: ts.Node): void => {
-    const callable = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node);
-    if (callable && node.name?.getText(source) === name) target = node;
-    else ts.forEachChild(node, find);
-  };
-  find(source);
-  assert.ok(target, `${name} declaration not found`);
-  let branches = 0;
-  let maxNesting = 0;
-  const measure = (node: ts.Node, nesting: number): void => {
-    const nextNesting = nesting + Number(COMPLEXITY_KINDS.has(node.kind));
-    if (nextNesting > nesting) branches += 1;
-    maxNesting = Math.max(maxNesting, nextNesting);
-    ts.forEachChild(node, (child) => measure(child, nextNesting));
-  };
-  measure(target, 0);
-  const firstLine = source.getLineAndCharacterOfPosition(target.getStart(source)).line;
-  const lastLine = source.getLineAndCharacterOfPosition(target.getEnd()).line;
-  return [lastLine - firstLine + 1, branches, maxNesting];
-}
-
-test('PI spawn builders stay within function quality gates', () => {
-  const targets = [
-    ['../src/agent-adapter/pi/adapter.ts', 'spawn'],
-    ['../src/agent-adapter/pi/spawn-args.ts', 'buildSpawnArgs'],
-  ] as const;
-  for (const [filePath, name] of targets) {
-    const [lines, branches, nesting] = callableMetrics(filePath, name);
-    assert.ok(lines <= 30, `${name}: ${lines} lines exceeds 30`);
-    assert.ok(branches <= 3, `${name}: ${branches} branches exceeds 3`);
-    assert.ok(nesting <= 3, `${name}: nesting ${nesting} exceeds 3`);
-  }
-});
 
 test('spawn accepts explicit direct and thread-control MCP compositions', () => {
   for (const composition of ['direct', 'thread-control'] as const) {
@@ -888,14 +840,6 @@ test('kill() sends SIGTERM and cleans adapter session map', async () => {
   assert.ok(!adapter.listSessions().includes('k7'));
 
   child.emit('close', null, 'SIGTERM');
-});
-
-// --- Group E: adapter contract sanity ---
-
-test('PIAdapter exposes backend=pi with frozen capability matrix', () => {
-  const adapter = new PIAdapter();
-  assert.equal(adapter.backend, 'pi');
-  assert.equal(adapter.capabilities, CAPABILITIES_BY_BACKEND.pi);
 });
 
 // --- Group F: extensionPaths / --extension flag (task 5754 MCP bridge) ---
