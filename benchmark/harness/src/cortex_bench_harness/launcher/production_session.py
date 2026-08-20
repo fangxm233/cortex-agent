@@ -1,5 +1,5 @@
 # input:  installed server, sealed home, production arm and instruction
-# output: terminal production thread and emitted evidence files
+# output: terminal production result and emitted evidence files
 # pos:    Owns one production arm server lifecycle
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -28,6 +28,10 @@ GATEWAY_STATUS_URL = "http://127.0.0.1:9880/status"
 SERVER_AUTH_FILENAME = "production-server-auth.json"
 WEBHOOK_AUTH_FILENAME = "production-webhook-auth.json"
 TASK_SPEC_FILENAME = "production-task-spec.json"
+SESSION_OUTCOME_FILENAME = "production-session-outcome.json"
+SESSION_OUTCOME_SCHEMA_VERSION = "cortex-bench-production-session-outcome/1"
+DEADLINE_EXHAUSTED = "deadline_exhausted"
+DEADLINE_REASON = "run_deadline_reached"
 # `--auto-lock` acquires the project lock and deliberately never releases it, and the lock owner is
 # `CORTEX_EXECUTION_ID` or else the calling process id. Each exec is a new process, so the launcher
 # states one owner for the add and the release that follows it.
@@ -180,7 +184,10 @@ class ProductionServerSession:
             await self._wait_until_ready(execute)
             thread_id = await self._inject_unit_of_work(instruction, execute)
             result = await self._wait_for_result(thread_id, execute)
-            await self._export_evidence(execute)
+            if result.status == DEADLINE_EXHAUSTED:
+                self._write_deadline_outcome(result)
+            else:
+                await self._export_evidence(execute)
             return result
         finally:
             try:
@@ -417,7 +424,23 @@ class ProductionServerSession:
             if data.get("terminal") is True:
                 return self._parse_result(data, thread_id)
             await asyncio.sleep(self._poll_seconds)
-        raise ProductionSessionError("production thread result timed out")
+        if self._arm_bundle.injection != TASK_ROOT:
+            raise ProductionSessionError("production thread result timed out")
+        return ProductionThreadResult(thread_id, DEADLINE_EXHAUSTED, None, None)
+
+    def _write_deadline_outcome(self, result: ProductionThreadResult) -> None:
+        document = {
+            "schema_version": SESSION_OUTCOME_SCHEMA_VERSION,
+            "trial_id": self._spec.trial_id, "thread_id": result.thread_id,
+            "terminal": True, "status": result.status,
+            "terminal_reason": DEADLINE_REASON, "artifact": result.artifact,
+            "final_output": result.final_output,
+        }
+        path = self._spec.logs_dir / SESSION_OUTCOME_FILENAME
+        path.write_text(
+            json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
 
     @staticmethod
     def _parse_result(data: Mapping[str, object], thread_id: str) -> ProductionThreadResult:

@@ -12,6 +12,11 @@ from pathlib import Path
 from typing import cast
 
 from .host_finalization import OUTER_ENVELOPE_FILENAME, OUTER_ENVELOPE_SCHEMA_VERSION
+from .launcher.production_session import (
+    DEADLINE_EXHAUSTED,
+    DEADLINE_REASON,
+    SESSION_OUTCOME_SCHEMA_VERSION,
+)
 
 TERMINAL_SUCCESS = "terminal-success"
 TERMINAL_AGENT_FAILURE = "terminal-agent-failure"
@@ -94,6 +99,12 @@ class TrialOutcomeReader:
         exception = result.get("exception_info")
         if exception is not None:
             return self._exception_outcome(exception, rewards, envelope)
+        if _deadline_outcome(envelope.document):
+            return self._outcome(
+                TERMINAL_AGENT_FAILURE,
+                SCORE_AVAILABLE if rewards is not None else SCORE_FAILED,
+                DEADLINE_REASON, rewards=rewards, envelope=envelope,
+            )
         if rewards is None:
             return self._outcome(
                 TERMINAL_VERIFIER_FAILURE, SCORE_UNAVAILABLE, reward_reason,
@@ -156,6 +167,7 @@ def _envelope_reason(
         return "outer envelope schema_version is unsupported"
     for validator in (
         _identity_reason, _admission_reason, _requests_reason, _publication_reason,
+        _agent_outcome_reason,
     ):
         reason = validator(envelope, trial_id, arm_name)
         if reason is not None:
@@ -192,6 +204,32 @@ def _requests_reason(
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         return "outer envelope has no proxy_usage.requests count"
     return None
+
+
+def _agent_outcome_reason(
+    envelope: Mapping[str, object], trial_id: str, _arm_name: str,
+) -> str | None:
+    outcome = envelope.get("agent_outcome")
+    if outcome is None:
+        return None
+    if not isinstance(outcome, Mapping):
+        return "outer envelope agent_outcome must be an object"
+    expected = {
+        "schema_version": SESSION_OUTCOME_SCHEMA_VERSION,
+        "trial_id": trial_id, "terminal": True,
+        "status": DEADLINE_EXHAUSTED, "terminal_reason": DEADLINE_REASON,
+    }
+    if any(outcome.get(key) != value for key, value in expected.items()):
+        return "outer envelope agent_outcome is invalid"
+    thread_id = outcome.get("thread_id")
+    if not isinstance(thread_id, str) or not thread_id:
+        return "outer envelope agent_outcome has no thread_id"
+    return None
+
+
+def _deadline_outcome(envelope: Mapping[str, object]) -> bool:
+    outcome = envelope.get("agent_outcome")
+    return isinstance(outcome, Mapping) and outcome.get("status") == DEADLINE_EXHAUSTED
 
 
 def _publication_reason(

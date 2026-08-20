@@ -111,6 +111,7 @@ class FakeExecutor:
         self, logs_dir: Path, *, export_failure: bool = False,
         malformed_evidence: bool = False, gateway_failure: bool = False,
         dispatch_never_runs: bool = False, result_timeout_once: bool = False,
+        result_never_terminal: bool = False,
     ) -> None:
         self.logs_dir = logs_dir
         self.export_failure = export_failure
@@ -118,6 +119,7 @@ class FakeExecutor:
         self.gateway_failure = gateway_failure
         self.dispatch_never_runs = dispatch_never_runs
         self.result_timeout_once = result_timeout_once
+        self.result_never_terminal = result_never_terminal
         self.calls: list[tuple[str, dict[str, str] | None, str | None]] = []
         self.timeouts: list[int | None] = []
         self.payloads: dict[str, object] = {}
@@ -180,7 +182,7 @@ class FakeExecutor:
             self.result_polls += 1
             if self.result_timeout_once and self.result_polls == 1:
                 raise RuntimeError("Command timed out after 10 seconds")
-            terminal = self.result_polls > 1
+            terminal = not self.result_never_terminal and self.result_polls > 1
             return self._reply({
                 "success": True,
                 "data": {
@@ -482,6 +484,34 @@ def test_manager_arm_waits_on_the_thread_the_dispatcher_started(tmp_path: Path) 
         "action": "list-threads", "scope": "project", "projectId": "general",
     }
     assert runner.payloads["production-thread-result.json"]["threadId"] == "thr_dispatched"
+    assert production.stopped_cleanly is True
+
+
+def test_manager_deadline_returns_and_records_an_explicit_terminal_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = FakeExecutor(tmp_path, result_never_terminal=True)
+    declared_arm = manager_arm()
+    declared_arm["limits"]["deadline_seconds"] = 1
+    clock = iter(value / 4 for value in range(1, 40))
+    monkeypatch.setattr("cortex_bench_harness.launcher.production_session.time.monotonic", lambda: next(clock))
+    production = session(tmp_path, arm=declared_arm, bundle=MANAGER_BUNDLE)
+
+    result = asyncio.run(production.run("Solve only this task.", runner))
+
+    assert (result.thread_id, result.status, result.final_output) == (
+        "thr_dispatched", "deadline_exhausted", None,
+    )
+    assert json.loads((tmp_path / "production-session-outcome.json").read_text()) == {
+        "schema_version": "cortex-bench-production-session-outcome/1",
+        "trial_id": "trial-direct", "thread_id": "thr_dispatched",
+        "terminal": True, "status": "deadline_exhausted",
+        "terminal_reason": "run_deadline_reached", "artifact": None,
+        "final_output": None,
+    }
+    commands = [call[0] for call in runner.calls]
+    assert all("cortex-evidence-export" not in command for command in commands)
+    assert commands[-1].startswith("kill -TERM -- -4242")
     assert production.stopped_cleanly is True
 
 

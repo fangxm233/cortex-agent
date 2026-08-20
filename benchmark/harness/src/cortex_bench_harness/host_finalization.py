@@ -28,6 +28,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .launcher.production_home import committed_input_bundle_files
+from .launcher.production_session import SESSION_OUTCOME_FILENAME
 from .launcher.trial_admission import ADMISSION_EVIDENCE_FILENAME
 from .launcher.trial_proxy import TrialRevocation
 from .manifest import MANIFEST_FILENAME
@@ -149,7 +150,7 @@ def finalize_host_trial(
     _require_trusted_security(scan, revocation, trial_id)
     envelope = _common_envelope(
         walked, collected, scan, verifier_dir, root_run_id, trial_id, arm,
-        revocation,
+        revocation, _agent_outcome(logs_dir, collected),
     )
     _add_arm_records(envelope, arm_kind, launch, assets, task)
     return _publish_outer(artifact_dir / OUTER_ENVELOPE_FILENAME, envelope)
@@ -181,9 +182,9 @@ def _arm_records(
 def _common_envelope(
     walked: Mapping[str, str], collected: Sequence[CollectedFile], scan: dict[str, object],
     verifier_dir: Path, root_run_id: str, trial_id: str, arm: Mapping[str, object],
-    revocation: TrialRevocation | None,
+    revocation: TrialRevocation | None, agent_outcome: Mapping[str, object] | None,
 ) -> dict[str, object]:
-    return {
+    envelope: dict[str, object] = {
         "schema_version": OUTER_ENVELOPE_SCHEMA_VERSION,
         "identity": {
             "trial_id": trial_id, "root_run_id": root_run_id, "arm_name": arm.get("name")},
@@ -199,6 +200,32 @@ def _common_envelope(
                         "atomic": True, "post_publication_reread": True},
         "grader_admission": {"admitted": True, "reason": "recorded"},
     }
+    if agent_outcome is not None:
+        envelope["agent_outcome"] = dict(agent_outcome)
+    return envelope
+
+
+def _agent_outcome(
+    logs_dir: Path, collected: Sequence[CollectedFile],
+) -> dict[str, object] | None:
+    record = _read_record(logs_dir / SESSION_OUTCOME_FILENAME)
+    if record is None:
+        return None
+    outcome = dict(record)
+    outcome["cost_evidence"] = _cost_evidence(collected)
+    return outcome
+
+
+def _cost_evidence(collected: Sequence[CollectedFile]) -> dict[str, object]:
+    prefix = "production-cortex-home/container-home/.aistatus/usage/"
+    paths = [
+        f"{item.root}/{item.relative_path}" for item in collected
+        if item.root == "agent" and item.kind == "file"
+        and item.relative_path.startswith(prefix) and item.relative_path.endswith(".jsonl")
+    ]
+    if not paths:
+        return _unavailable("run_cost_evidence_absent")
+    return {"status": "recorded", "paths": paths}
 
 
 def _add_arm_records(

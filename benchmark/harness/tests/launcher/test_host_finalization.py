@@ -89,6 +89,13 @@ SEALED_ENVIRONMENT_KEYS = (
     "CORTEX_BENCH_BACKEND", "CORTEX_BENCH_TRIAL_ID", "CORTEX_HOME", "HOME", "PATH",
 )
 UNAVAILABLE = "unavailable"
+DEADLINE_COST_PATH = (
+    "production-cortex-home/container-home/.aistatus/usage/"
+    "projects/fixture/2026-08.jsonl"
+)
+DEADLINE_COST_PAYLOAD = (
+    b'{"request_id":"req-23","cost_usd":"0.0042","cache_write_tokens":null}\n'
+)
 DIRECT_CHECK_IDS = (
     "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8",
     "D1", "D2", "D3", "D4", "D5", "D6",
@@ -769,6 +776,100 @@ def test_the_proxy_revocation_and_audit_records_land_in_the_envelope(
     assert usage["lease_echo"] == {
         "status": UNAVAILABLE, "reason": "unavailable_by_design",
     }
+    assert agent.proxy_session.handle.revocation_evidence["listener_present"] is False
+
+
+def deadline_outcome_record() -> dict[str, object]:
+    return {
+        "schema_version": "cortex-bench-production-session-outcome/1",
+        "trial_id": TRIAL_ID, "thread_id": "thr-manager-root",
+        "terminal": True, "status": "deadline_exhausted",
+        "terminal_reason": "run_deadline_reached", "artifact": None,
+        "final_output": None,
+    }
+
+
+def install_deadline_run(
+    monkeypatch: pytest.MonkeyPatch, environment: FinalizationEnvironment,
+) -> None:
+    async def run_deadline(
+        self: ProductionServerSession, _instruction: str, _execute: object,
+    ) -> None:
+        write_json(
+            environment.logs_dir / "production-session-outcome.json",
+            deadline_outcome_record(),
+        )
+        aistatus = (environment.logs_dir
+                    / "production-cortex-home/container-home/.aistatus")
+        aistatus.chmod(0o755)
+        cost = environment.logs_dir / DEADLINE_COST_PATH
+        cost.parent.mkdir(parents=True)
+        cost.write_bytes(DEADLINE_COST_PAYLOAD)
+        self._stopped_cleanly = True
+
+    monkeypatch.setattr(ProductionServerSession, "run", run_deadline)
+
+
+def install_paid_accounting(monkeypatch: pytest.MonkeyPatch) -> None:
+    original = TrialProxySession.write_accounting
+
+    def write_accounting(self: TrialProxySession) -> tuple[Path, Path]:
+        paths = original(self)
+        document = json.loads(self.export_path.read_text())
+        document.update({
+            "requests": {"status": "available", "value": 23},
+            "input_tokens": {"status": "available", "value": 1411},
+            "output_tokens": {"status": "available", "value": 97},
+            "cached_tokens": {
+                "status": "unavailable", "reason": "no_cache_breakdown_reported",
+            },
+        })
+        write_json(self.export_path, document)
+        return paths
+
+    monkeypatch.setattr(TrialProxySession, "write_accounting", write_accounting)
+
+
+def assert_deadline_evidence(envelope: Mapping[str, object]) -> None:
+    assert envelope["agent_outcome"] == {
+        **deadline_outcome_record(),
+        "cost_evidence": {
+            "status": "recorded", "paths": [f"agent/{DEADLINE_COST_PATH}"],
+        },
+    }
+    assert envelope["proxy_usage"] == {
+        "schema_version": "cortex-bench-proxy-export/1", "trial_id": TRIAL_ID,
+        "requests": 23, "input_tokens": 1411, "output_tokens": 97,
+        "cached_tokens": {
+            "status": "unavailable", "reason": "no_cache_breakdown_reported",
+        },
+        "audit_entries": 1, "audit_outcomes": {},
+        "lease_echo": unavailable("unavailable_by_design"),
+    }
+    cost = recorded_files(envelope)[("agent", DEADLINE_COST_PATH)]
+    assert cost["sha256"] == sha256_hex(DEADLINE_COST_PAYLOAD)
+
+
+def test_deadline_outcome_revokes_and_publishes_paid_evidence_without_zero_filling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent, environment = make_agent(tmp_path, monkeypatch)
+    install_deadline_run(monkeypatch, environment)
+    install_paid_accounting(monkeypatch)
+
+    run_agent(agent, environment)
+    write_json(tmp_path / "result.json", {
+        "verifier_result": {"rewards": {"reward": 0}},
+    })
+
+    assert_deadline_evidence(published(tmp_path))
+    reread = TrialOutcomeReader(
+        trial_id=TRIAL_ID, arm_name=ARM_NAME, trial_root=tmp_path,
+    ).read()
+    assert (reread.outcome_state, reread.reason, reread.requests) == (
+        "terminal-agent-failure", "run_deadline_reached", 23,
+    )
+    assert reread.envelope_sha256 == sha256_hex(envelope_path(tmp_path).read_bytes())
     assert agent.proxy_session.handle.revocation_evidence["listener_present"] is False
 
 
