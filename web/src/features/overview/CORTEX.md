@@ -9,4 +9,4 @@ Shows cost summary, budget and recent spend, editable schedules and executions.
 | OverviewView.tsx | view | Center pane with cost, notes and project cards |
 | OverviewView.test.tsx | test | Tests schedule edit and resume actions |
 | overview-vm.ts | vm | Derives money, schedule and execution display |
-| overview-vm.test.ts | test | Unit tests for the overview view model |
+| overview-vm.test.ts | test | Tests project selection, execution duration and budget arithmetic |

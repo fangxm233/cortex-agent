@@ -8,9 +8,9 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MChatScreen.tsx | screen | Routes chat data, sends and local slash actions |
 | MChatScreen.optimistic.test.tsx | test | Tests optimistic sends and local shortcuts |
 | MChatView.tsx | view | Renders chat, formula replies, composer and sheets |
-| MChatView.test.tsx | test | Tests chat, slash and interaction controls |
+| MChatView.test.tsx | test | Tests chat state, slash, fullscreen and long-press interactions |
 | m-chat-vm.ts | vm | Chat rows, status, attachments, menu placement |
-| m-chat-vm.test.ts | test | Unit tests for the chat view model |
+| m-chat-vm.test.ts | test | Tests chat status, profiles and transcript row state |
 | MInteractionCards.tsx | view | Ask-user and plan-approval cards for chat |
 | MSessionListScreen.tsx | screen | Binds sessions, schedules and the Scheduled sheet |
 | MSessionListView.tsx | view | Day-grouped session rows with clock entry |
@@ -19,7 +19,6 @@ Framework-free view models map records to slots and have colocated unit tests.
 | m-session-list-vm.test.ts | test | Unit tests for the session list view model |
 | MThreadsScreen.tsx | screen | Loads active and historical thread sections |
 | MThreadsView.tsx | view | Grouped thread sections and wrapped pipelines |
-| MThreadsView.test.tsx | test | Tests sections, header and pipeline containment |
 | m-threads-vm.ts | vm | Derives budget, steps and task-linked card meta |
 | m-threads-vm.test.ts | test | Tests mobile task-linked thread metadata |
 | MThreadDetailScreen.tsx | screen | Binds routed mobile detail and cancellation |
@@ -29,12 +28,10 @@ Framework-free view models map records to slots and have colocated unit tests.
 | m-thread-detail-vm.test.ts | test | Unit tests for the thread detail view model |
 | MTasksScreen.tsx | screen | Loads the complete project task queue |
 | MTasksView.tsx | view | Renders sections with one-line blocker details |
-| MTasksView.test.tsx | test | Tests complete list and blocker truncation |
 | m-tasks-vm.ts | vm | Orders non-empty lifecycle task groups |
 | m-tasks-vm.test.ts | test | Tests complete lifecycle group order |
 | MTaskDetailScreen.tsx | screen | Loads one task plus its verification evidence |
 | MTaskDetailView.tsx | view | Task detail with blocker, fields, deps and history |
-| MTaskDetailView.test.tsx | test | Guards blocker, approval and dependency state |
 | m-task-detail-vm.ts | vm | Maps task blocker, claim and verification state |
 | m-task-detail-vm.test.ts | test | Tests blocker, approval, claim and detail state |
 | MProjectScreen.tsx | screen | Binds project, notes, cost and scoped approvals |
@@ -42,7 +39,6 @@ Framework-free view models map records to slots and have colocated unit tests.
 | m-project-vm.ts | vm | Derives thread counts, approval buckets, switch rows |
 | m-project-vm.test.ts | test | Unit tests for the project view model |
 | MNewProjectView.tsx | view | New-project sheet with name input and create |
-| MNewProjectView.test.tsx | test | Unit tests for create gating in the sheet |
 | m-new-project-vm.ts | vm | Create-gate predicate and copy for the sheet |
 | m-new-project-vm.test.ts | test | Unit tests for the new project view model |
 | MApprovalsScreen.tsx | screen | Binds approvals list, approve and reject |
@@ -55,9 +51,7 @@ Framework-free view models map records to slots and have colocated unit tests.
 | m-issues-vm.test.ts | test | Unit tests for the issues view model |
 | MNotesScreen.tsx | screen | Binds private note queries and mutations |
 | MNotesView.tsx | view | Lists tappable notes with swipe delete and input |
-| MNotesView.test.tsx | test | Tests tap, swipe and full-page presentation |
 | MNotesProjectCard.tsx | view | Adds and previews notes on Projects |
-| MNotesProjectCard.test.tsx | test | Tests the persistent zero-count entry |
 | m-notes-vm.ts | vm | Groups notes and limits card previews |
 | m-notes-vm.test.ts | test | Tests note counts, groups and local time |
 | m-notes-gestures.ts | util | Resolves swipe and post-drag click suppression |
@@ -69,7 +63,6 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MMemoryFileScreen.tsx | screen | Binds one memory file by path parameter |
 | MMemoryFileView.tsx | view | Read-only markdown file with header metaline |
 | m-memory-file-vm.ts | vm | Derives basename, byte size and metaline |
-| m-memory-file-vm.test.ts | test | Unit tests for the memory file view model |
 | MMachinesScreen.tsx | screen | Binds the machine list, expand state and probe |
 | MMachinesView.tsx | view | Expandable machine cards with probe telemetry |
 | MMachinesView.test.tsx | test | Tests collapsed and expanded panel gating |
@@ -77,28 +70,24 @@ Framework-free view models map records to slots and have colocated unit tests.
 | m-machines-vm.test.ts | test | Unit tests for the machines view model |
 | MDaemonScreen.tsx | screen | Binds daemon status, counts and restart |
 | MDaemonView.tsx | view | Shows daemon processes, restart and disconnect controls |
-| MDaemonView.test.tsx | test | Tests disconnect action layout |
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
 | MSettingsScreen.tsx | screen | Loads settings and account summary data |
 | MSettingsView.tsx | view | Fixed-header settings with account and config drill-ins |
-| MSettingsView.test.tsx | test | Tests fixed header and settings drill-in rows |
 | MUsageScreen.tsx | screen | Binds localized Usage thresholds, saves, refresh, and settings back route |
-| MUsageScreen.test.tsx | test | Tests Usage hook, refresh and replace-back wiring |
 | MUsageView.tsx | view | Renders supported quotas, spend, inline thresholds, and fallback notice |
 | MUsageView.test.tsx | test | Tests functional row saves, config gating, and refresh interactions |
 | m-settings-vm.ts | vm | Maps config, costs and mounted hooks |
 | m-settings-vm.test.ts | test | Tests mobile settings data mapping |
 | MAccountsScreen.tsx | screen | Loads account status and serializes logout actions |
 | MAccountsView.tsx | view | Groups provider cards with gated account actions |
-| MAccountsView.test.tsx | test | Tests mobile account groups and pending actions |
-| MAccountsView.custom.test.tsx | test | Tests the custom provider section and delete guard |
+| MAccountsView.test.tsx | test | Tests account permissions, pending actions and credential redaction |
+| MAccountsView.custom.test.tsx | test | Tests custom-provider edit actions and delete confirmation |
 | MCustomProviderSheet.tsx | view | Bottom-sheet editor for one custom PI provider |
 | m-accounts-vm.ts | vm | Derives shared account state and actionable credentials |
 | m-accounts-vm.test.ts | test | Tests shared account filtering and action gates |
 | MHooksScreen.tsx | screen | Loads the hook registry and sheet selection |
 | MHooksView.tsx | view | Grouped read-only hooks with declaration sheet |
-| MHooksView.test.tsx | test | Tests hook grouping, flags and the sheet |
 | m-hooks-vm.ts | vm | Groups hooks by namespace into read-only slots |
 | m-hooks-vm.test.ts | test | Unit tests for the hooks view model |
 | MPlanReadScreen.tsx | screen | Loads a plan and handles approve or reject |
@@ -110,4 +99,3 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MAppUpdateProvider.tsx | provider | Mounts the prompt when a shell update is ready |
 | MAppUpdateDialog.tsx | view | Shell update alert with install, skip, later |
 | m-connection.ts | util | Maps connection status to pill tone and pulse |
-| m-connection.test.ts | test | Unit tests for the connection status mapping |

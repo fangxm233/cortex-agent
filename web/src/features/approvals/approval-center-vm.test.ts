@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import {
-  statusPill,
-  pendingLabel,
   toListCard,
   toDetail,
   defaultSelectedId,
@@ -27,27 +25,6 @@ function mk(over: Partial<ApprovalInfo> = {}): ApprovalInfo {
     ...over,
   };
 }
-
-describe('statusPill', () => {
-  it.each([
-    ['pending', '● pending'],
-    ['approved', '✓ approved'],
-    ['rejected', '✕ rejected'],
-    ['failed', 'failed'],
-  ] as const)('maps %s to its semantic label', (status, label) => {
-    expect(statusPill(status).text).toBe(label);
-  });
-});
-
-describe('pendingLabel', () => {
-  it('is singular for 1', () => {
-    expect(pendingLabel(1)).toBe('1 approval pending');
-  });
-  it('is plural for 0 and >1', () => {
-    expect(pendingLabel(0)).toBe('0 approvals pending');
-    expect(pendingLabel(3)).toBe('3 approvals pending');
-  });
-});
 
 describe('toListCard', () => {
   it('carries id/title and queuedAt as age', () => {

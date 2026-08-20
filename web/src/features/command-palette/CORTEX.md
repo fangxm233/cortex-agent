@@ -7,5 +7,5 @@ Thread rows open details in place; page rows navigate and settings opens its ove
 |---|---|---|
 | CommandPalette.tsx | view | Dispatches page, settings, and thread targets |
 | palette-items.ts | vm | Builds route and modal rows from entities |
-| palette-items.test.ts | test | Unit tests for palette row building |
+| palette-items.test.ts | test | Tests entity row mapping, filtering and result caps |
 | useCommandPalette.ts | hook | Toggles the palette on the keyboard shortcut |

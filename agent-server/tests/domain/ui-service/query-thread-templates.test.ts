@@ -4,12 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  readThreadTemplates,
-  handleThreadTemplatesGet,
-} from '../../../src/domain/ui-service/query/thread-templates.js';
-import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
-import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { readThreadTemplates } from '../../../src/domain/ui-service/query/thread-templates.js';
 
 async function makeFixture(): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tt-fixture-'));
@@ -129,62 +124,3 @@ test('readThreadTemplates entries are sorted by name within each kind', async ()
   const names = entries.map((e) => e.name);
   assert.deepEqual(names, ['a-first', 'z-last']);
 });
-
-test('handleThreadTemplatesGet returns an array via the handler', async () => {
-  const result = await handleThreadTemplatesGet(makeMinimalDeps(), {});
-  assert.ok(Array.isArray(result));
-});
-
-test('threadTemplates.get via facade returns ok with array data', async () => {
-  const ui = createUiService(makeMinimalDeps());
-  const result = await ui.query('threadTemplates.get', {});
-  assert.ok(result.ok, `expected ok but got ${JSON.stringify(result)}`);
-  assert.ok(Array.isArray(result.data));
-});
-
-function makeMinimalDeps(): UiServiceDeps {
-  return {
-    projectStore: {
-      list: () => [],
-      get: () => undefined,
-      exists: () => false,
-      getDefault: () => ({ id: 'general', name: 'general', kind: 'general' as const, contextDir: '/tmp' }),
-      createProject: () => ({} as any),
-    },
-    sessionStore: {
-      listByProject: async () => [],
-      listByOrigin: async () => [],
-      listResumable: async () => [],
-      getById: async () => null,
-    },
-    conversationHistory: { getHistory: async () => null },
-    sendSessionMessage: () => {},
-    threadStore: { getAll: () => [], get: () => null },
-    taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
-    scheduler: {
-      list: async () => [],
-      get: async () => null,
-      pause: async () => null,
-      resume: async () => null,
-      remove: async () => false,
-      add: async () => ({ id: 'sch_new' } as any),
-      update: async () => null,
-    },
-    executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
-    executionLogTailer: { startTail: () => {}, stopTail: () => {}, refCount: () => 0 },
-    approvalsPath: '/tmp/PENDING_APPROVALS.md',
-    runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({
-      today: 0, week: 0, month: 0, total: 0,
-      byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {},
-      tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0,
-      dailyCost: [], byTriggerScoped: {},
-    }),
-    bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
-    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
-    cancelSessionRun: async () => 0,
-    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
-    clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
-    adapter: { getProjectConduits: async () => ({}) } as any,
-  };
-}

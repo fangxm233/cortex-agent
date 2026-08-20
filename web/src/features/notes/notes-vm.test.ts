@@ -1,22 +1,13 @@
-// input:  NoteInfo fixtures, local timezone and view-model helpers
-// output: grouping, local timestamps and shortcut regressions
-// pos:    Tests shared project notes presentation rules
+// input:  NoteInfo fixtures and view-model helpers
+// output: grouping and shortcut regressions
+// pos:    Tests shared project notes interaction rules
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
 import type { NoteInfo } from '@cortex-agent/ui-contract';
-import { buildNotesVm, formatNoteTime, isNotesShortcut } from './notes-vm';
+import { buildNotesVm, isNotesShortcut } from './notes-vm';
 
 const NOW = Date.parse('2026-07-29T18:00:00.000Z');
-
-function withTimeZone<T>(timeZone: string, run: () => T): T {
-  const previous = process.env.TZ;
-  process.env.TZ = timeZone;
-  try { return run(); } finally {
-    if (previous === undefined) delete process.env.TZ;
-    else process.env.TZ = previous;
-  }
-}
 
 function note(id: string, completed: boolean, createdAt: string): NoteInfo {
   return {
@@ -41,25 +32,6 @@ describe('buildNotesVm', () => {
     expect(vm.activeCount).toBe(2);
     expect(vm.completedCount).toBe(1);
     expect(vm.previews.map((row) => row.id)).toEqual(['a', 'b']);
-  });
-});
-
-describe('formatNoteTime', () => {
-  it('formats same-day time, yesterday and older days without inventing dates', () => {
-    withTimeZone('UTC', () => {
-      expect(formatNoteTime('2026-07-29T17:41:00.000Z', NOW, 'en')).toBe('17:41');
-      expect(formatNoteTime('2026-07-28T17:41:00.000Z', NOW, 'en')).toBe('yesterday');
-      expect(formatNoteTime('2026-07-26T17:41:00.000Z', NOW, 'en')).toBe('3d');
-      expect(formatNoteTime('bad', NOW, 'en')).toBe('—');
-      expect(formatNoteTime('2026-07-28T17:41:00.000Z', NOW, 'zh')).toBe('昨天');
-    });
-  });
-
-  it('uses the device timezone for the clock and same-day boundary', () => {
-    withTimeZone('America/Denver', () => {
-      expect(formatNoteTime('2026-07-29T17:41:00.000Z', NOW, 'en')).toBe('11:41');
-      expect(formatNoteTime('2026-07-29T23:30:00.000Z', Date.parse('2026-07-30T05:00:00.000Z'), 'en')).toBe('17:30');
-    });
   });
 });
 

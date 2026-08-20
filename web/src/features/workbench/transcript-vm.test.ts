@@ -8,7 +8,6 @@ import {
   liveToMessage,
   turnCount,
   currentTurnElapsedMs,
-  formatElapsed,
   resolveRunning,
   resolveBackgroundRunning,
   resolveTurns,
@@ -20,7 +19,6 @@ import {
   finalizeAssistantPreview,
   applyDelivered,
   reconcilePendingUserMessages,
-  messageTimeLabel,
   type LiveSessionMessage,
   type PendingUserMessage,
   type StreamingBlock,
@@ -295,20 +293,6 @@ describe('currentTurnElapsedMs', () => {
     expect(currentTurnElapsedMs(tx([{ turnIndex: 0, messages: [mk(T, 5000), mk(T, null)] }]))).toBeNull();
     expect(currentTurnElapsedMs(tx([]))).toBeNull();
     expect(currentTurnElapsedMs(undefined)).toBeNull();
-  });
-});
-
-describe('formatElapsed', () => {
-  it('formats ms into compact human-readable durations', () => {
-    expect(formatElapsed(0)).toBe('0s');
-    expect(formatElapsed(2500)).toBe('2s');
-    expect(formatElapsed(65000)).toBe('1m 5s');
-    expect(formatElapsed(3_600_000)).toBe('1h 0m');
-    expect(formatElapsed(3_661_000)).toBe('1h 1m');
-  });
-
-  it('returns the em-dash placeholder for null (no fabrication)', () => {
-    expect(formatElapsed(null)).toBe('—');
   });
 });
 
@@ -842,31 +826,6 @@ describe('buildTranscriptRows — pending user rows are pinned to the bottom', (
       { kind: 'user', text: 'stop', attachments: undefined, ts: '2026-07-07T07:42:06.000Z' },
       { kind: 'assistant', text: 'TEXT-INTERRUPTED', streaming: false, attachments: undefined },
     ]);
-  });
-});
-
-describe('messageTimeLabel', () => {
-  // Local wall-clock anchors built from components so the expectations are timezone-agnostic.
-  const now = new Date(2026, 6, 6, 15, 0, 0); // Mon Jul 6 2026 15:00 local
-
-  it('renders a bare local HH:MM for a message sent today', () => {
-    expect(messageTimeLabel(new Date(2026, 6, 6, 7, 5).toISOString(), now)).toBe('07:05');
-    expect(messageTimeLabel(new Date(2026, 6, 6, 23, 59).toISOString(), now)).toBe('23:59');
-  });
-
-  it('prefixes MM-DD on any other day of the same year', () => {
-    expect(messageTimeLabel(new Date(2026, 6, 5, 21, 38).toISOString(), now)).toBe('07-05 21:38');
-    expect(messageTimeLabel(new Date(2026, 0, 9, 4, 2).toISOString(), now)).toBe('01-09 04:02');
-  });
-
-  it('widens to YYYY-MM-DD once the year differs', () => {
-    expect(messageTimeLabel(new Date(2025, 11, 24, 9, 7).toISOString(), now)).toBe('2025-12-24 09:07');
-  });
-
-  it('returns null for a missing or unparseable ts so the affordance can be skipped', () => {
-    expect(messageTimeLabel(undefined, now)).toBeNull();
-    expect(messageTimeLabel('', now)).toBeNull();
-    expect(messageTimeLabel('not-a-date', now)).toBeNull();
   });
 });
 

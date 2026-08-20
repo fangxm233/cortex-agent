@@ -5,7 +5,6 @@ expansion, step lifecycle, provider-outage recovery, and transcripts.
 
 | filename | role | function |
 |---|---|---|
-| domain-threads-smoke.test.ts | test | Covers thread target, stage and var helpers |
 | resolve-template-profiles.test.ts | test | Covers template to profile resolution |
 | shell-template.test.ts | test | Covers shell expansion and shipped retry predicates |
 | template-merge.test.ts | test | Covers default merging and safe legacy-shell upgrades |

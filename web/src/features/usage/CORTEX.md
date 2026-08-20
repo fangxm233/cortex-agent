@@ -7,7 +7,7 @@ Desktop owns the Settings panel while mobile can reuse per-row quota policy stat
 |---|---|---|
 | index.ts | barrel | Exports the usage API plus per-row policy target/view types |
 | usage-vm.ts | vm | Builds quota, spend, freshness, timing, row policy, and legacy fallback views |
-| usage-vm.test.ts | test | Tests row policy resolution, fallback inheritance, windows, severity, and timing |
+| usage-vm.test.ts | test | Tests policy inheritance, window selection, severity and timing |
 | usage-policy-controls.ts | util | Shares threshold draft sync and per-row button disabled state |
 | useUsage.ts | hook | Queries usage/config, updates window/root policy cache, tracks saves and refreshes |
 | UsagePanel.tsx | view | Renders the Usage header, cards, threshold controls, and fallback notice |

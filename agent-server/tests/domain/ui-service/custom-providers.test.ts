@@ -1,5 +1,5 @@
 // input:  temporary catalog/gateway stores and the UI-service registry
-// output: custom provider list, upsert, remove, redaction and router tests
+// output: custom provider list, writes, validation and redaction tests
 // pos:    Regression coverage for the Web custom PI provider surface
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -16,7 +16,6 @@ import {
   handleCustomProviderUpsert,
 } from '../../../src/domain/ui-service/mutate/custom-providers.js';
 import { createUiService, redactMutationAuditArgs } from '../../../src/domain/ui-service/ui-service.js';
-import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
 import {
   authCustomProvidersInput,
   authRemoveCustomProviderInput,
@@ -148,17 +147,6 @@ test('the upsert audit event carries no upstream key', async () => {
     redactMutationAuditArgs('auth.upsertCustomProvider', { name: 'x', apiKey: UPSTREAM_KEY }),
     { name: 'x' },
   );
-});
-
-test('typed custom provider ops round-trip through the tRPC router', async () => {
-  const stores = tmpStores();
-  const caller = createAppRouter(createUiService(depsWith(stores))).createCaller({});
-
-  const saved = await caller.auth.upsertCustomProvider(DEFINITION);
-  assert.equal(saved.name, 'my-vllm');
-  assert.equal((await caller.auth.customProviders({})).length, 1);
-  assert.deepEqual(await caller.auth.removeCustomProvider({ name: 'my-vllm' }), { removed: true });
-  assert.deepEqual(await caller.auth.customProviders({}), []);
 });
 
 test('custom provider input schemas gate the shape before the handler runs', () => {

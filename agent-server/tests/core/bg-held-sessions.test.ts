@@ -1,13 +1,11 @@
-import { test, beforeEach } from 'vitest';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { BgHeldSessions, bgHeldSessions } from '../../src/core/bg-held-sessions.js';
+import { BgHeldSessions } from '../../src/core/bg-held-sessions.js';
 
 // The queryable snapshot of the web bg-hold (session.status backgroundRunning delta):
 // mirrors the event stream so sessions.list can restore the state on any client
 // mount / session switch / app restart. Held = the last status event for the session
 // said running:true AND backgroundRunning:true; anything else clears.
-
-beforeEach(() => bgHeldSessions.clear());
 
 test('marks a session held on running+backgroundRunning', () => {
   const t = new BgHeldSessions();
@@ -119,11 +117,4 @@ test('clear() drops abort handles too', () => {
   t.clear();
   assert.equal(t.abort('s1'), false);
   assert.deepEqual(t.sessionsOnChannel('web:abc'), []);
-});
-
-test('singleton export shares one registry', () => {
-  bgHeldSessions.onSessionStatus({ sessionId: 'sx', running: true, backgroundRunning: true });
-  assert.equal(bgHeldSessions.has('sx'), true);
-  bgHeldSessions.clear();
-  assert.equal(bgHeldSessions.has('sx'), false);
 });

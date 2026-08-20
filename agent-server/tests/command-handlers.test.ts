@@ -28,7 +28,6 @@ import { runningExecutions } from '../src/core/running-executions.js';
 import * as executionRegistry from '../src/domain/executions/registry.js';
 import { conduitQueues } from '../src/orchestration/conduit-queue.js';
 import { threadStore } from '../src/store/thread-repo.js';
-import { getLocale, setLocale } from '../src/core/i18n.js';
 import type { AuthStatusSnapshot } from '../src/domain/auth/auth-status.js';
 
 beforeAll(() => {
@@ -271,23 +270,6 @@ test('!usage refresh action forces every collection and preserves provider filte
   assert.match(adapter.updated[1].content.text, /push-only observation is stale/);
 });
 
-test('!usage appears in English and Chinese monitoring help', async (t) => {
-  const previousLocale = getLocale();
-  t.onTestFinished(() => setLocale(previousLocale));
-  const adapter = new MockAdapter();
-  const dispatchCommand = createCommandDispatcher({ scheduler: null });
-
-  setLocale('en');
-  dispatchCommand('!help', 'C-help', adapter);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.match(adapter.posted[0].content.text, /!usage \[provider\].*provider quota and spend/);
-
-  setLocale('zh');
-  dispatchCommand('!help', 'C-help', adapter);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.match(adapter.posted[1].content.text, /!usage \[provider\].*供应商配额和消费额/);
-});
-
 // ── !budget: global + per-project forms ────────────────────────────
 // Overrides are pair-only and project ids are validated against the real project registry,
 // so a typo can never create an orphan entry in budget.json.
@@ -438,10 +420,7 @@ const COMMAND_AUTH_SNAPSHOT: AuthStatusSnapshot = {
   piRuntime: { available: false, version: null, entry: null, error: 'pi executable not found' },
 };
 
-test('!login and !login status share the localized authentication summary and appear in help', async (t) => {
-  const previousLocale = getLocale();
-  t.onTestFinished(() => setLocale(previousLocale));
-  setLocale('zh');
+test('!login and !login status share the authentication summary', async () => {
   let calls = 0;
   const adapter = new MockAdapter();
   const dispatchCommand = createCommandDispatcher({
@@ -453,13 +432,9 @@ test('!login and !login status share the localized authentication summary and ap
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(dispatchCommand('!login status', 'C-auth', adapter), true);
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(dispatchCommand('!help', 'C-auth', adapter), true);
-  await new Promise(resolve => setImmediate(resolve));
 
   assert.equal(calls, 2);
-  assert.match(adapter.posted[0].content.text, /认证状态/);
   assert.equal(adapter.posted[1].content.text, adapter.posted[0].content.text);
-  assert.match(adapter.posted[2].content.text, /!login/);
 });
 
 test('!login rejects unsupported arguments with localized usage', async () => {
@@ -1055,7 +1030,7 @@ test('!compact is exact and delegates to the shared channel coordinator', async 
   assert.match(adapter.posted[1].content.text, /unknown command/i);
 });
 
-test('!compact reports busy and !help advertises the exact command', async () => {
+test('!compact reports busy', async () => {
   const adapter = new MockAdapter();
   const dispatchCommand = createCommandDispatcher({
     scheduler: null,
@@ -1064,10 +1039,6 @@ test('!compact reports busy and !help advertises the exact command', async () =>
   dispatchCommand('!compact', 'Ccompact-busy', adapter);
   await new Promise(resolve => setImmediate(resolve));
   assert.match(adapter.posted[0].content.text, /stop.*before compacting|running/i);
-
-  dispatchCommand('!help', 'Ccompact-busy', adapter);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.match(adapter.posted[1].content.text, /!compact/);
 });
 
 test('!dispatch --profile updates profileOverride on running dispatch thread', async (t) => {

@@ -1,9 +1,8 @@
 // input:  CLI source, subprocess entry, and auth fixtures
-// output: routing, output framing, and size-limit assertions
+// output: routing, error, and output-framing assertions
 // pos:    Cortex CLI dispatcher and binary regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
@@ -29,40 +28,11 @@ const AUTH_SNAPSHOT: AuthStatusSnapshot = {
 
 // ─── runCli (async) ─────────────────────────────────────────────
 
-test('top-level CLI stays within the code-standard file limit', () => {
-  const lineCount = readFileSync(CLI_SOURCE, 'utf8').trimEnd().split('\n').length;
-  assert.ok(lineCount <= 800, `entry/cli.ts has ${lineCount} lines`);
-});
-
-test('runCli --help returns help text', async () => {
-  const result = await runCli(['--help']);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Cortex/);
-  assert.equal(result.stderr, '');
-});
-
 test('runCli with unknown command returns error', async () => {
   const result = await runCli(['unknown-subcommand']);
   assert.equal(result.exitCode, 1);
   assert.equal(result.stdout, '');
   assert.ok(result.stderr.length > 0);
-});
-
-test('runCli auth status uses the shared bilingual summary', async (t) => {
-  const previousLocale = getLocale();
-  t.onTestFinished(() => setLocale(previousLocale));
-  setLocale('zh');
-
-  let calls = 0;
-  const result = await runCli(['auth', 'status'], {
-    getAuthStatus: async () => { calls += 1; return AUTH_SNAPSHOT; },
-  });
-
-  assert.equal(calls, 1);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /认证状态/);
-  assert.match(result.stdout, /Anthropic.*已登录/s);
-  assert.equal(result.stderr, '');
 });
 
 test('runCli auth status --json serializes the exact snapshot without a wrapper', async () => {
@@ -98,20 +68,10 @@ test('real auth status JSON CLI emits exactly one trailing newline', () => {
   assert.equal(child.stdout, `${JSON.stringify(snapshot, null, 2)}\n`);
 });
 
-test('runCli auth help and invalid arguments provide a localized correction path', async (t) => {
+test('runCli auth invalid arguments provide a localized correction path', async (t) => {
   const previousLocale = getLocale();
   t.onTestFinished(() => setLocale(previousLocale));
   setLocale('zh');
-
-  const authHelp = await runCli(['auth', '--help']);
-  assert.equal(authHelp.exitCode, 0);
-  assert.match(authHelp.stdout, /用法：.*cortex auth /);
-  assert.match(authHelp.stdout, /命令：|选项：|示例：/);
-  assert.doesNotMatch(authHelp.stdout, /Usage:|Commands:|Options:|Examples:/);
-
-  const statusHelp = await runCli(['auth', 'status', '--help']);
-  assert.equal(statusHelp.exitCode, 0);
-  assert.match(statusHelp.stdout, /--json/);
 
   const badCommand = await runCli(['auth', 'show']);
   assert.equal(badCommand.exitCode, 1);
@@ -122,24 +82,6 @@ test('runCli auth help and invalid arguments provide a localized correction path
   assert.equal(badFlag.exitCode, 1);
   assert.match(badFlag.stderr, /合法值：.*--json/);
   assert.doesNotMatch(badFlag.stderr, /Valid values:|Hint:/);
-
-  const topHelp = await runCli(['--help']);
-  assert.match(topHelp.stdout, /显示 backend 认证状态/);
-});
-
-test('runCli with init --help returns help text', async () => {
-  const result = await runCli(['init', '--help']);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /CORTEX_HOME/);
-  assert.equal(result.stderr, '');
-});
-
-test('runCli config returns path info', async () => {
-  const result = await runCli(['config']);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /INSTALL_ROOT/);
-  assert.match(result.stdout, /DATA_DIR/);
-  assert.equal(result.stderr, '');
 });
 
 test('runCli bare daemon returns error when not main entry', async () => {

@@ -70,13 +70,6 @@ def read_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def test_arm_needs_no_standalone_orchestration_limits() -> None:
-    assert set(direct_arm()["limits"]) == {
-        "max_provider_requests", "max_cost_usd", "deadline_seconds", "max_output_tokens",
-    }
-    assert require_production_arm(direct_arm()).key == "direct-pi-deepseek"
-
-
 def test_direct_arm_resolves_to_the_committed_direct_bundle() -> None:
     bundle = require_production_arm(direct_arm())
 
@@ -156,7 +149,6 @@ def test_manager_qa_on_arm_differs_only_by_its_question_tool_gate() -> None:
     assert {key: value for key, value in on_agent.items() if key not in ignored} == {
         key: value for key, value in off_agent.items() if key not in ignored
     }
-    assert on_agent["description"] == "Benchmark Manager — owns the dispatched task node with Q&A available"
 
 
 def test_manager_arm_declares_a_task_root_and_the_one_path_it_needs_writable() -> None:

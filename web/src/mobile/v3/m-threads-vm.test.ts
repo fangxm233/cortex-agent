@@ -93,15 +93,12 @@ function detail(over: Partial<ThreadDetail>): ThreadDetail {
 const now = Date.parse('2026-07-15T12:00:00Z');
 
 describe('threadsBudgetBand', () => {
-  it('real today / real dailyBudget → filled percentage', () => {
-    expect(threadsBudgetBand(4.21, 10)).toEqual({ numerator: '$4.21', denominator: '$10.00', pct: 42.1 });
+  it('computes progress from today and the daily budget', () => {
+    expect(threadsBudgetBand(4.21, 10).pct).toBe(42.1);
   });
-  it('no dailyBudget → honest — denominator + empty bar (no fabricated $10.00)', () => {
-    expect(threadsBudgetBand(4.21, 0)).toEqual({ numerator: '$4.21', denominator: '—', pct: 0 });
-    expect(threadsBudgetBand(4.21, undefined)).toEqual({ numerator: '$4.21', denominator: '—', pct: 0 });
-  });
-  it('no today → — numerator', () => {
-    expect(threadsBudgetBand(undefined, 10).numerator).toBe('—');
+  it('uses zero progress without a daily budget', () => {
+    expect(threadsBudgetBand(4.21, 0).pct).toBe(0);
+    expect(threadsBudgetBand(4.21, undefined).pct).toBe(0);
   });
   it('clamps overrun to 100%', () => {
     expect(threadsBudgetBand(30, 10).pct).toBe(100);

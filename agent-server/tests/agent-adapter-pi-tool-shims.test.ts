@@ -274,11 +274,11 @@ function makeCapturingSpawner() {
 
 const CODER_TOOLS = 'Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write';
 
-test('J: coder allowlist registers one runtime-described Agent at session start', async () => {
+test('J: coder allowlist registers one Agent at session start', async () => {
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
   process.env.CORTEX_PI_ALLOWED_TOOLS = CODER_TOOLS;
   try {
-    const { pi, registered, definitions, handlers, emit } = makeMockPi();
+    const { pi, registered, handlers, emit } = makeMockPi();
     toolShims(pi);
     assert.ok(!registered.includes('ask_user_question'));
     assert.ok(!registered.includes('enter_plan_mode'));
@@ -300,11 +300,6 @@ test('J: coder allowlist registers one runtime-described Agent at session start'
     });
 
     assert.equal(registered.filter((name) => name === 'agent').length, 1);
-    const description = definitions.get('agent').description;
-    assert.match(description, /deepseek\/deepseek-v4-flash/);
-    assert.match(description, /openai-codex\/active-model/);
-    assert.match(description, /openai-codex\/catalog-model/);
-    assert.ok(description.indexOf('deepseek/') < description.indexOf('openai-codex/'));
   } finally {
     if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
     else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;

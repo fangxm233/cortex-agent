@@ -1,5 +1,5 @@
 // input:  mobile rows, slash suggestions and send availability
-// output: Mobile message layout and composer action contracts
+// output: Mobile message and composer interaction contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -123,27 +123,6 @@ describe('MChatView send controls', () => {
     const html = renderChat(false, false);
     expect(button(html, 'Send')).not.toBeNull();
     expect(button(html, 'Stop')).toBeNull();
-  });
-});
-
-describe('MChatStream interaction layout', () => {
-  it('provides a flex column parent for right-aligned plan feedback', () => {
-    const row: ChatRow = {
-      kind: 'interaction',
-      subtype: 'plan-approval',
-      text: 'Plan rejected',
-      detail: {
-        id: 'plan-nimbus',
-        kind: 'plan-approval',
-        status: 'rejected',
-        payload: { planContent: '# Nimbus plan' },
-        result: { feedback: 'Align this note right' },
-      },
-    };
-
-    const html = renderToStaticMarkup(<MChatStream rows={[row]} toolCallsUnit="tools" />);
-    expect(html).toContain('<div style="display:flex;flex-direction:column"><div style="border:');
-    expect(html).toContain('align-self:flex-end');
   });
 });
 

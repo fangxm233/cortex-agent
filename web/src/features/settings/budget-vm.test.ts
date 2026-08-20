@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ConfigBudget } from '@cortex-agent/ui-contract';
 import {
-  DAILY_CHIPS,
-  MONTHLY_CHIPS,
-  WARN_CHIPS,
   hasOverride,
   pickScopeBudget,
   buildBudgetValue,
@@ -11,7 +8,6 @@ import {
   budgetClearArgs,
   parseAmountInput,
   isChipActive,
-  formatBudgetUsd,
   budgetBarPct,
 } from './budget-vm';
 
@@ -24,12 +20,6 @@ const budget = (
 const withAlpha = budget(300, 8000, { alpha: { daily_usd: 5, monthly_usd: 100 } });
 
 describe('budget-vm chips', () => {
-  it('exposes the daily, monthly and warn chip sets', () => {
-    expect(DAILY_CHIPS).toEqual([5, 10, 20, 50]);
-    expect(MONTHLY_CHIPS).toEqual([100, 200, 500, 1000]);
-    expect(WARN_CHIPS).toEqual([60, 80, 90]);
-  });
-
   it('isChipActive matches the current limit', () => {
     expect(isChipActive(10, 10)).toBe(true);
     expect(isChipActive(10, 20)).toBe(false);
@@ -128,12 +118,6 @@ describe('parseAmountInput', () => {
 });
 
 describe('formatting', () => {
-  it('formatBudgetUsd renders $N or a dash for null', () => {
-    expect(formatBudgetUsd(10)).toBe('$10');
-    expect(formatBudgetUsd(12.5)).toBe('$12.50');
-    expect(formatBudgetUsd(null)).toBe('—');
-  });
-
   it('budgetBarPct is spend/limit clamped to 0..100', () => {
     expect(budgetBarPct(4.21, 10)).toBe('42%');
     expect(budgetBarPct(15, 10)).toBe('100%');

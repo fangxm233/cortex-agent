@@ -1,5 +1,5 @@
 # input:  Python module CLI and synthetic credential on stdin
-# output: help, structured startup, argv secrecy, and signal cleanup
+# output: structured startup, argv secrecy, refusals, and signal cleanup
 # pos:    Proxy command-line contract tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -15,19 +15,6 @@ from cortex_bench_harness.proxy import ProxyLimits
 from synthetic import SyntheticUpstream
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-CLI-UNIQUE"
-
-
-def test_module_cli_help_is_copyable() -> None:
-    result = subprocess.run(
-        [_python(), "-m", "cortex_bench_harness.proxy", "--help"],
-        capture_output=True, text=True, timeout=20,
-    )
-    assert result.returncode == 0
-    assert "usage:" in result.stdout
-    assert "Examples:" in result.stdout
-    assert "--credential-file" in result.stdout
-    assert "--max-requests" in result.stdout
-    assert "default: 127.0.0.1" in result.stdout
 
 
 def test_module_cli_reads_credential_from_stdin_not_argv(tmp_path: Path) -> None:

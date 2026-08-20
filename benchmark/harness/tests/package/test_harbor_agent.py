@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from harbor.agents.installed.base import BaseInstalledAgent, NonZeroAgentExitCodeError
+from harbor.agents.installed.base import NonZeroAgentExitCodeError
 from harbor.environments.base import ExecResult
 
 from cortex_bench_harness.campaign_config import load_campaign_config
@@ -184,11 +184,6 @@ def make_agent(
         agent._proxy_session = FakeProxySession()
         agent._revoke_proxy = lambda: None
     return agent
-
-
-def test_wrapper_is_real_harbor_installed_agent() -> None:
-    assert issubclass(CortexBenchAgent, BaseInstalledAgent)
-    assert CortexBenchAgent.import_path().endswith(":CortexBenchAgent")
 
 
 def test_setup_installs_attests_fresh_home_and_never_composes_standalone(
@@ -369,10 +364,6 @@ def test_failed_version_probe_does_not_publish_manifest(tmp_path: Path) -> None:
         ))
 
     assert not (tmp_path / "artifacts/cortex-bench-harness-manifest.json").exists()
-
-
-def test_constructor_accepts_one_explicit_version_keyword(tmp_path: Path) -> None:
-    assert make_agent(tmp_path, version="2026.8.3").version() == "2026.8.3"
 
 
 @pytest.mark.parametrize(

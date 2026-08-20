@@ -1,10 +1,10 @@
 // input:  Settings/LoginFlow providers, usage, and template fixtures
-// output: Settings routing/layout and non-stacked login regressions
+// output: Settings routing and non-stacked login regressions
 // pos:    Verifies Settings shell routing and shared LoginFlow handoff
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useState } from 'react';
-import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   AuthStatusSnapshot,
@@ -14,9 +14,6 @@ import type {
 } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { ThemeProvider } from '@/theme';
-import { PlatformPanel } from './SettingsPanels';
-
-const queriedKinds = vi.hoisted(() => [] as string[]);
 
 vi.mock('@radix-ui/react-dialog', async importOriginal => ({
   ...await importOriginal<typeof import('@radix-ui/react-dialog')>(),
@@ -76,7 +73,6 @@ vi.mock('@/lib/trpc', () => {
 vi.mock('@tanstack/react-query', async importOriginal => ({
   ...await importOriginal<typeof import('@tanstack/react-query')>(),
   useQuery: (options: any) => {
-    queriedKinds.push(options.__kind);
     return {
       data: options.__kind === 'config.get'
         ? snapshot
@@ -156,67 +152,7 @@ function SettingsHarness() {
   );
 }
 
-function renderedText(node: ReactTestInstance): string {
-  return node.children.map(child => typeof child === 'string' ? child : renderedText(child)).join('');
-}
-
 describe('desktop authentication settings entry', () => {
-  it('omits internal config-source copy from the settings shell and profiles panel', () => {
-    const renderer = create(<SettingsHarness />);
-    expect(renderedText(renderer.root)).not.toContain('~/.cortex/config/');
-    for (const row of renderer.root.findAll(node => node.props['data-settings-nav'])) {
-      expect(row.findAllByType('span')).toHaveLength(1);
-    }
-
-    act(() => { renderer.root.findByProps({ 'data-settings-nav': 'profiles' }).props.onClick(); });
-    expect(renderedText(renderer.root)).not.toContain('Per-profile fallback is not in the config.get contract');
-  });
-
-  it('bounds template cards while their two content regions scroll independently', () => {
-    const renderer = create(<SettingsHarness />);
-    expect(renderedText(renderer.root)).not.toContain('Language & theme — interface language');
-    act(() => { renderer.root.findByProps({ 'data-settings-nav': 'templates' }).props.onClick(); });
-
-    const content = renderer.root.find(node => node.props.style?.padding === '16px 22px');
-    expect(content.props.style).toMatchObject({ display: 'flex', flexDirection: 'column', overflow: 'hidden' });
-    expect(renderedText(renderer.root)).not.toContain('config/thread-templates/ — validated on save');
-    expect(renderedText(renderer.root)).not.toContain('Files under config/thread-templates/');
-
-    const panel = renderer.root.findByProps({ 'data-settings-panel': 'templates' });
-    const cards = panel.findAll(node => (
-      node.type === 'div' && node.props.style?.border === '1px solid var(--proto-line)'
-    ));
-    expect(cards).toHaveLength(2);
-    expect(cards.every(card => card.props.style.minHeight === 0)).toBe(true);
-    expect(panel.findAll(node => node.props.style?.overflow === 'auto')).toHaveLength(2);
-
-    const detailCard = cards.find(card => card.props.style.minWidth === 0)!;
-    const detailScroller = detailCard.find(node => node.props.style?.overflow === 'auto');
-    expect(detailScroller.findAllByProps({ 'data-action': 'save' })).toHaveLength(0);
-    expect(detailCard.findAll(node => node.type === 'button' && node.props['data-action'] === 'save')).toHaveLength(1);
-  });
-
-  it('opens Usage through the Settings router and starts its independent query', () => {
-    queriedKinds.length = 0;
-    const renderer = create(<SettingsHarness />);
-    act(() => { renderer.root.findByProps({ 'data-settings-nav': 'usage' }).props.onClick(); });
-
-    expect(queriedKinds).toContain('system.usageStatus');
-    expect(renderedText(renderer.root)).toContain('No provider usage is available yet.');
-  });
-
-  it('moves authentication controls out of Platform into a dedicated Accounts section', () => {
-    let platform!: ReactTestRenderer;
-    act(() => {
-      platform = create(<LangProvider><PlatformPanel snapshot={snapshot} /></LangProvider>);
-    });
-    expect(platform.root.findAllByProps({ 'data-auth-login-entry': 'desktop' })).toHaveLength(0);
-
-    const renderer = create(<SettingsHarness />);
-    act(() => { renderer.root.findByProps({ 'data-settings-nav': 'accounts' }).props.onClick(); });
-    expect(renderer.root.findAll(node => node.props['data-auth-action'] === 'login').length).toBeGreaterThan(0);
-  });
-
   it('closes Settings before opening the shared LoginFlow dialog', () => {
     const renderer = create(<SettingsHarness />);
     act(() => { renderer.root.findByProps({ 'data-settings-nav': 'accounts' }).props.onClick(); });

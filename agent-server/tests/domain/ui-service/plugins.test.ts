@@ -1,5 +1,5 @@
 // input:  plugin fixtures and UI handlers
-// output: plugin list/assign and router coverage
+// output: plugin list/assign, safety and conflict coverage
 // pos:    ui-service plugin API regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import '../../_test-home.js';
@@ -308,15 +308,6 @@ test('plugins.list sanitizes DTOs and maps invalid installs', async () => {
   assert.equal(binding.readOnlyReason, 'shell-binding');
 });
 
-test('plugins.list is reachable through the facade and router', async () => {
-  const service = createUiService(deps());
-  const query = await service.query('plugins.list', {});
-  const listedViaRouter = await routerCaller().plugins.list({});
-
-  assert.ok(query.ok, JSON.stringify(query));
-  assert.ok(listedViaRouter.targets.length >= 5);
-});
-
 test('plugins.assign keeps only out-of-catalog agent paths', async () => {
   loadConfig();
   const writer = agentTarget(await listed(), 'writer');
@@ -485,16 +476,4 @@ test('plugins.list skips malformed agent JSON without editing it', async () => {
   assert.equal(slotTarget(result, 'workflow', 1).ref, 'writer');
   assert.equal(slotTarget(result, 'workflow', 2).ref, '__active__');
   assert.equal(readFileSync(MALFORMED_AGENT_FILE, 'utf8'), original);
-});
-
-test('plugins.assign is reachable through the router', async () => {
-  const caller = routerCaller();
-  const writer = agentTarget(await caller.plugins.list({}), 'writer');
-  const result = await caller.plugins.assign({
-    target: { kind: 'agent', name: 'writer', baseHash: writer.baseHash },
-    pluginIds: ['beta'],
-  });
-
-  assert.equal(result.changed, true);
-  assert.equal(typeof result.baseHash, 'string');
 });

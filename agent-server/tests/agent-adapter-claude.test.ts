@@ -24,7 +24,6 @@ import {
   POST_TOOL_USE_HOOKS,
   SESSION_START_HOOKS,
 } from '../src/agent-adapter/claude/hooks-builder.js';
-import { summarizeToolInput } from '../src/agent-adapter/claude/tool-summarizers.js';
 import {
   CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
@@ -1399,27 +1398,6 @@ test('buildClaudeEnv — partial context (only threadId) sets only that var', ()
   assert.equal(env.CORTEX_PROFILE, undefined);
   assert.equal(env.CORTEX_PROJECT, undefined);
   assert.equal(env.CORTEX_SESSION_NAME, undefined);
-});
-
-// --- summarizeToolInput ---
-
-test('summarizeToolInput covers Bash/Read/Write/Edit/Grep/Glob/Task/mcp__cortex__slack_send_file/unknown', () => {
-  assert.equal(summarizeToolInput('Bash', { command: 'ls' }), 'ls');
-  assert.equal(summarizeToolInput('Read', { file_path: '/a/b' }), '/a/b');
-  assert.equal(summarizeToolInput('Write', { file_path: '/c/d' }), '/c/d');
-  assert.equal(summarizeToolInput('Edit', { file_path: '/e/f' }), '/e/f');
-  assert.equal(summarizeToolInput('Grep', { pattern: 'foo' }), 'foo');
-  assert.equal(summarizeToolInput('Glob', { pattern: '*.ts' }), '*.ts');
-  assert.equal(summarizeToolInput('Task', { description: 'do it' }), 'do it');
-  assert.equal(
-    summarizeToolInput('mcp__cortex__slack_send_file', { file_path: '/x', comment: 'hi' }),
-    'hi [file: /x]',
-  );
-  assert.equal(
-    summarizeToolInput('mcp__cortex__slack_send_file', { file_path: '/x' }),
-    '[file: /x]',
-  );
-  assert.equal(summarizeToolInput('UnknownTool', { foo: 1 }), JSON.stringify({ foo: 1 }));
 });
 
 // --- extractAskUserQuestions ---

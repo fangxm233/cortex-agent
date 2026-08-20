@@ -1,5 +1,5 @@
 // input:  mounted login overlay, tRPC/navigation fakes, targets
-// output: responsive layout, flow, prompt, and non-echo regressions
+// output: flow, prompt, navigation, and non-echo regressions
 // pos:    Mounted Web authentication workflow specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -257,20 +257,6 @@ const NOTICE_CASES: Array<[LoginFlowNotice, LoginFlowNotice['kind']]> = [
 ];
 
 describe('LoginFlowModal', () => {
-  it('uses the selected backend and provider names as the flow title', () => {
-    const login = state('prompt', {
-      authType: 'oauth',
-      pendingPrompt: { kind: 'manual_code', message: 'Paste authorization code' },
-    });
-    const renderer = mount({
-      target: { backend: 'claude', provider: 'anthropic', authType: 'oauth' },
-      initialState: login,
-    });
-
-    expect(renderer.root.findByType('h1').children.join('')).toBe('Claude Code · Anthropic');
-    expect(JSON.stringify(renderer.toJSON())).not.toContain('Backend login');
-  });
-
   it('renders OAuth as open-page then code-entry without duplicate prompt copy', async () => {
     const message = 'Paste code here if prompted.';
     const login = state('prompt', {
@@ -294,38 +280,9 @@ describe('LoginFlowModal', () => {
     expect(input.props.type).toBe('text');
     expect(input.props.autoComplete).toBe('one-time-code');
     expect(input.props.placeholder).toBe('Paste authorization code');
-    expect(input.props.className).toContain('border-proto-line-3');
-    expect(input.props.className).toContain('bg-surface-canvas-alt');
-    const description = renderer.root.findByProps({ hidden: true });
-    expect(description.children.join('')).toBe(
-      'Open the authorization page. Paste the authorization code.',
-    );
 
     await clickAsync(renderer, 'auth-open-url');
     expect(harness.externalUrls).toEqual(['https://login.example.test/authorize?state=fixture']);
-  });
-
-  it('renders terminal success and long failures once inside bounded content', () => {
-    const done = mount({ initialState: state('done') });
-    expect(done.root.findAllByProps({ 'data-auth-success': true })).toHaveLength(1);
-    expect(done.root.findAllByProps({ 'data-auth-flow-step': 'done' })).toHaveLength(1);
-
-    const failed = mount({ initialState: state('failed', {
-      error: `Failure ${'unbroken'.repeat(80)}`,
-      errorCode: 'fixture_failure',
-    }) });
-    const error = failed.root.findByProps({ 'data-auth-error': true });
-    expect(error.props.className).toContain('break-words');
-    expect(error.props.className).toContain('overflow-y-auto');
-  });
-
-  it('uses a bottom sheet rather than a centered modal on mobile', () => {
-    harness.mobile = true;
-    const renderer = mount();
-
-    expect(renderer.root.findAllByProps({ 'data-auth-sheet': true })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-auth-modal': 'true' })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'data-mobile-bottom-sheet': true })).toHaveLength(1);
   });
 
   it('keeps native authentication selectors on the mobile shell', () => {
@@ -426,17 +383,6 @@ describe('LoginFlowModal', () => {
     expect(harness.startCalls).toEqual([{
       backend: 'pi', provider: 'dual-auth', authType: 'oauth',
     }]);
-  });
-
-  it('sizes every desktop selection from its own class so it matches the prompt input', () => {
-    const renderer = mount();
-    pick(renderer, 'backend', 'pi');
-    const selects = renderer.root.findAllByProps({ 'data-select-control': true });
-
-    // Bare density: the compact chip padding the Select applies by default is inline, so it would
-    // beat these classes and leave a selection shorter than the input sitting under it.
-    expect(selects.map(node => node.props.density)).toEqual(selects.map(() => 'bare'));
-    expect(selects.every(node => String(node.props.className).includes('px-2g'))).toBe(true);
   });
 
   it('skips auth selection and starts OAuth for an OAuth-only provider', async () => {

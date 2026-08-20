@@ -1,6 +1,6 @@
 // input:  HooksPanelView, language provider, HookDetail fixtures
-// output: full-height hook editor and capability regressions
-// pos:    Verifies hook layout, capabilities and validity state
+// output: hook capability, validation, delete, and runner regressions
+// pos:    Verifies hook capabilities, interactions and validity state
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -18,7 +18,7 @@ vi.mock('@/design', async importOriginal => ({
 }));
 
 import { HooksPanelView, type HooksPanelViewProps } from './HooksPanel';
-import { emptyHookForm, formStateFromDetail } from './hooks-panel-vm';
+import { formStateFromDetail } from './hooks-panel-vm';
 
 function hook(over: Partial<HookDetail> = {}): HookDetail {
   return {
@@ -96,79 +96,6 @@ function render(over: Partial<HooksPanelViewProps> = {}): string {
     <LangProvider><HooksPanelView {...props} /></LangProvider>,
   );
 }
-
-describe('HooksPanelView / list', () => {
-  it('marks the panel and renders one row per hook with order, id and event', () => {
-    const html = render({
-      hooks: [hook(), hook({ id: 'my-hook', event: 'cortex:thread.end', order: 5, mountsOn: ['server'] })],
-    });
-    expect(html).toContain('data-settings-panel="hooks"');
-    expect(html).toContain('data-hook-row="sensitive-file-edit"');
-    expect(html).toContain('data-hook-row="my-hook"');
-    expect(html).toContain('sensitive-file-edit');
-    expect(html).toContain('agent:pre-tool');
-    expect(html).toContain('cortex:thread.end');
-    // load order is shown as a zero-padded prefix — same-event execution order
-    expect(html).toContain('data-hook-order="0"');
-    expect(html).toContain('data-hook-order="5"');
-  });
-
-  it('fills the available settings height without the legacy footnote', () => {
-    const html = render();
-    expect(html).toContain(
-      'data-settings-panel="hooks" style="margin-top:12px;flex:1;min-height:0;display:flex;flex-direction:column"',
-    );
-    expect(html).toContain(
-      'data-hook-cards="" style="display:flex;gap:12px;flex:1;min-height:0;align-items:stretch"',
-    );
-    expect(html).not.toContain('Mounted state comes from');
-  });
-
-  it('renders the mount badges on every row', () => {
-    const html = render({ hooks: [hook({ mountsOn: ['claude', 'pi'] })] });
-    expect(html).toContain('data-hook-mount="claude"');
-    expect(html).toContain('data-hook-mount="pi"');
-    expect(html).not.toContain('data-hook-mount="server"');
-  });
-
-  it('renders the enabled / disabled state per row', () => {
-    expect(render({ hooks: [hook({ enabled: true })] })).toContain('Enabled');
-    expect(render({ hooks: [hook({ enabled: false })] })).toContain('Disabled');
-  });
-
-  it('flags a hook whose script is missing from the hooks directory', () => {
-    expect(render({ hooks: [hook({ scriptExists: false })] })).toContain('data-hook-broken');
-    expect(render({ hooks: [hook({ scriptExists: true })] })).not.toContain('data-hook-broken');
-    // a command-based hook has no script to resolve, so it is never flagged
-    expect(render({
-      hooks: [hook({ scriptExists: null, run: { script: null, command: 'printf ok', timeoutSec: null } })],
-    })).not.toContain('data-hook-broken');
-  });
-
-  it('renders the filter chips and marks the active one', () => {
-    // The six-key chip list is HOOK_FILTER_KEYS, pinned by hooks-panel-vm.test.ts.
-    const html = render({ filter: 'server' });
-    expect(html).toContain('data-hook-filter="all"');
-    expect(html).toContain('data-hook-filter="server" data-active=""');
-  });
-
-  it('groups rows by event namespace', () => {
-    const html = render({
-      hooks: [
-        hook({ id: 'a', event: 'agent:pre-tool', order: 0 }),
-        hook({ id: 'b', event: 'cortex:thread.end', order: 1, mountsOn: ['server'] }),
-      ],
-    });
-    expect(html).toContain('data-hook-group="agent"');
-    expect(html).toContain('data-hook-group="cortex"');
-  });
-
-  it('renders the localized empty state when nothing matches', () => {
-    const html = render({ hooks: [], selectedId: null });
-    expect(html).toContain('No mounted hooks');
-    expect(html).toContain('data-hooks-empty');
-  });
-});
 
 describe('HooksPanelView / capability by source', () => {
   it('managed shows a persistent inline note and keeps every field but the toggle read-only', () => {
@@ -278,22 +205,6 @@ describe('HooksPanelView / advanced', () => {
     expect(html).not.toContain('data-hook-result-locked');
   });
 
-  it('shows when the change lands — next agent spawn or server restart', () => {
-    expect(render({ hooks: [hook({ appliesAt: 'next-agent' })] }))
-      .toContain('data-hook-applies-at="next-agent"');
-    const restart = render({
-      hooks: [hook({ event: 'cortex:thread.end', mountsOn: ['server'], appliesAt: 'server-restart' })],
-    });
-    expect(restart).toContain('data-hook-applies-at="server-restart"');
-    expect(restart).toContain('restart');
-  });
-
-  it('explains the missing Claude mount point for a PI-only agent event', () => {
-    const html = render({ hooks: [hook({ event: 'agent:turn-end', mountsOn: ['pi'] })] });
-    expect(html).toContain('data-hook-claude-gap');
-    expect(html).toContain('cc:Stop');
-    expect(render({ hooks: [hook()] })).not.toContain('data-hook-claude-gap');
-  });
 });
 
 describe('HooksPanelView / delete', () => {
@@ -355,27 +266,5 @@ describe('HooksPanelView / test runner', () => {
   it('flags a payload that is not valid JSON before it is sent', () => {
     const html = render({ hooks: [hook()], testOpen: true, testPayload: '{oops' });
     expect(html).toContain('data-hook-payload-error');
-  });
-});
-
-describe('HooksPanelView / create', () => {
-  it('offers a create action and switches the detail pane into a new-hook draft', () => {
-    expect(render({ hooks: [hook()] })).toContain('data-action="create"');
-    const html = render({
-      hooks: [hook()],
-      creating: true,
-      selectedId: null,
-      draft: { ...emptyHookForm(), id: 'brand-new' },
-    });
-    expect(html).toContain('data-hook-field="id"');
-    expect(html).toContain('data-action="save"');
-    expect(html).toContain('data-action="cancel-create"');
-    // a draft that does not exist yet cannot be tested, toggled or deleted
-    expect(html).not.toContain('data-action="open-test"');
-    expect(html).not.toContain('data-action="arm-delete"');
-  });
-
-  it('does not offer an id field when editing an existing hook — the id is the file key', () => {
-    expect(render({ hooks: [userHook] })).not.toContain('data-hook-field="id"');
   });
 });

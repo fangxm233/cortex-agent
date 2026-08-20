@@ -13,7 +13,6 @@ The AppShell-level provider opens details without changing browser navigation.
 | thread-detail-vm.ts | vm | Builds pipeline, metadata, and artifact slots |
 | thread-detail-vm.test.ts | test | Tests desktop thread detail derivations |
 | thread-detail-modal.test.ts | test | Tests modal open, switch, and close state |
-| thread-detail-presentation.test.tsx | test | Tests detail copy, rendering, and overflow containment |
 | nested-threads.ts | vm | Computes subthread level and tree depth |
 | nested-threads.test.ts | test | Tests subthread nesting calculations |
 | thread-steps.ts | util | Selects runs belonging to one step |

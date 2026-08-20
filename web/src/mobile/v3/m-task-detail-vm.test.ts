@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo, TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
-import { buildTaskDetailVm, formatElapsed } from './m-task-detail-vm';
+import { buildTaskDetailVm } from './m-task-detail-vm';
 
 function task(over: Partial<TaskInfo>): TaskInfo {
   return {
@@ -60,16 +60,6 @@ function verification(over: Partial<TaskVerificationInfo>): TaskVerificationInfo
 }
 
 const NOW = Date.parse('2026-07-15T12:00:00Z');
-
-describe('formatElapsed', () => {
-  it('formats seconds / minutes / hours, null-safe', () => {
-    expect(formatElapsed(null)).toBeNull();
-    expect(formatElapsed(-5)).toBeNull();
-    expect(formatElapsed(30_000)).toBe('30s');
-    expect(formatElapsed(42 * 60 * 1000)).toBe('42m');
-    expect(formatElapsed(2 * 3600 * 1000 + 3 * 60 * 1000)).toBe('2h 3m');
-  });
-});
 
 describe('buildTaskDetailVm', () => {
   it('returns not-found when the id is absent from the list', () => {

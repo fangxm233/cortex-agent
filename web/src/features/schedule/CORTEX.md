@@ -7,6 +7,6 @@ Type selection drives which timing fields show, and a success refreshes the sche
 |---|---|---|
 | ScheduleModalProvider.tsx | provider | Mounts the modal, owns create and edit submit |
 | ScheduleModal.tsx | view | Renders typed schedule fields in one shared field cell |
-| ScheduleModal.test.tsx | test | Tests cell alignment, patches and edit locks |
+| ScheduleModal.test.tsx | test | Tests typed patches, edit locks and Escape handling |
 | schedule-modal-vm.ts | vm | Maps forms to add/update args and next run |
-| schedule-modal-vm.test.ts | test | Unit tests for the schedule modal view model |
+| schedule-modal-vm.test.ts | test | Tests schedule payloads, validation, timing and form state |

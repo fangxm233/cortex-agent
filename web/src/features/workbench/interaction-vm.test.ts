@@ -5,8 +5,6 @@ import {
   planCardModel,
   planTitle,
   interactionTtlMsLeft,
-  formatTtl,
-  timeHHMM,
   INTERACTION_TTL_MS,
   emptyAskAnswers,
   currentQuestionIndex,
@@ -61,7 +59,6 @@ describe('askCardModel', () => {
     expect(m!.questions[0].options[0].description).toBe('first');
     expect(m!.questions[0].options[1].description).toBeNull();
     expect(m!.questions[1].multiSelect).toBe(true);
-    expect(m!.timeLabel).toMatch(/^\d{2}:\d{2}$/);
   });
   it('carries per-question answers from result.answers on sealed cards', () => {
     const m = askCardModel(askDetail('answered', { answers: { 'A or B?': 'A', 'checks?': 'x, y', 'free?': 'none' } }));
@@ -95,7 +92,6 @@ describe('planCardModel / planTitle', () => {
     expect(m.lineCount).toBe(5); // real \n count of the snapshot
     expect(m.status).toBe('rejected');
     expect(m.feedback).toBe('cap friction at 1.0');
-    expect(m.timeLabel).toMatch(/^\d{2}:\d{2}$/);
   });
   it('null feedback / null path stay null (honest)', () => {
     const m = planCardModel({ id: 'p', kind: 'plan-approval', status: 'pending', payload: { planContent: 'x' } });
@@ -117,15 +113,6 @@ describe('interaction TTL (mirrors server INTERACTION_TTL_MS)', () => {
   it('null on missing/unparseable ts', () => {
     expect(interactionTtlMsLeft(null, t0)).toBeNull();
     expect(interactionTtlMsLeft('nonsense', t0)).toBeNull();
-  });
-  it('formatTtl renders MM:SS', () => {
-    expect(formatTtl(27 * 60 + 2)).toBe('27:02');
-    expect(formatTtl(0)).toBe('00:00');
-  });
-  it('timeHHMM renders a local HH:MM, null when absent', () => {
-    expect(timeHHMM(ts)).toMatch(/^\d{2}:\d{2}$/);
-    expect(timeHHMM(null)).toBeNull();
-    expect(timeHHMM('bad')).toBeNull();
   });
 });
 

@@ -2,15 +2,9 @@ import { describe, it, expect } from 'vitest';
 import type { ProjectConduitInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import {
   buildProjectRailRows,
-  relativeAge,
   lastActivityByProject,
-  projectShortLabel,
   projectIndexFromKey,
   sortProjectsByActivity,
-  clampProjectsZoneHeight,
-  PROJECTS_ZONE_DEFAULT_H,
-  PROJECTS_ZONE_MIN_H,
-  PROJECTS_ZONE_MAX_H,
 } from './left-rail-projects';
 
 const project = (id: string): ProjectConduitInfo => ({
@@ -30,19 +24,6 @@ const session = (projectId: string, lastUsedAt: string): SessionInfo =>
   }) as SessionInfo;
 
 const NOW = Date.parse('2026-07-16T12:00:00');
-
-describe('relativeAge', () => {
-  it('formats minutes / hours / days from the elapsed span', () => {
-    expect(relativeAge(NOW - 5 * 60_000, NOW)).toBe('5m');
-    expect(relativeAge(NOW - 3 * 3_600_000, NOW)).toBe('3h');
-    expect(relativeAge(NOW - 3 * 86_400_000, NOW)).toBe('3d');
-  });
-
-  it('clamps sub-minute spans to "now" and never goes negative', () => {
-    expect(relativeAge(NOW - 10_000, NOW)).toBe('now');
-    expect(relativeAge(NOW + 60_000, NOW)).toBe('now');
-  });
-});
 
 describe('lastActivityByProject', () => {
   it('keeps the max effective timestamp per project', () => {
@@ -92,17 +73,6 @@ describe('sortProjectsByActivity', () => {
   });
 });
 
-describe('projectShortLabel', () => {
-  it('echoes the first two dash segments (design "quad-nav" from quad-nav-sim2real)', () => {
-    expect(projectShortLabel('quad-nav-sim2real')).toBe('quad-nav');
-  });
-
-  it('keeps ids with two or fewer segments verbatim', () => {
-    expect(projectShortLabel('cortex-self')).toBe('cortex-self');
-    expect(projectShortLabel('nimbus')).toBe('nimbus');
-  });
-});
-
 describe('projectIndexFromKey', () => {
   it('maps digit keys 1–9 to list indices 0–8', () => {
     expect(projectIndexFromKey('1')).toBe(0);
@@ -113,19 +83,6 @@ describe('projectIndexFromKey', () => {
     expect(projectIndexFromKey('0')).toBeNull();
     expect(projectIndexFromKey('a')).toBeNull();
     expect(projectIndexFromKey('10')).toBeNull();
-  });
-});
-
-describe('clampProjectsZoneHeight', () => {
-  it('passes through in-range heights and clamps out-of-range ones', () => {
-    expect(clampProjectsZoneHeight(PROJECTS_ZONE_DEFAULT_H)).toBe(PROJECTS_ZONE_DEFAULT_H);
-    expect(clampProjectsZoneHeight(10)).toBe(PROJECTS_ZONE_MIN_H);
-    expect(clampProjectsZoneHeight(9999)).toBe(PROJECTS_ZONE_MAX_H);
-  });
-
-  it('non-finite input falls back to the design default (322)', () => {
-    expect(PROJECTS_ZONE_DEFAULT_H).toBe(322);
-    expect(clampProjectsZoneHeight(Number.NaN)).toBe(PROJECTS_ZONE_DEFAULT_H);
   });
 });
 

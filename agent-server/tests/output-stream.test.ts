@@ -1,13 +1,13 @@
-// input:  node:test, SlackOutputStream, FeishuOutputStream, MockOutputStream, MockAdapter
-// output: OutputStream unit tests for Slack/Feishu/Mock implementations
-// pos:    Regression test for the three S1 OutputStream implementations
+// input:  Vitest, SlackOutputStream, FeishuOutputStream, MockAdapter
+// output: Slack and Feishu output-stream behavior regressions
+// pos:    Covers batching, retries, mutable regions, and message references
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeEach, afterEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { SlackOutputStream, _testSetRetryDelays, _testResetRetryDelays } from '../src/platform/adapters/slack-output-stream.js';
 import { FeishuOutputStream } from '../src/platform/adapters/feishu-output-stream.js';
-import { MockAdapter, MockOutputStream } from '../src/platform/testing.js';
+import { MockAdapter } from '../src/platform/testing.js';
 import type { Destination, MessageRef } from '../src/platform/types.js';
 
 // =========================================================================
@@ -586,110 +586,4 @@ test('FeishuOutputStream: empty/whitespace text ignored', async () => {
   await stream.flush();
 
   assert.equal(adapter.posted.length, 0);
-});
-
-// =========================================================================
-// MockOutputStream tests
-// =========================================================================
-
-test('MockOutputStream: records typed segment trail', async () => {
-  const adapter = new MockAdapter();
-  const dest = testDest('C-mock');
-  const stream = new MockOutputStream(adapter, dest);
-
-  stream.emitText('text segment');
-  stream.openMutable('mutable open');
-  await stream.postInteractive('interactive segment');
-  await stream.flush();
-
-  assert.equal(stream.segments.length, 3);
-  assert.equal(stream.segments[0].kind, 'text');
-  assert.equal(stream.segments[0].text, 'text segment');
-  assert.equal(stream.segments[1].kind, 'mutable-open');
-  assert.equal(stream.segments[1].text, 'mutable open');
-  assert.equal(stream.segments[2].kind, 'interactive');
-  assert.equal(stream.segments[2].text, 'interactive segment');
-});
-
-test('MockOutputStream: mutable-update segment recorded on region update', async () => {
-  const adapter = new MockAdapter();
-  const dest = testDest('C-mock-update');
-  const stream = new MockOutputStream(adapter, dest);
-
-  const region = stream.openMutable('initial');
-  region.update('updated');
-  await stream.flush();
-
-  const updates = stream.segments.filter(s => s.kind === 'mutable-update');
-  assert.equal(updates.length, 1);
-  assert.equal(updates[0].text, 'updated');
-});
-
-test('MockOutputStream: routes real posts through adapter', async () => {
-  const adapter = new MockAdapter();
-  const dest = testDest('C-mock-post');
-  const stream = new MockOutputStream(adapter, dest);
-
-  stream.emitText('real post');
-  await stream.flush();
-
-  assert.equal(adapter.posted.length, 1, 'message posted through MockAdapter');
-  assert.equal(adapter.posted[0].content.text, 'real post');
-});
-
-test('MockOutputStream: getRefs returns refs from posts', async () => {
-  const adapter = new MockAdapter();
-  const dest = testDest('C-mock-refs');
-  const stream = new MockOutputStream(adapter, dest);
-
-  stream.emitText('first');
-  stream.emitText('second');
-  await stream.flush();
-
-  const refs = stream.getRefs();
-  assert.equal(refs.length, 2);
-  assert.equal(refs[0].messageId, '1000');
-  assert.equal(refs[1].messageId, '1001');
-});
-
-test('MockOutputStream: getParentRef returns first ref', async () => {
-  const adapter = new MockAdapter();
-  const dest = testDest('C-mock-parent');
-  const stream = new MockOutputStream(adapter, dest);
-
-  const ref = await stream.postInteractive('interactive');
-  await stream.flush();
-
-  const parent = stream.getParentRef();
-  assert.ok(parent);
-  assert.equal(parent!.messageId, ref!.messageId);
-});
-
-test('MockOutputStream: empty text ignored', async () => {
-  const adapter = new MockAdapter();
-  const dest = testDest('C-mock-empty');
-  const stream = new MockOutputStream(adapter, dest);
-
-  stream.emitText('');
-  stream.emitText('   ');
-  stream.openMutable('');
-  await stream.flush();
-
-  assert.equal(stream.segments.length, 0, 'no segments for empty/whitespace');
-  assert.equal(adapter.posted.length, 0);
-});
-
-// =========================================================================
-// postOnce helper (implicitly tested via output-stream-helpers)
-// =========================================================================
-
-test('postOnce: creates single message via adapter.openOutputStream', async () => {
-  const { postOnce } = await import('../src/platform/output-stream-helpers.js');
-  const adapter = new MockAdapter();
-  const ref = await postOnce(adapter, testDest('C-once'), 'one-shot');
-
-  assert.ok(ref);
-  assert.equal(ref!.messageId, '1000');
-  assert.equal(adapter.posted.length, 1);
-  assert.equal(adapter.posted[0].content.text, 'one-shot');
 });

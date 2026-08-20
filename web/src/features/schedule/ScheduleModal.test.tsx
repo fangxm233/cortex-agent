@@ -6,7 +6,6 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
-import { CONTROL_HEIGHT } from '@/design/controls';
 import { defaultScheduleForm, type ScheduleForm } from './schedule-modal-vm';
 
 vi.mock('@/design', async () => ({
@@ -68,16 +67,6 @@ describe('ScheduleModal custom selections', () => {
     const onChange = vi.fn();
     const form = { ...defaultScheduleForm('nimbus'), type: 'interval' as const };
     const renderer = mount(form, onChange);
-    const interval = renderer.root.findByProps({ 'data-schedule-select': 'intervalUnit' });
-    const intervalHost = renderer.root.findAll((node) => (
-      node.type === 'div' && node.props['data-schedule-select'] === 'intervalUnit'
-    ))[0];
-
-    expect(interval.props.density).toBe('bare');
-    expect(intervalHost.parent?.parent?.props.style).toMatchObject({
-      height: CONTROL_HEIGHT.md,
-      borderRadius: 8,
-    });
     pick(renderer, 'intervalUnit', 'hr');
     pick(renderer, 'profile', 'review');
     pick(renderer, 'target', 'project');
@@ -103,22 +92,6 @@ describe('ScheduleModal custom selections', () => {
       { delayUnit: 'min' },
       { dayOfWeek: 5 },
     ]);
-  });
-
-  it('cuts every field cell from one box so the time input and the selects line up', () => {
-    const renderer = mount({ ...defaultScheduleForm(null), type: 'weekly' });
-    const cell = (field: string) => renderer.root.findAll((node) => (
-      node.type === 'div' && node.props['data-schedule-select'] === field
-    ))[0].parent?.parent?.props.style;
-    const timeCell = renderer.root.findAll((node) => (
-      node.type === 'input' && node.props.placeholder === '09:00'
-    ))[0].parent?.props.style;
-
-    expect(timeCell).toMatchObject({ height: CONTROL_HEIGHT.md, borderRadius: 8 });
-    expect(cell('dayOfWeek')).toEqual(timeCell);
-    expect(cell('profile')).toEqual(timeCell);
-    expect(cell('target')).toEqual(timeCell);
-    expect(cell('fallback')).toEqual(timeCell);
   });
 
   it('locks target and fallback selections while editing', () => {

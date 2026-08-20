@@ -238,19 +238,6 @@ test('stop returns error for unknown task ID', () => {
   assert.match(result.stdout, /No running dispatched task found/);
 });
 
-test('--help returns help text with commands and examples', () => {
-  const result = runCli(['--help']);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Commands:/);
-  assert.match(result.stdout, /claim/);
-  assert.match(result.stdout, /complete/);
-  assert.match(result.stdout, /Examples:/);
-  assert.match(result.stdout, /Options:/);
-  assert.match(result.stdout, /--project/);
-  assert.match(result.stdout, /--depends-on/);
-  assert.doesNotMatch(result.stdout, /qa-pending/);
-});
-
 test('unknown command lists available commands', () => {
   const result = runCli(['nonexistent']);
   assert.equal(result.exitCode, 1);

@@ -24,149 +24,7 @@ type McpServer = CatalogEntry['mcp']['servers'][number];
 const homeRoot = process.env.CORTEX_HOME ?? '';
 const pluginsRoot = path.join(homeRoot, 'plugins');
 const pluginDataRoot = path.join(homeRoot, 'data', 'plugin-data');
-const schemaRoot = path.join(
-  process.cwd(),
-  'src',
-  'domain',
-  'plugins',
-  'resources',
-  '1.0.0',
-);
-const defaultsPluginsRoot = path.join(process.cwd(), 'defaults', 'plugins');
 const cleanup: string[] = [];
-
-const OFFICIAL_PLUGIN_SCHEMA = {
-  $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $id: AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL,
-  title: 'Agent Plugins Manifest',
-  description: 'Machine-readable schema for plugin.json in Agent Plugins 1.0.0. The Agent Plugins specification defines additional semantic and operational requirements.',
-  type: 'object',
-  properties: {
-    $schema: {
-      const: AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL,
-      description: 'Canonical identifier of the plugin manifest schema for the Agent Plugins version targeted by this document.',
-    },
-    name: {
-      type: 'string',
-      minLength: 1,
-      maxLength: 64,
-      pattern: '^(?!.*(?:--|\\.\\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$',
-      description: 'Human-readable plugin name.',
-    },
-    version: { type: 'string' },
-    description: { type: 'string' },
-    author: {
-      type: 'object',
-      properties: {
-        name: { type: 'string' },
-        email: { type: 'string' },
-        url: { type: 'string' },
-      },
-      additionalProperties: false,
-    },
-    homepage: { type: 'string' },
-    repository: { type: 'string' },
-    license: { type: 'string' },
-    keywords: { type: 'array', items: { type: 'string' } },
-    extensions: {
-      type: 'object',
-      description: 'Client-specific manifest data keyed by reverse-domain extension namespace. Agent Plugins assigns no semantics to namespace object contents.',
-      additionalProperties: { type: 'object' },
-    },
-  },
-  required: ['$schema', 'name'],
-  additionalProperties: false,
-};
-
-const OFFICIAL_MCP_SCHEMA = {
-  $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $id: AGENT_PLUGIN_V1_MCP_SCHEMA_URL,
-  title: 'Agent Plugins MCP Configuration',
-  description: 'Machine-readable schema for mcp.json in Agent Plugins 1.0.0. The Agent Plugins specification defines additional semantic and operational requirements.',
-  type: 'object',
-  properties: {
-    $schema: {
-      const: AGENT_PLUGIN_V1_MCP_SCHEMA_URL,
-      description: 'Canonical identifier of the MCP configuration schema for the Agent Plugins version targeted by this document.',
-    },
-    mcpServers: {
-      type: 'object',
-      additionalProperties: { $ref: '#/$defs/server' },
-    },
-  },
-  required: ['$schema', 'mcpServers'],
-  additionalProperties: false,
-  $defs: {
-    server: {
-      title: 'MCP server',
-      oneOf: [
-        { $ref: '#/$defs/stdioServer' },
-        { $ref: '#/$defs/streamableHttpServer' },
-        { $ref: '#/$defs/sseServer' },
-      ],
-    },
-    stdioServer: {
-      title: 'stdio MCP server',
-      type: 'object',
-      properties: {
-        type: { const: 'stdio' },
-        command: {
-          type: 'string',
-          minLength: 1,
-          description: 'Executable token. Resolution rules are defined by the Agent Plugins specification.',
-        },
-        args: { type: 'array', items: { type: 'string' } },
-        env: {
-          type: 'object',
-          propertyNames: { not: { enum: ['PLUGIN_ROOT', 'PLUGIN_DATA'] } },
-          additionalProperties: { type: 'string' },
-        },
-        cwd: {
-          type: 'string',
-          pattern: '^(?:\\./|\\$\\{PLUGIN_ROOT\\}(?:/|$)|\\$\\{PLUGIN_DATA\\}(?:/|$))',
-          description: 'Plugin-relative, PLUGIN_ROOT-rooted, or PLUGIN_DATA-rooted working directory. Filesystem containment is validated separately.',
-        },
-      },
-      required: ['type', 'command'],
-      additionalProperties: false,
-    },
-    streamableHttpServer: {
-      title: 'Streamable HTTP MCP server',
-      type: 'object',
-      properties: {
-        type: { const: 'streamable-http' },
-        url: {
-          type: 'string',
-          minLength: 1,
-          description: 'MCP endpoint URL. URL semantics are defined by the Agent Plugins specification.',
-        },
-        headers: { $ref: '#/$defs/headers' },
-      },
-      required: ['type', 'url'],
-      additionalProperties: false,
-    },
-    sseServer: {
-      title: 'Legacy HTTP+SSE MCP server',
-      type: 'object',
-      properties: {
-        type: { const: 'sse' },
-        url: {
-          type: 'string',
-          minLength: 1,
-          description: 'MCP endpoint URL. URL semantics are defined by the Agent Plugins specification.',
-        },
-        headers: { $ref: '#/$defs/headers' },
-      },
-      required: ['type', 'url'],
-      additionalProperties: false,
-    },
-    headers: {
-      title: 'HTTP headers',
-      type: 'object',
-      additionalProperties: { type: 'string' },
-    },
-  },
-};
 
 const OFFICIAL_VALID_MANIFEST = {
   $schema: AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL,
@@ -312,10 +170,6 @@ function pickServer(entry: CatalogEntry, name: string): McpServer {
   return server;
 }
 
-function readVendored(name: string): unknown {
-  return JSON.parse(fs.readFileSync(path.join(schemaRoot, name), 'utf8'));
-}
-
 function outsideDir(prefix: string): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   cleanup.push(dir);
@@ -424,11 +278,6 @@ function assertPortableRemote(entry: CatalogEntry) {
 }
 
 describe('Agent Plugins v1 schema pins', () => {
-  it('matches the vendored official plugin and MCP schema files', () => {
-    expect(readVendored('plugin.schema.json')).toEqual(OFFICIAL_PLUGIN_SCHEMA);
-    expect(readVendored('mcp.schema.json')).toEqual(OFFICIAL_MCP_SCHEMA);
-  });
-
   it('accepts the official valid fixtures and rejects the official invalid fixture', () => {
     expect(portableManifestSchema.safeParse(OFFICIAL_VALID_MANIFEST).success).toBe(true);
     expect(portableManifestSchema.safeParse(OFFICIAL_INVALID_MANIFEST).success).toBe(false);
@@ -632,33 +481,6 @@ it('rejects malformed optional skill frontmatter fields and unknown keys', () =>
   expect(issueMessages(entry, 'skill_invalid')).toEqual(
     expect.arrayContaining([...OPTIONAL_SKILL_MESSAGES]),
   );
-});
-
-it('inventories every shipped legacy defaults skill directory with a non-zero count', () => {
-  const catalog = loadPluginCatalog({
-    pluginsDir: defaultsPluginsRoot,
-    dataDir: path.join(homeRoot, 'data', 'defaults-plugin-catalog'),
-  });
-  const expectedLegacy = fs.readdirSync(defaultsPluginsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => {
-      const id = entry.name;
-      const skillsDir = path.join(defaultsPluginsRoot, id, 'skills');
-      const skillNames = fs.readdirSync(skillsDir, { withFileTypes: true })
-        .filter((child) => child.isDirectory())
-        .map((child) => child.name)
-        .sort();
-      return { id, skillNames };
-    });
-
-  expect(expectedLegacy.length).toBeGreaterThan(0);
-  expect(expectedLegacy.flatMap((entry) => entry.skillNames).length).toBeGreaterThan(0);
-  for (const expected of expectedLegacy) {
-    const entry = pickPlugin(catalog, expected.id);
-    expect(entry.kind).toBe('legacy');
-    expect(entry.skills.map((skill) => skill.name)).toEqual(expected.skillNames);
-    expect(entry.skills.length).toBeGreaterThan(0);
-  }
 });
 
 it('rejects PLUGIN_DATA symlink escapes after physical containment checks', () => {

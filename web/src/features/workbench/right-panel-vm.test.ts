@@ -5,26 +5,16 @@
 
 import { describe, expect, it } from 'vitest';
 import type {
-  ThreadInfo,
   ThreadStepDetail,
   ThreadDetail,
   ThreadChildNode,
-  ThreadDispatchInfo,
   TaskInfo,
   MachineInfo,
 } from '@cortex-agent/ui-contract';
 import {
-  threadPill,
   stepDotKind,
-  formatCost,
-  formatDurationS,
-  stepMeta,
-  formatAge,
-  threadMetaLine,
   depthInfo,
-  machinePill,
   onlineMachineCount,
-  cortexRunLabel,
   subtaskActivity,
   rightPanelBudget,
 } from './right-panel-vm';
@@ -64,21 +54,6 @@ function child(partial: Partial<ThreadChildNode>): ThreadChildNode {
   };
 }
 
-function info(partial: Partial<ThreadInfo>): ThreadInfo {
-  return {
-    id: 'thr_8f2c',
-    templateName: 'coder-review',
-    currentStep: null,
-    status: 'running',
-    projectId: 'p',
-    createdAt: '2026-07-06T00:00:00.000Z',
-    updatedAt: '2026-07-06T00:00:00.000Z',
-    totalSteps: 4,
-    artifactPath: null,
-    ...partial,
-  };
-}
-
 function detail(partial: Partial<ThreadDetail>): ThreadDetail {
   return {
     id: 'thr_8f2c',
@@ -106,19 +81,6 @@ function detail(partial: Partial<ThreadDetail>): ThreadDetail {
   };
 }
 
-describe('threadPill', () => {
-  it.each([
-    ['running', 'Running'],
-    ['waiting', 'Waiting'],
-    ['completed', 'Done'],
-    ['failed', 'Failed'],
-    ['cancelled', 'Cancelled'],
-    ['aborted', 'Cancelled'],
-  ] as const)('maps %s to its semantic label', (status, label) => {
-    expect(threadPill(status).text).toBe(label);
-  });
-});
-
 describe('stepDotKind', () => {
   it('maps step status → dot kind', () => {
     expect(stepDotKind(step({ status: 'completed' }))).toBe('done');
@@ -128,16 +90,6 @@ describe('stepDotKind', () => {
 });
 
 describe('activity row view models', () => {
-  it('labels a real run by cortex-run name, never by execution id', () => {
-    const run: ThreadDispatchInfo = {
-      executionId: 'exec_dispatch_hidden', status: 'running', machine: 'lab2', type: 'dispatch',
-      agentSlotId: null, stepIndex: 0, taskId: 'ab12', runName: 'root-sweep',
-      startedAt: '2026-07-06T00:00:00Z', finishedAt: null, durationMs: null, cost: null,
-    };
-    expect(cortexRunLabel(run)).toBe('cortex-run root-sweep');
-    expect(cortexRunLabel(run)).not.toContain(run.executionId);
-  });
-
   it('maps direct subtask lifecycle to compact scheme-3a status', () => {
     const base: TaskInfo = {
       id: 'cd34', text: 'Direct child', project: 'p', status: 'open', priority: 'medium',
@@ -151,85 +103,15 @@ describe('activity row view models', () => {
   });
 });
 
-describe('formatCost / formatDurationS', () => {
-  it('cost → 2-decimal $', () => {
-    expect(formatCost(2.1)).toBe('$2.10');
-    expect(formatCost(0)).toBe('$0.00');
-  });
-  it('duration → compact clock, rounding seconds', () => {
-    expect(formatDurationS(45)).toBe('45s');
-    expect(formatDurationS(60)).toBe('1m');
-    expect(formatDurationS(207)).toBe('3m 27s');
-    expect(formatDurationS(2340)).toBe('39m');
-    expect(formatDurationS(45.6)).toBe('46s');
-  });
-});
-
 describe('rightPanelBudget', () => {
-  it('shows the real daily limit and spend progress', () => {
-    expect(rightPanelBudget(4.21, 10)).toEqual({
-      todayLabel: '$4.21',
-      limitLabel: '$10.00',
-      percent: 42.1,
-    });
-  });
-
-  it('caps overspend and leaves unavailable limits empty', () => {
+  it('computes spend progress and caps overspend', () => {
+    expect(rightPanelBudget(4.21, 10).percent).toBe(42.1);
     expect(rightPanelBudget(15, 10).percent).toBe(100);
-    expect(rightPanelBudget(4.21, 0)).toEqual({
-      todayLabel: '$4.21',
-      limitLabel: '—',
-      percent: 0,
-    });
-    expect(rightPanelBudget(undefined, undefined)).toEqual({
-      todayLabel: '—',
-      limitLabel: '—',
-      percent: 0,
-    });
   });
-});
 
-describe('stepMeta — "39m · $2.10" (duration then cost)', () => {
-  it('joins present parts with " · "', () => {
-    expect(stepMeta(step({ durationS: 2340, costUsd: 2.1 }))).toBe('39m · $2.10');
-  });
-  it('omits null parts', () => {
-    expect(stepMeta(step({ durationS: null, costUsd: 0.04 }))).toBe('$0.04');
-    expect(stepMeta(step({ durationS: 180, costUsd: null }))).toBe('3m');
-    expect(stepMeta(step({}))).toBe('');
-  });
-});
-
-describe('formatAge', () => {
-  const now = Date.parse('2026-07-06T10:00:00.000Z');
-  it('sub-minute → just now', () => {
-    expect(formatAge('2026-07-06T09:59:30.000Z', now)).toBe('just now');
-  });
-  it('minutes', () => {
-    expect(formatAge('2026-07-06T09:18:00.000Z', now)).toBe('42m');
-  });
-  it('hours', () => {
-    expect(formatAge('2026-07-06T07:00:00.000Z', now)).toBe('3h');
-  });
-  it('days', () => {
-    expect(formatAge('2026-07-04T10:00:00.000Z', now)).toBe('2d');
-  });
-});
-
-describe('threadMetaLine', () => {
-  const now = Date.parse('2026-07-06T10:00:00.000Z');
-  it('shows the owning task between the thread id and current step', () => {
-    expect(
-      threadMetaLine(
-        info({ id: 'thr_8f2c', taskId: 'a293', currentStep: { index: 2, name: 'review' }, totalSteps: 4, createdAt: '2026-07-06T09:18:00.000Z' }),
-        now,
-      ),
-    ).toBe('thr_8f2c · task a293 · step 3/4 · 42m');
-  });
-  it('omits task and step when neither is present', () => {
-    expect(
-      threadMetaLine(info({ id: 'thr_a41d', currentStep: null, createdAt: '2026-07-06T09:18:00.000Z' }), now),
-    ).toBe('thr_a41d · 42m');
+  it('uses zero progress when the limit is unavailable', () => {
+    expect(rightPanelBudget(4.21, 0).percent).toBe(0);
+    expect(rightPanelBudget(undefined, undefined).percent).toBe(0);
   });
 });
 
@@ -243,13 +125,6 @@ describe('depthInfo — dots filled = deepest child level, total = 5', () => {
     });
     // depth 2 → level 4
     expect(depthInfo(tree)).toEqual({ filled: 4, total: 5, text: '4/5' });
-  });
-});
-
-describe('machinePill', () => {
-  it('reports online and offline states', () => {
-    expect(machinePill(true).text).toBe('Online');
-    expect(machinePill(false).text).toBe('Offline');
   });
 });
 

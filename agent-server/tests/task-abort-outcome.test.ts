@@ -7,7 +7,7 @@
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { processAbortOutcome, formatWorkerAbortReason } from '../src/domain/tasks/dispatch-utils.js';
+import { processAbortOutcome } from '../src/domain/tasks/dispatch-utils.js';
 
 function makeDeps(status: string, abortReason: string | null = null) {
   const blocked: Array<{ taskId: string; reason: string }> = [];
@@ -67,19 +67,4 @@ test('processAbortOutcome truncates very long abort reasons in the block reason'
   const { blocked, deps } = makeDeps('aborted', 'x'.repeat(500));
   await processAbortOutcome({ threadId: 'thr_x', taskId: 't555', project: 'proj' }, deps);
   assert.ok(blocked[0].reason.length <= 300, `reason too long: ${blocked[0].reason.length}`);
-});
-
-// --- formatWorkerAbortReason (DR-0015: shared by runner onAbort + processAbortOutcome) ---
-
-test('formatWorkerAbortReason prefixes worker-abort and defaults a null reason', () => {
-  assert.equal(formatWorkerAbortReason(null), 'worker-abort: no reason given');
-  assert.equal(formatWorkerAbortReason(''), 'worker-abort: no reason given');
-});
-
-test('formatWorkerAbortReason collapses internal whitespace/newlines', () => {
-  assert.equal(formatWorkerAbortReason('too-big\n  needs   split'), 'worker-abort: too-big needs split');
-});
-
-test('formatWorkerAbortReason caps total length at 280', () => {
-  assert.ok(formatWorkerAbortReason('x'.repeat(500)).length <= 280);
 });

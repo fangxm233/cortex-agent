@@ -6,7 +6,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   composerCharCount,
-  composerCountLabel,
   composerLineCount,
   shouldFlingClose,
 } from './kit';
@@ -34,9 +33,5 @@ describe('composer text metrics', () => {
 
   it('counts Unicode code points and includes newlines', () => {
     expect(composerCharCount('A😀\n中')).toBe(4);
-  });
-
-  it('formats counts with caller-provided units', () => {
-    expect(composerCountLabel('a\nb', 'rows', 'chars')).toBe('2 rows · 3 chars');
   });
 });

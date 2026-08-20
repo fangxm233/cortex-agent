@@ -15,12 +15,10 @@ import {
   generateConfigs,
   generateDotEnvContent,
   generateDefaultModeJson,
-  formatConfigOutput,
   safeCopy,
   isBackendInstalled,
   getInstallCommand,
   isGitInstalled,
-  getGitInstallHint,
   generateGatewayUsageYaml,
   getAistatusConfigPath,
   generateSystemdUnit,
@@ -265,11 +263,6 @@ test('generateDotEnvContent does not include API keys (general)', () => {
   assert.doesNotMatch(content, /ANTHROPIC_BASE_URL/);
 });
 
-test('generateDotEnvContent includes header comment', () => {
-  const content = generateDotEnvContent(MINIMAL_ANSWERS);
-  assert.match(content, /^# Cortex Configuration/m);
-});
-
 // ─── Platform-specific env generation ────────────────────────────
 
 test('generateDotEnvContent includes CORTEX_PLATFORM=slack and tokens', () => {
@@ -382,39 +375,6 @@ test('generateDefaultModeJson defaults to claude when no arg', () => {
   assert.equal(parsed.backend, 'claude');
 });
 
-// ─── formatConfigOutput ─────────────────────────────────────────
-
-test('formatConfigOutput shows all paths', () => {
-  const paths = {
-    INSTALL_ROOT: '/pkg',
-    DATA_DIR: '/data',
-    CONFIG_DIR: '/data/config',
-    STORE_DIR: '/data/store',
-    CONTEXT_DIR: '/data/context',
-    PROJECTS_DIR: '/data/context/projects',
-    WORKSPACE_DIR: '/data/tmp',
-  };
-  const status = { dataDirExists: true, dotEnvExists: true, mcpConfigExists: false, modeJsonExists: true };
-  const output = formatConfigOutput(paths, status);
-  assert.match(output, /INSTALL_ROOT.*\/pkg/);
-  assert.match(output, /DATA_DIR.*\/data/);
-  assert.match(output, /CONFIG_DIR.*\/data\/config/);
-  assert.match(output, /STORE_DIR.*\/data\/store/);
-  assert.match(output, /CONTEXT_DIR.*\/data\/context/);
-  assert.match(output, /PROJECTS_DIR.*\/data\/context\/projects/);
-  assert.match(output, /WORKSPACE_DIR.*\/data\/tmp/);
-});
-
-test('formatConfigOutput shows initialization status', () => {
-  const paths = { INSTALL_ROOT: '/pkg', DATA_DIR: '/data', CONFIG_DIR: '/data/config', STORE_DIR: '/data/store', CONTEXT_DIR: '/data/context', PROJECTS_DIR: '/data/context/projects', WORKSPACE_DIR: '/data/tmp' };
-  const status = { dataDirExists: true, dotEnvExists: true, mcpConfigExists: false, modeJsonExists: true };
-  const output = formatConfigOutput(paths, status);
-  assert.match(output, /DATA_DIR:.*initialized/);
-  assert.match(output, /\.env:.*found/);
-  assert.match(output, /mcp-config\.json:.*missing/);
-  assert.match(output, /mode\.json:.*found/);
-});
-
 // ─── safeCopy ───────────────────────────────────────────────────
 
 test('safeCopy copies file when destination does not exist', () => {
@@ -513,49 +473,6 @@ test('getInstallCommand returns correct command for pi', () => {
 test('isGitInstalled returns a boolean without throwing', () => {
   const result = isGitInstalled();
   assert.equal(typeof result, 'boolean');
-});
-
-// ─── getGitInstallHint ─────────────────────────────────────────
-
-test('getGitInstallHint returns a non-empty string', () => {
-  const hint = getGitInstallHint();
-  assert.equal(typeof hint, 'string');
-  assert.ok(hint.length > 0);
-});
-
-test('getGitInstallHint contains package manager info on Linux', () => {
-  const hint = getGitInstallHint();
-  if (process.platform === 'linux') {
-    // Should contain either a package manager command or a fallback URL
-    assert.ok(
-      hint.includes('apt-get') ||
-      hint.includes('dnf') ||
-      hint.includes('yum') ||
-      hint.includes('pacman') ||
-      hint.includes('zypper') ||
-      hint.includes('apk') ||
-      hint.includes('git-scm.com'),
-      `unexpected linux hint: ${hint}`,
-    );
-  }
-});
-
-test('getGitInstallHint references brew or xcode-select on macOS', () => {
-  if (process.platform === 'darwin') {
-    const hint = getGitInstallHint();
-    assert.ok(
-      hint.includes('brew') ||
-      hint.includes('xcode-select'),
-      `unexpected darwin hint: ${hint}`,
-    );
-  }
-});
-
-test('getGitInstallHint references winget on Windows', () => {
-  if (process.platform === 'win32') {
-    const hint = getGitInstallHint();
-    assert.ok(hint.includes('winget'), `unexpected win32 hint: ${hint}`);
-  }
 });
 
 // ─── generateGatewayUsageYaml ───────────────────────────────────

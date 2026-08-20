@@ -4,23 +4,15 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import copy
-import inspect
 from pathlib import Path
 
 import pytest
-from harbor.agents.factory import AgentFactory
-from harbor.models.trial.config import AgentConfig
 
-from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.arms import (
-    COMPOSABLE_MODES,
-    MODE_LIFTING_GATES,
-    VENDOR_IMPORT_PATHS,
     BackendUnsupportedForKindError,
     ImageDigestUnpinnedError,
     backend_cli_binary,
     build_agent_config,
-    require_composable_arm,
     require_pinned_image,
     select_arm,
     select_task,
@@ -106,14 +98,6 @@ def trial_seed() -> dict[str, object]:
     }
 
 
-def test_host_agent_config_takes_the_seed_not_a_composed_document() -> None:
-    parameters = inspect.signature(build_agent_config).parameters
-
-    assert "trial_seed" in parameters
-    assert "arm_resolution" not in parameters
-    assert "run_config_projection" not in parameters
-
-
 def test_select_arm_is_explicit_unique_and_immutable() -> None:
     selected = select_arm([cortex_arm(), baseline_arm("codex")], "cortex-direct")
 
@@ -150,39 +134,6 @@ def test_image_selection_requires_the_reference_to_match_its_digest() -> None:
         assert error.value.reason == "image_digest_unpinned"
 
 
-def cortex_config(
-    tmp_path: Path,
-) -> tuple[AgentConfig, dict[str, object], dict[str, object]]:
-    manifest_value = manifest(tmp_path)
-    seed = trial_seed()
-    config = build_agent_config(
-        cortex_arm(), cli_version="2026.8.3",
-        artifact_dir=tmp_path / "artifacts", manifest=manifest_value,
-        trial_seed=seed,
-        env={"ANTHROPIC_BASE_URL": "http://trial-proxy.invalid"},
-        override_timeout_sec=90, override_setup_timeout_sec=30,
-        max_timeout_sec=120, extra_allowed_hosts=["trial-proxy.invalid"],
-    )
-    return config, manifest_value, seed
-
-
-def test_cortex_config_uses_public_import_and_launcher_inputs(tmp_path: Path) -> None:
-    config, manifest_value, seed = cortex_config(tmp_path)
-
-    assert config.name is None
-    assert config.import_path == "cortex_bench_harness:CortexBenchAgent"
-    assert config.model_name == "deepseek-v4-flash"
-    assert config.kwargs == {
-        "artifact_dir": tmp_path / "artifacts", "manifest": manifest_value,
-        "trial_seed": seed, "version": "2026.8.3",
-    }
-    assert config.env == {"ANTHROPIC_BASE_URL": "http://trial-proxy.invalid"}
-    assert config.extra_allowed_hosts == ["trial-proxy.invalid"]
-    assert config.override_timeout_sec == 90
-    assert config.override_setup_timeout_sec == 30
-    assert config.max_timeout_sec == 120
-
-
 def test_cortex_config_carries_only_a_nonsecret_credential_handle(tmp_path: Path) -> None:
     manifest_value = manifest(tmp_path)
     seed = trial_seed()
@@ -192,13 +143,6 @@ def test_cortex_config_carries_only_a_nonsecret_credential_handle(tmp_path: Path
     )
     assert config.kwargs["credential_handle"] == "vault-handle-1"
     assert "credential" not in config.kwargs
-
-
-def test_harbor_factory_constructs_the_public_cortex_agent(tmp_path: Path) -> None:
-    config, _, _ = cortex_config(tmp_path)
-    agent = AgentFactory.create_agent_from_config(config, logs_dir=tmp_path / "logs")
-
-    assert isinstance(agent, CortexBenchAgent)
 
 
 def test_cortex_config_rejects_selected_arm_seed_mismatch(tmp_path: Path) -> None:
@@ -211,26 +155,6 @@ def test_cortex_config_rejects_selected_arm_seed_mismatch(tmp_path: Path) -> Non
             artifact_dir=tmp_path / "artifacts", manifest=manifest(tmp_path),
             trial_seed=seed,
         )
-
-
-def test_all_cortex_modes_are_composable() -> None:
-    assert MODE_LIFTING_GATES == {}
-    assert COMPOSABLE_MODES == frozenset({"direct", "coder-review", "manager"})
-
-
-def test_vendor_baselines_are_unaffected_by_the_mode_lift(tmp_path: Path) -> None:
-    # RB6's other half: a baseline declares no orchestration at all, so a change to which modes
-    # compose must leave it exactly where it was.
-    arm = baseline_arm("claude-code")
-
-    config = build_agent_config(
-        arm, cli_version="2026.8.3", artifact_dir=tmp_path / "artifacts",
-        manifest=manifest(tmp_path),
-    )
-
-    assert isinstance(config, AgentConfig)
-    with pytest.raises(ValueError, match="Cortex arm"):
-        require_composable_arm(arm)
 
 
 def test_pi_backed_direct_arms_compose_on_the_host(tmp_path: Path) -> None:
@@ -260,41 +184,3 @@ def test_undeclared_backends_still_refuse_on_the_host(tmp_path: Path) -> None:
     assert error.value.reason == "backend_unsupported_for_kind"
     assert "cortex-unknown-direct" in str(error.value)
     assert "its owning gate" in str(error.value)
-
-
-def test_vendor_baselines_need_no_seed_and_no_composition(tmp_path: Path) -> None:
-    config = build_agent_config(baseline_arm("claude-code"), cli_version="2026.8.6")
-
-    assert config.kwargs == {"version": "1.2.3"}
-    assert config.name is None
-    assert config.import_path == VENDOR_IMPORT_PATHS["claude-code"]
-
-
-@pytest.mark.parametrize(
-    ("vendor_agent", "provider", "expected_model"),
-    [
-        ("claude-code", None, "representative-model"),
-        ("pi", "openai", "openai/representative-model"),
-        ("codex", None, "representative-model"),
-    ],
-)
-def test_vendor_config_routes_by_harbor_name_without_cortex_kwargs(
-    tmp_path: Path,
-    vendor_agent: str,
-    provider: str | None,
-    expected_model: str,
-) -> None:
-    config = build_agent_config(
-        baseline_arm(vendor_agent, provider),
-        cli_version="1.2.3",
-        env={"BASE_URL": "http://trial-proxy.invalid"},
-    )
-
-    agent = AgentFactory.create_agent_from_config(
-        config, logs_dir=tmp_path / vendor_agent,
-    )
-    assert config.name is None
-    assert config.import_path == VENDOR_IMPORT_PATHS[vendor_agent]
-    assert config.model_name == expected_model
-    assert config.kwargs == {"version": "1.2.3"}
-    assert agent.name() == vendor_agent

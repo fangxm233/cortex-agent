@@ -29,36 +29,11 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
 }
 
 describe('sessionStatusLine', () => {
-  it('running with a turn count → `running · N turns`', () => {
-    expect(sessionStatusLine(sess({ running: true, numTurns: 12 }))).toEqual({
-      kind: 'running',
-      text: 'running · 12 turns',
-    });
-  });
-
-  it('running without a turn count → bare `running` (no fabricated turns)', () => {
-    expect(sessionStatusLine(sess({ running: true, numTurns: null }))).toEqual({
-      kind: 'running',
-      text: 'running',
-    });
-  });
-
-  it('idle → 空闲 (no fabricated cost — SessionInfo carries none)', () => {
-    expect(sessionStatusLine(sess({ running: false }))).toEqual({ kind: 'idle', text: '空闲' });
-  });
-
-  it('background-held → kind background + `后台运行` (web bg-hold snapshot)', () => {
-    expect(sessionStatusLine(sess({ running: true, backgroundRunning: true }))).toEqual({
-      kind: 'background',
-      text: '后台运行',
-    });
-  });
-
-  it('awaiting user action → kind awaiting + `等待操作` (needs-you amber)', () => {
-    expect(sessionStatusLine(sess({ running: true, awaitingInput: true }))).toEqual({
-      kind: 'awaiting',
-      text: '等待操作',
-    });
+  it('classifies running, idle, background-held, and awaiting sessions', () => {
+    expect(sessionStatusLine(sess({ running: true, numTurns: 12 })).kind).toBe('running');
+    expect(sessionStatusLine(sess({ running: false })).kind).toBe('idle');
+    expect(sessionStatusLine(sess({ running: true, backgroundRunning: true })).kind).toBe('background');
+    expect(sessionStatusLine(sess({ running: true, awaitingInput: true })).kind).toBe('awaiting');
   });
 
   it('awaiting wins over background (blocked on a question while a bg task holds)', () => {

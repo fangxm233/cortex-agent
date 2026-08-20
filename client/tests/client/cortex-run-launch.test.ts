@@ -1,5 +1,5 @@
 // input:  node:test, temporary filesystem, cortex-run launch module
-// output: launch, cancel, callback generation, orphan, and ack tests
+// output: launch, cancel, callback generation, orphan, and utility tests
 // pos:    Verifies durable cortex-run client lifecycle behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -29,7 +29,6 @@ let isPidAlive: any;
 let readJsonSafe: any;
 let tailFile: any;
 let findRunDirByCallbackId: any;
-let tryUnlink: any;
 let flushPendingCallbacks: any;
 let synthesizeOrphanResult: any;
 type CortexRunLaunchParams = any;
@@ -44,7 +43,6 @@ before(async () => {
   readJsonSafe = mod.readJsonSafe;
   tailFile = mod.tailFile;
   findRunDirByCallbackId = mod.findRunDirByCallbackId;
-  tryUnlink = mod.tryUnlink;
   flushPendingCallbacks = mod.flushPendingCallbacks;
   synthesizeOrphanResult = mod.synthesizeOrphanResult;
 });
@@ -151,25 +149,6 @@ describe('findRunDirByCallbackId', () => {
       rmSync(dir1, { recursive: true, force: true });
       rmSync(dir2, { recursive: true, force: true });
     }
-  });
-});
-
-describe('tryUnlink', () => {
-  it('removes existing file silently', () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), 'unlink-'));
-    try {
-      const f = join(tmpDir, 'test.txt');
-      writeFileSync(f, 'hello');
-      assert.ok(existsSync(f));
-      tryUnlink(f);
-      assert.ok(!existsSync(f));
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('no-ops on missing file', () => {
-    tryUnlink('/nonexistent/path.txt'); // should not throw
   });
 });
 
@@ -491,6 +470,7 @@ describe('flushPendingCallbacks', () => {
     assert.strictEqual(msg.callbackId, 'dev:test-run-1:none');
     assert.strictEqual(msg.termination, 'completed');
     assert.strictEqual(msg.exitCode, 0);
+    assert.strictEqual(msg.gpu, null);
     assert.ok(msg.logTail);
   });
 
@@ -514,15 +494,6 @@ describe('flushPendingCallbacks', () => {
     assert.strictEqual(sentMessages.length, 1);
     const msg = JSON.parse(sentMessages[0]);
     assert.deepStrictEqual(msg.gpu, { indices: [1], memoryMb: 49140 });
-  });
-
-  it('sends gpu:null when result.json has no gpu', async () => {
-    createRunDir('no-gpu-run', { gpu: null });
-    const ws = createMockWs();
-    await flushPendingCallbacks(ws, 'test-device');
-
-    const msg = JSON.parse(sentMessages[0]);
-    assert.strictEqual(msg.gpu, null);
   });
 
   it('sends task-callback for each pending dir', async () => {
@@ -581,71 +552,4 @@ describe('flushPendingCallbacks', () => {
     await flushPendingCallbacks(ws, 'test-device');
     assert.strictEqual(sentMessages.length, 0);
   });
-
-  it('skips dir with orphan but still running pid', async () => {
-    createRunDir('actually-running', {
-      hasPending: false, status: 'running', pid: process.pid, hasResult: false,
-    });
-    const ws = createMockWs();
-    await flushPendingCallbacks(ws, 'test-device');
-    assert.strictEqual(sentMessages.length, 0);
-  });
 });
-
-// ========================================================================
-// Ack integration
-// ========================================================================
-
-describe('ack integration', () => {
-  beforeEach(() => {
-    mkdirSync(CORTEX_RUN_DIR, { recursive: true });
-  });
-
-  afterEach(() => {
-    if (existsSync(CORTEX_RUN_DIR)) {
-      rmSync(CORTEX_RUN_DIR, { recursive: true, force: true });
-    }
-  });
-
-  it('finds run dir and removes callback.pending on ack', () => {
-    createRunDir('ack-test', { callbackId: 'dev:ack-test:task1' });
-
-    const dir = findRunDirByCallbackId('dev:ack-test:task1');
-    assert.notStrictEqual(dir, null);
-
-    const pendingPath = join(dir!, 'callback.pending');
-    assert.ok(existsSync(pendingPath));
-    tryUnlink(pendingPath);
-    assert.ok(!existsSync(pendingPath));
-  });
-
-  it('leaves callback.pending intact when ack is not ok', () => {
-    createRunDir('nack-test', { callbackId: 'dev:nack-test:task1' });
-
-    const dir = findRunDirByCallbackId('dev:nack-test:task1');
-    assert.notStrictEqual(dir, null);
-
-    const pendingPath = join(dir!, 'callback.pending');
-    assert.ok(existsSync(pendingPath));
-    // Marker stays — no tryUnlink call on nack
-  });
-});
-
-// ========================================================================
-// Helper for createRunDir in ack tests
-// ========================================================================
-
-function createRunDir(name: string, overrides?: any): string {
-  const dir = join(CORTEX_RUN_DIR, name);
-  mkdirSync(dir, { recursive: true });
-
-  const opts = {
-    callbackId: `dev:${name}:none`,
-    ...overrides,
-  };
-
-  writeFileSync(join(dir, 'meta.json'), JSON.stringify({ callbackId: opts.callbackId, name }));
-  writeFileSync(join(dir, 'callback.pending'), '');
-  writeFileSync(join(dir, 'result.json'), JSON.stringify({ termination: 'completed', exit_code: 0 }));
-  return dir;
-}

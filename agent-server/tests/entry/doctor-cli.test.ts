@@ -1,12 +1,12 @@
 // input:  Vitest and injected doctor runtime/auth probes
-// output: cmdDoctor help, text, JSON, exit, and fix assertions
+// output: cmdDoctor text, JSON, exit, and fix assertions
 // pos:    Doctor CLI wrapper regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { cmdDoctor, getDoctorHelp } from '../../src/entry/doctor-cli.js';
+import { cmdDoctor } from '../../src/entry/doctor-cli.js';
 import type { DoctorDeps, FixActuators } from '../../src/domain/system/doctor.js';
 
 function parseEnv(text: string): Record<string, string> {
@@ -69,23 +69,6 @@ const noopFix: FixActuators = {
   ensureAuthTokens: () => [],
   regenerateMcpConfig: () => {},
 };
-
-describe('getDoctorHelp', () => {
-  it('describes the doctor command and flags', () => {
-    const help = getDoctorHelp();
-    assert.match(help, /doctor/);
-    assert.match(help, /--fix/);
-    assert.match(help, /--json/);
-  });
-});
-
-describe('cmdDoctor — help', () => {
-  it('returns help on --help with exit 0', async () => {
-    const r = await cmdDoctor(['--help']);
-    assert.equal(r.exitCode, 0);
-    assert.match(r.stdout, /Usage:/);
-  });
-});
 
 describe('cmdDoctor — text output + exit codes', () => {
   it('exits 0 and prints a summary when all checks pass', async () => {

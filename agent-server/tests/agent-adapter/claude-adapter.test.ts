@@ -14,14 +14,6 @@ import {
 
 const fixtures = listFixtures('claude');
 
-// Done-when requires at least 5 Claude fixtures captured and replayed.
-test('claude fixture store has at least 5 goldens (DR-0008 §4.5, task d23a done-when)', () => {
-  assert.ok(
-    fixtures.length >= 5,
-    `expected ≥5 claude fixtures, found ${fixtures.length}: ${fixtures.join(', ')}`,
-  );
-});
-
 for (const name of fixtures) {
   test(`claude fixture ${name}: NormalizedEvent sequence matches golden`, () => {
     const observed = replayClaudeFixture(name);

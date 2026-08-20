@@ -8,7 +8,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | WorkbenchPage.tsx | entry | Composes panes and global workbench actions |
 | LeftRail.tsx | view | Project, session and SCHEDULED-section navigation rail |
 | left-rail-projects.ts | vm | Builds ordered project rows with badges |
-| left-rail-projects.test.ts | test | Unit tests for project row ordering |
+| left-rail-projects.test.ts | test | Tests project activity ordering, hotkeys and attention counts |
 | project-menu.ts | vm | Counts per-project running and attention badges |
 | project-menu.test.ts | test | Unit tests for project menu counts |
 | NewProjectModal.tsx | view | Creates a project from a validated name |
@@ -23,54 +23,50 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
 | SessionProfileSelector.tsx | view | Shares guarded profile state with composer controls |
-| SessionProfileSelector.test.tsx | test | Tests profile routing, placement and compact density |
+| SessionProfileSelector.test.tsx | test | Tests profile routing and selection interactions |
 | CenterChat.tsx | view | Reconciles chat state and local command controls |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
-| scheduled-chat.test.ts | test | Unit tests for scheduled-chat helpers |
 | ChatHeader.tsx | view | Session title, command, notes and session menu |
-| ChatHeader.test.tsx | test | Tests removal of profile and status controls |
 | MessageStream.tsx | view | Renders transcript with formula-aware replies |
 | ChatMarkdown.tsx | view | Renders Markdown with optional KaTeX formulas |
-| ChatMarkdown.test.tsx | test | Tests formula rendering, layout and safety |
+| ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior and untrusted-input safety |
 | ChatNotice.tsx | view | Localized semantic notices with optional actions |
-| ChatNotice.test.tsx | test | Tests notice semantics and auth activation |
+| ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
 | MessageEdit.tsx | view | Message hover actions, edit box and rewind |
 | chat-content.ts | types | Defines chat types and local shortcut catalog |
 | transcript-vm.ts | vm | Builds chat rows and strips the schedule prefix |
 | transcript-vm.test.ts | test | Tests transcript rows and auth action retention |
 | ToolCallsRow.tsx | view | Collapsed tool chips that expand on click |
 | tool-call-overflow.ts | util | Computes visible tool chips and hidden count |
-| tool-call-overflow.test.ts | test | Unit tests for tool chip overflow |
 | useToolCallOverflow.ts | hook | Measures chip widths and recomputes on resize |
 | InteractionCards.tsx | view | Ask-user and plan-approval cards in the stream |
-| InteractionCards.test.tsx | test | Unit tests for ask-card severity badges |
 | interaction-vm.ts | vm | Maps interactions to card models and answer state |
 | interaction-vm.test.ts | test | Unit tests for the interaction view model |
 | useInteractionActions.ts | hook | Answers questions and responds to plan approvals |
 | useInteractionTtl.ts | hook | Ticks remaining time until an interaction expires |
 | PlanReadOverlay.tsx | view | Full plan text with progress and actions |
 | plan-read-vm.ts | vm | Derives plan reading progress, status and meta |
-| plan-read-vm.test.ts | test | Unit tests for the plan reading view model |
+| plan-read-vm.test.ts | test | Tests read-progress arithmetic and clamping |
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
 | Composer.tsx | view | Routes local shortcuts and guarded message sends |
 | Composer.test.tsx | test | Tests local shortcuts and rejected-send state |
 | ComposerActionRow.tsx | view | Renders profile, attach and local command controls |
-| ComposerActionRow.test.tsx | test | Tests action-row and slash-menu callbacks |
+| ComposerActionRow.test.tsx | test | Tests composer actions and slash-menu callbacks |
 | ComposerStatusLine.tsx | view | Status row above the input with an accessory |
 | composer-draft.ts | util | Persists, restores and prefills drafts |
 | composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |
 | optimistic-message.ts | vm | Reconciles local sends with source-aware message evidence |
 | useOptimisticUserMessages.ts | hook | Holds the shared optimistic-send lifecycle for both chats |
 | optimistic-message.test.ts | test | Tests stale rows, de-duplication and failure |
-| optimistic-message.integration.test.tsx | test | Tests pending sends and authority races |
+| optimistic-message.integration.test.tsx | test | Tests mounted pending sends, restoration and authority races |
 | composer-slash.ts | util | Resolves shared UI-local slash actions |
-| composer-slash.test.ts | test | Tests shortcut parsing, options and dispatch |
+| composer-slash.test.ts | test | Tests shortcut parsing, availability and local dispatch |
 | ContextUsageControl.tsx | view | Context usage bar, details and compact action |
 | ContextUsageControl.test.tsx | test | Unit tests for context control visibility |
 | context-usage.ts | vm | Resolves context snapshots into labels and bars |
-| context-usage.test.ts | test | Unit tests for context usage resolution |
+| context-usage.test.ts | test | Tests snapshot validation, precedence and progress state |
 | useSessionCompact.ts | hook | Runs manual context compaction |
 | useAssistantDeltaStream.ts | hook | Subscribes to token deltas for one session |
 | useRevealedText.ts | hook | Drives the frame loop revealing streamed text |
@@ -81,16 +77,14 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useMarkSessionRead.ts | hook | Marks the visible session read |
 | SessionIdModal.tsx | view | Shows session identifiers with copy actions |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
-| session-id.test.ts | test | Unit tests for identifier rows |
 | RightPanel.tsx | view | Hosts scoped budget, work tabs, or notes |
 | right-panel-vm.ts | vm | Formats budget, thread and machine metadata |
 | right-panel-vm.test.ts | test | Tests budget, thread and machine view models |
 | RightThreadCard.tsx | view | Opens run, task and thread details from activity rows |
 | RightThreadCard.test.tsx | test | Tests waiting-task click delegation |
-| RightThreadCard.layout.test.tsx | test | Browser-checks long subtask row containment |
 | RightMachinesTab.tsx | view | Expandable machine cards with live probe telemetry |
 | machine-detail-vm.ts | vm | Maps the machine probe to meters, GPU and run rows |
-| machine-detail-vm.test.ts | test | Tests machine meters, GPU owners and formatters |
+| machine-detail-vm.test.ts | test | Tests machine meters, GPU ownership, process bounds and probe errors |
 | scope.ts | util | Groups active and historical threads |
 | scope.test.ts | test | Tests fixed thread lifecycle groups |
 | useRecentNow.ts | hook | Ticks recent lists once per minute |
@@ -105,4 +99,4 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | selected-session.test.ts | test | Unit tests for session selection |
 | DaemonStatusModal.tsx | view | Daemon and server processes with restart |
 | DebugDetailsModal.tsx | view | Inspector dialog for raw tool input and result |
-| debug-inspector.test.tsx | test | Tests inspector values and nested dialog layer |
+| debug-inspector.test.tsx | test | Tests Unicode counting and structured debug values |

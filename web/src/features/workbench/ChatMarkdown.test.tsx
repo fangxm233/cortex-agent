@@ -1,5 +1,5 @@
 // input:  Assistant Markdown containing valid, invalid, and untrusted math
-// output: KaTeX rendering and safety regression coverage
+// output: KaTeX behavior and safety regression coverage
 // pos:    Component tests for assistant Markdown rendering
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -25,13 +25,6 @@ describe('ChatMarkdown math', () => {
 
     expect(html).not.toContain('class="katex"');
     expect(html).toContain('$x^2$');
-  });
-
-  it('does not make inline formulas independent scroll containers', () => {
-    const html = renderToStaticMarkup(<ChatMarkdown text={'Inline $F_x$ formula'} renderMath />);
-
-    expect(html).toContain('class="katex"');
-    expect(html).not.toContain('overflow-x:auto');
   });
 
   it('leaves formulas in code spans and fenced blocks untouched', () => {

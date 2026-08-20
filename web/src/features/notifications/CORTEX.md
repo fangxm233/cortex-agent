@@ -7,7 +7,6 @@ Direct-chat toasts are turn-scoped so one toast fires per turn; the mobile shell
 |---|---|---|
 | NotificationProvider.tsx | provider | Wires live streams into the queued toast stack |
 | NotificationToaster.tsx | view | Stacked toast bubbles with an overflow pill |
-| notification-toaster.test.ts | test | Unit tests for toaster relative age labels |
 | notification-store.ts | core | Queues, dedupes, caps and splits visible toasts |
 | notification-store.test.ts | test | Unit tests for the notification queue |
 | notification-vm.ts | vm | Builds toast items and transient-level policy |
