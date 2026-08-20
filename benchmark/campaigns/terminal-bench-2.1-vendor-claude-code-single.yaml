@@ -1,16 +1,14 @@
-# input:  the Claude Code vendor arm and three pinned Terminal-Bench 2.1 tasks
-# output: a paid Claude Code three-task vendor campaign
-# pos:    Claude Code live vendor-baseline campaign declaration
+# input:  the Claude Code vendor arm and one pinned Terminal-Bench 2.1 task
+# output: one paid Claude Code gate trial with the production envelope
+# pos:    Claude Code single-task live campaign declaration
 # >>> If I am updated, update my header and folder CORTEX.md <<<
-#
-# The image selectors below bind every task to the offline Claude Code-only runtime variant.
 
 schema_version: cortex-bench-campaign/1
-campaign: tb21-vendor-claude-10ba
+campaign: tb21-cc-gate
 paid: true
-trials_dir: /var/tmp/cortex-bench/tb21-vendor-claude-10ba
+trials_dir: /var/tmp/cortex-bench/tb21-vendor-claude-10ba-single
 cli_version: "2026.8.6"
-concurrency: 3
+concurrency: 1
 
 manifest:
   wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
@@ -22,7 +20,7 @@ credential:
   upstream_base_url: https://api.anthropic.com
   route_identity_host: api.anthropic.com
   proxy_host_suffix: proxy.invalid
-  dummy_token_ref: vendor-claude-10ba-dummy-token
+  dummy_token_ref: vendor-claude-10ba-single-dummy-token
 
 host_scan_policy:
   secret_environment:
@@ -36,8 +34,8 @@ host_scan_policy:
     machine: CORTEX_BENCH_VENDOR_CLAUDE_IDENTITY
 
 docker_network:
-  subnet_pool: 172.30.224.0/20
-  subnet_prefix: 24
+  subnet_pool: 172.30.223.0/30
+  subnet_prefix: 30
 
 proxy:
   credential_env: CORTEX_BENCH_VENDOR_CLAUDE_CREDENTIAL
@@ -51,9 +49,6 @@ arms:
     vendor_agent: claude-code
     vendor_cli_version: "2.1.232"
     provider: anthropic
-    # Deliberate controlled-baseline normalization: primary, Sonnet/Opus/Haiku aliases, and
-    # subagents all resolve to the single CLI 2.1.232-observed default below.
-    # Provider acceptance: unverified-until-live success; task 10ba observed native HTTP 429.
     model: claude-sonnet-5
     credential_capability: claude-subscription
     limits:
@@ -66,14 +61,8 @@ network:
   mode: open
 
 tasks:
-  - task_id: chess-best-move
-    path: tasks/terminal-bench-2.1/claude-code/chess-best-move
-    image_ref: cortex-terminal-bench-2.1@sha256:0e75f455072cc3b4a407e922b87f5a382f689cf8290d2219d4e9d70c133b9b41
   - task_id: constraints-scheduling
     path: tasks/terminal-bench-2.1/claude-code/constraints-scheduling
     image_ref: cortex-terminal-bench-2.1@sha256:defe6b6e045c409994d9c26cb1b70670353e49483b6e23d50f28de835c564978
-  - task_id: db-wal-recovery
-    path: tasks/terminal-bench-2.1/claude-code/db-wal-recovery
-    image_ref: cortex-terminal-bench-2.1@sha256:b33bed1d275441266a169e2a320287485acef1afebc4a5202cc51a284d18dbc6
 
 comparisons: []
