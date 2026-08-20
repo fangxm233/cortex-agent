@@ -1,5 +1,5 @@
 # input:  offline rows, one-use permits, synthetic response failures
-# output: admission, bounds, redacted diagnostics, and evidence proofs
+# output: admission, bounds, provider-identifier-safe diagnostics, and evidence proofs
 # pos:    Live-handshake bootstrap authorization tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -536,6 +536,70 @@ def test_omitting_response_diagnostic_from_inventory_fails_the_scan(
         url = f"http://127.0.0.1:{upstream.server_port}"
         with pytest.raises(LiveHandshakePermitRefused, match="scan was not clean"):
             run_handshake(tmp_path, upstream=url)
+
+
+def test_response_diagnostic_blanks_provider_identifiers_in_headers_and_error_body(
+    tmp_path: Path,
+) -> None:
+    identifiers = {
+        "request": "req_01SYNTHETIC",
+        "organization": "org_01SYNTHETIC",
+        "workspace": "wrkspc_01SYNTHETIC",
+        "trace": "00-synthetic-trace-response",
+        "cdn": "synthetic-cdn-ray",
+    }
+    body = json.dumps({
+        "type": "error",
+        "error": {"type": "rate_limit_error", "message": "Error"},
+        "request_id": identifiers["request"],
+    }, separators=(",", ":")).encode()
+    path = tmp_path / live_handshake.RESPONSE_DIAGNOSTIC_FILENAME
+
+    live_handshake._write_response_diagnostic(
+        path,
+        429,
+        (
+            ("Content-Type", "application/json"),
+            ("x-should-retry", "true"),
+            ("request-id", identifiers["request"]),
+            ("anthropic-organization-id", identifiers["organization"]),
+            ("anthropic-workspace-id", identifiers["workspace"]),
+            ("traceresponse", identifiers["trace"]),
+            ("CF-RAY", identifiers["cdn"]),
+            ("transfer-encoding", "chunked"),
+            ("connection", "close"),
+        ),
+        body,
+        "IncompleteRead",
+        scan_policy(),
+    )
+
+    artifact = path.read_bytes()
+    diagnostic = json.loads(artifact)
+    headers = {name.lower(): value for name, value in diagnostic["headers"]}
+    structured_body = json.loads(diagnostic_body(diagnostic))
+    for value in identifiers.values():
+        assert value.encode() not in artifact
+    assert diagnostic["status"] == 429
+    assert diagnostic["body_bytes_received"] == len(body)
+    assert diagnostic["complete"] is False
+    assert diagnostic["failure"] == "IncompleteRead"
+    assert structured_body == {
+        "type": "error",
+        "error": {"type": "rate_limit_error", "message": "Error"},
+        "request_id": "",
+    }
+    assert headers == {
+        "content-type": "application/json",
+        "x-should-retry": "true",
+        "request-id": "",
+        "anthropic-organization-id": "",
+        "anthropic-workspace-id": "",
+        "traceresponse": "",
+        "cf-ray": "",
+        "transfer-encoding": "chunked",
+        "connection": "close",
+    }
 
 
 def test_response_diagnostic_redacts_secrets_account_and_host_paths(tmp_path: Path) -> None:

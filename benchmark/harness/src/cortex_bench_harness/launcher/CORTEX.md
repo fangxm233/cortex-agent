@@ -14,7 +14,7 @@ Host launcher modules materialize production arms and record bounded trials.
 | deepseek_paid_smoke_launcher.py | CLI | Preflights and records one pinned-image smoke |
 | host_credential_vault.py | boundary | Transfers opaque host credentials |
 | lease_bound.py | policy | Computes credential lease bounds |
-| live_handshake.py | boundary | Captures one bounded live handshake and response |
+| live_handshake.py | boundary | Captures one bounded live handshake with publish-safe response diagnostics |
 | network_policy.py | boundary | Resolves a campaign's declared trial network |
 | production_arms.py | registry | Resolves committed production bundles |
 | production_home.py | boundary | Materializes sealed production homes |
