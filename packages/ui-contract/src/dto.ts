@@ -55,6 +55,7 @@ export type {
   BudgetValue,
   ProfilesValue,
   ProviderRateLimitPolicyOverride,
+  ProviderRateLimitWindowPolicyOverride,
   ProviderRateLimits,
   SettingsValue,
   ProviderRateLimitPolicy,

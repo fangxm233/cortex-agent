@@ -10,7 +10,7 @@ Write side of the UI service — one handler module per domain area the UI is al
 | custom-providers.ts | mutate | saves and removes user-defined PI providers |
 | issues.ts | mutate | handles or deletes project issue entries |
 | notes.ts | mutate | edits and completes private project notes |
-| config.ts | mutate | writes config sections and provider rate-limit policy |
+| config.ts | mutate | writes config sections and per-window provider rate-limit policy |
 | profiles.ts | mutate | creates, edits and removes profiles.json entries |
 | hooks.ts | mutate | creates, edits, toggles, removes and tests hooks |
 | plugins.ts | mutate | assigns plugins to agents and template slots |

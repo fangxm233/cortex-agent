@@ -1,5 +1,5 @@
-// input:  spawn config, Codex quota readings, usage store, throttle
-// output: resolveQuotaSource and durable reportCodexQuota
+// input:  spawn config, Codex quota readings, usage store, and throttle
+// output: resolveQuotaSource and durable labeled reportCodexQuota
 // pos:    Persists PI quota under routed provider keys and feeds throttle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -10,7 +10,7 @@ import type { AgentSpawnConfig } from '../types.js';
 
 /** Signature of the throttle entry point; injected in tests, defaulted to the real one. */
 type SubmitRateLimit = (
-  info: { rateLimitType: string; utilization: number; resetsAt: number },
+  info: { rateLimitType: string; rateLimitLabel?: string; utilization: number; resetsAt: number },
   source: RateLimitSource,
 ) => Promise<void>;
 
@@ -64,7 +64,12 @@ async function submitWindows(
 ): Promise<void> {
   for (const window of reading.windows) {
     await submit(
-      { rateLimitType: window.type, utilization: window.utilization, resetsAt: window.resetsAt },
+      {
+        rateLimitType: window.type,
+        ...(window.label ? { rateLimitLabel: window.label } : {}),
+        utilization: window.utilization,
+        resetsAt: window.resetsAt,
+      },
       source,
     );
   }

@@ -1,5 +1,5 @@
-// input:  Vitest timers, settings writes, throttle events
-// output: throttle window, policy, and retry assertions
+// input:  Vitest timers, settings writes, and labeled throttle events
+// output: throttle window, exact policy, label identity, and retry assertions
 // pos:    Covers provider-scoped quota and outage throttles
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -654,28 +654,41 @@ test('provider-aware mode gates do not collide when providers share a mode name'
   assert.equal(mod.isProviderModeRateLimited('provider-a', 'other'), false);
 });
 
-test('provider policies apply per provider and custom thresholds override every window type', async (t) => {
+test('provider policies resolve exact window overrides before legacy provider fallback', async (t) => {
   await updateSettings({
     providerRateLimits: {
-      'provider-a': { enabled: true, threshold: 0.99 },
-      'provider-b': { enabled: true, threshold: 0.8 },
+      'provider-a': {
+        enabled: false,
+        threshold: 0.99,
+        windows: [
+          { type: 'five_hour', enabled: true, threshold: 0.8 },
+          { type: 'model_scoped', label: 'Sonnet', enabled: false },
+          { type: 'model_scoped', label: 'Opus', enabled: true },
+        ],
+      },
     },
   });
   const mod = await freshModuleWithCleanup(t);
   await mod.initRateLimitThrottle(makeAdapterStub(), makePersistenceStub() as any);
   const now = Math.floor(Date.now() / 1000);
+  const source = { provider: 'provider-a', displayName: 'Provider A', mode: 'shared' };
 
   await mod.handleRateLimitEvent(
-    { rateLimitType: 'seven_day', utilization: 0.96, resetsAt: now + 300 },
-    { provider: 'provider-a', displayName: 'Provider A', mode: 'shared' },
+    { rateLimitType: 'five_hour', utilization: 0.85, resetsAt: now + 300 },
+    source,
   );
   await mod.handleRateLimitEvent(
-    { rateLimitType: 'seven_day', utilization: 0.85, resetsAt: now + 300 },
-    { provider: 'provider-b', displayName: 'Provider B', mode: 'shared' },
+    { rateLimitType: 'model_scoped', rateLimitLabel: 'Sonnet', utilization: 0.99, resetsAt: now + 300 },
+    source,
+  );
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'model_scoped', rateLimitLabel: 'Opus', utilization: 0.91, resetsAt: now + 600 },
+    source,
   );
 
-  assert.equal(mod.isProviderUsageRateLimited('provider-a'), false);
-  assert.equal(mod.isProviderUsageRateLimited('provider-b'), true);
+  const windows = mod.getThrottleState().providers[0].windows.map((window) => [window.type, window.label]);
+  assert.deepEqual(windows, [['five_hour', undefined], ['model_scoped', 'Opus']]);
+  assert.equal(mod.isProviderUsageRateLimited('provider-a'), true);
 });
 
 test('disabled quota policy ignores new usage windows while outage windows still activate', async (t) => {
@@ -695,7 +708,7 @@ test('disabled quota policy ignores new usage windows while outage windows still
   assert.deepEqual(mod.getThrottleState().providers[0].windows.map((window) => window.type), ['outage']);
 });
 
-test('groups multiple active window types under one provider', async (t) => {
+test('groups multiple active window identities under one provider and upserts model labels exactly', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   const persistence = makePersistenceStub();
   await mod.initRateLimitThrottle(makeAdapterStub(), persistence as any);
@@ -703,13 +716,24 @@ test('groups multiple active window types under one provider', async (t) => {
   const source = { provider: 'anthropic', displayName: 'Anthropic', mode: 'plan' } as any;
 
   await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.91, resetsAt: now + 300 }, source);
-  await mod.handleRateLimitEvent({ rateLimitType: 'seven_day', utilization: 0.96, resetsAt: now + 900 }, source);
+  await mod.handleRateLimitEvent({ rateLimitType: 'model_scoped', rateLimitLabel: 'Sonnet', utilization: 0.96, resetsAt: now + 900 }, source);
+  await mod.handleRateLimitEvent({ rateLimitType: 'model_scoped', rateLimitLabel: 'Opus', utilization: 0.97, resetsAt: now + 1_200 }, source);
+  await mod.handleRateLimitEvent({ rateLimitType: 'model_scoped', rateLimitLabel: 'Sonnet', utilization: 0.98, resetsAt: now + 1_500 }, source);
 
   const provider = (mod.getThrottleState() as any).providers[0];
   assert.equal(provider.provider, 'anthropic');
   assert.deepEqual(provider.modes, ['plan']);
-  assert.deepEqual(provider.windows.map((w: any) => w.type).sort(), ['five_hour', 'seven_day']);
-  assert.equal(mod.getThrottleState().resetsAt, now + 900);
+  assert.deepEqual(provider.windows.map((w: any) => [w.type, w.label, w.resetsAt]), [
+    ['five_hour', undefined, now + 300],
+    ['model_scoped', 'Opus', now + 1_200],
+    ['model_scoped', 'Sonnet', now + 1_500],
+  ]);
+  assert.deepEqual(persistence.getSaved().providers[0].windows.map((w: any) => [w.type, w.label]), [
+    ['five_hour', undefined],
+    ['model_scoped', 'Opus'],
+    ['model_scoped', 'Sonnet'],
+  ]);
+  assert.equal(mod.getThrottleState().resetsAt, now + 1_500);
 });
 
 test('legacy persisted throttle recovers as an Anthropic provider record', async (t) => {

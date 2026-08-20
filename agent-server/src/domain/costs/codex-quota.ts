@@ -1,5 +1,5 @@
 // input:  Codex response headers, a clock reading, notice strings
-// output: quota header parsing, reading types and the notice codec
+// output: quota header parsing, labeled reading types, and the notice codec
 // pos:    Codex quota vocabulary shared by the PI child and the server
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -13,6 +13,8 @@ const FAMILIES = ['primary', 'secondary'] as const;
 export interface QuotaWindow {
   /** Codex limit family, preserving the provider's primary/secondary distinction. */
   type: string;
+  /** Optional provider-supplied display label when one bucket maps to a named model row. */
+  label?: string;
   /** Fraction in [0,1] — Codex reports whole percents, the throttle compares against 0.95. */
   utilization: number;
   /** Epoch seconds, matching the persisted provider-state shape. */
@@ -118,6 +120,7 @@ function safeParse(raw: string): { windows?: unknown; planType?: unknown } | nul
 function isQuotaWindow(value: unknown): value is QuotaWindow {
   const w = value as QuotaWindow | null;
   return !!w && typeof w.type === 'string' && w.type.length > 0
+    && (w.label === undefined || typeof w.label === 'string')
     && Number.isFinite(w.utilization) && w.utilization >= 0 && w.utilization <= 1
     && Number.isFinite(w.resetsAt);
 }

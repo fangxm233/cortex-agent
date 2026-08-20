@@ -1,5 +1,5 @@
 // input:  shared Zod schema maps
-// output: query/mutate schema coverage incl usage routes
+// output: query/mutate schema coverage incl window-target policy routes
 // pos:    UI-contract runtime schema guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -278,20 +278,25 @@ test('config.set accepts valid budget / profiles sections and rejects illegal va
   }));
 });
 
-test('config.setProviderRateLimitPolicy accepts committed provider policies and rejects invalid ones', async () => {
+test('config.setProviderRateLimitPolicy accepts optional window targets and rejects invalid ones', async () => {
   const liveSchemas = await reloadSchemas();
   const setPolicy = liveSchemas.mutateInputSchemas['config.setProviderRateLimitPolicy'];
   assert.deepEqual(
-    setPolicy.parse({ provider: 'openai-codex', enabled: false, threshold: 0.91 }),
-    { provider: 'openai-codex', enabled: false, threshold: 0.91 },
+    setPolicy.parse({ provider: 'openai-codex', windowType: 'codex_primary', enabled: false, threshold: 0.91 }),
+    { provider: 'openai-codex', windowType: 'codex_primary', enabled: false, threshold: 0.91 },
   );
   assert.deepEqual(
     setPolicy.parse({ provider: 'openai-codex', enabled: true, threshold: null }),
     { provider: 'openai-codex', enabled: true, threshold: null },
   );
+  assert.deepEqual(
+    setPolicy.parse({ provider: 'anthropic', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: false }),
+    { provider: 'anthropic', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: false },
+  );
   assert.throws(() => setPolicy.parse({ provider: '', enabled: true, threshold: null }));
   assert.throws(() => setPolicy.parse({ provider: 'openai-codex', enabled: true, threshold: 0 }));
   assert.throws(() => setPolicy.parse({ provider: 'openai-codex', enabled: true, threshold: 1.1 }));
+  assert.throws(() => setPolicy.parse({ provider: 'anthropic', windowLabel: 'Sonnet', enabled: false }));
 });
 
 test('approvals.request enforces per-kind required fields', () => {

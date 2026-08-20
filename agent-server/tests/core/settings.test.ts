@@ -1,5 +1,5 @@
-// input:  settings module, isolated config and env
-// output: parsing, provenance, failure, reload, and write tests
+// input:  settings module plus isolated config and env
+// output: parsing, provenance, exact-window policy, failure, reload, and write tests
 // pos:    Specifies the L0 runtime settings contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -394,12 +394,20 @@ describe.sequential('core settings', () => {
     assert.deepEqual(batches, []);
   });
 
-  test('providerRateLimits defaults to an empty map and validates nested provider policies', () => {
+  test('providerRateLimits defaults to an empty map and validates exact nested window policies', () => {
     assert.deepEqual(getSettings().providerRateLimits, {});
     assert.doesNotThrow(() => resolveSettingsSnapshot({
       providerRateLimits: {
-        'openai-codex': { enabled: false, threshold: 0.91 },
-        anthropic: { enabled: true },
+        'openai-codex': {
+          windows: [{ type: 'codex_primary', enabled: false, threshold: 0.91 }],
+        },
+        anthropic: {
+          enabled: true,
+          windows: [
+            { type: 'five_hour', enabled: false },
+            { type: 'model_scoped', label: 'Sonnet', enabled: true, threshold: 0.75 },
+          ],
+        },
       },
     }));
     assert.throws(() => resolveSettingsSnapshot({
@@ -415,10 +423,23 @@ describe.sequential('core settings', () => {
       providerRateLimits: { prototype: { enabled: true } },
     }));
     assert.throws(() => resolveSettingsSnapshot({
+      providerRateLimits: { 'openai-codex': { threshold: 0.8 } },
+    }));
+    assert.throws(() => resolveSettingsSnapshot({
       providerRateLimits: { 'openai-codex': { enabled: true, threshold: 0 } },
     }));
     assert.throws(() => resolveSettingsSnapshot({
       providerRateLimits: { 'openai-codex': { enabled: true, threshold: 1.01 } },
+    }));
+    assert.throws(() => resolveSettingsSnapshot({
+      providerRateLimits: {
+        anthropic: {
+          windows: [
+            { type: 'model_scoped', label: 'Sonnet', enabled: true },
+            { type: 'model_scoped', label: 'Sonnet', enabled: false },
+          ],
+        },
+      },
     }));
     assert.throws(() => resolveSettingsSnapshot({
       providerRateLimits: { 'openai-codex': { enabled: true, extra: 1 } },
@@ -566,32 +587,96 @@ describe.sequential('core settings', () => {
     assert.equal(parsed.showToolCalls, true);
   });
 
-  test('setProviderRateLimitPolicy preserves concurrent provider patches and unrelated settings', async () => {
-    await updateSettings({ eventLog: false, providerRateLimits: {} });
+  test('setProviderRateLimitPolicy preserves concurrent window patches and unrelated settings', async () => {
+    await updateSettings({
+      eventLog: false,
+      providerRateLimits: { anthropic: { windows: [{ type: 'five_hour', enabled: false }] } },
+    });
 
     await Promise.all([
-      setProviderRateLimitPolicy({ provider: 'openai-codex', enabled: false, threshold: 0.91 }),
-      setProviderRateLimitPolicy({ provider: 'anthropic', enabled: false, threshold: null }),
+      setProviderRateLimitPolicy({ provider: 'anthropic', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: false, threshold: 0.75 }),
+      setProviderRateLimitPolicy({ provider: 'openai-codex', windowType: 'codex_primary', enabled: false, threshold: null }),
     ]);
 
     const parsed = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
     assert.equal(parsed.eventLog, false);
     assert.deepEqual(parsed.providerRateLimits, {
-      'openai-codex': { enabled: false, threshold: 0.91 },
-      anthropic: { enabled: false },
+      anthropic: {
+        windows: [
+          { type: 'five_hour', enabled: false },
+          { type: 'model_scoped', label: 'Sonnet', enabled: false, threshold: 0.75 },
+        ],
+      },
+      'openai-codex': { windows: [{ type: 'codex_primary', enabled: false }] },
     });
   });
 
-  test('setProviderRateLimitPolicy serializes same-provider writes and keeps enabled when clearing threshold', async () => {
-    await updateSettings({ providerRateLimits: {} });
+  test('setProviderRateLimitPolicy serializes same-window writes and preserves sibling labels', async () => {
+    await updateSettings({
+      providerRateLimits: {
+        anthropic: {
+          windows: [
+            { type: 'model_scoped', label: 'Haiku', enabled: false },
+            { type: 'model_scoped', label: 'Sonnet', enabled: false, threshold: 0.91 },
+          ],
+        },
+      },
+    });
 
-    const first = setProviderRateLimitPolicy({ provider: 'openai-codex', enabled: false, threshold: 0.91 });
-    const second = setProviderRateLimitPolicy({ provider: 'openai-codex', enabled: false, threshold: null });
+    const first = setProviderRateLimitPolicy({ provider: 'anthropic', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: false, threshold: 0.88 });
+    const second = setProviderRateLimitPolicy({ provider: 'anthropic', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: true, threshold: null });
     const [, committed] = await Promise.all([first, second]);
 
-    assert.deepEqual(committed, { provider: 'openai-codex', enabled: false, threshold: null });
+    assert.deepEqual(committed, {
+      provider: 'anthropic',
+      windowType: 'model_scoped',
+      windowLabel: 'Sonnet',
+      enabled: true,
+      threshold: null,
+    });
     assert.deepEqual(JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')).providerRateLimits, {
-      'openai-codex': { enabled: false },
+      anthropic: {
+        windows: [{ type: 'model_scoped', label: 'Haiku', enabled: false }],
+      },
+    });
+  });
+
+  test('setProviderRateLimitPolicy clears a legacy provider fallback without deleting window overrides', async () => {
+    await updateSettings({
+      providerRateLimits: {
+        anthropic: {
+          enabled: false,
+          threshold: 0.92,
+          windows: [{ type: 'five_hour', enabled: false, threshold: 0.8 }],
+        },
+      },
+    });
+
+    const committed = await setProviderRateLimitPolicy({ provider: 'anthropic', enabled: true, threshold: null });
+
+    assert.deepEqual(committed, { provider: 'anthropic', enabled: true, threshold: null });
+    assert.deepEqual(JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')).providerRateLimits, {
+      anthropic: {
+        windows: [{ type: 'five_hour', enabled: false, threshold: 0.8 }],
+      },
+    });
+  });
+
+  test('resetting one window masks a non-default legacy provider fallback', async () => {
+    await updateSettings({
+      providerRateLimits: { anthropic: { enabled: false, threshold: 0.82 } },
+    });
+
+    await setProviderRateLimitPolicy({
+      provider: 'anthropic', windowType: 'seven_day', enabled: true, threshold: null,
+    });
+
+    assert.deepEqual(JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')).providerRateLimits, {
+      anthropic: {
+        enabled: false,
+        threshold: 0.82,
+        windows: [{ type: 'seven_day', enabled: true }],
+      },
     });
   });
 

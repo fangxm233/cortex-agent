@@ -1,5 +1,5 @@
-// input:  domain types, auth flows, settings, usage store
-// output: UI DTOs/maps incl plugin, auth, and usage ops
+// input:  domain types, auth flows, settings, and usage/throttle state
+// output: UI DTOs/maps incl per-window policy, plugin, auth, and usage ops
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -79,6 +79,7 @@ export type {
 } from '@domain/pi-providers/index.js';
 export type {
   ProviderRateLimitPolicyOverride,
+  ProviderRateLimitWindowPolicyOverride,
   ProviderRateLimits,
 } from '@core/settings-spec.js';
 
@@ -550,12 +551,16 @@ export type SettingsValue = Partial<Omit<Settings, 'providerRateLimits'>>;
 
 export interface ProviderRateLimitPolicy {
   provider: string;
+  windowType?: string;
+  windowLabel?: string;
   enabled: boolean;
   threshold: number | null;
 }
 
 export interface ConfigSetProviderRateLimitPolicyArgs {
   provider: string;
+  windowType?: string | null;
+  windowLabel?: string | null;
   enabled: boolean;
   threshold?: number | null;
 }
@@ -1778,6 +1783,7 @@ export interface SystemDaemonStatus {
 
 export interface RateLimitWindowInfo {
   type: string;
+  label?: string;
   utilization: number | null;
   resetsAt: number;
   activatedAt: number;

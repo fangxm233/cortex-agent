@@ -1,5 +1,5 @@
 // input:  PI quota probes, usage persistence, throttle keys
-// output: quota emission, routed usage, and throttle assertions
+// output: quota emission, labeled routed usage, and throttle assertions
 // pos:    Covers PI quota flow from probe notices into provider stores
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -114,11 +114,17 @@ const READING = {
   ],
 };
 
-test('submits one throttle event per window, keeping utilization and reset intact', async () => {
+test('submits one throttle event per window, keeping utilization, label, and reset intact', async () => {
   const calls: unknown[] = [];
   const records: unknown[] = [];
   await reportCodexQuota(
-    READING,
+    {
+      ...READING,
+      windows: [
+        { type: 'codex_primary', utilization: 0.96, resetsAt: 1786160107 },
+        { type: 'model_scoped', label: 'GPT-5', utilization: 0.91, resetsAt: 1785823070 },
+      ],
+    },
     { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
     {
       submit: async (info, source) => { calls.push({ info, source }); },
@@ -133,11 +139,11 @@ test('submits one throttle event per window, keeping utilization and reset intac
       source: { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
     },
     {
-      info: { rateLimitType: 'codex_secondary', utilization: 0.91, resetsAt: 1785823070 },
+      info: { rateLimitType: 'model_scoped', rateLimitLabel: 'GPT-5', utilization: 0.91, resetsAt: 1785823070 },
       source: { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
     },
   ]);
-  assert.equal(records.length, 1);
+  assert.equal((records as any[])[0].windows[1].label, 'GPT-5');
 });
 
 test('a usage persistence failure does not suppress existing throttle submissions', async () => {

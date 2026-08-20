@@ -1,5 +1,5 @@
-// input:  Zod, settings spec, UI-service op unions
-// output: UI input schemas/maps incl plugin and usage ops
+// input:  Zod, settings spec, and UI-service op unions
+// output: UI input schemas/maps incl per-window policy targets, plugin, and usage ops
 // pos:    Runtime validation source for UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -334,10 +334,33 @@ export const taskBlockInput = z.object({
 const FORBIDDEN_PROVIDER_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const MAX_PROVIDER_KEY_LENGTH = 120;
 
-const providerRateLimitOverrideInput = z.object({
+const providerRateLimitWindowOverrideInput = z.object({
+  type: z.string().trim().min(1),
+  label: z.string().trim().min(1).optional(),
   enabled: z.boolean(),
   threshold: z.number().finite().gt(0).lte(1).optional(),
 }).strict();
+
+const providerRateLimitOverrideInput = z.object({
+  enabled: z.boolean().optional(),
+  threshold: z.number().finite().gt(0).lte(1).optional(),
+  windows: z.array(providerRateLimitWindowOverrideInput).optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.threshold !== undefined && value.enabled === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['enabled'], message: 'enabled is required when threshold is set' });
+  }
+  if (value.enabled === undefined && !value.windows) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'provider policy must declare enabled or windows' });
+  }
+  const seen = new Set<string>();
+  for (const [index, window] of (value.windows ?? []).entries()) {
+    const key = `${window.type}\u0000${window.label ?? ''}`;
+    if (seen.has(key)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['windows', index], message: 'duplicate window identity' });
+    }
+    seen.add(key);
+  }
+});
 
 const providerRateLimitsSettingInput = z.record(z.string(), providerRateLimitOverrideInput)
   .superRefine((value, ctx) => {
@@ -461,8 +484,14 @@ export const configSetInput = z.discriminatedUnion('section', [
 export const configSetProviderRateLimitPolicyInput = z.object({
   provider: z.string().trim().min(1).max(MAX_PROVIDER_KEY_LENGTH)
     .refine((value) => !FORBIDDEN_PROVIDER_KEYS.has(value), 'provider key is reserved'),
+  windowType: z.string().trim().min(1).nullish(),
+  windowLabel: z.string().trim().min(1).nullish(),
   enabled: z.boolean(),
   threshold: z.union([z.number().finite().gt(0).lte(1), z.null()]).optional(),
+}).superRefine((value, ctx) => {
+  if (value.windowLabel && !value.windowType) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['windowType'], message: 'windowType is required when windowLabel is set' });
+  }
 });
 
 // ── hooks.* ───────────────────────────────────────────────────────

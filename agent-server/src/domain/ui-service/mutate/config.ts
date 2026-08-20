@@ -1,5 +1,5 @@
-// input:  config schemas, CONFIG_DIR, runtime settings API
-// output: validated budget, profile, settings, and provider policy writes
+// input:  config schemas, CONFIG_DIR, and runtime settings API
+// output: validated budget, profile, settings, and per-window provider policy writes
 // pos:    Mutation handlers for writable config sections and provider policies
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -142,6 +142,8 @@ export async function handleConfigSetProviderRateLimitPolicy(
   try {
     const policy = await setProviderRateLimitPolicy({
       provider: parsed.data.provider,
+      windowType: parsed.data.windowType ?? undefined,
+      windowLabel: parsed.data.windowLabel ?? undefined,
       enabled: parsed.data.enabled,
       threshold: parsed.data.threshold ?? null,
     });

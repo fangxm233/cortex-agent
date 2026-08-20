@@ -1,5 +1,5 @@
-// input:  provider state, runtime settings, timer generations
-// output: committed throttle gates, clear callbacks, and manual early-release
+// input:  provider state, runtime settings, labeled quota events, and timer generations
+// output: committed throttle gates, exact-window policy resolution, clear callbacks, and manual early-release
 // pos:    Provider-scoped quota and outage throttle state machine
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -35,6 +35,7 @@ export interface RateLimitSource {
 
 export interface RateLimitWindowState {
   type: string;
+  label?: string;
   utilization: number | null;
   resetsAt: number;
   activatedAt: number;
@@ -89,6 +90,7 @@ interface RateLimitInfo {
   status?: string;
   resetsAt?: number;
   rateLimitType?: string;
+  rateLimitLabel?: string;
   utilization?: number;
   isUsingOverage?: boolean;
   surpassedThreshold?: number;
@@ -195,12 +197,26 @@ function canonicalProvider(provider: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-function resolveProviderPolicy(provider: string): { enabled: boolean; threshold: number | null } {
+function sameWindowIdentity(
+  type: string,
+  label: string | undefined,
+  candidate: { type: string; label?: string },
+): boolean {
+  return candidate.type === type && candidate.label === label;
+}
+
+function resolveProviderPolicy(
+  provider: string,
+  type: string,
+  label?: string,
+): { enabled: boolean; threshold: number | null } {
   const override = getSettings().providerRateLimits[provider];
-  return {
-    enabled: override?.enabled ?? true,
-    threshold: override?.threshold ?? null,
-  };
+  const window = override?.windows?.find((candidate) => sameWindowIdentity(type, label, candidate));
+  if (window) return { enabled: window.enabled, threshold: window.threshold ?? null };
+  if (typeof override?.enabled === 'boolean') {
+    return { enabled: override.enabled, threshold: override.threshold ?? null };
+  }
+  return { enabled: true, threshold: null };
 }
 
 function normalizeSource(source?: string | RateLimitSource): RateLimitSource {
@@ -229,6 +245,7 @@ function normalizeProvider(raw: ProviderThrottleState): ProviderThrottleState | 
     modes: Array.isArray(raw.modes) ? uniqueSorted(raw.modes.filter(Boolean)) : [],
     windows: windows.map((window) => ({
       type: window.type,
+      ...(window.label ? { label: window.label } : {}),
       utilization: Number.isFinite(window.utilization) ? window.utilization : null,
       resetsAt: window.resetsAt,
       activatedAt: Number.isFinite(window.activatedAt) ? window.activatedAt : Date.now(),
@@ -392,15 +409,17 @@ async function initRateLimitThrottle(
 
 interface WindowUpdate {
   rateLimitType: string;
+  rateLimitLabel?: string;
   utilization: number | null;
   resetsAt: number;
 }
 
 function upsertWindow(provider: ProviderThrottleState, info: WindowUpdate): boolean {
-  const existing = provider.windows.find((window) => window.type === info.rateLimitType);
+  const existing = provider.windows.find((window) => sameWindowIdentity(info.rateLimitType, info.rateLimitLabel, window));
   if (!existing) {
     provider.windows.push({
       type: info.rateLimitType,
+      ...(info.rateLimitLabel ? { label: info.rateLimitLabel } : {}),
       utilization: info.utilization,
       resetsAt: info.resetsAt,
       activatedAt: Date.now(),
@@ -408,10 +427,9 @@ function upsertWindow(provider: ProviderThrottleState, info: WindowUpdate): bool
     return true;
   }
   const nextReset = Math.max(existing.resetsAt, info.resetsAt);
-  const nextUtilization = info.utilization;
-  const changed = nextReset !== existing.resetsAt || nextUtilization !== existing.utilization;
+  const changed = nextReset !== existing.resetsAt || info.utilization !== existing.utilization;
   existing.resetsAt = nextReset;
-  existing.utilization = nextUtilization;
+  existing.utilization = info.utilization;
   return changed;
 }
 
@@ -445,8 +463,15 @@ async function activateOutageWindow(provider: string | null, durationMs: number)
 
 function shouldActivateQuota(info: RateLimitInfo, source: RateLimitSource): boolean {
   if (typeof info.utilization !== 'number' || !info.rateLimitType) return false;
-  const policy = resolveProviderPolicy(source.provider);
+  const policy = resolveProviderPolicy(source.provider, info.rateLimitType, info.rateLimitLabel);
   return policy.enabled && info.utilization >= thresholdFor(info.rateLimitType, policy.threshold);
+}
+
+function notifyQuotaActivation(info: RateLimitInfo, source: RateLimitSource, isNewProvider: boolean): void {
+  log.info(`Throttle updated: provider=${source.provider}, type=${info.rateLimitType}, utilization=${info.utilization}, mode=${source.mode ?? '(none)'}`);
+  if (!isNewProvider) return;
+  sendDM(`${Icons.warning} ${source.displayName} rate limit throttle activated [${info.rateLimitType}] — utilization ${(info.utilization! * 100).toFixed(0)}%.
+Auto-resume at ${formatResetTime(info.resetsAt!)} (in ${formatRemaining(info.resetsAt!)}).`, 'Rate limit', clearAction(source.provider));
 }
 
 async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
@@ -463,21 +488,15 @@ async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: strin
   const modeAdded = !!source.mode && !provider.modes.includes(source.mode);
   if (modeAdded) provider.modes.push(source.mode!);
   const windowChanged = upsertWindow(provider, {
-    rateLimitType: info.rateLimitType,
-    utilization: info.utilization,
-    resetsAt: info.resetsAt,
+    rateLimitType: info.rateLimitType, rateLimitLabel: info.rateLimitLabel,
+    utilization: info.utilization, resetsAt: info.resetsAt,
   });
   if (!isNewProvider && !modeAdded && !windowChanged) return;
-
   await persist(candidate);
   publishProviders(candidate);
   scheduleResumeTimer();
   fireChange();
-  log.info(`Throttle updated: provider=${source.provider}, type=${info.rateLimitType}, utilization=${info.utilization}, mode=${source.mode ?? '(none)'}`);
-  if (isNewProvider) {
-    sendDM(`${Icons.warning} ${source.displayName} rate limit throttle activated [${info.rateLimitType}] — utilization ${(info.utilization * 100).toFixed(0)}%.
-Auto-resume at ${formatResetTime(info.resetsAt)} (in ${formatRemaining(info.resetsAt)}).`, 'Rate limit', clearAction(source.provider));
-  }
+  notifyQuotaActivation(info, source, isNewProvider);
 }
 
 async function handleRateLimitEvent(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {

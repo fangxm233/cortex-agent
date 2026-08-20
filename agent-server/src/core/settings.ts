@@ -1,5 +1,5 @@
-// input:  CONFIG_DIR, settings spec, env, resilient file monitor
-// output: validated settings, disk updates, hot reload, test reset
+// input:  CONFIG_DIR, settings spec, env, and per-window provider policy patches
+// output: validated settings, exact policy writes, disk updates, hot reload, and test reset
 // pos:    File-backed runtime settings boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -13,6 +13,7 @@ import { createFileWatchMonitor, type WatchMonitor } from './resilient-watch.js'
 import {
   SETTINGS_SPEC,
   type ProviderRateLimitPolicyOverride,
+  type ProviderRateLimitWindowPolicyOverride,
   type ProviderRateLimits,
   type SettingKey,
   type SettingSnapshotEntry,
@@ -24,6 +25,7 @@ import {
 export {
   SETTINGS_SPEC,
   type ProviderRateLimitPolicyOverride,
+  type ProviderRateLimitWindowPolicyOverride,
   type ProviderRateLimits,
   type SettingKey,
   type SettingSnapshotEntry,
@@ -35,6 +37,8 @@ export interface ProviderRateLimitPolicyPatch {
   provider: string;
   enabled: boolean;
   threshold: number | null;
+  windowType?: string;
+  windowLabel?: string | null;
 }
 
 const log = createLogger('settings');
@@ -88,22 +92,69 @@ function validateThreshold(value: unknown): string | null {
   return null;
 }
 
-function validateProviderPolicyOverride(
-  value: unknown,
-  provider: string,
-): string | null {
+function validateWindowText(value: unknown, field: string): string | null {
+  if (typeof value !== 'string') return `${field} must be a string`;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return `${field} must not be empty`;
+  if (trimmed !== value) return `${field} must not have leading or trailing whitespace`;
+  return null;
+}
+
+function validatePolicyThreshold(value: Record<string, unknown>, path: string): string | null {
+  if (!Object.hasOwn(value, 'threshold')) return null;
+  if (typeof value.enabled !== 'boolean') return `${path}.enabled must be a boolean`;
+  const thresholdError = validateThreshold(value.threshold);
+  return thresholdError ? `${path}.${thresholdError}` : null;
+}
+
+function validateWindowPolicyOverride(value: unknown, path: string): string | null {
+  if (!isPlainObject(value)) return `${path} must be a plain object`;
+  for (const key of Object.keys(value)) {
+    if (key === 'type' || key === 'label' || key === 'enabled' || key === 'threshold') continue;
+    return `${path} has unknown field "${key}"`;
+  }
+  const typeError = validateWindowText(value.type, 'type');
+  if (typeError) return `${path}.${typeError}`;
+  if (Object.hasOwn(value, 'label')) {
+    const labelError = validateWindowText(value.label, 'label');
+    if (labelError) return `${path}.${labelError}`;
+  }
+  if (typeof value.enabled !== 'boolean') return `${path}.enabled must be a boolean`;
+  return validatePolicyThreshold(value, path);
+}
+
+function windowIdentity(type: string, label?: string): string {
+  return `${type}\u0000${label ?? ''}`;
+}
+
+function validateWindowPolicies(value: unknown, provider: string): string | null {
+  if (!Array.isArray(value)) return `providerRateLimits.${provider}.windows must be an array`;
+  const seen = new Set<string>();
+  for (const [index, window] of value.entries()) {
+    const path = `providerRateLimits.${provider}.windows.${index}`;
+    const windowError = validateWindowPolicyOverride(window, path);
+    if (windowError) return windowError;
+    const key = windowIdentity((window as ProviderRateLimitWindowPolicyOverride).type, (window as ProviderRateLimitWindowPolicyOverride).label);
+    if (seen.has(key)) return `${path} duplicates an existing window identity`;
+    seen.add(key);
+  }
+  return null;
+}
+
+function validateProviderPolicyOverride(value: unknown, provider: string): string | null {
   if (!isPlainObject(value)) return `providerRateLimits.${provider} must be a plain object`;
-  const keys = Object.keys(value);
-  for (const key of keys) {
-    if (key === 'enabled' || key === 'threshold') continue;
+  for (const key of Object.keys(value)) {
+    if (key === 'enabled' || key === 'threshold' || key === 'windows') continue;
     return `providerRateLimits.${provider} has unknown field "${key}"`;
   }
-  if (typeof value.enabled !== 'boolean') {
+  if (Object.hasOwn(value, 'enabled') && typeof value.enabled !== 'boolean') {
     return `providerRateLimits.${provider}.enabled must be a boolean`;
   }
-  if (!Object.hasOwn(value, 'threshold')) return null;
-  const thresholdError = validateThreshold(value.threshold);
-  return thresholdError ? `providerRateLimits.${provider}.${thresholdError}` : null;
+  const thresholdError = validatePolicyThreshold(value, `providerRateLimits.${provider}`);
+  if (thresholdError) return thresholdError;
+  if (Object.hasOwn(value, 'windows')) return validateWindowPolicies(value.windows, provider);
+  if (typeof value.enabled === 'boolean') return null;
+  return `providerRateLimits.${provider} must declare enabled or windows`;
 }
 
 function validateProviderRateLimits(value: unknown): string | null {
@@ -117,9 +168,18 @@ function validateProviderRateLimits(value: unknown): string | null {
   return null;
 }
 
-function normalizeProviderRateLimitPatch(
-  patch: ProviderRateLimitPolicyPatch,
-): ProviderRateLimitPolicyPatch {
+function normalizeWindowText(value: unknown, field: string): string {
+  const error = validateWindowText(value, field);
+  if (error) throw new TypeError(error);
+  return (value as string).trim();
+}
+
+function normalizeWindowLabel(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  return normalizeWindowText(value, 'label');
+}
+
+function normalizeProviderRateLimitPatch(patch: ProviderRateLimitPolicyPatch): ProviderRateLimitPolicyPatch {
   const provider = patch.provider.trim();
   const providerError = validateProviderKey(provider);
   if (providerError) throw new TypeError(providerError);
@@ -128,24 +188,39 @@ function normalizeProviderRateLimitPatch(
     const thresholdError = validateThreshold(patch.threshold);
     if (thresholdError) throw new TypeError(thresholdError);
   }
-  return { provider, enabled: patch.enabled, threshold: patch.threshold };
+  const windowType = patch.windowType === undefined ? undefined : normalizeWindowText(patch.windowType, 'type');
+  const windowLabel = normalizeWindowLabel(patch.windowLabel);
+  if (windowLabel && !windowType) throw new TypeError('windowLabel requires windowType');
+  return { provider, enabled: patch.enabled, threshold: patch.threshold, ...(windowType ? { windowType } : {}), ...(windowLabel ? { windowLabel } : {}) };
+}
+
+function cloneWindowPolicy(window: ProviderRateLimitWindowPolicyOverride): ProviderRateLimitWindowPolicyOverride {
+  return {
+    type: window.type,
+    ...(window.label ? { label: window.label } : {}),
+    enabled: window.enabled,
+    ...(Object.hasOwn(window, 'threshold') ? { threshold: window.threshold } : {}),
+  };
+}
+
+function cloneProviderPolicy(policy: ProviderRateLimitPolicyOverride): ProviderRateLimitPolicyOverride {
+  return {
+    ...(typeof policy.enabled === 'boolean' ? { enabled: policy.enabled } : {}),
+    ...(Object.hasOwn(policy, 'threshold') ? { threshold: policy.threshold } : {}),
+    ...(policy.windows ? { windows: policy.windows.map(cloneWindowPolicy) } : {}),
+  };
 }
 
 function cloneProviderRateLimits(value: unknown): ProviderRateLimits {
   const validationError = validateProviderRateLimits(value);
   if (validationError) throw new TypeError(validationError);
-  const next: ProviderRateLimits = {};
-  for (const [provider, policy] of Object.entries(value as Record<string, ProviderRateLimitPolicyOverride>)) {
-    next[provider] = Object.hasOwn(policy, 'threshold')
-      ? { enabled: policy.enabled, threshold: policy.threshold }
-      : { enabled: policy.enabled };
-  }
-  return next;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, ProviderRateLimitPolicyOverride>)
+      .map(([provider, policy]) => [provider, cloneProviderPolicy(policy)]),
+  );
 }
 
-function providerRateLimitOverrides(
-  overrides: Record<string, unknown>,
-): ProviderRateLimits {
+function providerRateLimitOverrides(overrides: Record<string, unknown>): ProviderRateLimits {
   if (!Object.hasOwn(overrides, 'providerRateLimits')) return {};
   return cloneProviderRateLimits(overrides.providerRateLimits);
 }
@@ -191,6 +266,14 @@ function logEnvFallback(key: SettingKey, envVar: string): void {
   log.warn(`Deprecated env ${envVar} supplies settings.${key}; move it to settings.json`);
 }
 
+function resolvedOverrideValue<K extends SettingKey>(
+  key: K,
+  overrides: Record<string, unknown>,
+): Settings[K] {
+  if (key !== 'providerRateLimits') return overrides[key] as Settings[K];
+  return cloneProviderRateLimits(overrides[key]) as Settings[K];
+}
+
 function resolveSettingEntry<K extends SettingKey>(
   key: K,
   overrides: Record<string, unknown>,
@@ -199,7 +282,7 @@ function resolveSettingEntry<K extends SettingKey>(
 ): SettingSnapshotEntry<K> {
   const entry = SETTINGS_SPEC[key] as SettingSpecEntry<Settings[K]>;
   if (Object.hasOwn(overrides, key)) {
-    return { key, value: overrides[key] as Settings[K], source: 'file' };
+    return { key, value: resolvedOverrideValue(key, overrides), source: 'file' };
   }
   const envVars = entry.envVar === undefined
     ? []
@@ -375,6 +458,52 @@ function readOverridesForUpdate(): Record<string, unknown> {
   }
 }
 
+function matchesWindow(
+  window: ProviderRateLimitWindowPolicyOverride,
+  patch: ProviderRateLimitPolicyPatch,
+): boolean {
+  return window.type === patch.windowType && window.label === patch.windowLabel;
+}
+
+function nextWindowPolicy(patch: ProviderRateLimitPolicyPatch): ProviderRateLimitWindowPolicyOverride {
+  return {
+    type: patch.windowType!,
+    ...(patch.windowLabel ? { label: patch.windowLabel } : {}),
+    enabled: patch.enabled,
+    ...(patch.threshold !== null ? { threshold: patch.threshold } : {}),
+  };
+}
+
+function cleanProviderPolicy(policy: ProviderRateLimitPolicyOverride): ProviderRateLimitPolicyOverride | null {
+  const cleaned = cloneProviderPolicy(policy);
+  if (!cleaned.windows?.length) delete cleaned.windows;
+  if (cleaned.enabled === undefined && cleaned.threshold === undefined && !cleaned.windows) return null;
+  return cleaned;
+}
+
+function hasLegacyProviderOverride(policy: ProviderRateLimitPolicyOverride): boolean {
+  return policy.enabled === false || policy.threshold !== undefined;
+}
+
+function applyProviderRateLimitPatch(
+  current: ProviderRateLimitPolicyOverride | undefined,
+  patch: ProviderRateLimitPolicyPatch,
+): ProviderRateLimitPolicyOverride | null {
+  const next = cloneProviderPolicy(current ?? {});
+  if (!patch.windowType) {
+    delete next.enabled;
+    delete next.threshold;
+    if (!patch.enabled || patch.threshold !== null) next.enabled = patch.enabled;
+    if (patch.threshold !== null) next.threshold = patch.threshold;
+    return cleanProviderPolicy(next);
+  }
+  const windows = next.windows?.filter((window) => !matchesWindow(window, patch)) ?? [];
+  const mustMaskLegacy = patch.enabled && patch.threshold === null && hasLegacyProviderOverride(next);
+  if (!patch.enabled || patch.threshold !== null || mustMaskLegacy) windows.push(nextWindowPolicy(patch));
+  next.windows = windows;
+  return cleanProviderPolicy(next);
+}
+
 export async function updateSettings(partial: Partial<Settings>): Promise<void> {
   initialize();
   const env = { ...process.env };
@@ -401,13 +530,9 @@ export async function setProviderRateLimitPolicy(
   return writeMutex.run(async () => {
     const nextOverrides = { ...readOverridesForUpdate() };
     const providerRateLimits = providerRateLimitOverrides(nextOverrides);
-    if (normalized.enabled && normalized.threshold === null) {
-      delete providerRateLimits[normalized.provider];
-    } else {
-      providerRateLimits[normalized.provider] = normalized.threshold === null
-        ? { enabled: normalized.enabled }
-        : { enabled: normalized.enabled, threshold: normalized.threshold };
-    }
+    const nextPolicy = applyProviderRateLimitPatch(providerRateLimits[normalized.provider], normalized);
+    if (nextPolicy) providerRateLimits[normalized.provider] = nextPolicy;
+    else delete providerRateLimits[normalized.provider];
     nextOverrides.providerRateLimits = providerRateLimits;
     const nextSnapshot = resolveSettingsSnapshot(nextOverrides, env);
     const nextSettings = settingsFromSnapshot(nextSnapshot);

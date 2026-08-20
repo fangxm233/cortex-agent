@@ -19,7 +19,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |
 | agent-adapter-pi-mcp-config.test.ts | test | PI MCP config privacy and reloads |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP gates, surfaces, env and retry policy |
-| agent-adapter-pi-quota-probe.test.ts | test | PI quota persistence and throttle failure parity |
+| agent-adapter-pi-quota-probe.test.ts | test | PI quota labels, persistence, and throttle failure parity |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
@@ -106,7 +106,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | platform-mock-adapter.test.ts | test | Mock contract and nullable admin routing |
 | preferences.test.ts | test | operator display preferences store |
 | project-store.test.ts | test | project lookup, task scaffolding and cache |
-| rate-limit-throttle.test.ts | test | committed views and queued expiry retries |
+| rate-limit-throttle.test.ts | test | exact window policy, committed views, and queued expiry retries |
 | rate-limiter.test.ts | test | token bucket rate limiter behaviour |
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
@@ -178,7 +178,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | update-prompt-slack.test.ts | test | Slack update prompt buttons and timeout |
 | update-prompt.test.ts | test | update prompt buttons, stale and timeout |
 | update-state.test.ts | test | update state file round-trip and errors |
-| usage-service.test.ts | test | provider collection, races, failures and gateway spend |
+| usage-service.test.ts | test | provider collection, live observations, races, failures and gateway spend |
 | usage-store.test.ts | test | ordered provider usage and state compatibility |
 | user-context.test.ts | test | reset-isolated USER.md conversation injection |
 | webhook-ask-user.test.ts | test | ask endpoint level and channel resolution |

@@ -1,5 +1,5 @@
-// input:  isolated config home, config schemas and handlers
-// output: budget, profile, and runtime-settings mutation tests
+// input:  isolated config home plus config schemas and handlers
+// output: budget, profile, runtime-settings, and per-window-policy mutation tests
 // pos:    Regression coverage for config.set writes and validation
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -209,28 +209,38 @@ test('config.set via facade writes to the isolated CONFIG_DIR and returns writte
   assert.deepEqual(got.data.budget, { daily_usd: 55, monthly_usd: 1234, projects: {} });
 });
 
-test('handleConfigSetProviderRateLimitPolicy writes the committed provider policy', async () => {
+test('handleConfigSetProviderRateLimitPolicy writes and clears committed window policies', async () => {
   await fs.rm(path.join(CONFIG_DIR, 'settings.json'), { force: true });
 
   const written = await handleConfigSetProviderRateLimitPolicy(makeMinimalDeps(), {
-    provider: 'openai-codex', enabled: false, threshold: 0.91,
+    provider: 'openai-codex', windowType: 'codex_primary', enabled: false, threshold: 0.91,
   } as any);
   const cleared = await handleConfigSetProviderRateLimitPolicy(makeMinimalDeps(), {
-    provider: 'openai-codex', enabled: true, threshold: null,
+    provider: 'openai-codex', windowType: 'codex_primary', enabled: true, threshold: null,
   } as any);
 
   assert.deepEqual(written, {
     ok: true,
     data: {
       written: true,
-      policy: { provider: 'openai-codex', enabled: false, threshold: 0.91 },
+      policy: {
+        provider: 'openai-codex',
+        windowType: 'codex_primary',
+        enabled: false,
+        threshold: 0.91,
+      },
     },
   });
   assert.deepEqual(cleared, {
     ok: true,
     data: {
       written: true,
-      policy: { provider: 'openai-codex', enabled: true, threshold: null },
+      policy: {
+        provider: 'openai-codex',
+        windowType: 'codex_primary',
+        enabled: true,
+        threshold: null,
+      },
     },
   });
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(CONFIG_DIR, 'settings.json'), 'utf8')), {
@@ -238,9 +248,9 @@ test('handleConfigSetProviderRateLimitPolicy writes the committed provider polic
   });
 });
 
-test('handleConfigSetProviderRateLimitPolicy rejects invalid provider policies with invalid-args', async () => {
+test('handleConfigSetProviderRateLimitPolicy rejects invalid window targeting with invalid-args', async () => {
   const result = await handleConfigSetProviderRateLimitPolicy(makeMinimalDeps(), {
-    provider: 'openai-codex', enabled: true, threshold: 0,
+    provider: 'openai-codex', windowLabel: 'Sonnet', enabled: true, threshold: 0.9,
   } as any);
 
   assert.equal(result.ok, false);
@@ -358,26 +368,37 @@ test('config.setProviderRateLimitPolicy is reachable via the facade and app rout
   await fs.rm(path.join(CONFIG_DIR, 'settings.json'), { force: true });
   const ui = createUiService(makeMinimalDeps());
   const facade = await ui.mutate('config.setProviderRateLimitPolicy', {
-    provider: 'openai-codex', enabled: false, threshold: null,
+    provider: 'openai-codex', windowType: 'codex_primary', enabled: false, threshold: null,
   });
   assert.deepEqual(facade, {
     ok: true,
     data: {
       written: true,
-      policy: { provider: 'openai-codex', enabled: false, threshold: null },
+      policy: {
+        provider: 'openai-codex',
+        windowType: 'codex_primary',
+        enabled: false,
+        threshold: null,
+      },
     },
   });
 
   const caller = createAppRouter(createUiService(makeMinimalDeps())).createCaller({});
   const routed = await caller.config.setProviderRateLimitPolicy({
-    provider: 'anthropic', enabled: false, threshold: 0.88,
+    provider: 'anthropic', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: false, threshold: 0.88,
   });
   assert.deepEqual(routed, {
     written: true,
-    policy: { provider: 'anthropic', enabled: false, threshold: 0.88 },
+    policy: {
+      provider: 'anthropic',
+      windowType: 'model_scoped',
+      windowLabel: 'Sonnet',
+      enabled: false,
+      threshold: 0.88,
+    },
   });
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(CONFIG_DIR, 'settings.json'), 'utf8')).providerRateLimits, {
-    'openai-codex': { enabled: false },
-    anthropic: { enabled: false, threshold: 0.88 },
+    'openai-codex': { windows: [{ type: 'codex_primary', enabled: false }] },
+    anthropic: { windows: [{ type: 'model_scoped', label: 'Sonnet', enabled: false, threshold: 0.88 }] },
   });
 });

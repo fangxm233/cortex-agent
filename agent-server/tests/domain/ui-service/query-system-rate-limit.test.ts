@@ -1,5 +1,5 @@
 // input:  provider throttle domain state and system rate-limit query handler
-// output: provider/window DTO, waiting counts, and inactive assertions
+// output: labeled provider/window DTO, waiting counts, and inactive assertions
 // pos:    UI-service regression coverage for system.rateLimitStatus
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -43,6 +43,10 @@ test('system.rateLimitStatus returns active provider windows without collapsing 
     { provider: 'anthropic', displayName: 'Anthropic', mode: 'plan' },
   );
   await handleRateLimitEvent(
+    { rateLimitType: 'model_scoped', rateLimitLabel: 'Sonnet', utilization: 0.98, resetsAt: nowSec + 1_200 },
+    { provider: 'anthropic', displayName: 'Anthropic', mode: 'plan' },
+  );
+  await handleRateLimitEvent(
     { rateLimitType: 'five_hour', utilization: 0.94, resetsAt: nowSec + 300 },
     { provider: 'openai-codex', displayName: 'OpenAI', mode: 'subscription' },
   );
@@ -55,6 +59,7 @@ test('system.rateLimitStatus returns active provider windows without collapsing 
   assert.deepEqual(status.providers.map((provider) => provider.provider), ['anthropic', 'openai-codex']);
   assert.deepEqual(status.providers.map((provider) => provider.windows[0].resetsAt), [nowSec + 900, nowSec + 300]);
   assert.equal(status.providers[0].windows[0].utilization, 0.97);
+  assert.equal(status.providers[0].windows[1].label, 'Sonnet');
   assert.deepEqual(status.providers.map((provider) => [provider.waitingSessions, provider.waitingThreads]), [
     [1, 1], [0, 1],
   ]);

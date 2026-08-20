@@ -1,5 +1,5 @@
-// input:  daemon usage adapters, settings, usage store, gateway HTTP
-// output: side-effect-free status and explicit provider collection
+// input:  daemon usage adapters, settings, usage store, gateway HTTP, and throttle observer
+// output: side-effect-free status, explicit provider collection, and live quota observation
 // pos:    Public orchestration service for provider usage visibility
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,6 +7,8 @@ import { getAdapter as getDaemonAdapter } from '../../agent-adapter/index.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
 import type { AgentAdapter, AgentUsageScope, Backend } from '../../agent-adapter/types.js';
 import { getSettings as readSettings, type Settings } from '@core/settings.js';
+import { createLogger } from '@core/log.js';
+import { handleRateLimitEvent, type RateLimitSource } from './rate-limit-throttle.js';
 import { GATEWAY_URL } from './gateway-manager.js';
 import {
   usageStore,
@@ -14,6 +16,7 @@ import {
   type ProviderUsage,
 } from './usage-store.js';
 
+const log = createLogger('usage-service');
 const GATEWAY_USAGE_TIMEOUT_MS = 5_000;
 type GatewayPeriod = 'today' | 'month';
 type SpendProvider = 'deepseek' | 'qwen-ksu';
@@ -21,6 +24,10 @@ type SpendProvider = 'deepseek' | 'qwen-ksu';
 type UsageAdapter = Pick<AgentAdapter, 'capabilities' | 'getUsage'>;
 type AdapterResolver = (backend: Backend) => UsageAdapter;
 type SettingsReader = () => Pick<Settings, 'anthropicSubscriptionModes'>;
+type ObserveRateLimit = (
+  info: { rateLimitType: string; rateLimitLabel?: string; utilization: number; resetsAt: number },
+  source: RateLimitSource,
+) => Promise<void>;
 
 export interface UsageServiceStore {
   list(): Promise<ProviderUsage[]>;
@@ -34,6 +41,7 @@ export interface UsageServiceDependencies {
   getSettings?: SettingsReader;
   fetch?: typeof globalThis.fetch;
   gatewayUrl?: string;
+  observeRateLimit?: ObserveRateLimit;
 }
 
 interface AdapterSource {
@@ -199,12 +207,35 @@ function gatewayNote(
   return failures.length > 0 ? `gateway usage collection failed (${failures.join('; ')})` : undefined;
 }
 
+function observableWindows(record: ProviderUsage) {
+  return record.windows.filter((window) => window.utilization !== null && window.resetsAt !== null);
+}
+
+function observationSources(record: ProviderUsage): RateLimitSource[] {
+  const modes = record.modes.length > 0 ? record.modes : [undefined];
+  return modes.map((mode) => ({ provider: record.provider, displayName: record.displayName, ...(mode ? { mode } : {}) }));
+}
+
+async function observeProviderUsage(record: ProviderUsage, observe: ObserveRateLimit): Promise<void> {
+  for (const source of observationSources(record)) {
+    for (const window of observableWindows(record)) {
+      await observe({
+        rateLimitType: window.type,
+        ...(window.label ? { rateLimitLabel: window.label } : {}),
+        utilization: window.utilization!,
+        resetsAt: window.resetsAt!,
+      }, source);
+    }
+  }
+}
+
 export class UsageService {
   private readonly store: UsageServiceStore;
   private readonly getAdapter: AdapterResolver;
   private readonly getSettings: SettingsReader;
   private readonly fetch: typeof globalThis.fetch;
   private readonly gatewayUrl: string;
+  private readonly observeRateLimit: ObserveRateLimit;
 
   constructor(dependencies: UsageServiceDependencies = {}) {
     this.store = dependencies.store ?? usageStore;
@@ -212,6 +243,7 @@ export class UsageService {
     this.getSettings = dependencies.getSettings ?? readSettings;
     this.fetch = dependencies.fetch ?? globalThis.fetch;
     this.gatewayUrl = dependencies.gatewayUrl ?? GATEWAY_URL;
+    this.observeRateLimit = dependencies.observeRateLimit ?? handleRateLimitEvent;
   }
 
   async getStatus(): Promise<ProviderUsage[]> {
@@ -245,6 +277,7 @@ export class UsageService {
         ? normalizeAdapterRecord(observed, source)
         : unavailableRecord(source, prior, source.noObservationNote);
       await this.store.update(next);
+      await this.observeLiveUsage(next);
     } catch (error) {
       const note = error instanceof UsageUnavailableError
         ? error.message
@@ -262,6 +295,15 @@ export class UsageService {
       freshness: prior.observedAt === null ? 'never' : 'stale',
       note: 'Anthropic account usage collection disabled by settings',
     });
+  }
+
+  private async observeLiveUsage(record: ProviderUsage): Promise<void> {
+    if (record.freshness !== 'live') return;
+    try {
+      await observeProviderUsage(record, this.observeRateLimit);
+    } catch (error) {
+      log.error(`Live usage observation failed for ${record.provider}: ${errorMessage(error)}`);
+    }
   }
 
   private async readAdapter(

@@ -1,11 +1,19 @@
-// input:  raw legacy environment values
-// output: settings types, defaults, parsers, and value validators
+// input:  raw legacy environment values and provider/window policy shapes
+// output: settings types, defaults, exact-window policy forms, parsers, and value validators
 // pos:    Browser-safe runtime settings contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-export interface ProviderRateLimitPolicyOverride {
+export interface ProviderRateLimitWindowPolicyOverride {
+  type: string;
+  label?: string;
   enabled: boolean;
   threshold?: number;
+}
+
+export interface ProviderRateLimitPolicyOverride {
+  enabled?: boolean;
+  threshold?: number;
+  windows?: ProviderRateLimitWindowPolicyOverride[];
 }
 
 export type ProviderRateLimits = Record<string, ProviderRateLimitPolicyOverride>;

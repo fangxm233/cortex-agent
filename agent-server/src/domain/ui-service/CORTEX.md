@@ -5,8 +5,8 @@ Serves the TUI dashboard directly and the Web UI through the tRPC router bound h
 
 | filename | role | function |
 |---|---|---|
-| types.ts | types | UI DTOs, provider policy ops, and operation maps |
-| input-schemas.ts | schemas | Validates UI inputs, provider policy, and plugins |
+| types.ts | types | UI DTOs, per-window provider policy ops, and operation maps |
+| input-schemas.ts | schemas | Validates UI inputs, window-target provider policy, and plugins |
 | plugins-shared.ts | util | Normalizes plugin catalog entries and pluginDirs |
 | ui-service.ts | facade | routes UI operations through registered handlers |
 | subscribe.ts | subscribe | turns event bus traffic into a UI event stream |

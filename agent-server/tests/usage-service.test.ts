@@ -1,5 +1,5 @@
-// input:  usage service/store, PI cache, quota sink, gateway fakes
-// output: collection, freshness, race, failure, and spend regressions
+// input:  usage service/store, PI cache, quota sink, gateway fakes, and observers
+// output: collection, freshness, live observation, race, failure, and spend regressions
 // pos:    Validates the public provider usage orchestration boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -110,6 +110,7 @@ function serviceWith(options: {
   claude?: AgentAdapter;
   pi?: AgentAdapter;
   fetch?: typeof globalThis.fetch;
+  observe?: (info: unknown, source: unknown) => Promise<void>;
 }) {
   const store = options.store ?? new MemoryUsageStore();
   const claude = options.claude ?? fakeAdapter('claude', async () => []);
@@ -121,7 +122,8 @@ function serviceWith(options: {
     getSettings: () => ({ anthropicSubscriptionModes: options.anthropicModes ?? ['plan'] }),
     fetch: options.fetch ?? gatewayFetch([], []),
     gatewayUrl: 'http://gateway.test',
-  });
+    observeRateLimit: options.observe as never,
+  } as any);
   return { service, store };
 }
 
@@ -245,6 +247,51 @@ describe('UsageService', () => {
     assert.equal(persisted?.windows[0].utilization, 0.9);
   });
 
+  test('collect observes only persisted live usage, never stale PI, and fans Anthropic windows to every mode', async () => {
+    const observations: Array<{ info: any; source: any; persisted: ProviderUsage | null }> = [];
+    const claude = fakeAdapter('claude', async () => [usage('anthropic', 'live', {
+      displayName: 'Anthropic',
+      windows: [
+        { type: 'five_hour', utilization: 0.91, resetsAt: 1_800_000_100 },
+        { type: 'model_scoped', label: 'Sonnet', utilization: 0.92, resetsAt: 1_800_000_200 },
+      ],
+    })]);
+    const pi = fakeAdapter('pi', async () => [usage('openai-codex', 'stale', {
+      displayName: 'OpenAI Codex',
+      windows: [{ type: 'codex_primary', utilization: 0.95, resetsAt: 1_800_000_300 }],
+    })]);
+    const { service, store } = serviceWith({
+      claude,
+      pi,
+      anthropicModes: ['plan', 'team'],
+      observe: async (info, source) => {
+        observations.push({ info, source, persisted: await store.get((source as any).provider) });
+      },
+    });
+
+    await service.collect();
+
+    assert.deepEqual(observations.map(({ info, source }) => ({ info, source })), [
+      {
+        info: { rateLimitType: 'five_hour', utilization: 0.91, resetsAt: 1_800_000_100 },
+        source: { provider: 'anthropic', displayName: 'Anthropic', mode: 'plan' },
+      },
+      {
+        info: { rateLimitType: 'model_scoped', rateLimitLabel: 'Sonnet', utilization: 0.92, resetsAt: 1_800_000_200 },
+        source: { provider: 'anthropic', displayName: 'Anthropic', mode: 'plan' },
+      },
+      {
+        info: { rateLimitType: 'five_hour', utilization: 0.91, resetsAt: 1_800_000_100 },
+        source: { provider: 'anthropic', displayName: 'Anthropic', mode: 'team' },
+      },
+      {
+        info: { rateLimitType: 'model_scoped', rateLimitLabel: 'Sonnet', utilization: 0.92, resetsAt: 1_800_000_200 },
+        source: { provider: 'anthropic', displayName: 'Anthropic', mode: 'team' },
+      },
+    ]);
+    assert.equal(observations.every(({ persisted }) => persisted?.freshness === 'live'), true);
+  });
+
   test('every explicit refresh immediately invokes every enabled source', async () => {
     const claudeGetUsage = vi.fn(async () => [usage('anthropic', 'live')]);
     const piGetUsage = vi.fn(async () => [usage('openai-codex', 'never')]);
@@ -309,6 +356,24 @@ describe('UsageService', () => {
     assert.equal(anthropic?.freshness, 'stale');
     assert.match(anthropic?.note ?? '', /429 usage endpoint busy/);
     assert.equal(result.find((record) => record.provider === 'openai-codex')?.freshness, 'never');
+  });
+
+  test('observer failures do not stale an otherwise fresh usage record', async () => {
+    const claude = fakeAdapter('claude', async () => [usage('anthropic', 'live', {
+      displayName: 'Anthropic',
+      windows: [{ type: 'five_hour', utilization: 0.91, resetsAt: 1_900_000_000 }],
+    })]);
+    const { service } = serviceWith({
+      claude,
+      observe: async () => { throw new Error('observer offline'); },
+    });
+
+    const result = await service.collect();
+    const anthropic = result.find((record) => record.provider === 'anthropic');
+
+    assert.equal(anthropic?.freshness, 'live');
+    assert.equal(anthropic?.note, undefined);
+    assert.deepEqual(anthropic?.windows, [{ type: 'five_hour', utilization: 0.91, resetsAt: 1_900_000_000 }]);
   });
 
   test('a collector-declared unavailable note is persisted verbatim without a failure prefix', async () => {

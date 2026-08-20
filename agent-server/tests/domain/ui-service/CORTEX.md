@@ -7,7 +7,7 @@ Scopes cover approvals, config, executions, issues, memory, plugins, projects, s
 |---|---|---|
 | mutate-approvals.test.ts | test | Covers approve, reject and request writes |
 | mutate-auth.test.ts | test | Covers login flow and account logout mutations |
-| mutate-config.test.ts | test | Covers config writes and provider policy mutation |
+| mutate-config.test.ts | test | Covers config writes and per-window provider policy mutation |
 | mutate-executions.test.ts | test | Covers execution cancellation outcomes |
 | mutate-hooks.test.ts | test | Covers hook draft rebuild and test clamping |
 | mutate-profiles.test.ts | test | Covers profile create, edit, remove and guards |
@@ -42,7 +42,7 @@ Scopes cover approvals, config, executions, issues, memory, plugins, projects, s
 | query-sessions.test.ts | test | Covers session list filters and run state |
 | query-skills.test.ts | test | Covers skills list grouping by source |
 | plugins.test.ts | test | Covers plugin list, assignment and hot reload |
-| query-system-rate-limit.test.ts | test | Covers throttle windows and waiting counts |
+| query-system-rate-limit.test.ts | test | Covers labeled throttle windows and waiting counts |
 | system-usage.test.ts | test | Covers persisted usage reads and forced refreshes |
 | query-task-verification.test.ts | test | Covers task evidence and dispatch history |
 | query-tasks.test.ts | test | Covers readiness, deps, claims and completion |

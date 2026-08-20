@@ -28,4 +28,4 @@ Handlers return DTOs only and never change state.
 | plugins.ts | query | lists plugins and assignment targets |
 | thread-templates.ts | query | lists thread template definitions with validity and origin |
 | thread-template-detail.ts | query | returns one entity's raw body, hash, issues and references |
-| system.ts | query | Reports process, throttle and provider usage state |
+| system.ts | query | Reports process, labeled throttle, and provider usage state |
