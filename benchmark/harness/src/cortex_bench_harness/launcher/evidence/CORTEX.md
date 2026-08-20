@@ -5,6 +5,7 @@ migration is pinned by the harness regeneration command.
 
 | filename | role | function |
 |---|---|---|
+| claude-subscription.live-handshake-passed.json | evidence | Binds one native-default Claude live handshake |
 | claude-subscription.offline-contract-passed.json | evidence | Binds Claude subscription synthetic proof |
 | claude-subscription.synthetic-observation.json | evidence | Records the Claude loopback request contract |
 | codex-subscription.offline-contract-passed.json | evidence | Binds current Codex zero-paid contract proofs |

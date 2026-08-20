@@ -31,7 +31,7 @@ EXPECTED_PROJECTION = [
     },
     {
         "id": "claude-subscription",
-        "state": "offline-contract-passed",
+        "state": "live-handshake-passed",
         "key": {
             "runner_or_backend": "claude-code",
             "provider": "anthropic",
@@ -40,7 +40,7 @@ EXPECTED_PROJECTION = [
             "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
         "evidence_sha256":
-            "50ebdbae35cf82f50dc7ec03f500f529a16003e0320fbc6ad6425683bfbb7c76",
+            "68c7c62cdd57e3ebc5fdeb395e57eab76fe228ad4c33f7c1633ad5c8c7794987",
     },
     {
         "id": "codex-subscription",

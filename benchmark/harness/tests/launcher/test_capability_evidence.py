@@ -116,23 +116,32 @@ def test_deepseek_evidence_output_is_byte_for_byte_unchanged() -> None:
     )
 
 
-def test_validates_shipped_claude_synthetic_evidence_and_supporting_observation() -> None:
+def test_validates_shipped_claude_live_and_synthetic_evidence() -> None:
     import cortex_bench_harness.launcher.credential_capabilities as registry
 
     key = next(key for key, row in registry.CAPABILITY_REGISTRY.items()
                if row.id == "claude-subscription")
     row = registry.CAPABILITY_REGISTRY[key]
-    path = registry._evidence_path(row.id, row.state)
+    live_path = registry._evidence_path(row.id, row.state)
 
     assert key == CLAUDE_KEY
-    assert row.state == "offline-contract-passed"
+    assert row.state == "live-handshake-passed"
     assert row.evidence_sha256 is not None
-    evidence = validate_capability_evidence(
-        path, row.evidence_sha256, capability_id=row.id, key=key, state=row.state,
+    live = validate_capability_evidence(
+        live_path, row.evidence_sha256, capability_id=row.id, key=key, state=row.state,
         adapter_id="anthropic-messages/subscription-oauth",
     )
-    validate_offline_supporting_artifacts(path.parent, evidence)
-    assert evidence["claude_code_version"] == "2.1.232"
+    assert live["claude_code_version"] == "2.1.232"
+    assert live["request_count"] == 1
+
+    offline_path = EVIDENCE_DIR / "claude-subscription.offline-contract-passed.json"
+    offline_digest = hashlib.sha256(offline_path.read_bytes()).hexdigest()
+    offline = validate_capability_evidence(
+        offline_path, offline_digest, capability_id=row.id, key=key,
+        state="offline-contract-passed",
+        adapter_id="anthropic-messages/subscription-oauth",
+    )
+    validate_offline_supporting_artifacts(offline_path.parent, offline)
 
 
 def test_validates_shipped_codex_zero_paid_evidence_suite() -> None:

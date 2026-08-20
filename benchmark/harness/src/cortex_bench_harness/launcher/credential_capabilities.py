@@ -55,8 +55,8 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
         CredentialCapability("claude-api-key", "offline-contract-passed"),
     _key("claude-code", "anthropic", "anthropic-messages", "subscription-oauth"):
         CredentialCapability(
-            "claude-subscription", "offline-contract-passed",
-            "50ebdbae35cf82f50dc7ec03f500f529a16003e0320fbc6ad6425683bfbb7c76",
+            "claude-subscription", "live-handshake-passed",
+            "68c7c62cdd57e3ebc5fdeb395e57eab76fe228ad4c33f7c1633ad5c8c7794987",
         ),
     _key("pi", "??", "??", "api-key"):
         CredentialCapability("pi-api-key", "unsupported"),

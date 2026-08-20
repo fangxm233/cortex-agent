@@ -142,13 +142,16 @@ def test_an_offline_admitted_row_cannot_arm_a_paid_route(
         )
 
 
-def test_shipped_claude_offline_row_has_no_live_handshake_authority() -> None:
+def test_shipped_claude_live_row_admits_paid_routes() -> None:
     arm = cortex_arm(
-        "claude-subscription", model="claude-sonnet-5", backend="claude-code",
+        "claude-subscription", model="claude-opus-5", backend="claude-code",
+    )
+    expected = next(
+        key for key, row in CAPABILITY_REGISTRY.items()
+        if row.id == "claude-subscription"
     )
 
-    with pytest.raises(CapabilityStateRefused, match="live-handshake-passed"):
-        require_capability_admission(arm, paid_run=True)
+    assert require_capability_admission(arm, paid_run=True) == expected
 
 
 def test_shipped_codex_offline_row_admits_non_paid_but_refuses_paid() -> None:
