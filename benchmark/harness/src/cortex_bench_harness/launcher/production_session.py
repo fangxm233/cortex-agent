@@ -380,12 +380,16 @@ class ProductionServerSession:
         """
         deadline = time.monotonic() + self._dispatch_timeout_seconds
         while time.monotonic() < deadline:
-            data = self._response_data(await self._post(
-                "production-thread-list.json",
-                {"action": "list-threads", "scope": "project", "projectId": PROJECT_ID},
-                execute,
-            ))
-            threads = data.get("threads")
+            try:
+                response = await self._post("production-thread-list.json", {
+                    "action": "list-threads", "scope": "project", "projectId": PROJECT_ID,
+                }, execute)
+            except Exception as error:
+                if not _exec_timed_out(error):
+                    raise
+                await asyncio.sleep(self._poll_seconds)
+                continue
+            threads = self._response_data(response).get("threads")
             if not isinstance(threads, list):
                 raise ProductionSessionError("thread-op list-threads must return a thread list")
             dispatched = [

@@ -110,7 +110,8 @@ class FakeExecutor:
     def __init__(
         self, logs_dir: Path, *, export_failure: bool = False,
         malformed_evidence: bool = False, gateway_failure: bool = False,
-        dispatch_never_runs: bool = False, result_timeout_once: bool = False,
+        dispatch_never_runs: bool = False, dispatch_error_once: Exception | None = None,
+        dispatch_error_always: bool = False, result_timeout_once: bool = False,
         result_never_terminal: bool = False,
     ) -> None:
         self.logs_dir = logs_dir
@@ -118,6 +119,8 @@ class FakeExecutor:
         self.malformed_evidence = malformed_evidence
         self.gateway_failure = gateway_failure
         self.dispatch_never_runs = dispatch_never_runs
+        self.dispatch_error_once = dispatch_error_once
+        self.dispatch_error_always = dispatch_error_always
         self.result_timeout_once = result_timeout_once
         self.result_never_terminal = result_never_terminal
         self.calls: list[tuple[str, dict[str, str] | None, str | None]] = []
@@ -169,6 +172,10 @@ class FakeExecutor:
         if "production-thread-list.json" in command:
             self._capture("production-thread-list.json")
             self.list_thread_polls += 1
+            if self.dispatch_error_once is not None and (
+                self.dispatch_error_always or self.list_thread_polls == 1
+            ):
+                raise self.dispatch_error_once
             dispatched = (
                 [] if self.dispatch_never_runs or self.list_thread_polls < 2
                 else self.dispatched_threads
@@ -494,7 +501,10 @@ def test_manager_deadline_returns_and_records_an_explicit_terminal_outcome(
     declared_arm = manager_arm()
     declared_arm["limits"]["deadline_seconds"] = 1
     clock = iter(value / 4 for value in range(1, 40))
-    monkeypatch.setattr("cortex_bench_harness.launcher.production_session.time.monotonic", lambda: next(clock))
+    monkeypatch.setattr(
+        "cortex_bench_harness.launcher.production_session.time.monotonic",
+        lambda: next(clock),
+    )
     production = session(tmp_path, arm=declared_arm, bundle=MANAGER_BUNDLE)
 
     result = asyncio.run(production.run("Solve only this task.", runner))
@@ -512,6 +522,51 @@ def test_manager_deadline_returns_and_records_an_explicit_terminal_outcome(
     commands = [call[0] for call in runner.calls]
     assert all("cortex-evidence-export" not in command for command in commands)
     assert commands[-1].startswith("kill -TERM -- -4242")
+    assert production.stopped_cleanly is True
+
+
+def test_manager_dispatch_poll_retries_one_exec_timeout(tmp_path: Path) -> None:
+    runner = FakeExecutor(
+        tmp_path, dispatch_error_once=RuntimeError("Command timed out after 10 seconds"),
+    )
+
+    result = asyncio.run(session(
+        tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE,
+    ).run("Solve only this task.", runner))
+
+    assert result.status == "completed"
+    assert runner.list_thread_polls == 2
+
+
+def test_manager_dispatch_poll_keeps_non_timeout_exec_failures_fatal(tmp_path: Path) -> None:
+    runner = FakeExecutor(
+        tmp_path, dispatch_error_once=RuntimeError("Docker exec failed"),
+    )
+    production = session(tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE)
+
+    with pytest.raises(RuntimeError, match="Docker exec failed"):
+        asyncio.run(production.run("Solve only this task.", runner))
+
+    assert runner.list_thread_polls == 1
+    assert production.stopped_cleanly is True
+
+
+def test_manager_dispatch_poll_stops_retrying_exec_timeouts_at_deadline(
+    tmp_path: Path,
+) -> None:
+    runner = FakeExecutor(
+        tmp_path,
+        dispatch_error_once=RuntimeError("Command timed out after 10 seconds"),
+        dispatch_error_always=True,
+    )
+    production = session(
+        tmp_path, arm=manager_arm(), bundle=MANAGER_BUNDLE, dispatch_timeout_seconds=0.01,
+    )
+
+    with pytest.raises(ProductionSessionError, match="task dispatch"):
+        asyncio.run(production.run("Solve only this task.", runner))
+
+    assert runner.list_thread_polls > 1
     assert production.stopped_cleanly is True
 
 
