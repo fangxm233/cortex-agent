@@ -53,6 +53,7 @@ arms:
     provider: anthropic
     # Deliberate controlled-baseline normalization: primary, Sonnet/Opus/Haiku aliases, and
     # subagents all resolve to the single CLI 2.1.232-observed default below.
+    # Provider acceptance: unverified-until-live success; task 10ba observed native HTTP 429.
     model: claude-sonnet-5
     credential_capability: claude-subscription
     limits:
