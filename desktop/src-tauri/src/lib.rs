@@ -30,6 +30,7 @@ mod creds;
 // bundles for the next launch. The one platform seam is the first-run seed (see `seed` below):
 // desktop reads it from `resource_dir/frontend-seed`, Android from an `include_dir!`-embedded copy.
 mod app_update;
+mod setup;
 mod frontend;
 mod ota;
 // Android-only: the embedded SPA seed materialized onto disk on first run (desktop uses the real
@@ -73,6 +74,20 @@ fn active_frontend_dir(app: &tauri::AppHandle) -> PathBuf {
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
+/// Where the server this app talks to lives.
+///
+/// `Remote` is the default on purpose: credential entries written before local installs existed have
+/// no `mode` key, and reading them as remote is exactly right — they *are* remote servers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ConnectionMode {
+    /// A server installed and started by this app on this machine.
+    Local,
+    /// A server the user points us at. The original behaviour.
+    #[default]
+    Remote,
+}
+
 /// Connection credentials shared between Rust AppState and the JS global
 /// `window.__CORTEX_DESKTOP_CONFIG`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -83,6 +98,16 @@ pub struct ConnectionConfig {
     pub server_url: Option<String>,
     /// Client authentication token (x-cortex-token value).
     pub token: Option<String>,
+    /// Local or remote. Local means this app is responsible for the daemon being up.
+    #[serde(default)]
+    pub mode: ConnectionMode,
+    /// Absolute path of the `cortex` executable driving a local install — kept so later launches can
+    /// start the daemon without re-resolving it through a PATH the GUI may not have.
+    #[serde(rename = "cortexBin", default, skip_serializing_if = "Option::is_none")]
+    pub cortex_bin: Option<String>,
+    /// Version of the local install at setup time (diagnostics only).
+    #[serde(rename = "serverVersion", default, skip_serializing_if = "Option::is_none")]
+    pub server_version: Option<String>,
 }
 
 pub struct AppState {
@@ -122,16 +147,28 @@ fn set_connection_config(
 /// store is unavailable, e.g. headless Linux without a secret-service daemon).
 /// Backend is platform-branched (OS keychain on desktop, app-private file on
 /// Android) — see `creds.rs`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalInstall {
+    /// Absolute path of the `cortex` executable that owns this install.
+    pub cortex_bin: String,
+    pub server_version: Option<String>,
+}
+
 #[tauri::command]
 fn connect(
     app: tauri::AppHandle,
     state: State<AppState>,
     server_url: String,
     token: String,
+    local: Option<LocalInstall>,
 ) -> Result<(), String> {
     let config = ConnectionConfig {
         server_url: Some(server_url),
         token: Some(token),
+        mode: if local.is_some() { ConnectionMode::Local } else { ConnectionMode::Remote },
+        cortex_bin: local.as_ref().map(|l| l.cortex_bin.clone()),
+        server_version: local.and_then(|l| l.server_version),
     };
     if let Err(e) = creds::save(&app, &config) {
         shell_log!(
@@ -480,6 +517,7 @@ fn load_initial_config(app: &tauri::AppHandle) -> ConnectionConfig {
     creds::load(app).unwrap_or_else(|| ConnectionConfig {
         server_url: std::env::var("CORTEX_SERVER_URL").ok(),
         token: std::env::var("CORTEX_TOKEN").ok(),
+        ..ConnectionConfig::default()
     })
 }
 
@@ -531,6 +569,11 @@ pub fn run() {
             save_download,
             open_path,
             reveal_path,
+            setup::setup_probe,
+            setup::setup_install_server,
+            setup::setup_run_init,
+            setup::setup_enable_ui,
+            setup::setup_start_daemon,
         ]);
 
     // Both platforms: serve the SPA over the custom `cortexui://` scheme from the active frontend
@@ -558,6 +601,23 @@ pub fn run() {
             // Load credentials (platform store → env fallback) and seed AppState.
             shell_log!("[cortex-desktop] {}", creds::diagnostics(&app.handle()));
             let initial_config = load_initial_config(&app.handle());
+
+            // A local install has no one else to start it: bring the daemon up before the workbench
+            // opens onto a dead server. Bounded — see setup::ensure_local_daemon.
+            if initial_config.mode == ConnectionMode::Local {
+                match (
+                    initial_config.cortex_bin.as_deref(),
+                    initial_config.server_url.as_deref(),
+                    initial_config.token.as_deref(),
+                ) {
+                    (Some(bin), Some(url), Some(token)) => {
+                        let ready = setup::ensure_local_daemon(app.handle(), bin, url, token);
+                        shell_log!("[cortex-desktop] local daemon ready={ready}");
+                    }
+                    _ => shell_log!("[cortex-desktop] local mode without a usable install record"),
+                }
+            }
+
             let open_workbench = has_credentials(&initial_config);
             shell_log!("[cortex-desktop] initial credentials present={open_workbench}");
             // Keep a copy to bake synchronously into the window's initialization_script (below), so
@@ -718,4 +778,54 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_credential_entry_written_before_local_mode_existed_loads_as_remote() {
+        // Existing keychain entries have no `mode` key; they must keep working, as remote.
+        let config: ConnectionConfig =
+            serde_json::from_str(r#"{"serverUrl":"https://cortex.example.com","token":"t"}"#)
+                .expect("legacy entry must still parse");
+        assert_eq!(config.mode, ConnectionMode::Remote);
+        assert!(config.cortex_bin.is_none());
+    }
+
+    #[test]
+    fn a_local_install_round_trips_through_the_credential_store() {
+        let config = ConnectionConfig {
+            server_url: Some("http://127.0.0.1:3004".into()),
+            token: Some("t".into()),
+            mode: ConnectionMode::Local,
+            cortex_bin: Some("/usr/local/bin/cortex".into()),
+            server_version: Some("2026.8.20".into()),
+        };
+        let restored: ConnectionConfig =
+            serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
+        assert_eq!(restored.mode, ConnectionMode::Local);
+        assert_eq!(restored.cortex_bin.as_deref(), Some("/usr/local/bin/cortex"));
+        assert_eq!(restored.server_version.as_deref(), Some("2026.8.20"));
+    }
+
+    #[test]
+    fn the_injected_config_tells_the_page_which_mode_it_is_in() {
+        let script = init_script(&ConnectionConfig {
+            server_url: Some("http://127.0.0.1:3004".into()),
+            token: Some("t".into()),
+            mode: ConnectionMode::Local,
+            cortex_bin: None,
+            server_version: None,
+        });
+        assert!(script.contains("\"mode\":\"local\""));
+    }
+
+    #[test]
+    fn a_default_config_is_remote_with_no_credentials() {
+        let config = ConnectionConfig::default();
+        assert_eq!(config.mode, ConnectionMode::Remote);
+        assert!(!has_credentials(&config));
+    }
 }

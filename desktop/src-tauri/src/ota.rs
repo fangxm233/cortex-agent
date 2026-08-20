@@ -203,6 +203,14 @@ impl UiStore {
 /// `Some(..)` and downcasts to `Option<rustls::ClientConfig>`; a single unified rustls version in the
 /// dependency graph makes that downcast succeed.
 pub(crate) fn build_http_client() -> Result<reqwest::blocking::Client, String> {
+    build_http_client_with_timeout(std::time::Duration::from_secs(30))
+}
+
+/// Same client, with the caller's timeout. The setup wizard polls a loopback endpoint in a loop and
+/// must not sit on a 30s socket timeout per attempt.
+pub(crate) fn build_http_client_with_timeout(
+    timeout: std::time::Duration,
+) -> Result<reqwest::blocking::Client, String> {
     let mut roots = rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let tls = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
@@ -213,7 +221,7 @@ pub(crate) fn build_http_client() -> Result<reqwest::blocking::Client, String> {
     .with_root_certificates(roots)
     .with_no_client_auth();
     reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
+        .timeout(timeout)
         .use_preconfigured_tls(tls)
         .build()
         .map_err(|e| e.to_string())
