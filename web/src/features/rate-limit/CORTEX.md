@@ -9,5 +9,5 @@ It keeps compact pills window-free while preserving full provider-window details
 | RateLimitStatus.tsx | view | Shows compact pills, labeled window details and clear actions |
 | RateLimitStatus.test.tsx | test | Pins Radix trigger prop forwarding on the desktop pill |
 | rate-limit-vm.ts | vm | Builds compact labels, model labels, reset times and waiting counts |
-| rate-limit-vm.test.ts | test | Tests compact/model labels, countdowns and waiting counts |
+| rate-limit-vm.test.ts | test | Tests throttle expiry, recovery arithmetic, ordering and model scope |
 | useRateLimitStatus.ts | hook | Owns the query, live sync and local ticking |

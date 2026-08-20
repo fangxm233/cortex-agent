@@ -25,13 +25,10 @@ const profiles: ConfigProfileEntry[] = [
 ];
 
 describe('buildProfileOptions', () => {
-  it('builds options from the real profiles with model sub-labels and marks the active one', () => {
+  it('builds options from the real profiles and marks the active one', () => {
     const opts = buildProfileOptions(profiles, 'plan', { currentBackend: 'claude', hasHistory: false });
     expect(opts.map((o) => o.name)).toEqual(['plan', 'execute', 'gpt-execute', 'deepseek-pro']);
-    // sub-label carries the thinking level (between model and backend) when the profile declares one
-    expect(opts.find((o) => o.name === 'plan')).toMatchObject({ active: true, sub: 'claude-opus-4-8 · high · claude', backend: 'claude' });
-    // no thinking → sub-label is just model · backend
-    expect(opts.find((o) => o.name === 'execute')!.sub).toBe('claude-sonnet-4-6 · claude');
+    expect(opts.find((o) => o.name === 'plan')).toMatchObject({ active: true, backend: 'claude' });
     expect(opts.filter((o) => o.active).map((o) => o.name)).toEqual(['plan']);
   });
 

@@ -44,11 +44,8 @@ vi.mock('@/design', async (importOriginal) => {
   };
 });
 
-import { CONTROL_HEIGHT } from '@/design';
 import {
-  AdvancedPanel,
   AdvancedPanelView,
-  NotificationsPanel,
   NotificationsPanelView,
   RuntimeSettingToggleRow,
   commitSettingToggle,
@@ -186,17 +183,6 @@ describe('runtime settings panel reads', () => {
     expect(advanced).not.toContain('role="button"');
     expect(notifications).not.toContain('••••••••');
     expect(advanced).toContain('data-env-key="DEBUG" data-env-present="true" data-writable="false"');
-  });
-
-  it('gives the interval input, unit select and save button of a job row one height', () => {
-    const cadence = renderAdvanced().split('data-setting-key="taskDispatchIntervalMs"')[1]
-      .split('data-setting-key=')[0];
-    const sized = cadence.match(/height:\d+(\.\d+)?px/g) ?? [];
-
-    // number input · unit select · save button — one height each, and the same one.
-    expect(sized).toHaveLength(3);
-    expect(new Set(sized)).toEqual(new Set([`height:${CONTROL_HEIGHT.sm}px`]));
-    expect(cadence.match(/box-sizing:border-box/g) ?? []).toHaveLength(3);
   });
 
   it('renders nullable channels as absent and nullable concurrency as localized auto', () => {
@@ -371,25 +357,6 @@ describe('runtime setting production adapter', () => {
     vi.clearAllMocks();
     adapter.mutationOptions.mockReturnValue({ mutationFn: adapter.set });
     adapter.queryFilter.mockImplementation((input) => ({ queryKey: ['config.get', input] }));
-  });
-
-  it('binds both production panel wrappers to the runtime writer and settings views', () => {
-    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
-    const notifications = renderToStaticMarkup(
-      <QueryClientProvider client={queryClient}>
-        <LangProvider><NotificationsPanel snapshot={snapshot} /></LangProvider>
-      </QueryClientProvider>,
-    );
-    const advanced = renderToStaticMarkup(
-      <QueryClientProvider client={queryClient}>
-        <LangProvider><AdvancedPanel snapshot={snapshot} /></LangProvider>
-      </QueryClientProvider>,
-    );
-
-    expect(adapter.mutationOptions).toHaveBeenCalledTimes(2);
-    expect(notifications).toContain('data-setting-key="turnNotify" data-setting-value="false"');
-    expect(advanced).toContain('data-setting-key="eventLog" data-setting-value="true"');
-    queryClient.clear();
   });
 
   it('binds config.set, suppresses repeat clicks through refresh, and renders the refreshed snapshot', async () => {

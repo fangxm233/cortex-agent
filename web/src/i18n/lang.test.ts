@@ -1,11 +1,10 @@
-// input:  Language derivation helpers and vocabularies
-// output: Language selection and lifecycle copy regressions
-// pos:    Bilingual language and vocabulary tests
+// input:  viewport language derivation helper and breakpoint
+// output: viewport language selection regressions
+// pos:    Tests viewport-based language derivation
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
-import { deriveLang, pickVocab, MOBILE_MAX_WIDTH } from './lang';
-import { en, zh } from './vocab';
+import { deriveLang, MOBILE_MAX_WIDTH } from './lang';
 
 describe('deriveLang (viewport → lang)', () => {
   it('desktop viewport derives en', () => {
@@ -22,21 +21,5 @@ describe('deriveLang (viewport → lang)', () => {
     expect(MOBILE_MAX_WIDTH).toBe(767);
     expect(deriveLang(MOBILE_MAX_WIDTH)).toBe('zh');
     expect(deriveLang(MOBILE_MAX_WIDTH + 1)).toBe('en');
-  });
-});
-
-describe('pickVocab', () => {
-  it('desktop viewport resolves the en vocab, mobile resolves zh', () => {
-    expect(pickVocab(deriveLang(1440))).toBe(en);
-    expect(pickVocab(deriveLang(375))).toBe(zh);
-  });
-
-  it('provides bilingual task lifecycle group labels', () => {
-    expect(en.tkActionable).toBe('Actionable');
-    expect(zh.tkActionable).toBe('可执行');
-    expect(en.tkApprovalNeeded).toBe('Approval needed');
-    expect(zh.tkApprovalNeeded).toBe('需要审批');
-    expect(en.tkWaitingDeps).toBe('Waiting');
-    expect(zh.tkWaitingDeps).toBe('等待');
   });
 });

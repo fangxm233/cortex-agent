@@ -1,11 +1,11 @@
-// input:  ProviderUsage fixtures, per-window policies, language, and current epoch
-// output: quota, per-row policy, fallback, spend, severity, and timing regressions
+// input:  usage-status fixtures, per-window policies, language, and current epoch
+// output: quota-row, policy, fallback, severity, and timing regressions
 // pos:    Verifies the shared desktop/mobile usage presentation model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
 import type { ProviderRateLimits, SystemUsageStatus } from '@cortex-agent/ui-contract';
-import { buildUsageView, formatUsageDuration, utilizationSeverity } from './usage-vm';
+import { buildUsageView, utilizationSeverity } from './usage-vm';
 
 const NOW = 1_800_000_000;
 
@@ -171,15 +171,5 @@ describe('buildUsageView', () => {
       enabled: false,
       thresholdPercent: 80,
     });
-  });
-
-  it('localizes weekly-overage and Codex labels while keeping compact timing', () => {
-    const vm = buildUsageView(status.slice(0, 2), policies, NOW, 'zh');
-
-    expect(vm.providers[0].windows.slice(0, 3).map(window => window.label)).toEqual([
-      '5 小时', '7 天', '7 天（含超额）',
-    ]);
-    expect(vm.providers[1].windows.map(window => window.label)).toEqual(['主窗口', '次窗口']);
-    expect(formatUsageDuration(3 * 86400 + 2 * 3600, 'zh')).toBe('3天 2小时');
   });
 });

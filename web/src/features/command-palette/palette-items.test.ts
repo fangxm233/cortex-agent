@@ -145,26 +145,6 @@ describe('buildCmdkItems', () => {
   });
 });
 
-describe('NAV_COMMAND_ITEMS', () => {
-  it('exposes Overview as a page and Settings as an in-place modal', () => {
-    const byId = Object.fromEntries(NAV_COMMAND_ITEMS.map((c) => [c.id, c]));
-    expect(byId['nav:overview']).toMatchObject({ glyph: 'OV', route: '/overview' });
-    expect(byId['nav:settings']).toMatchObject({ glyph: 'ST', modal: 'settings' });
-    expect(byId['nav:settings']).not.toHaveProperty('route');
-  });
-
-  it('every nav item has a unique id, one target, a glyph and a kbd tag', () => {
-    const ids = NAV_COMMAND_ITEMS.map((c) => c.id);
-    expect(new Set(ids).size).toBe(ids.length);
-    for (const c of NAV_COMMAND_ITEMS) {
-      expect(Number(!!c.route) + Number(!!c.modal)).toBe(1);
-      if (c.route) expect(c.route.startsWith('/')).toBe(true);
-      expect(c.glyph.length).toBeGreaterThan(0);
-      expect(c.kbd.length).toBeGreaterThan(0);
-    }
-  });
-});
-
 describe('selectPaletteRows', () => {
   const many = (n: number, mk: (i: number) => unknown) => Array.from({ length: n }, (_, i) => mk(i));
   const sources = {

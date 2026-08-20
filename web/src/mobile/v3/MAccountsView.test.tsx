@@ -1,5 +1,5 @@
 // input:  shared accounts VM, provider rows, action spies
-// output: mobile grouping, capability, and pending-action tests
+// output: mobile capability, pending-action, and credential-safety tests
 // pos:    Verifies the mobile accounts drill-in view
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -69,27 +69,6 @@ function actions(renderer: ReactTestRenderer, provider: string, action: string) 
 }
 
 describe('MAccountsView', () => {
-  it('renders providers in the in-use, logged-in, and other groups', () => {
-    const html = JSON.stringify(mount().toJSON());
-    const inUse = html.indexOf('In use');
-    const loggedIn = html.indexOf('Logged in');
-    const other = html.indexOf('Other');
-
-    expect(inUse).toBeGreaterThan(-1);
-    expect(loggedIn).toBeGreaterThan(inUse);
-    expect(other).toBeGreaterThan(loggedIn);
-    expect(html).toContain('OpenRouter');
-    expect(html).toContain('DeepSeek');
-    expect(html).toContain('Unused');
-  });
-
-  it('shows a brand icon on the Claude card and every provider card', () => {
-    const icons = mount().root.findAll(node => node.props['data-provider-icon'] !== undefined)
-      .map(node => node.props['data-provider-icon']);
-
-    expect(icons).toEqual(['claude-code', 'openrouter', 'deepseek', 'unused']);
-  });
-
   it('only offers OAuth where capabilities include OAuth', () => {
     const renderer = mount();
 

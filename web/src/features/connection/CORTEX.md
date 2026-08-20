@@ -7,4 +7,4 @@ Feeds the daemon badge with a status plus its dot color, pulse and label.
 |---|---|---|
 | ConnectionStatusProvider.tsx | provider | Publishes link status from the live stream |
 | connection-status.ts | vm | Maps link state to display status and tokens |
-| connection-status.test.ts | test | Unit tests for connection status mapping |
+| connection-status.test.ts | test | Tests connection lifecycle-state derivation |

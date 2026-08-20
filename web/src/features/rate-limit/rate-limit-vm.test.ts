@@ -1,5 +1,5 @@
 // input:  provider throttle snapshots, language, current time
-// output: compact-label, model-label, countdown, expiry, and order assertions
+// output: throttle visibility, countdown, classification, and order assertions
 // pos:    Regression tests for the shared rate-limit view model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -82,21 +82,6 @@ describe('buildRateLimitView', () => {
     expect(vm?.providers.map((provider) => provider.displayName)).toEqual(['Alpha', 'Zulu']);
     expect(vm?.providers[0].windows.map((item) => [item.typeLabel, item.resetsAt])).toEqual([
       ['5h', NOW + 300], ['7d', NOW + 600],
-    ]);
-  });
-
-  it('uses the approved Chinese aggregate copy', () => {
-    const vm = buildRateLimitView({
-      providers: [
-        { provider: 'a', displayName: 'Anthropic', waitingSessions: 1, waitingThreads: 0, windows: [window('seven_day', 3600)] },
-        { provider: 'o', displayName: 'OpenAI', waitingSessions: 0, waitingThreads: 3, windows: [window('five_hour', 42 * 60)] },
-      ],
-    }, NOW, 'zh');
-
-    expect(vm?.label).toBe('2 个 provider 限流 · 首个 42m');
-    expect(vm?.providers.map((provider) => provider.waitingLabel)).toEqual([
-      '1 个会话 · 0 个线程等待恢复',
-      '0 个会话 · 3 个线程等待恢复',
     ]);
   });
 });

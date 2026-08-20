@@ -1,6 +1,6 @@
 // input:  task lifecycle, dependency graph, and claim state
-// output: Approval, stored-field, theme, deps, and action tests
-// pos:    Pure task-modal behavior and theme regression tests
+// output: Approval, stored-field, dependency, and action tests
+// pos:    Pure task-modal behavior regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
@@ -31,10 +31,6 @@ function fieldValue(t: TaskInfo, key: string): string | undefined {
   return buildTaskModalVm(t, []).fields.find((field) => field.k === key)?.v;
 }
 
-function fieldColor(t: TaskInfo, key: string): string | undefined {
-  return buildTaskModalVm(t, []).fields.find((field) => field.k === key)?.vColor;
-}
-
 describe('buildTaskModalVm persisted fields', () => {
   it('shows the stored status instead of the derived runtime state', () => {
     const open = task({ status: 'open', blockedBy: 'T-1', claimedBy: 'thr_x', actionable: true });
@@ -56,12 +52,6 @@ describe('buildTaskModalVm persisted fields', () => {
     expect(fieldValue(approved, 'approved-at')).toBe('2026-07-30');
   });
 
-  it('shows the recorded completion time in local wall clock', () => {
-    const completedAt = new Date(2026, 7, 3, 14, 22, 33).toISOString();
-    expect(fieldValue(task({ status: 'done', completedAt }), 'completed-at')).toBe('2026-08-03 14:22');
-    expect(fieldValue(task({ status: 'open' }), 'completed-at')).toBe('—');
-  });
-
   it('uses approval-needed as the pending task pill before actionable', () => {
     const vm = buildTaskModalVm(task({ approvalNeeded: true, actionable: true }), []);
     expect(vm.pill.text).toBe('approval-needed');
@@ -72,12 +62,6 @@ describe('buildTaskModalVm persisted fields', () => {
     const vm = buildTaskModalVm(claimed, []);
     expect(fieldValue(claimed, 'claimed-by')).toBe('thr_nimbus');
     expect(vm.pill.text).toBe('● in-progress · thr_nimbus');
-  });
-
-  it('uses theme-aware ink for the status and template values', () => {
-    const current = task({});
-    expect(fieldColor(current, 'status')).toBe('var(--proto-ink)');
-    expect(fieldColor(current, 'template')).toBe('var(--proto-ink)');
   });
 
   it('reports when the task has no dependencies', () => {

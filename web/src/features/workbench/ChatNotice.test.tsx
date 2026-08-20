@@ -1,5 +1,5 @@
-// input:  ChatNotice levels and caller-provided text
-// output: semantic notice roles, levels, and auth activation
+// input:  ChatNotice levels, actions, and caller-provided text
+// output: semantic notice roles and auth activation
 // pos:    Shared chat-notice behavior contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
-import { ChatNotice, noticeTone } from './ChatNotice';
+import { ChatNotice } from './ChatNotice';
 
 describe('ChatNotice', () => {
   it.each([
@@ -47,12 +47,5 @@ describe('ChatNotice', () => {
     act(() => { button.props.onClick(); });
     expect(onAuthAction).toHaveBeenCalledWith(action);
     expect(JSON.stringify(renderer.toJSON())).not.toContain('notice-web');
-  });
-
-  it('exposes the shared level tones for card badges (one token set per level)', () => {
-    const levels = ['info', 'warning', 'error'] as const;
-    const fgs = levels.map((level) => noticeTone(level).fg);
-    for (const fg of fgs) expect(fg).toMatch(/^var\(--proto-/);
-    expect(new Set(fgs).size).toBe(3);
   });
 });

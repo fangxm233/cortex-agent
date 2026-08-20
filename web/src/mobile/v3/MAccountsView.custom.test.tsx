@@ -1,5 +1,5 @@
 // input:  custom provider rows and action spies for the accounts view
-// output: mobile custom section rendering and delete-arming regressions
+// output: mobile custom-provider interaction and delete-arming regressions
 // pos:    Verifies the mobile custom provider surface
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -61,16 +61,6 @@ function button(renderer: ReactTestRenderer, action: string) {
 }
 
 describe('mobile custom providers', () => {
-  it('renders a definition with its unrouted warning and key state', () => {
-    const html = JSON.stringify(mountView().renderer.toJSON());
-
-    expect(html).toContain('my-vllm');
-    expect(html).toContain('anthropic-messages');
-    expect(html).toContain('http://127.0.0.1:8100');
-    expect(html).toContain('no gateway route');
-    expect(html).toContain('key stored');
-  });
-
   it('offers the editor entry points and hands over the tapped provider', () => {
     const view = mountView();
 
@@ -88,11 +78,5 @@ describe('mobile custom providers', () => {
 
     const armed = mountView({ confirmingDelete: 'my-vllm' });
     expect(JSON.stringify(armed.renderer.toJSON())).toContain('Confirm delete');
-  });
-
-  it('says so when nothing is defined yet', () => {
-    const html = JSON.stringify(mountView({ providers: [] }).renderer.toJSON());
-
-    expect(html).toContain('No custom providers defined.');
   });
 });

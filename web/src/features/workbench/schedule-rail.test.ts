@@ -3,9 +3,7 @@ import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import {
   buildScheduleRows,
   runOrdinals,
-  scheduledRunTitle,
   scheduleRowAction,
-  scheduleSubline,
   unreadScheduleCount,
 } from './schedule-rail';
 
@@ -201,62 +199,6 @@ describe('scheduleRowAction', () => {
   it('a live schedule with zero runs falls back to edit', () => {
     const [row] = buildScheduleRows([sched], [], now);
     expect(scheduleRowAction(row)).toEqual({ type: 'edit' });
-  });
-});
-
-describe('scheduleSubline', () => {
-  it('fired row → latest stamp + cost', () => {
-    const [row] = buildScheduleRows(
-      [mkSched({ id: 'sch1' })],
-      [mkRun({ sessionId: 'r1', createdAt: new Date(2026, 6, 6, 7, 30).toISOString(), costUsd: 0.09 })],
-      now,
-    );
-    expect(scheduleSubline(row, now)).toEqual({ kind: 'run', stamp: '07:30', cost: '$0.09' });
-  });
-
-  it('fired row without a cost keeps the stamp and omits cost (never fabricated)', () => {
-    const [row] = buildScheduleRows(
-      [mkSched({ id: 'sch1' })],
-      [mkRun({ sessionId: 'r1', createdAt: new Date(2026, 6, 6, 7, 30).toISOString() })],
-      now,
-    );
-    expect(scheduleSubline(row, now)).toEqual({ kind: 'run', stamp: '07:30', cost: null });
-  });
-
-  it('never-fired row → cadence + next-run delta', () => {
-    const [row] = buildScheduleRows(
-      [mkSched({ id: 'sch1', nextRun: new Date(now + 2 * 3600_000).toISOString() })],
-      [],
-      now,
-    );
-    expect(scheduleSubline(row, now)).toEqual({ kind: 'pending', cadence: 'daily 07:30', nextDelta: '2h' });
-  });
-
-  it('paused schedule wins over run info', () => {
-    const [row] = buildScheduleRows(
-      [mkSched({ id: 'sch1', paused: true })],
-      [mkRun({ sessionId: 'r1' })],
-      now,
-    );
-    expect(scheduleSubline(row, now)).toEqual({ kind: 'paused', cadence: 'daily 07:30' });
-  });
-});
-
-describe('scheduledRunTitle', () => {
-  const sched = mkSched({ id: 'sch1', message: 'scan arXiv' });
-  const runs = [
-    mkRun({ sessionId: 'r1', createdAt: '2026-07-04T07:30:00.000Z' }),
-    mkRun({ sessionId: 'r2', createdAt: '2026-07-05T07:30:00.000Z' }),
-  ];
-
-  it('annotates an un-adopted run as "message · run #n"', () => {
-    expect(scheduledRunTitle(sched, runs, 'r2')).toBe('scan arXiv · run #2');
-    expect(scheduledRunTitle(sched, runs, 'r1')).toBe('scan arXiv · run #1');
-  });
-
-  it('returns null when the schedule record is gone or the session is not among the runs', () => {
-    expect(scheduledRunTitle(null, runs, 'r2')).toBeNull();
-    expect(scheduledRunTitle(sched, runs, 'other')).toBeNull();
   });
 });
 

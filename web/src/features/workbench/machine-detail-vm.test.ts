@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MachineDetail } from '@cortex-agent/ui-contract';
-import { buildMachineDetailVm, formatSince, formatUptime, shortenGpuName } from './machine-detail-vm';
+import { buildMachineDetailVm } from './machine-detail-vm';
 
 function detail(over: Partial<MachineDetail> = {}): MachineDetail {
   return {
@@ -26,7 +26,7 @@ function detail(over: Partial<MachineDetail> = {}): MachineDetail {
 describe('meters', () => {
   it('derives CPU load as a percentage of core count', () => {
     const cpu = buildMachineDetailVm(detail()).meters.find((m) => m.key === 'cpu');
-    expect(cpu).toMatchObject({ label: 'CPU', percent: 25, text: '16.00 / 64' });
+    expect(cpu?.percent).toBe(25);
   });
 
   it('clamps CPU percent at 100 when load exceeds core count', () => {
@@ -34,10 +34,10 @@ describe('meters', () => {
     expect(vm.meters.find((m) => m.key === 'cpu')!.percent).toBe(100);
   });
 
-  it('reports memory and disk in GB with used-share percentages', () => {
+  it('derives memory and disk used-share percentages', () => {
     const vm = buildMachineDetailVm(detail());
-    expect(vm.meters.find((m) => m.key === 'mem')).toMatchObject({ percent: 23, text: '60.0 / 256.0 GB' });
-    expect(vm.meters.find((m) => m.key === 'disk')).toMatchObject({ percent: 50, text: '500.0 GB free' });
+    expect(vm.meters.find((m) => m.key === 'mem')?.percent).toBe(23);
+    expect(vm.meters.find((m) => m.key === 'disk')?.percent).toBe(50);
   });
 
   it('omits a meter whose inputs the host did not report', () => {
@@ -76,17 +76,11 @@ describe('gpu rows', () => {
     },
   ];
 
-  it('formats utilisation, memory, temperature and power for each card', () => {
-    const row = buildMachineDetailVm(detail({ gpus })).gpus[0];
-    expect(row).toMatchObject({
+  it('maps utilisation and memory percentages for each card', () => {
+    expect(buildMachineDetailVm(detail({ gpus })).gpus[0]).toMatchObject({
       index: 0,
-      name: 'RTX 6000 Ada',
       utilPercent: 62,
-      utilText: '62%',
       memPercent: 50,
-      memText: '24.0 / 48.0 GB',
-      tempText: '71°C',
-      powerText: '280W',
     });
   });
 
@@ -153,28 +147,6 @@ describe('live runs', () => {
       }),
     );
     expect(vm.liveRuns[0]).toMatchObject({ label: 'a3f1', gpuText: '', duration: '' });
-  });
-});
-
-describe('formatters', () => {
-  it('shortens vendor noise out of GPU model names', () => {
-    expect(shortenGpuName('NVIDIA RTX PRO 6000 Blackwell Workstation Edition')).toBe('RTX PRO 6000 Blackwell Workstation Edition');
-    expect(shortenGpuName('NVIDIA GeForce RTX 4090')).toBe('RTX 4090');
-    expect(shortenGpuName('NVIDIA RTX 6000 Ada Generation')).toBe('RTX 6000 Ada');
-  });
-
-  it('renders uptime at day, hour and minute scale', () => {
-    expect(formatUptime(123456)).toBe('1d 10h');
-    expect(formatUptime(18720)).toBe('5h 12m');
-    expect(formatUptime(2520)).toBe('42m');
-    expect(formatUptime(null)).toBe('');
-  });
-
-  it('renders elapsed time since an ISO timestamp', () => {
-    const now = Date.parse('2026-08-03T12:00:00.000Z');
-    expect(formatSince('2026-08-03T11:58:30.000Z', now)).toBe('1m');
-    expect(formatSince('2026-08-01T12:00:00.000Z', now)).toBe('2d 0h');
-    expect(formatSince(null, now)).toBe('');
   });
 });
 

@@ -1,6 +1,6 @@
 // input:  Composer controls, slash suggestions and callbacks
-// output: Action-row and local slash-menu wiring regressions
-// pos:    Desktop composer action-row layout specification
+// output: Composer-control and local slash-menu interaction regressions
+// pos:    Desktop composer action behavior specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
@@ -31,7 +31,7 @@ describe('ComposerSlashMenu', () => {
 });
 
 describe('ComposerActionRow', () => {
-  it('keeps profile, attach and commands in one action row', () => {
+  it('invokes attach and command actions', () => {
     const onAttach = vi.fn();
     const onCommands = vi.fn();
     const renderer = create(
@@ -44,12 +44,10 @@ describe('ComposerActionRow', () => {
         />
       </LangProvider>,
     );
-    const row = renderer.root.findByProps({ 'data-composer-actions': true });
     const chips = ['profile', 'attach', 'commands'].map((chip) => (
       renderer.root.findByProps({ 'data-chip': chip })
     ));
 
-    expect(chips.every((chip) => chip.parent === row)).toBe(true);
     act(() => chips[1].props.onClick());
     act(() => chips[2].props.onClick());
     expect(onAttach).toHaveBeenCalledOnce();

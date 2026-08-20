@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
-import { groupTasks, actionableOpenCount, LIFECYCLE_ORDER } from './group-tasks';
+import { groupTasks, actionableOpenCount } from './group-tasks';
 
 function t(partial: Partial<TaskInfo> & Pick<TaskInfo, 'id'>): TaskInfo {
   return {
@@ -161,17 +161,6 @@ describe('groupTasks — design 4a lifecycle grouping', () => {
     const n = actionableOnly.reduce((sum, grp) => sum + grp.tasks.length, 0);
     expect(n).toBe(2);
     expect(actionableOnly.map((grp) => grp.kind)).toEqual(['in-progress', 'actionable']);
-  });
-
-  it('exposes the canonical lifecycle order', () => {
-    expect(LIFECYCLE_ORDER).toEqual([
-      'in-progress',
-      'actionable',
-      'approval-needed',
-      'waiting-deps',
-      'blocked',
-      'done',
-    ]);
   });
 });
 

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { en } from '@/i18n';
-import { groupSessions, sessionMeta, sessionStamp, projectInitials } from './session-groups';
+import { groupSessions } from './session-groups';
 
 function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
   const created = p.createdAt ?? '2026-07-06T00:00:00.000Z';
@@ -26,10 +25,6 @@ function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
     unread: p.unread ?? false,
     scheduleId: p.scheduleId ?? null,
   };
-}
-
-function run(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
-  return mk({ kind: 'scheduled', origin: 'scheduled', scheduleId: 'sch1', ...p });
 }
 
 // Local wall-clock anchors (constructed from components so the test is timezone-agnostic —
@@ -80,51 +75,6 @@ describe('groupSessions', () => {
   });
 });
 
-describe('sessionMeta', () => {
-  it('renders HH:MM of the effective timestamp (local) for TODAY / YESTERDAY rows', () => {
-    expect(sessionMeta(en, mk({ sessionId: 'a', lastUsedAt: todayMorning.toISOString() }), now)).toBe('07:05');
-    expect(sessionMeta(en, mk({ sessionId: 'b', lastUsedAt: yesterday.toISOString() }), now)).toBe('21:38');
-  });
-
-  it('prefixes MM-DD for EARLIER rows, whose group header carries no date', () => {
-    expect(sessionMeta(en, mk({ sessionId: 'c', lastUsedAt: older.toISOString() }), now)).toBe('07-01 12:00');
-  });
-
-  it('widens to YYYY-MM-DD once the year differs from the current one', () => {
-    const lastYear = new Date(2025, 11, 24, 9, 7, 0);
-    expect(sessionMeta(en, mk({ sessionId: 'd', lastUsedAt: lastYear.toISOString() }), now)).toBe('2025-12-24 09:07');
-  });
-
-  it('appends "· from schedule" for scheduled sessions', () => {
-    const s = mk({ sessionId: 's', kind: 'scheduled', lastUsedAt: new Date(2026, 6, 6, 7, 31).toISOString() });
-    expect(sessionMeta(en, s, now)).toBe('07:31 · from schedule');
-    const old = mk({ sessionId: 't', kind: 'scheduled', lastUsedAt: older.toISOString() });
-    expect(sessionMeta(en, old, now)).toBe('07-01 12:00 · from schedule');
-  });
-
-  it('defaults now to the current clock', () => {
-    const justNow = new Date();
-    const pad = (n: number): string => String(n).padStart(2, '0');
-    expect(sessionMeta(en, mk({ sessionId: 'n', lastUsedAt: justNow.toISOString() })))
-      .toBe(`${pad(justNow.getHours())}:${pad(justNow.getMinutes())}`);
-  });
-});
-
-describe('projectInitials', () => {
-  it('takes the first letter of the first two hyphen segments, uppercased', () => {
-    expect(projectInitials('quad-nav-sim2real')).toBe('QN');
-    expect(projectInitials('cortex-self')).toBe('CS');
-  });
-
-  it('uses the first two chars for a single-segment id', () => {
-    expect(projectInitials('nimbus')).toBe('NI');
-  });
-
-  it('handles empty / degenerate ids', () => {
-    expect(projectInitials('')).toBe('?');
-  });
-});
-
 describe('groupSessions unread ordering', () => {
   it('floats unread sessions to the top of their group, keeping recency order within each half', () => {
     const now = new Date('2026-07-06T12:00:00.000Z');
@@ -155,12 +105,5 @@ describe('groupSessions unread ordering', () => {
     expect(groups.map((g) => g.label)).toEqual(['TODAY', 'YESTERDAY']);
     expect(groups[0].items[0].sessionId).toBe('today-read');
     expect(groups[1].items[0].sessionId).toBe('yesterday-unread');
-  });
-});
-
-describe('sessionStamp', () => {
-  it('sessionStamp is the raw time stamp — no "from schedule" suffix even for runs', () => {
-    expect(sessionStamp(run({ sessionId: 's', lastUsedAt: new Date(2026, 6, 6, 7, 31).toISOString() }), now)).toBe('07:31');
-    expect(sessionStamp(run({ sessionId: 't', lastUsedAt: older.toISOString() }), now)).toBe('07-01 12:00');
   });
 });

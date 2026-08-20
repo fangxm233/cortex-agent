@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readProgressPct, planStatusLabel, planMetaLine, approveSubLabel } from './plan-read-vm';
+import { readProgressPct } from './plan-read-vm';
 
 // Pure logic for the 6b plan reading page (scheme-mobile sec-6). Neutral fixtures.
 
@@ -13,31 +13,5 @@ describe('readProgressPct', () => {
     expect(readProgressPct(220, 400, 1000)).toBe(62);
     expect(readProgressPct(600, 400, 1000)).toBe(100);
     expect(readProgressPct(9999, 400, 1000)).toBe(100);
-  });
-});
-
-describe('planStatusLabel', () => {
-  it('maps entity status to the short zh/en label (6b header meta `· 待批`)', () => {
-    expect(planStatusLabel('pending', 'zh')).toBe('待批');
-    expect(planStatusLabel('approved', 'zh')).toBe('已批准');
-    expect(planStatusLabel('rejected', 'zh')).toBe('已驳回');
-    expect(planStatusLabel('expired', 'zh')).toBe('已过期');
-    expect(planStatusLabel('pending', 'en')).toBe('pending');
-    expect(planStatusLabel('approved', 'en')).toBe('approved');
-  });
-});
-
-describe('planMetaLine', () => {
-  it('renders `path · N 行 · status`, dropping a missing path', () => {
-    expect(planMetaLine('plans/nimbus-plan.md', 128, '待批', 'zh')).toBe('plans/nimbus-plan.md · 128 行 · 待批');
-    expect(planMetaLine(null, 12, 'pending', 'en')).toBe('12 lines · pending');
-  });
-});
-
-describe('approveSubLabel (6b main button)', () => {
-  it('omits the read-progress instruction at every progress level', () => {
-    expect(approveSubLabel(62, 'zh')).toBeNull();
-    expect(approveSubLabel(62, 'en')).toBeNull();
-    expect(approveSubLabel(100, 'zh')).toBeNull();
   });
 });

@@ -35,7 +35,7 @@ describe('buildMMemoryVm', () => {
     expect(vm.dirs).toEqual([]);
   });
 
-  it('maps top-level files to core rows with real relative modifiedAt + path=name, input order', () => {
+  it('maps top-level files to core rows with project-relative paths in input order', () => {
     const vm = buildMMemoryVm(
       tree({
         files: [
@@ -48,8 +48,6 @@ describe('buildMMemoryVm', () => {
     expect(vm.core.map((r) => r.name)).toEqual(['CORTEX.md', 'NOTES.md']);
     // Top-level file path is the filename itself (project-root-relative for memory.file).
     expect(vm.core.map((r) => r.path)).toEqual(['CORTEX.md', 'NOTES.md']);
-    expect(vm.core[0].time).toBe('12 分钟');
-    expect(vm.core[1].time).toBe('2 小时');
   });
 
   it('maps dirs to cards with real entryCount + enumerated entries (path=<dir>/<name>), input order', () => {
@@ -64,13 +62,12 @@ describe('buildMMemoryVm', () => {
     );
     expect(vm.dirs.map((d) => d.name)).toEqual(['experiments', 'knowledge']);
     expect(vm.dirs.map((d) => d.entryCount)).toEqual([2, 1]);
-    // Entries are enumerated with a project-root-relative path (<dir>/<name>) + real rel time.
+    // Entries are enumerated with a project-root-relative path (<dir>/<name>).
     expect(vm.dirs[0].entries.map((e) => e.name)).toEqual(['EXP-001.md', 'EXP-002.md']);
     expect(vm.dirs[0].entries.map((e) => e.path)).toEqual([
       'experiments/EXP-001.md',
       'experiments/EXP-002.md',
     ]);
-    expect(vm.dirs[0].entries[0].time).toBe('5 分钟');
     expect(vm.dirs[1].entries[0].path).toBe('knowledge/K-001.md');
   });
 

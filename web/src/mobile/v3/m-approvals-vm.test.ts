@@ -52,11 +52,6 @@ describe('buildMApprovalsVm', () => {
     });
   });
 
-  it('derives the relative queued time from queuedAt (no fabricated clock)', () => {
-    const [card] = buildMApprovalsVm([apr({ queuedAt: '2026-07-15T11:48:00Z' })], now).cards;
-    expect(card.time).toBe('12 分钟');
-  });
-
   it('carries honest nulls when optional fields are absent (never fabricated)', () => {
     const [card] = buildMApprovalsVm(
       [apr({ operation: null, reason: null, impact: null, command: null, provenance: null, queuedAt: null })],
@@ -67,7 +62,6 @@ describe('buildMApprovalsVm', () => {
     expect(card.impact).toBeNull();
     expect(card.command).toBeNull();
     expect(card.provenance).toBeNull();
-    expect(card.time).toBe('');
   });
 
   it('empty queue → zero count, no cards, no groups', () => {

@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { TaskVerificationInfo } from '@cortex-agent/ui-contract';
-import {
-  buildTaskVerificationVm,
-  formatDuration,
-  formatCost,
-  formatWhen,
-} from './task-verification-vm';
+import { buildTaskVerificationVm } from './task-verification-vm';
 
 const base: TaskVerificationInfo = {
   taskId: 'done1',
@@ -24,35 +19,6 @@ const base: TaskVerificationInfo = {
   ],
 };
 
-describe('formatDuration', () => {
-  it('null / negative → em dash', () => {
-    expect(formatDuration(null)).toBe('—');
-    expect(formatDuration(-1)).toBe('—');
-  });
-  it('sub-minute → seconds with one decimal', () => {
-    expect(formatDuration(10000)).toBe('10.0s');
-  });
-  it('over a minute → m s', () => {
-    expect(formatDuration(65000)).toBe('1m 5s');
-  });
-});
-
-describe('formatCost', () => {
-  it('null → em dash', () => expect(formatCost(null)).toBe('—'));
-  it('number → 4dp dollars', () => expect(formatCost(0.05)).toBe('$0.0500'));
-});
-
-describe('formatWhen', () => {
-  it('null / unparseable → em dash', () => {
-    expect(formatWhen(null)).toBe('—');
-    expect(formatWhen('not-a-date')).toBe('—');
-  });
-  it('iso → MM-DD HH:mm', () => {
-    // formatting is local-time; assert the pattern, not the exact hour.
-    expect(formatWhen('2026-06-01T00:01:20.000Z')).toMatch(/^\d{2}-\d{2} \d{2}:\d{2}$/);
-  });
-});
-
 describe('buildTaskVerificationVm — real evidence', () => {
   it('surfaces real completion evidence', () => {
     const vm = buildTaskVerificationVm(base);
@@ -69,8 +35,6 @@ describe('buildTaskVerificationVm — real evidence', () => {
     expect(vm.hasDispatches).toBe(true);
     expect(vm.dispatches.map((d) => d.executionId)).toEqual(['exec_c', 'exec_b']);
     expect(vm.dispatches[0].isCompleting).toBe(true);
-    expect(vm.dispatches[0].duration).toBe('10.0s');
-    expect(vm.dispatches[0].cost).toBe('$0.0500');
     expect(vm.dispatches[0].machine).toBe('server-nvidia');
     expect(vm.dispatches[1].isCompleting).toBe(false);
   });

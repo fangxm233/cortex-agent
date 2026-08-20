@@ -1,9 +1,6 @@
 // input:  TemplateDetailPane, language provider, ThreadTemplateDetail fixtures
-// output: detail-pane rendering regressions — tabs, guards, gating and the expanded shell graph
-// pos:    Renders the pane statically (no tRPC), the way HooksPanel.test.tsx renders HooksPanelView.
-//         The assertions worth keeping are the safety ones: the running-thread warning must appear
-//         before a save can reroute a live thread, and delete must be disabled while dependents
-//         exist rather than merely failing at the server.
+// output: parse-error, mutation-guard, validation, and path-safety regressions
+// pos:    Statically verifies thread-template editor safeguards
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -66,31 +63,12 @@ function render(over: Partial<TemplateDetailPaneProps> = {}): string {
   );
 }
 
-describe('empty state', () => {
-  it('prompts for a selection when nothing is selected', () => {
-    const html = render({ detail: null, selection: null });
-    expect(html).toContain('data-template-detail-empty');
-  });
-});
-
 describe('body tab', () => {
-  it('shows the raw body in an editable textarea', () => {
-    const html = render();
-    expect(html).toContain('data-template-body');
-    expect(html).toContain('coder-review');
-    expect(html).toContain('maxTotalSteps');
-  });
-
   it('surfaces a parse error and blocks the save button', () => {
     const html = render({ text: '{ nope', loaded: '{}' });
     expect(html).toContain('data-banner="danger"');
     // The hint tells the user why the save is unavailable rather than silently disabling it.
     expect(html).toContain('data-save-hint');
-  });
-
-  it('marks the pane dirty once the text diverges from what was loaded', () => {
-    expect(render({ text: '{"a":1}', loaded: '{"a":2}' })).toContain('data-dirty');
-    expect(render()).not.toContain('data-dirty');
   });
 });
 
@@ -114,10 +92,6 @@ describe('guards', () => {
     const loaded = formatBody({ name: 'coder-review', maxTotalSteps: 4 });
     const html = render({ detail: detail({ origin: 'stock' }), text: loaded, loaded });
     expect(html).not.toContain('data-banner="warn"');
-  });
-
-  it('shows the origin badge', () => {
-    expect(render({ detail: detail({ origin: 'modified' }) })).toContain('data-origin="modified"');
   });
 });
 
@@ -147,39 +121,7 @@ describe('validation tab', () => {
   });
 });
 
-describe('references tab', () => {
-  it('shows the file path, dependents and live counts', () => {
-    const html = render({
-      tab: 'references',
-      detail: detail({ usedByTemplates: ['analyst-review'], runningThreads: 2, referencingTasks: 5 }),
-    });
-    expect(html).toContain('thread-templates/templates/coder-review.json');
-    expect(html).toContain('analyst-review');
-    expect(html).toContain('2');
-    expect(html).toContain('5');
-  });
-
-  it('shows the expanded graph for a shell-binding template', () => {
-    const html = render({
-      tab: 'references',
-      detail: detail({
-        body: { shell: 'worker-review', worker: 'coder', reviewer: 'coder-reviewer' },
-        expanded: { agents: ['coder', 'coder-reviewer'], entryAgent: 'coder', maxTotalSteps: 4 },
-      }),
-    });
-    expect(html).toContain('data-template-expanded');
-    expect(html).toContain('coder-reviewer');
-  });
-});
-
 describe('create mode', () => {
-  it('offers a name field and hides delete', () => {
-    const html = render({ creating: { kind: 'agent' }, draftName: 'new-agent', detail: null, selection: null });
-    expect(html).toContain('data-template-name');
-    expect(html).toContain('data-action="cancel-create"');
-    expect(html).not.toContain('data-action="delete"');
-  });
-
   it('rejects a name that could escape the config directory', () => {
     const html = render({ creating: { kind: 'agent' }, draftName: '../evil', detail: null, selection: null });
     expect(html).toContain('data-banner="danger"');

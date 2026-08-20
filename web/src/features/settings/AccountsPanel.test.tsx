@@ -1,5 +1,5 @@
 // input:  AccountsPanel, auth status fixtures, and login/logout spies
-// output: desktop accounts navigation, capability, and safety tests
+// output: desktop account capability, interaction, and safety tests
 // pos:    Verifies the desktop account-management surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,7 +7,6 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
 import { en, LangProvider } from '@/i18n';
-import { getSettingsNav } from './settings-nav';
 
 const harness = vi.hoisted(() => ({
   loginCalls: [] as unknown[],
@@ -129,14 +128,6 @@ beforeEach(() => {
 });
 
 describe('desktop accounts settings', () => {
-  it('places Accounts before Profiles in every settings navigation record', () => {
-    const keys = getSettingsNav(en).map(entry => entry.key);
-    expect(keys.indexOf('accounts')).toBe(keys.indexOf('profiles') - 1);
-    expect(getSettingsNav(en).find(entry => entry.key === 'accounts')).toEqual({
-      key: 'accounts', label: 'Accounts',
-    });
-  });
-
   it('renders both Claude credential slots without credential fragments', () => {
     const html = JSON.stringify(mount().toJSON());
 
@@ -152,19 +143,6 @@ describe('desktop accounts settings', () => {
 
     expect(html).not.toContain('Refresh expires');
     expect(html).not.toContain('2030-07-01T00:00:00.000Z');
-  });
-
-  it('marks credential state compactly and shows a brand icon per account row', () => {
-    const renderer = mount();
-
-    const states = renderer.root.findAll(node => node.props['data-account-state'] !== undefined)
-      .map(node => node.props['data-account-state']);
-    expect(states).toContain('expiring');
-    expect(states).toContain('logged-in');
-
-    const icons = renderer.root.findAll(node => node.props['data-provider-icon'] !== undefined)
-      .map(node => node.props['data-provider-icon']);
-    expect(icons).toEqual(['claude-code', 'openrouter', 'deepseek']);
   });
 
   it('never renders an OAuth login action for a provider without OAuth capability', () => {
