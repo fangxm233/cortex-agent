@@ -1,0 +1,119 @@
+{
+  "schema_version": "cortex-bench-vendor-claude-preflight-stop/1",
+  "campaign": "tb21-vendor-claude",
+  "task_id": "10ba",
+  "executed_at": "2026-08-20T17:44:04.001375Z",
+  "source_commit": "8738a27d6a77943ffb11a9ef60bd3f7d1506d5dc",
+  "headline": "The local auth-status preflight unexpectedly opened a provider TLS connection, consuming the one-request authorization before token expiry/fingerprint and native-wire gates completed. No Messages request was sent, no trial route was armed, the capability stayed offline-only, and no campaign ran.",
+  "authorization": {
+    "maximum_provider_requests": 1,
+    "consumed_by": "claude auth status --json",
+    "messages_requests": 0,
+    "remaining_provider_requests": 0,
+    "retry_performed": false,
+    "stop_decision": "fail-closed"
+  },
+  "unexpected_control_plane_request": {
+    "command": "claude auth status --json",
+    "wrapped_by": "strace -f -qq -e trace=connect",
+    "exit_code": 0,
+    "observed_at": "2026-08-20T17:44:04.001375Z",
+    "destination": "160.79.104.10:443",
+    "trace": {
+      "sha256": "247e3a40a72be5e0c3e5b10ce2fd486e7a535976bd35b6e4ae4ce5c05c3d5e57",
+      "size_bytes": 1898,
+      "inet_connect_lines": 10,
+      "destination_443_connect_lines": 4,
+      "interpretation_limit": "The trace proves external TLS connection attempts by one auth-status command; it does not expose or count HTTP messages inside TLS."
+    },
+    "redacted_result": {
+      "logged_in": true,
+      "auth_method": "claude.ai",
+      "expiry_present": false,
+      "credential_field_present": false,
+      "capability_proof": false,
+      "reason": "Auth status neither exposed token expiry nor exercised the exact Messages/model path."
+    },
+    "transient_output": {
+      "sha256_before_removal": "28f03ab675c15de22cc566d7c035fc3463b2794d0c7766d62998173d9d5d1487",
+      "size_bytes": 203,
+      "retained": false,
+      "credential_persisted": false
+    }
+  },
+  "preflights": {
+    "token_usability_and_expiry": "not-proven-before-external-request",
+    "token_fingerprint_bound": false,
+    "native_cli_pin": {
+      "version": "2.1.232",
+      "artifact_sha256": "61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1",
+      "status": "committed-offline-pin-only"
+    },
+    "native_wire_through_trial_proxy": "not-run-after-authorization-consumed",
+    "outbound_max_tokens_clamp": {
+      "authorized_contract": "Validate native inbound max_tokens, clamp only outbound max_tokens to at most 256, preserve all other fields, and record both body hashes.",
+      "implemented": false,
+      "status": "not-started-before-fail-closed-stop"
+    },
+    "overlap_network_ceiling": "not-completed-before-external-request",
+    "conclusion": "The handshake admission gate did not pass."
+  },
+  "handshake": {
+    "state": "not-run-preflight-contract-stop",
+    "provider_messages_requests": 0,
+    "trial_proxy_arm_count": 0,
+    "trial_proxy_revoke_count": 0,
+    "route_lifecycle": "not-applicable-no-route-armed",
+    "deadline_seconds": 120,
+    "max_output_tokens": 256,
+    "retry_enabled": false,
+    "response_diagnostic": "not-applicable-no-messages-request"
+  },
+  "capability": {
+    "id": "claude-subscription",
+    "model": "claude-sonnet-5",
+    "state_before": "offline-contract-passed",
+    "state_after": "offline-contract-passed",
+    "promotion_evidence_exists": false
+  },
+  "campaign_stages": [
+    {
+      "stage": "native-subscription-handshake",
+      "state": "not-run-preflight-contract-stop",
+      "messages_requests": 0
+    },
+    {
+      "stage": "single-task-live-vendor-claude",
+      "state": "not-authorized-not-run",
+      "messages_requests": 0
+    },
+    {
+      "stage": "three-task-live-vendor-claude-wave",
+      "state": "not-authorized-not-run",
+      "messages_requests": 0
+    }
+  ],
+  "safety": {
+    "credential_material_extracted_or_persisted": false,
+    "container_started": false,
+    "trial_route_armed": false,
+    "trial_route_revoked": false,
+    "route_reuse_attempted": false,
+    "automatic_retry": false,
+    "manual_retry": false,
+    "campaign_run": false,
+    "push_performed": false,
+    "scan": {
+      "scope": "retained connect trace and committed path-sanitized summary",
+      "files_scanned": 2,
+      "credential_matches": 0,
+      "host_identity_matches": 0,
+      "absolute_checkout_path_matches": 0,
+      "clean": true
+    }
+  },
+  "future_preflight_requirement": "Before any new live permit, use a token expiry/fingerprint procedure already proven to make zero network calls, or execute it with outbound network denied and fail on any attempted connect. Never use claude auth status as a zero-network gate. A later Messages handshake requires new explicit authorization.",
+  "raw_sources": {
+    "connect_trace": "<run-evidence>/claude-auth-status-10ba.connect.trace"
+  }
+}
