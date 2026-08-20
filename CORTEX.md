@@ -65,50 +65,6 @@ The client (`client/src/`) is a lightweight WebSocket daemon that:
 | `tasks/` | Project task queues (TASKS.yaml per project) |
 | `logs/` | Daemon and LLM logs |
 
-## Development Guidelines
-
-### TDD is Mandatory
-
-**No production code without a failing test first.** This is the iron law for all code changes in this repo — features, bugfixes, and refactors alike. If you wrote code before a test, delete the code, write the test, watch it fail, then reimplement.
-
-Use the `/develop` skill for all code changes. It enforces the TDD workflow:
-
-1. **Understand** — read relevant source, check `context/decisions/`, search for existing patterns to reuse.
-2. **Write tests** — happy path, edge cases, integration points. Run them, confirm they fail.
-3. **Implement** — minimum code to make tests pass. Follow existing naming, error handling, and type patterns.
-4. **Verify** — required scoped tests pass; include the nearest affected integration boundary when the change crosses it. Review diff with `git diff`.
-5. **Document** — update relevant STATUS.md, add Decision Record if warranted.
-
-### Bugfixes
-
-Bugfixes follow the same TDD discipline with an extra step: write a **regression test** that reproduces the bug before applying the fix. The test must fail on current code and pass after the fix.
-
-### Test Locations
-
-Tests live colocated near source or in `tests/` directories:
-- `agent-server/tests/` — server tests (vitest; `vitest.config.ts` + `vitest.integration.config.ts`)
-- `client/` — client tests (Node built-in runner with `tsx`)
-
-Run server tests: `cd agent-server && npm test`. The maintained suite favors runtime behavior, contracts, persistence, concurrency, and error paths over fixed visual values, export inventories, or source-text assertions.
-
-### When TDD Does Not Apply
-
-TDD is mandatory for code changes. It does NOT apply to:
-- Pure documentation changes (CORTEX.md, STATUS.md, experiment files)
-- Configuration value changes with no code path
-- Prompt text changes in skills (SKILL.md files)
-- One-time data analysis scripts
-
-When in doubt: if the change could introduce a regression, it needs a test.
-
-### Red Flags
-
-Stop and return to writing tests if you find yourself:
-- Writing implementation code before any test exists
-- A test passing immediately without implementation changes
-- Rationalizing "just this once"
-- Three or more fix attempts on the same bug — this signals an architectural problem, not a simple bug
-
 ### CLI Design
 
 When adding new CLI commands, flags, or tools, consult `/cli-standards` for the 7 mandatory design rules.

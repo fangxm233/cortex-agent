@@ -1,5 +1,5 @@
 // input:  public usage feature model, mobile UI kit, row policy state, and local copy
-// output: mobile quota, spend, refresh, row controls, and legacy fallback notice
+// output: mobile supported quotas, spend, refresh, and inline threshold controls
 // pos:    Presentational mobile Usage settings view
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -28,7 +28,6 @@ export interface MUsageCopy {
   refreshError: string;
   empty: string;
   quota: string;
-  quotaUnsupported: string;
   neverObserved: string;
   unavailable: string;
   gatewaySpend: string;
@@ -39,6 +38,7 @@ export interface MUsageCopy {
   resetsIn: string;
   resetElapsed: string;
   policy: {
+    title: string;
     enabled: string;
     disabled: string;
     threshold: string;
@@ -46,11 +46,9 @@ export interface MUsageCopy {
     saving: string;
     resetDefault: string;
     futureHint: string;
-    defaultPrefix: string;
     legacyFallbackTitle: string;
     legacyFallbackBody: string;
     clearLegacy: string;
-    usingLegacy: string;
   };
   freshness: Record<ProviderUsageView['freshness'], string>;
 }
@@ -74,11 +72,6 @@ function isoTime(epochSeconds: number): string {
 
 function targetKey(target: UsagePolicyTarget): string {
   return usagePolicyTargetKey(target);
-}
-
-function summaryText(policy: UsageWindowPolicyView, copy: MUsageCopy): string {
-  const base = `${copy.policy.defaultPrefix} ${policy.defaultThresholdPercent}%`;
-  return policy.usesLegacyFallback ? `${base} · ${copy.policy.usingLegacy}` : base;
 }
 
 function FreshnessBadge({ provider, copy }: { provider: ProviderUsageView; copy: MUsageCopy }) {
@@ -211,9 +204,13 @@ interface WindowPolicyBlockProps {
   onSavePolicy: (target: UsagePolicyTarget, draft: UsagePolicyDraft) => void;
 }
 
-function PolicyToggleRow(props: WindowPolicyBlockProps & { disabled: boolean }) {
+function PolicyControlsRow(props: WindowPolicyBlockProps & {
+  disabled: boolean;
+  draft: string;
+  setDraft: (value: string) => void;
+}) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+    <div data-usage-policy-controls={targetKey(props.policy.target)} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
       <PolicyToggle
         target={props.policy.target} enabled={props.policy.enabled} disabled={props.disabled}
         onClick={() => props.onSavePolicy(props.policy.target, {
@@ -221,20 +218,8 @@ function PolicyToggleRow(props: WindowPolicyBlockProps & { disabled: boolean }) 
         })}
       />
       <span style={{ fontSize: 11, fontWeight: 600, color: MC.ink }}>{props.copy.policy.enabled}</span>
-    </div>
-  );
-}
-
-function PolicyThresholdRow(props: PolicyThresholdButtonsProps & {
-  draft: string; disabled: boolean; setDraft: (value: string) => void;
-}) {
-  return (
-    <div style={{ marginTop: 10 }}>
-      <div style={META}>{props.copy.policy.threshold}</div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
-        <PolicyThresholdInput target={props.policy.target} value={props.draft} disabled={props.disabled} onChange={props.setDraft} />
-        <PolicyThresholdButtons {...props} />
-      </div>
+      <span style={{ ...META, marginLeft: 2 }}>{props.copy.policy.threshold}</span>
+      <PolicyThresholdInput target={props.policy.target} value={props.draft} disabled={props.disabled} onChange={props.setDraft} />
     </div>
   );
 }
@@ -255,9 +240,11 @@ function WindowPolicyBlock(props: WindowPolicyBlockProps) {
       data-usage-policy-window-type={props.policy.target.windowType ?? ''} data-usage-policy-window-label={props.policy.target.windowLabel ?? ''}
       style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${MC.divider}` }}
     >
-      <div style={META}>{summaryText(props.policy, props.copy)}</div>
-      <PolicyToggleRow {...props} disabled={state.disabled} />
-      <PolicyThresholdRow {...buttonProps} draft={draft} disabled={state.disabled} setDraft={setDraft} />
+      <div style={META}>{props.copy.policy.title}</div>
+      <PolicyControlsRow {...props} disabled={state.disabled} draft={draft} setDraft={setDraft} />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+        <PolicyThresholdButtons {...buttonProps} />
+      </div>
       {error ? <div data-usage-policy-error={targetKey(props.policy.target)} style={{ ...META, color: MC.fail, marginTop: 6 }}>{error.message}</div> : null}
     </div>
   );
@@ -337,14 +324,14 @@ interface QuotaBlockProps extends Omit<WindowPolicyBlockProps, 'policy'> {
 }
 
 function QuotaBlock(props: QuotaBlockProps) {
-  const unavailable = props.provider.quotaState === 'unsupported' ? props.copy.quotaUnsupported : props.copy.neverObserved;
+  if (props.provider.quotaState === 'unsupported') return null;
   const hasPolicies = props.provider.windows.some((window) => window.policy);
   return (
     <section data-usage-quota={props.provider.provider} data-usage-quota-state={props.provider.quotaState} style={{ padding: '10px 13px' }}>
       <div style={LABEL}>{props.copy.quota}</div>
       {props.provider.quotaState === 'available'
         ? props.provider.windows.map((window) => <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} {...props} />)
-        : <div style={{ marginTop: 7, fontSize: 10.5, color: MC.muted }}>{unavailable}</div>}
+        : <div style={{ marginTop: 7, fontSize: 10.5, color: MC.muted }}>{props.copy.neverObserved}</div>}
       {hasPolicies ? <div data-usage-policy-future-hint={props.provider.provider} style={{ ...META, marginTop: 8 }}>{props.copy.policy.futureHint}</div> : null}
       {props.provider.legacyFallback
         ? (

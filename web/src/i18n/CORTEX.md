@@ -12,6 +12,6 @@ Language stays in local storage and falls back to browser choice.
 | vocab.ts | compose | Merges split chunks into en and zh |
 | plugins-vocab.ts | copy | Holds plugin and stale-draft copy |
 | vocab-en-base.ts | copy | English chunk before plugin copy |
-| vocab-en-extra.ts | copy | English product, usage, policy, notice and auth copy |
+| vocab-en-extra.ts | copy | English product, Usage threshold, notice and auth copy |
 | vocab-zh-base.ts | copy | Chinese chunk before plugin copy |
-| vocab-zh-extra.ts | copy | Chinese product, usage, policy, notice and auth copy |
+| vocab-zh-extra.ts | copy | Chinese product, Usage threshold, notice and auth copy |
