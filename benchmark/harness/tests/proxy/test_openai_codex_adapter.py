@@ -611,6 +611,16 @@ def test_a_stream_whose_only_terminal_event_uses_the_normalized_name_is_metered(
     assert usage.accounted is True
 
 
+def test_a_valid_terminal_stream_without_content_type_is_metered() -> None:
+    adapter = OpenAICodexResponsesOAuthAdapter(
+        "http://127.0.0.1:1", HOST_ACCESS_TOKEN, CODEX_MODEL)
+    usage = adapter.extract_usage(
+        sse_stream([terminal_event(name="response.completed")]), "")
+    assert usage.accounted is True
+    assert (usage.input_tokens, usage.output_tokens) == (3, 2)
+    assert usage.upstream_model == CODEX_MODEL
+
+
 def test_a_stream_that_never_reaches_a_terminal_event_is_unmetered_not_zero() -> None:
     adapter = OpenAICodexResponsesOAuthAdapter(
         "http://127.0.0.1:1", HOST_ACCESS_TOKEN, CODEX_MODEL)
