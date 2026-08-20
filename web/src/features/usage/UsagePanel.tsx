@@ -1,5 +1,5 @@
 // input:  shared usage hook, provider usage view, row policy state, and localized copy
-// output: desktop Settings Usage cards with meters, spend, row controls, and legacy fallback notice
+// output: desktop Usage header, provider cards, inline threshold controls, and spend
 // pos:    Independently queried desktop usage settings panel
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -51,11 +51,6 @@ function isoTime(epochSeconds: number): string {
 
 function targetKey(target: UsagePolicyTarget): string {
   return usagePolicyTargetKey(target);
-}
-
-function defaultSummary(policy: UsageWindowPolicyView, prefix: string, legacyLabel: string): string {
-  const text = `${prefix} ${policy.defaultThresholdPercent}%`;
-  return policy.usesLegacyFallback ? `${text} · ${legacyLabel}` : text;
 }
 
 function LiveBadge() {
@@ -182,9 +177,11 @@ interface WindowPolicyBlockProps {
   onSavePolicy: SavePolicyHandler;
 }
 
-function PolicyToggleLine(props: {
+function PolicyControlsRow(props: {
   policy: UsageWindowPolicyView;
   disabled: boolean;
+  draft: string;
+  setDraft: (value: string) => void;
   onSavePolicy: SavePolicyHandler;
 }) {
   const L = useVocab();
@@ -196,9 +193,11 @@ function PolicyToggleLine(props: {
         thresholdPercent: props.policy.thresholdPercent,
       });
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 7 }}>
+    <div data-usage-policy-controls={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
       <Toggle on={props.policy.enabled} onClick={onClick} ariaLabel={`Usage throttle ${key}`} inert={props.disabled} />
       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.usagePolicyEnabled}</span>
+      <span style={{ ...META_TEXT, marginLeft: 4 }}>{L.usagePolicyThreshold}</span>
+      <ThresholdField disabled={props.disabled} target={props.policy.target} value={props.draft} onChange={props.setDraft} />
     </div>
   );
 }
@@ -234,27 +233,6 @@ function PolicyThresholdButtons(props: PolicyThresholdButtonsProps) {
   );
 }
 
-function PolicyThresholdRow(props: {
-  policy: UsageWindowPolicyView;
-  controlsDisabled: boolean;
-  saveDisabled: boolean;
-  resetDisabled: boolean;
-  pending: boolean;
-  draft: string;
-  setDraft: (value: string) => void;
-  parsedThreshold: number | null;
-  onSavePolicy: SavePolicyHandler;
-}) {
-  const L = useVocab();
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-      <span style={{ ...META_TEXT, minWidth: 92 }}>{L.usagePolicyThreshold}</span>
-      <ThresholdField disabled={props.controlsDisabled} target={props.policy.target} value={props.draft} onChange={props.setDraft} />
-      <PolicyThresholdButtons {...props} />
-    </div>
-  );
-}
-
 function WindowPolicyBlock(props: WindowPolicyBlockProps) {
   const L = useVocab();
   const pending = props.isPolicySaving(props.policy.target);
@@ -267,16 +245,18 @@ function WindowPolicyBlock(props: WindowPolicyBlockProps) {
       data-usage-policy-window-type={props.policy.target.windowType ?? ''} data-usage-policy-window-label={props.policy.target.windowLabel ?? ''}
       style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--proto-line-3)' }}
     >
-      <div style={POLICY_TEXT}>{defaultSummary(props.policy, L.usagePolicyDefaultPrefix, L.usagePolicyUsingLegacy)}</div>
-      <PolicyToggleLine policy={props.policy} disabled={state.disabled} onSavePolicy={props.onSavePolicy} />
-      <PolicyThresholdRow
-        policy={props.policy}
-        controlsDisabled={state.disabled}
-        saveDisabled={state.saveDisabled}
-        resetDisabled={state.resetDisabled}
-        pending={pending} draft={draft} setDraft={setDraft}
-        parsedThreshold={parsedThreshold} onSavePolicy={props.onSavePolicy}
+      <div style={POLICY_TEXT}>{L.usagePolicyTitle}</div>
+      <PolicyControlsRow
+        policy={props.policy} disabled={state.disabled} draft={draft}
+        setDraft={setDraft} onSavePolicy={props.onSavePolicy}
       />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+        <PolicyThresholdButtons
+          policy={props.policy} pending={pending} parsedThreshold={parsedThreshold}
+          saveDisabled={state.saveDisabled} resetDisabled={state.resetDisabled}
+          onSavePolicy={props.onSavePolicy}
+        />
+      </div>
       {error ? <div data-usage-policy-error={targetKey(props.policy.target)} style={{ ...POLICY_TEXT, color: 'var(--proto-danger)', marginTop: 7 }}>{error.message}</div> : null}
     </div>
   );
@@ -465,19 +445,30 @@ function RefreshToolbar({ usage }: { usage: ReturnType<typeof useUsage> }) {
   );
 }
 
+function UsageContent({ usage }: { usage: ReturnType<typeof useUsage> }) {
+  const L = useVocab();
+  if (usage.isLoading) return <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.usageLoading}</div>;
+  if (usage.queryError) return <div style={{ marginTop: 16 }}><ErrorChip label={L.usageLoadError} message={usage.queryError.message} /></div>;
+  if (usage.view.providers.length === 0) {
+    return <div style={{ marginTop: 14, maxWidth: 420 }}><QuietState>{L.usageEmpty}</QuietState></div>;
+  }
+  return (
+    <div style={{ marginTop: 12, display: 'grid', gap: 12, alignItems: 'start', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))' }}>
+      {usage.view.providers.map((provider) => <ProviderCard key={provider.provider} provider={provider} usage={usage} />)}
+    </div>
+  );
+}
+
 export function UsagePanel() {
   const L = useVocab();
   const usage = useUsage();
-  if (usage.isLoading) return <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.usageLoading}</div>;
-  if (usage.queryError) return <div style={{ marginTop: 16 }}><ErrorChip label={L.usageLoadError} message={usage.queryError.message} /></div>;
   return (
-    <div style={{ marginTop: 12, maxWidth: 980 }}>
-      <RefreshToolbar usage={usage} />
-      {usage.view.providers.length === 0
-        ? <div style={{ marginTop: 14, maxWidth: 420 }}><QuietState>{L.usageEmpty}</QuietState></div>
-        : <div style={{ marginTop: 12, display: 'grid', gap: 12, alignItems: 'start', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))' }}>
-            {usage.view.providers.map((provider) => <ProviderCard key={provider.provider} provider={provider} usage={usage} />)}
-          </div>}
+    <div style={{ maxWidth: 980 }}>
+      <div data-usage-header style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.stNavUsage}</div>
+        <div style={{ marginLeft: 'auto' }}><RefreshToolbar usage={usage} /></div>
+      </div>
+      <UsageContent usage={usage} />
     </div>
   );
 }

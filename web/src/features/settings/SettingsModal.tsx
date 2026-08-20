@@ -1,5 +1,5 @@
 // input:  config/usage queries, settings panels, login handoff
-// output: settings shell with bounded panel content
+// output: settings shell with bounded panels and Usage-owned header
 // pos:    Desktop settings modal and section router
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -221,6 +221,12 @@ function SettingsSectionContent(props: SectionContentProps) {
   return independent ? <IndependentSettingsPanel {...props} /> : <ConfiguredSettingsPanel {...props} />;
 }
 
+function SettingsSectionTitle({ section }: { section: SettingsSectionKey }) {
+  const L = useVocab();
+  if (section === 'usage') return null;
+  return <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)' }}>{getSectionMeta(L, section).title}</div>;
+}
+
 function useSettingsActions() {
   const L = useVocab();
   const trpc = useTRPC();
@@ -248,7 +254,6 @@ interface SettingsBodyProps {
 }
 
 function SettingsBody(props: SettingsBodyProps) {
-  const L = useVocab();
   const trpc = useTRPC();
   const [section, setSection] = useState<SettingsSectionKey>('appearance');
   const config = useQuery(trpc.config.get.queryOptions({}));
@@ -269,7 +274,7 @@ function SettingsBody(props: SettingsBodyProps) {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         <SettingsNav section={section} blocked={props.pluginsDirty} onSelect={setSection} />
         <div style={panelContentStyle(section)}>
-          <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)' }}>{getSectionMeta(L, section).title}</div>
+          <SettingsSectionTitle section={section} />
           <SettingsSectionContent {...content} />
         </div>
       </div>
