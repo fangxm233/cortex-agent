@@ -1,0 +1,234 @@
+{
+  "schema_version": "cortex-bench-vendor-live-baseline-summary/1",
+  "campaign": "tb21-vendor-pi",
+  "executed_at": "2026-08-20",
+  "paid": true,
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "source_commit": "69b1424464da84e07879703d5ed02023e1e5cfa2",
+  "headline": "The sole authorized three-task pure-PI live campaign completed with all three pinned Terminal-Bench 2.1 trials in terminal-success. Harbor rewards were preserved verbatim: chess-best-move 0.0, constraints-scheduling 0.0 and db-wal-recovery 1.0. Every outer envelope published with a clean leak scan and proven revocation; the terminal-only resume skipped every trial without rewriting any trial root or arming a route.",
+  "pre_start": {
+    "other_cortex_bench_campaign_running": false,
+    "campaign_container_running": false,
+    "campaign_pool_overlap": false,
+    "target_pool": "172.30.240.0/20",
+    "live_trials_root_preexisting": false,
+    "source_checkout_clean": true,
+    "required_fix_commits_present": {
+      "vendor_pi_completion_cap_projection": "7f7c494f5cc733b652fb7ad42054bfafa16aa34f",
+      "verifier_alias_leak_scan_publication": "ecb5971d360723add4e0dc7eba2ae63f48d3c8a8"
+    }
+  },
+  "preflight": {
+    "campaign_config": "benchmark/campaigns/terminal-bench-2.1-vendor-pi.yaml",
+    "campaign_config_sha256": "40170b6482a2b8224ebc956fc3a1494797594168f53aec84f67308791b7f75df",
+    "initial_invocation": {
+      "exit_code": 1,
+      "armed_routes": 0,
+      "provider_requests": 0,
+      "reason": "The strict launcher refused before dry-run because the two declared non-secret vendor leak canaries were not exported. No credential route was armed."
+    },
+    "corrected_invocation": {
+      "exit_code": 0,
+      "host_scan_policy_resolved": true,
+      "artifacts_verified": true,
+      "dry_run_trials": 3,
+      "dry_run_state": "all-would-arm",
+      "armed_routes": 0,
+      "provider_requests": 0
+    }
+  },
+  "execution": {
+    "arm": {
+      "name": "pure-pi",
+      "kind": "vendor-baseline",
+      "vendor_agent": "pi",
+      "vendor_cli_version": "0.82.1",
+      "model": "deepseek-v4-flash",
+      "max_output_tokens": 65536
+    },
+    "campaign_state": "completed",
+    "campaign_exit_code": 0,
+    "started_at": "2026-08-20T05:01:45.760Z",
+    "ended_at": "2026-08-20T05:06:11.999Z",
+    "concurrency": 3,
+    "planned_trials": 3,
+    "terminal_trials": 3,
+    "published_outer_envelopes": 3,
+    "failed_trials": [],
+    "automatic_retry": false,
+    "campaign_executions": 1
+  },
+  "accounting": {
+    "proxy_request_counter_total": 41,
+    "proxy_audit_entries_total": 41,
+    "request_counter_reconciled_to_audit": true,
+    "gateway_priced_responses": 39,
+    "gateway_records_unmatched": 0,
+    "usage_accounting_unavailable_zero_delta_requests": 2,
+    "observed_campaign_cost_usd": "0.05919845",
+    "declared_max_cost_usd_per_trial": "2.00",
+    "declared_campaign_envelope_usd": "6.00",
+    "existing_capability_ceiling_max_cost_usd_per_trial": "100.00",
+    "within_declared_and_existing_envelopes": true,
+    "cost_source": "Host gateway usage records matched to per-request deltas of the cumulative proxy audit token counters. The two unmatched-to-price requests are explicit usage_accounting_unavailable audit entries with zero token delta; every priced gateway response matched exactly."
+  },
+  "trials": [
+    {
+      "task_id": "chess-best-move",
+      "trial_id": "tb21-vendor-pi-chess-best-move-pure-pi",
+      "image_digest": "sha256:5f16cd3f75c54b22866a823b35e39305155c784886d1db5f894272d89f7cbbed",
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {
+        "reward": 0.0
+      },
+      "outer_envelope_sha256": "6d8bf33ba0eae582241e7c2090161375a42599ce3ba6bd32c55cacd65a578621",
+      "proxy": {
+        "requests": 22,
+        "audit_entries": 22,
+        "input_tokens": 298074,
+        "output_tokens": 22949,
+        "cached_tokens": 281472,
+        "gateway_priced_responses": 21,
+        "usage_accounting_unavailable_requests": [
+          22
+        ]
+      },
+      "observed_cost_usd": "0.03047797",
+      "within_per_trial_envelope": true,
+      "serialized_completion_cap": 65536,
+      "leak_scan": {
+        "ok": true,
+        "clean": true,
+        "credential_matches": 0,
+        "missing_sources": 0,
+        "unclassified_files": 0
+      },
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {
+        "route_active": false,
+        "listener_present": false,
+        "serving_thread_alive": false,
+        "active_handlers": 0,
+        "body_handlers": 0
+      }
+    },
+    {
+      "task_id": "constraints-scheduling",
+      "trial_id": "tb21-vendor-pi-constraints-scheduling-pure-pi",
+      "image_digest": "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353",
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {
+        "reward": 0.0
+      },
+      "outer_envelope_sha256": "29506af2b680850a816bf1f08a0b13a02334e6d69050aedc0594106918add716",
+      "proxy": {
+        "requests": 2,
+        "audit_entries": 2,
+        "input_tokens": 2145,
+        "output_tokens": 141,
+        "cached_tokens": 0,
+        "gateway_priced_responses": 1,
+        "usage_accounting_unavailable_requests": [
+          2
+        ]
+      },
+      "observed_cost_usd": "0.00021505",
+      "within_per_trial_envelope": true,
+      "serialized_completion_cap": 65536,
+      "leak_scan": {
+        "ok": true,
+        "clean": true,
+        "credential_matches": 0,
+        "missing_sources": 0,
+        "unclassified_files": 0
+      },
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {
+        "route_active": false,
+        "listener_present": false,
+        "serving_thread_alive": false,
+        "active_handlers": 0,
+        "body_handlers": 0
+      }
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "trial_id": "tb21-vendor-pi-db-wal-recovery-pure-pi",
+      "image_digest": "sha256:7199e472b87adc22c356e9a364d453c6f825938de6ab7f6422b787735dbf47f7",
+      "terminal_state": "terminal-success",
+      "score_status": "available",
+      "verifier_rewards": {
+        "reward": 1.0
+      },
+      "outer_envelope_sha256": "968728a21949bc536ef62435b8b40e3b5e10f7a2dadbd45df1d2e110b1a8544f",
+      "proxy": {
+        "requests": 17,
+        "audit_entries": 17,
+        "input_tokens": 279646,
+        "output_tokens": 21032,
+        "cached_tokens": 268416,
+        "gateway_priced_responses": 17,
+        "usage_accounting_unavailable_requests": []
+      },
+      "observed_cost_usd": "0.02850543",
+      "within_per_trial_envelope": true,
+      "serialized_completion_cap": 65536,
+      "leak_scan": {
+        "ok": true,
+        "clean": true,
+        "credential_matches": 0,
+        "missing_sources": 0,
+        "unclassified_files": 0
+      },
+      "route_arm_count": 1,
+      "route_revoke_count": 1,
+      "revocation": {
+        "route_active": false,
+        "listener_present": false,
+        "serving_thread_alive": false,
+        "active_handlers": 0,
+        "body_handlers": 0
+      }
+    }
+  ],
+  "resume": {
+    "kind": "terminal-only no-arm resume pass",
+    "campaign_state": "completed",
+    "exit_code": 0,
+    "all_trials_skipped": true,
+    "route_arm_attempts": 0,
+    "route_revoke_attempts": 0,
+    "terminal_trial_file_count": 141,
+    "terminal_tree_snapshot_before_sha256": "850e7dc3ab14be5a7624bde2a04e3442ac5cd004813abe158a92e63e9ea4ab59",
+    "terminal_tree_snapshot_after_sha256": "850e7dc3ab14be5a7624bde2a04e3442ac5cd004813abe158a92e63e9ea4ab59",
+    "terminal_roots_rewritten": false,
+    "comparison_report_sha256_before_after": "8fd1629b819b99dfa80c66cf6bcdf35485f52a911d271281fed98d7993bfc158",
+    "result_summary_sha256_before_after": "a6fcb2d350f1a291477ebf383330b559249d102a4366010c331fe2176941f142"
+  },
+  "runtime_artifact_sha256": {
+    "campaign_result_after_resume": "ceff51637b3502cd2a9626fc139402baf73e049dfa0421319449daa52875d0c7",
+    "path_sanitized_runtime_result_summary": "a6fcb2d350f1a291477ebf383330b559249d102a4366010c331fe2176941f142",
+    "comparison_report": "8fd1629b819b99dfa80c66cf6bcdf35485f52a911d271281fed98d7993bfc158",
+    "execution_evidence": "d642975c0f42094ce45b46a0284abec9e97d76969c84a137d395468b65d66e9e"
+  },
+  "built_artifact_sha256": {
+    "wheel": "6420d495fb4498e98db4e68634a56946ff8b445c7c4842397deda827c1e93a02",
+    "npm_artifact": "21226a745b4e79c2a8614ede70080d9bb90fa73763254f9186ef7b3ed14b2b74"
+  },
+  "safety": {
+    "credential_delivery": "The real relay credential was loaded from the host gateway by the strict paid launcher, held only in the launcher/proxy process and omitted from argv, container inputs and committed output.",
+    "credential_matches": 0,
+    "automatic_retry": false,
+    "second_live_campaign_execution": false,
+    "resume_issued_provider_requests": false,
+    "post_run_campaign_containers": 0,
+    "post_run_overlapping_networks": 0,
+    "runtime_paths_published": false,
+    "push_performed": false
+  }
+}
