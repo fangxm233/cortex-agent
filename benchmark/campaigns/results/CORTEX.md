@@ -14,8 +14,10 @@ Committed campaign result summaries preserve path-sanitized reproducibility evid
 | terminal-bench-2.1-vendor-pi-comparison-2026-08-19.json | report | Records that no vendor-PI task comparison is available because the mandatory staged stop prevented both score-producing campaigns |
 | terminal-bench-2.1-vendor-pi-3ff0-2026-08-19.json | evidence | Records task 3ff0's vendor-native one-request handshake rejection, proxy/leak/revocation evidence, and permanent staged stop |
 | terminal-bench-2.1-vendor-pi-3ff0-comparison-2026-08-19.json | report | Records that task 3ff0 produced no vendor score because the real-relay handshake gate failed before stages 2 and 3 |
-| terminal-bench-2.1-vendor-codex-staged-2026-08-19.json | evidence | Records the one-request handshake failure, version drift checks, clean scan, revocation path and staged stop |
-| terminal-bench-2.1-vendor-codex-comparison-2026-08-19.json | report | Records no comparison because stage 1 prevented promotion and both campaigns |
+| terminal-bench-2.1-vendor-codex-staged-2026-08-19.json | evidence | Records the first one-request handshake failure, version drift checks, clean scan, revocation path and staged stop |
+| terminal-bench-2.1-vendor-codex-comparison-2026-08-19.json | report | Records no comparison because the first stage-1 request prevented promotion and both campaigns |
+| terminal-bench-2.1-vendor-codex-staged-r2-2026-08-20.json | evidence | Records the final one-request HTTP 400 model rejection, redacted response, clean scan, revocation and permanent Codex stop |
+| terminal-bench-2.1-vendor-codex-comparison-r2-2026-08-20.json | report | Records no Codex comparison because the final stage-1 request failed before promotion and both campaigns |
 | zero-paid-dry-run-2026-08-13.json | evidence | Records the accepted two-trial ZERO-PAID campaign hashes, counts and safety facts |
 | zero-paid-failed-agent-2026-08-13.json | evidence | Records the ZERO-PAID run proving a failed agent is published, scored 0 by its own verifier, followed by the next trial, and that each trial carries its own witnessed asset record instead of the bundle |
 | zero-paid-parallel-2026-08-13.json | evidence | Records the ZERO-PAID run proving concurrent trials hold distinct subnets, container addresses and live routes, that a slot is exclusive and reusable, and that every per-trial gate still holds |
