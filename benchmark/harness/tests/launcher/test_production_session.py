@@ -110,13 +110,14 @@ class FakeExecutor:
     def __init__(
         self, logs_dir: Path, *, export_failure: bool = False,
         malformed_evidence: bool = False, gateway_failure: bool = False,
-        dispatch_never_runs: bool = False,
+        dispatch_never_runs: bool = False, result_timeout_once: bool = False,
     ) -> None:
         self.logs_dir = logs_dir
         self.export_failure = export_failure
         self.malformed_evidence = malformed_evidence
         self.gateway_failure = gateway_failure
         self.dispatch_never_runs = dispatch_never_runs
+        self.result_timeout_once = result_timeout_once
         self.calls: list[tuple[str, dict[str, str] | None, str | None]] = []
         self.timeouts: list[int | None] = []
         self.payloads: dict[str, object] = {}
@@ -177,6 +178,8 @@ class FakeExecutor:
             self._capture("production-thread-result.json")
             requested = self.payloads["production-thread-result.json"]["threadId"]
             self.result_polls += 1
+            if self.result_timeout_once and self.result_polls == 1:
+                raise RuntimeError("Command timed out after 10 seconds")
             terminal = self.result_polls > 1
             return self._reply({
                 "success": True,
@@ -292,6 +295,17 @@ def test_session_boots_real_server_injects_only_webhook_exports_and_stops(tmp_pa
     assert (tmp_path / "trajectory/run-root-direct.terminal.json").is_file()
     assert (tmp_path / "trajectory/composite-manifest.json").is_file()
     assert not list(tmp_path.glob("production-*.json"))
+
+
+def test_result_poll_retries_one_exec_timeout_until_the_thread_is_terminal(
+    tmp_path: Path,
+) -> None:
+    runner = FakeExecutor(tmp_path, result_timeout_once=True)
+
+    result = asyncio.run(session(tmp_path).run("Solve only this task.", runner))
+
+    assert result.status == "completed"
+    assert runner.result_polls == 2
 
 
 def test_evidence_export_reads_the_production_home_not_the_container_home(
