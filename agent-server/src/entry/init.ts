@@ -624,8 +624,26 @@ function writeGatewayUsageConfig(config: GatewayUsageConfig, configDir?: string)
 
 // ─── Service registration ────────────────────────────────────────
 
-/** Generate systemd unit file content for Linux. */
-export function generateSystemdUnit(user: string, cortexBin: string, dataDir: string): string {
+/** Where a systemd unit is installed — the two scopes need different unit bodies. */
+export type SystemdScope = 'system' | 'user';
+
+/**
+ * Generate systemd unit file content for Linux.
+ *
+ * The two scopes are not interchangeable. A unit dropped in `~/.config/systemd/user/` is managed by
+ * the caller's own user manager, which already runs as that user: `User=` is refused there (systemd
+ * fails the unit with "Unit has User= set, which is not supported for user instances"), and
+ * `multi-user.target` is a system target that has no per-user counterpart, so `WantedBy` would
+ * silently create a symlink that never activates. User units therefore drop `User=` and hook onto
+ * `default.target`.
+ */
+export function generateSystemdUnit(
+  user: string,
+  cortexBin: string,
+  dataDir: string,
+  scope: SystemdScope = 'system',
+): string {
+  const isUser = scope === 'user';
   return [
     '[Unit]',
     'Description=Cortex Agent Server',
@@ -633,14 +651,14 @@ export function generateSystemdUnit(user: string, cortexBin: string, dataDir: st
     '',
     '[Service]',
     'Type=simple',
-    `User=${user}`,
+    ...(isUser ? [] : [`User=${user}`]),
     `ExecStart=${cortexBin} daemon`,
     `Environment=CORTEX_HOME=${dataDir}`,
     'Restart=on-failure',
     'RestartSec=5',
     '',
     '[Install]',
-    'WantedBy=multi-user.target',
+    isUser ? 'WantedBy=default.target' : 'WantedBy=multi-user.target',
     '',
   ].join('\n');
 }
@@ -715,7 +733,7 @@ function installService(dataDir: string): void {
     clack.log.success(t('init.service.launchdWritten', { path: plistPath }));
     clack.log.info(t('init.service.launchdStartHint', { path: plistPath }));
   } else if (platform === 'linux') {
-    const unitContent = generateSystemdUnit(user, cortexBin, dataDir);
+    const unitContent = generateSystemdUnit(user, cortexBin, dataDir, 'system');
     const unitName = 'cortex.service';
     const systemPath = `/etc/systemd/system/${unitName}`;
     const userUnitDir = path.join(os.homedir(), '.config', 'systemd', 'user');
@@ -724,7 +742,7 @@ function installService(dataDir: string): void {
     try {
       mkdirSync(userUnitDir, { recursive: true });
       const userUnitPath = path.join(userUnitDir, unitName);
-      writeFileSync(userUnitPath, unitContent);
+      writeFileSync(userUnitPath, generateSystemdUnit(user, cortexBin, dataDir, 'user'));
       clack.log.success(t('init.service.systemdUserWritten', { path: userUnitPath }));
       clack.log.info(t('init.service.systemdUserEnableHint'));
       return;
