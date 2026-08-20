@@ -1,5 +1,5 @@
-# input:  vendor arms, fake proxy session, recording environment
-# output: fail-closed setup and dummy runtime projection proofs
+# input:  admitted vendor arms, fake proxy, recording environment
+# output: dummy runtime, completion-cap, and setup proofs
 # pos:    Contract tests for preinstalled vendor lifecycle agents
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -70,14 +70,46 @@ def vendor_arm(vendor: str, provider: str | None, model: str) -> dict[str, objec
             "max_provider_requests": 1,
             "max_cost_usd": "1.00",
             "deadline_seconds": 30,
+            "max_output_tokens": 65_536,
         },
+    }
+
+
+def vendor_trial_seed(arm: dict[str, object]) -> dict[str, object]:
+    digest = f"sha256:{'a' * 64}"
+    return {
+        "arm": arm, "arm_path": f"arm://{arm['name']}",
+        "trial_id": "vendor-unit-trial", "root_run_id": "vendor-unit-root",
+        "task": {
+            "task_id": "synthetic-task", "image_ref": f"image.invalid/task@{digest}",
+            "image_digest": digest,
+        },
+        "profile_name": "benchmark", "paid_run": False,
+        "credential": {
+            "upstream_base_url": "http://127.0.0.1:1",
+            "route_identity_host": "api.deepseek.com",
+            "proxy_base_url": "http://trial-proxy.invalid",
+            "dummy_token_ref": "dummy-only",
+        },
+        "model_alias_policy": {"kind": "exact"},
     }
 
 
 def create_agent(
     tmp_path: Path, vendor: str, provider: str | None, model: str,
+    *, admitted: bool = False,
 ) -> object:
-    config = build_agent_config(vendor_arm(vendor, provider, model), cli_version="ignored")
+    arm = vendor_arm(vendor, provider, model)
+    lifecycle: dict[str, object] = {}
+    if admitted:
+        lifecycle = {
+            "artifact_dir": tmp_path / "artifacts", "manifest": {},
+            "trial_seed": vendor_trial_seed(arm), "trial_proxy": {},
+            "defer_proxy_arm": True,
+        }
+    config = build_agent_config(
+        arm, cli_version="ignored", **lifecycle,  # type: ignore[arg-type]
+    )
     agent = AgentFactory.create_agent_from_config(config, logs_dir=tmp_path / vendor)
     agent._proxy_session = SimpleNamespace(  # type: ignore[attr-defined]
         handle=SimpleNamespace(
@@ -115,7 +147,9 @@ def test_setup_writes_and_records_dummy_files_before_exact_version_preflight(
     tmp_path: Path, vendor: str, provider: str | None, model: str,
     _expected_class: type, _harbor_class: type, stdout: str,
 ) -> None:
-    agent = create_agent(tmp_path, vendor, provider, model)
+    agent = create_agent(
+        tmp_path, vendor, provider, model, admitted=vendor == "pi",
+    )
     environment = RecordingEnvironment(stdout)
 
     asyncio.run(agent.setup(environment))  # type: ignore[attr-defined]
@@ -141,7 +175,9 @@ def test_version_preflight_fails_closed_without_entering_install_path(
     vendor: str, provider: str | None, model: str, _expected_class: type,
     harbor_class: type, _stdout: str,
 ) -> None:
-    agent = create_agent(tmp_path, vendor, provider, model)
+    agent = create_agent(
+        tmp_path, vendor, provider, model, admitted=vendor == "pi",
+    )
     environment = RecordingEnvironment(version_stdout, 127 if not version_stdout else 0)
     installs: list[object] = []
     revocations: list[object] = []
@@ -162,16 +198,18 @@ def test_version_preflight_fails_closed_without_entering_install_path(
 
 
 def test_pi_dummy_auth_and_models_bind_only_the_trial_proxy(tmp_path: Path) -> None:
-    agent = create_agent(tmp_path, "pi", "deepseek", "deepseek-chat")
+    agent = create_agent(
+        tmp_path, "pi", "deepseek", "deepseek-chat", admitted=True,
+    )
     files = {item.path.name: item for item in agent._runtime_files()}  # type: ignore[attr-defined]
     auth = json.loads(files["auth.json"].content)
     models = json.loads(files["models.json"].content)
+    provider = models["providers"]["deepseek"]
 
     assert files["auth.json"].mode == 0o600
     assert auth == {"deepseek": {"type": "api_key", "key": "dummy.jwt.token"}}
-    assert models["providers"]["deepseek"]["baseUrl"] == (
-        "http://trial-proxy.invalid:4312/v1"
-    )
+    assert provider["baseUrl"] == "http://trial-proxy.invalid:4312/v1"
+    assert provider["models"][0]["maxTokens"] == 65_536
     assert "dummy.jwt.token" not in files["models.json"].content
 
 
@@ -193,7 +231,9 @@ def test_codex_uses_p0_proven_provider_config_and_dummy_jwt(tmp_path: Path) -> N
 
 
 def test_file_evidence_records_verified_mode_and_content_digest(tmp_path: Path) -> None:
-    agent = create_agent(tmp_path, "pi", "deepseek", "deepseek-chat")
+    agent = create_agent(
+        tmp_path, "pi", "deepseek", "deepseek-chat", admitted=True,
+    )
     files = agent._runtime_files()  # type: ignore[attr-defined]
     evidence = agent._runtime_file_evidence(files)  # type: ignore[attr-defined]
 
