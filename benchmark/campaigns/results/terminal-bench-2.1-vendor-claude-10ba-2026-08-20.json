@@ -175,8 +175,8 @@
   "security": {
     "credential_delivery": "The real access token stayed in the host proxy adapter. The native Claude process received only a trial dummy token and connected only to the loopback proxy.",
     "scan": {
-      "files_scanned": 15,
-      "bytes_scanned": 14848,
+      "files_scanned": 14,
+      "bytes_scanned": 13579,
       "matches": [],
       "missing_sources": [],
       "unclassified_files": [],
