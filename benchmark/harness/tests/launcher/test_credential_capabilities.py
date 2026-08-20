@@ -53,7 +53,7 @@ EXPECTED_PROJECTION = [
             "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
         "evidence_sha256":
-            "b903b2330d911c813346f1ac4ab101598841284d5ae5e0a4e6cd41c2532175e3",
+            "f19c046bd83a8b01ee5406051e6e852c8bc5b84e8c9d981354beb6fcd2e0755e",
     },
     {
         "id": "pi-api-key",
