@@ -66,12 +66,15 @@
     "gateway_priced_responses": 39,
     "gateway_records_unmatched": 0,
     "usage_accounting_unavailable_zero_delta_requests": 2,
-    "observed_campaign_cost_usd": "0.05919845",
+    "priced_response_cost_subtotal_usd": "0.05919845",
+    "campaign_total_cost_usd": null,
+    "campaign_total_cost_status": "unknown-two-usage-unaccounted-attempts",
     "declared_max_cost_usd_per_trial": "2.00",
     "declared_campaign_envelope_usd": "6.00",
     "existing_capability_ceiling_max_cost_usd_per_trial": "100.00",
-    "within_declared_and_existing_envelopes": true,
-    "cost_source": "Host gateway usage records matched to per-request deltas of the cumulative proxy audit token counters. The two unmatched-to-price requests are explicit usage_accounting_unavailable audit entries with zero token delta; every priced gateway response matched exactly."
+    "priced_response_subtotal_within_declared_and_existing_envelopes": true,
+    "total_cost_within_declared_and_existing_envelopes": null,
+    "cost_source": "Host gateway usage records matched to per-request deltas of the cumulative proxy audit token counters. The priced-response subtotal covers 39 exact matches. The two usage_accounting_unavailable audit entries have zero token-counter delta, which is not evidence of zero provider cost; full campaign cost and its envelope verdict are therefore unknown."
   },
   "trials": [
     {
@@ -95,8 +98,11 @@
           22
         ]
       },
-      "observed_cost_usd": "0.03047797",
-      "within_per_trial_envelope": true,
+      "priced_response_cost_subtotal_usd": "0.03047797",
+      "total_cost_usd": null,
+      "cost_status": "unknown-one-usage-unaccounted-attempt",
+      "priced_response_subtotal_within_per_trial_envelope": true,
+      "total_cost_within_per_trial_envelope": null,
       "serialized_completion_cap": 65536,
       "leak_scan": {
         "ok": true,
@@ -136,8 +142,11 @@
           2
         ]
       },
-      "observed_cost_usd": "0.00021505",
-      "within_per_trial_envelope": true,
+      "priced_response_cost_subtotal_usd": "0.00021505",
+      "total_cost_usd": null,
+      "cost_status": "unknown-one-usage-unaccounted-attempt",
+      "priced_response_subtotal_within_per_trial_envelope": true,
+      "total_cost_within_per_trial_envelope": null,
       "serialized_completion_cap": 65536,
       "leak_scan": {
         "ok": true,
@@ -175,8 +184,11 @@
         "gateway_priced_responses": 17,
         "usage_accounting_unavailable_requests": []
       },
-      "observed_cost_usd": "0.02850543",
-      "within_per_trial_envelope": true,
+      "priced_response_cost_subtotal_usd": "0.02850543",
+      "total_cost_usd": "0.02850543",
+      "cost_status": "available-all-proxy-requests-priced",
+      "priced_response_subtotal_within_per_trial_envelope": true,
+      "total_cost_within_per_trial_envelope": true,
       "serialized_completion_cap": 65536,
       "leak_scan": {
         "ok": true,
@@ -214,7 +226,7 @@
     "campaign_result_after_resume": "ceff51637b3502cd2a9626fc139402baf73e049dfa0421319449daa52875d0c7",
     "path_sanitized_runtime_result_summary": "a6fcb2d350f1a291477ebf383330b559249d102a4366010c331fe2176941f142",
     "comparison_report": "8fd1629b819b99dfa80c66cf6bcdf35485f52a911d271281fed98d7993bfc158",
-    "execution_evidence": "d642975c0f42094ce45b46a0284abec9e97d76969c84a137d395468b65d66e9e"
+    "execution_evidence": "0b26a1afcf770de4d1c797215bee20cd8346747d2177fc4ac562aa6232807f30"
   },
   "built_artifact_sha256": {
     "wheel": "6420d495fb4498e98db4e68634a56946ff8b445c7c4842397deda827c1e93a02",
