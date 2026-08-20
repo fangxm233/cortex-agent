@@ -1,5 +1,5 @@
 # input:  Harbor lifecycle, proxy evidence, stop observation
-# output: offline-installed production run and final envelope
+# output: deadline-aware production run and final envelope
 # pos:    Production Harbor lifecycle wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -26,6 +26,7 @@ from .launcher.production_home import (
     materialize_production_home,
 )
 from .launcher.production_session import (
+    DEADLINE_EXHAUSTED,
     InstalledProductionServer,
     ProductionServerSession,
     ProductionSessionError,
@@ -536,8 +537,9 @@ class CortexBenchAgent(BaseInstalledAgent):
 
         session = ProductionServerSession(spec)
         try:
-            await session.run(instruction, execute)
-            self._require_production_proxy_traffic()
+            result = await session.run(instruction, execute)
+            if result.status != DEADLINE_EXHAUSTED:
+                self._require_production_proxy_traffic()
         finally:
             self._production_server_stopped = session.stopped_cleanly
 

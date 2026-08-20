@@ -38,7 +38,10 @@ from cortex_bench_harness.launcher.production_home import (
     committed_input_bundle_files,
     materialize_production_home,
 )
-from cortex_bench_harness.launcher.production_session import ProductionServerSession
+from cortex_bench_harness.launcher.production_session import (
+    ProductionServerSession,
+    ProductionThreadResult,
+)
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
     ADMISSION_SCHEMA_VERSION,
@@ -794,7 +797,7 @@ def install_deadline_run(
 ) -> None:
     async def run_deadline(
         self: ProductionServerSession, _instruction: str, _execute: object,
-    ) -> None:
+    ) -> ProductionThreadResult:
         write_json(
             environment.logs_dir / "production-session-outcome.json",
             deadline_outcome_record(),
@@ -806,6 +809,9 @@ def install_deadline_run(
         cost.parent.mkdir(parents=True)
         cost.write_bytes(DEADLINE_COST_PAYLOAD)
         self._stopped_cleanly = True
+        return ProductionThreadResult(
+            "thr-manager-root", "deadline_exhausted", None, None,
+        )
 
     monkeypatch.setattr(ProductionServerSession, "run", run_deadline)
 
@@ -856,6 +862,9 @@ def test_deadline_outcome_revokes_and_publishes_paid_evidence_without_zero_filli
     agent, environment = make_agent(tmp_path, monkeypatch)
     install_deadline_run(monkeypatch, environment)
     install_paid_accounting(monkeypatch)
+    agent._require_production_proxy_traffic = lambda: pytest.fail(
+        "deadline finalization must preserve unavailable traffic evidence"
+    )
 
     run_agent(agent, environment)
     write_json(tmp_path / "result.json", {
