@@ -1,0 +1,197 @@
+{
+  "schema_version": "cortex-bench-vendor-conditional-handshake-summary/1",
+  "campaign": "tb21-vendor-claude",
+  "task_id": "f077",
+  "executed_at": "2026-08-20",
+  "source_commit": "aef6a35876c76d6a8cfd43b18e0ec427e42f388c",
+  "headline": "The forced in-chat Anthropic usage refresh satisfied the binding availability gate, so the single authorized Claude handshake permit was consumed at claude-sonnet-5. The sole provider request returned HTTP 429 rate_limit_error. No retry was made, the capability was not promoted, and neither campaign stage ran.",
+  "availability_gate": {
+    "decision": "GO",
+    "signal": "Send !usage anthropic through a connected Cortex chat and invoke that message's cmd:usage:refresh action exactly once.",
+    "cache_or_elapsed_time_used_as_authority": false,
+    "transport_attempt_before_forced_refresh": {
+      "command_sent_at": "2026-08-20T05:44:15.964Z",
+      "refresh_actions_sent": 0,
+      "outcome": "connected TUI chat closed on keepalive timeout before the usage message arrived; no refresh occurred"
+    },
+    "forced_refresh": {
+      "conduit": "connected TUI chat",
+      "command_sent_at": "2026-08-20T05:46:20.901Z",
+      "message_id": "464a73d7-2c80-44a2-8159-0998d1edad8f",
+      "action_id": "cmd:usage:refresh",
+      "action_sent_at": "2026-08-20T05:46:20.922Z",
+      "refresh_actions_sent": 1,
+      "update_received_at": "2026-08-20T05:46:26.598Z",
+      "initial_message_text": "*Provider usage*\n*Anthropic* (`anthropic`) — live\n• 5 hour: 55% · resets 2026-08-20T07:30:00.327Z\n• 7 day: 31% · resets 2026-08-25T10:00:00.327Z\n• nimbus_quill: 0%\n• Fable: 14% · resets 2026-08-25T10:00:00.328Z\n• Observed: 2026-08-20T05:44:29.000Z",
+      "updated_message_text": "*Provider usage*\n*Anthropic* (`anthropic`) — live\n• 5 hour: 55% · resets 2026-08-20T07:29:59.793Z\n• 7 day: 31% · resets 2026-08-25T09:59:59.793Z\n• nimbus_quill: 0%\n• Fable: 14% · resets 2026-08-25T09:59:59.794Z\n• Observed: 2026-08-20T05:46:26.000Z"
+    },
+    "thresholds": {
+      "freshness_live": {
+        "observed": "live",
+        "required": "live",
+        "pass": true
+      },
+      "observed_at_advanced_to_action": {
+        "before": "2026-08-20T05:44:29.000Z",
+        "action_sent_at": "2026-08-20T05:46:20.922Z",
+        "after": "2026-08-20T05:46:26.000Z",
+        "pass": true
+      },
+      "five_hour_below_one": {
+        "observed_utilization": 0.55,
+        "required": "< 1",
+        "pass": true
+      },
+      "seven_day_below_one": {
+        "observed_utilization": 0.31,
+        "required": "< 1",
+        "pass": true
+      },
+      "returned_model_scoped_windows_below_one": {
+        "observed": [
+          {
+            "label": "nimbus_quill",
+            "utilization": 0.0
+          },
+          {
+            "label": "Fable",
+            "utilization": 0.14
+          }
+        ],
+        "required": "every applicable returned model-scoped window < 1",
+        "pass": true
+      }
+    }
+  },
+  "pre_start": {
+    "matching_campaign_processes": 0,
+    "overlapping_docker_networks": 0,
+    "matching_campaign_containers": 0,
+    "reserved_subnet_pool": "172.30.240.0/20",
+    "handshake_artifact_root_preexisted": false,
+    "capability_state": "offline-contract-passed",
+    "live_handshake_evidence_preexisted": false
+  },
+  "handshake": {
+    "state": "live-handshake-failed",
+    "attempts": 1,
+    "retry": "not-performed",
+    "provider_requests": 1,
+    "permit": {
+      "capability_id": "claude-subscription",
+      "model": "claude-sonnet-5",
+      "max_provider_requests": 1,
+      "deadline_seconds": 120,
+      "max_output_tokens": 256,
+      "retry_enabled": false,
+      "request_body_limit_bytes": 67108864,
+      "response_body_limit_bytes": 67108864
+    },
+    "request": {
+      "method": "POST",
+      "target": "/v1/messages?beta=true",
+      "model": "claude-sonnet-5",
+      "max_tokens": 16,
+      "authorization_in_artifact": false,
+      "retry_header": "x-stainless-retry-count: 0"
+    },
+    "response": {
+      "status": 429,
+      "complete": false,
+      "failure": "IncompleteRead",
+      "body_bytes_received": 114,
+      "body": {
+        "type": "error",
+        "error": {
+          "type": "rate_limit_error",
+          "message": "Error"
+        },
+        "request_id": ""
+      },
+      "retained_operational_headers": {
+        "content-type": "application/json",
+        "x-should-retry": "true",
+        "transfer-encoding": "chunked",
+        "connection": "close"
+      },
+      "identifier_headers_blank": true
+    },
+    "proxy_accounting": {
+      "requests": 1,
+      "durable_requests": 1,
+      "audit_entries": 1,
+      "audit_agrees_with_counters": true,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cached_tokens": 0,
+      "outcome": "usage_accounting_unavailable"
+    },
+    "failure": {
+      "exception_type": "LiveHandshakePermitRefused",
+      "reason": "live handshake proxy ended HTTP 429 response after 114 bytes: usage_accounting_unavailable"
+    }
+  },
+  "stages": [
+    {
+      "stage": 1,
+      "name": "conditional-live-handshake",
+      "state": "live-handshake-failed",
+      "attempts": 1,
+      "provider_requests": 1
+    },
+    {
+      "stage": 2,
+      "name": "single-task-live-vendor-claude",
+      "state": "not-run-after-stage-1-failure",
+      "attempts": 0,
+      "provider_requests": 0
+    },
+    {
+      "stage": 3,
+      "name": "three-task-live-vendor-claude-wave",
+      "state": "not-run-after-stage-1-failure",
+      "attempts": 0,
+      "provider_requests": 0,
+      "planned_trials": [
+        "chess-best-move",
+        "constraints-scheduling",
+        "db-wal-recovery"
+      ]
+    }
+  ],
+  "safety": {
+    "capability_state_after_run": "offline-contract-passed",
+    "promotion_evidence": "absent",
+    "automatic_retry": false,
+    "manual_retry": false,
+    "campaign_route_arming": false,
+    "credential_delivery": "The real Claude access token remained host-side; request artifacts contain no authorization header and the host proxy injected the bearer only on the upstream leg.",
+    "artifact_scan": {
+      "files_scanned": 8,
+      "bytes_scanned": 4684,
+      "credential_matches": 0,
+      "missing_sources": 0,
+      "unclassified_files": 0,
+      "clean": true
+    },
+    "revocation": {
+      "ordered_revoke_path_completed": true,
+      "active_handshake_processes_after_run": 0,
+      "route_reuse": "not attempted"
+    },
+    "push_performed": false
+  },
+  "raw_artifact_sha256": {
+    "live-handshake-request.body": "6c986b7231d5636c4e78f8e3085d18a5cbcc3bdda9277bc8e4176a447c02ea13",
+    "live-handshake-request.json": "44185457b5beb42de44c327f2b888a7ad4a8d34a2625e174c7eaab0e2437ae44",
+    "live-handshake-response.json": "0328e203dc6fcf07f86fc9ec7922b840ca9a38479511f84d03c0570a980972f7",
+    "live-handshake-run-config.json": "9d1dd160b7c211a75e4897c45b6ac5b27403b63752ba1a8e351a4782c46c2544",
+    "proxy/adapter-selection.json": "26d5da48a4bd3a742ff4da6f6481c893106a8459faef052d63baf4e4dbbf0d62",
+    "proxy/lease-echo.json": "15dba8d20b5f4619319741de452fed3668a0106f60bcff941fa1e4c04fc0eec6",
+    "proxy/proxy-audit.jsonl": "11d84b18b88a763b8f8eb354675e15d56d14cccdf5a5de42a785632a12ad01a4",
+    "proxy/proxy-export.json": "d186f48dc9a3859e86d6c83a475f360fa75aeec6d9450f5417d412241b69296f"
+  },
+  "raw_sources": {
+    "handshake_artifacts": "<run-evidence>/claude-live-handshake-f077/"
+  }
+}
