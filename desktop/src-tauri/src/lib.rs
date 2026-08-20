@@ -574,6 +574,7 @@ pub fn run() {
             setup::setup_run_init,
             setup::setup_enable_ui,
             setup::setup_start_daemon,
+            setup::setup_enable_autostart,
         ]);
 
     // Both platforms: serve the SPA over the custom `cortexui://` scheme from the active frontend

@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Cortex — Set up</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    // No-flash theme, identical to connect.html and the SPA (same `cortex.theme` key).
+    (function () {
+      try {
+        var stored = null;
+        try { stored = window.localStorage.getItem('cortex.theme'); } catch (e) {}
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = stored === 'light' || stored === 'dark' ? stored : prefersDark ? 'dark' : 'light';
+        if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.style.colorScheme = theme;
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    /* Theme tokens: the same subset connect.html carries, so both shell pages render in the SPA's
+     * design language. Colors are referenced via var(--…) only. */
+    :root {
+      --surface-base: #e9e7e2;
+      --proto-card: #ffffff;
+      --proto-alt: #f7f8fa;
+      --proto-ink: #191c22;
+      --proto-ink-2: #22262e;
+      --proto-muted: #5b6472;
+      --proto-muted-2: #8a93a2;
+      --proto-muted-3: #98a1b0;
+      --proto-line: #e7e9ee;
+      --proto-line-3: #d9dce3;
+      --proto-accent: #4655d4;
+      --proto-accent-bg: #eef0fa;
+      --proto-success: #23854f;
+      --proto-warn: #b07319;
+      --proto-warn-bg: #fdf4e6;
+      --proto-danger: #c03d33;
+      --ink-solid-bg: #191c22;
+      --ink-solid-fg: #ffffff;
+      --ink-solid-hover: #32363e;
+      --border-card: rgba(0, 0, 0, 0.08);
+      --card-shadow: 0 8px 30px rgba(16, 24, 40, 0.12);
+      --log-bg: #12151a;
+      --log-fg: #c9ceda;
+    }
+
+    [data-theme="dark"] {
+      --surface-base: #12151a;
+      --proto-card: #1e232c;
+      --proto-alt: #1a1f29;
+      --proto-ink: #ebedf2;
+      --proto-ink-2: #c9ceda;
+      --proto-muted: #99a2b2;
+      --proto-muted-2: #7e8798;
+      --proto-muted-3: #6e7787;
+      --proto-line: #2c323e;
+      --proto-line-3: #3a4250;
+      --proto-accent: #8b96f2;
+      --proto-accent-bg: rgba(110, 123, 236, 0.16);
+      --proto-success: #57c48a;
+      --proto-warn: #d9a441;
+      --proto-warn-bg: rgba(217, 164, 65, 0.14);
+      --proto-danger: #ed7b72;
+      --ink-solid-bg: #ebedf2;
+      --ink-solid-fg: #14171b;
+      --ink-solid-hover: #d5dae2;
+      --border-card: rgba(255, 255, 255, 0.10);
+      --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+      --log-bg: #14181f;
+      --log-fg: #c9ceda;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      min-height: 100%;
+      background: var(--surface-base);
+      color: var(--proto-ink);
+      font-family: -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial,
+        'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .mono { font-family: 'IBM Plex Mono', ui-monospace, 'Courier New', monospace; }
+
+    .card {
+      width: 560px;
+      max-width: calc(100vw - 32px);
+      background: var(--proto-card);
+      border: 1px solid var(--border-card);
+      border-radius: 10px;
+      padding: 28px 30px 24px;
+      box-shadow: var(--card-shadow);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    .logo { font-size: 16px; font-weight: 600; letter-spacing: 0.04em; }
+    .subtitle { font-size: 11px; color: var(--proto-muted); margin-top: 3px; }
+
+    .lang-toggle {
+      display: flex;
+      flex-shrink: 0;
+      border: 1px solid var(--proto-line);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .lang-opt {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2.5px 7px;
+      cursor: pointer;
+      background: transparent;
+      color: var(--proto-muted-2);
+      border: none;
+    }
+
+    .lang-opt.active { background: var(--proto-ink); color: var(--proto-card); }
+
+    /* ── Step rail ── */
+    .steps { display: flex; gap: 6px; margin-bottom: 22px; }
+
+    .step {
+      flex: 1;
+      border-top: 2px solid var(--proto-line);
+      padding-top: 7px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--proto-muted-3);
+    }
+
+    .step.active { border-top-color: var(--proto-ink); color: var(--proto-ink); }
+    .step.done { border-top-color: var(--proto-success); color: var(--proto-success); }
+
+    .panel { min-height: 210px; }
+    .panel[hidden] { display: none; }
+
+    .panel-title { font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+    .panel-lede { font-size: 12px; color: var(--proto-muted); margin-bottom: 16px; }
+
+    /* ── Environment check rows ── */
+    .check {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--proto-line);
+      font-size: 12px;
+    }
+
+    .check:last-child { border-bottom: none; }
+    .check-name { color: var(--proto-ink-2); }
+    .check-value { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11.5px; }
+    .check-value.ok { color: var(--proto-success); }
+    .check-value.warn { color: var(--proto-warn); }
+    .check-value.err { color: var(--proto-danger); }
+    .check-value.idle { color: var(--proto-muted-3); }
+
+    /* ── Callout ── */
+    .callout {
+      border: 1px solid var(--proto-line);
+      background: var(--proto-alt);
+      border-radius: 8px;
+      padding: 11px 13px;
+      font-size: 12px;
+      color: var(--proto-ink-2);
+      margin-top: 14px;
+    }
+
+    .callout.warn { border-color: var(--proto-warn); background: var(--proto-warn-bg); }
+    .callout.err { border-color: var(--proto-danger); }
+    .callout code {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 11.5px;
+      background: var(--proto-card);
+      border: 1px solid var(--proto-line);
+      border-radius: 4px;
+      padding: 1px 5px;
+      display: inline-block;
+      margin-top: 5px;
+      user-select: all;
+    }
+
+    .callout a { color: var(--proto-accent); }
+
+    /* ── Form ── */
+    .field { margin-bottom: 14px; }
+
+    .label {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--proto-muted-2);
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .input {
+      display: block;
+      width: 100%;
+      background: var(--proto-alt);
+      border: 1px solid var(--proto-line);
+      border-radius: 6px;
+      padding: 9px 11px;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 13px;
+      color: var(--proto-ink);
+      outline: none;
+    }
+
+    .input:focus { border-color: var(--proto-accent); box-shadow: 0 0 0 3px var(--proto-accent-bg); }
+    .input:disabled { opacity: 0.5; }
+
+    .choice {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      padding: 9px 11px;
+      border: 1px solid var(--proto-line);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .choice:hover { border-color: var(--proto-line-3); }
+    .choice input { margin-top: 2px; accent-color: var(--proto-accent); }
+    .choice-title { font-size: 12px; font-weight: 600; }
+    .choice-desc { font-size: 11px; color: var(--proto-muted); margin-top: 1px; }
+
+    .advanced {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--proto-accent);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    /* ── Log ── */
+    .log {
+      margin-top: 14px;
+      background: var(--log-bg);
+      color: var(--log-fg);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 11px;
+      line-height: 1.55;
+      max-height: 190px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .log:empty { display: none; }
+
+    /* ── Actions ── */
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 20px;
+      align-items: center;
+    }
+
+    .spacer { flex: 1; }
+
+    .btn {
+      padding: 9px 18px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-outline {
+      background: transparent;
+      border-color: var(--proto-line-3);
+      color: var(--proto-ink-2);
+    }
+
+    .btn-outline:hover:not(:disabled) { background: var(--proto-alt); }
+    .btn-primary { background: var(--ink-solid-bg); color: var(--ink-solid-fg); }
+    .btn-primary:hover:not(:disabled) { background: var(--ink-solid-hover); }
+
+    .status {
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 16px;
+    }
+
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .status-ok { color: var(--proto-success); }
+    .status-ok .status-dot { background: var(--proto-success); }
+    .status-err { color: var(--proto-danger); }
+    .status-err .status-dot { background: var(--proto-danger); }
+    .status-pending { color: var(--proto-muted); }
+
+    /* Narrow / mobile fallback: the chooser hides this page on the mobile shell, but a small window
+     * must still be usable rather than clipped. */
+    @media (max-width: 640px) {
+      body { align-items: flex-start; padding: 0; }
+      .card { width: 100%; max-width: none; min-height: 100vh; border: none; border-radius: 0; box-shadow: none; }
+    }
+  </style>
+</head>
+<body id="cortex-setup-screen">
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <div class="logo mono">Cortex</div>
+        <div class="subtitle" id="cx-subtitle">Install on this computer</div>
+      </div>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button class="lang-opt" id="cx-lang-en" type="button">EN</button>
+        <button class="lang-opt" id="cx-lang-zh" type="button">中</button>
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="step" id="cx-step-0" data-step="0">1 · <span data-step-label="0"></span></div>
+      <div class="step" id="cx-step-1" data-step="1">2 · <span data-step-label="1"></span></div>
+      <div class="step" id="cx-step-2" data-step="2">3 · <span data-step-label="2"></span></div>
+      <div class="step" id="cx-step-3" data-step="3">4 · <span data-step-label="3"></span></div>
+    </div>
+
+    <!-- Step 1 — environment ------------------------------------------------->
+    <section class="panel" id="cx-panel-0">
+      <div class="panel-title" data-title="0"></div>
+      <div class="panel-lede" data-lede="0"></div>
+      <div id="cx-checks"></div>
+      <div class="callout" id="cx-env-note" hidden></div>
+    </section>
+
+    <!-- Step 2 — install ----------------------------------------------------->
+    <section class="panel" id="cx-panel-1" hidden>
+      <div class="panel-title" data-title="1"></div>
+      <div class="panel-lede" data-lede="1"></div>
+      <div class="callout" id="cx-install-note" hidden></div>
+      <div class="log mono" id="cx-install-log"></div>
+    </section>
+
+    <!-- Step 3 — configure --------------------------------------------------->
+    <section class="panel" id="cx-panel-2" hidden>
+      <div class="panel-title" data-title="2"></div>
+      <div class="panel-lede" data-lede="2"></div>
+
+      <div id="cx-config-fields">
+        <div class="field">
+          <label class="label" id="cx-label-machine" for="cx-machine"></label>
+          <input class="input" type="text" id="cx-machine" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="field">
+          <span class="label" id="cx-label-backends"></span>
+          <label class="choice">
+            <input type="checkbox" id="cx-backend-claude" checked>
+            <span>
+              <span class="choice-title">Claude Code</span>
+              <span class="choice-desc" id="cx-desc-claude"></span>
+            </span>
+          </label>
+          <label class="choice">
+            <input type="checkbox" id="cx-backend-pi">
+            <span>
+              <span class="choice-title">PI</span>
+              <span class="choice-desc" id="cx-desc-pi"></span>
+            </span>
+          </label>
+        </div>
+
+        <label class="choice" id="cx-autostart-row">
+          <input type="checkbox" id="cx-autostart">
+          <span>
+            <span class="choice-title" id="cx-autostart-title"></span>
+            <span class="choice-desc" id="cx-autostart-desc"></span>
+          </span>
+        </label>
+      </div>
+
+      <div class="callout" id="cx-config-existing" hidden></div>
+
+      <button class="advanced" id="cx-advanced-toggle" type="button"></button>
+      <div class="field" id="cx-advanced" hidden style="margin-top: 10px;">
+        <label class="label" id="cx-label-port" for="cx-port"></label>
+        <input class="input" type="number" id="cx-port" min="1" max="65535" value="3004">
+      </div>
+    </section>
+
+    <!-- Step 4 — start ------------------------------------------------------->
+    <section class="panel" id="cx-panel-3" hidden>
+      <div class="panel-title" data-title="3"></div>
+      <div class="panel-lede" data-lede="3"></div>
+      <div id="cx-start-checks"></div>
+      <div class="callout err" id="cx-start-note" hidden></div>
+      <div class="log mono" id="cx-start-log"></div>
+    </section>
+
+    <div class="actions">
+      <button class="btn btn-outline" id="cx-btn-back" type="button"></button>
+      <div class="status" id="cx-status" aria-live="polite" role="status"></div>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="cx-btn-next" type="button"></button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var tauri  = window.__TAURI__;
+      var invoke = tauri && tauri.core && tauri.core.invoke;
+      var listen = tauri && tauri.event && tauri.event.listen;
+
+      // ── i18n ────────────────────────────────────────────────────────────────
+      // Same key and resolution as connect.html and the SPA, so a language picked anywhere holds.
+      var LANG_KEY = 'cortex.lang';
+      var I18N = {
+        en: {
+          htmlLang: 'en',
+          subtitle: 'Install on this computer',
+          stepLabels: ['Check', 'Install', 'Configure', 'Start'],
+          titles: [
+            'Environment check',
+            'Install the Cortex server',
+            'Configure this machine',
+            'Start and connect',
+          ],
+          ledes: [
+            'Cortex runs as a Node.js server on this machine. Checking what is already here.',
+            'Installs the @cortex-agent/server package globally with npm.',
+            'Everything else — accounts, models, projects — is configured in the app afterwards.',
+            'Writing the configuration, starting the daemon, and connecting to it.',
+          ],
+          checking: 'checking…',
+          missing: 'not found',
+          notInstalled: 'not installed',
+          installed: 'installed',
+          nodeLabel: 'Node.js',
+          npmLabel: 'npm',
+          gitLabel: 'git',
+          cortexLabel: 'Cortex server',
+          homeLabel: 'Existing configuration',
+          present: 'found',
+          absent: 'none',
+          nodeMissing: function (m) {
+            return 'Node.js ' + m + ' or newer is required and was not found. Install it from nodejs.org, then re-check. If you installed it through nvm, launch the app from a terminal so it inherits your PATH.';
+          },
+          serverOld: function (v, min) {
+            return 'The installed server is ' + v + '; this app needs ' + min + ' or newer. Continuing will upgrade it with npm.';
+          },
+          serverReady: function (v) { return 'Cortex ' + v + ' is already installed — the install step is skipped.'; },
+          existingHome: 'This machine already has a Cortex configuration. It is kept as it is; only the app endpoint is switched on.',
+          recheck: 'Re-check',
+          next: 'Continue',
+          back: 'Back',
+          install: 'Install',
+          upgrade: 'Upgrade',
+          start: 'Start',
+          installSkipped: 'Already installed at a supported version — nothing to do here.',
+          installing: 'Installing…',
+          installDone: function (v) { return 'Installed Cortex ' + v; },
+          installFailed: 'Install failed',
+          npmPermission: 'npm could not write to its global folder. Point npm at a folder you own, then run the install again:',
+          machineName: 'Machine name',
+          machineHint: 'How this machine identifies itself in the app.',
+          backends: 'Agent backends',
+          claudeDesc: 'Installs the Claude Code CLI. You sign in from the app afterwards.',
+          piDesc: 'Installs the PI CLI for other model providers.',
+          autostart: 'Start Cortex when this computer starts',
+          autostartDesc: 'Scheduled tasks only run while the server is up.',
+          advanced: 'Advanced',
+          port: 'Local port',
+          starting: 'Working…',
+          stepConfig: 'Writing configuration',
+          stepDaemon: 'Starting the server',
+          stepAutostart: 'Enabling autostart',
+          stepConnect: 'Connecting',
+          done: 'Ready — opening the workbench…',
+          autostartFailed: 'Cortex is installed and running, but autostart could not be enabled. You can still start it by opening this app.',
+          daemonSlow: 'The server did not answer in time. It may still be starting — try again, or check the log above.',
+          failed: function (e) { return 'Failed: ' + e; },
+          pending: 'waiting',
+          running: 'running…',
+          okMark: 'done',
+        },
+        zh: {
+          htmlLang: 'zh-CN',
+          subtitle: '在本机安装',
+          stepLabels: ['检查', '安装', '配置', '启动'],
+          titles: ['环境检查', '安装 Cortex 服务端', '配置本机', '启动并连接'],
+          ledes: [
+            'Cortex 以 Node.js 服务的形式运行在本机。正在检查已有环境。',
+            '使用 npm 全局安装 @cortex-agent/server。',
+            '其余配置（账号、模型、项目）稍后都在应用内完成。',
+            '正在写入配置、启动守护进程并连接。',
+          ],
+          checking: '检查中…',
+          missing: '未找到',
+          notInstalled: '未安装',
+          installed: '已安装',
+          nodeLabel: 'Node.js',
+          npmLabel: 'npm',
+          gitLabel: 'git',
+          cortexLabel: 'Cortex 服务端',
+          homeLabel: '已有配置',
+          present: '已存在',
+          absent: '无',
+          nodeMissing: function (m) {
+            return '需要 Node.js ' + m + ' 或更高版本，但未找到。请从 nodejs.org 安装后重新检查。若通过 nvm 安装，请从终端启动本应用，以继承你的 PATH。';
+          },
+          serverOld: function (v, min) {
+            return '已安装的服务端为 ' + v + '，本应用需要 ' + min + ' 或更高版本。继续将通过 npm 升级。';
+          },
+          serverReady: function (v) { return '已安装 Cortex ' + v + '，将跳过安装步骤。'; },
+          existingHome: '本机已有 Cortex 配置，将保持不变，仅开启应用连接所需的端点。',
+          recheck: '重新检查',
+          next: '继续',
+          back: '上一步',
+          install: '安装',
+          upgrade: '升级',
+          start: '开始',
+          installSkipped: '已安装且版本满足要求，无需操作。',
+          installing: '安装中…',
+          installDone: function (v) { return '已安装 Cortex ' + v; },
+          installFailed: '安装失败',
+          npmPermission: 'npm 无法写入全局目录。请将 npm 指向你拥有的目录后重新安装：',
+          machineName: '机器名称',
+          machineHint: '本机在应用中显示的名称。',
+          backends: 'Agent 后端',
+          claudeDesc: '安装 Claude Code CLI，稍后在应用内登录。',
+          piDesc: '安装 PI CLI，用于其他模型提供方。',
+          autostart: '开机自动启动 Cortex',
+          autostartDesc: '定时任务只在服务端运行时触发。',
+          advanced: '高级',
+          port: '本地端口',
+          starting: '处理中…',
+          stepConfig: '写入配置',
+          stepDaemon: '启动服务端',
+          stepAutostart: '开启自动启动',
+          stepConnect: '连接',
+          done: '完成 — 正在打开工作台…',
+          autostartFailed: 'Cortex 已安装并运行，但未能开启自动启动。打开本应用同样可以启动它。',
+          daemonSlow: '服务端未在预期时间内响应，可能仍在启动。可重试，或查看上方日志。',
+          failed: function (e) { return '失败：' + e; },
+          pending: '等待',
+          running: '进行中…',
+          okMark: '完成',
+        },
+      };
+
+      function resolveInitialLang() {
+        var stored = null;
+        try { stored = window.localStorage.getItem(LANG_KEY); } catch (e) {}
+        if (stored === 'en' || stored === 'zh') return stored;
+        var nav = (typeof navigator !== 'undefined' && navigator.language) || '';
+        return nav.toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
+      }
+
+      var lang = resolveInitialLang();
+      var L = I18N[lang];
+
+      // ── State ───────────────────────────────────────────────────────────────
+      var state = {
+        step: 0,
+        busy: false,
+        probe: null,
+        cortexBin: null,
+        serverVersion: null,
+        needsInstall: true,
+        needsInit: true,
+        installed: false,
+        endpoint: null,   // { url, token }
+      };
+
+      var el = function (id) { return document.getElementById(id); };
+      var statusEl = el('cx-status');
+      var btnNext = el('cx-btn-next');
+      var btnBack = el('cx-btn-back');
+
+      // ── Streamed command output ─────────────────────────────────────────────
+      // Every command run by the shell emits its lines here, tagged with the run id it was started
+      // with, so the install log and the start log never mix.
+      var logs = { install: el('cx-install-log'), start: el('cx-start-log') };
+      if (listen) {
+        listen('setup-log', function (event) {
+          var payload = event.payload || {};
+          var target = logs[payload.run];
+          if (!target) return;
+          target.textContent += payload.line + '\n';
+          target.scrollTop = target.scrollHeight;
+        });
+      }
+
+      // ── Rendering ───────────────────────────────────────────────────────────
+
+      function setStatus(type, text) {
+        statusEl.className = 'status' + (type ? ' status-' + type : '');
+        statusEl.textContent = '';
+        if (type === 'ok' || type === 'err') {
+          var dot = document.createElement('span');
+          dot.className = 'status-dot';
+          statusEl.appendChild(dot);
+          statusEl.appendChild(document.createTextNode(text));
+        } else {
+          statusEl.textContent = text;
+        }
+      }
+
+      function setBusy(on) {
+        state.busy = on;
+        btnNext.disabled = on;
+        btnBack.disabled = on;
+      }
+
+      /** One "name — value" row of the environment table. */
+      function checkRow(name, value, tone) {
+        var row = document.createElement('div');
+        row.className = 'check';
+        var left = document.createElement('span');
+        left.className = 'check-name';
+        left.textContent = name;
+        var right = document.createElement('span');
+        right.className = 'check-value ' + (tone || 'idle');
+        right.textContent = value;
+        row.appendChild(left);
+        row.appendChild(right);
+        return row;
+      }
+
+      function showNote(node, tone, text, code) {
+        node.hidden = false;
+        node.className = 'callout' + (tone ? ' ' + tone : '');
+        node.textContent = text;
+        if (code) {
+          var pre = document.createElement('code');
+          pre.textContent = code;
+          node.appendChild(document.createElement('br'));
+          node.appendChild(pre);
+        }
+      }
+
+      function renderSteps() {
+        for (var i = 0; i < 4; i++) {
+          var node = el('cx-step-' + i);
+          node.className = 'step' + (i === state.step ? ' active' : i < state.step ? ' done' : '');
+          el('cx-panel-' + i).hidden = i !== state.step;
+        }
+        btnBack.disabled = state.busy;
+      }
+
+      function nextLabel() {
+        if (state.step === 1) return state.needsInstall ? (state.probe && state.probe.cortexBin ? L.upgrade : L.install) : L.next;
+        if (state.step === 3) return L.start;
+        if (state.step === 0 && state.probe && !state.probe.nodeOk) return L.recheck;
+        return L.next;
+      }
+
+      function applyLang() {
+        L = I18N[lang];
+        document.documentElement.lang = L.htmlLang;
+        el('cx-subtitle').textContent = L.subtitle;
+        for (var i = 0; i < 4; i++) {
+          document.querySelector('[data-step-label="' + i + '"]').textContent = L.stepLabels[i];
+          document.querySelector('[data-title="' + i + '"]').textContent = L.titles[i];
+          document.querySelector('[data-lede="' + i + '"]').textContent = L.ledes[i];
+        }
+        el('cx-label-machine').textContent = L.machineName;
+        el('cx-label-backends').textContent = L.backends;
+        el('cx-desc-claude').textContent = L.claudeDesc;
+        el('cx-desc-pi').textContent = L.piDesc;
+        el('cx-autostart-title').textContent = L.autostart;
+        el('cx-autostart-desc').textContent = L.autostartDesc;
+        el('cx-advanced-toggle').textContent = L.advanced;
+        el('cx-label-port').textContent = L.port;
+        btnBack.textContent = L.back;
+        btnNext.textContent = nextLabel();
+        el('cx-lang-en').classList.toggle('active', lang === 'en');
+        el('cx-lang-zh').classList.toggle('active', lang === 'zh');
+        if (state.probe) renderProbe();
+      }
+
+      function setLang(next) {
+        if (next !== 'en' && next !== 'zh') return;
+        lang = next;
+        try { window.localStorage.setItem(LANG_KEY, next); } catch (e) {}
+        applyLang();
+      }
+
+      el('cx-lang-en').addEventListener('click', function () { setLang('en'); });
+      el('cx-lang-zh').addEventListener('click', function () { setLang('zh'); });
+
+      // ── Step 1: environment ────────────────────────────────────────────────
+
+      function renderProbe() {
+        var p = state.probe;
+        var host = el('cx-checks');
+        host.textContent = '';
+        host.appendChild(checkRow(L.nodeLabel, p.node || L.missing, p.nodeOk ? 'ok' : 'err'));
+        host.appendChild(checkRow(L.npmLabel, p.npm || L.missing, p.npm ? 'ok' : 'err'));
+        host.appendChild(checkRow(L.gitLabel, p.git ? p.git.replace(/^git version /, '') : L.missing, p.git ? 'ok' : 'warn'));
+        host.appendChild(checkRow(
+          L.cortexLabel,
+          p.serverVersion || L.notInstalled,
+          p.serverVersion ? (p.serverOk ? 'ok' : 'warn') : 'idle'
+        ));
+        host.appendChild(checkRow(L.homeLabel, p.homeExists ? L.present : L.absent, p.homeExists ? 'ok' : 'idle'));
+
+        var note = el('cx-env-note');
+        note.hidden = true;
+        if (!p.nodeOk) {
+          showNote(note, 'err', L.nodeMissing(p.minNodeMajor));
+        } else if (p.serverVersion && !p.serverOk) {
+          showNote(note, 'warn', L.serverOld(p.serverVersion, p.minServerVersion));
+        } else if (p.serverOk) {
+          showNote(note, '', L.serverReady(p.serverVersion));
+        }
+        btnNext.textContent = nextLabel();
+      }
+
+      async function runProbe() {
+        setBusy(true);
+        setStatus('pending', L.checking);
+        var p = invoke ? await invoke('setup_probe') : { nodeOk: false, minNodeMajor: 20, minServerVersion: '—' };
+        state.probe = p;
+        state.cortexBin = p.cortexBin || null;
+        state.serverVersion = p.serverVersion || null;
+        state.needsInstall = !p.serverOk;
+        state.needsInit = !p.homeExists;
+        if (!el('cx-machine').value) el('cx-machine').value = p.hostname || '';
+        renderProbe();
+        setBusy(false);
+        setStatus('', '');
+      }
+
+      // ── Step 2: install ────────────────────────────────────────────────────
+
+      async function runInstall() {
+        if (!state.needsInstall) { goto(2); return; }
+        setBusy(true);
+        setStatus('pending', L.installing);
+        el('cx-install-note').hidden = true;
+        try {
+          var r = await invoke('setup_install_server', { run: 'install' });
+          state.cortexBin = r.cortexBin;
+          state.serverVersion = r.serverVersion;
+          state.installed = true;
+          state.needsInstall = false;
+          setBusy(false);
+          setStatus('ok', L.installDone(r.serverVersion || ''));
+          goto(2);
+        } catch (e) {
+          setBusy(false);
+          var message = String(e && e.message ? e.message : e);
+          if (message.indexOf('EACCES') !== -1) {
+            showNote(
+              el('cx-install-note'), 'err', L.npmPermission,
+              'npm config set prefix ~/.npm-global && export PATH=~/.npm-global/bin:$PATH'
+            );
+          } else {
+            showNote(el('cx-install-note'), 'err', L.installFailed);
+          }
+          setStatus('err', L.installFailed);
+        }
+      }
+
+      // ── Step 3: configure ──────────────────────────────────────────────────
+
+      function renderConfig() {
+        var fresh = state.needsInit;
+        el('cx-config-fields').hidden = !fresh;
+        el('cx-config-existing').hidden = fresh;
+        if (!fresh) showNote(el('cx-config-existing'), '', L.existingHome);
+        // Windows has no service registration in the server, so autostart is not offered there; the
+        // app's own launch-time daemon start is the autostart on that platform.
+        el('cx-autostart-row').hidden = !state.probe || state.probe.os === 'windows';
+      }
+
+      el('cx-advanced-toggle').addEventListener('click', function () {
+        var box = el('cx-advanced');
+        box.hidden = !box.hidden;
+      });
+
+      /** Autostart was asked for and this platform can actually provide it. */
+      function wantsAutostart() {
+        return el('cx-autostart').checked
+          && !el('cx-autostart-row').hidden
+          && state.needsInit;
+      }
+
+      function answers() {
+        var backends = [];
+        if (el('cx-backend-claude').checked) backends.push('claude');
+        if (el('cx-backend-pi').checked) backends.push('pi');
+        return {
+          lang: lang,
+          machineName: el('cx-machine').value.trim(),
+          backends: backends,
+          installService: el('cx-autostart').checked && !el('cx-autostart-row').hidden,
+          port: Number(el('cx-port').value) || 3004,
+        };
+      }
+
+      // ── Step 4: start ──────────────────────────────────────────────────────
+
+      var startRows = {};
+
+      function renderStartChecks() {
+        var host = el('cx-start-checks');
+        host.textContent = '';
+        startRows = {};
+        var rows = [['config', L.stepConfig], ['daemon', L.stepDaemon]];
+        if (wantsAutostart()) rows.push(['autostart', L.stepAutostart]);
+        rows.push(['connect', L.stepConnect]);
+        rows.forEach(function (pair) {
+          var row = checkRow(pair[1], L.pending, 'idle');
+          startRows[pair[0]] = row.lastChild;
+          host.appendChild(row);
+        });
+      }
+
+      function markStart(key, tone, text) {
+        if (!startRows[key]) return;
+        startRows[key].className = 'check-value ' + tone;
+        startRows[key].textContent = text;
+      }
+
+      async function runStart() {
+        setBusy(true);
+        setStatus('pending', L.starting);
+        el('cx-start-note').hidden = true;
+        renderStartChecks();
+        try {
+          markStart('config', 'warn', L.running);
+          var port = Number(el('cx-port').value) || 3004;
+          if (state.needsInit) {
+            var result = await invoke('setup_run_init', {
+              run: 'start', bin: state.cortexBin, answers: answers(),
+            });
+            state.endpoint = {
+              url: result.uiUrl || ('http://127.0.0.1:' + port),
+              token: result.clientToken,
+            };
+            state.serverVersion = result.version || state.serverVersion;
+          } else {
+            var endpoint = await invoke('setup_enable_ui', {
+              run: 'start', bin: state.cortexBin, port: port,
+            });
+            state.endpoint = { url: endpoint.url, token: endpoint.token };
+          }
+          markStart('config', 'ok', L.okMark);
+
+          markStart('daemon', 'warn', L.running);
+          var ready = await invoke('setup_start_daemon', {
+            run: 'start',
+            bin: state.cortexBin,
+            url: state.endpoint.url,
+            token: state.endpoint.token,
+          });
+          if (!ready) {
+            markStart('daemon', 'err', L.failed(''));
+            showNote(el('cx-start-note'), 'err', L.daemonSlow);
+            setBusy(false);
+            setStatus('err', L.daemonSlow);
+            return;
+          }
+          markStart('daemon', 'ok', L.okMark);
+
+          // Enabling the service is the last thing that may fail without invalidating the install,
+          // so a failure is a note, not an abort.
+          if (wantsAutostart()) {
+            markStart('autostart', 'warn', L.running);
+            try {
+              var enabled = await invoke('setup_enable_autostart', { run: 'start' });
+              markStart('autostart', enabled ? 'ok' : 'idle', enabled ? L.okMark : L.absent);
+            } catch (e) {
+              markStart('autostart', 'warn', L.autostartFailed);
+              showNote(el('cx-start-note'), 'warn', L.autostartFailed);
+            }
+          }
+
+          markStart('connect', 'warn', L.running);
+          await invoke('connect', {
+            serverUrl: state.endpoint.url,
+            token: state.endpoint.token,
+            local: { cortexBin: state.cortexBin, serverVersion: state.serverVersion || null },
+          });
+          markStart('connect', 'ok', L.okMark);
+          setStatus('ok', L.done);
+          setTimeout(function () { window.location.href = 'index.html'; }, 400);
+        } catch (e) {
+          setBusy(false);
+          var message = String(e && e.message ? e.message : e);
+          showNote(el('cx-start-note'), 'err', message);
+          setStatus('err', L.failed(message.split('\n')[0]));
+        }
+      }
+
+      // ── Navigation ─────────────────────────────────────────────────────────
+
+      function goto(step) {
+        state.step = step;
+        renderSteps();
+        btnNext.textContent = nextLabel();
+        setStatus('', '');
+        if (step === 1 && !state.needsInstall) {
+          showNote(el('cx-install-note'), '', L.installSkipped);
+        }
+        if (step === 2) renderConfig();
+        if (step === 3) renderStartChecks();
+      }
+
+      btnBack.addEventListener('click', function () {
+        if (state.busy) return;
+        if (state.step === 0) { window.location.href = 'connect.html'; return; }
+        goto(state.step - 1);
+      });
+
+      btnNext.addEventListener('click', function () {
+        if (state.busy) return;
+        if (state.step === 0) {
+          if (!state.probe || !state.probe.nodeOk) { runProbe(); return; }
+          // A supported install is already here — the install step has nothing to do, so skip it.
+          goto(state.needsInstall ? 1 : 2);
+          return;
+        }
+        if (state.step === 1) { runInstall(); return; }
+        if (state.step === 2) { goto(3); return; }
+        runStart();
+      });
+
+      // ── Boot ───────────────────────────────────────────────────────────────
+
+      applyLang();
+      renderSteps();
+      runProbe();
+    }());
+  </script>
+</body>
+</html>

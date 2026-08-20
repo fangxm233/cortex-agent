@@ -10,30 +10,32 @@ use std::path::Path;
 
 const INDEX: &str = "index.html";
 
-/// Binary-embedded local page: the connection/config screen. This page is a desktop/mobile-shell
-/// artifact — it is NOT part of the server-delivered OTA bundle (the server only builds the SPA), so
-/// resolving it from the active frontend dir fails whenever an OTA frontend is active. That left the
-/// connection screen unreachable (it SPA-fell-back to index.html → a workbench with no server config
-/// → blank "can't connect"), and bricked the app after a disconnect. Serving it from an embedded copy
-/// makes it reachable regardless of seed/OTA state, on both platforms. Source of truth is
-/// `desktop/ui/connect.html` (also staged into web/dist by `copy-connect` for dev/OTA parity).
-pub const CONNECT_PATH: &str = "connect.html";
-const CONNECT_HTML: &str = include_str!("../../ui/connect.html");
+/// Binary-embedded local pages. These are desktop/mobile-shell artifacts — they are NOT part of the
+/// server-delivered OTA bundle (the server only builds the SPA), so resolving them from the active
+/// frontend dir fails whenever an OTA frontend is active. That left the connection screen unreachable
+/// (it SPA-fell-back to index.html → a workbench with no server config → blank "can't connect"), and
+/// bricked the app after a disconnect. Serving them from an embedded copy makes them reachable
+/// regardless of seed/OTA state, on both platforms — and the setup wizard, which by definition runs
+/// before any server exists, could not work any other way.
+///
+/// Source of truth is `desktop/ui/*.html` (also staged into web/dist by `copy-connect` for dev/OTA
+/// parity).
+const EMBEDDED_PAGES: &[(&str, &str)] = &[
+    ("connect.html", include_str!("../../ui/connect.html")),
+    ("setup.html", include_str!("../../ui/setup.html")),
+];
 
-/// Serve a binary-embedded local page (currently only `connect.html`), bypassing the on-disk frontend
-/// dir entirely. Returns `Some` when the request targets such a page, `None` otherwise (the normal
-/// on-disk `resolve_asset` path then applies). This is what guarantees the connection screen is always
-/// reachable even when the active frontend is an OTA bundle that does not contain it.
+/// Serve a binary-embedded local page, bypassing the on-disk frontend dir entirely. Returns `Some`
+/// when the request targets such a page, `None` otherwise (the normal on-disk `resolve_asset` path
+/// then applies).
 pub fn resolve_embedded(raw_url: &str) -> Option<ResolvedAsset> {
     let rel = sanitize_request_path(raw_url)?;
-    if rel == CONNECT_PATH {
-        return Some(ResolvedAsset {
-            status: 200,
-            mime: content_type(CONNECT_PATH),
-            body: CONNECT_HTML.as_bytes().to_vec(),
-        });
-    }
-    None
+    let (path, html) = EMBEDDED_PAGES.iter().find(|(name, _)| *name == rel)?;
+    Some(ResolvedAsset {
+        status: 200,
+        mime: content_type(path),
+        body: html.as_bytes().to_vec(),
+    })
 }
 
 /// The outcome of resolving one asset request: an HTTP-like status, a MIME type, and the body bytes.
@@ -283,6 +285,81 @@ mod tests {
             assert_eq!(r.status, 200);
             assert_eq!(r.mime, "text/html; charset=utf-8");
             assert!(!r.body.is_empty());
+        }
+    }
+
+    #[test]
+    fn resolve_embedded_serves_the_setup_wizard() {
+        // The wizard is a shell page too — it must be reachable before any frontend exists on disk.
+        let r = super::resolve_embedded("cortexui://localhost/setup.html")
+            .expect("setup.html must resolve from embed");
+        assert_eq!(r.status, 200);
+        assert_eq!(r.mime, "text/html; charset=utf-8");
+        assert!(!r.body.is_empty());
+    }
+
+    /// Collect the argument of every `f('literal')` call in `source` for the given function name.
+    fn call_literals(source: &str, call: &str) -> Vec<String> {
+        let mut found = Vec::new();
+        let needle = format!("{call}('");
+        let mut rest = source;
+        while let Some(at) = rest.find(&needle) {
+            rest = &rest[at + needle.len()..];
+            if let Some(end) = rest.find('\'') {
+                found.push(rest[..end].to_string());
+            }
+        }
+        found
+    }
+
+    #[test]
+    fn every_element_a_shell_page_looks_up_actually_exists_in_it() {
+        // These pages carry their own script with no build step and no framework, so a renamed id is
+        // a silent `null` at runtime — on the one screen a user cannot get past.
+        for (name, html) in EMBEDDED_PAGES {
+            let mut ids = call_literals(html, "getElementById");
+            ids.extend(call_literals(html, "el"));
+            for id in ids {
+                // A literal ending in `-` is a prefix concatenated with an index at runtime
+                // (`cx-panel-` + 0..3), so only the prefix can be checked.
+                let expected = if id.ends_with('-') {
+                    format!("id=\"{id}")
+                } else {
+                    format!("id=\"{id}\"")
+                };
+                assert!(
+                    html.contains(&expected),
+                    "{name} looks up #{id}, which it never defines"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_string_a_shell_page_uses_is_translated_in_both_languages() {
+        // Each page holds an en and a zh table; a key added to one and not the other renders as
+        // `undefined` for half the users, which no type checker here would catch.
+        for (name, html) in EMBEDDED_PAGES {
+            let mut keys: Vec<&str> = Vec::new();
+            let mut rest = *html;
+            while let Some(at) = rest.find("L.") {
+                rest = &rest[at + 2..];
+                let end = rest
+                    .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                    .unwrap_or(rest.len());
+                if end > 0 {
+                    keys.push(&rest[..end]);
+                }
+            }
+            keys.sort_unstable();
+            keys.dedup();
+            for key in keys {
+                let defined = html.matches(&format!("{key}: ")).count();
+                assert!(
+                    defined >= 2,
+                    "{name} uses L.{key} but defines it {defined} time(s) — both en and zh need it"
+                );
+            }
         }
     }
 

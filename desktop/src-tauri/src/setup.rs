@@ -431,6 +431,11 @@ pub struct SetupProbe {
     pub home_exists: bool,
     pub min_node_major: u32,
     pub min_server_version: String,
+    /// This machine's name, offered as the default for the machine-name field.
+    pub hostname: Option<String>,
+    /// Which platform the wizard is running on, so the page does not have to sniff the user agent
+    /// (autostart is offered only where the server can register a service).
+    pub os: &'static str,
     /// The PATH used for every spawn — the first thing to look at when node "is installed" but the
     /// probe cannot see it.
     pub path: Option<String>,
@@ -455,6 +460,8 @@ pub fn setup_probe() -> SetupProbe {
             .is_some_and(|v| version_at_least(v, MIN_SERVER_VERSION)),
         server_version,
         home_exists: cortex_home().is_some_and(|p| p.join("config").is_dir()),
+        hostname: probe_output("hostname", &[]).map(|h| h.trim().to_string()),
+        os: std::env::consts::OS,
         min_node_major: MIN_NODE_MAJOR,
         min_server_version: MIN_SERVER_VERSION.to_string(),
         path: login_path().map(str::to_string),
@@ -561,6 +568,52 @@ pub fn ensure_local_daemon(app: &AppHandle, bin: &str, url: &str, token: &str) -
             wait_until_ready(url, token, STARTUP_READY_TIMEOUT)
         }
         Err(_) => false,
+    }
+}
+
+/// The command that turns the service `cortex init` wrote into an actual autostart.
+///
+/// init writes the unit or plist but deliberately stops there — a terminal wizard can only print the
+/// enable command. The app can run it, which is the difference between a checkbox that means
+/// something and one that writes a file nobody loads. None where the server registers no service at
+/// all (Windows), where the app's own launch-time start is the only autostart there is.
+pub fn autostart_plan(os: &str, home: &str) -> Option<(String, Vec<String>)> {
+    match os {
+        "linux" => Some((
+            "systemctl".to_string(),
+            ["--user", "enable", "--now", "cortex.service"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+        )),
+        "macos" => Some((
+            "launchctl".to_string(),
+            vec![
+                "load".to_string(),
+                "-w".to_string(),
+                format!("{home}/Library/LaunchAgents/cc.cortex.agent-server.plist"),
+            ],
+        )),
+        _ => None,
+    }
+}
+
+/// Enable the autostart service init just wrote. Ok(false) = this platform has none.
+///
+/// A failure here is reported but never fatal: the install itself is complete and usable, and the
+/// user can still start Cortex by opening the app.
+#[tauri::command]
+pub fn setup_enable_autostart(app: AppHandle, run: String) -> Result<bool, String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let Some((program, args)) = autostart_plan(std::env::consts::OS, &home) else {
+        return Ok(false);
+    };
+    let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
+    let outcome = run_streaming(&app, &run, &program, &borrowed)?;
+    if outcome.ok() {
+        Ok(true)
+    } else {
+        Err(outcome.combined())
     }
 }
 
@@ -686,6 +739,22 @@ mod tests {
             Some(0),
             "the wizard never configures a messaging platform"
         );
+    }
+
+    #[test]
+    fn autostart_is_enabled_through_the_platform_service_manager() {
+        let (program, args) = autostart_plan("linux", "/home/u").expect("linux uses systemd --user");
+        assert_eq!(program, "systemctl");
+        assert_eq!(args, vec!["--user", "enable", "--now", "cortex.service"]);
+
+        let (program, args) = autostart_plan("macos", "/Users/u").expect("macos uses launchd");
+        assert_eq!(program, "launchctl");
+        assert_eq!(args.last().unwrap(), "/Users/u/Library/LaunchAgents/cc.cortex.agent-server.plist");
+    }
+
+    #[test]
+    fn autostart_is_not_offered_where_the_server_registers_no_service() {
+        assert!(autostart_plan("windows", "C:\\Users\\u").is_none());
     }
 
     #[test]

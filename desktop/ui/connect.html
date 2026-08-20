@@ -287,6 +287,55 @@
     .status-err .status-dot { background: var(--proto-danger); }
     .status-pending { color: var(--proto-muted); }
 
+    /* ── Chooser: how this app gets a server ── */
+    .option {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: var(--proto-alt);
+      border: 1px solid var(--proto-line);
+      border-radius: 8px;
+      padding: 13px 15px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .option:hover { border-color: var(--proto-accent); background: var(--proto-accent-bg); }
+
+    .option-title {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--proto-ink);
+    }
+
+    .option-desc {
+      display: block;
+      font-size: 11.5px;
+      color: var(--proto-muted);
+      margin-top: 3px;
+    }
+
+    .option-tag {
+      display: inline-block;
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--proto-accent);
+      border: 1px solid var(--proto-accent);
+      border-radius: 4px;
+      padding: 0 4px;
+      margin-left: 7px;
+      vertical-align: 1px;
+    }
+
+    .mobile .option { border-radius: 12px; padding: 16px; background: var(--m-card); border-color: var(--m-card-border); }
+    .mobile .option-title { font-size: 16px; }
+    .mobile .option-desc { font-size: 13px; }
+
     /* Divider + switch link */
     .divider {
       border: none;
@@ -399,6 +448,18 @@
       </div>
     </div>
 
+    <div id="cx-chooser" hidden>
+      <button class="option" id="cx-opt-local" type="button">
+        <span class="option-title"><span id="cx-opt-local-title">Install on this computer</span><span class="option-tag" id="cx-opt-tag">Recommended</span></span>
+        <span class="option-desc" id="cx-opt-local-desc"></span>
+      </button>
+      <button class="option" id="cx-opt-remote" type="button">
+        <span class="option-title" id="cx-opt-remote-title">Connect to a remote server</span>
+        <span class="option-desc" id="cx-opt-remote-desc"></span>
+      </button>
+    </div>
+
+    <div id="cx-remote">
     <div class="field">
       <label class="label" id="cx-label-url" for="cx-server-url">Server URL</label>
       <input
@@ -434,6 +495,7 @@
       <span id="cx-switch-prompt">Already connected?</span>
       <a id="cx-link-switch" href="#" role="button">Switch server</a>
     </div>
+    </div>
   </div>
 
   <script>
@@ -449,6 +511,20 @@
       var btnConnect  = document.getElementById('cx-btn-connect');
       var statusEl    = document.getElementById('cx-status');
       var linkSwitch  = document.getElementById('cx-link-switch');
+      var chooserEl   = document.getElementById('cx-chooser');
+      var remoteEl    = document.getElementById('cx-remote');
+
+      // The local option installs and runs a server on this machine — meaningless on the mobile
+      // shell, which has no npm and no place to run a Node process, so Android goes straight to the
+      // remote form and never sees the chooser.
+      var canInstallLocally = !window.__CORTEX_MOBILE__;
+      var choosing = canInstallLocally;
+
+      // "Back to the chooser" link, appended to the switch-row only when there is a chooser to go
+      // back to.
+      var linkBack = document.createElement('a');
+      linkBack.href = '#';
+      linkBack.setAttribute('role', 'button');
 
       // ── i18n ──────────────────────────────────────────────────────────────
       // Standalone copy of the SPA's language system: same localStorage key (`cortex.lang`), same
@@ -473,6 +549,13 @@
           connected: 'Connected — loading workbench…',
           switchPrompt: 'Already connected?',
           switchServer: 'Switch server',
+          chooseSubtitle: 'Where should Cortex run?',
+          recommended: 'Recommended',
+          localTitle: 'Install on this computer',
+          localDesc: 'Sets up a Cortex server here and connects to it. Needs Node.js.',
+          remoteTitle: 'Connect to a remote server',
+          remoteDesc: 'Use a Cortex server already running somewhere else.',
+          backToChoice: 'Back',
         },
         zh: {
           htmlLang: 'zh-CN',
@@ -492,6 +575,13 @@
           connected: '已连接 — 正在加载工作台…',
           switchPrompt: '已经连接过？',
           switchServer: '切换服务器',
+          chooseSubtitle: 'Cortex 运行在哪里？',
+          recommended: '推荐',
+          localTitle: '在本机安装并启动',
+          localDesc: '在这台电脑上安装 Cortex 服务端并连接，需要 Node.js。',
+          remoteTitle: '连接到远程服务器',
+          remoteDesc: '连接到已经在别处运行的 Cortex 服务端。',
+          backToChoice: '返回',
         },
       };
 
@@ -511,13 +601,20 @@
       function applyLang() {
         L = I18N[lang];
         document.documentElement.lang = L.htmlLang;
-        document.getElementById('cx-subtitle').textContent = L.subtitle;
+        document.getElementById('cx-subtitle').textContent = choosing ? L.chooseSubtitle : L.subtitle;
+        document.getElementById('cx-opt-local-title').textContent = L.localTitle;
+        document.getElementById('cx-opt-local-desc').textContent = L.localDesc;
+        document.getElementById('cx-opt-remote-title').textContent = L.remoteTitle;
+        document.getElementById('cx-opt-remote-desc').textContent = L.remoteDesc;
+        document.getElementById('cx-opt-tag').textContent = L.recommended;
+        linkBack.textContent = L.backToChoice;
         document.getElementById('cx-label-url').textContent = L.serverUrl;
         document.getElementById('cx-label-token').textContent = L.clientToken;
         btnTest.textContent = L.test;
         btnConnect.textContent = L.connect;
         document.getElementById('cx-switch-prompt').textContent = L.switchPrompt;
         linkSwitch.textContent = L.switchServer;
+
         document.getElementById('cx-lang-en').classList.toggle('active', lang === 'en');
         document.getElementById('cx-lang-zh').classList.toggle('active', lang === 'zh');
       }
@@ -531,7 +628,35 @@
 
       document.getElementById('cx-lang-en').addEventListener('click', function () { setLang('en'); });
       document.getElementById('cx-lang-zh').addEventListener('click', function () { setLang('zh'); });
+
+      /** Swap between the chooser and the remote-server form. */
+      function showChooser(on) {
+        choosing = on && canInstallLocally;
+        chooserEl.hidden = !choosing;
+        remoteEl.hidden = choosing;
+        document.getElementById('cx-subtitle').textContent = choosing ? L.chooseSubtitle : L.subtitle;
+      }
+
+      document.getElementById('cx-opt-local').addEventListener('click', function () {
+        window.location.href = 'setup.html';
+      });
+      document.getElementById('cx-opt-remote').addEventListener('click', function () {
+        showChooser(false);
+        urlInput.focus();
+      });
+      linkBack.addEventListener('click', function (e) {
+        e.preventDefault();
+        setStatus('', '');
+        showChooser(true);
+      });
+      if (canInstallLocally) {
+        var switchRow = linkSwitch.parentNode;
+        switchRow.appendChild(document.createTextNode(' · '));
+        switchRow.appendChild(linkBack);
+      }
+
       applyLang();
+      showChooser(canInstallLocally);
 
       // ── Helpers ───────────────────────────────────────────────────────────
 
