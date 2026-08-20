@@ -8,4 +8,4 @@ Provider adapters carry one vendor protocol each: routes, body model, auth form,
 | base.py | types | Defines the adapter protocol and decisions |
 | anthropic.py | adapter | Carries Anthropic API-key and subscription OAuth rows |
 | deepseek_chat_completions.py | adapter | Carries DeepSeek chat completions policy under a frozen completion cap |
-| openai_codex_responses.py | adapter | Carries the Codex responses OAuth row and its token host |
+| openai_codex_responses.py | adapter | Carries current Codex responses OAuth and terminal events |

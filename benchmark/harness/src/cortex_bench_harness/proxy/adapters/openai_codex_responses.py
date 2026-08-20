@@ -25,7 +25,7 @@ TOKEN_PATH = "/oauth/token"
 ACCOUNT_ID_HEADER = "chatgpt-account-id"
 JWT_ACCOUNT_CLAIM = "https://api.openai.com/auth"
 ACCOUNT_ID_FIELD = "chatgpt_account_id"
-# Native codex-cli 0.117.0 accepts response.completed as success. It retries a
+# Current native codex-cli accepts response.completed as success. It retries a
 # response.done stream as incomplete, while older callers may still emit it.
 TERMINAL_WIRE_EVENT = "response.completed"
 TERMINAL_EVENTS = frozenset({

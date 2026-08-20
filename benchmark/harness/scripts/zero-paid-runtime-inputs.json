@@ -23,12 +23,13 @@
     },
     "codex": {
       "package": "@openai/codex",
-      "version": "0.117.0",
-      "npm_integrity": "sha512-UmWo39UCGqFB2ImWwtI/TOnVQ1M2JIbCeDVBzOtG57WuTIPBNvDyluPNrzNv6eAcTYpyDLC5+nT5k49LrzEwow==",
-      "tree_sha256": "1e37021472075411067efe1a0d4690e1f3f1eb4a2872bb86d3a83044dbb17227",
-      "platform_package": "@openai/codex@0.117.0-linux-x64",
-      "platform_npm_integrity": "sha512-kvOZtyLAgFEFSFRJXVzTnFYoZgZya9ttpxDYHR+diBgDBlcBp1B6pRiIGUmCOauxpHtTFUEyisvhKQquZbAtfg==",
-      "native_binary_sha256": "2bee4e33ec222241606e6c5ac3e89a0d3c860fb1684a66e9f134da227b0a2699",
+      "version": "0.148.0",
+      "npm_integrity": "sha512-bh5kH9+BMrFaHGmLeoSansPdfRksvr4UXzjQInns/KRO7r8VJ+6AAW+SqUsE8XcG3+OW/mI4EEy8Gpo9UDXGvQ==",
+      "tree_sha256": "3802f232bd5a6493417dbd0ac975dab742fc7029093508c63d66fe2805362aaf",
+      "platform_package": "@openai/codex@0.148.0-linux-x64",
+      "platform_npm_integrity": "sha512-uDT9s7AfMr9xLuJX3ZLVWHgHkUpCnZ33CZjZEdVQhrYCIErkDHsCW5TG290nNjaKngK0WxGt5uCcxeUHv9MWWA==",
+      "native_binary_path": "vendor/x86_64-unknown-linux-musl/bin/codex",
+      "native_binary_sha256": "ac2cfed85fb647d61e0150b8548102b330e4799d9d81ad5d354de701edf6b074",
       "target": "x86_64-unknown-linux-musl"
     }
   }

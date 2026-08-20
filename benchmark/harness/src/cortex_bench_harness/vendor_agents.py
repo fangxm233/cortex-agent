@@ -565,5 +565,16 @@ class PreinstalledCodex(VendorLifecycleMixin, Codex):
     _REMOTE_CODEX_HOME = TRIAL_ROOT / "codex-home"
     _REMOTE_CODEX_SECRETS_DIR = TRIAL_ROOT / "codex-secrets"
 
+    async def setup(self, environment: BaseEnvironment) -> None:
+        await super().setup(environment)
+        auth = next(
+            item for item in self._codex_runtime_files() if item.path.name == "auth.json"
+        )
+        path = self._resolve_auth_json_path()
+        assert path is not None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(auth.content, encoding="utf-8")
+        path.chmod(0o600)
+
     def _resolve_auth_json_path(self) -> Path | None:
-        return self.logs_dir / "trial-home/codex-home/auth.json"
+        return self.logs_dir / "codex-dummy-auth.json"

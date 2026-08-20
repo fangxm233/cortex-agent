@@ -1,0 +1,50 @@
+{
+  "schema_version": "cortex-bench-codex-current-contract/1",
+  "observed_at": "2026-08-20T17:58:58Z",
+  "artifact_pin": {
+    "package": "@openai/codex",
+    "version": "0.148.0",
+    "npm_integrity": "sha512-bh5kH9+BMrFaHGmLeoSansPdfRksvr4UXzjQInns/KRO7r8VJ+6AAW+SqUsE8XcG3+OW/mI4EEy8Gpo9UDXGvQ==",
+    "npm_shasum": "069f15c77cf3b26c62c129bc6ca1ff269a226c09",
+    "platform_package": "@openai/codex@0.148.0-linux-x64",
+    "platform_npm_integrity": "sha512-uDT9s7AfMr9xLuJX3ZLVWHgHkUpCnZ33CZjZEdVQhrYCIErkDHsCW5TG290nNjaKngK0WxGt5uCcxeUHv9MWWA==",
+    "platform_npm_shasum": "5d94491014b66b5e7af20342f570de7bd0015935",
+    "native_binary_sha256": "ac2cfed85fb647d61e0150b8548102b330e4799d9d81ad5d354de701edf6b074"
+  },
+  "account_catalog": {
+    "default_model": "gpt-5.6-sol",
+    "default_basis": "highest-priority visible authenticated catalog entry",
+    "supported_visible_models": [
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-5.5",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.3-codex-spark"
+    ],
+    "raw_catalog_sha256": "262fcb4b7210ad284e72ec4922bf595627e57d31f5680bfa7a9116b25ab83558"
+  },
+  "dummy_auth_wire": {
+    "version_output": "codex-cli 0.148.0",
+    "request_count": 1,
+    "target": "/codex/responses",
+    "model": "gpt-5.6-sol",
+    "max_output_tokens_present": false,
+    "host_credential_present": false,
+    "synthetic_response_completed": true
+  },
+  "authenticated_transport_probes": {
+    "generation_requests": 0,
+    "http": {
+      "target": "https://chatgpt.com/backend-api/",
+      "status": 404,
+      "doctor_classification": "reachable"
+    },
+    "responses_websocket": {
+      "status": 101,
+      "doctor_classification": "handshake succeeded"
+    },
+    "raw_doctor_sha256": "55f08dbab695c8ed7d9d5dfeaa221b33bbf4241c72dcf8ca73373c0b3e452edf"
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "schema_version": "cortex-bench-codex-upgrade-validation/1",
+  "status": "passed",
+  "recorded_at": "2026-08-20T19:32:49Z",
+  "implementation_commits": [
+    "418aca2685ebf84507540613edc6fdbe1b813a04",
+    "311b9e6a2b6a3992e4a92665dd05932ee352486d"
+  ],
+  "latest_stable_query": {
+    "package": "@openai/codex",
+    "dist_tag_latest": "0.148.0",
+    "version": "0.148.0",
+    "npm_integrity": "sha512-bh5kH9+BMrFaHGmLeoSansPdfRksvr4UXzjQInns/KRO7r8VJ+6AAW+SqUsE8XcG3+OW/mI4EEy8Gpo9UDXGvQ==",
+    "npm_shasum": "069f15c77cf3b26c62c129bc6ca1ff269a226c09",
+    "platform_package": "@openai/codex@0.148.0-linux-x64",
+    "platform_npm_integrity": "sha512-uDT9s7AfMr9xLuJX3ZLVWHgHkUpCnZ33CZjZEdVQhrYCIErkDHsCW5TG290nNjaKngK0WxGt5uCcxeUHv9MWWA==",
+    "platform_npm_shasum": "5d94491014b66b5e7af20342f570de7bd0015935",
+    "installed_tree_sha256": "3802f232bd5a6493417dbd0ac975dab742fc7029093508c63d66fe2805362aaf",
+    "native_binary_sha256": "ac2cfed85fb647d61e0150b8548102b330e4799d9d81ad5d354de701edf6b074"
+  },
+  "account_model_catalog": {
+    "default_model": "gpt-5.6-sol",
+    "default_basis": "highest-priority visible authenticated catalog entry",
+    "supported_visible_models": [
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-5.5",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.3-codex-spark"
+    ],
+    "raw_catalog_sha256": "262fcb4b7210ad284e72ec4922bf595627e57d31f5680bfa7a9116b25ab83558"
+  },
+  "authenticated_transport_probes": {
+    "generation_requests": 0,
+    "doctor_http": {
+      "target": "https://chatgpt.com/backend-api/",
+      "observed_status": 404,
+      "doctor_classification": "reachable"
+    },
+    "doctor_responses_websocket": {
+      "observed_status": 101,
+      "doctor_classification": "handshake succeeded"
+    },
+    "doctor_raw_sha256": "55f08dbab695c8ed7d9d5dfeaa221b33bbf4241c72dcf8ca73373c0b3e452edf"
+  },
+  "runtime_contract": {
+    "model": "gpt-5.6-sol",
+    "native_request_max_output_tokens_present": false,
+    "trial_limits": {
+      "max_provider_requests": 500,
+      "max_cost_usd": "2.00",
+      "deadline_seconds": 1800,
+      "max_output_tokens": 65536,
+      "request_body_limit_bytes": 67108864,
+      "response_body_limit_bytes": 67108864
+    },
+    "credential_boundary": "real credential remained host-proxy-only; containers received trial-scoped dummy JWT auth"
+  },
+  "images": [
+    {
+      "task_id": "chess-best-move",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:7ec70cbe5726a332ec7c559d7145f82c67317a529457b071b7eae44032b6e728"
+    },
+    {
+      "task_id": "constraints-scheduling",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:31859b5bb36e1d507e330c3c75dc7adf830137fc72e0e4d1a88e68f48fdb903c"
+    },
+    {
+      "task_id": "db-wal-recovery",
+      "image_ref": "cortex-terminal-bench-2.1@sha256:d2a78b8e5aa9c842d9dfa21ceed714859ff5f06b141eb15880c62850158ff5cc"
+    }
+  ],
+  "ttl_preflight": {
+    "status": "passed",
+    "pending_trials": 3,
+    "concurrency": 3,
+    "expiry_epoch_ms": 1788021273000,
+    "required_expiry_epoch_ms": 1787257279007,
+    "remaining_after_required_ms": 763993993,
+    "refresh_attempted": false,
+    "routes_armed": 0
+  },
+  "validation": [
+    {
+      "name": "tdd_red",
+      "result": "expected failure",
+      "summary": "12 failed, 242 passed before implementation"
+    },
+    {
+      "name": "scoped_codex_contracts",
+      "result": "passed",
+      "summary": "373 passed"
+    },
+    {
+      "name": "capability_evidence",
+      "result": "passed",
+      "summary": "42 passed"
+    },
+    {
+      "name": "three_route_and_ttl",
+      "result": "passed",
+      "summary": "4 passed; exact-boundary wave, short-token zero-arm, expired-token zero-arm, and one-wave enforcement"
+    },
+    {
+      "name": "image_reproduction",
+      "result": "passed",
+      "summary": "three Codex variants rebuilt twice with identical digests and one in-image synthetic request each"
+    },
+    {
+      "name": "normal_full_suite",
+      "result": "passed",
+      "summary": "1114 passed, 24 skipped"
+    },
+    {
+      "name": "codex_real_docker_lifecycle",
+      "result": "passed",
+      "summary": "1 passed; terminal-success, one request, one arm, one revoke, finite reward, clean credential scan"
+    }
+  ],
+  "optional_full_docker_matrix": {
+    "result": "not_applicable_to_codex_validation",
+    "observed": "20 failed and 5 fixture errors before prerequisite repair",
+    "causes": [
+      "legacy PI Docker tests require a pinned PI image absent from the local daemon",
+      "paid-launch tests required ignored dist artifacts, which were rebuilt before the passing normal full suite"
+    ],
+    "codex_test_status": "passed independently before and after the full-suite run"
+  },
+  "historical_records_preserved": [
+    "benchmark/harness/tests/fixtures/vendor-wire/codex/contract.json",
+    "benchmark/campaigns/results/terminal-bench-2.1-vendor-codex-staged-2026-08-19.json",
+    "benchmark/campaigns/results/terminal-bench-2.1-vendor-codex-staged-r2-2026-08-20.json"
+  ]
+}

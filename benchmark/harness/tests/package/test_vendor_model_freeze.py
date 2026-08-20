@@ -34,7 +34,7 @@ ISOLATED_ENV = "CORTEX_VENDOR_MODEL_FREEZE_ISOLATED"
 COMMANDS = {"pi": "pi", "claude-code": "claude", "codex": "codex"}
 FROZEN_MODELS = {
     "claude-code": "claude-sonnet-5",
-    "codex": "gpt-5.4",
+    "codex": "gpt-5.6-sol",
 }
 CLAUDE_MODEL_ENVIRONMENT = {
     "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL",
@@ -105,7 +105,7 @@ def test_subscription_campaigns_freeze_the_declared_models() -> None:
     )
 
     assert claude["vendor_cli_version"] == "2.1.232"
-    assert codex["vendor_cli_version"] == "0.117.0"
+    assert codex["vendor_cli_version"] == "0.148.0"
     assert claude["model"] == FROZEN_MODELS["claude-code"]
     assert codex["model"] == FROZEN_MODELS["codex"]
     assert claude_wire["observed_model_identifiers"]["sonnet"] == claude["model"]

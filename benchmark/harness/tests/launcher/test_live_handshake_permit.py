@@ -41,7 +41,7 @@ HOST_CREDENTIAL = "sk-ant-oat01-LIVE-HANDSHAKE-HOST-ONLY"
 MODEL = "claude-sonnet-5"
 BODY_LIMIT = 67_108_864
 CODEX_CAPABILITY_ID = "codex-subscription"
-CODEX_MODEL = "gpt-5.4"
+CODEX_MODEL = "gpt-5.6-sol"
 CODEX_EXPIRY_SECONDS = 2_000_000_000
 CODEX_HOST_CREDENTIAL = ".".join((
     base64.b64encode(b'{"alg":"none","typ":"JWT"}').decode().rstrip("="),
@@ -192,7 +192,6 @@ def codex_request() -> LiveHandshakeRequest:
         "reasoning": {"effort": "low"},
         "store": False,
         "stream": True,
-        "max_output_tokens": 16,
     }
     import zstandard
     return LiveHandshakeRequest(
@@ -202,7 +201,7 @@ def codex_request() -> LiveHandshakeRequest:
             "content-type": "application/json",
             "content-encoding": "zstd",
             "originator": "codex_exec",
-            "user-agent": "codex_exec/0.117.0",
+            "user-agent": "codex_exec/0.148.0",
         },
         body=zstandard.ZstdCompressor().compress(
             json.dumps(document, separators=(",", ":")).encode()),
@@ -213,7 +212,7 @@ def run_codex_handshake(tmp_path: Path, upstream: str) -> Path:
     spec = handshake_spec(access_expires_at_ms=CODEX_EXPIRY_SECONDS * 1000)
     permit = issue_live_handshake_permit(
         capability_id=CODEX_CAPABILITY_ID, model=CODEX_MODEL,
-        limits=handshake_limits(), upstream_base_url=upstream,
+        limits=handshake_limits(max_output_tokens=65_536), upstream_base_url=upstream,
         spec=spec, request=codex_request(),
     )
     return run_live_handshake(
@@ -435,6 +434,9 @@ def test_codex_53_byte_complete_upstream_refusal_is_attributed_to_proxy_accounti
             run_codex_handshake(tmp_path, url)
 
     assert len(upstream.requests) == 1  # type: ignore[attr-defined]
+    forwarded = live_handshake._request_document(  # type: ignore[attr-defined]
+        upstream.requests[0], "openai-codex-responses")  # type: ignore[attr-defined]
+    assert "max_output_tokens" not in forwarded
     assert upstream.response_bytes_sent == 53  # type: ignore[attr-defined]
     assert isinstance(raised.value.__cause__, IncompleteRead)
     assert raised.value.__cause__.partial == TRUNCATED_SSE_53_BYTES

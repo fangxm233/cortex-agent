@@ -49,15 +49,12 @@ arms:
   - name: pure-codex
     kind: vendor-baseline
     vendor_agent: codex
-    vendor_cli_version: "0.117.0"
+    vendor_cli_version: "0.148.0"
     provider: openai-codex
-    # gpt-5.4 is the exact intersection of the pinned CLI 0.117.0 embedded catalog and the live
-    # account catalog. Choosing that intersection protects baseline fidelity: the declaration is
-    # both known to the pinned runtime and exposed to this account. Evidence:
-    # context/projects/cortex-self/manager/b54e/artifact.md
-    # CLI 0.117.0 loopback proof observes this exact request model without substitution.
-    # Provider acceptance: unverified-until-live; no live provider request was made.
-    model: gpt-5.4
+    # The authenticated 0.148.0 account catalog ranks gpt-5.6-sol first, and the isolated native
+    # CLI loopback proof observes this exact request model without substitution.
+    # Provider acceptance: unverified-until-live; transport-only doctor probes made no generation.
+    model: gpt-5.6-sol
     credential_capability: codex-subscription
     limits:
       max_provider_requests: 500
@@ -71,12 +68,12 @@ network:
 tasks:
   - task_id: chess-best-move
     path: tasks/terminal-bench-2.1/codex/chess-best-move
-    image_ref: cortex-terminal-bench-2.1@sha256:4a8e42fae8518797c628a0da09a2afb518d4723ee040856e21d1a2d12072bec5
+    image_ref: cortex-terminal-bench-2.1@sha256:7ec70cbe5726a332ec7c559d7145f82c67317a529457b071b7eae44032b6e728
   - task_id: constraints-scheduling
     path: tasks/terminal-bench-2.1/codex/constraints-scheduling
-    image_ref: cortex-terminal-bench-2.1@sha256:2e7dc993cfb9ccf308fb818db66731660f9d2dcf1a15e67f196c700ac8603046
+    image_ref: cortex-terminal-bench-2.1@sha256:31859b5bb36e1d507e330c3c75dc7adf830137fc72e0e4d1a88e68f48fdb903c
   - task_id: db-wal-recovery
     path: tasks/terminal-bench-2.1/codex/db-wal-recovery
-    image_ref: cortex-terminal-bench-2.1@sha256:f7c0302e7d223938b9d46bc81ad0bf3df7be162d90073add0fecda0b210791eb
+    image_ref: cortex-terminal-bench-2.1@sha256:d2a78b8e5aa9c842d9dfa21ceed714859ff5f06b141eb15880c62850158ff5cc
 
 comparisons: []

@@ -27,20 +27,22 @@ trap cleanup EXIT
 
 usage() {
   cat <<'EOF'
-Usage: provision-terminal-bench-images.sh [--acquire] [--capture-digests] [--cortex-smoke]
+Usage: provision-terminal-bench-images.sh [--acquire] [--capture-digests] [--vendor <name>] [--cortex-smoke]
 
-Provision every task/vendor variant, or the one declared Cortex smoke image.
+Provision every task/vendor variant, one vendor's variants, or the Cortex smoke image.
 The command builds with no network or pull and prints immutable image references.
 
 Options:
   --acquire          Fetch missing pinned sources, images, and verifier wheels.
   --capture-digests  Bootstrap newly declared image digests without accepting them.
+  --vendor           Build only pi, claude-code, or codex variants.
   --cortex-smoke     Build only the committed Cortex-compatible smoke image.
   -h, --help         Show this help.
 
 Examples:
   benchmark/harness/scripts/provision-terminal-bench-images.sh
   benchmark/harness/scripts/provision-terminal-bench-images.sh --acquire
+  benchmark/harness/scripts/provision-terminal-bench-images.sh --vendor codex
   benchmark/harness/scripts/provision-terminal-bench-images.sh --cortex-smoke
 EOF
 }
@@ -49,9 +51,15 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --acquire) ACQUIRE=1 ;;
     --capture-digests) CAPTURE_DIGESTS=1 ;;
+    --vendor)
+      case "${2:-}" in
+        pi|claude-code|codex) VENDORS=("$2"); shift ;;
+        *) printf 'invalid --vendor: %s (valid values: pi, claude-code, codex)\n' "${2:-}" >&2; exit 2 ;;
+      esac
+      ;;
     --cortex-smoke) CORTEX_SMOKE=1 ;;
     -h|--help) usage; exit 0 ;;
-    *) printf 'unknown argument: %s (valid options: --acquire, --capture-digests, --cortex-smoke, --help, -h)\n' "$1" >&2; exit 2 ;;
+    *) printf 'unknown argument: %s (valid options: --acquire, --capture-digests, --vendor, --cortex-smoke, --help, -h)\n' "$1" >&2; exit 2 ;;
   esac
   shift
 done
@@ -151,7 +159,7 @@ stage_codex() {
   local root platform native
   root="${CODEX_ROOT:-$(dirname "$(dirname "$(readlink -f "$(command -v codex)")")")}"
   platform="$root/node_modules/@openai/codex-linux-x64/package.json"
-  native="$root/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex/codex"
+  native="$root/node_modules/@openai/codex-linux-x64/$(runtime_field codex native_binary_path)"
   require_file "$root/package.json"; require_file "$root/bin/codex.js"
   require_file "$platform"; require_file "$native"
   verify 'Codex package' "$(node -p 'require(process.argv[1]).name' "$root/package.json")" \
@@ -172,11 +180,13 @@ stage_runtimes() {
     'cortex-bench-vendor-runtime-inputs/2'
   stage_node
   mkdir -p "$BUILD_ROOT/runtime/vendors"
-  stage_pi
-  if [[ "$CORTEX_SMOKE" == 1 ]]; then return; fi
-  stage_claude
-  stage_codex
+  if [[ "$CORTEX_SMOKE" == 1 ]]; then stage_pi; return; fi
   for vendor in "${VENDORS[@]}"; do
+    case "$vendor" in
+      pi) stage_pi ;;
+      claude-code) stage_claude ;;
+      codex) stage_codex ;;
+    esac
     verify "$vendor manifest version" "$(json_text "vendors['$vendor'].version")" \
       "$(runtime_field "$vendor" version)"
   done
@@ -201,6 +211,7 @@ stage_verifier() {
     requirements+=("$requirement")
   done
   uv pip install --offline --no-index --find-links "$WHEELHOUSE" \
+    --python "$(uv python find --system "$python_version")" \
     --python-version "$python_version" --python-platform x86_64-manylinux_2_17 \
     --target "$tree" "${requirements[@]}" >/dev/null
   find "$tree" -type d -name __pycache__ -prune -exec rm -r {} +

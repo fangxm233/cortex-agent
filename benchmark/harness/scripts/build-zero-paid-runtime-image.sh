@@ -92,7 +92,7 @@ stage_codex() {
   local root platform native
   root="${CODEX_ROOT:-$(dirname "$(dirname "$(readlink -f "$(command -v codex)")")")}"
   platform="$root/node_modules/@openai/codex-linux-x64/package.json"
-  native="$root/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex/codex"
+  native="$root/node_modules/@openai/codex-linux-x64/$(vendor_field native_binary_path)"
   require_file "$root/package.json"; require_file "$root/bin/codex.js"
   require_file "$platform"; require_file "$native"
   verify 'Codex package' "$(node -p 'require(process.argv[1]).name' "$root/package.json")" \

@@ -27,14 +27,14 @@ CLAUDE_OFFLINE_CONTRACT = {
     "claude_code_version": "2.1.232",
 }
 CODEX_OFFLINE_CONTRACT = {
-    "implementation_commit": "d8a15809c097f0267aba48715cd59cbd976b5c89",
-    "codex_cli_version": "0.117.0",
+    "implementation_commit": "418aca2685ebf84507540613edc6fdbe1b813a04",
+    "codex_cli_version": "0.148.0",
     "p0_wire_capture_sha256":
-        "6e7afca2e767ac7c4c12a8a2fa735cdaf00461d09178369fc8b7dd63df6c7eda",
+        "8bec2c1f7fe7ce3140ae87ad69c9e0625847b6a200b15b8a5fb5750bc5ba8479",
     "vendor_lifecycle_test_sha256":
-        "d33fa9b686cb9776b72221337ae9cb26aa00a17939152d67ece5a1305ee47880",
+        "ae964ff4d8c98ad1e22403460d6c10a04b3e2e9dee9be8390d9c47c53a138e8c",
     "model_freeze_test_sha256":
-        "0b109fafadfefd8b9f71771e3fa7d2b9dbbd3eb2d3893b097c56f862ea59ce67",
+        "47b49eed19a719d0a16a249aefb1526362ba3716a6c2662baf096e5222a7ff51",
 }
 CLAUDE_P0_CAPTURE_SHA256 = "fcc17df7ff3e2d7e618856e11479a315b72c7dcdfa85984e45c6f2564eccda45"
 CLAUDE_P0_BETA_HEADER = (

@@ -45,6 +45,7 @@ from .trial_proxy import (
 MAX_PROVIDER_REQUESTS = 1
 MAX_DEADLINE_SECONDS = 120
 MAX_OUTPUT_TOKENS = 256
+MAX_CODEX_OUTPUT_TOKENS = 65_536
 MAX_BODY_BYTES = 67_108_864
 RUN_CONFIG_FILENAME = "live-handshake-run-config.json"
 REQUEST_METADATA_FILENAME = "live-handshake-request.json"
@@ -199,7 +200,7 @@ def _authorize(
     if not isinstance(model, str) or not model:
         raise LiveHandshakePermitRefused("live handshake model must be non-empty text")
     key, metadata = _require_offline_capability(capability_id)
-    _require_limits(limits, spec)
+    _require_limits(limits, spec, key.protocol)
     _require_request(request, key, limits, spec)
     return _HandshakeAuthority(
         capability_id, key, MappingProxyType(dict(metadata)), model,
@@ -234,10 +235,16 @@ def _offline_metadata(key, row) -> Mapping[str, object]:
     return {field: document[field] for field in fields}
 
 
-def _require_limits(limits: Mapping[str, object], spec: TrialProxySpec) -> None:
+def _require_limits(
+    limits: Mapping[str, object], spec: TrialProxySpec, protocol: str,
+) -> None:
     _require_exact(limits, "max_provider_requests", MAX_PROVIDER_REQUESTS)
     _require_at_most(limits, "deadline_seconds", MAX_DEADLINE_SECONDS)
-    _require_at_most(limits, "max_output_tokens", MAX_OUTPUT_TOKENS)
+    output_ceiling = (
+        MAX_CODEX_OUTPUT_TOKENS
+        if protocol == "openai-codex-responses" else MAX_OUTPUT_TOKENS
+    )
+    _require_at_most(limits, "max_output_tokens", output_ceiling)
     _require_bound("request_body_limit_bytes", spec.request_body_limit_bytes, MAX_BODY_BYTES)
     _require_bound("response_body_limit_bytes", spec.response_body_limit_bytes, MAX_BODY_BYTES)
 
@@ -268,6 +275,8 @@ def _require_request(
     document = _request_document(request.body, key.protocol)
     field = _output_cap_field(key.protocol)
     cap = document.get(field)
+    if cap is None and key.protocol == "openai-codex-responses":
+        return
     declared = limits["max_output_tokens"]
     if not isinstance(cap, int) or isinstance(cap, bool) or not 0 < cap <= declared:
         raise LiveHandshakePermitRefused("live handshake request output cap exceeds its permit")

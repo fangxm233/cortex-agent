@@ -1,6 +1,6 @@
-# input:  Codex vendor-wire fixture, Harbor Codex agent, OAuth adapter
-# output: exact CLI pin, auth, request, SSE, and expiry contract assertions
-# pos:    Contract test for the zero-paid Codex native wire capture
+# input:  current and historical Codex wire fixtures, Harbor agent, OAuth adapter
+# output: exact pins, auth, request, SSE, probes, and expiry assertions
+# pos:    Contract tests for Codex native wire evidence
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import base64
@@ -45,6 +45,25 @@ def test_pin_matches_host_and_harbor_version_check() -> None:
         "parsed_version": Codex.parse_version(object.__new__(Codex), pin["cli_output"]),
         "match_required": True,
     }
+
+
+def test_current_pin_model_native_default_and_transport_probes_are_explicit() -> None:
+    fixture = load_fixture("current-contract.json")
+    pin = fixture["artifact_pin"]
+    catalog = fixture["account_catalog"]
+    wire = fixture["dummy_auth_wire"]
+    probes = fixture["authenticated_transport_probes"]
+
+    assert pin["version"] == "0.148.0"
+    assert pin["platform_package"] == "@openai/codex@0.148.0-linux-x64"
+    assert catalog["default_model"] == wire["model"] == "gpt-5.6-sol"
+    assert catalog["supported_visible_models"][0] == "gpt-5.6-sol"
+    assert wire["request_count"] == 1
+    assert wire["max_output_tokens_present"] is False
+    assert wire["host_credential_present"] is False
+    assert probes["generation_requests"] == 0
+    assert probes["http"]["status"] == 404
+    assert probes["responses_websocket"]["status"] == 101
 
 
 def test_minimal_auth_is_adapter_compatible() -> None:
