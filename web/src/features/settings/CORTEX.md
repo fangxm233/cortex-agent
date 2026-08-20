@@ -6,7 +6,7 @@ Panels read snapshots; Usage independently queries the shared web usage feature.
 | filename | role | function |
 |---|---|---|
 | SettingsProvider.tsx | provider | Provides global open and close for the modal |
-| SettingsModal.tsx | view | Routes config and independent panels including Usage |
+| SettingsModal.tsx | view | Routes panels and lets Usage own its title/action header |
 | SettingsPanels.tsx | view | Renders non-runtime platform and config sections |
 | AccountsPanel.tsx | view | Filters providers and manages account login/logout |
 | AccountsPanel.test.tsx | test | Tests account rows and native actions |
