@@ -118,10 +118,16 @@
     "live_gate": "The cited evidence establishes no predictive zero-request availability gate for the exact /v1/messages OAuth/model path. Unless a provider-documented no-billing signal for that path is obtained, the only promotion gate is a separately approved consume-once request on the exact path. Failure remains fail-closed with no automatic or manual retry; success may promote the capability.",
     "required_follow_up_before_another_live_request": "First resolve native-wire and token-identity parity offline. Any later provider request requires a new explicit authorization and is outside this diagnosis."
   },
+  "reproduction_environment": {
+    "REPO_ROOT": "Absolute path to the Cortex checkout at the recorded source commit.",
+    "RETAINED_8674_ROOT": "Absolute path to the retained task-8674 handshake artifact root.",
+    "RETAINED_F077_ROOT": "Absolute path to the retained task-f077 handshake artifact root.",
+    "CLAUDE_BIN": "Optional absolute path to pinned Claude Code 2.1.232; defaults to $HOME/.local/share/claude/versions/2.1.232."
+  },
   "zero_provider_checks": [
     {
       "id": "usage-fake-process-suite",
-      "command": "cd /home/fangxin/Cortex/agent-server && strace -f -e trace=connect -o /tmp/448a-vitest-connect.trace npx --no-install vitest run tests/agent-adapter/claude-usage.test.ts",
+      "command": "cd \"$REPO_ROOT/agent-server\" && strace -f -e trace=connect -o /tmp/448a-vitest-connect.trace npx --no-install vitest run tests/agent-adapter/claude-usage.test.ts",
       "trace_assertion": "python3 -c \"from pathlib import Path; s=Path('/tmp/448a-vitest-connect.trace').read_text(errors='replace'); r=[x for x in s.splitlines() if 'connect(' in x and ('AF_INET' in x or 'AF_INET6' in x) and not any(y in x for y in ('127.0.0.1','::1'))]; print(len(r)); assert not r\"",
       "exit_code": 0,
       "result": "13 passed; 0 non-loopback AF_INET/AF_INET6 connect calls observed",
@@ -130,7 +136,7 @@
     },
     {
       "id": "handshake-adapter-fixture-suite",
-      "command": "cd /home/fangxin/Cortex/benchmark/harness && env -u RUN_CLAUDE_CODE_VENDOR_WIRE PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 strace -f -e trace=connect -o /tmp/448a-pytest-connect.trace .venv/bin/pytest -q tests/proxy/test_anthropic_adapter.py tests/package/test_claude_code_vendor_wire.py tests/launcher/test_live_handshake_permit.py",
+      "command": "cd \"$REPO_ROOT/benchmark/harness\" && env -u RUN_CLAUDE_CODE_VENDOR_WIRE PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 strace -f -e trace=connect -o /tmp/448a-pytest-connect.trace .venv/bin/pytest -q tests/proxy/test_anthropic_adapter.py tests/package/test_claude_code_vendor_wire.py tests/launcher/test_live_handshake_permit.py",
       "trace_assertion": "python3 -c \"from pathlib import Path; s=Path('/tmp/448a-pytest-connect.trace').read_text(errors='replace'); i=[x for x in s.splitlines() if 'connect(' in x and ('AF_INET' in x or 'AF_INET6' in x)]; r=[x for x in i if not any(y in x for y in ('127.0.0.1','::1'))]; print(len(i),len(r)); assert not r\"",
       "exit_code": 0,
       "result": "81 passed, 1 skipped; 16 loopback connects; 0 non-loopback AF_INET/AF_INET6 connect calls observed",
@@ -141,10 +147,10 @@
       "id": "raw-artifact-native-fixture-and-safety-audit",
       "wrapper": "strace -f -e trace=connect -o /tmp/448a-offline-audit-connect.trace python3 - <<'PY'",
       "program_lines": [
-        "import hashlib, json",
+        "import hashlib, json, os",
         "from pathlib import Path",
-        "repo=Path('/home/fangxin/Cortex')",
-        "roots={k:Path(v) for k,v in {'8674':'/var/tmp/cortex-bench/claude-live-handshake-8674','f077':'/var/tmp/cortex-bench/claude-live-handshake-f077'}.items()}",
+        "repo=Path(os.environ['REPO_ROOT'])",
+        "roots={'8674':Path(os.environ['RETAINED_8674_ROOT']),'f077':Path(os.environ['RETAINED_F077_ROOT'])}",
         "fixture=json.loads((repo/'benchmark/harness/tests/fixtures/vendor-wire/claude-code/wire-capture.json').read_text())",
         "request=json.loads((roots['f077']/'live-handshake-request.json').read_text()); body=json.loads((roots['f077']/'live-handshake-request.body').read_text()); native=fixture['runs']['sonnet_success']['requests'][0]",
         "assert request['target']==f\"{native['path']}?{native['query']}\" and body['model']==native['body']['model']=='claude-sonnet-5'",
@@ -153,7 +159,7 @@
         "missing=sorted(k for k in native['headers'] if k.lower().startswith('x-') and k.lower() not in {h.lower() for h in request['headers']})",
         "for name in ('live-handshake-request.body','live-handshake-request.json','proxy/adapter-selection.json','proxy/proxy-audit.jsonl','proxy/proxy-export.json'): assert (roots['8674']/name).read_bytes()==(roots['f077']/name).read_bytes()",
         "for root in roots.values(): d=json.loads((root/'live-handshake-response.json').read_text()); hs={k.lower():v for k,v in d['headers']}; decoded=json.loads(d['body_latin1']); assert d['status']==429 and decoded['error']['type']=='rate_limit_error' and hs.get('retry-after') is None and not [k for k in hs if k.startswith('anthropic-ratelimit-') and k.endswith('-reset')]",
-        "cli=Path('/home/fangxin/.local/share/claude/versions/2.1.232').read_bytes(); assert hashlib.sha256(cli).hexdigest()=='61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1' and b'fetchUtilization: GET /api/oauth/usage (attempt ' in cli",
+        "cli=Path(os.environ.get('CLAUDE_BIN',str(Path.home()/'.local/share/claude/versions/2.1.232'))).read_bytes(); assert hashlib.sha256(cli).hexdigest()=='61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1' and b'fetchUtilization: GET /api/oauth/usage (attempt ' in cli",
         "registry=(repo/'benchmark/harness/src/cortex_bench_harness/launcher/credential_capabilities.py').read_text(); assert '\"claude-subscription\", \"offline-contract-passed\"' in registry and not (repo/'benchmark/harness/src/cortex_bench_harness/launcher/evidence/claude-subscription.live-handshake-passed.json').exists()",
         "assert hashlib.sha256((repo/'benchmark/policy/capability-ceilings.yaml').read_bytes()).hexdigest()=='213bfb4699985ca4398c22e84c7337acecf6211ae7f613dc875e480734f310c6'",
         "assert hashlib.sha256((repo/'benchmark/campaigns/terminal-bench-2.1-vendor-claude-code.yaml').read_bytes()).hexdigest()=='0e18b2ca9161845c3ab8335fc83deea617b45294219a6e7eb0f8165d898a1da9'",
