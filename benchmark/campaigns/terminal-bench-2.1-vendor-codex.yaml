@@ -51,9 +51,13 @@ arms:
     vendor_agent: codex
     vendor_cli_version: "0.117.0"
     provider: openai-codex
+    # gpt-5.4 is the exact intersection of the pinned CLI 0.117.0 embedded catalog and the live
+    # account catalog. Choosing that intersection protects baseline fidelity: the declaration is
+    # both known to the pinned runtime and exposed to this account. Evidence:
+    # context/projects/cortex-self/manager/b54e/artifact.md
     # CLI 0.117.0 loopback proof observes this exact request model without substitution.
     # Provider acceptance: unverified-until-live; no live provider request was made.
-    model: gpt-5.3-codex
+    model: gpt-5.4
     credential_capability: codex-subscription
     limits:
       max_provider_requests: 500

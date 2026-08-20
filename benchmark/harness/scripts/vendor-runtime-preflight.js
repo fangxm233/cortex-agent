@@ -110,7 +110,7 @@ function codexResponse() {
   const message = { id: "msg_preflight", type: "message", status: "completed", role: "assistant",
     content: [{ type: "output_text", text: "PREFLIGHT_OK", annotations: [], logprobs: [] }] };
   const base = { id: "resp_preflight", object: "response", status: "in_progress",
-    model: "gpt-5.3-codex", output: [], usage: null };
+    model: "gpt-5.4", output: [], usage: null };
   const completed = { ...base, status: "completed", created_at: 0, error: null,
     incomplete_details: null, instructions: null, max_output_tokens: null, output: [message],
     parallel_tool_calls: true, previous_response_id: null,
@@ -199,7 +199,7 @@ function runCodex(cli, root, port) {
   const auth = { tokens: { id_token: value, access_token: value,
     refresh_token: "dummy-refresh-never-forward" }, last_refresh: new Date().toISOString() };
   writeFileSync(join(home, "auth.json"), JSON.stringify(auth));
-  const config = `model = "gpt-5.3-codex"\nmodel_provider = "synthetic"\nweb_search = "disabled"\n` +
+  const config = `model = "gpt-5.4"\nmodel_provider = "synthetic"\nweb_search = "disabled"\n` +
     `[model_providers.synthetic]\nname = "synthetic"\nbase_url = "http://127.0.0.1:${port}/codex"\n` +
     `wire_api = "responses"\nrequires_openai_auth = true\n`;
   writeFileSync(join(home, "config.toml"), config);

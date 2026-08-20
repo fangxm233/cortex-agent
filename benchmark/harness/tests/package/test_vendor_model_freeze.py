@@ -34,7 +34,7 @@ ISOLATED_ENV = "CORTEX_VENDOR_MODEL_FREEZE_ISOLATED"
 COMMANDS = {"pi": "pi", "claude-code": "claude", "codex": "codex"}
 FROZEN_MODELS = {
     "claude-code": "claude-sonnet-5",
-    "codex": "gpt-5.3-codex",
+    "codex": "gpt-5.4",
 }
 CLAUDE_MODEL_ENVIRONMENT = {
     "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL",
@@ -92,7 +92,7 @@ def real_cli(vendor: str) -> Path:
     return binary
 
 
-def test_subscription_campaigns_freeze_the_p0_observed_models() -> None:
+def test_subscription_campaigns_freeze_the_declared_models() -> None:
     claude = arm("claude-code")
     codex = arm("codex")
     codex_wire = json.loads(
@@ -109,7 +109,7 @@ def test_subscription_campaigns_freeze_the_p0_observed_models() -> None:
     assert claude["model"] == FROZEN_MODELS["claude-code"]
     assert codex["model"] == FROZEN_MODELS["codex"]
     assert claude_wire["observed_model_identifiers"]["sonnet"] == claude["model"]
-    assert codex_wire["request"]["model"] == codex["model"]
+    assert codex_wire["request"]["model"] == "gpt-5.3-codex"
 
 
 def test_real_cli_version_check_uses_the_campaign_pin(

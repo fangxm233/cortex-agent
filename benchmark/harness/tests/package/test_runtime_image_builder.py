@@ -5,6 +5,8 @@
 
 import hashlib
 import json
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -21,6 +23,23 @@ RUNTIME_MANIFEST = HARNESS_DIR / "scripts" / "zero-paid-runtime-inputs.json"
 TERMINAL_BENCH_MANIFEST = HARNESS_DIR / "scripts" / "terminal-bench-2.1-images.json"
 VENDORS = ("pi", "claude-code", "codex")
 TASKS = ("chess-best-move", "constraints-scheduling", "db-wal-recovery")
+FAKE_CODEX_PREFLIGHT = """#!/usr/bin/python3
+import json, os, re, sys, urllib.request
+from pathlib import Path
+if sys.argv[1:] == ['--version']:
+    print('codex-cli 0.117.0')
+    raise SystemExit(0)
+config = (Path(os.environ['CODEX_HOME']) / 'config.toml').read_text()
+expected = "__EXPECTED_MODEL__"
+if f'model = "{expected}"' not in config:
+    print('wrong preflight model', file=sys.stderr)
+    raise SystemExit(2)
+base = re.search(r'base_url = "([^"]+)"', config).group(1)
+body = json.dumps({'model': expected}).encode()
+request = urllib.request.Request(base + '/responses', data=body, method='POST')
+with urllib.request.urlopen(request) as response:
+    response.read()
+"""
 
 
 def test_runtime_manifest_pins_the_three_p0_vendor_artifacts() -> None:
@@ -106,6 +125,28 @@ def executable(path: Path, content: str) -> Path:
     path.write_text(content, encoding="utf-8")
     path.chmod(0o755)
     return path
+
+
+def test_codex_runtime_preflight_selects_the_campaign_model(tmp_path: Path) -> None:
+    node = shutil.which("node")
+    assert node
+    campaign = yaml.safe_load(
+        (HARNESS_DIR.parent / "campaigns/terminal-bench-2.1-vendor-codex.yaml").read_text()
+    )
+    fake_source = FAKE_CODEX_PREFLIGHT.replace(
+        "__EXPECTED_MODEL__", campaign["arms"][0]["model"])
+    fake = executable(tmp_path / "bin/codex", fake_source)
+    env = {**os.environ, "PATH": str(fake.parent)}
+
+    result = subprocess.run(
+        [node, str(PREFLIGHT_SCRIPT), "--vendor", "codex", "--cli", str(fake)],
+        capture_output=True, text=True, env=env, timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "ok": True, "vendor": "codex", "version": "codex-cli 0.117.0", "requests": 1,
+    }
 
 
 def fixture_inputs(root: Path) -> dict[str, Path]:
