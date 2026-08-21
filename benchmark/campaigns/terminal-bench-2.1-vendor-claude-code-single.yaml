@@ -49,7 +49,8 @@ arms:
     vendor_agent: claude-code
     vendor_cli_version: "2.1.232"
     provider: anthropic
-    model: claude-sonnet-5
+    # Claude Code selects its native default; the proxy freezes the observed request model.
+    model: claude-opus-5
     credential_capability: claude-subscription
     limits:
       max_provider_requests: 500

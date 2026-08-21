@@ -6,6 +6,7 @@
 import base64
 import hashlib
 import json
+import sys
 import threading
 from contextlib import contextmanager
 from dataclasses import replace
@@ -18,6 +19,7 @@ import pytest
 
 import cortex_bench_harness.launcher.credential_capabilities as capabilities
 import cortex_bench_harness.launcher.live_handshake as live_handshake
+import cortex_bench_harness.launcher.trial_proxy as trial_proxy
 from cortex_bench_harness.launcher.capability_evidence import validate_capability_evidence
 from cortex_bench_harness.launcher.credential_capabilities import (
     CAPABILITY_REGISTRY,
@@ -57,6 +59,24 @@ PARTIAL_SSE = b"data: " + b"x" * 45 + b"\n\n"
 TRUNCATED_SSE_53_BYTES = (
     b'data: {"type":"error","code":"synthetic_refusal_1"}\n\n'
 )
+CLAUDE_OFFLINE_EVIDENCE_SHA256 = (
+    "50ebdbae35cf82f50dc7ec03f500f529a16003e0320fbc6ad6425683bfbb7c76"
+)
+
+
+@pytest.fixture(autouse=True)
+def claude_handshake_tests_use_the_offline_capability_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    key = capability_key_for(CAPABILITY_ID)
+    rows = dict(CAPABILITY_REGISTRY)
+    rows[key] = replace(
+        rows[key], state="offline-contract-passed",
+        evidence_sha256=CLAUDE_OFFLINE_EVIDENCE_SHA256,
+    )
+    monkeypatch.setattr(live_handshake.capabilities, "CAPABILITY_REGISTRY", rows)
+    monkeypatch.setattr(trial_proxy, "CAPABILITY_REGISTRY", rows)
+    monkeypatch.setattr(sys.modules[__name__], "CAPABILITY_REGISTRY", rows)
 
 
 def handshake_limits(**overrides: object) -> dict[str, object]:

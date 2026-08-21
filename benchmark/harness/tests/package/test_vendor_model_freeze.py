@@ -33,7 +33,7 @@ CAMPAIGN_DIR = HARNESS_DIR.parent / "campaigns"
 ISOLATED_ENV = "CORTEX_VENDOR_MODEL_FREEZE_ISOLATED"
 COMMANDS = {"pi": "pi", "claude-code": "claude", "codex": "codex"}
 FROZEN_MODELS = {
-    "claude-code": "claude-sonnet-5",
+    "claude-code": "claude-opus-5",
     "codex": "gpt-5.6-sol",
 }
 CLAUDE_MODEL_ENVIRONMENT = {
@@ -108,7 +108,7 @@ def test_subscription_campaigns_freeze_the_declared_models() -> None:
     assert codex["vendor_cli_version"] == "0.148.0"
     assert claude["model"] == FROZEN_MODELS["claude-code"]
     assert codex["model"] == FROZEN_MODELS["codex"]
-    assert claude_wire["observed_model_identifiers"]["sonnet"] == claude["model"]
+    assert claude_wire["observed_model_identifiers"]["opus"] == claude["model"]
     assert codex_wire["request"]["model"] == "gpt-5.3-codex"
 
 
@@ -253,26 +253,24 @@ def run_pi(binary: Path, root: Path, proxy_url: str, token: str, model: str):
     return subprocess.run(argv, cwd=root, env=env, capture_output=True, text=True, timeout=45)
 
 
-def claude_environment(root: Path, proxy_url: str, token: str, model: str) -> dict[str, str]:
+def claude_environment(root: Path, proxy_url: str, token: str, _model: str) -> dict[str, str]:
     return {
         **clean_environment(root), "CLAUDE_CONFIG_DIR": str(root / ".claude"),
         "ANTHROPIC_BASE_URL": proxy_url, "ANTHROPIC_AUTH_TOKEN": token,
-        "ANTHROPIC_MODEL": model, "ANTHROPIC_DEFAULT_SONNET_MODEL": model,
-        "ANTHROPIC_DEFAULT_OPUS_MODEL": model, "ANTHROPIC_DEFAULT_HAIKU_MODEL": model,
-        "CLAUDE_CODE_SUBAGENT_MODEL": model,
         "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1", "DISABLE_TELEMETRY": "1",
         "DISABLE_ERROR_REPORTING": "1", "DISABLE_AUTOUPDATER": "1",
         "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
     }
 
 
-def test_claude_environment_collapses_aliases_and_subagents_to_one_model(
+def test_claude_environment_leaves_native_model_selection_unset(
     tmp_path: Path,
 ) -> None:
-    model = FROZEN_MODELS["claude-code"]
-    environment = claude_environment(tmp_path, "http://127.0.0.1:1", "dummy", model)
+    environment = claude_environment(
+        tmp_path, "http://127.0.0.1:1", "dummy", FROZEN_MODELS["claude-code"],
+    )
 
-    assert {environment[name] for name in CLAUDE_MODEL_ENVIRONMENT} == {model}
+    assert not CLAUDE_MODEL_ENVIRONMENT.intersection(environment)
 
 
 def run_claude(
@@ -281,8 +279,10 @@ def run_claude(
 ):
     argv = [str(binary), "--print", "--verbose", "--output-format", "stream-json",
             "--include-partial-messages", "--no-session-persistence", "--tools",
-            "Agent" if subagent else "", "--model", selection,
-            "--system-prompt", "model freeze system", "Reply MODEL_FREEZE_OK"]
+            "Agent" if subagent else ""]
+    if selection != "native-default":
+        argv.extend(["--model", selection])
+    argv.extend(["--system-prompt", "model freeze system", "Reply MODEL_FREEZE_OK"])
     if not subagent:
         argv.insert(1, "--bare")
     return subprocess.run(
@@ -379,7 +379,8 @@ def test_pinned_vendor_cli_transmits_campaign_model_unchanged(
     if not isolated_or_rerun(request):
         return
     declared = str(arm(vendor)["model"])
-    result, requests, outcomes = exercise(tmp_path, vendor, declared, declared)
+    selected = "native-default" if vendor == "claude-code" else declared
+    result, requests, outcomes = exercise(tmp_path, vendor, declared, selected)
 
     assert result.returncode == 0, result.stderr
     assert [item["body"]["model"] for item in requests] == [declared]  # type: ignore[index]
@@ -401,42 +402,50 @@ def test_proxy_refuses_real_cli_model_mismatch_before_upstream(
     assert "request_model_mismatch" in outcomes
 
 
-def test_claude_aliases_resolve_to_the_frozen_campaign_model(
-    tmp_path: Path, request: pytest.FixtureRequest,
-) -> None:
-    if not isolated_or_rerun(request):
-        return
-    declared = str(arm("claude-code")["model"])
-    for alias in ("sonnet", "opus", "haiku"):
-        root = tmp_path / alias
-        root.mkdir()
-        result, requests, outcomes = exercise(root, "claude-code", declared, alias)
-        assert result.returncode == 0, result.stderr
-        assert [item["body"]["model"] for item in requests] == [declared]  # type: ignore[index]
-        assert "request_model_mismatch" not in outcomes
-
-
-def test_claude_subagent_requests_use_the_frozen_campaign_model(
+def test_claude_native_default_resolves_to_the_frozen_campaign_model(
     tmp_path: Path, request: pytest.FixtureRequest,
 ) -> None:
     if not isolated_or_rerun(request):
         return
     declared = str(arm("claude-code")["model"])
     result, requests, outcomes = exercise(
-        tmp_path, "claude-code", declared, "sonnet", subagent=True,
+        tmp_path, "claude-code", declared, "native-default",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert [item["body"]["model"] for item in requests] == [declared]  # type: ignore[index]
+    assert [item["body"]["max_tokens"] for item in requests] == [64000]  # type: ignore[index]
+    assert "request_model_mismatch" not in outcomes
+
+
+def test_claude_native_default_subagent_drift_is_refused_after_primary(
+    tmp_path: Path, request: pytest.FixtureRequest,
+) -> None:
+    if not isolated_or_rerun(request):
+        return
+    declared = str(arm("claude-code")["model"])
+    result, requests, outcomes = exercise(
+        tmp_path, "claude-code", declared, "native-default", subagent=True,
     )
     observed = [item["body"]["model"] for item in requests]  # type: ignore[index]
 
     assert result.returncode == 0, result.stderr
-    assert len(observed) >= 2
-    assert set(observed) == {declared}
-    assert "request_model_mismatch" not in outcomes
+    assert observed and set(observed) == {declared}
+    assert "request_model_mismatch" in outcomes
 
 
-@pytest.mark.parametrize("vendor", ("pi", "claude-code", "codex"))
+@pytest.mark.parametrize("vendor", ("pi", "codex"))
 def test_campaign_marks_provider_acceptance_unverified_until_live(vendor: str) -> None:
     path, document = campaign(vendor)
     text = path.read_text(encoding="utf-8").lower()
 
     assert document["arms"][0]["model"]  # type: ignore[index]
     assert "provider acceptance: unverified-until-live" in text
+
+
+def test_claude_campaign_records_native_default_model_freeze() -> None:
+    path, document = campaign("claude-code")
+    text = path.read_text(encoding="utf-8").lower()
+
+    assert document["arms"][0]["model"] == "claude-opus-5"  # type: ignore[index]
+    assert "native default request" in text

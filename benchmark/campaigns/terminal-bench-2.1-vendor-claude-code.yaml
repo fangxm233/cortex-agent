@@ -51,10 +51,9 @@ arms:
     vendor_agent: claude-code
     vendor_cli_version: "2.1.232"
     provider: anthropic
-    # Deliberate controlled-baseline normalization: primary, Sonnet/Opus/Haiku aliases, and
-    # subagents all resolve to the single CLI 2.1.232-observed default below.
-    # Provider acceptance: unverified-until-live success; task 10ba observed native HTTP 429.
-    model: claude-sonnet-5
+    # The proxy freezes the model observed from Claude Code 2.1.232's native default request;
+    # the container does not receive ANTHROPIC_MODEL or alias override variables.
+    model: claude-opus-5
     credential_capability: claude-subscription
     limits:
       max_provider_requests: 500
