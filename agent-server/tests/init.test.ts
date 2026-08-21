@@ -595,15 +595,20 @@ test('runFeishuUserLogin omits FEISHU_DOMAIN when unset and surfaces stderr on f
 
 // ─── parseInitAnswersJson (machine-driven init) ─────────────────
 
-test('parseInitAnswersJson falls back to interactive defaults for an empty document', () => {
+test('parseInitAnswersJson preserves shared usage config for an empty document', () => {
   const answers = parseInitAnswersJson('{}');
 
   assert.deepEqual(answers.backends, ['claude']);
   assert.deepEqual(answers.platforms, []);
   assert.equal(answers.installService, false);
-  assert.deepEqual(answers.gatewayUsage, { enabled: false });
+  assert.equal(answers.gatewayUsage, undefined);
   assert.equal(answers.localUi, undefined);
   assert.equal(answers.machineName, os.hostname());
+});
+
+test('parseInitAnswersJson preserves an explicit gateway usage opt-out', () => {
+  const answers = parseInitAnswersJson('{"gatewayUsage":{"enabled":false}}');
+  assert.deepEqual(answers.gatewayUsage, { enabled: false });
 });
 
 test('parseInitAnswersJson reads the full desktop-wizard document', () => {

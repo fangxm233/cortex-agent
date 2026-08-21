@@ -18,7 +18,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | doctor-cli.ts | cli | runs environment diagnostics and safe fixes |
 | hook-cli.ts | cli | Inspects hooks and runs blocking user asks |
 | feishu-login.ts | cli | handles Feishu login and serialized env updates |
-| init.ts | cli | creates Cortex home and MCP composition files |
+| init.ts | cli | creates Cortex home and optional usage config |
 | local-ui.ts | config | enables the loopback Web UI endpoint idempotently |
 | production-app-bootstrap.ts | entry | Consumes one-shot server auth before importing the sealed production app |
 | production-evidence-export-cli.ts | cli | Publishes production benchmark evidence v2 |

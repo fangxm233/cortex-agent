@@ -1,12 +1,12 @@
 // input:  cli.ts init with a JSON answers file, temporary CORTEX_HOME
-// output: verification of the machine-driven init contract (NDJSON + local UI)
+// output: machine init, local UI, and usage-choice verification
 // pos:    Init --answers integration tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -118,6 +118,39 @@ test('init --answers --json emits an NDJSON event stream and enables the local U
     (settings.uiCorsOrigins as string[]).includes('cortexui://localhost'),
     'the native shell origin must be allowed',
   );
+});
+
+test('non-interactive init preserves gateway usage when no answer is supplied', async () => {
+  const home = makeHome();
+  const gatewayDir = path.join(home, 'aistatus');
+  const configPath = path.join(gatewayDir, 'config.yaml');
+  const original = 'name: test-user\nuploadEnabled: true\n';
+  mkdirSync(gatewayDir, { recursive: true });
+  writeFileSync(configPath, original);
+
+  const result = await runCli([
+    'init', '--home', home, '--gateway-config-dir', gatewayDir, '--json',
+  ]);
+
+  assert.equal(result.exitCode, 0, `init failed\nstderr: ${result.stderr}`);
+  assert.equal(readFileSync(configPath, 'utf-8'), original);
+});
+
+test('init --answers applies an explicit gateway usage opt-out', async () => {
+  const home = makeHome();
+  const gatewayDir = path.join(home, 'aistatus');
+  const configPath = path.join(gatewayDir, 'config.yaml');
+  const answersFile = path.join(home, 'answers.json');
+  mkdirSync(gatewayDir, { recursive: true });
+  writeFileSync(configPath, 'name: test-user\nuploadEnabled: true\n');
+  writeFileSync(answersFile, JSON.stringify({ gatewayUsage: { enabled: false } }));
+
+  const result = await runCli([
+    'init', '--home', home, '--gateway-config-dir', gatewayDir, '--answers', answersFile, '--json',
+  ]);
+
+  assert.equal(result.exitCode, 0, `init failed\nstderr: ${result.stderr}`);
+  assert.match(readFileSync(configPath, 'utf-8'), /uploadEnabled: false/);
 });
 
 test('init --answers rejects a malformed answers file without touching the home', async () => {

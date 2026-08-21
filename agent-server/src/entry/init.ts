@@ -1,5 +1,5 @@
 // input:  defaults, filesystem, MCP builders, setup
-// output: runInit and runtime configuration
+// output: runInit and optional shared configuration
 // pos:    Initializes Cortex home and config surfaces
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -111,7 +111,8 @@ export interface InitAnswers {
   platforms: PlatformChoice[];
   slackConfig?: SlackInitConfig;
   feishuConfig?: FeishuInitConfig;
-  gatewayUsage: GatewayUsageConfig;
+  /** Omitted when a scripted caller did not make an upload choice. */
+  gatewayUsage?: GatewayUsageConfig;
   installService: boolean;
   /** Explicit (mode, model) for the `plan` profile. Non-interactive only; interactive picks
    *  inside runGatewaySetup once endpoints are discovered. Undefined → auto-infer. */
@@ -159,8 +160,8 @@ function parseLocalUi(value: unknown): InitAnswers['localUi'] {
  * This is the interface the desktop setup wizard drives init through. It exists because the legacy
  * piped-stdin protocol (`collectAnswersNonInteractive`) is positional — a fixed line order with
  * platform-dependent offsets — which a GUI cannot extend without breaking scripted installs.
- * Every field is optional and falls back to what the interactive wizard would default to, so a
- * minimal `{}` yields a working single-machine install.
+ * Every field is optional. Setup fields use safe defaults; omitted gateway usage preserves the
+ * existing shared aistatus choice. A minimal `{}` still yields a working single-machine install.
  */
 export function parseInitAnswersJson(raw: string): InitAnswers {
   let parsed: unknown;
@@ -183,14 +184,14 @@ export function parseInitAnswersJson(raw: string): InitAnswers {
   }
 
   const usage = (input.gatewayUsage ?? {}) as Record<string, unknown>;
-  const gatewayUsage: GatewayUsageConfig = usage.enabled === true
+  const gatewayUsage: GatewayUsageConfig | undefined = usage.enabled === true
     ? {
       enabled: true,
       name: typeof usage.name === 'string' ? usage.name : '',
       org: typeof usage.org === 'string' ? usage.org : '',
       email: typeof usage.email === 'string' ? usage.email : '',
     }
-    : { enabled: false };
+    : usage.enabled === false ? { enabled: false } : undefined;
 
   return {
     lang: typeof input.lang === 'string' ? normalizeLocale(input.lang) : detectSystemLocale(),
@@ -1109,7 +1110,7 @@ async function collectAnswersNonInteractive(): Promise<InitAnswers> {
     }
   }
 
-  const gatewayEnabled = gatewayEnabledRaw?.toLowerCase() === 'y';
+  const gatewayChoice = gatewayEnabledRaw?.trim().toLowerCase();
 
   log.info('Cortex Initialization (non-interactive)');
 
@@ -1155,9 +1156,9 @@ async function collectAnswersNonInteractive(): Promise<InitAnswers> {
     platforms,
     slackConfig,
     feishuConfig,
-    gatewayUsage: gatewayEnabled
+    gatewayUsage: gatewayChoice === 'y'
       ? { enabled: true, name: name || '', org: org || '', email: email || '' }
-      : { enabled: false },
+      : gatewayChoice === 'n' ? { enabled: false } : undefined,
     installService: installServiceRaw?.toLowerCase() === 'y',
     planChoice,
     executeChoice,
@@ -1779,8 +1780,10 @@ async function runInitSteps(
   seedSchedules(paths, answers, force);
   emit({ step: 'config', state: 'ok' });
 
-  // 5. Gateway usage
-  writeGatewayUsageConfig(answers.gatewayUsage, options.gatewayConfigDir);
+  // 5. Gateway usage — omitted scripted answers preserve the existing user choice.
+  if (answers.gatewayUsage) {
+    writeGatewayUsageConfig(answers.gatewayUsage, options.gatewayConfigDir);
+  }
 
   // 5b. Local Web UI endpoint — opt-in, driven by the desktop setup wizard. Must run after the
   //     .env exists so the generated client token is the one the native app is handed back.

@@ -82,7 +82,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | hook-callers.test.ts | test | Session timeout, diagnostics and injection |
 | hook-exec.test.ts | test | Hook subprocess output, status and stdin |
 | init.test.ts | test | cortex init path, env and MCP config generation |
-| integration-init-answers.test.ts | e2e | init --answers NDJSON contract and local UI setup |
+| integration-init-answers.test.ts | e2e | init answers, local UI and usage preservation |
 | integration-init-startup.test.ts | e2e | init and server lifecycle hook behavior |
 | integration-settings-hotreload.test.ts | e2e | Settings migration and live reload behavior |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
