@@ -53,6 +53,8 @@ REPO_ROOT = HARNESS_ROOT.parents[1]
 CAMPAIGNS_DIR = REPO_ROOT / "benchmark" / "campaigns"
 COMMITTED_ZERO_PAID_CONFIG = CAMPAIGNS_DIR / "zero-paid-dry-run.yaml"
 COMMITTED_PAID_CONFIG = CAMPAIGNS_DIR / "terminal-bench-2.1-deepseek-paid.yaml"
+PI_STREAM_DIAGNOSIS_CONFIG = (
+    CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-pi-stream-diagnosis.yaml")
 COMMITTED_VENDOR_CONFIGS = {
     "pi": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-pi.yaml",
     "claude-code": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-claude-code.yaml",
@@ -1942,6 +1944,18 @@ def test_the_committed_zero_paid_campaign_is_accepted_by_the_real_admission_buil
 
     assert admitted == [plan.trial_id for plan in config.trials()]
     assert len(admitted) >= 2
+
+
+def test_the_pi_stream_diagnosis_campaign_admits_exactly_one_trial(
+    tmp_path: Path,
+) -> None:
+    config = load_campaign_config(PI_STREAM_DIAGNOSIS_CONFIG)
+
+    admitted = admit_every_trial(config, tmp_path)
+
+    assert admitted == ["tb21-pi-sse-dx-20260821-constraints-scheduling-pure-pi"]
+    assert config.concurrency == 1
+    assert config.paid is True
 
 
 def test_a_route_suffix_that_composes_a_forbidden_destination_is_refused(

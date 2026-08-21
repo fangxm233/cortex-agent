@@ -11,6 +11,7 @@ import pytest
 
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
 from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
+from cortex_bench_harness.proxy.models import ProxyUsage
 from cortex_bench_harness.proxy.adapters import AuthInjectionUnavailable, select_adapter
 from synthetic import (
     LEASE_TERMS,
@@ -179,7 +180,30 @@ def test_extracts_one_terminal_stream_usage() -> None:
         complete_stream(), "text/event-stream",
     )
     assert usage.accounted is True
+    assert usage.diagnostic_code is None
     assert (usage.upstream_model, usage.input_tokens, usage.output_tokens) == (MODEL, 9, 2)
+
+
+def test_terminal_accounting_behavior_is_unchanged_for_an_error_marker() -> None:
+    observed = adapter("https://api.deepseek.test").extract_usage(
+        sse(
+            {"id": "chatcmpl-synthetic", "model": MODEL,
+             "type": "error", "error": {"type": "stream_error"}},
+            {"id": "chatcmpl-synthetic", "model": MODEL, "choices": [],
+             "usage": {"prompt_tokens": 9, "completion_tokens": 2}},
+        ),
+        "text/event-stream",
+    )
+
+    assert observed.accounted is True
+    assert observed.diagnostic_code is None
+
+
+def test_proxy_usage_refuses_an_arbitrary_diagnostic_string() -> None:
+    with pytest.raises(ValueError, match="closed proxy diagnostic code"):
+        ProxyUsage(
+            MODEL, 0, 0, False, diagnostic_code="provider said secret text",  # type: ignore[arg-type]
+        )
 
 
 def test_rejects_partial_duplicate_conflicting_and_nonstream_usage() -> None:
@@ -187,15 +211,25 @@ def test_rejects_partial_duplicate_conflicting_and_nonstream_usage() -> None:
     usage = {"prompt_tokens": 9, "completion_tokens": 2}
     payloads = [
         (sse({"model": MODEL, "choices": [], "usage": usage}, done=False),
-         "text/event-stream"),
+         "text/event-stream", "deepseek_done_missing"),
         (sse({"model": MODEL, "choices": [], "usage": usage},
-             {"model": MODEL, "choices": [], "usage": usage}), "text/event-stream"),
+             {"model": MODEL, "choices": [], "usage": usage}),
+         "text/event-stream", "deepseek_usage_duplicate"),
         (sse({"model": MODEL, "choices": []},
              {"model": "deepseek-v4-pro", "choices": [], "usage": usage}),
-         "text/event-stream"),
-        (json.dumps({"model": MODEL, "usage": usage}).encode(), "application/json"),
+         "text/event-stream", "deepseek_model_mismatch"),
+        (json.dumps({"model": MODEL, "usage": usage}).encode(),
+         "application/json", "deepseek_content_type_not_sse"),
+        (sse({"model": MODEL, "choices": []}),
+         "text/event-stream", "deepseek_usage_missing"),
+        (sse({"model": MODEL, "choices": []},
+             {"type": "error", "error": {"type": "stream_error"}}, done=False),
+         "text/event-stream", "deepseek_error_event"),
     ]
-    assert all(not bound.extract_usage(body, kind).accounted for body, kind in payloads)
+    for body, kind, diagnostic_code in payloads:
+        observed = bound.extract_usage(body, kind)
+        assert observed.accounted is False
+        assert observed.diagnostic_code == diagnostic_code
 
 
 def test_rejects_invalid_tokens_malformed_sse_and_data_after_done() -> None:
@@ -206,21 +240,57 @@ def test_rejects_invalid_tokens_malformed_sse_and_data_after_done() -> None:
         {"prompt_tokens": 9, "completion_tokens": 2.5},
     ]
     payloads = [
-        sse({"model": MODEL, "choices": [], "usage": usage})
+        (sse({"model": MODEL, "choices": [], "usage": usage}),
+         "deepseek_usage_invalid")
         for usage in invalid_usage
     ]
     payloads.extend([
-        (b'data: {"model":"deepseek-v4-flash","choices":[],"usage":'
-         b'{"prompt_tokens":9,"completion_tokens":2}}\n\n'
-         b'data: {not-json}\n\ndata: [DONE]\n\n'),
-        sse({"model": MODEL, "choices": [],
-             "usage": {"prompt_tokens": 9, "completion_tokens": 2}})
-        + b'data: {"model":"deepseek-v4-flash"}\n\n',
+        ((b'data: {"model":"deepseek-v4-flash","choices":[],"usage":'
+          b'{"prompt_tokens":9,"completion_tokens":2}}\n\n'
+          b'data: {not-json}\n\ndata: [DONE]\n\n'),
+         "deepseek_sse_malformed"),
+        (sse({"model": MODEL, "choices": [],
+              "usage": {"prompt_tokens": 9, "completion_tokens": 2}})
+         + b'data: {"model":"deepseek-v4-flash"}\n\n',
+         "deepseek_data_after_done"),
     ])
-    assert all(
-        not bound.extract_usage(payload, "text/event-stream").accounted
-        for payload in payloads
-    )
+    for payload, diagnostic_code in payloads:
+        observed = bound.extract_usage(payload, "text/event-stream")
+        assert observed.accounted is False
+        assert observed.diagnostic_code == diagnostic_code
+
+
+def test_unaccounted_stream_audits_diagnostic_without_content_and_keeps_revocation(
+    tmp_path: Path,
+) -> None:
+    planted_response = "RESPONSE-PLANT-deepseek-diagnostic"
+    with SyntheticUpstream() as upstream:
+        upstream.server.content_type = "text/event-stream"
+        upstream.server.raw_body = sse(
+            {"model": MODEL, "choices": [{"delta": {"content": planted_response}}]},
+            done=False,
+        )
+        handle = start_proxy(tmp_path, upstream)
+        dummy_token = handle.dummy_token
+        try:
+            first = post_streamed(handle, request_body())
+            second, _ = post(handle, request_body())
+        finally:
+            handle.stop()
+
+    audit = records(tmp_path / "deepseek.jsonl")
+    assert (first.status, first.complete, second) == (200, False, 410)
+    assert audit == [{
+        "outcome": "usage_accounting_unavailable",
+        "diagnostic_code": "deepseek_done_missing",
+        "request_count": 1,
+        "tokens": {"input": 0, "output": 0, "total": 0, "cached": 0},
+        "upstream_model": MODEL,
+    }]
+    serialized = json.dumps(audit)
+    assert REAL_CREDENTIAL not in serialized
+    assert dummy_token not in serialized
+    assert planted_response not in serialized
 
 
 def test_stop_clears_the_adapter_credential(tmp_path: Path) -> None:

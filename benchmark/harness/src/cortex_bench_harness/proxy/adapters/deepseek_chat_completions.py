@@ -7,7 +7,7 @@ import json
 from collections.abc import Mapping
 from urllib.parse import urlsplit
 
-from ..models import PROXY_SCHEMA_VERSION, ProxyUsage
+from ..models import PROXY_SCHEMA_VERSION, ProxyDiagnosticCode, ProxyUsage
 from .base import AuthInjectionUnavailable, BodyDecision, RouteDecision
 
 ADAPTER_ID = "deepseek-chat-completions/api-key"
@@ -89,16 +89,25 @@ class DeepSeekChatCompletionsApiKeyAdapter:
 
     def extract_usage(self, body: bytes, content_type: str) -> ProxyUsage:
         if "text/event-stream" not in content_type:
-            return ProxyUsage(None, 0, 0, False)
+            return ProxyUsage(
+                None, 0, 0, False,
+                diagnostic_code="deepseek_content_type_not_sse",
+            )
         stream = _parse_stream(body)
         models = _stream_models(stream.documents)
         usages = _stream_usages(stream.documents)
         accounted = _stream_accounted(stream, models, usages, self._frozen_model)
+        diagnostic_code = (
+            None if accounted else _stream_diagnostic(
+                stream, models, usages, self._frozen_model)
+        )
         model = next(iter(models), None)
         if len(usages) != 1:
-            return ProxyUsage(model, 0, 0, False)
+            return ProxyUsage(model, 0, 0, False, diagnostic_code=diagnostic_code)
         input_tokens, output_tokens, cached_tokens = usages[0]
-        return ProxyUsage(model, input_tokens, output_tokens, accounted, cached_tokens)
+        return ProxyUsage(
+            model, input_tokens, output_tokens, accounted, cached_tokens, diagnostic_code,
+        )
 
     def clear_credential(self) -> None:
         self._credential = None
@@ -107,17 +116,18 @@ class DeepSeekChatCompletionsApiKeyAdapter:
 class _ParsedStream:
     def __init__(
         self, documents: list[dict[str, object]], *, done: bool,
-        malformed: bool, data_after_done: bool,
+        malformed: bool, data_after_done: bool, error_event: bool,
     ) -> None:
         self.documents = documents
         self.done = done
         self.malformed = malformed
         self.data_after_done = data_after_done
+        self.error_event = error_event
 
 
 def _parse_stream(body: bytes) -> _ParsedStream:
     documents: list[dict[str, object]] = []
-    done = malformed = data_after_done = False
+    done = malformed = data_after_done = error_event = False
     for line in body.splitlines():
         if not line.startswith(b"data:"):
             continue
@@ -130,9 +140,11 @@ def _parse_stream(body: bytes) -> _ParsedStream:
         document = _json_object(payload)
         malformed = malformed or document is None
         if document is not None:
+            error_event = error_event or document.get("type") == "error"
             documents.append(document)
     return _ParsedStream(
         documents, done=done, malformed=malformed, data_after_done=data_after_done,
+        error_event=error_event,
     )
 
 
@@ -179,7 +191,7 @@ def _cached_tokens(usage: dict[str, object]) -> int | None:
 
 
 def _stream_accounted(
-    stream: _ParsedStream, models: set[str], usages: list[tuple[int, int]],
+    stream: _ParsedStream, models: set[str], usages: list[tuple[int, int, int | None]],
     frozen_model: str | None,
 ) -> bool:
     valid_usage = len(usages) == 1 and min(usages[0][0], usages[0][1]) >= 0
@@ -187,6 +199,30 @@ def _stream_accounted(
         stream.done and not stream.malformed and not stream.data_after_done
         and models == {frozen_model} and valid_usage
     )
+
+
+def _stream_diagnostic(
+    stream: _ParsedStream, models: set[str], usages: list[tuple[int, int, int | None]],
+    frozen_model: str | None,
+) -> ProxyDiagnosticCode | None:
+    """Name one failed protocol predicate without retaining any provider content."""
+    if stream.malformed:
+        return "deepseek_sse_malformed"
+    if stream.data_after_done:
+        return "deepseek_data_after_done"
+    if stream.error_event:
+        return "deepseek_error_event"
+    if not stream.done:
+        return "deepseek_done_missing"
+    if models != {frozen_model}:
+        return "deepseek_model_mismatch"
+    if not usages:
+        return "deepseek_usage_missing"
+    if len(usages) != 1:
+        return "deepseek_usage_duplicate"
+    if min(usages[0][0], usages[0][1]) < 0:
+        return "deepseek_usage_invalid"
+    return None
 
 
 def _token(value: object) -> bool:

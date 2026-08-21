@@ -6,8 +6,31 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Literal
 
 PROXY_SCHEMA_VERSION = "cortex-bench-trial-proxy/2"
+ProxyDiagnosticCode = Literal[
+    "deepseek_content_type_not_sse",
+    "deepseek_sse_malformed",
+    "deepseek_data_after_done",
+    "deepseek_error_event",
+    "deepseek_done_missing",
+    "deepseek_model_mismatch",
+    "deepseek_usage_missing",
+    "deepseek_usage_duplicate",
+    "deepseek_usage_invalid",
+]
+PROXY_DIAGNOSTIC_CODES = frozenset({
+    "deepseek_content_type_not_sse",
+    "deepseek_sse_malformed",
+    "deepseek_data_after_done",
+    "deepseek_error_event",
+    "deepseek_done_missing",
+    "deepseek_model_mismatch",
+    "deepseek_usage_missing",
+    "deepseek_usage_duplicate",
+    "deepseek_usage_invalid",
+})
 
 
 @dataclass(frozen=True)
@@ -54,6 +77,14 @@ class ProxyUsage:
     # means the response carried no cache breakdown, which is not the same as a cache that missed;
     # the record says so rather than reporting a zero it never observed.
     cached_tokens: int | None = None
+    # A closed, content-free explanation for an unaccounted provider response. Adapters may name
+    # only protocol predicates here; prompts, response text, headers, and provider error text do
+    # not cross into the durable audit record.
+    diagnostic_code: ProxyDiagnosticCode | None = None
+
+    def __post_init__(self) -> None:
+        if self.diagnostic_code is not None and self.diagnostic_code not in PROXY_DIAGNOSTIC_CODES:
+            raise ValueError("diagnostic_code must be a closed proxy diagnostic code")
 
 
 @dataclass(frozen=True)

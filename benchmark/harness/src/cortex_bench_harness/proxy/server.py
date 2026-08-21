@@ -136,7 +136,9 @@ class ProxyState:
         """
         if not usage.accounted:
             error = self.record_attempt(
-                "usage_accounting_unavailable", True, usage.upstream_model)
+                "usage_accounting_unavailable", True, usage.upstream_model,
+                usage.diagnostic_code,
+            )
             self.active = False
             return error or "usage_accounting_unavailable"
         if not self._persist(self._usage_record(usage)):
@@ -146,9 +148,9 @@ class ProxyState:
 
     def record_attempt(
         self, outcome: str, retain_reservation: bool,
-        upstream_model: str | None = None,
+        upstream_model: str | None = None, diagnostic_code: str | None = None,
     ) -> str | None:
-        error = self._record_outcome(outcome, upstream_model)
+        error = self._record_outcome(outcome, upstream_model, diagnostic_code)
         if error is not None:
             return error
         if not retain_reservation:
@@ -160,8 +162,11 @@ class ProxyState:
         # count: releasing an absent reservation would drive it negative.
         return self._record_outcome(outcome, None)
 
-    def _record_outcome(self, outcome: str, upstream_model: str | None) -> str | None:
-        record = self._attempt_record(outcome, upstream_model)
+    def _record_outcome(
+        self, outcome: str, upstream_model: str | None,
+        diagnostic_code: str | None = None,
+    ) -> str | None:
+        record = self._attempt_record(outcome, upstream_model, diagnostic_code)
         if not self._persist(record):
             return "audit_log_unavailable"
         self.request_count += 1
@@ -177,12 +182,15 @@ class ProxyState:
 
     def _attempt_record(
         self, outcome: str, upstream_model: str | None,
+        diagnostic_code: str | None = None,
     ) -> dict[str, object]:
         record = self._record(
             self.request_count + 1, self.input_tokens, self.output_tokens,
             self.cached_tokens, upstream_model,
         )
         record["outcome"] = outcome
+        if diagnostic_code is not None:
+            record["diagnostic_code"] = diagnostic_code
         return record
 
     def _record(
