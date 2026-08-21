@@ -5,8 +5,9 @@
   "provider": "deepseek",
   "model": "deepseek-v4-flash",
   "source_commits": {
-    "aistatus": "65d9512",
-    "cortex": "7cc8e378"
+    "aistatus_fix": "65d9512",
+    "cortex_pre_fix_artifacts": "9716704d",
+    "cortex_post_fix_artifacts": "7cc8e378"
   },
   "headline": "A pre-fix and post-fix three-concurrency PI wave both completed without a natural stream interruption. Deterministic tests exposed and repaired the historical failure chain: aistatus had converted an upstream SSE reader failure into a normally ended type:error event, and the benchmark failed to detect early EOF on a declared Content-Length response. aistatus 0.0.10 now aborts pre-terminal interrupted streams, the benchmark classifies early EOF as retryable upstream_unavailable, and the existing complete-but-unaccounted fail-closed path remains unchanged.",
   "diagnosis": {
@@ -19,7 +20,6 @@
     "aistatus_version": "0.0.10",
     "aistatus_tar_sha256": "284d12df53eae37a0bc13f397f8f7056d4a5ed6a9a89ff80e92f551e6bc086b5",
     "gateway_index_sha256": "3fff1786d6f5e06b2636ad306724be90438237c94efd7a5941e1bd150f579a4d",
-    "deployed_gateway_pid": 4132922,
     "behavior": "Reader failure before [DONE] or message_stop aborts HTTP without provider error text; failure after a terminal event completes normally and may persist complete usage. Benchmark early EOF with unread declared bytes raises a retryable upstream attempt error.",
     "unchanged": [
       "complete terminal SSE accounting",
@@ -92,8 +92,9 @@
   },
   "verification": {
     "aistatus_full": "110 passed",
-    "cortex_proxy_campaign_scoped": "190 passed",
+    "aistatus_test_log_sha256": "38c926644d0b853b6695745b26bab9242e547e7088230b378e413673837476f3",
     "cortex_paid_proxy_scoped_after_artifact_build": "204 passed",
+    "cortex_test_log_sha256": "2b62439c0d06becd95e302da2160d6cb9e15e1787366d1d89702ddea6ca3a4a3",
     "synthetic_early_reader_failure": "downstream HTTP aborts without in-band raw error or normal terminal framing",
     "synthetic_late_reader_failure": "terminal accounted SSE ends normally and persists usage",
     "synthetic_benchmark_retry": "early EOF records upstream_unavailable, keeps route active, and the next request succeeds",
