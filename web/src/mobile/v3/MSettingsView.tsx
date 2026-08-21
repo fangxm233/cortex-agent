@@ -27,6 +27,7 @@ export interface MSettingsCopy {
   theme: string; // `主题`
   themeLight: string; // `浅色`
   themeDark: string; // `深色`
+  themeSystem: string; // `跟随系统`
   budget: string;
   budgetUnit: string; // `日`
   usage: string;
@@ -148,8 +149,7 @@ function DesktopPill({ children }: { children: ReactNode }) {
   );
 }
 
-// ── A generic two-option segmented toggle (mirrors the desktop LeftRail footer toggle). The active
-//    segment is the ink-solid inverse chip (light-bg/dark-fg in dark mode). ───────────────────────
+// ── A generic segmented toggle. The active segment is the ink-solid inverse chip. ──────────────
 function Segmented<T extends string>({
   value,
   options,
@@ -217,11 +217,13 @@ function ThemeToggle({
   onSetTheme,
   lightLabel,
   darkLabel,
+  systemLabel,
 }: {
   theme: Theme;
   onSetTheme: (t: Theme) => void;
   lightLabel: string;
   darkLabel: string;
+  systemLabel: string;
 }) {
   return (
     <Segmented
@@ -230,6 +232,7 @@ function ThemeToggle({
       options={[
         { id: 'light', label: lightLabel },
         { id: 'dark', label: darkLabel },
+        { id: 'system', label: systemLabel },
       ]}
       onChange={onSetTheme}
     />
@@ -448,6 +451,7 @@ export function MSettingsView({
               onSetTheme={onSetTheme}
               lightLabel={copy.themeLight}
               darkLabel={copy.themeDark}
+              systemLabel={copy.themeSystem}
             />
           </div>
         </Card>

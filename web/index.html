@@ -1,3 +1,7 @@
+<!-- input:  Vite entry module, persisted theme, system color scheme -->
+<!-- output: SPA document shell with no-flash theme initialization -->
+<!-- pos:    Browser entry document for the Cortex web application -->
+<!-- >>> If I am updated, update my header comment and CORTEX.md <<< -->
 <!doctype html>
 <html lang="en">
   <head>
@@ -25,7 +29,9 @@
           var stored = null;
           try { stored = window.localStorage.getItem('cortex.theme'); } catch (e) {}
           var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var theme = stored === 'light' || stored === 'dark' ? stored : prefersDark ? 'dark' : 'light';
+          var preference = stored === 'light' || stored === 'dark' || stored === 'system'
+            ? stored : prefersDark ? 'dark' : 'light';
+          var theme = preference === 'system' ? (prefersDark ? 'dark' : 'light') : preference;
           if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
           document.documentElement.style.colorScheme = theme;
         } catch (e) {}

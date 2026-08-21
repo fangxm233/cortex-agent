@@ -1,5 +1,10 @@
+// input:  React context, persisted theme helpers, system color scheme
+// output: ThemeProvider and hooks for reading or changing theme
+// pos:    React owner for global color-theme preference
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { applyTheme, readStoredTheme, storeTheme, type Theme } from './theme';
+import { applyTheme, readStoredTheme, storeTheme, watchSystemTheme, type Theme } from './theme';
 
 interface ThemeContextValue {
   theme: Theme;
@@ -9,18 +14,15 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-// Theme is a real, user-controlled, persisted choice (the light/dark toggle in Settings) — NOT
-// derived from viewport. It defaults to the OS `prefers-color-scheme` on first run, then sticks to
-// the user's explicit choice (see resolveInitialTheme). The no-flash inline script in index.html
-// already applied the correct `data-theme` before first paint; this provider keeps React state in
-// sync and re-applies on change.
+// The no-flash script applies the initial preference before React mounts. This provider persists
+// explicit choices and keeps the document in sync with OS changes while system mode is selected.
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(readStoredTheme);
 
-  // Keep the document root attribute in sync with React state (covers the initial mount too, in
-  // case the pre-paint script did not run, e.g. plain SSR hydration).
   useEffect(() => {
     applyTheme(theme);
+    if (theme !== 'system') return;
+    return watchSystemTheme((prefersDark) => applyTheme('system', prefersDark));
   }, [theme]);
 
   const setTheme = useCallback((next: Theme) => {

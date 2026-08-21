@@ -72,8 +72,8 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MDaemonView.tsx | view | Shows daemon processes, restart and disconnect controls |
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
-| MSettingsScreen.tsx | screen | Loads settings and account summary data |
-| MSettingsView.tsx | view | Fixed-header settings with account and config drill-ins |
+| MSettingsScreen.tsx | screen | Loads settings, account data and appearance state |
+| MSettingsView.tsx | view | Settings with system theme and config drill-ins |
 | MUsageScreen.tsx | screen | Binds localized Usage thresholds, saves, refresh, and settings back route |
 | MUsageView.tsx | view | Renders quotas and one-row threshold actions with icon reset |
 | MUsageView.test.tsx | test | Tests functional row saves, config gating, and refresh interactions |
