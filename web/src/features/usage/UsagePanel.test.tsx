@@ -233,7 +233,9 @@ describe('desktop Settings Usage panel', () => {
     expect(cards.props.style).toMatchObject({ columnWidth: 380, columnCount: 2, columnGap: 12 });
     expect(thresholdInput(renderer, fiveHour).props.style.height).toBe(30);
     expect(saveButton(renderer, fiveHour).props.style.height).toBe(30);
-    expect(resetButton(renderer, fiveHour).props.style.height).toBe(30);
+    expect(resetButton(renderer, fiveHour).props.style).toMatchObject({
+      height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    });
     expect(renderer.root.findByProps({ 'data-usage-window': 'five_hour' }).props.style.borderTop).toBeUndefined();
     expect(renderer.root.findByProps({ 'data-usage-window': 'seven_day' }).props.style.borderTop).toBe('1px solid var(--proto-line-3)');
     expect(renderer.root.findAll((node) => node.props['data-usage-freshness'] !== undefined)).toHaveLength(0);

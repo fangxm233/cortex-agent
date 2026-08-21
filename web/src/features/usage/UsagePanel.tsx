@@ -214,7 +214,10 @@ function PolicyThresholdButtons(props: PolicyThresholdButtonsProps) {
         {props.pending ? L.usagePolicySaving : L.usagePolicySave}
       </SButton>
       <SButton tone="neutral" data-usage-threshold-reset={key}
-        style={{ ...POLICY_BUTTON, width: 40, paddingLeft: 0, paddingRight: 0 }}
+        style={{
+          ...POLICY_BUTTON, width: 40, paddingLeft: 0, paddingRight: 0,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        }}
         aria-label={L.usagePolicyResetDefault} title={L.usagePolicyResetDefault}
         disabled={props.resetDisabled} onClick={() => resetThreshold(props)}>
         <ResetIcon />
