@@ -1,0 +1,107 @@
+{
+  "schema_version": "cortex-bench-vendor-stream-fix-summary/1",
+  "executed_at": "2026-08-21",
+  "paid": true,
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "source_commits": {
+    "aistatus": "65d9512",
+    "cortex": "7cc8e378"
+  },
+  "headline": "A pre-fix and post-fix three-concurrency PI wave both completed without a natural stream interruption. Deterministic tests exposed and repaired the historical failure chain: aistatus had converted an upstream SSE reader failure into a normally ended type:error event, and the benchmark failed to detect early EOF on a declared Content-Length response. aistatus 0.0.10 now aborts pre-terminal interrupted streams, the benchmark classifies early EOF as retryable upstream_unavailable, and the existing complete-but-unaccounted fail-closed path remains unchanged.",
+  "diagnosis": {
+    "direct_historical_proxy_mechanism": "complete-but-unaccounted response -> route inactive -> downstream chunk left incomplete -> PI terminated -> retry 410 route_revoked",
+    "aistatus_masking_bug": "A reader exception before a terminal SSE event was rewritten as an in-band type:error event followed by normal HTTP end.",
+    "benchmark_early_eof_bug": "HTTPResponse.read1 could return EOF while a positive Content-Length remainder existed; the partial body then reached protocol accounting instead of the retryable transport-failure path.",
+    "historical_terminal_subtype": "still-unknown-because-the-old-raw-SSE-tail-was-not-retained"
+  },
+  "fix": {
+    "aistatus_version": "0.0.10",
+    "aistatus_tar_sha256": "284d12df53eae37a0bc13f397f8f7056d4a5ed6a9a89ff80e92f551e6bc086b5",
+    "gateway_index_sha256": "3fff1786d6f5e06b2636ad306724be90438237c94efd7a5941e1bd150f579a4d",
+    "deployed_gateway_pid": 4132922,
+    "behavior": "Reader failure before [DONE] or message_stop aborts HTTP without provider error text; failure after a terminal event completes normally and may persist complete usage. Benchmark early EOF with unread declared bytes raises a retryable upstream attempt error.",
+    "unchanged": [
+      "complete terminal SSE accounting",
+      "complete-but-unaccounted response revocation",
+      "credential isolation",
+      "request and token ceilings",
+      "final route revocation"
+    ]
+  },
+  "pre_fix": {
+    "campaign": "tb21-pi-3c-prefx1-20260821",
+    "config_sha256": "97889ed75b3c01eb74c4d89081e7a9db5184a5db97843302784561b9feb0a26d",
+    "run_result_sha256": "36cffa7abce7fad9005f9b498c70cf7c6eea2117848d607178432ad98578a433",
+    "started_at": "2026-08-21T07:02:46.941Z",
+    "ended_at": "2026-08-21T07:33:46.704Z",
+    "concurrency": 3,
+    "provider_requests": 55,
+    "gateway_records": 55,
+    "tokens": {"input": 914885, "output": 57818, "cached": 871808},
+    "gateway_cost_usd": "0.08512103",
+    "natural_stream_failure_observed": false,
+    "diagnostic_codes_observed": [],
+    "trials": [
+      {"task": "chess-best-move", "state": "terminal-success", "reward": 1.0, "requests": 28},
+      {"task": "constraints-scheduling", "state": "terminal-success", "reward": 1.0, "requests": 8},
+      {"task": "db-wal-recovery", "state": "terminal-agent-failure", "reward": 0.0, "requests": 19, "reason": "agent deadline after provider activity had stopped"}
+    ]
+  },
+  "post_fix": {
+    "campaign": "tb21-pi-3c-postfx1-20260821",
+    "config_sha256": "04f3b59bc605b80d0b8e17de5dc20f33f7e1ed59feb7448014057244a219659c",
+    "run_result_sha256": "385b03c27f9f0e337c55881add03029fc517021662ca13ae10b3a4c32980140e",
+    "started_at": "2026-08-21T08:25:24.856Z",
+    "ended_at": "2026-08-21T08:56:01.753Z",
+    "concurrency": 3,
+    "metered_requests": 54,
+    "provider_requests": 53,
+    "gateway_records": 53,
+    "tokens": {"input": 1026642, "output": 79087, "cached": 992128},
+    "gateway_cost_usd": "0.09786580",
+    "natural_stream_failure_observed": false,
+    "diagnostic_codes_observed": [],
+    "local_rejections": [{"task": "chess-best-move", "request": 34, "outcome": "request_completion_cap_mismatch"}],
+    "trials": [
+      {"task": "chess-best-move", "state": "terminal-success", "reward": 0.0, "requests": 34},
+      {"task": "constraints-scheduling", "state": "terminal-success", "reward": 1.0, "requests": 6},
+      {"task": "db-wal-recovery", "state": "terminal-agent-failure", "reward": 0.0, "requests": 14, "reason": "agent deadline after provider activity had stopped"}
+    ]
+  },
+  "safety_and_resume": {
+    "all_six_leak_scans_clean": true,
+    "credential_matches": 0,
+    "missing_sources": 0,
+    "unclassified_files": 0,
+    "all_final_routes_inactive": true,
+    "all_listeners_absent": true,
+    "all_active_handlers_zero": true,
+    "all_body_handlers_zero": true,
+    "pre_fix_resume_skipped_terminal_roots": true,
+    "post_fix_resume_skipped_terminal_roots": true,
+    "audit_and_outer_envelope_hashes_unchanged": true
+  },
+  "cost": {
+    "pre_fix_usd": "0.08512103",
+    "post_fix_usd": "0.09786580",
+    "total_observed_usd": "0.18298683",
+    "soft_stop_usd": "1.00",
+    "within_soft_stop": true,
+    "declared_max_cost_usd_per_trial": "2.00"
+  },
+  "verification": {
+    "aistatus_full": "110 passed",
+    "cortex_proxy_campaign_scoped": "190 passed",
+    "cortex_paid_proxy_scoped_after_artifact_build": "204 passed",
+    "synthetic_early_reader_failure": "downstream HTTP aborts without in-band raw error or normal terminal framing",
+    "synthetic_late_reader_failure": "terminal accounted SSE ends normally and persists usage",
+    "synthetic_benchmark_retry": "early EOF records upstream_unavailable, keeps route active, and the next request succeeds",
+    "complete_unaccounted_regression": "existing route revocation and retry 410 test still passes"
+  },
+  "interpretation": {
+    "fixed_claim": "The identified protocol-masking and early-EOF mechanisms are fixed and deterministically regression-tested.",
+    "live_claim": "One post-fix three-concurrency wave had no stream-accounting failure or 410, but no natural reader failure occurred, so live recovery from a naturally occurring interruption was not observed.",
+    "unrelated_observation": "db-wal-recovery timed out in both waves after provider requests had stopped; this is a separate agent workflow/termination issue, not evidence that the stream fix failed."
+  }
+}

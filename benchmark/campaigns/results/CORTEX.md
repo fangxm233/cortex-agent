@@ -19,6 +19,7 @@ Committed campaign result summaries preserve path-sanitized reproducibility evid
 | terminal-bench-2.1-vendor-pi-zero-paid-rehearsal-2026-08-20.json | evidence | PI loopback rehearsal: 3 zero-reward terminals, clean envelopes, aligned caps, revoked routes and immutable resume |
 | terminal-bench-2.1-vendor-pi-live-2026-08-20.json | evidence | First native live PI baseline: three terminal rewards, clean envelopes, exact lifecycle counts, reconciled cost and immutable no-arm resume |
 | terminal-bench-2.1-vendor-pi-stream-diagnosis-2026-08-21.json | evidence | Records sanitized SSE diagnostics, zero-request admission correction, one successful paid scheduling replay, cost, revocation and no-arm resume |
+| terminal-bench-2.1-vendor-pi-3c-stream-fix-2026-08-21.json | evidence | Records paired three-concurrency waves, the transport-semantics fix, deployment, cost, safety and bounded live uncertainty |
 | terminal-bench-2.1-vendor-codex-staged-2026-08-19.json | evidence | Records the first one-request handshake failure, version drift checks, clean scan, revocation path and staged stop |
 | terminal-bench-2.1-vendor-codex-comparison-2026-08-19.json | report | Records no comparison because the first stage-1 request prevented promotion and both campaigns |
 | terminal-bench-2.1-vendor-codex-staged-r2-2026-08-20.json | evidence | Records the final one-request HTTP 400 model rejection, redacted response, clean scan, revocation and permanent Codex stop |
