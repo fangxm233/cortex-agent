@@ -1,5 +1,5 @@
 # input:  stdlib HTTP requests and fixed synthetic responses
-# output: loopback upstream captures, adapter binding, and proxy request helper
+# output: loopback captures, injected failures, and proxy request helpers
 # pos:    Synthetic model endpoint fixture
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -57,6 +57,7 @@ class SyntheticServer(ThreadingHTTPServer):
         self.content_type = "application/json"
         self.extra_headers: dict[str, str] = {}
         self.raw_body: bytes | None = None
+        self.truncate_after_bytes: int | None = None
         self.response = {
             "id": "msg_synthetic",
             "type": "message",
@@ -90,6 +91,11 @@ class SyntheticHandler(BaseHTTPRequestHandler):
 
     def _write_payload(self, server: SyntheticServer, payload: bytes) -> None:
         try:
+            if server.truncate_after_bytes is not None:
+                self.wfile.write(payload[:server.truncate_after_bytes])
+                self.wfile.flush()
+                self.connection.shutdown(socket.SHUT_RDWR)
+                return
             if server.response_chunk_delay_seconds == 0:
                 self.wfile.write(payload)
                 return
@@ -97,7 +103,7 @@ class SyntheticHandler(BaseHTTPRequestHandler):
                 self.wfile.write(bytes([byte]))
                 self.wfile.flush()
                 time.sleep(server.response_chunk_delay_seconds)
-        except (BrokenPipeError, ConnectionResetError):
+        except OSError:
             return
 
     def log_message(self, _format: str, *_args: object) -> None:

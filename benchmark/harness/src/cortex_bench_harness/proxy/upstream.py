@@ -182,6 +182,8 @@ def _read_until_deadline(
         _set_response_timeout(response, remaining)
         chunk = response.read1(64 * 1024)
         if not chunk:
+            if response.length not in (None, 0):
+                raise UpstreamAttemptError(True)
             return b"".join(chunks)
         total += len(chunk)
         # The declared response cap is applied before the chunk is relayed, so no byte past

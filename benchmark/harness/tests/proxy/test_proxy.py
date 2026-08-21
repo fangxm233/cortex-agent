@@ -249,6 +249,24 @@ def test_connect_failure_releases_reservation_and_writes_audit(tmp_path: Path) -
     assert records[1]["request_count"] == 2
 
 
+def test_interrupted_upstream_stream_keeps_route_retryable(tmp_path: Path) -> None:
+    with SyntheticUpstream() as upstream:
+        upstream.server.truncate_after_bytes = 16
+        handle = start_proxy(tmp_path, upstream, max_requests=4)
+        try:
+            first = streamed_proxy_request(handle.base_url, handle.dummy_token, "interrupted")
+            upstream.server.truncate_after_bytes = None
+            second, _ = proxy_request(handle.base_url, handle.dummy_token, "retry")
+        finally:
+            handle.stop()
+
+    rows = audit_rows(tmp_path)
+    assert (first.complete, second) == (False, 200)
+    assert rows[0]["outcome"] == "upstream_unavailable"
+    assert rows[1]["request_count"] == 2
+    assert len(upstream.requests) == 2
+
+
 def _unused_port() -> int:
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))

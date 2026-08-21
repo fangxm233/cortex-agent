@@ -4,9 +4,9 @@ Proxy tests prove host credential isolation, policy enforcement, and Docker egre
 
 | filename | role | function |
 |---|---|---|
-| synthetic.py | fixture | Runs the synthetic upstream and binds the adapter |
+| synthetic.py | fixture | Runs synthetic upstream responses and transport failures |
 | docker_tools.py | fixture | Creates isolated trial networks and containers |
-| test_proxy.py | test | Verifies forwarding, the declared request count, deadlines, and logs |
+| test_proxy.py | test | Verifies forwarding, retries, request bounds, deadlines, and logs |
 | test_container_boundary.py | test | Proves source and egress containment in Docker |
 | test_proxy_manifest.py | test | Verifies the credential-free proxy manifest block |
 | test_cli.py | test | Verifies structured startup, refusals and credential secrecy |

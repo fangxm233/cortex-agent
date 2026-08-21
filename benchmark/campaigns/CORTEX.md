@@ -13,6 +13,7 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 | terminal-bench-2.1-vendor-codex.yaml | campaign | Declares the paid three-task Codex vendor baseline as one TTL-bound wave |
 | terminal-bench-2.1-vendor-pi.yaml | campaign | Declares the paid three-task PI vendor baseline against the host DeepSeek relay |
 | terminal-bench-2.1-vendor-pi-3c-prefx1.yaml | campaign | Declares the first paid three-concurrency PI stream-failure reproduction wave |
+| terminal-bench-2.1-vendor-pi-3c-postfx1.yaml | campaign | Declares the first paid three-concurrency PI stream-fix validation wave |
 | terminal-bench-2.1-vendor-pi-handshake.yaml | campaign | Declares task 3ff0's vendor-native one-request PI live handshake |
 | terminal-bench-2.1-vendor-pi-single.yaml | campaign | Declares task 3ff0's single-task PI live trial with the committed production envelope |
 | terminal-bench-2.1-vendor-pi-stream-diagnosis.yaml | campaign | Declares one approval-bounded PI scheduling replay with sanitized terminal-SSE diagnostics |

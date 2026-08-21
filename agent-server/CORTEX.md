@@ -9,7 +9,7 @@ Production code lives in src/, regression tests in tests/, and the install scaff
 | scripts/ | subdir | Build, benchmark, release and maintenance scripts |
 | src/ | subdir | Production TypeScript source |
 | tests/ | subdir | Vitest regression suite |
-| vendor/ | subdir | Pins unpublished npm dependency tarballs |
+| vendor/ | subdir | Pins local aistatus dependency tarballs |
 | README.md | docs | describes the published server package |
 | .dependency-cruiser.cjs | config | Guards source-layer dependency direction |
 | package.json | config | Builds, packs and exposes runtime binaries |
