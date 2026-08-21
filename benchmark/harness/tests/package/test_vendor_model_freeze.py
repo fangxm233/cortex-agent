@@ -414,6 +414,7 @@ def test_claude_native_default_resolves_to_the_frozen_campaign_model(
 
     assert result.returncode == 0, result.stderr
     assert [item["body"]["model"] for item in requests] == [declared]  # type: ignore[index]
+    assert [item["body"]["max_tokens"] for item in requests] == [64000]  # type: ignore[index]
     assert "request_model_mismatch" not in outcomes
 
 
