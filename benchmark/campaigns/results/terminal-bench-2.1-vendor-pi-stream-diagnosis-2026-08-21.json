@@ -1,0 +1,99 @@
+{
+  "schema_version": "cortex-bench-vendor-stream-diagnosis-summary/1",
+  "campaign": "tb21-pi-sse-dx-20260821",
+  "executed_at": "2026-08-21",
+  "paid": true,
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "source_commit": "c62dfcc7984aac9d780bc53b590c5cfab3a3f031",
+  "campaign_config": "benchmark/campaigns/terminal-bench-2.1-vendor-pi-stream-diagnosis.yaml",
+  "campaign_config_sha256": "2d78d0b122ea21c3785c3b1a64bf6742cb8c2347ad7647529f74b73602e9c968",
+  "headline": "A sanitized terminal-SSE diagnostic was added and one bounded single-task PI replay was executed. The historical failure did not reproduce: all five responses carried complete accounting, constraints-scheduling earned reward 1.0, the leak scan was clean and route revocation was proven. Synthetic tests independently reproduced the historical usage_accounting_unavailable -> incomplete downstream stream -> retry 410 chain.",
+  "diagnostic_contract": {
+    "content_retained": false,
+    "closed_codes": [
+      "deepseek_content_type_not_sse",
+      "deepseek_sse_malformed",
+      "deepseek_data_after_done",
+      "deepseek_error_event",
+      "deepseek_done_missing",
+      "deepseek_model_mismatch",
+      "deepseek_usage_missing",
+      "deepseek_usage_duplicate",
+      "deepseek_usage_invalid"
+    ],
+    "behavior_changed": false,
+    "synthetic_chain_reproduced": true
+  },
+  "pre_start": {
+    "other_campaign_running": false,
+    "matching_container_running": false,
+    "matching_network_present": false,
+    "singleton_lock": true,
+    "concurrency": 1,
+    "planned_trials": 1
+  },
+  "admission_attempt": {
+    "provider_requests": 0,
+    "outcome_state": "harness-incomplete",
+    "reason": "The pinned PI image digest was absent locally and pull-disabled admission refused before route arm.",
+    "preserved": true,
+    "campaign_result_sha256": "b215062b96136ff6b4b83c51baf19d7fd8819cae18fde2edb457738df7acd40b"
+  },
+  "execution": {
+    "started_at": "2026-08-21T06:24:49.127Z",
+    "ended_at": "2026-08-21T06:26:12.940Z",
+    "campaign_exit_code": 0,
+    "trial_state": "terminal-success",
+    "task_id": "constraints-scheduling",
+    "trial_id": "tb21-pi-sse-dx-20260821-constraints-scheduling-pure-pi",
+    "vendor_cli_version": "0.82.1",
+    "image_digest": "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353",
+    "verifier_reward": 1.0,
+    "provider_requests": 5,
+    "input_tokens": 37673,
+    "output_tokens": 7608,
+    "cached_tokens": 36224,
+    "usage_accounting_unavailable_requests": 0,
+    "diagnostic_codes_observed": [],
+    "gateway_usage_cost_usd": "0.00436862",
+    "declared_max_cost_usd": "2.00"
+  },
+  "safety": {
+    "leak_scan_clean": true,
+    "credential_matches": 0,
+    "missing_sources": 0,
+    "unclassified_files": 0,
+    "route_arm_count": 1,
+    "route_revoke_count": 1,
+    "revocation": {
+      "route_active": false,
+      "listener_present": false,
+      "serving_thread_alive": false,
+      "active_handlers": 0,
+      "body_handlers": 0
+    }
+  },
+  "resume": {
+    "state": "skipped",
+    "provider_requests_before": 5,
+    "provider_requests_after": 5,
+    "proxy_audit_unchanged": true,
+    "outer_envelope_unchanged": true
+  },
+  "evidence_hashes": {
+    "live_campaign_result": "ab24c24f9a0c938d4972e6a2a18de59e324e23c2802cf46d2d539fa6d72d5998",
+    "result_json": "55777a22f185d7ac93a9b09b23340f8eca3616a6d5830e819f18a895f115d08d",
+    "outer_envelope": "cebe0d776a2385f4c94ddbf33ec8b9d2bc2f795d06a4b736ea6aee9dc46c2f0b",
+    "proxy_audit": "7d2f929714ef6146378468c45afc6d00cd247c31376ebc76bd7f6215b3c5deec",
+    "agent_session": "1b7d9be9a8407214c2a20dccf4badbc6ad5e528249787442a5115944f5ab6833",
+    "gateway_index_js": "0d8f8baed58d0f60b80cc319c3690ee2a62aa182ab5c010ba2e3a20d1650140c"
+  },
+  "interpretation": {
+    "historical_direct_mechanism": "An SSE response failed strict terminal accounting; the proxy deactivated the route, deliberately left the already-started downstream chunked response incomplete, and PI's automatic retry received 410 route_revoked.",
+    "historical_subtype": "unknown-because-raw-terminal-sse-was-not-retained",
+    "live_reproduction": "not_reproduced_in_one_single-task_trial",
+    "strongest_remaining_hypothesis": "An intermittent DeepSeek-to-Cloudflare-relay or relay-to-aistatus stream failure, or an upstream stream that otherwise omitted a terminal accounting event. The Cloudflare Worker passes response bodies through and aistatus can normalize an upstream reader exception to a content-free SSE error event, but the historical response cannot distinguish this from another missing-terminal-event condition.",
+    "concurrency": "The original campaign used concurrency 3 and two of three PI routes eventually recorded usage_accounting_unavailable; the single-task replay recorded none. This is suggestive but not causal evidence, and the chess failure occurred after the other two agents had stopped."
+  }
+}
