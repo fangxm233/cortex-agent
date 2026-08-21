@@ -24,7 +24,6 @@ const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
       legacyFallbackBody: 'Unset rows inherit the old provider-wide policy until you clear it.',
       clearLegacy: 'Clear legacy fallback',
     },
-    freshness: { live: 'Live', stale: 'Stale', never: 'Never observed', unsupported: 'Unsupported' },
   },
   zh: {
     title: '用量', refresh: '刷新', refreshing: '刷新中…', loading: '正在加载用量…',
@@ -39,7 +38,6 @@ const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
       legacyFallbackBody: '未单独设置的行会继续继承旧的 provider 级策略，直到你清除它。',
       clearLegacy: '清除旧版兜底',
     },
-    freshness: { live: '实时', stale: '陈旧', never: '尚未观测', unsupported: '不支持' },
   },
 };
 

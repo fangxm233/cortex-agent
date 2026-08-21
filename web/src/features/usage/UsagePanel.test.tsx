@@ -1,6 +1,6 @@
 // input:  UsagePanel with tRPC query/mutation fakes and per-window config snapshots
-// output: refresh, row policy, config gating, and pending-operation regressions
-// pos:    Verifies functional desktop Usage interactions and shared hook wiring
+// output: layout, status omission, refresh, policy, and pending regressions
+// pos:    Verifies desktop Usage presentation, interactions, and hook wiring
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
@@ -225,6 +225,20 @@ beforeEach(() => {
 });
 
 describe('desktop Settings Usage panel', () => {
+  it('packs cards by height, aligns policy controls, separates windows, and omits status pills', () => {
+    const renderer = mount();
+    const cards = renderer.root.findByProps({ 'data-usage-cards': true });
+    const fiveHour = targetKey('anthropic', 'five_hour');
+
+    expect(cards.props.style).toMatchObject({ columnWidth: 380, columnCount: 2, columnGap: 12 });
+    expect(thresholdInput(renderer, fiveHour).props.style.height).toBe(30);
+    expect(saveButton(renderer, fiveHour).props.style.height).toBe(30);
+    expect(resetButton(renderer, fiveHour).props.style.height).toBe(30);
+    expect(renderer.root.findByProps({ 'data-usage-window': 'five_hour' }).props.style.borderTop).toBeUndefined();
+    expect(renderer.root.findByProps({ 'data-usage-window': 'seven_day' }).props.style.borderTop).toBe('1px solid var(--proto-line-3)');
+    expect(renderer.root.findAll((node) => node.props['data-usage-freshness'] !== undefined)).toHaveLength(0);
+  });
+
   it('hides row policy controls while config is loading, missing, or failed without hiding usage', () => {
     const cases = [
       () => { harness.configLoading = true; },

@@ -1,6 +1,6 @@
 // input:  settings buttons, toggles, keyboard handlers
-// output: shared control keyboard accessibility tests
-// pos:    Settings primitive interaction regressions
+// output: shared control keyboard, disabled, and style-override tests
+// pos:    Settings primitive interaction and styling regressions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { act, create } from 'react-test-renderer';
@@ -62,5 +62,10 @@ describe('settings button semantics', () => {
     expect(onClick).toHaveBeenCalledOnce();
     expect(disabledNode.props.disabled).toBe(true);
     expect(disabledNode.props['aria-disabled']).toBe(true);
+  });
+
+  it('merges caller dimensions after the tone defaults', () => {
+    const renderer = create(<SButton tone="neutral" style={{ height: 30, padding: 0 }}>Reset</SButton>);
+    expect(renderer.root.findByType('button').props.style).toMatchObject({ height: 30, padding: 0 });
   });
 });

@@ -49,7 +49,6 @@ export interface MUsageCopy {
     legacyFallbackBody: string;
     clearLegacy: string;
   };
-  freshness: Record<ProviderUsageView['freshness'], string>;
 }
 
 const META: CSSProperties = { font: `400 9.5px ${MONO}`, color: MC.muted };
@@ -71,17 +70,6 @@ function isoTime(epochSeconds: number): string {
 
 function targetKey(target: UsagePolicyTarget): string {
   return usagePolicyTargetKey(target);
-}
-
-function FreshnessBadge({ provider, copy }: { provider: ProviderUsageView; copy: MUsageCopy }) {
-  return (
-    <span
-      data-usage-freshness={provider.freshness}
-      style={{ fontSize: 9.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: MC.runBg, color: MC.run }}
-    >
-      {copy.freshness[provider.freshness]}
-    </span>
-  );
 }
 
 function Observation({ provider, copy }: { provider: ProviderUsageView; copy: MUsageCopy }) {
@@ -382,7 +370,6 @@ function ProviderCard(props: {
       <div data-usage-provider={provider.provider} style={{ padding: '11px 13px 8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 13.5, fontWeight: 650, color: MC.ink }}>{provider.displayName}</span>
-          <span style={{ marginLeft: 'auto' }}><FreshnessBadge provider={provider} copy={copy} /></span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
           <span style={META}>{provider.modes.join(' · ')}</span>

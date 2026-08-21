@@ -242,9 +242,10 @@ type SButtonProps = {
   disabled?: boolean;
   onClick?: () => void;
   children: ReactNode;
+  style?: CSSProperties;
 } & Record<string, unknown>;
 
-export function SButton({ tone, disabled, onClick, children, ...rest }: SButtonProps) {
+export function SButton({ tone, disabled, onClick, children, style, ...rest }: SButtonProps) {
   const [hover, setHover] = useState(false);
   const [focused, setFocused] = useState(false);
   return (
@@ -258,7 +259,7 @@ export function SButton({ tone, disabled, onClick, children, ...rest }: SButtonP
       onMouseLeave={() => setHover(false)}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
-      style={{ fontFamily: 'inherit', ...buttonBaseStyle(tone, disabled, hover, focused) }}
+      style={{ fontFamily: 'inherit', ...buttonBaseStyle(tone, disabled, hover, focused), ...style }}
     >
       {children}
     </button>

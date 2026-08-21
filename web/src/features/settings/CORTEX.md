@@ -42,5 +42,5 @@ Panels read snapshots; Usage independently queries the shared web usage feature.
 | platform-env.ts | vm | Defines env indexes, writable settings, and durations |
 | platform-env.test.ts | test | Tests env redaction, setting lookup, duration bounds and retention limits |
 | settings-nav.ts | vm | Lists settings sections and descriptions |
-| settings-ui.tsx | view | Shared native controls and cards |
-| settings-ui.test.tsx | test | Covers shared control semantics |
+| settings-ui.tsx | view | Shared cards and style-overridable native controls |
+| settings-ui.test.tsx | test | Covers control semantics and style overrides |

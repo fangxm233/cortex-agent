@@ -1,6 +1,6 @@
 // input:  shared usage view model, mobile Usage view, and row-policy callbacks
-// output: row-policy target, config gating, and refresh interaction regressions
-// pos:    Verifies functional mobile Usage interactions
+// output: policy, status omission, config gating, and refresh regressions
+// pos:    Verifies mobile Usage presentation and interactions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { act, create } from 'react-test-renderer';
@@ -71,7 +71,6 @@ const copy: MUsageCopy = {
     legacyFallbackBody: 'Unset rows inherit the old provider-wide policy until you clear it.',
     clearLegacy: 'Clear legacy fallback',
   },
-  freshness: { live: 'Live', stale: 'Stale', never: 'Never observed', unsupported: 'Unsupported' },
 };
 
 function targetKey(provider: string, windowType?: string, windowLabel?: string | null): string {
@@ -136,6 +135,11 @@ describe('MUsageView policy controls', () => {
     expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-usage-legacy-fallback': 'anthropic' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
+  });
+
+  it('omits freshness status pills from every provider card', () => {
+    const renderer = create(view());
+    expect(renderer.root.findAll((node) => node.props['data-usage-freshness'] !== undefined)).toHaveLength(0);
   });
 });
 
