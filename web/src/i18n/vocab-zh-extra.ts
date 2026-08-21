@@ -104,7 +104,6 @@ export const zhExtra = {
   usagePolicyLegacyBody: '未单独设置的行会继续继承旧的 provider 级策略，直到你清除它。',
   usagePolicyClearLegacy: '清除旧版兜底',
   usagePolicyDefaultHint: '系统默认阈值：90%；7 天窗口：95%。',
-  usagePolicyFutureHint: '更改仅对后续观测生效。',
   usageFreshLive: '实时',
   usageFreshStale: '陈旧',
   usageFreshNever: '从未观测',

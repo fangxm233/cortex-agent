@@ -104,7 +104,6 @@ export const enExtra = {
   usagePolicyLegacyBody: 'Unset rows inherit the old provider-wide policy until you clear it.',
   usagePolicyClearLegacy: 'Clear legacy fallback',
   usagePolicyDefaultHint: 'System default: 90%; 7-day windows: 95%',
-  usagePolicyFutureHint: 'Changes apply to future observations.',
   usageFreshLive: 'Live',
   usageFreshStale: 'Stale',
   usageFreshNever: 'Never observed',

@@ -177,12 +177,10 @@ interface WindowPolicyBlockProps {
   onSavePolicy: SavePolicyHandler;
 }
 
-function PolicyControlsRow(props: {
-  policy: UsageWindowPolicyView;
+function PolicyControlsRow(props: PolicyThresholdButtonsProps & {
   disabled: boolean;
   draft: string;
   setDraft: (value: string) => void;
-  onSavePolicy: SavePolicyHandler;
 }) {
   const L = useVocab();
   const key = targetKey(props.policy.target);
@@ -198,7 +196,17 @@ function PolicyControlsRow(props: {
       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.usagePolicyEnabled}</span>
       <span style={{ ...META_TEXT, marginLeft: 4 }}>{L.usagePolicyThreshold}</span>
       <ThresholdField disabled={props.disabled} target={props.policy.target} value={props.draft} onChange={props.setDraft} />
+      <PolicyThresholdButtons {...props} />
     </div>
+  );
+}
+
+function ResetIcon() {
+  return (
+    <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
+    </svg>
   );
 }
 
@@ -221,13 +229,15 @@ function PolicyThresholdButtons(props: PolicyThresholdButtonsProps) {
       <SButton
         tone="neutral"
         data-usage-threshold-reset={key}
+        aria-label={L.usagePolicyResetDefault}
+        title={L.usagePolicyResetDefault}
         disabled={props.resetDisabled}
         onClick={() => props.onSavePolicy(props.policy.target, {
           enabled: true,
           thresholdPercent: null,
         })}
       >
-        {L.usagePolicyResetDefault}
+        <ResetIcon />
       </SButton>
     </>
   );
@@ -247,16 +257,11 @@ function WindowPolicyBlock(props: WindowPolicyBlockProps) {
     >
       <div style={POLICY_TEXT}>{L.usagePolicyTitle}</div>
       <PolicyControlsRow
-        policy={props.policy} disabled={state.disabled} draft={draft}
-        setDraft={setDraft} onSavePolicy={props.onSavePolicy}
+        policy={props.policy} disabled={state.disabled} draft={draft} setDraft={setDraft}
+        pending={pending} parsedThreshold={parsedThreshold}
+        saveDisabled={state.saveDisabled} resetDisabled={state.resetDisabled}
+        onSavePolicy={props.onSavePolicy}
       />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-        <PolicyThresholdButtons
-          policy={props.policy} pending={pending} parsedThreshold={parsedThreshold}
-          saveDisabled={state.saveDisabled} resetDisabled={state.resetDisabled}
-          onSavePolicy={props.onSavePolicy}
-        />
-      </div>
       {error ? <div data-usage-policy-error={targetKey(props.policy.target)} style={{ ...POLICY_TEXT, color: 'var(--proto-danger)', marginTop: 7 }}>{error.message}</div> : null}
     </div>
   );
@@ -318,12 +323,6 @@ function LegacyFallbackNotice(props: {
   );
 }
 
-function QuotaFooter({ provider }: { provider: ProviderUsageView }) {
-  const L = useVocab();
-  if (!provider.windows.some((window) => window.policy)) return null;
-  return <div data-usage-policy-future-hint={provider.provider} style={{ ...POLICY_TEXT, marginTop: 10 }}>{L.usagePolicyFutureHint}</div>;
-}
-
 function QuotaBlock({ provider, usage }: { provider: ProviderUsageView; usage: ReturnType<typeof useUsage> }) {
   const L = useVocab();
   if (provider.quotaState === 'unsupported') return null;
@@ -333,7 +332,6 @@ function QuotaBlock({ provider, usage }: { provider: ProviderUsageView; usage: R
       {provider.quotaState === 'available'
         ? provider.windows.map((window) => <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} usage={usage} />)
         : <QuietState>{L.usageNeverObserved}</QuietState>}
-      <QuotaFooter provider={provider} />
       {provider.legacyFallback
         ? (
           <LegacyFallbackNotice

@@ -67,7 +67,7 @@ const copy: MUsageCopy = {
   policy: {
     title: 'Rate-limit threshold', enabled: 'Enabled', disabled: 'Disabled', threshold: 'Threshold',
     save: 'Save', saving: 'Saving…', resetDefault: 'Reset to default',
-    futureHint: 'Changes apply to future observations.', legacyFallbackTitle: 'Legacy fallback',
+    legacyFallbackTitle: 'Legacy fallback',
     legacyFallbackBody: 'Unset rows inherit the old provider-wide policy until you clear it.',
     clearLegacy: 'Clear legacy fallback',
   },
