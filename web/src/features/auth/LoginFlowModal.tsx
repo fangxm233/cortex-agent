@@ -1,5 +1,5 @@
 // input:  auth tRPC, LoginFlow metadata, Modal/MBottomSheet
-// output: responsive targeted OAuth/API-key login overlay
+// output: consent-gated responsive OAuth/API-key login overlay
 // pos:    Shared desktop/mobile authentication workflow
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -166,6 +166,9 @@ function InfoNotice({ notice, L }: {
   );
 }
 
+const OAUTH_STEP_CLASS =
+  'min-w-0 rounded-card border border-proto-line-2 bg-surface-canvas-alt p-2g';
+
 function AuthUrlNotice({ notice, L, hideInstructions }: {
   notice: Extract<LoginFlowNotice, { kind: 'auth_url' }>;
   L: Vocab;
@@ -173,8 +176,7 @@ function AuthUrlNotice({ notice, L, hideInstructions }: {
 }) {
   return (
     <section
-      data-auth-notice="auth_url" data-auth-open-step
-      className="min-w-0 rounded-card border border-proto-line-2 bg-surface-canvas-alt p-2g"
+      data-auth-notice="auth_url" data-auth-open-step className={OAUTH_STEP_CLASS}
     >
       <div className="flex min-w-0 items-start gap-1.5g">
         <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-state-run text-caption font-semibold text-surface-card">1</span>
@@ -575,7 +577,7 @@ function useLoginReset(
   }, [open, target, initialState]);
 }
 
-function useTargetAutoStart(
+function useNoticeAutoStart(
   open: boolean,
   target: LoginFlowTarget | null | undefined,
   initialState: LoginFlowState | null | undefined,
@@ -584,7 +586,7 @@ function useTargetAutoStart(
   autoStarted: { current: string | null },
 ): void {
   useEffect(() => {
-    if (!open || !target || initialState || !controller.canStart || !matches) return;
+    if (!open || !target?.noticeId || initialState || !controller.canStart || !matches) return;
     const key = targetKey(target);
     if (autoStarted.current === key) return;
     autoStarted.current = key;
@@ -615,7 +617,7 @@ function useLoginController(
   const canStart = !!selection.provider && selection.authTypes.includes(selection.authType);
   useLoginReset(open, target, initialState, { generation, autoStarted,
     setFlowId, setLatest, setResponse, setResponseSent, setError });
-  useTargetAutoStart(open, target, initialState, { canStart, start: actions.start },
+  useNoticeAutoStart(open, target, initialState, { canStart, start: actions.start },
     !!target && selectionMatchesTarget(selection, target), autoStarted);
   useEffect(() => { if (latest) onFlowStateChange?.(latest); }, [latest, onFlowStateChange]);
   return { ...selection, latest, response, error, canCancel: !responseSent,
@@ -640,7 +642,7 @@ function PromptSection({ controller, vm, L }: {
   const stepped = state.notice?.kind === 'auth_url';
   const copy = stepped ? L.authLoginCodeStep : vm.message;
   return (
-    <section data-auth-code-step className="min-w-0">
+    <section data-auth-code-step className={stepped ? OAUTH_STEP_CLASS : 'min-w-0'}>
       <div className="flex min-w-0 items-start gap-1.5g">
         {stepped ? <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-state-run text-caption font-semibold text-surface-card">2</span> : null}
         <label className="min-w-0 flex-1 space-y-1g">

@@ -4,8 +4,8 @@ Shared responsive authentication overlay for notice-bound or settings-targeted L
 
 | filename | role | function |
 |---|---|---|
-| LoginFlowModal.tsx | view | Renders desktop dialogs and mobile login sheets |
-| LoginFlowModal.test.tsx | test | Tests login flow, navigation, secret handling and errors |
+| LoginFlowModal.tsx | view | Renders consent-gated desktop and mobile login flows |
+| LoginFlowModal.test.tsx | test | Tests consent, step layout, prompts and secret handling |
 | LoginFlowProvider.tsx | provider | Opens settings targets and reuses notice flows |
 | login-flow-vm.ts | vm | Maps LoginFlow metadata to render states |
 | login-flow-vm.test.ts | test | Tests prompts, notices and terminal states |

@@ -1,5 +1,5 @@
 // input:  mounted login overlay, tRPC/navigation fakes, targets
-// output: flow, prompt, navigation, and non-echo regressions
+// output: consent, step layout, prompt, and non-echo regressions
 // pos:    Mounted Web authentication workflow specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -275,6 +275,10 @@ describe('LoginFlowModal', () => {
     )).map(node => node.props['data-auth-open-step'] !== undefined ? 'open' : 'code');
 
     expect(ordered).toEqual(['open', 'code']);
+    const openStep = renderer.root.findByProps({ 'data-auth-open-step': true });
+    const codeStep = renderer.root.findByProps({ 'data-auth-code-step': true });
+    expect(codeStep.props.className).toBe(openStep.props.className);
+    expect(openStep.props.className).toContain('p-2g');
     expect(renderer.root.findAllByProps({ 'data-auth-prompt-copy': true })).toHaveLength(1);
     const input = renderer.root.findByProps({ 'data-auth-secret': true });
     expect(input.props.type).toBe('text');
@@ -307,14 +311,18 @@ describe('LoginFlowModal', () => {
     }]);
   });
 
-  it('auto-starts a settings target without inventing a notice binding', async () => {
+  it('waits for confirmation before starting a settings target', async () => {
     harness.startState = state('prompt', {
       backend: 'pi', provider: 'deepseek', authType: 'api_key',
     });
     harness.queryState = harness.startState;
-    mount({ target: { backend: 'pi', provider: 'deepseek', authType: 'api_key' } });
+    const renderer = mount({
+      target: { backend: 'pi', provider: 'deepseek', authType: 'api_key' },
+    });
     await act(async () => { await Promise.resolve(); });
 
+    expect(harness.startCalls).toHaveLength(0);
+    await clickAsync(renderer, 'auth-start');
     expect(harness.startCalls).toEqual([{
       backend: 'pi', provider: 'deepseek', authType: 'api_key',
     }]);
