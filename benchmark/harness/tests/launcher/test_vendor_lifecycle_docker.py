@@ -27,7 +27,7 @@ from cortex_bench_harness.launcher.trial_admission import (
     VendorRuntimeProjection,
 )
 from cortex_bench_harness.synthetic_deepseek import SyntheticDeepSeekUpstream
-from cortex_bench_harness.vendor_agents import VendorLifecycleMixin
+from cortex_bench_harness.vendor_agents import PreinstalledPi, VendorLifecycleMixin
 from docker_gate import docker_opt_in
 
 PI_IMAGE_DIGEST = "sha256:5f16cd3f75c54b22866a823b35e39305155c784886d1db5f894272d89f7cbbed"
@@ -326,14 +326,14 @@ def _fail_setup(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
 def _fail_run(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     async def fail(*_args: object, **_kwargs: object) -> None:
         raise NonZeroAgentExitCodeError("synthetic vendor exit 23")
-    monkeypatch.setattr(Pi, "run", fail)
+    monkeypatch.setattr(PreinstalledPi, "_run_vendor_instruction", fail)
     return {}
 
 
 def _fail_timeout(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     async def hang(*_args: object, **_kwargs: object) -> None:
         await asyncio.sleep(60)
-    monkeypatch.setattr(Pi, "run", hang)
+    monkeypatch.setattr(PreinstalledPi, "_run_vendor_instruction", hang)
     return {"agent_seconds": 1}
 
 
