@@ -21,4 +21,4 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | scan/ | audit | Finds credential and host-identity leaks |
 | synthetic_deepseek.py | fixture | Serves deterministic loopback tool turns |
 | trial_assets.py | collect | Lifts model-visible prompts from the arm home and plugins from the pinned bundle |
-| vendor_agents.py | adapter | Runs sealed vendor CLIs with prompt files and lifecycle controls |
+| vendor_agents.py | adapter | Runs sealed vendor CLIs with process-group containment |

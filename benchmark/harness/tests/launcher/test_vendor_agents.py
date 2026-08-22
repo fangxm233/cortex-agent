@@ -1,5 +1,5 @@
 # input:  admitted vendor arms, fake proxy, recording environment
-# output: setup, prompt transport, usage, and lifecycle proofs
+# output: setup, prompt, usage, containment, and lifecycle proofs
 # pos:    Contract tests for preinstalled vendor lifecycle agents
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -55,6 +55,20 @@ class RecordingEnvironment:
 
     async def upload_file(self, source: Path, destination: str) -> None:
         self.calls.append({"upload": source, "destination": destination})
+
+
+class CancellingEnvironment(RecordingEnvironment):
+    def __init__(self, vendor_command: str) -> None:
+        super().__init__("")
+        self.vendor_command = vendor_command
+        self.cancelled = False
+
+    async def exec(self, command: str, **kwargs: object) -> ExecResult:
+        self.calls.append({"command": command, **kwargs})
+        if self.vendor_command in command and not self.cancelled:
+            self.cancelled = True
+            raise asyncio.CancelledError
+        return ExecResult(return_code=0)
 
 
 def vendor_arm(vendor: str, provider: str | None, model: str) -> dict[str, object]:
@@ -213,6 +227,39 @@ def test_pi_run_uses_text_mode_and_prompt_file_for_dash_instruction(
     assert "@/logs/agent/pi/prompt.md" in commands[1]
     assert "--mode json" not in commands[1]
     assert instruction not in commands[1]
+
+
+@pytest.mark.parametrize(
+    ("vendor", "provider", "model", "_expected_class", "_harbor_class", "_stdout"),
+    VENDORS,
+)
+def test_cancelled_vendor_exec_terminates_process_group_before_reraising(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, vendor: str,
+    provider: str | None, model: str, _expected_class: type,
+    _harbor_class: type, _stdout: str,
+) -> None:
+    agent = create_agent(tmp_path, vendor, provider, model)
+    marker = {"pi": "pi --print", "claude-code": "claude --verbose", "codex": "codex exec"}
+    environment = CancellingEnvironment(marker[vendor])
+    revocations: list[object] = []
+    monkeypatch.setattr(agent, "revoke_admitted_proxy", lambda: revocations.append(object()))
+    if vendor == "codex":
+        auth = agent._resolve_auth_json_path()  # type: ignore[attr-defined]
+        auth.parent.mkdir(parents=True)
+        auth.write_text("{}")
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(agent.run("task", environment, AgentContext()))  # type: ignore[attr-defined]
+
+    commands = [
+        str(call["command"]) for call in environment.calls if "command" in call
+    ]
+    assert sum("setsid bash -c" in command for command in commands) == 1
+    assert marker[vendor] in next(command for command in commands if "setsid bash -c" in command)
+    assert environment.calls[-1]["user"] == 0
+    assert "kill -TERM" in commands[-1]
+    assert "kill -KILL" in commands[-1]
+    assert len(revocations) == 1
 
 
 def test_pi_usage_is_loaded_from_completed_session_messages(tmp_path: Path) -> None:
@@ -379,6 +426,7 @@ def test_native_run_cannot_inline_ambient_host_routing_or_credentials(
         str(call["command"]) for call in environment.calls if "command" in call
     )
     assert all(value not in commands for value in ambient.values())
+    assert commands.count("CORTEX_BENCH_VENDOR_PROCESS_TOKEN") == 1
     if vendor == "codex":
         assert "OPENAI_BASE_URL" not in commands
 

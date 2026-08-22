@@ -1,5 +1,5 @@
-# input:  real Docker PI image, synthetic upstream, lifecycle failure injection
-# output: prompt transport, lifecycle, resume, and revoke proofs
+# input:  real Docker PI image, synthetic upstream, lifecycle failures
+# output: prompt transport, timeout containment, resume, revoke proofs
 # pos:    Real-container boundary test for vendor trial lifecycle
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -7,6 +7,7 @@ import argparse
 import asyncio
 import json
 import shlex
+import time
 import uuid
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -16,6 +17,8 @@ import yaml
 from harbor.agents.installed.base import NonZeroAgentExitCodeError
 from harbor.agents.installed.pi import Pi
 from harbor.environments.docker.docker import DockerEnvironment
+from harbor.trial.hooks import TrialEvent
+from harbor.trial.trial import Trial
 
 import cortex_bench_harness.host_finalization as finalization
 import cortex_bench_harness.vendor_agents as vendor_agents
@@ -38,6 +41,7 @@ FORBIDDEN_ARGV_ENV = "CORTEX_BENCH_VENDOR_DOCKER_ARGV"
 CHECKOUT_ENV = "CORTEX_BENCH_VENDOR_DOCKER_CHECKOUT"
 IDENTITY_ENV = "CORTEX_BENCH_VENDOR_DOCKER_IDENTITY"
 TRIAL_ID = "vendor-docker-task-pure-pi"
+TIMEOUT_TRIAL_ID = "vendor-docker-timeout-task-pure-pi"
 ARM_NAME = "pure-pi"
 
 pytestmark = docker_opt_in
@@ -258,6 +262,72 @@ def test_real_docker_vendor_trial_reseals_prepares_cli_and_resumes_without_rewri
     assert resumed["trials"][0]["state"] == "skipped"
     assert {path: path.read_bytes() for path in paths} == before
     _assert_runtime_evidence(tmp_path)
+
+
+def test_timed_out_vendor_process_group_stops_before_verifier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_scan_environment(monkeypatch)
+    _install_first_cli_observer(monkeypatch)
+    command = (
+        ": pi --print; trap '' TERM; "
+        "printf '%s\\n' \"$$\" > /logs/agent/timeout-process-group.txt; "
+        ": > /logs/agent/timeout-session.log; "
+        "while :; do printf 'agent-write\\n' >> /logs/agent/timeout-session.log; "
+        "sleep 0.05; done"
+    )
+    monkeypatch.setattr(vendor_agents.PreinstalledPi, "_pi_text_command", lambda _: command)
+    verifier = (
+        "#!/bin/sh\nset -eu\n"
+        "pgid=$(cat /logs/agent/timeout-process-group.txt)\n"
+        "if kill -0 -- \"-$pgid\" 2>/dev/null; then exit 41; fi\n"
+        "before=$(wc -c < /logs/agent/timeout-session.log)\n"
+        "printf '%s\\n' \"$before\" > /logs/verifier/session-size-start.txt\n"
+        "sleep 1\n"
+        "after=$(wc -c < /logs/agent/timeout-session.log)\n"
+        "printf '%s\\n' \"$after\" > /logs/verifier/session-size-end.txt\n"
+        "test \"$before\" = \"$after\"\n"
+        "printf '1\\n' > /logs/verifier/reward.txt\n"
+    )
+    agent_end_sizes: list[int] = []
+    original_emit = Trial._emit
+
+    async def observe_agent_end(self: Trial, event: TrialEvent) -> None:
+        await original_emit(self, event)
+        if event != TrialEvent.AGENT_END:
+            return
+        session = self.paths.agent_dir / "timeout-session.log"
+        if not session.exists():
+            return
+        agent_end_sizes.append(session.stat().st_size)
+        await asyncio.sleep(0.3)
+        agent_end_sizes.append(session.stat().st_size)
+
+    monkeypatch.setattr(Trial, "_emit", observe_agent_end)
+    with SyntheticDeepSeekUpstream() as upstream:
+        document = _campaign_document(
+            tmp_path, upstream.base_url, agent_seconds=5, verifier=verifier,
+        )
+        document["tasks"][0]["task_id"] = "timeout-task"  # type: ignore[index]
+        result = _run_document(tmp_path, document)
+
+    trial = tmp_path / "trials" / TIMEOUT_TRIAL_ID
+    harbor_result = json.loads((trial / "result.json").read_text())
+    session = trial / "agent/timeout-session.log"
+    size_after_agent_end = session.stat().st_size
+    time.sleep(0.3)
+    assert session.stat().st_size == size_after_agent_end
+    assert len(agent_end_sizes) == 2
+    assert agent_end_sizes[0] == agent_end_sizes[1] == size_after_agent_end
+    assert harbor_result["exception_info"]["exception_type"] == "AgentTimeoutError"
+    assert (
+        harbor_result["agent_execution"]["finished_at"]
+        <= harbor_result["verifier"]["started_at"]
+    )
+    assert (trial / "verifier/session-size-start.txt").read_text() == (
+        trial / "verifier/session-size-end.txt"
+    ).read_text()
+    assert result["trials"][0]["verifier_rewards"] == {"reward": 1.0}
 
 
 def test_unknown_vendor_projection_key_is_refused_before_docker_start_and_revoked(

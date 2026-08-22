@@ -1,11 +1,12 @@
 # input:  Harbor vendor agents, admitted arm, proxy projection
-# output: sealed PI/Claude/Codex execution and lifecycle adapters
+# output: sealed vendor execution, process containment, finalization
 # pos:    Fail-closed vendor execution and finalization boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import hashlib
 import json
 import re
+import secrets
 import shlex
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -45,6 +46,12 @@ TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 EVIDENCE_PATH = PurePosixPath("/logs/agent/vendor-runtime-files.json")
 PI_PROMPT_PATH = PurePosixPath("/logs/agent/pi/prompt.md")
 PI_SESSION_PATH = PurePosixPath("pi/sessions")
+VENDOR_PROCESS_TOKEN_ENV = "CORTEX_BENCH_VENDOR_PROCESS_TOKEN"
+VENDOR_PROCESS_TERM_POLLS = 10
+VENDOR_PROCESS_KILL_POLLS = 50
+VENDOR_COMMAND_MARKERS = {
+    "pi": "pi --print", "claude-code": "claude --verbose", "codex": "codex exec",
+}
 VENDOR_FIXED_ENVIRONMENT = {
     "pi": {
         "PI_CODING_AGENT_DIR": str(TRIAL_ROOT / "pi-agent"),
@@ -151,6 +158,8 @@ class VendorLifecycleMixin:
         self._revocation: TrialRevocation | None = None
         self._revoked = False
         self._setup_complete = False
+        self._vendor_execution_active = False
+        self._vendor_process_token = secrets.token_hex(16)
         self._post_stop_finalization_pending = False
         self._outer_publication: object | None = None
         self._host_credential = self._consume_credential(credential_handle)
@@ -464,13 +473,32 @@ class VendorLifecycleMixin:
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         (self.logs_dir / "instruction.md").write_text(instruction, encoding="utf-8")
         execution_error: BaseException | None = None
+        self._vendor_execution_active = True
         try:
             await self._run_vendor_instruction(instruction, environment, context)
         except BaseException as error:
             execution_error = error
+        finally:
+            self._vendor_execution_active = False
+        containment_error = await self._contain_failed_execution(
+            environment, execution_error,
+        )
         self._finish_vendor_run(execution_error is not None)
+        if containment_error is not None:
+            raise containment_error
         if execution_error is not None:
             raise execution_error
+
+    async def _contain_failed_execution(
+        self, environment: BaseEnvironment, error: BaseException | None,
+    ) -> BaseException | None:
+        if error is None:
+            return None
+        try:
+            await self._terminate_vendor_process_group(environment)
+        except BaseException as containment_error:
+            return containment_error
+        return None
 
     async def _run_vendor_instruction(
         self, instruction: str, environment: BaseEnvironment, context: AgentContext,
@@ -532,9 +560,57 @@ class VendorLifecycleMixin:
     ) -> Any:
         process_env = self._sealed_process_environment(env)
         sealed_command = self._inline_environment(command, process_env)
+        if self._should_contain_vendor_command(command):
+            sealed_command = self._contained_vendor_command(sealed_command)
         return await super()._exec(
             environment, sealed_command, user=user, env=None,
             cwd=cwd, timeout_sec=timeout_sec,
+        )
+
+    def _should_contain_vendor_command(self, command: str) -> bool:
+        marker = VENDOR_COMMAND_MARKERS[self.VENDOR_AGENT]
+        return self._vendor_execution_active and marker in command
+
+    def _contained_vendor_command(self, command: str) -> str:
+        child_command = shlex.quote(f"set -o pipefail; {command}")
+        token = shlex.quote(self._vendor_process_token)
+        return (
+            f"export {VENDOR_PROCESS_TOKEN_ENV}={token}; "
+            f"setsid bash -c {child_command} & vendor_pid=$!; "
+            "set +e; wait \"$vendor_pid\"; status=$?; set -e; exit \"$status\""
+        )
+
+    async def _terminate_vendor_process_group(
+        self, environment: BaseEnvironment,
+    ) -> None:
+        result = await environment.exec(
+            command=self._terminate_process_group_command(), user=0, timeout_sec=10,
+        )
+        if result.return_code != 0:
+            raise VendorPreflightError("vendor process group termination failed")
+
+    def _process_group_scan_command(self) -> str:
+        needle = shlex.quote(
+            f"{VENDOR_PROCESS_TOKEN_ENV}={self._vendor_process_token}"
+        )
+        return (
+            "find_groups() { for process in /proc/[0-9]*; do "
+            "test -r \"$process/environ\" || continue; "
+            f"tr '\\0' '\\n' < \"$process/environ\" | grep -Fxq {needle} || continue; "
+            "ps -o pgid= -p \"${process##*/}\"; done | tr -d ' ' | sort -u; }"
+        )
+
+    def _terminate_process_group_command(self) -> str:
+        scan = self._process_group_scan_command()
+        return (
+            f"{scan}; groups=$(find_groups); test -n \"$groups\" || exit 0; "
+            "for pgid in $groups; do kill -TERM -- \"-$pgid\" 2>/dev/null || true; done; "
+            f"for _ in $(seq 1 {VENDOR_PROCESS_TERM_POLLS}); do "
+            "test -z \"$(find_groups)\" && exit 0; sleep 0.1; done; "
+            "groups=$(find_groups); for pgid in $groups; do "
+            "kill -KILL -- \"-$pgid\" 2>/dev/null || true; done; "
+            f"for _ in $(seq 1 {VENDOR_PROCESS_KILL_POLLS}); do "
+            "test -z \"$(find_groups)\" && exit 0; sleep 0.1; done; exit 70"
         )
 
     def _sealed_process_environment(
