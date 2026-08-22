@@ -1,5 +1,5 @@
 # input:  admitted vendor arms, fake proxy, recording environment
-# output: setup, prompt transport, usage, and lifecycle proofs
+# output: setup, bounded PI waits, usage, and lifecycle proofs
 # pos:    Contract tests for preinstalled vendor lifecycle agents
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -98,14 +98,17 @@ def vendor_trial_seed(arm: dict[str, object]) -> dict[str, object]:
 
 def create_agent(
     tmp_path: Path, vendor: str, provider: str | None, model: str,
-    *, admitted: bool = False,
+    *, admitted: bool = False, deadline_seconds: int = 30,
+    lease_seconds: int | None = None,
 ) -> object:
     arm = vendor_arm(vendor, provider, model)
+    arm["limits"]["deadline_seconds"] = deadline_seconds  # type: ignore[index]
     lifecycle: dict[str, object] = {}
     if admitted:
+        trial_proxy = {"lease_seconds": lease_seconds} if lease_seconds else {}
         lifecycle = {
             "artifact_dir": tmp_path / "artifacts", "manifest": {},
-            "trial_seed": vendor_trial_seed(arm), "trial_proxy": {},
+            "trial_seed": vendor_trial_seed(arm), "trial_proxy": trial_proxy,
             "defer_proxy_arm": True,
         }
     config = build_agent_config(
@@ -193,6 +196,51 @@ def test_pi_dummy_auth_and_models_bind_only_the_trial_proxy(tmp_path: Path) -> N
     assert provider["baseUrl"] == "http://trial-proxy.invalid:4312/v1"
     assert provider["models"][0]["maxTokens"] == 65_536
     assert "dummy.jwt.token" not in files["models.json"].content
+
+
+def test_pi_settings_bound_first_response_starvation_inside_effective_deadline(
+    tmp_path: Path,
+) -> None:
+    agent = create_agent(
+        tmp_path, "pi", "deepseek", "deepseek-chat", admitted=True,
+        deadline_seconds=900, lease_seconds=30,
+    )
+    files = {item.path.name: item for item in agent._runtime_files()}  # type: ignore[attr-defined]
+    settings = json.loads(files["settings.json"].content)
+    retry = settings["retry"]
+
+    assert files["settings.json"].mode == 0o644
+    assert settings["httpIdleTimeoutMs"] == 13_500
+    assert retry == {"enabled": True, "maxRetries": 1, "baseDelayMs": 2_000}
+    starvation_ms = settings["httpIdleTimeoutMs"] * (retry["maxRetries"] + 1)
+    starvation_ms += retry["baseDelayMs"]
+    assert starvation_ms <= 29_000
+
+
+def test_pi_settings_cap_each_idle_wait_and_disable_retry_for_tiny_budget(
+    tmp_path: Path,
+) -> None:
+    long_agent = create_agent(
+        tmp_path / "long", "pi", "deepseek", "deepseek-chat", admitted=True,
+        deadline_seconds=900,
+    )
+    tiny_agent = create_agent(
+        tmp_path / "tiny", "pi", "deepseek", "deepseek-chat", admitted=True,
+        deadline_seconds=2,
+    )
+
+    def settings(agent: object) -> dict[str, object]:
+        files = {item.path.name: item for item in agent._runtime_files()}  # type: ignore[attr-defined]
+        return json.loads(files["settings.json"].content)
+
+    assert settings(long_agent) == {
+        "httpIdleTimeoutMs": 60_000,
+        "retry": {"enabled": True, "maxRetries": 1, "baseDelayMs": 2_000},
+    }
+    assert settings(tiny_agent) == {
+        "httpIdleTimeoutMs": 1_000,
+        "retry": {"enabled": False, "maxRetries": 0, "baseDelayMs": 2_000},
+    }
 
 
 def test_pi_run_uses_text_mode_and_prompt_file_for_dash_instruction(
