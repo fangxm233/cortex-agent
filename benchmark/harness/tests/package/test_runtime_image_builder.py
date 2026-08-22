@@ -1,5 +1,5 @@
 # input:  runtime image scripts, pinned manifests and local CLI fixtures
-# output: vendor isolation and Cortex-smoke image proofs
+# output: role-safe vendor/Cortex image and smoke proofs
 # pos:    Contract tests for benchmark runtime images
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -87,7 +87,10 @@ def test_terminal_bench_manifest_has_one_digest_pinned_variant_per_vendor_and_ta
         assert "final_image_tag" not in task
         assert "final_image_digest" not in task
         for vendor, variant in task["variants"].items():
-            assert variant["final_image_tag"].endswith(f"-{vendor}-{document['vendors'][vendor]['version']}")
+            role = "vendor-pi" if vendor == "pi" else vendor
+            assert variant["final_image_tag"].endswith(
+                f"-{role}-{document['vendors'][vendor]['version']}"
+            )
             assert variant["final_image_digest"].startswith("sha256:")
             assert len(variant["final_image_digest"]) == 71
             assert set(variant) == {"final_image_tag", "final_image_digest"}
@@ -408,6 +411,15 @@ def terminal_bench_source(root: Path, task_ids: tuple[str, ...]) -> Path:
     return source
 
 
+def terminal_bench_variant_tag(task_id: str, vendor: str, version: str) -> str:
+    role = "vendor-pi" if vendor == "pi" else vendor
+    return f"cortex-terminal-bench-2.1:{task_id}-{role}-{version}"
+
+
+def legacy_cortex_pi_tag(task_id: str, version: str = "0.82.1") -> str:
+    return f"cortex-terminal-bench-2.1:{task_id}-cortex-pi-{version}"
+
+
 def terminal_bench_manifest(
     root: Path, inputs: dict[str, Path], task_ids: tuple[str, ...], verifier_hash: str,
 ) -> Path:
@@ -447,9 +459,7 @@ def terminal_bench_manifest(
                 "source_image_digest": f"sha256:{index + 3:064x}",
                 "variants": {
                     vendor: {
-                        "final_image_tag": (
-                            f"cortex-terminal-bench-2.1:{task_id}-{vendor}-{version}"
-                        ),
+                        "final_image_tag": terminal_bench_variant_tag(task_id, vendor, version),
                         "final_image_digest": f"sha256:{index * 3 + vendor_index + 6:064x}",
                     }
                     for vendor_index, (vendor, version) in enumerate((
@@ -457,6 +467,56 @@ def terminal_bench_manifest(
                         ("codex", "0.148.0"),
                     ))
                 },
+                "source_files": {
+                    relative: hashlib.sha256((source / task_id / relative).read_bytes()).hexdigest()
+                    for relative in (
+                        "instruction.md", "task.toml", "tests/test.sh",
+                        "tests/test_outputs.py",
+                    )
+                },
+            }
+            for index, task_id in enumerate(task_ids)
+        ],
+    }
+    path = root / "terminal-bench-images.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def legacy_terminal_bench_manifest(
+    root: Path, inputs: dict[str, Path], task_ids: tuple[str, ...], verifier_hash: str,
+) -> Path:
+    source = root / "terminal-bench-source/tasks"
+    document = {
+        "schema_version": "cortex-terminal-bench-images/1",
+        "source": {
+            "repository": "https://github.com/harbor-framework/terminal-bench-2-1.git",
+            "commit": "1" * 40,
+        },
+        "runtime_inputs": str(runtime_manifest(root, inputs)),
+        "build_epoch": 1786481201,
+        "vendors": {
+            "pi": {"version": "0.82.1"},
+            "claude-code": {"version": "2.1.232"},
+            "codex": {"version": "0.148.0"},
+        },
+        "verifier": {
+            "python_version": "3.12",
+            "packages": [{
+                "requirement": "pytest==8.4.1",
+                "filename": "pytest-8.4.1-py3-none-any.whl",
+                "url": "https://files.invalid/pytest-8.4.1-py3-none-any.whl",
+                "sha256": hashlib.sha256(b"fixture wheel").hexdigest(),
+            }],
+            "tree_sha256": verifier_hash,
+        },
+        "tasks": [
+            {
+                "task_id": task_id,
+                "source_image_ref": f"registry.invalid/{task_id}:mutable",
+                "source_image_digest": f"sha256:{index + 3:064x}",
+                "final_image_tag": legacy_cortex_pi_tag(task_id),
+                "final_image_digest": f"sha256:{index + 16:064x}",
                 "source_files": {
                     relative: hashlib.sha256((source / task_id / relative).read_bytes()).hexdigest()
                     for relative in (
@@ -522,10 +582,11 @@ def fake_task_builder_tools(root: Path, source_commit: str) -> Path:
         "  case \"$*\" in *'{{json .Config}}'*) printf '%s\\n' '{\"Env\":[\"PATH=/usr/bin\"],\"Volumes\":null}'; exit 0;; esac\n"
         "  tag=$3; key=${tag#*:}\n"
         "  case $key in\n"
-        "    alpha-pi-0.82.1) n=6;; alpha-claude-code-2.1.232) n=7;; alpha-codex-0.148.0) n=8;;\n"
-        "    beta-pi-0.82.1) n=9;; beta-claude-code-2.1.232) n=10;; beta-codex-0.148.0) n=11;;\n"
-        "    gamma-pi-0.82.1) n=12;; gamma-claude-code-2.1.232) n=13;; gamma-codex-0.148.0) n=14;;\n"
+        "    alpha-vendor-pi-0.82.1) n=6;; alpha-claude-code-2.1.232) n=7;; alpha-codex-0.148.0) n=8;;\n"
+        "    beta-vendor-pi-0.82.1) n=9;; beta-claude-code-2.1.232) n=10;; beta-codex-0.148.0) n=11;;\n"
+        "    gamma-vendor-pi-0.82.1) n=12;; gamma-claude-code-2.1.232) n=13;; gamma-codex-0.148.0) n=14;;\n"
         "    alpha-cortex-smoke-2026.8.6) n=15;;\n"
+        "    alpha-cortex-pi-0.82.1) n=16;; beta-cortex-pi-0.82.1) n=17;; gamma-cortex-pi-0.82.1) n=18;;\n"
         "    *) exit 98;;\n"
         "  esac\n"
         "  printf '%s@sha256:%064x\\n' \"${tag%%:*}\" \"$n\"; exit 0\n"
@@ -670,6 +731,88 @@ def test_terminal_bench_builder_reproduces_the_cortex_smoke_image(tmp_path: Path
     task = tmp_path / "admitted-tasks/alpha/task.toml"
     assert f"@sha256:{15:064x}" in task.read_text(encoding="utf-8")
     assert json.loads(completed.stdout)["image_digest"] == f"sha256:{15:064x}"
+
+
+def test_terminal_bench_builder_accepts_legacy_cortex_pi_schema_v1(tmp_path: Path) -> None:
+    task_ids = ("alpha", "beta", "gamma")
+    inputs = fixture_inputs(tmp_path)
+    source = terminal_bench_source(tmp_path, task_ids)
+    empty_verifier = tmp_path / "empty-verifier"
+    empty_verifier.mkdir()
+    manifest = legacy_terminal_bench_manifest(
+        tmp_path, inputs, task_ids, tree_sha256(empty_verifier),
+    )
+    tools = fake_task_builder_tools(tmp_path, "1" * 40)
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir()
+    (wheelhouse / "pytest-8.4.1-py3-none-any.whl").write_bytes(b"fixture wheel")
+    environment = {
+        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:/usr/bin:/bin",
+        "SOURCE_COMMIT": "1" * 40, "SOURCE_DIR": str(source),
+        "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),
+        "WHEELHOUSE": str(wheelhouse), "NODE_BIN": str(inputs["node"]),
+        "NPM_ROOT": str(inputs["npm"]), "PI_ROOT": str(inputs["pi"]),
+        "CLAUDE_BIN": str(inputs["claude"]), "CODEX_ROOT": str(inputs["codex"]),
+        "DOCKER_CALLS": str(tmp_path / "docker-calls.txt"),
+    }
+
+    completed = subprocess.run(
+        [str(TASK_BUILD_SCRIPT)], cwd=HARNESS_DIR, env=environment,
+        check=True, capture_output=True, text=True,
+    )
+
+    calls = Path(environment["DOCKER_CALLS"]).read_text(encoding="utf-8")
+    assert calls.count("buildx build") == 3
+    output = json.loads(completed.stdout)
+    assert [(task["task_id"], Path(task["task_path"]).name) for task in output["tasks"]] == [
+        (task_id, task_id) for task_id in task_ids
+    ]
+    assert "variants" not in output
+    for task_index, task_id in enumerate(task_ids):
+        task = tmp_path / "admitted-tasks" / task_id / "task.toml"
+        assert f"@sha256:{task_index + 16:064x}" in task.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(("bad_tag", "error_snippet"), [
+    (legacy_cortex_pi_tag("alpha"), "alpha-vendor-pi-0.82.1"),
+    (terminal_bench_variant_tag("beta", "pi", "0.82.1"), "is reused by"),
+])
+def test_terminal_bench_builder_refuses_cross_role_pi_tag_reuse(
+    tmp_path: Path, bad_tag: str, error_snippet: str,
+) -> None:
+    task_ids = ("alpha", "beta", "gamma")
+    inputs = fixture_inputs(tmp_path)
+    source = terminal_bench_source(tmp_path, task_ids)
+    empty_verifier = tmp_path / "empty-verifier"
+    empty_verifier.mkdir()
+    manifest = terminal_bench_manifest(
+        tmp_path, inputs, task_ids, tree_sha256(empty_verifier),
+    )
+    document = json.loads(manifest.read_text(encoding="utf-8"))
+    document["tasks"][0]["variants"]["pi"]["final_image_tag"] = bad_tag
+    manifest.write_text(json.dumps(document), encoding="utf-8")
+    tools = fake_task_builder_tools(tmp_path, "1" * 40)
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir()
+    (wheelhouse / "pytest-8.4.1-py3-none-any.whl").write_bytes(b"fixture wheel")
+    environment = {
+        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:/usr/bin:/bin",
+        "SOURCE_COMMIT": "1" * 40, "SOURCE_DIR": str(source),
+        "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),
+        "WHEELHOUSE": str(wheelhouse), "NODE_BIN": str(inputs["node"]),
+        "NPM_ROOT": str(inputs["npm"]), "PI_ROOT": str(inputs["pi"]),
+        "CLAUDE_BIN": str(inputs["claude"]), "CODEX_ROOT": str(inputs["codex"]),
+        "DOCKER_CALLS": str(tmp_path / "docker-calls.txt"),
+    }
+
+    completed = subprocess.run(
+        [str(TASK_BUILD_SCRIPT)], cwd=HARNESS_DIR, env=environment,
+        check=False, capture_output=True, text=True,
+    )
+
+    assert completed.returncode == 1
+    assert error_snippet in completed.stderr
+    assert not Path(environment["DOCKER_CALLS"]).exists()
 
 
 def test_terminal_bench_builder_refuses_a_source_image_digest_mismatch(

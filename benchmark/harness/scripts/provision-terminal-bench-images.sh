@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # input:  pinned Terminal-Bench sources, vendor runtimes, Node/npm
-# output: authentic tasks and immutable vendor or Cortex-smoke images
+# output: role-safe tasks and immutable runtime image refs
 # pos:    Provisions pull-disabled Terminal-Bench 2.1 runtimes
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -387,12 +387,34 @@ smoke_preflight() {
     'set -euo pipefail; for x in bash node npm pi pwd realpath ln chmod mkdir; do command -v "$x" >/dev/null; done; test "$(node --version)" = v22.19.0; test "$(npm --version)" = 10.9.3; test "$(pi --version)" = 0.82.1'
 }
 
+build_legacy_task() {
+  local index="$1" task_id source_ref image_tag expected context archive image_ref
+  task_id="$(node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].task_id)' "$MANIFEST" "$index")"
+  source_ref="$(source_image_ref "$index")"
+  image_tag="$(task_image_tag "$index")"
+  expected="$(task_image_digest "$index")"
+  context="$BUILD_ROOT/build/$task_id/pi"
+  write_dockerfile "$source_ref" pi "$context"
+  archive="$BUILD_ROOT/$task_id-pi.tar"
+  docker buildx build --network none --pull=false --no-cache --provenance=false \
+    --build-arg "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH" \
+    --output "type=oci,name=$image_tag,dest=$archive,rewrite-timestamp=true" \
+    "$context" >/dev/null
+  docker load --input "$archive" >/dev/null
+  image_ref="$(inspect_final_image "$image_tag" "$expected")"
+  runtime_preflight pi "$image_ref"
+  stage_task_directory "$task_id" cortex "$image_ref"
+  printf '{"task_id":%s,"task_path":%s,"image_ref":%s}' \
+    "$(json_string "$task_id")" \
+    "$(json_string "$TASKS_DIR/$task_id")" "$(json_string "$image_ref")"
+}
+
 build_variant() {
   local index="$1" vendor="$2" task_id source_ref image_tag expected context archive image_ref
   task_id="$(node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].task_id)' "$MANIFEST" "$index")"
   source_ref="$(source_image_ref "$index")"
-  image_tag="$(node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].variants[process.argv[3]].final_image_tag)' "$MANIFEST" "$index" "$vendor")"
-  expected="$(node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].variants[process.argv[3]].final_image_digest)' "$MANIFEST" "$index" "$vendor")"
+  image_tag="$(task_image_tag "$index" "$vendor")"
+  expected="$(task_image_digest "$index" "$vendor")"
   context="$BUILD_ROOT/build/$task_id/$vendor"
   write_dockerfile "$source_ref" "$vendor" "$context"
   archive="$BUILD_ROOT/$task_id-$vendor.tar"
@@ -437,9 +459,114 @@ json_string() {
   printf '%s' "$1" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.stringify(s)))'
 }
 
+manifest_schema() {
+  json_text 'schema_version'
+}
+
+task_image_tag() {
+  local index="$1" vendor="${2:-}"
+  if [[ "$MANIFEST_SCHEMA" == 'cortex-terminal-bench-images/1' ]]; then
+    node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].final_image_tag)' "$MANIFEST" "$index"
+  else
+    node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].variants[process.argv[3]].final_image_tag)' "$MANIFEST" "$index" "$vendor"
+  fi
+}
+
+task_image_digest() {
+  local index="$1" vendor="${2:-}"
+  if [[ "$MANIFEST_SCHEMA" == 'cortex-terminal-bench-images/1' ]]; then
+    node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].final_image_digest)' "$MANIFEST" "$index"
+  else
+    node -e 'console.log(require(process.argv[1]).tasks[+process.argv[2]].variants[process.argv[3]].final_image_digest)' "$MANIFEST" "$index" "$vendor"
+  fi
+}
+
+validate_manifest_tags() {
+  node - "$MANIFEST" <<'EOF'
+const manifest = require(process.argv[2]);
+const schema = manifest.schema_version;
+const errors = [];
+const seen = new Map();
+const repo = 'cortex-terminal-bench-2.1';
+
+function fail(message) {
+  errors.push(message);
+}
+
+function expectTag(owner, actual, expected) {
+  if (actual !== expected) {
+    fail(`${owner} final_image_tag must be ${JSON.stringify(expected)}; got ${JSON.stringify(actual)}`);
+  }
+  const previous = seen.get(actual);
+  if (previous) {
+    fail(`final_image_tag ${JSON.stringify(actual)} is reused by ${previous} and ${owner}`);
+  } else {
+    seen.set(actual, owner);
+  }
+}
+
+if (schema === 'cortex-terminal-bench-images/1') {
+  const version = manifest.vendors?.pi?.version ?? '0.82.1';
+  for (const task of manifest.tasks ?? []) {
+    expectTag(
+      `schema /1 task ${task.task_id}`,
+      task.final_image_tag,
+      `${repo}:${task.task_id}-cortex-pi-${version}`,
+    );
+  }
+} else if (schema === 'cortex-terminal-bench-images/2') {
+  const vendors = manifest.vendors ?? {};
+  for (const task of manifest.tasks ?? []) {
+    for (const [vendor, metadata] of Object.entries(vendors)) {
+      const variant = task.variants?.[vendor];
+      if (!variant) {
+        fail(`schema /2 task ${task.task_id} is missing variants.${vendor}`);
+        continue;
+      }
+      const role = vendor === 'pi' ? 'vendor-pi' : vendor;
+      expectTag(
+        `schema /2 task ${task.task_id} vendor ${vendor}`,
+        variant.final_image_tag,
+        `${repo}:${task.task_id}-${role}-${metadata.version}`,
+      );
+    }
+  }
+  const smoke = manifest.cortex_smoke;
+  if (smoke?.final_image_tag) {
+    const previous = seen.get(smoke.final_image_tag);
+    if (previous) {
+      fail(`final_image_tag ${JSON.stringify(smoke.final_image_tag)} is reused by ${previous} and cortex_smoke`);
+    }
+  }
+} else {
+  fail(`manifest schema must be cortex-terminal-bench-images/1 or /2; got ${JSON.stringify(schema)}`);
+}
+
+if (errors.length) {
+  console.error(errors.join('\n'));
+  process.exit(1);
+}
+EOF
+}
+
 require_file "$MANIFEST"
 require_file "$PREFLIGHT_SCRIPT"
-verify 'manifest schema' "$(json_text 'schema_version')" 'cortex-terminal-bench-images/2'
+MANIFEST_SCHEMA="$(manifest_schema)"
+validate_manifest_tags
+case "$MANIFEST_SCHEMA" in
+  cortex-terminal-bench-images/1|cortex-terminal-bench-images/2) ;;
+  *) printf 'manifest schema must be cortex-terminal-bench-images/1 or /2; got %s\n' "$MANIFEST_SCHEMA" >&2; exit 1 ;;
+esac
+if [[ "$MANIFEST_SCHEMA" == 'cortex-terminal-bench-images/1' ]]; then
+  if [[ "$CORTEX_SMOKE" == 1 ]]; then
+    printf '--cortex-smoke requires a cortex-terminal-bench-images/2 manifest\n' >&2
+    exit 1
+  fi
+  if [[ ${#VENDORS[@]} -ne 3 ]]; then
+    printf '--vendor requires a cortex-terminal-bench-images/2 manifest\n' >&2
+    exit 1
+  fi
+fi
 SOURCE_REPOSITORY="$(json_text 'source.repository')"
 SOURCE_COMMIT="$(json_text 'source.commit')"
 SOURCE_DATE_EPOCH="$(json_text 'build_epoch')"
@@ -467,9 +594,17 @@ for ((index = 0; index < TASK_COUNT; index++)); do
     < <(node -e 'const t=require(process.argv[1]).tasks[+process.argv[2]]; for(const [p,h] of Object.entries(t.source_files)) console.log(`${p}\t${h}`)' "$MANIFEST" "$index")
   source_ref="$(source_image_ref "$index")"
   ensure_source_image "$source_ref"
-  for vendor in "${VENDORS[@]}"; do RESULTS+=("$(build_variant "$index" "$vendor")"); done
+  if [[ "$MANIFEST_SCHEMA" == 'cortex-terminal-bench-images/1' ]]; then
+    RESULTS+=("$(build_legacy_task "$index")")
+  else
+    for vendor in "${VENDORS[@]}"; do RESULTS+=("$(build_variant "$index" "$vendor")"); done
+  fi
 done
-printf '{"ok":true,"source_commit":%s,"variants":[' "$(json_string "$SOURCE_COMMIT")"
+if [[ "$MANIFEST_SCHEMA" == 'cortex-terminal-bench-images/1' ]]; then
+  printf '{"ok":true,"source_commit":%s,"tasks":[' "$(json_string "$SOURCE_COMMIT")"
+else
+  printf '{"ok":true,"source_commit":%s,"variants":[' "$(json_string "$SOURCE_COMMIT")"
+fi
 printf '%s' "${RESULTS[0]}"
 for ((index = 1; index < ${#RESULTS[@]}; index++)); do printf ',%s' "${RESULTS[$index]}"; done
 printf ']}\n'

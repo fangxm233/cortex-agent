@@ -66,7 +66,7 @@
       "source_image_digest": "sha256:bb447f94d9e2a8ed879f85c85a514b213b7418f9fe11fd7b2428a0b0e436e647",
       "variants": {
         "pi": {
-          "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-pi-0.82.1",
+          "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-vendor-pi-0.82.1",
           "final_image_digest": "sha256:5f16cd3f75c54b22866a823b35e39305155c784886d1db5f894272d89f7cbbed"
         },
         "claude-code": {
@@ -91,7 +91,7 @@
       "source_image_digest": "sha256:567ce5a189f8d11ac461790876e934cc7af38391baf89a78f95f4dafc1fec3b0",
       "variants": {
         "pi": {
-          "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-pi-0.82.1",
+          "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-vendor-pi-0.82.1",
           "final_image_digest": "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353"
         },
         "claude-code": {
@@ -116,7 +116,7 @@
       "source_image_digest": "sha256:0e33ea5ec823975d1bd6c3778395c9f94251dd88f571146057bff6adb7e4594e",
       "variants": {
         "pi": {
-          "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-pi-0.82.1",
+          "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-vendor-pi-0.82.1",
           "final_image_digest": "sha256:7199e472b87adc22c356e9a364d453c6f825938de6ab7f6422b787735dbf47f7"
         },
         "claude-code": {
