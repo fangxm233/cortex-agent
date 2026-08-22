@@ -8,19 +8,19 @@
 # this same campaign identity and trials_dir. Only after its outer envelope is verified does the
 # full config resume that published root and arm the remaining fourteen trials.
 #
-# r3 identity: r2 armed all 15 trials but each failed during agent setup before provider traffic
-# because npm's update notice polluted the parsed bundle-root path. The root probe now verifies npm
-# by exit status and constructs the controlled install path directly. A campaign never writes into
-# an existing root, so campaign and trials_dir rotate together. The r1/r2 roots stay as evidence.
+# r4 identity: r3's direct/chess gate reached production but exhausted its deadline; only task-root
+# manager arms mapped that condition to the publishable deadline terminal, while thread-root direct
+# and coder-review arms still raised. All five bundles now share the deadline terminal path. A
+# campaign never writes into an existing root, so identity and trials_dir rotate; prior roots stay.
 #
 # Paid safety: every trial is limited to 500 provider requests and a $0.66 inner-run cost envelope;
 # 15 * $0.66 = $9.90, below the user-approved $10 campaign ceiling. Images are digest-pinned and
 # admission is pull-disabled. Each credential route is trial-scoped and revoked during teardown.
 
 schema_version: cortex-bench-campaign/1
-campaign: tb21-five-r3
+campaign: tb21-five-r4
 paid: true
-trials_dir: /var/tmp/cortex-bench/tb21-five-r3-2026-08-22-c982
+trials_dir: /var/tmp/cortex-bench/tb21-five-r4-2026-08-22-c982
 cli_version: "2026.8.6"
 # Two workers: the host is carrying other agent sessions and three long-running training
 # containers, and a paid trial that contends for setup I/O is a trial that burns its deadline.

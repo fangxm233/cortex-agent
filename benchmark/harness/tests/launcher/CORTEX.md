@@ -22,7 +22,7 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_paid_campaign_launch.py | test | Verifies paid campaign preflight |
 | test_production_arms.py | test | Verifies committed arm bundles |
 | test_production_home.py | test | Verifies sealed production homes |
-| test_production_session.py | test | Verifies sessions and manager deadline outcomes |
+| test_production_session.py | test | Verifies sessions and all-arm deadline outcomes |
 | test_production_session_admission.py | test | Verifies sealed session execution |
 | test_trial_admission.py | test | Verifies Harbor trial admission |
 | test_trial_proxy_wiring.py | test | Verifies proxy lifecycle wiring |

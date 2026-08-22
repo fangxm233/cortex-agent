@@ -23,7 +23,13 @@ from cortex_bench_harness.launcher.production_session import (
 
 DIRECT_BUNDLE = production_arm_bundle("direct-pi-deepseek")
 AUDIT_RETRY_BUNDLE = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
+REVIEWER_FIX_BUNDLE = production_arm_bundle("coder-review-reviewer-fix-pi-deepseek")
 MANAGER_BUNDLE = production_arm_bundle("manager-qa-off-pi-deepseek")
+MANAGER_QA_ON_BUNDLE = production_arm_bundle("manager-qa-on-pi-deepseek")
+PRODUCTION_BUNDLES = (
+    DIRECT_BUNDLE, AUDIT_RETRY_BUNDLE, REVIEWER_FIX_BUNDLE,
+    MANAGER_BUNDLE, MANAGER_QA_ON_BUNDLE,
+)
 
 
 EVIDENCE_CONTEXT = {
@@ -64,6 +70,13 @@ def manager_arm() -> dict[str, object]:
     arm = direct_arm()
     arm["name"] = "cortex-manager-qa-off"
     arm["orchestration"] = {"mode": "manager", "ask_manager": False}
+    return arm
+
+
+def arm_for_bundle(bundle) -> dict[str, object]:
+    arm = direct_arm()
+    arm["name"] = f"cortex-{bundle.key}"
+    arm["orchestration"] = dict(bundle.orchestration)
     return arm
 
 
@@ -494,27 +507,29 @@ def test_manager_arm_waits_on_the_thread_the_dispatcher_started(tmp_path: Path) 
     assert production.stopped_cleanly is True
 
 
-def test_manager_deadline_returns_and_records_an_explicit_terminal_outcome(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("bundle", PRODUCTION_BUNDLES, ids=lambda bundle: bundle.key)
+def test_every_arm_deadline_returns_and_records_an_explicit_terminal_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bundle,
 ) -> None:
     runner = FakeExecutor(tmp_path, result_never_terminal=True)
-    declared_arm = manager_arm()
+    declared_arm = arm_for_bundle(bundle)
     declared_arm["limits"]["deadline_seconds"] = 1
     clock = iter(value / 4 for value in range(1, 40))
     monkeypatch.setattr(
         "cortex_bench_harness.launcher.production_session.time.monotonic",
         lambda: next(clock),
     )
-    production = session(tmp_path, arm=declared_arm, bundle=MANAGER_BUNDLE)
+    production = session(tmp_path, arm=declared_arm, bundle=bundle)
 
     result = asyncio.run(production.run("Solve only this task.", runner))
 
+    thread_id = "thr_dispatched" if bundle.injection == "task-root" else "thr_production"
     assert (result.thread_id, result.status, result.final_output) == (
-        "thr_dispatched", "deadline_exhausted", None,
+        thread_id, "deadline_exhausted", None,
     )
     assert json.loads((tmp_path / "production-session-outcome.json").read_text()) == {
         "schema_version": "cortex-bench-production-session-outcome/1",
-        "trial_id": "trial-direct", "thread_id": "thr_dispatched",
+        "trial_id": "trial-direct", "thread_id": thread_id,
         "terminal": True, "status": "deadline_exhausted",
         "terminal_reason": "run_deadline_reached", "artifact": None,
         "final_output": None,

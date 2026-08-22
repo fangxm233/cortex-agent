@@ -428,8 +428,6 @@ class ProductionServerSession:
             if data.get("terminal") is True:
                 return self._parse_result(data, thread_id)
             await asyncio.sleep(self._poll_seconds)
-        if self._arm_bundle.injection != TASK_ROOT:
-            raise ProductionSessionError("production thread result timed out")
         return ProductionThreadResult(thread_id, DEADLINE_EXHAUSTED, None, None)
 
     def _write_deadline_outcome(self, result: ProductionThreadResult) -> None:
