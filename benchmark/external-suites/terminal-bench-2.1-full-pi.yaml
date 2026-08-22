@@ -42,6 +42,6 @@ proxy:
 network:
   mode: open
 
-outstanding_prerequisites:
-  - timeout-containment
-  - verifier-bootstrap
+# timeout-containment: closed by the real-Docker process-group test on 2026-08-22.
+# verifier-bootstrap: user accepted missing verifier rewards as planned-denominator zero.
+outstanding_prerequisites: []

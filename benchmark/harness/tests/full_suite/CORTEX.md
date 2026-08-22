@@ -6,7 +6,7 @@ Full-suite tests verify strict pins, bounded scheduling, private configs and zer
 |---|---|---|
 | __init__.py | 入口 | 隔离 full-suite test module namespace |
 | test_cli.py | 测试 | 验证 CLI help 与 structured JSON |
-| test_config.py | 测试 | 验证 suite spec 与 89 task inventory |
+| test_config.py | 测试 | 验证 suite spec、readiness 与 89 task pins |
 | test_network.py | 测试 | 验证 container-before-network cleanup |
 | test_preflight.py | 测试 | 验证 zero-provider host preflight |
 | test_runner.py | 测试 | 验证 task-owned routes 与结果顺序 |

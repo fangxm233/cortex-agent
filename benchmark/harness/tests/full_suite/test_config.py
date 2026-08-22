@@ -1,5 +1,5 @@
 # input:  external-suite YAML, ordered task pins, malformed documents
-# output: strict reproducible full-suite spec parsing proofs
+# output: strict reproducible spec and run-readiness parsing proofs
 # pos:    Full-suite specification boundary tests
 # >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -70,6 +70,11 @@ def test_unknown_top_level_field_is_refused(tmp_path: Path) -> None:
     path = write_spec(tmp_path, accidental_host_path="/tmp/not-committed")
     with pytest.raises(SuiteSpecError, match="unknown fields.*accidental_host_path"):
         load_suite_spec(path)
+
+
+def test_empty_prerequisites_marks_suite_ready_for_run(tmp_path: Path) -> None:
+    spec = load_suite_spec(write_spec(tmp_path, outstanding_prerequisites=[]))
+    assert spec.outstanding_prerequisites == ()
 
 
 def test_paid_schedule_cannot_override_concurrency_attempts_or_retries(tmp_path: Path) -> None:

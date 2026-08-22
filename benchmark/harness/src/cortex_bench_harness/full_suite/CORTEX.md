@@ -6,7 +6,7 @@ Full-suite launcher isolates each external task behind its own route, process, n
 |---|---|---|
 | __init__.py | 入口 | 标记 full-suite package |
 | cli.py | CLI | 执行 preflight 或显式 paid run |
-| config.py | 边界 | 严格解析 suite spec 与 task pins |
+| config.py | 边界 | 严格解析 suite pins 与 run readiness |
 | network.py | 网络 | 分配固定 Docker worker slots |
 | pi_agent.py | 适配 | 使用只读挂载的 Node/PI runtime |
 | preflight.py | 验证 | 校验 tasks、images、runtime 和 gateway |

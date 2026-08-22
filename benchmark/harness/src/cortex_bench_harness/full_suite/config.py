@@ -1,5 +1,5 @@
 # input:  committed external-suite YAML, task inventory, host placement flags
-# output: strict immutable suite specification and host input types
+# output: strict immutable suite readiness and host input types
 # pos:    Full-suite configuration boundary
 # >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -195,8 +195,10 @@ def _network_mode(value: object) -> str:
 
 def _prerequisites(document: Mapping[str, Any]) -> tuple[str, ...]:
     value = document["outstanding_prerequisites"]
-    if not isinstance(value, list) or not value or not all(isinstance(item, str) and item for item in value):
-        raise SuiteSpecError("outstanding_prerequisites must be a non-empty string list")
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) and item for item in value
+    ):
+        raise SuiteSpecError("outstanding_prerequisites must be a string list")
     return tuple(value)
 
 
