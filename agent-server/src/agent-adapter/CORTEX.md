@@ -9,7 +9,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 | types.ts | types | Shared adapter, usage, tool-gate and plugin contracts |
 | mcp-private-dir.ts | util | Guards private physical MCP directories |
 | mcp-remote-fetch.ts | util | Rejects remote MCP HTTP redirects |
-| capabilities.ts | core | Declares pull and push-cache backend capabilities |
+| capabilities.ts | core | Declares backend feature capabilities |
 | bg-wait.ts | core | emits exact continuation request accounting |
 | event-tee.ts | core | fans out run events and enforces required sinks |
 | claude/ | subdir | Claude Code backend adapter |

@@ -1,6 +1,6 @@
-// input:  Vitest lifecycle + aistatus GatewayServer + temp home
-// output: /m/{mode}/ prefix + isolated cache token/cost tests
-// pos:    Verify gateway per-request mode and cache cost isolation
+// input:  Vitest lifecycle, aistatus GatewayServer, temp home
+// output: per-mode routing, quota snapshot, cache and cost tests
+// pos:    Verifies the vendored gateway runtime boundary
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { afterAll, beforeAll, beforeEach, test } from 'vitest';
@@ -164,6 +164,29 @@ test('gateway /m/{mode}/ URL prefix selects per-request mode', async (t) => {
     assert.ok(!body.error?.message?.includes('Unknown endpoint'),
       'regular path should still work');
   }
+});
+
+test('vendored gateway exposes normalized Anthropic quota snapshots', async (t) => {
+  const gw = new GatewayServer(makeConfig('plan'));
+  const backend = {
+    id: 'anthropic:passthrough', base_url: 'https://api.anthropic.com', api_key: 'opaque',
+    auth_style: 'bearer', model_prefix: '', model_map: {}, translate: null,
+  };
+  (gw as any)._observeQuota(new Response(null, { status: 200, headers: {
+    'anthropic-ratelimit-unified-5h-utilization': '0.42',
+    'anthropic-ratelimit-unified-5h-reset': '1787428800',
+  } }), backend, 'plan');
+  const server = http.createServer((req, res) => (gw as any)._handleRequest(req, res));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.onTestFinished(() => { server.close(); });
+
+  const port = (server.address() as any).port;
+  const response = await request(port, 'GET', '/quota?provider=anthropic');
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(JSON.parse(response.body).providers[0].windows, [
+    { type: 'five_hour', utilization: 0.42, resets_at: 1787428800 },
+  ]);
 });
 
 test('gateway records cache tokens in usage', async (t) => {

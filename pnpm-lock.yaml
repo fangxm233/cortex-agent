@@ -29,8 +29,8 @@ importers:
         specifier: ^11
         version: 11.18.0(typescript@5.9.3)
       aistatus:
-        specifier: file:vendor/aistatus-0.0.10.tgz
-        version: file:agent-server/vendor/aistatus-0.0.10.tgz
+        specifier: file:vendor/aistatus-0.0.11.tgz
+        version: file:agent-server/vendor/aistatus-0.0.11.tgz
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
@@ -1881,9 +1881,9 @@ packages:
     resolution: {integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==}
     engines: {node: '>= 6.0.0'}
 
-  aistatus@file:agent-server/vendor/aistatus-0.0.10.tgz:
-    resolution: {integrity: sha512-/5jA+CPww3iL6BE4gcR2J+LFbvlwT35hT//yX/q9imd5dKqIcH6psjW5d0661Ywjn7SU4sbXwvkw3hCmPYcJCA==, tarball: file:agent-server/vendor/aistatus-0.0.10.tgz}
-    version: 0.0.10
+  aistatus@file:agent-server/vendor/aistatus-0.0.11.tgz:
+    resolution: {integrity: sha512-XO9KFwEzZnWnyyZrwyTjJXq9mAwB/A7qL2jKZkZSgLrZRfnRMm9+r25ipq9ElCjU6uOzyisP+3jBBLaasBh8bg==, tarball: file:agent-server/vendor/aistatus-0.0.11.tgz}
+    version: 0.0.11
     engines: {node: '>=18'}
     hasBin: true
 
@@ -4922,7 +4922,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  aistatus@file:agent-server/vendor/aistatus-0.0.10.tgz:
+  aistatus@file:agent-server/vendor/aistatus-0.0.11.tgz:
     dependencies:
       yaml: 2.9.0
 

@@ -73,7 +73,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | feishu-user-auth.test.ts | test | Feishu user token exchange and refresh |
 | feishu-user-mode.test.ts | test | Feishu user-identity token injection |
 | gateway-manager.test.ts | test | gateway port conflict reuse |
-| gateway-per-request-mode.test.ts | test | isolated gateway mode prefix and cache cost |
+| gateway-per-request-mode.test.ts | test | vendored gateway mode, quota and cache cost |
 | gpu-slot-scheduling.test.ts | test | per-GPU slot occupancy and scheduling |
 | hook-ask-api.test.ts | test | askUser hook helper routing and errors |
 | hook-bridge.test.ts | test | hook request publish and resolve chain |
@@ -178,7 +178,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | update-prompt-slack.test.ts | test | Slack update prompt buttons and timeout |
 | update-prompt.test.ts | test | update prompt buttons, stale and timeout |
 | update-state.test.ts | test | update state file round-trip and errors |
-| usage-service.test.ts | test | provider collection, live observations, races, failures and gateway spend |
+| usage-service.test.ts | test | gateway quota/spend, PI cache, races and failures |
 | usage-store.test.ts | test | ordered provider usage and state compatibility |
 | user-context.test.ts | test | reset-isolated USER.md conversation injection |
 | webhook-ask-user.test.ts | test | ask endpoint level and channel resolution |

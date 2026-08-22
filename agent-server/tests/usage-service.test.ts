@@ -1,5 +1,5 @@
-// input:  usage service/store, PI cache, quota sink, gateway fakes, and observers
-// output: collection, freshness, live observation, race, failure, and spend regressions
+// input:  usage service/store, PI cache, gateway quota/spend fakes
+// output: cached quota, freshness, race, failure, and spend regressions
 // pos:    Validates the public provider usage orchestration boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -15,7 +15,6 @@ import {
 } from '../src/domain/costs/usage-service.js';
 import {
   UsageStore,
-  UsageUnavailableError,
   type ProviderUsage,
 } from '../src/domain/costs/usage-store.js';
 
@@ -80,12 +79,21 @@ function gatewayResponse(providers: unknown, status = 200): Response {
   });
 }
 
+function gatewayQuotaResponse(providers: unknown, status = 200): Response {
+  return new Response(JSON.stringify({ providers }), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 function gatewayFetch(
   todayProviders: unknown,
   monthProviders: unknown,
+  quotaProviders: unknown = [],
 ): typeof fetch {
   return vi.fn(async (input) => {
     const url = String(input);
+    if (url.includes('/quota?')) return gatewayQuotaResponse(quotaProviders);
     return gatewayResponse(url.includes('period=today') ? todayProviders : monthProviders);
   }) as typeof fetch;
 }
@@ -110,7 +118,6 @@ function serviceWith(options: {
   claude?: AgentAdapter;
   pi?: AgentAdapter;
   fetch?: typeof globalThis.fetch;
-  observe?: (info: unknown, source: unknown) => Promise<void>;
 }) {
   const store = options.store ?? new MemoryUsageStore();
   const claude = options.claude ?? fakeAdapter('claude', async () => []);
@@ -122,33 +129,79 @@ function serviceWith(options: {
     getSettings: () => ({ anthropicSubscriptionModes: options.anthropicModes ?? ['plan'] }),
     fetch: options.fetch ?? gatewayFetch([], []),
     gatewayUrl: 'http://gateway.test',
-    observeRateLimit: options.observe as never,
-  } as any);
+  });
   return { service, store };
 }
 
 describe('UsageService', () => {
-  test('status is a side-effect-free persisted-store read', async () => {
-    const persisted = usage('anthropic', 'stale');
+  test('status is a side-effect-free read that hides legacy Anthropic model-scoped rows', async () => {
+    const persisted = usage('anthropic', 'live', { windows: [
+      { type: 'five_hour', utilization: 0.2, resetsAt: 1_800_000_000 },
+      { type: 'model_scoped', label: 'Fable', utilization: 0.9, resetsAt: 1_800_000_000 },
+    ] });
     const store = new MemoryUsageStore([persisted]);
     const claude = fakeAdapter('claude', vi.fn(async () => []));
     const pi = fakeAdapter('pi', vi.fn(async () => []));
     const fetch = vi.fn();
     const { service } = serviceWith({ store, claude, pi, fetch: fetch as typeof globalThis.fetch });
 
-    assert.deepEqual(await service.getStatus(), [persisted]);
+    assert.deepEqual(await service.getStatus(), [{
+      ...persisted,
+      windows: [persisted.windows[0]],
+      freshness: 'stale',
+    }]);
     assert.equal(store.updateCalls, 0);
     assert.equal(claude.getUsage && vi.mocked(claude.getUsage).mock.calls.length, 0);
     assert.equal(pi.getUsage && vi.mocked(pi.getUsage).mock.calls.length, 0);
     assert.equal(fetch.mock.calls.length, 0);
   });
 
-  test('collect publishes live, stale, never, and unsupported provider states', async () => {
-    const claude = fakeAdapter('claude', async () => [usage('anthropic', 'live', {
-      displayName: 'Anthropic',
-      modes: ['collector-mode'],
-      windows: [{ type: 'five_hour', utilization: 0.34, resetsAt: 1_800_000_100 }],
+  test('collect reads Anthropic quota from the gateway without resolving the Claude adapter', async () => {
+    const store = new MemoryUsageStore();
+    const pi = fakeAdapter('pi', async () => [usage('openai-codex', 'never', {
+      displayName: 'OpenAI Codex', modes: ['openai-codex'],
     })]);
+    const getAdapter = vi.fn((backend: Backend) => {
+      if (backend === 'claude') throw new Error('Claude usage collection must not be resolved');
+      return pi;
+    });
+    const fetch = vi.fn(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/quota?provider=anthropic')) {
+        return gatewayQuotaResponse([{
+          provider: 'anthropic', mode: 'plan', observed_at: 1_786_000_000,
+          windows: [
+            { type: 'five_hour', utilization: 0.34, resets_at: 1_787_428_800 },
+            { type: 'seven_day', utilization: 0.61, resets_at: 1_787_860_800 },
+            { type: 'model_scoped', utilization: 0.99, resets_at: 1_787_860_800 },
+          ],
+        }]);
+      }
+      return gatewayResponse([]);
+    }) as typeof globalThis.fetch;
+    const service = new UsageService({
+      store,
+      getAdapter,
+      getSettings: () => ({ anthropicSubscriptionModes: ['plan', 'team'] }),
+      fetch,
+      gatewayUrl: 'http://gateway.test',
+    });
+
+    const result = await service.collect();
+    assert.deepEqual(result.find(record => record.provider === 'anthropic'), {
+      provider: 'anthropic', displayName: 'Anthropic', modes: ['plan', 'team'],
+      windows: [
+        { type: 'five_hour', utilization: 0.34, resetsAt: 1_787_428_800 },
+        { type: 'seven_day', utilization: 0.61, resetsAt: 1_787_860_800 },
+      ],
+      observedAt: 1_786_000_000,
+      freshness: 'stale',
+    });
+    assert.deepEqual(getAdapter.mock.calls.map(([backend]) => backend), ['pi']);
+    assert.equal(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes('/quota?')).length, 1);
+  });
+
+  test('collect publishes stale, never, and unsupported provider states', async () => {
     const pi = fakeAdapter('pi', async () => [usage('openai-codex', 'stale', {
       displayName: 'OpenAI Codex',
       modes: ['openai-codex'],
@@ -157,9 +210,12 @@ describe('UsageService', () => {
     const fetch = gatewayFetch(
       [{ provider: 'deepseek', cost_usd: 1.25 }],
       [{ provider: 'deepseek', cost_usd: 4.5 }],
+      [{
+        provider: 'anthropic', mode: 'plan', observed_at: 1_700_000_000,
+        windows: [{ type: 'five_hour', utilization: 0.34, resets_at: 1_800_000_100 }],
+      }],
     );
     const { service } = serviceWith({
-      claude,
       pi,
       fetch,
       anthropicModes: [' plan ', '', 'team', 'plan'],
@@ -168,7 +224,7 @@ describe('UsageService', () => {
     const result = await service.collect();
 
     assert.deepEqual(result.map(({ provider, freshness }) => ({ provider, freshness })), [
-      { provider: 'anthropic', freshness: 'live' },
+      { provider: 'anthropic', freshness: 'stale' },
       { provider: 'deepseek', freshness: 'unsupported' },
       { provider: 'openai-codex', freshness: 'stale' },
       { provider: 'qwen-ksu', freshness: 'unsupported' },
@@ -187,7 +243,7 @@ describe('UsageService', () => {
       displayName: 'OpenAI Codex',
       modes: ['openai-codex'],
     })]);
-    const cold = serviceWith({ claude, pi: coldPi }).service;
+    const cold = serviceWith({ pi: coldPi }).service;
     assert.equal(
       (await cold.collect()).find((record) => record.provider === 'openai-codex')?.freshness,
       'never',
@@ -247,52 +303,7 @@ describe('UsageService', () => {
     assert.equal(persisted?.windows[0].utilization, 0.9);
   });
 
-  test('collect observes only persisted live usage, never stale PI, and fans Anthropic windows to every mode', async () => {
-    const observations: Array<{ info: any; source: any; persisted: ProviderUsage | null }> = [];
-    const claude = fakeAdapter('claude', async () => [usage('anthropic', 'live', {
-      displayName: 'Anthropic',
-      windows: [
-        { type: 'five_hour', utilization: 0.91, resetsAt: 1_800_000_100 },
-        { type: 'model_scoped', label: 'Sonnet', utilization: 0.92, resetsAt: 1_800_000_200 },
-      ],
-    })]);
-    const pi = fakeAdapter('pi', async () => [usage('openai-codex', 'stale', {
-      displayName: 'OpenAI Codex',
-      windows: [{ type: 'codex_primary', utilization: 0.95, resetsAt: 1_800_000_300 }],
-    })]);
-    const { service, store } = serviceWith({
-      claude,
-      pi,
-      anthropicModes: ['plan', 'team'],
-      observe: async (info, source) => {
-        observations.push({ info, source, persisted: await store.get((source as any).provider) });
-      },
-    });
-
-    await service.collect();
-
-    assert.deepEqual(observations.map(({ info, source }) => ({ info, source })), [
-      {
-        info: { rateLimitType: 'five_hour', utilization: 0.91, resetsAt: 1_800_000_100 },
-        source: { provider: 'anthropic', displayName: 'Anthropic', mode: 'plan' },
-      },
-      {
-        info: { rateLimitType: 'model_scoped', rateLimitLabel: 'Sonnet', utilization: 0.92, resetsAt: 1_800_000_200 },
-        source: { provider: 'anthropic', displayName: 'Anthropic', mode: 'plan' },
-      },
-      {
-        info: { rateLimitType: 'five_hour', utilization: 0.91, resetsAt: 1_800_000_100 },
-        source: { provider: 'anthropic', displayName: 'Anthropic', mode: 'team' },
-      },
-      {
-        info: { rateLimitType: 'model_scoped', rateLimitLabel: 'Sonnet', utilization: 0.92, resetsAt: 1_800_000_200 },
-        source: { provider: 'anthropic', displayName: 'Anthropic', mode: 'team' },
-      },
-    ]);
-    assert.equal(observations.every(({ persisted }) => persisted?.freshness === 'live'), true);
-  });
-
-  test('every explicit refresh immediately invokes every enabled source', async () => {
+  test('every explicit refresh reads each enabled cache and gateway source once', async () => {
     const claudeGetUsage = vi.fn(async () => [usage('anthropic', 'live')]);
     const piGetUsage = vi.fn(async () => [usage('openai-codex', 'never')]);
     const fetch = gatewayFetch([], []);
@@ -305,23 +316,26 @@ describe('UsageService', () => {
     await service.refresh();
     await service.refresh();
 
-    assert.equal(claudeGetUsage.mock.calls.length, 2);
+    assert.equal(claudeGetUsage.mock.calls.length, 0);
     assert.equal(piGetUsage.mock.calls.length, 2);
-    assert.equal(vi.mocked(fetch).mock.calls.length, 4);
+    assert.equal(vi.mocked(fetch).mock.calls.length, 6);
+    assert.equal(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes('/quota?')).length, 2);
   });
 
-  test('empty Anthropic mode configuration disables the pull and clears prior attribution', async () => {
+  test('empty Anthropic mode configuration disables gateway quota reads and clears attribution', async () => {
     const claudeGetUsage = vi.fn(async () => [usage('anthropic', 'live')]);
     const piGetUsage = vi.fn(async () => [usage('openai-codex', 'never')]);
     const store = new MemoryUsageStore([usage('anthropic', 'live', {
       modes: ['plan'],
       windows: [{ type: 'five_hour', utilization: 0.4, resetsAt: null }],
     })]);
+    const fetch = gatewayFetch([], []);
     const { service } = serviceWith({
       store,
       anthropicModes: [],
       claude: fakeAdapter('claude', claudeGetUsage),
       pi: fakeAdapter('pi', piGetUsage),
+      fetch,
     });
 
     const result = await service.collect();
@@ -329,82 +343,61 @@ describe('UsageService', () => {
 
     assert.equal(claudeGetUsage.mock.calls.length, 0);
     assert.equal(piGetUsage.mock.calls.length, 1);
+    assert.equal(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes('/quota?')).length, 0);
     assert.deepEqual(anthropic?.modes, []);
     assert.equal(anthropic?.freshness, 'stale');
     assert.deepEqual(anthropic?.windows, [{ type: 'five_hour', utilization: 0.4, resetsAt: null }]);
     assert.match(anthropic?.note ?? '', /disabled/);
   });
 
-  test('adapter failures preserve prior values and do not abort other providers', async () => {
+  test('gateway quota failures preserve prior values and do not abort other providers', async () => {
     const prior = usage('anthropic', 'live', {
       displayName: 'Anthropic',
       modes: ['plan'],
-      windows: [{ type: 'seven_day', utilization: 0.61, resetsAt: 1_900_000_000 }],
+      windows: [
+        { type: 'seven_day', utilization: 0.61, resetsAt: 1_900_000_000 },
+        { type: 'model_scoped', label: 'Fable', utilization: 0.8, resetsAt: 1_900_000_000 },
+      ],
     });
     const store = new MemoryUsageStore([prior]);
-    const claude = fakeAdapter('claude', async () => {
-      throw new Error('429 usage endpoint busy');
-    });
     const pi = fakeAdapter('pi', async () => [usage('openai-codex', 'never')]);
-    const { service } = serviceWith({ store, claude, pi });
+    const fetch = vi.fn(async (input) => {
+      if (String(input).includes('/quota?')) throw new Error('gateway offline');
+      return gatewayResponse([]);
+    }) as typeof globalThis.fetch;
+    const { service } = serviceWith({ store, pi, fetch });
 
     const result = await service.collect();
     const anthropic = result.find((record) => record.provider === 'anthropic');
 
-    assert.deepEqual(anthropic?.windows, prior.windows);
+    assert.deepEqual(anthropic?.windows, [prior.windows[0]]);
     assert.equal(anthropic?.observedAt, prior.observedAt);
     assert.equal(anthropic?.freshness, 'stale');
-    assert.match(anthropic?.note ?? '', /429 usage endpoint busy/);
+    assert.match(anthropic?.note ?? '', /gateway offline/);
     assert.equal(result.find((record) => record.provider === 'openai-codex')?.freshness, 'never');
   });
 
-  test('observer failures do not stale an otherwise fresh usage record', async () => {
-    const claude = fakeAdapter('claude', async () => [usage('anthropic', 'live', {
-      displayName: 'Anthropic',
-      windows: [{ type: 'five_hour', utilization: 0.91, resetsAt: 1_900_000_000 }],
-    })]);
-    const { service } = serviceWith({
-      claude,
-      observe: async () => { throw new Error('observer offline'); },
-    });
-
-    const result = await service.collect();
-    const anthropic = result.find((record) => record.provider === 'anthropic');
-
-    assert.equal(anthropic?.freshness, 'live');
-    assert.equal(anthropic?.note, undefined);
-    assert.deepEqual(anthropic?.windows, [{ type: 'five_hour', utilization: 0.91, resetsAt: 1_900_000_000 }]);
-  });
-
-  test('a collector-declared unavailable note is persisted verbatim without a failure prefix', async () => {
-    const prior = usage('anthropic', 'live', {
-      displayName: 'Anthropic',
-      modes: ['plan'],
-      windows: [{ type: 'five_hour', utilization: 1, resetsAt: 1_900_000_000 }],
+  test('malformed gateway quota cannot erase the last valid observation', async () => {
+    const prior = usage('anthropic', 'stale', {
+      displayName: 'Anthropic', modes: ['plan'],
+      windows: [{ type: 'five_hour', utilization: 0.4, resetsAt: 1_900_000_000 }],
     });
     const store = new MemoryUsageStore([prior]);
-    const claude = fakeAdapter('claude', async () => {
-      throw new UsageUnavailableError(
-        'Anthropic quota data temporarily unavailable (account rate-limited); showing last reading',
-      );
-    });
-    const { service } = serviceWith({ store, claude });
+    const fetch = gatewayFetch([], [], [{
+      provider: 'anthropic', mode: 'plan', observed_at: 1_800_000_000,
+      windows: [{ type: 'five_hour', utilization: 2, resets_at: 1_900_000_100 }],
+    }]);
+    const { service } = serviceWith({ store, fetch });
 
-    const result = await service.collect();
-    const anthropic = result.find((record) => record.provider === 'anthropic');
+    const anthropic = (await service.collect()).find(record => record.provider === 'anthropic');
 
     assert.deepEqual(anthropic?.windows, prior.windows);
     assert.equal(anthropic?.observedAt, prior.observedAt);
-    assert.equal(anthropic?.freshness, 'stale');
-    assert.equal(
-      anthropic?.note,
-      'Anthropic quota data temporarily unavailable (account rate-limited); showing last reading',
-    );
+    assert.match(anthropic?.note ?? '', /utilization is invalid/);
   });
 
   test('a source with no observation remains never and does not throw', async () => {
     const { service } = serviceWith({
-      claude: fakeAdapter('claude', async () => null),
       pi: fakeAdapter('pi', async () => null),
     });
 
@@ -413,7 +406,7 @@ describe('UsageService', () => {
     const codex = result.find((record) => record.provider === 'openai-codex');
 
     assert.equal(anthropic?.freshness, 'never');
-    assert.match(anthropic?.note ?? '', /no observation/);
+    assert.match(anthropic?.note ?? '', /no Anthropic quota observation/);
     assert.equal(codex?.freshness, 'never');
     assert.equal(codex?.note, undefined);
   });
@@ -447,6 +440,7 @@ describe('UsageService', () => {
     assert.deepEqual(
       vi.mocked(fetch).mock.calls.map(([input]) => String(input)).sort(),
       [
+        'http://gateway.test/quota?provider=anthropic',
         'http://gateway.test/usage?period=month&group_by=provider',
         'http://gateway.test/usage?period=today&group_by=provider',
       ],

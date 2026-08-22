@@ -9,5 +9,5 @@ Cost domain — persists attempt-attributed accounting and pauses work during pr
 | gateway-manager.ts | core | Manages the local usage gateway process |
 | rate-limit-throttle.ts | core | Applies exact provider/window policy and publishes throttle windows |
 | resume-registry.ts | core | Tracks provider-attributed interrupted work |
-| usage-service.ts | service | Collects provider quota, observes live windows, and reads gateway spend safely |
+| usage-service.ts | service | Reads gateway quota/spend and PI cached usage safely |
 | usage-store.ts | core | Atomically persists newest provider observations |

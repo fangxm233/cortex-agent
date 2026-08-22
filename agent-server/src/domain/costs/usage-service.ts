@@ -1,5 +1,5 @@
-// input:  daemon usage adapters, settings, usage store, gateway HTTP, and throttle observer
-// output: side-effect-free status, explicit provider collection, and live quota observation
+// input:  PI usage cache, settings, usage store, gateway HTTP
+// output: provider status plus gateway quota and spend collection
 // pos:    Public orchestration service for provider usage visibility
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,16 +7,13 @@ import { getAdapter as getDaemonAdapter } from '../../agent-adapter/index.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
 import type { AgentAdapter, AgentUsageScope, Backend } from '../../agent-adapter/types.js';
 import { getSettings as readSettings, type Settings } from '@core/settings.js';
-import { createLogger } from '@core/log.js';
-import { handleRateLimitEvent, type RateLimitSource } from './rate-limit-throttle.js';
 import { GATEWAY_URL } from './gateway-manager.js';
 import {
   usageStore,
-  UsageUnavailableError,
   type ProviderUsage,
+  type UsageWindow,
 } from './usage-store.js';
 
-const log = createLogger('usage-service');
 const GATEWAY_USAGE_TIMEOUT_MS = 5_000;
 type GatewayPeriod = 'today' | 'month';
 type SpendProvider = 'deepseek' | 'qwen-ksu';
@@ -24,10 +21,6 @@ type SpendProvider = 'deepseek' | 'qwen-ksu';
 type UsageAdapter = Pick<AgentAdapter, 'capabilities' | 'getUsage'>;
 type AdapterResolver = (backend: Backend) => UsageAdapter;
 type SettingsReader = () => Pick<Settings, 'anthropicSubscriptionModes'>;
-type ObserveRateLimit = (
-  info: { rateLimitType: string; rateLimitLabel?: string; utilization: number; resetsAt: number },
-  source: RateLimitSource,
-) => Promise<void>;
 
 export interface UsageServiceStore {
   list(): Promise<ProviderUsage[]>;
@@ -41,16 +34,18 @@ export interface UsageServiceDependencies {
   getSettings?: SettingsReader;
   fetch?: typeof globalThis.fetch;
   gatewayUrl?: string;
-  observeRateLimit?: ObserveRateLimit;
 }
 
-interface AdapterSource {
-  backend: Backend;
+interface UsageSource {
   provider: string;
   displayName: string;
-  scope: AgentUsageScope;
   modes: string[];
   noObservationNote?: string;
+}
+
+interface AdapterSource extends UsageSource {
+  backend: Backend;
+  scope: AgentUsageScope;
 }
 
 interface GatewaySpend {
@@ -61,6 +56,11 @@ interface GatewaySpend {
 interface GatewayPeriodSpend {
   spend: GatewaySpend;
   errors: Partial<Record<SpendProvider, string>>;
+}
+
+interface GatewayQuotaSnapshot {
+  windows: UsageWindow[];
+  observedAt: number;
 }
 
 const PI_SOURCE: AdapterSource = {
@@ -80,14 +80,12 @@ function normalizeModes(modes: string[]): string[] {
   return [...new Set(modes.map((mode) => mode.trim()).filter(Boolean))];
 }
 
-function anthropicSource(modes: string[]): AdapterSource {
+function anthropicSource(modes: string[]): UsageSource {
   return {
-    backend: 'claude',
     provider: 'anthropic',
     displayName: 'Anthropic',
-    scope: { provider: 'anthropic', mode: modes[0] },
     modes,
-    noObservationNote: 'account usage source has no observation',
+    noObservationNote: 'gateway has no Anthropic quota observation',
   };
 }
 
@@ -96,7 +94,7 @@ function errorMessage(error: unknown): string {
 }
 
 function unavailableRecord(
-  source: AdapterSource,
+  source: UsageSource,
   prior: ProviderUsage | null,
   note: string | undefined,
 ): ProviderUsage {
@@ -121,7 +119,7 @@ function unavailableRecord(
   };
 }
 
-function normalizeAdapterRecord(record: ProviderUsage, source: AdapterSource): ProviderUsage {
+function normalizeAdapterRecord(record: ProviderUsage, source: UsageSource): ProviderUsage {
   return {
     ...record,
     provider: source.provider,
@@ -132,6 +130,45 @@ function normalizeAdapterRecord(record: ProviderUsage, source: AdapterSource): P
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function visibleUsage(record: ProviderUsage): ProviderUsage {
+  if (record.provider !== 'anthropic') return record;
+  return {
+    ...record,
+    windows: record.windows.filter((window) => window.type !== 'model_scoped'),
+    freshness: record.observedAt === null ? record.freshness : 'stale',
+  };
+}
+
+function quotaWindow(value: unknown): UsageWindow | null {
+  if (!isRecord(value) || (value.type !== 'five_hour' && value.type !== 'seven_day')) return null;
+  if (typeof value.utilization !== 'number' || !Number.isFinite(value.utilization)
+    || value.utilization < 0 || value.utilization > 1) {
+    throw new Error(`gateway quota utilization is invalid for ${String(value.type)}`);
+  }
+  if (typeof value.resets_at !== 'number' || !Number.isFinite(value.resets_at) || value.resets_at < 0) {
+    throw new Error(`gateway quota reset is invalid for ${String(value.type)}`);
+  }
+  return { type: value.type, utilization: value.utilization, resetsAt: value.resets_at };
+}
+
+function parseGatewayQuota(payload: unknown): GatewayQuotaSnapshot | null {
+  if (!isRecord(payload) || !Array.isArray(payload.providers)) {
+    throw new Error('gateway quota response has no provider rows');
+  }
+  const provider = payload.providers.find((row) => isRecord(row) && row.provider === 'anthropic');
+  if (!provider) return null;
+  if (!Array.isArray(provider.windows)) throw new Error('gateway quota windows are invalid');
+  if (typeof provider.observed_at !== 'number' || !Number.isFinite(provider.observed_at)
+    || provider.observed_at < 0) {
+    throw new Error('gateway quota observation time is invalid');
+  }
+  const windows = provider.windows.flatMap((value) => {
+    const window = quotaWindow(value);
+    return window ? [window] : [];
+  });
+  return windows.length > 0 ? { windows, observedAt: provider.observed_at } : null;
 }
 
 function canonicalSpendProvider(provider: string): SpendProvider | null {
@@ -207,35 +244,12 @@ function gatewayNote(
   return failures.length > 0 ? `gateway usage collection failed (${failures.join('; ')})` : undefined;
 }
 
-function observableWindows(record: ProviderUsage) {
-  return record.windows.filter((window) => window.utilization !== null && window.resetsAt !== null);
-}
-
-function observationSources(record: ProviderUsage): RateLimitSource[] {
-  const modes = record.modes.length > 0 ? record.modes : [undefined];
-  return modes.map((mode) => ({ provider: record.provider, displayName: record.displayName, ...(mode ? { mode } : {}) }));
-}
-
-async function observeProviderUsage(record: ProviderUsage, observe: ObserveRateLimit): Promise<void> {
-  for (const source of observationSources(record)) {
-    for (const window of observableWindows(record)) {
-      await observe({
-        rateLimitType: window.type,
-        ...(window.label ? { rateLimitLabel: window.label } : {}),
-        utilization: window.utilization!,
-        resetsAt: window.resetsAt!,
-      }, source);
-    }
-  }
-}
-
 export class UsageService {
   private readonly store: UsageServiceStore;
   private readonly getAdapter: AdapterResolver;
   private readonly getSettings: SettingsReader;
   private readonly fetch: typeof globalThis.fetch;
   private readonly gatewayUrl: string;
-  private readonly observeRateLimit: ObserveRateLimit;
 
   constructor(dependencies: UsageServiceDependencies = {}) {
     this.store = dependencies.store ?? usageStore;
@@ -243,17 +257,16 @@ export class UsageService {
     this.getSettings = dependencies.getSettings ?? readSettings;
     this.fetch = dependencies.fetch ?? globalThis.fetch;
     this.gatewayUrl = dependencies.gatewayUrl ?? GATEWAY_URL;
-    this.observeRateLimit = dependencies.observeRateLimit ?? handleRateLimitEvent;
   }
 
   async getStatus(): Promise<ProviderUsage[]> {
-    return this.store.list();
+    return (await this.store.list()).map(visibleUsage);
   }
 
   async collect(): Promise<ProviderUsage[]> {
     const modes = normalizeModes(this.getSettings().anthropicSubscriptionModes);
     const anthropicCollection = modes.length > 0
-      ? this.collectAdapter(anthropicSource(modes))
+      ? this.collectGatewayQuota(anthropicSource(modes))
       : this.disableAnthropicUsage();
     await Promise.all([
       this.collectAdapter(PI_SOURCE),
@@ -277,18 +290,35 @@ export class UsageService {
         ? normalizeAdapterRecord(observed, source)
         : unavailableRecord(source, prior, source.noObservationNote);
       await this.store.update(next);
-      await this.observeLiveUsage(next);
     } catch (error) {
-      const note = error instanceof UsageUnavailableError
-        ? error.message
-        : `${source.displayName} usage collection failed: ${errorMessage(error)}`;
+      const note = `${source.displayName} usage collection failed: ${errorMessage(error)}`;
       await this.store.update(unavailableRecord(source, prior, note));
     }
   }
 
+  private async collectGatewayQuota(source: UsageSource): Promise<void> {
+    const prior = visibleUsage(await this.store.get(source.provider) ?? unavailableRecord(source, null, undefined));
+    try {
+      const snapshot = await this.readGatewayQuota();
+      const next = snapshot ? {
+        provider: source.provider,
+        displayName: source.displayName,
+        modes: source.modes,
+        windows: snapshot.windows,
+        observedAt: snapshot.observedAt,
+        freshness: 'stale' as const,
+      } : unavailableRecord(source, prior.observedAt === null ? null : prior, source.noObservationNote);
+      await this.store.update(next);
+    } catch (error) {
+      const note = `Anthropic gateway quota collection failed: ${errorMessage(error)}`;
+      await this.store.update(unavailableRecord(source, prior.observedAt === null ? null : prior, note));
+    }
+  }
+
   private async disableAnthropicUsage(): Promise<void> {
-    const prior = await this.store.get('anthropic');
-    if (!prior) return;
+    const stored = await this.store.get('anthropic');
+    if (!stored) return;
+    const prior = visibleUsage(stored);
     await this.store.update({
       ...prior,
       modes: [],
@@ -297,21 +327,19 @@ export class UsageService {
     });
   }
 
-  private async observeLiveUsage(record: ProviderUsage): Promise<void> {
-    if (record.freshness !== 'live') return;
-    try {
-      await observeProviderUsage(record, this.observeRateLimit);
-    } catch (error) {
-      log.error(`Live usage observation failed for ${record.provider}: ${errorMessage(error)}`);
-    }
-  }
-
   private async readAdapter(
     adapter: UsageAdapter,
     scope: AgentUsageScope,
   ): Promise<ProviderUsage[] | null> {
     if (!adapter.capabilities.has(Capability.Usage) || !adapter.getUsage) return null;
     return adapter.getUsage(scope);
+  }
+
+  private async readGatewayQuota(): Promise<GatewayQuotaSnapshot | null> {
+    const url = `${this.gatewayUrl}/quota?provider=anthropic`;
+    const response = await this.fetch(url, { signal: AbortSignal.timeout(GATEWAY_USAGE_TIMEOUT_MS) });
+    if (!response.ok) throw new Error(`gateway quota HTTP ${response.status}`);
+    return parseGatewayQuota(await response.json());
   }
 
   private async readGatewayPeriod(period: GatewayPeriod): Promise<GatewayPeriodSpend> {

@@ -24,7 +24,7 @@ export enum Capability {
   Usage = 'usage',
 }
 
-// Claude: native turn support plus account usage pull through a dedicated print process.
+// Claude: native turn support; account quota is observed by the local HTTP gateway.
 // StreamingDeltas: `--include-partial-messages` token-level output.
 // MidTurnInject: print mode accepts a user message on stdin while a turn is in flight.
 const CLAUDE_CAPS: Capability[] = [
@@ -41,7 +41,6 @@ const CLAUDE_CAPS: Capability[] = [
   Capability.StreamingDeltas,
   // Print mode accepts a user message written to stdin while a turn is in flight.
   Capability.MidTurnInject,
-  Capability.Usage,
 ];
 
 // PI: per DR-0008 §5.1 capability matrix — --skill for Plugins, --system-prompt for SystemPromptOverride, tool-allowlist via adapter;
