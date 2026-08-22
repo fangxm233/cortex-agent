@@ -1,5 +1,5 @@
 # input:  real Docker PI image, synthetic upstream, lifecycle failure injection
-# output: prompt transport, lifecycle, resume, and revoke proofs
+# output: prompt transport, timeout recovery, and lifecycle proofs
 # pos:    Real-container boundary test for vendor trial lifecycle
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -258,6 +258,32 @@ def test_real_docker_vendor_trial_reseals_prepares_cli_and_resumes_without_rewri
     assert resumed["trials"][0]["state"] == "skipped"
     assert {path: path.read_bytes() for path in paths} == before
     _assert_runtime_evidence(tmp_path)
+
+
+def test_real_docker_pi_recovers_after_one_first_response_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_scan_environment(monkeypatch)
+    counts = _track_routes(monkeypatch)
+    with SyntheticDeepSeekUpstream(first_response_delay_seconds=14) as upstream:
+        document = _campaign_document(tmp_path, upstream.base_url)
+        document["tasks"][0]["task_id"] = "retry"  # type: ignore[index]
+        document["arms"][0]["name"] = "pure-pi-retry"  # type: ignore[index]
+        result = _run_document(tmp_path, document)
+
+    assert counts["arm"] <= 1, result
+    assert counts["revoke"] == 1, result
+    assert upstream.request_count == 3
+    assert result["trials"][0]["outcome_state"] == "terminal-success"
+    assert result["trials"][0]["verifier_rewards"] == {"reward": 1.0}
+    trial_root = tmp_path / "trials/vendor-docker-retry-pure-pi-retry"
+    export = json.loads((trial_root / "artifacts/proxy/proxy-export.json").read_text())
+    assert export["requests"] == {"status": "available", "value": 3}
+    assert export["audit_log"]["value"]["durable_requests"] == 3
+    assert export["audit_log"]["value"]["agrees_with_counters"] is True
+    session_dir = trial_root / "agent/pi/sessions"
+    session_records = "".join(path.read_text() for path in session_dir.glob("*.jsonl"))
+    assert '"errorMessage":"Request timed out."' in session_records
 
 
 def test_unknown_vendor_projection_key_is_refused_before_docker_start_and_revoked(
