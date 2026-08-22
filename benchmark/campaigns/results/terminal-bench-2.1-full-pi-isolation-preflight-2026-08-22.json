@@ -1,0 +1,49 @@
+{
+  "schema_version": "cortex-bench-full-suite-preflight-evidence/1",
+  "date": "2026-08-22",
+  "host": "lab-ksu",
+  "mode": "zero-provider-preflight",
+  "source_commit": "bd7e71db",
+  "deployment_archive_sha256": "340c869abd5366f59c21e106803d6b621c00fbfdc9bc8ca507e90c6cd18682ad",
+  "spec": {
+    "suite": "tb21-full-pi-deepseek-flash",
+    "spec_digest": "17ead21ddc781d39e95080d70e897bc34a715aeae90589cc51d855060bf7a3ae",
+    "dataset_commit": "7131e4375048a0e408a8fb404b5f499d726b695b",
+    "task_tree_sha256": "bc3ee74963a3b6ce91d6c96e9d0e94994ee8fd3b466faa69cbf2292a80fd9812",
+    "task_count": 89,
+    "concurrency": 8,
+    "attempts_per_task": 1,
+    "harbor_max_retries": 0,
+    "route_scope": "per-task",
+    "suite_max_requests": 5000
+  },
+  "preflight": {
+    "ok": true,
+    "credential_kind": "fake",
+    "credential_loaded": true,
+    "provider_requests": 0,
+    "would_arm_routes": 0,
+    "run_directory_created": false,
+    "gateway_listener_before": 0,
+    "gateway_listener_after": 0,
+    "containers_before": 0,
+    "containers_after": 0
+  },
+  "cleanup": {
+    "fake_gateway_deleted": true,
+    "benchmark_proxy_listeners": 0,
+    "pi_processes": 0
+  },
+  "offline_verification": {
+    "focused_tests": "56 passed",
+    "default_collection": "1138 tests",
+    "executor_review": "APPROVED"
+  },
+  "paid_run": {
+    "started": false,
+    "blocked_by": [
+      "timeout-containment",
+      "verifier-bootstrap"
+    ]
+  }
+}
