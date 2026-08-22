@@ -21,6 +21,7 @@ from ..proxy.adapters import ProviderAdapter, select_adapter
 from ..proxy.export import render_proxy_export
 from ..proxy.lease import LeaseTerms
 from ..proxy.models import PROXY_SCHEMA_VERSION, ProxyLimits
+from ..proxy.request_limit import SharedRequestLimit
 from ..proxy.server import TrialProxyHandle, host_now_ms, start_trial_proxy
 from ..scan.models import ArtifactInventory
 from .capability_ceilings import load_capability_ceilings
@@ -242,7 +243,8 @@ def require_capability_admission(
 def _start_proxy_session(
     arm: Mapping[str, object], trial_id: str, upstream_base_url: str,
     spec: TrialProxySpec, proxy_dir: Path, adapter: ProviderAdapter,
-    now_ms: Callable[[], int],
+    now_ms: Callable[[], int], network_trace_path: Path | None,
+    trace_progress_seconds: float, shared_request_limit: SharedRequestLimit | None,
 ) -> TrialProxySession:
     budget_ms = _deadline_budget_ms(arm, spec)
     bound_ms = provisional_lease_bound_ms(now_ms(), budget_ms)
@@ -257,6 +259,9 @@ def _start_proxy_session(
         listen_host=spec.listen_host, advertised_host=spec.advertised_host,
         now_ms=now_ms, request_body_limit_bytes=spec.request_body_limit_bytes,
         response_body_limit_bytes=spec.response_body_limit_bytes,
+        network_trace_path=network_trace_path,
+        network_trace_progress_interval_seconds=trace_progress_seconds,
+        shared_request_limit=shared_request_limit,
     )
     return TrialProxySession(
         handle=handle, upstream_base_url=upstream_base_url,
@@ -268,10 +273,11 @@ def _start_proxy_session(
 def arm_trial_proxy(
     *, arm: Mapping[str, object], trial_id: str, upstream_base_url: str,
     spec: TrialProxySpec, proxy_dir: Path, trial_roots: Sequence[Path],
-    environ: Mapping[str, str] | None = None,
-    now_ms: Callable[[], int] = host_now_ms,
+    environ: Mapping[str, str] | None = None, now_ms: Callable[[], int] = host_now_ms,
     host_credential: str | None = None,
-    paid_run: bool = False,
+    paid_run: bool = False, network_trace_path: Path | None = None,
+    network_trace_progress_interval_seconds: float = 10,
+    shared_request_limit: SharedRequestLimit | None = None,
 ) -> TrialProxySession:
     """Arm the trial's credential route. Called before the container is created."""
     _require_contained(proxy_dir, trial_roots)
@@ -284,6 +290,8 @@ def arm_trial_proxy(
         key, arm, upstream_base_url, credential, spec.access_expires_at_ms)
     session = _start_proxy_session(
         arm, trial_id, upstream_base_url, spec, proxy_dir, adapter, now_ms,
+        network_trace_path, network_trace_progress_interval_seconds,
+        shared_request_limit,
     )
     try:
         _write_json(session.adapter_selection_path, _adapter_selection_record(

@@ -14,6 +14,7 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | manifest.py | core | Records artifacts and the installed CLI version |
 | harbor_agent.py | adapter | Runs production and finalizes terminal deadline evidence |
 | host_finalization.py | boundary | Publishes trial evidence and deadline outcomes |
+| full_suite/ | launch | Runs external tasks with one isolated proxy each |
 | outcome.py | boundary | Classifies results, deadlines and verifier rewards |
 | launcher/ | core | Selects arms and builds non-secret Harbor inputs |
 | proxy/ | network | Injects credentials through a bounded trial route |

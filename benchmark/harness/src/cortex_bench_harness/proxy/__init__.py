@@ -19,6 +19,7 @@ from .lease import (
 )
 from .manifest import fill_proxy_manifest
 from .models import ProxyLimits
+from .request_limit import SharedRequestLimit
 from .server import TrialProxyHandle, start_trial_proxy
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     "LeaseTerms",
     "ProviderAdapter",
     "ProxyLimits",
+    "SharedRequestLimit",
     "TerminalCheck",
     "TrialProxyHandle",
     "build_proxy_export",

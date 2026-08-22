@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 import pytest
 
-import cortex_bench_harness.proxy.server as proxy_server
+import cortex_bench_harness.proxy.network_trace as network_trace
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
 from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from cortex_bench_harness.proxy.adapters import select_adapter
@@ -550,7 +550,7 @@ def _failing_log_path(
         return path
     if phase == "write":
         return Path("/dev/full")
-    monkeypatch.setattr(proxy_server.os, "fsync", _raise_fsync)
+    monkeypatch.setattr(network_trace.os, "fsync", _raise_fsync)
     return tmp_path / "fsync.jsonl"
 
 

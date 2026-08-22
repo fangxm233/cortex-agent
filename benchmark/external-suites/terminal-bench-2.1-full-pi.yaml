@@ -1,0 +1,47 @@
+# input:  pinned Terminal-Bench 2.1 corpus and mounted PI runtime
+# output: reproducible 89-task per-task-proxy full-suite declaration
+# pos:    Full Terminal-Bench PI external-suite specification
+# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
+schema_version: cortex-bench-external-suite/1
+suite: tb21-full-pi-deepseek-flash
+
+dataset:
+  commit: 7131e4375048a0e408a8fb404b5f499d726b695b
+  task_count: 89
+  task_tree_sha256: bc3ee74963a3b6ce91d6c96e9d0e94994ee8fd3b466faa69cbf2292a80fd9812
+  inventory: terminal-bench-2.1-7131e437-images.json
+
+schedule:
+  concurrency: 8
+  attempts_per_task: 1
+  harbor_max_retries: 0
+
+runtime:
+  harbor_version: "0.20.0"
+  node_version: "22.19.0"
+  pi_version: "0.82.1"
+
+provider:
+  capability: pi-deepseek-api-key
+  model: deepseek-v4-flash
+  upstream_base_url: http://127.0.0.1:9880/m/deepseek/deepseek
+  max_output_tokens: 65536
+
+proxy:
+  per_task_max_requests: 500
+  suite_max_requests: 5000
+  per_task_max_cost_usd: "2.00"
+  deadline_seconds: 7200
+  request_body_limit_bytes: 67108864
+  response_body_limit_bytes: 67108864
+  trace_progress_seconds: 10
+  subnet_pool: 172.30.240.0/20
+  subnet_prefix: 24
+
+network:
+  mode: open
+
+outstanding_prerequisites:
+  - timeout-containment
+  - verifier-bootstrap

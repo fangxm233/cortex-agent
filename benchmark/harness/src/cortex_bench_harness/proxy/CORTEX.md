@@ -5,7 +5,9 @@ Per-trial host proxy modules enforce credential, request-count, deadline, and so
 | filename | role | function |
 |---|---|---|
 | __init__.py | export | Exposes the trial proxy API |
-| models.py | types | Defines the route's request cap, measured usage, content-free diagnostics, and the declared-envelope manifest block |
+| models.py | types | Defines route policy, usage and manifest metadata |
+| network_trace.py | trace | Records content-free network phase boundaries |
+| request_limit.py | policy | Shares only a suite request-count ceiling |
 | adapters/ | adapters | Carries one provider protocol per capability key |
 | upstream.py | adapter | Relays one fixed upstream and detects incomplete responses |
 | server.py | core | Enforces request/retry admission, relays responses, and freezes usage, diagnostics, and revocation |

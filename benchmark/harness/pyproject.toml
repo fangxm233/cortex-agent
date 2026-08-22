@@ -15,6 +15,7 @@ dependencies = [
 [project.scripts]
 cortex-bench = "cortex_bench_harness.campaign:main"
 cortex-bench-deepseek-smoke = "cortex_bench_harness.launcher.deepseek_paid_smoke_launcher:main"
+cortex-bench-tb21-full-pi = "cortex_bench_harness.full_suite.cli:main"
 
 [dependency-groups]
 dev = [
@@ -25,5 +26,5 @@ dev = [
 packages = ["src/cortex_bench_harness"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/launcher", "tests/package", "tests/proxy", "tests/scan"]
+testpaths = ["tests/full_suite", "tests/launcher", "tests/package", "tests/proxy", "tests/scan"]
 pythonpath = ["src", "tests"]

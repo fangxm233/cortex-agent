@@ -5,7 +5,6 @@
 
 import hmac
 import json
-import os
 import secrets
 import socket
 import threading
@@ -20,6 +19,8 @@ from .adapters.base import AuthInjectionUnavailable, ProviderAdapter
 from .export import build_proxy_export
 from .lease import LEASE_ECHO_TARGET, LeaseRefused, LeaseTerms, TrialLease
 from .models import ProxyLimits, ProxyMetadata, ProxyUsage, utc_text
+from .network_trace import RequestTrace, append_json_line
+from .request_limit import SharedRequestLimit
 from .upstream import (
     HOP_HEADERS,
     FixedUpstream,
@@ -39,6 +40,7 @@ class ProxyState:
         self, source_ip: str, dummy_token: str, deadline_ms: int,
         limits: ProxyLimits, log_path: Path, now_ms: Callable[[], int],
         *, allow_retry: bool = True,
+        shared_request_limit: SharedRequestLimit | None = None,
     ) -> None:
         self.source_ip = source_ip
         self.dummy_token = dummy_token
@@ -58,6 +60,7 @@ class ProxyState:
         # only ever express `floor(max_cost_usd / max_request_cost_usd)` requests anyway.
         self.reserved_requests = 0
         self.allow_retry = allow_retry
+        self.shared_request_limit = shared_request_limit
 
     def admission_error(self, source_ip: str, authorization: str | None):
         lifecycle_error = self.lifecycle_error()
@@ -93,22 +96,20 @@ class ProxyState:
         return self._persist(entry)
 
     def record_delivery(self, outcome: str) -> bool:
-        """Record what became of a response the trial was already charged a request for.
+        """Record delivery without changing metered totals or route lifecycle.
 
-        Deliberately NOT a metered row: it carries no `request_count`, so it never touches the
-        request or token totals this side reports — exactly as lease rows do not. The request
-        happened and is already counted; what this adds is whether the client was still there to
-        receive it. It is also not a lifecycle event: a
-        client that gave up on one turn may well ask for the next, and revoking the route here
-        would turn one lost response into the end of the run.
+        A client may abandon one response and still ask for another, so this never revokes.
         """
         return self._persist({
             "event": "delivery", "outcome": outcome,
             "request_count_at": self.request_count,
         })
 
-    def reserve(self) -> None:
+    def reserve(self) -> bool:
+        if self.shared_request_limit is not None and not self.shared_request_limit.reserve():
+            return False
         self.reserved_requests += 1
+        return True
 
     def expire(self) -> None:
         self.expired = True
@@ -155,6 +156,8 @@ class ProxyState:
             return error
         if not retain_reservation:
             self.reserved_requests -= 1
+            if self.shared_request_limit is not None:
+                self.shared_request_limit.release()
         return None
 
     def record_rejection(self, outcome: str) -> str | None:
@@ -207,7 +210,7 @@ class ProxyState:
 
     def _persist(self, record: Mapping[str, object]) -> bool:
         try:
-            _append_log(self.log_path, record)
+            append_json_line(self.log_path, record, durable=True)
             return True
         except OSError:
             self.active = False
@@ -295,27 +298,25 @@ class TrialHttpServer(ThreadingHTTPServer):
 
 
 class RelaySink:
-    """Writes one upstream response to the client while the upstream is still producing it.
+    """Streams upstream chunks before completion without weakening accounting refusal.
 
-    Every admitted route requires `stream: true`, so a response withheld until the upstream
-    finished gave the client no byte for the whole generation window; a client read deadline
-    then aborted a turn that was generated and billed in full. This sink emits chunked
-    framing as chunks arrive.
-
-    The terminating zero chunk is written only after accounting has accepted the response.
-    A refusal that used to replace the body — unaccounted usage, a per-request cost above one
-    reservation, an expired or revoked lease — can no longer do so once bytes are out, so it
-    withholds the terminator instead: the client sees a truncated stream and raises, exactly
-    as it did for the refusal status, and never mistakes a refused response for an answer.
+    The zero chunk is written only after accounting accepts the response. A later refusal
+    withholds it, so the client observes a truncated stream rather than a complete answer.
     """
 
-    def __init__(self, handler: "TrialProxyHandler") -> None:
+    def __init__(
+        self, handler: "TrialProxyHandler", trace: RequestTrace | None,
+    ) -> None:
         self._handler = handler
+        self._trace = trace
         self.started = False
         # A write that fails because the client vanished is a client fact. It must not be
         # raised through the upstream read, where it would be audited as an upstream failure
         # and make the proxy's own record disagree with what the provider billed.
         self.client_failed = False
+
+    @property
+    def trace(self) -> RequestTrace | None: return self._trace
 
     def begin(
         self, status: int, reason: str, headers: tuple[tuple[str, str], ...],
@@ -331,12 +332,16 @@ class RelaySink:
             self._handler.end_headers()
         except OSError:
             self.client_failed = True
+            if self._trace is not None:
+                self._trace.downstream_failed()
 
     def relay(self, chunk: bytes) -> None:
         self._write(b"%x\r\n" % len(chunk) + chunk + b"\r\n")
 
     def finish(self) -> None:
         self._write(b"0\r\n\r\n")
+        if self._trace is not None and not self.client_failed:
+            self._trace.downstream_returned()
 
     def _write(self, payload: bytes) -> None:
         if self.client_failed:
@@ -346,6 +351,8 @@ class RelaySink:
             self._handler.wfile.flush()
         except OSError:
             self.client_failed = True
+            if self._trace is not None:
+                self._trace.downstream_failed()
 
 
 class TrialProxyHandler(BaseHTTPRequestHandler):
@@ -428,7 +435,9 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
             if error is not None:
                 self._send_error(*error)
                 return
-            server.state.reserve()
+            if not server.state.reserve():
+                self._send_error(429, "suite_requests_exhausted")
+                return
             self._forward(server, body, route_id)
 
     def _admission_error(self, state: ProxyState):
@@ -437,11 +446,12 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
                 self.client_address[0], self.headers.get("authorization"))
 
     def _forward(self, server: TrialHttpServer, body: bytes, route_id: str) -> None:
-        sink = RelaySink(self)
+        trace = server.upstream.start_request_trace()
+        sink = RelaySink(self, trace)
         try:
             response = server.upstream.request(
                 self.path, dict(self.headers.items()), body,
-                server.state.remaining_seconds(), route_id, sink,
+                server.state.remaining_seconds(), route_id, sink, trace,
             )
         except AuthInjectionUnavailable:
             self._handle_auth_failure(server.state, sink)
@@ -457,9 +467,10 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
 
     def _handle_auth_failure(self, state: ProxyState, sink: RelaySink) -> None:
         audit_error = state.record_attempt("auth_injection_unavailable", False)
-        self._refuse_response(
-            sink, 500 if audit_error else 502,
-            audit_error or "auth_injection_unavailable")
+        outcome = audit_error or "auth_injection_unavailable"
+        if sink.trace is not None:
+            sink.trace.terminal(outcome)
+        self._refuse_response(sink, 500 if audit_error else 502, outcome)
 
     def _handle_upstream_failure(
         self, state: ProxyState, failure: UpstreamAttemptError, sink: RelaySink,
@@ -468,6 +479,8 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         outcome = lifecycle_error[1] if lifecycle_error else failure.reason
         audit_error = state.record_attempt(
             outcome, failure.may_have_reached_upstream)
+        if sink.trace is not None:
+            sink.trace.terminal(audit_error or outcome)
         if failure.reason == "upstream_response_too_large":
             state.deactivate()
         if audit_error is not None:
@@ -481,14 +494,20 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         state = server.state
         accounting_error = state.record(response.usage)
         if accounting_error is not None:
+            if sink.trace is not None:
+                sink.trace.terminal(accounting_error)
             status = 500 if accounting_error == "audit_log_unavailable" else 502
             self._refuse_response(sink, status, accounting_error)
             return
         lifecycle_error = state.lifecycle_error()
         if lifecycle_error is not None:
+            if sink.trace is not None:
+                sink.trace.terminal(lifecycle_error[1])
             self._refuse_response(sink, *lifecycle_error)
             return
         sink.finish()
+        if sink.trace is not None:
+            sink.trace.terminal("ok")
         self._record_delivery(state, sink)
         self.close_connection = True
 
@@ -603,6 +622,10 @@ class TrialProxyHandle:
         return self._lease.record
 
     @property
+    def network_trace_complete(self) -> bool:
+        return self._server.upstream.network_trace_complete
+
+    @property
     def accounting_export(self) -> dict[str, object]:
         """The A1 side of the accounting record, after handler freeze."""
         return build_proxy_export(
@@ -654,6 +677,7 @@ class TrialProxyHandle:
         if not self._server.wait_for_no_clients(2):
             raise RuntimeError("proxy client handlers did not stop")
         self._server.upstream.clear_credential()
+        self._server.upstream.finalize_trace()
 
     def _revocation_record(self) -> dict[str, object]:
         return {
@@ -684,6 +708,9 @@ def start_trial_proxy(
     advertised_host: str | None = None, now_ms: Callable[[], int] = host_now_ms,
     request_body_limit_bytes: int | None = None,
     response_body_limit_bytes: int | None = None, allow_retry: bool = True,
+    network_trace_path: Path | None = None,
+    network_trace_progress_interval_seconds: float = 10,
+    shared_request_limit: SharedRequestLimit | None = None,
 ) -> TrialProxyHandle:
     """Start one per-trial proxy under its provisional deadline bound."""
     _validate_inputs(trial_id, upstream_base_url, adapter, absolute_deadline)
@@ -692,6 +719,8 @@ def start_trial_proxy(
         trial_id, upstream_base_url, adapter, bound_source_ip, absolute_deadline,
         limits, log_path, listen_host, advertised_host, now_ms,
         request_body_limit_bytes, response_body_limit_bytes, allow_retry,
+        network_trace_path, network_trace_progress_interval_seconds,
+        shared_request_limit,
     )
     lease = TrialLease(
         trial_id=trial_id, state=server.state, server=server,
@@ -709,16 +738,19 @@ def _proxy_runtime(
     bound_source_ip: str, absolute_deadline: datetime, limits: ProxyLimits,
     log_path: Path, listen_host: str, advertised_host: str | None,
     now_ms: Callable[[], int], request_body_limit_bytes: int | None,
-    response_body_limit_bytes: int | None, allow_retry: bool,
+    response_body_limit_bytes: int | None, allow_retry: bool, network_trace_path: Path | None,
+    trace_progress_seconds: float, shared_request_limit: SharedRequestLimit | None,
 ) -> tuple[str, str, int, TrialHttpServer, ProxyMetadata]:
     dummy_token = _dummy_token(adapter)
     provisional_bound_ms = int(absolute_deadline.timestamp() * 1000)
     state = ProxyState(
         bound_source_ip, dummy_token, provisional_bound_ms, limits, log_path, now_ms,
-        allow_retry=allow_retry,
+        allow_retry=allow_retry, shared_request_limit=shared_request_limit,
     )
     upstream = FixedUpstream(
         upstream_base_url, adapter, response_body_limit_bytes=response_body_limit_bytes,
+        network_trace_path=network_trace_path, trial_id=trial_id,
+        trace_progress_seconds=trace_progress_seconds,
     )
     server = TrialHttpServer(
         (listen_host, 0), state, upstream, adapter, request_body_limit_bytes,
@@ -734,10 +766,6 @@ def _proxy_runtime(
 
 
 def _dummy_token(adapter: ProviderAdapter) -> str:
-    # Some clients decode the credential locally before building a request, so an
-    # opaque dummy makes them fail without emitting anything — a silence a proxy
-    # cannot tell apart from containment. Such an adapter mints the dummy in the
-    # shape its own client requires.
     mint = getattr(adapter, "mint_dummy_credential", None)
     return mint() if callable(mint) else f"dummy-{secrets.token_urlsafe(24)}"
 
@@ -767,20 +795,6 @@ def _is_lease_echo_target(target: str) -> bool:
 
 
 def _add_cached(total: int | None, observed: int | None) -> int | None:
-    """Accumulate a cache count that the provider may simply not have reported.
-
-    `None` is not zero. A response with no cache breakdown says nothing about whether the prompt
-    was served from cache, and adding zero for it would turn silence into a measurement. Once any
-    request in the trial is silent the running total is unknown, and the audit rows say so.
-    """
     if total is None or observed is None:
         return None
     return total + observed
-
-
-def _append_log(path: Path, record: Mapping[str, object]) -> None:
-    line = json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(line)
-        handle.flush()
-        os.fsync(handle.fileno())

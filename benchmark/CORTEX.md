@@ -5,6 +5,7 @@ Benchmark integrations isolate external harness adapters and container proofs.
 | filename | role | function |
 |---|---|---|
 | campaigns/ | config | Declares the committed campaigns the public runner executes |
+| external-suites/ | config | Pins large externally staged benchmark suites |
 | harness/ | package | Provides and validates the Harbor adapter |
 | policy/ | policy | Declares the committed ceilings a run envelope is validated against |
 
