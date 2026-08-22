@@ -393,11 +393,9 @@ class CortexBenchAgent(BaseInstalledAgent):
     async def _discover_installed_server(
         self, environment: BaseEnvironment,
     ) -> InstalledProductionServer:
-        bundle_root = await self._probe(
-            environment, self._bundle_root_command(),
-            f"Installed {BUNDLE_PACKAGE} bundle root probe returned no path",
-        )
-        target = PurePosixPath(bundle_root) / "dist/entry/production-app-bootstrap.js"
+        await self.exec_as_agent(environment, command=self._bundle_root_command())
+        bundle_root = NPM_INSTALL_PREFIX / "lib/node_modules" / BUNDLE_PACKAGE
+        target = bundle_root / "dist/entry/production-app-bootstrap.js"
         await self.exec_as_agent(
             environment, command=f"test -f {shlex.quote(str(target))}",
         )
@@ -411,7 +409,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             f"Installed {binary} CLI version probe returned no version",
         )
         return InstalledProductionServer(
-            PurePosixPath(bundle_root), PurePosixPath(cli_path), cli_version,
+            bundle_root, PurePosixPath(cli_path), cli_version,
         )
 
     @override

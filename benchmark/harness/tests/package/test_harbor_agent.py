@@ -221,6 +221,19 @@ def test_setup_installs_attests_fresh_home_and_never_composes_standalone(
     assert (tmp_path / "agent/production-cortex-home/config/profiles.json").is_file()
 
 
+def test_setup_ignores_npm_human_output_for_known_bundle_root(tmp_path: Path) -> None:
+    results = setup_results()
+    results[BUNDLE_ROOT_RESULT] = ok(
+        f"{BUNDLE_ROOT}\nnpm notice New major version of npm available! 10.9.3 -> 12.0.2\n"
+    )
+    agent = make_agent(tmp_path, attach_proxy=True)
+
+    asyncio.run(agent.setup(FakeEnvironment(results)))
+
+    assert agent._installed_server is not None
+    assert str(agent._installed_server.bundle_root) == BUNDLE_ROOT
+
+
 @pytest.mark.parametrize(
     "config_name",
     ["zero-paid-dry-run.yaml", "zero-paid-failed-agent.yaml", "zero-paid-parallel.yaml"],
@@ -341,7 +354,6 @@ def test_failed_verification_does_not_publish_manifest(
 @pytest.mark.parametrize(
     ("empty_probe", "message"),
     [
-        (BUNDLE_ROOT_RESULT, "bundle root"),
         (CLI_PATH_RESULT, "pi CLI path"),
         (CLI_VERSION_RESULT, "pi CLI version"),
     ],
