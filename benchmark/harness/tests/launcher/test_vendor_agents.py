@@ -1,11 +1,12 @@
 # input:  admitted vendor arms, fake proxy, recording environment
-# output: dummy runtime, completion-cap, and setup proofs
+# output: setup, prompt transport, usage, and lifecycle proofs
 # pos:    Contract tests for preinstalled vendor lifecycle agents
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
 import hashlib
 import json
+import shlex
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -194,6 +195,63 @@ def test_pi_dummy_auth_and_models_bind_only_the_trial_proxy(tmp_path: Path) -> N
     assert "dummy.jwt.token" not in files["models.json"].content
 
 
+def test_pi_run_uses_text_mode_and_prompt_file_for_dash_instruction(
+    tmp_path: Path,
+) -> None:
+    agent = create_agent(tmp_path, "pi", "deepseek", "deepseek-chat")
+    environment = RecordingEnvironment("")
+    instruction = "- reconstruct the model; printf unsafe"
+
+    asyncio.run(agent.run(instruction, environment, AgentContext()))  # type: ignore[attr-defined]
+
+    commands = [str(call["command"]) for call in environment.calls]
+    assert len(commands) == 2
+    assert "install -m 0600 /dev/null" in commands[0]
+    assert shlex.quote(instruction) in commands[0]
+    assert "/logs/agent/pi/prompt.md" in commands[0]
+    assert "pi --print --mode text" in commands[1]
+    assert "@/logs/agent/pi/prompt.md" in commands[1]
+    assert "--mode json" not in commands[1]
+    assert instruction not in commands[1]
+
+
+def test_pi_usage_is_loaded_from_completed_session_messages(tmp_path: Path) -> None:
+    agent = create_agent(tmp_path, "pi", "deepseek", "deepseek-chat")
+    session_dir = tmp_path / "pi/pi/sessions"
+    session_dir.mkdir(parents=True)
+    records = [
+        {"type": "session", "id": "session-id"},
+        {"type": "message", "message": {"role": "user", "content": []}},
+        {"type": "message", "message": {
+            "role": "assistant", "content": [],
+            "usage": {
+                "input": 11, "output": 13, "cacheRead": 17, "cacheWrite": 19,
+                "cost": {"total": 0.25},
+            },
+        }},
+        {"type": "compaction", "usage": {
+            "input": 2, "output": 3, "cacheRead": 5,
+            "cost": {"total": 0.10},
+        }},
+        {"type": "branch_summary", "usage": {
+            "input": 4, "output": 6, "cacheRead": 8,
+            "cost": {"total": 0.15},
+        }},
+    ]
+    (session_dir / "session.jsonl").write_text(
+        "\n".join(json.dumps(record) for record in records) + "\nnot-json\n",
+        encoding="utf-8",
+    )
+    context = AgentContext()
+
+    agent.populate_context_post_run(context)  # type: ignore[attr-defined]
+
+    assert context.n_input_tokens == 47
+    assert context.n_output_tokens == 22
+    assert context.n_cache_tokens == 30
+    assert context.cost_usd == 0.50
+
+
 def test_codex_uses_p0_proven_provider_config_and_dummy_jwt(tmp_path: Path) -> None:
     agent = create_agent(tmp_path, "codex", None, "gpt-5.3-codex")
     files = {item.path.name: item for item in agent._runtime_files()}  # type: ignore[attr-defined]
@@ -264,24 +322,24 @@ def test_route_revocation_is_idempotent(
     assert agent.revocation is marker  # type: ignore[attr-defined]
 
 
-def test_run_failure_delegates_to_harbor_and_revokes_once(
+def test_run_failure_from_vendor_execution_hook_revokes_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent = create_agent(tmp_path, "pi", "deepseek", "deepseek-chat")
     calls: list[str] = []
     revocations: list[object] = []
 
-    async def harbor_run(*_args: object, **_kwargs: object) -> None:
-        calls.append("harbor-run")
+    async def vendor_run(*_args: object, **_kwargs: object) -> None:
+        calls.append("vendor-run")
         raise RuntimeError("synthetic run failure")
 
-    monkeypatch.setattr(Pi, "run", harbor_run)
+    monkeypatch.setattr(agent, "_run_vendor_instruction", vendor_run)
     monkeypatch.setattr(agent, "revoke_admitted_proxy", lambda: revocations.append(object()))
 
     with pytest.raises(RuntimeError, match="synthetic run failure"):
         asyncio.run(agent.run("task", RecordingEnvironment(""), AgentContext()))  # type: ignore[attr-defined]
 
-    assert calls == ["harbor-run"]
+    assert calls == ["vendor-run"]
     assert len(revocations) == 1
 
 

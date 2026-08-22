@@ -26,8 +26,8 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_production_session_admission.py | test | Verifies sealed session execution |
 | test_trial_admission.py | test | Verifies Harbor trial admission |
 | test_trial_proxy_wiring.py | test | Verifies proxy lifecycle wiring |
-| test_vendor_agents.py | test | Verifies vendor setup, dummy files and admitted caps |
+| test_vendor_agents.py | test | Verifies vendor setup, prompt transport, usage and caps |
 | test_vendor_baseline_isolation.py | test | Verifies vendor baseline isolation |
 | test_vendor_codex_lifecycle_docker.py | test | Proves current Codex lifecycle in real Docker |
-| test_vendor_lifecycle_docker.py | test | Proves vendor lifecycle and failures in real Docker |
+| test_vendor_lifecycle_docker.py | test | Proves PI prompt transport and lifecycle in real Docker |
 | test_vendor_pi_completion_cap_docker.py | test | Proves admitted PI caps traverse the proxy in Docker |

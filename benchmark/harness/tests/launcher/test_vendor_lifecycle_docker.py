@@ -1,5 +1,5 @@
 # input:  real Docker PI image, synthetic upstream, lifecycle failure injection
-# output: vendor lifecycle success, resume, and one-revoke matrix proofs
+# output: prompt transport, lifecycle, resume, and revoke proofs
 # pos:    Real-container boundary test for vendor trial lifecycle
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -113,6 +113,7 @@ def _campaign_document(
     root: Path, upstream: str, *, vendor_version: str = "0.82.1",
     agent_seconds: int = 30, verifier_seconds: int = 30,
     verifier: str | None = None,
+    instruction: str = "Write the exact text `one` into `/tmp/answer.txt`.",
 ) -> dict[str, object]:
     subnet = uuid.uuid4().int % 512
     subnet_pool = f"198.{18 + subnet // 256}.{subnet % 256}.0/24"
@@ -129,8 +130,12 @@ def _campaign_document(
                   "response_body_limit_bytes": 4 * 1024 * 1024},
         "arms": [_vendor_arm(vendor_version)], "network": {"mode": "filtered"},
         "timeouts": {"agent_seconds": agent_seconds, "verifier_seconds": verifier_seconds},
-        "tasks": [{"task_id": "task", "path": str(_write_task(root, verifier=verifier)),
-                   "image_ref": PI_IMAGE}], "comparisons": [],
+        "tasks": [{
+            "task_id": "task",
+            "path": str(_write_task(root, verifier=verifier, instruction=instruction)),
+            "image_ref": PI_IMAGE,
+        }],
+        "comparisons": [],
     }
 
 
@@ -237,7 +242,10 @@ def test_real_docker_vendor_trial_reseals_prepares_cli_and_resumes_without_rewri
     _install_first_cli_observer(monkeypatch)
     counts = _track_routes(monkeypatch)
     with SyntheticDeepSeekUpstream() as upstream:
-        document = _campaign_document(tmp_path, upstream.base_url)
+        document = _campaign_document(
+            tmp_path, upstream.base_url,
+            instruction="- Write the exact text `one` into `/tmp/answer.txt`.",
+        )
         first = _run_document(tmp_path, document)
         paths = (_envelope_path(tmp_path), _trial_root(tmp_path) / "result.json")
         assert all(path.exists() for path in paths), first

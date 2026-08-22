@@ -1,5 +1,5 @@
 # input:  Harbor vendor agents, admitted arm, proxy projection
-# output: preinstalled PI/Claude/Codex lifecycle subclasses
+# output: sealed PI/Claude/Codex execution and lifecycle adapters
 # pos:    Fail-closed vendor execution and finalization boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from harbor.agents.installed.base import with_prompt_template
 from harbor.agents.installed.claude_code import ClaudeCode
 from harbor.agents.installed.codex import Codex
 from harbor.agents.installed.pi import Pi
@@ -42,6 +43,8 @@ from .scan.models import ArtifactInventory, ScanPolicy
 
 TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 EVIDENCE_PATH = PurePosixPath("/logs/agent/vendor-runtime-files.json")
+PI_PROMPT_PATH = PurePosixPath("/logs/agent/pi/prompt.md")
+PI_SESSION_PATH = PurePosixPath("pi/sessions")
 VENDOR_FIXED_ENVIRONMENT = {
     "pi": {
         "PI_CODING_AGENT_DIR": str(TRIAL_ROOT / "pi-agent"),
@@ -63,6 +66,39 @@ class RuntimeFile:
     path: PurePosixPath
     mode: int
     content: str
+
+
+def _pi_usage_record(record: Mapping[str, object]) -> Mapping[str, object] | None:
+    if record.get("type") == "message":
+        message = record.get("message")
+        if not isinstance(message, Mapping) or message.get("role") != "assistant":
+            return None
+        usage = message.get("usage")
+    elif record.get("type") in {"compaction", "branch_summary"}:
+        usage = record.get("usage")
+    else:
+        return None
+    return usage if isinstance(usage, Mapping) else None
+
+
+def _pi_session_usage(session_dir: Path) -> tuple[int, int, int, float]:
+    input_tokens = output_tokens = cache_tokens = 0
+    total_cost = 0.0
+    for path in sorted(session_dir.glob("*.jsonl")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                usage = _pi_usage_record(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+            if usage is None:
+                continue
+            input_tokens += int(usage.get("input", 0))
+            output_tokens += int(usage.get("output", 0))
+            cache_tokens += int(usage.get("cacheRead", 0))
+            cost = usage.get("cost")
+            if isinstance(cost, Mapping):
+                total_cost += float(cost.get("total", 0.0))
+    return input_tokens, output_tokens, cache_tokens, total_cost
 
 
 class VendorLifecycleMixin:
@@ -429,12 +465,17 @@ class VendorLifecycleMixin:
         (self.logs_dir / "instruction.md").write_text(instruction, encoding="utf-8")
         execution_error: BaseException | None = None
         try:
-            await super().run(instruction, environment, context)
+            await self._run_vendor_instruction(instruction, environment, context)
         except BaseException as error:
             execution_error = error
         self._finish_vendor_run(execution_error is not None)
         if execution_error is not None:
             raise execution_error
+
+    async def _run_vendor_instruction(
+        self, instruction: str, environment: BaseEnvironment, context: AgentContext,
+    ) -> None:
+        await super().run(instruction, environment, context)
 
     def _finish_vendor_run(self, failed: bool) -> None:
         if self._trial_seed is None:
@@ -548,6 +589,42 @@ class VendorLifecycleMixin:
 
 class PreinstalledPi(VendorLifecycleMixin, Pi):
     VENDOR_AGENT = "pi"
+
+    @with_prompt_template
+    async def _run_vendor_instruction(
+        self, instruction: str, environment: BaseEnvironment, context: AgentContext,
+    ) -> None:
+        if not self.model_name or "/" not in self.model_name:
+            raise ValueError("Model name must be in the format provider/model_name")
+        prompt = RuntimeFile(PI_PROMPT_PATH, 0o600, instruction)
+        await self.exec_as_agent(
+            environment, command="; ".join(["set -eu", *self._write_file_commands(prompt)]),
+        )
+        skills_command = self._build_register_skills_command()
+        if skills_command:
+            await self.exec_as_agent(environment, command=skills_command)
+        await self.exec_as_agent(environment, command=self._pi_text_command())
+
+    def _pi_text_command(self) -> str:
+        assert self.model_name is not None
+        provider, model = self.model_name.split("/", 1)
+        flags = self.build_cli_flags()
+        cli_flags = f"{flags} " if flags else ""
+        resume = "--continue " if self._resume else ""
+        return (
+            ". ~/.nvm/nvm.sh; pi --print --mode text "
+            f"--session-dir /logs/agent/pi/sessions {resume}"
+            f"--provider {shlex.quote(provider)} --model {shlex.quote(model)} {cli_flags}"
+            f"@{PI_PROMPT_PATH.as_posix()} 2>&1 </dev/null | "
+            f"stdbuf -oL tee /logs/agent/{self._OUTPUT_FILENAME}"
+        )
+
+    def populate_context_post_run(self, context: AgentContext) -> None:
+        usage = _pi_session_usage(self.logs_dir / PI_SESSION_PATH)
+        context.n_input_tokens = usage[0] + usage[2]
+        context.n_output_tokens = usage[1]
+        context.n_cache_tokens = usage[2]
+        context.cost_usd = usage[3] if usage[3] > 0 else None
 
 
 class PreinstalledClaudeCode(VendorLifecycleMixin, ClaudeCode):
