@@ -1,5 +1,5 @@
-# input:  loopback OpenAI chat-completion requests
-# output: deterministic DeepSeek-shaped SSE tool turns
+# input:  loopback requests and optional first-response delay
+# output: deterministic DeepSeek SSE turns and transient starvation
 # pos:    ZERO-PAID synthetic model endpoint
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -9,6 +9,7 @@ import os
 import re
 import signal
 import threading
+import time
 from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -22,11 +23,14 @@ INSTRUCTION_LITERAL = re.compile(
 class _Server(ThreadingHTTPServer):
     daemon_threads = True
     request_count = 0
+    first_response_delay_seconds = 0.0
 
 
 class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         self.server.request_count += 1
+        if self.server.request_count == 1:
+            time.sleep(self.server.first_response_delay_seconds)
         document = self._request_document()
         messages = document.get("messages")
         messages = messages if isinstance(messages, list) else []
@@ -56,8 +60,12 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 class SyntheticDeepSeekUpstream:
-    def __init__(self, host: str = "127.0.0.1", port: int = 0) -> None:
+    def __init__(
+        self, host: str = "127.0.0.1", port: int = 0,
+        first_response_delay_seconds: float = 0,
+    ) -> None:
         self._server = _Server((host, port), _Handler)
+        self._server.first_response_delay_seconds = first_response_delay_seconds
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
 
