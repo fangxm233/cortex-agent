@@ -1,5 +1,5 @@
 # input:  Harbor vendor agents, admitted arm, proxy projection
-# output: sealed vendor execution, bounded waits, containment
+# output: sealed vendor execution, process containment, finalization
 # pos:    Fail-closed vendor execution and finalization boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -46,10 +46,6 @@ TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 EVIDENCE_PATH = PurePosixPath("/logs/agent/vendor-runtime-files.json")
 PI_PROMPT_PATH = PurePosixPath("/logs/agent/pi/prompt.md")
 PI_SESSION_PATH = PurePosixPath("pi/sessions")
-PI_HTTP_IDLE_TIMEOUT_CAP_MS = 60_000
-PI_RETRY_BASE_DELAY_MS = 2_000
-PI_RETRY_DEADLINE_RESERVE_MS = 1_000
-PI_RETRY_MAX_RETRIES = 1
 VENDOR_PROCESS_TOKEN_ENV = "CORTEX_BENCH_VENDOR_PROCESS_TOKEN"
 VENDOR_PROCESS_TERM_POLLS = 10
 VENDOR_PROCESS_KILL_POLLS = 50
@@ -155,9 +151,6 @@ class VendorLifecycleMixin:
         self._manifest = dict(manifest or {})
         self._trial_seed = parse_trial_seed(trial_seed) if trial_seed is not None else None
         self._deferred_proxy = dict(trial_proxy) if trial_proxy is not None else None
-        self._pi_lease_seconds = (
-            trial_proxy.get("lease_seconds") if trial_proxy is not None else None
-        )
         self._host_scan_policy = self._parse_scan_policy(host_scan_policy)
         self._proxy_arm_deferred = defer_proxy_arm
         self._proxy_session: TrialProxySession | None = None
@@ -328,38 +321,8 @@ class VendorLifecycleMixin:
         return (
             RuntimeFile(root / "auth.json", 0o600, self._json(auth)),
             RuntimeFile(root / "models.json", 0o644, self._json(models)),
-            RuntimeFile(root / "settings.json", 0o644, self._json(self._pi_settings())),
             RuntimeFile(TRIAL_ROOT / "home/.nvm/nvm.sh", 0o644, ""),
         )
-
-    def _pi_settings(self) -> dict[str, object]:
-        deadline_ms = self._pi_deadline_seconds() * 1_000
-        # Two starved attempts plus backoff must leave one second before the agent deadline.
-        retry_budget = deadline_ms - PI_RETRY_DEADLINE_RESERVE_MS
-        retry_enabled = retry_budget > PI_RETRY_BASE_DELAY_MS
-        max_retries = PI_RETRY_MAX_RETRIES if retry_enabled else 0
-        retry_delay = PI_RETRY_BASE_DELAY_MS * max_retries
-        attempts = max_retries + 1
-        idle_timeout = max(1, (retry_budget - retry_delay) // attempts)
-        return {
-            "httpIdleTimeoutMs": min(PI_HTTP_IDLE_TIMEOUT_CAP_MS, idle_timeout),
-            "retry": {
-                "enabled": retry_enabled, "maxRetries": max_retries,
-                "baseDelayMs": PI_RETRY_BASE_DELAY_MS,
-            },
-        }
-
-    def _pi_deadline_seconds(self) -> int:
-        if self._trial_seed is None:
-            raise VendorPreflightError("PI runtime requires an admitted trial seed")
-        limits = self._trial_seed.arm.get("limits")
-        deadline = limits.get("deadline_seconds") if isinstance(limits, Mapping) else None
-        if not isinstance(deadline, int) or isinstance(deadline, bool) or deadline <= 0:
-            raise VendorPreflightError("PI runtime requires admitted arm deadline_seconds")
-        lease = self._pi_lease_seconds
-        if isinstance(lease, int) and not isinstance(lease, bool) and lease > 0:
-            return min(deadline, lease)
-        return deadline
 
     def _pi_completion_cap(self) -> int:
         if self._trial_seed is None:
