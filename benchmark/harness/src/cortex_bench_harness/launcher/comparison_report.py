@@ -11,7 +11,7 @@ from typing import cast
 
 from .arms import IMAGE_DIGEST, VENDOR_AGENTS
 
-COMPARISON_REPORT_SCHEMA_VERSION = "cortex-benchmark-comparison-report/3"
+COMPARISON_REPORT_SCHEMA_VERSION = "cortex-benchmark-comparison-report/4"
 DIFFERENCE_CLASSES = frozenset({"bundle-level", "orchestration"})
 OUTCOME_STATES = frozenset({
     "terminal-success", "terminal-agent-failure", "terminal-verifier-failure",
@@ -121,6 +121,25 @@ def _admission(run: Mapping[str, object], kind: str, outcome_state: str) -> obje
     raise ValueError("Cortex runs must state grader_admission.admitted")
 
 
+def _outcome_reason(run: Mapping[str, object]) -> str | None:
+    """Why this run ended the way it did, when the outcome reader computed a reason.
+
+    `outcome_state` alone cannot separate a run cut off at its deadline from an agent that ran to
+    completion and got the task wrong: both are terminal-agent-failure. The reader already
+    distinguishes them, so the report carries that reason rather than re-deriving it. Absent is
+    None; present must be a usable string, because an empty one states nothing while looking like
+    an answer.
+    """
+    if "outcome_reason" not in run:
+        return None
+    reason = run["outcome_reason"]
+    if reason is None:
+        return None
+    if not isinstance(reason, str) or not reason:
+        raise ValueError("comparison report run outcome_reason must be a non-empty string")
+    return reason
+
+
 def _outcome_state(run: Mapping[str, object]) -> str:
     state = _text(run, "outcome_state", "run")
     if state not in OUTCOME_STATES:
@@ -173,7 +192,8 @@ def _build_run(run: Mapping[str, object]) -> dict[str, object]:
         "task": _task(run), "limits": _limits(arm),
         "cortex_telemetry": _telemetry(run, kind, outcome_state),
         "grader_admission": _admission(run, kind, outcome_state),
-        "outcome_state": outcome_state, **_score(run, outcome_state),
+        "outcome_state": outcome_state, "outcome_reason": _outcome_reason(run),
+        **_score(run, outcome_state),
     }
 
 

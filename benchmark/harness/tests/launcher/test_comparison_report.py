@@ -39,7 +39,9 @@ def arm(name: str, kind: str, selector: str) -> dict[str, object]:
         "name": name,
         "provider": "anthropic",
         "model": "claude-sonnet",
-        "limits": LIMITS,
+        # A copy: test_report_rejects_unpinned_comparison_inputs mutates the limits it is handed,
+        # and a shared mapping would leak that zeroed deadline into every later test in the file.
+        "limits": dict(LIMITS),
     }
     value["vendor_agent" if kind == "vendor-baseline" else "backend"] = selector
     return value
@@ -55,6 +57,7 @@ def run(
         "task": {"task_id": "terminal-task", "image_digest": DIGEST},
         "cli_version": cli_version,
         "outcome_state": "terminal-success",
+        "outcome_reason": None,
         "verifier_rewards": {"reward": 1.0, "auxiliary": 0.0},
         "score_status": "available",
     }
@@ -78,6 +81,7 @@ def expected_run(
         "cortex_telemetry": telemetry,
         "grader_admission": admission,
         "outcome_state": "terminal-success",
+        "outcome_reason": None,
         "verifier_rewards": {"reward": 1.0, "auxiliary": 0.0},
         "score_status": "available",
     }
@@ -100,7 +104,7 @@ def test_report_pins_inputs_order_and_difference_classes() -> None:
     )
 
     assert report == {
-        "schema_version": "cortex-benchmark-comparison-report/3",
+        "schema_version": "cortex-benchmark-comparison-report/4",
         "campaign_id": "campaign-001",
         "run_order": ["run-vendor", "run-manager", "run-direct"],
         "runs": [expected_run("run-vendor", "pure-claude-code", "vendor-baseline", "claude-code",
@@ -225,3 +229,37 @@ def test_report_rejects_unpinned_comparison_inputs(
         build_comparison_report(
             campaign_id="campaign-001", runs=[run_value], comparisons=[],
         )
+
+
+def test_a_deadline_cut_run_is_distinguishable_from_an_agent_that_merely_failed() -> None:
+    """Both end as terminal-agent-failure, so the state alone cannot separate them.
+
+    A manager arm that spends its wall clock on coordination and gets cut at the deadline is a
+    different fact from an agent that finished and got the task wrong, and the five-arm comparison
+    exists to tell those apart. The reason the outcome reader already computed must therefore reach
+    the report, not stop at the envelope.
+    """
+    cut = run("run-cut", arm("cortex-manager", "cortex", "claude"), "1.2.3",
+              {"status": "available", "value": {"thread_starts": 1}})
+    cut.update({"outcome_state": "terminal-agent-failure", "score_status": "available",
+                "verifier_rewards": {"reward": 0.0}, "outcome_reason": "run_deadline_reached"})
+    lost = run("run-lost", arm("cortex-direct", "cortex", "claude"), "1.2.3",
+               {"status": "available", "value": {"thread_starts": 1}})
+    lost.update({"outcome_state": "terminal-agent-failure", "score_status": "available",
+                 "verifier_rewards": {"reward": 0.0}, "outcome_reason": None})
+
+    report = build_comparison_report(
+        campaign_id="campaign-001", runs=[cut, lost], comparisons=[],
+    )
+
+    assert report["runs"][0]["outcome_reason"] == "run_deadline_reached"
+    assert report["runs"][1]["outcome_reason"] is None
+
+
+def test_a_run_reason_that_is_not_a_usable_string_is_refused() -> None:
+    bad = run("run-bad", arm("cortex-direct", "cortex", "claude"), "1.2.3",
+              {"status": "available", "value": {"thread_starts": 0}})
+    bad["outcome_reason"] = ""
+
+    with pytest.raises(ValueError, match="outcome_reason"):
+        build_comparison_report(campaign_id="campaign-001", runs=[bad], comparisons=[])

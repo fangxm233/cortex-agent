@@ -651,6 +651,7 @@ def _report_run(config: CampaignConfig, outcome: TrialOutcome) -> dict[str, obje
         "cortex_telemetry": _cortex_telemetry(outcome),
         "grader_admission": dict(outcome.admission) if outcome.admission else None,
         "outcome_state": outcome.outcome_state,
+        "outcome_reason": outcome.reason,
         "verifier_rewards": (
             None if outcome.verifier_rewards is None else dict(outcome.verifier_rewards)),
         "score_status": outcome.score_status,
