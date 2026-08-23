@@ -1,5 +1,5 @@
 // input:  tRPC data, shared project/session/modal contexts
-// output: desktop rail with sessions, schedule groups, notes
+// output: desktop rail with project/session/schedule zones
 // pos:    Owns workbench navigation and global-overlay triggers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -457,13 +457,16 @@ export function LeftRail(): JSX.Element {
     );
   };
 
-  // SCHEDULED section (design 30a): a plain sibling of the day groups — header row + rows, no
-  // card chrome. Collapsed (default) keeps only the header with count + unread tally.
+  // SCHEDULED zone (design 30a): a sibling of SESSIONS with header row + rows and no card chrome.
+  // Collapsed (default) keeps only the header with count + unread tally.
   const schedUnread = unreadScheduleCount(scheduleRows);
   const renderScheduledSection = () => {
     if (scheduleRows.length === 0) return null;
     return (
-      <div data-zone="scheduled" style={{ borderTop: '1px solid var(--proto-line)', marginTop: 8, paddingBottom: 6 }}>
+      <div
+        data-zone="scheduled"
+        style={{ borderTop: '1px solid var(--proto-line)', margin: '8px 12px 0', paddingBottom: 6, flex: 'none' }}
+      >
         <div
           {...hp('schedhead')}
           onClick={toggleSchedSection}
@@ -863,9 +866,10 @@ export function LeftRail(): JSX.Element {
               {g.items.map(renderSessionRow)}
             </div>
           ))}
-          {renderScheduledSection()}
         </div>
       </div>
+
+      {renderScheduledSection()}
 
       {/* approval-pending banner — ALL-projects aggregate (real approvals.list; opens the center) */}
       {hasPendingApprovals && (
