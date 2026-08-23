@@ -13,6 +13,7 @@ from cortex_bench_harness.full_suite.config import SuiteSpecError, load_suite_sp
 
 HARNESS = Path(__file__).resolve().parents[2]
 COMMITTED_SPEC = HARNESS.parent / "external-suites/terminal-bench-2.1-full-pi.yaml"
+RECOVERY_SPEC = HARNESS.parent / "external-suites/terminal-bench-2.1-full-pi-recovery-87.yaml"
 
 
 def write_spec(tmp_path: Path, **updates: object) -> Path:
@@ -99,3 +100,11 @@ def test_committed_spec_pins_all_89_tasks() -> None:
     spec = load_suite_spec(COMMITTED_SPEC)
     assert (spec.task_count, spec.concurrency, spec.attempts, spec.harbor_retries) == (89, 8, 1, 0)
     assert len({task.task_id for task in spec.tasks}) == 89
+
+
+def test_recovery_spec_pins_87_tasks_and_excludes_retained_results() -> None:
+    spec = load_suite_spec(RECOVERY_SPEC)
+    task_ids = {task.task_id for task in spec.tasks}
+    assert (spec.task_count, spec.concurrency, spec.attempts, spec.harbor_retries) == (87, 8, 1, 0)
+    assert task_ids.isdisjoint({"break-filter-js-from-html", "build-pmars"})
+    assert len(task_ids) == 87

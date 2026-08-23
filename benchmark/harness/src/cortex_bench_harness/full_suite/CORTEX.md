@@ -11,7 +11,7 @@ Full-suite launcher isolates each external task behind its own route, process, n
 | pi_agent.py | 适配 | 使用只读挂载的 Node/PI runtime |
 | preflight.py | 验证 | 校验 tasks、images、runtime 和 gateway |
 | processes.py | 进程 | 跟踪并终止 Harbor process groups |
-| runner.py | 核心 | 协调 task-owned proxy 与 Harbor process |
+| runner.py | 核心 | 协调 proxy、Harbor 与 trial result |
 | scheduler.py | 调度 | 限制并发并保持结果顺序 |
 | state.py | 状态 | 原子记录 no-rerun lifecycle |
 | task_job.py | 构建 | 生成单 task Harbor 与 PI config |

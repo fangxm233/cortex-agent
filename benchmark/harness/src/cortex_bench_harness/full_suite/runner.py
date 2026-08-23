@@ -150,9 +150,9 @@ def _run_harbor(
 
 
 def _single_result(root: Path) -> dict[str, object]:
-    paths = list(root.rglob("result.json")) if root.is_dir() else []
+    paths = list(root.glob("*/*/result.json")) if root.is_dir() else []
     if len(paths) != 1:
-        raise RuntimeError(f"expected one Harbor result.json, found {len(paths)}")
+        raise RuntimeError(f"expected one Harbor trial result.json, found {len(paths)}")
     try:
         result = json.loads(paths[0].read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:

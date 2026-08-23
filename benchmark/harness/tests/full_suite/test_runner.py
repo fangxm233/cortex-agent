@@ -57,9 +57,13 @@ def test_runner_arms_each_task_once_and_keeps_results_ordered(
         return SimpleNamespace(handle=FakeHandle(task_id), proxy_dir=proxy)
 
     def invoke(self, task_id, root, _slot, _handle):
-        result = root / "harbor-results/trial/result.json"
-        result.parent.mkdir(parents=True)
-        result.write_text(json.dumps({"exception_info": None, "verifier_result": {"rewards": {"reward": 1}}}))
+        job = root / "harbor-results/job"
+        trial = job / "trial/result.json"
+        trial.parent.mkdir(parents=True)
+        (job / "result.json").write_text(json.dumps({"job_name": task_id}))
+        trial.write_text(json.dumps({
+            "exception_info": None, "verifier_result": {"rewards": {"reward": 1}},
+        }))
         private = root / "control/pi-config"
         private.mkdir(parents=True)
         return 0, f"dummy-{task_id}"
@@ -81,4 +85,7 @@ def test_runner_arms_each_task_once_and_keeps_results_ordered(
     assert sorted(armed) == ["one", "two"]
     assert [task["task_id"] for task in result["tasks"]] == ["one", "two"]
     assert all(task["state"] == "terminal" for task in result["tasks"])
+    for task_id in ("one", "two"):
+        outcome = json.loads((inputs.run_dir / f"tasks/{task_id}/task-outcome.json").read_text())
+        assert outcome["reward"] == {"reward": 1}
     assert "real-key-not-persisted" not in (inputs.run_dir / "suite-result.json").read_text()
