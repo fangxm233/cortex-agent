@@ -42,10 +42,10 @@ ACCOUNTED = (
     "        stream.done and not stream.malformed and not stream.data_after_done\n"
     "        and models == {frozen_model} and valid_usage"
 )
-COMMON_FIELDS = (
-    'COMMON_FIELDS = frozenset({\n'
+IDENTITY_FIELDS = (
+    'IDENTITY_FIELDS = frozenset({\n'
     '    "schema_version", "capability_id", "state", "capability_key", "adapter_id",\n'
-    '    "implementation_commit", "pi_version", "model_metadata_sha256",\n'
+    '    "implementation_commit",\n'
     '})'
 )
 
@@ -90,7 +90,10 @@ MUTATIONS: tuple[tuple[str, str, list[tuple[str, str]], str, str], ...] = (
         "    if not _token(declared) or declared != frozen_completion_cap:", "    if False:",
     )], ADAPTER_TESTS, "rejects_model_stream"),
     ("cap_unfrozen", DEEPSEEK, [(
-        "    if frozen_completion_cap is None:", "    if False:",
+        '    if frozen_completion_cap is None:\n'
+        '        return "request_completion_cap_unfrozen"',
+        '    if False:\n'
+        '        return "request_completion_cap_unfrozen"',
     )], ADAPTER_TESTS, "no_completion_cap_is_frozen"),
     # --- credential injection ---
     ("auth_injection", DEEPSEEK, [(
@@ -117,8 +120,8 @@ MUTATIONS: tuple[tuple[str, str, list[tuple[str, str]], str, str], ...] = (
     )], ADAPTER_TESTS, "partial_duplicate"),
     ("usage_count", DEEPSEEK, [
         ("        if len(usages) != 1:", "        if not usages:"),
-        ("    valid_usage = len(usages) == 1 and min(usages[0]) >= 0",
-         "    valid_usage = bool(usages) and min(usages[0]) >= 0"),
+        ("    valid_usage = len(usages) == 1 and min(usages[0][0], usages[0][1]) >= 0",
+         "    valid_usage = bool(usages) and min(usages[0][0], usages[0][1]) >= 0"),
     ], ADAPTER_TESTS, "partial_duplicate"),
     ("usage_token_type", DEEPSEEK, [(
         "    return isinstance(value, int) and not isinstance(value, bool) and value >= 0",
@@ -160,7 +163,7 @@ MUTATIONS: tuple[tuple[str, str, list[tuple[str, str]], str, str], ...] = (
     )], ADAPTER_TESTS, "stop_clears"),
     # --- arming ---
     ("cap_key_binding", f"{LAUNCHER}/trial_proxy.py", [(
-        "    if backend != key.runner_or_backend or provider != key.provider:",
+        "    if runner != key.runner_or_backend or provider != key.provider:",
         "    if False:",
     )], "tests/launcher/test_trial_proxy_wiring.py", "provider_drift"),
     ("paid_envelope_ceiling", f"{LAUNCHER}/trial_proxy.py", [(
@@ -177,10 +180,10 @@ MUTATIONS: tuple[tuple[str, str, list[tuple[str, str]], str, str], ...] = (
         "        if document.get(field) != expected:", "        if False:",
     )], "tests/launcher/test_capability_evidence.py", "exact_runtime_contract"),
     ("evidence_numeric_envelope", EVIDENCE_MODULE, [(
-        COMMON_FIELDS,
-        COMMON_FIELDS.replace(
-            '    "implementation_commit", "pi_version", "model_metadata_sha256",\n',
-            '    "implementation_commit", "pi_version", "model_metadata_sha256",\n'
+        IDENTITY_FIELDS,
+        IDENTITY_FIELDS.replace(
+            '    "implementation_commit",\n',
+            '    "implementation_commit",\n'
             '    "max_output_tokens", "request_limit_bytes", "response_limit_bytes",\n',
         ),
     )], "tests/launcher/test_capability_evidence.py", "carrying_a_declared_envelope_number"),
