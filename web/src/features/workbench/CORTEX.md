@@ -27,15 +27,15 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | CenterChat.tsx | view | Reconciles chat state and local command controls |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, notes and session menu |
-| MessageStream.tsx | view | Renders transcript with formula-aware replies |
+| MessageStream.tsx | view | Renders transcript with stable message action rows |
 | ChatMarkdown.tsx | view | Renders Markdown with optional KaTeX formulas |
 | ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior and untrusted-input safety |
 | ChatNotice.tsx | view | Localized semantic notices with optional actions |
 | ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
-| MessageEdit.tsx | view | Message hover actions, edit box and rewind |
+| MessageEdit.tsx | view | Bare message actions, edit box and rewind |
 | chat-content.ts | types | Defines chat types and local shortcut catalog |
-| transcript-vm.ts | vm | Builds chat rows and strips the schedule prefix |
-| transcript-vm.test.ts | test | Tests transcript rows and auth action retention |
+| transcript-vm.ts | vm | Builds chat rows and assistant turn-copy targets |
+| transcript-vm.test.ts | test | Tests transcript rows, turn copy and auth actions |
 | ToolCallsRow.tsx | view | Collapsed tool chips that expand on click |
 | tool-call-overflow.ts | util | Computes visible tool chips and hidden count |
 | useToolCallOverflow.ts | hook | Measures chip widths and recomputes on resize |

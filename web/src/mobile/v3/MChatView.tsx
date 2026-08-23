@@ -32,7 +32,7 @@ import {
 import { useRevealedText } from '@/features/workbench/useRevealedText';
 import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
-import { regenNoteIndexes, messageTimeLabel, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
+import { assistantTurnCopyTargets, regenNoteIndexes, messageTimeLabel, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import {
   interactionView,
@@ -172,6 +172,27 @@ function longPressHandlers(fire: (anchorTop: number) => void): {
     onTouchMove: () => { if (timer) clearTimeout(timer); },
     onContextMenu: (e) => { e.preventDefault(); fire(topOf(e.currentTarget)); },
   };
+}
+
+function AssistantCopyButton({ text, label, copiedLabel }: { text: string; label: string; copiedLabel: string }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+  const copy = (): void => {
+    void navigator.clipboard?.writeText(text).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
+  return (
+    <button
+      type="button"
+      data-assistant-turn-copy="true"
+      aria-label={copied ? copiedLabel : label}
+      title={copied ? copiedLabel : label}
+      onClick={copy}
+      style={{ width: 28, height: 26, padding: 0, border: 0, background: 'transparent', color: copied ? 'var(--proto-success)' : MC.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+    >
+      {copied ? '✓' : <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="4.5" y="4.5" width="8" height="8" rx="1.5" /><path d="M2.5 9.5V3.5a1 1 0 0 1 1-1h6" /></svg>}
+    </button>
+  );
 }
 
 /** Trailing glyph on a 7a menu row. */
@@ -734,9 +755,11 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
   );
 }
 
-export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editing, onLongPress, onShowOriginal, streamKey }: {
+export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, interactions, editCopy, editing, onLongPress, onShowOriginal, streamKey }: {
   rows: ChatRow[];
   toolCallsUnit: string;
+  copyLabel: string;
+  copiedLabel: string;
   interactions?: MChatInteractions;
   /** Identity of the live stream these rows belong to (the session) — a change settles the reveal
    *  instead of pacing the next chat's reply onward from this one's progress. */
@@ -751,6 +774,7 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
   onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
 }): JSX.Element {
   const regenIdx = editCopy ? regenNoteIndexes(rows) : null;
+  const assistantCopies = assistantTurnCopyTargets(rows);
   const editingIdx = editing?.rowIndex ?? null;
   return (
     <>
@@ -854,6 +878,11 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
               {row.attachments && row.attachments.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   <AttachmentGroup attachments={row.attachments} side="left" />
+                </div>
+              )}
+              {assistantCopies.has(i) && (
+                <div style={{ height: 26, marginTop: 4, display: 'flex', alignItems: 'center' }}>
+                  <AssistantCopyButton text={assistantCopies.get(i)!} label={copyLabel} copiedLabel={copiedLabel} />
                 </div>
               )}
             </div>
@@ -1295,6 +1324,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
             <MChatStream
               rows={props.rows}
               toolCallsUnit={copy.toolCallsUnit}
+              copyLabel={copy.copy}
+              copiedLabel={copy.copied}
               interactions={props.interactions}
               editCopy={props.editCopy}
               editing={props.editing}

@@ -1,5 +1,5 @@
 // input:  transcript DTOs with DEBUG warnings, notices, pending data
-// output: ChatRows preserving auth actions, previews, and reconciliation
+// output: ChatRows, turn-copy targets, previews, and reconciliation
 // pos:    Shared desktop/mobile transcript view-model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type {
@@ -413,6 +413,29 @@ export function regenNoteIndexes(rows: ChatRow[]): Set<number> {
     }
   }
   return out;
+}
+
+/** Whole-turn assistant copy text, keyed by the final non-empty assistant row in each turn. */
+export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
+  const targets = new Map<number, string>();
+  let texts: string[] = [];
+  let tailIndex: number | null = null;
+  const flush = (): void => {
+    if (tailIndex != null) targets.set(tailIndex, texts.join('\n\n'));
+    texts = [];
+    tailIndex = null;
+  };
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.kind === 'user') {
+      flush();
+    } else if (row.kind === 'assistant' && row.text.length > 0) {
+      texts.push(row.text);
+      tailIndex = i;
+    }
+  }
+  flush();
+  return targets;
 }
 
 function msgKey(m: TranscriptMessage): string {

@@ -1,5 +1,5 @@
 // input:  transcript helpers, DEBUG warnings, notices, pending fixtures
-// output: auth-action, notice, streaming, and pending regressions
+// output: turn-copy, notice, streaming, and pending regressions
 // pos:    Workbench transcript view-model specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -12,6 +12,7 @@ import {
   resolveBackgroundRunning,
   resolveTurns,
   rewindStats,
+  assistantTurnCopyTargets,
   applyAssistantDelta,
   endStreamingBlock,
   initialAssistantPreviewState,
@@ -19,6 +20,7 @@ import {
   finalizeAssistantPreview,
   applyDelivered,
   reconcilePendingUserMessages,
+  type ChatRow,
   type LiveSessionMessage,
   type PendingUserMessage,
   type StreamingBlock,
@@ -30,6 +32,35 @@ const T = '2026-07-07T07:42:00.000Z';
 function tx(turns: SessionTranscript['turns']): SessionTranscript {
   return { sessionId: 's1', turns };
 }
+
+describe('assistantTurnCopyTargets', () => {
+  it('places one combined copy target on the final assistant row of each turn', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'first' },
+      { kind: 'assistant', text: 'part one', streaming: false },
+      { kind: 'tools', count: 1, calls: [{ kind: 'read', input: 'a.md' }] },
+      { kind: 'assistant', text: 'part two', streaming: false },
+      { kind: 'user', text: 'second' },
+      { kind: 'notice', level: 'info', text: 'notice' },
+      { kind: 'assistant', text: 'next turn', streaming: false },
+    ];
+
+    expect([...assistantTurnCopyTargets(rows)]).toEqual([
+      [3, 'part one\n\npart two'],
+      [6, 'next turn'],
+    ]);
+  });
+
+  it('ignores empty assistant text and turns without assistant text', () => {
+    const rows: ChatRow[] = [
+      { kind: 'assistant', text: '', streaming: false },
+      { kind: 'user', text: 'question' },
+      { kind: 'interaction', subtype: 'ask-user', text: 'answer me' },
+    ];
+
+    expect([...assistantTurnCopyTargets(rows)]).toEqual([]);
+  });
+});
 
 describe('buildTranscriptRows', () => {
   it('empty transcript with no live tail → no rows', () => {

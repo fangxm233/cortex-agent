@@ -20,10 +20,10 @@ import { interactionView, emptyDeskAsk, type DeskAskState } from './interaction-
 import type { InteractionActions } from './useInteractionActions';
 import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
 import { PlanReadOverlay } from './PlanReadOverlay';
-import { rewindStats, regenNoteIndexes, messageTimeLabel } from './transcript-vm';
+import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets } from './transcript-vm';
 import { useRevealedText } from './useRevealedText';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
-import { M_EDIT_COPY, HoverActionPill, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
+import { M_EDIT_COPY, MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
 import { ChatNotice } from './ChatNotice';
 
 /** Edit+rewind context passed from CenterChat (sessions.rewind). Absent → chat is read-only
@@ -384,9 +384,6 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
 }): JSX.Element {
   const hasAttachments = attachments && attachments.length > 0;
   const [debugDetail, setDebugDetail] = useState<DebugDetail | null>(null);
-  // Send time rides the same hover reveal as the action pill rather than sitting in the flow: a
-  // permanent stamp under every bubble would cost a line of height on a surface that is mostly
-  // reading, and the time is a lookup, not something a reader tracks turn by turn.
   const timeLabel = messageTimeLabel(ts);
   return (
     <div
@@ -402,36 +399,6 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
         animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
       }}
     >
-      {/* Send time + the one message-level pill that owns copy, edit, and DEBUG inspect. Both sit
-          to the left, absolutely placed, so the right-aligned row never extends the transcript's
-          scroll width and the reveal costs no layout. */}
-      {(timeLabel || (editCopy && (text || debug))) && (
-        <div
-          className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
-          style={{ position: 'absolute', right: '100%', top: '50%', transform: 'translateY(-50%)', paddingRight: 8, display: 'flex', alignItems: 'center', gap: 8 }}
-        >
-          {timeLabel && (
-            <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', whiteSpace: 'nowrap', flex: 'none' }}>
-              {timeLabel}
-            </span>
-          )}
-          {editCopy && (text || debug) && (
-            <HoverActionPill
-              text={text}
-              copy={editCopy}
-              showCopy={!!text}
-              onEdit={text ? onStartEdit : undefined}
-              editDisabled={editDisabled}
-              extraAction={debug ? (
-                <DebugInspectButton
-                  className="!h-[26px] !min-w-[26px] !border-0 !bg-transparent !px-0 !shadow-none"
-                  onClick={(event) => { event.stopPropagation(); setDebugDetail({ kind: 'user', agentMessage: debug.agentMessage }); }}
-                />
-              ) : undefined}
-            />
-          )}
-        </div>
-      )}
       {/* Attachments above the bubble */}
       {hasAttachments && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -460,6 +427,33 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
           </div>
         </div>
       )}
+      {(timeLabel || (editCopy && (text || debug))) && (
+        <div
+          className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
+          style={{ height: 26, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}
+        >
+          {timeLabel && (
+            <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', whiteSpace: 'nowrap', flex: 'none' }}>
+              {timeLabel}
+            </span>
+          )}
+          {editCopy && (text || debug) && (
+            <MessageActions
+              text={text}
+              copy={editCopy}
+              showCopy={!!text}
+              onEdit={text ? onStartEdit : undefined}
+              editDisabled={editDisabled}
+              extraAction={debug ? (
+                <DebugInspectButton
+                  className="!h-[26px] !min-w-[26px] !border-0 !bg-transparent !px-0 !shadow-none"
+                  onClick={(event) => { event.stopPropagation(); setDebugDetail({ kind: 'user', agentMessage: debug.agentMessage }); }}
+                />
+              ) : undefined}
+            />
+          )}
+        </div>
+      )}
       <DebugDetailsModal detail={debugDetail} onClose={() => setDebugDetail(null)} />
       {/* 已编辑 badge + hover original card (sec-23 right column) */}
       {editCopy && edited && <EditedBadge edited={edited} ts={ts} copy={editCopy} />}
@@ -467,11 +461,13 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
   );
 }
 
-function AssistantBlock({ text, attachments, editCopy, regen, preview, streamKey }: {
+function AssistantBlock({ text, attachments, editCopy, copyText, regen, preview, streamKey }: {
   text: string;
   attachments?: Attachment[];
-  /** Present → the「由编辑重新生成」footnote renders (agent messages carry no copy affordance). */
+  /** Shared copy labels for regenerated notes and the optional whole-turn copy action. */
   editCopy?: MEditCopy;
+  /** Present only on the final assistant row in a turn. */
+  copyText?: string;
   /** True → the「由编辑重新生成」footnote renders atop this block. */
   regen?: boolean;
   /** True → this is the block being written right now, so its text is revealed at a steady rate. */
@@ -483,6 +479,7 @@ function AssistantBlock({ text, attachments, editCopy, regen, preview, streamKey
   const shown = useRevealedText(text, !!preview, streamKey);
   return (
     <div
+      className="group"
       style={{ position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}
     >
       {editCopy && regen && <div style={{ marginBottom: 4 }}><RegenNote copy={editCopy} /></div>}
@@ -491,6 +488,14 @@ function AssistantBlock({ text, attachments, editCopy, regen, preview, streamKey
           mobile stream keeps its own caret (smaller viewport, no persistent status line). */}
       {shown.trim() && <ChatMarkdown text={shown} renderMath />}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
+      {copyText && editCopy && (
+        <div
+          className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
+          style={{ height: 26, marginTop: 4, display: 'flex', alignItems: 'center' }}
+        >
+          <MessageActions text={copyText} copy={editCopy} />
+        </div>
+      )}
     </div>
   );
 }
@@ -598,10 +603,11 @@ export function InteractionRowCard({ row, actions }: {
   return <InteractionSummaryRow tone={v.tone} label={v.label} text={v.text} />;
 }
 
-function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, regen, streamKey }: {
+function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit, editDisabled, regen, streamKey }: {
   row: ChatRow;
   interactionActions?: InteractionActions;
   editCopy?: MEditCopy;
+  assistantCopyText?: string;
   onStartEdit?: () => void;
   editDisabled?: boolean;
   regen?: boolean;
@@ -616,7 +622,7 @@ function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, reg
     case 'tools':
       return <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input, ...(c.debug ? { debug: c.debug } : {}) }))} />;
     case 'assistant':
-      return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} regen={regen} preview={row.preview} streamKey={streamKey} />;
+      return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} />;
     case 'notice':
       return (
         <ChatNotice
@@ -646,6 +652,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey }: { rows: 
   // shape enough that the anchor no longer matches (guard inside the render below).
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const regenIdx = regenNoteIndexes(rows);
+  const assistantCopies = assistantTurnCopyTargets(rows);
 
   const editingRow = editingIdx != null ? rows[editingIdx] : null;
   const editingValid = !!edit && !!editingRow && editingRow.kind === 'user' && editingRow.turnIndex !== undefined;
@@ -693,6 +700,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey }: { rows: 
           row={row}
           interactionActions={interactionActions}
           editCopy={editCopy}
+          assistantCopyText={assistantCopies.get(i)}
           regen={regenIdx.has(i)}
           onStartEdit={edit && row.kind === 'user' && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
           editDisabled={edit?.running || edit?.busy}

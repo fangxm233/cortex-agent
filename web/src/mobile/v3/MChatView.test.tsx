@@ -181,6 +181,33 @@ describe('ComposerFullscreen send controls', () => {
 // from the top of the screen and the floated copy of the bubble appeared far from the finger. The
 // press now reports where the bubble is; this pins that half of the contract (the placement maths
 // itself lives in m-chat-vm `msgMenuGroupTop`).
+describe('MChatStream assistant turn copy', () => {
+  it('renders one button per turn and copies all assistant text in that turn', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'first' },
+      { kind: 'assistant', text: 'part one', streaming: false },
+      { kind: 'tools', count: 1, calls: [{ kind: 'read', input: 'a.md' }] },
+      { kind: 'assistant', text: 'part two', streaming: false },
+      { kind: 'user', text: 'second' },
+      { kind: 'assistant', text: 'next turn', streaming: false },
+    ];
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" />,
+      );
+    });
+
+    const buttons = renderer.root.findAllByProps({ 'data-assistant-turn-copy': 'true' });
+    expect(buttons).toHaveLength(2);
+    act(() => buttons[0].props.onClick());
+    expect(writeText).toHaveBeenCalledWith('part one\n\npart two');
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('MChatStream long-press anchor', () => {
   const editCopy: MChatEditCopy = {
     menuCopy: '复制',
@@ -201,6 +228,8 @@ describe('MChatStream long-press anchor', () => {
         <MChatStream
           rows={[{ kind: 'user', text: 'mobile端也要' } as ChatRow]}
           toolCallsUnit="tools"
+          copyLabel="复制"
+          copiedLabel="已复制"
           editCopy={editCopy}
           onLongPress={(rowIndex, anchorTop) => held.push([rowIndex, anchorTop])}
         />,

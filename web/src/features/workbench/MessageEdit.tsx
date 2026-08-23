@@ -1,12 +1,12 @@
 // input:  message text, edit callbacks, optional message actions
-// output: Desktop message actions and rewind presentation
-// pos:    Desktop user-message edit and action chrome
+// output: Bare message actions and rewind presentation
+// pos:    Desktop message edit and action chrome
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useEffect, useRef, useState } from 'react';
 
 // Message edit + rewind — desktop chrome, 1:1 from scheme.dc.html sec-23 (23a). Pieces used by
-// MessageStream: the hover action pill, the in-place bubble edit box (Esc 取消 · ⌘↩ 发送并回退),
+// MessageStream: bare hover actions, the in-place bubble edit box (Esc 取消 · ⌘↩ 发送并回退),
 // the amber discard note + the「将被回退」dimmed-tail wrapper, the「已编辑」badge with the hover
 // original-message card, and the「由编辑重新生成」regen footnote. All logic that computes WHAT is
 // discarded lives in transcript-vm (`rewindStats`); these are presentation + local interaction only.
@@ -80,10 +80,10 @@ function TipBubble({ text, side = 'center' }: { text: string; side?: 'center' | 
 }
 
 /**
- * Hover action pill (23a): copy, optional edit, and an optional composed message action. Copy flips
- * to a green ✓ + tooltip for 1.5s; edit greys out while running. Attachment-only rows can hide copy.
+ * Bare message actions: copy, optional edit, and an optional composed action. Copy flips to a green
+ * ✓ + tooltip for 1.5s; edit greys out while running. Attachment-only rows can hide copy.
  */
-export function HoverActionPill({ text, copy, onEdit, editDisabled, showCopy = true, extraAction }: {
+export function MessageActions({ text, copy, onEdit, editDisabled, showCopy = true, extraAction }: {
   text: string;
   copy: MEditCopy;
   /** Present → the edit button renders (user messages only). */
@@ -105,13 +105,7 @@ export function HoverActionPill({ text, copy, onEdit, editDisabled, showCopy = t
   };
 
   return (
-    <div
-      style={{
-        position: 'relative', display: 'flex', gap: 2, background: 'var(--proto-card)',
-        border: '1px solid var(--proto-line)', borderRadius: 9, padding: 3,
-        boxShadow: '0 2px 8px rgba(16,24,40,.08)', flex: 'none',
-      }}
-    >
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 2, height: 26, flex: 'none' }}>
       {copied && <TipBubble text={copy.copied} />}
       {editHover && editDisabled && <TipBubble text={copy.editDisabled} side="right" />}
       {showCopy && (
