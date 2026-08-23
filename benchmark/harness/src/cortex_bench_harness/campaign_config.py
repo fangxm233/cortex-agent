@@ -31,7 +31,12 @@ import re
 
 import yaml
 
-from .launcher.arms import IMAGE_DIGEST, VENDOR_AGENTS
+from .launcher.arms import (
+    IMAGE_DIGEST,
+    VENDOR_AGENTS,
+    VENDOR_THINKING_AGENTS,
+    VENDOR_THINKING_LEVELS,
+)
 from .launcher.comparison_report import DIFFERENCE_CLASSES
 from .launcher.network_policy import NetworkAccess, NetworkAccessError, parse_network_access
 from .launcher.trial_proxy import TrialProxySpec, parse_trial_proxy_spec
@@ -99,6 +104,7 @@ CORTEX_ARM_REQUIRED_FIELDS = ARM_COMMON_REQUIRED_FIELDS | frozenset({
 VENDOR_ARM_REQUIRED_FIELDS = ARM_COMMON_REQUIRED_FIELDS | frozenset({
     "vendor_agent", "vendor_cli_version",
 })
+VENDOR_ARM_OPTIONAL_FIELDS = frozenset({"thinking"})
 ORCHESTRATION_REQUIRED_FIELDS = frozenset({"mode", "ask_manager"})
 ORCHESTRATION_OPTIONAL_FIELDS = frozenset({"coder_review_variant"})
 # Campaign limits describe the host envelope. Orchestration and concurrency live in the committed
@@ -600,18 +606,37 @@ def _cortex_arm(document: Mapping[str, object]) -> dict[str, object]:
     }
 
 
+def _vendor_thinking(document: Mapping[str, object], vendor_agent: str) -> str | None:
+    if "thinking" not in document:
+        return None
+    if vendor_agent not in VENDOR_THINKING_AGENTS:
+        raise CampaignConfigError(
+            "campaign arm thinking is supported only for vendor_agent pi or codex"
+        )
+    thinking = _text(document, "thinking", "campaign arm")
+    if thinking not in VENDOR_THINKING_LEVELS:
+        raise CampaignConfigError(
+            f"campaign arm thinking must be one of {sorted(VENDOR_THINKING_LEVELS)}; "
+            f"got {thinking!r}")
+    return thinking
+
+
 def _vendor_arm(document: Mapping[str, object]) -> dict[str, object]:
-    _require_fields(document, VENDOR_ARM_REQUIRED_FIELDS, frozenset(), "campaign arm")
+    _require_fields(document, VENDOR_ARM_REQUIRED_FIELDS, VENDOR_ARM_OPTIONAL_FIELDS, "campaign arm")
     vendor_agent = _text(document, "vendor_agent", "campaign arm")
     if vendor_agent not in VENDOR_AGENTS:
         raise CampaignConfigError(
             f"campaign arm vendor_agent must be one of {sorted(VENDOR_AGENTS)}; "
             f"got {vendor_agent!r}")
-    return {
+    arm = {
         **_arm_common(document, "vendor-baseline"),
         "vendor_agent": vendor_agent,
         "vendor_cli_version": _text(document, "vendor_cli_version", "campaign arm"),
     }
+    thinking = _vendor_thinking(document, vendor_agent)
+    if thinking is not None:
+        arm["thinking"] = thinking
+    return arm
 
 
 def _orchestration(source: object) -> dict[str, object]:

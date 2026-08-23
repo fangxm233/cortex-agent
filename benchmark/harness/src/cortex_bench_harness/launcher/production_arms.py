@@ -75,6 +75,9 @@ class ProductionArmBundle:
 def _bundle(
     *, key: str, profile_name: str, root_template: str, evidence_mode: str,
     expected_roles: tuple[str, ...], orchestration: Mapping[str, object],
+    provider: str = "deepseek",
+    model: str = "deepseek-v4-flash",
+    credential_capability: str = "pi-deepseek-api-key",
     manager_qa: str | None = None,
     injection: str = THREAD_ROOT,
     writable_home_paths: tuple[str, ...] = (),
@@ -84,8 +87,8 @@ def _bundle(
         key=key, bundle_dir=BUNDLES_DIR / key / BUNDLE_HOME_DIRNAME,
         profile_name=profile_name, root_template=root_template,
         evidence_mode=evidence_mode, expected_roles=expected_roles,
-        manager_qa=manager_qa, backend="pi", provider="deepseek",
-        model="deepseek-v4-flash", credential_capability="pi-deepseek-api-key",
+        manager_qa=manager_qa, backend="pi", provider=provider,
+        model=model, credential_capability=credential_capability,
         orchestration=orchestration, injection=injection,
         writable_home_paths=writable_home_paths,
         webhook_endpoints=webhook_endpoints,
@@ -97,6 +100,14 @@ PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
         key="direct-pi-deepseek", profile_name="benchmark-direct",
         root_template="benchmark-direct", evidence_mode="direct",
         expected_roles=("benchmark-direct",),
+        orchestration={"mode": "direct", "ask_manager": False},
+    ),
+    _bundle(
+        key="direct-pi-openai-codex", profile_name="benchmark-direct",
+        root_template="benchmark-direct", evidence_mode="direct",
+        expected_roles=("benchmark-direct",),
+        provider="openai-codex", model="gpt-5.6-sol",
+        credential_capability="pi-openai-codex-oauth",
         orchestration={"mode": "direct", "ask_manager": False},
     ),
     _bundle(
@@ -195,7 +206,7 @@ def require_production_arm(arm: Mapping[str, object]) -> ProductionArmBundle:
     bundle = resolve_production_arm(arm)
     if bundle is None:
         raise ProductionArmError(
-            "production launcher requires a committed PI/DeepSeek arm declared exactly as its "
-            "bundle states; any arm that can enter the aistatus silent direct fallback is refused"
+            "production launcher requires a committed PI arm declared exactly as its bundle "
+            "states; any arm that can enter the aistatus silent direct fallback is refused"
         )
     return bundle

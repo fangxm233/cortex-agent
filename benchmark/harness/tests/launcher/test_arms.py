@@ -59,6 +59,7 @@ def manifest(tmp_path: Path) -> dict[str, object]:
 
 def baseline_arm(
     vendor_agent: str, provider: str | None = None, vendor_cli_version: str = "1.2.3",
+    **overrides: object,
 ) -> dict[str, object]:
     capabilities = {
         "claude-code": "claude-api-key",
@@ -79,6 +80,7 @@ def baseline_arm(
             "max_cost_usd": "2.50",
             "deadline_seconds": 90,
         },
+        **overrides,
     }
 
 
@@ -169,6 +171,50 @@ def test_pi_backed_direct_arms_compose_on_the_host(tmp_path: Path) -> None:
     assert config.import_path == "cortex_bench_harness:CortexBenchAgent"
     assert config.kwargs["trial_seed"]["arm"]["backend"] == "pi"
     assert backend_cli_binary(arm) == "pi"
+
+
+@pytest.mark.parametrize(
+    ("vendor_agent", "provider", "model", "thinking", "expected_kwarg"),
+    [
+        ("pi", "deepseek", "deepseek-chat", "minimal", ("thinking", "minimal")),
+        ("codex", "openai-codex", "gpt-5.6-sol", "xhigh", ("reasoning_effort", "xhigh")),
+    ],
+)
+def test_vendor_thinking_maps_to_the_native_runtime_flag(
+    vendor_agent: str, provider: str, model: str, thinking: str,
+    expected_kwarg: tuple[str, str],
+) -> None:
+    config = build_agent_config(
+        baseline_arm(
+            vendor_agent, provider=provider, model=model,
+            thinking=thinking,
+        ),
+        cli_version="2026.8.3",
+    )
+
+    key, value = expected_kwarg
+    assert config.kwargs[key] == value
+    assert "thinking" in config.kwargs or "reasoning_effort" in config.kwargs
+
+
+@pytest.mark.parametrize(
+    ("vendor_agent", "provider", "thinking"),
+    [
+        ("claude-code", None, "high"),
+        ("pi", "deepseek", "max"),
+        ("codex", "openai-codex", "max"),
+    ],
+)
+def test_vendor_thinking_rejects_unsupported_vendors_and_levels(
+    vendor_agent: str, provider: str | None, thinking: str,
+) -> None:
+    arm = baseline_arm(vendor_agent, provider=provider, thinking=thinking)
+    if vendor_agent == "codex":
+        arm["model"] = "gpt-5.6-sol"
+        arm["credential_capability"] = "codex-subscription"
+
+    with pytest.raises(ValueError, match="thinking"):
+        build_agent_config(arm, cli_version="2026.8.3")
 
 
 def test_undeclared_backends_still_refuse_on_the_host(tmp_path: Path) -> None:

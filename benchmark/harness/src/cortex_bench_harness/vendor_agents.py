@@ -46,6 +46,7 @@ TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 EVIDENCE_PATH = PurePosixPath("/logs/agent/vendor-runtime-files.json")
 PI_PROMPT_PATH = PurePosixPath("/logs/agent/pi/prompt.md")
 PI_SESSION_PATH = PurePosixPath("pi/sessions")
+PI_DUMMY_OAUTH_EXPIRES_MS = 4_102_444_800_000
 VENDOR_PROCESS_TOKEN_ENV = "CORTEX_BENCH_VENDOR_PROCESS_TOKEN"
 VENDOR_PROCESS_TERM_POLLS = 10
 VENDOR_PROCESS_KILL_POLLS = 50
@@ -309,15 +310,17 @@ class VendorLifecycleMixin:
         if not self.model_name or "/" not in self.model_name:
             raise VendorPreflightError("PI model must use provider/model format")
         provider, model = self.model_name.split("/", 1)
+        completion_cap = self._pi_completion_cap()
         root = TRIAL_ROOT / "pi-agent"
-        auth = {provider: {"type": "api_key", "key": dummy_token}}
-        models = {
-            "providers": {
-                provider: self._pi_provider(
-                    base_url, model, self._pi_completion_cap(),
-                ),
-            },
-        }
+        if provider == "openai-codex":
+            auth = {provider: self._pi_openai_codex_auth(dummy_token)}
+            provider_config = self._pi_openai_codex_provider(
+                base_url, model, completion_cap,
+            )
+        else:
+            auth = {provider: {"type": "api_key", "key": dummy_token}}
+            provider_config = self._pi_provider(base_url, model, completion_cap)
+        models = {"providers": {provider: provider_config}}
         return (
             RuntimeFile(root / "auth.json", 0o600, self._json(auth)),
             RuntimeFile(root / "models.json", 0o644, self._json(models)),
@@ -349,6 +352,24 @@ class VendorLifecycleMixin:
             }],
         }
 
+    @staticmethod
+    def _pi_openai_codex_auth(dummy_token: str) -> dict[str, object]:
+        return {
+            "type": "oauth",
+            "access": dummy_token,
+            "refresh": "dummy-refresh-never-forward",
+            "expires": PI_DUMMY_OAUTH_EXPIRES_MS,
+        }
+
+    @staticmethod
+    def _pi_openai_codex_provider(
+        base_url: str, model: str, completion_cap: int,
+    ) -> dict[str, object]:
+        return {
+            "baseUrl": base_url,
+            "modelOverrides": {model: {"maxTokens": completion_cap}},
+        }
+
     def _codex_runtime_files(self) -> tuple[RuntimeFile, ...]:
         base_url, dummy_token = self._proxy_values()
         root = TRIAL_ROOT / "codex-home"
@@ -369,13 +390,20 @@ class VendorLifecycleMixin:
             raise VendorPreflightError("Codex model is required")
         model = json.dumps(self.model_name.split("/")[-1])
         proxy_url = json.dumps(f"{base_url}/codex")
+        effort = json.dumps(self._codex_reasoning_effort())
         return (
             f"model = {model}\nmodel_provider = \"cortex_trial_proxy\"\n"
-            "model_reasoning_effort = \"high\"\nweb_search = \"disabled\"\n"
+            f"model_reasoning_effort = {effort}\nweb_search = \"disabled\"\n"
             "[model_providers.cortex_trial_proxy]\nname = \"cortex trial proxy\"\n"
             f"base_url = {proxy_url}\nwire_api = \"responses\"\n"
             "requires_openai_auth = true\n"
         )
+
+    def _codex_reasoning_effort(self) -> str:
+        effort = self._resolved_flags.get("reasoning_effort")
+        if not isinstance(effort, str) or not effort:
+            raise VendorPreflightError("Codex reasoning effort is unresolved")
+        return effort
 
     @staticmethod
     def _json(value: object) -> str:

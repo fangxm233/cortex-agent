@@ -42,6 +42,16 @@ def direct_arm(**overrides: object) -> dict[str, object]:
     return arm({"mode": "direct", "ask_manager": False}, **overrides)
 
 
+def direct_codex_arm(**overrides: object) -> dict[str, object]:
+    return arm(
+        {"mode": "direct", "ask_manager": False},
+        provider="openai-codex",
+        model="gpt-5.6-sol",
+        credential_capability="pi-openai-codex-oauth",
+        **overrides,
+    )
+
+
 def audit_retry_arm(**overrides: object) -> dict[str, object]:
     return arm(
         {"mode": "coder-review", "coder_review_variant": "audit-retry",
@@ -80,6 +90,22 @@ def test_direct_arm_resolves_to_the_committed_direct_bundle() -> None:
     assert bundle.evidence_mode == "direct"
     assert bundle.expected_roles == ("benchmark-direct",)
     assert bundle.manager_qa is None
+
+
+def test_direct_openai_codex_arm_resolves_to_its_committed_bundle() -> None:
+    bundle = require_production_arm(direct_codex_arm())
+
+    assert bundle.key == "direct-pi-openai-codex"
+    assert bundle.bundle_dir.name == "cortex-home"
+    assert bundle.root_template == "benchmark-direct"
+    assert bundle.profile_name == "benchmark-direct"
+    assert bundle.evidence_mode == "direct"
+    assert bundle.expected_roles == ("benchmark-direct",)
+    assert bundle.provider == "openai-codex"
+    assert bundle.model == "gpt-5.6-sol"
+    assert bundle.credential_capability == "pi-openai-codex-oauth"
+    assert bundle.manager_qa is None
+    assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
 
 
 def test_audit_retry_arm_resolves_to_its_own_bundle_template_and_roles() -> None:

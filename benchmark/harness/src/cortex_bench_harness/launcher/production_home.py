@@ -35,7 +35,8 @@ EVIDENCE_CONTEXT_FILE_ENV = "CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE"
 # indistinguishable from a host home path and refused an otherwise complete trial.
 CONTAINER_HOME_DIR = "container-home"
 BACKEND_CLI_NAME = "pi"
-PROVIDER_NAME = "deepseek"
+PI_DUMMY_OAUTH_EXPIRES_MS = 4_102_444_800_000
+PI_DUMMY_OAUTH_REFRESH = "dummy-refresh-never-forward"
 MAX_OUTPUT_TOKENS = 65_536
 RESIDUE_PREFIXES = (
     "SLACK_", "FEISHU_", "LARK_", "CLAUDE_CODE_OAUTH_", "ANTHROPIC_",
@@ -203,20 +204,37 @@ def _copy_snapshot(snapshot: _TreeSnapshot, destination: Path) -> None:
         _write_bytes(destination / relative, payload)
 
 
-def _gateway_yaml(proxy_base_url: str, dummy_token_ref: str) -> bytes:
+def _pi_auth(bundle: ProductionArmBundle, dummy_token_ref: str) -> dict[str, object]:
+    if bundle.provider == "deepseek":
+        return {bundle.provider: {"type": "api_key", "key": dummy_token_ref}}
+    if bundle.provider == "openai-codex":
+        return {
+            bundle.provider: {
+                "type": "oauth",
+                "access": dummy_token_ref,
+                "refresh": PI_DUMMY_OAUTH_REFRESH,
+                "expires": PI_DUMMY_OAUTH_EXPIRES_MS,
+            }
+        }
+    raise ProductionHomeError(f"unsupported production PI provider: {bundle.provider}")
+
+
+def _gateway_yaml(
+    bundle: ProductionArmBundle, proxy_base_url: str, dummy_token_ref: str,
+) -> bytes:
     lines = (
         "port: 9880", "mode: trial", "status_check: false", "max_body_size_mb: 64",
-        "deepseek:", "  trial:", f"    base_url: {proxy_base_url}",
+        f"{bundle.provider}:", "  trial:", f"    base_url: {proxy_base_url}",
         "    auth_style: openai", "    keys:", f"      - {dummy_token_ref}", "",
     )
     return "\n".join(lines).encode()
 
 
 def _write_dynamic_inputs(
-    cortex_home: Path, proxy_base_url: str, dummy_token_ref: str,
-    evidence_context: Mapping[str, object] | None,
+    cortex_home: Path, bundle: ProductionArmBundle, proxy_base_url: str,
+    dummy_token_ref: str, evidence_context: Mapping[str, object] | None,
 ) -> None:
-    auth = {PROVIDER_NAME: {"type": "api_key", "key": dummy_token_ref}}
+    auth = _pi_auth(bundle, dummy_token_ref)
     payload = (json.dumps(auth, indent=2, ensure_ascii=False) + "\n").encode()
     # Both locations, because the daemon mirrors PI auth from the container HOME into the private
     # agent dir on every spawn: seeding only the private copy authenticates the arm's first agent
@@ -225,7 +243,7 @@ def _write_dynamic_inputs(
     _write_bytes(cortex_home / f"{CONTAINER_HOME_DIR}/.pi/agent/auth.json", payload)
     _write_bytes(
         cortex_home / f"{CONTAINER_HOME_DIR}/.aistatus/gateway.yaml",
-        _gateway_yaml(proxy_base_url, dummy_token_ref),
+        _gateway_yaml(bundle, proxy_base_url, dummy_token_ref),
     )
     if evidence_context is not None:
         _write_bytes(
@@ -425,7 +443,13 @@ def materialize_production_home(
     evidence_context = _evidence_context(facts, manifest_hash)
     _copy_snapshot(bundle, home)
     _write_profile_output_cap(home, facts.max_output_tokens)
-    _write_dynamic_inputs(home, proxy_base_url, facts.dummy_token_ref, evidence_context if facts.arm_bundle.injection == TASK_ROOT else None)
+    _write_dynamic_inputs(
+        home,
+        facts.arm_bundle,
+        proxy_base_url,
+        facts.dummy_token_ref,
+        evidence_context if facts.arm_bundle.injection == TASK_ROOT else None,
+    )
     _make_read_only(home, facts.arm_bundle.writable_home_paths)
     home_sha256, home_count = _digest_tree(home)
     attestation = _launch_attestation(facts, npm_sha256, bundle, home_sha256, home_count, manifest_hash)

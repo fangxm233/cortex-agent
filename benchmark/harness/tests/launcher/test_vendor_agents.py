@@ -4,6 +4,7 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
+import base64
 import hashlib
 import json
 import shlex
@@ -71,8 +72,10 @@ class CancellingEnvironment(RecordingEnvironment):
         return ExecResult(return_code=0)
 
 
-def vendor_arm(vendor: str, provider: str | None, model: str) -> dict[str, object]:
-    return {
+def vendor_arm(
+    vendor: str, provider: str | None, model: str, *, thinking: str | None = None,
+) -> dict[str, object]:
+    arm = {
         "schema_version": "cortex-benchmark-arm/2",
         "kind": "vendor-baseline",
         "name": f"pure-{vendor}",
@@ -88,6 +91,9 @@ def vendor_arm(vendor: str, provider: str | None, model: str) -> dict[str, objec
             "max_output_tokens": 65_536,
         },
     }
+    if thinking is not None:
+        arm["thinking"] = thinking
+    return arm
 
 
 def vendor_trial_seed(arm: dict[str, object]) -> dict[str, object]:
@@ -112,9 +118,9 @@ def vendor_trial_seed(arm: dict[str, object]) -> dict[str, object]:
 
 def create_agent(
     tmp_path: Path, vendor: str, provider: str | None, model: str,
-    *, admitted: bool = False,
+    *, admitted: bool = False, thinking: str | None = None,
 ) -> object:
-    arm = vendor_arm(vendor, provider, model)
+    arm = vendor_arm(vendor, provider, model, thinking=thinking)
     lifecycle: dict[str, object] = {}
     if admitted:
         lifecycle = {
@@ -133,6 +139,22 @@ def create_agent(
         )
     )
     return agent
+
+
+def dummy_oauth_jwt() -> str:
+    def segment(document: dict[str, object]) -> str:
+        return base64.urlsafe_b64encode(
+            json.dumps(document, separators=(",", ":")).encode()
+        ).decode().rstrip("=")
+
+    return ".".join((
+        segment({"alg": "none", "typ": "JWT"}),
+        segment({
+            "https://api.openai.com/auth": {"chatgpt_account_id": "dummy-account"},
+            "exp": 4_102_444_800,
+        }),
+        segment({"synthetic": True}),
+    ))
 
 
 @pytest.mark.parametrize(
@@ -299,6 +321,33 @@ def test_pi_usage_is_loaded_from_completed_session_messages(tmp_path: Path) -> N
     assert context.cost_usd == 0.50
 
 
+def test_pi_openai_codex_uses_oauth_dummy_auth_and_builtin_model_override(
+    tmp_path: Path,
+) -> None:
+    agent = create_agent(
+        tmp_path, "pi", "openai-codex", "gpt-5.6-sol", admitted=True,
+    )
+    agent._proxy_session.handle.dummy_token = dummy_oauth_jwt()  # type: ignore[attr-defined]
+    files = {item.path.name: item for item in agent._runtime_files()}  # type: ignore[attr-defined]
+    auth = json.loads(files["auth.json"].content)
+    models = json.loads(files["models.json"].content)
+    provider = models["providers"]["openai-codex"]
+
+    assert auth == {
+        "openai-codex": {
+            "type": "oauth",
+            "access": agent._proxy_session.handle.dummy_token,  # type: ignore[attr-defined]
+            "refresh": "dummy-refresh-never-forward",
+            "expires": 4_102_444_800_000,
+        }
+    }
+    assert provider == {
+        "baseUrl": "http://trial-proxy.invalid:4312",
+        "modelOverrides": {"gpt-5.6-sol": {"maxTokens": 65_536}},
+    }
+    assert "dummy.jwt.token" not in files["models.json"].content
+
+
 def test_codex_uses_p0_proven_provider_config_and_dummy_jwt(tmp_path: Path) -> None:
     agent = create_agent(tmp_path, "codex", None, "gpt-5.3-codex")
     files = {item.path.name: item for item in agent._runtime_files()}  # type: ignore[attr-defined]
@@ -312,8 +361,19 @@ def test_codex_uses_p0_proven_provider_config_and_dummy_jwt(tmp_path: Path) -> N
         "refresh_token": "dummy-refresh-never-forward",
     }
     assert 'model_provider = "cortex_trial_proxy"' in config
+    assert 'model_reasoning_effort = "high"' in config
     assert 'base_url = "http://trial-proxy.invalid:4312/codex"' in config
     assert "OPENAI_BASE_URL" not in config
+
+
+def test_codex_runtime_config_uses_the_resolved_reasoning_effort(tmp_path: Path) -> None:
+    agent = create_agent(tmp_path, "codex", None, "gpt-5.3-codex", thinking="low")
+    config = next(
+        item.content for item in agent._runtime_files()  # type: ignore[attr-defined]
+        if item.path.name == "config.toml"
+    )
+
+    assert 'model_reasoning_effort = "low"' in config
 
 
 def test_claude_uses_native_default_while_proxy_freezes_observed_model(

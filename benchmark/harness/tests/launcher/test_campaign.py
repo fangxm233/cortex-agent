@@ -655,6 +655,53 @@ def test_a_vendor_arm_missing_its_cli_version_is_refused(tmp_path: Path) -> None
     assert "vendor_cli_version" in str(error.value)
 
 
+@pytest.mark.parametrize(
+    ("vendor_agent", "provider", "model", "credential_capability"),
+    [
+        ("pi", "deepseek", "deepseek-v4-flash", "pi-deepseek-api-key"),
+        ("pi", "openai-codex", "gpt-5.6-sol", "pi-openai-codex-oauth"),
+        ("codex", "openai-codex", "gpt-5.6-sol", "codex-subscription"),
+    ],
+)
+def test_vendor_arm_thinking_is_loaded_only_for_pi_and_codex(
+    tmp_path: Path, vendor_agent: str, provider: str, model: str,
+    credential_capability: str,
+) -> None:
+    document = campaign_document(
+        tmp_path,
+        arms=[vendor_arm_document(
+            f"pure-{vendor_agent}", vendor_agent=vendor_agent,
+            provider=provider, model=model,
+            credential_capability=credential_capability, thinking="minimal",
+        )],
+        comparisons=[],
+    )
+
+    (arm,) = load_campaign_config(write_campaign(tmp_path, document)).arms
+
+    assert arm["thinking"] == "minimal"
+
+
+@pytest.mark.parametrize(
+    ("vendor_agent", "thinking"),
+    [("claude-code", "high"), ("pi", "max"), ("codex", "max")],
+)
+def test_vendor_arm_thinking_is_refused_when_vendor_or_level_is_unsupported(
+    tmp_path: Path, vendor_agent: str, thinking: str,
+) -> None:
+    arm = vendor_arm_document(f"pure-{vendor_agent}", vendor_agent=vendor_agent)
+    if vendor_agent == "codex":
+        arm.update(
+            provider="openai-codex", model="gpt-5.6-sol",
+            credential_capability="codex-subscription",
+        )
+    arm["thinking"] = thinking
+    document = campaign_document(tmp_path, arms=[arm], comparisons=[])
+
+    with pytest.raises(CampaignConfigError, match="thinking"):
+        load_campaign_config(write_campaign(tmp_path, document))
+
+
 def test_an_unknown_arm_kind_is_refused(tmp_path: Path) -> None:
     document = campaign_document(
         tmp_path, arms=[vendor_arm_document("pure-pi", kind="unknown")], comparisons=[])

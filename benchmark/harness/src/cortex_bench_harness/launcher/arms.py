@@ -18,6 +18,8 @@ VENDOR_IMPORT_PATHS = {
     "codex": "cortex_bench_harness.vendor_agents:PreinstalledCodex",
 }
 VENDOR_AGENTS = frozenset(VENDOR_IMPORT_PATHS)
+VENDOR_THINKING_AGENTS = frozenset({"pi", "codex"})
+VENDOR_THINKING_LEVELS = frozenset({"off", "minimal", "low", "medium", "high", "xhigh"})
 VENDOR_CORTEX_FIELDS = frozenset({
     "artifact_inventory_spec", "backend", "coordinator", "orchestration",
     "plugin_dirs", "task_store",
@@ -250,6 +252,22 @@ def _vendor_model(arm: ArmDefinition, vendor_agent: str) -> str:
     return f"{provider}/{model}"
 
 
+def _vendor_thinking_kwargs(arm: ArmDefinition, vendor_agent: str) -> dict[str, str]:
+    thinking = arm.get("thinking")
+    if thinking is None:
+        return {}
+    if vendor_agent not in VENDOR_THINKING_AGENTS:
+        raise ValueError(
+            "vendor baseline thinking is supported only for vendor_agent pi or codex"
+        )
+    if not isinstance(thinking, str) or thinking not in VENDOR_THINKING_LEVELS:
+        raise ValueError(
+            f"vendor baseline thinking must be one of {sorted(VENDOR_THINKING_LEVELS)}"
+        )
+    key = "thinking" if vendor_agent == "pi" else "reasoning_effort"
+    return {key: thinking}
+
+
 def _vendor_kwargs(
     arm: ArmDefinition, artifact_dir: Path | str | None,
     manifest: Mapping[str, object] | None,
@@ -259,8 +277,10 @@ def _vendor_kwargs(
     admission_environment_digest: str | None,
     defer_proxy_arm: bool, credential_handle: str | None,
 ) -> dict[str, object]:
+    vendor_agent = _required_text(arm, "vendor_agent")
     kwargs: dict[str, object] = {
         "version": _required_text(arm, "vendor_cli_version"),
+        **_vendor_thinking_kwargs(arm, vendor_agent),
     }
     optional = {
         "artifact_dir": artifact_dir, "manifest": manifest, "trial_seed": trial_seed,

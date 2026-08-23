@@ -3,6 +3,7 @@
 # pos:    Contract tests for the production arm materializer
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import base64
 import dataclasses
 import hashlib
 import json
@@ -27,7 +28,26 @@ from cortex_bench_harness.launcher.production_arms import (
     production_arm_bundle,
 )
 
+
+def dummy_oauth_jwt() -> str:
+    def segment(document: dict[str, object]) -> str:
+        return base64.urlsafe_b64encode(
+            json.dumps(document, separators=(",", ":")).encode()
+        ).decode().rstrip("=")
+
+    return ".".join((
+        segment({"alg": "none", "typ": "JWT"}),
+        segment({
+            "https://api.openai.com/auth": {"chatgpt_account_id": "dummy-account"},
+            "exp": 4_102_444_800,
+        }),
+        segment({"synthetic": True}),
+    ))
+
+
+DUMMY_OAUTH_JWT = dummy_oauth_jwt()
 DIRECT_BUNDLE = production_arm_bundle("direct-pi-deepseek")
+DIRECT_CODEX_BUNDLE = production_arm_bundle("direct-pi-openai-codex")
 AUDIT_RETRY_BUNDLE = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
 MANAGER_BUNDLE = production_arm_bundle("manager-qa-off-pi-deepseek")
 
@@ -64,11 +84,25 @@ EXPECTED_TEMPLATE = {
     "entryAgent": "benchmark-direct", "maxTotalSteps": 1,
     "maxTotalCostUsd": 100, "disableHooks": True,
 }
+EXPECTED_CODEX_PROFILE = {
+    "defaultProfile": "benchmark-direct",
+    "profiles": {"benchmark-direct": {
+        "model": "gpt-5.6-sol", "backend": "pi", "mode": "trial",
+        "provider": "openai-codex", "thinking": "xhigh", "maxOutputTokens": 65536,
+        "fallback": [],
+    }},
+}
 EXPECTED_GATEWAY = (
     "port: 9880\nmode: trial\nstatus_check: false\nmax_body_size_mb: 64\n"
     "deepseek:\n  trial:\n"
     "    base_url: http://trial-direct-001.proxy.invalid:49152\n"
     "    auth_style: openai\n    keys:\n      - trial-dummy-token\n"
+)
+EXPECTED_CODEX_GATEWAY = (
+    "port: 9880\nmode: trial\nstatus_check: false\nmax_body_size_mb: 64\n"
+    "openai-codex:\n  trial:\n"
+    "    base_url: http://trial-direct-001.proxy.invalid:49152\n"
+    f"    auth_style: openai\n    keys:\n      - {DUMMY_OAUTH_JWT}\n"
 )
 HOSTILE_ENVIRONMENT = {
     "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8",
@@ -144,7 +178,9 @@ def facts(
         npm_artifact=npm_artifact,
         backend_cli_version="0.82.1",
         proxy_base_url="http://trial-direct-001.proxy.invalid:49152",
-        dummy_token_ref="trial-dummy-token",
+        dummy_token_ref=(
+            DUMMY_OAUTH_JWT if bundle.provider == "openai-codex" else "trial-dummy-token"
+        ),
         model_alias_policy={"policy": "exact"},
     )
 
@@ -232,6 +268,18 @@ def test_committed_bundle_is_the_exact_production_direct_surface(tmp_path: Path)
         assert (home / "prompts" / kind / "benchmark-direct.md").read_bytes().strip()
 
 
+def test_direct_openai_codex_bundle_seals_its_xhigh_profile(tmp_path: Path) -> None:
+    home = materialize(tmp_path, bundle=DIRECT_CODEX_BUNDLE).cortex_home
+
+    assert read_json(home / "config/profiles.json") == EXPECTED_CODEX_PROFILE
+    assert read_json(home / "config/settings.json") == EXPECTED_SETTINGS
+    assert read_json(home / "data/mode.json") == {
+        "mode": "api", "claudeMode": "api", "backend": "pi",
+        "claudeModel": "gpt-5.6-sol", "activeProfile": "benchmark-direct",
+        "defaultAgent": "benchmark-direct", "channelProfiles": {},
+    }
+
+
 def test_declared_output_cap_is_projected_into_the_sealed_profile(tmp_path: Path) -> None:
     launch = dataclasses.replace(facts(tmp_path), max_output_tokens=256)
     result = materialize_production_home(
@@ -295,6 +343,28 @@ def test_materializes_without_host_home_and_scrubs_provider_and_chat_residue(tmp
     gateway = (result.cortex_home / "container-home/.aistatus/gateway.yaml").read_text()
     assert gateway == EXPECTED_GATEWAY
     assert "anthropic" not in gateway.lower() and "api.deepseek.com" not in gateway
+
+
+def test_openai_codex_materializes_oauth_auth_gateway_and_attested_bundle_digest(
+    tmp_path: Path,
+) -> None:
+    result = materialize(tmp_path, HOSTILE_ENVIRONMENT, bundle=DIRECT_CODEX_BUNDLE)
+    auth = {
+        "openai-codex": {
+            "type": "oauth", "access": DUMMY_OAUTH_JWT,
+            "refresh": "dummy-refresh-never-forward", "expires": 4_102_444_800_000,
+        }
+    }
+    bundle_sha, bundle_count = tree_digest(DIRECT_CODEX_BUNDLE.bundle_dir)
+    attestation = read_json(result.launch_attestation_path)
+
+    assert read_json(result.cortex_home / "container-home/.pi/agent/auth.json") == auth
+    assert read_json(result.cortex_home / "data/pi/auth.json") == auth
+    assert (result.cortex_home / "container-home/.aistatus/gateway.yaml").read_text() == (
+        EXPECTED_CODEX_GATEWAY)
+    assert attestation["arm_bundle"] == DIRECT_CODEX_BUNDLE.attested_record()
+    assert attestation["pre_boot_input_bundle_sha256"] == bundle_sha
+    assert attestation["input_bundle_file_count"] == bundle_count
 
 
 def test_every_agent_of_the_arm_resolves_the_same_seeded_provider_credential(
