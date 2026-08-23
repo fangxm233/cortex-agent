@@ -7,11 +7,11 @@
   ],
   "supporting_sha256": {
     "model_metadata_sha256": "0dcc807a4e5827b488c6ceac87884ff6e735e01cf4f2ddfec9dd812e6fde041b",
-    "mutation_manifest_sha256": "3c3a00722face1350bf49e2db81dd0802d98c572522f92cf4a9378c6329c045e"
+    "mutation_manifest_sha256": "a362d72a1c3fab94b0ac34dc2722695412a5c695278bba60ea7d964760456286"
   },
   "records": {
     "offline-contract-passed": {
-      "source_sha256": "ba732133e8a9d8af0ae201db7a61df6e86aa63f91cbce95e5cf606d7c68511da",
+      "source_sha256": "cc1bc94f4d63d2c95e792e8028a5accaa599c7646fa2c0e31f064beda6775762",
       "document": {
         "adapter_id": "deepseek-chat-completions/api-key",
         "capability_id": "pi-deepseek-api-key",
@@ -22,9 +22,9 @@
           "proxy_adapter_version": "cortex-bench-trial-proxy/2",
           "runner_or_backend": "pi"
         },
-        "implementation_commit": "897d646425152d7eef5af6d9bc1486491b43c832",
+        "implementation_commit": "56345345f9a72bbcdaef94004084cddceb803303",
         "model_metadata_sha256": "0dcc807a4e5827b488c6ceac87884ff6e735e01cf4f2ddfec9dd812e6fde041b",
-        "mutation_manifest_sha256": "3c3a00722face1350bf49e2db81dd0802d98c572522f92cf4a9378c6329c045e",
+        "mutation_manifest_sha256": "a362d72a1c3fab94b0ac34dc2722695412a5c695278bba60ea7d964760456286",
         "mutations_killed": 37,
         "mutations_total": 37,
         "pi_tree_sha256": "2fd2a1a0bbbe8f86a4e54be91fa2fc7dd49fdbdabb3c77c649b2c42b6bf07e1b",

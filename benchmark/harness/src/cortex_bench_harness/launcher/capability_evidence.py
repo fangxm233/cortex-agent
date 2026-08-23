@@ -18,10 +18,10 @@ CAPABILITY_EVIDENCE_SCHEMA_VERSION = "cortex-bench-capability-evidence/2"
 MUTATION_MANIFEST_SCHEMA_VERSION = "cortex-bench-mutation-manifest/1"
 SYNTHETIC_OBSERVATION_SCHEMA_VERSION = "cortex-bench-synthetic-capability-observation/1"
 DEEPSEEK_OFFLINE_CONTRACT = {
-    "implementation_commit": "897d646425152d7eef5af6d9bc1486491b43c832",
+    "implementation_commit": "56345345f9a72bbcdaef94004084cddceb803303",
     "pi_version": "0.82.1",
     "model_metadata_sha256": "0dcc807a4e5827b488c6ceac87884ff6e735e01cf4f2ddfec9dd812e6fde041b",
-    "mutation_manifest_sha256": "3c3a00722face1350bf49e2db81dd0802d98c572522f92cf4a9378c6329c045e",
+    "mutation_manifest_sha256": "a362d72a1c3fab94b0ac34dc2722695412a5c695278bba60ea7d964760456286",
 }
 CLAUDE_OFFLINE_CONTRACT = {
     "claude_code_version": "2.1.232",

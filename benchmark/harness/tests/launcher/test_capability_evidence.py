@@ -112,7 +112,7 @@ def test_deepseek_evidence_output_is_byte_for_byte_unchanged() -> None:
     path = EVIDENCE_DIR / "pi-deepseek-api-key.offline-contract-passed.json"
 
     assert hashlib.sha256(path.read_bytes()).hexdigest() == (
-        "fe8ccef83e89f9bfa2e6ff478962783a0a41ab2967cdaab85d0a51bb2d4f57ef"
+        "da026713c39151130eef3925fd01ff15a70f0635aa393994406610d5f1824e8f"
     )
 
 
