@@ -570,8 +570,34 @@ def test_usage_is_read_from_the_wire_terminal_event(tmp_path: Path) -> None:
     ])
     usage = adapter.extract_usage(body, "text/event-stream")
     assert usage.accounted is True
-    assert (usage.input_tokens, usage.output_tokens) == (3, 2)
+    assert (usage.input_tokens, usage.output_tokens, usage.cached_tokens) == (3, 2, 1)
     assert usage.upstream_model == CODEX_MODEL
+
+
+def test_usage_without_input_details_keeps_the_cache_breakdown_unavailable() -> None:
+    adapter = OpenAICodexResponsesOAuthAdapter(
+        "http://127.0.0.1:1", HOST_ACCESS_TOKEN, CODEX_MODEL)
+    event = terminal_event()
+    del event["response"]["usage"]["input_tokens_details"]
+
+    usage = adapter.extract_usage(sse_stream([event]), "text/event-stream")
+
+    assert usage.accounted is True
+    assert usage.cached_tokens is None
+
+
+@pytest.mark.parametrize("cached_tokens", [-1, 4, True, "1"])
+def test_an_invalid_cached_token_count_makes_the_terminal_usage_unmetered(
+    cached_tokens: object,
+) -> None:
+    adapter = OpenAICodexResponsesOAuthAdapter(
+        "http://127.0.0.1:1", HOST_ACCESS_TOKEN, CODEX_MODEL)
+    event = terminal_event()
+    event["response"]["usage"]["input_tokens_details"]["cached_tokens"] = cached_tokens
+
+    usage = adapter.extract_usage(sse_stream([event]), "text/event-stream")
+
+    assert usage.accounted is False
 
 
 def test_a_stream_whose_only_terminal_event_uses_the_normalized_name_is_metered() -> None:

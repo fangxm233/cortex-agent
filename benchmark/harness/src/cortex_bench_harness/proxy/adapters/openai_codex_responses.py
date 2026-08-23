@@ -158,6 +158,7 @@ class OpenAICodexResponsesOAuthAdapter:
         model: str | None = None
         input_tokens = 0
         output_tokens = 0
+        cached_tokens: int | None = None
         terminal = False
         malformed = False
         for payload in _sse_payloads(body):
@@ -181,11 +182,11 @@ class OpenAICodexResponsesOAuthAdapter:
                 malformed = True
                 continue
             terminal = True
-            input_tokens, output_tokens = counted
+            input_tokens, output_tokens, cached_tokens = counted
             model = _model_of(response)
         if not terminal or malformed:
             return ProxyUsage(model, 0, 0, False)
-        return ProxyUsage(model, input_tokens, output_tokens, True)
+        return ProxyUsage(model, input_tokens, output_tokens, True, cached_tokens)
 
 
     def clear_credential(self) -> None:
@@ -362,14 +363,25 @@ def _sse_payloads(body: bytes) -> Iterator[bytes]:
             yield payload
 
 
-def _token_counts(usage: dict[str, object]) -> tuple[int, int] | None:
+def _token_counts(usage: dict[str, object]) -> tuple[int, int, int | None] | None:
     input_tokens = usage.get("input_tokens")
     output_tokens = usage.get("output_tokens")
     if type(input_tokens) is not int or type(output_tokens) is not int:
         return None
     if input_tokens < 0 or output_tokens < 0:
         return None
-    return input_tokens, output_tokens
+    details = usage.get("input_tokens_details")
+    if details is None:
+        cached_tokens = None
+    elif not isinstance(details, dict):
+        return None
+    else:
+        cached_tokens = details.get("cached_tokens")
+        if type(cached_tokens) is not int or cached_tokens < 0:
+            return None
+        if cached_tokens > input_tokens:
+            return None
+    return input_tokens, output_tokens, cached_tokens
 
 
 def _model_of(response: dict[str, object]) -> str | None:

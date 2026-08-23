@@ -51,6 +51,9 @@
   "schema_version": "cortex-bench-three-surface-summary/1",
   "source_sha256": {
     "cleanup": "297101fb89fc92d435fd69b1d20a241fde48aeddb7e9a31b6bf2d6d5684c5b2f",
+    "direct-chess-cache": "e01fef7cce6bbb75bf569d505892424685cce4fc931b3be285d6039526a4d382",
+    "direct-constraints-cache": "53f08cd750c93a54d5bbbf633cacdcc39100990914943481b8a6a1b281d4e8af",
+    "direct-db-cache": "00a2b02ff6168847f7f0e144e0460f8996f62de96d9cc78e0941f507971e1b93",
     "direct-r1-config": "5c4b95fbd01c1290c5b7aba311e1d8ae1b8b4975fffcb8a56c80ece827f20c8a",
     "direct-r1-db-exception": "933cfdb5db55e2c68017385c79c0c883e5f65d0e99c6c07787ead45be4e8be08",
     "direct-r1-run": "9cecef8730553377c709723b73caa8833ec2e6307a27e159ca03b780213d2500",
@@ -63,9 +66,15 @@
     "direct-r3-resume": "2f7e3431be27cac1cbbd3a66ab0b0047e3c98a29acd7913bb925051f9917dbe3",
     "direct-r3-run": "3f0cb66bb77ce0bf33ea800fe7853e381ab439005c911a0be9cb1e21058cfafc",
     "direct-r3-summary": "7b204362fd2a87052786fd37d458c223807e2a7288ba5b5aa7ae290a041e2beb",
+    "native-chess-cache": "23373fbcc78b319fe4334ed513032cf74e1b64fcdfba005b491d15a381c49a73",
+    "native-constraints-cache": "e08849e0463bd8353010635b71dc146d487322abc7f3496f2b70abe55240a5fe",
+    "native-db-cache": "74e733c7214e78e4dab0103fbb3423da2e7bd8d6284a36dddeee742368b33ae1",
     "native-resume": "13b016a7a232c409cd290332701b7b133414f75c41e50d51f9fb7d83826537ef",
     "native-run": "170cf577c6b281a3c49b2968d06c524f937da8f6f94cb716a0996a40bb344115",
     "native-summary": "a4145893826ea33473e74377e729bc0cabe63038eb72be26612368229667da42",
+    "pi-chess-cache": "c410a9878d78030583b0bd55086b12ae5920b6ce815315e6b5d3183c6fc23a7f",
+    "pi-constraints-cache": "a1090767f838ebdddad5794fcc4350e6cf7d43176226bcbf2a7d3ab2b76aa970",
+    "pi-db-cache": "6d7d9c89838bc7c95e9da67b5748464ebc9a803017856f54802094dba5eab024",
     "pi-initial-network-fault": "21b4bbb604fd0ff863e28721532439fa063f16d7db48c5a8b60e77b044575f56",
     "pi-resume": "fd1b03c3b1585b9250fdba2e54498ae611c653ef86e9276a3c851f330cd5cbfd",
     "pi-run": "7ead247731dded2dba04f6e2dbc5b26e22f0e8a8d753d9063e380a7ec4ebeabf",
@@ -73,7 +82,11 @@
   },
   "surfaces": [
     {
-      "cli": {"name": "pi", "version": "0.82.1"},
+      "cached_input_tokens": 62464,
+      "cli": {
+        "name": "pi",
+        "version": "0.82.1"
+      },
       "input_tokens": 101637,
       "model": "gpt-5.6-sol",
       "network": "open",
@@ -84,13 +97,66 @@
       "surface": "pure-pi",
       "thinking": "xhigh",
       "trials": [
-        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 237.833, "image_digest": "sha256:5f16cd3f75c54b22866a823b35e39305155c784886d1db5f894272d89f7cbbed", "input_tokens": 22031, "output_tokens": 4251, "requests": 9, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "chess-best-move", "terminal_state": "terminal-success"},
-        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 155.881, "image_digest": "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353", "input_tokens": 18172, "output_tokens": 1645, "requests": 5, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "constraints-scheduling", "terminal_state": "terminal-success"},
-        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 183.7, "image_digest": "sha256:7199e472b87adc22c356e9a364d453c6f825938de6ab7f6422b787735dbf47f7", "input_tokens": 61434, "output_tokens": 2306, "requests": 8, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "db-wal-recovery", "terminal_state": "terminal-success"}
-      ]
+        {
+          "cached_tokens": {
+            "status": "available",
+            "value": 9216
+          },
+          "elapsed_seconds": 237.833,
+          "image_digest": "sha256:5f16cd3f75c54b22866a823b35e39305155c784886d1db5f894272d89f7cbbed",
+          "input_tokens": 22031,
+          "output_tokens": 4251,
+          "requests": 9,
+          "revocation_proven": true,
+          "reward": 1.0,
+          "scan_clean": true,
+          "task_id": "chess-best-move",
+          "terminal_state": "terminal-success",
+          "uncached_input_tokens": 12815
+        },
+        {
+          "cached_tokens": {
+            "status": "available",
+            "value": 9728
+          },
+          "elapsed_seconds": 155.881,
+          "image_digest": "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353",
+          "input_tokens": 18172,
+          "output_tokens": 1645,
+          "requests": 5,
+          "revocation_proven": true,
+          "reward": 1.0,
+          "scan_clean": true,
+          "task_id": "constraints-scheduling",
+          "terminal_state": "terminal-success",
+          "uncached_input_tokens": 8444
+        },
+        {
+          "cached_tokens": {
+            "status": "available",
+            "value": 43520
+          },
+          "elapsed_seconds": 183.7,
+          "image_digest": "sha256:7199e472b87adc22c356e9a364d453c6f825938de6ab7f6422b787735dbf47f7",
+          "input_tokens": 61434,
+          "output_tokens": 2306,
+          "requests": 8,
+          "revocation_proven": true,
+          "reward": 1.0,
+          "scan_clean": true,
+          "task_id": "db-wal-recovery",
+          "terminal_state": "terminal-success",
+          "uncached_input_tokens": 17914
+        }
+      ],
+      "uncached_input_tokens": 39173
     },
     {
-      "cli": {"name": "pi", "version": "2026.8.6"},
+      "cached_input_tokens": 93568,
+      "cli": {
+        "name": "pi",
+        "version": "2026.8.6"
+      },
       "input_tokens": 156259,
       "model": "gpt-5.6-sol",
       "network": "open",
@@ -101,13 +167,66 @@
       "surface": "cortex-direct",
       "thinking": "xhigh",
       "trials": [
-        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 574.424, "image_digest": "sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b", "input_tokens": 73456, "output_tokens": 6293, "requests": 12, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "chess-best-move", "terminal_state": "terminal-success"},
-        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 513.723, "image_digest": "sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c", "input_tokens": 59281, "output_tokens": 5344, "requests": 9, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "constraints-scheduling", "terminal_state": "terminal-success"},
-        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 393.089, "image_digest": "sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a", "input_tokens": 23522, "output_tokens": 1881, "requests": 5, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "db-wal-recovery", "terminal_state": "terminal-success"}
-      ]
+        {
+          "cached_tokens": {
+            "status": "available",
+            "value": 49024
+          },
+          "elapsed_seconds": 574.424,
+          "image_digest": "sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b",
+          "input_tokens": 73456,
+          "output_tokens": 6293,
+          "requests": 12,
+          "revocation_proven": true,
+          "reward": 1.0,
+          "scan_clean": true,
+          "task_id": "chess-best-move",
+          "terminal_state": "terminal-success",
+          "uncached_input_tokens": 24432
+        },
+        {
+          "cached_tokens": {
+            "status": "available",
+            "value": 32768
+          },
+          "elapsed_seconds": 513.723,
+          "image_digest": "sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c",
+          "input_tokens": 59281,
+          "output_tokens": 5344,
+          "requests": 9,
+          "revocation_proven": true,
+          "reward": 1.0,
+          "scan_clean": true,
+          "task_id": "constraints-scheduling",
+          "terminal_state": "terminal-success",
+          "uncached_input_tokens": 26513
+        },
+        {
+          "cached_tokens": {
+            "status": "available",
+            "value": 11776
+          },
+          "elapsed_seconds": 393.089,
+          "image_digest": "sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a",
+          "input_tokens": 23522,
+          "output_tokens": 1881,
+          "requests": 5,
+          "revocation_proven": true,
+          "reward": 1.0,
+          "scan_clean": true,
+          "task_id": "db-wal-recovery",
+          "terminal_state": "terminal-success",
+          "uncached_input_tokens": 11746
+        }
+      ],
+      "uncached_input_tokens": 62691
     },
     {
-      "cli": {"name": "codex", "version": "0.148.0"},
+      "cached_input_tokens": 242688,
+      "cli": {
+        "name": "codex",
+        "version": "0.148.0"
+      },
       "input_tokens": 334746,
       "model": "gpt-5.6-sol",
       "network": "open",
@@ -118,19 +237,70 @@
       "surface": "native-codex",
       "thinking": "xhigh",
       "trials": [
-        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 324.296, "image_digest": "sha256:7ec70cbe5726a332ec7c559d7145f82c67317a529457b071b7eae44032b6e728", "input_tokens": 165873, "output_tokens": 3697, "requests": 13, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "chess-best-move", "terminal_state": "terminal-success"},
-        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 229.509, "image_digest": "sha256:31859b5bb36e1d507e330c3c75dc7adf830137fc72e0e4d1a88e68f48fdb903c", "input_tokens": 62244, "output_tokens": 2315, "requests": 5, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "constraints-scheduling", "terminal_state": "terminal-success"},
-        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 252.38, "image_digest": "sha256:d2a78b8e5aa9c842d9dfa21ceed714859ff5f06b141eb15880c62850158ff5cc", "input_tokens": 106629, "output_tokens": 5525, "requests": 8, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "db-wal-recovery", "terminal_state": "terminal-success"}
-      ]
+        {
+          "cached_tokens": {
+            "status": "available",
+            "value": 131328
+          },
+          "elapsed_seconds": 324.296,
+          "image_digest": "sha256:7ec70cbe5726a332ec7c559d7145f82c67317a529457b071b7eae44032b6e728",
+          "input_tokens": 165873,
+          "output_tokens": 3697,
+          "requests": 13,
+          "revocation_proven": true,
+          "reward": 1.0,
+          "scan_clean": true,
+          "task_id": "chess-best-move",
+          "terminal_state": "terminal-success",
+          "uncached_input_tokens": 34545
+        },
+        {
+          "cached_tokens": {
+            "status": "available",
+            "value": 36096
+          },
+          "elapsed_seconds": 229.509,
+          "image_digest": "sha256:31859b5bb36e1d507e330c3c75dc7adf830137fc72e0e4d1a88e68f48fdb903c",
+          "input_tokens": 62244,
+          "output_tokens": 2315,
+          "requests": 5,
+          "revocation_proven": true,
+          "reward": 1.0,
+          "scan_clean": true,
+          "task_id": "constraints-scheduling",
+          "terminal_state": "terminal-success",
+          "uncached_input_tokens": 26148
+        },
+        {
+          "cached_tokens": {
+            "status": "available",
+            "value": 75264
+          },
+          "elapsed_seconds": 252.38,
+          "image_digest": "sha256:d2a78b8e5aa9c842d9dfa21ceed714859ff5f06b141eb15880c62850158ff5cc",
+          "input_tokens": 106629,
+          "output_tokens": 5525,
+          "requests": 8,
+          "revocation_proven": true,
+          "reward": 1.0,
+          "scan_clean": true,
+          "task_id": "db-wal-recovery",
+          "terminal_state": "terminal-success",
+          "uncached_input_tokens": 31365
+        }
+      ],
+      "uncached_input_tokens": 92058
     }
   ],
   "totals": {
+    "cached_input_tokens": 398720,
     "input_tokens": 592642,
     "output_tokens": 33257,
     "planned_scored_trials": 9,
     "requests": 74,
     "reward": 9.0,
     "terminal_successes": 9,
+    "uncached_input_tokens": 193922,
     "usd_cost": null,
     "usd_cost_status": "subscription_transport_has_no_usd_price_accounting"
   }
