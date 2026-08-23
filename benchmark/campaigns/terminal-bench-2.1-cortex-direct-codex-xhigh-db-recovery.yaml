@@ -1,12 +1,12 @@
-# input:  one Cortex direct Codex arm and the unrecovered constraints task
-# output: one paid constraints recovery trial
-# pos:    Cortex direct Codex xhigh constraints recovery campaign
+# input:  one Cortex direct Codex arm and the unrecovered db-wal task
+# output: one paid db-wal recovery trial
+# pos:    Cortex direct Codex xhigh db-wal recovery campaign
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 schema_version: cortex-bench-campaign/1
-campaign: tb21-cxdir-r2-0823
+campaign: tb21-cxdir-r3-0823
 paid: true
-trials_dir: /var/tmp/cortex-bench/tb21-cortex-direct-codex-xhigh-r2-2026-08-23
+trials_dir: /var/tmp/cortex-bench/tb21-cortex-direct-codex-xhigh-r3-2026-08-23
 cli_version: "2026.8.6"
 concurrency: 1
 
@@ -38,7 +38,7 @@ host_scan_policy:
     machine: CORTEX_BENCH_PAID_IDENTITY
 
 docker_network:
-  subnet_pool: 172.31.64.0/20
+  subnet_pool: 172.31.80.0/20
   subnet_prefix: 24
 
 proxy:
@@ -67,8 +67,8 @@ network:
   mode: open
 
 tasks:
-  - task_id: constraints-scheduling
-    path: tasks/terminal-bench-2.1/constraints-scheduling-r7-r8
-    image_ref: cortex-terminal-bench-2.1@sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c
+  - task_id: db-wal-recovery
+    path: tasks/terminal-bench-2.1/db-wal-recovery
+    image_ref: cortex-terminal-bench-2.1@sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a
 
 comparisons: []

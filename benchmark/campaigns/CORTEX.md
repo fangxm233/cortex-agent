@@ -14,7 +14,8 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 | terminal-bench-2.1-native-codex-xhigh.yaml | campaign | Declares the paid three-task native Codex xhigh wave over the Codex task variants |
 | terminal-bench-2.1-pi-codex-xhigh.yaml | campaign | Declares the paid three-task PI OpenAI Codex xhigh wave over the PI task variants |
 | terminal-bench-2.1-cortex-direct-codex-xhigh.yaml | campaign | Declares the paid three-task Cortex direct PI OpenAI Codex xhigh wave over the standard Cortex task variants |
-| terminal-bench-2.1-cortex-direct-codex-xhigh-recovery.yaml | campaign | Recovers the two direct xhigh trials that failed before provider execution |
+| terminal-bench-2.1-cortex-direct-codex-xhigh-recovery.yaml | campaign | Recovers the direct xhigh constraints trial that failed before provider execution |
+| terminal-bench-2.1-cortex-direct-codex-xhigh-db-recovery.yaml | campaign | Recovers the direct xhigh db-wal trial that failed before provider execution |
 | terminal-bench-2.1-vendor-pi.yaml | campaign | Declares the paid three-task PI vendor baseline against the host DeepSeek relay |
 | terminal-bench-2.1-vendor-pi-3c-prefx1.yaml | campaign | Declares the first paid three-concurrency PI stream-failure reproduction wave |
 | terminal-bench-2.1-vendor-pi-3c-postfx1.yaml | campaign | Declares the first paid three-concurrency PI stream-fix validation wave |
