@@ -42,13 +42,6 @@ ACCOUNTED = (
     "        stream.done and not stream.malformed and not stream.data_after_done\n"
     "        and models == {frozen_model} and valid_usage"
 )
-IDENTITY_FIELDS = (
-    'IDENTITY_FIELDS = frozenset({\n'
-    '    "schema_version", "capability_id", "state", "capability_key", "adapter_id",\n'
-    '    "implementation_commit",\n'
-    '})'
-)
-
 # (name, file, [(find, replace)], test_file, test_selector)
 MUTATIONS: tuple[tuple[str, str, list[tuple[str, str]], str, str], ...] = (
     # --- adapter selection ---
@@ -180,12 +173,9 @@ MUTATIONS: tuple[tuple[str, str, list[tuple[str, str]], str, str], ...] = (
         "        if document.get(field) != expected:", "        if False:",
     )], "tests/launcher/test_capability_evidence.py", "exact_runtime_contract"),
     ("evidence_numeric_envelope", EVIDENCE_MODULE, [(
-        IDENTITY_FIELDS,
-        IDENTITY_FIELDS.replace(
-            '    "implementation_commit",\n',
-            '    "implementation_commit",\n'
-            '    "max_output_tokens", "request_limit_bytes", "response_limit_bytes",\n',
-        ),
+        "    if set(document) != expected_fields:",
+        '    if set(document) - {"max_output_tokens", "request_limit_bytes", '
+        '"response_limit_bytes"} != expected_fields:',
     )], "tests/launcher/test_capability_evidence.py", "carrying_a_declared_envelope_number"),
     ("evidence_manifest_counts", EVIDENCE_MODULE, [(
         '    if len(mutations) != document["mutations_total"]:', "    if False:",
