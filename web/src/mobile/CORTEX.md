@@ -18,8 +18,8 @@ This level holds the shell frame, the tab and route model, and the pure cross-sc
 | mobile-tasks.ts | core | Groups tasks into six sections, done newest-first |
 | mobile-tasks.test.ts | test | Tests mobile classification and done order |
 | current-project.tsx | provider | Shares the mobile-wide project selection |
-| use-back-dismiss.ts | hook | Makes hardware back close overlays not routes |
-| use-back-dismiss.test.ts | test | Unit tests for the back dismiss guard |
+| use-back-dismiss.ts | hook | Guards overlay history without undoing route navigation |
+| use-back-dismiss.test.ts | test | Tests back dismissal and replaced-sentinel cleanup |
 | use-viewport-height.ts | hook | Publishes keyboard-aware viewport size |
 | use-viewport-height.test.ts | test | Unit tests for viewport height mirroring |
 | v3/ | subdir | All mobile screens as screen, view and model |

@@ -1,5 +1,5 @@
 // input:  session/schedule queries, project scope, mobile navigation
-// output: data-bound Sessions tab with the Scheduled sheet
+// output: Sessions tab with sentinel-safe Scheduled run navigation
 // pos:    Mobile session-list data container
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // 1a 会话列表 — the current project's direct sessions, day-grouped, newest first (scheme 1a L86-128).
@@ -104,7 +104,7 @@ export function MSessionListScreen() {
           copy={sheetCopy}
           onOpenSession={(id) => {
             setSheetOpen(false);
-            navigate(`/m/session/${id}`);
+            navigate(`/m/session/${id}`, { replace: true });
           }}
           onClose={() => setSheetOpen(false)}
         />

@@ -12,7 +12,7 @@ Framework-free view models map records to slots and have colocated unit tests.
 | m-chat-vm.ts | vm | Chat rows, status, attachments, menu placement |
 | m-chat-vm.test.ts | test | Tests chat status, profiles and transcript row state |
 | MInteractionCards.tsx | view | Ask-user and plan-approval cards for chat |
-| MSessionListScreen.tsx | screen | Binds sessions, schedules and the Scheduled sheet |
+| MSessionListScreen.tsx | screen | Binds sessions and sentinel-safe Scheduled drill-down |
 | MSessionListView.tsx | view | Day-grouped session rows with clock entry |
 | MScheduleSheet.tsx | view | Scheduled bottom sheet with run drill-down |
 | m-session-list-vm.ts | vm | Groups sessions by day and derives status lines |

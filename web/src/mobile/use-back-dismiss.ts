@@ -1,3 +1,7 @@
+// input:  browser history and overlay dismiss callback
+// output: sentinel-aware hardware-back dismissal hook
+// pos:    Mobile transient-overlay history guard
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useRef } from 'react';
 
 // ── Android / browser back → dismiss a transient overlay (not navigate the router) ────────────────
@@ -17,6 +21,8 @@ export interface BackGuardHost {
   pushSentinel(): void;
   /** Remove the sentinel we pushed (a programmatic back). */
   popSentinel(): void;
+  /** Whether the current entry is still the sentinel this guard owns. */
+  isSentinelActive(): boolean;
   addPopListener(fn: () => void): void;
   removePopListener(fn: () => void): void;
 }
@@ -36,10 +42,9 @@ export function armBackGuard(host: BackGuardHost, onDismiss: () => void): () => 
   host.addPopListener(onPop);
   return () => {
     host.removePopListener(onPop);
-    // Closed by tap-away / pick / drag — the sentinel is still on the stack, so remove it. If a back
-    // press already dismissed us the browser popped the sentinel for us; popping again would eat a
-    // real navigation.
-    if (!dismissedByBack) host.popSentinel();
+    // Tap-away / pick / drag leaves the sentinel current, so remove it. Route actions replace the
+    // sentinel before teardown; never back over that destination. A hardware back already popped it.
+    if (!dismissedByBack && host.isSentinelActive()) host.popSentinel();
   };
 }
 
@@ -51,6 +56,7 @@ function windowBackGuardHost(): BackGuardHost {
       window.history.pushState({ ...(window.history.state as object | null), __cortexOverlay: true }, '');
     },
     popSentinel: () => window.history.back(),
+    isSentinelActive: () => window.history.state?.__cortexOverlay === true,
     addPopListener: (fn) => window.addEventListener('popstate', fn),
     removePopListener: (fn) => window.removeEventListener('popstate', fn),
   };

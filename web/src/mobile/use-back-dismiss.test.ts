@@ -6,14 +6,20 @@ import { armBackGuard, type BackGuardHost } from './use-back-dismiss';
 function fakeHost() {
   const listeners = new Set<() => void>();
   const calls = { push: 0, pop: 0 };
+  let sentinelActive = true;
   const host: BackGuardHost = {
-    pushSentinel: () => { calls.push += 1; },
-    popSentinel: () => { calls.pop += 1; },
+    pushSentinel: () => { calls.push += 1; sentinelActive = true; },
+    popSentinel: () => { calls.pop += 1; sentinelActive = false; },
+    isSentinelActive: () => sentinelActive,
     addPopListener: (fn) => { listeners.add(fn); },
     removePopListener: (fn) => { listeners.delete(fn); },
   };
-  const dispatchBack = (): void => { for (const fn of [...listeners]) fn(); };
-  return { host, calls, listeners, dispatchBack };
+  const dispatchBack = (): void => {
+    sentinelActive = false;
+    for (const fn of [...listeners]) fn();
+  };
+  const replaceSentinel = (): void => { sentinelActive = false; };
+  return { host, calls, listeners, dispatchBack, replaceSentinel };
 }
 
 describe('armBackGuard', () => {
@@ -58,5 +64,13 @@ describe('armBackGuard', () => {
     // The listener stays registered until teardown, but a second stray popstate must not double-fire
     // the dismiss into a route navigation.
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not pop the destination after route navigation replaced the sentinel', () => {
+    const { host, calls, replaceSentinel } = fakeHost();
+    const teardown = armBackGuard(host, vi.fn());
+    replaceSentinel();
+    teardown();
+    expect(calls.pop).toBe(0);
   });
 });
