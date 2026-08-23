@@ -1,6 +1,6 @@
-// input:  PI adapter, framing, spawn stubs, transcripts, provider discovery
-// output: PI spawn, RPC lifecycle, compaction, and resume regressions
-// pos:    Covers PI process construction and session lifecycle
+// input:  PI adapter, spawn stubs, transcripts, provider discovery
+// output: Spawn env, interaction eligibility, RPC, and resume tests
+// pos:    Tests PI process and session lifecycles
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -19,7 +19,11 @@ import { PI_MODELS_PATH } from '../src/agent-adapter/pi/agent-dir.js';
 import { PI_PLUGIN_MCP_CONFIG_ENV } from '../src/agent-adapter/pi/mcp-config.js';
 import { createPIProviderDiscovery } from '../src/agent-adapter/pi/discovery.js';
 import { encodeCommand, createLineSplitter } from '../src/agent-adapter/pi/framing.js';
-import { buildPiEnv, buildSpawnArgs } from '../src/agent-adapter/pi/spawn-args.js';
+import {
+  buildPiEnv,
+  buildSpawnArgs,
+  PI_TUI_BRIDGE_ENV,
+} from '../src/agent-adapter/pi/spawn-args.js';
 
 // Writable temp session dir used by Group G tests (avoids root-level paths that fail with EACCES).
 const G_SESSION_DIR = pathJoin(tmpdir(), `pi-test-sessions-${process.pid}`);
@@ -290,6 +294,7 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
     CORTEX_WEBHOOK_SINGLE_ROOT: '1',
     CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE: 'stale-root-template',
     CORTEX_PI_SUBAGENT: '1',
+    [PI_TUI_BRIDGE_ENV]: '1',
     [PI_PLUGIN_MCP_CONFIG_ENV]: '/stale-plugin-mcp.json',
   };
   const env = buildPiEnv({
@@ -303,6 +308,37 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
   assert.equal(env.PI_CODING_AGENT_DIR, '/pi-agent');
 });
 
+
+test('buildPiEnv sets the shared interaction bridge marker only from trusted options', () => {
+  const inherited = { [PI_TUI_BRIDGE_ENV]: 'spoofed' };
+  const cleared = buildPiEnv({ piAgentDir: '/pi-agent' }, inherited);
+  assert.equal(cleared[PI_TUI_BRIDGE_ENV], undefined);
+
+  const enabled = buildPiEnv({ piAgentDir: '/pi-agent', enableTuiBridge: true }, inherited);
+  assert.equal(enabled[PI_TUI_BRIDGE_ENV], '1');
+});
+
+test('PIAdapter enables the shared interaction bridge only for direct user sessions', () => {
+  for (const entry of [
+    { key: 'pi-user-direct', isUserInitiated: true, mcpComposition: 'direct' as const, expected: '1' },
+    { key: 'pi-nonuser-direct', isUserInitiated: false, mcpComposition: 'direct' as const, expected: undefined },
+    { key: 'pi-user-thread', isUserInitiated: true, mcpComposition: 'thread-control' as const, expected: undefined },
+  ]) {
+    const stub = makeStubSpawner();
+    const adapter = new PIAdapter(stub.spawn);
+    const proc = adapter.spawn({
+      sessionId: null,
+      sessionKey: entry.key,
+      resume: false,
+      isUserInitiated: entry.isUserInitiated,
+      mcpComposition: entry.mcpComposition,
+      env: { [PI_TUI_BRIDGE_ENV]: 'spoofed' },
+    });
+    assert.equal((stub.calls[0].opts.env as NodeJS.ProcessEnv)[PI_TUI_BRIDGE_ENV], entry.expected);
+    proc.kill();
+    stub.children[0].emit('close', 0);
+  }
+});
 
 test('buildPiEnv preserves server auth for ordinary PI MCP sessions', () => {
   const env = buildPiEnv({ piAgentDir: '/pi-agent' }, {

@@ -1,7 +1,7 @@
-// input:  AgentHandle-like kill function, EventBus
-// output: RunningExecutions singleton and execution registry types
-// pos:    Live execution index shared by orchestration and queries
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// input:  Agent kill functions and EventBus
+// output: Live execution types and RunningExecutions singleton
+// pos:    Indexes active executions for orchestration
+// >>> If updated, update this header and folder CORTEX.md <<<
 
 // Primary key is the executionId (globally unique), so multiple live executions can coexist on one
 // channel without evicting each other (the P3 fix). channel and threadId are secondary lookup indices.
@@ -21,7 +21,7 @@ export interface RunningExecution {
   kill: () => boolean;
   startTime: number;
   backend: string;
-  /** Agent process reference — used by PI backend to route extension_ui_response for plan/ask interactions. */
+  /** Agent process reference used to resolve generic PI extension UI dialogs. */
   agentProcess?: unknown;
   /** Stable Cortex track session id used by registry/history/query surfaces. */
   trackSessionId?: string | null;

@@ -1,6 +1,6 @@
-// input:  McpServer + deps (channel/sessionId/threadId/webhookBaseUrl/httpPost)
-// output: registerTuiPlanTools + pure runPlanEnter / runPlanExit business-logic functions
-// pos:    DR-0012 Phase 3 — cortex-tui-bridge MCP tools replacing EnterPlanMode/ExitPlanMode for TUI mode
+// input:  McpServer, tool dependencies, plan files
+// output: Shared plan-mode MCP registrations and handlers
+// pos:    Implements blocking human plan approval
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'fs';
@@ -38,9 +38,8 @@ Protocol:
      This blocks until the human approves, denies, or requests revisions.
   4. On approval, proceed with implementation. On denial, revise the plan and call cortex_plan_exit again.
 
-The native Claude EnterPlanMode/ExitPlanMode tools are intentionally disabled in this mode —
-Cortex's approval flow runs through cortex_plan_exit so that Slack/Cortex stays the single
-source of truth for plan history.`;
+Native backend plan tools are disabled for this protocol. Cortex routes approval through
+cortex_plan_exit so the interaction channel stays the single source of truth for plan history.`;
 
 export function runPlanEnter(args: { reasoning?: string }): CallToolResultShape {
   const reasoning = (args.reasoning && args.reasoning.trim()) || null;
@@ -66,9 +65,9 @@ export async function runPlanExit(
   args: { plan_file_path: string; summary?: string },
   deps: TuiToolDeps,
 ): Promise<CallToolResultShape> {
-  // Validate channel/sessionId presence — agent-server webhook requires channel for Slack routing.
+  // The webhook needs the originating interaction channel.
   if (!deps.channel) {
-    return { content: [{ type: 'text', text: 'cortex_plan_exit error: no channel configured in MCP env (SLACK_CHANNEL missing)' }], isError: true };
+    return { content: [{ type: 'text', text: 'cortex_plan_exit error: no interaction channel configured in MCP env' }], isError: true };
   }
   if (!args.plan_file_path) {
     return { content: [{ type: 'text', text: 'cortex_plan_exit error: plan_file_path is required' }], isError: true };

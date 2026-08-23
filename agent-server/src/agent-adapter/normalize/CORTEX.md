@@ -8,5 +8,5 @@ Shared by the Claude and PI adapters and by Cortex orchestration.
 | event-types.ts | types | defines four-way accounting and fallback events |
 | event-stream.ts | core | queues events for a single producer |
 | hooks.ts | types | backend-neutral hook specification |
-| tool-names.ts | core | maps canonical and native tool names |
+| tool-names.ts | core | maps canonical names to backend-native tools |
 | prompt-builder.ts | core | builds prompt text from message attachments |

@@ -1,6 +1,6 @@
-// input:  PI roles, model options, child_process, TypeBox
-// output: Role-described PI Agent schema, execution, and usage
-// pos:    PI subagent orchestration and stream parsing
+// input:  PI roles, model options, child processes, TypeBox
+// output: Isolated PI Agent execution, schema, and usage
+// pos:    Orchestrates PI subagents and parses their streams
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn as defaultSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
@@ -18,6 +18,7 @@ import { parse as yamlParse } from 'yaml';
 import { PI_AGENT_DIR, ensurePIAgentRoles } from './agent-dir.js';
 import { MCP_BRIDGE_PATH, TOOL_SHIMS_PATH } from './defaults.js';
 import type { ExtensionContext, ToolDefinition } from './pi-ext-types.js';
+import { PI_TUI_BRIDGE_ENV } from './spawn-args.js';
 
 export const MAX_SUBAGENT_TASKS = 8;
 export const MAX_SUBAGENT_CONCURRENCY = 8;
@@ -312,6 +313,7 @@ function buildChildEnv(agentDir: string): NodeJS.ProcessEnv {
   };
   delete env.CORTEX_THREAD_ID;
   delete env.CORTEX_TASK_ID;
+  delete env[PI_TUI_BRIDGE_ENV];
   return env;
 }
 

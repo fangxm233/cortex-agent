@@ -1,8 +1,7 @@
-// @cortex-hook-version 2026.7.29
-// input:  node:http, hook env (WEBHOOK_PORT/CORTEX_WEBHOOK_TOKEN/CORTEX_HOOK_CHANNEL/...)
-// output: askUser() — blocking ask-user card on the session's message platform
-// pos:    Helper library imported by hook scripts (not a hook entry itself)
-// >>> If I am updated, be sure to update my header comment and the CORTEX.md in the same folder <<<
+// input:  node:http and Cortex hook environment
+// output: askUser helper @cortex-hook-version 2026.8.23
+// pos:    Hook script interaction client
+// >>> If updated, update this header and the folder CORTEX.md <<<
 
 import http from 'node:http';
 
@@ -52,7 +51,7 @@ function postJson(path, payload, timeoutMs) {
  * and BLOCK until the user answers or the server bridge TTL (30 min) expires.
  *
  * @param {object}   opts
- * @param {Array}    opts.questions  1-4 items: { question, header?, options?: [{label, description?}], multiSelect? }
+ * @param {Array}    opts.questions  One or more: { question, header?, options?: [{label, description?}], multiSelect? }
  * @param {string=}  opts.level      'info' | 'warn' | 'warning' | 'error' — card severity (omit for neutral)
  * @param {string=}  opts.channel    conduit id; defaults to CORTEX_HOOK_CHANNEL → SLACK_CHANNEL
  * @param {string=}  opts.sessionId  session to resolve the channel from; defaults to CORTEX_HOOK_SESSION_ID

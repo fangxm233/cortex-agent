@@ -6,7 +6,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | filename | role | function |
 |---|---|---|
 | agent-file-send.ts | chat | stores and delivers agent files with safe display names |
-| agent-runner.ts | core | routes turns with reusable platform downloads |
+| agent-runner.ts | core | routes turns, tool traces and generic dialogs |
 | bg-continuation.ts | helper | forwards background continuation output |
 | bg-wait-guard.ts | guard | bounds the background task waiting window |
 | busy-tracker.ts | tracker | counts active LLM runs and signals busy state |

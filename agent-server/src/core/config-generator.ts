@@ -1,5 +1,5 @@
-// input:  filesystem, config paths, server root, MCP tool gates
-// output: full, restricted, platform and gated MCP configs
+// input:  Filesystem, config paths, server root, MCP gates
+// output: Full, interaction, platform and gated MCP configs
 // pos:    Generates declared MCP compositions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -152,9 +152,7 @@ export function buildEmptyConfig(): object {
   return { mcpServers: {} };
 }
 
-/** TUI MCP config — loaded ONLY by Claude TUI-mode sessions (DR-0012). Isolated tool set:
- *  cortex_plan_enter / cortex_plan_exit / cortex_ask_user replace the native
- *  EnterPlanMode / ExitPlanMode / AskUserQuestion tools, which are excluded from --tools in TUI mode. */
+/** Claude interaction config; PI loads the same server through its MCP bridge. */
 export function buildTuiConfig(serverRoot: string): object {
   return {
     mcpServers: {

@@ -9,7 +9,7 @@ Covers user questions, plan approvals, version-update prompts, and the delivery 
 | command-action-router.ts | router | routes button and modal events to commands |
 | interaction-handlers.ts | handlers | registers question, plan and status actions |
 | interaction-records.ts | store | records interactions and their outcomes |
-| plan-approvals.ts | state | holds pending plan approvals per request |
+| plan-approvals.ts | state | tracks request-keyed plan approvals |
 | plan-handler.ts | util | posts a generated plan to the chat platform |
 | plan-response.ts | core | delivers plan approve or reject to the agent |
 | update-prompt.ts | factory | asks the user to confirm a version update |

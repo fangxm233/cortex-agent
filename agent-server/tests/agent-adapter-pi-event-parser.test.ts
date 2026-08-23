@@ -1,6 +1,6 @@
 // input:  PI RPC events and parser state
-// output: PI events with explicit unavailable cache accounting
-// pos:    Covers PI event translation
+// output: Tool, dialog, lifecycle, and usage event regressions
+// pos:    Tests PI event translation
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -289,53 +289,30 @@ test('tool_result: missing toolCallId → []', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. ask_user_question — tool shim path
+// 5. Shared interaction MCP tools use the ordinary tool event path
 // ---------------------------------------------------------------------------
-// DR-0008 §5.6: tool_execution_start toolName='ask_user_question' now emits tool_use
-// (not ask_user_question) to avoid duplicating the ask_user_question NormalizedEvent that
-// extension_ui_request will emit when the shim calls ctx.ui.select/input. The canonical
-// ask_user_question NormalizedEvent comes exclusively from the extension_ui_request path (§5b).
 
-test('ask_user_question (tool shim): tool_execution_start → tool_use (not ask_user_question)', () => {
+test('shared interaction MCP tool calls preserve their exposed names and input', () => {
   const state = freshState();
   const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tc2', toolName: 'ask_user_question', args: { questions: [{ question: 'Go?' }] } }),
+    line({
+      type: 'tool_execution_start',
+      toolCallId: 'tc2',
+      toolName: 'cortex_ask_user',
+      args: { questions: [{ question: 'Go?' }] },
+    }),
     state,
   );
-  assert.equal(events.length, 1);
-  assert.deepEqual(events[0], {
+  assert.deepEqual(events, [{
     type: 'tool_use',
     toolUseId: 'tc2',
-    name: 'ask_user_question',
+    name: 'cortex_ask_user',
     input: { questions: [{ question: 'Go?' }] },
-  });
-});
-
-test('ask_user_question (tool shim): tool_execution_start with options/multi → tool_use', () => {
-  const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tc3', toolName: 'ask_user_question', args: { questions: [{ question: 'Pick?', options: ['A', 'B'], multi: true }] } }),
-    state,
-  );
-  assert.equal(events.length, 1);
-  assert.equal(events[0].type, 'tool_use');
-  assert.equal((events[0] as any).name, 'ask_user_question');
-  assert.deepEqual((events[0] as any).input.questions[0], { question: 'Pick?', options: ['A', 'B'], multi: true });
-});
-
-test('ask_user_question (tool shim): tool_execution_start with non-array questions → tool_use (input preserved)', () => {
-  const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tc4', toolName: 'ask_user_question', args: { questions: 'not an array' } }),
-    state,
-  );
-  assert.equal(events.length, 1);
-  assert.equal(events[0].type, 'tool_use');
-  assert.equal((events[0] as any).name, 'ask_user_question');
+  }]);
 });
 
 // ---------------------------------------------------------------------------
-// 5b. ask_user_question — extension_ui_request path
+// 5b. Generic extension_ui_request dialog path
 // ---------------------------------------------------------------------------
 
 test('ask_user_question (extension_ui): select method', () => {
@@ -421,87 +398,7 @@ test('extension_ui_request: missing id or method → []', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. plan_written — Write to plan path + exit_plan_mode
-// ---------------------------------------------------------------------------
-
-test('plan_written: Write to plan path sets pendingPlanPath, exit_plan_mode emits tool_use + plan_written', () => {
-  const state = freshState();
-  // Step 1: Write to a plan path (.claude/plan/ qualifies per DEFAULT_PLAN_DIRS)
-  const writeEvents = piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tc-write', toolName: 'Write', args: { file_path: '/home/user/project/.claude/plan/task-a7f9.md' } }),
-    state,
-  );
-  // Write emits tool_use and sets pendingPlanPath
-  assert.equal(writeEvents.length, 1);
-  assert.equal(writeEvents[0]?.type, 'tool_use');
-  assert.equal(state.pendingPlanPath, '/home/user/project/.claude/plan/task-a7f9.md');
-  // Step 2: exit_plan_mode emits tool_use + plan_written (when pendingPlanPath is set)
-  const exitEvents = piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tc3', toolName: 'exit_plan_mode', args: { plan: '# Plan\nStep 1' } }),
-    state,
-  );
-  assert.equal(exitEvents.length, 2);
-  assert.equal(exitEvents[0].type, 'tool_use');
-  const evt = exitEvents[1] as any;
-  assert.equal(evt.type, 'plan_written');
-  assert.equal(evt.toolUseId, 'tc3');
-  assert.equal(evt.path, '/home/user/project/.claude/plan/task-a7f9.md');
-  assert.equal(evt.content, '# Plan\nStep 1');
-});
-
-test('plan_written: exit_plan_mode before any Write (pendingPlanPath=null) → tool_use only', () => {
-  const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tc3', toolName: 'exit_plan_mode', args: { plan: '# Plan' } }),
-    state,
-  );
-  assert.equal(events.length, 1);
-  assert.equal(events[0].type, 'tool_use');
-});
-
-test('plan_written: Write to non-plan path does not set pendingPlanPath', () => {
-  const state = freshState();
-  piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tw1', toolName: 'Write', args: { file_path: '/tmp/random.txt' } }),
-    state,
-  );
-  assert.equal(state.pendingPlanPath, null);
-  // exit_plan_mode with null pendingPlanPath → tool_use only (no plan_written)
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tc3', toolName: 'exit_plan_mode', args: { plan: '# Plan' } }),
-    state,
-  );
-  assert.equal(events.length, 1);
-  assert.equal(events[0].type, 'tool_use');
-});
-
-test('plan_written: lowercase write toolName also sets pendingPlanPath', () => {
-  const state = freshState();
-  piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tw1', toolName: 'write', args: { file_path: '/home/user/project/plan/task-a7f9.md' } }),
-    state,
-  );
-  assert.notEqual(state.pendingPlanPath, null);
-});
-
-test('plan_written: content falls back to args.content if args.plan missing', () => {
-  const state = freshState();
-  // Set up plan path
-  piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tw1', toolName: 'Write', args: { file_path: '/home/user/project/.claude/plan/fallback-plan.md' } }),
-    state,
-  );
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tc4', toolName: 'exit_plan_mode', args: { content: '# Alt plan' } }),
-    state,
-  );
-  // exit_plan_mode emits tool_use (idx 0) + plan_written (idx 1) when pendingPlanPath is set
-  assert.equal(events.length, 2);
-  assert.equal((events[1] as any).content, '# Alt plan');
-});
-
-// ---------------------------------------------------------------------------
-// 7. PI internal retry lifecycle — never a terminal Cortex event
+// 6. PI internal retry lifecycle — never a terminal Cortex event
 // ---------------------------------------------------------------------------
 
 test('auto_retry_start and auto_retry_end are non-terminal lifecycle events', () => {

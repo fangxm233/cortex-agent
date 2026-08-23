@@ -1,6 +1,6 @@
-// input:  Node test runner + domain/mcp/tools/tui-plan.ts + tui-ask.ts
-// output: TUI MCP tool business-logic spec lock-down (mock HTTP client; no real webhook)
-// pos:    DR-0012 Phase 3 — cortex-tui-bridge MCP tools regression tests
+// input:  Vitest, TUI plan/ask tools, mock HTTP transport
+// output: Shared interaction MCP schema and handler regressions
+// pos:    Tests the Cortex interaction bridge tools
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as crypto from 'crypto';
 
 import { runPlanExit, type TuiToolDeps } from '../../../src/domain/mcp/tools/tui-plan.js';
-import { runAskUser } from '../../../src/domain/mcp/tools/tui-ask.js';
+import { registerTuiAskTools, runAskUser } from '../../../src/domain/mcp/tools/tui-ask.js';
 
 // --- Mock HTTP client ---
 
@@ -180,6 +180,21 @@ test('cortex_plan_exit forwards threadId when present in deps', async (t) => {
 //    { answers: { [questionText]: <stringified value> } }
 //    multi-select values are pre-joined with ", " by the platform.
 // =====================================================================================
+
+test('cortex_ask_user schema accepts more than four questions and rejects empty input', () => {
+  let schema: Record<string, any> | null = null;
+  const server = {
+    tool(name: string, _description: string, inputSchema: Record<string, any>) {
+      if (name === 'cortex_ask_user') schema = inputSchema;
+    },
+  };
+  registerTuiAskTools(server as any, makeDeps());
+  assert.ok(schema);
+  const questions = (schema as Record<string, any>).questions;
+  const many = Array.from({ length: 8 }, (_, index) => ({ question: `Question ${index + 1}?` }));
+  assert.equal(questions.safeParse([]).success, false);
+  assert.equal(questions.safeParse(many).success, true);
+});
 
 test('cortex_ask_user POSTs the questions[] payload to /hook/ask-user-question', async () => {
   const { post, calls } = makeMockHttp([{ status: 200, body: { answers: { 'Pick one': 'X' } } }]);

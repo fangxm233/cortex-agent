@@ -1,6 +1,6 @@
-// input:  PI MCP bridge, privilege/tool-gate env, clients
-// output: loading, gating, transport, isolation, and retry tests
-// pos:    PI MCP bridge behavior tests
+// input:  PI MCP bridge, interaction env, tool gates, clients
+// output: Loading, gating, error, isolation, and retry tests
+// pos:    Tests PI MCP bridge behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -29,7 +29,10 @@ import {
   shouldLoadThreadControl,
   shouldLoadWeb,
 } from '../src/agent-adapter/pi/mcp-bridge-logic.js';
-import { PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/spawn-args.js';
+import {
+  PI_MCP_COMPOSITION_ENV,
+  PI_TUI_BRIDGE_ENV,
+} from '../src/agent-adapter/pi/spawn-args.js';
 import type { ExtensionAPI, ToolDefinition } from '../src/agent-adapter/pi/pi-ext-types.js';
 import type { McpServerConfig } from '../src/agent-adapter/types.js';
 import { MCP_TOOL_ALLOWLIST_ENV } from '../src/core/mcp-tool-gate.js';
@@ -156,6 +159,7 @@ function fakeHandle(
   stateName: string,
   options: {
     listTools?: () => Promise<{ tools: Array<{ name: string; description?: string; inputSchema: Record<string, unknown> }> }>;
+    callTool?: (params: { name: string; arguments?: Record<string, unknown> }) => Promise<any>;
     close?: () => Promise<void>;
   } = {},
 ): McpClientHandle {
@@ -164,7 +168,8 @@ function fakeHandle(
       listTools: options.listTools ?? (async () => ({
         tools: [{ name: `${stateName}_tool`, description: stateName, inputSchema: { type: 'object' } }],
       })),
-      callTool: async (params) => ({ content: [{ type: 'text', text: String(params.name) }] }),
+      callTool: options.callTool
+        ?? (async (params) => ({ content: [{ type: 'text', text: String(params.name) }] })),
     } as unknown as McpClientHandle['client'],
     transport: { close: options.close ?? (async () => undefined) },
   };
@@ -368,9 +373,57 @@ test('empty compositions and subagents suppress plugin config reads before the f
   assert.deepEqual(buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct',
     CORTEX_PI_SUBAGENT: '1',
+    [PI_TUI_BRIDGE_ENV]: '1',
     [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
   }, { loadPluginConfig }).map(state => state.name), ['core']);
   assert.equal(reads, 0);
+});
+
+test('buildServerStates loads the shared interaction bridge only for eligible direct PI sessions', () => {
+  const cases: Array<{ env: NodeJS.ProcessEnv; hasTui: boolean }> = [
+    { env: { [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_TUI_BRIDGE_ENV]: '1' }, hasTui: true },
+    { env: { [PI_MCP_COMPOSITION_ENV]: 'direct' }, hasTui: false },
+    { env: { [PI_MCP_COMPOSITION_ENV]: 'thread-control', [PI_TUI_BRIDGE_ENV]: '1' }, hasTui: false },
+    { env: { [PI_MCP_COMPOSITION_ENV]: 'none', [PI_TUI_BRIDGE_ENV]: '1' }, hasTui: false },
+  ];
+  for (const { env, hasTui } of cases) {
+    assert.equal(buildServerStates(env).some(state => state.name === 'tui'), hasTui);
+  }
+});
+
+test('buildServerStates validates interaction tools only when the shared bridge is eligible', () => {
+  const allowed = JSON.stringify(['cortex_ask_user']);
+  const states = buildServerStates({
+    [PI_MCP_COMPOSITION_ENV]: 'direct',
+    [PI_TUI_BRIDGE_ENV]: '1',
+    [MCP_TOOL_ALLOWLIST_ENV]: allowed,
+  });
+  assert.ok(states.some(state => state.name === 'tui'));
+  assert.throws(() => buildServerStates({
+    [PI_MCP_COMPOSITION_ENV]: 'direct',
+    [MCP_TOOL_ALLOWLIST_ENV]: allowed,
+  }), /Unknown MCP tool.*cortex_ask_user/);
+});
+
+test('eligible PI sessions register the three shared interaction tool names', async () => {
+  const harness = createPiHarness();
+  const interactionTools = ['cortex_ask_user', 'cortex_plan_enter', 'cortex_plan_exit'];
+  const deps = bridgeDeps({
+    env: { [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_TUI_BRIDGE_ENV]: '1' },
+    spawnClient: async (state) => state.name === 'tui'
+      ? fakeHandle(state.name, {
+        listTools: async () => ({
+          tools: interactionTools.map(name => ({ name, inputSchema: { type: 'object' } })),
+        }),
+      })
+      : fakeHandle(state.name),
+  });
+  await installMcpBridge(harness.pi, deps);
+  await harness.fire('before_agent_start');
+  for (const name of interactionTools) assert.ok(harness.registered.includes(name));
+  for (const name of ['ask_user_question', 'enter_plan_mode', 'exit_plan_mode']) {
+    assert.equal(harness.registered.includes(name), false);
+  }
 });
 
 test('buildServerStates validates a tool gate against the composed built-in union', () => {
@@ -500,6 +553,27 @@ test('plugin config envelope failures are reported while built-ins still registe
   assert.deepEqual(spawned, ['core', 'tasks', 'manager-qa', 'ext']);
   assert.equal(failures.length, 1);
   assert.match(failures[0], /hash mismatch/);
+});
+
+test('bridged MCP errors reject the PI tool call with the server message', async () => {
+  const harness = createPiHarness();
+  const deps = bridgeDeps({
+    env: { CORTEX_PI_SUBAGENT: '1' },
+    spawnClient: async (state) => fakeHandle(state.name, {
+      callTool: async () => ({
+        content: [{ type: 'text', text: 'interaction failed' }],
+        isError: true,
+      }),
+    }),
+  });
+  await installMcpBridge(harness.pi, deps);
+  await harness.fire('before_agent_start');
+  const tool = harness.tools.get('core_tool');
+  assert.ok(tool);
+  await assert.rejects(
+    tool.execute('call-1', {}, undefined, undefined, {} as any),
+    /interaction failed/,
+  );
 });
 
 test('subagent MCP bridge exposes only cortex-core', async () => {

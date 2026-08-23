@@ -1,6 +1,6 @@
-// input:  PI Agent tool and stub child processes
-// output: Role-schema, execution, and usage regressions
-// pos:    Regression tests for PI subagent contracts
+// input:  PI Agent tool, parent env, stub child processes
+// output: Schema, execution, isolation, and usage regressions
+// pos:    Tests PI subagent contracts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { EventEmitter } from 'node:events';
@@ -15,6 +15,7 @@ import {
   MAX_SUBAGENT_TASKS,
   type SubagentToolDeps,
 } from '../src/agent-adapter/pi/subagent.js';
+import { PI_TUI_BRIDGE_ENV } from '../src/agent-adapter/pi/spawn-args.js';
 
 class StubChild extends EventEmitter {
   readonly stdout = new PassThrough();
@@ -174,9 +175,11 @@ test('single child uses JSON/no-session extensions, strips thread env, and retur
   const previousThread = process.env.CORTEX_THREAD_ID;
   const previousTask = process.env.CORTEX_TASK_ID;
   const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  const previousTuiBridge = process.env[PI_TUI_BRIDGE_ENV];
   process.env.CORTEX_THREAD_ID = 'thr_parent';
   process.env.CORTEX_TASK_ID = 'task_parent';
   process.env.PI_CODING_AGENT_DIR = harness.root;
+  process.env[PI_TUI_BRIDGE_ENV] = '1';
   try {
     const run = harness.tool.execute(
       'tool-1',
@@ -206,6 +209,7 @@ test('single child uses JSON/no-session extensions, strips thread env, and retur
     assert.equal(call.options.env.CORTEX_PI_SUBAGENT, '1');
     assert.equal(call.options.env.CORTEX_THREAD_ID, undefined);
     assert.equal(call.options.env.CORTEX_TASK_ID, undefined);
+    assert.equal(call.options.env[PI_TUI_BRIDGE_ENV], undefined);
     assert.equal(call.options.env.PI_CODING_AGENT_DIR, path.join(harness.root, 'pi'));
 
     finish(call.child, 'child answer', {
@@ -235,6 +239,8 @@ test('single child uses JSON/no-session extensions, strips thread env, and retur
     else process.env.CORTEX_TASK_ID = previousTask;
     if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    if (previousTuiBridge === undefined) delete process.env[PI_TUI_BRIDGE_ENV];
+    else process.env[PI_TUI_BRIDGE_ENV] = previousTuiBridge;
     harness.cleanup();
   }
 });

@@ -1,7 +1,7 @@
-// input:  Backend type from types.ts
-// output: Capability enum and Claude/PI capability matrix
-// pos:    Capability declaration matrix per backend
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Backend type
+// output: Capability enum and backend capability matrix
+// pos:    Declares backend feature capabilities
+// >>> If I am updated, update this header and folder CORTEX.md <<<
 
 import type { Backend } from './types.js';
 
@@ -43,10 +43,9 @@ const CLAUDE_CAPS: Capability[] = [
   Capability.MidTurnInject,
 ];
 
-// PI: per DR-0008 §5.1 capability matrix — --skill for Plugins, --system-prompt for SystemPromptOverride, tool-allowlist via adapter;
-// MCP enabled by mcp-bridge.ts extension (task 5754): auto-injected via --extension in PIAdapter.spawn();
-// PlanMode/AskUserQuestion: implemented via tool-shims.ts pseudo-tools + extension_ui_response routing (Phase 2 §S3, 2026-04-27);
-// SessionResume: S2 spike confirmed --session <path> resume works (DR-0008 §8 gate ticked, task 7ca9).
+// PI uses --skill for plugins, --system-prompt for overrides, and adapter tool gates.
+// mcp-bridge.ts supplies built-in/plugin MCP plus shared plan and ask interaction tools.
+// SessionResume uses --session <path>.
 // MidTurnInject: RPC prompt streamingBehavior=steer queues a message at the next agent-loop boundary.
 // Hooks via PI extension bridge per §3.5 — capability declared true because the extension is part of the default PI adapter package.
 const PI_CAPS: Capability[] = [

@@ -15,6 +15,6 @@ MCP tool modules register one Cortex capability group each.
 | task-ops.ts | tool | Runs device file and shell operations |
 | thread-ops.ts | tool | Controls caller thread lifecycle |
 | time.ts | tool | Reports wall-clock time |
-| tui-ask.ts | tool | Handles TUI user questions |
-| tui-plan.ts | tool | Handles TUI plan approval |
+| tui-ask.ts | tool | Handles shared blocking user questions |
+| tui-plan.ts | tool | Handles shared plan approval |
 | ui-file.ts | tool | Sends files to Web UI chats |

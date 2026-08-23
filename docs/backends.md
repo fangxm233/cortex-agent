@@ -80,17 +80,15 @@ rewritten.
 
 ## PI
 
-Full feature parity with Claude Code. PI's adapter bridges the gap where
-PI's native feature set differs:
-
-- **MCP** — implemented via `mcp-bridge.ts`, an extension that connects PI
-  to Cortex's MCP server. Auto-injected via `--extension` at spawn time.
-- **PlanMode / AskUserQuestion** — implemented via `tool-shims.ts` pseudo
-  tools that register `ask`, `exit_plan`, and `todo` as first-class PI
-  tools, routing responses through `extension_ui_response`.
-- **Hooks** — implemented via `hook-bridge.ts`, which translates PI tool
-  events to Cortex hook scripts.
-- **Plugins** — PI's native `--skill` flag maps to Cortex's plugin system.
+PI provides the same Cortex capabilities through adapter extensions.
+`mcp-bridge.ts` connects PI to the built-in and plugin MCP servers and loads
+`cortex-tui-bridge` for user-initiated direct sessions. Claude TUI, Claude
+print, and PI therefore expose the same `cortex_ask_user`,
+`cortex_plan_enter`, and `cortex_plan_exit` tools with the same blocking
+webhook handlers. `tool-shims.ts` supplies the remaining PI-local Agent,
+TodoWrite, WebFetch, and WebSearch tools. `hook-bridge.ts` translates PI tool
+events to Cortex hook scripts, and PI's native `--skill` flag carries Cortex
+plugin skills.
 
 PI sessions use `--session <path>` for resume and `--system-prompt` for
 system prompt override. The adapter handles LF-only NDJSON framing for

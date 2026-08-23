@@ -112,15 +112,15 @@ skill 指南，见 `feishu-doc` skill。
 
 ### cortex-tui-bridge
 
-在交互式 TUI 会话和用户发起的 Claude print 会话中加载。它用经 Cortex 路由的 MCP 等效工具替换 Claude Code 原生的 `EnterPlanMode`、`ExitPlanMode` 和 `AskUserQuestion`。
+直接 Claude TUI 会话、用户发起的直接 Claude print 会话，以及用户发起的直接 PI 会话都会加载这个交互服务器。每个会话启动独立的 stdio 进程，三种模式共享 `agent-server/src/domain/mcp/tui-server.ts` 中的注册与处理逻辑。
 
 | 工具 | 描述 |
 |---|---|
-| `cortex_plan_enter` | 发出智能体处于计划模式的提醒 |
-| `cortex_plan_exit` | 读取计划文件，发送到 Slack 供人类审批，阻塞直到解决 |
-| `cortex_ask_user` | 通过 Slack 模态框询问 1-4 个问题，阻塞直到回答 |
+| `cortex_plan_enter` | 进入共享的只读规划协议 |
+| `cortex_plan_exit` | 读取 `plan_file_path`，提交计划供人类审批，并阻塞到审批完成 |
+| `cortex_ask_user` | 通过会话所属平台提出一个或多个自由文本或选择题，并阻塞等待回答 |
 
-服务器实现在 `agent-server/src/domain/mcp/tui-server.ts`。工具在 `agent-server/src/domain/mcp/tools/tui-plan.js` 和 `tui-ask.js`。
+计划与提问处理器位于 `agent-server/src/domain/mcp/tools/tui-plan.ts` 和 `agent-server/src/domain/mcp/tools/tui-ask.ts`。
 
 ## MCP 配置文件 {#mcp-configuration-files}
 

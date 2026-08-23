@@ -16,7 +16,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | dispatch-reconciler.test.ts | test | Covers optional stale-dispatch reconciliation |
 | edit-handler.test.ts | test | Covers PI restore identity and edit retry routing |
 | first-turn-interrupt-resume.test.ts | test | Covers attachment prompt capture and interrupt |
-| hook-bridge-subscribers-web.test.ts | test | Covers hook to Web interaction delivery |
+| hook-bridge-subscribers-web.test.ts | test | Covers Web question and plan persistence |
 | interaction-records.test.ts | test | Covers interaction create and resolve lifecycle |
 | lifecycle-bg-hold.test.ts | test | Covers lifecycle hold, accounting, grace and cap |
 | lifecycle-rate-limit.test.ts | test | Covers provider-attributed error recovery |

@@ -1,7 +1,7 @@
 // input:  EventBus
-// output: PlanApprovals singleton — unified requestId-keyed plan approval state + PendingPlan type
-// pos:    orch/interactions/ layer, merges pendingPlans + pendingHookPlans, publishes plan.approved
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// output: PendingPlan type and PlanApprovals state
+// pos:    Tracks request-keyed plan approvals
+// >>> If updated, update this header and folder CORTEX.md <<<
 
 import type { EventBus } from '@events/index.js';
 
@@ -13,7 +13,7 @@ export interface PendingPlan {
   sessionName?: string | null;
   executionId?: string | null;
   sessionId?: string | null;
-  /** PI extension_ui_request id — when set, plan approval routes through sendExtensionUiResponse instead of spawning a new turn. */
+  /** Legacy extension UI request id retained for pending approval compatibility. */
   extensionUiId?: string | null;
   threadId?: string | null;
 }

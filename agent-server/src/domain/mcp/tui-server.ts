@@ -1,7 +1,6 @@
-// input:  MCP SDK, tool gate, TUI registrars and webhook transport
-// output: Claude-TUI bridge stdio service assembled from production registrations
-// pos:    DR-0012 bridge loaded only by Claude TUI sessions; no exported name inventory
-// NOTE: "TUI" here refers to Claude CLI's Ink terminal mode (DR-0012), not to the upcoming Cortex TUI.
+// input:  MCP SDK, tool gate, interaction registrars, webhook
+// output: Shared blocking interaction MCP stdio service
+// pos:    Serves human questions and plan approval to agents
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as http from 'node:http';
@@ -79,7 +78,7 @@ registerGatedMcpTools(server, (target) => {
 
 export async function startServer(): Promise<void> {
   if (!channel) {
-    log.warn('SLACK_CHANNEL not set — cortex_plan_exit / cortex_ask_user will error out at call time');
+    log.warn('interaction channel not set — plan and question tools will fail at call time');
   }
   if (!sessionId) {
     log.warn('CORTEX_SESSION_ID not set — webhook will receive null sessionId');

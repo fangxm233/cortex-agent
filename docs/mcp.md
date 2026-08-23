@@ -146,18 +146,20 @@ The tool is in `agent-server/src/domain/mcp/feishu/file.ts`.
 
 ### cortex-tui-bridge
 
-Loaded for interactive TUI sessions and user-initiated Claude print sessions.
-It replaces Claude Code's native `EnterPlanMode`, `ExitPlanMode`, and
-`AskUserQuestion` tools with MCP equivalents routed through Cortex.
+Direct Claude TUI sessions, user-initiated direct Claude print sessions, and
+user-initiated direct PI sessions load this interaction server. Each session
+starts its own stdio process, while all three modes share the registrations and
+handlers in `agent-server/src/domain/mcp/tui-server.ts`.
 
 | Tool | Description |
 |---|---|
-| `cortex_plan_enter` | Emits a reminder that the agent is in plan mode |
-| `cortex_plan_exit` | Reads the plan file, sends to Slack for human approval, blocks until resolved |
-| `cortex_ask_user` | Asks 1–4 questions via Slack modal, blocks until answered |
+| `cortex_plan_enter` | Enters the shared read-only planning protocol |
+| `cortex_plan_exit` | Reads `plan_file_path`, submits the plan for human approval, and blocks until resolved |
+| `cortex_ask_user` | Asks one or more free-text or multiple-choice questions through the session platform and blocks for answers |
 
-The server implementation is at `agent-server/src/domain/mcp/tui-server.ts`.
-Tools are in `agent-server/src/domain/mcp/tools/tui-plan.js` and `tui-ask.js`.
+The plan and question handlers are in
+`agent-server/src/domain/mcp/tools/tui-plan.ts` and
+`agent-server/src/domain/mcp/tools/tui-ask.ts`.
 
 ## MCP configuration files
 

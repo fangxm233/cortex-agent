@@ -1,6 +1,6 @@
-// input:  adapters, tool maps, PI fixtures, normalized events
-// output: adapter dispatch, tool mapping, and event contract tests
-// pos:    Shared agent-adapter contract regressions
+// input:  Adapters, tool maps, PI fixtures, normalized events
+// output: Dispatch, native mapping, and event contract tests
+// pos:    Tests shared agent-adapter contracts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -58,11 +58,11 @@ test('toCanonical / fromCanonical round-trip per DR-0008 §3.4 tool table', () =
   assert.equal(toCanonical('claude', 'ExitPlanMode'), 'exit_plan_mode');
   assert.equal(fromCanonical('claude', 'exit_plan_mode'), 'ExitPlanMode');
 
-  // PI side uses canonical names directly.
+  // PI built-ins use canonical names directly; interaction tools come from MCP.
   assert.equal(toCanonical('pi', 'bash'), 'bash');
   assert.equal(fromCanonical('pi', 'bash'), 'bash');
   assert.equal(fromCanonical('pi', 'glob'), 'glob');
-  assert.equal(fromCanonical('pi', 'ask_user_question'), 'ask_user_question');
+  assert.equal(fromCanonical('pi', 'ask_user_question'), null);
 
   // MCP tool names pass through unchanged on every backend (DR §3.4 last row)
   assert.equal(toCanonical('claude', 'mcp__cortex__remote_bash'), 'mcp__cortex__remote_bash');

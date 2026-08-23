@@ -50,9 +50,6 @@ const PI_TOOL_MAP: NativeMap = {
   glob: 'glob',
   web_fetch: 'web_fetch',
   web_search: 'web_search',
-  ask_user_question: 'ask_user_question',
-  enter_plan_mode: 'enter_plan_mode',
-  exit_plan_mode: 'exit_plan_mode',
   todo_write: 'todo_write',
   skill: 'skill',
 };
@@ -76,8 +73,7 @@ function buildReverse(forward: NativeMap): Map<string, CanonicalToolName> {
   return m;
 }
 
-/** PI answers to these natively without owning a `NativeMap` entry, because the extension shim —
- *  not the name map — registers them (`pi/tool-shims.ts:227`, gated by `decide('agent', 'Agent')`). */
+/** PI answers to these through an extension shim without a NativeMap entry. */
 const PI_SHIM_ONLY_TOOLS = ['agent'];
 
 /** Every tool label a backend's own dispatch boundary answers to. Design §13.10 GS4 draws a

@@ -1,6 +1,6 @@
-// input:  PIAdapter stub, fetch responses, extension-ui events
-// output: PI shim gates, Agent, sanitized web, and turn contracts
-// pos:    PI pseudo-tool and local web regression coverage
+// input:  PI adapter stubs, web responses, extension UI events
+// output: Local shim gates, Agent, web, and generic dialog tests
+// pos:    Tests PI-local tools and extension UI transport
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { afterEach, test, vi } from 'vitest';
@@ -145,57 +145,17 @@ test('D: sendExtensionUiResponse with value', async () => {
   await proc.close();
 });
 
-// Test E: plan->approval->resume (complex flow)
-test('E: plan flow', async () => {
-  const s = makeStubSpawner();
-  const adapter = new PIAdapter(s.spawn, SESSION_DIR);
-  const proc = adapter.spawn({ sessionKey: 'k5', sessionId: null, resume: false }) as PIAgentProcess;
-  const child = s.children[0];
-  await bootstrap(child);
-  const turnPromise = proc.send({ text: 'build a feature' });
-
-  const PLAN_PATH = '/repo/plan/my-plan.md';
-  pushLine(child, { type: 'tool_execution_start', toolCallId: 'tc-write', toolName: 'write', args: { file_path: PLAN_PATH, content: 'Plan: do X' } });
-  pushLine(child, { type: 'tool_execution_end', toolCallId: 'tc-write', result: { content: [{ type: 'text', text: 'Written.' }] } });
-  await Promise.resolve();
-
-  pushLine(child, { type: 'tool_execution_start', toolCallId: 'tc-epm', toolName: 'exit_plan_mode', args: { plan: 'Plan: do X' } });
-  await Promise.resolve();
-
-  const collectedEvents: string[] = [];
-  const collectLoop = (async () => { for await (const evt of proc.events) { collectedEvents.push(evt.type); if (evt.type === 'turn_complete') break; } })();
-
-  pushLine(child, { type: 'extension_ui_request', id: 'ui-confirm-1', method: 'confirm', title: 'Plan ready for review — approve to proceed with implementation.' });
-  await Promise.resolve();
-  proc.sendExtensionUiResponse('ui-confirm-1', { confirmed: true });
-  pushLine(child, { type: 'tool_execution_end', toolCallId: 'tc-epm', result: { content: [{ type: 'text', text: 'Plan approved.' }] } });
-  pushLine(child, { type: 'agent_end', messages: [{ role: 'assistant', content: 'done', usage: { cost: { total: 0.01 } } }] });
-  pushLine(child, { type: 'agent_settled' });
-  await Promise.resolve();
-  await Promise.resolve();
-
-  const result = await turnPromise;
-  await collectLoop;
-  assert.equal(result.planFilePath, PLAN_PATH);
-  assert.equal(result.exitedPlanMode, true);
-  child.emit('close', 0);
-  await proc.close();
-});
-
-// Test F: ask_user_question via extension_ui
-test('F: ask_user_question', async () => {
+// Test F: generic extension dialog routing remains available
+test('F: generic extension dialog', async () => {
   const s = makeStubSpawner();
   const adapter = new PIAdapter(s.spawn, SESSION_DIR);
   const proc = adapter.spawn({ sessionKey: 'k6', sessionId: null, resume: false }) as PIAgentProcess;
   const child = s.children[0];
   await bootstrap(child);
   const turnPromise = proc.send({ text: 'ask me something' });
-  pushLine(child, { type: 'tool_execution_start', toolCallId: 'tc-aq', toolName: 'ask_user_question', args: { questions: [{ question: 'What color?' }] } });
-  await Promise.resolve();
   pushLine(child, { type: 'extension_ui_request', id: 'ui-sel-1', method: 'select', title: 'What color?', options: ['Red', 'Blue'] });
   await Promise.resolve();
   proc.sendExtensionUiResponse('ui-sel-1', { value: 'Blue' });
-  pushLine(child, { type: 'tool_execution_end', toolCallId: 'tc-aq', result: { content: [{ type: 'text', text: 'Blue' }] } });
   pushLine(child, { type: 'agent_end', messages: [] });
   pushLine(child, { type: 'agent_settled' });
   await Promise.resolve();
@@ -276,7 +236,9 @@ const CODER_TOOLS = 'Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,Web
 
 test('J: coder allowlist registers one Agent at session start', async () => {
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
+  const previousSubagent = process.env.CORTEX_PI_SUBAGENT;
   process.env.CORTEX_PI_ALLOWED_TOOLS = CODER_TOOLS;
+  delete process.env.CORTEX_PI_SUBAGENT;
   try {
     const { pi, registered, handlers, emit } = makeMockPi();
     toolShims(pi);
@@ -303,12 +265,16 @@ test('J: coder allowlist registers one Agent at session start', async () => {
   } finally {
     if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
     else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
+    if (previousSubagent === undefined) delete process.env.CORTEX_PI_SUBAGENT;
+    else process.env.CORTEX_PI_SUBAGENT = previousSubagent;
   }
 });
 
-test('J2: unset allowlist exposes all shims after runtime Agent registration', async () => {
+test('J2: unset allowlist exposes only the remaining local shims', async () => {
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
+  const previousSubagent = process.env.CORTEX_PI_SUBAGENT;
   delete process.env.CORTEX_PI_ALLOWED_TOOLS;
+  delete process.env.CORTEX_PI_SUBAGENT;
   try {
     const { pi, registered, emit } = makeMockPi();
     toolShims(pi);
@@ -316,14 +282,17 @@ test('J2: unset allowlist exposes all shims after runtime Agent registration', a
       model: { provider: 'openai-codex', id: 'active-model' },
       modelRegistry: { getAvailable: () => [] },
     });
-    for (const n of [
-      'agent', 'ask_user_question', 'enter_plan_mode', 'exit_plan_mode', 'todo_write', 'web_fetch', 'web_search',
-    ]) {
-      assert.ok(registered.includes(n), `${n} should be registered when no allowlist is set`);
+    for (const name of ['agent', 'todo_write', 'web_fetch', 'web_search']) {
+      assert.ok(registered.includes(name), `${name} should be registered when no allowlist is set`);
+    }
+    for (const name of ['ask_user_question', 'enter_plan_mode', 'exit_plan_mode']) {
+      assert.equal(registered.includes(name), false, `${name} is provided by the shared MCP bridge`);
     }
   } finally {
     if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
     else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
+    if (previousSubagent === undefined) delete process.env.CORTEX_PI_SUBAGENT;
+    else process.env.CORTEX_PI_SUBAGENT = previousSubagent;
   }
 });
 
@@ -344,28 +313,6 @@ test('J2b: CORTEX_PI_SUBAGENT prevents recursive Agent registration', () => {
     else process.env.CORTEX_PI_ALLOWED_TOOLS = previousAllowed;
     if (previousSubagent === undefined) delete process.env.CORTEX_PI_SUBAGENT;
     else process.env.CORTEX_PI_SUBAGENT = previousSubagent;
-  }
-});
-
-test('J3: enter_plan_mode requires writing plan content to the provided file', async () => {
-  const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
-  delete process.env.CORTEX_PI_ALLOWED_TOOLS;
-  const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(SESSION_DIR);
-  try {
-    const { pi, definitions } = makeMockPi();
-    toolShims(pi);
-    const result = await definitions.get('enter_plan_mode').execute(
-      'tc-enter-plan', {}, undefined, undefined, {},
-    );
-    const output = result.content[0].text;
-    assert.match(output, /Plan file: .+plan-\d+\.md/);
-    assert.ok(output.includes(
-      'IMPORTANT: You MUST write the plan content to the provided plan file before calling ExitPlanMode.',
-    ));
-  } finally {
-    cwdSpy.mockRestore();
-    if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
-    else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
   }
 });
 

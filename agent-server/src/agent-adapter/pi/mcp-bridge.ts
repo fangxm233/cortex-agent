@@ -1,6 +1,6 @@
-// input:  PI API, plugin MCP config, tool gate, restricted process env
-// output: gated retryable built-in and plugin MCP tools
-// pos:    PI MCP process and tool bridge
+// input:  PI API, MCP configs, tool gates, process env
+// output: Gated built-in, interaction, and plugin MCP tools
+// pos:    Bridges MCP servers into PI tools
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { ExtensionAPI } from './pi-ext-types.js';
@@ -35,7 +35,7 @@ import {
   shouldLoadThreadControl,
   shouldLoadWeb,
 } from './mcp-bridge-logic.js';
-import { PI_MCP_COMPOSITION_ENV } from './spawn-args.js';
+import { PI_MCP_COMPOSITION_ENV, PI_TUI_BRIDGE_ENV } from './spawn-args.js';
 import {
   PI_PLUGIN_MCP_CONFIG_ENV,
   loadPiPluginMcpConfig,
@@ -55,6 +55,7 @@ const CORE_SERVER_PATH = resolve(_dirname, '../../domain/mcp/core-server.js');
 const TASKS_SERVER_PATH = resolve(_dirname, '../../domain/mcp/tasks-server.js');
 const MANAGER_QA_SERVER_PATH = resolve(_dirname, '../../domain/mcp/manager-qa-server.js');
 const THREAD_SERVER_PATH = resolve(_dirname, '../../domain/mcp/thread-server.js');
+const TUI_SERVER_PATH = resolve(_dirname, '../../domain/mcp/tui-server.js');
 const EXT_SERVER_PATH = resolve(_dirname, '../../domain/mcp/server.js');
 const SLACK_SERVER_PATH = resolve(_dirname, '../../domain/mcp/slack-server.js');
 const FEISHU_SERVER_PATH = resolve(_dirname, '../../domain/mcp/feishu-server.js');
@@ -147,7 +148,7 @@ function assertUniqueServerStateNames(states: ServerState[]): ServerState[] {
 
 const BUILTIN_TOOL_SERVERS: Readonly<Record<string, string>> = {
   core: 'cortex-core', tasks: 'cortex-tasks', 'manager-qa': 'cortex-manager-qa',
-  thread: 'cortex-thread', ext: 'cortex-ext', slack: 'cortex-slack',
+  thread: 'cortex-thread', tui: 'cortex-tui-bridge', ext: 'cortex-ext', slack: 'cortex-slack',
   feishu: 'cortex-feishu', web: 'cortex-web',
 };
 
@@ -242,9 +243,13 @@ export function buildServerStates(
   if (composition === 'none') return validateToolGatedStates(env, []);
   const states = [createState('core', builtinServerConfig('core', CORE_SERVER_PATH, env))];
   if (env.CORTEX_PI_SUBAGENT === '1') return validateToolGatedStates(env, states);
+  const interactionStates = composition === 'direct' && env[PI_TUI_BRIDGE_ENV] === '1'
+    ? [createState('tui', builtinServerConfig('tui', TUI_SERVER_PATH, env))]
+    : [];
   states.push(
     createState('tasks', builtinServerConfig('tasks', TASKS_SERVER_PATH, env)),
     createState('manager-qa', builtinServerConfig('manager-qa', MANAGER_QA_SERVER_PATH, env)),
+    ...interactionStates,
     ...optionalBuiltins(env),
     ...loadPluginStates(
       env,
@@ -451,7 +456,11 @@ class McpBridgeSession {
           signal ? { signal } : undefined,
         );
         const content = (result.content as any[]).map(mapMcpContent);
-        return { content, details: { isError: result.isError ?? false } };
+        if (result.isError) {
+          const message = content.map(item => item.text).filter(Boolean).join('\n');
+          throw new Error(message || `${exposedName} failed`);
+        }
+        return { content };
       },
     });
   }

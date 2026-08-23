@@ -236,6 +236,8 @@ interface ClaudeSpawnCompatibility {
    *  re-pointed once spawned, so a difference must force a fresh one. */
   routeIdentity: string;
   composition: McpComposition;
+  interactionBridge: boolean;
+  tools: string | null;
   pluginCapabilityFingerprint: string | null;
   pluginDirs: string[];
   mcpConfigPaths: string[];
@@ -269,6 +271,8 @@ function sameClaudeSpawnCompatibility(
   return left.cwd === right.cwd
     && left.routeIdentity === right.routeIdentity
     && left.composition === right.composition
+    && left.interactionBridge === right.interactionBridge
+    && left.tools === right.tools
     && left.pluginCapabilityFingerprint === right.pluginCapabilityFingerprint
     && left.supplementalMcpConfigIdentity === right.supplementalMcpConfigIdentity
     && sameTextArray(left.pluginDirs, right.pluginDirs)
@@ -277,10 +281,13 @@ function sameClaudeSpawnCompatibility(
 }
 
 function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCompatibility {
+  const composition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
   return {
     cwd: options.cwd ?? DATA_DIR,
     routeIdentity: claudeRouteIdentity(options),
-    composition: resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp),
+    composition,
+    interactionBridge: composition === 'direct' && options.isUserInitiated === true,
+    tools: options.tools ?? null,
     pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
     pluginDirs: cloneTextArray(options.pluginDirs),
     mcpConfigPaths: cloneTextArray(options.mcpConfigPaths),
@@ -1323,6 +1330,7 @@ function matchesTuiSession(
     && session.mcpComposition === composition
     && session.pluginCapabilityFingerprint === (options.pluginCapabilityFingerprint ?? null)
     && session.supplementalMcpConfigIdentity === (options.supplementalMcpConfigIdentity ?? null)
+    && session.tools === (options.tools ?? null)
     && sameTextArray(session.pluginDirs, cloneTextArray(options.pluginDirs))
     && sameTextArray(session.mcpConfigPaths, cloneTextArray(options.mcpConfigPaths))
     && sameOptionalTextArray(session.mcpToolAllowlist, optionalTextArray(options.mcpToolAllowlist));

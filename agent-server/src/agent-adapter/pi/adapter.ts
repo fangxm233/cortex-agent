@@ -1,5 +1,5 @@
-// input:  Spawn config, provider and usage caches, MCP policy
-// output: PI process facade, cached usage, sessions, events
+// input:  Spawn config, provider caches, MCP policy
+// output: PI processes, interaction eligibility, usage, events
 // pos:    Coordinates PI process and session lifecycles
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -752,8 +752,7 @@ class PISession {
   }
 
   /**
-   * Send extension_ui_response for a pending extension_ui_request dialog.
-   * Call this after receiving ask_user_question NormalizedEvent to unblock the tool shim.
+   * Send extension_ui_response for a pending generic extension dialog.
    * Payload fields depend on the dialog method:
    *   select/input/editor: { value: string } or { cancelled: true }
    *   confirm: { confirmed: boolean } or { cancelled: true }
@@ -912,6 +911,9 @@ function buildSpawnEnvironment(
     mcpComposition: composition,
     mcpToolAllowlist: config.mcpToolAllowlist,
     pluginMcpConfigPath: spawnPluginMcpPath(config, composition, subagentMarker),
+    enableTuiBridge: composition === 'direct'
+      && config.isUserInitiated === true
+      && subagentMarker === undefined,
     subagentMarker,
   }, config.pinnedEnv);
 }

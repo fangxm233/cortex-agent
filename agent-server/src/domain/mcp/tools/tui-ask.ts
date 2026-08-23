@@ -1,6 +1,6 @@
-// input:  McpServer + TuiToolDeps (channel/sessionId/threadId/webhookBaseUrl/httpPost)
-// output: registerTuiAskTools + pure runAskUser business-logic function
-// pos:    DR-0012 Phase 3 — cortex-tui-bridge MCP tool replacing AskUserQuestion for TUI mode
+// input:  McpServer, TuiToolDeps, interaction level codec
+// output: Shared ask-user MCP registration and handler
+// pos:    Implements blocking human questions for agent sessions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { z } from 'zod';
@@ -9,11 +9,9 @@ import { normalizeAskLevel } from '@platform/index.js';
 import type { TuiToolDeps, CallToolResultShape } from './tui-plan.js';
 
 /**
- * Schema mirrors the native AskUserQuestion / PI ask_user_question shape (see
- * agent-adapter/pi/tool-shims.ts:26-45) so the LLM produces identical output regardless of
- * backend: a list of 1-4 questions, each with header / question / options[{label,description}] /
- * multiSelect. This shape is also what /hook/ask-user-question consumes and what
- * jsonl-tail.ts's normalizer expects — keeping all three aligned removes per-backend branches.
+ * The schema mirrors native AskUserQuestion: one or more questions with optional headers,
+ * options, and multi-select behavior. The interaction webhook and transcript normalizer consume
+ * the same shape, so every backend uses one protocol.
  */
 interface AskUserOption {
   label: string;
@@ -41,7 +39,7 @@ interface AskUserArgs {
  */
 export async function runAskUser(args: AskUserArgs, deps: TuiToolDeps): Promise<CallToolResultShape> {
   if (!deps.channel) {
-    return { content: [{ type: 'text', text: 'cortex_ask_user error: no channel configured in MCP env (SLACK_CHANNEL missing)' }], isError: true };
+    return { content: [{ type: 'text', text: 'cortex_ask_user error: no interaction channel configured in MCP env' }], isError: true };
   }
   const questions = Array.isArray(args.questions) ? args.questions : [];
   if (questions.length === 0) {
@@ -134,7 +132,7 @@ export async function runAskUser(args: AskUserArgs, deps: TuiToolDeps): Promise<
 export function registerTuiAskTools(server: McpServer, deps: TuiToolDeps): void {
   server.tool(
     'cortex_ask_user',
-    'Ask the human one or more clarifying questions and BLOCK until they answer (replaces native AskUserQuestion). Posts each question via a Slack modal with optional multiple-choice options. Use this when you need clarification, a decision, or a choice from the user. Supply 1-4 questions per call. Set `multiSelect=true` on a question to allow multi-pick. The answers are returned in the tool_result.',
+    'Ask the human one or more clarifying questions and BLOCK until they answer (replaces native AskUserQuestion). Posts each question through the session interaction channel with optional multiple-choice options. Use this when you need clarification, a decision, or a choice from the user. Set `multiSelect=true` on a question to allow multi-pick. The answers are returned in the tool_result.',
     {
       questions: z.array(
         z.object({
@@ -148,7 +146,7 @@ export function registerTuiAskTools(server: McpServer, deps: TuiToolDeps): void 
           ).optional().describe('Optional multiple-choice options. Omit for free-text answer.'),
           multiSelect: z.boolean().optional().describe('If true, the user may select multiple options (default false).'),
         }),
-      ).min(1).max(4).describe('Questions to ask (1-4 questions).'),
+      ).min(1).describe('Questions to ask (at least one).'),
       level: z.enum(['info', 'warn', 'warning', 'error']).optional()
         .describe("Optional severity of the question card: 'info' (default look), 'warning', or 'error'. 'warn' is accepted as an alias."),
     },

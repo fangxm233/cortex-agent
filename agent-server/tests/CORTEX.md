@@ -11,21 +11,21 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapters, usage pull and event normalization |
-| agent-adapter-claude.test.ts | test | Claude CLI, MCP gates, fallback, hooks and proxy |
+| agent-adapter-claude.test.ts | test | Claude interaction tools, pools, hooks and proxy |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-custom-catalog.test.ts | test | provider definitions and frozen caps reaching spawn catalogs |
-| agent-adapter-pi-event-parser.test.ts | test | PI events with four-way nullable accounting |
+| agent-adapter-pi-event-parser.test.ts | test | PI tool, dialog, lifecycle and usage events |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
-| agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |
+| agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts and task guards |
 | agent-adapter-pi-mcp-config.test.ts | test | PI MCP config privacy and reloads |
-| agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP gates, surfaces, env and retry policy |
+| agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP interaction gates, errors and isolation |
 | agent-adapter-pi-quota-probe.test.ts | test | PI quota labels, persistence, and throttle failure parity |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
-| agent-adapter-pi-subagent.test.ts | test | PI role schema, execution isolation and usage |
-| agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
+| agent-adapter-pi-subagent.test.ts | test | PI role schema, env isolation and usage |
+| agent-adapter-pi-tool-shims.test.ts | test | PI-local shims, dialogs and web tools |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
-| agent-adapter-pi.test.ts | test | PI spawn env, provider discovery, RPC lifecycle and resume |
-| agent-adapter.test.ts | test | adapter dispatch, tool mapping and event contracts |
+| agent-adapter-pi.test.ts | test | PI interaction env, RPC lifecycle and resume |
+| agent-adapter.test.ts | test | adapter dispatch, native tools and event contracts |
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
 | auth-events.test.ts | test | auth case, boundary, privacy and recovery events |

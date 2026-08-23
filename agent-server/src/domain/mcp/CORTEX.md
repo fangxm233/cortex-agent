@@ -11,7 +11,7 @@ Gated MCP stdio servers expose Cortex tools by privilege and platform.
 | slack-server.ts | entry | Serves Slack file tools |
 | tasks-server.ts | entry | Serves task monitoring tools |
 | thread-server.ts | entry | Serves thread control tools |
-| tui-server.ts | entry | Serves TUI interaction tools |
+| tui-server.ts | entry | Serves shared blocking interaction tools |
 | web-server.ts | entry | Serves Web UI file tools |
 | feishu/ | subdir | Implements Feishu MCP operations |
 | tools/ | subdir | Implements shared MCP tools |

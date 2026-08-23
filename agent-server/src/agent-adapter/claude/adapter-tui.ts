@@ -1,5 +1,5 @@
-// input:  cwd, composition, tool gate, prompts, TUI deps
-// output: interactive Claude session with spawn policy
+// input:  Cwd, composition, tool gates, prompts, TUI deps
+// output: Interactive Claude session with frozen tool surface
 // pos:    Runs Claude TUI sessions under tmux
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -167,6 +167,7 @@ export class ClaudeTuiSession {
   /** Endpoint plus credential digests of the route this tmux session was launched on. */
   readonly routeIdentity: string;
   readonly pluginDirs: string[];
+  readonly tools: string | null;
   readonly mcpConfigPaths: string[];
   readonly mcpToolAllowlist: string[] | null;
 
@@ -210,6 +211,7 @@ export class ClaudeTuiSession {
     this.supplementalMcpConfigIdentity = config.supplementalMcpConfigIdentity ?? null;
     this.routeIdentity = claudeRouteIdentity(config);
     this.pluginDirs = [...(config.pluginDirs ?? [])];
+    this.tools = config.tools ?? null;
     this.mcpConfigPaths = [...(config.mcpConfigPaths ?? [])];
     this.mcpToolAllowlist = config.mcpToolAllowlist === undefined
       || config.mcpToolAllowlist === null ? null : [...config.mcpToolAllowlist];

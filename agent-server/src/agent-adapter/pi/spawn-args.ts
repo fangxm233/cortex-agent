@@ -1,5 +1,5 @@
-// input:  PI spawn options, task context, MCP gate, trial controls
-// output: Isolated PI argv and sanitized child environment
+// input:  PI options, task context, MCP gates, trial controls
+// output: PI argv, sanitized env, interaction marker
 // pos:    Builds PI process arguments and environment
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -8,6 +8,7 @@ import { PI_PLUGIN_MCP_CONFIG_ENV } from './mcp-config.js';
 import { MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 
 export const PI_MCP_COMPOSITION_ENV = 'CORTEX_PI_MCP_COMPOSITION';
+export const PI_TUI_BRIDGE_ENV = 'CORTEX_PI_TUI_BRIDGE';
 
 export interface PISpawnOptions {
   sessionDir: string;
@@ -97,6 +98,8 @@ export interface PIEnvOptions {
   mcpToolAllowlist?: string[] | null;
   /** Private path to the typed plugin MCP config written by the adapter. */
   pluginMcpConfigPath?: string | null;
+  /** Trusted marker enabling the shared interaction MCP bridge. */
+  enableTuiBridge?: boolean;
   /** Explicit marker for the restricted PI subagent surface. */
   subagentMarker?: string | null;
 }
@@ -113,7 +116,7 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE',
   'CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE',
   'CORTEX_PI_ALLOWED_TOOLS', 'CORTEX_PI_SUBAGENT', PI_PLUGIN_MCP_CONFIG_ENV,
-  PI_MCP_COMPOSITION_ENV, MCP_TOOL_ALLOWLIST_ENV,
+  PI_MCP_COMPOSITION_ENV, PI_TUI_BRIDGE_ENV, MCP_TOOL_ALLOWLIST_ENV,
 ] as const;
 
 function setOptional(env: NodeJS.ProcessEnv, key: string, value: unknown): void {
@@ -156,6 +159,7 @@ export function buildPiEnv(
     env[MCP_TOOL_ALLOWLIST_ENV] = JSON.stringify(options.mcpToolAllowlist);
   }
   setOptional(env, PI_PLUGIN_MCP_CONFIG_ENV, options.pluginMcpConfigPath);
+  if (options.enableTuiBridge === true) env[PI_TUI_BRIDGE_ENV] = '1';
   setOptional(env, 'CORTEX_PI_SUBAGENT', options.subagentMarker);
   applyContext(env, options);
   return env;

@@ -1,5 +1,5 @@
-// input:  Claude options, context, composition, tool gate, hooks
-// output: Claude CLI args, gated env/MCP configs, route identity
+// input:  Claude options, composition, tool gates, hooks
+// output: Claude args, interaction tools, MCP configs, env
 // pos:    Resolves Claude process configuration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -133,6 +133,12 @@ function printModeArgs(options: ClaudeSpawnOptions, mode: ClaudeSpawnMode): stri
   return args;
 }
 
+function replaceInteractionTools(tools: string, includeBridge: boolean): string {
+  const filtered = tools.split(',').filter(tool => tool && !TUI_STRIP_TOOLS.has(tool));
+  const resolved = includeBridge ? [...filtered, ...TUI_BRIDGE_TOOLS] : filtered;
+  return [...new Set(resolved)].join(',');
+}
+
 function resolveEffectiveTools(
   options: ClaudeSpawnOptions,
   mode: ClaudeSpawnMode,
@@ -140,14 +146,9 @@ function resolveEffectiveTools(
   wantsInteractionBridge: boolean,
 ): string {
   const toolsDefault = mode === 'tui' && isDirect ? TUI_TOOLS : DEFAULT_TOOLS;
-  let tools = options.tools || toolsDefault;
-  if (mode === 'tui' && options.tools) {
-    tools = options.tools.split(',').filter(tool => !TUI_STRIP_TOOLS.has(tool)).join(',');
-  }
-  if (mode === 'print' && wantsInteractionBridge) {
-    tools = [tools, ...TUI_BRIDGE_TOOLS].filter(Boolean).join(',');
-  }
-  return tools;
+  const tools = options.tools || toolsDefault;
+  if (wantsInteractionBridge) return replaceInteractionTools(tools, true);
+  return mode === 'tui' ? replaceInteractionTools(tools, false) : tools;
 }
 
 function appendCoreArgs(
@@ -199,9 +200,12 @@ function appendExtraOptions(
   for (const [flag, value] of Object.entries(options ?? {})) args.push(flag, value);
 }
 
-function buildClaudeSettings(options: ClaudeSpawnOptions): Record<string, any> {
+function buildClaudeSettings(
+  options: ClaudeSpawnOptions,
+  effectiveTools: string,
+): Record<string, any> {
   const settings: Record<string, any> = {
-    hooks: options.disableHooks ? {} : buildHooksSettings(options.tools),
+    hooks: options.disableHooks ? {} : buildHooksSettings(effectiveTools),
   };
   if (options.outputStyle) settings.outputStyle = options.outputStyle;
   return settings;
@@ -225,7 +229,7 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   appendPromptOptions(args, options);
   appendRepeatedOption(args, '--plugin-dir', options.pluginDirs);
   appendExtraOptions(args, options.extraOption);
-  args.push('--settings', JSON.stringify(buildClaudeSettings(options)));
+  args.push('--settings', JSON.stringify(buildClaudeSettings(options, tools)));
   appendSessionIdentity(args, options);
   return args;
 }

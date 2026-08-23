@@ -1,6 +1,6 @@
-// input:  user turns, platform files, mutation leases, callbacks
-// output: provider runs with reusable attachment downloads
-// pos:    Plain user-message and injection path
+// input:  User turns, files, mutation leases, callbacks
+// output: Provider runs, tool traces, generic dialog routing
+// pos:    Runs plain user messages and injections
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as path from 'path';
@@ -20,7 +20,6 @@ import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@do
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
 import { consumePendingTurnSupersession, finishTurnTracking, handleAgentSuccess, handleAgentError, initTurnTracking } from './lifecycle.js';
 import { buildSessionTag, buildUserProcessingMessage, makeFallbackNotifier, makeStreamingMessageCallback, computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
-import { readFileSync } from 'fs';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import { Icons } from '../core/icons.js';
@@ -30,7 +29,7 @@ import { buildDurableHooks } from './durable-helpers.js';
 
 const log = createLogger('agent-runner');
 import { createToolTrace } from '@platform/index.js';
-import { setStreamingCallback, clearStreamingCallback, publishPlanSubmitted, publishAskUserRequested } from './routing/hook-bridge.js';
+import { setStreamingCallback, clearStreamingCallback, publishAskUserRequested } from './routing/hook-bridge.js';
 import { publishSessionContextUsage, publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTurn } from './session-events.js';
 import { createSessionDeltaStream } from './delta-coalescer.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn, type MidTurnInjectDeps } from './mid-turn-inject.js';
@@ -415,12 +414,8 @@ export class AgentRunner {
         },
         onContextUsage: persistContext,
         onFallback: callbacks.onFallback,
-        onToolUse: composeToolUse(
-          composeToolUse(callbacks.onToolUse, interactiveCallbacks.onToolUse),
-          persistToolUse,
-        ),
+        onToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
         onToolResult: persistToolResult,
-        onPlanWritten: interactiveCallbacks.onPlanWritten,
         onAskUserQuestion: interactiveCallbacks.onAskUserQuestion,
       });
       // Background-task continuation: if the turn left background work remaining (running OR
@@ -716,84 +711,25 @@ function composeToolUse(
   return (name, input, toolUseId) => { a(name, input, toolUseId); b(name, input, toolUseId); };
 }
 
-/**
- * Build interactive callbacks for plan_written, ask_user_question, and tool_use events.
- * These fire during the turn (not after) and publish bus events so the existing
- * Slack interaction flow handles them.
- *
- * Exported so that all runThread call sites (thread-executor, scheduled-task,
- * task-dispatch) can wire these callbacks — without them, ask_user_question
- * events are silently dropped and the subprocess blocks forever.
- *
- * ORDERING INVARIANT: onToolUse fires synchronously before onAskUserQuestion
- * within the same event-loop tick (guaranteed by the PI adapter's sequential
- * event processing in event-parser.ts). The closure variables pendingAskInput
- * and pendingExitPlanMode rely on this ordering — onToolUse captures state
- * that onAskUserQuestion consumes. If the adapter ever processes events
- * asynchronously or out of order, this contract breaks silently.
- */
-export function buildInteractiveCallbacks(channel: string, sessionId: string | null, threadId: string | null = null) {
-  let pendingPlanContent: string | null = null;
-  let pendingPlanPath: string | null = null;
-  // Captured full tool input from tool_use event — used by onAskUserQuestion
-  // so the Slack message gets the full Claude-style schema (header, options
-  // with descriptions, multiSelect) instead of the degraded extension_ui_request data.
-  let pendingAskInput: { questions: Array<{ question: string; header: string; options: Array<{ label: string; description: string }>; multiSelect: boolean }> } | null = null;
-
-  const onPlanWritten = (event: { path: string; content: string; toolUseId: string }) => {
-    pendingPlanContent = event.content;
-    pendingPlanPath = event.path;
+/** Route generic PI extension dialogs through the shared platform interaction UI. */
+export function buildInteractiveCallbacks(
+  channel: string,
+  sessionId: string | null,
+  threadId: string | null = null,
+) {
+  const onAskUserQuestion = (event: {
+    toolUseId: string;
+    questions: Array<{ question: string; options?: string[]; multi?: boolean }>;
+  }) => {
+    const questions = event.questions.map((question) => ({
+      question: question.question,
+      options: question.options?.map(label => ({ label, description: '' })) ?? [],
+      multiSelect: question.multi ?? false,
+      header: question.question.substring(0, 12),
+    }));
+    publishAskUserRequested(
+      crypto.randomUUID(), channel, sessionId ?? '', questions, event.toolUseId, threadId,
+    );
   };
-
-  // Track pending exit_plan_mode so the subsequent confirm() ask_user_question
-  // is correctly routed as plan approval even when plan_written didn't fire
-  // (happens when the LLM skips writing to a known plan directory).
-  let pendingExitPlanMode: { plan?: string } | null = null;
-
-  // Capture full tool input when the LLM calls ask_user_question (before the
-  // tool shim calls ctx.ui.input which only emits a degraded extension_ui_request).
-  const onToolUse = (name: string, input: any) => {
-    if (name === 'AskUserQuestion' || name === 'ask_user_question') {
-      pendingAskInput = input;
-    }
-    if (name === 'ExitPlanMode' || name === 'exit_plan_mode') {
-      pendingExitPlanMode = input || {};
-    }
-  };
-
-  const onAskUserQuestion = (event: { toolUseId: string; questions: Array<{ question: string; options?: string[]; multi?: boolean }> }) => {
-    const requestId = crypto.randomUUID();
-    if (pendingPlanContent !== null || pendingExitPlanMode !== null) {
-      // This ask_user_question is the confirm() from exit_plan_mode → treat as plan approval.
-      // pendingPlanContent comes from plan_written event (Write to a plan directory);
-      // pendingExitPlanMode comes from tool_use event (LLM called exit_plan_mode directly).
-      let planContent = pendingPlanContent ?? pendingExitPlanMode?.plan ?? '';
-      // The file is the authoritative plan snapshot; ExitPlanMode.plan is often only a summary.
-      if (pendingPlanPath) {
-        try { const fileContent = readFileSync(pendingPlanPath, 'utf8'); if (fileContent.trim()) planContent = fileContent; } catch {}
-      }
-      publishPlanSubmitted(requestId, channel, sessionId ?? '', planContent, pendingPlanPath, event.toolUseId, threadId);
-      pendingPlanContent = null;
-      pendingPlanPath = null;
-      pendingExitPlanMode = null;
-    } else {
-      // Use captured tool input (Claude-style schema) if available; fall back
-      // to the degraded extension_ui_request data for backward compatibility.
-      let questions: Array<{ question: string; header: string; options: Array<{ label: string; description: string }>; multiSelect: boolean }>;
-      if (pendingAskInput?.questions?.length) {
-        questions = pendingAskInput.questions;
-        pendingAskInput = null;
-      } else {
-        questions = event.questions.map((q) => ({
-          question: q.question,
-          options: q.options?.map((o) => ({ label: o, description: '' })) ?? [],
-          multiSelect: false,
-          header: q.question.substring(0, 12),
-        }));
-      }
-      publishAskUserRequested(requestId, channel, sessionId ?? '', questions, event.toolUseId, threadId);
-    }
-  };
-
-  return { onPlanWritten, onAskUserQuestion, onToolUse };
+  return { onPlanWritten: () => undefined, onAskUserQuestion, onToolUse: () => undefined };
 }

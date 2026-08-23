@@ -1,12 +1,11 @@
-// input:  PI --mode rpc stdout JSONL lines
-// output: normalized events with nullable exact accounting
-// pos:    Pure PI RPC event translator
+// input:  PI RPC JSONL and parser state
+// output: Normalized tool, dialog, lifecycle, and usage events
+// pos:    Translates PI RPC events
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
 import { toCanonical } from '../normalize/tool-names.js';
-import { isPlanFilePath } from '../claude/event-parser.js';
 import { decodeQuotaNotice } from '@domain/costs/codex-quota.js';
 
 interface PIPendingCompletion {
@@ -31,12 +30,6 @@ interface PIAgentEndSummary extends PIPendingCompletion {
 export interface PIEventParserState {
   /** Set on first successful bootstrap response; also serves as the session_started dedup sentinel. */
   sessionId: string | null;
-  /** Path of the most recent Write() call to a plan directory. Cleared on new session. */
-  pendingPlanPath: string | null;
-  /** True while agent is in plan mode (between enter_plan_mode and exit_plan_mode). */
-  inPlanMode: boolean;
-  /** toolCallId of the pending enter_plan_mode call; used to correlate tool_execution_end. */
-  pendingEnterPlanModeId: string | null;
   /** Cumulative turn count; incremented on each message_end to drive turn_progress. */
   turnProgressCount: number;
   /** Low-level PI runs accumulated until agent_settled closes the Cortex turn. */
@@ -46,9 +39,6 @@ export interface PIEventParserState {
 export function createPIEventParserState(): PIEventParserState {
   return {
     sessionId: null,
-    pendingPlanPath: null,
-    inPlanMode: false,
-    pendingEnterPlanModeId: null,
     turnProgressCount: 0,
     pendingCompletion: emptyPendingCompletion(),
   };
@@ -149,14 +139,14 @@ export function piRpcLineToNormalized(line: string, state: PIEventParserState): 
     return [];
   }
 
-  // --- tool_execution_start → tool_use / ask_user_question / plan_written ---
+  // --- tool_execution_start → tool_use ---
   if (type === 'tool_execution_start') {
-    return handleToolExecutionStart(ev, state);
+    return handleToolExecutionStart(ev);
   }
 
-  // --- tool_execution_end → tool_result (+ plan_mode_entered when enter_plan_mode completes) ---
+  // --- tool_execution_end → tool_result ---
   if (type === 'tool_execution_end') {
-    return handleToolExecutionEnd(ev, state);
+    return handleToolExecutionEnd(ev);
   }
 
   // --- agent_end → low-level usage; agent_settled → terminal turn_complete ---
@@ -205,79 +195,16 @@ export function piRpcLineToNormalized(line: string, state: PIEventParserState): 
 // Private helpers
 // ---------------------------------------------------------------------------
 
-function handleToolExecutionStart(
-  ev: Record<string, unknown>,
-  state: PIEventParserState,
-): NormalizedEvent[] {
+function handleToolExecutionStart(ev: Record<string, unknown>): NormalizedEvent[] {
   const toolCallId = ev['toolCallId'];
   const toolName = ev['toolName'];
   const args = ev['args'] ?? {};
-
   if (typeof toolCallId !== 'string' || typeof toolName !== 'string') return [];
-
-  // ask_user_question pseudo-tool shim (task 5b5c).
-  // DR-0008 §5.6: emit tool_use here (not ask_user_question) to avoid duplicating the
-  // ask_user_question NormalizedEvent that extension_ui_request will emit when the shim
-  // calls ctx.ui.select/input inside execute(). The ask_user_question NormalizedEvent comes
-  // exclusively from the extension_ui_request path (handleExtensionUiRequest below).
-  if (toolName === 'ask_user_question') {
-    const canonicalName = toCanonical('pi', toolName) ?? toolName;
-    return [{ type: 'tool_use', toolUseId: toolCallId, name: canonicalName, input: args }];
-  }
-
-  // enter_plan_mode pseudo-tool shim.
-  // Emits tool_use + plan_mode_entered so the Cortex adapter can notify observers
-  // (e.g. Slack) that the agent entered plan mode. The plan file path is extracted
-  // from the tool_result (populated by the shim in execute()), but since we only
-  // have tool_execution_start here, we parse it from the tool shim's deterministic
-  // path pattern and store it for the subsequent exit_plan_mode to reference.
-  if (toolName === 'enter_plan_mode') {
-    const canonicalName = toCanonical('pi', toolName) ?? toolName;
-    state.inPlanMode = true;
-    state.pendingEnterPlanModeId = toolCallId;
-    return [{ type: 'tool_use', toolUseId: toolCallId, name: canonicalName, input: args }];
-  }
-
-  // exit_plan_mode pseudo-tool shim (task 5b5c).
-  // N2H-1: toolUseId is toolCallId from this event.
-  // Always emit a tool_use event so onToolUse captures exit_plan_mode (needed by
-  // buildInteractiveCallbacks to route the subsequent confirm() as plan approval).
-  // Additionally emit plan_written when pendingPlanPath is available.
-  if (toolName === 'exit_plan_mode') {
-    const canonicalName = toCanonical('pi', toolName) ?? toolName;
-    const argsObj = asRecord(args);
-    const content =
-      typeof argsObj['plan'] === 'string'
-        ? argsObj['plan']
-        : typeof argsObj['content'] === 'string'
-          ? argsObj['content']
-          : '';
-    const events: NormalizedEvent[] = [
-      { type: 'tool_use', toolUseId: toolCallId, name: canonicalName, input: args },
-    ];
-    if (state.pendingPlanPath !== null) {
-      events.push({ type: 'plan_written', toolUseId: toolCallId, path: state.pendingPlanPath, content });
-    }
-    state.inPlanMode = false;
-    // DEBUG: trace plan content flow
-    return events;
-  }
-
-  // Track Write calls to plan directories so exit_plan_mode can reference the path.
-  if (toolName === 'write' || toolName === 'Write') {
-    const argsObj = asRecord(args);
-    const filePath = argsObj['file_path'] ?? argsObj['path'];  // PI uses `path`, Claude Code uses `file_path`
-    if (typeof filePath === 'string' && isPlanFilePath(filePath)) {
-      state.pendingPlanPath = filePath;
-    }
-  }
-
-  // Regular tool → tool_use with canonical name.
   const canonicalName = toCanonical('pi', toolName) ?? toolName;
   return [{ type: 'tool_use', toolUseId: toolCallId, name: canonicalName, input: args }];
 }
 
-function handleToolExecutionEnd(ev: Record<string, unknown>, state: PIEventParserState): NormalizedEvent[] {
+function handleToolExecutionEnd(ev: Record<string, unknown>): NormalizedEvent[] {
   const toolCallId = ev['toolCallId'];
   if (typeof toolCallId !== 'string') return [];
 
@@ -298,20 +225,7 @@ function handleToolExecutionEnd(ev: Record<string, unknown>, state: PIEventParse
     }
   }
 
-  const events: NormalizedEvent[] = [{ type: 'tool_result', toolUseId: toolCallId, ok: !isError, content }];
-
-  // When enter_plan_mode completes, extract the plan file path from the result
-  // text and emit plan_mode_entered for observability (Slack notification etc.).
-  if (state.pendingEnterPlanModeId === toolCallId && !isError) {
-    state.pendingEnterPlanModeId = null;
-    const pathMatch = content.match(/^Plan file:\s*(.+)$/m);
-    const planFilePath = pathMatch?.[1]?.trim() ?? '';
-    if (planFilePath) {
-      events.push({ type: 'plan_mode_entered', toolUseId: toolCallId, planFilePath });
-    }
-  }
-
-  return events;
+  return [{ type: 'tool_result', toolUseId: toolCallId, ok: !isError, content }];
 }
 
 function emptyPendingCompletion(): PIPendingCompletion {

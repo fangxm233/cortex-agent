@@ -1,6 +1,6 @@
-// input:  Claude modules, hooks, tool gates, config, settings
-// output: Claude spawn, gate, fallback and compact tests
-// pos:    Claude adapter behavior tests
+// input:  Claude modules, hooks, MCP gates, settings
+// output: Spawn, interaction, pool, fallback, and compact tests
+// pos:    Tests Claude adapter behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { afterAll, beforeAll, test } from 'vitest';
@@ -695,6 +695,9 @@ test("buildSpawnArgs mode='tui' — explicit tools have interaction tools stripp
   assert.ok(tools.includes('Bash'));
   assert.ok(tools.includes('Read'));
   assert.ok(tools.includes('Write'));
+  for (const tool of TUI_BRIDGE_TOOLS) {
+    assert.ok(tools.includes(tool), `direct TUI must include ${tool}`);
+  }
 });
 
 test("buildSpawnArgs mode='tui' — thread/core session also strips interaction tools from explicit list", () => {
@@ -826,6 +829,9 @@ test('buildSpawnArgs print + isUserInitiated — layers TUI bridge MCP config an
   // Tools: base DEFAULT_TOOLS retained + the 3 bridge tools appended
   const tools = args[args.indexOf('--tools') + 1].split(',');
   assert.ok(tools.includes('Bash'), 'base tools retained');
+  for (const native of ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode']) {
+    assert.equal(tools.includes(native), false, `${native} must be replaced in print mode`);
+  }
   for (const t of TUI_BRIDGE_TOOLS) {
     assert.ok(tools.includes(t), `bridge tool ${t} appended`);
   }
@@ -981,6 +987,16 @@ function countingSpawner(counter: { value: number }) {
   }) as any;
 }
 
+test('Claude print pool replaces the session when interaction eligibility changes', async () => {
+  await assertPoolReplacement({
+    key: 'pooled-print-interaction',
+    getSession: (key) => adapterTest.getPooledPrintSession(key),
+    shared: { processSpawner: (() => ({ process: stubClaudeChild() })) as any },
+    first: { isUserInitiated: false },
+    second: { isUserInitiated: true },
+  });
+});
+
 test('Claude print pool replaces the session when plugin capability changes', async () => {
   await assertPoolReplacement({
     key: 'pooled-print',
@@ -1019,6 +1035,16 @@ test('Claude print pool distinguishes an undeclared gate from a declared empty g
     },
     first: {},
     second: { mcpToolAllowlist: [] },
+  });
+});
+
+test('Claude TUI pool replaces the session when the tool surface changes', async () => {
+  await assertPoolReplacement({
+    key: 'pooled-tui-tools',
+    getSession: (key) => adapterTest.getPooledTuiSession(key),
+    shared: { claudeBackend: 'tui' },
+    first: { rawTools: 'Bash,Read' },
+    second: { rawTools: 'Bash,Read,Write' },
   });
 });
 

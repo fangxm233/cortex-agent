@@ -269,7 +269,7 @@ cortex-hook ask --question "磁盘即将写满——清理旧 checkpoint？" \
 
 - **路由。** 显式 `channel` 优先。否则辅助库与 CLI 回退到钩子环境变量：`CORTEX_HOOK_CHANNEL`（会话钩子），然后 `SLACK_CHANNEL`（智能体侧钩子）。只有 `sessionId` 时（`CORTEX_HOOK_SESSION_ID` 或显式传入），服务器会经 session registry 反解出该会话的 channel。`cortex:thread.*` 的 payload 不含 channel，线程钩子须自行传 `channel` 或 `sessionId`。
 - **阻塞。** 服务器在 hook-bridge 中挂起请求，TTL 30 分钟。响应是 `{ answers }`，TTL 到期则是 `{ error: "timeout", answers: {} }`。`cortex-hook ask` 有答案时退出码为 `0`，超时为 `2`，其他错误为 `1`，shell 钩子可按 `$?` 分支。发起提问的钩子应把 `run.timeout` 设得高于预期等待时长，并声明 `blocking: { "mode": "webhook", "ttlMin": 30 }`，与随附的 `ask-user-question-hook` 声明一致。
-- **多问题。** `askUser` 接受 1–4 个问题对象；`cortex-hook ask --payload <file|->` 接受同样的 JSON 数组，例如 `cat questions.json | cortex-hook ask --payload - --session-id <id>`。
+- **多问题。** `askUser` 接受任意非空问题数组；`cortex-hook ask --payload <file|->` 接受同样的 JSON 数组，例如 `cat questions.json | cortex-hook ask --payload - --session-id <id>`。Cortex 不限制问题数量，但目标平台仍可能拒绝超过其自身限制的 payload。
 - **冒烟测试。** `--dry-run`（CLI）或 `dryRun: true`（辅助库）只记录事件并合成返回，不真正发卡片。
 
 智能体本体则通过 `cortex_ask_user` MCP 工具的 `level` 参数获得同样的分级能力。

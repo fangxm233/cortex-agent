@@ -425,9 +425,11 @@ they share one routing and blocking contract:
   A hook that asks must set its `run.timeout` above the expected wait and
   declare `blocking: { "mode": "webhook", "ttlMin": 30 }`, mirroring the
   shipped `ask-user-question-hook` declaration.
-- **Multiple questions.** `askUser` takes 1–4 question objects;
+- **Multiple questions.** `askUser` takes any non-empty question array;
   `cortex-hook ask --payload <file|->` accepts the same array as JSON, e.g.
-  `cat questions.json | cortex-hook ask --payload - --session-id <id>`.
+  `cat questions.json | cortex-hook ask --payload - --session-id <id>`. Cortex
+  does not impose a question-count maximum; the destination platform may still
+  reject a payload that exceeds its own limits.
 - **Smoke tests.** `--dry-run` (CLI) or `dryRun: true` (helper) journals the
   event and resolves synthetically without posting a card.
 

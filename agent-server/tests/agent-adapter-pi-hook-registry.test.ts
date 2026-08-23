@@ -1,6 +1,6 @@
-// input:  PI hook bridge, tool shims, fixture hooks, shipped task guard
-// output: PI registry, native contract, interaction, and task-guard regressions
-// pos:    Verifies ordered PI hook registration and Edit/Write guard dispatch
+// input:  PI hook bridge, fixture hooks, shipped task guard
+// output: Registry, native contract, and task-guard regressions
+// pos:    Tests PI hook registration and guard dispatch
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -9,7 +9,6 @@ import * as path from 'node:path';
 import { test } from 'vitest';
 
 import hookBridge from '../src/agent-adapter/pi/hook-bridge.js';
-import toolShims from '../src/agent-adapter/pi/tool-shims.js';
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -387,77 +386,6 @@ test('shipped tasks-yaml-guard blocks PI edit and write calls without a task loc
     assert.equal(result?.block, true, `expected PI ${toolName} to be blocked`);
     assert.match(result?.reason ?? '', /cortex-task lock-acquire/);
   }
-});
-
-function writeInteractionEntries(fixture: Fixture): void {
-  const specs = [
-    ['03-ask-user-question-hook.json', 'interaction-ask.mjs', 'ask',
-      "({ hookSpecificOutput: { updatedInput: { ...payload.tool_input, answers: { Color: 'Blue' } } } })"],
-    ['04-exit-plan-mode-hook.json', 'interaction-exit.mjs', 'exit',
-      "({ hookSpecificOutput: { updatedInput: { ...payload.tool_input, notice: 'approved' } } })"],
-  ] as const;
-  for (const [filename, script, label, expression] of specs) {
-    writeResponder(script, label, expression);
-    writeEntry(fixture.registryDir, filename, {
-      ...readDefaultEntry(filename),
-      run: { script },
-    });
-  }
-}
-
-function askParams(): Record<string, unknown> {
-  return {
-    questions: [{
-      question: 'Choose a color',
-      header: 'Color',
-      options: [
-        { label: 'Blue', description: 'Use blue' },
-        { label: 'Green', description: 'Use green' },
-      ],
-      multiSelect: false,
-    }],
-  };
-}
-
-async function executeShim(
-  pi: FakePi,
-  name: string,
-  params: Record<string, unknown>,
-  ctx: ExtensionContext,
-): Promise<any> {
-  const tool = pi.tools.get(name);
-  assert.ok(tool, `expected ${name} shim`);
-  return tool.execute(`call-${name}`, params, undefined, undefined, ctx);
-}
-
-test('default interaction hooks leave PI questions and approvals to one shim response', async (t) => {
-  const fixture = setupFixture(t);
-  writeInteractionEntries(fixture);
-  const previousTools = process.env.CORTEX_PI_ALLOWED_TOOLS;
-  process.env.CORTEX_PI_ALLOWED_TOOLS = 'AskUserQuestion,ExitPlanMode';
-  t.onTestFinished(() => {
-    if (previousTools === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
-    else process.env.CORTEX_PI_ALLOWED_TOOLS = previousTools;
-  });
-
-  const answers = ['Blue', '__APPROVED__'];
-  let responseCount = 0;
-  const ctx = makeCtx(async () => answers[responseCount++] ?? null);
-  const pi = new FakePi();
-  hookBridge(pi as unknown as ExtensionAPI);
-  toolShims(pi as unknown as ExtensionAPI);
-
-  const askInput = askParams();
-  await pi.emit('tool_call', { toolName: 'ask_user_question', toolCallId: 'ask', input: askInput }, ctx);
-  const askResult = await executeShim(pi, 'ask_user_question', askInput, ctx);
-  const exitInput = {};
-  await pi.emit('tool_call', { toolName: 'exit_plan_mode', toolCallId: 'exit', input: exitInput }, ctx);
-  const exitResult = await executeShim(pi, 'exit_plan_mode', exitInput, ctx);
-
-  assert.equal(responseCount, 2);
-  assert.match(askResult.content[0].text, /Blue/);
-  assert.match(exitResult.content[0].text, /approved/i);
-  assert.deepEqual(readLabels(fixture.logFile), []);
 });
 
 function writeNativeEntry(
