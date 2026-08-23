@@ -28,6 +28,7 @@ Committed campaign result summaries preserve path-sanitized reproducibility evid
 | terminal-bench-2.1-vendor-codex-comparison-r2-2026-08-20.json | report | Records no Codex comparison because the final stage-1 request failed before promotion and both campaigns |
 | terminal-bench-2.1-vendor-codex-upgrade-validation-2026-08-20.json | evidence | Pins Codex 0.148.0, account models, exact images, probes, TTL and validation results |
 | terminal-bench-2.1-vendor-codex-live-2026-08-20.json | evidence | Latest-Codex live baseline: diagnosed handshake correction, single gate, three terminal rewards, clean revocation and immutable resume |
+| terminal-bench-2.1-codex-xhigh-three-surface-2026-08-23.json | evidence | Compares PI, Cortex direct and native Codex xhigh over three open-network tasks |
 | terminal-bench-2.1-vendor-claude-staged-2026-08-20.json | evidence | Records the sole Claude handshake HTTP 429, clean scan, revocation proof and permanent staged stop |
 | terminal-bench-2.1-vendor-claude-comparison-2026-08-20.json | report | Records no comparison because stage 1 prevented promotion and both campaigns |
 | terminal-bench-2.1-vendor-claude-conditional-f077-2026-08-20.json | evidence | Records the forced live usage GO reading, the single authorized Claude HTTP 429, clean scan, no promotion and stopped campaign stages |

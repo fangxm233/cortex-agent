@@ -1,0 +1,137 @@
+{
+  "artifacts": {
+    "npm_sha256": "1f90dcdaea8eb4929ad82be49aa1cec3f709970149fdc35274b75887727fcf0f",
+    "provenance_commit": "44225561a8e14236fb4e07748700eb28b127ab89",
+    "wheel_sha256": "a3120892addb6fac2aa0da25c75c4c122b5aac4454c1fae0692e06eb8b620bc3"
+  },
+  "campaign_config_head": "86bedbb6f127bf8e9d261e6b0ad34ae17858b0c0",
+  "date": "2026-08-23",
+  "headline": "PI, Cortex direct, and native Codex each solved all three open-network tasks with gpt-5.6-sol at xhigh.",
+  "implementation_commit": "44225561a8e14236fb4e07748700eb28b127ab89",
+  "pre_score_failures": [
+    {
+      "cause": "declared subnet overlapped an existing Docker network; r2 moved to a free pool",
+      "provider_requests": 0,
+      "stage": "network-create",
+      "surface": "pure-pi"
+    },
+    {
+      "cause": "task admission reported a pinned-image mismatch; recovery config uses constraints-scheduling-r7-r8",
+      "provider_requests": 0,
+      "stage": "task-admission",
+      "surface": "cortex-direct",
+      "task_id": "constraints-scheduling"
+    },
+    {
+      "cause": "production server readiness timed out in the concurrent run; recovery succeeded alone",
+      "provider_requests": 0,
+      "stage": "server-readiness",
+      "surface": "cortex-direct",
+      "task_id": "db-wal-recovery"
+    }
+  ],
+  "resume": {
+    "all_trials_skipped": true,
+    "campaigns": [
+      "tb21-picdx-r2-0823",
+      "tb21-cxdir-r2-0823",
+      "tb21-cxdir-r3-0823",
+      "tb21-natcdx-0823"
+    ],
+    "new_provider_requests": 0,
+    "new_request_basis": "all terminal trials were skipped; retained provider_requests fields are not deltas"
+  },
+  "safety": {
+    "all_selected_scored_trial_revocations_proven": true,
+    "all_selected_scored_trial_scans_clean": true,
+    "post_run_campaign_containers": 0,
+    "post_run_campaign_launcher_processes": 0,
+    "post_run_campaign_networks": 0
+  },
+  "schema_version": "cortex-bench-three-surface-summary/1",
+  "source_sha256": {
+    "cleanup": "297101fb89fc92d435fd69b1d20a241fde48aeddb7e9a31b6bf2d6d5684c5b2f",
+    "direct-r1-config": "5c4b95fbd01c1290c5b7aba311e1d8ae1b8b4975fffcb8a56c80ece827f20c8a",
+    "direct-r1-db-exception": "933cfdb5db55e2c68017385c79c0c883e5f65d0e99c6c07787ead45be4e8be08",
+    "direct-r1-run": "9cecef8730553377c709723b73caa8833ec2e6307a27e159ca03b780213d2500",
+    "direct-r1-summary": "bc4a371a2b8daad9b208e471ffe3a19e447184faff37cb7860e909b1a3038db9",
+    "direct-r2-config": "a73467a298b31facfa8dc380d46759b5cedebe85141d0dd84a40091cd0885252",
+    "direct-r2-resume": "9671241e18628ffc2dc3c9c40bed8bef1528cacb5630726289622bd520609c38",
+    "direct-r2-run": "01dd2f90ec6e8ff6db83ab487241c88f86caa02114c93f406433b4f1d56f1f49",
+    "direct-r2-summary": "aeb69c3a4eff57d3f1e2c2c2de9f5358a927be01f7c4f60e0b2315d73f9643f6",
+    "direct-r3-config": "4f59005bfc43a2cf46272823cf0368b2a8463902d1771d0a59c55cb906d659c6",
+    "direct-r3-resume": "2f7e3431be27cac1cbbd3a66ab0b0047e3c98a29acd7913bb925051f9917dbe3",
+    "direct-r3-run": "3f0cb66bb77ce0bf33ea800fe7853e381ab439005c911a0be9cb1e21058cfafc",
+    "direct-r3-summary": "7b204362fd2a87052786fd37d458c223807e2a7288ba5b5aa7ae290a041e2beb",
+    "native-resume": "13b016a7a232c409cd290332701b7b133414f75c41e50d51f9fb7d83826537ef",
+    "native-run": "170cf577c6b281a3c49b2968d06c524f937da8f6f94cb716a0996a40bb344115",
+    "native-summary": "a4145893826ea33473e74377e729bc0cabe63038eb72be26612368229667da42",
+    "pi-initial-network-fault": "21b4bbb604fd0ff863e28721532439fa063f16d7db48c5a8b60e77b044575f56",
+    "pi-resume": "fd1b03c3b1585b9250fdba2e54498ae611c653ef86e9276a3c851f330cd5cbfd",
+    "pi-run": "7ead247731dded2dba04f6e2dbc5b26e22f0e8a8d753d9063e380a7ec4ebeabf",
+    "pi-summary": "cc9fc4bd600ca365d01370dd0c9e91d4edce54d1bfd77a59e5642942bc950d04"
+  },
+  "surfaces": [
+    {
+      "cli": {"name": "pi", "version": "0.82.1"},
+      "input_tokens": 101637,
+      "model": "gpt-5.6-sol",
+      "network": "open",
+      "output_tokens": 8202,
+      "provider": "openai-codex",
+      "requests": 22,
+      "score": "3/3",
+      "surface": "pure-pi",
+      "thinking": "xhigh",
+      "trials": [
+        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 237.833, "image_digest": "sha256:5f16cd3f75c54b22866a823b35e39305155c784886d1db5f894272d89f7cbbed", "input_tokens": 22031, "output_tokens": 4251, "requests": 9, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "chess-best-move", "terminal_state": "terminal-success"},
+        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 155.881, "image_digest": "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353", "input_tokens": 18172, "output_tokens": 1645, "requests": 5, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "constraints-scheduling", "terminal_state": "terminal-success"},
+        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 183.7, "image_digest": "sha256:7199e472b87adc22c356e9a364d453c6f825938de6ab7f6422b787735dbf47f7", "input_tokens": 61434, "output_tokens": 2306, "requests": 8, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "db-wal-recovery", "terminal_state": "terminal-success"}
+      ]
+    },
+    {
+      "cli": {"name": "pi", "version": "2026.8.6"},
+      "input_tokens": 156259,
+      "model": "gpt-5.6-sol",
+      "network": "open",
+      "output_tokens": 13518,
+      "provider": "openai-codex",
+      "requests": 26,
+      "score": "3/3",
+      "surface": "cortex-direct",
+      "thinking": "xhigh",
+      "trials": [
+        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 574.424, "image_digest": "sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b", "input_tokens": 73456, "output_tokens": 6293, "requests": 12, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "chess-best-move", "terminal_state": "terminal-success"},
+        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 513.723, "image_digest": "sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c", "input_tokens": 59281, "output_tokens": 5344, "requests": 9, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "constraints-scheduling", "terminal_state": "terminal-success"},
+        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 393.089, "image_digest": "sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a", "input_tokens": 23522, "output_tokens": 1881, "requests": 5, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "db-wal-recovery", "terminal_state": "terminal-success"}
+      ]
+    },
+    {
+      "cli": {"name": "codex", "version": "0.148.0"},
+      "input_tokens": 334746,
+      "model": "gpt-5.6-sol",
+      "network": "open",
+      "output_tokens": 11537,
+      "provider": "openai-codex",
+      "requests": 26,
+      "score": "3/3",
+      "surface": "native-codex",
+      "thinking": "xhigh",
+      "trials": [
+        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 324.296, "image_digest": "sha256:7ec70cbe5726a332ec7c559d7145f82c67317a529457b071b7eae44032b6e728", "input_tokens": 165873, "output_tokens": 3697, "requests": 13, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "chess-best-move", "terminal_state": "terminal-success"},
+        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 229.509, "image_digest": "sha256:31859b5bb36e1d507e330c3c75dc7adf830137fc72e0e4d1a88e68f48fdb903c", "input_tokens": 62244, "output_tokens": 2315, "requests": 5, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "constraints-scheduling", "terminal_state": "terminal-success"},
+        {"cached_tokens": {"status": "unavailable"}, "elapsed_seconds": 252.38, "image_digest": "sha256:d2a78b8e5aa9c842d9dfa21ceed714859ff5f06b141eb15880c62850158ff5cc", "input_tokens": 106629, "output_tokens": 5525, "requests": 8, "revocation_proven": true, "reward": 1.0, "scan_clean": true, "task_id": "db-wal-recovery", "terminal_state": "terminal-success"}
+      ]
+    }
+  ],
+  "totals": {
+    "input_tokens": 592642,
+    "output_tokens": 33257,
+    "planned_scored_trials": 9,
+    "requests": 74,
+    "reward": 9.0,
+    "terminal_successes": 9,
+    "usd_cost": null,
+    "usd_cost_status": "subscription_transport_has_no_usd_price_accounting"
+  }
+}
