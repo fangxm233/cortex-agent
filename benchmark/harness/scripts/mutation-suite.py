@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# input:  the committed DeepSeek adapter, proxy, arming, evidence and compiler mechanism
-# output: regenerated mutation manifest and offline capability evidence, or a refusal
+# input:  DeepSeek adapter, proxy, evidence, sealed profile and spawn cap
+# output: regenerated mutation manifest and offline capability evidence
 # pos:    Capability mutation suite runner
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -33,9 +33,9 @@ LAUNCHER = "benchmark/harness/src/cortex_bench_harness/launcher"
 DEEPSEEK = f"{PROXY}/adapters/deepseek_chat_completions.py"
 SERVER = f"{PROXY}/server.py"
 EVIDENCE_MODULE = f"{LAUNCHER}/capability_evidence.py"
-COMPILER = "agent-server/src/domain/benchmark/policy-compiler.ts"
+PRODUCTION_HOME = f"{LAUNCHER}/production_home.py"
+SPAWN_CONFIG = "agent-server/src/domain/agents/spawn-config.ts"
 ADAPTER_TESTS = "tests/proxy/test_deepseek_adapter.py"
-PI_TESTS = "tests/domain/benchmark/trial-adapter-pi.test.ts"
 
 ROUTE_GUARD = "        if target.path not in CHAT_COMPLETIONS_PATHS or target.query:"
 ACCOUNTED = (
@@ -190,21 +190,18 @@ MUTATIONS: tuple[tuple[str, str, list[tuple[str, str]], str, str], ...] = (
     ("evidence_manifest_kills", EVIDENCE_MODULE, [(
         '    if mutation["killed"] is not True:', "    if False:",
     )], "tests/launcher/test_capability_evidence.py", "counts_kills_or_binding"),
-    # --- the compiler that projects the declared cap ---
-    ("pi_cap_declared", COMPILER, [(
-        "  return context.arm.limits.max_output_tokens;", "  return 256;",
-    )], PI_TESTS, "pins the DeepSeek benchmark model output cap"),
-    ("pi_cap_projection", "agent-server/src/domain/benchmark/trial-adapter-factory.ts", [(
-        "    spawnConfig.piModelMaxTokens = spec.policy.model_execution.max_output_tokens "
-        "?? undefined;",
-        "    spawnConfig.piModelMaxTokens = undefined;",
-    )], PI_TESTS, "pins the DeepSeek benchmark model output cap"),
-    ("paid_pi_version", COMPILER, [(
-        "    && id === 'pi-deepseek-api-key' "
-        "&& context.input.cli_artifact.version !== '0.82.1';",
-        "    && false;",
-    )], "tests/domain/benchmark/policy-compiler.test.ts",
-     "requires the evidence-pinned PI version"),
+    # --- the current two-step projection of the declared cap ---
+    ("pi_cap_declared", PRODUCTION_HOME, [(
+        '    profile["maxOutputTokens"] = max_output_tokens',
+        '    profile["maxOutputTokens"] = max_output_tokens + 1',
+    )], "tests/launcher/test_production_home.py",
+     "declared_output_cap_is_projected_into_the_sealed_profile"),
+    ("pi_cap_projection", SPAWN_CONFIG, [(
+        "    piModelMaxTokens: config.backend === 'pi' "
+        "? config.maxOutputTokens ?? undefined : undefined,",
+        "    piModelMaxTokens: undefined,",
+    )], "tests/domain/agents/profile-thinking.test.ts",
+     "PI maxOutputTokens is validated and propagated into the resolved spawn"),
 )
 
 
