@@ -383,7 +383,7 @@ def test_issued_permit_fields_cannot_be_rebound() -> None:
 
 def test_permit_refuses_an_unsupported_row_before_credential_use(tmp_path: Path) -> None:
     with pytest.raises(LiveHandshakePermitRefused, match="unsupported"):
-        run_handshake(tmp_path, capability_id="pi-openai-codex-oauth")
+        run_handshake(tmp_path, capability_id="pi-api-key")
 
 
 def test_permit_refuses_a_capability_it_does_not_name(tmp_path: Path) -> None:

@@ -18,6 +18,7 @@ from cortex_bench_harness.launcher.capability_evidence import (
     CODEX_OFFLINE_CONTRACT,
     DEEPSEEK_OFFLINE_CONTRACT,
     MUTATION_MANIFEST_SCHEMA_VERSION,
+    PI_CODEX_OFFLINE_CONTRACT,
     validate_capability_evidence,
     validate_offline_supporting_artifacts,
 )
@@ -29,6 +30,9 @@ CLAUDE_KEY = CredentialCapabilityKey(
 )
 CODEX_KEY = CredentialCapabilityKey(
     "codex-cli", "openai-codex", "openai-codex-responses", "oauth",
+)
+PI_CODEX_KEY = CredentialCapabilityKey(
+    "pi", "openai-codex", "openai-codex-responses", "oauth",
 )
 # The three numbers the run declares per trial. Evidence attests the mechanism that enforces a
 # declared envelope, never one run's choice of values, so none of these may appear in it.
@@ -46,6 +50,11 @@ CODEX_PROOF_PATHS = {
     "p0_wire_capture_sha256": HARNESS_DIR / "tests/fixtures/vendor-wire/codex/current-contract.json",
     "vendor_lifecycle_test_sha256": HARNESS_DIR / "tests/launcher/test_vendor_codex_lifecycle_docker.py",
     "model_freeze_test_sha256": HARNESS_DIR / "tests/package/test_vendor_model_freeze.py",
+}
+PI_CODEX_PROOF_PATHS = {
+    "vendor_lifecycle_test_sha256": HARNESS_DIR / "tests/launcher/test_vendor_pi_codex_lifecycle_docker.py",
+    "runtime_projection_test_sha256": HARNESS_DIR / "tests/launcher/test_vendor_agents.py",
+    "proxy_scan_test_sha256": HARNESS_DIR / "tests/proxy/test_row_four_trial_scan.py",
 }
 
 
@@ -97,15 +106,18 @@ def test_capability_metadata_is_declared_per_capability() -> None:
     deepseek = CAPABILITY_EVIDENCE_METADATA["pi-deepseek-api-key"]
     claude = CAPABILITY_EVIDENCE_METADATA["claude-subscription"]
     codex = CAPABILITY_EVIDENCE_METADATA["codex-subscription"]
+    pi_codex = CAPABILITY_EVIDENCE_METADATA["pi-openai-codex-oauth"]
 
     assert deepseek.metadata_fields == frozenset({"pi_version", "model_metadata_sha256"})
     assert claude.metadata_fields == frozenset({"claude_code_version"})
     assert codex.metadata_fields == frozenset({"codex_cli_version"})
+    assert pi_codex.metadata_fields == frozenset({"pi_version"})
     assert deepseek.offline_fields == frozenset({
         "mutation_manifest_sha256", "mutations_total", "mutations_killed",
     })
     assert claude.offline_fields == frozenset({"synthetic_observation_sha256"})
     assert codex.offline_fields == frozenset(CODEX_PROOF_PATHS)
+    assert pi_codex.offline_fields == frozenset(PI_CODEX_PROOF_PATHS)
 
 
 def test_deepseek_evidence_output_is_byte_for_byte_unchanged() -> None:
@@ -178,6 +190,35 @@ def test_validates_shipped_codex_live_and_preserved_zero_paid_evidence() -> None
     } == {
         field: hashlib.sha256(source.read_bytes()).hexdigest()
         for field, source in CODEX_PROOF_PATHS.items()
+    }
+
+
+def test_validates_shipped_pi_codex_offline_evidence() -> None:
+    import cortex_bench_harness.launcher.credential_capabilities as registry
+
+    row = registry.CAPABILITY_REGISTRY[PI_CODEX_KEY]
+    offline_path = registry._evidence_path(row.id, row.state)
+
+    assert row.state == "offline-contract-passed"
+    assert row.evidence_sha256 is not None
+    offline = validate_capability_evidence(
+        offline_path,
+        row.evidence_sha256,
+        capability_id=row.id,
+        key=PI_CODEX_KEY,
+        state=row.state,
+        adapter_id="openai-codex-responses/oauth",
+    )
+    validate_offline_supporting_artifacts(offline_path.parent, offline)
+    assert offline["implementation_commit"] == PI_CODEX_OFFLINE_CONTRACT[
+        "implementation_commit"
+    ]
+    assert offline["pi_version"] == PI_CODEX_OFFLINE_CONTRACT["pi_version"]
+    assert {
+        field: offline[field] for field in PI_CODEX_PROOF_PATHS
+    } == {
+        field: hashlib.sha256(source.read_bytes()).hexdigest()
+        for field, source in PI_CODEX_PROOF_PATHS.items()
     }
 
 
@@ -445,6 +486,31 @@ def test_shipped_mutation_manifest_kills_every_listed_mutation() -> None:
 
 def test_accepts_an_internally_valid_supporting_manifest(tmp_path: Path) -> None:
     validate_offline_supporting_artifacts(tmp_path, supporting(tmp_path, manifest()))
+
+
+def test_committed_source_suite_accepts_no_side_artifacts(tmp_path: Path) -> None:
+    payload = {
+        "adapter_id": "openai-codex-responses/oauth",
+        "capability_id": "pi-openai-codex-oauth",
+        "capability_key": {
+            "credential_kind": "oauth",
+            "protocol": "openai-codex-responses",
+            "provider": "openai-codex",
+            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
+            "runner_or_backend": "pi",
+        },
+        "implementation_commit": PI_CODEX_OFFLINE_CONTRACT["implementation_commit"],
+        "pi_version": PI_CODEX_OFFLINE_CONTRACT["pi_version"],
+        "proxy_scan_test_sha256": PI_CODEX_OFFLINE_CONTRACT["proxy_scan_test_sha256"],
+        "runtime_projection_test_sha256":
+            PI_CODEX_OFFLINE_CONTRACT["runtime_projection_test_sha256"],
+        "schema_version": CAPABILITY_EVIDENCE_SCHEMA_VERSION,
+        "state": "offline-contract-passed",
+        "vendor_lifecycle_test_sha256":
+            PI_CODEX_OFFLINE_CONTRACT["vendor_lifecycle_test_sha256"],
+    }
+
+    validate_offline_supporting_artifacts(tmp_path, payload)
 
 
 def test_refuses_a_manifest_whose_counts_kills_or_binding_do_not_hold(tmp_path: Path) -> None:

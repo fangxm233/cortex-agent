@@ -36,6 +36,16 @@ CODEX_OFFLINE_CONTRACT = {
     "model_freeze_test_sha256":
         "f82078745f86c7e8705f9bc95767d8fd273a5a1279897de759d80438f4370c9f",
 }
+PI_CODEX_OFFLINE_CONTRACT = {
+    "implementation_commit": "1d082ce02fbc634198e576b8f9757a833e89bed9",
+    "pi_version": "0.82.1",
+    "vendor_lifecycle_test_sha256":
+        "1961ed2081faff75a5455b1a41d8ba443f73f6320dce221ce8b60ed1f6107b23",
+    "runtime_projection_test_sha256":
+        "6c2b2c2b24125dde4f1d4e53fed95e481a91648f52f5cb364687eca445ec7f01",
+    "proxy_scan_test_sha256":
+        "9f6411fa2a77f65f3a6e7b58b6c51acfc5295ad8f8b626383b4813bfba717171",
+}
 CLAUDE_P0_CAPTURE_SHA256 = "fcc17df7ff3e2d7e618856e11479a315b72c7dcdfa85984e45c6f2564eccda45"
 CLAUDE_P0_BETA_HEADER = (
     "claude-code-20250219,interleaved-thinking-2025-05-14,"
@@ -99,6 +109,23 @@ CAPABILITY_EVIDENCE_METADATA: Mapping[str, CapabilityEvidenceMetadata] = Mapping
             "model_freeze_test_sha256": 64,
         }),
         offline_contract=MappingProxyType(CODEX_OFFLINE_CONTRACT),
+        supporting_artifacts=MappingProxyType({}),
+        offline_proof="committed-source-suite",
+    ),
+    "pi-openai-codex-oauth": CapabilityEvidenceMetadata(
+        adapter_id="openai-codex-responses/oauth",
+        metadata_fields=frozenset({"pi_version"}),
+        offline_fields=frozenset({
+            "vendor_lifecycle_test_sha256", "runtime_projection_test_sha256",
+            "proxy_scan_test_sha256",
+        }),
+        text_fields=frozenset({"pi_version"}),
+        hex_fields=MappingProxyType({
+            "vendor_lifecycle_test_sha256": 64,
+            "runtime_projection_test_sha256": 64,
+            "proxy_scan_test_sha256": 64,
+        }),
+        offline_contract=MappingProxyType(PI_CODEX_OFFLINE_CONTRACT),
         supporting_artifacts=MappingProxyType({}),
         offline_proof="committed-source-suite",
     ),

@@ -66,15 +66,11 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
             "pi-deepseek-api-key", "live-handshake-passed",
             "f11e82fd0efecfda60490de953f3af39833cda1adce0e2b87e0f078bafa289d5",
         ),
-    # This `??` is no longer the interlock it once was: the arming point now refuses an
-    # unadmitted row outright, before it reads a credential, so this row fails closed by
-    # mechanism rather than by an unfilled member. The protocol's value IS established from the
-    # installed package's own registry and filling it is a fact-recording act, not a raise —
-    # the row stays `unsupported` on grounds no member can fix: nothing writes the transport
-    # pin the client needs, the second-host egress proof is Gate 10's, and revocation does not
-    # reach the token-host leg.
-    _key("pi", "openai-codex", "??", "oauth"):
-        CredentialCapability("pi-openai-codex-oauth", "unsupported"),
+    _key("pi", "openai-codex", "openai-codex-responses", "oauth"):
+        CredentialCapability(
+            "pi-openai-codex-oauth", "offline-contract-passed",
+            "a72024944505c3c3f89655320558ef2d11bbfc35dfa2af4705f56867eef94568",
+        ),
     CODEX_CLI_CAPABILITY_KEY:
         CredentialCapability(
             "codex-subscription", "live-handshake-passed",

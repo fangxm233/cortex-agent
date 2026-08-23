@@ -846,7 +846,7 @@ def test_a_route_already_revoked_is_not_revoked_a_second_time(
 
 @pytest.mark.parametrize(
     "capability",
-    ["pi-api-key", "pi-openai-codex-oauth", "codex-subscription"],
+    ["pi-api-key", "codex-subscription"],
 )
 def test_refuses_to_start_when_no_adapter_matches_the_capability_key(
     tmp_path: Path, capability: str,
