@@ -144,12 +144,12 @@ preflight and how to delegate to the CLI's embedded `lark-doc` / `lark-sheets`
 The server implementation is at `agent-server/src/domain/mcp/feishu-server.ts`.
 The tool is in `agent-server/src/domain/mcp/feishu/file.ts`.
 
-### cortex-tui-bridge
+### cortex-interaction-bridge
 
 Direct Claude TUI sessions, user-initiated direct Claude print sessions, and
 user-initiated direct PI sessions load this interaction server. Each session
 starts its own stdio process, while all three modes share the registrations and
-handlers in `agent-server/src/domain/mcp/tui-server.ts`.
+handlers in `agent-server/src/domain/mcp/interaction-server.ts`.
 
 | Tool | Description |
 |---|---|
@@ -158,8 +158,8 @@ handlers in `agent-server/src/domain/mcp/tui-server.ts`.
 | `cortex_ask_user` | Asks one or more free-text or multiple-choice questions through the session platform and blocks for answers |
 
 The plan and question handlers are in
-`agent-server/src/domain/mcp/tools/tui-plan.ts` and
-`agent-server/src/domain/mcp/tools/tui-ask.ts`.
+`agent-server/src/domain/mcp/tools/interaction-plan.ts` and
+`agent-server/src/domain/mcp/tools/interaction-ask.ts`.
 
 ## MCP configuration files
 
@@ -176,7 +176,7 @@ origin platform.
 | `~/.cortex/config/mcp-config-tasks.json` | Thread-session layer | cortex-tasks only |
 | `~/.cortex/config/mcp-config-manager-qa.json` | Thread-session answer layer | cortex-manager-qa only |
 | `~/.cortex/config/mcp-config-thread.json` | Thread-session-only layer | cortex-thread only |
-| `~/.cortex/config/mcp-config-tui.json` | Interaction layering (on-demand) | cortex-tui-bridge only |
+| `~/.cortex/config/mcp-config-interaction.json` | Interaction layering (on-demand) | cortex-interaction-bridge only |
 | `~/.cortex/config/mcp-config-slack.json` | Slack-specific layering (on-demand) | cortex-slack |
 
 Each file follows Claude Code's standard MCP config format:
@@ -304,15 +304,15 @@ The MCP server processes receive a subset of the agent server's environment:
 
 | Variable | Source | Used by |
 |---|---|---|
-| `SLACK_CHANNEL` | Channel parameter at spawn time | cortex-ext (slack_send_file), tui-server |
+| `SLACK_CHANNEL` | Channel parameter at spawn time | cortex-ext (slack_send_file), interaction-server |
 | `SLACK_BOT_TOKEN` | process.env | cortex-ext |
-| `CORTEX_SESSION_ID` | Session context | tui-server, context tools |
+| `CORTEX_SESSION_ID` | Session context | interaction-server, context tools |
 | `CORTEX_SESSION_NAME` | Session context | context tools |
 | `CORTEX_THREAD_ID` | Thread context | cortex-thread tools, PI thread-control predicate, context tools |
 | `CORTEX_PROFILE` | Session context | context tools |
 | `CORTEX_PROJECT` | Session context | context tools |
 | `CORTEX_EXECUTION_ID` | Execution context | task lock hooks |
-| `CORTEX_TUI_MODE` | Set to `'1'` in TUI mode | tui-server |
+| `CORTEX_TUI_MODE` | Set to `'1'` in TUI mode | Claude TUI process |
 | `CORTEX_CALLBACK_SOURCE` | Optional callback metadata | cortex-ext |
 | `CORTEX_SCHEDULE_TASK_ID` | Optional schedule task ID | cortex-ext |
 | `ANTHROPIC_BASE_URL` | Optional API base URL override | Model routing |

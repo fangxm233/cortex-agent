@@ -22,7 +22,7 @@ $CORTEX_HOME/
 │   ├── mcp-config-tasks.json     # 只读任务监控分层
 │   ├── mcp-config-manager-qa.json # 共享 manager 回答分层
 │   ├── mcp-config-thread.json    # 线程控制分层
-│   ├── mcp-config-tui.json       # TUI 交互分层
+│   ├── mcp-config-interaction.json # 共享交互分层
 │   └── hooks/                    # 钩子注册表——每个钩子一个 JSON 声明
 ├── data/
 │   ├── mode.json                 # 当前运行时模式和配置

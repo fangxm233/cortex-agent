@@ -1,4 +1,4 @@
-// input:  Vitest, TUI plan/ask tools, mock HTTP transport
+// input:  Vitest, interaction plan/ask tools, mock HTTP transport
 // output: Shared interaction MCP schema and handler regressions
 // pos:    Tests the Cortex interaction bridge tools
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -10,14 +10,14 @@ import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
 
-import { runPlanExit, type TuiToolDeps } from '../../../src/domain/mcp/tools/tui-plan.js';
-import { registerTuiAskTools, runAskUser } from '../../../src/domain/mcp/tools/tui-ask.js';
+import { runPlanExit, type InteractionToolDeps } from '../../../src/domain/mcp/tools/interaction-plan.js';
+import { registerInteractionAskTools, runAskUser } from '../../../src/domain/mcp/tools/interaction-ask.js';
 
 // --- Mock HTTP client ---
 
 interface RecordedCall { url: string; body: any; }
 
-function makeMockHttp(responses: Array<{ status?: number; body: any }>): { post: TuiToolDeps['httpPost']; calls: RecordedCall[] } {
+function makeMockHttp(responses: Array<{ status?: number; body: any }>): { post: InteractionToolDeps['httpPost']; calls: RecordedCall[] } {
   const calls: RecordedCall[] = [];
   let i = 0;
   const post = async (url: string, body: any) => {
@@ -28,10 +28,10 @@ function makeMockHttp(responses: Array<{ status?: number; body: any }>): { post:
   return { post, calls };
 }
 
-function makeDeps(overrides: Partial<TuiToolDeps> = {}): TuiToolDeps {
+function makeDeps(overrides: Partial<InteractionToolDeps> = {}): InteractionToolDeps {
   return {
     channel: 'C-test',
-    sessionId: 'sid-tui-1',
+    sessionId: 'sid-interaction-1',
     threadId: null,
     webhookBaseUrl: 'http://127.0.0.1:3001',
     httpPost: async () => ({ status: 200, body: {} }),
@@ -66,7 +66,7 @@ test('cortex_plan_exit POSTs to /hook/exit-plan-mode with planContent loaded fro
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /\/hook\/exit-plan-mode$/);
   assert.equal(calls[0].body.channel, 'C-test');
-  assert.equal(calls[0].body.sessionId, 'sid-tui-1');
+  assert.equal(calls[0].body.sessionId, 'sid-interaction-1');
   assert.ok(calls[0].body.planContent.includes('# my plan'));
   assert.equal(calls[0].body.toolInput.summary, 'short summary');
   assert.equal(calls[0].body.toolInput.plan_file_path, planPath);
@@ -188,7 +188,7 @@ test('cortex_ask_user schema accepts more than four questions and rejects empty 
       if (name === 'cortex_ask_user') schema = inputSchema;
     },
   };
-  registerTuiAskTools(server as any, makeDeps());
+  registerInteractionAskTools(server as any, makeDeps());
   assert.ok(schema);
   const questions = (schema as Record<string, any>).questions;
   const many = Array.from({ length: 8 }, (_, index) => ({ question: `Question ${index + 1}?` }));
@@ -214,7 +214,7 @@ test('cortex_ask_user POSTs the questions[] payload to /hook/ask-user-question',
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /\/hook\/ask-user-question$/);
   assert.equal(calls[0].body.channel, 'C-test');
-  assert.equal(calls[0].body.sessionId, 'sid-tui-1');
+  assert.equal(calls[0].body.sessionId, 'sid-interaction-1');
   assert.ok(Array.isArray(calls[0].body.questions));
   assert.equal(calls[0].body.questions.length, 1);
   assert.equal(calls[0].body.questions[0].question, 'Pick one');

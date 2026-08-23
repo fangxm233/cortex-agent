@@ -317,7 +317,7 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 │   ├── mcp-config-tasks.json   # 只读任务监控分层
 │   ├── mcp-config-manager-qa.json # 共享 manager 回答分层
 │   ├── mcp-config-thread.json  # 线程控制分层
-│   ├── mcp-config-tui.json     # TUI 交互分层
+│   ├── mcp-config-interaction.json # 共享交互分层
 │   ├── profiles.json           # 命名的（后端、模型）配置
 │   ├── thread-templates/       # 多智能体线程定义
 │   │   └── agents/、templates/、shells/   # 每个实体一个 JSON 文件

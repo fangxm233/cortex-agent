@@ -49,7 +49,7 @@ session-retention 协调器还会把 Claude 用户级 `cleanupPeriodDays` 同步
 
 ## PI
 
-PI 通过适配器扩展提供与 Claude Code 对等的 Cortex 能力。`mcp-bridge.ts` 将 PI 连接到内置及插件 MCP 服务器，并在用户发起的直接会话中加载 `cortex-tui-bridge`。因此 Claude TUI、Claude print 和 PI 会暴露相同的 `cortex_ask_user`、`cortex_plan_enter` 与 `cortex_plan_exit` 工具，并使用相同的阻塞式 webhook 处理器。`tool-shims.ts` 提供其余 PI 本地 Agent、TodoWrite、WebFetch 和 WebSearch 工具。`hook-bridge.ts` 把 PI 工具事件转换为 Cortex 钩子脚本，PI 原生的 `--skill` 标志承载 Cortex 插件 skill。
+PI 通过适配器扩展提供与 Claude Code 对等的 Cortex 能力。`mcp-bridge.ts` 将 PI 连接到内置及插件 MCP 服务器，并在用户发起的直接会话中加载 `cortex-interaction-bridge`。因此 Claude TUI、Claude print 和 PI 会暴露相同的 `cortex_ask_user`、`cortex_plan_enter` 与 `cortex_plan_exit` 工具，并使用相同的阻塞式 webhook 处理器。`tool-shims.ts` 提供其余 PI 本地 Agent、TodoWrite、WebFetch 和 WebSearch 工具。`hook-bridge.ts` 把 PI 工具事件转换为 Cortex 钩子脚本，PI 原生的 `--skill` 标志承载 Cortex 插件 skill。
 
 PI 会话使用 `--session <path>` 进行恢复，使用 `--system-prompt` 覆盖系统提示。适配器处理 PI 事件流的 LF-only NDJSON 帧格式。
 

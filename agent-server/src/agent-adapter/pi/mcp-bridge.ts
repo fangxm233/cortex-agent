@@ -35,7 +35,7 @@ import {
   shouldLoadThreadControl,
   shouldLoadWeb,
 } from './mcp-bridge-logic.js';
-import { PI_MCP_COMPOSITION_ENV, PI_TUI_BRIDGE_ENV } from './spawn-args.js';
+import { PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV } from './spawn-args.js';
 import {
   PI_PLUGIN_MCP_CONFIG_ENV,
   loadPiPluginMcpConfig,
@@ -55,7 +55,7 @@ const CORE_SERVER_PATH = resolve(_dirname, '../../domain/mcp/core-server.js');
 const TASKS_SERVER_PATH = resolve(_dirname, '../../domain/mcp/tasks-server.js');
 const MANAGER_QA_SERVER_PATH = resolve(_dirname, '../../domain/mcp/manager-qa-server.js');
 const THREAD_SERVER_PATH = resolve(_dirname, '../../domain/mcp/thread-server.js');
-const TUI_SERVER_PATH = resolve(_dirname, '../../domain/mcp/tui-server.js');
+const INTERACTION_SERVER_PATH = resolve(_dirname, '../../domain/mcp/interaction-server.js');
 const EXT_SERVER_PATH = resolve(_dirname, '../../domain/mcp/server.js');
 const SLACK_SERVER_PATH = resolve(_dirname, '../../domain/mcp/slack-server.js');
 const FEISHU_SERVER_PATH = resolve(_dirname, '../../domain/mcp/feishu-server.js');
@@ -148,7 +148,7 @@ function assertUniqueServerStateNames(states: ServerState[]): ServerState[] {
 
 const BUILTIN_TOOL_SERVERS: Readonly<Record<string, string>> = {
   core: 'cortex-core', tasks: 'cortex-tasks', 'manager-qa': 'cortex-manager-qa',
-  thread: 'cortex-thread', tui: 'cortex-tui-bridge', ext: 'cortex-ext', slack: 'cortex-slack',
+  thread: 'cortex-thread', interaction: 'cortex-interaction-bridge', ext: 'cortex-ext', slack: 'cortex-slack',
   feishu: 'cortex-feishu', web: 'cortex-web',
 };
 
@@ -243,8 +243,8 @@ export function buildServerStates(
   if (composition === 'none') return validateToolGatedStates(env, []);
   const states = [createState('core', builtinServerConfig('core', CORE_SERVER_PATH, env))];
   if (env.CORTEX_PI_SUBAGENT === '1') return validateToolGatedStates(env, states);
-  const interactionStates = composition === 'direct' && env[PI_TUI_BRIDGE_ENV] === '1'
-    ? [createState('tui', builtinServerConfig('tui', TUI_SERVER_PATH, env))]
+  const interactionStates = composition === 'direct' && env[PI_INTERACTION_BRIDGE_ENV] === '1'
+    ? [createState('interaction', builtinServerConfig('interaction', INTERACTION_SERVER_PATH, env))]
     : [];
   states.push(
     createState('tasks', builtinServerConfig('tasks', TASKS_SERVER_PATH, env)),

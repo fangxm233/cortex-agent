@@ -30,8 +30,8 @@ import {
   shouldLoadWeb,
 } from '../src/agent-adapter/pi/mcp-bridge-logic.js';
 import {
+  PI_INTERACTION_BRIDGE_ENV,
   PI_MCP_COMPOSITION_ENV,
-  PI_TUI_BRIDGE_ENV,
 } from '../src/agent-adapter/pi/spawn-args.js';
 import type { ExtensionAPI, ToolDefinition } from '../src/agent-adapter/pi/pi-ext-types.js';
 import type { McpServerConfig } from '../src/agent-adapter/types.js';
@@ -373,21 +373,21 @@ test('empty compositions and subagents suppress plugin config reads before the f
   assert.deepEqual(buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct',
     CORTEX_PI_SUBAGENT: '1',
-    [PI_TUI_BRIDGE_ENV]: '1',
+    [PI_INTERACTION_BRIDGE_ENV]: '1',
     [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
   }, { loadPluginConfig }).map(state => state.name), ['core']);
   assert.equal(reads, 0);
 });
 
 test('buildServerStates loads the shared interaction bridge only for eligible direct PI sessions', () => {
-  const cases: Array<{ env: NodeJS.ProcessEnv; hasTui: boolean }> = [
-    { env: { [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_TUI_BRIDGE_ENV]: '1' }, hasTui: true },
-    { env: { [PI_MCP_COMPOSITION_ENV]: 'direct' }, hasTui: false },
-    { env: { [PI_MCP_COMPOSITION_ENV]: 'thread-control', [PI_TUI_BRIDGE_ENV]: '1' }, hasTui: false },
-    { env: { [PI_MCP_COMPOSITION_ENV]: 'none', [PI_TUI_BRIDGE_ENV]: '1' }, hasTui: false },
+  const cases: Array<{ env: NodeJS.ProcessEnv; hasInteraction: boolean }> = [
+    { env: { [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_INTERACTION_BRIDGE_ENV]: '1' }, hasInteraction: true },
+    { env: { [PI_MCP_COMPOSITION_ENV]: 'direct' }, hasInteraction: false },
+    { env: { [PI_MCP_COMPOSITION_ENV]: 'thread-control', [PI_INTERACTION_BRIDGE_ENV]: '1' }, hasInteraction: false },
+    { env: { [PI_MCP_COMPOSITION_ENV]: 'none', [PI_INTERACTION_BRIDGE_ENV]: '1' }, hasInteraction: false },
   ];
-  for (const { env, hasTui } of cases) {
-    assert.equal(buildServerStates(env).some(state => state.name === 'tui'), hasTui);
+  for (const { env, hasInteraction } of cases) {
+    assert.equal(buildServerStates(env).some(state => state.name === 'interaction'), hasInteraction);
   }
 });
 
@@ -395,10 +395,10 @@ test('buildServerStates validates interaction tools only when the shared bridge 
   const allowed = JSON.stringify(['cortex_ask_user']);
   const states = buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct',
-    [PI_TUI_BRIDGE_ENV]: '1',
+    [PI_INTERACTION_BRIDGE_ENV]: '1',
     [MCP_TOOL_ALLOWLIST_ENV]: allowed,
   });
-  assert.ok(states.some(state => state.name === 'tui'));
+  assert.ok(states.some(state => state.name === 'interaction'));
   assert.throws(() => buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct',
     [MCP_TOOL_ALLOWLIST_ENV]: allowed,
@@ -409,8 +409,8 @@ test('eligible PI sessions register the three shared interaction tool names', as
   const harness = createPiHarness();
   const interactionTools = ['cortex_ask_user', 'cortex_plan_enter', 'cortex_plan_exit'];
   const deps = bridgeDeps({
-    env: { [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_TUI_BRIDGE_ENV]: '1' },
-    spawnClient: async (state) => state.name === 'tui'
+    env: { [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_INTERACTION_BRIDGE_ENV]: '1' },
+    spawnClient: async (state) => state.name === 'interaction'
       ? fakeHandle(state.name, {
         listTools: async () => ({
           tools: interactionTools.map(name => ({ name, inputSchema: { type: 'object' } })),

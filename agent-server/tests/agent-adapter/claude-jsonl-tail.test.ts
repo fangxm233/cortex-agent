@@ -96,7 +96,7 @@ test('Normalizer emits plan_mode_entered for cortex_plan_enter MCP tool', () => 
     type: 'assistant',
     message: {
       id: 'msg_aaa',
-      content: [{ type: 'tool_use', id: 'tu_1', name: 'mcp__cortex-tui-bridge__cortex_plan_enter', input: {} }],
+      content: [{ type: 'tool_use', id: 'tu_1', name: 'mcp__cortex-interaction-bridge__cortex_plan_enter', input: {} }],
     },
   });
   assert.ok(out.some(e => e.type === 'plan_mode_entered'));
@@ -161,7 +161,7 @@ test('Normalizer does NOT emit ask_user_question for cortex_ask_user MCP tool (s
     message: {
       id: 'msg_aaa',
       content: [{
-        type: 'tool_use', id: 'tu_1', name: 'mcp__cortex-tui-bridge__cortex_ask_user',
+        type: 'tool_use', id: 'tu_1', name: 'mcp__cortex-interaction-bridge__cortex_ask_user',
         input: {
           questions: [
             { question: 'Q1?', header: 'q1', options: [{ label: 'A' }, { label: 'B' }], multiSelect: false },
@@ -175,7 +175,7 @@ test('Normalizer does NOT emit ask_user_question for cortex_ask_user MCP tool (s
   assert.equal(asks.length, 0);
   const toolUses = out.filter(e => e.type === 'tool_use');
   assert.equal(toolUses.length, 1);
-  assert.equal((toolUses[0] as any).name, 'mcp__cortex-tui-bridge__cortex_ask_user');
+  assert.equal((toolUses[0] as any).name, 'mcp__cortex-interaction-bridge__cortex_ask_user');
 });
 
 test('Normalizer falls back to legacy flat question shape for native AskUserQuestion', () => {

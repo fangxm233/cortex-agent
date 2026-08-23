@@ -14,8 +14,8 @@ import {
   SLACK_MCP_CONFIG,
   TASKS_MCP_CONFIG,
   THREAD_MCP_CONFIG,
-  TUI_BRIDGE_TOOLS,
-  TUI_MCP_CONFIG,
+  INTERACTION_BRIDGE_TOOLS,
+  INTERACTION_MCP_CONFIG,
   TUI_STRIP_TOOLS,
   TUI_TOOLS,
   WEB_MCP_CONFIG,
@@ -71,7 +71,7 @@ export interface ClaudeSpawnOptions {
   /** DR-0012: select adapter mode. Default 'print' preserves -p stream-json behavior. */
   mode?: ClaudeSpawnMode;
   /** True for user-message-initiated sessions (not thread/scheduled pipeline workers). In print
-   *  mode, such sessions additionally get the cortex-tui-bridge MCP interaction tools
+   *  mode, such sessions additionally get the cortex-interaction-bridge MCP tools
    *  (cortex_plan_enter/exit, cortex_ask_user) because the native EnterPlanMode/ExitPlanMode/
    *  AskUserQuestion are filtered out by headless `-p`. Non-direct compositions never get them. */
   isUserInitiated?: boolean;
@@ -110,7 +110,7 @@ function resolveMcpConfigs(
     && (composition === 'direct' || composition === 'thread-control')) {
     configs.push(options.supplementalMcpConfigPath);
   }
-  if (wantsInteractionBridge) configs.push(TUI_MCP_CONFIG);
+  if (wantsInteractionBridge) configs.push(INTERACTION_MCP_CONFIG);
   appendDirectMcpConfigs(configs, options, composition === 'direct');
   return materializeMcpToolAllowlistConfigs(
     configs, options.mcpToolAllowlist ?? undefined,
@@ -135,7 +135,7 @@ function printModeArgs(options: ClaudeSpawnOptions, mode: ClaudeSpawnMode): stri
 
 function replaceInteractionTools(tools: string, includeBridge: boolean): string {
   const filtered = tools.split(',').filter(tool => tool && !TUI_STRIP_TOOLS.has(tool));
-  const resolved = includeBridge ? [...filtered, ...TUI_BRIDGE_TOOLS] : filtered;
+  const resolved = includeBridge ? [...filtered, ...INTERACTION_BRIDGE_TOOLS] : filtered;
   return [...new Set(resolved)].join(',');
 }
 

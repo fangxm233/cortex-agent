@@ -10,10 +10,10 @@ import { isMainModule } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { registerGatedMcpTools } from '@core/mcp-tool-gate.js';
-import { registerTuiPlanTools, type TuiToolDeps } from './tools/tui-plan.js';
-import { registerTuiAskTools } from './tools/tui-ask.js';
+import { registerInteractionPlanTools, type InteractionToolDeps } from './tools/interaction-plan.js';
+import { registerInteractionAskTools } from './tools/interaction-ask.js';
 
-const log = createLogger('mcp-tui');
+const log = createLogger('mcp-interaction');
 
 // --- Resolve env-driven deps at module load time ---
 
@@ -57,7 +57,7 @@ async function defaultHttpPost(url: string, body: any): Promise<{ status: number
   });
 }
 
-const deps: TuiToolDeps = {
+const deps: InteractionToolDeps = {
   channel,
   sessionId,
   threadId,
@@ -67,11 +67,11 @@ const deps: TuiToolDeps = {
 
 // --- McpServer + tool registration ---
 
-const server = new McpServer({ name: 'cortex-tui-bridge', version: CORTEX_VERSION });
+const server = new McpServer({ name: 'cortex-interaction-bridge', version: CORTEX_VERSION });
 
 registerGatedMcpTools(server, (target) => {
-  registerTuiPlanTools(target, deps);
-  registerTuiAskTools(target, deps);
+  registerInteractionPlanTools(target, deps);
+  registerInteractionAskTools(target, deps);
 });
 
 // --- Start (called by barrel when run as standalone) ---

@@ -20,7 +20,7 @@ import {
   buildManagerQaConfig,
   buildTasksConfig,
   buildThreadConfig,
-  buildTuiConfig,
+  buildInteractionConfig,
 } from '@core/config-generator.js';
 import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway } from '@core/gateway-generator.js';
 import { generateProfiles, mergeProfilesJson, writeProfilesJson, listChoices } from '@core/profile-generator.js';
@@ -1397,7 +1397,7 @@ function writeMcpConfigs(configDir: string): void {
     ['mcp-config-manager-qa.json', buildManagerQaConfig(INSTALL_ROOT)],
     ['mcp-config-thread.json', buildThreadConfig(INSTALL_ROOT)],
     ['mcp-config-empty.json', buildEmptyConfig()],
-    ['mcp-config-tui.json', buildTuiConfig(INSTALL_ROOT)],
+    ['mcp-config-interaction.json', buildInteractionConfig(INSTALL_ROOT)],
   ];
   for (const [fileName, config] of configs) {
     writeFileSync(path.join(configDir, fileName), JSON.stringify(config, null, 2));

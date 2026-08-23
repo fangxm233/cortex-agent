@@ -22,7 +22,7 @@ import { encodeCommand, createLineSplitter } from '../src/agent-adapter/pi/frami
 import {
   buildPiEnv,
   buildSpawnArgs,
-  PI_TUI_BRIDGE_ENV,
+  PI_INTERACTION_BRIDGE_ENV,
 } from '../src/agent-adapter/pi/spawn-args.js';
 
 // Writable temp session dir used by Group G tests (avoids root-level paths that fail with EACCES).
@@ -294,7 +294,7 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
     CORTEX_WEBHOOK_SINGLE_ROOT: '1',
     CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE: 'stale-root-template',
     CORTEX_PI_SUBAGENT: '1',
-    [PI_TUI_BRIDGE_ENV]: '1',
+    [PI_INTERACTION_BRIDGE_ENV]: '1',
     [PI_PLUGIN_MCP_CONFIG_ENV]: '/stale-plugin-mcp.json',
   };
   const env = buildPiEnv({
@@ -310,12 +310,12 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
 
 
 test('buildPiEnv sets the shared interaction bridge marker only from trusted options', () => {
-  const inherited = { [PI_TUI_BRIDGE_ENV]: 'spoofed' };
+  const inherited = { [PI_INTERACTION_BRIDGE_ENV]: 'spoofed' };
   const cleared = buildPiEnv({ piAgentDir: '/pi-agent' }, inherited);
-  assert.equal(cleared[PI_TUI_BRIDGE_ENV], undefined);
+  assert.equal(cleared[PI_INTERACTION_BRIDGE_ENV], undefined);
 
-  const enabled = buildPiEnv({ piAgentDir: '/pi-agent', enableTuiBridge: true }, inherited);
-  assert.equal(enabled[PI_TUI_BRIDGE_ENV], '1');
+  const enabled = buildPiEnv({ piAgentDir: '/pi-agent', enableInteractionBridge: true }, inherited);
+  assert.equal(enabled[PI_INTERACTION_BRIDGE_ENV], '1');
 });
 
 test('PIAdapter enables the shared interaction bridge only for direct user sessions', () => {
@@ -332,9 +332,11 @@ test('PIAdapter enables the shared interaction bridge only for direct user sessi
       resume: false,
       isUserInitiated: entry.isUserInitiated,
       mcpComposition: entry.mcpComposition,
-      env: { [PI_TUI_BRIDGE_ENV]: 'spoofed' },
+      env: { [PI_INTERACTION_BRIDGE_ENV]: 'spoofed' },
     });
-    assert.equal((stub.calls[0].opts.env as NodeJS.ProcessEnv)[PI_TUI_BRIDGE_ENV], entry.expected);
+    assert.equal(
+      (stub.calls[0].opts.env as NodeJS.ProcessEnv)[PI_INTERACTION_BRIDGE_ENV], entry.expected,
+    );
     proc.kill();
     stub.children[0].emit('close', 0);
   }

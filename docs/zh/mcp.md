@@ -110,9 +110,9 @@ skill 指南，见 `feishu-doc` skill。
 
 服务器实现在 `agent-server/src/domain/mcp/feishu-server.ts`。工具在 `agent-server/src/domain/mcp/feishu/file.ts`。
 
-### cortex-tui-bridge
+### cortex-interaction-bridge
 
-直接 Claude TUI 会话、用户发起的直接 Claude print 会话，以及用户发起的直接 PI 会话都会加载这个交互服务器。每个会话启动独立的 stdio 进程，三种模式共享 `agent-server/src/domain/mcp/tui-server.ts` 中的注册与处理逻辑。
+直接 Claude TUI 会话、用户发起的直接 Claude print 会话，以及用户发起的直接 PI 会话都会加载这个交互服务器。每个会话启动独立的 stdio 进程，三种模式共享 `agent-server/src/domain/mcp/interaction-server.ts` 中的注册与处理逻辑。
 
 | 工具 | 描述 |
 |---|---|
@@ -120,7 +120,7 @@ skill 指南，见 `feishu-doc` skill。
 | `cortex_plan_exit` | 读取 `plan_file_path`，提交计划供人类审批，并阻塞到审批完成 |
 | `cortex_ask_user` | 通过会话所属平台提出一个或多个自由文本或选择题，并阻塞等待回答 |
 
-计划与提问处理器位于 `agent-server/src/domain/mcp/tools/tui-plan.ts` 和 `agent-server/src/domain/mcp/tools/tui-ask.ts`。
+计划与提问处理器位于 `agent-server/src/domain/mcp/tools/interaction-plan.ts` 和 `agent-server/src/domain/mcp/tools/interaction-ask.ts`。
 
 ## MCP 配置文件 {#mcp-configuration-files}
 
@@ -133,7 +133,7 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 | `~/.cortex/config/mcp-config-tasks.json` | 线程会话分层 | 仅 cortex-tasks |
 | `~/.cortex/config/mcp-config-manager-qa.json` | 线程会话回答分层 | 仅 cortex-manager-qa |
 | `~/.cortex/config/mcp-config-thread.json` | 仅线程会话的分层 | 仅 cortex-thread |
-| `~/.cortex/config/mcp-config-tui.json` | 交互工具分层（按需） | 仅 cortex-tui-bridge |
+| `~/.cortex/config/mcp-config-interaction.json` | 交互工具分层（按需） | 仅 cortex-interaction-bridge |
 | `~/.cortex/config/mcp-config-slack.json` | Slack 特定分层（按需） | cortex-slack |
 
 每个文件遵循 Claude Code 的标准 MCP 配置格式：
@@ -222,15 +222,15 @@ MCP 服务器进程接收 agent server 环境变量的一个子集：
 
 | 变量 | 来源 | 使用者 |
 |---|---|---|
-| `SLACK_CHANNEL` | 生成时的频道参数 | cortex-ext（slack_send_file）、tui-server |
+| `SLACK_CHANNEL` | 生成时的频道参数 | cortex-ext（slack_send_file）、interaction-server |
 | `SLACK_BOT_TOKEN` | process.env | cortex-ext |
-| `CORTEX_SESSION_ID` | 会话上下文 | tui-server、context 工具 |
+| `CORTEX_SESSION_ID` | 会话上下文 | interaction-server、context 工具 |
 | `CORTEX_SESSION_NAME` | 会话上下文 | context 工具 |
 | `CORTEX_THREAD_ID` | 线程上下文 | cortex-thread 工具、PI 线程控制谓词、context 工具 |
 | `CORTEX_PROFILE` | 会话上下文 | context 工具 |
 | `CORTEX_PROJECT` | 会话上下文 | context 工具 |
 | `CORTEX_EXECUTION_ID` | 执行上下文 | 任务锁钩子 |
-| `CORTEX_TUI_MODE` | 在 TUI 模式下设为 `'1'` | tui-server |
+| `CORTEX_TUI_MODE` | 在 TUI 模式下设为 `'1'` | Claude TUI 进程 |
 | `CORTEX_CALLBACK_SOURCE` | 可选回调元数据 | cortex-ext |
 | `CORTEX_SCHEDULE_TASK_ID` | 可选调度任务 ID | cortex-ext |
 | `ANTHROPIC_BASE_URL` | 可选 API 基础 URL 覆盖 | 模型路由 |

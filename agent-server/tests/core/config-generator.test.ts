@@ -16,7 +16,7 @@ import {
   buildManagerQaConfig,
   buildTasksConfig,
   buildThreadConfig,
-  buildTuiConfig,
+  buildInteractionConfig,
   buildWebConfig,
   materializeMcpToolAllowlistConfigs,
 } from '../../src/core/config-generator.js';
@@ -70,10 +70,12 @@ test('buildThreadConfig: cortex-thread only (thread sessions)', () => {
   });
 });
 
-test('buildTuiConfig: cortex-tui-bridge only (no core/ext leak)', () => {
-  assert.deepEqual(buildTuiConfig('/test'), {
+test('buildInteractionConfig: interaction bridge only (no core/ext leak)', () => {
+  assert.deepEqual(buildInteractionConfig('/test'), {
     mcpServers: {
-      'cortex-tui-bridge': { command: 'node', args: ['/test/dist/domain/mcp/tui-server.js'], cwd: '/test' },
+      'cortex-interaction-bridge': {
+        command: 'node', args: ['/test/dist/domain/mcp/interaction-server.js'], cwd: '/test',
+      },
     },
   });
 });

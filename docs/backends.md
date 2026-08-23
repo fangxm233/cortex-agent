@@ -82,7 +82,7 @@ rewritten.
 
 PI provides the same Cortex capabilities through adapter extensions.
 `mcp-bridge.ts` connects PI to the built-in and plugin MCP servers and loads
-`cortex-tui-bridge` for user-initiated direct sessions. Claude TUI, Claude
+`cortex-interaction-bridge` for user-initiated direct sessions. Claude TUI, Claude
 print, and PI therefore expose the same `cortex_ask_user`,
 `cortex_plan_enter`, and `cortex_plan_exit` tools with the same blocking
 webhook handlers. `tool-shims.ts` supplies the remaining PI-local Agent,

@@ -33,8 +33,8 @@ import {
   MCP_CONFIG,
   TASKS_MCP_CONFIG,
   THREAD_MCP_CONFIG,
-  TUI_BRIDGE_TOOLS,
-  TUI_MCP_CONFIG,
+  INTERACTION_BRIDGE_TOOLS,
+  INTERACTION_MCP_CONFIG,
   TUI_TOOLS,
   WEB_MCP_CONFIG,
 } from '../src/agent-adapter/claude/defaults.js';
@@ -644,7 +644,7 @@ test("buildSpawnArgs mode='tui' — omits -p / stream-json flags, layers TUI bri
   // MCP loading mirrors print mode (full MCP_CONFIG) AND additionally layers the TUI bridge.
   assert.ok(args.includes(MCP_CONFIG), 'tui non-thread loads the same base MCP set as print mode');
   assert.ok(!args.includes(THREAD_MCP_CONFIG), 'direct tui must not load thread control');
-  assert.ok(args.includes(TUI_MCP_CONFIG), 'tui non-thread also loads the cortex-tui-bridge server');
+  assert.ok(args.includes(INTERACTION_MCP_CONFIG), 'direct tui loads the interaction bridge');
   assert.ok(args.includes(TUI_TOOLS));
   assert.ok(args.includes('--session-id'));
   assert.ok(args.includes('uuid-tui-1'));
@@ -668,7 +668,7 @@ test("buildSpawnArgs mode='tui' — thread-control composition drops the TUI bri
   assert.ok(args.includes(TASKS_MCP_CONFIG), 'thread tui loads read-only task monitoring');
   assert.ok(args.includes(MANAGER_QA_MCP_CONFIG), 'thread tui loads manager answer support');
   assert.ok(args.includes(THREAD_MCP_CONFIG), 'thread tui loads its control plane');
-  assert.ok(!args.includes(TUI_MCP_CONFIG), 'thread tui must NOT load the cortex-tui-bridge server');
+  assert.ok(!args.includes(INTERACTION_MCP_CONFIG), 'thread tui must not load the interaction bridge');
   assert.ok(!args.includes(MCP_CONFIG), 'thread tui must not fall back to the direct MCP set');
   // No bridge → fall back to the standard tool whitelist (not TUI_TOOLS, which references bridge tools).
   assert.ok(!args.includes(TUI_TOOLS), 'thread tui must not whitelist the bridge tools');
@@ -695,7 +695,7 @@ test("buildSpawnArgs mode='tui' — explicit tools have interaction tools stripp
   assert.ok(tools.includes('Bash'));
   assert.ok(tools.includes('Read'));
   assert.ok(tools.includes('Write'));
-  for (const tool of TUI_BRIDGE_TOOLS) {
+  for (const tool of INTERACTION_BRIDGE_TOOLS) {
     assert.ok(tools.includes(tool), `direct TUI must include ${tool}`);
   }
 });
@@ -804,10 +804,10 @@ test("buildSpawnArgs mode='print' (default) — behavior unchanged from existing
 
 // --- buildSpawnArgs: print-mode interaction-bridge tools (user-initiated sessions) ---
 // The native EnterPlanMode/ExitPlanMode/AskUserQuestion tools are filtered out by headless -p
-// mode. For user-message-initiated (non-thread) sessions we layer the cortex-tui-bridge MCP
-// server + its 3 tools so plan/ask still works over the channel. Thread/core sessions never get it.
+// mode. For user-message-initiated direct sessions we layer the interaction MCP server and its
+// three tools so plan/ask still works over the channel. Thread/core sessions never get it.
 
-test('buildSpawnArgs print + isUserInitiated — layers TUI bridge MCP config and appends the 3 bridge tools', () => {
+test('buildSpawnArgs print + isUserInitiated — layers interaction MCP config and tools', () => {
   const args = buildSpawnArgs({
     tools: null,
     systemPrompt: null,
@@ -825,15 +825,15 @@ test('buildSpawnArgs print + isUserInitiated — layers TUI bridge MCP config an
   const i = args.indexOf('--mcp-config');
   assert.equal(args[i + 1], MCP_CONFIG, 'base full config first');
   assert.ok(!args.includes(THREAD_MCP_CONFIG), 'direct print must not load thread control');
-  assert.ok(args.includes(TUI_MCP_CONFIG), 'user-initiated print session also loads the cortex-tui-bridge server');
+  assert.ok(args.includes(INTERACTION_MCP_CONFIG), 'user print loads the interaction bridge');
   // Tools: base DEFAULT_TOOLS retained + the 3 bridge tools appended
   const tools = args[args.indexOf('--tools') + 1].split(',');
   assert.ok(tools.includes('Bash'), 'base tools retained');
   for (const native of ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode']) {
     assert.equal(tools.includes(native), false, `${native} must be replaced in print mode`);
   }
-  for (const t of TUI_BRIDGE_TOOLS) {
-    assert.ok(tools.includes(t), `bridge tool ${t} appended`);
+  for (const tool of INTERACTION_BRIDGE_TOOLS) {
+    assert.ok(tools.includes(tool), `bridge tool ${tool} appended`);
   }
 });
 
@@ -854,10 +854,10 @@ test('buildSpawnArgs print + isUserInitiated + thread-control gets no bridge', (
   assert.ok(args.includes(TASKS_MCP_CONFIG), 'thread session gets task monitoring');
   assert.ok(args.includes(MANAGER_QA_MCP_CONFIG), 'thread session gets manager answer support');
   assert.ok(args.includes(THREAD_MCP_CONFIG), 'thread session gets thread control');
-  assert.ok(!args.includes(TUI_MCP_CONFIG), 'thread/core sessions must NOT load the tui bridge');
+  assert.ok(!args.includes(INTERACTION_MCP_CONFIG), 'thread sessions must not load the interaction bridge');
   const tools = args[args.indexOf('--tools') + 1].split(',');
-  for (const t of TUI_BRIDGE_TOOLS) {
-    assert.ok(!tools.includes(t), `thread session must NOT get bridge tool ${t}`);
+  for (const tool of INTERACTION_BRIDGE_TOOLS) {
+    assert.ok(!tools.includes(tool), `thread session must not get bridge tool ${tool}`);
   }
 });
 
@@ -873,10 +873,10 @@ test('buildSpawnArgs print WITHOUT isUserInitiated — no bridge (baseline uncha
     needsResume: false,
     sessionId: 'uuid-print-nonuser',
   });
-  assert.ok(!args.includes(TUI_MCP_CONFIG), 'non-user-initiated print session must NOT load the tui bridge');
+  assert.ok(!args.includes(INTERACTION_MCP_CONFIG), 'non-user print must not load the interaction bridge');
   const tools = args[args.indexOf('--tools') + 1].split(',');
-  for (const t of TUI_BRIDGE_TOOLS) {
-    assert.ok(!tools.includes(t), `non-user-initiated session must NOT get bridge tool ${t}`);
+  for (const tool of INTERACTION_BRIDGE_TOOLS) {
+    assert.ok(!tools.includes(tool), `non-user session must not get bridge tool ${tool}`);
   }
 });
 
@@ -895,20 +895,20 @@ test('buildSpawnArgs print + isUserInitiated with explicit tools — bridge tool
   });
   const tools = args[args.indexOf('--tools') + 1].split(',');
   assert.ok(tools.includes('Bash') && tools.includes('Read') && tools.includes('Write'), 'explicit tools retained');
-  for (const t of TUI_BRIDGE_TOOLS) {
-    assert.ok(tools.includes(t), `bridge tool ${t} appended to explicit list`);
+  for (const tool of INTERACTION_BRIDGE_TOOLS) {
+    assert.ok(tools.includes(tool), `bridge tool ${tool} appended to explicit list`);
   }
 });
 
-test('TUI_BRIDGE_TOOLS — the 3 mcp bridge tool names, also contained in TUI_TOOLS', () => {
-  assert.deepEqual([...TUI_BRIDGE_TOOLS].sort(), [
-    'mcp__cortex-tui-bridge__cortex_ask_user',
-    'mcp__cortex-tui-bridge__cortex_plan_enter',
-    'mcp__cortex-tui-bridge__cortex_plan_exit',
+test('INTERACTION_BRIDGE_TOOLS contains the three MCP replacements used by TUI_TOOLS', () => {
+  assert.deepEqual([...INTERACTION_BRIDGE_TOOLS].sort(), [
+    'mcp__cortex-interaction-bridge__cortex_ask_user',
+    'mcp__cortex-interaction-bridge__cortex_plan_enter',
+    'mcp__cortex-interaction-bridge__cortex_plan_exit',
   ]);
   const tuiTools = TUI_TOOLS.split(',');
-  for (const t of TUI_BRIDGE_TOOLS) {
-    assert.ok(tuiTools.includes(t), `TUI_TOOLS must still contain ${t}`);
+  for (const tool of INTERACTION_BRIDGE_TOOLS) {
+    assert.ok(tuiTools.includes(tool), `TUI_TOOLS must still contain ${tool}`);
   }
 });
 
@@ -1160,9 +1160,9 @@ test('TUI_TOOLS excludes AskUserQuestion / EnterPlanMode / ExitPlanMode and incl
   assert.ok(!tools.includes('AskUserQuestion'), 'TUI_TOOLS must exclude AskUserQuestion');
   assert.ok(!tools.includes('EnterPlanMode'), 'TUI_TOOLS must exclude EnterPlanMode');
   assert.ok(!tools.includes('ExitPlanMode'), 'TUI_TOOLS must exclude ExitPlanMode');
-  assert.ok(tools.includes('mcp__cortex-tui-bridge__cortex_plan_enter'));
-  assert.ok(tools.includes('mcp__cortex-tui-bridge__cortex_plan_exit'));
-  assert.ok(tools.includes('mcp__cortex-tui-bridge__cortex_ask_user'));
+  assert.ok(tools.includes('mcp__cortex-interaction-bridge__cortex_plan_enter'));
+  assert.ok(tools.includes('mcp__cortex-interaction-bridge__cortex_plan_exit'));
+  assert.ok(tools.includes('mcp__cortex-interaction-bridge__cortex_ask_user'));
   // Non-replaced tools still present
   assert.ok(tools.includes('Bash'));
   assert.ok(tools.includes('Read'));

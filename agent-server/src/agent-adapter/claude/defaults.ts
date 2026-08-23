@@ -40,8 +40,8 @@ export const TASKS_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-tasks.json');
 export const MANAGER_QA_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-manager-qa.json');
 export const THREAD_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-thread.json');
 export const EMPTY_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-empty.json');
-/** DR-0012: TUI-mode-exclusive MCP set (only cortex-tui-bridge server, no core/ext leakage). */
-export const TUI_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-tui.json');
+/** Shared interaction MCP set (only cortex-interaction-bridge, no core/ext leakage). */
+export const INTERACTION_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-interaction.json');
 /** Slack platform-specific tools (cortex-slack server). Layered on top of the full config via the variadic
  *  `--mcp-config` only for sessions that originate from Slack (channel carries the `slack:` prefix). */
 export const SLACK_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-slack.json');
@@ -60,28 +60,25 @@ export const DEFAULT_PLAN_DIRS: string[] = ['plan'];
 export const DEFAULT_TOOLS = 'Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write';
 
 /**
- * The three cortex-tui-bridge MCP tools that replace the native EnterPlanMode / ExitPlanMode /
- * AskUserQuestion. These are the ONLY interaction tools that survive headless `-p` mode: the native
- * ones are filtered out by the CLI whenever the session is non-interactive, so plan/ask must go
- * through these MCP tools (served by tui-server.ts, POSTing to /hook/exit-plan-mode and
- * /hook/ask-user-question). Used by BOTH the TUI whitelist and the print-mode user-session layer.
- *
- * Tool name prefix `mcp__<server-name>__<tool-name>` is Claude's canonical form for MCP tools.
+ * The three cortex-interaction-bridge MCP tools that replace the native EnterPlanMode /
+ * ExitPlanMode / AskUserQuestion. They are shared by direct Claude TUI, user-initiated Claude
+ * print, and user-initiated PI sessions. Tool name prefix `mcp__<server-name>__<tool-name>` is
+ * Claude's canonical form for MCP tools.
  */
-export const TUI_BRIDGE_TOOLS: readonly string[] = [
-  'mcp__cortex-tui-bridge__cortex_plan_enter',
-  'mcp__cortex-tui-bridge__cortex_plan_exit',
-  'mcp__cortex-tui-bridge__cortex_ask_user',
+export const INTERACTION_BRIDGE_TOOLS: readonly string[] = [
+  'mcp__cortex-interaction-bridge__cortex_plan_enter',
+  'mcp__cortex-interaction-bridge__cortex_plan_exit',
+  'mcp__cortex-interaction-bridge__cortex_ask_user',
 ];
 
 /**
  * DR-0012: Tool whitelist for TUI mode. Removes the three interaction tools that conflict with
  * Cortex's MCP-mediated approval flow (AskUserQuestion / EnterPlanMode / ExitPlanMode) and adds
- * their MCP replacements (TUI_BRIDGE_TOOLS) served by the cortex-tui-bridge MCP server.
+ * their MCP replacements from the shared interaction MCP server.
  */
 export const TUI_TOOLS = [
   'Agent', 'Bash', 'Edit', 'Glob', 'Grep', 'Read', 'Skill', 'TaskStop', 'TodoWrite', 'WebFetch', 'WebSearch', 'Write',
-  ...TUI_BRIDGE_TOOLS,
+  ...INTERACTION_BRIDGE_TOOLS,
 ].join(',');
 
 /** Native interaction tools that must be stripped in TUI mode (all sessions, including threads).

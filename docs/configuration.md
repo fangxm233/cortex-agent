@@ -24,7 +24,7 @@ $CORTEX_HOME/
 │   ├── mcp-config-tasks.json     # Read-only task-monitoring layer
 │   ├── mcp-config-manager-qa.json # Shared manager-answer layer
 │   ├── mcp-config-thread.json    # Thread-control layer
-│   ├── mcp-config-tui.json       # TUI interaction layer
+│   ├── mcp-config-interaction.json # Shared interaction layer
 │   └── hooks/                    # Hook registry — one JSON declaration per hook
 ├── data/
 │   ├── mode.json                 # Current runtime mode and profile

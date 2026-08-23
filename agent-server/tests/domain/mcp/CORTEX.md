@@ -11,4 +11,4 @@ MCP server and tool registration regression tests.
 | task-monitor-tool.test.ts | test | Verifies task monitor tools |
 | time-tool.test.ts | test | Verifies time tool output |
 | tools-registration.test.ts | test | Verifies tool registration |
-| tui-tools.test.ts | test | Verifies shared interaction MCP tools |
+| interaction-tools.test.ts | test | Verifies shared interaction MCP tools |

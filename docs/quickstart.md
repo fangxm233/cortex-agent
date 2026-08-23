@@ -411,7 +411,7 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 │   ├── mcp-config-tasks.json   # read-only task-monitoring layer
 │   ├── mcp-config-manager-qa.json # shared manager-answer layer
 │   ├── mcp-config-thread.json  # thread-control layer
-│   ├── mcp-config-tui.json     # TUI interaction layer
+│   ├── mcp-config-interaction.json # Shared interaction layer
 │   ├── profiles.json           # named (backend, model) profiles
 │   ├── thread-templates/       # multi-agent thread definitions
 │   │   └── agents/, templates/, shells/   # one JSON file per entity

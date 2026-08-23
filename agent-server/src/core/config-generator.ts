@@ -21,7 +21,7 @@ const TASKS_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tasks.json');
 const MANAGER_QA_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-manager-qa.json');
 const THREAD_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-thread.json');
 const EMPTY_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-empty.json');
-const TUI_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tui.json');
+const INTERACTION_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-interaction.json');
 const SLACK_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-slack.json');
 const FEISHU_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-feishu.json');
 const WEB_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-web.json');
@@ -153,10 +153,10 @@ export function buildEmptyConfig(): object {
 }
 
 /** Claude interaction config; PI loads the same server through its MCP bridge. */
-export function buildTuiConfig(serverRoot: string): object {
+export function buildInteractionConfig(serverRoot: string): object {
   return {
     mcpServers: {
-      'cortex-tui-bridge': serverEntry('dist/domain/mcp/tui-server.js', serverRoot),
+      'cortex-interaction-bridge': serverEntry('dist/domain/mcp/interaction-server.js', serverRoot),
     },
   };
 }
@@ -205,7 +205,7 @@ export function generateMcpConfig(): void {
     ['manager-Q&A', MANAGER_QA_MCP_CONFIG_PATH, buildManagerQaConfig(SERVER_ROOT)],
     ['thread', THREAD_MCP_CONFIG_PATH, buildThreadConfig(SERVER_ROOT)],
     ['empty', EMPTY_MCP_CONFIG_PATH, buildEmptyConfig()],
-    ['TUI', TUI_MCP_CONFIG_PATH, buildTuiConfig(SERVER_ROOT)],
+    ['interaction', INTERACTION_MCP_CONFIG_PATH, buildInteractionConfig(SERVER_ROOT)],
     ['Slack', SLACK_MCP_CONFIG_PATH, buildSlackConfig(SERVER_ROOT)],
     ['Feishu', FEISHU_MCP_CONFIG_PATH, buildFeishuConfig(SERVER_ROOT)],
     ['Web', WEB_MCP_CONFIG_PATH, buildWebConfig(SERVER_ROOT)],

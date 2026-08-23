@@ -18,7 +18,7 @@ import { parse as yamlParse } from 'yaml';
 import { PI_AGENT_DIR, ensurePIAgentRoles } from './agent-dir.js';
 import { MCP_BRIDGE_PATH, TOOL_SHIMS_PATH } from './defaults.js';
 import type { ExtensionContext, ToolDefinition } from './pi-ext-types.js';
-import { PI_TUI_BRIDGE_ENV } from './spawn-args.js';
+import { PI_INTERACTION_BRIDGE_ENV } from './spawn-args.js';
 
 export const MAX_SUBAGENT_TASKS = 8;
 export const MAX_SUBAGENT_CONCURRENCY = 8;
@@ -313,7 +313,7 @@ function buildChildEnv(agentDir: string): NodeJS.ProcessEnv {
   };
   delete env.CORTEX_THREAD_ID;
   delete env.CORTEX_TASK_ID;
-  delete env[PI_TUI_BRIDGE_ENV];
+  delete env[PI_INTERACTION_BRIDGE_ENV];
   return env;
 }
 

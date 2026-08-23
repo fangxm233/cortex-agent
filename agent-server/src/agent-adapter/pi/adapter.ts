@@ -911,7 +911,7 @@ function buildSpawnEnvironment(
     mcpComposition: composition,
     mcpToolAllowlist: config.mcpToolAllowlist,
     pluginMcpConfigPath: spawnPluginMcpPath(config, composition, subagentMarker),
-    enableTuiBridge: composition === 'direct'
+    enableInteractionBridge: composition === 'direct'
       && config.isUserInitiated === true
       && subagentMarker === undefined,
     subagentMarker,

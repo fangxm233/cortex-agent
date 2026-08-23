@@ -1,4 +1,4 @@
-// input:  McpServer, TuiToolDeps, interaction level codec
+// input:  McpServer, InteractionToolDeps, interaction level codec
 // output: Shared ask-user MCP registration and handler
 // pos:    Implements blocking human questions for agent sessions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { normalizeAskLevel } from '@platform/index.js';
-import type { TuiToolDeps, CallToolResultShape } from './tui-plan.js';
+import type { InteractionToolDeps, CallToolResultShape } from './interaction-plan.js';
 
 /**
  * The schema mirrors native AskUserQuestion: one or more questions with optional headers,
@@ -37,7 +37,7 @@ interface AskUserArgs {
  *               (multi-select values are pre-joined with ", " by the platform)
  *   - Error:   { error: <code>, answers: {} }    (codes: 'timeout' | 'post_failed' | 'bus_not_initialized')
  */
-export async function runAskUser(args: AskUserArgs, deps: TuiToolDeps): Promise<CallToolResultShape> {
+export async function runAskUser(args: AskUserArgs, deps: InteractionToolDeps): Promise<CallToolResultShape> {
   if (!deps.channel) {
     return { content: [{ type: 'text', text: 'cortex_ask_user error: no interaction channel configured in MCP env' }], isError: true };
   }
@@ -129,7 +129,7 @@ export async function runAskUser(args: AskUserArgs, deps: TuiToolDeps): Promise<
   return { content: [{ type: 'text', text: collected.join('\n\n') }] };
 }
 
-export function registerTuiAskTools(server: McpServer, deps: TuiToolDeps): void {
+export function registerInteractionAskTools(server: McpServer, deps: InteractionToolDeps): void {
   server.tool(
     'cortex_ask_user',
     'Ask the human one or more clarifying questions and BLOCK until they answer (replaces native AskUserQuestion). Posts each question through the session interaction channel with optional multiple-choice options. Use this when you need clarification, a decision, or a choice from the user. Set `multiSelect=true` on a question to allow multi-pick. The answers are returned in the tool_result.',

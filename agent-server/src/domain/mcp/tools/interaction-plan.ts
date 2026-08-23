@@ -8,7 +8,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 /** Per-process injection point for tests. Production binds httpPost to global fetch. */
-export interface TuiToolDeps {
+export interface InteractionToolDeps {
   channel: string | null;
   sessionId: string | null;
   threadId: string | null;
@@ -63,7 +63,7 @@ export function runPlanEnter(args: { reasoning?: string }): CallToolResultShape 
 
 export async function runPlanExit(
   args: { plan_file_path: string; summary?: string },
-  deps: TuiToolDeps,
+  deps: InteractionToolDeps,
 ): Promise<CallToolResultShape> {
   // The webhook needs the originating interaction channel.
   if (!deps.channel) {
@@ -139,10 +139,10 @@ export async function runPlanExit(
 //  MCP server registration
 // =====================================================================================
 
-export function registerTuiPlanTools(server: McpServer, deps: TuiToolDeps): void {
+export function registerInteractionPlanTools(server: McpServer, deps: InteractionToolDeps): void {
   server.tool(
     'cortex_plan_enter',
-    'Enter Cortex plan mode. Use this BEFORE designing a non-trivial implementation. Replaces native EnterPlanMode in Cortex TUI sessions — investigation is read-only, the plan must be written to a file under `plan/`, and cortex_plan_exit is required before implementation. Optional `reasoning` is recorded for the audit trail.',
+    'Enter Cortex plan mode. Use this BEFORE designing a non-trivial implementation. Replaces native EnterPlanMode in eligible direct agent sessions — investigation is read-only, the plan must be written to a file under `plan/`, and cortex_plan_exit is required before implementation. Optional `reasoning` is recorded for the audit trail.',
     { reasoning: z.string().optional() },
     async (args) => runPlanEnter(args ?? {}) as any,
   );
