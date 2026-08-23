@@ -14,4 +14,5 @@ migration is pinned by the harness regeneration command.
 | pi-deepseek-api-key.model-metadata.json | evidence | Freezes PI DeepSeek model metadata |
 | pi-deepseek-api-key.mutation-manifest.json | evidence | Lists killed security mutations |
 | pi-deepseek-api-key.offline-contract-passed.json | evidence | Binds DeepSeek synthetic mutation proof |
+| pi-openai-codex-oauth.live-handshake-passed.json | evidence | Binds one PI OpenAI Codex live handshake |
 | pi-openai-codex-oauth.offline-contract-passed.json | evidence | Binds PI Codex committed-source-suite offline proof |

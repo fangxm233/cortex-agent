@@ -24,6 +24,7 @@ from cortex_bench_harness.launcher import trial_proxy
 from cortex_bench_harness.launcher.credential_capabilities import (
     CAPABILITY_REGISTRY,
     CODEX_CLI_CAPABILITY_KEY,
+    PI_OPENAI_CODEX_CAPABILITY_KEY,
 )
 from cortex_bench_harness.launcher.trial_proxy import (
     CapabilityStateRefused,
@@ -160,6 +161,14 @@ def test_shipped_codex_live_row_admits_paid_runs() -> None:
 
     assert require_capability_admission(arm) == CODEX_CLI_CAPABILITY_KEY
     assert require_capability_admission(arm, paid_run=True) == CODEX_CLI_CAPABILITY_KEY
+
+
+def test_shipped_pi_openai_codex_live_row_admits_paid_runs() -> None:
+    arm = cortex_arm("pi-openai-codex-oauth", model="gpt-5.6-sol")
+    arm["provider"] = "openai-codex"
+
+    assert require_capability_admission(arm) == PI_OPENAI_CODEX_CAPABILITY_KEY
+    assert require_capability_admission(arm, paid_run=True) == PI_OPENAI_CODEX_CAPABILITY_KEY
 
 
 def test_an_admitted_row_still_arms(

@@ -68,3 +68,11 @@ capabilities:
     max_output_tokens: 65536
     request_body_limit_bytes: 67108864
     response_body_limit_bytes: 67108864
+  pi-openai-codex-oauth:
+    # Identical approved per-trial bounds for the PI OpenAI Codex route.
+    max_cost_usd: "2.00"
+    max_provider_requests: 500
+    deadline_seconds: 1800
+    max_output_tokens: 65536
+    request_body_limit_bytes: 67108864
+    response_body_limit_bytes: 67108864

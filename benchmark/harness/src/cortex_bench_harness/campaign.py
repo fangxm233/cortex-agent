@@ -50,6 +50,7 @@ from .host_finalization import OUTER_ENVELOPE_FILENAME
 from .launcher.comparison_report import build_comparison_report, render_comparison_report
 from .launcher.credential_capabilities import (
     CODEX_CLI_CAPABILITY_KEY,
+    PI_OPENAI_CODEX_CAPABILITY_KEY,
     capability_key_for,
 )
 from .launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN_GRACE_MS
@@ -404,21 +405,65 @@ def _codex_wave_preflight(
 def _codex_plans(pending: Sequence[TrialPlan]) -> tuple[TrialPlan, ...]:
     codex: list[TrialPlan] = []
     for plan in pending:
-        vendor_agent = plan.arm.get("vendor_agent")
-        capability_id = str(plan.arm["credential_capability"])
-        if vendor_agent != "codex" and capability_id != "codex-subscription":
+        if _is_native_codex_plan(plan):
+            _validate_native_codex_plan(plan)
+            codex.append(plan)
             continue
-        if vendor_agent != "codex" or capability_id != "codex-subscription":
-            raise CampaignError(
-                "Codex vendor arms must name the exact codex-subscription capability")
-        try:
-            key = capability_key_for(capability_id)
-        except LookupError as error:
-            raise CampaignError("the exact codex-subscription capability is not registered") from error
-        if key != CODEX_CLI_CAPABILITY_KEY or plan.arm.get("provider") != key.provider:
-            raise CampaignError("Codex vendor arm differs from the exact registered capability key")
-        codex.append(plan)
+        if _is_pi_openai_codex_plan(plan):
+            _validate_pi_openai_codex_plan(plan)
+            codex.append(plan)
     return tuple(codex)
+
+
+def _is_native_codex_plan(plan: TrialPlan) -> bool:
+    vendor_agent = plan.arm.get("vendor_agent")
+    capability_id = str(plan.arm["credential_capability"])
+    return vendor_agent == "codex" or capability_id == "codex-subscription"
+
+
+def _validate_native_codex_plan(plan: TrialPlan) -> None:
+    capability_id = str(plan.arm["credential_capability"])
+    if plan.arm.get("vendor_agent") != "codex" or capability_id != "codex-subscription":
+        raise CampaignError(
+            "Codex vendor arms must name the exact codex-subscription capability")
+    try:
+        key = capability_key_for(capability_id)
+    except LookupError as error:
+        raise CampaignError("the exact codex-subscription capability is not registered") from error
+    if key != CODEX_CLI_CAPABILITY_KEY or plan.arm.get("provider") != key.provider:
+        raise CampaignError("Codex vendor arm differs from the exact registered capability key")
+
+
+def _is_pi_openai_codex_plan(plan: TrialPlan) -> bool:
+    capability_id = str(plan.arm["credential_capability"])
+    provider = plan.arm.get("provider")
+    return (
+        capability_id == "pi-openai-codex-oauth"
+        or (plan.arm.get("vendor_agent") == "pi" and provider == "openai-codex")
+        or (plan.arm.get("backend") == "pi" and provider == "openai-codex")
+    )
+
+
+def _validate_pi_openai_codex_plan(plan: TrialPlan) -> None:
+    capability_id = str(plan.arm["credential_capability"])
+    provider = plan.arm.get("provider")
+    if not (
+        (plan.arm.get("vendor_agent") == "pi" and provider == "openai-codex")
+        or (plan.arm.get("backend") == "pi" and provider == "openai-codex")
+    ):
+        raise CampaignError(
+            "PI OpenAI Codex preflight requires a vendor PI arm or Cortex backend PI arm")
+    if capability_id != "pi-openai-codex-oauth":
+        raise CampaignError(
+            "PI OpenAI Codex arms must name the exact pi-openai-codex-oauth capability")
+    try:
+        key = capability_key_for(capability_id)
+    except LookupError as error:
+        raise CampaignError(
+            "the exact pi-openai-codex-oauth capability is not registered") from error
+    if key != PI_OPENAI_CODEX_CAPABILITY_KEY or provider != key.provider:
+        raise CampaignError(
+            "PI OpenAI Codex arm differs from the exact registered capability key")
 
 
 def _codex_required_expiry_ms(

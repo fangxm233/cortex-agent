@@ -81,7 +81,7 @@ EXPECTED_PROJECTION = [
     },
     {
         "id": "pi-openai-codex-oauth",
-        "state": "offline-contract-passed",
+        "state": "live-handshake-passed",
         "key": {
             "runner_or_backend": "pi",
             "provider": "openai-codex",
@@ -90,7 +90,7 @@ EXPECTED_PROJECTION = [
             "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
         "evidence_sha256":
-            "a72024944505c3c3f89655320558ef2d11bbfc35dfa2af4705f56867eef94568",
+            "1e63a37bc945da31f7d518f7e25cb52d0a4964eed257741ac14b4760b184c6b4",
     },
 ]
 SECRET_VALUE = re.compile(

@@ -297,7 +297,7 @@ def _upstream_hosts(
 
 def _validate_bound_expiry(token: str | None, expires_at_ms: int | None) -> None:
     if token is None or expires_at_ms is None:
-        raise ValueError("codex-cli requires a preflight-bound access token expiry")
+        raise ValueError("the OpenAI Codex adapter requires a preflight-bound access token expiry")
     if extract_access_expiry_ms(token) != expires_at_ms:
         raise ValueError("codex access token expiry does not match the preflight expiry")
 

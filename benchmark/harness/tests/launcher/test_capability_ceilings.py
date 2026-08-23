@@ -69,10 +69,12 @@ def write_policy(tmp_path: Path, text: str) -> Path:
     return path
 
 
-def test_the_committed_policy_declares_the_approved_deepseek_ceilings() -> None:
+def test_the_committed_policy_declares_the_approved_deepseek_and_openai_codex_ceilings() -> None:
     ceilings = load_capability_ceilings()
 
     assert ceilings["pi-deepseek-api-key"] == APPROVED_DEEPSEEK_CEILINGS
+    assert ceilings["codex-subscription"] == APPROVED_VENDOR_CEILINGS
+    assert ceilings["pi-openai-codex-oauth"] == APPROVED_VENDOR_CEILINGS
     assert set(APPROVED_DEEPSEEK_CEILINGS) == set(CEILING_FIELDS)
 
 

@@ -74,7 +74,9 @@ def _payload_of(token: str) -> dict[str, object]:
     return json.loads(base64.b64decode(segment + "=" * (-len(segment) % 4)))
 
 
-HOST_ACCESS_TOKEN = codex_token(HOST_ACCOUNT_ID, nonce="host")
+HOST_ACCESS_TOKEN = codex_token(
+    HOST_ACCOUNT_ID, nonce="host", expires_at_seconds=1_900_000_000,
+)
 
 
 def row_four_adapter(
@@ -84,6 +86,9 @@ def row_four_adapter(
     adapter = select_adapter(
         ROW_FOUR_KEY, upstream_base_url=upstream_base_url,
         credential=credential, frozen_model=frozen_model,
+        access_expires_at_ms=(
+            extract_access_expiry_ms(credential) if credential is not None else None
+        ),
     )
     assert isinstance(adapter, OpenAICodexResponsesOAuthAdapter)
     return adapter
@@ -169,10 +174,13 @@ def codex_request_from(handle, source_ip: str) -> tuple[int, bytes]:
 # --- R3: selection returns this adapter for the row-4 tuple and for no other ---
 
 
-def test_codex_cli_selection_passes_the_parsed_expiry_into_the_reused_adapter() -> None:
+@pytest.mark.parametrize("key", [CODEX_CLI_KEY, ROW_FOUR_KEY])
+def test_exact_openai_codex_keys_pass_the_parsed_expiry_into_the_reused_adapter(
+    key: CredentialCapabilityKey,
+) -> None:
     token = codex_token(HOST_ACCOUNT_ID, expires_at_seconds=1)
     adapter = select_adapter(
-        CODEX_CLI_KEY, credential=token, frozen_model=CODEX_MODEL,
+        key, credential=token, frozen_model=CODEX_MODEL,
         access_expires_at_ms=1000,
     )
 
@@ -180,14 +188,27 @@ def test_codex_cli_selection_passes_the_parsed_expiry_into_the_reused_adapter() 
         adapter.inject_auth({}, RESPONSES_ROUTE)
 
 
-def test_adapter_refuses_an_expiry_parsed_from_a_different_access_token() -> None:
+@pytest.mark.parametrize("key", [CODEX_CLI_KEY, ROW_FOUR_KEY])
+def test_adapter_refuses_an_expiry_parsed_from_a_different_access_token(
+    key: CredentialCapabilityKey,
+) -> None:
     token = codex_token(HOST_ACCOUNT_ID, expires_at_seconds=1_900_000_000)
 
     with pytest.raises(ValueError, match="does not match"):
         select_adapter(
-            CODEX_CLI_KEY, credential=token, frozen_model=CODEX_MODEL,
+            key, credential=token, frozen_model=CODEX_MODEL,
             access_expires_at_ms=1_900_000_001_000,
         )
+
+
+@pytest.mark.parametrize("key", [CODEX_CLI_KEY, ROW_FOUR_KEY])
+def test_exact_openai_codex_keys_refuse_a_credential_without_preflight_expiry(
+    key: CredentialCapabilityKey,
+) -> None:
+    token = codex_token(HOST_ACCOUNT_ID, expires_at_seconds=1_900_000_000)
+
+    with pytest.raises(ValueError, match="preflight-bound"):
+        select_adapter(key, credential=token, frozen_model=CODEX_MODEL)
 
 
 # --- Hazard (i): the dummy credential's shape is a correctness input ---

@@ -161,6 +161,31 @@ def codex_campaign_document(root: Path, *, concurrency: int = 3) -> dict[str, ob
     return document
 
 
+def vendor_pi_codex_campaign_document(root: Path, *, concurrency: int = 3) -> dict[str, object]:
+    document = codex_campaign_document(root, concurrency=concurrency)
+    document["arms"] = [vendor_arm_document(
+        "pure-pi-codex", vendor_agent="pi", vendor_cli_version="0.82.1",
+        provider="openai-codex", model="gpt-5.6-sol",
+        credential_capability="pi-openai-codex-oauth",
+    )]
+    return document
+
+
+def cortex_pi_codex_campaign_document(root: Path, *, concurrency: int = 3) -> dict[str, object]:
+    document = campaign_document(root, concurrency=concurrency, comparisons=[])
+    document["arms"] = [arm_document(
+        "cortex-pi-codex", provider="openai-codex", model="gpt-5.6-sol",
+        credential_capability="pi-openai-codex-oauth",
+    )]
+    document["tasks"].append({
+        "task_id": "task-three", "path": str(root / "tasks" / "three"),
+        "image_ref": IMAGE_REF,
+    })
+    document["proxy"]["credential_env"] = CODEX_CREDENTIAL_ENV
+    document["credential"]["route_identity_host"] = "chatgpt.com"
+    return document
+
+
 def codex_token(expiry_ms: int) -> str:
     def segment(document: dict[str, object]) -> str:
         encoded = json.dumps(document, separators=(",", ":")).encode()
@@ -814,6 +839,42 @@ def test_codex_three_trial_wave_passes_one_expiry_to_every_trial_without_auth_fi
     )
 
 
+def test_vendor_pi_codex_three_trial_wave_passes_one_expiry_to_every_trial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    expiry_ms = required_codex_expiry_ms()
+    monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(expiry_ms))
+
+    status, _, _ = run_cli(capsys, "run", "--config", str(write_campaign(
+        tmp_path, vendor_pi_codex_campaign_document(tmp_path))))
+
+    assert status == 0
+    assert recorder.max_in_flight == 3
+    assert len(recorder.armed) == 3
+    assert {call["trial_proxy"]["access_expires_at_ms"] for call in recorder.calls} == {
+        expiry_ms}
+
+
+def test_cortex_pi_codex_three_trial_wave_passes_one_expiry_to_every_trial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    expiry_ms = required_codex_expiry_ms()
+    monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(expiry_ms))
+
+    status, _, _ = run_cli(capsys, "run", "--config", str(write_campaign(
+        tmp_path, cortex_pi_codex_campaign_document(tmp_path))))
+
+    assert status == 0
+    assert recorder.max_in_flight == 3
+    assert len(recorder.armed) == 3
+    assert {call["trial_proxy"]["access_expires_at_ms"] for call in recorder.calls} == {
+        expiry_ms}
+
+
 def test_short_codex_token_refuses_the_whole_campaign_with_zero_routes_armed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -872,6 +933,34 @@ def test_codex_vendor_arm_must_name_the_exact_codex_capability_before_arming(
 
     assert status == 1
     assert "exact codex-subscription capability" in failure_document(capsys)["error"]
+    assert recorder.armed == []
+
+
+def test_vendor_pi_openai_codex_arm_must_name_the_exact_pi_capability_before_arming(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    document = vendor_pi_codex_campaign_document(tmp_path)
+    document["arms"][0]["credential_capability"] = "pi-deepseek-api-key"
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path, document))])
+
+    assert status == 1
+    assert "exact pi-openai-codex-oauth capability" in failure_document(capsys)["error"]
+    assert recorder.armed == []
+
+
+def test_cortex_pi_openai_codex_arm_must_name_the_exact_pi_capability_before_arming(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    document = cortex_pi_codex_campaign_document(tmp_path)
+    document["arms"][0]["credential_capability"] = "pi-deepseek-api-key"
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path, document))])
+
+    assert status == 1
+    assert "exact pi-openai-codex-oauth capability" in failure_document(capsys)["error"]
     assert recorder.armed == []
 
 

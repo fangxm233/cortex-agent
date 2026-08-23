@@ -54,6 +54,7 @@ EXPIRY_BINDING_ADAPTERS: frozenset[AdapterFactory] = frozenset({
     OpenAICodexResponsesOAuthAdapter,
 })
 EXPIRY_VALIDATION_KEYS = frozenset({
+    ("pi", "openai-codex", "openai-codex-responses", "oauth", PROXY_SCHEMA_VERSION),
     ("codex-cli", "openai-codex", "openai-codex-responses", "oauth", PROXY_SCHEMA_VERSION),
 })
 

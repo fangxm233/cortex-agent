@@ -43,6 +43,9 @@ def _key(
     return CredentialCapabilityKey(runner, provider, protocol, credential_kind)
 
 
+PI_OPENAI_CODEX_CAPABILITY_KEY = _key(
+    "pi", "openai-codex", "openai-codex-responses", "oauth",
+)
 CODEX_CLI_CAPABILITY_KEY = _key(
     "codex-cli", "openai-codex", "openai-codex-responses", "oauth",
 )
@@ -66,10 +69,10 @@ CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = Ma
             "pi-deepseek-api-key", "live-handshake-passed",
             "f11e82fd0efecfda60490de953f3af39833cda1adce0e2b87e0f078bafa289d5",
         ),
-    _key("pi", "openai-codex", "openai-codex-responses", "oauth"):
+    PI_OPENAI_CODEX_CAPABILITY_KEY:
         CredentialCapability(
-            "pi-openai-codex-oauth", "offline-contract-passed",
-            "a72024944505c3c3f89655320558ef2d11bbfc35dfa2af4705f56867eef94568",
+            "pi-openai-codex-oauth", "live-handshake-passed",
+            "1e63a37bc945da31f7d518f7e25cb52d0a4964eed257741ac14b4760b184c6b4",
         ),
     CODEX_CLI_CAPABILITY_KEY:
         CredentialCapability(

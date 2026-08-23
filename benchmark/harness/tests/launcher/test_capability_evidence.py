@@ -193,20 +193,35 @@ def test_validates_shipped_codex_live_and_preserved_zero_paid_evidence() -> None
     }
 
 
-def test_validates_shipped_pi_codex_offline_evidence() -> None:
+def test_validates_shipped_pi_codex_live_and_offline_evidence() -> None:
     import cortex_bench_harness.launcher.credential_capabilities as registry
 
     row = registry.CAPABILITY_REGISTRY[PI_CODEX_KEY]
-    offline_path = registry._evidence_path(row.id, row.state)
+    live_path = registry._evidence_path(row.id, row.state)
 
-    assert row.state == "offline-contract-passed"
+    assert row.state == "live-handshake-passed"
     assert row.evidence_sha256 is not None
-    offline = validate_capability_evidence(
-        offline_path,
+    live = validate_capability_evidence(
+        live_path,
         row.evidence_sha256,
         capability_id=row.id,
         key=PI_CODEX_KEY,
         state=row.state,
+        adapter_id="openai-codex-responses/oauth",
+    )
+    assert live["implementation_commit"] == "8ec04171775f75eea94fa31814cd50e5e491414c"
+    assert live["pi_version"] == "0.82.1"
+    assert live["request_count"] == 1
+    assert live["scan_clean"] is True
+    assert live["revocation_proven"] is True
+
+    offline_path = registry._evidence_path(row.id, "offline-contract-passed")
+    offline = validate_capability_evidence(
+        offline_path,
+        "a72024944505c3c3f89655320558ef2d11bbfc35dfa2af4705f56867eef94568",
+        capability_id=row.id,
+        key=PI_CODEX_KEY,
+        state="offline-contract-passed",
         adapter_id="openai-codex-responses/oauth",
     )
     validate_offline_supporting_artifacts(offline_path.parent, offline)
