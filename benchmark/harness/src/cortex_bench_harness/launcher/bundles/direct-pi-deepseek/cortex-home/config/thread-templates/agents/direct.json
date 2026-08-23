@@ -1,0 +1,13 @@
+{
+  "name": "direct",
+  "description": "Handles a task directly in a single agent step",
+  "profile": "direct",
+  "persistSession": false,
+  "promptTemplate": "{{input}}",
+  "directive": "file:direct.md",
+  "systemPrompt": "file:direct.md",
+  "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,WebFetch,WebSearch,Write",
+  "pluginDirs": [],
+  "mcpComposition": "none",
+  "mcpToolAllowlist": []
+}

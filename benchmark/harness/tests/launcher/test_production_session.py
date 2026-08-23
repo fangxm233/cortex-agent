@@ -145,7 +145,7 @@ class FakeExecutor:
         self.dispatched_threads = [
             {
                 "threadId": "thr_dispatched", "status": "running",
-                "templateName": "benchmark-manager", "trigger": "task-dispatch",
+                "templateName": "manager", "trigger": "task-dispatch",
                 "createdAt": "2026-01-01T00:00:01.000Z",
             },
         ]
@@ -388,7 +388,7 @@ def test_session_posts_validated_root_context_and_export_identity(tmp_path: Path
     start = runner.payloads["production-thread-start.json"]
     evidence = runner.payloads["production-evidence-input.json"]
     assert start == {
-        "action": "start", "template": "benchmark-direct",
+        "action": "start", "template": "direct",
         "message": "Solve only this task.", "projectId": "general",
         "productionBenchmarkEvidenceContext": EVIDENCE_CONTEXT,
     }
@@ -399,7 +399,7 @@ def test_session_posts_validated_root_context_and_export_identity(tmp_path: Path
     assert evidence["armName"] == "cortex-direct"
     assert evidence["bundleManifestHash"] == "b" * 64
     assert evidence["mode"] == "direct"
-    assert evidence["expectedRoles"] == ["benchmark-direct"]
+    assert evidence["expectedRoles"] == ["direct"]
     assert evidence["managerQa"] is None
     assert "limits" not in evidence
     assert evidence["proxyExport"]["trial_id"] == "trial-direct"
@@ -454,14 +454,15 @@ def test_audit_retry_session_injects_its_own_template_and_evidence_shape(
 
     start = runner.payloads["production-thread-start.json"]
     evidence = runner.payloads["production-evidence-input.json"]
-    assert start["template"] == "benchmark-coder-review"
+    assert start["template"] == "coder-review"
     assert start["projectId"] == "general"
     assert evidence["mode"] == "coder-review"
-    assert evidence["expectedRoles"] == ["benchmark-coder", "benchmark-reviewer"]
+    assert evidence["expectedRoles"] == ["coder", "reviewer"]
     assert evidence["managerQa"] is None
     assert evidence["armName"] == "cortex-audit-retry"
     assert all(
-        "benchmark-direct" not in command for command, _, _ in runner.calls
+        "config/thread-templates/templates/direct.json" not in command
+        for command, _, _ in runner.calls
     )
 
 
@@ -490,7 +491,7 @@ def test_manager_arm_injects_a_task_and_never_posts_a_thread_root(tmp_path: Path
         "text": "Solve only this task.",
         "why": "The trial's one unit of work, injected as this arm's task root.",
         "done-when": "Solve only this task.",
-        "template": "benchmark-manager", "priority": "high",
+        "template": "manager", "priority": "high",
     }
 
 
@@ -616,12 +617,12 @@ def test_manager_arm_uses_the_newest_dispatch_thread_after_a_retry(tmp_path: Pat
     runner.dispatched_threads = [
         {
             "threadId": "thr_retry", "status": "running",
-            "templateName": "benchmark-manager", "trigger": "task-dispatch",
+            "templateName": "manager", "trigger": "task-dispatch",
             "createdAt": "2026-01-01T00:00:02.000Z",
         },
         {
             "threadId": "thr_stale", "status": "failed",
-            "templateName": "benchmark-manager", "trigger": "task-dispatch",
+            "templateName": "manager", "trigger": "task-dispatch",
             "createdAt": "2026-01-01T00:00:01.000Z",
         },
     ]
@@ -642,7 +643,7 @@ def test_manager_arm_exports_its_own_evidence_shape(tmp_path: Path) -> None:
 
     evidence = runner.payloads["production-evidence-input.json"]
     assert evidence["mode"] == "manager"
-    assert evidence["expectedRoles"] == ["benchmark-manager"]
+    assert evidence["expectedRoles"] == ["manager"]
     assert evidence["managerQa"] == "off"
     assert evidence["armName"] == "cortex-manager-qa-off"
     assert "limits" not in evidence

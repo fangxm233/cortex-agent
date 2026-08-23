@@ -1,10 +1,10 @@
 {
-  "name": "benchmark-manager",
-  "description": "Benchmark Manager — owns the dispatched task node with Q&A available",
-  "profile": "benchmark-manager",
+  "name": "manager",
+  "description": "Owns a dispatched task node with manager Q&A unavailable",
+  "profile": "manager",
   "persistSession": false,
-  "directive": "file:benchmark-manager.md",
-  "systemPrompt": "file:benchmark-manager.md",
+  "directive": "file:manager.md",
+  "systemPrompt": "file:manager.md",
   "entryStage": "manage",
   "stages": {
     "manage": {
@@ -22,7 +22,6 @@
     "task_status",
     "thread_abort",
     "thread_split",
-    "thread_wait",
-    "ask_manager"
+    "thread_wait"
   ]
 }

@@ -52,8 +52,8 @@ AUDIT_RETRY_BUNDLE = production_arm_bundle("coder-review-audit-retry-pi-deepseek
 MANAGER_BUNDLE = production_arm_bundle("manager-qa-off-pi-deepseek")
 
 EXPECTED_PROFILE = {
-    "defaultProfile": "benchmark-direct",
-    "profiles": {"benchmark-direct": {
+    "defaultProfile": "direct",
+    "profiles": {"direct": {
         "model": "deepseek-v4-flash", "backend": "pi", "mode": "trial",
         "provider": "deepseek", "thinking": "off", "maxOutputTokens": 65536,
         "fallback": [],
@@ -69,24 +69,24 @@ EXPECTED_SETTINGS = {
     "eventLog": False,
 }
 EXPECTED_AGENT = {
-    "name": "benchmark-direct",
-    "description": "Single production agent for the direct benchmark arm",
-    "profile": "benchmark-direct", "persistSession": False,
-    "promptTemplate": "{{input}}", "directive": "file:benchmark-direct.md",
-    "systemPrompt": "file:benchmark-direct.md",
+    "name": "direct",
+    "description": "Handles a task directly in a single agent step",
+    "profile": "direct", "persistSession": False,
+    "promptTemplate": "{{input}}", "directive": "file:direct.md",
+    "systemPrompt": "file:direct.md",
     "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,WebFetch,WebSearch,Write",
     "pluginDirs": [], "mcpComposition": "none", "mcpToolAllowlist": [],
 }
 EXPECTED_TEMPLATE = {
-    "name": "benchmark-direct",
-    "description": "One production agent step with no orchestration fork",
-    "agents": ["benchmark-direct"], "transitions": [],
-    "entryAgent": "benchmark-direct", "maxTotalSteps": 1,
+    "name": "direct",
+    "description": "Handle a task in one agent step without additional orchestration",
+    "agents": ["direct"], "transitions": [],
+    "entryAgent": "direct", "maxTotalSteps": 1,
     "maxTotalCostUsd": 100, "disableHooks": True,
 }
 EXPECTED_CODEX_PROFILE = {
-    "defaultProfile": "benchmark-direct",
-    "profiles": {"benchmark-direct": {
+    "defaultProfile": "direct",
+    "profiles": {"direct": {
         "model": "gpt-5.6-sol", "backend": "pi", "mode": "trial",
         "provider": "openai-codex", "thinking": "xhigh", "maxOutputTokens": 65536,
         "fallback": [],
@@ -216,8 +216,8 @@ def expected_attestation(
         "schema_version": "cortex-bench-launch-attestation/4",
         "trial_id": "trial-direct-001", "capture_boundary": "launcher_pre_boot",
         "arm_bundle": {
-            "key": "direct-pi-deepseek", "profile_name": "benchmark-direct",
-            "root_template": "benchmark-direct",
+            "key": "direct-pi-deepseek", "profile_name": "direct",
+            "root_template": "direct",
         },
         "arm_confinement": DIRECT_BUNDLE.confinement_record(),
         "npm_artifact_sha256": npm_sha, "backend_cli": backend,
@@ -247,16 +247,16 @@ def test_committed_bundle_is_the_exact_production_direct_surface(tmp_path: Path)
 
     assert read_json(home / "config/profiles.json") == EXPECTED_PROFILE
     assert read_json(home / "config/settings.json") == EXPECTED_SETTINGS
-    agent = home / "config/thread-templates/agents/benchmark-direct.json"
-    template = home / "config/thread-templates/templates/benchmark-direct.json"
+    agent = home / "config/thread-templates/agents/direct.json"
+    template = home / "config/thread-templates/templates/direct.json"
     assert read_json(agent) == EXPECTED_AGENT
     assert read_json(template) == EXPECTED_TEMPLATE
     assert read_json(home / "config/machines.json") == {}
     assert read_json(home / "data/schedules.json") == {"tasks": []}
     assert read_json(home / "data/mode.json") == {
         "mode": "api", "claudeMode": "api", "backend": "pi",
-        "claudeModel": "deepseek-v4-flash", "activeProfile": "benchmark-direct",
-        "defaultAgent": "benchmark-direct", "channelProfiles": {},
+        "claudeModel": "deepseek-v4-flash", "activeProfile": "direct",
+        "defaultAgent": "direct", "channelProfiles": {},
     }
     assert (home / "context/projects/general/TASKS.yaml").read_text() == "tasks: []\n"
     # The bundle is the only copy of these prompts. `agent-server/defaults` carried a second one
@@ -265,7 +265,7 @@ def test_committed_bundle_is_the_exact_production_direct_surface(tmp_path: Path)
     # What remains worth asserting is that materialization carries both prompts into the home
     # with content -- an empty or missing prompt is how a trial silently runs with no directive.
     for kind in ("directives", "systemPrompts"):
-        assert (home / "prompts" / kind / "benchmark-direct.md").read_bytes().strip()
+        assert (home / "prompts" / kind / "direct.md").read_bytes().strip()
 
 
 def test_direct_openai_codex_bundle_seals_its_xhigh_profile(tmp_path: Path) -> None:
@@ -275,8 +275,8 @@ def test_direct_openai_codex_bundle_seals_its_xhigh_profile(tmp_path: Path) -> N
     assert read_json(home / "config/settings.json") == EXPECTED_SETTINGS
     assert read_json(home / "data/mode.json") == {
         "mode": "api", "claudeMode": "api", "backend": "pi",
-        "claudeModel": "gpt-5.6-sol", "activeProfile": "benchmark-direct",
-        "defaultAgent": "benchmark-direct", "channelProfiles": {},
+        "claudeModel": "gpt-5.6-sol", "activeProfile": "direct",
+        "defaultAgent": "direct", "channelProfiles": {},
     }
 
 
@@ -291,7 +291,7 @@ def test_declared_output_cap_is_projected_into_the_sealed_profile(tmp_path: Path
     )
 
     profile = read_json(result.cortex_home / "config/profiles.json")
-    assert profile["profiles"]["benchmark-direct"]["maxOutputTokens"] == 256
+    assert profile["profiles"]["direct"]["maxOutputTokens"] == 256
     context = result.production_evidence_context
     assert context["model_execution"]["max_output_tokens"] == 256
 
@@ -639,10 +639,10 @@ def test_audit_retry_arm_materializes_its_own_bundle_and_never_the_direct_one(
     home = result.cortex_home
 
     assert result.arm_bundle is AUDIT_RETRY_BUNDLE
-    assert (home / "config/thread-templates/templates/benchmark-coder-review.json").is_file()
-    assert not (home / "config/thread-templates/templates/benchmark-direct.json").exists()
-    assert not (home / "prompts/directives/benchmark-direct.md").exists()
-    assert read_json(home / "config/profiles.json")["defaultProfile"] == "benchmark-coder-review"
+    assert (home / "config/thread-templates/templates/coder-review.json").is_file()
+    assert not (home / "config/thread-templates/templates/direct.json").exists()
+    assert not (home / "prompts/directives/direct.md").exists()
+    assert read_json(home / "config/profiles.json")["defaultProfile"] == "coder-review"
     bundle_sha, bundle_count = tree_digest(AUDIT_RETRY_BUNDLE.bundle_dir)
     assert (result.input_bundle_sha256, result.input_bundle_file_count) == (
         bundle_sha, bundle_count)
@@ -657,12 +657,12 @@ def test_attestation_and_sealed_environment_state_the_arm_that_ran(tmp_path: Pat
 
     assert result.process_environment["CORTEX_WEBHOOK_SINGLE_ROOT"] == "1"
     assert result.process_environment["CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE"] == (
-        "benchmark-coder-review")
+        "coder-review")
     attestation = read_json(result.launch_attestation_path)
     assert attestation["arm_bundle"] == {
         "key": "coder-review-audit-retry-pi-deepseek",
-        "profile_name": "benchmark-coder-review",
-        "root_template": "benchmark-coder-review",
+        "profile_name": "coder-review",
+        "root_template": "coder-review",
     }
     assert attestation["schema_version"] == "cortex-bench-launch-attestation/4"
 
@@ -672,8 +672,8 @@ def test_committed_bundle_files_are_read_from_the_bundle_that_ran(tmp_path: Path
     entries = production_home.committed_input_bundle_files(AUDIT_RETRY_BUNDLE.key)
     paths = tuple(entry["path"] for entry in entries)
 
-    assert "config/thread-templates/templates/benchmark-coder-review.json" in paths
-    assert not any("benchmark-direct" in path for path in paths)
+    assert "config/thread-templates/templates/coder-review.json" in paths
+    assert "config/thread-templates/templates/direct.json" not in paths
     for entry in entries:
         payload = (AUDIT_RETRY_BUNDLE.bundle_dir / entry["path"]).read_bytes()
         assert entry["sha256"] == hashlib.sha256(payload).hexdigest()

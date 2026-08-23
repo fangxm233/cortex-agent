@@ -1,10 +1,10 @@
 {
-  "name": "benchmark-reviewer",
-  "description": "Benchmark Reviewer — audits task-workspace changes without modifying them",
-  "profile": "benchmark-coder-review",
+  "name": "reviewer",
+  "description": "Audits task-workspace changes without modifying them",
+  "profile": "coder-review",
   "persistSession": true,
-  "directive": "file:benchmark-reviewer.md",
-  "systemPrompt": "file:benchmark-reviewer.md",
+  "directive": "file:reviewer.md",
+  "systemPrompt": "file:reviewer.md",
   "entryStage": "audit",
   "stages": {
     "audit": {

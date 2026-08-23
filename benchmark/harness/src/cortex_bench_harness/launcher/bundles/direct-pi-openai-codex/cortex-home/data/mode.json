@@ -3,7 +3,7 @@
   "claudeMode": "api",
   "backend": "pi",
   "claudeModel": "gpt-5.6-sol",
-  "activeProfile": "benchmark-direct",
-  "defaultAgent": "benchmark-direct",
+  "activeProfile": "direct",
+  "defaultAgent": "direct",
   "channelProfiles": {}
 }

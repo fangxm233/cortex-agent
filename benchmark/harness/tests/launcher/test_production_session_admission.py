@@ -204,7 +204,7 @@ class ContainerDouble:
                 "scope": "project", "count": 1,
                 "threads": [{
                     "threadId": "thr_sealed", "status": "running",
-                    "templateName": "benchmark-manager", "trigger": "task-dispatch",
+                    "templateName": "manager", "trigger": "task-dispatch",
                     "createdAt": "2026-01-01T00:00:01.000Z",
                 }],
             }})
@@ -359,13 +359,16 @@ def test_audit_retry_arm_injects_its_attested_root_through_the_real_sealed_exec(
         item["body"] for item in posted if item["name"] == "production-thread-start.json")
     evidence = next(
         item["body"] for item in posted if item["name"] == "production-evidence-input.json")
-    assert start["template"] == "benchmark-coder-review"
+    assert start["template"] == "coder-review"
     assert evidence["mode"] == "coder-review"
-    assert evidence["expectedRoles"] == ["benchmark-coder", "benchmark-reviewer"]
+    assert evidence["expectedRoles"] == ["coder", "reviewer"]
     launch = container.commands[0]
     assert "CORTEX_WEBHOOK_SINGLE_ROOT=1" in launch
-    assert "CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE=benchmark-coder-review" in launch
-    assert all("benchmark-direct" not in command for command in container.commands)
+    assert "CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE=coder-review" in launch
+    assert all(
+        "config/thread-templates/templates/direct.json" not in command
+        for command in container.commands
+    )
 
 
 def test_manager_arm_injects_its_task_root_through_the_real_sealed_exec(

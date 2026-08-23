@@ -33,14 +33,14 @@ PRODUCTION_IMAGE = (
 CASES = (
     (
         "zero-paid-production-coder-review.yaml",
-        "benchmark-coder-review",
-        ("benchmark-coder", "benchmark-reviewer", "benchmark-coder", "benchmark-reviewer"),
+        "coder-review",
+        ("coder", "reviewer", "coder", "reviewer"),
         5,
     ),
     (
         "zero-paid-production-coder-review-fix.yaml",
-        "benchmark-coder-review-fix",
-        ("benchmark-coder", "benchmark-fixer"),
+        "coder-review-fix",
+        ("coder", "fixer"),
         3,
     ),
 )

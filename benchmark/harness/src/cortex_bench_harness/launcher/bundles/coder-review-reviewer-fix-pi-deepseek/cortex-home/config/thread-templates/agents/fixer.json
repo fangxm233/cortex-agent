@@ -1,10 +1,10 @@
 {
-  "name": "benchmark-fixer",
-  "description": "Benchmark Fixer — independently audits the task-workspace implementation and directly fixes the blockers it finds",
-  "profile": "benchmark-coder-review-fix",
+  "name": "fixer",
+  "description": "Independently audits the implementation and directly fixes confirmed blockers",
+  "profile": "coder-review-fix",
   "persistSession": true,
-  "directive": "file:benchmark-fixer.md",
-  "systemPrompt": "file:benchmark-fixer.md",
+  "directive": "file:fixer.md",
+  "systemPrompt": "file:fixer.md",
   "entryStage": "auditFix",
   "stages": {
     "auditFix": {

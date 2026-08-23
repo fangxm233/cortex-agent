@@ -7,8 +7,8 @@
 # the arm is the same committed trial: same task fixture, same sealed proxy policy, same
 # digest-pinned image, same loopback synthetic upstream on port 9099. The arm alone differs, and
 # what it changes is the committed bundle the launcher materializes --
-# coder-review-reviewer-fix-pi-deepseek, whose root template is benchmark-coder-review-fix over the
-# benchmark-coder and benchmark-fixer agents: the coder implements, then an independent fixer audits
+# coder-review-reviewer-fix-pi-deepseek, whose root template is coder-review-fix over the coder and
+# fixer agents: the coder implements, then an independent fixer audits
 # and repairs blockers in the same writable workspace. The operator starts the committed synthetic
 # DeepSeek upstream and builds the two RUN-LOCAL artifacts named below before launch. No provider
 # endpoint or real credential is used; paid remains false.

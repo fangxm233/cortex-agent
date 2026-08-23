@@ -6,8 +6,8 @@
 # An arm is a committed config bundle plus the parameters the launcher has to state about it: which
 # directory becomes the sealed CORTEX_HOME, which profile the agents run under, which root template
 # is injected, and which mode and roles the evidence input declares. Every seam that used to carry
-# one of those as a `benchmark-direct` literal reads them from here instead, so a second arm is a
-# row in this table rather than a second branch through the launcher.
+# one of those as a template literal reads them from here instead, so a second arm is a row in
+# this table rather than a second branch through the launcher.
 
 import json
 from collections.abc import Mapping
@@ -128,24 +128,24 @@ def _assert_bundle_profile(bundle: ProductionArmBundle) -> None:
 
 PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
     _bundle(
-        key="direct-pi-deepseek", profile_name="benchmark-direct",
-        root_template="benchmark-direct", evidence_mode="direct",
-        expected_roles=("benchmark-direct",),
+        key="direct-pi-deepseek", profile_name="direct",
+        root_template="direct", evidence_mode="direct",
+        expected_roles=("direct",),
         orchestration={"mode": "direct", "ask_manager": False},
     ),
     _bundle(
-        key="direct-pi-openai-codex", profile_name="benchmark-direct",
-        root_template="benchmark-direct", evidence_mode="direct",
-        expected_roles=("benchmark-direct",),
+        key="direct-pi-openai-codex", profile_name="direct",
+        root_template="direct", evidence_mode="direct",
+        expected_roles=("direct",),
         provider="openai-codex", model="gpt-5.6-sol",
         credential_capability="pi-openai-codex-oauth", thinking="xhigh",
         orchestration={"mode": "direct", "ask_manager": False},
     ),
     _bundle(
         key="coder-review-audit-retry-pi-deepseek",
-        profile_name="benchmark-coder-review",
-        root_template="benchmark-coder-review", evidence_mode="coder-review",
-        expected_roles=("benchmark-coder", "benchmark-reviewer"),
+        profile_name="coder-review",
+        root_template="coder-review", evidence_mode="coder-review",
+        expected_roles=("coder", "reviewer"),
         orchestration={
             "mode": "coder-review", "coder_review_variant": "audit-retry",
             "ask_manager": False,
@@ -153,9 +153,9 @@ PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
     ),
     _bundle(
         key="coder-review-reviewer-fix-pi-deepseek",
-        profile_name="benchmark-coder-review-fix",
-        root_template="benchmark-coder-review-fix", evidence_mode="coder-review",
-        expected_roles=("benchmark-coder", "benchmark-fixer"),
+        profile_name="coder-review-fix",
+        root_template="coder-review-fix", evidence_mode="coder-review",
+        expected_roles=("coder", "fixer"),
         orchestration={
             "mode": "coder-review", "coder_review_variant": "reviewer-fix",
             "ask_manager": False,
@@ -165,16 +165,16 @@ PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
     # permit exactly one task at one level, and its sealed home keeps the one directory the task
     # store writes — `TASKS.yaml` and its in-file lock live there and nowhere else.
     _bundle(
-        key="manager-qa-off-pi-deepseek", profile_name="benchmark-manager",
-        root_template="benchmark-manager", evidence_mode="manager",
-        expected_roles=("benchmark-manager",), manager_qa="off",
+        key="manager-qa-off-pi-deepseek", profile_name="manager",
+        root_template="manager", evidence_mode="manager",
+        expected_roles=("manager",), manager_qa="off",
         orchestration={"mode": "manager", "ask_manager": False},
         injection=TASK_ROOT, writable_home_paths=("context/projects/general",),
     ),
     _bundle(
-        key="manager-qa-on-pi-deepseek", profile_name="benchmark-manager",
-        root_template="benchmark-manager", evidence_mode="manager",
-        expected_roles=("benchmark-manager",), manager_qa="on",
+        key="manager-qa-on-pi-deepseek", profile_name="manager",
+        root_template="manager", evidence_mode="manager",
+        expected_roles=("manager",), manager_qa="on",
         orchestration={"mode": "manager", "ask_manager": True},
         injection=TASK_ROOT, writable_home_paths=("context/projects/general",),
         webhook_endpoints=(THREAD_OP_ENDPOINT, MANAGER_QA_ENDPOINT),

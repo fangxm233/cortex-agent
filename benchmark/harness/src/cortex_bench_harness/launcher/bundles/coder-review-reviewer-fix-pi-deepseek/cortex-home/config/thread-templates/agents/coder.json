@@ -1,10 +1,10 @@
 {
-  "name": "benchmark-coder",
-  "description": "Benchmark Coder — implements a task directly in an isolated task workspace",
-  "profile": "benchmark-coder-review-fix",
+  "name": "coder",
+  "description": "Implements a task directly in an isolated task workspace",
+  "profile": "coder-review-fix",
   "persistSession": true,
-  "directive": "file:benchmark-coder.md",
-  "systemPrompt": "file:benchmark-coder.md",
+  "directive": "file:coder.md",
+  "systemPrompt": "file:coder.md",
   "entryStage": "implement",
   "stages": {
     "implement": {

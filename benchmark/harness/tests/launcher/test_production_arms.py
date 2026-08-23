@@ -85,10 +85,10 @@ def test_direct_arm_resolves_to_the_committed_direct_bundle() -> None:
 
     assert bundle.key == "direct-pi-deepseek"
     assert bundle.bundle_dir.name == "cortex-home"
-    assert bundle.root_template == "benchmark-direct"
-    assert bundle.profile_name == "benchmark-direct"
+    assert bundle.root_template == "direct"
+    assert bundle.profile_name == "direct"
     assert bundle.evidence_mode == "direct"
-    assert bundle.expected_roles == ("benchmark-direct",)
+    assert bundle.expected_roles == ("direct",)
     assert bundle.thinking == "off"
     assert bundle.manager_qa is None
 
@@ -98,10 +98,10 @@ def test_direct_openai_codex_arm_resolves_to_its_committed_bundle() -> None:
 
     assert bundle.key == "direct-pi-openai-codex"
     assert bundle.bundle_dir.name == "cortex-home"
-    assert bundle.root_template == "benchmark-direct"
-    assert bundle.profile_name == "benchmark-direct"
+    assert bundle.root_template == "direct"
+    assert bundle.profile_name == "direct"
     assert bundle.evidence_mode == "direct"
-    assert bundle.expected_roles == ("benchmark-direct",)
+    assert bundle.expected_roles == ("direct",)
     assert bundle.provider == "openai-codex"
     assert bundle.model == "gpt-5.6-sol"
     assert bundle.credential_capability == "pi-openai-codex-oauth"
@@ -114,10 +114,10 @@ def test_audit_retry_arm_resolves_to_its_own_bundle_template_and_roles() -> None
     bundle = require_production_arm(audit_retry_arm())
 
     assert bundle.key == "coder-review-audit-retry-pi-deepseek"
-    assert bundle.root_template == "benchmark-coder-review"
-    assert bundle.profile_name == "benchmark-coder-review"
+    assert bundle.root_template == "coder-review"
+    assert bundle.profile_name == "coder-review"
     assert bundle.evidence_mode == "coder-review"
-    assert bundle.expected_roles == ("benchmark-coder", "benchmark-reviewer")
+    assert bundle.expected_roles == ("coder", "reviewer")
     assert bundle.manager_qa is None
     assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
 
@@ -126,10 +126,10 @@ def test_reviewer_fix_arm_resolves_to_its_own_bundle_template_and_roles() -> Non
     bundle = require_production_arm(reviewer_fix_arm())
 
     assert bundle.key == "coder-review-reviewer-fix-pi-deepseek"
-    assert bundle.root_template == "benchmark-coder-review-fix"
-    assert bundle.profile_name == "benchmark-coder-review-fix"
+    assert bundle.root_template == "coder-review-fix"
+    assert bundle.profile_name == "coder-review-fix"
     assert bundle.evidence_mode == "coder-review"
-    assert bundle.expected_roles == ("benchmark-coder", "benchmark-fixer")
+    assert bundle.expected_roles == ("coder", "fixer")
     assert bundle.manager_qa is None
     assert bundle.bundle_dir != require_production_arm(audit_retry_arm()).bundle_dir
 
@@ -138,10 +138,10 @@ def test_manager_qa_off_arm_resolves_to_its_own_bundle_template_and_role() -> No
     bundle = require_production_arm(manager_qa_off_arm())
 
     assert bundle.key == "manager-qa-off-pi-deepseek"
-    assert bundle.root_template == "benchmark-manager"
-    assert bundle.profile_name == "benchmark-manager"
+    assert bundle.root_template == "manager"
+    assert bundle.profile_name == "manager"
     assert bundle.evidence_mode == "manager"
-    assert bundle.expected_roles == ("benchmark-manager",)
+    assert bundle.expected_roles == ("manager",)
     assert bundle.manager_qa == "off"
     assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
 
@@ -151,10 +151,10 @@ def test_manager_qa_on_arm_differs_only_by_its_question_tool_gate() -> None:
     on = require_production_arm(manager_qa_on_arm())
 
     assert on.key == "manager-qa-on-pi-deepseek"
-    assert on.root_template == off.root_template == "benchmark-manager"
-    assert on.profile_name == off.profile_name == "benchmark-manager"
+    assert on.root_template == off.root_template == "manager"
+    assert on.profile_name == off.profile_name == "manager"
     assert on.evidence_mode == off.evidence_mode == "manager"
-    assert on.expected_roles == off.expected_roles == ("benchmark-manager",)
+    assert on.expected_roles == off.expected_roles == ("manager",)
     assert on.manager_qa == "on"
 
     off_files = {
@@ -167,7 +167,7 @@ def test_manager_qa_on_arm_differs_only_by_its_question_tool_gate() -> None:
     }
     assert on_files.keys() == off_files.keys()
     changed = {path for path in on_files if on_files[path] != off_files[path]}
-    agent_path = Path("config/thread-templates/agents/benchmark-manager.json")
+    agent_path = Path("config/thread-templates/agents/manager.json")
     assert changed == {agent_path}
 
     off_agent = read_json(off.bundle_dir / agent_path)
@@ -221,7 +221,7 @@ def test_manager_bundle_gates_ask_manager_out_of_its_agent_tool_surface() -> Non
     """
     bundle = require_production_arm(manager_qa_off_arm())
     agent = read_json(
-        bundle.bundle_dir / "config/thread-templates/agents/benchmark-manager.json")
+        bundle.bundle_dir / "config/thread-templates/agents/manager.json")
 
     allowlist = agent["mcpToolAllowlist"]
     assert isinstance(allowlist, list) and allowlist
@@ -249,6 +249,23 @@ def test_a_non_pi_deepseek_arm_is_not_a_production_candidate() -> None:
 def test_an_unknown_bundle_key_is_refused() -> None:
     with pytest.raises(ProductionArmError, match="bundle"):
         production_arm_bundle("no-such-bundle")
+
+
+def test_every_bundle_exposes_only_its_normal_named_template_surface() -> None:
+    for bundle in PRODUCTION_ARM_BUNDLES:
+        home = bundle.bundle_dir
+        template_dir = home / "config/thread-templates/templates"
+        agent_dir = home / "config/thread-templates/agents"
+        templates = sorted(template_dir.glob("*.json"))
+        assert [path.stem for path in templates] == [bundle.root_template]
+        surface_files = [
+            *templates, *agent_dir.glob("*.json"),
+            *(home / "prompts/directives").glob("*.md"),
+            *(home / "prompts/systemPrompts").glob("*.md"),
+        ]
+        assert all("benchmark" not in path.name.lower() for path in surface_files)
+        assert all("benchmark" not in path.read_text(encoding="utf-8").lower()
+                   for path in surface_files)
 
 
 def test_every_committed_bundle_ships_what_its_arm_declares() -> None:

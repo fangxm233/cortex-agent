@@ -1,0 +1,12 @@
+{
+  "name": "direct",
+  "description": "Handle a task in one agent step without additional orchestration",
+  "agents": [
+    "direct"
+  ],
+  "transitions": [],
+  "entryAgent": "direct",
+  "maxTotalSteps": 1,
+  "maxTotalCostUsd": 100,
+  "disableHooks": true
+}

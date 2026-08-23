@@ -1,7 +1,7 @@
 {
-  "defaultProfile": "benchmark-manager",
+  "defaultProfile": "manager",
   "profiles": {
-    "benchmark-manager": {
+    "manager": {
       "model": "deepseek-v4-flash",
       "backend": "pi",
       "mode": "trial",

@@ -1,7 +1,7 @@
 {
-  "defaultProfile": "benchmark-direct",
+  "defaultProfile": "direct",
   "profiles": {
-    "benchmark-direct": {
+    "direct": {
       "model": "deepseek-v4-flash",
       "backend": "pi",
       "mode": "trial",

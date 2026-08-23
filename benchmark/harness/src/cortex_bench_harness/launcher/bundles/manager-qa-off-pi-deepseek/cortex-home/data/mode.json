@@ -3,7 +3,7 @@
   "claudeMode": "api",
   "backend": "pi",
   "claudeModel": "deepseek-v4-flash",
-  "activeProfile": "benchmark-manager",
-  "defaultAgent": "benchmark-manager",
+  "activeProfile": "manager",
+  "defaultAgent": "manager",
   "channelProfiles": {}
 }

@@ -1,7 +1,7 @@
 {
-  "defaultProfile": "benchmark-coder-review",
+  "defaultProfile": "coder-review",
   "profiles": {
-    "benchmark-coder-review": {
+    "coder-review": {
       "model": "deepseek-v4-flash",
       "backend": "pi",
       "mode": "trial",

@@ -3,7 +3,7 @@
   "claudeMode": "api",
   "backend": "pi",
   "claudeModel": "deepseek-v4-flash",
-  "activeProfile": "benchmark-coder-review",
-  "defaultAgent": "benchmark-coder",
+  "activeProfile": "coder-review",
+  "defaultAgent": "coder",
   "channelProfiles": {}
 }

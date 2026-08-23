@@ -82,8 +82,8 @@ HOST_HOME = "/private/host-home/operator"
 HOSTNAME = "private-hostname-unique"
 HOST_IDENTITY = "machine-identity-unique"
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
-DIRECT_CLAUDE_SYSTEM_PROMPT = "defaults/prompts/systemPrompts/benchmark-direct.md"
-DIRECT_CLAUDE_DIRECTIVE = "defaults/prompts/directives/benchmark-direct.md"
+DIRECT_CLAUDE_SYSTEM_PROMPT = "defaults/prompts/systemPrompts/direct.md"
+DIRECT_CLAUDE_DIRECTIVE = "defaults/prompts/directives/direct.md"
 COMMON_PLUGIN, CODER_PLUGIN = (
     "defaults/plugins/cortex-common", "defaults/plugins/cortex-coder",
 )
@@ -1503,8 +1503,8 @@ def test_a_coder_review_trial_never_records_the_direct_arm_bundle(tmp_path: Path
 
     recorded = envelope["launch"]["config_bundle"]["files"]
     paths = [entry["path"] for entry in recorded]
-    assert "config/thread-templates/templates/benchmark-coder-review.json" in paths
-    assert not any("benchmark-direct" in path for path in paths)
+    assert "config/thread-templates/templates/coder-review.json" in paths
+    assert "config/thread-templates/templates/direct.json" not in paths
     assert recorded == list(committed_input_bundle_files(bundle.key))
     assert canonical_sha256(recorded) == materialized.input_bundle_sha256
 
@@ -1522,16 +1522,16 @@ def test_production_assets_copy_the_materialized_arm_prompts_not_npm_defaults(
     )
 
     manifest = json.loads((tmp_path / "agent/assets/manifest.json").read_bytes())
-    role = manifest["roles"]["benchmark-coder"]
+    role = manifest["roles"]["coder"]
     asset = tmp_path / "agent" / role["system_prompt"]
-    expected = bundle.bundle_dir / "prompts/systemPrompts/benchmark-coder.md"
+    expected = bundle.bundle_dir / "prompts/systemPrompts/coder.md"
     assert asset.read_bytes() == expected.read_bytes()
     entry = next(
         item for item in manifest["files"]
         if item["asset_path"] == role["system_prompt"]
     )
     assert entry["container_path"] == (
-        "/logs/agent/production-cortex-home/prompts/systemPrompts/benchmark-coder.md"
+        "/logs/agent/production-cortex-home/prompts/systemPrompts/coder.md"
     )
     assert envelope["assets"]["file_count"] == 4
 

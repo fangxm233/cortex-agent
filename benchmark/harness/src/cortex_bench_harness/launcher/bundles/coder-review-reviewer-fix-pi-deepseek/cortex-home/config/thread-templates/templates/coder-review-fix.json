@@ -1,0 +1,22 @@
+{
+  "name": "coder-review-fix",
+  "description": "Coder implementation followed by an independent reviewer that audits and fixes confirmed blockers",
+  "agents": [
+    "coder",
+    "fixer"
+  ],
+  "transitions": [
+    {
+      "from": "coder:implement",
+      "to": "fixer:auditFix",
+      "condition": {
+        "type": "always"
+      }
+    }
+  ],
+  "entryAgent": "coder",
+  "entryStage": "implement",
+  "maxTotalSteps": 3,
+  "maxTotalCostUsd": 100,
+  "disableHooks": true
+}

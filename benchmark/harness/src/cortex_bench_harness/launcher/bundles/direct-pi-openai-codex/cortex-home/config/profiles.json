@@ -1,7 +1,7 @@
 {
-  "defaultProfile": "benchmark-direct",
+  "defaultProfile": "direct",
   "profiles": {
-    "benchmark-direct": {
+    "direct": {
       "model": "gpt-5.6-sol",
       "backend": "pi",
       "mode": "trial",

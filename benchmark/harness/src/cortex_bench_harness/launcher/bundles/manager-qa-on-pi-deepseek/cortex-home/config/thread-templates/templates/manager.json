@@ -1,0 +1,13 @@
+{
+  "name": "manager",
+  "description": "Manage a task dispatched by the built-in task scheduler",
+  "agents": [
+    "manager"
+  ],
+  "transitions": [],
+  "entryAgent": "manager",
+  "entryStage": "manage",
+  "maxTotalSteps": 4,
+  "maxTotalCostUsd": 100,
+  "disableHooks": true
+}
