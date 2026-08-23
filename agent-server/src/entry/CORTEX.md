@@ -17,6 +17,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | draft-attachments.ts | files | promotes draft uploads into session storage |
 | doctor-cli.ts | cli | runs environment diagnostics and safe fixes |
 | hook-cli.ts | cli | Inspects hooks and runs blocking user asks |
+| fast-install.ts | build | syncs build outputs into the install root |
 | feishu-login.ts | cli | handles Feishu login and serialized env updates |
 | init.ts | cli | creates Cortex home and optional usage config |
 | local-ui.ts | config | enables the loopback Web UI endpoint idempotently |

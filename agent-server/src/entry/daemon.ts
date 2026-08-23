@@ -22,10 +22,15 @@
  *
  * Source-watch rebuild loop:
  *   When CORTEX_REPO is set and ${CORTEX_REPO}/src exists, daemon watches
- *   src/**\/*.ts and on change runs: npm run build (server → ui-contract → web) → npm pack → install -g
- *   → restart() the app.js child from the freshly installed dist. The daemon
+ *   src/**\/*.ts and on change runs: npm run build (server → ui-contract → web) → install into the
+ *   install root → restart() the app.js child from the freshly installed dist. The daemon
  *   process itself does NOT reload — if you edit daemon.ts you must manually
  *   `cortex daemon` restart to pick up the new daemon code.
+ *
+ *   The install step has two paths (see entry/fast-install.ts). While the manifest's dependency
+ *   sets are unchanged — every rebuild that only touched source — the build outputs are copied
+ *   straight into the install root through staged renames, which takes seconds. When dependencies
+ *   change, it falls back to npm pack → install -g so the vendored closure is rebuilt.
  *
  *   The build order is load-bearing, not cosmetic: ui-contract re-exports the server's dist
  *   types and web typechecks against ui-contract's built dist, so skipping the middle package
@@ -56,7 +61,8 @@ import * as path from 'path';
 import { createLogger } from '@core/log.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
-import { isMainModule, moduleDir, DATA_DIR, CONFIG_DIR, STORE_DIR } from '@core/utils.js';
+import { isMainModule, moduleDir, DATA_DIR, CONFIG_DIR, STORE_DIR, INSTALL_ROOT } from '@core/utils.js';
+import { planFastInstall, applyFastInstall } from './fast-install.js';
 import { tryAcquireSingletonLock, releaseSingletonLock as releaseLock } from '@core/singleton-lock.js';
 
 // Load .env BEFORE reading any CORTEX_* env vars below. Mirrors app.ts §61 — the
@@ -565,6 +571,31 @@ async function packTarball(reason: string): Promise<string> {
   return found.path;
 }
 
+/**
+ * Refresh the install root by copying the build outputs in, skipping pack + `npm install -g`.
+ * Only valid while the dependency closure is unchanged, which is every rebuild that did not touch
+ * the manifest. Returns the synced entries, or null when the full install path must run.
+ */
+function tryFastInstall(): string[] | null {
+  const plan = planFastInstall({
+    repoDir: CORTEX_REPO,
+    monorepoRoot: MONOREPO_ROOT,
+    installRoot: INSTALL_ROOT,
+  });
+  if (plan.blocked) {
+    log.info(`Fast install unavailable (${plan.blocked}) — falling back to pack + install -g`);
+    return null;
+  }
+  try {
+    return applyFastInstall(plan);
+  } catch (err: any) {
+    // A failed sync leaves the previous tree in place (staged rename), so the full path can
+    // still recover the install root.
+    log.warn(`Fast install failed (${err?.message ?? err}) — falling back to pack + install -g`);
+    return null;
+  }
+}
+
 async function runRebuildPipeline(reason: string) {
   // Defer if app.ts is mid-request: install -g + restart() would interrupt it.
   // The build/pack/install commands themselves don't touch the running child, but the
@@ -594,12 +625,23 @@ async function runRebuildPipeline(reason: string) {
     // Step 1: build the workspace packages in dependency order (server → ui-contract → web).
     if (!await runBuildSteps(reason)) return;
 
-    // Step 2: pack (clean old tgz first, otherwise readdir picks up a stale one)
+    // Step 2: fast install. A src edit changes only the compiled output, so copying it into the
+    // install root is equivalent to reinstalling — and skips rewriting the ~40k-file vendored
+    // closure that `npm install -g` rm -rf's and re-extracts on every rebuild.
+    const started = Date.now();
+    const synced = tryFastInstall();
+    if (synced) {
+      log.info(`Fast install: ${synced.join(', ')} in ${Date.now() - started}ms — restarting app.ts`);
+      restart(`src rebuild: ${reason}`);
+      return;
+    }
+
+    // Step 3: pack (clean old tgz first, otherwise readdir picks up a stale one)
     const tgzPath = await packTarball(reason);
     if (!tgzPath) return;
     log.info(`Packed tarball: ${tgzPath}`);
 
-    // Step 3: install -g. Run from /tmp so npm doesn't choke if its CWD lives inside the package
+    // Step 4: install -g. Run from /tmp so npm doesn't choke if its CWD lives inside the package
     // currently being unlinked.
     const installCode = await spawnAsync('npm', ['install', '-g', tgzPath], { cwd: '/tmp' });
     if (installCode !== 0) {
@@ -607,7 +649,7 @@ async function runRebuildPipeline(reason: string) {
       return;
     }
 
-    // Step 4: restart app.ts. This reuses the busy/idle gate inside restart() —
+    // Step 5: restart app.ts. This reuses the busy/idle gate inside restart() —
     // if a request snuck in between the busy-check above and now, restart() will
     // re-defer to pendingRestart. Either way, the new app.js boots from the freshly
     // installed dist/.
