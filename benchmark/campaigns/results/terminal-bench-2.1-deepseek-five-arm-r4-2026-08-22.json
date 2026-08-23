@@ -1,0 +1,793 @@
+{
+  "accounting": {
+    "campaign_total_cost_status": "unavailable-incomplete-priced-record-coverage",
+    "campaign_total_cost_usd": null,
+    "declared_campaign_ceiling_usd": "9.90",
+    "max_cost_usd_per_trial": "0.66",
+    "note": "The subtotal covers only persisted aistatus cost rows. Missing rows and trials are unavailable, not zero.",
+    "priced_records_cost_subtotal_usd": "0.63345124",
+    "priced_request_records": 257,
+    "proxy_requests": 501,
+    "proxy_requests_complete": true,
+    "trials_with_priced_cost_files": 7
+  },
+  "benchmark": "Terminal-Bench 2.1",
+  "campaign": "tb21-five-r4",
+  "comparison_report": {
+    "comparisons": [
+      {
+        "difference_class": "orchestration",
+        "left_arm": "cortex-direct",
+        "right_arm": "cortex-audit-retry"
+      },
+      {
+        "difference_class": "orchestration",
+        "left_arm": "cortex-direct",
+        "right_arm": "cortex-reviewer-fix"
+      },
+      {
+        "difference_class": "orchestration",
+        "left_arm": "cortex-direct",
+        "right_arm": "cortex-manager-qa-off"
+      },
+      {
+        "difference_class": "orchestration",
+        "left_arm": "cortex-direct",
+        "right_arm": "cortex-manager-qa-on"
+      }
+    ],
+    "runs": 15,
+    "schema_version": "cortex-benchmark-comparison-report/4",
+    "sha256": "63a6f257ad746bcbfee95bb586b598bd405c92a2588a7880fe2b17b18cb8cfc0"
+  },
+  "executed_at": "2026-08-22",
+  "execution": {
+    "campaign_ok": false,
+    "campaign_ok_explanation": "False because eight deadline terminals are agent failures; all harness envelopes nevertheless published.",
+    "campaign_state": "completed",
+    "combined_wall_clock_seconds": 17628.542,
+    "concurrency": 2,
+    "deadline_trials": 8,
+    "final_campaign_ended_at": "2026-08-23T01:17:20.158Z",
+    "gate_started_at": "2026-08-22T20:23:31.616000Z",
+    "gate_then_resume": true,
+    "harness_incomplete_trials": 0,
+    "planned_trials": 15,
+    "pre_score_recovery": {
+      "provider_requests": 0,
+      "reason": "The first resume artifact was packed through symlinked node_modules and tar refused parent-relative members during setup. Those 14 incomplete roots were moved aside, dependencies were installed locally, and the terminal gate root was resumed unchanged."
+    },
+    "published_outer_envelopes": 15,
+    "terminal_success_trials": 7
+  },
+  "headline": "All 15 five-arm trials published readable outer envelopes. Raw verifier rewards were 1/3 for direct, audit-retry, reviewer-fix, and manager-QA-off, and 2/3 for manager-QA-on. Eight trials reached the launcher deadline and are labeled terminal-agent-failure/run_deadline_reached rather than harness-incomplete. Every scan was clean and every route was revoked.",
+  "network": {
+    "comparison_boundary": "Comparable only with open-network runs under the same task images.",
+    "mode": "open"
+  },
+  "paid": true,
+  "runtime_artifacts": {
+    "caveat": "The gate tarball and resumed-wave tarball have different archive hashes despite the same clean source commit and source fingerprint. The direct/chess row is therefore not byte-identical to the other fourteen runtime artifacts.",
+    "npm_artifact_variants": [
+      {
+        "sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+        "trial_count": 14,
+        "trial_ids": [
+          "tb21-five-r4-chess-best-move-cortex-audit-retry",
+          "tb21-five-r4-chess-best-move-cortex-manager-qa-off",
+          "tb21-five-r4-chess-best-move-cortex-manager-qa-on",
+          "tb21-five-r4-chess-best-move-cortex-reviewer-fix",
+          "tb21-five-r4-constraints-scheduling-cortex-audit-retry",
+          "tb21-five-r4-constraints-scheduling-cortex-direct",
+          "tb21-five-r4-constraints-scheduling-cortex-manager-qa-off",
+          "tb21-five-r4-constraints-scheduling-cortex-manager-qa-on",
+          "tb21-five-r4-constraints-scheduling-cortex-reviewer-fix",
+          "tb21-five-r4-db-wal-recovery-cortex-audit-retry",
+          "tb21-five-r4-db-wal-recovery-cortex-direct",
+          "tb21-five-r4-db-wal-recovery-cortex-manager-qa-off",
+          "tb21-five-r4-db-wal-recovery-cortex-manager-qa-on",
+          "tb21-five-r4-db-wal-recovery-cortex-reviewer-fix"
+        ]
+      },
+      {
+        "sha256": "a86d71d7a869d040cecd7f4232ab14c7512ba639f2c582d0c5f1e9cd4f7cf2f0",
+        "trial_count": 1,
+        "trial_ids": [
+          "tb21-five-r4-chess-best-move-cortex-direct"
+        ]
+      }
+    ],
+    "source_commit_uniform": true,
+    "source_fingerprint": "b46dd65d28af8139105605b764d5113624c5359adeaea585c0ecddace978f6cc",
+    "strict_byte_identity": false,
+    "wheel_sha256": "d41fc73a9848bb66e31cf5c0d47342878bb114a4bf2af0d449f18f3ef8b05910"
+  },
+  "safety": {
+    "clean_scans": 15,
+    "fully_revoked_routes": 15,
+    "total_matches": 0,
+    "total_missing_sources": 0,
+    "total_unclassified_files": 0
+  },
+  "schema_version": "cortex-bench-five-arm-live-summary/1",
+  "scores_by_arm": {
+    "cortex-audit-retry": {
+      "deadline_trials": 2,
+      "provider_requests": 100,
+      "raw_reward_sum": 1.0,
+      "raw_rewards_by_task": {
+        "chess-best-move": 0.0,
+        "constraints-scheduling": 1.0,
+        "db-wal-recovery": 0.0
+      },
+      "raw_tasks_solved": 1,
+      "terminal_success_trials": 1
+    },
+    "cortex-direct": {
+      "deadline_trials": 1,
+      "provider_requests": 87,
+      "raw_reward_sum": 1.0,
+      "raw_rewards_by_task": {
+        "chess-best-move": 0.0,
+        "constraints-scheduling": 1.0,
+        "db-wal-recovery": 0.0
+      },
+      "raw_tasks_solved": 1,
+      "terminal_success_trials": 2
+    },
+    "cortex-manager-qa-off": {
+      "deadline_trials": 2,
+      "provider_requests": 98,
+      "raw_reward_sum": 1.0,
+      "raw_rewards_by_task": {
+        "chess-best-move": 0.0,
+        "constraints-scheduling": 1.0,
+        "db-wal-recovery": 0.0
+      },
+      "raw_tasks_solved": 1,
+      "terminal_success_trials": 1
+    },
+    "cortex-manager-qa-on": {
+      "deadline_trials": 1,
+      "provider_requests": 70,
+      "raw_reward_sum": 2.0,
+      "raw_rewards_by_task": {
+        "chess-best-move": 0.0,
+        "constraints-scheduling": 1.0,
+        "db-wal-recovery": 1.0
+      },
+      "raw_tasks_solved": 2,
+      "terminal_success_trials": 2
+    },
+    "cortex-reviewer-fix": {
+      "deadline_trials": 2,
+      "provider_requests": 146,
+      "raw_reward_sum": 1.0,
+      "raw_rewards_by_task": {
+        "chess-best-move": 0.0,
+        "constraints-scheduling": 1.0,
+        "db-wal-recovery": 0.0
+      },
+      "raw_tasks_solved": 1,
+      "terminal_success_trials": 1
+    }
+  },
+  "source_commit": "9e2131949d814301cd852e8c04cf28d926ddd95d",
+  "trials": [
+    {
+      "arm": "cortex-direct",
+      "cached_tokens": 2627968,
+      "config_bundle_sha256": "13dde0e9ab2b56d05d6c6ad358e53f3f44948637a9d7a761d55543e0c7fa090c",
+      "deadline_outcome": false,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 2669751,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "a86d71d7a869d040cecd7f4232ab14c7512ba639f2c582d0c5f1e9cd4f7cf2f0",
+      "outer_envelope_sha256": "c50463602590e6c8b1f40914bffc4518ff73677fd3832c0123b9996116718f7c",
+      "output_tokens": 59388,
+      "priced_cost_subtotal_usd": null,
+      "priced_request_records": 0,
+      "provider_requests": 61,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-chess-best-move-cortex-direct"
+      },
+      "score_status": "available",
+      "task_id": "chess-best-move",
+      "terminal_reason": null,
+      "terminal_state": "terminal-success",
+      "trial_id": "tb21-five-r4-chess-best-move-cortex-direct",
+      "verifier_rewards": {
+        "reward": 0.0
+      }
+    },
+    {
+      "arm": "cortex-audit-retry",
+      "cached_tokens": 2053888,
+      "config_bundle_sha256": "af5ec86dc70d432dc3cfaa29499efb2761fbeb31821602debd81d85439195e93",
+      "deadline_outcome": true,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 2086958,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "bc7564427a7c066295a9f7dd5678cb4adfd395020f5a8b3e6037b81670b1795e",
+      "output_tokens": 60193,
+      "priced_cost_subtotal_usd": "0.12639250",
+      "priced_request_records": 53,
+      "provider_requests": 53,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-chess-best-move-cortex-audit-retry"
+      },
+      "score_status": "available",
+      "task_id": "chess-best-move",
+      "terminal_reason": "run_deadline_reached",
+      "terminal_state": "terminal-agent-failure",
+      "trial_id": "tb21-five-r4-chess-best-move-cortex-audit-retry",
+      "verifier_rewards": {
+        "reward": 0.0
+      }
+    },
+    {
+      "arm": "cortex-reviewer-fix",
+      "cached_tokens": 2508032,
+      "config_bundle_sha256": "4431a51de1a73b1b292de8edd5a90ffc6b1ebfa160026226956a73ffc6794757",
+      "deadline_outcome": false,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 2542367,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "3158d121b2930c729ed575f172e26b17b2f114f463f51fb71f43c2d1450b7d05",
+      "output_tokens": 49786,
+      "priced_cost_subtotal_usd": "0.15117195",
+      "priced_request_records": 70,
+      "provider_requests": 70,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-chess-best-move-cortex-reviewer-fix"
+      },
+      "score_status": "available",
+      "task_id": "chess-best-move",
+      "terminal_reason": null,
+      "terminal_state": "terminal-success",
+      "trial_id": "tb21-five-r4-chess-best-move-cortex-reviewer-fix",
+      "verifier_rewards": {
+        "reward": 0.0
+      }
+    },
+    {
+      "arm": "cortex-manager-qa-off",
+      "cached_tokens": 4561664,
+      "config_bundle_sha256": "133d2c49c25c4d31de82865f9a2fd9798d7067c34f45ff6493c1b0339846a50a",
+      "deadline_outcome": true,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 4598739,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "5f644d2a2ae41445e47b17de8af97cadae7aa3d9385ea5cb3ab41f1c28ae8fdf",
+      "output_tokens": 82611,
+      "priced_cost_subtotal_usd": "0.26624463",
+      "priced_request_records": 74,
+      "provider_requests": 75,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-chess-best-move-cortex-manager-qa-off"
+      },
+      "score_status": "available",
+      "task_id": "chess-best-move",
+      "terminal_reason": "run_deadline_reached",
+      "terminal_state": "terminal-agent-failure",
+      "trial_id": "tb21-five-r4-chess-best-move-cortex-manager-qa-off",
+      "verifier_rewards": {
+        "reward": 0.0
+      }
+    },
+    {
+      "arm": "cortex-manager-qa-on",
+      "cached_tokens": 2057216,
+      "config_bundle_sha256": "d06dff20b4b8e0236bfc032a762147bf55826c0a84d453f077526e46736d7f9e",
+      "deadline_outcome": true,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 2101275,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "a6f0cf7aaac1c1a113d838604be7583d11d9b865eae6576779d6ab2138341878",
+      "output_tokens": 41233,
+      "priced_cost_subtotal_usd": null,
+      "priced_request_records": 0,
+      "provider_requests": 52,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-chess-best-move-cortex-manager-qa-on"
+      },
+      "score_status": "available",
+      "task_id": "chess-best-move",
+      "terminal_reason": "run_deadline_reached",
+      "terminal_state": "terminal-agent-failure",
+      "trial_id": "tb21-five-r4-chess-best-move-cortex-manager-qa-on",
+      "verifier_rewards": {
+        "reward": 0.0
+      }
+    },
+    {
+      "arm": "cortex-direct",
+      "cached_tokens": 63488,
+      "config_bundle_sha256": "13dde0e9ab2b56d05d6c6ad358e53f3f44948637a9d7a761d55543e0c7fa090c",
+      "deadline_outcome": false,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 66950,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "504ded97fafa3f18c6e7e08010d9f81eee5d12bc22d7bdae5cf47281da806c9d",
+      "output_tokens": 6940,
+      "priced_cost_subtotal_usd": null,
+      "priced_request_records": 0,
+      "provider_requests": 7,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-constraints-scheduling-cortex-direct"
+      },
+      "score_status": "available",
+      "task_id": "constraints-scheduling",
+      "terminal_reason": null,
+      "terminal_state": "terminal-success",
+      "trial_id": "tb21-five-r4-constraints-scheduling-cortex-direct",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "arm": "cortex-audit-retry",
+      "cached_tokens": 40192,
+      "config_bundle_sha256": "af5ec86dc70d432dc3cfaa29499efb2761fbeb31821602debd81d85439195e93",
+      "deadline_outcome": true,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 42465,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "3652034476f670f5ee2695b3ade9f7fb69fdb1d5df184c4f4cdd1189006d2eed",
+      "output_tokens": 6436,
+      "priced_cost_subtotal_usd": null,
+      "priced_request_records": 0,
+      "provider_requests": 11,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-constraints-scheduling-cortex-audit-retry"
+      },
+      "score_status": "available",
+      "task_id": "constraints-scheduling",
+      "terminal_reason": "run_deadline_reached",
+      "terminal_state": "terminal-agent-failure",
+      "trial_id": "tb21-five-r4-constraints-scheduling-cortex-audit-retry",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "arm": "cortex-reviewer-fix",
+      "cached_tokens": 67840,
+      "config_bundle_sha256": "4431a51de1a73b1b292de8edd5a90ffc6b1ebfa160026226956a73ffc6794757",
+      "deadline_outcome": true,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 70280,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "27a74f4c346bc2cc51c450ff5fea5359b83f86750849d9ec2fb41ce9a2f454f4",
+      "output_tokens": 7669,
+      "priced_cost_subtotal_usd": null,
+      "priced_request_records": 0,
+      "provider_requests": 14,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-constraints-scheduling-cortex-reviewer-fix"
+      },
+      "score_status": "available",
+      "task_id": "constraints-scheduling",
+      "terminal_reason": "run_deadline_reached",
+      "terminal_state": "terminal-agent-failure",
+      "trial_id": "tb21-five-r4-constraints-scheduling-cortex-reviewer-fix",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "arm": "cortex-manager-qa-off",
+      "cached_tokens": 76544,
+      "config_bundle_sha256": "133d2c49c25c4d31de82865f9a2fd9798d7067c34f45ff6493c1b0339846a50a",
+      "deadline_outcome": false,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 81747,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "7eca95f7a92c1684411d9abe725099207e4b49568eddcfa13ec88b5239beba51",
+      "output_tokens": 5292,
+      "priced_cost_subtotal_usd": "0.00515762",
+      "priced_request_records": 8,
+      "provider_requests": 8,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-constraints-scheduling-cortex-manager-qa-off"
+      },
+      "score_status": "available",
+      "task_id": "constraints-scheduling",
+      "terminal_reason": null,
+      "terminal_state": "terminal-success",
+      "trial_id": "tb21-five-r4-constraints-scheduling-cortex-manager-qa-off",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "arm": "cortex-manager-qa-on",
+      "cached_tokens": 151040,
+      "config_bundle_sha256": "d06dff20b4b8e0236bfc032a762147bf55826c0a84d453f077526e46736d7f9e",
+      "deadline_outcome": false,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 180062,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "d0cda365b88c914810b8ac76aa807f0f5302ce6eaf30a418aacaa100145134a8",
+      "output_tokens": 5619,
+      "priced_cost_subtotal_usd": null,
+      "priced_request_records": 0,
+      "provider_requests": 8,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-constraints-scheduling-cortex-manager-qa-on"
+      },
+      "score_status": "available",
+      "task_id": "constraints-scheduling",
+      "terminal_reason": null,
+      "terminal_state": "terminal-success",
+      "trial_id": "tb21-five-r4-constraints-scheduling-cortex-manager-qa-on",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "arm": "cortex-direct",
+      "cached_tokens": 153088,
+      "config_bundle_sha256": "13dde0e9ab2b56d05d6c6ad358e53f3f44948637a9d7a761d55543e0c7fa090c",
+      "deadline_outcome": true,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 163584,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "508fd720fd011bcacc58a610f04227f58c655b08fe7fc1258b12e3c22442a662",
+      "output_tokens": 7698,
+      "priced_cost_subtotal_usd": "0.00000000",
+      "priced_request_records": 1,
+      "provider_requests": 19,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-db-wal-recovery-cortex-direct"
+      },
+      "score_status": "available",
+      "task_id": "db-wal-recovery",
+      "terminal_reason": "run_deadline_reached",
+      "terminal_state": "terminal-agent-failure",
+      "trial_id": "tb21-five-r4-db-wal-recovery-cortex-direct",
+      "verifier_rewards": {
+        "reward": 0.0
+      }
+    },
+    {
+      "arm": "cortex-audit-retry",
+      "cached_tokens": 1189376,
+      "config_bundle_sha256": "af5ec86dc70d432dc3cfaa29499efb2761fbeb31821602debd81d85439195e93",
+      "deadline_outcome": false,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 1279659,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "7a84ecf8363948fac6e35bbd431c4728752fc803038f4d5baf15a1f45320f31b",
+      "output_tokens": 25987,
+      "priced_cost_subtotal_usd": "0.07438500",
+      "priced_request_records": 36,
+      "provider_requests": 36,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-db-wal-recovery-cortex-audit-retry"
+      },
+      "score_status": "available",
+      "task_id": "db-wal-recovery",
+      "terminal_reason": null,
+      "terminal_state": "terminal-success",
+      "trial_id": "tb21-five-r4-db-wal-recovery-cortex-audit-retry",
+      "verifier_rewards": {
+        "reward": 0.0
+      }
+    },
+    {
+      "arm": "cortex-reviewer-fix",
+      "cached_tokens": 2081920,
+      "config_bundle_sha256": "4431a51de1a73b1b292de8edd5a90ffc6b1ebfa160026226956a73ffc6794757",
+      "deadline_outcome": true,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 2136130,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "178bf08787dddd1d8caaa86665a8e051f29bfdacb7ab1c5a579582e7b534eba1",
+      "output_tokens": 29396,
+      "priced_cost_subtotal_usd": null,
+      "priced_request_records": 0,
+      "provider_requests": 62,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-db-wal-recovery-cortex-reviewer-fix"
+      },
+      "score_status": "available",
+      "task_id": "db-wal-recovery",
+      "terminal_reason": "run_deadline_reached",
+      "terminal_state": "terminal-agent-failure",
+      "trial_id": "tb21-five-r4-db-wal-recovery-cortex-reviewer-fix",
+      "verifier_rewards": {
+        "reward": 0.0
+      }
+    },
+    {
+      "arm": "cortex-manager-qa-off",
+      "cached_tokens": 157568,
+      "config_bundle_sha256": "133d2c49c25c4d31de82865f9a2fd9798d7067c34f45ff6493c1b0339846a50a",
+      "deadline_outcome": true,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 166565,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "9fc68bbd087d7d6ac7392ced9ae0a58a915aa328dd772d61429bfd0f6d7a58db",
+      "output_tokens": 7118,
+      "priced_cost_subtotal_usd": "0.01009954",
+      "priced_request_records": 15,
+      "provider_requests": 15,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-db-wal-recovery-cortex-manager-qa-off"
+      },
+      "score_status": "available",
+      "task_id": "db-wal-recovery",
+      "terminal_reason": "run_deadline_reached",
+      "terminal_state": "terminal-agent-failure",
+      "trial_id": "tb21-five-r4-db-wal-recovery-cortex-manager-qa-off",
+      "verifier_rewards": {
+        "reward": 0.0
+      }
+    },
+    {
+      "arm": "cortex-manager-qa-on",
+      "cached_tokens": 78720,
+      "config_bundle_sha256": "d06dff20b4b8e0236bfc032a762147bf55826c0a84d453f077526e46736d7f9e",
+      "deadline_outcome": false,
+      "grader_admission": {
+        "admitted": true,
+        "reason": "recorded"
+      },
+      "input_tokens": 84224,
+      "leak_scan": {
+        "clean": true,
+        "matches": 0,
+        "missing_sources": 0,
+        "ok": true,
+        "unclassified_files": 0
+      },
+      "npm_artifact_sha256": "3f8609b7fd007da3d509c2b927caf5928fc966faff2949f66915192ee38ea3ae",
+      "outer_envelope_sha256": "6cc705a25bd84ebfb0179c6d79f9f715ec4e5e057fe7534bd9548d95d7894407",
+      "output_tokens": 1573,
+      "priced_cost_subtotal_usd": null,
+      "priced_request_records": 0,
+      "provider_requests": 10,
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "schema_version": "cortex-bench-proxy-revocation/1",
+        "serving_thread_alive": false,
+        "trial_id": "tb21-five-r4-db-wal-recovery-cortex-manager-qa-on"
+      },
+      "score_status": "available",
+      "task_id": "db-wal-recovery",
+      "terminal_reason": null,
+      "terminal_state": "terminal-success",
+      "trial_id": "tb21-five-r4-db-wal-recovery-cortex-manager-qa-on",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    }
+  ]
+}
