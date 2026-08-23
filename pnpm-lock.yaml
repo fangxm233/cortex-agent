@@ -1882,7 +1882,7 @@ packages:
     engines: {node: '>= 6.0.0'}
 
   aistatus@file:agent-server/vendor/aistatus-0.0.11.tgz:
-    resolution: {integrity: sha512-XO9KFwEzZnWnyyZrwyTjJXq9mAwB/A7qL2jKZkZSgLrZRfnRMm9+r25ipq9ElCjU6uOzyisP+3jBBLaasBh8bg==, tarball: file:agent-server/vendor/aistatus-0.0.11.tgz}
+    resolution: {integrity: sha512-3NZ89wRc0XP3jBuXJuPLe2JT/mgbMAhCFE3gtoKR7jHeI8tuagu6e+bV4Q3JnuPMTsDgLCZ3PCLLYRMxkKSuBg==, tarball: file:agent-server/vendor/aistatus-0.0.11.tgz}
     version: 0.0.11
     engines: {node: '>=18'}
     hasBin: true
