@@ -220,7 +220,7 @@ function MsgMenuItem({ label, icon, onTap, onClose, disabled, divided }: {
       style={{
         display: 'flex', alignItems: 'center', height: 46, padding: '0 15px', fontSize: 14.5,
         color: MC.ink, opacity: disabled ? 0.35 : 1, cursor: disabled ? 'default' : 'pointer',
-        borderTop: divided ? '1px solid rgba(0,0,0,.07)' : undefined,
+        borderTop: divided ? `1px solid ${MC.divider}` : undefined,
       }}
     >
       {label}
@@ -305,7 +305,7 @@ export function MsgActionMenu({ row, menu, copy }: { row: ChatRow; menu: MMsgMen
           </div>
         )}
         {/* Menu — 复制 / 编辑消息 (46px rows, scheme 7a) */}
-        <div onClick={(e) => e.stopPropagation()} style={{ flex: 'none', width: 196, background: 'rgba(250,250,252,.98)', border: '1px solid rgba(0,0,0,.06)', borderRadius: 13, boxShadow: '0 14px 40px rgba(16,24,40,.25)', overflow: 'hidden' }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ flex: 'none', width: 196, background: MC.card, border: `1px solid ${MC.cardBorder}`, borderRadius: 13, boxShadow: '0 14px 40px rgba(16,24,40,.25)', overflow: 'hidden' }}>
           <MsgMenuItem label={copy.menuCopy} icon="copy" onTap={menu.onCopy} onClose={menu.onClose} />
           {menu.onEdit && <MsgMenuItem label={copy.menuEdit} icon="edit" onTap={menu.onEdit} onClose={menu.onClose} disabled={menu.editDisabled} divided />}
         </div>

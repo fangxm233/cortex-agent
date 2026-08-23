@@ -7,7 +7,7 @@ Framework-free view models map records to slots and have colocated unit tests.
 |---|---|---|
 | MChatScreen.tsx | screen | Routes chat data, sends and local slash actions |
 | MChatScreen.optimistic.test.tsx | test | Tests optimistic sends and local shortcuts |
-| MChatView.tsx | view | Renders chat, turn-copy actions, composer and sheets |
+| MChatView.tsx | view | Renders themed chat messages, actions and composer |
 | MChatView.test.tsx | test | Tests chat controls, turn copy and long-press interactions |
 | m-chat-vm.ts | vm | Chat rows, status, attachments, menu placement |
 | m-chat-vm.test.ts | test | Tests chat status, profiles and transcript row state |
