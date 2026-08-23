@@ -137,6 +137,30 @@ def test_body_model_mismatch_is_refused_without_upstream_or_reservation(tmp_path
     assert records(log_path)[0]["outcome"] == "request_model_mismatch"
 
 
+def test_model_rejection_explicitly_disables_client_retries(tmp_path: Path) -> None:
+    with SyntheticUpstream() as upstream:
+        handle = start_proxy(tmp_path, upstream.base_url)
+        target = urlsplit(handle.base_url)
+        connection = HTTPConnection(target.hostname, target.port, timeout=3)
+        try:
+            payload = json.dumps({"model": "claude-other-9", "prompt": "mismatch"})
+            connection.request(
+                "POST", MESSAGES_TARGET, body=payload,
+                headers={
+                    "authorization": f"Bearer {handle.dummy_token}",
+                    "content-type": "application/json",
+                },
+            )
+            response = connection.getresponse()
+            assert response.status == 400
+            assert response.getheader("x-should-retry") == "false"
+            assert json.loads(response.read()) == {"error": "request_model_rejected"}
+        finally:
+            connection.close()
+            handle.stop()
+    assert upstream.requests == []
+
+
 @pytest.mark.parametrize(
     ("body", "outcome"),
     [

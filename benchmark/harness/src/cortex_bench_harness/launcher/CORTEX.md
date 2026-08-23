@@ -18,7 +18,7 @@ Host launcher modules materialize production arms and record bounded trials.
 | network_policy.py | boundary | Resolves a campaign's declared trial network |
 | production_arms.py | registry | Resolves committed production bundles |
 | production_home.py | boundary | Materializes sealed production homes |
-| production_session.py | lifecycle | Runs server sessions and records deadline exhaustion |
+| production_session.py | lifecycle | Runs server sessions and records non-success terminals |
 | trial_admission.py | boundary | Seals trial launch inputs |
 | trial_admission_io.py | io | Writes admission records atomically |
 | trial_proxy.py | core | Arms and revokes trial proxy routes |

@@ -1,6 +1,6 @@
-// input:  provider overrides, user PI catalog fixtures, a stub spawner
-// output: custom provider definitions surviving into the spawned PI catalog
-// pos:    Unit tests for custom PI provider routing at spawn time
+// input:  provider overrides, PI catalog refresh fixtures, a stub spawner
+// output: custom providers and frozen DeepSeek caps in spawned catalogs
+// pos:    Unit tests for PI provider routing at spawn time
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -172,6 +172,51 @@ test('spawn: an absent user catalog leaves built-in routing untouched', () => {
     const catalog = JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8'));
     assert.deepEqual(Object.keys(catalog.providers), ['anthropic']);
     assert.equal(catalog.providers.anthropic.api, undefined);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('spawn: DeepSeek child preserves the admitted cap after a model-store refresh', () => {
+  const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-cap-refresh-'));
+  try {
+    const agentDir = pathJoin(dir, 'agent');
+    mkdirSync(agentDir, { recursive: true });
+    const stub = makeStubSpawner();
+    const adapter = new PIAdapter(
+      stub.spawn,
+      pathJoin(dir, 'sessions'),
+      { getProviders: () => ['deepseek'], refresh: () => {} },
+      { agentDir },
+    );
+    const spawn = (sessionKey: string) => adapter.spawn({
+      sessionId: null,
+      sessionKey,
+      resume: false,
+      model: 'deepseek-v4-flash',
+      piProvider: 'deepseek',
+      piModelMaxTokens: 65_536,
+      piGatewayBaseUrl: 'http://127.0.0.1:9880',
+      piGatewayPath: '/deepseek',
+    });
+
+    spawn('root-before-refresh');
+    writeFileSync(pathJoin(agentDir, 'models-store.json'), JSON.stringify({
+      deepseek: {
+        checkedAt: Date.now(),
+        models: [{
+          id: 'deepseek-v4-flash', provider: 'deepseek', api: 'openai-completions',
+          compat: { maxTokensField: 'max_tokens' }, maxTokens: 32_768,
+        }],
+      },
+    }));
+    spawn('child-after-refresh');
+
+    const catalog = JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8'));
+    const deepseek = catalog.providers.deepseek;
+    assert.equal(deepseek.compat.maxTokensField, 'max_completion_tokens');
+    assert.equal(deepseek.modelOverrides['deepseek-v4-flash'].maxTokens, 65_536);
+    assert.equal(stub.calls, 2);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

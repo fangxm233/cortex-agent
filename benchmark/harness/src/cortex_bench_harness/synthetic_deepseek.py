@@ -9,7 +9,7 @@ import os
 import re
 import signal
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -22,12 +22,15 @@ INSTRUCTION_LITERAL = re.compile(
 class _Server(ThreadingHTTPServer):
     daemon_threads = True
     request_count = 0
+    request_hook: Callable[[int, Mapping[str, object]], None] | None = None
 
 
 class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         self.server.request_count += 1
         document = self._request_document()
+        if self.server.request_hook is not None:
+            self.server.request_hook(self.server.request_count, document)
         messages = document.get("messages")
         messages = messages if isinstance(messages, list) else []
         try:
@@ -56,8 +59,12 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 class SyntheticDeepSeekUpstream:
-    def __init__(self, host: str = "127.0.0.1", port: int = 0) -> None:
+    def __init__(
+        self, host: str = "127.0.0.1", port: int = 0, *,
+        request_hook: Callable[[int, Mapping[str, object]], None] | None = None,
+    ) -> None:
         self._server = _Server((host, port), _Handler)
+        self._server.request_hook = request_hook
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
 
@@ -85,6 +92,20 @@ class SyntheticDeepSeekUpstream:
 def _turn(messages: list[object]) -> dict[str, object]:
     if any(isinstance(item, Mapping) and item.get("role") == "tool" for item in messages):
         return {"delta": {"content": "done"}, "finish_reason": "stop"}
+    system = "\n".join(
+        str(item.get("content", "")) for item in messages
+        if isinstance(item, Mapping) and item.get("role") == "system"
+    ).lower()
+    if "read-only implementation auditor" in system:
+        return {
+            "delta": {"content": "Verified the implementation.\n[IMPL-APPROVED]"},
+            "finish_reason": "stop",
+        }
+    if "implementation auditor operating" in system:
+        return {
+            "delta": {"content": "No blockers remain.\n[FIX-VERIFIED]"},
+            "finish_reason": "stop",
+        }
     literal, path = _instruction(messages)
     arguments = json.dumps({"path": path, "content": literal}, separators=(",", ":"))
     return {

@@ -55,9 +55,7 @@ class ProxyState:
         self.input_tokens = 0
         self.output_tokens = 0
         self.cached_tokens = 0
-        # Admitted-but-not-yet-recorded requests are held here, so a request in flight already
-        # counts against the cap. This replaces a reservation denominated in dollars that could
-        # only ever express `floor(max_cost_usd / max_request_cost_usd)` requests anyway.
+        # In-flight reservations count against the cap, replacing the old dollar-derived floor.
         self.reserved_requests = 0
         self.allow_retry = allow_retry
         self.shared_request_limit = shared_request_limit
@@ -424,7 +422,7 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         if audit_error is not None:
             self._send_error(500, audit_error)
             return
-        self._send_error(status, wire_reason)
+        self._send_error(status, wire_reason, retryable=False)
 
     def _forward_reserved(
         self, server: TrialHttpServer, body: bytes, route_id: str,
@@ -570,16 +568,18 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
             return None
         return length
 
-    def _send_error(self, status: int, reason: str) -> None:
-        self._send_json(status, {"error": reason})
+    def _send_error(self, status: int, reason: str, *, retryable: bool | None = None) -> None:
+        self._send_json(status, {"error": reason}, retryable=retryable)
 
-    def _send_json(self, status: int, document: Mapping[str, object]) -> None:
+    def _send_json(self, status: int, document: Mapping[str, object], *, retryable: bool | None = None) -> None:
         payload = json.dumps(document, separators=(",", ":")).encode()
         try:
             self.send_response(status)
             self.send_header("content-type", "application/json")
             self.send_header("content-length", str(len(payload)))
             self.send_header("connection", "close")
+            if retryable is not None:
+                self.send_header("x-should-retry", str(retryable).lower())
             self.end_headers()
             self.wfile.write(payload)
         except OSError:

@@ -184,9 +184,9 @@ class ProductionServerSession:
             await self._wait_until_ready(execute)
             thread_id = await self._inject_unit_of_work(instruction, execute)
             result = await self._wait_for_result(thread_id, execute)
-            if result.status == DEADLINE_EXHAUSTED:
-                self._write_deadline_outcome(result)
-            else:
+            if result.status != "completed":
+                self._write_terminal_outcome(result)
+            if result.status != DEADLINE_EXHAUSTED:
                 await self._export_evidence(execute)
             return result
         finally:
@@ -430,12 +430,16 @@ class ProductionServerSession:
             await asyncio.sleep(self._poll_seconds)
         return ProductionThreadResult(thread_id, DEADLINE_EXHAUSTED, None, None)
 
-    def _write_deadline_outcome(self, result: ProductionThreadResult) -> None:
+    def _write_terminal_outcome(self, result: ProductionThreadResult) -> None:
+        reason = (
+            DEADLINE_REASON if result.status == DEADLINE_EXHAUSTED
+            else f"thread_{result.status}"
+        )
         document = {
             "schema_version": SESSION_OUTCOME_SCHEMA_VERSION,
             "trial_id": self._spec.trial_id, "thread_id": result.thread_id,
             "terminal": True, "status": result.status,
-            "terminal_reason": DEADLINE_REASON, "artifact": result.artifact,
+            "terminal_reason": reason, "artifact": result.artifact,
             "final_output": result.final_output,
         }
         path = self._spec.logs_dir / SESSION_OUTCOME_FILENAME
