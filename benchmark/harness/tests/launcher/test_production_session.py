@@ -125,7 +125,7 @@ class FakeExecutor:
         malformed_evidence: bool = False, gateway_failure: bool = False,
         dispatch_never_runs: bool = False, dispatch_error_once: Exception | None = None,
         dispatch_error_always: bool = False, result_timeout_once: bool = False,
-        result_never_terminal: bool = False,
+        result_never_terminal: bool = False, result_status: str = "completed",
     ) -> None:
         self.logs_dir = logs_dir
         self.export_failure = export_failure
@@ -136,6 +136,7 @@ class FakeExecutor:
         self.dispatch_error_always = dispatch_error_always
         self.result_timeout_once = result_timeout_once
         self.result_never_terminal = result_never_terminal
+        self.result_status = result_status
         self.calls: list[tuple[str, dict[str, str] | None, str | None]] = []
         self.timeouts: list[int | None] = []
         self.payloads: dict[str, object] = {}
@@ -207,7 +208,7 @@ class FakeExecutor:
                 "success": True,
                 "data": {
                     "threadId": requested,
-                    "status": "completed" if terminal else "running",
+                    "status": self.result_status if terminal else "running",
                     "terminal": terminal, "artifact": None, "finalOutput": "done" if terminal else None,
                 },
             })
@@ -328,6 +329,30 @@ def test_result_poll_retries_one_exec_timeout_until_the_thread_is_terminal(
 
     assert result.status == "completed"
     assert runner.result_polls == 2
+
+
+@pytest.mark.parametrize(
+    ("bundle", "status"),
+    [(AUDIT_RETRY_BUNDLE, "failed"), (REVIEWER_FIX_BUNDLE, "aborted")],
+    ids=["audit-retry-failed", "reviewer-fix-aborted"],
+)
+def test_coder_review_terminal_failure_is_recorded_without_result_poll_cycles(
+    tmp_path: Path, bundle, status: str,
+) -> None:
+    runner = FakeExecutor(tmp_path, result_status=status)
+    production = session(tmp_path, arm=arm_for_bundle(bundle), bundle=bundle)
+
+    result = asyncio.run(production.run("Solve only this task.", runner))
+
+    assert result.status == status
+    assert runner.result_polls == 2
+    assert json.loads((tmp_path / "production-session-outcome.json").read_text()) == {
+        "schema_version": "cortex-bench-production-session-outcome/1",
+        "trial_id": "trial-direct", "thread_id": "thr_production",
+        "terminal": True, "status": status,
+        "terminal_reason": f"thread_{status}", "artifact": None,
+        "final_output": "done",
+    }
 
 
 def test_evidence_export_reads_the_production_home_not_the_container_home(

@@ -16,14 +16,15 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_deepseek_paid_smoke.py | test | Verifies paid smoke inputs |
 | test_deepseek_paid_smoke_launcher.py | test | Verifies pinned-image smoke launching and evidence |
 | test_host_credential_vault.py | test | Verifies opaque credential transfer |
-| test_host_finalization.py | test | Verifies envelopes, deadline evidence and mapped scans |
+| test_host_finalization.py | test | Verifies envelopes, terminal evidence and mapped scans |
 | test_live_handshake_permit.py | test | Verifies native-default bootstrap bounds and safe diagnostics |
 | test_leak_scan_finalization_docker.py | test | Proves clean publication after verifier alias cleanup |
 | test_paid_campaign_launch.py | test | Verifies paid campaign preflight |
 | test_production_arms.py | test | Verifies committed arm bundles |
 | test_production_home.py | test | Verifies sealed production homes |
-| test_production_session.py | test | Verifies sessions and all-arm deadline outcomes |
+| test_production_session.py | test | Verifies sessions and all-arm terminal outcomes |
 | test_production_session_admission.py | test | Verifies sealed session execution |
+| test_production_pi_child_docker.py | test | Proves real PI child caps across catalog refresh |
 | test_trial_admission.py | test | Verifies Harbor trial admission |
 | test_trial_proxy_wiring.py | test | Verifies proxy lifecycle wiring |
 | test_vendor_agents.py | test | Verifies vendor setup, usage, caps and containment |

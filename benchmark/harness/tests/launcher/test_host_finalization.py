@@ -1344,6 +1344,30 @@ def test_the_production_layout_records_through_the_same_collect_and_record_path(
     assert canonical_sha256(recorded["files"]) == materialized.input_bundle_sha256
 
 
+def test_failed_production_thread_projects_as_terminal_agent_failure(tmp_path: Path) -> None:
+    bundle = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
+    envelope, _ = finalize_production_trial(tmp_path, bundle)
+    envelope["agent_outcome"] = {
+        "schema_version": "cortex-bench-production-session-outcome/1",
+        "trial_id": TRIAL_ID, "thread_id": "thr-coder-review",
+        "terminal": True, "status": "failed",
+        "terminal_reason": "thread_failed", "artifact": None,
+        "final_output": None,
+    }
+    write_json(envelope_path(tmp_path), envelope)
+    write_json(tmp_path / "result.json", {
+        "verifier_result": {"rewards": {"reward": 1.0}},
+    })
+
+    outcome = TrialOutcomeReader(
+        trial_id=TRIAL_ID, arm_name=ARM_NAME, trial_root=tmp_path,
+    ).read()
+
+    assert outcome.outcome_state == "terminal-agent-failure"
+    assert outcome.reason == "thread_failed"
+    assert outcome.verifier_rewards == {"reward": 1.0}
+
+
 def test_production_auth_container_alias_scans_clean(tmp_path: Path) -> None:
     bundle = production_arm_bundle("direct-pi-deepseek")
 

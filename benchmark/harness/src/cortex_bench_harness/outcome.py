@@ -28,6 +28,7 @@ SCORE_FAILED = "failed"
 SCORE_UNAVAILABLE = "unavailable"
 REVOCATION_SCHEMA_VERSION = "cortex-bench-proxy-revocation/1"
 _REQUIRED_ROOTS = frozenset({"agent", "verifier", "artifacts"})
+_THREAD_FAILURE_STATUSES = frozenset({"failed", "cancelled", "aborted"})
 _AGENT_EXCEPTION_TYPES = frozenset({
     "AgentTimeoutError", "NonZeroAgentExitCodeError", "ApiError",
     "ApiRateLimitError", "ApiUsageLimitError", "ApiInternalServerError",
@@ -99,11 +100,12 @@ class TrialOutcomeReader:
         exception = result.get("exception_info")
         if exception is not None:
             return self._exception_outcome(exception, rewards, envelope)
-        if _deadline_outcome(envelope.document):
+        agent_failure = _agent_failure_reason(envelope.document)
+        if agent_failure is not None:
             return self._outcome(
                 TERMINAL_AGENT_FAILURE,
                 SCORE_AVAILABLE if rewards is not None else SCORE_FAILED,
-                DEADLINE_REASON, rewards=rewards, envelope=envelope,
+                agent_failure, rewards=rewards, envelope=envelope,
             )
         if rewards is None:
             return self._outcome(
@@ -226,14 +228,28 @@ def _agent_outcome_reason(
     expected = {
         "schema_version": SESSION_OUTCOME_SCHEMA_VERSION,
         "trial_id": trial_id, "terminal": True,
-        "status": DEADLINE_EXHAUSTED, "terminal_reason": DEADLINE_REASON,
     }
-    if any(outcome.get(key) != value for key, value in expected.items()):
+    status = outcome.get("status")
+    reason = outcome.get("terminal_reason")
+    valid_terminal = (
+        status == DEADLINE_EXHAUSTED and reason == DEADLINE_REASON
+        or isinstance(status, str) and status in _THREAD_FAILURE_STATUSES
+        and reason == f"thread_{status}"
+    )
+    if any(outcome.get(key) != value for key, value in expected.items()) or not valid_terminal:
         return "outer envelope agent_outcome is invalid"
     thread_id = outcome.get("thread_id")
     if not isinstance(thread_id, str) or not thread_id:
         return "outer envelope agent_outcome has no thread_id"
     return None
+
+
+def _agent_failure_reason(envelope: Mapping[str, object]) -> str | None:
+    outcome = envelope.get("agent_outcome")
+    if not isinstance(outcome, Mapping):
+        return None
+    reason = outcome.get("terminal_reason")
+    return reason if isinstance(reason, str) else None
 
 
 def _deadline_outcome(envelope: Mapping[str, object]) -> bool:

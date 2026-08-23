@@ -15,11 +15,11 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | harbor_agent.py | adapter | Runs production and finalizes terminal deadline evidence |
 | host_finalization.py | boundary | Publishes trial evidence and deadline outcomes |
 | full_suite/ | launch | Runs external tasks with one isolated proxy each |
-| outcome.py | boundary | Classifies results, deadlines and verifier rewards |
+| outcome.py | boundary | Classifies result, thread failure, deadline and verifier state |
 | launcher/ | core | Selects arms and builds non-secret Harbor inputs |
 | proxy/ | network | Injects credentials through a bounded trial route |
 | result_summary.py | report | Projects path-safe trial results and delivery pins |
 | scan/ | audit | Finds credential and host-identity leaks |
-| synthetic_deepseek.py | fixture | Serves deterministic loopback tool turns |
+| synthetic_deepseek.py | fixture | Serves deterministic loopback tool and review turns |
 | trial_assets.py | collect | Lifts model-visible prompts from the arm home and plugins from the pinned bundle |
 | vendor_agents.py | adapter | Runs sealed vendor CLIs with process-group containment |

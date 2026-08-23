@@ -39,16 +39,16 @@ export interface ProviderOverride {
 }
 
 /**
- * PI compat flags that PI auto-detects from the provider's *real* endpoint URL but loses once
- * cortex rewrites `baseUrl` to the gateway. PI's `detectCompat()` keys `supportsDeveloperRole`
- * off `baseUrl.includes("deepseek.com")` ONLY (not the provider name), so routing DeepSeek
- * through `http://127.0.0.1:9880/deepseek` makes PI wrongly assume the endpoint accepts the
- * OpenAI `developer` system-prompt role — DeepSeek's API rejects it with HTTP 400 (empty output).
- * We re-assert the lost flags here, keyed by PI provider name (the override preserves the name).
- * Add a row here if another gateway-routed provider exhibits the same URL-detection loss.
+ * PI compat flags that must remain fixed while Cortex routes a provider through the gateway.
+ * Provider-level models.json compat overlays both built-in and refreshed model catalogs, so a
+ * later models-store refresh cannot replace the admitted request field. DeepSeek also loses its
+ * developer-role detection when its real base URL is replaced by the local gateway URL.
  */
 const PROVIDER_COMPAT_OVERRIDES: Record<string, Record<string, unknown>> = {
-  deepseek: { supportsDeveloperRole: false },
+  deepseek: {
+    supportsDeveloperRole: false,
+    maxTokensField: 'max_completion_tokens',
+  },
 };
 
 export interface WriteProvidersOpts {

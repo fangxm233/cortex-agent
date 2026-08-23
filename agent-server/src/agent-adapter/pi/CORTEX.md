@@ -12,7 +12,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools.
 | agent-dir.ts | config | manages the private PI agent directory |
 | discovery.ts | core | refreshes the host provider cache |
 | session-files.ts | core | Resolves an isolated PI transcript path |
-| providers-config.ts | config | writes the PI provider catalog at an explicit path |
+| providers-config.ts | config | writes routed PI catalogs with frozen compatibility |
 | custom-catalog.ts | config | Reads custom provider catalog entries |
 | mcp-config.ts | config | Writes and reloads private plugin MCP config |
 | event-parser.ts | parser | translates PI events with exact nullable token splits |

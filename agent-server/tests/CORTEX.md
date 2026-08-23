@@ -13,7 +13,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter/ | subdir | backend adapters, usage pull and event normalization |
 | agent-adapter-claude.test.ts | test | Claude CLI, MCP gates, fallback, hooks and proxy |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
-| agent-adapter-pi-custom-catalog.test.ts | test | user-defined providers reaching the spawn catalog |
+| agent-adapter-pi-custom-catalog.test.ts | test | provider definitions and frozen caps reaching spawn catalogs |
 | agent-adapter-pi-event-parser.test.ts | test | PI events with four-way nullable accounting |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |

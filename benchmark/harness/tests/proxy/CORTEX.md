@@ -14,7 +14,7 @@ Proxy tests prove host credential isolation, policy enforcement, and Docker egre
 | test_adapter_selection.py | test | Verifies exact-key selection, the frozen cap binding, and refusals |
 | test_anthropic_adapter.py | test | Verifies Anthropic API-key and subscription duties |
 | test_deepseek_adapter.py | test | Verifies DeepSeek chat completions and sanitized terminal-SSE diagnostics under a frozen per-trial cap |
-| test_adapter_seam.py | test | Verifies duty order, refusals, and audit |
+| test_adapter_seam.py | test | Verifies duty order, retry refusal, and audit |
 | test_offline_containment.py | test | Proves H7 and host-set properties offline |
 | test_openai_codex_adapter.py | test | Verifies the Codex responses adapter duties |
 | test_openai_codex_second_host.py | test | Proves refresh shape and CP1, CP2, CP3 |
