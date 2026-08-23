@@ -4,9 +4,9 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 schema_version: cortex-bench-campaign/1
-campaign: tb21-picdx-0823
+campaign: tb21-picdx-r2-0823
 paid: true
-trials_dir: /var/tmp/cortex-bench/tb21-pi-codex-xhigh-2026-08-23
+trials_dir: /var/tmp/cortex-bench/tb21-pi-codex-xhigh-r2-2026-08-23
 cli_version: "2026.8.6"
 concurrency: 3
 
@@ -38,7 +38,7 @@ host_scan_policy:
     machine: CORTEX_BENCH_PAID_IDENTITY
 
 docker_network:
-  subnet_pool: 172.31.0.0/20
+  subnet_pool: 172.31.48.0/20
   subnet_prefix: 24
 
 proxy:
