@@ -31,4 +31,5 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_vendor_baseline_isolation.py | test | Verifies vendor baseline isolation |
 | test_vendor_codex_lifecycle_docker.py | test | Proves current Codex lifecycle in real Docker |
 | test_vendor_lifecycle_docker.py | test | Proves PI lifecycle and timeout containment in real Docker |
+| test_vendor_pi_codex_lifecycle_docker.py | test | Proves the admitted PI OpenAI Codex path in real Docker |
 | test_vendor_pi_completion_cap_docker.py | test | Proves admitted PI caps traverse the proxy in Docker |
