@@ -40,15 +40,19 @@ def adapter(
     )
 
 
-def request_body(**overrides: object) -> bytes:
+def request_body(
+    *, cap_field: str | None = "max_completion_tokens", cap: object = FROZEN_CAP,
+    **overrides: object,
+) -> bytes:
     document = {
         "model": MODEL,
         "messages": [{"role": "user", "content": "reply OK"}],
         "stream": True,
         "stream_options": {"include_usage": True},
-        "max_completion_tokens": FROZEN_CAP,
         **overrides,
     }
+    if cap_field is not None:
+        document[cap_field] = cap
     return json.dumps(document, separators=(",", ":")).encode()
 
 
@@ -115,7 +119,10 @@ def test_rejects_model_stream_usage_and_completion_cap_drift() -> None:
         (request_body(model="deepseek-v4-pro"), "request_model_mismatch"),
         (request_body(stream=False), "request_stream_required"),
         (request_body(stream_options={}), "request_stream_usage_required"),
-        (request_body(max_completion_tokens=FROZEN_CAP + 1), "request_completion_cap_mismatch"),
+        (request_body(cap=FROZEN_CAP + 1), "request_completion_cap_mismatch"),
+        (request_body(cap_field="max_tokens", cap=FROZEN_CAP + 1),
+         "request_completion_cap_mismatch"),
+        (request_body(cap_field=None), "request_completion_cap_conflict"),
         (request_body(max_tokens=FROZEN_CAP), "request_completion_cap_conflict"),
     ]
     for body, reason in invalid:
@@ -123,17 +130,35 @@ def test_rejects_model_stream_usage_and_completion_cap_drift() -> None:
         assert (decision.allow, decision.reason) == (False, reason)
 
 
+@pytest.mark.parametrize("cap_field", ["max_completion_tokens", "max_tokens"])
 @pytest.mark.parametrize("cap", [1, 256, 4096, 131072])
-def test_admits_exactly_the_frozen_completion_cap_whatever_the_trial_declared(cap: int) -> None:
-    """The cap is a per-trial datum, not a compiled constant: whichever value the trial froze is
-    the only one the body may declare."""
+def test_admits_either_name_at_exactly_the_frozen_completion_cap(
+    cap_field: str, cap: int,
+) -> None:
+    """Either wire alias is lawful, but its value remains the exact per-trial frozen cap."""
     bound = adapter("https://api.deepseek.test", frozen_completion_cap=cap)
 
-    admitted = bound.validate_body("chat_completions", request_body(max_completion_tokens=cap))
-    drifted = bound.validate_body("chat_completions", request_body(max_completion_tokens=cap + 1))
+    admitted = bound.validate_body(
+        "chat_completions", request_body(cap_field=cap_field, cap=cap))
+    drifted = bound.validate_body(
+        "chat_completions", request_body(cap_field=cap_field, cap=cap + 1))
 
     assert admitted.allow is True
     assert (drifted.allow, drifted.reason) == (False, "request_completion_cap_mismatch")
+
+
+@pytest.mark.parametrize("cap_field", ["max_completion_tokens", "max_tokens"])
+@pytest.mark.parametrize("declared", [True, 1.0, "1"])
+def test_request_cap_alias_requires_a_plain_integer(
+    cap_field: str, declared: object,
+) -> None:
+    bound = adapter("https://api.deepseek.test", frozen_completion_cap=1)
+
+    decision = bound.validate_body(
+        "chat_completions", request_body(cap_field=cap_field, cap=declared))
+
+    assert (decision.allow, decision.reason) == (
+        False, "request_completion_cap_mismatch")
 
 
 def test_refuses_every_request_when_no_completion_cap_is_frozen() -> None:
@@ -146,14 +171,14 @@ def test_refuses_every_request_when_no_completion_cap_is_frozen() -> None:
     assert (decision.allow, decision.reason) == (False, "request_completion_cap_unfrozen")
 
 
-def test_a_max_tokens_body_conflicts_before_the_unfrozen_cap_is_read() -> None:
-    """A body defect is named ahead of the adapter's own missing cap, so the conflict refusal
-    keeps its meaning on every adapter."""
+@pytest.mark.parametrize("cap_field", ["max_completion_tokens", "max_tokens"])
+def test_refuses_either_alias_when_no_completion_cap_is_frozen(cap_field: str) -> None:
     bound = adapter("https://api.deepseek.test", frozen_completion_cap=None)
 
-    decision = bound.validate_body("chat_completions", request_body(max_tokens=16))
+    decision = bound.validate_body(
+        "chat_completions", request_body(cap_field=cap_field, cap=16))
 
-    assert (decision.allow, decision.reason) == (False, "request_completion_cap_conflict")
+    assert (decision.allow, decision.reason) == (False, "request_completion_cap_unfrozen")
 
 
 @pytest.mark.parametrize("cap", [0, -1, True, 2.5, "256"])
@@ -331,20 +356,25 @@ def test_deepseek_protocol_does_not_impose_the_smoke_request_limit(tmp_path: Pat
     assert len(upstream.requests) == 1
 
 
-def test_proxy_accounts_one_complete_stream_and_replaces_auth(tmp_path: Path) -> None:
+@pytest.mark.parametrize("cap_field", ["max_completion_tokens", "max_tokens"])
+def test_proxy_forwards_either_cap_alias_unchanged_and_accounts_response(
+    tmp_path: Path, cap_field: str,
+) -> None:
     with SyntheticUpstream() as upstream:
         upstream.server.content_type = "text/event-stream"
         upstream.server.raw_body = complete_stream()
         handle = start_proxy(tmp_path, upstream)
         try:
-            status, payload = post(handle, request_body(), headers={"cookie": "ambient"})
+            body = request_body(cap_field=cap_field)
+            status, payload = post(handle, body, headers={"cookie": "ambient"})
         finally:
             handle.stop()
     captured = upstream.requests[0]
     outgoing = {key.lower(): value for key, value in captured.headers.items()}
     assert status == 200
     assert payload == complete_stream()
-    assert json.loads(captured.body)["max_completion_tokens"] == FROZEN_CAP
+    assert captured.body == body
+    assert json.loads(captured.body)[cap_field] == FROZEN_CAP
     assert outgoing["authorization"] == f"Bearer {REAL_CREDENTIAL}"
     assert "cookie" not in outgoing
     assert records(tmp_path / "deepseek.jsonl")[0]["tokens"] == {

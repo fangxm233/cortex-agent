@@ -79,15 +79,18 @@ MUTATIONS: tuple[tuple[str, str, list[tuple[str, str]], str, str], ...] = (
         '        if not isinstance(options, dict) or options.get("include_usage") is not True:',
         "        if not isinstance(options, dict):",
     )], ADAPTER_TESTS, "rejects_model_stream"),
+    ("cap_alias", DEEPSEEK, [(
+        'COMPLETION_CAP_FIELDS = ("max_completion_tokens", "max_tokens")',
+        'COMPLETION_CAP_FIELDS = ("max_completion_tokens",)',
+    )], ADAPTER_TESTS, "admits_either_name"),
     ("cap_conflict", DEEPSEEK, [(
-        '        if "max_tokens" in document:', "        if False:",
+        "    if len(fields) != 1:", "    if not fields:",
     )], ADAPTER_TESTS, "rejects_model_stream"),
     ("cap_value", DEEPSEEK, [(
-        '        if document.get("max_completion_tokens") != self._frozen_completion_cap:',
-        "        if False:",
+        "    if not _token(declared) or declared != frozen_completion_cap:", "    if False:",
     )], ADAPTER_TESTS, "rejects_model_stream"),
     ("cap_unfrozen", DEEPSEEK, [(
-        "        if self._frozen_completion_cap is None:", "        if False:",
+        "    if frozen_completion_cap is None:", "    if False:",
     )], ADAPTER_TESTS, "no_completion_cap_is_frozen"),
     # --- credential injection ---
     ("auth_injection", DEEPSEEK, [(

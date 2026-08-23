@@ -14,6 +14,7 @@ ADAPTER_ID = "deepseek-chat-completions/api-key"
 CHAT_COMPLETIONS_ROUTE = "chat_completions"
 CHAT_COMPLETIONS_PATHS = frozenset({"/chat/completions", "/v1/chat/completions"})
 FORWARDED_HEADERS = frozenset({"accept", "content-type"})
+COMPLETION_CAP_FIELDS = ("max_completion_tokens", "max_tokens")
 
 
 class DeepSeekChatCompletionsApiKeyAdapter:
@@ -65,15 +66,7 @@ class DeepSeekChatCompletionsApiKeyAdapter:
         options = document.get("stream_options")
         if not isinstance(options, dict) or options.get("include_usage") is not True:
             return "request_stream_usage_required"
-        # A body defect is named before the adapter's own missing cap, so the conflict refusal
-        # keeps its meaning whether or not a cap was frozen.
-        if "max_tokens" in document:
-            return "request_completion_cap_conflict"
-        if self._frozen_completion_cap is None:
-            return "request_completion_cap_unfrozen"
-        if document.get("max_completion_tokens") != self._frozen_completion_cap:
-            return "request_completion_cap_mismatch"
-        return None
+        return _completion_cap_reason(document, self._frozen_completion_cap)
 
     def inject_auth(self, headers: Mapping[str, str], route_id: str) -> dict[str, str]:
         if route_id != CHAT_COMPLETIONS_ROUTE:
@@ -123,6 +116,20 @@ class _ParsedStream:
         self.malformed = malformed
         self.data_after_done = data_after_done
         self.error_event = error_event
+
+
+def _completion_cap_reason(
+    document: dict[str, object], frozen_completion_cap: int | None,
+) -> str | None:
+    fields = [field for field in COMPLETION_CAP_FIELDS if field in document]
+    if len(fields) != 1:
+        return "request_completion_cap_conflict"
+    if frozen_completion_cap is None:
+        return "request_completion_cap_unfrozen"
+    declared = document[fields[0]]
+    if not _token(declared) or declared != frozen_completion_cap:
+        return "request_completion_cap_mismatch"
+    return None
 
 
 def _parse_stream(body: bytes) -> _ParsedStream:
