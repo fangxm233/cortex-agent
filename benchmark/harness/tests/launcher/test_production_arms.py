@@ -89,6 +89,7 @@ def test_direct_arm_resolves_to_the_committed_direct_bundle() -> None:
     assert bundle.profile_name == "benchmark-direct"
     assert bundle.evidence_mode == "direct"
     assert bundle.expected_roles == ("benchmark-direct",)
+    assert bundle.thinking == "off"
     assert bundle.manager_qa is None
 
 
@@ -104,6 +105,7 @@ def test_direct_openai_codex_arm_resolves_to_its_committed_bundle() -> None:
     assert bundle.provider == "openai-codex"
     assert bundle.model == "gpt-5.6-sol"
     assert bundle.credential_capability == "pi-openai-codex-oauth"
+    assert bundle.thinking == "xhigh"
     assert bundle.manager_qa is None
     assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
 
@@ -264,6 +266,7 @@ def test_every_committed_bundle_ships_what_its_arm_declares() -> None:
         profiles = read_json(home / "config/profiles.json")
         assert profiles["defaultProfile"] == bundle.profile_name
         assert bundle.profile_name in profiles["profiles"]
+        assert profiles["profiles"][bundle.profile_name]["thinking"] == bundle.thinking
         assert read_json(home / "data/mode.json")["activeProfile"] == bundle.profile_name
         for name in agents:
             agent = read_json(home / f"config/thread-templates/agents/{name}.json")

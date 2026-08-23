@@ -18,6 +18,7 @@ import pytest
 import yaml
 
 from cortex_bench_harness import campaign
+from cortex_bench_harness.launcher.production_arms import require_production_arm
 from cortex_bench_harness.launcher.production_session import (
     SERVER_READY_TIMEOUT_SECONDS,
     SERVER_STOP_TIMEOUT_SECONDS,
@@ -59,6 +60,53 @@ COMMITTED_VENDOR_CONFIGS = {
     "pi": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-pi.yaml",
     "claude-code": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-claude-code.yaml",
     "codex": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-codex.yaml",
+}
+COMMITTED_CODEX_XHIGH_CONFIGS = {
+    "pi": {
+        "path": CAMPAIGNS_DIR / "terminal-bench-2.1-pi-codex-xhigh.yaml",
+        "credential_capability": "pi-openai-codex-oauth",
+        "task_paths": [
+            "tasks/terminal-bench-2.1/pi/chess-best-move",
+            "tasks/terminal-bench-2.1/pi/constraints-scheduling",
+            "tasks/terminal-bench-2.1/pi/db-wal-recovery",
+        ],
+        "image_digests": [
+            "sha256:5f16cd3f75c54b22866a823b35e39305155c784886d1db5f894272d89f7cbbed",
+            "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353",
+            "sha256:7199e472b87adc22c356e9a364d453c6f825938de6ab7f6422b787735dbf47f7",
+        ],
+        "thinking": "xhigh",
+    },
+    "cortex": {
+        "path": CAMPAIGNS_DIR / "terminal-bench-2.1-cortex-direct-codex-xhigh.yaml",
+        "credential_capability": "pi-openai-codex-oauth",
+        "task_paths": [
+            "tasks/terminal-bench-2.1/chess-best-move",
+            "tasks/terminal-bench-2.1/constraints-scheduling",
+            "tasks/terminal-bench-2.1/db-wal-recovery",
+        ],
+        "image_digests": [
+            "sha256:f84a499762df4e6f1171cce718628b419e58a910513f371e119740171236798b",
+            "sha256:6cad45f1f79e0c178d4b23ec1c930179d7d5dba2e0bdf27900dfc29c6a1bd04c",
+            "sha256:0ace05c2bcd266e4ff7b8da863667b959393404a82d981b548d41493704a335a",
+        ],
+        "thinking": "xhigh",
+    },
+    "native": {
+        "path": CAMPAIGNS_DIR / "terminal-bench-2.1-native-codex-xhigh.yaml",
+        "credential_capability": "codex-subscription",
+        "task_paths": [
+            "tasks/terminal-bench-2.1/codex/chess-best-move",
+            "tasks/terminal-bench-2.1/codex/constraints-scheduling",
+            "tasks/terminal-bench-2.1/codex/db-wal-recovery",
+        ],
+        "image_digests": [
+            "sha256:7ec70cbe5726a332ec7c559d7145f82c67317a529457b071b7eae44032b6e728",
+            "sha256:31859b5bb36e1d507e330c3c75dc7adf830137fc72e0e4d1a88e68f48fdb903c",
+            "sha256:d2a78b8e5aa9c842d9dfa21ceed714859ff5f06b141eb15880c62850158ff5cc",
+        ],
+        "thinking": "xhigh",
+    },
 }
 CODEX_CREDENTIAL_ENV = "CORTEX_BENCH_TEST_CODEX_CREDENTIAL"
 CODEX_NOW_MS = 1_900_000_000_000
@@ -212,6 +260,21 @@ def required_codex_expiry_ms() -> int:
 def write_campaign(root: Path, document: dict[str, object] | None = None) -> Path:
     path = root / "campaign.yaml"
     path.write_text(yaml.safe_dump(document or campaign_document(root)), encoding="utf-8")
+    return path
+
+
+def write_committed_campaign_copy(root: Path, source_path: Path) -> Path:
+    document = yaml.safe_load(source_path.read_text(encoding="utf-8"))
+    document["trials_dir"] = str(root / "trials")
+    document["manifest"] = {
+        key: value if key == "lockfile_manifest_path"
+        else str((source_path.parent / value).resolve())
+        for key, value in document["manifest"].items()
+    }
+    for task in document["tasks"]:
+        task["path"] = str((source_path.parent / task["path"]).resolve())
+    path = root / source_path.name
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
     return path
 
 
@@ -962,6 +1025,72 @@ def test_cortex_pi_openai_codex_arm_must_name_the_exact_pi_capability_before_arm
     assert status == 1
     assert "exact pi-openai-codex-oauth capability" in failure_document(capsys)["error"]
     assert recorder.armed == []
+
+
+@pytest.mark.parametrize(("name", "expected"), COMMITTED_CODEX_XHIGH_CONFIGS.items())
+def test_committed_codex_xhigh_campaign_configs_expand_to_exactly_three_trials(
+    name: str, expected: dict[str, object],
+) -> None:
+    config = load_campaign_config(expected["path"])
+    (arm,) = config.arms
+    trials = config.trials()
+
+    assert config.paid is True
+    assert config.concurrency == 3
+    assert config.timeouts == {"agent_seconds": 2100, "verifier_seconds": 1800}
+    assert config.network.mode == "open"
+    assert config.network.allowlist == ()
+    assert config.network.denylist == ()
+    assert len(trials) == 3
+    assert [task.task_id for task in config.tasks] == [
+        "chess-best-move", "constraints-scheduling", "db-wal-recovery",
+    ]
+    assert [str(task.path.relative_to(CAMPAIGNS_DIR)) for task in config.tasks] == expected["task_paths"]
+    assert [task.image_digest for task in config.tasks] == expected["image_digests"]
+    assert (arm["provider"], arm["model"], arm["credential_capability"]) == (
+        "openai-codex", "gpt-5.6-sol", expected["credential_capability"])
+    if arm["kind"] == "vendor-baseline":
+        assert arm["thinking"] == expected["thinking"]
+    else:
+        assert arm.get("thinking") is None
+        assert require_production_arm(arm).thinking == expected["thinking"]
+
+
+@pytest.mark.parametrize("expected", COMMITTED_CODEX_XHIGH_CONFIGS.values())
+def test_committed_codex_xhigh_campaign_dry_run_plans_exactly_three_trials(
+    expected: dict[str, object], tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    config_copy = write_committed_campaign_copy(tmp_path, expected["path"])
+
+    status, result, stderr = run_cli(capsys, "run", "--config", str(config_copy), "--dry-run")
+
+    assert (status, stderr) == (0, "")
+    assert recorder.events == []
+    assert result["dry_run"] is True
+    assert [trial["state"] for trial in result["trials"]] == ["would-arm"] * 3
+
+
+@pytest.mark.parametrize("expected", COMMITTED_CODEX_XHIGH_CONFIGS.values())
+def test_committed_codex_xhigh_campaigns_pass_one_expiry_to_the_whole_wave(
+    expected: dict[str, object], tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    config_copy = write_committed_campaign_copy(tmp_path, expected["path"])
+    credential_env = str(load_campaign_config(config_copy).proxy["credential_env"])
+    expiry_ms = required_codex_expiry_ms()
+    monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+    monkeypatch.setenv(credential_env, codex_token(expiry_ms))
+
+    status, _, stderr = run_cli(capsys, "run", "--config", str(config_copy))
+
+    assert (status, stderr) == (0, "")
+    assert recorder.max_in_flight == 3
+    assert len(recorder.armed) == 3
+    assert {call["trial_proxy"]["access_expires_at_ms"] for call in recorder.calls} == {
+        expiry_ms}
 
 
 def test_an_undeclared_concurrency_runs_trials_one_at_a_time_in_declared_order(
@@ -1858,7 +1987,7 @@ def test_delivery_summary_projects_every_trial_and_sanitizes_host_values(
     assert persisted_result == public_result
     assert "result_path" not in public_result and "summary_path" not in public_result
     assert (trials_dir / "comparison-report.json").is_file()
-    assert summary["schema_version"] == "cortex-bench-campaign-result-summary/2"
+    assert summary["schema_version"] == "cortex-bench-campaign-result-summary/3"
     assert [trial["trial_id"] for trial in summary["trials"]] == [
         "camp-01-task-one-cortex-a", agent_failed, harness_incomplete, security_failed,
     ]
@@ -1881,7 +2010,8 @@ def test_delivery_summary_projects_every_trial_and_sanitizes_host_values(
     assert set(summary) == {"schema_version", "campaign", "trials"}
     assert set(summary["trials"][0]) == {
         "trial_id", "task_id", "terminal_state", "score_status", "verifier_rewards",
-        "counters", "leak_scan", "revocation", "cli", "model", "image_digest",
+        "counters", "leak_scan", "revocation", "cli", "model", "thinking",
+        "image_digest",
     }
     for forbidden in (str(tmp_path), private_home, "private-user", credential):
         assert forbidden not in summary_text
@@ -1912,6 +2042,7 @@ def test_committed_vendor_shapes_persist_all_three_delivery_artifacts(
         "name": vendor_agent, "version": arm["vendor_cli_version"],
     } for trial in summary["trials"])
     assert [trial["model"] for trial in summary["trials"]] == [arm["model"]] * 3
+    assert [trial["thinking"] for trial in summary["trials"]] == [arm.get("thinking")] * 3
     assert [trial["image_digest"] for trial in summary["trials"]] == [
         task["image_ref"].split("@", 1)[1] for task in source["tasks"]
     ]

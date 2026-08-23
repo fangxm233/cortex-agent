@@ -9,6 +9,7 @@
 # one of those as a `benchmark-direct` literal reads them from here instead, so a second arm is a
 # row in this table rather than a second branch through the launcher.
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +47,7 @@ class ProductionArmBundle:
     provider: str
     model: str
     credential_capability: str
+    thinking: str
     orchestration: Mapping[str, object]
     injection: str
     writable_home_paths: tuple[str, ...]
@@ -78,21 +80,50 @@ def _bundle(
     provider: str = "deepseek",
     model: str = "deepseek-v4-flash",
     credential_capability: str = "pi-deepseek-api-key",
+    thinking: str = "off",
     manager_qa: str | None = None,
     injection: str = THREAD_ROOT,
     writable_home_paths: tuple[str, ...] = (),
     webhook_endpoints: tuple[str, ...] = THREAD_ONLY_ENDPOINTS,
 ) -> ProductionArmBundle:
-    return ProductionArmBundle(
+    bundle = ProductionArmBundle(
         key=key, bundle_dir=BUNDLES_DIR / key / BUNDLE_HOME_DIRNAME,
         profile_name=profile_name, root_template=root_template,
         evidence_mode=evidence_mode, expected_roles=expected_roles,
         manager_qa=manager_qa, backend="pi", provider=provider,
-        model=model, credential_capability=credential_capability,
+        model=model, credential_capability=credential_capability, thinking=thinking,
         orchestration=orchestration, injection=injection,
         writable_home_paths=writable_home_paths,
         webhook_endpoints=webhook_endpoints,
     )
+    _assert_bundle_profile(bundle)
+    return bundle
+
+
+def _assert_bundle_profile(bundle: ProductionArmBundle) -> None:
+    path = bundle.bundle_dir / "config/profiles.json"
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        profile_name = document["defaultProfile"]
+        profile = document["profiles"][profile_name]
+        backend = profile["backend"]
+        provider = profile["provider"]
+        model = profile["model"]
+        thinking = profile["thinking"]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise ProductionArmError(
+            f"committed bundle {bundle.key!r} profile is unavailable"
+        ) from error
+    if (
+        profile_name != bundle.profile_name
+        or backend != bundle.backend
+        or provider != bundle.provider
+        or model != bundle.model
+        or thinking != bundle.thinking
+    ):
+        raise ProductionArmError(
+            f"committed bundle {bundle.key!r} profile differs from its declared metadata"
+        )
 
 
 PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
@@ -107,7 +138,7 @@ PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
         root_template="benchmark-direct", evidence_mode="direct",
         expected_roles=("benchmark-direct",),
         provider="openai-codex", model="gpt-5.6-sol",
-        credential_capability="pi-openai-codex-oauth",
+        credential_capability="pi-openai-codex-oauth", thinking="xhigh",
         orchestration={"mode": "direct", "ask_manager": False},
     ),
     _bundle(

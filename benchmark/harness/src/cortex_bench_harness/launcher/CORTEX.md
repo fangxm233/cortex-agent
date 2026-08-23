@@ -16,7 +16,7 @@ Host launcher modules materialize production arms and record bounded trials.
 | lease_bound.py | policy | Computes credential lease bounds |
 | live_handshake.py | boundary | Captures one bounded native-default handshake and safe diagnostics |
 | network_policy.py | boundary | Resolves a campaign's declared trial network |
-| production_arms.py | registry | Resolves committed production bundles |
+| production_arms.py | registry | Resolves bundles and pinned profile metadata |
 | production_home.py | boundary | Materializes sealed production homes |
 | production_session.py | lifecycle | Runs server sessions and records non-success terminals |
 | trial_admission.py | boundary | Seals trial launch inputs |

@@ -11,6 +11,9 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 | terminal-bench-2.1-vendor-claude-code.yaml | campaign | Declares the paid three-task Claude Code vendor baseline |
 | terminal-bench-2.1-vendor-codex-single.yaml | campaign | Declares the paid single-task Codex live gate |
 | terminal-bench-2.1-vendor-codex.yaml | campaign | Declares the paid three-task Codex vendor baseline as one TTL-bound wave |
+| terminal-bench-2.1-native-codex-xhigh.yaml | campaign | Declares the paid three-task native Codex xhigh wave over the Codex task variants |
+| terminal-bench-2.1-pi-codex-xhigh.yaml | campaign | Declares the paid three-task PI OpenAI Codex xhigh wave over the PI task variants |
+| terminal-bench-2.1-cortex-direct-codex-xhigh.yaml | campaign | Declares the paid three-task Cortex direct PI OpenAI Codex xhigh wave over the standard Cortex task variants |
 | terminal-bench-2.1-vendor-pi.yaml | campaign | Declares the paid three-task PI vendor baseline against the host DeepSeek relay |
 | terminal-bench-2.1-vendor-pi-3c-prefx1.yaml | campaign | Declares the first paid three-concurrency PI stream-failure reproduction wave |
 | terminal-bench-2.1-vendor-pi-3c-postfx1.yaml | campaign | Declares the first paid three-concurrency PI stream-fix validation wave |
@@ -32,8 +35,8 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 
 Every committed campaign declares a `network` block, and it decides what a score means.
 
-`mode: open` gives the trial container the internet. All nine campaigns declare it today. The
-Terminal-Bench 2.1 tasks and their reference solutions are in a public repository, so an open
+`mode: open` gives the trial container the internet. The three xhigh campaigns and current paid
+baselines declare it. Terminal-Bench 2.1 tasks and reference solutions are public, so an open
 trial can fetch them: an open-network score measures the agent plus whatever it can look up, not
 the agent alone. **Scores recorded from 2026-08-18 onward are not comparable with earlier ones**,
 which all ran proxy-only under the previous default-deny admission.

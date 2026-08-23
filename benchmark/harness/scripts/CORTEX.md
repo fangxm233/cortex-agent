@@ -10,7 +10,7 @@ script supplies the host references a campaign run needs.
 | build-zero-paid-runtime-image.sh | build | Builds one pinned offline vendor runtime image |
 | capture-pi-vendor-wire.py | evidence | Captures PI loopback wire evidence |
 | capability-evidence-v1-to-v2.json | config | Pins v1 evidence inputs and the v2 field migration |
-| launch-paid-campaign.py | launch | Resolves host references and launches a paid campaign |
+| launch-paid-campaign.py | launch | Loads host credentials and launches paid campaigns |
 | launch-terminal-bench-pi-full.py | launch | Runs the isolated 89-task PI full suite |
 | migrate-capability-evidence.py | evidence | Reproduces canonical v2 evidence and digests |
 | mutation-suite.py | evidence | Kills every listed mutation and regenerates offline evidence |

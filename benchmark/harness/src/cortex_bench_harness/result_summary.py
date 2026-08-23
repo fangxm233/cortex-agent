@@ -11,9 +11,10 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Protocol
 
 from .campaign_config import CampaignConfig, TrialPlan
+from .launcher.production_arms import resolve_production_arm
 
 RESULT_SUMMARY_FILENAME = "result-summary.json"
-RESULT_SUMMARY_SCHEMA_VERSION = "cortex-bench-campaign-result-summary/2"
+RESULT_SUMMARY_SCHEMA_VERSION = "cortex-bench-campaign-result-summary/3"
 PROXY_EXPORT_FILENAME = "proxy-export.json"
 _COUNTER_FIELDS = ("requests", "input_tokens", "output_tokens", "cached_tokens")
 _REVOCATION_BOOLEAN_FIELDS = ("route_active", "listener_present", "serving_thread_alive")
@@ -57,6 +58,7 @@ def _trial_summary(
         "revocation": _revocation(outcome.envelope),
         "cli": _cli_pin(config, arm),
         "model": arm["model"],
+        "thinking": _thinking(arm),
         "image_digest": outcome.plan.task.image_digest,
     }
 
@@ -105,6 +107,14 @@ def _cli_pin(
     if arm.get("kind") == "vendor-baseline":
         return {"name": arm["vendor_agent"], "version": arm["vendor_cli_version"]}
     return {"name": arm["backend"], "version": config.cli_version}
+
+
+def _thinking(arm: Mapping[str, object]) -> str | None:
+    if arm.get("kind") == "vendor-baseline":
+        value = arm.get("thinking")
+        return value if isinstance(value, str) else None
+    bundle = resolve_production_arm(arm)
+    return None if bundle is None else bundle.thinking
 
 
 def _counters(

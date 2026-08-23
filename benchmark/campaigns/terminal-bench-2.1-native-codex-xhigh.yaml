@@ -1,0 +1,79 @@
+# input:  one native Codex xhigh vendor arm and three pinned Terminal-Bench 2.1 Codex tasks
+# output: three concurrent paid native Codex trials
+# pos:    Committed Terminal-Bench 2.1 native Codex xhigh campaign
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+
+schema_version: cortex-bench-campaign/1
+campaign: tb21-natcdx-0823
+paid: true
+trials_dir: /var/tmp/cortex-bench/tb21-native-codex-xhigh-2026-08-23
+cli_version: "2026.8.6"
+concurrency: 3
+
+timeouts:
+  agent_seconds: 2100
+  verifier_seconds: 1800
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: https://chatgpt.com/backend-api
+  route_identity_host: chatgpt.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: paid-codex-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_CODEX_CREDENTIAL
+  forbidden_environment:
+    host_forbidden: CORTEX_BENCH_PAID_FORBIDDEN
+  forbidden_argv_environment:
+    host_argv: CORTEX_BENCH_PAID_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_PAID_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_PAID_IDENTITY
+
+docker_network:
+  subnet_pool: 172.31.32.0/20
+  subnet_prefix: 24
+
+proxy:
+  credential_env: CORTEX_BENCH_CODEX_CREDENTIAL
+  request_body_limit_bytes: 67108864
+  response_body_limit_bytes: 67108864
+  listen_host: 0.0.0.0
+
+arms:
+  - name: nat-cdx-xh
+    kind: vendor-baseline
+    vendor_agent: codex
+    vendor_cli_version: "0.148.0"
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: codex-subscription
+    thinking: xhigh
+    limits:
+      max_provider_requests: 500
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+network:
+  mode: open
+
+tasks:
+  - task_id: chess-best-move
+    path: tasks/terminal-bench-2.1/codex/chess-best-move
+    image_ref: cortex-terminal-bench-2.1@sha256:7ec70cbe5726a332ec7c559d7145f82c67317a529457b071b7eae44032b6e728
+  - task_id: constraints-scheduling
+    path: tasks/terminal-bench-2.1/codex/constraints-scheduling
+    image_ref: cortex-terminal-bench-2.1@sha256:31859b5bb36e1d507e330c3c75dc7adf830137fc72e0e4d1a88e68f48fdb903c
+  - task_id: db-wal-recovery
+    path: tasks/terminal-bench-2.1/codex/db-wal-recovery
+    image_ref: cortex-terminal-bench-2.1@sha256:d2a78b8e5aa9c842d9dfa21ceed714859ff5f06b141eb15880c62850158ff5cc
+
+comparisons: []

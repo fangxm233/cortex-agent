@@ -18,7 +18,7 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | outcome.py | boundary | Classifies result, thread failure, deadline and verifier state |
 | launcher/ | core | Selects arms and builds non-secret Harbor inputs |
 | proxy/ | network | Injects credentials through a bounded trial route |
-| result_summary.py | report | Projects path-safe trial results and delivery pins |
+| result_summary.py | report | Projects path-safe results and resolved thinking |
 | scan/ | audit | Finds credential and host-identity leaks |
 | synthetic_deepseek.py | fixture | Serves deterministic loopback tool and review turns |
 | trial_assets.py | collect | Lifts model-visible prompts from the arm home and plugins from the pinned bundle |

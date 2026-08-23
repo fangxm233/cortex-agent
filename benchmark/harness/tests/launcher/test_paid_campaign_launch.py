@@ -9,6 +9,7 @@
 # credential is always a fake read from a temporary gateway file: no test reads the host gateway,
 # and every test that emits a report asserts the credential is absent from it.
 
+import base64
 import importlib.util
 import json
 import os
@@ -27,15 +28,23 @@ CAMPAIGNS_DIR = HARNESS_ROOT.parents[0] / "campaigns"
 # explicitly -- exactly as `--checkout` exists for.
 CHECKOUT_ROOT = HARNESS_ROOT.parents[1]
 COMMITTED_PAID_CONFIG = CAMPAIGNS_DIR / "terminal-bench-2.1-deepseek-paid.yaml"
+COMMITTED_CODEX_CONFIGS = {
+    "pi": CAMPAIGNS_DIR / "terminal-bench-2.1-pi-codex-xhigh.yaml",
+    "cortex": CAMPAIGNS_DIR / "terminal-bench-2.1-cortex-direct-codex-xhigh.yaml",
+    "native": CAMPAIGNS_DIR / "terminal-bench-2.1-native-codex-xhigh.yaml",
+}
 # Never a real credential: the shape the strict loader accepts, with an unmistakable body.
 FAKE_CREDENTIAL = "test-not-a-real-deepseek-credential-0123456789abcdef"
-REQUIRED_REFERENCES = (
-    "CORTEX_BENCH_DEEPSEEK_CREDENTIAL",
+DEEPSEEK_CREDENTIAL_ENV = "CORTEX_BENCH_DEEPSEEK_CREDENTIAL"
+CODEX_CREDENTIAL_ENV = "CORTEX_BENCH_CODEX_CREDENTIAL"
+COMMON_REFERENCES = (
     "CORTEX_BENCH_PAID_CHECKOUT",
     "CORTEX_BENCH_PAID_FORBIDDEN",
     "CORTEX_BENCH_PAID_FORBIDDEN_ARGV",
     "CORTEX_BENCH_PAID_IDENTITY",
 )
+REQUIRED_REFERENCES = (DEEPSEEK_CREDENTIAL_ENV, *COMMON_REFERENCES)
+CODEX_REQUIRED_REFERENCES = (CODEX_CREDENTIAL_ENV, *COMMON_REFERENCES)
 
 
 def load_launcher() -> object:
@@ -59,7 +68,7 @@ def gateway(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def clean_environment(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
-    for name in REQUIRED_REFERENCES:
+    for name in (*REQUIRED_REFERENCES, *CODEX_REQUIRED_REFERENCES):
         monkeypatch.delenv(name, raising=False)
     return dict(os.environ)
 
@@ -97,6 +106,55 @@ def hermetic_campaign(tmp_path: Path) -> Path:
 
 def committed_config() -> object:
     return launcher.load_campaign_config(COMMITTED_PAID_CONFIG)
+
+
+def codex_token(*, exp_seconds: int = 4_102_444_800, account_id: str = "dummy-codex-account") -> str:
+    def segment(document: dict[str, object]) -> str:
+        return base64.urlsafe_b64encode(
+            json.dumps(document, separators=(",", ":")).encode()
+        ).decode().rstrip("=")
+
+    return ".".join((
+        segment({"alg": "none", "typ": "JWT"}),
+        segment({
+            "https://api.openai.com/auth": {"chatgpt_account_id": account_id},
+            "exp": exp_seconds,
+        }),
+        segment({"synthetic": True}),
+    ))
+
+
+FAKE_CODEX_TOKEN = codex_token()
+
+
+def stage_campaign(tmp_path: Path, source_path: Path) -> Path:
+    import yaml
+
+    document = yaml.safe_load(source_path.read_text(encoding="utf-8"))
+    document["manifest"] = {
+        key: value if key == "lockfile_manifest_path"
+        else str((source_path.parent / value).resolve())
+        for key, value in document["manifest"].items()
+    }
+    for task in document["tasks"]:
+        task["path"] = str((source_path.parent / task["path"]).resolve())
+    document["trials_dir"] = str(tmp_path / "trials")
+    path = tmp_path / source_path.name
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def codex_auth(tmp_path: Path) -> Path:
+    path = tmp_path / "auth.json"
+    path.write_text(json.dumps({
+        "tokens": {
+            "id_token": "not-a-jwt-and-never-read",
+            "access_token": FAKE_CODEX_TOKEN,
+            "refresh_token": "not-forwarded",
+        }
+    }), encoding="utf-8")
+    return path
 
 
 def resolve(gateway: Path, **overrides: object) -> object:
@@ -278,6 +336,67 @@ def test_a_campaign_whose_proxy_and_scan_credential_disagree_is_refused(
     assert "name different variables" in str(error.value)
 
 
+@pytest.mark.parametrize("source_path", COMMITTED_CODEX_CONFIGS.values())
+def test_codex_campaigns_load_only_tokens_access_token_and_report_only_codex_auth_origin(
+    source_path: Path, gateway: Path, codex_auth: Path, clean_environment: dict[str, str],
+    tmp_path: Path,
+) -> None:
+    config_path = stage_campaign(tmp_path, source_path)
+    config = launcher.load_campaign_config(config_path)
+    environment = launcher.resolve_launch_environment(
+        config,
+        gateway_path=gateway,
+        codex_auth_path=codex_auth,
+        environ=clean_environment,
+        checkout=CHECKOUT_ROOT,
+    )
+
+    assert tuple(sorted(environment.values)) == tuple(sorted(CODEX_REQUIRED_REFERENCES))
+    assert environment.values[CODEX_CREDENTIAL_ENV] == FAKE_CODEX_TOKEN
+    assert [reference.origin for reference in environment.references if reference.secret] == [
+        "codex-auth"]
+
+    document = launcher.report(config, environment, "preflight", gateway, {})
+    payload = json.dumps(document, sort_keys=True)
+    assert document["credential_source"] == "codex-auth"
+    assert "gateway_path" not in document
+    assert str(codex_auth) not in payload
+    assert FAKE_CODEX_TOKEN not in payload
+    assert [entry for entry in document["references"] if entry["secret"]] == [
+        {"name": CODEX_CREDENTIAL_ENV, "origin": "codex-auth", "secret": True}]
+
+
+@pytest.mark.parametrize("access_token", [
+    "not-a-jwt",
+    codex_token(account_id=""),
+    ".".join(codex_token().split(".")[:1] + [
+        base64.urlsafe_b64encode(json.dumps({
+            "https://api.openai.com/auth": {"chatgpt_account_id": "missing-exp"},
+        }, separators=(",", ":")).encode()).decode().rstrip("="),
+        codex_token().split(".")[2],
+    ]),
+])
+def test_a_codex_auth_file_without_a_valid_access_token_is_a_launch_refusal(
+    access_token: str, gateway: Path, clean_environment: dict[str, str],
+    tmp_path: Path,
+) -> None:
+    config_path = stage_campaign(tmp_path, COMMITTED_CODEX_CONFIGS["native"])
+    auth_path = tmp_path / "auth.json"
+    auth_path.write_text(json.dumps({"tokens": {"access_token": access_token}}), encoding="utf-8")
+
+    with pytest.raises(launcher.LaunchError) as error:
+        launcher.resolve_launch_environment(
+            launcher.load_campaign_config(config_path),
+            gateway_path=gateway,
+            codex_auth_path=auth_path,
+            environ=clean_environment,
+            checkout=CHECKOUT_ROOT,
+        )
+
+    assert "codex-auth" in str(error.value)
+    assert str(auth_path) not in str(error.value)
+
+
 # --- the launch itself --------------------------------------------------------------------------
 
 
@@ -360,11 +479,47 @@ def test_run_hands_the_campaign_every_reference_and_then_clears_them(
 
     captured = capsys.readouterr()
     assert code == 0
-    assert observed["CORTEX_BENCH_DEEPSEEK_CREDENTIAL"] == FAKE_CREDENTIAL
+    assert observed[DEEPSEEK_CREDENTIAL_ENV] == FAKE_CREDENTIAL
     assert observed["argv"] == f"run --config {COMMITTED_PAID_CONFIG}"
     assert all(name not in os.environ for name in REQUIRED_REFERENCES)
     assert FAKE_CREDENTIAL not in captured.out + captured.err
     assert json.loads(captured.err)["mode"] == "run"
+
+
+def test_run_hands_a_codex_campaign_the_access_token_and_then_clears_it(
+    gateway: Path, codex_auth: Path, clean_environment: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path,
+) -> None:
+    observed: dict[str, str] = {}
+    config_path = stage_campaign(tmp_path, COMMITTED_CODEX_CONFIGS["native"])
+
+    def recorder(argv: list[str]) -> int:
+        observed.update({name: os.environ[name] for name in CODEX_REQUIRED_REFERENCES})
+        observed["argv"] = " ".join(argv)
+        return 0
+
+    monkeypatch.setattr(launcher, "verify_artifacts", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(launcher.campaign, "main", recorder)
+
+    code = launcher.main([
+        "--config", str(config_path),
+        "--gateway", str(gateway),
+        "--codex-auth", str(codex_auth),
+        "--checkout", str(CHECKOUT_ROOT),
+        "--run",
+    ])
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert observed[CODEX_CREDENTIAL_ENV] == FAKE_CODEX_TOKEN
+    assert observed["argv"] == f"run --config {config_path}"
+    assert all(name not in os.environ for name in CODEX_REQUIRED_REFERENCES)
+    assert FAKE_CODEX_TOKEN not in captured.out + captured.err
+    assert str(codex_auth) not in captured.out + captured.err
+    report = json.loads(captured.err)
+    assert report["mode"] == "run"
+    assert report["credential_source"] == "codex-auth"
+    assert "gateway_path" not in report
 
 
 # --- the artifact staleness gate ----------------------------------------------------------------

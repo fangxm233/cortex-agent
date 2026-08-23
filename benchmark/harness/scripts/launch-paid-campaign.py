@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# input:  a committed campaign document and the host aistatus gateway file
+# input:  a committed campaign document and the host gateway or Codex auth source
 # output: the five resolved host-scan references, a redacted report and the campaign run
 # pos:    Host-only paid campaign launch procedure
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -14,10 +14,11 @@
 # parse that refused r2 now succeeds, and only then runs the campaign in this same process.
 #
 # Credential hygiene, which is why the credential is not simply exported by the operator:
-#   * it is read at execution time from the gateway file through the existing strict loader
-#     (`launcher.deepseek_paid_smoke.load_deepseek_relay_credential`), never from a file, flag or
-#     inherited variable — a pre-set credential variable is a refusal, because `cortex-run --env`
-#     persists whatever it is given into private run metadata;
+#   * it is read at execution time from the configured host source: DeepSeek campaigns still use
+#     the strict gateway loader (`launcher.deepseek_paid_smoke.load_deepseek_relay_credential`),
+#     while all-Codex campaigns read only `tokens.access_token` from the named Codex auth JSON and
+#     validate it locally as a JWT; a pre-set credential variable is always a refusal, because
+#     `cortex-run --env` persists whatever it is given into private run metadata;
 #   * it lives only in this process's environment, is never written to argv, stdout or any file,
 #     and is removed from the environment as soon as the campaign returns.
 #
@@ -25,7 +26,8 @@
 # current source (see `verify_artifacts`). That is the r6 gate, and it is why the build step below
 # is part of the procedure rather than something an operator is trusted to remember.
 #
-# THE LAUNCH PROCEDURE, exactly (run on the host that owns the gateway file; no `--env` anywhere):
+# THE LAUNCH PROCEDURE, exactly (run on the host that owns the credential source; no `--env`
+# anywhere):
 #
 #   cd <checkout>/benchmark/harness
 #   PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --offline --frozen \
@@ -78,10 +80,20 @@ from cortex_bench_harness.host_finalization import parse_host_scan_policy  # noq
 from cortex_bench_harness.launcher.deepseek_paid_smoke import (  # noqa: E402
     load_deepseek_relay_credential,
 )
+from cortex_bench_harness.proxy.adapters.openai_codex_responses import (  # noqa: E402
+    extract_access_expiry_ms,
+    extract_account_id,
+)
 
 LAUNCH_SCHEMA_VERSION = "cortex-bench-paid-launch/1"
 GATEWAY_PATH = Path("/home/fangxin/.aistatus/gateway.yaml")
+CODEX_AUTH_PATH = Path("~/.codex/auth.json")
 CREDENTIAL_RULE = "provider_credential"
+CODEX_AUTH_ORIGIN = "codex-auth"
+GATEWAY_ORIGIN = "gateway"
+CODEX_CREDENTIAL_CAPABILITIES = frozenset({
+    "pi-openai-codex-oauth", "codex-subscription",
+})
 # The generated references are leak canaries, not secrets: the scanner fails the trial if one of
 # these literals reaches a published artifact, which is how host environment or argv leakage is
 # detected. They are generated per launch and stay fixed for the whole campaign process.
@@ -107,6 +119,7 @@ class ReferenceValue:
 @dataclass(frozen=True)
 class LaunchEnvironment:
     credential_env: str
+    credential_origin: str
     references: tuple[ReferenceValue, ...]
 
     @property
@@ -173,37 +186,65 @@ def checkout_root(config: CampaignConfig) -> Path:
 
 
 def resolve_launch_environment(
-    config: CampaignConfig, *, gateway_path: Path, environ: Mapping[str, str],
-    checkout: Path | None = None,
+    config: CampaignConfig, *, gateway_path: Path, codex_auth_path: Path = CODEX_AUTH_PATH,
+    environ: Mapping[str, str], checkout: Path | None = None,
 ) -> LaunchEnvironment:
     """Resolve all five references without reading the credential from the environment."""
     credential_env = credential_reference(config)
+    credential_origin = _credential_origin(config)
     if environ.get(credential_env):
         raise LaunchError(
             f"{credential_env} is already set in this environment. The credential is loaded from "
-            f"{gateway_path} at execution time and must not be inherited: passing it through "
-            "cortex-run --env persists its value into private run metadata")
-    declared = host_scan_reference_names(config)
+            f"the {credential_origin} source at execution time and must not be inherited: "
+            "passing it through cortex-run --env persists its value into private run metadata")
+    credential = _credential(
+        config, gateway_path=gateway_path, codex_auth_path=codex_auth_path)
+    references = _reference_values(
+        config, credential_env, credential_origin, credential, environ, checkout)
+    _validate(references, credential_env)
+    return LaunchEnvironment(
+        credential_env=credential_env, credential_origin=credential_origin,
+        references=tuple(references),
+    )
+
+
+def _reference_values(
+    config: CampaignConfig, credential_env: str, credential_origin: str,
+    credential: str, environ: Mapping[str, str], checkout: Path | None,
+) -> list[ReferenceValue]:
     checkout_path = checkout if checkout is not None else checkout_root(config)
     derived = {
         "repository_checkout_environment": str(checkout_path),
         "host_identity_environment.machine": socket.gethostname(),
     }
-    references = [ReferenceValue(credential_env, _credential(gateway_path), "gateway", True)]
-    for field in sorted(declared):
-        name = declared[field]
+    references = [ReferenceValue(
+        credential_env, credential, credential_origin, True)]
+    for field, name in sorted(host_scan_reference_names(config).items()):
         if name == credential_env:
             continue
         inherited = environ.get(name)
-        if inherited:
-            references.append(ReferenceValue(name, inherited, "environment", False))
-            continue
-        references.append(ReferenceValue(name, _generated(field, name, derived), "derived", False))
-    _validate(references, credential_env)
-    return LaunchEnvironment(credential_env=credential_env, references=tuple(references))
+        origin = "environment" if inherited else "derived"
+        value = inherited or _generated(field, name, derived)
+        references.append(ReferenceValue(name, value, origin, False))
+    return references
 
 
-def _credential(gateway_path: Path) -> str:
+def _credential_origin(config: CampaignConfig) -> str:
+    return CODEX_AUTH_ORIGIN if _uses_codex_auth(config) else GATEWAY_ORIGIN
+
+
+def _uses_codex_auth(config: CampaignConfig) -> bool:
+    return bool(config.arms) and all(
+        str(arm["credential_capability"]) in CODEX_CREDENTIAL_CAPABILITIES
+        for arm in config.arms
+    )
+
+
+def _credential(
+    config: CampaignConfig, *, gateway_path: Path, codex_auth_path: Path,
+) -> str:
+    if _uses_codex_auth(config):
+        return _codex_access_token(codex_auth_path)
     try:
         credential = load_deepseek_relay_credential(gateway_path)
     except (OSError, ValueError) as error:
@@ -212,6 +253,37 @@ def _credential(gateway_path: Path) -> str:
     if not credential.strip():
         raise LaunchError(f"the provider credential in {gateway_path} is empty")
     return credential
+
+
+def _codex_access_token(auth_path: Path) -> str:
+    try:
+        document = json.loads(auth_path.expanduser().read_text(encoding="utf-8"))
+    except OSError as error:
+        raise LaunchError(
+            "cannot load the provider credential from codex-auth: auth file is unreadable"
+        ) from error
+    except ValueError as error:
+        raise LaunchError(
+            "cannot load the provider credential from codex-auth: auth file is not valid JSON"
+        ) from error
+    if not isinstance(document, Mapping):
+        raise LaunchError(
+            "cannot load the provider credential from codex-auth: auth file must be a JSON object"
+        )
+    tokens = document.get("tokens")
+    access = tokens.get("access_token") if isinstance(tokens, Mapping) else None
+    if not isinstance(access, str) or not access.strip():
+        raise LaunchError(
+            "cannot load the provider credential from codex-auth: "
+            "tokens.access_token must be non-empty text"
+        )
+    token = access.strip()
+    try:
+        extract_account_id(token)
+        extract_access_expiry_ms(token)
+    except ValueError as error:
+        raise LaunchError(f"cannot load the provider credential from codex-auth: {error}") from error
+    return token
 
 
 def _generated(field: str, name: str, derived: Mapping[str, str]) -> str:
@@ -242,8 +314,8 @@ def _validate(references: list[ReferenceValue], credential_env: str) -> None:
     for index, argument in enumerate(sys.argv):
         if credential in argument:
             raise LaunchError(
-                f"argv[{index}] carries the provider credential; it is loaded from the gateway "
-                "and never passed on a command line")
+                f"argv[{index}] carries the provider credential; it is loaded only at execution "
+                "time and never passed on a command line")
 
 
 def preflight(
@@ -288,11 +360,13 @@ def report(
         "ok": True, "schema_version": LAUNCH_SCHEMA_VERSION, "mode": mode,
         "config": config.source, "campaign": config.campaign, "paid": config.paid,
         "trials_dir": str(config.trials_dir),
-        "gateway_path": str(gateway_path),
+        "credential_source": environment.credential_origin,
         "host_scan_policy_resolved": True,
         "artifacts_verified": dict(artifacts),
         **environment.as_report(),
     }
+    if environment.credential_origin == GATEWAY_ORIGIN:
+        document["gateway_path"] = str(gateway_path)
     if dry_run is not None:
         document["dry_run"] = dict(dry_run)
     return document
@@ -303,7 +377,12 @@ def launch(arguments: argparse.Namespace) -> tuple[dict[str, object], int]:
     gateway_path = Path(arguments.gateway)
     checkout = Path(arguments.checkout).resolve() if arguments.checkout else None
     environment = resolve_launch_environment(
-        config, gateway_path=gateway_path, environ=os.environ, checkout=checkout)
+        config,
+        gateway_path=gateway_path,
+        codex_auth_path=Path(arguments.codex_auth),
+        environ=os.environ,
+        checkout=checkout,
+    )
     preflight(config, environment, environ=os.environ)
     artifacts = verify_artifacts(
         config, checkout if checkout is not None else checkout_root(config))
@@ -330,20 +409,33 @@ def build_parser() -> argparse.ArgumentParser:
         prog="launch-paid-campaign.py",
         description=(
             "Launch a committed paid campaign from this host: load the provider credential from "
-            "the gateway at execution time, resolve every host_scan_policy reference, and run "
-            "the campaign in this process."),
+            "the gateway or Codex auth at execution time, resolve every host_scan_policy "
+            "reference, and run the campaign in this process."),
         epilog=(
-            "The credential is never accepted from the environment, a flag or stdin, and never "
-            "appears in argv, stdout or the emitted report."),
+            "The credential value is never accepted from the environment, stdin or a flag, and "
+            "never appears in argv, stdout or the emitted report."),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--config", required=True, help="Campaign YAML path")
+    _add_source_arguments(parser)
+    _add_mode_arguments(parser)
+    parser.set_defaults(mode="preflight")
+    return parser
+
+
+def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--gateway", default=str(GATEWAY_PATH),
         help="aistatus gateway file the provider credential is read from")
     parser.add_argument(
+        "--codex-auth", default=str(CODEX_AUTH_PATH),
+        help="Codex auth JSON the access token is read from when every arm uses Codex OAuth")
+    parser.add_argument(
         "--checkout", default=None,
         help="Repository checkout literal for the scan policy; derived from --config by default")
+
+
+def _add_mode_arguments(parser: argparse.ArgumentParser) -> None:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--preflight", dest="mode", action="store_const", const="preflight",
@@ -351,8 +443,6 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument(
         "--run", dest="mode", action="store_const", const="run",
         help="Resolve every reference and run the campaign")
-    parser.set_defaults(mode="preflight")
-    return parser
 
 
 def main(argv: list[str] | None = None) -> int:
