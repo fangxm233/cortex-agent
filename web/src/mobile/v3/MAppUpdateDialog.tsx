@@ -1,3 +1,7 @@
+// input:  app-update metadata, copy helpers, and decision callbacks
+// output: themed mobile shell-update prompt
+// pos:    Mobile dialog for native application updates
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import {
   appUpdateSummaryLine,
   installCtaLabel,
@@ -34,7 +38,7 @@ export function MAppUpdateDialog({
         position: 'fixed',
         inset: 0,
         zIndex: 60,
-        background: 'rgba(25,28,34,.44)',
+        background: 'var(--overlay-scrim-strong)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -47,7 +51,7 @@ export function MAppUpdateDialog({
           width: '100%',
           background: 'var(--proto-card)',
           borderRadius: 18,
-          boxShadow: '0 24px 64px rgba(16,24,40,.32)',
+          boxShadow: 'var(--shadow-overlay-strong)',
           padding: '24px 20px 14px',
           boxSizing: 'border-box',
           display: 'flex',
@@ -91,7 +95,7 @@ export function MAppUpdateDialog({
           {installDescription(update.kind)}
         </div>
         {error ? (
-          <div style={{ fontSize: 12, color: 'var(--proto-danger, #d92d20)', marginBottom: 10, textAlign: 'center' }}>
+          <div style={{ fontSize: 12, color: 'var(--proto-danger)', marginBottom: 10, textAlign: 'center' }}>
             安装失败：{error}
           </div>
         ) : null}

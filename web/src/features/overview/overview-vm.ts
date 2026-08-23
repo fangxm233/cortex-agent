@@ -1,3 +1,7 @@
+// input:  project, schedule, execution, session, and cost DTOs
+// output: overview money, schedule, and execution presentation models
+// pos:    Pure view model for the project overview
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import type {
   ScheduleInfo,
   ExecutionInfo,
@@ -219,16 +223,16 @@ export interface ExecPill {
 export function execStatusPill(status: ExecutionInfo['status']): ExecPill {
   switch (status) {
     case 'running':
-      return { text: 'running', bg: '#EEF0FA', color: '#4655D4', dot: true };
+      return { text: 'running', bg: 'var(--pill-running-bg)', color: 'var(--pill-running-fg)', dot: true };
     case 'completed':
-      return { text: 'done', bg: '#E9F4EE', color: '#23854F', dot: false };
+      return { text: 'done', bg: 'var(--pill-done-bg)', color: 'var(--pill-done-fg)', dot: false };
     case 'failed':
-      return { text: 'failed', bg: '#FBEDEB', color: '#C03D33', dot: false };
+      return { text: 'failed', bg: 'var(--pill-failed-bg)', color: 'var(--pill-failed-fg)', dot: false };
     case 'cancelled':
-      return { text: 'cancelled', bg: '#F1F2F5', color: '#8A93A2', dot: false };
+      return { text: 'cancelled', bg: 'var(--pill-cancelled-bg)', color: 'var(--pill-cancelled-fg)', dot: false };
     case 'stale':
     default:
-      return { text: 'stale', bg: '#F1F2F5', color: '#8A93A2', dot: false };
+      return { text: 'stale', bg: 'var(--pill-cancelled-bg)', color: 'var(--pill-cancelled-fg)', dot: false };
   }
 }
 

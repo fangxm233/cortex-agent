@@ -1,3 +1,7 @@
+// input:  plan card model, markdown renderer, and decision callbacks
+// output: themed desktop plan reader with approve and reject actions
+// pos:    Full-plan overlay opened from interaction cards
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 // Desktop plan reading overlay — the target of every 13c 阅读 › / 查看计划 › affordance. The
 // desktop scheme defines no reading page (13c footnote: 「卡片只负责路由 + 批/驳，全文在阅读页看」;
 // the page itself is only drawn as mobile 6b) → this ports the 6b structure (header meta + read
@@ -51,11 +55,11 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(16,20,28,.42)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim-medium)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: 760, maxWidth: 'calc(100vw - 64px)', height: 'min(720px, calc(100vh - 80px))', background: 'var(--proto-card)', borderRadius: 14, boxShadow: '0 24px 64px rgba(16,24,40,.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        style={{ width: 760, maxWidth: 'calc(100vw - 64px)', height: 'min(720px, calc(100vh - 80px))', background: 'var(--proto-card)', borderRadius: 14, boxShadow: 'var(--shadow-overlay-strong)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
         {/* header — title · meta · status pill · ✕ · progress bar (6b header, desktop chrome) */}
         <div style={{ flex: 'none', padding: '14px 18px 12px', borderBottom: '1px solid var(--proto-line-2)' }}>
@@ -101,7 +105,7 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
               </div>
             )}
           </div>
-          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 48, background: 'linear-gradient(180deg,rgba(255,255,255,0),var(--proto-card))', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 48, background: 'linear-gradient(180deg,var(--proto-card-transparent),var(--proto-card))', pointerEvents: 'none' }} />
         </div>
 
         {/* resident action bar (pending) / status stamp (sealed) */}

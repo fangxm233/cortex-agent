@@ -53,7 +53,7 @@ function ModalMessage({ children, failed }: { children: ReactNode; failed?: bool
 
 const OVERLAY_STYLE: React.CSSProperties = {
   position: 'fixed', inset: 0, zIndex: 70,
-  background: 'rgba(25,28,34,.4)', animation: 'cxfade .18s ease',
+  background: 'var(--overlay-scrim-medium)', animation: 'cxfade .18s ease',
 };
 
 const CONTENT_STYLE: React.CSSProperties = {
@@ -61,7 +61,7 @@ const CONTENT_STYLE: React.CSSProperties = {
   transform: 'translate(-50%,-50%)', width: 'min(1200px,94vw)', height: 'min(90vh,900px)',
   display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 14,
   border: '1px solid var(--proto-line)', background: 'var(--proto-alt)',
-  boxShadow: '0 24px 64px rgba(16,24,40,.3)', outline: 'none',
+  boxShadow: 'var(--shadow-overlay-strong)', outline: 'none',
   animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
 };
 

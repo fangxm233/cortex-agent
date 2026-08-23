@@ -88,7 +88,7 @@ function CompactStep({ step, onClick }: { step: DetailStep; onClick: () => void 
         border: pending ? '1px dashed var(--proto-line-3)' : '1px solid ' + (hover ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
         borderRadius: 10,
         padding: '9px 13px',
-        boxShadow: '0 1px 2px rgba(16,24,40,.03)',
+        boxShadow: 'var(--shadow-card-subtle)',
         cursor: 'pointer',
       }}
     >
@@ -198,7 +198,7 @@ function ExpandedStep({
         background: 'var(--proto-card)',
         border: running ? '1.5px solid var(--proto-accent)' : '1.5px solid var(--proto-accent-border)',
         borderRadius: 10,
-        boxShadow: running ? '0 0 0 3px var(--proto-accent-bg)' : '0 1px 2px rgba(16,24,40,.04)',
+        boxShadow: running ? '0 0 0 3px var(--proto-accent-bg)' : 'var(--shadow-card-soft)',
         overflow: 'hidden',
       }}
     >

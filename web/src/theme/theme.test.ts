@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_THEME,
+  applyTheme,
   resolveEffectiveTheme,
   resolveInitialTheme,
   watchSystemTheme,
@@ -37,6 +38,25 @@ describe('resolveEffectiveTheme', () => {
     expect(resolveEffectiveTheme('system', false)).toBe('light');
     expect(resolveEffectiveTheme('light', true)).toBe('light');
     expect(resolveEffectiveTheme('dark', false)).toBe('dark');
+  });
+});
+
+describe('applyTheme', () => {
+  it('syncs the document theme and browser chrome token', () => {
+    const setRootAttribute = vi.fn();
+    const setMetaAttribute = vi.fn();
+    vi.stubGlobal('document', {
+      documentElement: { setAttribute: setRootAttribute, removeAttribute: vi.fn(), style: {} },
+      querySelector: vi.fn(() => ({ setAttribute: setMetaAttribute })),
+    });
+    vi.stubGlobal('getComputedStyle', vi.fn(() => ({
+      getPropertyValue: () => '#12151a',
+    })));
+
+    applyTheme('dark', false);
+
+    expect(setRootAttribute).toHaveBeenCalledWith('data-theme', 'dark');
+    expect(setMetaAttribute).toHaveBeenCalledWith('content', '#12151a');
   });
 });
 

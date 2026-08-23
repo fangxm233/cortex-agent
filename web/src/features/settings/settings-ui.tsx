@@ -11,7 +11,7 @@ export const CARD_STYLE: CSSProperties = {
   background: 'var(--proto-card)',
   border: '1px solid var(--proto-line)',
   borderRadius: 10,
-  boxShadow: '0 1px 2px rgba(16,24,40,.03)',
+  boxShadow: 'var(--shadow-card-subtle)',
 };
 
 export function SCard({ children, style }: { children: ReactNode; style?: CSSProperties }) {

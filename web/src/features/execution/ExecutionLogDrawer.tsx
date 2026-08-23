@@ -1,3 +1,7 @@
+// input:  execution queries, live logs, Radix dialog, toast actions
+// output: themed execution log drawer with cancel controls
+// pos:    Data-bound container for execution detail logs
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -25,13 +29,13 @@ const DRAWER_STYLE: React.CSSProperties = {
   zIndex: 61,
   display: 'flex',
   flexDirection: 'column',
-  boxShadow: '-16px 0 48px rgba(16,24,40,.3)',
+  boxShadow: 'var(--shadow-drawer)',
 };
 
 const BACKDROP_STYLE: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
-  background: 'rgba(25,28,34,.34)',
+  background: 'var(--overlay-scrim)',
   zIndex: 60,
 };
 

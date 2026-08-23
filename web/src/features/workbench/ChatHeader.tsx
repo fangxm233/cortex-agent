@@ -114,7 +114,7 @@ export function ChatHeader({
                 background: 'var(--proto-card)',
                 border: '1px solid var(--proto-line)',
                 borderRadius: 9,
-                boxShadow: '0 14px 40px rgba(16,24,40,.2)',
+                boxShadow: 'var(--shadow-menu-strong)',
                 overflow: 'hidden',
                 zIndex: 40,
               }}

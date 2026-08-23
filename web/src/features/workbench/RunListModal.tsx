@@ -59,7 +59,7 @@ export function RunListModal({
       <div
         data-backdrop="run-list"
         onClick={onClose}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(25,28,34,.34)', zIndex: 60, animation: 'cxfade .18s ease' }}
+        style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 60, animation: 'cxfade .18s ease' }}
       />
       <div
         data-modal="run-list"
@@ -72,7 +72,7 @@ export function RunListModal({
           maxWidth: 'calc(100vw - 40px)',
           background: 'var(--proto-card)',
           borderRadius: 14,
-          boxShadow: '0 24px 60px rgba(10,14,24,.35)',
+          boxShadow: 'var(--shadow-overlay-strong)',
           zIndex: 61,
           display: 'flex',
           flexDirection: 'column',

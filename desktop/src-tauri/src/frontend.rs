@@ -1,40 +1,36 @@
-// Frontend asset resolver for the OTA custom protocol (cortexui://).
-//
-// Pure, dependency-free logic that maps a custom-scheme request URL to a file under a frontend
-// root directory, mirroring the server's serveSpaStub: percent-decode, path-traversal guard, MIME
-// by extension, and SPA fallback to index.html for unknown routes. The Tauri scheme handler in
-// lib.rs is a thin wrapper over resolve_asset; keeping the decision logic here makes it unit-testable
-// without a running webview.
+// input:  custom-scheme URLs, frontend root, embedded shell assets
+// output: sanitized paths and MIME-typed frontend responses
+// pos:    Secure resolver for OTA files and native shell assets
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 use std::path::Path;
 
 const INDEX: &str = "index.html";
 
-/// Binary-embedded local pages. These are desktop/mobile-shell artifacts — they are NOT part of the
-/// server-delivered OTA bundle (the server only builds the SPA), so resolving them from the active
-/// frontend dir fails whenever an OTA frontend is active. That left the connection screen unreachable
-/// (it SPA-fell-back to index.html → a workbench with no server config → blank "can't connect"), and
-/// bricked the app after a disconnect. Serving them from an embedded copy makes them reachable
-/// regardless of seed/OTA state, on both platforms — and the setup wizard, which by definition runs
-/// before any server exists, could not work any other way.
-///
-/// Source of truth is `desktop/ui/*.html` (also staged into web/dist by `copy-connect` for dev/OTA
-/// parity).
+/// Binary-embedded shell pages stay reachable regardless of seed/OTA state. Their source keeps the
+/// same `/theme.css` link used in dev; the embedded response replaces that link with the canonical
+/// palette so a missing or older OTA bundle cannot leave shell pages unstyled. Normal SPA requests
+/// still resolve `theme.css` from the active frontend directory, preserving OTA token updates.
 const EMBEDDED_PAGES: &[(&str, &str)] = &[
     ("connect.html", include_str!("../../ui/connect.html")),
     ("setup.html", include_str!("../../ui/setup.html")),
 ];
+const THEME_LINK: &str = r#"<link rel="stylesheet" href="/theme.css">"#;
+const SHARED_THEME: &str = include_str!("../../../web/public/theme.css");
 
-/// Serve a binary-embedded local page, bypassing the on-disk frontend dir entirely. Returns `Some`
-/// when the request targets such a page, `None` otherwise (the normal on-disk `resolve_asset` path
-/// then applies).
+fn inject_shell_theme(page: &str) -> Vec<u8> {
+    page.replacen(THEME_LINK, &format!("<style>{SHARED_THEME}</style>"), 1)
+        .into_bytes()
+}
+
+/// Serve a binary-embedded shell page before consulting the active frontend directory.
 pub fn resolve_embedded(raw_url: &str) -> Option<ResolvedAsset> {
     let rel = sanitize_request_path(raw_url)?;
-    let (path, html) = EMBEDDED_PAGES.iter().find(|(name, _)| *name == rel)?;
+    let (path, body) = EMBEDDED_PAGES.iter().find(|(name, _)| *name == rel)?;
     Some(ResolvedAsset {
         status: 200,
         mime: content_type(path),
-        body: html.as_bytes().to_vec(),
+        body: inject_shell_theme(body),
     })
 }
 
@@ -193,7 +189,8 @@ mod tests {
     /// Create a unique temp dir, run `body`, then clean it up.
     fn with_tmp(body: impl FnOnce(&Path)) {
         let n = COUNTER.fetch_add(1, Ordering::SeqCst);
-        let dir: PathBuf = std::env::temp_dir().join(format!("cortex-fe-{}-{}", std::process::id(), n));
+        let dir: PathBuf =
+            std::env::temp_dir().join(format!("cortex-fe-{}-{}", std::process::id(), n));
         fs::create_dir_all(&dir).unwrap();
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| body(&dir)));
         let _ = fs::remove_dir_all(&dir);
@@ -204,16 +201,31 @@ mod tests {
 
     #[test]
     fn sanitize_root_maps_to_index() {
-        assert_eq!(sanitize_request_path("cortexui://localhost/").unwrap(), "index.html");
+        assert_eq!(
+            sanitize_request_path("cortexui://localhost/").unwrap(),
+            "index.html"
+        );
         assert_eq!(sanitize_request_path("/").unwrap(), "index.html");
-        assert_eq!(sanitize_request_path("cortexui://localhost").unwrap(), "index.html");
+        assert_eq!(
+            sanitize_request_path("cortexui://localhost").unwrap(),
+            "index.html"
+        );
     }
 
     #[test]
     fn sanitize_keeps_normal_paths_and_strips_query() {
-        assert_eq!(sanitize_request_path("cortexui://localhost/index.html").unwrap(), "index.html");
-        assert_eq!(sanitize_request_path("/assets/app.js?v=123").unwrap(), "assets/app.js");
-        assert_eq!(sanitize_request_path("cortexui://localhost/a/b/c.css#frag").unwrap(), "a/b/c.css");
+        assert_eq!(
+            sanitize_request_path("cortexui://localhost/index.html").unwrap(),
+            "index.html"
+        );
+        assert_eq!(
+            sanitize_request_path("/assets/app.js?v=123").unwrap(),
+            "assets/app.js"
+        );
+        assert_eq!(
+            sanitize_request_path("cortexui://localhost/a/b/c.css#frag").unwrap(),
+            "a/b/c.css"
+        );
     }
 
     #[test]
@@ -273,7 +285,9 @@ mod tests {
             let r = super::resolve_embedded(url).expect("connect.html must resolve from embed");
             assert_eq!(r.status, 200);
             assert_eq!(r.mime, "text/html; charset=utf-8");
-            assert!(!r.body.is_empty());
+            let html = String::from_utf8(r.body).unwrap();
+            assert!(html.contains("--browser-theme-color"));
+            assert!(!html.contains(THEME_LINK));
         }
     }
 
@@ -292,6 +306,7 @@ mod tests {
         assert!(super::resolve_embedded("cortexui://localhost/index.html").is_none());
         assert!(super::resolve_embedded("cortexui://localhost/").is_none());
         assert!(super::resolve_embedded("/assets/app.js").is_none());
+        assert!(super::resolve_embedded("/theme.css").is_none());
     }
 
     #[test]

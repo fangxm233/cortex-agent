@@ -34,7 +34,7 @@ export function ProfileMenu({
         background: 'var(--proto-card)',
         border: '1px solid var(--proto-line)',
         borderRadius: 8,
-        boxShadow: '0 10px 28px rgba(16,24,40,.14)',
+        boxShadow: 'var(--shadow-menu)',
         zIndex: 59,
         overflow: 'hidden',
         minWidth: 160,

@@ -10,7 +10,8 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <meta name="theme-color" content="#4655d4" />
+    <link rel="stylesheet" href="/theme.css" />
+    <meta name="theme-color" content="" />
     <title>Cortex</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
@@ -34,6 +35,9 @@
           var theme = preference === 'system' ? (prefersDark ? 'dark' : 'light') : preference;
           if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
           document.documentElement.style.colorScheme = theme;
+          var chrome = getComputedStyle(document.documentElement).getPropertyValue('--browser-theme-color').trim();
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta && chrome) meta.setAttribute('content', chrome);
         } catch (e) {}
       })();
     </script>

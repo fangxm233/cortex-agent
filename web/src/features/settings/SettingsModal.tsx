@@ -28,7 +28,7 @@ const MONO = "'IBM Plex Mono',monospace";
 const BACKDROP_STYLE: CSSProperties = {
   position: 'fixed',
   inset: 0,
-  background: 'rgba(25,28,34,.34)',
+  background: 'var(--overlay-scrim)',
   zIndex: 60,
 };
 
@@ -43,7 +43,7 @@ const MODAL_STYLE: CSSProperties = {
   maxHeight: '90vh',
   background: 'var(--proto-card)',
   borderRadius: 14,
-  boxShadow: '0 24px 64px rgba(16,24,40,.3)',
+  boxShadow: 'var(--shadow-overlay-strong)',
   zIndex: 61,
   overflow: 'hidden',
   display: 'flex',

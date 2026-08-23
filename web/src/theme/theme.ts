@@ -59,6 +59,14 @@ export function watchSystemTheme(onChange: (prefersDark: boolean) => void): () =
   return () => query.removeEventListener('change', handleChange);
 }
 
+function syncBrowserThemeColor(): void {
+  if (typeof getComputedStyle !== 'function') return;
+  const color = getComputedStyle(document.documentElement)
+    .getPropertyValue('--browser-theme-color')
+    .trim();
+  if (color) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+}
+
 /** Applies the preference through the existing light/dark CSS-variable cascade. */
 export function applyTheme(theme: Theme, prefersDark = prefersDarkNow()): void {
   if (typeof document === 'undefined') return;
@@ -67,4 +75,5 @@ export function applyTheme(theme: Theme, prefersDark = prefersDarkNow()): void {
   if (effectiveTheme === 'dark') root.setAttribute('data-theme', 'dark');
   else root.removeAttribute('data-theme');
   root.style.colorScheme = effectiveTheme;
+  syncBrowserThemeColor();
 }

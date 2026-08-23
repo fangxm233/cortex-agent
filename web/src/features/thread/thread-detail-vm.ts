@@ -32,15 +32,15 @@ export interface DetailPill {
 export function threadPill(status: ThreadInfo['status']): DetailPill {
   switch (status) {
     case 'running':
-      return { bg: '#EEF0FA', fg: '#4655D4', text: 'Running' };
+      return { bg: 'var(--pill-running-bg)', fg: 'var(--pill-running-fg)', text: 'Running' };
     case 'waiting':
-      return { bg: '#F7ECCE', fg: '#8A5B06', text: 'Waiting' };
+      return { bg: 'var(--pill-waiting-bg)', fg: 'var(--pill-waiting-fg)', text: 'Waiting' };
     case 'completed':
-      return { bg: '#E9F4EE', fg: '#23854F', text: 'Done' };
+      return { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)', text: 'Done' };
     case 'failed':
-      return { bg: '#FBEDEB', fg: '#C03D33', text: 'Failed' };
+      return { bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)', text: 'Failed' };
     default:
-      return { bg: '#F1F2F5', fg: '#8A93A2', text: 'Cancelled' };
+      return { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)', text: 'Cancelled' };
   }
 }
 

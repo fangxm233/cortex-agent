@@ -1,3 +1,7 @@
+// input:  thread detail, step, child, and status DTOs
+// output: themed inline thread-card presentation model
+// pos:    Pure mapper for workbench thread cards
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 // Pure mapper: ThreadDetail (threads.get, B1) → the prototype inline-thread-card row model
 // (prototype.dc.html L180–246). Frame-work-free so it is unit-tested in isolation (TDD). The card
 // is the ONE live-data surface in the center chat; it renders whatever the real DTO carries
@@ -20,15 +24,15 @@ export interface ProtoPill {
 export function threadPill(status: ThreadInfo['status']): ProtoPill {
   switch (status) {
     case 'running':
-      return { bg: '#EEF0FA', color: '#4655D4', text: 'Running' };
+      return { bg: 'var(--pill-running-bg)', color: 'var(--pill-running-fg)', text: 'Running' };
     case 'waiting':
-      return { bg: '#F7ECCE', color: '#8A5B06', text: 'Waiting' };
+      return { bg: 'var(--pill-waiting-bg)', color: 'var(--pill-waiting-fg)', text: 'Waiting' };
     case 'completed':
-      return { bg: '#E9F4EE', color: '#23854F', text: 'Done' };
+      return { bg: 'var(--pill-done-bg)', color: 'var(--pill-done-fg)', text: 'Done' };
     case 'failed':
-      return { bg: '#FBEDEB', color: '#C03D33', text: 'Failed' };
+      return { bg: 'var(--pill-failed-bg)', color: 'var(--pill-failed-fg)', text: 'Failed' };
     default:
-      return { bg: '#F1F2F5', color: '#8A93A2', text: 'Cancelled' };
+      return { bg: 'var(--pill-cancelled-bg)', color: 'var(--pill-cancelled-fg)', text: 'Cancelled' };
   }
 }
 
@@ -121,10 +125,10 @@ function mapSub(node: ThreadChildNode): ProtoSub {
     name: node.templateName ?? node.id,
     level: childLevel(node.depth),
     chev: running ? '▾' : '▸',
-    border: running ? '#E3E6F5' : '#EFF1F5',
-    bg: running ? '#FBFBFE' : '#FBFBFC',
-    iconColor: running ? '#4655D4' : '#8A93A2',
-    nameColor: running ? '#191C22' : '#5B6472',
+    border: running ? 'var(--proto-line-4)' : 'var(--proto-line-2)',
+    bg: running ? 'var(--proto-alt)' : 'var(--proto-rail)',
+    iconColor: running ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
+    nameColor: running ? 'var(--proto-ink)' : 'var(--proto-muted)',
     pillBg: pill.bg,
     pillColor: pill.color,
     pillText: running ? 'Running' : pill.text,
@@ -155,11 +159,11 @@ export function buildThreadCard(detail: ThreadDetail): ProtoCard {
       padB: hasTail ? '8px' : '2px',
       name: step.stage ?? `Step ${step.stepIndex + 1}`,
       fw: running ? 600 : 500,
-      color: running ? '#191C22' : done ? '#5B6472' : '#B6BDC9',
+      color: running ? 'var(--proto-ink)' : done ? 'var(--proto-muted)' : 'var(--proto-faint)',
       sub: running ? (detail.activeStage ?? '') : (step.outputSummary ?? ''),
-      subColor: running ? '#98A1B0' : '#B6BDC9',
+      subColor: running ? 'var(--proto-muted-3)' : 'var(--proto-faint)',
       meta: running ? stepMeta(step) || 'running' : done ? stepMeta(step) : 'gated',
-      metaColor: running ? '#4655D4' : done ? '#B6BDC9' : '#D9DCE3',
+      metaColor: running ? 'var(--proto-accent)' : done ? 'var(--proto-faint)' : 'var(--proto-disabled)',
       chev: done,
       expanded: running,
       subs,

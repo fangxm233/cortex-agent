@@ -1,3 +1,7 @@
+// input:  task verification and dispatch records
+// output: evidence, dispatch rows, and themed status colors
+// pos:    Pure view model for task completion verification
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 // Pure view-model for the task modal's "Done-when verification" (Card B) + "Dispatch history"
 // (Card C), consuming the real `tasks.verification` scope. Framework-free so the DTO→render mapping
 // — including every honest-placeholder branch — is unit-tested in isolation. Consumed by TaskModal.tsx.
@@ -12,15 +16,15 @@ import type { TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-
 function statusColor(status: TaskDispatchRecord['status']): string {
   switch (status) {
     case 'completed':
-      return '#23854F';
+      return 'var(--state-done)';
     case 'failed':
-      return '#C03D33';
+      return 'var(--state-fail)';
     case 'running':
-      return '#4655D4';
+      return 'var(--state-run)';
     case 'stale':
-      return '#C99A2E';
+      return 'var(--proto-amber)';
     default:
-      return '#8A93A2'; // cancelled
+      return 'var(--proto-muted-2)'; // cancelled
   }
 }
 

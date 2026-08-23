@@ -1,3 +1,7 @@
+// input:  approval DTOs and status values
+// output: approval queue labels, pills, and command presentation
+// pos:    Pure view model for the desktop approval center
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import type { ApprovalInfo, ApprovalStatus } from '@cortex-agent/ui-contract';
 
 // Pure view-model for the approval center overlay (design 7a, prototype.dc.html L1317-1405).
@@ -23,13 +27,13 @@ export interface ApprovalPill {
 export function statusPill(status: ApprovalStatus): ApprovalPill {
   switch (status) {
     case 'pending':
-      return { text: '● pending', bg: '#F7ECCE', fg: '#8A5B06' };
+      return { text: '● pending', bg: 'var(--pill-waiting-bg)', fg: 'var(--pill-waiting-fg)' };
     case 'approved':
-      return { text: '✓ approved', bg: '#E9F4EE', fg: '#23854F' };
+      return { text: '✓ approved', bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)' };
     case 'rejected':
-      return { text: '✕ rejected', bg: '#FBEDEB', fg: '#C03D33' };
+      return { text: '✕ rejected', bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)' };
     case 'failed':
-      return { text: 'failed', bg: '#FBEDEB', fg: '#C03D33' };
+      return { text: 'failed', bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)' };
   }
 }
 

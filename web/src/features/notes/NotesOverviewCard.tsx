@@ -56,7 +56,7 @@ export function NotesOverviewCard({
   onAdd: (text: string) => Promise<unknown>;
 }) {
   return (
-    <div data-notes-overview-card="" onClick={() => onOpen()} style={{ background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 10, boxShadow: '0 1px 2px rgba(16,24,40,.03)', cursor: 'pointer', minWidth: 0 }}>
+    <div data-notes-overview-card="" onClick={() => onOpen()} style={{ background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 10, boxShadow: 'var(--shadow-card-subtle)', cursor: 'pointer', minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--proto-line-2)' }}>
         <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{copy.title}</span>
         <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>context/NOTES.md</span>

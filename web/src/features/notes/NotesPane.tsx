@@ -30,7 +30,7 @@ function Circle({ completed, onClick, disabled }: { completed: boolean; onClick:
         borderRadius: '50%',
         border: completed ? 0 : '1.5px solid var(--proto-line-3)',
         background: completed ? 'var(--proto-success)' : 'transparent',
-        color: 'white',
+        color: 'var(--ink-solid-fg)',
         padding: 0,
         flex: 'none',
         fontSize: 9,
@@ -94,7 +94,7 @@ function ActionButton({ label, onClick, primary = false, danger = false, disable
   danger?: boolean;
   disabled?: boolean;
 }) {
-  const color = danger ? 'var(--proto-danger)' : primary ? 'white' : 'var(--proto-muted)';
+  const color = danger ? 'var(--proto-danger)' : primary ? 'var(--ink-solid-fg)' : 'var(--proto-muted)';
   return (
     <button type="button" disabled={disabled} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ border: primary ? 0 : '1px solid var(--proto-line)', borderRadius: 7, padding: '4px 10px', background: primary ? 'var(--proto-accent)' : 'var(--proto-card)', color, fontSize: 10.5, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer' }}>
       {label}
@@ -165,7 +165,7 @@ export function NotesPaneView(props: NotesPaneViewProps) {
   usePaneEffects(props.targetId, props.onClose);
   const actions: PaneActions = props;
   return (
-    <aside data-notes-pane="" style={{ width: 400, flex: 'none', background: 'var(--proto-card)', borderLeft: '1px solid var(--proto-line)', boxShadow: '-8px 0 24px rgba(16,24,40,.04)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <aside data-notes-pane="" style={{ width: 400, flex: 'none', background: 'var(--proto-card)', borderLeft: '1px solid var(--proto-line)', boxShadow: 'var(--shadow-side-panel)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '13px 16px 11px', borderBottom: '1px solid var(--proto-line-2)' }}>
         <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{props.copy.title}</span>
         <span style={{ font: "600 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', background: 'var(--proto-line-2)', padding: '2px 8px', borderRadius: 999 }}>{props.vm.activeCount}</span>

@@ -122,7 +122,7 @@ function ReadOnlyToggle({ on, label }: { on: boolean; label: string }) {
           height: 22,
           borderRadius: '50%',
           background: 'var(--ink-solid-bg)',
-          boxShadow: '0 1px 3px rgba(16,24,40,.2)',
+          boxShadow: 'var(--shadow-switch-thumb)',
         }}
       />
     </div>

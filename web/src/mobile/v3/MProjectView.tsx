@@ -124,7 +124,7 @@ function CurrentCard({ current, copy }: { current: MProjectCurrent; copy: MProje
   const c = current.cost;
   const pct = c ? budgetPercent(c.today, c.dailyBudget) : null;
   return (
-    <MCard tone="blue" radius={14} padding="13px 14px" style={{ boxShadow: '0 1px 3px rgba(70,85,212,.08)' }}>
+    <MCard tone="blue" radius={14} padding="13px 14px" style={{ boxShadow: 'var(--focus-ring-accent)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div
           style={{

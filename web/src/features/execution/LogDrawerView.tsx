@@ -1,3 +1,7 @@
+// input:  execution log presentation props and localized labels
+// output: themed drawer header, log stream, and stop footer
+// pos:    Presentational execution-log drawer chrome
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import type { CSSProperties, Ref } from 'react';
 import { useVocab } from '@/i18n';
 
@@ -29,7 +33,7 @@ const HEADER_STYLE: CSSProperties = {
   alignItems: 'center',
   gap: 9,
   padding: '13px 18px',
-  borderBottom: '1px solid #2A2F3A',
+  borderBottom: '1px solid var(--log-border)',
 };
 
 const PILL_STYLE: CSSProperties = {
@@ -37,7 +41,7 @@ const PILL_STYLE: CSSProperties = {
   fontWeight: 600,
   padding: '1.5px 7px',
   borderRadius: 999,
-  background: '#2A2F3A',
+  background: 'var(--log-border)',
   color: 'var(--proto-accent-2)',
 };
 
@@ -55,7 +59,7 @@ const FOOTER_STYLE: CSSProperties = {
   alignItems: 'center',
   gap: 10,
   padding: '11px 18px',
-  borderTop: '1px solid #2A2F3A',
+  borderTop: '1px solid var(--log-border)',
 };
 
 export function LogDrawerView({
@@ -128,7 +132,7 @@ export function LogDrawerView({
             marginLeft: 'auto',
             fontSize: 11,
             fontWeight: 600,
-            color: '#E88',
+            color: 'var(--proto-danger)',
             border: '1px solid var(--proto-danger)',
             borderRadius: 7,
             padding: '4px 12px',

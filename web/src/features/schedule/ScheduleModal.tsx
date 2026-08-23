@@ -118,7 +118,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
       {/* backdrop (prototype L1291-1292) */}
       <div
         onClick={onCancel}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(25,28,34,.34)', zIndex: 60, animation: 'cxfade .18s ease' }}
+        style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 60, animation: 'cxfade .18s ease' }}
       />
       {/* card (prototype L1433) */}
       <div
@@ -133,7 +133,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
           width: 560,
           background: 'var(--proto-card)',
           borderRadius: 14,
-          boxShadow: '0 24px 64px rgba(16,24,40,.3)',
+          boxShadow: 'var(--shadow-overlay-strong)',
           zIndex: 61,
           overflow: 'hidden',
         }}

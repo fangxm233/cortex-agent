@@ -173,7 +173,7 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
       style={{
         alignSelf: 'flex-end', width: '94%', boxSizing: 'border-box',
         border: '1.5px solid var(--proto-accent)', borderRadius: '14px 14px 4px 14px',
-        background: 'var(--proto-card)', boxShadow: '0 0 0 3px rgba(70,85,212,.08)',
+        background: 'var(--proto-card)', boxShadow: 'var(--focus-ring-accent)',
         padding: '11px 14px 9px',
       }}
     >
@@ -273,7 +273,7 @@ export function EditedBadge({ edited, ts, copy }: {
           style={{
             position: 'absolute', bottom: '100%', right: 0, marginBottom: 5, minWidth: 180, maxWidth: 420,
             background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 10,
-            boxShadow: '0 8px 24px rgba(16,24,40,.12)', padding: '9px 12px', boxSizing: 'border-box', zIndex: 3,
+            boxShadow: 'var(--shadow-panel-strong)', padding: '9px 12px', boxSizing: 'border-box', zIndex: 3,
           }}
         >
           <div style={{ font: `600 9px ${mono}`, color: 'var(--proto-muted-3)', letterSpacing: '.05em', paddingBottom: 4 }}>

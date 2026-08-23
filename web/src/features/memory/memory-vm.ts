@@ -1,3 +1,7 @@
+// input:  memory tree, diff, and blame DTOs
+// output: memory rows, diff styles, and blame presentation models
+// pos:    Pure view model for the desktop memory browser
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import type { MemoryTree, MemoryLineDiff, MemoryBlameLine } from '@cortex-agent/ui-contract';
 
 // Pure view-model helpers for the memory viewer 7b center view (prototype.dc.html L658–719). No JSX,
@@ -74,8 +78,8 @@ export interface DiffToggleStyle {
  */
 export function diffToggle(on: boolean): DiffToggleStyle {
   return on
-    ? { label: 'Viewing diff', color: '#fff', bg: '#4655D4', border: '#4655D4' }
-    : { label: 'Diff hidden', color: '#4655D4', bg: '#fff', border: '#C9CFF2' };
+    ? { label: 'Viewing diff', color: 'var(--ink-solid-fg)', bg: 'var(--proto-accent)', border: 'var(--proto-accent)' }
+    : { label: 'Diff hidden', color: 'var(--proto-accent)', bg: 'var(--proto-card)', border: 'var(--proto-accent-border)' };
 }
 
 export interface LineDiffLabel {

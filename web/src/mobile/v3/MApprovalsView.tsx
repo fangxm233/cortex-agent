@@ -151,7 +151,7 @@ function ExpandedCard({
       tone="amber"
       radius={14}
       padding={0}
-      style={{ overflow: 'hidden', boxShadow: '0 1px 3px rgba(16,24,40,.05)' }}
+      style={{ overflow: 'hidden', boxShadow: 'var(--shadow-card-raised)' }}
     >
       <div style={{ padding: '12px 14px 0' }}>
         {/* meta row: tier pill + real id + real relative time (scheme L368) */}

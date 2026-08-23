@@ -89,7 +89,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
         position: 'fixed',
         inset: 0,
         zIndex: 4000,
-        background: 'rgba(10,12,16,.88)',
+        background: 'var(--media-backdrop)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -120,7 +120,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
               width: 38,
               height: 38,
               borderRadius: 10,
-              background: 'rgba(255,255,255,.12)',
+              background: 'var(--media-control-bg)',
               color: 'var(--ink-solid-fg)',
               display: 'flex',
               alignItems: 'center',
@@ -140,7 +140,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
             width: 38,
             height: 38,
             borderRadius: 10,
-            background: 'rgba(255,255,255,.12)',
+            background: 'var(--media-control-bg)',
             color: 'var(--ink-solid-fg)',
             display: 'flex',
             alignItems: 'center',
@@ -159,7 +159,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
             width: 38,
             height: 38,
             borderRadius: 10,
-            background: 'rgba(255,255,255,.12)',
+            background: 'var(--media-control-bg)',
             color: 'var(--ink-solid-fg)',
             display: 'flex',
             alignItems: 'center',
@@ -188,7 +188,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
             controls
             autoPlay
             playsInline
-            style={{ maxWidth: '94vw', maxHeight: '84vh', borderRadius: 10, background: '#000' }}
+            style={{ maxWidth: '94vw', maxHeight: '84vh', borderRadius: 10, background: 'var(--media-stage-bg)' }}
           />
         ) : (
           <div ref={contentRef} style={{ ...zoomStyle, display: 'inline-block' }}>
@@ -205,7 +205,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
       {/* Filename caption */}
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ position: 'absolute', bottom: 'max(16px, env(safe-area-inset-bottom))', left: 0, right: 0, textAlign: 'center', color: 'rgba(255,255,255,.72)', font: `500 11px ${mono}`, padding: '0 20px', pointerEvents: 'none' }}
+        style={{ position: 'absolute', bottom: 'max(16px, env(safe-area-inset-bottom))', left: 0, right: 0, textAlign: 'center', color: 'var(--media-caption-fg)', font: `500 11px ${mono}`, padding: '0 20px', pointerEvents: 'none' }}
       >
         {item.name}
       </div>

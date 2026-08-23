@@ -1,3 +1,7 @@
+<!-- input:  native setup commands, persisted theme, install status -->
+<!-- output: themed local server installation and startup page -->
+<!-- pos:    Native shell wizard for first-time local setup -->
+<!-- >>> If I am updated, update my header comment and CORTEX.md <<< -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +11,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/theme.css">
+  <meta name="theme-color" content="">
   <script>
     // No-flash theme, identical to connect.html and the SPA (same `cortex.theme` key).
     (function () {
@@ -14,67 +20,18 @@
         var stored = null;
         try { stored = window.localStorage.getItem('cortex.theme'); } catch (e) {}
         var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        var theme = stored === 'light' || stored === 'dark' ? stored : prefersDark ? 'dark' : 'light';
+        var preference = stored === 'light' || stored === 'dark' || stored === 'system'
+          ? stored : prefersDark ? 'dark' : 'light';
+        var theme = preference === 'system' ? (prefersDark ? 'dark' : 'light') : preference;
         if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
         document.documentElement.style.colorScheme = theme;
+        var chrome = getComputedStyle(document.documentElement).getPropertyValue('--browser-theme-color').trim();
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta && chrome) meta.setAttribute('content', chrome);
       } catch (e) {}
     })();
   </script>
   <style>
-    /* Theme tokens: the same subset connect.html carries, so both shell pages render in the SPA's
-     * design language. Colors are referenced via var(--…) only. */
-    :root {
-      --surface-base: #e9e7e2;
-      --proto-card: #ffffff;
-      --proto-alt: #f7f8fa;
-      --proto-ink: #191c22;
-      --proto-ink-2: #22262e;
-      --proto-muted: #5b6472;
-      --proto-muted-2: #8a93a2;
-      --proto-muted-3: #98a1b0;
-      --proto-line: #e7e9ee;
-      --proto-line-3: #d9dce3;
-      --proto-accent: #4655d4;
-      --proto-accent-bg: #eef0fa;
-      --proto-success: #23854f;
-      --proto-warn: #b07319;
-      --proto-warn-bg: #fdf4e6;
-      --proto-danger: #c03d33;
-      --ink-solid-bg: #191c22;
-      --ink-solid-fg: #ffffff;
-      --ink-solid-hover: #32363e;
-      --border-card: rgba(0, 0, 0, 0.08);
-      --card-shadow: 0 8px 30px rgba(16, 24, 40, 0.12);
-      --log-bg: #12151a;
-      --log-fg: #c9ceda;
-    }
-
-    [data-theme="dark"] {
-      --surface-base: #12151a;
-      --proto-card: #1e232c;
-      --proto-alt: #1a1f29;
-      --proto-ink: #ebedf2;
-      --proto-ink-2: #c9ceda;
-      --proto-muted: #99a2b2;
-      --proto-muted-2: #7e8798;
-      --proto-muted-3: #6e7787;
-      --proto-line: #2c323e;
-      --proto-line-3: #3a4250;
-      --proto-accent: #8b96f2;
-      --proto-accent-bg: rgba(110, 123, 236, 0.16);
-      --proto-success: #57c48a;
-      --proto-warn: #d9a441;
-      --proto-warn-bg: rgba(217, 164, 65, 0.14);
-      --proto-danger: #ed7b72;
-      --ink-solid-bg: #ebedf2;
-      --ink-solid-fg: #14171b;
-      --ink-solid-hover: #d5dae2;
-      --border-card: rgba(255, 255, 255, 0.10);
-      --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
-      --log-bg: #14181f;
-      --log-fg: #c9ceda;
-    }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {

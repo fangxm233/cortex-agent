@@ -1,3 +1,7 @@
+// input:  mobile issue view model, actions, and shared UI kit
+// output: themed expandable issue cards and decisions
+// pos:    Presentational mobile Issues screen
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme.dc.html sec-24 24c)
 // Pure presentational view for the 24c 移动端 Issues screen (render-testable without tRPC/router).
 // The FIRST card (or whichever id is expanded) renders expanded with the inline 删除 / 处理
@@ -126,7 +130,7 @@ function ExpandedCard({
       tone="blue"
       radius={14}
       padding={0}
-      style={{ overflow: 'hidden', boxShadow: '0 1px 3px rgba(16,24,40,.05)' }}
+      style={{ overflow: 'hidden', boxShadow: 'var(--shadow-card-raised)' }}
     >
       <div style={{ padding: '12px 14px 0' }}>
         {/* meta row: real date only — the design's source slot has no markdown field */}

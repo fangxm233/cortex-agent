@@ -101,7 +101,7 @@ function cardShell(pending: boolean, dimmed: boolean, rejected: boolean): React.
     background: 'var(--proto-card)',
     borderRadius: 14,
     overflow: 'hidden',
-    boxShadow: pending && !dimmed ? '0 1px 3px rgba(70,85,212,.08)' : undefined,
+    boxShadow: pending && !dimmed ? 'var(--focus-ring-accent)' : undefined,
     // 5a rejecting = .55 (scheme L192) · 4c rejected seal = .9 (scheme L388)
     ...(dimmed ? { opacity: 0.55 } : rejected ? { opacity: 0.9 } : {}),
   };

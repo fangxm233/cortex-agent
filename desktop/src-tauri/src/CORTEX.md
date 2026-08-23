@@ -9,7 +9,7 @@ Provides SPA commands, native plugins, frontend delivery, and updates.
 | lib.rs | core | Builds plugins, commands, scheme, and app window |
 | creds.rs | core | stores and loads the server credentials |
 | app_update.rs | core | checks, downloads and installs shell updates |
-| frontend.rs | core | resolves and secures SPA and embedded-page asset requests |
+| frontend.rs | core | Resolves OTA files and embedded shell assets |
 | ota.rs | core | fetches and stages new frontend versions |
 | setup.rs | core | installs, configures and starts a local server |
 | seed.rs | util | supplies the initial frontend on Android |

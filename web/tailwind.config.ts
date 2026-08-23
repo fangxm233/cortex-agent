@@ -53,6 +53,10 @@ const config: Config = {
         // scale. Each resolves to a CSS var so it flips under `data-theme=dark`
         // (light/dark values in src/index.css). Per §8.3 one-off hexes may stay
         // raw in a screen; those are migrated to the same vars in the dark pass.
+        overlay: {
+          scrim: 'var(--overlay-scrim)',
+          strong: 'var(--overlay-scrim-strong)',
+        },
         proto: {
           base: 'var(--proto-base)',
           card: 'var(--proto-card)',
@@ -133,17 +137,12 @@ const config: Config = {
         menu: '8px',
       },
       boxShadow: {
-        card: '0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06)',
-        overlay: '0 10px 38px rgba(0,0,0,0.20), 0 6px 12px rgba(0,0,0,0.12)',
-        menu: '0 10px 28px rgba(16,24,40,0.14)',
-        // Hot-update modal (design 21a): heavier drop shadow than the generic overlay. Verbatim from
-        // scheme.dc.html #21a modal (`0 24px 64px rgba(16,24,40,.32)`).
-        'overlay-strong': '0 24px 64px rgba(16,24,40,0.32)',
-        // Notification toast (design 18a): 二级投影 — lighter than modal, heavier than card. Verbatim
-        // from scheme.dc.html #18a bubble shadow.
-        toast: '0 8px 28px rgba(16,24,40,0.13), 0 2px 6px rgba(16,24,40,0.05)',
-        // The collapsed "+N" overflow pill (design 18a) — a lighter one-level shadow.
-        'toast-pill': '0 4px 14px rgba(16,24,40,0.10)',
+        card: 'var(--shadow-card)',
+        overlay: 'var(--shadow-overlay)',
+        menu: 'var(--shadow-menu)',
+        'overlay-strong': 'var(--shadow-overlay-strong)',
+        toast: 'var(--shadow-toast)',
+        'toast-pill': 'var(--shadow-toast-pill)',
       },
       // Overlay enter/exit motion (design §5, task 970d). Driven off Radix
       // `data-[state=open|closed]` attributes; kept token-side (no extra dep).

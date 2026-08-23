@@ -1,3 +1,7 @@
+// input:  session identifiers, clipboard access, and localized labels
+// output: themed session identifier modal with copy actions
+// pos:    Desktop session metadata overlay
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import { useEffect, useState } from 'react';
 import { useVocab } from '@/i18n';
 import { buildSessionIdRows } from './session-id';
@@ -51,7 +55,7 @@ export function SessionIdModal({
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(25,28,34,.34)',
+          background: 'var(--overlay-scrim)',
           zIndex: 60,
           animation: 'cxfade .18s ease',
         }}
@@ -67,7 +71,7 @@ export function SessionIdModal({
           width: 480,
           background: 'var(--proto-card)',
           borderRadius: 14,
-          boxShadow: '0 24px 64px rgba(16,24,40,.3)',
+          boxShadow: 'var(--shadow-overlay-strong)',
           zIndex: 61,
           overflow: 'hidden',
         }}

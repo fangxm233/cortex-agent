@@ -72,11 +72,11 @@ function statusKind(task: TaskInfo): StatusKind {
 }
 
 const STATIC_PILLS: Record<Exclude<StatusKind, 'in-progress'>, TaskModalPill> = {
-  done: { bg: '#E9F4EE', fg: '#23854F', text: '✓ done' },
-  blocked: { bg: '#FBEDEB', fg: '#C03D33', text: 'blocked' },
-  'approval-needed': { bg: '#FFF6E5', fg: '#9A6700', text: 'approval-needed' },
-  actionable: { bg: '#EEF0FA', fg: '#4655D4', text: 'actionable' },
-  waiting: { bg: '#F1F2F5', fg: '#8A93A2', text: 'waiting on deps' },
+  done: { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)', text: '✓ done' },
+  blocked: { bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)', text: 'blocked' },
+  'approval-needed': { bg: 'var(--pill-waiting-bg)', fg: 'var(--pill-waiting-fg)', text: 'approval-needed' },
+  actionable: { bg: 'var(--pill-running-bg)', fg: 'var(--pill-running-fg)', text: 'actionable' },
+  waiting: { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)', text: 'waiting on deps' },
 };
 
 function statusPill(task: TaskInfo): TaskModalPill {
@@ -84,22 +84,22 @@ function statusPill(task: TaskInfo): TaskModalPill {
   if (kind !== 'in-progress') return STATIC_PILLS[kind];
   const claimId = displayClaimId(task);
   const suffix = claimId ? ` · ${claimId}` : '';
-  return { bg: '#EEF0FA', fg: '#4655D4', text: `● in-progress${suffix}` };
+  return { bg: 'var(--pill-running-bg)', fg: 'var(--pill-running-fg)', text: `● in-progress${suffix}` };
 }
 
 // priority → dot / value color (prototype L2606).
 function priorityColor(priority: TaskInfo['priority']): string {
-  if (priority === 'high') return '#C03D33';
-  if (priority === 'medium') return '#C99A2E';
-  return '#B6BDC9';
+  if (priority === 'high') return 'var(--state-fail)';
+  if (priority === 'medium') return 'var(--proto-amber)';
+  return 'var(--proto-faint)';
 }
 
 // A dependency's dot color by its own state (prototype depsMap dot logic).
 function depDot(dep: TaskInfo | undefined): string {
-  if (!dep) return '#B6BDC9';
-  if (dep.status === 'done') return '#23854F';
-  if (dep.blockedBy != null) return '#C03D33';
-  return '#4655D4';
+  if (!dep) return 'var(--proto-faint)';
+  if (dep.status === 'done') return 'var(--state-done)';
+  if (dep.blockedBy != null) return 'var(--state-fail)';
+  return 'var(--state-run)';
 }
 
 function approvalFields(task: TaskInfo): TaskModalField[] {
@@ -108,12 +108,12 @@ function approvalFields(task: TaskInfo): TaskModalField[] {
     {
       k: 'approval-needed',
       v: needed == null ? '—' : String(needed),
-      vColor: needed === true ? '#9A6700' : 'var(--proto-ink)',
+      vColor: needed === true ? 'var(--pill-waiting-fg)' : 'var(--proto-ink)',
     },
     {
       k: 'approved-at',
       v: task.approvedAt ?? '—',
-      vColor: task.approvedAt ? '#23854F' : '#B6BDC9',
+      vColor: task.approvedAt ? 'var(--state-done)' : 'var(--proto-faint)',
     },
   ];
 }
@@ -123,13 +123,13 @@ function taskFields(task: TaskInfo): TaskModalField[] {
   // Real `completed-at` from the task store, in the viewer's local wall clock; '—' when never done.
   const completedAt = formatTaskTime(task.completedAt);
   return [
-    { k: 'priority', v: task.priority, vColor: task.priority === 'high' ? '#C03D33' : '#191C22' },
+    { k: 'priority', v: task.priority, vColor: task.priority === 'high' ? 'var(--state-fail)' : 'var(--proto-ink)' },
     { k: 'status', v: task.status, vColor: 'var(--proto-ink)' },
     ...approvalFields(task),
-    { k: 'completed-at', v: completedAt ?? '—', vColor: completedAt ? '#23854F' : '#B6BDC9' },
+    { k: 'completed-at', v: completedAt ?? '—', vColor: completedAt ? 'var(--state-done)' : 'var(--proto-faint)' },
     { k: 'template', v: task.template, vColor: 'var(--proto-ink)' },
-    { k: 'gpu', v: '—', vColor: '#B6BDC9' },
-    { k: 'claimed-by', v: claimId ?? '—', vColor: claimId ? '#4655D4' : '#B6BDC9' },
+    { k: 'gpu', v: '—', vColor: 'var(--proto-faint)' },
+    { k: 'claimed-by', v: claimId ?? '—', vColor: claimId ? 'var(--state-run)' : 'var(--proto-faint)' },
   ];
 }
 
@@ -141,17 +141,17 @@ function taskDependencies(task: TaskInfo, all: TaskInfo[]): TaskModalDep[] {
       id,
       name: dependency?.text ?? '—',
       dotColor: depDot(dependency),
-      idColor: '#4655D4',
+      idColor: 'var(--state-run)',
       label: dependency?.status === 'done' ? 'upstream · done' : 'upstream',
-      bg: '#FBFBFC',
-      border: '#EFF1F5',
+      bg: 'var(--proto-rail)',
+      border: 'var(--proto-line-2)',
     };
   });
   const downstream = all
     .filter((item) => item.id !== task.id && item.dependsOn.includes(task.id))
     .map((item): TaskModalDep => ({
-      id: item.id, name: item.text, dotColor: depDot(item), idColor: '#4655D4',
-      label: 'downstream', bg: '#FBFBFC', border: '#EFF1F5',
+      id: item.id, name: item.text, dotColor: depDot(item), idColor: 'var(--state-run)',
+      label: 'downstream', bg: 'var(--proto-rail)', border: 'var(--proto-line-2)',
     }));
   return [...upstream, ...downstream];
 }
@@ -169,7 +169,7 @@ export function buildTaskModalVm(task: TaskInfo, all: TaskInfo[]): TaskModalVm {
     hasDependencies: dependencies.length > 0,
     canUnblock: task.blockedBy != null,
     completable,
-    completeBg: completable ? '#4655D4' : '#B6BDC9',
+    completeBg: completable ? 'var(--proto-accent)' : 'var(--proto-faint)',
     completeLabel: task.status === 'done' ? 'Completed' : 'Complete',
   };
 }

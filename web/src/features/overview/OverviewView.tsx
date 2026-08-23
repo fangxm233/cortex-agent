@@ -50,7 +50,7 @@ const CARD: CSSProperties = {
   background: 'var(--proto-card)',
   border: '1px solid var(--proto-line)',
   borderRadius: 10,
-  boxShadow: '0 1px 2px rgba(16,24,40,.03)',
+  boxShadow: 'var(--shadow-card-subtle)',
   // minWidth:0 lets the 1fr grid track shrink below its content's min-content size, so long real
   // data (schedule prompts, execution ids) truncates instead of blowing the column wide.
   minWidth: 0,

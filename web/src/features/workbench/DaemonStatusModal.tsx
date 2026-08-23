@@ -1,3 +1,7 @@
+// input:  daemon queries, restart mutations, and shell connection helpers
+// output: themed daemon process status and restart modal
+// pos:    Desktop daemon diagnostics and control overlay
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -70,7 +74,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
           position: 'fixed',
           inset: 0,
           zIndex: 40,
-          background: 'rgba(25, 28, 34, 0.40)',
+          background: 'var(--overlay-scrim-medium)',
         }}
       />
 
@@ -86,7 +90,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
           background: 'var(--proto-card)',
           border: '1px solid var(--proto-line)',
           borderRadius: 14,
-          boxShadow: '0 8px 24px rgba(16,24,40,.10)',
+          boxShadow: 'var(--shadow-panel)',
           overflow: 'hidden',
         }}
       >

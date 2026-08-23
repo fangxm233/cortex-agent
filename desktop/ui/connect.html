@@ -1,3 +1,7 @@
+<!-- input:  native shell flags, persisted theme, server credentials -->
+<!-- output: themed local/remote connection setup page -->
+<!-- pos:    Native shell page shown before the SPA can connect -->
+<!-- >>> If I am updated, update my header comment and CORTEX.md <<< -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +11,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/theme.css">
+  <meta name="theme-color" content="">
   <script>
     // No-flash theme: apply the persisted (or OS-preferred) theme before first paint so a dark user
     // never sees a light flash. Mirrors web/src/theme/theme.ts resolveInitialTheme + web/index.html —
@@ -16,9 +22,14 @@
         var stored = null;
         try { stored = window.localStorage.getItem('cortex.theme'); } catch (e) {}
         var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        var theme = stored === 'light' || stored === 'dark' ? stored : prefersDark ? 'dark' : 'light';
+        var preference = stored === 'light' || stored === 'dark' || stored === 'system'
+          ? stored : prefersDark ? 'dark' : 'light';
+        var theme = preference === 'system' ? (prefersDark ? 'dark' : 'light') : preference;
         if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
         document.documentElement.style.colorScheme = theme;
+        var chrome = getComputedStyle(document.documentElement).getPropertyValue('--browser-theme-color').trim();
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta && chrome) meta.setAttribute('content', chrome);
       } catch (e) {}
     })();
 
@@ -32,76 +43,6 @@
     })();
   </script>
   <style>
-    /* ── Theme tokens: a subset of web/src/index.css, kept in sync so this standalone shell page
-     *    renders in the SAME design language as the SPA. `:root` = light (default), `[data-theme=dark]`
-     *    = the scheme-dark palette. Colors are referenced via var(--…) only, never hard-coded. ── */
-    :root {
-      --surface-base: #e9e7e2;
-      --proto-card: #ffffff;
-      --proto-alt: #f7f8fa;
-      --proto-ink: #191c22;
-      --proto-ink-2: #22262e;
-      --proto-muted: #5b6472;
-      --proto-muted-2: #8a93a2;
-      --proto-muted-3: #98a1b0;
-      --proto-line: #e7e9ee;
-      --proto-line-3: #d9dce3;
-      --proto-accent: #4655d4;
-      --proto-accent-bg: #eef0fa;
-      --proto-success: #23854f;
-      --proto-danger: #c03d33;
-      --ink-solid-bg: #191c22;
-      --ink-solid-fg: #ffffff;
-      --ink-solid-hover: #32363e;
-      --border-card: rgba(0, 0, 0, 0.08);
-      --card-shadow: 0 8px 30px rgba(16, 24, 40, 0.12);
-
-      /* Mobile v3 palette (scheme-mobile) — page/card surfaces run a touch darker than desktop. */
-      --m-canvas: #f2f2f7;
-      --m-card: #ffffff;
-      --m-ink: #191c22;
-      --m-sub: #5b6472;
-      --m-muted: #8a93a2;
-      --m-faint: #b6bdc9;
-      --m-hairline: #e7e9ee;
-      --m-card-border: #e7e9ee;
-      --m-run: #4655d4;
-      --m-run-bg: #eef0fa;
-    }
-
-    [data-theme="dark"] {
-      --surface-base: #12151a;
-      --proto-card: #1e232c;
-      --proto-alt: #1a1f29;
-      --proto-ink: #ebedf2;
-      --proto-ink-2: #c9ceda;
-      --proto-muted: #99a2b2;
-      --proto-muted-2: #7e8798;
-      --proto-muted-3: #6e7787;
-      --proto-line: #2c323e;
-      --proto-line-3: #3a4250;
-      --proto-accent: #8b96f2;
-      --proto-accent-bg: rgba(110, 123, 236, 0.16);
-      --proto-success: #57c48a;
-      --proto-danger: #ed7b72;
-      --ink-solid-bg: #ebedf2;
-      --ink-solid-fg: #14171b;
-      --ink-solid-hover: #d5dae2;
-      --border-card: rgba(255, 255, 255, 0.10);
-      --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
-
-      --m-canvas: #0e1116;
-      --m-card: #1b2029;
-      --m-ink: #f2f3f7;
-      --m-sub: #99a2b2;
-      --m-muted: #7e8798;
-      --m-faint: #566070;
-      --m-hairline: #20252e;
-      --m-card-border: #262c37;
-      --m-run: #8b96f2;
-      --m-run-bg: rgba(110, 123, 236, 0.16);
-    }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     /* Body uses the app's system-sans stack (web/src/index.css @layer base); IBM Plex Mono is reserved
@@ -400,7 +341,7 @@
     .mobile .lang-opt.active {
       background: var(--m-card);
       color: var(--m-ink);
-      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+      box-shadow: var(--shadow-segment);
     }
 
     .mobile .field { margin-bottom: 18px; }

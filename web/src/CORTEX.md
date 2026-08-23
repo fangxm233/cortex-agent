@@ -9,7 +9,7 @@ Splits into shared layers (design, i18n, theme, lib) and screen layers (features
 | providers.tsx | provider | Nests global clients, themes and login overlay |
 | RootRouter.tsx | core | Chooses the mobile or desktop router |
 | router.tsx | core | Declares desktop page routes under the app shell |
-| index.css | style | Theme variables, base layer and animations |
+| index.css | style | Global base layer, palette chrome and animations |
 | vite-env.d.ts | types | Vite client ambient type declarations |
 | design/ | subdir | Token-driven shared UI primitives |
 | features/ | subdir | One folder per product feature or overlay |

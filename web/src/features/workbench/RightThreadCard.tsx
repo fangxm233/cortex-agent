@@ -305,7 +305,7 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
         background: 'var(--proto-card)',
         border: '1px solid var(--proto-line)',
         borderRadius: 10,
-        boxShadow: '0 1px 2px rgba(16,24,40,.03)',
+        boxShadow: 'var(--shadow-card-subtle)',
       }}
     >
       <div

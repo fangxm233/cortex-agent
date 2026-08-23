@@ -649,7 +649,7 @@ export function Composer({
             inset: 0,
             borderRadius: 8,
             border: a.status === 'error' ? '1px solid var(--proto-danger)' : '1px solid var(--proto-line)',
-            background: a.previewUrl ? '#000' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
+            background: a.previewUrl ? 'var(--media-stage-bg)' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
             boxSizing: 'border-box',
             overflow: 'hidden',
             cursor: canPreview ? 'pointer' : 'default',
@@ -668,7 +668,7 @@ export function Composer({
               bottom: 3,
               font: `500 8px ${mono}`,
               color: 'var(--proto-muted-2)',
-              background: 'rgba(255,255,255,.88)',
+              background: 'var(--media-label-bg)',
               padding: '1px 4px',
               borderRadius: 3,
             }}
@@ -686,7 +686,7 @@ export function Composer({
                   width: 19,
                   height: 19,
                   borderRadius: '50%',
-                  background: 'rgba(25,28,34,.82)',
+                  background: 'var(--media-control-bg-strong)',
                   color: 'var(--ink-solid-fg)',
                   fontSize: 7,
                   display: 'flex',
@@ -706,7 +706,7 @@ export function Composer({
                 style={{
                   position: 'absolute',
                   inset: 0,
-                  background: 'rgba(255,255,255,.65)',
+                  background: 'var(--media-label-bg-soft)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -734,7 +734,7 @@ export function Composer({
               style={{
                 position: 'absolute',
                 inset: 0,
-                background: 'rgba(255,255,255,.75)',
+                background: 'var(--media-label-bg-soft)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -881,7 +881,7 @@ export function Composer({
             border: dragOver ? '1.5px dashed var(--proto-accent)' : '1.5px solid ' + composerBorder,
             borderRadius: 12,
             background: dragOver ? 'var(--proto-rail)' : 'var(--proto-card)',
-            boxShadow: dragOver ? 'none' : '0 1px 2px rgba(16,24,40,.04)',
+            boxShadow: dragOver ? 'none' : 'var(--shadow-card-soft)',
             padding: '10px 12px 10px 14px',
           }}
         >
@@ -1058,11 +1058,11 @@ export function Composer({
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: 3,
-                    background: 'rgba(251,251,254,.94)',
+                    background: 'var(--panel-translucent-bg)',
                     border: '1px solid var(--proto-accent-border)',
                     borderRadius: 10,
                     padding: '10px 18px',
-                    boxShadow: '0 2px 8px rgba(70,85,212,.10)',
+                    boxShadow: 'var(--shadow-accent-soft)',
                     zIndex: 2,
                   }}
                 >

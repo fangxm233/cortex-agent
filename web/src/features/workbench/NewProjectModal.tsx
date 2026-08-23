@@ -71,7 +71,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(25,28,34,.34)',
+          background: 'var(--overlay-scrim)',
           zIndex: 60,
           animation: 'cxfade .18s ease',
         }}
@@ -88,7 +88,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
           width: 540,
           background: 'var(--proto-card)',
           borderRadius: 14,
-          boxShadow: '0 24px 64px rgba(16,24,40,.3)',
+          boxShadow: 'var(--shadow-overlay-strong)',
           zIndex: 61,
           overflow: 'hidden',
         }}
@@ -200,7 +200,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               borderRadius: 8,
               padding: '7px 15px',
               color: 'var(--ink-solid-fg)',
-              background: creatable ? '#4655D4' : '#C9CFF2',
+              background: creatable ? 'var(--proto-accent)' : 'var(--proto-accent-border)',
               cursor: creatable && !create.isPending ? 'pointer' : 'default',
             }}
           >

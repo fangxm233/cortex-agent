@@ -29,7 +29,7 @@ const CARD: React.CSSProperties = {
   background: 'var(--proto-card)',
   border: '1px solid var(--proto-line)',
   borderRadius: 10,
-  boxShadow: '0 1px 2px rgba(16,24,40,.03)',
+  boxShadow: 'var(--shadow-card-subtle)',
 };
 
 const CARD_HEADER: React.CSSProperties = {
@@ -142,7 +142,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(25,28,34,.34)',
+          background: 'var(--overlay-scrim)',
           zIndex: 60,
           animation: 'cxfade .18s ease',
         }}
@@ -160,7 +160,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
           maxHeight: '84vh',
           background: 'var(--proto-alt)',
           borderRadius: 14,
-          boxShadow: '0 24px 64px rgba(16,24,40,.3)',
+          boxShadow: 'var(--shadow-overlay-strong)',
           zIndex: 61,
           overflow: 'hidden',
           display: 'flex',

@@ -232,7 +232,7 @@ function MsgMenuItem({ label, icon, onTap, onClose, disabled, divided }: {
 /** The floated copy of the held bubble: the stream bubble's styling plus a lift shadow. It shrinks
  *  inside the group's height cap (flex 0 1 auto) so a long message never pushes the menu off. */
 function HeldBubbleCopy({ isUser, text }: { isUser: boolean; text: string }): JSX.Element {
-  const shared = { flex: '0 1 auto', minHeight: 0, overflow: 'hidden', padding: '9px 13px', fontSize: 13.5, boxShadow: '0 14px 40px rgba(0,0,0,.4)', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' } as const;
+  const shared = { flex: '0 1 auto', minHeight: 0, overflow: 'hidden', padding: '9px 13px', fontSize: 13.5, boxShadow: 'var(--shadow-context-menu)', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' } as const;
   return isUser ? (
     <div style={{ ...shared, maxWidth: '82%', background: MC.ink, color: 'var(--ink-solid-fg)', borderRadius: '16px 16px 4px 16px', lineHeight: 1.55 }}>{text}</div>
   ) : (
@@ -278,7 +278,7 @@ export function MsgActionMenu({ row, menu, copy }: { row: ChatRow; menu: MMsgMen
     <div
       ref={overlayRef}
       onClick={menu.onClose}
-      style={{ position: 'absolute', inset: 0, zIndex: 8, background: 'rgba(25,28,34,.38)', backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)', overflow: 'hidden' }}
+      style={{ position: 'absolute', inset: 0, zIndex: 8, background: 'var(--overlay-scrim-interaction)', backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)', overflow: 'hidden' }}
     >
       {/* The floated group is anchored to the held bubble, not to a fixed offset — the copy under
           your finger has to be the message you are acting on. Hidden for the one commit before the
@@ -300,12 +300,12 @@ export function MsgActionMenu({ row, menu, copy }: { row: ChatRow; menu: MMsgMen
         {/* Send time, under the floated bubble — carries its own scrim so it stays legible over
             whatever the blurred conversation happens to be behind it. */}
         {timeLabel && (
-          <div style={{ flex: 'none', font: `500 10.5px ${MONO}`, color: 'rgba(255,255,255,.92)', background: 'rgba(0,0,0,.42)', padding: '3px 8px', borderRadius: 6, letterSpacing: '.02em' }}>
+          <div style={{ flex: 'none', font: `500 10.5px ${MONO}`, color: 'var(--media-overlay-fg)', background: 'var(--media-timestamp-bg)', padding: '3px 8px', borderRadius: 6, letterSpacing: '.02em' }}>
             {timeLabel}
           </div>
         )}
         {/* Menu — 复制 / 编辑消息 (46px rows, scheme 7a) */}
-        <div onClick={(e) => e.stopPropagation()} style={{ flex: 'none', width: 196, background: MC.card, border: `1px solid ${MC.cardBorder}`, borderRadius: 13, boxShadow: '0 14px 40px rgba(16,24,40,.25)', overflow: 'hidden' }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ flex: 'none', width: 196, background: MC.card, border: `1px solid ${MC.cardBorder}`, borderRadius: 13, boxShadow: 'var(--shadow-menu-floating)', overflow: 'hidden' }}>
           <MsgMenuItem label={copy.menuCopy} icon="copy" onTap={menu.onCopy} onClose={menu.onClose} />
           {menu.onEdit && <MsgMenuItem label={copy.menuEdit} icon="edit" onTap={menu.onEdit} onClose={menu.onClose} disabled={menu.editDisabled} divided />}
         </div>
@@ -382,10 +382,10 @@ export function MoreMenu({ copy, onClose, onSessionId }: { copy: MChatCopy; onCl
           top: 'calc(52px + env(safe-area-inset-top))',
           right: 14,
           width: 148,
-          background: 'rgba(250,250,252,.98)',
-          border: '1px solid rgba(0,0,0,.06)',
+          background: 'var(--panel-translucent-bg)',
+          border: '1px solid var(--panel-translucent-border)',
           borderRadius: 13,
-          boxShadow: '0 14px 40px rgba(16,24,40,.2)',
+          boxShadow: 'var(--shadow-menu-strong)',
           overflow: 'hidden',
           zIndex: 6,
         }}
@@ -504,7 +504,7 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
           width: a.type === 'video' ? 104 : 74,
           height: 74,
           borderRadius: 12,
-          background: url ? '#000' : STRIPES,
+          background: url ? 'var(--media-stage-bg)' : STRIPES,
           position: 'relative',
           overflow: 'hidden',
           flex: 'none',
@@ -527,7 +527,7 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
               width: 26,
               height: 26,
               borderRadius: '50%',
-              background: 'rgba(25,28,34,.72)',
+              background: 'var(--media-control-bg-dark)',
               color: 'var(--ink-solid-fg)',
               fontSize: 9,
               display: 'flex',
@@ -548,7 +548,7 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
             maxWidth: (a.type === 'video' ? 104 : 74) - 14,
             font: `500 8px ${MONO}`,
             color: MC.muted,
-            background: 'rgba(255,255,255,.85)',
+            background: 'var(--media-label-bg)',
             padding: '1px 5px',
             borderRadius: 4,
             overflow: 'hidden',
@@ -942,10 +942,10 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile }: { cop
           left: 14,
           bottom: 90,
           width: 196,
-          background: 'rgba(250,250,252,.98)',
-          border: '1px solid rgba(0,0,0,.06)',
+          background: 'var(--panel-translucent-bg)',
+          border: '1px solid var(--panel-translucent-border)',
           borderRadius: 13,
-          boxShadow: '0 14px 40px rgba(16,24,40,.2)',
+          boxShadow: 'var(--shadow-menu-strong)',
           overflow: 'hidden',
           zIndex: 6,
         }}
@@ -984,7 +984,7 @@ function ComposerChip({ a, onRemove }: { a: PendingAttachmentVM; onRemove: () =>
         <span
           role="button"
           onClick={() => openMedia({ kind: kind!, name: a.name, url: a.previewUrl! })}
-          style={{ position: 'relative', width: 26, height: 26, borderRadius: 6, overflow: 'hidden', background: '#000', flex: 'none', cursor: 'pointer' }}
+          style={{ position: 'relative', width: 26, height: 26, borderRadius: 6, overflow: 'hidden', background: 'var(--media-stage-bg)', flex: 'none', cursor: 'pointer' }}
         >
           {kind === 'image' ? (
             <img src={a.previewUrl} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -992,7 +992,7 @@ function ComposerChip({ a, onRemove }: { a: PendingAttachmentVM; onRemove: () =>
             <VideoThumb src={a.previewUrl!} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           )}
           {kind === 'video' && (
-            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-solid-fg)', fontSize: 8, textShadow: '0 0 3px rgba(0,0,0,.8)' }}>▶</span>
+            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-solid-fg)', fontSize: 8, textShadow: 'var(--media-glyph-shadow)' }}>▶</span>
           )}
         </span>
       )}
@@ -1109,7 +1109,7 @@ function MobileSlashMenu({ suggestions, onPick }: {
   onPick: (suggestion: SlashSuggestion) => void;
 }): JSX.Element {
   return (
-    <div data-mobile-slash-menu style={{ margin: '0 0 7px', border: `1px solid ${MC.hairline}`, borderRadius: 12, background: MC.card, overflow: 'hidden', boxShadow: '0 5px 18px rgba(25,28,34,.08)' }}>
+    <div data-mobile-slash-menu style={{ margin: '0 0 7px', border: `1px solid ${MC.hairline}`, borderRadius: 12, background: MC.card, overflow: 'hidden', boxShadow: 'var(--shadow-menu-soft)' }}>
       {suggestions.map((suggestion) => (
         <div
           key={suggestion.command}

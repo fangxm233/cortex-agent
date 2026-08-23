@@ -1,3 +1,7 @@
+// input:  React nodes, mobile navigation dismissal, and shared CSS tokens
+// output: themed mobile screens, cards, sheets, pills, and composers
+// pos:    Shared presentational kit for every mobile screen
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 UI kit, chrome extracted 1:1 from scheme-mobile.dc.html
 // (raw px/hex/font by design §8.3; the mobile palette is not in the light `proto.*` token set).
 //
@@ -405,7 +409,7 @@ export function MSegmented<T extends string>({
               background: active ? MC.card : 'transparent',
               borderRadius: 6,
               padding: '4px 12px',
-              boxShadow: active ? '0 1px 2px rgba(16,24,40,.06)' : undefined,
+              boxShadow: active ? 'var(--shadow-segment)' : undefined,
             }}
           >
             {o.label}
@@ -520,7 +524,7 @@ export function MBottomSheet({
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'rgba(25,28,34,1)',
+          background: 'var(--overlay-ink)',
           opacity: dimOpacity,
           transition: dragging ? 'none' : `opacity ${SHEET_MS}ms ${SHEET_EASE}`,
         }}
@@ -534,7 +538,7 @@ export function MBottomSheet({
           bottom: 0,
           background: 'var(--proto-alt)',
           borderRadius: '18px 18px 0 0',
-          boxShadow: '0 -14px 44px rgba(16,24,40,.28)',
+          boxShadow: 'var(--shadow-sheet)',
           padding: '8px 14px 36px',
           paddingBottom: 'calc(36px + env(safe-area-inset-bottom))',
           boxSizing: 'border-box',
@@ -744,7 +748,7 @@ export function MComposer({
             border: `1.5px solid ${tone === 'amber' ? MC.amber : tone === 'accent' || focused ? MC.run : 'var(--proto-line-3)'}`,
             borderRadius: multiline ? 16 : 14,
             background: MC.card,
-            boxShadow: tone === 'amber' ? '0 0 0 3px rgba(201,154,46,.10)' : tone === 'accent' || focused ? '0 0 0 3px rgba(70,85,212,.08)' : undefined,
+            boxShadow: tone === 'amber' ? 'var(--focus-ring-amber)' : tone === 'accent' || focused ? 'var(--focus-ring-accent)' : undefined,
             boxSizing: 'border-box',
             padding: `0 ${showExpand ? 34 : 14}px 0 14px`,
           }}
@@ -961,7 +965,7 @@ export function ComposerFullscreen({
           border: `1.5px solid ${MC.run}`,
           borderRadius: 18,
           background: MC.card,
-          boxShadow: '0 0 0 3px rgba(70,85,212,.08),0 8px 28px rgba(25,28,34,.10)',
+          boxShadow: 'var(--focus-ring-accent), var(--shadow-panel)',
           boxSizing: 'border-box',
         }}
       >

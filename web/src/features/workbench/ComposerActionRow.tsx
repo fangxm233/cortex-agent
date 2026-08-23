@@ -28,7 +28,7 @@ export function ComposerSlashMenu({ suggestions, onPick }: {
   const [hovered, setHovered] = useState<number | null>(null);
   if (suggestions.length === 0) return null;
   return (
-    <div data-menu="slash" style={{ position: 'absolute', left: 32, right: 32, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 12, boxShadow: '0 6px 24px rgba(16,24,40,.08)', background: 'var(--proto-card)', overflow: 'hidden', zIndex: 10 }}>
+    <div data-menu="slash" style={{ position: 'absolute', left: 32, right: 32, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 12, boxShadow: 'var(--shadow-menu-soft)', background: 'var(--proto-card)', overflow: 'hidden', zIndex: 10 }}>
       {suggestions.map((suggestion, index) => (
         <div
           key={suggestion.command}

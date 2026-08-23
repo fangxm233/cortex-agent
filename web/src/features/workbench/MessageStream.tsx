@@ -102,7 +102,7 @@ function MediaThumb({ a, width, height }: { a: { name: string; path: string; typ
         height,
         borderRadius: 12,
         border: '1px solid var(--proto-line)',
-        background: url ? '#000' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
+        background: url ? 'var(--media-stage-bg)' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
         boxSizing: 'border-box',
         flex: 'none',
         overflow: 'hidden',
@@ -125,7 +125,7 @@ function MediaThumb({ a, width, height }: { a: { name: string; path: string; typ
             width: 26,
             height: 26,
             borderRadius: '50%',
-            background: 'rgba(25,28,34,.82)',
+            background: 'var(--media-control-bg-strong)',
             color: 'var(--ink-solid-fg)',
             fontSize: 9,
             display: 'flex',
@@ -146,7 +146,7 @@ function MediaThumb({ a, width, height }: { a: { name: string; path: string; typ
           maxWidth: width - 12,
           font: `500 8.5px 'IBM Plex Mono',monospace`,
           color: 'var(--proto-muted-2)',
-          background: 'rgba(255,255,255,.88)',
+          background: 'var(--media-label-bg)',
           padding: '1.5px 5px',
           borderRadius: 4,
           overflow: 'hidden',
@@ -268,7 +268,7 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
         display: 'flex', alignItems: 'center', gap: 10,
         border: '1px solid var(--proto-line)', background: 'var(--proto-card)',
         borderRadius: 10, padding: '9px 10px',
-        boxShadow: '0 1px 2px rgba(16,24,40,.03)',
+        boxShadow: 'var(--shadow-card-subtle)',
         boxSizing: 'border-box', maxWidth: '100%',
         cursor: preview ? 'pointer' : 'default',
       }}
@@ -306,7 +306,7 @@ function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
       style={{
         position: 'relative', maxWidth: 320, borderRadius: 12, border: '1px solid var(--proto-line)',
         overflow: 'hidden', boxSizing: 'border-box', cursor: 'pointer',
-        background: url ? '#000' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
+        background: url ? 'var(--media-stage-bg)' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
       }}
     >
       {url && kind === 'image' && (
@@ -318,18 +318,18 @@ function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
       {!url && <div style={{ width: 320, height: 180 }} />}
       {kind === 'video' && (
         <span
-          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 40, height: 40, borderRadius: '50%', background: 'rgba(25,28,34,.72)', color: 'var(--ink-solid-fg)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: 3, boxSizing: 'border-box' }}
+          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 40, height: 40, borderRadius: '50%', background: 'var(--media-control-bg-dark)', color: 'var(--ink-solid-fg)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: 3, boxSizing: 'border-box' }}
         >
           ▶
         </span>
       )}
-      <span style={{ position: 'absolute', left: 8, bottom: 7, font: `500 8.5px ${mono}`, color: 'var(--proto-muted-2)', background: 'rgba(255,255,255,.88)', padding: '1.5px 5px', borderRadius: 4 }}>{a.name}</span>
+      <span style={{ position: 'absolute', left: 8, bottom: 7, font: `500 8.5px ${mono}`, color: 'var(--proto-muted-2)', background: 'var(--media-label-bg)', padding: '1.5px 5px', borderRadius: 4 }}>{a.name}</span>
       {hover && (
         <span
           role="button"
           title={L.wbFileDownload}
           onClick={(e) => { e.stopPropagation(); dl(a.path, a.name); }}
-          style={{ position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 7, background: 'rgba(25,28,34,.78)', color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer' }}
+          style={{ position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 7, background: 'var(--media-control-bg-strong)', color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer' }}
         >
           ↓
         </span>

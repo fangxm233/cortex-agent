@@ -113,7 +113,7 @@ export function ThreadArtifactPanel({ artifact }: { artifact: DetailArtifact }):
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 8px' }}>
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-muted-3)' }}>{L.thArtifact}</span>
       </div>
-      <div data-thread-artifact="true" style={{ flex: 1, minHeight: 0, background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 10, boxShadow: '0 1px 2px rgba(16,24,40,.03)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div data-thread-artifact="true" style={{ flex: 1, minHeight: 0, background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 10, boxShadow: 'var(--shadow-card-subtle)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <ArtifactFileHeader artifact={artifact} />
         <ArtifactBody artifact={artifact} />
         <WrittenByFooter artifact={artifact} />

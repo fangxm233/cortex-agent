@@ -375,7 +375,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
               width: '100%',
               boxSizing: 'border-box',
               border: '1.5px solid var(--proto-amber)',
-              boxShadow: '0 0 0 3px rgba(201,154,46,.08)',
+              boxShadow: 'var(--focus-ring-amber)',
               background: 'var(--proto-card)',
               borderRadius: 8,
               padding: '8px 11px',

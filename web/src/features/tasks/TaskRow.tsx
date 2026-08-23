@@ -38,7 +38,7 @@ const CARD_STYLE: CSSProperties = {
   border: '1px solid var(--proto-line)',
   borderRadius: 9,
   padding: '9px 12px',
-  boxShadow: '0 1px 2px rgba(16,24,40,.03)',
+  boxShadow: 'var(--shadow-card-subtle)',
   cursor: 'pointer',
 };
 

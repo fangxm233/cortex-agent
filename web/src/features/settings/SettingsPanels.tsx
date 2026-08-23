@@ -424,7 +424,7 @@ export function McpPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
                 background: v === 'full' ? 'var(--proto-card)' : 'transparent',
                 borderRadius: 5,
                 padding: '3px 10px',
-                boxShadow: v === 'full' ? '0 1px 2px rgba(16,24,40,.06)' : 'none',
+                boxShadow: v === 'full' ? 'var(--shadow-segment)' : 'none',
                 cursor: 'not-allowed',
               }}
             >

@@ -1,3 +1,7 @@
+// input:  machine queries, telemetry view model, and localized labels
+// output: themed expandable machine status cards
+// pos:    Desktop right-panel machine list
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
@@ -221,7 +225,7 @@ function MachineCard({ machine }: { machine: MachineInfo }) {
         background: 'var(--proto-card)',
         border: '1px solid var(--proto-line)',
         borderRadius: 10,
-        boxShadow: '0 1px 2px rgba(16,24,40,.03)',
+        boxShadow: 'var(--shadow-card-subtle)',
       }}
     >
       <div
