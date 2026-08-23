@@ -629,12 +629,15 @@ process.on('SIGTERM', async () => {
 
   // DR-0017 D6 Phase 2.5: migrate a legacy single thread-templates.json to the directory form,
   // then per-file copy-if-missing the shipped defaults dir (so new agents/templates/shells — e.g.
-  // a new shell definition — reach existing installs). Both run before loadThreadConfig.
-  migrateThreadTemplatesToDir();
-  mergeThreadTemplates(
-    path.join(DEFAULTS_DIR, 'config', 'thread-templates'),
-    path.join(CONFIG_DIR, 'thread-templates'),
-  );
+  // a new shell definition — reach existing installs). Sealed trial homes supply their complete
+  // template surface and must remain unchanged after launch attestation.
+  if (syncManagedAssets) {
+    migrateThreadTemplatesToDir();
+    mergeThreadTemplates(
+      path.join(DEFAULTS_DIR, 'config', 'thread-templates'),
+      path.join(CONFIG_DIR, 'thread-templates'),
+    );
+  }
   loadThreadConfig();
   initializeProductionAttemptIdentity({
     configurationRevision: () => ({
