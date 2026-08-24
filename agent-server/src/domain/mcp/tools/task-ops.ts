@@ -208,18 +208,18 @@ export function registerTaskOpsTools(server: McpServer): void {
     {
       device: z.string().describe('Target device name (e.g. "server", "workstation", "local")'),
       command: z.string().describe('Shell command to execute'),
-      timeout: z.number().max(600000).optional().describe('Timeout in milliseconds (default: 120000, max: 600000)'),
+      timeout: z.number().int().min(1).max(600).optional().describe('Timeout in seconds (default: 120, max: 600)'),
       description: z.string().optional().describe('Description of what the command does (for logging)'),
-      run_in_background: z.boolean().optional().describe('Run command in background, return PID immediately'),
+      run_in_background: z.boolean().optional().describe('Run command in background, return PID immediately; timeout is ignored'),
     },
     async ({ device, command, timeout, description, run_in_background }: {
       device: string; command: string; timeout?: number; description?: string; run_in_background?: boolean;
     }) => {
       try {
-        const effectiveTimeout = timeout || 120000;
+        const timeoutMs = (timeout ?? 120) * 1000;
         const result = await proxySendCommand(device, 'bash', {
-          command, timeout: effectiveTimeout, run_in_background: run_in_background || false,
-        }, effectiveTimeout + 5000);
+          command, timeout: timeoutMs, run_in_background: run_in_background || false,
+        }, timeoutMs + 5000);
         const parts = [];
         if (result.stdout) parts.push(result.stdout);
         if (result.stderr) parts.push(`[stderr]\n${result.stderr}`);

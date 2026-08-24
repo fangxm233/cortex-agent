@@ -343,11 +343,13 @@ dispatches to the appropriate handler:
 ### bash
 
 Executes in a login shell: `/bin/bash -l -c "<command>"`. On Windows, commands
-run through git-bash. The timeout defaults to 120 seconds for shell commands
-(max 600 seconds). Long-running jobs use `run_in_background: true`, which
-spawns a `cortex-run-watcher` process for stall detection and callback
-reporting. These remote execution tools are exposed to agents via the
-`cortex-core` MCP server — see [mcp.md](./mcp.md).
+run through git-bash. The `timeout` parameter uses integer seconds from 1 to
+600 and defaults to 120. A foreground timeout returns exit code 124 and kills
+the command's process group on POSIX or its process tree on Windows.
+`run_in_background: true` returns the detached shell PID immediately and
+ignores `timeout`. Managed long-running jobs use `cortex-run`, which provides
+stall detection and callback reporting. These remote execution tools are
+exposed to agents via the `cortex-core` MCP server — see [mcp.md](./mcp.md).
 
 ### read
 

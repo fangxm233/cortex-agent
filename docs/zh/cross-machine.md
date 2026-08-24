@@ -277,7 +277,7 @@ agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期�
 
 ### bash
 
-在登录 shell 中执行：`/bin/bash -l -c "<command>"`。在 Windows 上，命令通过 git-bash 运行。shell 命令的默认超时为 120 秒（最大 600 秒）。长时间运行的任务使用 `run_in_background: true`，这会生成一个 `cortex-run-watcher` 进程用于停滞检测和回调报告。这些远程执行工具通过 `cortex-core` MCP 服务器暴露给智能体——参见 [mcp.md](./mcp.md)。
+在登录 shell 中执行：`/bin/bash -l -c "<command>"`。在 Windows 上，命令通过 git-bash 运行。`timeout` 参数使用 1 到 600 的整数秒，默认值为 120。前台命令超时后返回退出码 124，并在 POSIX 上终止命令的进程组，在 Windows 上终止整棵进程树。`run_in_background: true` 会立即返回 detached shell 的 PID 并忽略 `timeout`。需要停滞检测和回调报告的托管长任务使用 `cortex-run`。这些远程执行工具通过 `cortex-core` MCP 服务器暴露给智能体——参见 [mcp.md](./mcp.md)。
 
 ### read
 

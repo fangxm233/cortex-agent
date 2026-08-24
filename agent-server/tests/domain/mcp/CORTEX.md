@@ -10,5 +10,5 @@ MCP server and tool registration regression tests.
 | slack-tools.test.ts | test | Verifies Slack tools |
 | task-monitor-tool.test.ts | test | Verifies task monitor tools |
 | time-tool.test.ts | test | Verifies time tool output |
-| tools-registration.test.ts | test | Verifies tool registration |
+| tools-registration.test.ts | test | Verifies remote operation boundary contracts |
 | interaction-tools.test.ts | test | Verifies shared interaction MCP tools |

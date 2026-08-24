@@ -6,8 +6,9 @@ import WebSocket from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { execFileSync, spawn } from 'child_process';
+import { execFileSync } from 'child_process';
 import { scanCortexMDChain, type CortexMDEntry } from './cortex-md-scanner.js';
+import { execBash, execBashBackground, spawnCommand } from './command-exec.js';
 import { createLogger } from './log.js';
 import { CONFIG_DIR } from './paths.js';
 import { resolveClientToken, buildClientHeaders } from './auth-headers.js';
@@ -100,52 +101,6 @@ const DEVICE_NAME = CONFIG.deviceName;
 const CLIENT_TOKEN = CONFIG.clientToken;
 const PLATFORM = process.platform;
 const HEARTBEAT_INTERVAL_MS = 5000;
-
-const GIT_BASH_PATHS = [
-  'C:\\Program Files\\Git\\bin\\bash.exe',
-  'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
-];
-
-// --- Output accumulator (prevents WS message size explosion) ---
-
-class OutputAccumulator {
-  private head = '';
-  private headFull = false;
-  private tail = '';
-  private totalChars = 0;
-  private readonly headSize: number;
-  private readonly tailSize: number;
-
-  constructor(maxBytes: number) {
-    this.headSize = Math.floor(maxBytes * 0.6);
-    this.tailSize = Math.floor(maxBytes * 0.4);
-  }
-
-  append(data: string): void {
-    this.totalChars += data.length;
-    if (!this.headFull) {
-      this.head += data;
-      if (this.head.length > this.headSize) {
-        const overflow = this.head.slice(this.headSize);
-        this.head = this.head.slice(0, this.headSize);
-        this.headFull = true;
-        this.tail = overflow;
-      }
-    } else {
-      this.tail += data;
-      if (this.tail.length > this.tailSize * 2) {
-        this.tail = this.tail.slice(-this.tailSize);
-      }
-    }
-  }
-
-  toString(): string {
-    if (!this.headFull) return this.head;
-    const finalTail = this.tail.slice(-this.tailSize);
-    const omitted = this.totalChars - this.head.length - finalTail.length;
-    return `${this.head}\n\n[... ${omitted} chars truncated ...]\n\n${finalTail}`;
-  }
-}
 
 // --- Utility functions ---
 
@@ -240,69 +195,6 @@ function detectCapabilities(): string[] {
     caps.push('rg');
   } catch {}
   return caps;
-}
-
-// --- Shell execution ---
-
-function findGitBash(): string | null {
-  for (const p of GIT_BASH_PATHS) {
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
-}
-
-function spawnCommand(
-  cmd: string,
-  args: string[],
-  timeout: number,
-  maxOutputBytes = 500_000,
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  return new Promise((resolve) => {
-    const proc = spawn(cmd, args, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
-    });
-
-    const stdoutAcc = new OutputAccumulator(maxOutputBytes);
-    const stderrAcc = new OutputAccumulator(50_000);
-
-    proc.stdout.on('data', (d: Buffer) => stdoutAcc.append(d.toString()));
-    proc.stderr.on('data', (d: Buffer) => stderrAcc.append(d.toString()));
-
-    const timer = setTimeout(() => {
-      try { proc.kill('SIGKILL'); } catch {}
-    }, timeout);
-
-    proc.on('close', (code) => {
-      clearTimeout(timer);
-      resolve({ stdout: stdoutAcc.toString(), stderr: stderrAcc.toString(), exitCode: code ?? 1 });
-    });
-
-    proc.on('error', (err) => {
-      clearTimeout(timer);
-      resolve({ stdout: stdoutAcc.toString(), stderr: stderrAcc.toString() + '\n' + err.message, exitCode: 127 });
-    });
-  });
-}
-
-function execBash(command: string, timeout: number): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const shell = PLATFORM === 'win32' ? findGitBash() : '/bin/bash';
-  if (!shell) {
-    return Promise.resolve({ stdout: '', stderr: 'bash not found (git-bash not installed on Windows?)', exitCode: 127 });
-  }
-  return spawnCommand(shell, ['-l', '-c', command], timeout, 200_000);
-}
-
-function execBashBackground(command: string): { pid: number | undefined } {
-  const shell = PLATFORM === 'win32' ? findGitBash() : '/bin/bash';
-  if (!shell) return { pid: undefined };
-  const proc = spawn(shell, ['-l', '-c', command], {
-    stdio: 'ignore',
-    detached: true,
-    env: { ...process.env },
-  });
-  proc.unref();
-  return { pid: proc.pid };
 }
 
 // --- Tool: Read ---
