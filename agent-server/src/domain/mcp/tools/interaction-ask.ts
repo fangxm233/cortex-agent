@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { normalizeAskLevel } from '@platform/index.js';
+import { normalizeAskLevel } from '@platform/interactive-builder.js';
 import type { InteractionToolDeps, CallToolResultShape } from './interaction-plan.js';
 
 /**

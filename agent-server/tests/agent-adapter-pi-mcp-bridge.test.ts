@@ -194,6 +194,39 @@ function pluginConfig(...servers: McpServerConfig[]): McpServerConfig[] {
 }
 
 const BUILTIN_STATES = ['core', 'tasks', 'manager-qa', 'ext'];
+
+function deferred(): { promise: Promise<void>; resolve(): void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+test('server discovery runs concurrently and registration preserves state order', async () => {
+  const harness = createPiHarness();
+  const release = deferred();
+  const started: string[] = [];
+  const deps = bridgeDeps({
+    env: {},
+    spawnClient: async (state) => fakeHandle(state.name, {
+      listTools: async () => {
+        started.push(state.name);
+        await release.promise;
+        return {
+          tools: [{ name: `${state.name}_tool`, inputSchema: { type: 'object' } }],
+        };
+      },
+    }),
+  });
+  await installMcpBridge(harness.pi, deps);
+  const preflight = harness.fire('before_agent_start');
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const startedBeforeRelease = [...started];
+  release.resolve();
+  await preflight;
+  assert.deepEqual(startedBeforeRelease, BUILTIN_STATES);
+  assert.deepEqual(harness.registered, BUILTIN_STATES.map((name) => `${name}_tool`));
+});
+
 const ALPHA_STATE = pluginServerStateName('portable-alpha');
 const BETA_STATE = pluginServerStateName('portable-beta');
 const ALPHA_TOOL = pluginToolName(ALPHA_STATE, 'search');

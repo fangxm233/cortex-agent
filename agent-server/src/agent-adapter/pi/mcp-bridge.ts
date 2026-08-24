@@ -80,6 +80,11 @@ export interface ServerState {
   registeredToolNames: Set<string>;
 }
 
+type StateDiscovery =
+  | { state: ServerState; status: 'skip' }
+  | { state: ServerState; status: 'ready'; tools: McpTool[] }
+  | { state: ServerState; status: 'failed'; failure: unknown };
+
 type PluginConfigLoader = (configPath: string) => McpServerConfig[] | PiPluginMcpConfigLoadResult;
 
 export interface BuildServerStatesOptions {
@@ -361,25 +366,36 @@ class McpBridgeSession {
     }
   }
 
-  private async loadState(state: ServerState): Promise<unknown | null> {
-    if (state.registered) return null;
+  private async discoverState(state: ServerState): Promise<StateDiscovery> {
+    if (state.registered) return { state, status: 'skip' };
     try {
       await this.connect(state);
       const tools = await this.listTools(state);
-      this.registerDiscoveredTools(state, tools);
-      return null;
-    } catch (error) {
-      return error;
+      return { state, status: 'ready', tools };
+    } catch (failure) {
+      return { state, status: 'failed', failure };
+    }
+  }
+
+  private finalizeDiscovery(discovery: StateDiscovery): void {
+    if (discovery.status === 'skip') return;
+    if (discovery.status === 'failed') {
+      this.deps.reportFailure(discovery.failure);
+      return;
+    }
+    try {
+      this.registerDiscoveredTools(discovery.state, discovery.tools);
+    } catch (failure) {
+      this.deps.reportFailure(failure);
     }
   }
 
   private async beforeAgentStart(): Promise<void> {
     const states = this.resolveStatesSafely();
     if (!states) return;
-    for (const state of states) {
-      const failure = await this.loadState(state);
-      if (failure) this.deps.reportFailure(failure);
-    }
+    const discoveries = states.map((state) => this.discoverState(state));
+    // Discovery is concurrent; ordered awaiting keeps duplicate tool ownership deterministic.
+    for (const discovery of discoveries) this.finalizeDiscovery(await discovery);
   }
 
   private async connect(state: ServerState): Promise<void> {
