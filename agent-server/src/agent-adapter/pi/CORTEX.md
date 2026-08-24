@@ -5,7 +5,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools.
 
 | filename | role | function |
 |---|---|---|
-| adapter.ts | adapter | Coordinates sessions and interaction eligibility |
+| adapter.ts | adapter | Pools sessions by spawn identity and coordinates interaction eligibility |
 | session-support.ts | core | PI session timers, queues, and probes |
 | spawn-args.ts | core | Builds PI args and sanitized interaction env |
 | defaults.ts | config | PI agent, session and extension path defaults |

@@ -56,7 +56,10 @@ export interface PISessionOptions {
   streamDeltas: boolean;
   registry: Map<string, string>;
   registrySessionDir: string;
-  onClose?: (sessionKey: string) => void;
+  /** Exact argv+env identity this subprocess was started with; the pool's reuse test. */
+  spawnIdentity: string;
+  /** Passed the closing session itself so the pool only evicts the entry it still owns. */
+  onClose?: (sessionKey: string, session: unknown) => void;
   /** Called with each provider quota reading the child reports; set only for gateway-routed runs. */
   onProviderQuota?: (reading: CodexQuotaReading) => void;
 }

@@ -14,7 +14,7 @@ import type {
   ChildProcess, ChildProcessWithoutNullStreams, SpawnOptions,
 } from 'node:child_process';
 import type { AgentProcessSpawner } from '../src/agent-adapter/types.js';
-import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { PIAdapter, type PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
 import { PI_MODELS_PATH } from '../src/agent-adapter/pi/agent-dir.js';
 import { PI_PLUGIN_MCP_CONFIG_ENV } from '../src/agent-adapter/pi/mcp-config.js';
 import { createPIProviderDiscovery } from '../src/agent-adapter/pi/discovery.js';
@@ -805,7 +805,7 @@ test('settled PI turn emits context_usage before its terminal event', async () =
 
 // --- Group D: exit-on-stdin-close + adapter session map cleanup ---
 
-test('close() ends stdin and resolves when child emits close', async () => {
+test('a finished run closes its stream and leaves the subprocess pooled', async () => {
   const stub = makeStubSpawner();
   const adapter = new PIAdapter(stub.spawn);
   const proc = adapter.spawn({ sessionId: null, sessionKey: 'k4', resume: false });
@@ -817,13 +817,141 @@ test('close() ends stdin and resolves when child emits close', async () => {
   child.stdin.on('end', () => { stdinEnded = true; });
   child.stdin.on('finish', () => { stdinEnded = true; });
 
-  const closePromise = proc.close();
-  // Simulate pi exiting cleanly on stdin close (FINDINGS.md §S1).
+  await proc.close();
+
+  assert.equal(stdinEnded, false, 'the run does not end the pooled subprocess stdin');
+  assert.equal(child.__killed, false, 'the run does not kill the pooled subprocess');
+  assert.ok(adapter.listSessions().includes('k4'), 'session stays pooled for the next turn');
+  assert.equal((await proc.events[Symbol.asyncIterator]().next()).done, true, 'run stream ended');
+});
+
+test('adapter.close(key) ends stdin and drops the pooled session', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn);
+  adapter.spawn({ sessionId: null, sessionKey: 'k4b', resume: false });
+
+  await Promise.resolve();
+  const child = stub.children[0];
+
+  let stdinEnded = false;
+  child.stdin.on('end', () => { stdinEnded = true; });
+  child.stdin.on('finish', () => { stdinEnded = true; });
+
+  const closePromise = adapter.close('k4b');
+  // Simulate pi exiting cleanly on stdin close.
   setImmediate(() => child.emit('close', 0, null));
   await closePromise;
 
   assert.ok(stdinEnded, 'stdin.end() was invoked');
-  assert.ok(!adapter.listSessions().includes('k4'), 'session removed from adapter map');
+  assert.ok(!adapter.listSessions().includes('k4b'), 'session removed from adapter map');
+});
+
+// --- Group D2: session pooling across turns ---
+
+/** Drive one full turn on a spawned process and drain its stream to completion. */
+async function runPooledTurn(proc: PIAgentProcess, child: StubChild, text: string): Promise<void> {
+  const iterator = proc.events[Symbol.asyncIterator]();
+  const drained: string[] = [];
+  const pump = (async () => {
+    for (;;) {
+      const entry = await iterator.next();
+      if (entry.done) return;
+      drained.push(entry.value.type);
+    }
+  })();
+  const turn = proc.send({ text });
+  child.stdout.emit('data', Buffer.from('{"type":"agent_settled"}\n'));
+  await turn;
+  const stats = child.stdin.writeHistory
+    .map((frame) => JSON.parse(frame.trim()) as Record<string, unknown>)
+    .filter((command) => command.type === 'get_session_stats')
+    .pop();
+  if (stats) {
+    child.stdout.emit('data', Buffer.from(JSON.stringify({
+      type: 'response', id: stats.id, command: 'get_session_stats', success: true, data: {},
+    }) + '\n'));
+  }
+  await pump;
+  await proc.close();
+  assert.ok(drained.includes('turn_complete'), `turn "${text}" reached its terminal event`);
+}
+
+test('two turns on one sessionKey reuse a single subprocess', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+  const config = { sessionId: null, sessionKey: 'pool-reuse', resume: false, model: 'gpt-5.6-sol' };
+
+  const first = adapter.spawn({ ...config });
+  const child = stub.children[0];
+  emitBootstrap(child, `pool-reuse-${Date.now()}`);
+  await Promise.resolve();
+  await runPooledTurn(first, child, 'first');
+
+  const second = adapter.spawn({ ...config });
+  assert.equal(stub.calls.length, 1, 'the second turn reuses the pooled subprocess');
+  await runPooledTurn(second, child, 'second');
+
+  const prompts = child.stdin.writeHistory
+    .map((frame) => JSON.parse(frame.trim()) as Record<string, unknown>)
+    .filter((command) => command.type === 'prompt');
+  assert.deepEqual(prompts.map((command) => command.message), ['first', 'second']);
+
+  child.emit('close', 0, null);
+});
+
+test('a changed spawn configuration retires the pooled subprocess', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+
+  const first = adapter.spawn({
+    sessionId: null, sessionKey: 'pool-model', resume: false, model: 'gpt-5.6-sol',
+  });
+  const child = stub.children[0];
+  emitBootstrap(child, `pool-model-${Date.now()}`);
+  await Promise.resolve();
+  await runPooledTurn(first, child, 'first');
+
+  adapter.spawn({
+    sessionId: null, sessionKey: 'pool-model', resume: false, model: 'claude-sonnet-4',
+  });
+  assert.equal(stub.calls.length, 2, 'a different model must not run on the pooled subprocess');
+  assert.ok(stub.calls[1].args.includes('claude-sonnet-4'));
+
+  child.emit('close', 0, null);
+  stub.children[1].emit('close', 0, null);
+});
+
+test('a subprocess that exited is replaced on the next turn', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+  const config = { sessionId: null, sessionKey: 'pool-dead', resume: false };
+
+  adapter.spawn({ ...config });
+  await Promise.resolve();
+  stub.children[0].emit('close', 0, null);
+  await Promise.resolve();
+
+  adapter.spawn({ ...config });
+  assert.equal(stub.calls.length, 2, 'a dead subprocess is not reused');
+
+  stub.children[1].emit('close', 0, null);
+});
+
+test('a per-run execution id does not retire the pooled subprocess', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+  const base = { sessionId: null, sessionKey: 'pool-exec', resume: false };
+
+  const first = adapter.spawn({ ...base, cortexContext: { executionId: 'exec-1' } });
+  const child = stub.children[0];
+  emitBootstrap(child, `pool-exec-${Date.now()}`);
+  await Promise.resolve();
+  await runPooledTurn(first, child, 'first');
+
+  adapter.spawn({ ...base, cortexContext: { executionId: 'exec-2' } });
+  assert.equal(stub.calls.length, 1, 'a new execution id reuses the pooled subprocess');
+
+  child.emit('close', 0, null);
 });
 
 test('events iterator terminates with {done:true} after close', async () => {

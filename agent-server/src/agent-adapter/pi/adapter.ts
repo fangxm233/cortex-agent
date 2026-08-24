@@ -166,7 +166,7 @@ class PISession {
   private readonly parserState: PIEventParserState = createPIEventParserState();
   private readonly registry: Map<string, string>;
   private readonly registrySessionDir: string;
-  private readonly onClose: ((sessionKey: string) => void) | undefined;
+  private readonly onClose: ((sessionKey: string, session: unknown) => void) | undefined;
   private readonly onProviderQuota: ((reading: CodexQuotaReading) => void) | undefined;
   private stderrTail = '';
   private alive = true;
@@ -202,9 +202,12 @@ class PISession {
   private readonly readyWaiters: ReadyWaiter[] = [];
   private pendingCompact: PendingCompact | null = null;
   private compactSequence = 0;
+  /** argv+env identity this subprocess was exec'd with; see `spawnIdentity()`. */
+  private readonly identity: string;
 
   constructor(opts: PISessionOptions) {
     this.sessionKey = opts.sessionKey;
+    this.identity = opts.spawnIdentity;
     this.registry = opts.registry;
     this.registrySessionDir = opts.registrySessionDir;
     this.onClose = opts.onClose;
@@ -294,7 +297,7 @@ class PISession {
     this.maxTimer = setTimeout(() => {
       log.info(`Session ${this.sessionKey} hit max timeout, killing`);
       this.kill();
-      this.onClose?.(this.sessionKey);
+      this.onClose?.(this.sessionKey, this);
     }, PI_MAX_TIMEOUT);
   }
 
@@ -327,7 +330,7 @@ class PISession {
     this.idleTimer = setTimeout(() => {
       log.info(`Session ${this.sessionKey} idle for 65min, closing`);
       this.close();
-      this.onClose?.(this.sessionKey);
+      this.onClose?.(this.sessionKey, this);
     }, PI_IDLE_SESSION_TIMEOUT);
   }
 
@@ -335,7 +338,7 @@ class PISession {
     this.turnIdleTimer = setTimeout(() => {
       log.info(`Session ${this.sessionKey} turn idle for 60min, killing`);
       this.kill();
-      this.onClose?.(this.sessionKey);
+      this.onClose?.(this.sessionKey, this);
     }, PI_TURN_IDLE_TIMEOUT);
   }
 
@@ -461,6 +464,12 @@ class PISession {
 
   isAlive(): boolean {
     return this.alive;
+  }
+
+  /** True when this live subprocess was started with exactly the configuration a new spawn
+   *  resolved to, and may therefore serve it. */
+  matchesSpawn(identity: string): boolean {
+    return this.identity === identity;
   }
 
   /**
@@ -894,6 +903,35 @@ interface PreparedPISpawn {
   env: NodeJS.ProcessEnv;
 }
 
+/**
+ * Per-run env that must NOT force a new subprocess. PI freezes its env at exec, so a pooled
+ * process keeps the value from the turn that started it — the same spawn-time snapshot the Claude
+ * adapter already documents for its own pooled sessions. Making the execution id part of the
+ * identity would instead defeat pooling outright, since it differs on every single run.
+ */
+const IDENTITY_EXEMPT_ENV = new Set(['CORTEX_EXECUTION_ID']);
+
+/**
+ * The exact configuration a live PI subprocess was started with, as a comparable string.
+ *
+ * PI takes its whole configuration through argv and env, so comparing those two IS the complete
+ * compatibility test — there is no hand-maintained field list here to drift out of sync with
+ * spawn-args.ts as flags are added. Two exclusions: the `--session` selector, because
+ * `switch_session` re-points a live process at another transcript without restarting it, and the
+ * per-run keys above.
+ */
+function spawnIdentity(command: string, prepared: PreparedPISpawn): string {
+  const args: string[] = [];
+  for (let i = 0; i < prepared.cliArgs.length; i += 1) {
+    if (prepared.cliArgs[i] === '--session') { i += 1; continue; }
+    args.push(prepared.cliArgs[i]!);
+  }
+  const env = Object.entries(prepared.env)
+    .filter(([key]) => !IDENTITY_EXEMPT_ENV.has(key))
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  return JSON.stringify({ command, cwd: prepared.cwd, args, env });
+}
+
 function piSpawnOptions(
   config: AgentSpawnConfig,
   sessionDir: string,
@@ -1144,7 +1182,9 @@ export class PIAdapter implements AgentAdapter {
     };
   }
 
-  private createSession(config: AgentSpawnConfig, prepared: PreparedPISpawn): PISession {
+  private createSession(
+    config: AgentSpawnConfig, prepared: PreparedPISpawn, identity: string,
+  ): PISession {
     return new PISession({
       sessionKey: config.sessionKey,
       sessionDir: prepared.sessionDir,
@@ -1156,9 +1196,16 @@ export class PIAdapter implements AgentAdapter {
       streamDeltas: config.streamDeltas ?? getSettings().streamDeltas,
       registry: this.sessionPathRegistry,
       registrySessionDir: prepared.sessionDir,
-      onClose: (key) => this.sessions.delete(key),
+      spawnIdentity: identity,
+      onClose: (key, session) => this.evictSession(key, session),
       onProviderQuota: this.quotaReporter(config),
     });
+  }
+
+  /** Drop a pooled entry only while it is still the one this key points at: a self-closing session
+   *  (idle/max timeout) can finish long after the pool moved on to its replacement. */
+  private evictSession(sessionKey: string, session: unknown): void {
+    if (this.sessions.get(sessionKey) === session) this.sessions.delete(sessionKey);
   }
 
   private sendSpawnedTurn(session: PISession, msg: UserMessage): Promise<AgentResult> {
@@ -1177,12 +1224,12 @@ export class PIAdapter implements AgentAdapter {
 
   private async closeSpawnedSession(sessionKey: string, session: PISession): Promise<void> {
     await session.close();
-    this.sessions.delete(sessionKey);
+    this.evictSession(sessionKey, session);
   }
 
   private killSpawnedSession(sessionKey: string, session: PISession): boolean {
     const killed = session.kill();
-    if (killed) this.sessions.delete(sessionKey);
+    if (killed) this.evictSession(sessionKey, session);
     return killed;
   }
 
@@ -1199,17 +1246,46 @@ export class PIAdapter implements AgentAdapter {
       injectUserMessage: (msg) => session.injectUserMessage(msg),
       setInjectionAckSink: (sink) => session.setInjectionAckSink(sink),
       events: turnStreamIterable(turnStream),
-      close: () => this.closeSpawnedSession(sessionKey, session),
+      // Ends this run, not the subprocess: the session is pooled per sessionKey and serves the
+      // next turn. Process-level teardown goes through PIAdapter.close(key) / kill(key), which
+      // is what !new, Stop, thread cleanup and rewind reach.
+      close: async () => { session.closeTurnStreamFor(turnStream); },
       kill: () => this.killSpawnedSession(sessionKey, session),
     };
   }
 
   spawn(config: AgentSpawnConfig): PIAgentProcess {
     const prepared = this.prepareSpawn(config);
-    const session = this.createSession(config, prepared);
-    this.sessions.set(config.sessionKey, session);
-
+    const identity = spawnIdentity(config.cliPath ?? DEFAULT_PI_BINARY, prepared);
+    const session = this.reusableSession(config.sessionKey, identity)
+      ?? this.startSession(config, prepared, identity);
     return this.createAgentProcess(config.sessionKey, session, session.openTurnStream());
+  }
+
+  /** The pooled session for this key when it can serve the turn: alive, and started with the exact
+   *  configuration this spawn resolved to. Anything else is retired here so the caller starts a
+   *  fresh subprocess — a live process cannot be re-pointed at a different model, tool surface or
+   *  MCP set, so reusing one across such a change would silently run the wrong configuration. */
+  private reusableSession(sessionKey: string, identity: string): PISession | null {
+    const session = this.sessions.get(sessionKey);
+    if (!session) return null;
+    if (session.isAlive() && session.matchesSpawn(identity)) return session;
+    log.info(
+      `PI session ${sessionKey} retired (${session.isAlive() ? 'spawn config changed' : 'subprocess gone'});`
+      + ' starting a new subprocess',
+    );
+    void this.closeSpawnedSession(sessionKey, session)
+      .catch((error) => log.warn(`retiring PI session ${sessionKey} failed: ${errorValue(error).message}`));
+    this.sessions.delete(sessionKey);
+    return null;
+  }
+
+  private startSession(
+    config: AgentSpawnConfig, prepared: PreparedPISpawn, identity: string,
+  ): PISession {
+    const session = this.createSession(config, prepared, identity);
+    this.sessions.set(config.sessionKey, session);
+    return session;
   }
 
   /** Record the exact transcript path restored by rewind before the next resume spawn. */
