@@ -542,9 +542,12 @@ export function MBottomSheet({
           padding: '8px 14px 36px',
           paddingBottom: 'calc(36px + env(safe-area-inset-bottom))',
           boxSizing: 'border-box',
+          maxHeight: 'calc(100% - max(12px, env(safe-area-inset-top)))',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
           transform: `translateY(${translateY})`,
           transition: dragging ? 'none' : `transform ${SHEET_MS}ms ${SHEET_EASE}`,
-          touchAction: 'none',
           willChange: 'transform',
         }}
       >
@@ -558,7 +561,20 @@ export function MBottomSheet({
         >
           <div style={{ width: 36, height: 5, borderRadius: 999, background: 'var(--proto-line-3)', margin: '0 auto 12px' }} />
         </div>
-        {children}
+        <div
+          data-mobile-sheet-scroll="true"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowX: 'hidden',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+            touchAction: 'pan-y',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -1,14 +1,30 @@
-// input:  sheet drag metrics and composer text
-// output: dismiss decisions and Unicode-safe composer counts
-// pos:    Pure mobile UI-kit logic tests
+// input:  sheet markup, drag metrics, and composer text
+// output: viewport, dismiss, and Unicode-safe count assertions
+// pos:    Mobile UI-kit layout and logic tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
   composerCharCount,
   composerLineCount,
+  MBottomSheet,
   shouldFlingClose,
 } from './kit';
+
+describe('MBottomSheet viewport containment', () => {
+  it('caps the sheet height and scrolls overflowing content', () => {
+    const html = renderToStaticMarkup(
+      createElement(MBottomSheet, { onClose: () => {} }, createElement('div', null, 'rows')),
+    );
+
+    expect(html).toContain('max-height:calc(100% - max(12px, env(safe-area-inset-top)))');
+    expect(html).toContain('data-mobile-sheet-scroll="true"');
+    expect(html).toContain('overflow-y:auto');
+    expect(html).toContain('touch-action:pan-y');
+  });
+});
 
 describe('shouldFlingClose', () => {
   it('closes after crossing the distance threshold', () => {

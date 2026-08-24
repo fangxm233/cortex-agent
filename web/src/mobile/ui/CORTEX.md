@@ -6,5 +6,5 @@ Provides the palette, screen frame, headers, cards, pills, segmented control, bo
 | filename | role | function |
 |---|---|---|
 | kit.tsx | core | Supplies mobile primitives and composer command slots |
-| kit.test.ts | test | Tests sheet-dismiss decisions and Unicode-safe counts |
+| kit.test.ts | test | Tests sheet viewport, dismissal and Unicode-safe counts |
 | format.ts | util | Formats relative time, money and copy |
