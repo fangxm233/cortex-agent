@@ -1,5 +1,5 @@
 // input:  backend label + native or canonical tool name
-// output: canonical ↔ backend-native tool name mappings
+// output: canonical ↔ backend-native tool name mappings + backendless matching
 // pos:    Bidirectional table for tool name normalization
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -82,6 +82,15 @@ const PI_SHIM_ONLY_TOOLS = ['agent'];
 export function nativeToolNames(backend: Backend): string[] {
   const mapped = Object.values(FORWARD_BY_BACKEND[backend]).filter((name): name is string => !!name);
   return backend === 'pi' ? [...mapped, ...PI_SHIM_ONLY_TOOLS] : mapped;
+}
+
+/** True when `nativeName` maps to `canonical` under ANY backend. For the shared paths that are
+ *  not scoped to one backend (background continuations run behind the facade, which wraps
+ *  whichever adapter is live). Native names are unambiguous across backends — no backend maps a
+ *  name another backend uses for something else — so recognizing a tool never requires threading
+ *  a Backend through just for the lookup. */
+export function matchesCanonicalAnyBackend(nativeName: string, canonical: CanonicalToolName): boolean {
+  return Object.values(REVERSE_BY_BACKEND).some(reverse => reverse.get(nativeName) === canonical);
 }
 
 /** Translate a backend-native tool name to canonical. MCP tools (mcp__ prefix) pass through unchanged. */

@@ -6,6 +6,7 @@
 import type { ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
 import { toCanonical } from '../normalize/tool-names.js';
+import { parseTodoWrite } from '../normalize/todo.js';
 import { decodeQuotaNotice } from '@domain/costs/codex-quota.js';
 
 interface PIPendingCompletion {
@@ -201,7 +202,15 @@ function handleToolExecutionStart(ev: Record<string, unknown>): NormalizedEvent[
   const args = ev['args'] ?? {};
   if (typeof toolCallId !== 'string' || typeof toolName !== 'string') return [];
   const canonicalName = toCanonical('pi', toolName) ?? toolName;
-  return [{ type: 'tool_use', toolUseId: toolCallId, name: canonicalName, input: args }];
+  const events: NormalizedEvent[] = [
+    { type: 'tool_use', toolUseId: toolCallId, name: canonicalName, input: args },
+  ];
+  // Derived semantic event alongside the raw call. No subagent guard is needed here: PI subagents
+  // run as isolated child processes with their own streams (see pi/subagent.ts), so a subagent's
+  // tool calls never reach the parent's event stream in the first place.
+  const snapshot = parseTodoWrite('pi', toolName, args);
+  if (snapshot) events.push({ type: 'todo_update', toolUseId: toolCallId, snapshot });
+  return events;
 }
 
 function handleToolExecutionEnd(ev: Record<string, unknown>): NormalizedEvent[] {

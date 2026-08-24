@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLiveConnection, useLiveEvents } from '@/features/live/LiveEventsProvider';
 import { SESSION_LIVE_EVENTS } from '@/features/live/live-events';
-import type { SessionContextUsage, SessionTranscript } from '@cortex-agent/ui-contract';
+import type { SessionContextUsage, SessionTranscript, TodoSnapshot } from '@cortex-agent/ui-contract';
 import type { LiveSessionMessage, PendingUserMessage, AssistantPreviewState } from './transcript-vm';
 import {
   resolveRunning, resolveBackgroundRunning, initialAssistantPreviewState,
@@ -15,6 +15,7 @@ import {
   applyDelivered, reconcilePendingUserMessages,
 } from './transcript-vm';
 import { contextUsageFromLivePayload, resolveContextUsage } from './context-usage';
+import { resolveTodos, todoSnapshotFromLivePayload } from './todo-vm';
 import { useAssistantDeltaStream } from './useAssistantDeltaStream';
 
 // Live `session.message` feed for the center chat (S4 chat, task aba0). Listens on the SHARED live
@@ -67,6 +68,9 @@ export interface SessionLiveState {
   liveTurns: number | null;
   /** Latest context snapshot: live event when present, else the sessions.list snapshot. */
   contextUsage: SessionContextUsage | null;
+  /** Latest task list: live event when present, else the sessions.list snapshot. Null until the
+   *  agent writes one — surfaces render nothing rather than an empty list. */
+  todos: TodoSnapshot | null;
   /** Text accumulated for the assistant block being written right now, or null when nothing is
    *  streaming. Pass it to `buildTranscriptRows` as `streamingText`. Always null unless the caller
    *  opted into deltas — every other surface renders complete messages exactly as before. */
@@ -94,6 +98,8 @@ export interface SessionLiveSyncOptions {
   transcript?: SessionTranscript | null;
   /** Persisted sessions.list context snapshot, restored before the next live event. */
   contextUsage?: SessionContextUsage | null;
+  /** sessions.list task-list snapshot, restored before the next live event. */
+  todos?: TodoSnapshot | null;
 }
 
 export function useSessionMessageLiveSync(
@@ -121,6 +127,7 @@ export function useSessionMessageLiveSync(
   // Live agent-turn count from the `session.turn` delta. Null until the first event for this session.
   const [liveTurns, setLiveTurns] = useState<number | null>(null);
   const [liveContextUsage, setLiveContextUsage] = useState<SessionContextUsage | null>(null);
+  const [liveTodos, setLiveTodos] = useState<TodoSnapshot | null>(null);
   // The assistant block being previewed plus finalized block ids. The latter span the shared
   // message stream and scoped delta stream, preventing a late delta from reopening a settled row.
   const [assistantPreview, setAssistantPreview] = useState<AssistantPreviewState>(initialAssistantPreviewState);
@@ -225,6 +232,13 @@ export function useSessionMessageLiveSync(
         // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
         // edges so the left rail reflects the turn without waiting for a focus refetch.
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+        return;
+      }
+      if (raw.type === 'session.todos') {
+        // Replace-all: the newest snapshot is complete, so a missed event costs nothing and there
+        // is no merge to get wrong.
+        const snapshot = todoSnapshotFromLivePayload(raw.payload);
+        if (snapshot) setLiveTodos(snapshot);
         return;
       }
       if (raw.type === 'session.context-usage') {
@@ -356,8 +370,9 @@ export function useSessionMessageLiveSync(
   const running = resolveRunning(statusRunning, snapshotRunning, streaming);
   const backgroundRunning = resolveBackgroundRunning(statusBackground, snapshotBackgroundRunning);
   const contextUsage = resolveContextUsage(liveContextUsage, options.contextUsage);
+  const todos = resolveTodos(liveTodos, options.todos);
   return {
     liveTail, getMessageSnapshot, streaming, running, backgroundRunning, liveTurns,
-    contextUsage, streamingText: assistantPreview.active?.text ?? null, pendingUser,
+    contextUsage, todos, streamingText: assistantPreview.active?.text ?? null, pendingUser,
   };
 }

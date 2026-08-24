@@ -7,6 +7,7 @@ import * as path from 'path';
 import { promises as fs } from 'fs';
 import { STORE_DIR } from '@core/paths.js';
 import type { ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
+import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 
 const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 
@@ -139,6 +140,13 @@ function nowIso(): string {
  *  so both record identical tool-input summaries. */
 export function summarizeToolInputForHistory(input: any): string {
   if (input == null || typeof input !== 'object') return '';
+  // A task list has no string field worth picking below, so it used to fall through to
+  // JSON.stringify and be cut off mid-object at 120 chars — the transcript chip showed a broken
+  // JSON fragment. Render the progress instead.
+  if (Array.isArray(input.todos)) {
+    const snapshot = parseTodoSnapshot(input);
+    if (snapshot) return renderTodoProgress(snapshot) || 'todos cleared';
+  }
   const pick = (k: string) => (typeof input[k] === 'string' ? input[k] : undefined);
   const primary = pick('command') ?? pick('file_path') ?? pick('path') ?? pick('pattern') ?? pick('url') ?? pick('prompt') ?? pick('description') ?? pick('query');
   let s = primary ?? '';

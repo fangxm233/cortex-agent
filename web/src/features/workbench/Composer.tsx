@@ -5,7 +5,7 @@
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction,
   type SlashAction, type SlashActionHandlers, type SlashSuggestion,
@@ -25,9 +25,11 @@ import {
 } from './composer-draft';
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 import { ComposerStatusLine } from './ComposerStatusLine';
+import { TodoRail } from './TodoRail';
 import { ComposerActionRow, ComposerSlashMenu } from './ComposerActionRow';
 import { SessionProfileSelectorView, useSessionProfileSelection } from './SessionProfileSelector';
 import type { ContextCompactAction } from './ContextUsageControl';
+import type { TodoSnapshot } from '@cortex-agent/ui-contract';
 import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
 
 // Composer — extended with file attachment support (15a 附件输入与消息).
@@ -180,6 +182,7 @@ export function Composer({
   acceptOptimistic,
   rejectOptimistic,
   statusAccessory,
+  todos,
   compactAction,
   onOpenSettings = () => {},
 }: {
@@ -205,11 +208,13 @@ export function Composer({
   acceptOptimistic: (clientId: string, createdSessionId?: string) => boolean;
   rejectOptimistic: (clientId: string, error: Error) => boolean;
   statusAccessory?: ReactNode;
+  todos?: TodoSnapshot | null;
   compactAction?: ContextCompactAction;
   onOpenSettings?: () => void;
 }): JSX.Element {
   const trpc = useTRPC();
   const L = useVocab();
+  const lang = useLang();
   const queryClient = useQueryClient();
   const { openMedia } = useMediaViewer();
   const { openDoc } = useDocViewer();
@@ -865,14 +870,10 @@ export function Composer({
         {/* Slash palette */}
         {slashOpen ? <ComposerSlashMenu suggestions={slashList} onPick={onSlashPick} /> : null}
 
-        {/* Running / idle status line with its optional right-aligned accessory. */}
-        <ComposerStatusLine
-          running={running}
-          text={running
-            ? `${backgroundRunning ? L.pillBackground : L.pillRunning} · ${elapsed} · ${turnsText}`
-            : (hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle)}
-          accessory={statusAccessory}
-        />
+        {/* Task list rail. Sits directly above the input because "what the agent is doing now" is
+            the highest-value line on this surface and belongs at the point of gaze; it renders
+            nothing at all when the session has no task list. */}
+        {!isDraft && <TodoRail sessionId={sessionId} todos={todos ?? null} lang={lang} />}
 
         {/* Composer card — doubles as drop zone (15a) */}
         <div
@@ -1094,6 +1095,17 @@ export function Composer({
             }
           }}
           style={{ display: 'none' }}
+        />
+
+        {/* Session meta, below the input: it is low-frequency reference information and reads as a
+            footer for the composer, so the rail above the input keeps the position closest to the
+            user's gaze. */}
+        <ComposerStatusLine
+          running={running}
+          text={running
+            ? `${backgroundRunning ? L.pillBackground : L.pillRunning} · ${elapsed} · ${turnsText}`
+            : (hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle)}
+          accessory={statusAccessory}
         />
       </div>
     </div>

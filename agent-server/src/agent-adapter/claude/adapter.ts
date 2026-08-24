@@ -22,6 +22,7 @@ import type {
 } from '../types.js';
 import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.js';
+import { parseTodoWrite } from '../normalize/todo.js';
 import { createEventStream } from '../normalize/event-stream.js';
 import {
   CancelledError,
@@ -1591,6 +1592,12 @@ export class ClaudeAdapter implements AgentAdapter {
               stream.push({ type: 'assistant_delta', text, blockId }),
             onToolUse: (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => {
               stream.push({ type: 'tool_use', toolUseId, name, input, ...(subagent ? { subagent } : {}) });
+              // Derived semantic event alongside the raw call (cf. plan_written /
+              // ask_user_question). Subagent lists are deliberately dropped: a subagent keeps
+              // its own plan and emitting it would clobber the main agent's on every surface.
+              if (subagent) return;
+              const snapshot = parseTodoWrite('claude', name, input);
+              if (snapshot) stream.push({ type: 'todo_update', toolUseId, snapshot });
             },
             onToolResult: (toolUseId: string, content: string, isError: boolean) =>
               stream.push({ type: 'tool_result', toolUseId, content, ok: !isError }),

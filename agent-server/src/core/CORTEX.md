@@ -9,6 +9,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | atomic-write.ts | util | Serializes cancellable atomic file replacements |
 | auth.ts | core | Issues, captures, scrubs and checks shared-secret auth tokens |
 | bg-held-sessions.ts | state | tracks sessions held running in background |
+| session-todos.ts | state | holds each session's latest agent task list |
 | calver.ts | util | compares CalVer YYYY.M.D[-N] versions |
 | cli-utils.ts | util | formats CLI help/errors and reads stdin as text or raw bytes |
 | config-generator.ts | config | generates shared interaction and gated MCP configs |

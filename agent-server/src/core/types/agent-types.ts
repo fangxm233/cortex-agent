@@ -33,6 +33,34 @@ export interface SessionContextUsage extends ContextUsage {
   updatedAt: string;
 }
 
+/** One entry of the agent's task list. Identical in shape across backends. */
+export type TodoStatus = 'pending' | 'in_progress' | 'completed';
+
+export interface TodoItem {
+  /** Imperative form: "Run the test suite". */
+  content: string;
+  /** Present-continuous form shown while the item is in progress: "Running the test suite". */
+  activeForm: string;
+  status: TodoStatus;
+}
+
+/**
+ * The agent's task list as of one TodoWrite call.
+ *
+ * TodoWrite is replace-all: every call carries the complete list, so a snapshot is self-contained
+ * and the newest one is the truth. `total` / `completed` / `activeLabel` are derived, but travel
+ * with the snapshot because most render targets (platform status line, TUI, mobile) need only
+ * those three and must not each re-derive them — four implementations of the same fold would drift.
+ */
+export interface TodoSnapshot {
+  items: TodoItem[];
+  total: number;
+  completed: number;
+  /** activeForm of the first in-progress item; null when nothing is in progress. */
+  activeLabel: string | null;
+  updatedAt: number;
+}
+
 export interface AskUserQuestionInfo {
   toolUseId: string | null;
   questions: string[];

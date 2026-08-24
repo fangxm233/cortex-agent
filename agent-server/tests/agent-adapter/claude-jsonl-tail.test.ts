@@ -543,26 +543,48 @@ test('JsonlTail start() does not reject when file never appears (keeps polling)'
   // No crash, no events — the tail simply waits.
 });
 
-// --- Subagent attribution on tool_use ---
+// --- Task list: derived todo_update, and subagent attribution ---
 
-const SUBAGENT_TOOL_BLOCK = {
+const TODO_BLOCK = {
   type: 'tool_use',
-  id: 'tu_sub',
-  name: 'Bash',
-  input: { command: 'ls' },
+  id: 'tu_todo',
+  name: 'TodoWrite',
+  input: {
+    todos: [
+      { content: 'Read the adapter', activeForm: 'Reading the adapter', status: 'completed' },
+      { content: 'Run the tests', activeForm: 'Running the tests', status: 'in_progress' },
+    ],
+  },
 };
 
-test('Normalizer attributes sidechain calls to a subagent', () => {
+test('Normalizer derives todo_update alongside the raw TodoWrite call', () => {
+  const n = new JsonlEventNormalizer();
+  const out = n.consume({
+    type: 'assistant',
+    message: { id: 'msg_todo', content: [TODO_BLOCK] },
+  });
+  // The raw call must survive: it is the trajectory evidence the required sink journals.
+  assert.equal(out.filter(e => e.type === 'tool_use').length, 1);
+  const todos = out.filter(e => e.type === 'todo_update');
+  assert.equal(todos.length, 1);
+  assert.equal((todos[0] as any).toolUseId, 'tu_todo');
+  assert.equal((todos[0] as any).snapshot.completed, 1);
+  assert.equal((todos[0] as any).snapshot.activeLabel, 'Running the tests');
+});
+
+test('Normalizer attributes sidechain calls to a subagent and drops their task list', () => {
   const n = new JsonlEventNormalizer();
   const out = n.consume({
     type: 'assistant',
     isSidechain: true,
-    message: { id: 'msg_sub', content: [SUBAGENT_TOOL_BLOCK] },
+    message: { id: 'msg_sub', content: [TODO_BLOCK] },
   });
   const calls = out.filter(e => e.type === 'tool_use');
   assert.equal(calls.length, 1);
   // The session JSONL has no parent tool id to offer, so the parent stays null rather than guessed.
   assert.deepEqual((calls[0] as any).subagent, { parentToolUseId: null, type: null });
+  // A subagent keeps its own plan; letting it through would clobber the main agent's progress.
+  assert.equal(out.filter(e => e.type === 'todo_update').length, 0);
 });
 
 test('Normalizer marks a main-agent call with no subagent attribution at all', () => {
@@ -570,7 +592,7 @@ test('Normalizer marks a main-agent call with no subagent attribution at all', (
   const out = n.consume({
     type: 'assistant',
     isSidechain: false,
-    message: { id: 'msg_main', content: [SUBAGENT_TOOL_BLOCK] },
+    message: { id: 'msg_main', content: [TODO_BLOCK] },
   });
   const call = out.find(e => e.type === 'tool_use') as any;
   assert.equal('subagent' in call, false);

@@ -232,6 +232,7 @@ class LegacyEventDispatcher {
       assistant_text: (event) => this.assistantText(event),
       assistant_delta: (event) => this.assistantDelta(event),
       tool_use: (event) => this.toolUse(event),
+      todo_update: (event) => this.todoUpdate(event),
       tool_result: (event) => this.toolResult(event),
       turn_progress: (event) => this.turnProgress(event),
       context_usage: (event) => this.contextUsage(event),
@@ -266,6 +267,10 @@ class LegacyEventDispatcher {
 
   private toolUse(event: Extract<NormalizedEvent, { type: 'tool_use' }>): void {
     this.options.onToolUse?.(event.name, event.input, event.toolUseId);
+  }
+
+  private todoUpdate(event: Extract<NormalizedEvent, { type: 'todo_update' }>): void {
+    this.options.onTodoUpdate?.(event.snapshot);
   }
 
   private toolResult(event: Extract<NormalizedEvent, { type: 'tool_result' }>): void {

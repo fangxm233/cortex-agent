@@ -27,11 +27,15 @@ export function buildSessionTag(sessionName: string | null, sessionId: string | 
   return parts.join(' · ') + ' | ';
 }
 
-export function buildUserProcessingMessage({ startTime, elapsed_s = null, num_turns = null, profileName, sessionName = null, sessionId = null }: { startTime: number; elapsed_s?: number | null; num_turns?: number | null; profileName: string; sessionName?: string | null; sessionId?: string | null }): string {
+/** `todoProgress` is a pre-rendered task-list line (see normalize/todo.ts renderTodoProgress).
+ *  Passing the rendered string rather than a snapshot keeps this formatter free of todo parsing
+ *  and lets every caller decide whether the surface shows task progress at all. */
+export function buildUserProcessingMessage({ startTime, elapsed_s = null, num_turns = null, profileName, sessionName = null, sessionId = null, todoProgress = null }: { startTime: number; elapsed_s?: number | null; num_turns?: number | null; profileName: string; sessionName?: string | null; sessionId?: string | null; todoProgress?: string | null }): string {
   const elapsed = elapsed_s ?? ((Date.now() - startTime) / 1000);
   const sessionTag = buildSessionTag(sessionName, sessionId);
   const turnsStr = num_turns != null ? ` | ${Icons.repeat} ${num_turns} turns` : '';
-  return `${Icons.processing} ${t('status.processing')} | ${sessionTag}${profileName || 'default'} | ${Icons.stopwatch} ${formatDurationCompact(elapsed || 0)}${turnsStr}`;
+  const todoStr = todoProgress ? ` | ${Icons.todo} ${todoProgress}` : '';
+  return `${Icons.processing} ${t('status.processing')} | ${sessionTag}${profileName || 'default'} | ${Icons.stopwatch} ${formatDurationCompact(elapsed || 0)}${turnsStr}${todoStr}`;
 }
 
 const THREAD_STATUS_TASK_TEXT_MAX = 60;

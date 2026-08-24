@@ -16,6 +16,7 @@ import { getSettings } from '@core/settings.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { ContinuationSink } from './types.js';
 import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
+import { parseTodoWriteByName } from './normalize/todo.js';
 
 const log = createLogger('bg-wait');
 
@@ -248,6 +249,12 @@ class BackgroundContinuationWait {
     const id = toolUseId ?? '';
     const event = { type: 'tool_use' as const, name, input, toolUseId: id, ...(subagent ? { subagent } : {}) };
     if (this.settled || !this.emit(event)) return;
+    // Continuation turns run the same derivation as the live stream, so a background task that
+    // updates the task list still moves the progress surfaces. Subagent lists stay dropped.
+    if (!subagent) {
+      const snapshot = parseTodoWriteByName(name, input);
+      if (snapshot) this.emit({ type: 'todo_update', toolUseId: id, snapshot });
+    }
     try { this.opts.onToolUse?.(name, input, id); }
     catch (error) { log.warn('bg-wait onToolUse threw:', (error as Error).message); }
   }

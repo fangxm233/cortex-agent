@@ -9,4 +9,5 @@ Shared by the Claude and PI adapters and by Cortex orchestration.
 | event-stream.ts | core | queues events for a single producer |
 | hooks.ts | types | backend-neutral hook specification |
 | tool-names.ts | core | maps canonical names to backend-native tools |
+| todo.ts | core | normalizes TodoWrite payloads into task snapshots |
 | prompt-builder.ts | core | builds prompt text from message attachments |

@@ -6,6 +6,7 @@
 import { EventEmitter } from 'node:events';
 import * as fs from 'fs';
 import type { NormalizedEvent, QuestionSpec, ToolUseSubagent } from '../normalize/event-types.js';
+import { parseTodoWrite } from '../normalize/todo.js';
 import { isPlanFilePath, parseModelFallbackEvent } from './event-parser.js';
 import { usageToCost, type ClaudeUsage } from './cost-from-usage.js';
 
@@ -173,6 +174,12 @@ export class JsonlEventNormalizer {
             toolUseId,
             questions: extractQuestionsFromInput(block.input),
           });
+        }
+        // Subagent task lists are dropped: a subagent keeps its own plan, and letting it through
+        // would clobber the main agent's on every progress surface.
+        if (!subagent) {
+          const snapshot = parseTodoWrite('claude', name, block.input);
+          if (snapshot) events.push({ type: 'todo_update', toolUseId, snapshot });
         }
         if (name === 'Write' && isPlanFilePath(block.input?.file_path)) {
           events.push({

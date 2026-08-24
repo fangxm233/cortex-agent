@@ -64,6 +64,7 @@ import { captureAuthTokensForRuntime, ensureAuthTokens } from '@core/auth.js';
 import { runningExecutions } from '@core/running-executions.js';
 import { getSettings, onSettingsChange } from '@core/settings.js';
 import { bgHeldSessions } from '@core/bg-held-sessions.js';
+import { sessionTodos } from '@core/session-todos.js';
 import { buildSessionRetentionLiveness } from '@core/session-retention-liveness.js';
 import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
@@ -514,6 +515,7 @@ process.on('SIGTERM', async () => {
     // Manual context compact: both the Web mutation and !compact command share the idle-only
     // orchestration coordinator; sessions.list receives the matching display capability hint.
     supportsSessionCompaction: (session) => isSessionCompactionSupported(session),
+    getSessionTodos: (sessionId) => sessionTodos.get(sessionId),
     compactSession: ({ sessionId }) => compactSessionContext(sessionId),
     // Message edit + rewind (sessions.rewind, desktop design 23 / mobile 7): roll the session back
     // to the edited turn and re-send. Injected here so the ui-service domain never imports

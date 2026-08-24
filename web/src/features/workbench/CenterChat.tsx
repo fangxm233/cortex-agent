@@ -106,11 +106,12 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   // `transcript` is passed back in only so a pending row self-heals if its delivered event is lost.
   const {
     liveTail, getMessageSnapshot, streaming, running, backgroundRunning,
-    liveTurns, contextUsage, streamingText, pendingUser,
+    liveTurns, contextUsage, todos, streamingText, pendingUser,
   } = useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
       deltas: true,
       transcript: transcriptQuery.data ?? null,
       contextUsage: active?.contextUsage ?? null,
+      todos: active?.todos ?? null,
     });
   const optimistic = useOptimisticUserMessages({
     sessionId,
@@ -223,6 +224,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
         acceptOptimistic={optimistic.accept}
         rejectOptimistic={optimistic.reject}
         compactAction={active?.contextCompactionSupported ? compactAction : undefined}
+        todos={todos}
         onOpenSettings={onOpenSettings}
         statusAccessory={(active?.contextCompactionSupported || contextUsage !== null) ? (
           <ContextUsageControl

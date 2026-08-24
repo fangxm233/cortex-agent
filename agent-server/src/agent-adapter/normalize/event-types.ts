@@ -1,9 +1,11 @@
 // input:  core agent types
-// output: normalized agent event union incl subagent attribution
+// output: normalized agent event union incl subagent attribution and task snapshots
 // pos:    Backend-neutral event schema
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import type { ContextUsage } from '@core/types/agent-types.js';
+import type { ContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
+
+export type { TodoItem, TodoSnapshot, TodoStatus } from '@core/types/agent-types.js';
 
 export interface QuestionSpec {
   question: string;
@@ -57,6 +59,12 @@ export type NormalizedEvent =
       /** Present only when a native subagent made the call. See ToolUseSubagent. */
       subagent?: ToolUseSubagent }
   | { type: 'tool_result'; toolUseId: string; ok: boolean; content: string }
+  // Derived semantic event emitted ALONGSIDE the raw `tool_use` for a TodoWrite call, never
+  // instead of it: the raw call is required-sink evidence (production-attempt-journal → ATIF
+  // tool_calls) and dropping it would put a hole in the trajectory. Same family as
+  // plan_mode_entered / ask_user_question / plan_written. Subagent calls do NOT produce one —
+  // a subagent keeps its own list, and letting it through would clobber the main agent's.
+  | { type: 'todo_update'; toolUseId: string; snapshot: TodoSnapshot }
   | { type: 'ask_user_question'; toolUseId: string; questions: QuestionSpec[] }
   | { type: 'plan_mode_entered'; toolUseId: string; planFilePath: string }
   | { type: 'plan_written'; toolUseId: string; path: string; content: string }

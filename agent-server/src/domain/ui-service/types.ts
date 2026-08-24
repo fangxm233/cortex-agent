@@ -20,12 +20,16 @@ import type {
   ChatNoticeLevel,
   NoticeAction,
   SessionContextUsage,
+  TodoSnapshot,
 } from '@core/types/agent-types.js';
 export type {
   AuthNoticeAction,
   ChatNoticeLevel,
   NoticeAction,
   SessionContextUsage,
+  TodoItem,
+  TodoSnapshot,
+  TodoStatus,
 } from '@core/types/agent-types.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
 import type {
@@ -729,6 +733,10 @@ export interface SessionInfo {
   contextUsage?: SessionContextUsage | null;
   /** True only for PI and Claude print sessions under their fixed profile. */
   contextCompactionSupported?: boolean;
+  /** The agent's latest task list, or null when it has not written one. Queryable snapshot half of
+   *  snapshot+delta — `session.todos` is the delta. Live state, not persisted: a server restart
+   *  ends the run that owned the list, so an absent list after boot is the truth. */
+  todos?: TodoSnapshot | null;
   /** Live running snapshot: true while an interactive turn (a non-thread execution) is live on the
    *  session's channel. Authoritative at query time — the client uses this as the snapshot and the
    *  `session.status` event stream as the delta (snapshot + delta), so running state survives
@@ -2187,6 +2195,9 @@ export interface UiServiceDeps {
   };
   /** Capability hint for sessions.list; execution revalidates inside orchestration. */
   supportsSessionCompaction?: (session: Session) => boolean;
+  /** Latest task-list snapshot for a session (in-memory registry). Optional so facade/test
+   *  fixtures need not provide it — absent means the session reports no task list. */
+  getSessionTodos?: (sessionId: string) => TodoSnapshot | null;
   /** Idle-only manual context compaction, injected at the entry layer. */
   compactSession?: (opts: { sessionId: string }) => Promise<
     | { ok: true; status: 'compacted' | 'not-needed'; contextUsage: SessionContextUsage | null }

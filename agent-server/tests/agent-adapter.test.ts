@@ -101,6 +101,7 @@ void function normalizedEventExhaustive(event: NormalizedEvent): string {
     case 'assistant_delta': return event.blockId;
     case 'tool_use': return event.toolUseId;
     case 'tool_result': return event.toolUseId;
+    case 'todo_update': return event.toolUseId;
     case 'ask_user_question': return event.toolUseId;
     case 'plan_mode_entered': return event.planFilePath;
     case 'plan_written': return event.path;

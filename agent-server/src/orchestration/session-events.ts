@@ -1,11 +1,11 @@
 // input:  session/context payloads, chat notices, and the shared EventBus
-// output: context/compact/message/status/turn/rewind publishers
+// output: context/compact/message/status/turn/todos/rewind publishers
 // pos:    Orchestration bus seam; missing bus remains a no-op
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
-import type { ChatNoticeLevel, NoticeAction, SessionContextUsage } from '@core/types/agent-types.js';
+import type { ChatNoticeLevel, NoticeAction, SessionContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
 
 export interface SessionMessagePayload {
   sessionId: string;
@@ -41,6 +41,14 @@ export function publishSessionContextUsage(
   p: { sessionId: string; channel: string } & SessionContextUsage,
 ): void {
   jobCtx.bus?.publish({ type: 'session.context-usage', ...p });
+}
+
+/** Publish the task-list delta. The snapshot is complete (TodoWrite is replace-all), so a client
+ *  that missed earlier events is still correct after receiving any single one. */
+export function publishSessionTodos(
+  p: { sessionId: string; channel: string; snapshot: TodoSnapshot },
+): void {
+  jobCtx.bus?.publish({ type: 'session.todos', ...p });
 }
 
 export function publishSessionContextCompacted(p: {

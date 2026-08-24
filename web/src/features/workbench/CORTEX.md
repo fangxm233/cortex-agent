@@ -64,6 +64,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | composer-slash.ts | util | Resolves shared UI-local slash actions |
 | composer-slash.test.ts | test | Tests shortcut parsing, availability and local dispatch |
 | ContextUsageControl.tsx | view | Context usage bar, details and compact action |
+| TodoRail.tsx | view | Expandable task-list rail above the composer |
+| todo-vm.ts | vm | Validates task snapshots and builds rail rows |
+| todo-vm.test.ts | test | Tests payload validation, resolution and rail rows |
 | ContextUsageControl.test.tsx | test | Unit tests for context control visibility |
 | context-usage.ts | vm | Resolves context snapshots into labels and bars |
 | context-usage.test.ts | test | Tests snapshot validation, precedence and progress state |

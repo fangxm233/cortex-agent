@@ -7,6 +7,7 @@ import type { OutputStream, MutableRegion } from '@platform/index.js';
 
 import { Icons } from '../core/icons.js';
 import { getSettings } from '@core/settings.js';
+import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 
 const MAX_LINE_LEN = 120;
 const ELLIPSIS = '…';
@@ -64,7 +65,10 @@ function summarizeToolInput(name: string, input: any): string {
     case 'Agent':
       return firstLine(String(input.description ?? input.subagent_type ?? '')).slice(0, 60);
     case 'TodoWrite':
-      return `${(input.todos || []).length} todos`;
+    case 'todo_write': {
+      const snapshot = parseTodoSnapshot(input);
+      return snapshot ? (renderTodoProgress(snapshot, 48) || 'cleared') : '';
+    }
     case 'Task':
       return firstLine(String(input.description ?? '')).slice(0, 60);
     case 'slack_send_file':

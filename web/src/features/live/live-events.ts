@@ -40,6 +40,10 @@ export const SESSION_LIVE_EVENTS = [
   'session.status',
   'session.turn',
   'session.context-usage',
+  // Task list. Low rate (roughly one per completed step, not per token) and every event
+  // carries the complete list, so it rides the shared unscoped stream rather than needing a
+  // session-scoped subscription of its own.
+  'session.todos',
   'session.context-compacted',
   'session.interaction',
   'session.rewound',

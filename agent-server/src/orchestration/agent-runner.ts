@@ -6,7 +6,9 @@
 import * as path from 'path';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef, OutputStream } from '@platform/index.js';
 import { resolveDestinationConduit, SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
-import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction, SessionContextUsage } from '@core/types/agent-types.js';
+import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction, SessionContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
+import { sessionTodos } from '@core/session-todos.js';
+import { renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
 import * as crypto from 'node:crypto';
@@ -30,7 +32,7 @@ import { buildDurableHooks } from './durable-helpers.js';
 const log = createLogger('agent-runner');
 import { createToolTrace } from '@platform/index.js';
 import { setStreamingCallback, clearStreamingCallback, publishAskUserRequested } from './routing/hook-bridge.js';
-import { publishSessionContextUsage, publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTurn } from './session-events.js';
+import { publishSessionContextUsage, publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTodos, publishSessionTurn } from './session-events.js';
 import { createSessionDeltaStream } from './delta-coalescer.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn, type MidTurnInjectDeps } from './mid-turn-inject.js';
 import { commitPendingInjection } from './pending-injection-recovery.js';
@@ -77,6 +79,8 @@ interface AgentCallbacks {
   onAssistantMsg: ((text: string) => void) & { stream?: OutputStream };
   onProgress: (progress: any) => void;
   onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
+  /** Latest task list, used to keep the platform status line in step with the agent's plan. */
+  onTodoUpdate: ((snapshot: TodoSnapshot) => void) | null;
 }
 
 interface SessionUseLease {
@@ -343,6 +347,16 @@ export class AgentRunner {
     const persistContext = (usage: ContextUsage): Promise<void> => persistSessionContextUsage({
       sessionName, sessionId, channel, usage,
     });
+    // Task-list snapshot: record it for `sessions.list` (the queryable snapshot) and publish the
+    // delta, then refresh the platform status line so Slack/Feishu/Ink-TUI move too. Replace-all,
+    // so this overwrites rather than merges.
+    const persistTodos = (snapshot: TodoSnapshot): void => {
+      if (sessionId) {
+        sessionTodos.set(sessionId, snapshot);
+        publishSessionTodos({ sessionId, channel, snapshot });
+      }
+      callbacks.onTodoUpdate?.(snapshot);
+    };
     const persistContinuationContext = (usage: ContextUsage): void => {
       void persistContext(usage).catch((error) => {
         log.warn('continuation context persistence failed:', (error as Error).message);
@@ -414,6 +428,7 @@ export class AgentRunner {
         },
         onContextUsage: persistContext,
         onFallback: callbacks.onFallback,
+        onTodoUpdate: persistTodos,
         onToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
         onToolResult: persistToolResult,
         onAskUserQuestion: interactiveCallbacks.onAskUserQuestion,
@@ -671,15 +686,35 @@ function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination,
   const onToolUse = toolTrace ? (name: string, input: any) => toolTrace.onToolUse(name, input) : null;
 
   setStreamingCallback(channel, onAssistantMsg);
-  const onProgress = (progress: any) => {
+
+  // The status message is the only persistent surface Slack / Feishu / Ink-TUI have (it is already
+  // being edited in place on every turn_progress), so task progress rides it instead of posting
+  // anything new. Both triggers render through one function so the two signals cannot disagree.
+  let lastProgress: { duration_ms?: number | null; num_turns?: number | null } | null = null;
+  let todoProgress = '';
+  const renderStatus = (): void => {
     writeStatus(adapter, statusMsg, buildUserProcessingMessage({
       startTime,
-      elapsed_s: progress?.duration_ms != null ? progress.duration_ms / 1000 : null,
-      num_turns: progress?.num_turns ?? null,
+      elapsed_s: lastProgress?.duration_ms != null ? lastProgress.duration_ms / 1000 : null,
+      num_turns: lastProgress?.num_turns ?? null,
       profileName: getActiveProfile(channel), sessionName, sessionId,
+      todoProgress: todoProgress || null,
     }));
   };
-  return { onFallback, onAssistantMsg, onProgress, onToolUse };
+  const onProgress = (progress: any) => {
+    lastProgress = progress ?? null;
+    renderStatus();
+  };
+  const onTodoUpdate = (snapshot: TodoSnapshot) => {
+    const next = renderTodoProgress(snapshot);
+    // Agents re-submit an unchanged list fairly often. Rendering the same line again would spend a
+    // platform message edit for no visible change, so only a real change forces a write; the
+    // ordinary progress cadence covers everything else.
+    if (next === todoProgress) return;
+    todoProgress = next;
+    renderStatus();
+  };
+  return { onFallback, onAssistantMsg, onProgress, onToolUse, onTodoUpdate };
 }
 
 function createPlatformFileLoader(ctx: AgentRunnerCtx): PlatformFileLoader {

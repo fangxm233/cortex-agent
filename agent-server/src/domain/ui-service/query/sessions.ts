@@ -117,6 +117,7 @@ export async function handleSessionsList(
       label: s.label ?? null,
       profileName: s.profileName ?? null,
       contextUsage: s.contextUsage ?? null,
+      todos: deps.getSessionTodos?.(s.sessionId) ?? null,
       contextCompactionSupported: deps.supportsSessionCompaction?.(s) ?? false,
       running,
       backgroundRunning: bgHeld,

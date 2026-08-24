@@ -12,7 +12,7 @@
 // (conversation ledger) are all thread-independent and handled by the caller (agent-runner).
 
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile } from '@platform/index.js';
-import type { AgentResult, ChatNoticeLevel, ContextUsage } from '@core/types/agent-types.js';
+import type { AgentResult, ChatNoticeLevel, ContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
 import {
   runAgent, getClaudeMode, getActiveProfile, getDefaultAgent, resolveBackendForChannel,
 } from '@domain/agents/index.js';
@@ -61,6 +61,8 @@ export interface RunConversationOptions {
   /** Receives the backend-ready prompt after context and attachment paths are assembled. */
   onPromptBuilt?: ((prompt: string) => void) | null;
   onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
+  /** The agent's task list after a TodoWrite call (replace-all snapshot). */
+  onTodoUpdate?: ((snapshot: TodoSnapshot) => void) | null;
   onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   onPlanWritten?: ((event: { path: string; content: string; toolUseId: string }) => void) | null;
   onAskUserQuestion?: ((event: any) => void) | null;
@@ -193,6 +195,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     onAssistantDelta: opts.onAssistantDelta ?? null,
     onProgress: opts.onProgress,
     onContextUsage: opts.onContextUsage ?? null,
+    onTodoUpdate: opts.onTodoUpdate ?? null,
     onToolUse: opts.onToolUse,
     onToolResult: opts.onToolResult ?? null,
     onPlanWritten: opts.onPlanWritten ?? null,

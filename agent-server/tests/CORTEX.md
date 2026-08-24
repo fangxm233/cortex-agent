@@ -26,6 +26,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
 | agent-adapter-pi.test.ts | test | PI interaction env, RPC lifecycle and resume |
 | agent-adapter.test.ts | test | adapter dispatch, native tools and event contracts |
+| agent-adapter-todo.test.ts | test | TodoWrite snapshot parsing, degradation and progress rendering |
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
 | auth-events.test.ts | test | auth case, boundary, privacy and recovery events |

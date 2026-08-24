@@ -97,6 +97,9 @@ export type {
   ChatNoticeLevel,
   NoticeAction,
   SessionContextUsage,
+  TodoItem,
+  TodoSnapshot,
+  TodoStatus,
   // Output DTOs
   ProjectConduitInfo,
   SessionInfo,

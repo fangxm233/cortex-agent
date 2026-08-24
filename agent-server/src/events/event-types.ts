@@ -8,6 +8,7 @@ import type {
   ChatNoticeLevel,
   NoticeAction,
   SessionContextUsage,
+  TodoSnapshot,
 } from '@core/types/agent-types.js';
 
 export type AuthErrorKind = 'login_required' | 'oauth_expired' | 'invalid_api_key' | 'unauthorized' | 'invalid_grant';
@@ -31,6 +32,10 @@ export type CortexEvent =
   | { type: 'session.message.delta';  ts: string; sessionId: string; channel: string; blockId: string; text: string; seq: number }
   | { type: 'session.status';         ts: string; sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }
   | { type: 'session.turn';           ts: string; sessionId: string; channel: string; numTurns: number }
+  // The agent's task list changed (a TodoWrite call). Replace-all: `snapshot` is the complete
+  // list, so clients store rather than merge, and the newest event always wins. Delta half of
+  // snapshot+delta — `SessionInfo.todos` is the queryable snapshot.
+  | { type: 'session.todos';          ts: string; sessionId: string; channel: string; snapshot: TodoSnapshot }
   | ({ type: 'session.context-usage'; ts: string; sessionId: string; channel: string } & SessionContextUsage)
   | { type: 'session.context-compacted'; ts: string; sessionId: string; channel: string; status: 'compacted'; contextUsage: SessionContextUsage | null }
   // Mid-turn injection commit: a message injected into a live turn has now been CONSUMED by the

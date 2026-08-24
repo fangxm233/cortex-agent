@@ -32,6 +32,8 @@ export const Icons = {
   stopped: '🛑',
   /** :memo: */
   memo: '📝',
+  /** :clipboard: — the agent's task list. */
+  todo: '📋',
   /** :brain: */
   brain: '🧠',
   /** :file_folder: */
