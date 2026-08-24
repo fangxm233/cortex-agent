@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# input:  the arguments bench-launch.py accepts
+# output: bench-launch.py, running in the pinned offline harness environment
+# pos:    The environment prefix every documented harness invocation needs and none enforce
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --offline --frozen` opens every command in the harness
+# headers. Nothing enforced it, so a missing prefix was an operator error that surfaced as an
+# unrelated import or resolution failure. It lives here now.
+set -euo pipefail
+cd "$(dirname "$(readlink -f "$0")")/.."
+exec env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+  uv run --offline --frozen python scripts/bench-launch.py "$@"
