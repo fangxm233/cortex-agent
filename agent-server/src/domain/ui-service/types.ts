@@ -412,7 +412,15 @@ export interface AttachmentMeta {
   path: string;
   size: number;
   mimeType: string;
-  type: 'image' | 'video' | 'file';
+  /**
+   * `view` is an agent-authored HTML document meant to be RENDERED in the chat (the `send_view`
+   * MCP tool), not merely downloaded. It is minted only by the server-side view sender — the
+   * upload classifiers (`classifyMime`, `classifyAttachment`) can never produce it, so a file a
+   * user uploads is never executable no matter what its extension says. Renderers must treat this
+   * bucket as untrusted content and load it in a `sandbox="allow-scripts"` frame WITHOUT
+   * `allow-same-origin` (see web/src/features/media/html-sandbox.ts).
+   */
+  type: 'image' | 'video' | 'file' | 'view';
 }
 
 export interface SessionsSendArgs {

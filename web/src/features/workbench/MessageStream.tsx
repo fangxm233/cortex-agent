@@ -15,7 +15,9 @@ import { useDocViewer } from '@/features/media/DocViewer';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
 import { mediaKindOf } from '@/features/media/media-kind';
 import { VideoThumb } from '@/features/media/VideoThumb';
-import { docKindOf } from '@/features/media/doc-kind';
+import { docKindOfAttachment } from '@/features/media/doc-kind';
+import { HtmlBody } from '@/features/media/HtmlBody';
+import { usePinnedPreview } from '@/features/media/PinnedPreviewProvider';
 import { interactionView, emptyDeskAsk, type DeskAskState } from './interaction-vm';
 import type { InteractionActions } from './useInteractionActions';
 import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
@@ -87,7 +89,7 @@ function fileExt(name: string): string {
 /** Real thumbnail (image/video) that opens the media lightbox on click — used by the sent-user-message
  *  bubble (15a). The bytes are auth-fetched into an object URL (a plain <img>/<video src> can't send
  *  the token). Clicking raises the in-app modal (no new tab). */
-function MediaThumb({ a, width, height }: { a: { name: string; path: string; type: 'image' | 'video' | 'file' }; width: number; height: number }): JSX.Element {
+function MediaThumb({ a, width, height }: { a: { name: string; path: string; type: 'image' | 'video' | 'file' | 'view' }; width: number; height: number }): JSX.Element {
   const kind = mediaKindOf(a.type)!;
   const { openMedia } = useMediaViewer();
   const url = useWorkspaceObjectUrl(a.path);
@@ -172,7 +174,7 @@ function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
   const colors = typeColor(a.type);
   const ext = fileExt(a.name);
   const { openDoc } = useDocViewer();
-  const docKind = docKindOf(a.name, a.mimeType);
+  const docKind = docKindOfAttachment(a);
   const preview = docKind ? () => openDoc({ kind: docKind, name: a.name, path: a.path, mimeType: a.mimeType }) : undefined;
   return (
     <div
@@ -258,7 +260,7 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
   const { openDoc } = useDocViewer();
   const colors = typeColor(a.type);
   const ext = fileExt(a.name);
-  const docKind = docKindOf(a.name, a.mimeType);
+  const docKind = docKindOfAttachment(a);
   const preview = docKind ? () => openDoc({ kind: docKind, name: a.name, path: a.path, mimeType: a.mimeType }) : undefined;
   return (
     <div
@@ -283,6 +285,68 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
         <ActionBtn title={L.wbFileDownload} onClick={() => dl(a.path, a.name)}>↓</ActionBtn>
         {preview && <OpenBtn onClick={preview}>{L.wbFileOpen}</OpenBtn>}
       </span>
+    </div>
+  );
+}
+
+
+/** 20a view card — an agent-rendered HTML document (`send_view`), drawn inline in the stream inside
+ *  a sandboxed frame. The frame is mounted only once the card scrolls into view: a transcript with
+ *  a dozen views would otherwise run a dozen documents' scripts at once on load.
+ *
+ *  Three ways out of the card: expand (full-screen modal), dock (split pane beside the chat), and
+ *  source (the SAME file opened as text) — a user can always see what is actually running. */
+function AgentViewCard({ a }: { a: Attachment }): JSX.Element {
+  const L = useVocab();
+  const dl = useDownloadFile();
+  const { openDoc } = useDocViewer();
+  const pinned = usePinnedPreview();
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = hostRef.current;
+    if (!el || visible) return;
+    if (typeof IntersectionObserver !== 'function') { setVisible(true); return; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { setVisible(true); io.disconnect(); }
+    }, { rootMargin: '400px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible]);
+
+  const viewItem = { kind: 'html' as const, name: a.name, path: a.path, mimeType: a.mimeType };
+  const expand = (): void => openDoc(viewItem);
+  const dock = (): void => pinned.pin(viewItem);
+  const source = (): void => openDoc({ kind: 'text', name: a.name, path: a.path, mimeType: 'text/plain' });
+  // `name` carries the human title, so the download needs the extension put back on.
+  const download = (): void => dl(a.path, a.name.toLowerCase().endsWith('.html') ? a.name : `${a.name}.html`);
+
+  return (
+    <div
+      ref={hostRef}
+      style={{
+        width: '100%', border: '1px solid var(--proto-line)', background: 'var(--proto-card)',
+        borderRadius: 10, overflow: 'hidden', boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-rail)' }}>
+        <span style={{ font: `700 8px ${mono}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>
+          {L.wbViewBadge}
+        </span>
+        <span style={{ font: `500 11.5px ${mono}`, color: 'var(--proto-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+          {a.name}
+        </span>
+        <span style={{ display: 'flex', gap: 5, flex: 'none' }}>
+          <ActionBtn title={L.wbViewSource} onClick={source}>{'<>'}</ActionBtn>
+          <ActionBtn title={L.wbFileDownload} onClick={download}>↓</ActionBtn>
+          {pinned.canPin && <ActionBtn title={L.wbViewDock} onClick={dock}>◧</ActionBtn>}
+          <OpenBtn onClick={expand}>{L.wbViewExpand}</OpenBtn>
+        </span>
+      </div>
+      <div style={{ background: 'var(--proto-card)' }}>
+        {visible ? <HtmlBody item={viewItem} mode="inline" /> : <div style={{ height: 160 }} />}
+      </div>
     </div>
   );
 }
@@ -343,15 +407,18 @@ function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
 function AgentFileGroup({ attachments }: { attachments: Attachment[] }): JSX.Element {
   const L = useVocab();
   const dl = useDownloadFile();
+  const views = attachments.filter((a) => a.type === 'view');
   const media = attachments.filter((a) => mediaKindOf(a.type) !== null);
-  const files = attachments.filter((a) => mediaKindOf(a.type) === null);
+  const files = attachments.filter((a) => a.type !== 'view' && mediaKindOf(a.type) === null);
   return (
-    <div style={{ maxWidth: '75%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10 }}>
+    // A view is a surface, not a chip: it takes the wider column so charts and tables are legible.
+    <div style={{ maxWidth: views.length > 0 ? '92%' : '75%', width: views.length > 0 ? '92%' : undefined, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10 }}>
       {media.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {media.map((a, i) => <AgentMediaPreview key={`media-${i}`} a={a} />)}
         </div>
       )}
+      {views.map((a, i) => <AgentViewCard key={`view-${i}`} a={a} />)}
       {files.map((a, i) => <AgentFileCard key={`file-${i}`} a={a} />)}
       {attachments.length >= 3 && (
         <div style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)', padding: '2px 2px 0' }}>

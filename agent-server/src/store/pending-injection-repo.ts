@@ -12,7 +12,7 @@ export interface PendingAttachment {
   path: string;
   size: number;
   mimeType: string;
-  type: 'image' | 'video' | 'file';
+  type: 'image' | 'video' | 'file' | 'view';
 }
 
 export interface PendingInjectionRecord {

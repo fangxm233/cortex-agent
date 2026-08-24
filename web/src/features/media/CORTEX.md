@@ -1,18 +1,23 @@
 Please update me when files in this folder change
 
-In-app previewers for attachments on desktop and mobile: image and video lightbox, PDF and text document modal.
+In-app previewers for attachments on desktop and mobile: image and video lightbox, PDF and text document modal,
+and the sandboxed frame that renders agent-authored HTML views.
 Non-previewable types fall back to an authenticated download; also owns the docked pinned-preview pane.
 
 | filename | role | function |
 |---|---|---|
 | MediaViewer.tsx | provider | Full-screen image and video lightbox context |
-| DocViewer.tsx | provider | PDF and text preview modal with open context |
+| DocViewer.tsx | provider | PDF, text and view preview modal with open context |
+| HtmlBody.tsx | view | Sandboxed frame rendering an agent-authored HTML view |
+| html-sandbox.ts | core | Sandbox tokens, injected CSP, srcdoc wrapper and frame protocol |
+| html-sandbox.test.ts | test | Pins the view isolation boundary and the wrapper |
+| useViewHeight.ts | hook | Content height a view frame reports, source-checked |
 | PinnedPreviewProvider.tsx | provider | Holds pinned split-preview state and dock gating |
 | PinnedPreviewPane.tsx | view | Renders the docked pane and its drag divider |
 | pinned-preview.ts | core | Parses pin state and routes preview items |
 | pinned-preview.test.ts | test | Unit tests for the pinned preview model |
 | media-kind.ts | util | Maps an attachment type to image, video or none |
-| doc-kind.ts | util | Classifies a name or type as pdf, text or none |
+| doc-kind.ts | util | Classifies a name or attachment as pdf, text, html or none |
 | doc-kind.test.ts | test | Unit tests for the document kind classifier |
 | pdf-worker.ts | util | Lazily loads the PDF engine with its worker |
 | pdf-pager.ts | util | Page clamping, current page and jump target math |

@@ -49,7 +49,8 @@ import { useDocViewer } from '@/features/media/DocViewer';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
 import { mediaKindOf } from '@/features/media/media-kind';
 import { VideoThumb } from '@/features/media/VideoThumb';
-import { docKindOf } from '@/features/media/doc-kind';
+import { docKindOfAttachment } from '@/features/media/doc-kind';
+import { HtmlBody } from '@/features/media/HtmlBody';
 import { MAskCard, MPlanCard, M_INT_COPY, type MIntCopy } from './MInteractionCards';
 import {
   msgMenuGroupTop,
@@ -497,11 +498,46 @@ export function SessionIdSheet({
 // ── attachment tiles (scheme 1o L762-766) ─────────────────────────────────────
 const STRIPES = 'repeating-linear-gradient(45deg,var(--proto-line) 0 6px,var(--proto-rail) 6px 12px)';
 
+
+/** Agent-rendered HTML view on mobile: the same sandboxed frame as the desktop card, sized to the
+ *  chat column, with a header that opens it full-screen. There is no docked pane on this shell
+ *  (`canPin` is false there), so expand is the only escalation. */
+function ViewTile({ a }: { a: Attachment }): JSX.Element {
+  const { openDoc } = useDocViewer();
+  const item = { kind: 'html' as const, name: a.name, path: a.path, mimeType: a.mimeType };
+  return (
+    <div
+      style={{
+        width: '100%', border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)',
+        borderRadius: 12, overflow: 'hidden', boxSizing: 'border-box',
+      }}
+    >
+      <div
+        role="button"
+        onClick={() => openDoc(item)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px',
+          borderBottom: `1px solid ${MC.hairline}`, background: 'var(--proto-rail)', cursor: 'pointer',
+        }}
+      >
+        <span style={{ font: `700 7.5px ${MONO}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>
+          VIEW
+        </span>
+        <span style={{ font: `500 10.5px ${MONO}`, color: MC.body, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+          {a.name}
+        </span>
+        <span style={{ font: `500 10.5px ${MONO}`, color: 'var(--proto-accent)', flex: 'none' }}>↗</span>
+      </div>
+      <HtmlBody item={item} mode="inline" />
+    </div>
+  );
+}
+
 function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
   const kind = mediaKindOf(a.type);
   const { openMedia } = useMediaViewer();
   const { openDoc } = useDocViewer();
-  const docKind = docKindOf(a.name, a.mimeType);
+  const docKind = docKindOfAttachment(a);
   // Real thumbnail (auth-fetched) for image/video; tap opens the media lightbox (no new tab).
   const url = useWorkspaceObjectUrl(a.path, kind !== null);
   if (kind !== null) {
@@ -604,11 +640,21 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
 // bubble), agent attachments hug the left (with the agent message body).
 function AttachmentGroup({ attachments, side = 'right' }: { attachments: Attachment[]; side?: 'left' | 'right' }): JSX.Element {
   const edge = side === 'left' ? 'flex-start' : 'flex-end';
+  // Views are full-width surfaces and break out of the wrapping tile row.
+  const views = attachments.filter((a) => a.type === 'view');
+  const tiles = attachments.filter((a) => a.type !== 'view');
   return (
-    <div style={{ alignSelf: edge, display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: edge }}>
-      {attachments.map((a, i) => (
-        <AttachmentTile key={i} a={a} />
+    <div style={{ alignSelf: views.length > 0 ? 'stretch' : edge, display: 'flex', flexDirection: 'column', gap: 6, alignItems: views.length > 0 ? 'stretch' : edge }}>
+      {views.map((a, i) => (
+        <ViewTile key={`view-${i}`} a={a} />
       ))}
+      {tiles.length > 0 && (
+        <div style={{ alignSelf: edge, display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: edge }}>
+          {tiles.map((a, i) => (
+            <AttachmentTile key={i} a={a} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

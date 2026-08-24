@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, type ReactNode, type Ref } from 'react';
 import { PdfBody, TextBody } from './DocViewer';
+import { HtmlBody } from './HtmlBody';
 import type { MediaItem } from './MediaViewer';
 import { isDocPreviewItem, previewDownloadPath, splitFromDrag, type PreviewItem } from './pinned-preview';
 import { usePinnedPreview } from './PinnedPreviewProvider';
@@ -143,7 +144,9 @@ function PinnedPreviewPanel({
         {!item ? (
           <Centered>{PINNED_PREVIEW_EMPTY_HINT}</Centered>
         ) : isDocPreviewItem(item) ? (
-          item.kind === 'pdf' ? <PdfBody item={item} /> : <TextBody item={item} />
+          item.kind === 'pdf' ? <PdfBody item={item} />
+            : item.kind === 'html' ? <HtmlBody item={item} mode="expanded" />
+            : <TextBody item={item} />
         ) : (
           <PinnedMediaBody item={item as MediaItem} />
         )}

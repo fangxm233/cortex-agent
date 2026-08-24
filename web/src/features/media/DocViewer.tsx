@@ -12,6 +12,7 @@ import { authHeaders } from '@/lib/desktop-config';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import { usePinnedPreview } from './PinnedPreviewProvider';
 import { isMarkdownName, type DocKind } from './doc-kind';
+import { HtmlBody } from './HtmlBody';
 import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
 
 // Shared in-app document previewer — the single inline viewer for agent-sent (and user-uploaded)
@@ -395,7 +396,9 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
 
         {/* Body */}
         <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: item.kind === 'pdf' ? 'var(--proto-gray)' : 'var(--proto-card)' }}>
-          {item.kind === 'pdf' ? <PdfBody item={item} /> : <TextBody item={item} />}
+          {item.kind === 'pdf' ? <PdfBody item={item} />
+            : item.kind === 'html' ? <HtmlBody item={item} mode="expanded" />
+            : <TextBody item={item} />}
         </div>
       </div>
     </div>

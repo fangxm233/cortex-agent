@@ -209,6 +209,11 @@ export const enBase = {
   wbFileSavedTo: 'Saved to {path}',
   wbFileOpenFile: 'Open file',
   wbFileOpenFolder: 'Open folder',
+  wbViewBadge: 'VIEW',
+  wbViewExpand: 'Expand',
+  wbViewDock: 'Dock beside the chat',
+  wbViewSource: 'Source',
+
   wbDragOverCount: '{n} → {m} attachments',
   wbDropAddMore: 'Drop to add more',
   wbDropAddMoreN: 'Drop to add {n} more',

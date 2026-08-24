@@ -18,3 +18,4 @@ MCP tool modules register one Cortex capability group each.
 | interaction-ask.ts | tool | Handles shared blocking user questions |
 | interaction-plan.ts | tool | Handles shared plan approval |
 | ui-file.ts | tool | Sends Web UI files over bounded loopback |
+| ui-view.ts | tool | Renders Web UI HTML views over bounded loopback |

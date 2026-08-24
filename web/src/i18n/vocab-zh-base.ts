@@ -209,6 +209,11 @@ export const zhBase = {
   wbFileSavedTo: '已保存到 {path}',
   wbFileOpenFile: '打开文件',
   wbFileOpenFolder: '打开文件夹',
+  wbViewBadge: '视图',
+  wbViewExpand: '展开',
+  wbViewDock: '停靠到聊天旁',
+  wbViewSource: '源码',
+
   wbDragOverCount: '{n} → {m} 个附件',
   wbDropAddMore: '拖入以添加更多',
   wbDropAddMoreN: '拖入以添加 {n} 个更多',

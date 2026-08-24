@@ -82,7 +82,7 @@ export interface HistoryEvent {
   /** Groups events under the user turn that triggered them. */
   turnIndex: number;
   /** Optional file attachments (user events from web composer). */
-  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
+  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
   /** Present on a user event that replaced an earlier message via edit+rewind. Derived on read
    *  from the preceding `edit-marker` raw line (the marker itself is never emitted). */
   edited?: { originalText: string; originalTs: string };
@@ -119,7 +119,7 @@ interface RawEvent {
   resolvedVia?: InteractionResolvedVia;
   ts: string;
   /** Optional file attachments (user events from web composer). */
-  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
+  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
   /** Internal idempotency key for a recovered pending injection. Never emitted by getHistory. */
   sourceId?: string;
 }
@@ -197,7 +197,7 @@ export class ConversationHistoryRepo {
   /** Append a user message — starts a new turn (turn boundaries are derived on read).
    *  An optional `ts` override lets the caller share a single timestamp with the
    *  EventBus event so the web UI's content-based de-dup produces identical keys. */
-  appendUser(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[]; agentMessage?: string; sourceId?: string }): Promise<void> {
+  appendUser(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; agentMessage?: string; sourceId?: string }): Promise<void> {
     return this.append(sessionId, {
       type: 'user',
       text: opts.text,
@@ -217,7 +217,7 @@ export class ConversationHistoryRepo {
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event.
    *  Optional `attachments` carry agent-sent files (20a) — the assistant-side mirror of the user
    *  composer's uploads. Present only for the file-send path; ordinary assistant text omits it. */
-  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[]; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction }): Promise<void> {
+  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction }): Promise<void> {
     return this.append(sessionId, {
       type: 'assistant', text: opts.text, ts: opts.ts ?? nowIso(),
       attachments: opts.attachments, noticeLevel: opts.noticeLevel, noticeAction: opts.noticeAction,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { docKindOf, isMarkdownName } from './doc-kind';
+import { docKindOf, docKindOfAttachment, isMarkdownName } from './doc-kind';
 
 describe('docKindOf', () => {
   it('classifies PDF by extension and mimeType', () => {
@@ -47,5 +47,26 @@ describe('isMarkdownName', () => {
     expect(isMarkdownName('readme.markdown')).toBe(true);
     expect(isMarkdownName('notes.txt')).toBe(false);
     expect(isMarkdownName('data.json')).toBe(false);
+  });
+});
+
+
+// The rule this pins: rendering intent rides the SERVER-minted attachment bucket, never the file
+// name. An uploaded .html must stay a source view — otherwise any file a user drops into the
+// composer would execute in the app's webview.
+describe('docKindOfAttachment', () => {
+  it('renders only what the server marked as a view', () => {
+    expect(docKindOfAttachment({ name: 'dash.html', mimeType: 'text/html', type: 'view' })).toBe('html');
+    expect(docKindOfAttachment({ name: 'Sweep results', mimeType: 'text/html', type: 'view' })).toBe('html');
+  });
+
+  it('keeps an uploaded or agent-sent .html as source text', () => {
+    expect(docKindOfAttachment({ name: 'page.html', mimeType: 'text/html', type: 'file' })).toBe('text');
+    expect(docKindOfAttachment({ name: 'page.htm', mimeType: 'text/html' })).toBe('text');
+  });
+
+  it('leaves every other bucket to the name-based classifier', () => {
+    expect(docKindOfAttachment({ name: 'report.pdf', type: 'file' })).toBe('pdf');
+    expect(docKindOfAttachment({ name: 'shot.png', type: 'image' })).toBeNull();
   });
 });

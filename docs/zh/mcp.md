@@ -110,6 +110,33 @@ skill 指南，见 `feishu-doc` skill。
 
 服务器实现在 `agent-server/src/domain/mcp/feishu-server.ts`。工具在 `agent-server/src/domain/mcp/feishu/file.ts`。
 
+### cortex-web
+
+Web 工作台专属的 MCP 服务器。仅当会话源自 Web UI（频道带 `web:` 前缀）时加载，
+源自 Slack 或飞书的会话看不到这两个工具。
+
+| 工具 | 参数 | 描述 |
+|---|---|---|
+| `send_file` | `file_path`、`file_name?`、`caption?` | 把文件发进聊天，显示为可下载卡片（图片与视频内联预览） |
+| `send_view` | `title`、`html?`、`file_path?`、`caption?`、`height?` | 在聊天里内联渲染一块 HTML 视图，作为可交互卡片显示 |
+
+两个工具都不把载荷作为工具返回值回流，而是经 loopback webhook 代理给 daemon：
+归一化事件流里的工具结果是扁平字符串，PI 后端又会把富 MCP 内容压成文本，
+比字符串更复杂的东西只能走带外通道。daemon 把字节复制到
+`workspace/outputs/<sessionId>/`（视图再深一层，落在 `views/`），记录一条带附件的
+assistant 消息，并发布实时事件。跨线的只有路径——大文档不会进入会话记录，也不会进入事件流。
+
+`send_view` 接受内联 `html` 字符串（上限 256KB）或 agent 已写好的 `.html` 文件路径
+（上限 2MB）。视图运行在只开 `allow-scripts`、不带 `allow-same-origin` 的沙箱 frame 里，
+因此文档处于 opaque origin：拿不到页面、存储、cookie、Cortex API，桌面端也拿不到
+鉴权 token 和 Tauri IPC；但仍可通过 https 加载库和数据。正因为隔离靠的是这一层，
+"要不要渲染"由服务端铸造的附件类型决定，绝不由扩展名决定——用户上传的 `.html`、
+或 agent 用 `send_file` 发出的 `.html`，打开的都是源码而不是运行中的文档。
+
+服务器实现在 `agent-server/src/domain/mcp/web-server.ts`。工具在
+`agent-server/src/domain/mcp/tools/ui-file.ts` 与
+`agent-server/src/domain/mcp/tools/ui-view.ts`。
+
 ### cortex-interaction-bridge
 
 直接 Claude TUI 会话、用户发起的直接 Claude print 会话，以及用户发起的直接 PI 会话都会加载这个交互服务器。每个会话启动独立的 stdio 进程，三种模式共享 `agent-server/src/domain/mcp/interaction-server.ts` 中的注册与处理逻辑。
@@ -124,7 +151,7 @@ skill 指南，见 `feishu-doc` skill。
 
 ## MCP 配置文件 {#mcp-configuration-files}
 
-Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core/config-generator.ts` 和 `agent-server/src/entry/startup-helpers.ts` 中的 `ensureMcpConfig()` 调用）。平台特定的服务器（cortex-slack、cortex-feishu）根据会话的源平台动态加载。
+Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core/config-generator.ts` 和 `agent-server/src/entry/startup-helpers.ts` 中的 `ensureMcpConfig()` 调用）。平台特定的服务器（cortex-slack、cortex-feishu、cortex-web）根据会话的源平台动态加载。
 
 | 文件 | 加载者 | 服务器 |
 |---|---|---|
@@ -135,6 +162,8 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 | `~/.cortex/config/mcp-config-thread.json` | 仅线程会话的分层 | 仅 cortex-thread |
 | `~/.cortex/config/mcp-config-interaction.json` | 交互工具分层（按需） | 仅 cortex-interaction-bridge |
 | `~/.cortex/config/mcp-config-slack.json` | Slack 特定分层（按需） | cortex-slack |
+| `~/.cortex/config/mcp-config-feishu.json` | 飞书特定分层（按需） | cortex-feishu |
+| `~/.cortex/config/mcp-config-web.json` | Web UI 特定分层（按需） | cortex-web |
 
 每个文件遵循 Claude Code 的标准 MCP 配置格式：
 

@@ -64,9 +64,9 @@ export function splitFromDrag(regionLeft: number, regionWidth: number, clientX: 
   return Math.min(hi, Math.max(lo, raw));
 }
 
-/** pdf/text render through the DocViewer bodies; image/video render as media. */
+/** pdf/text/html render through the DocViewer bodies; image/video render as media. */
 export function isDocPreviewItem(item: PreviewItem): item is DocItem {
-  return item.kind === 'pdf' || item.kind === 'text';
+  return item.kind === 'pdf' || item.kind === 'text' || item.kind === 'html';
 }
 
 /** The workspace path a docked preview can download, or null for a local composer object URL

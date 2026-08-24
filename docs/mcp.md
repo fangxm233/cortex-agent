@@ -144,6 +144,40 @@ preflight and how to delegate to the CLI's embedded `lark-doc` / `lark-sheets`
 The server implementation is at `agent-server/src/domain/mcp/feishu-server.ts`.
 The tool is in `agent-server/src/domain/mcp/feishu/file.ts`.
 
+### cortex-web
+
+Platform-specific MCP server for the Web workbench. Loaded only when the session
+originates from the Web UI (its channel carries the `web:` prefix), so a Slack-
+or Feishu-originated session never sees these tools.
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `send_file` | `file_path`, `file_name?`, `caption?` | Send a file into the chat as a downloadable card (images and video preview inline) |
+| `send_view` | `title`, `html?`, `file_path?`, `caption?`, `height?` | Render an HTML view inline in the chat as a live, interactive card |
+
+Both tools proxy their payload to the daemon over the loopback webhook rather
+than returning it as tool output: the normalized event stream carries tool
+results as flat strings, and the PI backend flattens rich MCP content to text,
+so anything richer than a string has to travel out of band. The daemon copies
+the bytes into `workspace/outputs/<sessionId>/` (views land one level deeper, in
+`views/`), records an assistant message carrying the attachment, and publishes
+the live event. Only the path travels — a large document never enters the
+transcript or the event stream.
+
+`send_view` takes either an inline `html` string (up to 256KB) or the path to an
+`.html` file the agent already wrote (up to 2MB). The view renders in a frame
+sandboxed to `allow-scripts` with no `allow-same-origin`, so the document has an
+opaque origin: no access to the page, storage, cookies, the Cortex API, or (in
+the desktop shell) the auth token and Tauri IPC. It may still load libraries and
+data over https. That isolation is why the rendering intent is carried by the
+attachment bucket the server mints and never by a file extension — an `.html`
+file that a user uploads or that an agent sends with `send_file` opens as source
+text, not as a running document.
+
+The server implementation is at `agent-server/src/domain/mcp/web-server.ts`.
+The tools are in `agent-server/src/domain/mcp/tools/ui-file.ts` and
+`agent-server/src/domain/mcp/tools/ui-view.ts`.
+
 ### cortex-interaction-bridge
 
 Direct Claude TUI sessions, user-initiated direct Claude print sessions, and
@@ -166,8 +200,8 @@ The plan and question handlers are in
 Cortex auto-generates MCP config files at startup (via
 `agent-server/src/core/config-generator.ts` and the `ensureMcpConfig()` call
 in `agent-server/src/entry/startup-helpers.ts`). Platform-specific servers
-(cortex-slack, cortex-feishu) are dynamically loaded based on the session's
-origin platform.
+(cortex-slack, cortex-feishu, cortex-web) are dynamically loaded based on the
+session's origin platform.
 
 | File | Loaded by | Servers |
 |---|---|---|
@@ -178,6 +212,8 @@ origin platform.
 | `~/.cortex/config/mcp-config-thread.json` | Thread-session-only layer | cortex-thread only |
 | `~/.cortex/config/mcp-config-interaction.json` | Interaction layering (on-demand) | cortex-interaction-bridge only |
 | `~/.cortex/config/mcp-config-slack.json` | Slack-specific layering (on-demand) | cortex-slack |
+| `~/.cortex/config/mcp-config-feishu.json` | Feishu-specific layering (on-demand) | cortex-feishu |
+| `~/.cortex/config/mcp-config-web.json` | Web-UI-specific layering (on-demand) | cortex-web |
 
 Each file follows Claude Code's standard MCP config format:
 

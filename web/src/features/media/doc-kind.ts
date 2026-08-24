@@ -4,8 +4,12 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // PDF renders via pdf.js; text renders as Markdown or monospace text; other files download.
+// `html` is the RENDERED view kind and is deliberately absent from the classifier below: it is
+// minted only from an attachment the server marked `type: 'view'` (see docKindOfAttachment), never
+// from a filename or MIME type. That is what keeps a `.html` a user uploaded un-executable — it
+// still classifies as `text` and opens as source.
 
-export type DocKind = 'pdf' | 'text';
+export type DocKind = 'pdf' | 'text' | 'html';
 
 // Text-family extensions we can safely show as plain text / Markdown. Lower-case, no leading dot.
 const TEXT_EXTENSIONS = new Set([
@@ -50,4 +54,15 @@ export function docKindOf(name: string, mimeType?: string): DocKind | null {
   if (mt === 'application/json' || mt === 'application/xml' || mt === 'application/x-yaml') return 'text';
 
   return null;
+}
+
+/**
+ * Kind for a chat attachment. Identical to `docKindOf` except for the one case that matters: an
+ * attachment the SERVER minted as a view (`send_view`) renders as HTML. Rendering intent travels
+ * with the attachment bucket, not with the file's name — an uploaded `.html` has no way to acquire
+ * it, and an agent that wants to hand over an HTML file for reading still gets the source view.
+ */
+export function docKindOfAttachment(a: { name: string; mimeType?: string; type?: string }): DocKind | null {
+  if (a.type === 'view') return 'html';
+  return docKindOf(a.name, a.mimeType);
 }

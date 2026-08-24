@@ -193,6 +193,13 @@ interface PendingUpload {
   previewUrl?: string;
 }
 
+/** Project an attachment's bucket onto the composer's three chip kinds. The composer only ever
+ *  holds user uploads, so the wider `view` bucket cannot appear here — this is the narrowing at the
+ *  boundary, not a fallback. */
+function chipTypeOf(type: AttachmentMeta['type']): 'image' | 'video' | 'file' {
+  return type === 'image' || type === 'video' ? type : 'file';
+}
+
 function classifyFileType(file: File): 'image' | 'video' | 'file' {
   if (file.type.startsWith('image/')) return 'image';
   if (file.type.startsWith('video/')) return 'video';
@@ -461,7 +468,7 @@ export function MChatScreen(): JSX.Element {
         status: 'done' as const,
         progress: 100,
         meta: m,
-        type: m.type,
+        type: chipTypeOf(m.type),
       }));
       setUploads((prev) => {
         prev.forEach((u) => { if (u.previewUrl) URL.revokeObjectURL(u.previewUrl); });
@@ -588,7 +595,7 @@ export function MChatScreen(): JSX.Element {
     setUploads((prev) => [
       ...sent.attachments
         .filter((m) => !prev.some((u) => u.meta?.path === m.path))
-        .map((m) => ({ id: nextId(), status: 'done' as const, progress: 100, meta: m, type: m.type })),
+        .map((m) => ({ id: nextId(), status: 'done' as const, progress: 100, meta: m, type: chipTypeOf(m.type) })),
       ...prev,
     ]);
     setSystemLines((prev) => [...prev, lang === 'zh'

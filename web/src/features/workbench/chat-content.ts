@@ -20,7 +20,7 @@ export interface AttachmentMeta {
   path: string;
   size: number;
   mimeType: string;
-  type: 'image' | 'video' | 'file';
+  type: 'image' | 'video' | 'file' | 'view';
 }
 
 /** UI-local composer shortcuts shared by desktop and mobile surfaces. */

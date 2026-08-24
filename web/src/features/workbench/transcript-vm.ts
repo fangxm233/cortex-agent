@@ -31,7 +31,7 @@ export interface LiveSessionMessage {
   authAction?: AuthNoticeAction;
   ts: string;
   /** Optional file attachments on user messages (15a). */
-  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
+  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
   /** Set on an assistant message whose text streamed as `session.message.delta` events first. It
    *  identifies the preview this message supersedes (see endStreamingBlock). */
   blockId?: string;
@@ -122,7 +122,7 @@ export function finalizeAssistantPreview(
   return { active, finalizedBlockIds };
 }
 
-export type Attachment = { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' };
+export type Attachment = { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' };
 
 // ── A user message the model has not read yet (`pending` / `session.message.delivered`) ─────────
 //

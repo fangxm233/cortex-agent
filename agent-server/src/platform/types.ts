@@ -34,7 +34,7 @@ export interface IncomingMessage {
   files?: PlatformFileRef[];
   attachments?: IncomingAttachment[];
   /** Pre-uploaded file attachments from the web UI (paths already on disk). */
-  webAttachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
+  webAttachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
   kind: 'user' | 'system' | 'file_share';
   raw: unknown;
 }

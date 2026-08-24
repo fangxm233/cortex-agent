@@ -27,6 +27,7 @@ import { threadStore } from '@store/thread-repo.js';
 import { fireThreadCallback } from '../thread-callback.js';
 import { askManager, getAnswer, submitAnswer } from '../manager-qa.js';
 import { sendAgentFile } from '../agent-file-send.js';
+import { sendAgentView } from '../agent-view-send.js';
 import type { Destination, MessageRef } from '@platform/index.js';
 import type { RunThreadOptions } from '@core/types/thread-types.js';
 
@@ -254,6 +255,31 @@ function createWebhookHandler(_options: {
         }
         try {
           const meta = await sendAgentFile({ sessionId, filePath, fileName, caption });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, data: meta }));
+        } catch (e) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: (e as Error).message }));
+        }
+      });
+      return;
+    }
+
+    // --- Agent-rendered view (from the web-only cortex-web MCP `send_view` tool) ---
+    // Same subprocess→daemon proxy as /webhook/ui-file. The daemon lands the HTML under the
+    // session's workspace/outputs/<sid>/views/ area and records an assistant message carrying a
+    // `type: 'view'` attachment; the HTML itself never enters the event or the transcript.
+    if (req.method === 'POST' && req.url === '/webhook/ui-view') {
+      readJsonBody(req, async (error, _body, data) => {
+        if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
+        const { sessionId, title, html, filePath, caption, height } = data || {};
+        if (!sessionId || !title) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'sessionId and title required' }));
+          return;
+        }
+        try {
+          const meta = await sendAgentView({ sessionId, title, html, filePath, caption, height });
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true, data: meta }));
         } catch (e) {

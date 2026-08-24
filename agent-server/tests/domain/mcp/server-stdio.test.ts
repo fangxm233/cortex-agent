@@ -157,3 +157,51 @@ test('built cortex-manager-qa answers without a thread context', async () => {
     }, { WEBHOOK_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 'stdio-token' });
   });
 });
+
+test('built cortex-web exposes file and view delivery to a web session', async () => {
+  await withQaWebhook(async (port, received) => {
+    await withServer('web-server.js', async (client) => {
+      assert.deepEqual(await toolNames(client), ['send_file', 'send_view']);
+
+      const result = await client.callTool({
+        name: 'send_view',
+        arguments: { title: 'Sweep results', html: '<h1>hi</h1>', caption: 'by seed', height: 420 },
+      });
+      assert.equal(result.isError ?? false, false);
+      assert.deepEqual(received, [{
+        sessionId: 'stdio-web-session', title: 'Sweep results',
+        html: '<h1>hi</h1>', caption: 'by seed', height: 420,
+      }]);
+    }, {
+      WEBHOOK_PORT: String(port),
+      CORTEX_WEBHOOK_TOKEN: 'stdio-token',
+      CORTEX_SESSION_ID: 'stdio-web-session',
+    });
+  });
+});
+
+test('send_view refuses ambiguous input before it reaches the daemon', async () => {
+  await withQaWebhook(async (port, received) => {
+    await withServer('web-server.js', async (client) => {
+      for (const args of [
+        { title: 'T' },
+        { title: 'T', html: '<p/>', file_path: '/tmp/nope.html' },
+      ]) {
+        const result = await client.callTool({ name: 'send_view', arguments: args });
+        assert.equal(result.isError, true);
+        assert.match((result.content as any[])[0].text, /exactly one of/i);
+      }
+      assert.deepEqual(received, [], 'a malformed call never reaches the daemon');
+    }, {
+      WEBHOOK_PORT: String(port),
+      CORTEX_WEBHOOK_TOKEN: 'stdio-token',
+      CORTEX_SESSION_ID: 'stdio-web-session',
+    });
+  });
+});
+
+test('the tool gate can drop send_view while keeping send_file', async () => {
+  await withServer('web-server.js', async (client) => {
+    assert.deepEqual(await toolNames(client), ['send_file']);
+  }, { [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['send_file']) });
+});
