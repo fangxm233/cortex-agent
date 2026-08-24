@@ -1,5 +1,5 @@
 // input:  core agent types
-// output: normalized agent event union
+// output: normalized agent event union incl subagent attribution
 // pos:    Backend-neutral event schema
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -9,6 +9,24 @@ export interface QuestionSpec {
   question: string;
   multi?: boolean;
   options?: string[];
+}
+
+/**
+ * Attribution for a tool call issued by a native subagent rather than the main agent.
+ *
+ * Absent on the main agent's own calls — that absence is the discriminator every consumer uses.
+ * The CLI already puts this linkage on the wire, so nothing is added to any tool's parameter
+ * schema and no prompt changes: the model never sees or reports it.
+ *
+ * `parentToolUseId` is the `Agent`/`Task` call that spawned the subagent, and is null when the
+ * source can only attest THAT it was a subagent without naming the parent — the tmux/JSONL path
+ * sees `isSidechain` but no parent tool id. Consumers that need per-subagent attribution must
+ * therefore tolerate a null parent, not assume one.
+ */
+export interface ToolUseSubagent {
+  parentToolUseId: string | null;
+  /** Declared subagent type (e.g. `explore`), when the source reports one. */
+  type: string | null;
 }
 
 interface CostRecordEvent {
@@ -35,7 +53,9 @@ export type NormalizedEvent =
   | { type: 'session_started'; sessionId: string; sessionFile?: string }
   | { type: 'assistant_text'; text: string; blockId?: string; model?: string | null }
   | { type: 'assistant_delta'; text: string; blockId: string }
-  | { type: 'tool_use'; toolUseId: string; name: string; input: unknown }
+  | { type: 'tool_use'; toolUseId: string; name: string; input: unknown;
+      /** Present only when a native subagent made the call. See ToolUseSubagent. */
+      subagent?: ToolUseSubagent }
   | { type: 'tool_result'; toolUseId: string; ok: boolean; content: string }
   | { type: 'ask_user_question'; toolUseId: string; questions: QuestionSpec[] }
   | { type: 'plan_mode_entered'; toolUseId: string; planFilePath: string }

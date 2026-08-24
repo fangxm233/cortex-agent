@@ -6,7 +6,7 @@
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 import type { ProviderUsage } from '../domain/costs/usage-store.js';
 import type { Capability } from './capabilities.js';
-import type { NormalizedEvent } from './normalize/event-types.js';
+import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
 import type { NormalizedHookSpec } from './normalize/hooks.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 
@@ -188,8 +188,9 @@ export interface AgentSpawnConfig {
 export interface ContinuationSink {
   /** Assistant text from the continuation turn (append to the original reply). */
   onAssistantText: (text: string, model?: string | null) => void;
-  /** Optional tool_use trace from the continuation turn, preserving its correlation id. */
-  onToolUse?: (name: string, input: any, toolUseId?: string) => void;
+  /** Optional tool_use trace from the continuation turn, preserving its correlation id and,
+   *  when a native subagent made the call, its attribution. */
+  onToolUse?: (name: string, input: any, toolUseId?: string, subagent?: ToolUseSubagent) => void;
   /** Optional full normalized tool result from the continuation turn. */
   onToolResult?: (toolUseId: string, content: string, isError: boolean) => void;
   /** Optional exact context snapshot from the spontaneous provider call. */

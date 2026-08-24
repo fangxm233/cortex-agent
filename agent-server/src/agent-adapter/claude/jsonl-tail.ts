@@ -5,7 +5,7 @@
 
 import { EventEmitter } from 'node:events';
 import * as fs from 'fs';
-import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
+import type { NormalizedEvent, QuestionSpec, ToolUseSubagent } from '../normalize/event-types.js';
 import { isPlanFilePath, parseModelFallbackEvent } from './event-parser.js';
 import { usageToCost, type ClaudeUsage } from './cost-from-usage.js';
 
@@ -128,6 +128,13 @@ export class JsonlEventNormalizer {
   private handleAssistant(raw: any): NormalizedEvent[] {
     const events: NormalizedEvent[] = [];
     const msg = raw.message || {};
+    // This path reads the session JSONL, which marks subagent records with `isSidechain` but does
+    // not carry the parent Agent/Task call's tool_use id — the parentUuid chain would have to be
+    // walked to recover it, and there is no verified sidechain sample to write that against, so it
+    // stays null rather than guessed. Consumers already tolerate a null parent.
+    const subagent: ToolUseSubagent | undefined = raw?.isSidechain === true
+      ? { parentToolUseId: null, type: null }
+      : undefined;
     const msgId: string | undefined = msg.id;
     const isNewMessage = !!msgId && !this.seenMsgIds.has(msgId);
     if (isNewMessage) {
@@ -151,7 +158,10 @@ export class JsonlEventNormalizer {
       } else if (block.type === 'tool_use') {
         const toolUseId = typeof block.id === 'string' ? block.id : '';
         const name = typeof block.name === 'string' ? block.name : '?';
-        events.push({ type: 'tool_use', toolUseId, name, input: block.input ?? null });
+        events.push({
+          type: 'tool_use', toolUseId, name, input: block.input ?? null,
+          ...(subagent ? { subagent } : {}),
+        });
 
         // Special-cased translations — produce additional semantic events alongside the raw tool_use.
         if (PLAN_ENTER_TOOL_NAMES.has(name)) {

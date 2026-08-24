@@ -542,3 +542,36 @@ test('JsonlTail start() does not reject when file never appears (keeps polling)'
   await new Promise(r => setTimeout(r, 250));
   // No crash, no events — the tail simply waits.
 });
+
+// --- Subagent attribution on tool_use ---
+
+const SUBAGENT_TOOL_BLOCK = {
+  type: 'tool_use',
+  id: 'tu_sub',
+  name: 'Bash',
+  input: { command: 'ls' },
+};
+
+test('Normalizer attributes sidechain calls to a subagent', () => {
+  const n = new JsonlEventNormalizer();
+  const out = n.consume({
+    type: 'assistant',
+    isSidechain: true,
+    message: { id: 'msg_sub', content: [SUBAGENT_TOOL_BLOCK] },
+  });
+  const calls = out.filter(e => e.type === 'tool_use');
+  assert.equal(calls.length, 1);
+  // The session JSONL has no parent tool id to offer, so the parent stays null rather than guessed.
+  assert.deepEqual((calls[0] as any).subagent, { parentToolUseId: null, type: null });
+});
+
+test('Normalizer marks a main-agent call with no subagent attribution at all', () => {
+  const n = new JsonlEventNormalizer();
+  const out = n.consume({
+    type: 'assistant',
+    isSidechain: false,
+    message: { id: 'msg_main', content: [SUBAGENT_TOOL_BLOCK] },
+  });
+  const call = out.find(e => e.type === 'tool_use') as any;
+  assert.equal('subagent' in call, false);
+});

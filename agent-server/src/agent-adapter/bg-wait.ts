@@ -15,7 +15,7 @@ import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { ContinuationSink } from './types.js';
-import type { NormalizedEvent } from './normalize/event-types.js';
+import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
 
 const log = createLogger('bg-wait');
 
@@ -231,7 +231,7 @@ class BackgroundContinuationWait {
   private sink(): ContinuationSink {
     return {
       onAssistantText: (text, model) => this.assistantText(text, model),
-      onToolUse: (name, input, id) => this.toolUse(name, input, id),
+      onToolUse: (name, input, id, subagent) => this.toolUse(name, input, id, subagent),
       onToolResult: (id, content, isError) => this.toolResult(id, content, isError),
       onContextUsage: (usage) => this.contextUsage(usage),
       onResult: (result) => this.result(result),
@@ -244,9 +244,10 @@ class BackgroundContinuationWait {
     catch (error) { log.warn('bg-wait onAssistantText threw:', (error as Error).message); }
   }
 
-  private toolUse(name: string, input: any, toolUseId?: string): void {
+  private toolUse(name: string, input: any, toolUseId?: string, subagent?: ToolUseSubagent): void {
     const id = toolUseId ?? '';
-    if (this.settled || !this.emit({ type: 'tool_use', name, input, toolUseId: id })) return;
+    const event = { type: 'tool_use' as const, name, input, toolUseId: id, ...(subagent ? { subagent } : {}) };
+    if (this.settled || !this.emit(event)) return;
     try { this.opts.onToolUse?.(name, input, id); }
     catch (error) { log.warn('bg-wait onToolUse threw:', (error as Error).message); }
   }

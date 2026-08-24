@@ -21,7 +21,7 @@ import type {
   InjectionAckSink, McpComposition, SpawnedAgentProcess, UserMessage,
 } from '../types.js';
 import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
-import type { NormalizedEvent } from '../normalize/event-types.js';
+import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.js';
 import { createEventStream } from '../normalize/event-stream.js';
 import {
   CancelledError,
@@ -104,7 +104,9 @@ interface PendingTurn {
   /** Incremental text chunk while a block is still being generated (never the accumulated total).
    *  Web UI preview only — the complete message above stays authoritative. */
   onAssistantDelta: ((text: string, blockId: string) => void) | null;
-  onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
+  /** `subagent` is set only when a native subagent made the call (see ToolUseSubagent).
+   *  Optional so existing implementations that ignore attribution still satisfy the type. */
+  onToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
   onToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   onCompact: ((info: { trigger: string; preTokens?: number }) => void) | null;
   onModelFallback: ((event: Omit<ModelFallbackEvent, 'type'>) => void) | null;
@@ -123,6 +125,18 @@ interface PendingTurn {
 
 /** The two subagent line shapes §17 G4-SA6 admits. A replay echo is the CLI's delivery ack for an
  *  injected message, not subagent work, so it is not a census line. */
+/** Read the subagent linkage the CLI puts on every stdout line. Undefined = the main agent's
+ *  own call. Nothing is added to any tool's parameter schema: this rides the transport
+ *  envelope, so the model neither sees nor reports it. */
+function subagentAttribution(data: any): ToolUseSubagent | undefined {
+  const parentToolUseId = data?.parent_tool_use_id;
+  if (typeof parentToolUseId !== 'string' || !parentToolUseId) return undefined;
+  return {
+    parentToolUseId,
+    type: typeof data?.subagent_type === 'string' ? data.subagent_type : null,
+  };
+}
+
 function subagentActivityKind(data: any): SubagentActivityKind | null {
   if (data.type === 'assistant') return 'assistant';
   if (data.type === 'user' && !data.isReplay) return 'tool_result';
@@ -719,8 +733,8 @@ class ClaudeSession {
       reject: (error: Error) => log.warn('continuation turn rejected:', error?.message ?? String(error)),
       onAssistantMessage: (text: string, _blockId?: string, model?: string | null) =>
         this.deliverContinuation(sink => sink.onAssistantText(text, model)),
-      onToolUse: (name: string, input: any, id: string) =>
-        this.deliverContinuation(sink => sink.onToolUse?.(name, input, id)),
+      onToolUse: (name: string, input: any, id: string, subagent?: ToolUseSubagent) =>
+        this.deliverContinuation(sink => sink.onToolUse?.(name, input, id, subagent)),
       onToolResult: (id: string, content: string, isError: boolean) =>
         this.deliverContinuation(sink => sink.onToolResult?.(id, content, isError)),
       onContextUsage: (usage: ContextUsage) =>
@@ -783,7 +797,7 @@ class ClaudeSession {
     onProgress?: ((progress: any) => void) | null;
     onAssistantMessage?: ((text: string, blockId?: string, model?: string | null) => void) | null;
     onAssistantDelta?: ((text: string, blockId: string) => void) | null;
-    onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
+    onToolUse?: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
     onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
     onCompact?: ((info: { trigger: string; preTokens?: number }) => void) | null;
     onModelFallback?: ((event: Omit<ModelFallbackEvent, 'type'>) => void) | null;
@@ -953,7 +967,7 @@ class ClaudeSession {
     }
   }
 
-  private handleAssistantToolBlock(turn: PendingTurn, block: any): void {
+  private handleAssistantToolBlock(turn: PendingTurn, block: any, subagent?: ToolUseSubagent): void {
     if (block.name === 'Write' && isPlanFilePath(block.input?.file_path)) {
       turn.planFilePath = block.input.file_path;
       setActivePlanFile(this.sessionId, block.input.file_path);
@@ -962,7 +976,7 @@ class ClaudeSession {
     if (block.name === 'ExitPlanMode') turn.exitedPlanMode = true;
     if (typeof turn.onToolUse !== 'function') return;
     try {
-      turn.onToolUse(block.name || '?', block.input || {}, typeof block.id === 'string' ? block.id : '');
+      turn.onToolUse(block.name || '?', block.input || {}, typeof block.id === 'string' ? block.id : '', subagent);
     } catch (error) {
       log.warn('onToolUse threw:', (error as Error).message);
     }
@@ -982,8 +996,12 @@ class ClaudeSession {
 
   private handleAssistantEvent(turn: PendingTurn, data: any): void {
     turn.turnCount += 1;
+    // Attribution only — the line still walks every branch below. Diverting or skipping
+    // subagent lines would change assistant streaming and turn counting for every surface
+    // (see emitSubagentActivity, OC-11 / §17 G4-SA5).
+    const subagent = subagentAttribution(data);
     for (const block of (data.message?.content || [])) {
-      if (block.type === 'tool_use') this.handleAssistantToolBlock(turn, block);
+      if (block.type === 'tool_use') this.handleAssistantToolBlock(turn, block, subagent);
       if (block.type === 'text') this.handleAssistantTextBlock(turn, data, block);
     }
     turn.onProgress?.({ num_turns: turn.turnCount, total_cost_usd: null, duration_ms: null });
@@ -1571,8 +1589,9 @@ export class ClaudeAdapter implements AgentAdapter {
             // before the complete message that supersedes it.
             onAssistantDelta: (text: string, blockId: string) =>
               stream.push({ type: 'assistant_delta', text, blockId }),
-            onToolUse: (name: string, input: any, toolUseId: string) =>
-              stream.push({ type: 'tool_use', toolUseId, name, input }),
+            onToolUse: (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => {
+              stream.push({ type: 'tool_use', toolUseId, name, input, ...(subagent ? { subagent } : {}) });
+            },
             onToolResult: (toolUseId: string, content: string, isError: boolean) =>
               stream.push({ type: 'tool_result', toolUseId, content, ok: !isError }),
             onCompact: (info: { trigger: string; preTokens?: number }) =>
