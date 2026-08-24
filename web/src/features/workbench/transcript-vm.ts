@@ -415,7 +415,7 @@ export function regenNoteIndexes(rows: ChatRow[]): Set<number> {
   return out;
 }
 
-/** Whole-turn assistant copy text, keyed by the final non-empty assistant row in each turn. */
+/** Whole-turn assistant text, keyed by its final assistant row or any trailing tool row. */
 export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
   const targets = new Map<number, string>();
   let texts: string[] = [];
@@ -431,6 +431,8 @@ export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
       flush();
     } else if (row.kind === 'assistant' && row.text.length > 0) {
       texts.push(row.text);
+      tailIndex = i;
+    } else if (row.kind === 'tools' && tailIndex != null) {
       tailIndex = i;
     }
   }

@@ -190,6 +190,7 @@ describe('MChatStream assistant turn copy', () => {
       { kind: 'assistant', text: 'part one', streaming: false },
       { kind: 'tools', count: 1, calls: [{ kind: 'read', input: 'a.md' }] },
       { kind: 'assistant', text: 'part two', streaming: false },
+      { kind: 'tools', count: 1, calls: [{ kind: 'bash', input: 'pwd' }] },
       { kind: 'user', text: 'second' },
       { kind: 'assistant', text: 'next turn', streaming: false },
     ];

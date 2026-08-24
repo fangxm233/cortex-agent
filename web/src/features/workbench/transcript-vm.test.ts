@@ -34,20 +34,21 @@ function tx(turns: SessionTranscript['turns']): SessionTranscript {
 }
 
 describe('assistantTurnCopyTargets', () => {
-  it('places one combined copy target on the final assistant row of each turn', () => {
+  it('places one combined copy target after the final assistant or trailing tools', () => {
     const rows: ChatRow[] = [
       { kind: 'user', text: 'first' },
       { kind: 'assistant', text: 'part one', streaming: false },
       { kind: 'tools', count: 1, calls: [{ kind: 'read', input: 'a.md' }] },
       { kind: 'assistant', text: 'part two', streaming: false },
+      { kind: 'tools', count: 1, calls: [{ kind: 'bash', input: 'pwd' }] },
       { kind: 'user', text: 'second' },
       { kind: 'notice', level: 'info', text: 'notice' },
       { kind: 'assistant', text: 'next turn', streaming: false },
     ];
 
     expect([...assistantTurnCopyTargets(rows)]).toEqual([
-      [3, 'part one\n\npart two'],
-      [6, 'next turn'],
+      [4, 'part one\n\npart two'],
+      [7, 'next turn'],
     ]);
   });
 

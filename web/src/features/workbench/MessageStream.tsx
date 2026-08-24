@@ -461,6 +461,18 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
   );
 }
 
+function TurnCopyAction({ text, copy }: { text?: string; copy?: MEditCopy }): JSX.Element | null {
+  if (!text || !copy) return null;
+  return (
+    <div
+      className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
+      style={{ height: 26, marginTop: 4, display: 'flex', alignItems: 'center' }}
+    >
+      <MessageActions text={text} copy={copy} />
+    </div>
+  );
+}
+
 function AssistantBlock({ text, attachments, editCopy, copyText, regen, preview, streamKey }: {
   text: string;
   attachments?: Attachment[];
@@ -488,14 +500,7 @@ function AssistantBlock({ text, attachments, editCopy, copyText, regen, preview,
           mobile stream keeps its own caret (smaller viewport, no persistent status line). */}
       {shown.trim() && <ChatMarkdown text={shown} renderMath />}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
-      {copyText && editCopy && (
-        <div
-          className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
-          style={{ height: 26, marginTop: 4, display: 'flex', alignItems: 'center' }}
-        >
-          <MessageActions text={copyText} copy={editCopy} />
-        </div>
-      )}
+      <TurnCopyAction text={copyText} copy={editCopy} />
     </div>
   );
 }
@@ -620,7 +625,12 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
     case 'user':
       return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} debug={row.debug} />;
     case 'tools':
-      return <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input, ...(c.debug ? { debug: c.debug } : {}) }))} />;
+      return (
+        <div className="group">
+          <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input, ...(c.debug ? { debug: c.debug } : {}) }))} />
+          <TurnCopyAction text={assistantCopyText} copy={editCopy} />
+        </div>
+      );
     case 'assistant':
       return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} />;
     case 'notice':

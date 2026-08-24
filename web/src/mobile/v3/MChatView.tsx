@@ -195,6 +195,15 @@ function AssistantCopyButton({ text, label, copiedLabel }: { text: string; label
   );
 }
 
+function AssistantTurnCopyAction({ text, label, copiedLabel }: { text?: string; label: string; copiedLabel: string }): JSX.Element | null {
+  if (!text) return null;
+  return (
+    <div style={{ height: 26, marginTop: 4, display: 'flex', alignItems: 'center' }}>
+      <AssistantCopyButton text={text} label={label} copiedLabel={copiedLabel} />
+    </div>
+  );
+}
+
 /** Trailing glyph on a 7a menu row. */
 function MsgMenuIcon({ kind }: { kind: 'copy' | 'edit' }): JSX.Element {
   return (
@@ -850,6 +859,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
           {row.kind === 'tools' && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
               <ToolCallsRow count={row.count} calls={row.calls} unit={toolCallsUnit} />
+              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}
           {row.kind === 'notice' && (
@@ -880,11 +890,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
                   <AttachmentGroup attachments={row.attachments} side="left" />
                 </div>
               )}
-              {assistantCopies.has(i) && (
-                <div style={{ height: 26, marginTop: 4, display: 'flex', alignItems: 'center' }}>
-                  <AssistantCopyButton text={assistantCopies.get(i)!} label={copyLabel} copiedLabel={copiedLabel} />
-                </div>
-              )}
+              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}
           {row.kind === 'interaction' && (
