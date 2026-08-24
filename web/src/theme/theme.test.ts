@@ -1,14 +1,18 @@
-// input:  theme resolution and system media-query watcher
-// output: Regression coverage for stored and system-following themes
-// pos:    Unit tests for color-theme preference utilities
+// input:  theme/accent persistence, DOM application, system watcher
+// output: Regression coverage for device-local appearance preferences
+// pos:    Unit tests for appearance preference utilities
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_THEME,
+  applyAccentHue,
   applyTheme,
+  parseStoredAccentHue,
+  readStoredAccentHue,
   resolveEffectiveTheme,
   resolveInitialTheme,
+  storeAccentHue,
   watchSystemTheme,
 } from './theme';
 
@@ -57,6 +61,55 @@ describe('applyTheme', () => {
 
     expect(setRootAttribute).toHaveBeenCalledWith('data-theme', 'dark');
     expect(setMetaAttribute).toHaveBeenCalledWith('content', '#12151a');
+  });
+});
+
+describe('accent hue', () => {
+  it('accepts only persisted integer hues in range', () => {
+    expect(parseStoredAccentHue('0')).toBe(0);
+    expect(parseStoredAccentHue('359')).toBe(359);
+    for (const invalid of [null, '', '-1', '360', '12.5', 'blue']) {
+      expect(parseStoredAccentHue(invalid)).toBeNull();
+    }
+  });
+
+  it('reads, writes, and removes the device-local preference', () => {
+    const getItem = vi.fn(() => '305');
+    const setItem = vi.fn();
+    const removeItem = vi.fn();
+    vi.stubGlobal('window', { localStorage: { getItem, setItem, removeItem } });
+
+    expect(readStoredAccentHue()).toBe(305);
+    storeAccentHue(190);
+    storeAccentHue(null);
+
+    expect(getItem).toHaveBeenCalledWith('cortex.accent-hue');
+    expect(setItem).toHaveBeenCalledWith('cortex.accent-hue', '190');
+    expect(removeItem).toHaveBeenCalledWith('cortex.accent-hue');
+  });
+
+  it('applies and resets the custom accent on the document root', () => {
+    const setAttribute = vi.fn();
+    const removeAttribute = vi.fn();
+    const setProperty = vi.fn();
+    const removeProperty = vi.fn();
+    vi.stubGlobal('document', {
+      documentElement: {
+        setAttribute,
+        removeAttribute,
+        style: { setProperty, removeProperty },
+      },
+      querySelector: vi.fn(() => null),
+    });
+    vi.stubGlobal('getComputedStyle', vi.fn(() => ({ getPropertyValue: () => '' })));
+
+    applyAccentHue(190);
+    expect(setAttribute).toHaveBeenCalledWith('data-accent', 'custom');
+    expect(setProperty).toHaveBeenCalledWith('--accent-hue', '190');
+
+    applyAccentHue(null);
+    expect(removeAttribute).toHaveBeenCalledWith('data-accent');
+    expect(removeProperty).toHaveBeenCalledWith('--accent-hue');
   });
 });
 

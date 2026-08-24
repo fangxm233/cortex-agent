@@ -5,7 +5,7 @@ Holds build tooling, design tokens and the source tree; the built bundle also sh
 
 | filename | role | function |
 |---|---|---|
-| index.html | entry | Loads shared tokens and resolves theme before paint |
+| index.html | entry | Loads tokens and resolves appearance before paint |
 | vite.config.ts | config | Build stamp, path alias, dev API proxy and test worker cap |
 | tailwind.config.ts | config | Design tokens, compact menu chrome and animations |
 | postcss.config.js | config | Enables Tailwind and autoprefixer processing |

@@ -1,5 +1,5 @@
-// input:  config/cost/auth queries, language/theme state, navigation
-// output: mobile settings with Usage, accounts, and config drill-ins
+// input:  config/cost/auth queries, appearance state, navigation
+// output: mobile settings with appearance, Usage, and config drill-ins
 // pos:    Mobile settings query and mutation container
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useSetLang } from '@/i18n';
-import { useTheme, useSetTheme } from '@/theme';
+import { useAccentHue, useSetAccentHue, useTheme, useSetTheme } from '@/theme';
 import { pickCopy } from '@/mobile/ui/format';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MSettingsView, type MSettingsCopy } from './MSettingsView';
@@ -34,6 +34,15 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     themeLight: 'Light',
     themeDark: 'Dark',
     themeSystem: 'System',
+    accent: 'Accent color',
+    accentDefault: 'Default indigo',
+    accentBlue: 'Blue',
+    accentTeal: 'Teal',
+    accentViolet: 'Violet',
+    accentRose: 'Rose',
+    accentOrange: 'Orange',
+    accentCustom: 'Custom accent hue',
+    accentReset: 'Reset',
     budget: 'Budget',
     budgetUnit: '/day',
     usage: 'Usage',
@@ -63,6 +72,15 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     themeLight: '浅色',
     themeDark: '深色',
     themeSystem: '跟随系统',
+    accent: '强调色',
+    accentDefault: '默认靛蓝',
+    accentBlue: '蓝色',
+    accentTeal: '青色',
+    accentViolet: '紫色',
+    accentRose: '玫红',
+    accentOrange: '橙色',
+    accentCustom: '自定义强调色色相',
+    accentReset: '恢复默认',
     budget: '预算',
     budgetUnit: '日',
     usage: '用量',
@@ -97,6 +115,8 @@ export function MSettingsScreen() {
   const setLang = useSetLang();
   const theme = useTheme();
   const setTheme = useSetTheme();
+  const accentHue = useAccentHue();
+  const setAccentHue = useSetAccentHue();
   const copy = pickCopy(lang, COPY);
 
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
@@ -147,6 +167,8 @@ export function MSettingsScreen() {
       onSetLang={setLang}
       theme={theme}
       onSetTheme={setTheme}
+      accentHue={accentHue}
+      onSetAccentHue={setAccentHue}
       onBack={() => navigate('/m/project')}
       onOpenDaemon={() => navigate('/m/daemon')}
       onlineMachines={onlineMachines}

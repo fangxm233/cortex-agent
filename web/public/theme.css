@@ -1,10 +1,26 @@
-/* input:  data-theme attribute and shared web/native UI consumers */
-/* output: light/dark semantic color and shadow custom properties */
-/* pos:    Single color-theme source for SPA, mobile, and native shell */
+/* input:  theme/accent attributes and shared web/native consumers */
+/* output: adaptive palette, semantic color, and shadow properties */
+/* pos:    Single appearance source for SPA, mobile, and native shell */
 /* >>> If I am updated, update my header comment and CORTEX.md <<< */
 
 :root {
-  --browser-theme-color: #4655d4;
+  --accent-hue: 274;
+  --accent-main: #4655d4;
+  --accent-soft: #eef0fa;
+  --accent-border: #c9cff2;
+  --accent-mid: #9aa3e8;
+  --accent-strong: #3a48b8;
+  --accent-badge: #4655d4;
+  --accent-focus: rgba(70, 85, 212, 0.08);
+  --accent-shadow: rgba(70, 85, 212, 0.1);
+  --accent-default-swatch: #4655d4;
+  --accent-swatch-blue: oklch(0.62 0.18 255);
+  --accent-swatch-teal: oklch(0.62 0.14 190);
+  --accent-swatch-violet: oklch(0.62 0.18 305);
+  --accent-swatch-rose: oklch(0.62 0.18 10);
+  --accent-swatch-orange: oklch(0.68 0.16 55);
+  --accent-spectrum: linear-gradient(90deg, oklch(0.62 0.18 0), oklch(0.68 0.16 60), oklch(0.72 0.15 120), oklch(0.68 0.14 180), oklch(0.62 0.18 240), oklch(0.62 0.18 300), oklch(0.62 0.18 360));
+  --browser-theme-color: var(--accent-main);
 
   --surface-base: #e9e7e2;
   --surface-canvas: #ffffff;
@@ -31,11 +47,11 @@
   --proto-line-3: #d9dce3;
   --proto-line-4: #e3e6f0;
   --proto-line-soft: #f3f4f7;
-  --proto-accent: #4655d4;
-  --proto-accent-bg: #eef0fa;
-  --proto-accent-border: #c9cff2;
-  --proto-accent-2: #9aa3e8;
-  --proto-accent-strong: #3a48b8;
+  --proto-accent: var(--accent-main);
+  --proto-accent-bg: var(--accent-soft);
+  --proto-accent-border: var(--accent-border);
+  --proto-accent-2: var(--accent-mid);
+  --proto-accent-strong: var(--accent-strong);
   --proto-amber: #c99a2e;
   --proto-amber-fg: #8a5b06;
   --proto-amber-text: #a96b0b;
@@ -52,17 +68,17 @@
   --brand-badge-bg: #ffffff;
   --brand-badge-border: #e7e9ee;
   --brand-badge-core: #191c22;
-  --brand-badge-arc: #4655d4;
+  --brand-badge-arc: var(--accent-main);
 
   --state-ink: #191c22;
-  --state-run: #4655d4;
+  --state-run: var(--accent-main);
   --state-wait: #a96b0b;
   --state-done: #23854f;
   --state-fail: #c03d33;
   --state-gray: #f1f2f5;
 
-  --pill-running-bg: #eef0fa;
-  --pill-running-fg: #4655d4;
+  --pill-running-bg: var(--accent-soft);
+  --pill-running-fg: var(--accent-main);
   --pill-waiting-bg: #f7ecce;
   --pill-waiting-fg: #8a5b06;
   --pill-done-bg: #e9f4ee;
@@ -76,7 +92,7 @@
   --ink-solid-fg: #ffffff;
   --ink-solid-hover: #32363e;
   --ink-solid-fg-dim: rgba(255, 255, 255, 0.55);
-  --run-dot: #4655d4;
+  --run-dot: var(--accent-main);
   --border-card: rgba(0, 0, 0, 0.08);
 
   --overlay-ink: #191c22;
@@ -88,7 +104,7 @@
   --panel-translucent-bg: rgba(250, 250, 252, 0.98);
   --panel-translucent-border: rgba(0, 0, 0, 0.06);
 
-  --focus-ring-accent: 0 0 0 3px rgba(70, 85, 212, 0.08);
+  --focus-ring-accent: 0 0 0 3px var(--accent-focus);
   --focus-ring-amber: 0 0 0 3px rgba(201, 154, 46, 0.1);
   --shadow-card-subtle: 0 1px 2px rgba(16, 24, 40, 0.03);
   --shadow-card-soft: 0 1px 2px rgba(16, 24, 40, 0.04);
@@ -102,7 +118,7 @@
   --shadow-context-menu: 0 14px 40px rgba(0, 0, 0, 0.4);
   --shadow-panel: 0 8px 24px rgba(16, 24, 40, 0.1);
   --shadow-panel-strong: 0 8px 24px rgba(16, 24, 40, 0.12);
-  --shadow-accent-soft: 0 2px 8px rgba(70, 85, 212, 0.1);
+  --shadow-accent-soft: 0 2px 8px var(--accent-shadow);
   --shadow-overlay: 0 10px 38px rgba(0, 0, 0, 0.2), 0 6px 12px rgba(0, 0, 0, 0.12);
   --shadow-overlay-strong: 0 24px 64px rgba(16, 24, 40, 0.32);
   --shadow-drawer: -16px 0 48px rgba(16, 24, 40, 0.3);
@@ -131,7 +147,7 @@
 
   --cmdk-panel-bg: #ffffff;
   --cmdk-row-selected: #f5f6fd;
-  --cmdk-row-hover: #eef0fa;
+  --cmdk-row-hover: var(--accent-soft);
   --log-bg: #12151a;
   --log-fg: #c9ceda;
   --log-border: #2a2f3a;
@@ -149,9 +165,9 @@
   --m-hairline: #e7e9ee;
   --m-divider: #f3f4f7;
   --m-card-border: #e7e9ee;
-  --m-run: #4655d4;
-  --m-run-bg: #eef0fa;
-  --m-run-border: #c9cff2;
+  --m-run: var(--accent-main);
+  --m-run-bg: var(--accent-soft);
+  --m-run-border: var(--accent-border);
   --m-amber: #c99a2e;
   --m-amber-ink: #8a5b06;
   --m-amber-text: #a96b0b;
@@ -168,6 +184,14 @@
 }
 
 [data-theme='dark'] {
+  --accent-main: #8b96f2;
+  --accent-soft: rgba(110, 123, 236, 0.16);
+  --accent-border: #333c5a;
+  --accent-mid: #6e7bec;
+  --accent-strong: #6e7bec;
+  --accent-badge: #4655d4;
+  --accent-focus: rgba(139, 150, 242, 0.18);
+  --accent-shadow: rgba(139, 150, 242, 0.2);
   --browser-theme-color: #12151a;
 
   --surface-base: #12151a;
@@ -195,11 +219,11 @@
   --proto-line-3: #3a4250;
   --proto-line-4: #2a303c;
   --proto-line-soft: #232833;
-  --proto-accent: #8b96f2;
-  --proto-accent-bg: rgba(110, 123, 236, 0.16);
-  --proto-accent-border: #333c5a;
-  --proto-accent-2: #6e7bec;
-  --proto-accent-strong: #6e7bec;
+  --proto-accent: var(--accent-main);
+  --proto-accent-bg: var(--accent-soft);
+  --proto-accent-border: var(--accent-border);
+  --proto-accent-2: var(--accent-mid);
+  --proto-accent-strong: var(--accent-strong);
   --proto-amber: #e2b95b;
   --proto-amber-fg: #e2b95b;
   --proto-amber-text: #d9a544;
@@ -213,20 +237,20 @@
   --proto-danger: #ed7b72;
   --proto-danger-bg: rgba(224, 107, 98, 0.16);
 
-  --brand-badge-bg: #4655d4;
+  --brand-badge-bg: var(--accent-badge);
   --brand-badge-border: transparent;
   --brand-badge-core: #ffffff;
   --brand-badge-arc: #ffffff;
 
   --state-ink: #ebedf2;
-  --state-run: #8b96f2;
+  --state-run: var(--accent-main);
   --state-wait: #e2b95b;
   --state-done: #57c48a;
   --state-fail: #ed7b72;
   --state-gray: #262c37;
 
-  --pill-running-bg: rgba(110, 123, 236, 0.16);
-  --pill-running-fg: #8b96f2;
+  --pill-running-bg: var(--accent-soft);
+  --pill-running-fg: var(--accent-main);
   --pill-waiting-bg: rgba(201, 154, 46, 0.16);
   --pill-waiting-fg: #e2b95b;
   --pill-done-bg: rgba(76, 175, 125, 0.15);
@@ -240,7 +264,7 @@
   --ink-solid-fg: #14171b;
   --ink-solid-hover: #d5dae2;
   --ink-solid-fg-dim: rgba(20, 23, 27, 0.5);
-  --run-dot: #6e7bec;
+  --run-dot: var(--accent-mid);
   --border-card: rgba(255, 255, 255, 0.1);
 
   --overlay-ink: #000000;
@@ -252,7 +276,7 @@
   --panel-translucent-bg: rgba(30, 35, 44, 0.98);
   --panel-translucent-border: rgba(255, 255, 255, 0.1);
 
-  --focus-ring-accent: 0 0 0 3px rgba(139, 150, 242, 0.18);
+  --focus-ring-accent: 0 0 0 3px var(--accent-focus);
   --focus-ring-amber: 0 0 0 3px rgba(226, 185, 91, 0.18);
   --shadow-card-subtle: 0 1px 2px rgba(0, 0, 0, 0.18);
   --shadow-card-soft: 0 1px 2px rgba(0, 0, 0, 0.22);
@@ -266,7 +290,7 @@
   --shadow-context-menu: 0 14px 40px rgba(0, 0, 0, 0.62);
   --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.38);
   --shadow-panel-strong: 0 8px 24px rgba(0, 0, 0, 0.44);
-  --shadow-accent-soft: 0 2px 8px rgba(139, 150, 242, 0.2);
+  --shadow-accent-soft: 0 2px 8px var(--accent-shadow);
   --shadow-overlay: 0 10px 38px rgba(0, 0, 0, 0.46), 0 6px 12px rgba(0, 0, 0, 0.32);
   --shadow-overlay-strong: 0 24px 64px rgba(0, 0, 0, 0.58);
   --shadow-drawer: -16px 0 48px rgba(0, 0, 0, 0.55);
@@ -298,9 +322,9 @@
   --m-hairline: #20252e;
   --m-divider: #232833;
   --m-card-border: #262c37;
-  --m-run: #8b96f2;
-  --m-run-bg: rgba(110, 123, 236, 0.16);
-  --m-run-border: #333c5a;
+  --m-run: var(--accent-main);
+  --m-run-bg: var(--accent-soft);
+  --m-run-border: var(--accent-border);
   --m-amber: #d9a83f;
   --m-amber-ink: #e2b95b;
   --m-amber-text: #d9a544;
@@ -314,4 +338,26 @@
   --m-fail-border: #4a2e2b;
   --m-gray: #262b34;
   --m-gray-ink: #7e8798;
+}
+
+:root[data-accent='custom'] {
+  --accent-main: oklch(0.52 0.18 var(--accent-hue));
+  --accent-soft: oklch(0.96 0.03 var(--accent-hue));
+  --accent-border: oklch(0.85 0.07 var(--accent-hue));
+  --accent-mid: oklch(0.72 0.12 var(--accent-hue));
+  --accent-strong: oklch(0.45 0.17 var(--accent-hue));
+  --accent-badge: var(--accent-main);
+  --accent-focus: oklch(0.52 0.18 var(--accent-hue) / 0.1);
+  --accent-shadow: oklch(0.52 0.18 var(--accent-hue) / 0.12);
+}
+
+[data-theme='dark'][data-accent='custom'] {
+  --accent-main: oklch(0.76 0.14 var(--accent-hue));
+  --accent-soft: oklch(0.68 0.14 var(--accent-hue) / 0.16);
+  --accent-border: oklch(0.42 0.08 var(--accent-hue));
+  --accent-mid: oklch(0.69 0.17 var(--accent-hue));
+  --accent-strong: oklch(0.69 0.17 var(--accent-hue));
+  --accent-badge: oklch(0.52 0.18 var(--accent-hue));
+  --accent-focus: oklch(0.76 0.14 var(--accent-hue) / 0.18);
+  --accent-shadow: oklch(0.76 0.14 var(--accent-hue) / 0.2);
 }

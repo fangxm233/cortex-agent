@@ -1,4 +1,4 @@
-<!-- input:  native shell flags, persisted theme, server credentials -->
+<!-- input:  shell flags, persisted appearance, server credentials -->
 <!-- output: themed local/remote connection setup page -->
 <!-- pos:    Native shell page shown before the SPA can connect -->
 <!-- >>> If I am updated, update my header comment and CORTEX.md <<< -->
@@ -14,9 +14,8 @@
   <link rel="stylesheet" href="/theme.css">
   <meta name="theme-color" content="">
   <script>
-    // No-flash theme: apply the persisted (or OS-preferred) theme before first paint so a dark user
-    // never sees a light flash. Mirrors web/src/theme/theme.ts resolveInitialTheme + web/index.html —
-    // same localStorage key (`cortex.theme`) so the connect screen matches the SPA's theme choice.
+    // No-flash appearance: apply the persisted theme and accent before first paint.
+    // Mirrors web/src/theme/theme.ts + web/index.html so the connect screen matches the SPA.
     (function () {
       try {
         var stored = null;
@@ -27,6 +26,13 @@
         var theme = preference === 'system' ? (prefersDark ? 'dark' : 'light') : preference;
         if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
         document.documentElement.style.colorScheme = theme;
+        var storedAccent = null;
+        try { storedAccent = window.localStorage.getItem('cortex.accent-hue'); } catch (e) {}
+        var accentHue = Number(storedAccent);
+        if (storedAccent !== null && storedAccent.trim() !== '' && Number.isInteger(accentHue) && accentHue >= 0 && accentHue <= 359) {
+          document.documentElement.setAttribute('data-accent', 'custom');
+          document.documentElement.style.setProperty('--accent-hue', String(accentHue));
+        }
         var chrome = getComputedStyle(document.documentElement).getPropertyValue('--browser-theme-color').trim();
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta && chrome) meta.setAttribute('content', chrome);

@@ -1,6 +1,6 @@
-// input:  shared theme CSS, runtime UI source, and native shell HTML
-// output: regression checks for one token source and literal-free consumers
-// pos:    Guards color-theme coverage across web, mobile, and desktop shell
+// input:  shared palette CSS, runtime UI source, native shell HTML
+// output: token, accent-alias, no-flash, and raw-color regressions
+// pos:    Guards appearance coverage across web, mobile, and shell
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -15,6 +15,14 @@ const SRC_ROOT = join(WEB_ROOT, 'src');
 const THEME_PATH = join(WEB_ROOT, 'public', 'theme.css');
 const RAW_COLOR = /#[\da-f]{3,8}\b|(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\s*\(/i;
 const THEME_CONSTANT_TOKENS = new Set([
+  '--accent-hue',
+  '--accent-default-swatch',
+  '--accent-swatch-blue',
+  '--accent-swatch-teal',
+  '--accent-swatch-violet',
+  '--accent-swatch-rose',
+  '--accent-swatch-orange',
+  '--accent-spectrum',
   '--media-stage-bg',
   '--media-paper-bg',
   '--media-backdrop',
@@ -41,6 +49,11 @@ function cssBlock(source: string, selector: string): string {
     if (depth === 0) return source.slice(open + 1, i);
   }
   throw new Error(`Unclosed CSS block: ${selector}`);
+}
+
+function cssValue(block: string, token: string): string | null {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return block.match(new RegExp(`${escaped}\\s*:\\s*([^;]+)`))?.[1].trim() ?? null;
 }
 
 function sourceFiles(dir: string): string[] {
@@ -99,6 +112,28 @@ describe('shared theme tokens', () => {
     expect(unknownConstants).toEqual([]);
   });
 
+  it('routes shared accent semantics through palette primitives', () => {
+    const css = readFileSync(THEME_PATH, 'utf8');
+    const blocks = [cssBlock(css, ':root'), cssBlock(css, "[data-theme='dark']")];
+    const aliases = {
+      '--proto-accent': '--accent-main',
+      '--proto-accent-bg': '--accent-soft',
+      '--proto-accent-border': '--accent-border',
+      '--state-run': '--accent-main',
+      '--pill-running-fg': '--accent-main',
+      '--pill-running-bg': '--accent-soft',
+      '--m-run': '--accent-main',
+      '--m-run-bg': '--accent-soft',
+      '--m-run-border': '--accent-border',
+    };
+
+    for (const block of blocks) {
+      for (const [semantic, primitive] of Object.entries(aliases)) {
+        expect(cssValue(block, semantic)).toBe(`var(${primitive})`);
+      }
+    }
+  });
+
   it('loads the same palette from the SPA and both embedded shell pages', () => {
     for (const path of [
       join(WEB_ROOT, 'index.html'),
@@ -107,6 +142,8 @@ describe('shared theme tokens', () => {
     ]) {
       const html = readFileSync(path, 'utf8');
       expect(html).toContain('href="/theme.css"');
+      expect(html).toContain("localStorage.getItem('cortex.accent-hue')");
+      expect(html).toContain("setAttribute('data-accent', 'custom')");
       expect(html).not.toMatch(/:root\s*\{/);
       expect(withoutComments(html)).not.toMatch(RAW_COLOR);
     }

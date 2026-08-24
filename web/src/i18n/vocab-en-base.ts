@@ -558,7 +558,7 @@ export const enBase = {
   stNavAdvanced: 'Advanced',
 
   // ── Settings section meta subs ──
-  stMetaAppearanceSub: 'Language & theme — interface language and light/dark. Applies instantly and is remembered on this device.',
+  stMetaAppearanceSub: 'Language, light/dark/system theme, and accent color. Applies instantly and is remembered on this device.',
   stMetaPlatformSub: 'config/.env — loaded once at daemon startup; the only restart-required config',
   stMetaAccountsSub: 'Claude Code credentials and every PI provider reported by auth.status',
   stMetaProfilesSub: 'config/profiles.json — read on every agent spawn, no restart needed',
@@ -576,7 +576,18 @@ export const enBase = {
   stThemeLabel: 'Theme',
   stThemeLight: 'Light',
   stThemeDark: 'Dark',
-  stThemeHint: 'Colors follow the Cortex design system in both modes; the choice is saved on this device.',
+  stThemeSystem: 'System',
+  stThemeHint: 'Choose a light, dark, or system-following interface on this device.',
+  stAccentLabel: 'Accent color',
+  stAccentHint: 'Changes actions, selected items, running states, and focus rings without changing status semantics.',
+  stAccentDefault: 'Default indigo',
+  stAccentBlue: 'Blue',
+  stAccentTeal: 'Teal',
+  stAccentViolet: 'Violet',
+  stAccentRose: 'Rose',
+  stAccentOrange: 'Orange',
+  stAccentCustom: 'Custom accent hue',
+  stAccentReset: 'Reset',
 
   // ── Appearance / language control ──
   stLangLabel: 'Language',

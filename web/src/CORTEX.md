@@ -17,4 +17,4 @@ Splits into shared layers (design, i18n, theme, lib) and screen layers (features
 | lib/ | subdir | Transport, shell, file and external-link helpers |
 | mobile/ | subdir | Mobile shell, routes and phone screens |
 | shell/ | subdir | Persistent desktop layout frame |
-| theme/ | subdir | Light, dark and system-following theme state |
+| theme/ | subdir | Theme and device-local accent state and controls |

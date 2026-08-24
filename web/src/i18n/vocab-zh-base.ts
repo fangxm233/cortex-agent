@@ -558,7 +558,7 @@ export const zhBase = {
   stNavAdvanced: '高级',
 
   // ── Settings section meta subs ──
-  stMetaAppearanceSub: '语言与主题 — 界面语言与浅色/深色。即时生效，并记住在本设备上。',
+  stMetaAppearanceSub: '语言、浅色/深色/跟随系统主题与强调色。即时生效，并记住在本设备上。',
   stMetaPlatformSub: 'config/.env — 守护进程启动时加载一次；唯一需要重启的配置',
   stMetaAccountsSub: 'Claude Code 凭据与 auth.status 返回的全部 PI provider',
   stMetaProfilesSub: 'config/profiles.json — 每次 agent 启动时读取，无需重启',
@@ -576,7 +576,18 @@ export const zhBase = {
   stThemeLabel: '主题',
   stThemeLight: '浅色',
   stThemeDark: '深色',
-  stThemeHint: '两种模式的配色都遵循 Cortex 设计系统；选择保存在本设备上。',
+  stThemeSystem: '跟随系统',
+  stThemeHint: '选择浅色、深色或跟随本设备系统设置。',
+  stAccentLabel: '强调色',
+  stAccentHint: '调整操作、选中项、运行状态和焦点环，不改变成功、警告与失败的语义色。',
+  stAccentDefault: '默认靛蓝',
+  stAccentBlue: '蓝色',
+  stAccentTeal: '青色',
+  stAccentViolet: '紫色',
+  stAccentRose: '玫红',
+  stAccentOrange: '橙色',
+  stAccentCustom: '自定义强调色色相',
+  stAccentReset: '恢复默认',
 
   // ── Appearance / language control ──
   stLangLabel: '语言',

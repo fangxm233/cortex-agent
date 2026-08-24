@@ -1,6 +1,6 @@
 Please update me when files in this folder change
 
-Screens served by the native shell before the SPA has a server to talk to.
+Appearance-aware screens served by the native shell before the SPA can connect.
 
 | filename | role | function |
 |---|---|---|

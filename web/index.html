@@ -1,4 +1,4 @@
-<!-- input:  Vite entry module, persisted theme, system color scheme -->
+<!-- input:  Vite entry, persisted theme/accent, system color scheme -->
 <!-- output: SPA document shell with no-flash theme initialization -->
 <!-- pos:    Browser entry document for the Cortex web application -->
 <!-- >>> If I am updated, update my header comment and CORTEX.md <<< -->
@@ -23,8 +23,8 @@
   <body>
     <div id="root"></div>
     <script>
-      // No-flash theme: apply the persisted (or OS-preferred) theme before first paint so a dark
-      // user never sees a light flash. Mirrors src/theme/theme.ts resolveInitialTheme — keep in sync.
+      // No-flash appearance: apply persisted theme and accent before first paint.
+      // Mirrors src/theme/theme.ts parsing and DOM attributes — keep in sync.
       (function () {
         try {
           var stored = null;
@@ -35,6 +35,13 @@
           var theme = preference === 'system' ? (prefersDark ? 'dark' : 'light') : preference;
           if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
           document.documentElement.style.colorScheme = theme;
+          var storedAccent = null;
+          try { storedAccent = window.localStorage.getItem('cortex.accent-hue'); } catch (e) {}
+          var accentHue = Number(storedAccent);
+          if (storedAccent !== null && storedAccent.trim() !== '' && Number.isInteger(accentHue) && accentHue >= 0 && accentHue <= 359) {
+            document.documentElement.setAttribute('data-accent', 'custom');
+            document.documentElement.style.setProperty('--accent-hue', String(accentHue));
+          }
           var chrome = getComputedStyle(document.documentElement).getPropertyValue('--browser-theme-color').trim();
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta && chrome) meta.setAttribute('content', chrome);

@@ -1,5 +1,5 @@
-// input:  mobile settings/accounts models and UI primitives
-// output: fixed-header settings with Usage and config drill-ins
+// input:  mobile settings/accounts models, appearance, UI primitives
+// output: fixed-header settings with appearance and config drill-ins
 // pos:    Presentational mobile settings view
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -8,7 +8,7 @@ import { type ReactNode } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { useVocab, type Lang } from '@/i18n';
-import type { Theme } from '@/theme';
+import { AccentPicker, type AccentHue, type AccentPickerCopy, type Theme } from '@/theme';
 import type { MSettingsVm } from './m-settings-vm';
 import type { ProfileSheetItem } from './m-chat-vm';
 import type { AccountsSummaryVm } from './m-accounts-vm';
@@ -28,6 +28,15 @@ export interface MSettingsCopy {
   themeLight: string; // `浅色`
   themeDark: string; // `深色`
   themeSystem: string; // `跟随系统`
+  accent: string;
+  accentDefault: string;
+  accentBlue: string;
+  accentTeal: string;
+  accentViolet: string;
+  accentRose: string;
+  accentOrange: string;
+  accentCustom: string;
+  accentReset: string;
   budget: string;
   budgetUnit: string; // `日`
   usage: string;
@@ -149,51 +158,37 @@ function DesktopPill({ children }: { children: ReactNode }) {
   );
 }
 
-// ── A generic segmented toggle. The active segment is the ink-solid inverse chip. ──────────────
-function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-  ariaLabel,
-}: {
+function SegmentItem<T extends string>({ id, label, active, onChange }: {
+  id: T;
+  label: string;
+  active: boolean;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <button
+      type="button" aria-pressed={active} onClick={() => onChange(id)}
+      style={{
+        border: 0, fontSize: 11, fontWeight: 600, padding: '3px 10px', cursor: 'pointer',
+        background: active ? 'var(--ink-solid-bg)' : 'transparent',
+        color: active ? 'var(--ink-solid-fg)' : MC.muted,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function Segmented<T extends string>({ value, options, onChange, ariaLabel }: {
   value: T;
   options: readonly { id: T; label: string }[];
-  onChange: (v: T) => void;
+  onChange: (value: T) => void;
   ariaLabel?: string;
 }) {
   return (
-    <div
-      role="group"
-      aria-label={ariaLabel}
-      style={{
-        display: 'flex',
-        border: `1px solid ${MC.hairline}`,
-        borderRadius: 6,
-        overflow: 'hidden',
-        flex: 'none',
-      }}
-    >
-      {options.map((o) => {
-        const active = value === o.id;
-        return (
-          <span
-            key={o.id}
-            role="button"
-            aria-pressed={active}
-            onClick={() => onChange(o.id)}
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              padding: '3px 10px',
-              cursor: 'pointer',
-              background: active ? 'var(--ink-solid-bg)' : 'transparent',
-              color: active ? 'var(--ink-solid-fg)' : MC.muted,
-            }}
-          >
-            {o.label}
-          </span>
-        );
-      })}
+    <div role="group" aria-label={ariaLabel} style={{ display: 'flex', border: `1px solid ${MC.hairline}`, borderRadius: 6, overflow: 'hidden', flex: 'none' }}>
+      {options.map((option) => (
+        <SegmentItem key={option.id} {...option} active={value === option.id} onChange={onChange} />
+      ))}
     </div>
   );
 }
@@ -236,6 +231,26 @@ function ThemeToggle({
       ]}
       onChange={onSetTheme}
     />
+  );
+}
+
+function MobileAccentSetting({ copy, hue, onChange }: {
+  copy: MSettingsCopy;
+  hue: AccentHue;
+  onChange: (hue: AccentHue) => void;
+}) {
+  const pickerCopy: AccentPickerCopy = {
+    label: copy.accent, default: copy.accentDefault, blue: copy.accentBlue,
+    teal: copy.accentTeal, violet: copy.accentViolet, rose: copy.accentRose,
+    orange: copy.accentOrange, custom: copy.accentCustom, reset: copy.accentReset,
+  };
+  return (
+    <div style={{ ...rowStyle(false), display: 'block' }}>
+      <div style={TITLE}>{copy.accent}</div>
+      <div style={{ marginTop: 9 }}>
+        <AccentPicker hue={hue} copy={pickerCopy} onChange={onChange} compact />
+      </div>
+    </div>
   );
 }
 
@@ -282,6 +297,8 @@ export function MSettingsView({
   onSetLang,
   theme,
   onSetTheme,
+  accentHue,
+  onSetAccentHue,
   onBack,
   onOpenDaemon,
   onlineMachines,
@@ -301,6 +318,8 @@ export function MSettingsView({
   onSetLang: (lang: Lang) => void;
   theme: Theme;
   onSetTheme: (theme: Theme) => void;
+  accentHue: AccentHue;
+  onSetAccentHue: (hue: AccentHue) => void;
   onBack: () => void;
   onOpenDaemon: () => void;
   /** Real machines.list online count for the 机器 drill-in row (moved off the Projects tab). */
@@ -442,7 +461,7 @@ export function MSettingsView({
             </div>
             <LangToggle lang={lang} onSetLang={onSetLang} />
           </div>
-          <div style={rowStyle(false)}>
+          <div style={rowStyle(true)}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={TITLE}>{copy.theme}</div>
             </div>
@@ -454,6 +473,7 @@ export function MSettingsView({
               systemLabel={copy.themeSystem}
             />
           </div>
+          <MobileAccentSetting copy={copy} hue={accentHue} onChange={onSetAccentHue} />
         </Card>
 
         <Card>

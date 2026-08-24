@@ -73,7 +73,8 @@ Framework-free view models map records to slots and have colocated unit tests.
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
 | MSettingsScreen.tsx | screen | Loads settings, account data and appearance state |
-| MSettingsView.tsx | view | Settings with system theme and config drill-ins |
+| MSettingsView.tsx | view | Settings with theme, accent and config drill-ins |
+| MSettingsView.test.tsx | test | Tests mobile accent control wiring |
 | MUsageScreen.tsx | screen | Binds localized Usage thresholds, saves, refresh, and settings back route |
 | MUsageView.tsx | view | Keeps drill header above usage controls |
 | MUsageView.test.tsx | test | Tests status omission, row saves, config gating, and refresh |

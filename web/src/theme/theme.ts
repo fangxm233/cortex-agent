@@ -1,13 +1,16 @@
 // input:  localStorage, matchMedia, document root
-// output: Theme types plus resolve, persist, apply, and watch helpers
-// pos:    Color-theme preference and DOM application utilities
+// output: Theme and accent resolve, persist, apply, and watch helpers
+// pos:    Device-local appearance preference utilities
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 export type Theme = 'light' | 'dark' | 'system';
 export type ResolvedTheme = Exclude<Theme, 'system'>;
+export type AccentHue = number | null;
 
 export const THEME_STORAGE_KEY = 'cortex.theme';
+export const ACCENT_HUE_STORAGE_KEY = 'cortex.accent-hue';
 export const DEFAULT_THEME: Theme = 'light';
+export const DEFAULT_ACCENT_HUE = 274;
 
 /** The persisted theme choice, else the OS `prefers-color-scheme`, else the default. Pure over its
  *  inputs so it is testable without a DOM. */
@@ -51,6 +54,32 @@ export function storeTheme(theme: Theme): void {
   }
 }
 
+export function parseStoredAccentHue(stored: string | null): AccentHue {
+  if (stored === null || stored.trim() === '') return null;
+  const hue = Number(stored);
+  if (!Number.isInteger(hue) || hue < 0 || hue > 359) return null;
+  return hue;
+}
+
+export function readStoredAccentHue(): AccentHue {
+  if (typeof window === 'undefined') return null;
+  try {
+    return parseStoredAccentHue(window.localStorage.getItem(ACCENT_HUE_STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+export function storeAccentHue(hue: AccentHue): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (hue === null) window.localStorage.removeItem(ACCENT_HUE_STORAGE_KEY);
+    else window.localStorage.setItem(ACCENT_HUE_STORAGE_KEY, String(hue));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function watchSystemTheme(onChange: (prefersDark: boolean) => void): () => void {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {};
   const query = window.matchMedia('(prefers-color-scheme: dark)');
@@ -75,5 +104,18 @@ export function applyTheme(theme: Theme, prefersDark = prefersDarkNow()): void {
   if (effectiveTheme === 'dark') root.setAttribute('data-theme', 'dark');
   else root.removeAttribute('data-theme');
   root.style.colorScheme = effectiveTheme;
+  syncBrowserThemeColor();
+}
+
+export function applyAccentHue(hue: AccentHue): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (hue === null) {
+    root.removeAttribute('data-accent');
+    root.style.removeProperty('--accent-hue');
+  } else {
+    root.setAttribute('data-accent', 'custom');
+    root.style.setProperty('--accent-hue', String(hue));
+  }
   syncBrowserThemeColor();
 }
