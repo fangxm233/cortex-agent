@@ -5,7 +5,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 
 | filename | role | function |
 |---|---|---|
-| index.ts | entry | selects daemon adapters and injects PI usage state |
+| index.ts | entry | selects daemon adapters, injects PI usage state and routes pooled-session control |
 | types.ts | types | Shared adapter, usage, tool-gate and plugin contracts |
 | mcp-private-dir.ts | util | Guards private physical MCP directories |
 | mcp-remote-fetch.ts | util | Rejects remote MCP HTTP redirects |

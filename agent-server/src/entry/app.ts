@@ -18,7 +18,7 @@ import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_D
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
-import { closeAllSessions, closeSession as closeClaudePooledSession } from '@domain/agents/index.js';
+import { closeAllSessions, closeSession as closePooledSession } from '@domain/agents/index.js';
 import { closeAllAdapters } from '../agent-adapter/index.js';
 import { recoverTuiOrphans } from '../agent-adapter/claude/adapter.js';
 import { startWebhookServer } from '@orch/routing/webhook.js';
@@ -365,13 +365,11 @@ commandRouter.bindToAdapter(adapter);
 const handleMessageEdit = createEditHandler({
   activeAgents: runningExecutions,
   reprocessMessage,
-  // Claude CLI runs in stream-json mode and pools the subprocess per channel; an alive
-  // pooled process keeps the conversation history in memory and ignores the rolled-back
-  // JSONL on disk. Close it here so the next runAgent spawns a fresh process with
-  // `--resume <sessionId>`. PI spawns a fresh subprocess per turn, so the close is a no-op.
-  closePooledSession: (channel, backend) => {
-    if (backend === 'claude') closeClaudePooledSession(channel);
-  },
+  // Both backends pool their subprocess per channel, and an alive pooled process keeps the
+  // conversation history in memory — it would ignore the rolled-back JSONL on disk. Close it
+  // here so the next runAgent spawns a fresh process against the rewound transcript. The close
+  // is backend-neutral and a no-op for a key with no live session.
+  closePooledSession: (channel) => closePooledSession(channel),
 });
 
 // --- Register interaction handlers ---

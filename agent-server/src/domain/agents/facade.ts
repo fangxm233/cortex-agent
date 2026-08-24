@@ -726,13 +726,13 @@ export const _test = {
   filterChannelScopedPlugins,
 };
 
-// --- Claude bridge helper re-exports ---
+// --- Pooled-session control (backend-neutral) and Claude bridge helper re-exports ---
 
 export {
   closeSession,
   killSession,
   closeSessionsByPrefix,
   closeAllSessions,
-  _test as claudeTest,
-} from '../../agent-adapter/claude/adapter.js';
+} from '../../agent-adapter/index.js';
+export { _test as claudeTest } from '../../agent-adapter/claude/adapter.js';
 export { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';
