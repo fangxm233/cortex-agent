@@ -1,20 +1,13 @@
+// input:  mobile memory VM, UI kit, and view callbacks
+// output: fixed project-memory header with file drill-ins
+// pos:    Presentational mobile project-memory view
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1j L523-554)
 //
-// 1j 项目记忆 — the current project's memory tree, drilled from the project page (1e→1j). NON-Tab drill
-// page: the shell hides the Tab bar for /m/memory. READ-ONLY (viewing only; no writes). Pure
-// presentational view (render-testable without tRPC providers); the container (MMemoryScreen) binds
-// `memory.tree` + navigation and owns the open-file route.
-//
-// Files ARE now openable: every top-level (核心) file row and every dir-entry row taps through to the
-// read-only file viewer (/m/memory/file). The four memory dirs (experiments/knowledge/patterns/
-// decisions) render as ACCORDIONS — tap the header to expand/collapse the real file list (from the DTO
-// `entries`, no fabrication); collapsed shows just the header + real count.
-//
-// HONEST GAPS (never fabricated — no DTO field backs them): the scheme's `+42 −7` line-diff badges, the
-// `草稿` status badge, and per-file descriptors (`规则 · 边界 · mission`, `Phase 2 · M2.3`) are design
-// mocks → OMITTED. Per-file git diff/blame lives on the desktop 7b viewer, not here.
+// Files are openable in the read-only viewer. Memory directories render as controlled accordions from
+// real DTO entries; unavailable diff badges, draft state, and per-file descriptors remain omitted.
 import { type ReactNode } from 'react';
-import { MDrillHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
+import { MDrillHeader, MScreen, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
 import type { MMemoryVm, MMemoryFileRow, MMemoryDirCard } from './m-memory-vm';
 
 export interface MMemoryCopy {
@@ -167,20 +160,22 @@ export function MMemoryView({
   /** Open a file's read-only viewer. `path` is the project-root-relative path (memory.file arg). */
   onOpenFile: (path: string) => void;
 }) {
+  const header = (
+    <MDrillHeader
+      onBack={onBack}
+      trailing={
+        <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint }}>
+          memory/ · {vm.fileCount} {copy.filesUnit}
+        </span>
+      }
+    >
+      <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
+        {copy.title}
+      </div>
+    </MDrillHeader>
+  );
   return (
-    <>
-      <MDrillHeader
-        onBack={onBack}
-        trailing={
-          <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint }}>
-            memory/ · {vm.fileCount} {copy.filesUnit}
-          </span>
-        }
-      >
-        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
-          {copy.title}
-        </div>
-      </MDrillHeader>
+    <MScreen label="1j 项目记忆" header={header}>
       <MScrollBody gap={10}>
         {vm.isEmpty ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>
@@ -212,6 +207,6 @@ export function MMemoryView({
           </>
         )}
       </MScrollBody>
-    </>
+    </MScreen>
   );
 }

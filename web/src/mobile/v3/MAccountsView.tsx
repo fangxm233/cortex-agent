@@ -1,5 +1,5 @@
 // input:  shared accounts VM, localized copy, gated actions
-// output: grouped mobile account-management drill-in
+// output: fixed Accounts header with grouped provider actions
 // pos:    Presentational mobile accounts view
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -13,6 +13,7 @@ import {
   MDrillHeader,
   MGroupLabel,
   MPill,
+  MScreen,
   MScrollBody,
   MC,
   MONO,
@@ -239,11 +240,13 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
   custom?: MCustomProvidersProps;
 }) {
   const L = useVocab();
+  const header = (
+    <MDrillHeader onBack={onBack} trailing={<span style={{ font: `500 10px ${MONO}`, color: MC.muted }}>{vm.piProviders.length} PI</span>}>
+      <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{L.accountsTitle}</div>
+    </MDrillHeader>
+  );
   return (
-    <>
-      <MDrillHeader onBack={onBack} trailing={<span style={{ font: `500 10px ${MONO}`, color: MC.muted }}>{vm.piProviders.length} PI</span>}>
-        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{L.accountsTitle}</div>
-      </MDrillHeader>
+    <MScreen label={L.accountsTitle} header={header}>
       <MScrollBody gap={14}>
         {vm.claude ? (
           <ClaudeCard
@@ -290,6 +293,6 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
           </div>
         ) : null}
       </MScrollBody>
-    </>
+    </MScreen>
   );
 }

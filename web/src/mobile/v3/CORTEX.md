@@ -57,7 +57,7 @@ Framework-free view models map records to slots and have colocated unit tests.
 | m-notes-gestures.ts | util | Resolves swipe and post-drag click suppression |
 | m-notes-gestures.test.ts | test | Tests tap and swipe gesture thresholds |
 | MMemoryScreen.tsx | screen | Binds the memory tree and accordion state |
-| MMemoryView.tsx | view | Core files and directory accordions |
+| MMemoryView.tsx | view | Keeps drill header above memory tree |
 | m-memory-vm.ts | vm | Maps the memory tree to rows and cards |
 | m-memory-vm.test.ts | test | Unit tests for the memory view model |
 | MMemoryFileScreen.tsx | screen | Binds one memory file by path parameter |
@@ -75,12 +75,12 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MSettingsScreen.tsx | screen | Loads settings, account data and appearance state |
 | MSettingsView.tsx | view | Settings with system theme and config drill-ins |
 | MUsageScreen.tsx | screen | Binds localized Usage thresholds, saves, refresh, and settings back route |
-| MUsageView.tsx | view | Renders status-free quotas and one-row threshold actions |
+| MUsageView.tsx | view | Keeps drill header above usage controls |
 | MUsageView.test.tsx | test | Tests status omission, row saves, config gating, and refresh |
 | m-settings-vm.ts | vm | Maps config, costs and mounted hooks |
 | m-settings-vm.test.ts | test | Tests mobile settings data mapping |
 | MAccountsScreen.tsx | screen | Loads account status and serializes logout actions |
-| MAccountsView.tsx | view | Groups provider cards with gated account actions |
+| MAccountsView.tsx | view | Keeps drill header above account actions |
 | MAccountsView.test.tsx | test | Tests account permissions, pending actions and credential redaction |
 | MAccountsView.custom.test.tsx | test | Tests custom-provider edit actions and delete confirmation |
 | MCustomProviderSheet.tsx | view | Bottom-sheet editor for one custom PI provider |

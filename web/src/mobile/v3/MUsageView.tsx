@@ -1,5 +1,5 @@
-// input:  public usage feature model, mobile UI kit, row policy state, and local copy
-// output: mobile supported quotas, spend, refresh, and inline threshold controls
+// input:  usage model, policy state, mobile UI kit, and copy
+// output: fixed Usage header with quota and threshold controls
 // pos:    Presentational mobile Usage settings view
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -17,7 +17,7 @@ import type {
 } from '@/features/usage';
 import { usagePolicyTargetKey } from '@/features/usage';
 import { policyActionState, usePolicyThresholdDraft } from '@/features/usage/usage-policy-controls';
-import { MCard, MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
+import { MCard, MDrillHeader, MScreen, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
 
 export interface MUsageCopy {
   title: string;
@@ -423,11 +423,13 @@ export function MUsageView(props: MUsageViewProps) {
     policyControlsState, isPolicySaving, getPolicyError, onBack, onRefresh, onSavePolicy,
   } = props;
   const hasProviders = view.providers.length > 0;
+  const header = (
+    <MDrillHeader onBack={onBack} trailing={<RefreshButton copy={copy} pending={isRefreshing} onRefresh={onRefresh} />}>
+      <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{copy.title}</div>
+    </MDrillHeader>
+  );
   return (
-    <>
-      <MDrillHeader onBack={onBack} trailing={<RefreshButton copy={copy} pending={isRefreshing} onRefresh={onRefresh} />}>
-        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{copy.title}</div>
-      </MDrillHeader>
+    <MScreen label="1l-u 用量" header={header}>
       <MScrollBody gap={10}>
         {isLoading && !hasProviders ? <div style={{ color: MC.muted, fontSize: 12 }}>{copy.loading}</div> : null}
         <ErrorFeedback label={copy.loadError} error={queryError} />
@@ -441,6 +443,6 @@ export function MUsageView(props: MUsageViewProps) {
           />
         ))}
       </MScrollBody>
-    </>
+    </MScreen>
   );
 }
