@@ -36,7 +36,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | chat-content.ts | types | Defines chat types and local shortcut catalog |
 | transcript-vm.ts | vm | Builds chat rows and assistant turn-copy targets |
 | transcript-vm.test.ts | test | Tests transcript rows, turn copy and auth actions |
-| ToolCallsRow.tsx | view | Collapsed tool chips that expand on click |
+| ToolCallsRow.tsx | view | Expands tool chips with row-scoped debug actions |
 | tool-call-overflow.ts | util | Computes visible tool chips and hidden count |
 | useToolCallOverflow.ts | hook | Measures chip widths and recomputes on resize |
 | InteractionCards.tsx | view | Ask-user and plan-approval cards in the stream |
@@ -98,5 +98,5 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | selected-session.ts | vm | Resolves selected session and transition profile |
 | selected-session.test.ts | test | Unit tests for session selection |
 | DaemonStatusModal.tsx | view | Daemon and server processes with restart |
-| DebugDetailsModal.tsx | view | Inspector dialog for raw tool input and result |
-| debug-inspector.test.tsx | test | Tests Unicode counting and structured debug values |
+| DebugDetailsModal.tsx | view | Inspector dialog with scoped hover controls |
+| debug-inspector.test.tsx | test | Tests hover scope, counting and debug formatting |

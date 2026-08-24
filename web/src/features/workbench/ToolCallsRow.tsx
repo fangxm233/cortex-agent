@@ -1,5 +1,5 @@
 // input:  tool calls with DEBUG details and server size warnings
-// output: single-line collapsed row with +N overflow, expanded details
+// output: collapsed row and expanded calls with row-scoped actions
 // pos:    desktop workbench tool-call presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -130,10 +130,10 @@ function ExpandedToolCall({ call, onInspect }: {
   onInspect: Inspect;
 }): JSX.Element {
   return (
-    <div className={call.debug ? 'group' : undefined} style={expandedCallStyle}>
+    <div className={call.debug ? 'group/tool-call' : undefined} style={expandedCallStyle}>
       <span style={{ ...kindStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>{call.kind}</span>
       <span style={{ ...inputStyle, ...(call.debug ? { minWidth: 0, flex: 1 } : {}) }}>{call.input}</span>
-      {call.debug ? <DebugInspectButton compact onClick={(event) => onInspect(event, call)} /> : null}
+      {call.debug ? <DebugInspectButton compact hoverGroup="tool-call" onClick={(event) => onInspect(event, call)} /> : null}
     </div>
   );
 }

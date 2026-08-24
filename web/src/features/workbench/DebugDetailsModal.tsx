@@ -1,5 +1,5 @@
-// input:  DEBUG detail, localized labels, layered Modal
-// output: inspector control and character-counted nested dialog
+// input:  DEBUG detail, hover scope, localized labels, layered Modal
+// output: scoped inspector control and character-counted dialog
 // pos:    desktop DEBUG behavior surface
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -70,21 +70,25 @@ function DebugDetailsContent({ detail }: { detail: DebugDetail }): JSX.Element {
   );
 }
 
-export function DebugInspectButton({ onClick, compact = false, className = '' }: {
+export function DebugInspectButton({ onClick, compact = false, hoverGroup = 'default', className = '' }: {
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   compact?: boolean;
+  hoverGroup?: 'default' | 'tool-call';
   className?: string;
 }): JSX.Element {
   const L = useVocab();
   const label = L.wbDebugInspect;
   const sizeClass = compact ? 'h-[18px] min-w-[22px] px-[4px] text-[8px]' : 'h-[24px] min-w-[28px] px-[5px] text-[9px]';
+  const hoverClass = hoverGroup === 'tool-call'
+    ? 'group-hover/tool-call:pointer-events-auto group-hover/tool-call:opacity-100'
+    : 'group-hover:pointer-events-auto group-hover:opacity-100';
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`pointer-events-none ${sizeClass} rounded border border-proto-line-2 bg-proto-card font-mono text-proto-muted opacity-0 shadow-sm transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent/30 ${className}`}
+      className={`pointer-events-none ${sizeClass} rounded border border-proto-line-2 bg-proto-card font-mono text-proto-muted opacity-0 shadow-sm transition-opacity ${hoverClass} focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent/30 ${className}`}
     >
       {'{ }'}
     </button>
