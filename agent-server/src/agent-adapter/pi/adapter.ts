@@ -83,6 +83,15 @@ interface PendingCompact {
   timer: ReturnType<typeof setTimeout>;
 }
 
+/** Expose one turn's queue as the AsyncIterable the run event loop consumes. */
+function turnStreamIterable(stream: EventQueue): AsyncIterable<NormalizedEvent> {
+  return {
+    [Symbol.asyncIterator]: (): AsyncIterator<NormalizedEvent> => ({
+      next: () => stream.next(),
+    }),
+  };
+}
+
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -144,7 +153,15 @@ class PISession {
   private readonly proc: ChildProcess;
   /** Present when the process was launched through a containment supervisor (§13 P1). */
   readonly supervision: AgentProcessSupervision | undefined;
-  private readonly events = new EventQueue();
+  /**
+   * Event stream for the turn currently being served, opened by `openTurnStream()` on every
+   * adapter spawn and closed at the terminal event. It is per-turn rather than per-session so a
+   * finished turn can end its consumer's `for await` loop while the subprocess stays pooled for
+   * the next one. Null between turns: events that arrive with no open stream have no run to
+   * belong to and are dropped (side-effect paths like provider quota run before this point and
+   * are unaffected).
+   */
+  private turnStream: EventQueue | null = null;
   private readonly splitter = createLineSplitter();
   private readonly parserState: PIEventParserState = createPIEventParserState();
   private readonly registry: Map<string, string>;
@@ -251,14 +268,14 @@ class PISession {
         if (code !== null && code !== 0) {
           // Nice-to-have #1 from Plan Review iter1: surface abrupt failure as a single fatal error event
           // so downstream consumers don't see a silent iterator termination. Full event-parser coverage is task a7f9.
-          this.events.push({
+          this.turnStream?.push({
             type: 'error',
             message: this.stderrTail || `pi exited with code ${code}`,
             fatal: true,
           });
         }
         this.contextUsageProbe.close();
-        this.events.close();
+        this.closeTurnStream();
         // Remove stream listeners and destroy streams so stub PassThrough streams
         // (used in tests) don't keep the event loop alive after close.
         this.proc.stdout?.removeAllListeners('data');
@@ -287,7 +304,7 @@ class PISession {
    */
   private flushTextBuffer(): void {
     if (this.textBuffer.length > 0) {
-      this.events.push(
+      this.turnStream?.push(
         this.textBlockId !== null
           ? { type: 'assistant_text', text: this.textBuffer, blockId: this.textBlockId }
           : { type: 'assistant_text', text: this.textBuffer },
@@ -442,13 +459,40 @@ class PISession {
     pending.reject(error);
   }
 
-  get eventsIterable(): AsyncIterable<NormalizedEvent> {
-    return {
-      [Symbol.asyncIterator]: (): AsyncIterator<NormalizedEvent> => ({
-        next: () => this.events.next(),
-      }),
-    };
+  isAlive(): boolean {
+    return this.alive;
   }
+
+  /**
+   * Open the stream for one turn and hand it to the caller. The adapter calls this once per
+   * spawn, so a reused session gets a fresh stream while keeping its subprocess, session id and
+   * parser state. A stream still open from a previous turn is closed first: it can only mean its
+   * consumer went away without the turn reaching a terminal event.
+   *
+   * Invariant for a freshly constructed session: this must be called in the same synchronous
+   * block as the constructor. The subprocess cannot deliver a single stdout line before that
+   * block yields, so no bootstrap event can be dropped — but a deferred call would drop them.
+   */
+  openTurnStream(): EventQueue {
+    this.closeTurnStream();
+    const stream = new EventQueue();
+    this.turnStream = stream;
+    return stream;
+  }
+
+  private closeTurnStream(): void {
+    if (this.turnStream === null) return;
+    this.turnStream.close();
+    this.turnStream = null;
+  }
+
+  /** End one run's stream. Detaches it from the session only when it is still the current turn,
+   *  so a late close from an abandoned run cannot silence the turn that replaced it. */
+  closeTurnStreamFor(stream: EventQueue): void {
+    if (this.turnStream === stream) this.closeTurnStream();
+    else stream.close();
+  }
+
 
   private handleRawLine(line: string): void {
     if (line.length === 0) return;
@@ -621,20 +665,22 @@ class PISession {
   /** Buffer deltas into whole assistant messages while preserving Web preview events. */
   private emitNormalizedEvent(evt: NormalizedEvent): void {
     if (evt.type === 'context_usage') {
-      this.events.push(evt);
+      this.turnStream?.push(evt);
       return;
     }
     if (evt.type !== 'assistant_text') {
       this.flushTextBuffer();
-      this.events.push(evt);
-      if (evt.type === 'turn_complete') this.events.close();
+      this.turnStream?.push(evt);
+      // Terminal event: end this turn's stream so its consumer's `for await` returns. The
+      // subprocess is deliberately left running — the pool decides its fate, not the turn.
+      if (evt.type === 'turn_complete') this.closeTurnStream();
       return;
     }
     const blockId = evt.blockId ?? null;
     if (this.textBuffer.length > 0 && blockId !== this.textBlockId) this.flushTextBuffer();
     this.textBlockId = blockId;
     if (this.streamDeltas && blockId !== null) {
-      this.events.push({ type: 'assistant_delta', text: evt.text, blockId });
+      this.turnStream?.push({ type: 'assistant_delta', text: evt.text, blockId });
     }
     this.textBuffer += evt.text;
   }
@@ -773,6 +819,9 @@ class PISession {
     // Without this, calling send() before the previous turn completes orphans the
     // previous Promise, which holds a pending ref that keeps the event loop alive.
     this.beginTurnReject(new Error('PISession.beginTurn: superseded by a newer send()'));
+    // Turn-scoped counter on a session-scoped parser state: without this reset a pooled session's
+    // second turn would start its progress heartbeat at the first turn's final count.
+    this.parserState.turnProgressCount = 0;
     this.pendingTurn = {
       resolve,
       reject,
@@ -1137,7 +1186,9 @@ export class PIAdapter implements AgentAdapter {
     return killed;
   }
 
-  private createAgentProcess(sessionKey: string, session: PISession): PIAgentProcess {
+  private createAgentProcess(
+    sessionKey: string, session: PISession, turnStream: EventQueue,
+  ): PIAgentProcess {
     return {
       supervision: session.supervision,
       sessionKey,
@@ -1147,7 +1198,7 @@ export class PIAdapter implements AgentAdapter {
       sendExtensionUiResponse: (id, payload) => session.sendExtensionUiResponse(id, payload),
       injectUserMessage: (msg) => session.injectUserMessage(msg),
       setInjectionAckSink: (sink) => session.setInjectionAckSink(sink),
-      events: session.eventsIterable,
+      events: turnStreamIterable(turnStream),
       close: () => this.closeSpawnedSession(sessionKey, session),
       kill: () => this.killSpawnedSession(sessionKey, session),
     };
@@ -1158,7 +1209,7 @@ export class PIAdapter implements AgentAdapter {
     const session = this.createSession(config, prepared);
     this.sessions.set(config.sessionKey, session);
 
-    return this.createAgentProcess(config.sessionKey, session);
+    return this.createAgentProcess(config.sessionKey, session, session.openTurnStream());
   }
 
   /** Record the exact transcript path restored by rewind before the next resume spawn. */
