@@ -258,7 +258,9 @@ class LegacyEventDispatcher {
   }
 
   private assistantText(event: Extract<NormalizedEvent, { type: 'assistant_text' }>): void {
-    this.options.onAssistantMessage?.(event.text, event.blockId, assistantNoticeLevel(event.text));
+    this.options.onAssistantMessage?.(
+      event.text, event.blockId, assistantNoticeLevel(event.text), undefined, event.subagent,
+    );
   }
 
   private assistantDelta(event: Extract<NormalizedEvent, { type: 'assistant_delta' }>): void {
@@ -266,7 +268,7 @@ class LegacyEventDispatcher {
   }
 
   private toolUse(event: Extract<NormalizedEvent, { type: 'tool_use' }>): void {
-    this.options.onToolUse?.(event.name, event.input, event.toolUseId);
+    this.options.onToolUse?.(event.name, event.input, event.toolUseId, event.subagent);
   }
 
   private todoUpdate(event: Extract<NormalizedEvent, { type: 'todo_update' }>): void {
@@ -274,7 +276,7 @@ class LegacyEventDispatcher {
   }
 
   private toolResult(event: Extract<NormalizedEvent, { type: 'tool_result' }>): void {
-    this.options.onToolResult?.(event.toolUseId, event.content, !event.ok);
+    this.options.onToolResult?.(event.toolUseId, event.content, !event.ok, event.subagent);
   }
 
   private progress(numTurns: number | null, totalCostUsd: number | null): void {
@@ -367,7 +369,9 @@ async function resolveRunResult(
   return waitForBgContinuation({
     proc,
     baseResult: result,
-    onAssistantText: options.onAssistantMessage ?? null,
+    onAssistantText: options.onAssistantMessage
+      ? (text, subagent) => options.onAssistantMessage!(text, undefined, undefined, undefined, subagent)
+      : null,
     onToolUse: options.onToolUse ?? null,
     onToolResult: options.onToolResult ?? null,
     onContextUsage: options.onContextUsage ?? null,

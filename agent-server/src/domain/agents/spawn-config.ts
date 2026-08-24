@@ -8,7 +8,7 @@ import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';
 import type {
   AgentProcessSpawner, AgentSpawnConfig, Backend, McpComposition,
 } from '../../agent-adapter/types.js';
-import type { NormalizedEvent, TodoSnapshot } from '../../agent-adapter/normalize/event-types.js';
+import type { NormalizedEvent, TodoSnapshot, ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction } from '@core/types/agent-types.js';
 import type { ProductionBenchmarkEvidenceContext } from '@core/types/thread-types.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
@@ -126,17 +126,19 @@ export interface RunAgentOptions {
   onProgress?: ((progress: any) => void) | null;
   onContextUsage?: ((usage: ContextUsage) => void | Promise<void>) | null;
   /** A complete assistant text block. `blockId` ties it to prior deltas; `noticeLevel` turns
-   *  system-authored text into semantic chat chrome without changing plain platform output. */
-  onAssistantMessage?: ((msg: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: NoticeAction) => void) | null;
+   *  system-authored text into semantic chat chrome without changing plain platform output.
+   *  `subagent` is present only when a native subagent produced the text — its absence is how a
+   *  surface tells the main agent's answer from a subagent's working notes. */
+  onAssistantMessage?: ((msg: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: NoticeAction, subagent?: ToolUseSubagent) => void) | null;
   /** An incremental text chunk of a block still being generated (never the accumulated total).
    *  Opt-in: callers that leave it unset receive complete messages only, exactly as before. */
   onAssistantDelta?: ((text: string, blockId: string) => void) | null;
-  onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
+  onToolUse?: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
   /** The agent's task list after a TodoWrite call. Replace-all: each snapshot is complete and
    *  supersedes the previous one, so consumers store rather than merge. Subagent lists are
    *  filtered out at the adapter boundary and never arrive here. */
   onTodoUpdate?: ((snapshot: TodoSnapshot) => void) | null;
-  onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
+  onToolResult?: ((toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent) => void) | null;
   onFallback?: (current: AgentConfig, next: AgentConfig, result: AgentResult | null, error?: Error) => Promise<void>;
   [key: string]: any;
 }

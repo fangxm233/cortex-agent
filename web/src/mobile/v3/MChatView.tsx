@@ -32,6 +32,7 @@ import {
 import { useRevealedText } from '@/features/workbench/useRevealedText';
 import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
+import { useVocab } from '@/i18n';
 import { assistantTurnCopyTargets, regenNoteIndexes, messageTimeLabel, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import {
@@ -726,6 +727,51 @@ function ExpandedToolCalls({ count, calls, unit, onCollapse }: {
   );
 }
 
+/**
+ * One native subagent's work, folded away by default.
+ *
+ * Mobile renders a FLATTENED view — the subagent's tool calls as one collapsed run plus its prose —
+ * rather than recursing through the row renderer the way the desktop block does. The mobile stream
+ * is a single inline JSX map with no recursive entry point, and a flattened block carries the same
+ * information at this width.
+ */
+function MSubagentBlock({ row, unit }: {
+  row: Extract<ChatRow, { kind: 'subagent' }>;
+  unit: string;
+}): JSX.Element {
+  const L = useVocab();
+  const [expanded, setExpanded] = useState(false);
+  const calls = row.children.flatMap((c) => (c.kind === 'tools' ? c.calls : []));
+  const texts = row.children.flatMap((c) => (c.kind === 'assistant' && c.text ? [c.text] : []));
+  const label = row.description || row.agentType || L.subagentFallbackLabel;
+  return (
+    <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8 }}>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', fontSize: 11.5, color: MC.faint, minWidth: 0 }}
+      >
+        <span style={{ fontSize: 9, flex: 'none' }}>{expanded ? '\u25be' : '\u25b8'}</span>
+        <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>
+          {row.agentType || L.subagentFallbackLabel}
+        </span>
+        <span style={{ font: `400 11px ${MONO}`, color: MC.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{label}</span>
+        <span style={{ font: `400 10px ${MONO}`, flex: 'none' }}>{`${row.toolCount} ${unit}`}</span>
+        {row.status === 'running' ? <span style={{ font: `400 10px ${MONO}`, flex: 'none' }}>{L.subagentRunning}</span> : null}
+      </div>
+      {expanded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 11px 10px', borderTop: '1px solid var(--proto-line-soft)' }}>
+          {calls.length > 0 && <ToolCallsRow count={calls.length} calls={calls} unit={unit} />}
+          {texts.map((t, index) => (
+            <div key={index} style={{ fontSize: 12.5, lineHeight: 1.6, color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+              <ChatMarkdown text={t} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ToolCallsRow({ count, calls, unit }: {
   count: number;
   calls: { kind: string; input: string }[];
@@ -901,6 +947,11 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
                 </div>
               )}
             </>
+          )}
+          {row.kind === 'subagent' && (
+            <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
+              <MSubagentBlock row={row} unit={toolCallsUnit} />
+            </div>
           )}
           {row.kind === 'tools' && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>

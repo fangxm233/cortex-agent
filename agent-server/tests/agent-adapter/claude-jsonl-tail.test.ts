@@ -582,9 +582,48 @@ test('Normalizer attributes sidechain calls to a subagent and drops their task l
   const calls = out.filter(e => e.type === 'tool_use');
   assert.equal(calls.length, 1);
   // The session JSONL has no parent tool id to offer, so the parent stays null rather than guessed.
-  assert.deepEqual((calls[0] as any).subagent, { parentToolUseId: null, type: null });
+  assert.deepEqual((calls[0] as any).subagent, {
+    parentToolUseId: null, type: null, description: null,
+  });
   // A subagent keeps its own plan; letting it through would clobber the main agent's progress.
   assert.equal(out.filter(e => e.type === 'todo_update').length, 0);
+});
+
+test('Normalizer attributes sidechain assistant text and tool results, and excludes their turns', () => {
+  const n = new JsonlEventNormalizer();
+  const sidechain = n.consume({
+    type: 'assistant',
+    isSidechain: true,
+    message: { id: 'msg_sub_text', content: [{ type: 'text', text: 'looking around' }] },
+  });
+  const texts = sidechain.filter(e => e.type === 'assistant_text');
+  assert.equal(texts.length, 1);
+  assert.deepEqual((texts[0] as any).subagent, {
+    parentToolUseId: null, type: null, description: null,
+  });
+  // A subagent's messages are its own turns, so they must not move the main agent's progress.
+  assert.equal(sidechain.filter(e => e.type === 'turn_progress').length, 0);
+
+  const results = n.consume({
+    type: 'user',
+    isSidechain: true,
+    message: { content: [{ type: 'tool_result', tool_use_id: 'tu_sub', content: 'ok' }] },
+  }).filter(e => e.type === 'tool_result');
+  assert.equal(results.length, 1);
+  assert.deepEqual((results[0] as any).subagent, {
+    parentToolUseId: null, type: null, description: null,
+  });
+
+  // The main agent's own turn still counts from one — the sidechain message above did not consume it.
+  const main = n.consume({
+    type: 'assistant',
+    isSidechain: false,
+    message: { id: 'msg_main_after', content: [{ type: 'text', text: 'done' }] },
+  });
+  const progress = main.filter(e => e.type === 'turn_progress');
+  assert.equal(progress.length, 1);
+  assert.equal((progress[0] as any).numTurns, 1);
+  assert.equal((main.find(e => e.type === 'assistant_text') as any).subagent, undefined);
 });
 
 test('Normalizer marks a main-agent call with no subagent attribution at all', () => {

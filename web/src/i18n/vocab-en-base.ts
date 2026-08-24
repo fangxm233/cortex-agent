@@ -104,6 +104,8 @@ export const enBase = {
   // ── Group E: mobile session screen 5a (scheme.dc.html L2932-3003, task c880) ──
   toolCallsUnit: 'tool calls',
   toolCallUnit: 'tool call',
+  subagentFallbackLabel: 'subagent',
+  subagentRunning: 'running',
   needsApproval: 'Approval required',
   subthreads: 'subthreads',
   dayToday: 'Today',

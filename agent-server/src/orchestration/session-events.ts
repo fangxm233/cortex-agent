@@ -32,6 +32,12 @@ export interface SessionMessagePayload {
   pending?: boolean;
   /** Durable active-record identity; stable across reloads/devices until delivery. */
   pendingId?: string;
+  /** Native-subagent grouping key — the `Agent`/`Task` call's tool_use id, carried by that call's
+   *  own row (the group anchor) and by every row the subagent produced under it. Absent = main
+   *  agent. `sidechain` when the source cannot name the parent. */
+  subagentId?: string;
+  subagentType?: string;
+  subagentDescription?: string;
 }
 
 /** Tell an open transcript to refetch after sensitive DEBUG metadata is durably persisted.
@@ -80,6 +86,9 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.noticeAction !== undefined ? { noticeAction: p.noticeAction } : {}),
     ...(p.pending !== undefined ? { pending: p.pending } : {}),
     ...(p.pendingId !== undefined ? { pendingId: p.pendingId } : {}),
+    ...(p.subagentId !== undefined ? { subagentId: p.subagentId } : {}),
+    ...(p.subagentType !== undefined ? { subagentType: p.subagentType } : {}),
+    ...(p.subagentDescription !== undefined ? { subagentDescription: p.subagentDescription } : {}),
   });
 }
 

@@ -95,20 +95,27 @@ interface PendingTurn {
   askUserQuestions: any[];
   finalOutput: string | null;
   longestOutput: string | null;
+  /** Main-agent assistant messages only. Native-subagent lines are counted separately below, the
+   *  same split ATIF keeps between `total_steps` and `subagent_turns`. */
   turnCount: number;
+  subagentTurnCount: number;
   capturePairKey?: string | null;
   releaseCapture?: (() => void) | null;
   onProgress: ((progress: any) => void) | null;
   /** Complete assistant text block. `blockId` ties it to the deltas that streamed it (absent when
    *  nothing streamed — kill switch, older CLI, or a reply that produced no partial messages). */
-  onAssistantMessage: ((text: string, blockId?: string, model?: string | null) => void) | null;
+  onAssistantMessage: ((
+    text: string, blockId?: string, model?: string | null, subagent?: ToolUseSubagent,
+  ) => void) | null;
   /** Incremental text chunk while a block is still being generated (never the accumulated total).
    *  Web UI preview only — the complete message above stays authoritative. */
   onAssistantDelta: ((text: string, blockId: string) => void) | null;
   /** `subagent` is set only when a native subagent made the call (see ToolUseSubagent).
    *  Optional so existing implementations that ignore attribution still satisfy the type. */
   onToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
-  onToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
+  onToolResult: ((
+    toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
+  ) => void) | null;
   onCompact: ((info: { trigger: string; preTokens?: number }) => void) | null;
   onModelFallback: ((event: Omit<ModelFallbackEvent, 'type'>) => void) | null;
   onContextUsage: ((usage: ContextUsage) => void) | null;
@@ -135,6 +142,7 @@ function subagentAttribution(data: any): ToolUseSubagent | undefined {
   return {
     parentToolUseId,
     type: typeof data?.subagent_type === 'string' ? data.subagent_type : null,
+    description: typeof data?.task_description === 'string' ? data.task_description : null,
   };
 }
 
@@ -617,6 +625,7 @@ class ClaudeSession {
       finalOutput: null,
       longestOutput: null,
       turnCount: 0,
+      subagentTurnCount: 0,
       capturePairKey: streams.pairKey,
       releaseCapture: streams.releaseCapture,
       onProgress: options.onProgress || null,
@@ -732,12 +741,13 @@ class ClaudeSession {
     return {
       resolve: (value: any) => this.deliverContinuation(sink => sink.onResult(value as AgentResult)),
       reject: (error: Error) => log.warn('continuation turn rejected:', error?.message ?? String(error)),
-      onAssistantMessage: (text: string, _blockId?: string, model?: string | null) =>
-        this.deliverContinuation(sink => sink.onAssistantText(text, model)),
+      onAssistantMessage: (
+        text: string, _blockId?: string, model?: string | null, subagent?: ToolUseSubagent,
+      ) => this.deliverContinuation(sink => sink.onAssistantText(text, model, subagent)),
       onToolUse: (name: string, input: any, id: string, subagent?: ToolUseSubagent) =>
         this.deliverContinuation(sink => sink.onToolUse?.(name, input, id, subagent)),
-      onToolResult: (id: string, content: string, isError: boolean) =>
-        this.deliverContinuation(sink => sink.onToolResult?.(id, content, isError)),
+      onToolResult: (id: string, content: string, isError: boolean, subagent?: ToolUseSubagent) =>
+        this.deliverContinuation(sink => sink.onToolResult?.(id, content, isError, subagent)),
       onContextUsage: (usage: ContextUsage) =>
         this.deliverContinuation(sink => sink.onContextUsage?.(usage)),
       onModelFallback: null,
@@ -753,7 +763,7 @@ class ClaudeSession {
       ...this.continuationCallbacks(),
       resultData: null, planFilePath: null,
       enteredPlanMode: false, exitedPlanMode: false,
-      askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0,
+      askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
       capturePairKey: streams.pairKey,
       releaseCapture: streams.releaseCapture,
       onProgress: null, onAssistantDelta: null, onCompact: null, onSubagentActivity: null,
@@ -796,10 +806,14 @@ class ClaudeSession {
     scheduleTaskId?: string | null;
     isUserInitiated?: boolean;
     onProgress?: ((progress: any) => void) | null;
-    onAssistantMessage?: ((text: string, blockId?: string, model?: string | null) => void) | null;
+    onAssistantMessage?: ((
+      text: string, blockId?: string, model?: string | null, subagent?: ToolUseSubagent,
+    ) => void) | null;
     onAssistantDelta?: ((text: string, blockId: string) => void) | null;
     onToolUse?: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
-    onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
+    onToolResult?: ((
+      toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
+    ) => void) | null;
     onCompact?: ((info: { trigger: string; preTokens?: number }) => void) | null;
     onModelFallback?: ((event: Omit<ModelFallbackEvent, 'type'>) => void) | null;
     onContextUsage?: ((usage: ContextUsage) => void) | null;
@@ -949,6 +963,9 @@ class ClaudeSession {
     if (typeof turn.onToolResult !== 'function') return;
     const content = data.message?.content;
     if (!Array.isArray(content)) return;
+    // A `user` line carrying subagent linkage is the subagent's OWN tool result, not the parent's.
+    // The parent's `Agent`/`Task` result arrives unlinked, as an ordinary main-agent line.
+    const subagent = subagentAttribution(data);
     for (const block of content) {
       if (!block || block.type !== 'tool_result') continue;
       const toolUseId = typeof block.tool_use_id === 'string' ? block.tool_use_id : '';
@@ -963,7 +980,7 @@ class ClaudeSession {
       } else {
         resultContent = JSON.stringify(block.content ?? '');
       }
-      try { turn.onToolResult(toolUseId, resultContent, block.is_error === true); }
+      try { turn.onToolResult(toolUseId, resultContent, block.is_error === true, subagent); }
       catch (e) { log.warn('onToolResult threw:', (e as Error).message); }
     }
   }
@@ -983,29 +1000,45 @@ class ClaudeSession {
     }
   }
 
-  private handleAssistantTextBlock(turn: PendingTurn, data: any, block: any): void {
+  private handleAssistantTextBlock(
+    turn: PendingTurn, data: any, block: any, subagent?: ToolUseSubagent,
+  ): void {
     if (!block.text) return;
+    const model = typeof data.message?.model === 'string' ? data.message.model : null;
+    // A subagent's text is NOT this turn's answer, and it did not stream: the CLI attaches subagent
+    // linkage only to complete `assistant`/`user` messages, never to `stream_event`. So it must not
+    // become finalOutput, must not win longestOutput, and — above all — must not consume the delta
+    // cursor, which belongs to a main-agent block still being streamed.
+    if (subagent) {
+      turn.onAssistantMessage?.(block.text, undefined, model, subagent);
+      return;
+    }
     turn.finalOutput = block.text;
     if (block.text.length > (turn.longestOutput?.length || 0)) turn.longestOutput = block.text;
     const blockId = takeTextBlockId(this.streamDeltaState) ?? undefined;
     const streamedModel = this.streamDeltaState.messageId === data.message?.id
       ? this.streamDeltaState.model
       : null;
-    const model = typeof data.message?.model === 'string' ? data.message.model : streamedModel;
-    turn.onAssistantMessage?.(block.text, blockId, model);
+    turn.onAssistantMessage?.(block.text, blockId, model ?? streamedModel);
   }
 
   private handleAssistantEvent(turn: PendingTurn, data: any): void {
-    turn.turnCount += 1;
-    // Attribution only — the line still walks every branch below. Diverting or skipping
-    // subagent lines would change assistant streaming and turn counting for every surface
-    // (see emitSubagentActivity, OC-11 / §17 G4-SA5).
+    // Every line still walks every branch below — subagent lines are TAGGED, never dropped, so the
+    // journal keeps a complete trajectory. What the tag changes is attribution: a subagent's turns
+    // are counted apart from the main agent's, and its text cannot be mistaken for the answer.
     const subagent = subagentAttribution(data);
+    if (subagent) turn.subagentTurnCount += 1;
+    else turn.turnCount += 1;
     for (const block of (data.message?.content || [])) {
       if (block.type === 'tool_use') this.handleAssistantToolBlock(turn, block, subagent);
-      if (block.type === 'text') this.handleAssistantTextBlock(turn, data, block);
+      if (block.type === 'text') this.handleAssistantTextBlock(turn, data, block, subagent);
     }
-    turn.onProgress?.({ num_turns: turn.turnCount, total_cost_usd: null, duration_ms: null });
+    // A subagent's message did not advance the main agent's turn, so re-rendering progress would
+    // redraw the same number. The JSONL path withholds turn_progress on sidechain records for the
+    // same reason.
+    if (!subagent) {
+      turn.onProgress?.({ num_turns: turn.turnCount, total_cost_usd: null, duration_ms: null });
+    }
   }
 
   private emitContextUsage(data: unknown): void {
@@ -1580,11 +1613,14 @@ export class ClaudeAdapter implements AgentAdapter {
         try {
           const result = await session.sendMessage(message.text, {
             files,
-            onAssistantMessage: (text: string, blockId?: string, model?: string | null) =>
+            onAssistantMessage: (
+              text: string, blockId?: string, model?: string | null, subagent?: ToolUseSubagent,
+            ) =>
               stream.push({
                 type: 'assistant_text', text,
                 ...(blockId ? { blockId } : {}),
                 ...(model != null ? { model } : {}),
+                ...(subagent ? { subagent } : {}),
               }),
             // Token-level preview of the block above. Same FIFO stream, so every delta is delivered
             // before the complete message that supersedes it.
@@ -1599,8 +1635,13 @@ export class ClaudeAdapter implements AgentAdapter {
               const snapshot = parseTodoWrite('claude', name, input);
               if (snapshot) stream.push({ type: 'todo_update', toolUseId, snapshot });
             },
-            onToolResult: (toolUseId: string, content: string, isError: boolean) =>
-              stream.push({ type: 'tool_result', toolUseId, content, ok: !isError }),
+            onToolResult: (
+              toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
+            ) =>
+              stream.push({
+                type: 'tool_result', toolUseId, content, ok: !isError,
+                ...(subagent ? { subagent } : {}),
+              }),
             onCompact: (info: { trigger: string; preTokens?: number }) =>
               stream.push({ type: 'context_compacted', trigger: info.trigger, preTokens: info.preTokens }),
             onModelFallback: (event: Omit<ModelFallbackEvent, 'type'>) =>

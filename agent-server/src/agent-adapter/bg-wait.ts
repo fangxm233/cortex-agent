@@ -77,9 +77,11 @@ export interface WaitForBgOpts {
   proc: { setContinuationSink?: (sink: ContinuationSink) => void };
   baseResult: AgentResult;
   /** Continuation assistant text forwarded here (the step's transcript/stream callback). */
-  onAssistantText?: ((text: string) => void) | null;
-  onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
-  onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
+  onAssistantText?: ((text: string, subagent?: ToolUseSubagent) => void) | null;
+  onToolUse?: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
+  onToolResult?: ((
+    toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
+  ) => void) | null;
   onContextUsage?: ((usage: ContextUsage) => void | Promise<void>) | null;
   onEvent?: ((event: NormalizedEvent) => void) | null;
   graceMs?: number;
@@ -231,17 +233,21 @@ class BackgroundContinuationWait {
 
   private sink(): ContinuationSink {
     return {
-      onAssistantText: (text, model) => this.assistantText(text, model),
+      onAssistantText: (text, model, subagent) => this.assistantText(text, model, subagent),
       onToolUse: (name, input, id, subagent) => this.toolUse(name, input, id, subagent),
-      onToolResult: (id, content, isError) => this.toolResult(id, content, isError),
+      onToolResult: (id, content, isError, subagent) => this.toolResult(id, content, isError, subagent),
       onContextUsage: (usage) => this.contextUsage(usage),
       onResult: (result) => this.result(result),
     };
   }
 
-  private assistantText(text: string, model?: string | null): void {
-    if (this.settled || !this.emit({ type: 'assistant_text', text, ...(model != null ? { model } : {}) })) return;
-    try { this.opts.onAssistantText?.(text); }
+  private assistantText(text: string, model?: string | null, subagent?: ToolUseSubagent): void {
+    if (this.settled || !this.emit({
+      type: 'assistant_text', text,
+      ...(model != null ? { model } : {}),
+      ...(subagent ? { subagent } : {}),
+    })) return;
+    try { this.opts.onAssistantText?.(text, subagent); }
     catch (error) { log.warn('bg-wait onAssistantText threw:', (error as Error).message); }
   }
 
@@ -255,13 +261,17 @@ class BackgroundContinuationWait {
       const snapshot = parseTodoWriteByName(name, input);
       if (snapshot) this.emit({ type: 'todo_update', toolUseId: id, snapshot });
     }
-    try { this.opts.onToolUse?.(name, input, id); }
+    try { this.opts.onToolUse?.(name, input, id, subagent); }
     catch (error) { log.warn('bg-wait onToolUse threw:', (error as Error).message); }
   }
 
-  private toolResult(toolUseId: string, content: string, isError: boolean): void {
-    if (this.settled || !this.emit({ type: 'tool_result', toolUseId, content, ok: !isError })) return;
-    try { this.opts.onToolResult?.(toolUseId, content, isError); }
+  private toolResult(
+    toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
+  ): void {
+    if (this.settled || !this.emit({
+      type: 'tool_result', toolUseId, content, ok: !isError, ...(subagent ? { subagent } : {}),
+    })) return;
+    try { this.opts.onToolResult?.(toolUseId, content, isError, subagent); }
     catch (error) { log.warn('bg-wait onToolResult threw:', (error as Error).message); }
   }
 

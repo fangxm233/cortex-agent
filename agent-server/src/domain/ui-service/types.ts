@@ -856,6 +856,14 @@ export interface TranscriptMessage {
   /** Present on a user message that replaced an earlier one via edit+rewind (sessions.rewind):
    *  the original text/ts backing the「已编辑」badge + hover/tap original-message card. */
   edited?: { originalText: string; originalTs: string };
+  /** Native-subagent grouping key — the `Agent`/`Task` call's tool_use id. Carried by that call's
+   *  own row, which therefore anchors the group where it belongs in the stream, and by every row
+   *  the subagent produced under it. Absent = main agent. */
+  subagentId?: string;
+  /** Declared subagent type, e.g. `explore`. Reported on the subagent's rows, not the anchor. */
+  subagentType?: string;
+  /** The spawning call's task description as the backend reports it. */
+  subagentDescription?: string;
   ts: string;
   /**
    * Real elapsed since the previous message in the session's chronological stream, in ms

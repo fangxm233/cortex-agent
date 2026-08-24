@@ -35,6 +35,10 @@ export interface LiveSessionMessage {
   /** Set on an assistant message whose text streamed as `session.message.delta` events first. It
    *  identifies the preview this message supersedes (see endStreamingBlock). */
   blockId?: string;
+  /** Native-subagent grouping key — see ChatRow's `subagent` variant. */
+  subagentId?: string;
+  subagentType?: string;
+  subagentDescription?: string;
 }
 
 // ── Token-level streaming (`session.message.delta`) ─────────────────────────────────────────────
@@ -248,7 +252,15 @@ export type ChatRow =
   | { kind: 'notice'; level: ChatNoticeLevel; text: string; noticeAction?: NoticeAction; authAction?: AuthNoticeAction }
   // `detail` carries the structured interaction entity (pending cards render actionable);
   // absent on legacy rows, which render the old subtype-driven summary.
-  | { kind: 'interaction'; subtype: string; text: string; detail?: TranscriptInteractionDetail; ts?: string | null };
+  | { kind: 'interaction'; subtype: string; text: string; detail?: TranscriptInteractionDetail; ts?: string | null }
+  // Everything one native subagent produced under a single `Agent`/`Task` call, collapsed into one
+  // block so its working notes and tool calls stop interleaving with the main agent's. The block
+  // sits exactly where the spawning call happened, and REPLACES that call's chip — the header says
+  // what was asked for. `children` is an ordinary ChatRow list, rendered by the same renderer.
+  // `status` is derived, not reported: a batch of subagents is finished the moment the main agent
+  // does anything again, which is what closes them (see buildTranscriptRows).
+  | { kind: 'subagent'; id: string; agentType: string | null; description: string | null;
+      status: 'running' | 'done'; toolCount: number; children: ChatRow[] };
 
 export interface BuildOpts {
   /** True while the session is actively producing output — marks the last assistant row's caret. */
@@ -300,6 +312,9 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessage {
     ...(m.noticeLevel ? { noticeLevel: m.noticeLevel } : {}),
     ...(m.noticeAction ? { noticeAction: m.noticeAction } : {}),
     ...(m.authAction ? { authAction: m.authAction } : {}),
+    ...(m.subagentId ? { subagentId: m.subagentId } : {}),
+    ...(m.subagentType ? { subagentType: m.subagentType } : {}),
+    ...(m.subagentDescription ? { subagentDescription: m.subagentDescription } : {}),
   };
 }
 
@@ -440,6 +455,18 @@ export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
   return targets;
 }
 
+/** A sink collects rows plus its own pending run of consecutive tool calls. The top level has one;
+ *  each open subagent block has one. */
+interface RowSink {
+  rows: ChatRow[];
+  toolBuf: { kind: string; input: string; debug?: DebugToolDetail }[];
+}
+
+/** Both spellings ship: `Agent` in current backends, `Task` historically and in session JSONL. */
+function isSubagentSpawnTool(toolName: string | null | undefined): boolean {
+  return toolName === 'Agent' || toolName === 'Task';
+}
+
 function msgKey(m: TranscriptMessage): string {
   // Interaction entities have a stable id — key on it so a status change (pending → approved)
   // REPLACES the row instead of duplicating it.
@@ -532,25 +559,78 @@ export function buildTranscriptRows(
   const rows: ChatRow[] = [];
   let curDay: string | null = null;
   let firstUserSeen = false;
-  let toolBuf: { kind: string; input: string; debug?: DebugToolDetail }[] = [];
 
-  const flushTools = (): void => {
-    if (toolBuf.length === 0) return;
-    rows.push({ kind: 'tools', count: toolBuf.length, calls: toolBuf });
-    toolBuf = [];
+  // Rows land in a sink, not straight into `rows`: a native subagent's output goes into its own
+  // block's `children` instead of the top level. Each sink buffers its own consecutive tool calls,
+  // so a subagent's tools collapse among themselves and never merge with the main agent's.
+  const top: RowSink = { rows, toolBuf: [] };
+  const blocks = new Map<string, { row: Extract<ChatRow, { kind: 'subagent' }>; sink: RowSink }>();
+
+  const flushTools = (sink: RowSink): void => {
+    if (sink.toolBuf.length === 0) return;
+    sink.rows.push({ kind: 'tools', count: sink.toolBuf.length, calls: sink.toolBuf });
+    sink.toolBuf = [];
+  };
+  const flushAll = (): void => {
+    flushTools(top);
+    for (const b of blocks.values()) flushTools(b.sink);
+  };
+  /** A batch of subagents is over the moment the main agent acts again — the model cannot speak or
+   *  call another tool until every Task it issued has returned. The spawning calls themselves are
+   *  excluded by the caller, since a second Task in the same batch must not close the first. */
+  const closeOpenBlocks = (): void => {
+    for (const b of blocks.values()) b.row.status = 'done';
+  };
+  const openBlock = (m: TranscriptMessage, id: string) => {
+    const existing = blocks.get(id);
+    if (existing) {
+      // The anchor carries the description, the child rows carry the declared type — whichever
+      // arrives second fills in what the first could not know.
+      if (!existing.row.agentType && m.subagentType) existing.row.agentType = m.subagentType;
+      if (!existing.row.description && m.subagentDescription) {
+        existing.row.description = m.subagentDescription;
+      }
+      return existing;
+    }
+    flushTools(top);
+    const row: Extract<ChatRow, { kind: 'subagent' }> = {
+      kind: 'subagent',
+      id,
+      agentType: m.subagentType ?? null,
+      description: m.subagentDescription ?? null,
+      status: 'running',
+      toolCount: 0,
+      children: [],
+    };
+    rows.push(row);
+    const entry = { row, sink: { rows: row.children, toolBuf: [] } as RowSink };
+    blocks.set(id, entry);
+    return entry;
   };
 
   for (const m of flat) {
     const day = dayStamp(m.ts);
     if (day !== curDay) {
-      flushTools();
+      flushAll();
       const label = opts.formatDivider ? opts.formatDivider(m.ts, now) : dividerLabel(m.ts, now);
       rows.push({ kind: 'divider', text: label });
       curDay = day;
     }
+    // The spawning call becomes the block header rather than a chip of its own: the header already
+    // says what was asked for, and a duplicate `Task` chip beside it reads as a second call.
+    const isAnchor = m.type === 'tool' && !!m.subagentId && isSubagentSpawnTool(m.toolName);
+    if (isAnchor) {
+      const block = openBlock(m, m.subagentId!);
+      if (!block.row.description && m.toolInput) block.row.description = m.toolInput;
+      continue;
+    }
+    const block = m.subagentId ? openBlock(m, m.subagentId) : null;
+    if (!block) closeOpenBlocks();
+    const sink = block ? block.sink : top;
     if (m.type === 'tool') {
+      if (block) block.row.toolCount += 1;
       const debug = (m as TranscriptMessage & { debug?: DebugToolDetail }).debug;
-      toolBuf.push({
+      sink.toolBuf.push({
         kind: m.toolName ?? '',
         input: m.toolInput ?? '',
         ...(debug && (debug.toolInput !== undefined || debug.toolResult !== undefined)
@@ -563,9 +643,9 @@ export function buildTranscriptRows(
       });
       continue;
     }
-    flushTools();
+    flushTools(sink);
     if (m.type === 'interaction') {
-      rows.push({ kind: 'interaction', subtype: (m as any).subtype ?? '', text: m.text ?? '', detail: m.interaction, ts: m.ts ?? null });
+      sink.rows.push({ kind: 'interaction', subtype: (m as any).subtype ?? '', text: m.text ?? '', detail: m.interaction, ts: m.ts ?? null });
     } else if (m.type === 'user') {
       const isFirstUser = !firstUserSeen;
       firstUserSeen = true;
@@ -573,7 +653,7 @@ export function buildTranscriptRows(
       const text = isFirstUser && opts.stripScheduledPrefix && raw.startsWith(SCHEDULED_PREFIX)
         ? raw.slice(SCHEDULED_PREFIX.length).trim()
         : raw;
-      rows.push({
+      sink.rows.push({
         kind: 'user', text, attachments: (m as any).attachments,
         ...(m.turnIndex !== undefined ? { turnIndex: m.turnIndex } : {}),
         ...(m.ts ? { ts: m.ts } : {}),
@@ -581,16 +661,19 @@ export function buildTranscriptRows(
         ...((m as any).debug?.agentMessage !== undefined ? { debug: { agentMessage: (m as any).debug.agentMessage } } : {}),
       });
     } else if (m.type === 'assistant' && m.noticeLevel) {
-      rows.push({
+      sink.rows.push({
         kind: 'notice', level: m.noticeLevel, text: m.text ?? '',
         ...(m.noticeAction ? { noticeAction: m.noticeAction } : {}),
         ...(m.authAction ? { authAction: m.authAction } : {}),
       });
     } else {
-      rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
+      sink.rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
     }
   }
-  flushTools();
+  flushAll();
+  // Anything still open when the stream is settled was finished by a turn that ended, not by a
+  // main-agent row we can point at. Only a live session may leave a block genuinely running.
+  if (!opts.streaming && !opts.streamingText) closeOpenBlocks();
 
   // The in-flight block, after every persisted/live message and after any tool row of this turn.
   // Flagged `preview`: this is the only row whose text is still arriving, so it is the only one the

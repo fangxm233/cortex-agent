@@ -1730,3 +1730,126 @@ test('ClaudeAdapter.spawn: portable MCP runtime is passed only through a supplem
 // lives in tests/run-with-adapter.test.ts (fake-adapter regression: callback ordering,
 // rate-limit surfacing via AgentResult, error, kill). Here we keep pure-function parity
 // tests for _test.computeSpawnArgs / buildSpawnArgs / buildHooksSettings.
+
+// --- native subagent attribution (print stream-json) -------------------------------------------
+//
+// Replay-only: the lines below are the shapes the CLI's stdout serializer emits for a native
+// `Agent`/`Task` subagent (`parent_tool_use_id` non-null, plus `subagent_type` / `task_description`);
+// the main agent's own lines carry `parent_tool_use_id: null`. No process is spawned and no paid
+// call is made.
+
+function subagentTestSession(): {
+  session: any;
+  turn: any;
+  events: any[];
+  cleanup: () => void;
+} {
+  const { session, cleanup } = compactTestSession();
+  const events: any[] = [];
+  const turn: any = {
+    resolve: () => {}, reject: () => {}, resultData: null,
+    planFilePath: null, enteredPlanMode: false, exitedPlanMode: false, askUserQuestions: [],
+    finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
+    onProgress: (p: any) => events.push({ kind: 'progress', ...p }),
+    onAssistantMessage: (text: string, blockId?: string, model?: string | null, subagent?: any) =>
+      events.push({ kind: 'assistant', text, blockId, model, subagent }),
+    onAssistantDelta: null,
+    onToolUse: (name: string, input: any, toolUseId: string, subagent?: any) =>
+      events.push({ kind: 'tool_use', name, input, toolUseId, subagent }),
+    onToolResult: (toolUseId: string, content: string, isError: boolean, subagent?: any) =>
+      events.push({ kind: 'tool_result', toolUseId, content, isError, subagent }),
+    onCompact: null, onModelFallback: null, onContextUsage: null, onSubagentActivity: null,
+    rawStream: { write: () => true, end: () => {} },
+    txtStream: { write: () => true, end: () => {} },
+    killed: false,
+  };
+  session.currentTurn = turn;
+  return { session, turn, events, cleanup };
+}
+
+function assistantLine(text: string, extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    type: 'assistant',
+    parent_tool_use_id: null,
+    message: { id: `msg_${text.slice(0, 6)}`, model: 'claude-sonnet-4-5', content: [{ type: 'text', text }] },
+    ...extra,
+  });
+}
+
+test('Claude print tags a subagent\'s text and keeps it out of the turn\'s answer', (t) => {
+  const { session, turn, events, cleanup } = subagentTestSession();
+  t.onTestFinished(cleanup);
+
+  session.handleLine(assistantLine('a very long main-agent answer that would win longestOutput'));
+  session.handleLine(assistantLine('subagent working notes', {
+    parent_tool_use_id: 'tu_agent_1',
+    subagent_type: 'explore',
+    task_description: 'map the event flow',
+  }));
+  session.handleLine(assistantLine('final'));
+
+  const texts = events.filter(e => e.kind === 'assistant');
+  assert.equal(texts.length, 3);
+  assert.equal(texts[0].subagent, undefined);
+  assert.deepEqual(texts[1].subagent, {
+    parentToolUseId: 'tu_agent_1', type: 'explore', description: 'map the event flow',
+  });
+  assert.equal(texts[2].subagent, undefined);
+
+  // The answer is the main agent's last word, never the subagent's.
+  assert.equal(turn.finalOutput, 'final');
+  // …and the subagent cannot win longestOutput either, however verbose it is.
+  assert.equal(turn.longestOutput, 'a very long main-agent answer that would win longestOutput');
+  // Turns are counted per author: two main-agent messages, one subagent's.
+  assert.equal(turn.turnCount, 2);
+  assert.equal(turn.subagentTurnCount, 1);
+});
+
+test('Claude print does not let a subagent consume the main agent\'s streamed blockId', (t) => {
+  const { session, events, cleanup } = subagentTestSession();
+  t.onTestFinished(cleanup);
+
+  // The main agent starts streaming a block: message_start then a text delta establish the cursor.
+  session.handleLine(JSON.stringify({
+    type: 'stream_event', parent_tool_use_id: null,
+    event: { type: 'message_start', message: { id: 'msg_main', model: 'claude-sonnet-4-5' } },
+  }));
+  session.handleLine(JSON.stringify({
+    type: 'stream_event', parent_tool_use_id: null,
+    event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'par' } },
+  }));
+
+  // A subagent's COMPLETE message lands mid-stream. Subagents never emit stream_event, so this
+  // block did not stream and must not claim the cursor the main agent's block is still using.
+  session.handleLine(assistantLine('subagent notes', {
+    parent_tool_use_id: 'tu_agent_1', subagent_type: 'explore',
+  }));
+  session.handleLine(assistantLine('partial answer', { message: { id: 'msg_main', model: 'claude-sonnet-4-5', content: [{ type: 'text', text: 'partial answer' }] } }));
+
+  const texts = events.filter(e => e.kind === 'assistant');
+  assert.equal(texts[0].text, 'subagent notes');
+  assert.equal(texts[0].blockId, undefined);
+  // The main agent's completing message still gets the id its deltas streamed under, so the web UI
+  // replaces the preview row instead of appending a duplicate.
+  assert.equal(texts[1].blockId, 'msg_main:0');
+});
+
+test('Claude print attributes a subagent\'s own tool result to that subagent', (t) => {
+  const { session, events, cleanup } = subagentTestSession();
+  t.onTestFinished(cleanup);
+
+  session.handleLine(JSON.stringify({
+    type: 'user', parent_tool_use_id: 'tu_agent_1', subagent_type: 'explore',
+    message: { content: [{ type: 'tool_result', tool_use_id: 'tu_child', content: 'grep output' }] },
+  }));
+  // The parent's Agent call returns unlinked — it is the MAIN agent's tool result.
+  session.handleLine(JSON.stringify({
+    type: 'user', parent_tool_use_id: null,
+    message: { content: [{ type: 'tool_result', tool_use_id: 'tu_agent_1', content: 'report' }] },
+  }));
+
+  const results = events.filter(e => e.kind === 'tool_result');
+  assert.equal(results.length, 2);
+  assert.equal(results[0].subagent.parentToolUseId, 'tu_agent_1');
+  assert.equal(results[1].subagent, undefined);
+});

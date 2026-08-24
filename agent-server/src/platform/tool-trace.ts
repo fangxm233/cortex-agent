@@ -8,6 +8,8 @@ import type { OutputStream, MutableRegion } from '@platform/index.js';
 import { Icons } from '../core/icons.js';
 import { getSettings } from '@core/settings.js';
 import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
+import { SUBAGENT_SPAWN_TOOLS } from '../agent-adapter/normalize/event-types.js';
+import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 
 const MAX_LINE_LEN = 120;
 const ELLIPSIS = '…';
@@ -137,9 +139,28 @@ function renderToolLine(
   return line;
 }
 
+/** Every native subagent's calls share one group: parallel subagents interleave their lines, and
+ *  a group per subagent would tear the trace into a new line on every switch. */
+const SUBAGENT_GROUP_KEY = 'subagent';
+
 export interface ToolTraceOptions {
   /** Prefix prepended to the line; used by multi-agent threads (e.g. `*[writer]*`). */
   slotPrefix?: string | null;
+}
+
+/** One live subagent inside the open subagent group. `count` is that subagent's own tool calls;
+ *  a freshly spawned one sits at 0 until its first call lands. */
+interface SubagentEntry {
+  label: string;
+  count: number;
+}
+
+/** `description` reads best (it is what the parent asked for); `type` is the fallback the CLI
+ *  always reports; the generic label is the last resort on the session-JSONL path, which attests
+ *  neither. */
+function subagentLabel(description?: string | null, type?: string | null): string {
+  const raw = (description || type || 'subagent').replace(/\s+/g, ' ').trim();
+  return raw.length > 40 ? raw.slice(0, 39) + ELLIPSIS : raw;
 }
 
 export class ToolTrace {
@@ -147,21 +168,85 @@ export class ToolTrace {
   private region: MutableRegion | null = null;
   private prefix: string | null;
 
-  /** Name of the currently-open group (null if no open group). */
-  private groupName: string | null = null;
-  /** Accumulated summaries for the open group; rendered on every update. */
+  /** Key of the currently-open group (null if no open group). Main-agent calls group by tool name
+   *  as before; every native subagent's call groups under one shared key instead, so parallel
+   *  subagents interleaving their calls keep updating a single line rather than tearing it into
+   *  one line per switch. */
+  private groupKey: string | null = null;
+  /** Accumulated summaries for an open main-agent group; rendered on every update. */
   private groupSummaries: string[] = [];
+  /** Live subagents in the open subagent group, in spawn order. */
+  private subagents = new Map<string, SubagentEntry>();
 
   constructor(stream: OutputStream, opts?: ToolTraceOptions) {
     this.stream = stream;
     this.prefix = opts?.slotPrefix || null;
   }
 
-  onToolUse(name: string, input: any): void {
+  onToolUse(name: string, input: any, subagent?: ToolUseSubagent, toolUseId?: string): void {
     if (!name) return;
-    const summary = summarizeToolInput(name, input || {});
+    if (subagent) {
+      this.trackSubagentCall(subagent);
+      return;
+    }
+    if (SUBAGENT_SPAWN_TOOLS.has(stripMcpPrefix(name)) && toolUseId) {
+      this.trackSubagentSpawn(toolUseId, input || {});
+      return;
+    }
+    this.trackMainCall(name, input);
+  }
 
-    if (this.groupName === name) {
+  /** The main agent asked for a subagent. Seed it at zero so the line appears the moment the call
+   *  is made, then grows — rather than materialising only once the child's first tool lands. */
+  private trackSubagentSpawn(toolUseId: string, input: any): void {
+    this.openSubagentGroup();
+    if (!this.subagents.has(toolUseId)) {
+      this.subagents.set(toolUseId, {
+        label: subagentLabel(input.description, input.subagent_type),
+        count: 0,
+      });
+    }
+    this.renderSubagents();
+  }
+
+  private trackSubagentCall(subagent: ToolUseSubagent): void {
+    this.openSubagentGroup();
+    const id = subagent.parentToolUseId || 'sidechain';
+    const existing = this.subagents.get(id);
+    if (existing) {
+      existing.count += 1;
+      // The spawn seeded the label from the parent's own input; the child reports its declared
+      // type and the description verbatim, which is the better of the two when it arrives.
+      if (subagent.description || subagent.type) {
+        existing.label = subagentLabel(subagent.description, subagent.type);
+      }
+    } else {
+      this.subagents.set(id, { label: subagentLabel(subagent.description, subagent.type), count: 1 });
+    }
+    this.renderSubagents();
+  }
+
+  private openSubagentGroup(): void {
+    if (this.groupKey === SUBAGENT_GROUP_KEY) return;
+    this.groupKey = SUBAGENT_GROUP_KEY;
+    this.groupSummaries = [];
+    this.subagents.clear();
+    this.region = null;
+  }
+
+  private renderSubagents(): void {
+    const summaries = [...this.subagents.values()]
+      .map(e => (e.count > 0 ? `${e.label} ${e.count}` : e.label));
+    const text = renderToolLine('Agent', summaries, { prefix: this.prefix });
+    if (this.region) this.region.update(text);
+    else this.region = this.stream.openMutable(text);
+  }
+
+  private trackMainCall(name: string, input: any): void {
+    const summary = summarizeToolInput(name, input || {});
+    const key = `main:${name}`;
+
+    if (this.groupKey === key) {
       // Same group — append summary and update the mutable region in place.
       this.groupSummaries.push(summary);
       const text = renderToolLine(name, this.groupSummaries, { prefix: this.prefix });
@@ -171,8 +256,9 @@ export class ToolTrace {
 
     // New group — open a fresh mutable region. Previous region (if any) is
     // automatically sealed by openMutable.
-    this.groupName = name;
+    this.groupKey = key;
     this.groupSummaries = [summary];
+    this.subagents.clear();
     const text = renderToolLine(name, this.groupSummaries, { prefix: this.prefix });
     this.region = this.stream.openMutable(text);
   }
@@ -181,8 +267,9 @@ export class ToolTrace {
    *  is not touched here — the next `stream.emitText(text)` or
    *  `stream.openMutable(...)` will seal it naturally. */
   flush(): void {
-    this.groupName = null;
+    this.groupKey = null;
     this.groupSummaries = [];
+    this.subagents.clear();
     this.region = null;
   }
 }

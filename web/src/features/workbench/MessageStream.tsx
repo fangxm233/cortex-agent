@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import type { ChatRow, Attachment } from './transcript-vm';
 import { ToolCallsRow } from './ToolCallsRow';
+import { SubagentBlock } from './SubagentBlock';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { AttachmentMeta } from './chat-content';
 import { useDownloadFile } from '@/features/media/useDownloadFile';
@@ -711,6 +712,17 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
       );
     case 'interaction':
       return <InteractionRowCard row={row} actions={interactionActions} />;
+    case 'subagent':
+      return (
+        <SubagentBlock
+          agentType={row.agentType}
+          description={row.description}
+          status={row.status}
+          toolCount={row.toolCount}
+        >
+          <ChatRows rows={row.children} interactionActions={interactionActions} streamKey={streamKey} />
+        </SubagentBlock>
+      );
     default:
       return null;
   }
@@ -735,8 +747,12 @@ export function ChatRows({ rows, interactionActions, edit, streamKey }: { rows: 
   const editingValid = !!edit && !!editingRow && editingRow.kind === 'user' && editingRow.turnIndex !== undefined;
   const stats = editingValid ? rewindStats(rows, editingIdx!) : null;
 
-  const rowKey = (row: ChatRow, i: number): string | number =>
-    row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i;
+  const rowKey = (row: ChatRow, i: number): string | number => {
+    if (row.kind === 'interaction' && row.detail) return `int-${row.detail.id}`;
+    // Keyed by identity so the block keeps its expanded/collapsed state while it is still growing.
+    if (row.kind === 'subagent') return `sub-${row.id}`;
+    return i;
+  };
 
   if (editingValid) {
     const er = editingRow as Extract<ChatRow, { kind: 'user' }>;

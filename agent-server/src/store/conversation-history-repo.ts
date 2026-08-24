@@ -66,6 +66,15 @@ export interface HistoryEvent {
   toolName?: string;
   /** compact tool input summary (tool events only). */
   toolInput?: string;
+  /** Native-subagent grouping key: the `Agent`/`Task` call's tool_use id. Set BOTH on that
+   *  spawning call itself (which therefore anchors the group) and on every row the subagent
+   *  produced under it. Absent = main agent. `sidechain` when the source attests a subagent
+   *  without naming the parent (session-JSONL path) — those collapse into one anonymous group. */
+  subagentId?: string;
+  /** Declared subagent type, e.g. `explore`. Reported on the subagent's own rows, not the anchor. */
+  subagentType?: string;
+  /** The spawning call's task description, as the CLI reports it. */
+  subagentDescription?: string;
   /** Sensitive lossless fields captured only by DEBUG-enabled orchestration. */
   debug?: HistoryDebugDetails;
   /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (LEGACY interaction rows only). */
@@ -103,6 +112,9 @@ interface RawEvent {
   noticeAction?: NoticeAction;
   toolName?: string;
   toolInput?: string;
+  subagentId?: string;
+  subagentType?: string;
+  subagentDescription?: string;
   /** DEBUG-only correlation and lossless payload fields. */
   toolUseId?: string;
   fullInput?: unknown;
@@ -133,6 +145,36 @@ export interface SessionHistory {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** How a caller names the subagent a row belongs to. Flattened onto the row by
+ *  `subagentRowFields` so the persisted JSONL stays flat like every other field. */
+export interface SubagentRowRef {
+  id: string;
+  type?: string | null;
+  description?: string | null;
+}
+
+/** Carry the persisted subagent fields back onto a read-time event, omitting absent ones so a
+ *  pre-existing history line still reads as plain main-agent output. */
+function subagentReadFields(ev: RawEvent):
+  { subagentId?: string; subagentType?: string; subagentDescription?: string } {
+  if (!ev.subagentId) return {};
+  return {
+    subagentId: ev.subagentId,
+    ...(ev.subagentType ? { subagentType: ev.subagentType } : {}),
+    ...(ev.subagentDescription ? { subagentDescription: ev.subagentDescription } : {}),
+  };
+}
+
+function subagentRowFields(ref?: SubagentRowRef):
+  { subagentId?: string; subagentType?: string; subagentDescription?: string } {
+  if (!ref) return {};
+  return {
+    subagentId: ref.id,
+    ...(ref.type ? { subagentType: ref.type } : {}),
+    ...(ref.description ? { subagentDescription: ref.description } : {}),
+  };
 }
 
 /** Compact, backend-agnostic one-line summary of a tool call's input for the history.
@@ -217,16 +259,17 @@ export class ConversationHistoryRepo {
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event.
    *  Optional `attachments` carry agent-sent files (20a) — the assistant-side mirror of the user
    *  composer's uploads. Present only for the file-send path; ordinary assistant text omits it. */
-  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction }): Promise<void> {
+  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; subagent?: SubagentRowRef }): Promise<void> {
     return this.append(sessionId, {
       type: 'assistant', text: opts.text, ts: opts.ts ?? nowIso(),
       attachments: opts.attachments, noticeLevel: opts.noticeLevel, noticeAction: opts.noticeAction,
+      ...subagentRowFields(opts.subagent),
     });
   }
 
   /** Append a tool call.
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event. */
-  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string; toolUseId?: string; fullInput?: unknown }): Promise<void> {
+  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef }): Promise<void> {
     return this.append(sessionId, {
       type: 'tool',
       toolName: opts.toolName,
@@ -234,6 +277,7 @@ export class ConversationHistoryRepo {
       ts: opts.ts ?? nowIso(),
       toolUseId: opts.toolUseId,
       fullInput: opts.fullInput,
+      ...subagentRowFields(opts.subagent),
     });
   }
 
@@ -387,6 +431,9 @@ export class ConversationHistoryRepo {
           last.noticeLevel === undefined &&
           last.turnIndex === tIdx &&
           last.attachments === undefined &&
+          // Never merge across the main/subagent boundary, nor between two subagents: streaming
+          // partials only ever collapse within one author.
+          last.subagentId === ev.subagentId &&
           typeof last.text === 'string' &&
           isPrefixRelated(last.text, text);
         if (canCollapse) {
@@ -397,6 +444,7 @@ export class ConversationHistoryRepo {
             ...(hasAttachments ? { attachments: ev.attachments } : {}),
             ...(ev.noticeLevel ? { noticeLevel: ev.noticeLevel } : {}),
             ...(ev.noticeAction ? { noticeAction: ev.noticeAction } : {}),
+            ...subagentReadFields(ev),
           });
         }
       } else if (ev.type === 'tool') {
@@ -407,6 +455,7 @@ export class ConversationHistoryRepo {
           ts: ev.ts,
           turnIndex: Math.max(0, turnIndex),
           ...(ev.fullInput !== undefined ? { debug: { toolInput: ev.fullInput } } : {}),
+          ...subagentReadFields(ev),
         };
         events.push(tool);
         if (ev.toolUseId) toolByUseId.set(ev.toolUseId, tool);

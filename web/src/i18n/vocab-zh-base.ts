@@ -104,6 +104,8 @@ export const zhBase = {
   // ── Group E: mobile session screen 5a (scheme.dc.html L2932-3003, task c880) ──
   toolCallsUnit: '次工具调用',
   toolCallUnit: '次工具调用',
+  subagentFallbackLabel: '子 agent',
+  subagentRunning: '运行中',
   needsApproval: '需要审批',
   subthreads: '子线程',
   dayToday: '今天',

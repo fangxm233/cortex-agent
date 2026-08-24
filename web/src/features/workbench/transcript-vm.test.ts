@@ -914,3 +914,92 @@ describe('buildTranscriptRows stripScheduledPrefix', () => {
       .toEqual(['plain start', '[Scheduled Task] quoted later']);
   });
 });
+
+describe('buildTranscriptRows — native subagent grouping', () => {
+  const msg = (o: Partial<Parameters<typeof buildTranscriptRows>[0]['turns'][0]['messages'][0]> & { type: 'user' | 'assistant' | 'tool' }) =>
+    ({ text: null, toolName: null, toolInput: null, ts: T, elapsedMs: null, ...o }) as any;
+
+  it('folds a subagent\'s work into a block anchored at the spawning call', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'user', text: 'go' }),
+        msg({ type: 'tool', toolName: 'Read', toolInput: 'main.ts' }),
+        msg({ type: 'tool', toolName: 'Task', toolInput: 'map the event flow', subagentId: 'tu_a' }),
+        msg({ type: 'tool', toolName: 'Grep', toolInput: 'x', subagentId: 'tu_a', subagentType: 'explore', subagentDescription: 'map the event flow' }),
+        msg({ type: 'assistant', text: 'child notes', subagentId: 'tu_a', subagentType: 'explore' }),
+        msg({ type: 'assistant', text: 'main answer' }),
+      ] }]),
+      [],
+    );
+    const kinds = rows.map(r => r.kind);
+    // The main agent's own Read stays at the top level; the Task chip becomes the block.
+    expect(kinds).toEqual(['divider', 'user', 'tools', 'subagent', 'assistant']);
+
+    const block = rows[3] as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(block.id).toBe('tu_a');
+    expect(block.agentType).toBe('explore');
+    expect(block.description).toBe('map the event flow');
+    expect(block.toolCount).toBe(1);
+    // A main-agent row after the batch proves the subagents returned.
+    expect(block.status).toBe('done');
+    // The child's own rows live inside the block, never in the main stream.
+    expect(block.children.map(r => r.kind)).toEqual(['tools', 'assistant']);
+    expect((rows[2] as any).calls.map((c: any) => c.kind)).toEqual(['Read']);
+  });
+
+  it('keeps parallel subagents in separate blocks while their rows interleave', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'tool', toolName: 'Task', toolInput: 'first', subagentId: 'tu_a' }),
+        msg({ type: 'tool', toolName: 'Task', toolInput: 'second', subagentId: 'tu_b' }),
+        msg({ type: 'tool', toolName: 'Grep', toolInput: 'x', subagentId: 'tu_a' }),
+        msg({ type: 'tool', toolName: 'Read', toolInput: 'y', subagentId: 'tu_b' }),
+        msg({ type: 'tool', toolName: 'Read', toolInput: 'z', subagentId: 'tu_a' }),
+      ] }]),
+      [],
+    );
+    const blocks = rows.filter(r => r.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>[];
+    expect(blocks.map(b => b.id)).toEqual(['tu_a', 'tu_b']);
+    expect(blocks[0].toolCount).toBe(2);
+    expect(blocks[1].toolCount).toBe(1);
+    // A second Task in the same batch must not close the first block.
+    expect(blocks[0].status).toBe('done');
+  });
+
+  it('collapses anonymous sidechain rows into one unnamed block', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'tool', toolName: 'Grep', toolInput: 'x', subagentId: 'sidechain' }),
+        msg({ type: 'assistant', text: 'notes', subagentId: 'sidechain' }),
+      ] }]),
+      [],
+    );
+    const blocks = rows.filter(r => r.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>[];
+    expect(blocks.length).toBe(1);
+    expect(blocks[0].agentType).toBeNull();
+    expect(blocks[0].description).toBeNull();
+  });
+
+  it('leaves a block running while the session is still streaming', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'tool', toolName: 'Task', toolInput: 'go look', subagentId: 'tu_a' }),
+        msg({ type: 'tool', toolName: 'Grep', toolInput: 'x', subagentId: 'tu_a' }),
+      ] }]),
+      [],
+      { streaming: true },
+    );
+    const block = rows.find(r => r.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(block.status).toBe('running');
+  });
+
+  it('carries subagent fields from a live session.message', () => {
+    const live: LiveSessionMessage = {
+      sessionId: 's1', role: 'assistant', text: 'notes', ts: T,
+      subagentId: 'tu_a', subagentType: 'explore', subagentDescription: 'map it',
+    };
+    expect(liveToMessage(live)).toMatchObject({
+      subagentId: 'tu_a', subagentType: 'explore', subagentDescription: 'map it',
+    });
+  });
+});

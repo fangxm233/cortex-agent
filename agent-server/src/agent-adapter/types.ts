@@ -186,13 +186,17 @@ export interface AgentSpawnConfig {
  * background tasks are done. Only the Claude backend implements this (capability-gated).
  */
 export interface ContinuationSink {
-  /** Assistant text from the continuation turn (append to the original reply). */
-  onAssistantText: (text: string, model?: string | null) => void;
+  /** Assistant text from the continuation turn (append to the original reply). `subagent` is set
+   *  only when a native subagent produced it (see ToolUseSubagent). */
+  onAssistantText: (text: string, model?: string | null, subagent?: ToolUseSubagent) => void;
   /** Optional tool_use trace from the continuation turn, preserving its correlation id and,
    *  when a native subagent made the call, its attribution. */
   onToolUse?: (name: string, input: any, toolUseId?: string, subagent?: ToolUseSubagent) => void;
-  /** Optional full normalized tool result from the continuation turn. */
-  onToolResult?: (toolUseId: string, content: string, isError: boolean) => void;
+  /** Optional full normalized tool result from the continuation turn, with subagent attribution
+   *  when the result belongs to a native subagent's own call. */
+  onToolResult?: (
+    toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
+  ) => void;
   /** Optional exact context snapshot from the spontaneous provider call. */
   onContextUsage?: (usage: ContextUsage) => void;
   /** Continuation turn's terminating result. `result.pendingBackgroundTasks` is the number

@@ -25,7 +25,7 @@ function turnFor(out: Seen) {
   return {
     resolve: () => {}, reject: () => {},
     resultData: null, planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
-    askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0,
+    askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
     onProgress: (p: any) => { out.progress.push(p); },
     onAssistantMessage: (text: string) => { out.assistantText.push(text); },
     onAssistantDelta: null,
@@ -119,10 +119,10 @@ test('a replay echo carrying parent_tool_use_id emits no census event', (t) => {
   assert.deepEqual(out.census, []);
 });
 
-// D-ADDITIVE: the discriminator ADDS an event; it never diverts a subagent line away from the
-// handlers it reaches today. adapter.ts is shared by every Cortex session, so re-routing would
-// change assistant streaming and turn counting for every product surface.
-test('a subagent assistant line still reaches every handler it reaches today', (t) => {
+// D-ADDITIVE: the discriminator ADDS an event; a subagent line is never dropped, so the journal
+// keeps a complete trajectory. What it does change is ATTRIBUTION — the line is tagged, and the
+// turn counters that describe the MAIN agent's progress no longer absorb the subagent's messages.
+test('a subagent assistant line still reaches every emitting handler, attributed apart', (t) => {
   const out = seen();
   const s = sessionWith(out, t);
 
@@ -133,7 +133,25 @@ test('a subagent assistant line still reaches every handler it reaches today', (
 
   assert.deepEqual(out.assistantText, ['subagent speaking']);
   assert.deepEqual(out.toolUses, [{ name: 'Bash', toolUseId: 'sub-call-1' }]);
-  assert.equal(s.currentTurn.turnCount, 1);
-  assert.deepEqual(out.progress.map((p: any) => p.num_turns), [1]);
   assert.equal(out.census.length, 1);
+  // Counted as the subagent's turn, not the main agent's.
+  assert.equal(s.currentTurn.turnCount, 0);
+  assert.equal(s.currentTurn.subagentTurnCount, 1);
+  // No progress event: the main agent's count did not move, so redrawing the status would show
+  // the same number. The JSONL path withholds turn_progress on sidechain records identically.
+  assert.deepEqual(out.progress, []);
+});
+
+test('a main-agent line after a subagent line counts only the main agent\'s turns', (t) => {
+  const out = seen();
+  const s = sessionWith(out, t);
+
+  s.handleLine(assistantLine({ parent_tool_use_id: 'toolu_agent_1', subagent_type: 'explore' }, [
+    { type: 'text', text: 'subagent speaking' },
+  ]));
+  s.handleLine(assistantLine({ parent_tool_use_id: null }, [{ type: 'text', text: 'main answer' }]));
+
+  assert.equal(s.currentTurn.turnCount, 1);
+  assert.equal(s.currentTurn.subagentTurnCount, 1);
+  assert.deepEqual(out.progress.map((p: any) => p.num_turns), [1]);
 });

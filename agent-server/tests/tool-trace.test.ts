@@ -126,3 +126,45 @@ test('ToolTrace flush starts a new group without creating another post', async (
   assert.match(final, /a\.ts/);
   assert.match(final, /b\.ts/);
 });
+
+test('ToolTrace folds a subagent\'s calls into one live line per spawning call', async () => {
+  const adapter = new MockAdapter();
+  const stream = new SlackOutputStream(adapter as any, testDest('C1'));
+  const trace = new ToolTrace(stream);
+
+  // The main agent spawns two subagents in one batch: both lines appear at zero immediately.
+  trace.onToolUse('Agent', { description: 'map the event flow', subagent_type: 'explore' }, undefined, 'tu_a');
+  trace.onToolUse('Agent', { description: 'review the diff', subagent_type: 'reviewer' }, undefined, 'tu_b');
+  // Their calls interleave, as parallel subagents' calls do.
+  trace.onToolUse('Grep', { pattern: 'x' }, { parentToolUseId: 'tu_a', type: 'explore', description: 'map the event flow' });
+  trace.onToolUse('Read', { file_path: 'a.ts' }, { parentToolUseId: 'tu_b', type: 'reviewer', description: 'review the diff' });
+  trace.onToolUse('Read', { file_path: 'b.ts' }, { parentToolUseId: 'tu_a', type: 'explore', description: 'map the event flow' });
+  await settle(stream);
+
+  // One line for the whole batch — interleaving must not tear it into a line per switch.
+  assert.equal(adapter.posted.length, 1);
+  const final = adapter.updated.at(-1)!.content.text as string;
+  assert.match(final, /×2/);
+  assert.match(final, /map the event flow 2/);
+  assert.match(final, /review the diff 1/);
+  // The children's own tool names never reach the chat surface.
+  assert.ok(!final.includes('Grep'));
+  assert.ok(!final.includes('a.ts'));
+});
+
+test('ToolTrace keeps main-agent calls in their own group after a subagent batch', async () => {
+  const adapter = new MockAdapter();
+  const stream = new SlackOutputStream(adapter as any, testDest('C1'));
+  const trace = new ToolTrace(stream);
+
+  trace.onToolUse('Agent', { description: 'go look', subagent_type: 'explore' }, undefined, 'tu_a');
+  trace.onToolUse('Grep', { pattern: 'x' }, { parentToolUseId: 'tu_a', type: 'explore', description: 'go look' });
+  trace.onToolUse('Read', { file_path: 'main.ts' });
+  await settle(stream);
+
+  const final = adapter.updated.at(-1)!.content.text as string;
+  const agentIndex = final.indexOf('go look');
+  const readIndex = final.indexOf('main.ts');
+  assert.ok(agentIndex >= 0 && readIndex > agentIndex);
+  assert.match(final, /Read .*×1/);
+});

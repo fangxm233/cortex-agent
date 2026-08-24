@@ -41,6 +41,7 @@ import {
   isProviderUsageRateLimited,
 } from '../costs/rate-limit-throttle.js';
 import { recordResume, removeThreadResume } from '../costs/resume-registry.js';
+import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { Icons } from '../../core/icons.js';
 import { closeSessionsByPrefix } from '../agents/index.js';
 import * as executionRegistry from '../executions/registry.js';
@@ -148,9 +149,9 @@ interface StepContext {
 
 /** Per-step callbacks resolved from opts/vm by setupStepCallbacks. */
 interface StepCallbacks {
-  onAssistantMessage: ((text: string, blockId?: string, noticeLevel?: ChatNoticeLevel) => void) | null | undefined;
+  onAssistantMessage: ((text: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: undefined, subagent?: ToolUseSubagent) => void) | null | undefined;
   onProgress: ((progress: any) => void) | null;
-  onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
+  onToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
   onToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
 }
 
@@ -391,10 +392,17 @@ function setupStepCallbacks(
   const streamAssistantMessage = toolTrace
     ? (text: string) => { toolTrace.flush(); baseAssistantMessage(text); }
     : baseAssistantMessage;
-  const traceToolUse = toolTrace ? (name: string, input: any, _toolUseId: string) => toolTrace.onToolUse(name, input) : null;
-  const composedToolUse: ((name: string, input: any, toolUseId: string) => void) | null =
+  const traceToolUse = toolTrace
+    ? (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) =>
+        toolTrace.onToolUse(name, input, subagent, toolUseId)
+    : null;
+  const composedToolUse:
+    ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null =
     traceToolUse && callerOnToolUse
-      ? (name: string, input: any, toolUseId: string) => { traceToolUse(name, input, toolUseId); callerOnToolUse(name, input); }
+      ? (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => {
+          traceToolUse(name, input, toolUseId, subagent);
+          callerOnToolUse(name, input);
+        }
       : (traceToolUse ?? callerOnToolUse);
 
   // Transcript recording: mirror the direct path — every assistant message + tool call is
@@ -403,14 +411,20 @@ function setupStepCallbacks(
   // shows everything so far. Recording wraps (never replaces) the display callbacks, so
   // streaming/tool-trace behaviour is unchanged.
   const recorder = stepCtx.recorder;
-  const onAssistantMessage = (text: string, _blockId?: string, noticeLevel?: ChatNoticeLevel) => {
+  const onAssistantMessage = (
+    text: string, _blockId?: string, noticeLevel?: ChatNoticeLevel,
+    _noticeAction?: undefined, subagent?: ToolUseSubagent,
+  ) => {
     if (text) stepCtx.sawActivity = true;
-    streamAssistantMessage(text);
+    // A subagent's prose never reaches the thread's shared stream: the step's own output is what
+    // downstream agents read, and interleaving a child's working notes into it would corrupt the
+    // handoff. Its activity still shows on the trace line (see tool-trace).
+    if (!subagent) streamAssistantMessage(text);
     if (text) recorder.recordAssistant(text, noticeLevel);
   };
-  const onToolUse = (name: string, input: any, toolUseId: string) => {
+  const onToolUse = (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => {
     stepCtx.sawActivity = true;
-    composedToolUse?.(name, input, toolUseId);
+    composedToolUse?.(name, input, toolUseId, subagent);
     recorder.recordTool(name, input, toolUseId);
   };
   const onToolResult = (toolUseId: string, content: string, isError: boolean) => {

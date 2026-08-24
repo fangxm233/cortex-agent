@@ -259,6 +259,11 @@ export async function handleSessionsTranscript(
       ...(debug !== undefined ? { debug } : {}),
       ...(ev.type === 'interaction' && (entitySubtype ?? ev.subtype) ? { subtype: entitySubtype ?? ev.subtype } : {}),
       ...(interaction !== undefined ? { interaction } : {}),
+      // Native-subagent grouping. Reloading a transcript must reproduce the same blocks the live
+      // stream drew, so these ride the snapshot exactly as they ride `session.message`.
+      ...(ev.subagentId !== undefined ? { subagentId: ev.subagentId } : {}),
+      ...(ev.subagentType !== undefined ? { subagentType: ev.subagentType } : {}),
+      ...(ev.subagentDescription !== undefined ? { subagentDescription: ev.subagentDescription } : {}),
     });
     prevMs = curValid ? curMs : null;
   }

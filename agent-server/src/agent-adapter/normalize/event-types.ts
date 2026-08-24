@@ -25,10 +25,19 @@ export interface QuestionSpec {
  * sees `isSidechain` but no parent tool id. Consumers that need per-subagent attribution must
  * therefore tolerate a null parent, not assume one.
  */
+/** The tool names that spawn a native subagent. A call to one of these is the ANCHOR of a subagent
+ *  run: its `toolUseId` is the `parentToolUseId` every line of that subagent then carries, and its
+ *  `tool_result` closes the run. Both spellings ship — `Agent` in current CLIs, `Task` historically
+ *  and in the session JSONL. */
+export const SUBAGENT_SPAWN_TOOLS: ReadonlySet<string> = new Set(['Agent', 'Task']);
+
 export interface ToolUseSubagent {
   parentToolUseId: string | null;
   /** Declared subagent type (e.g. `explore`), when the source reports one. */
   type: string | null;
+  /** The spawning call's task description, when the source reports one. Reads far better than the
+   *  truncated prompt fragment a consumer would otherwise scrape off the parent's tool input. */
+  description?: string | null;
 }
 
 interface CostRecordEvent {
@@ -53,12 +62,20 @@ interface CostRecordEvent {
 
 export type NormalizedEvent =
   | { type: 'session_started'; sessionId: string; sessionFile?: string }
-  | { type: 'assistant_text'; text: string; blockId?: string; model?: string | null }
+  | { type: 'assistant_text'; text: string; blockId?: string; model?: string | null;
+      /** Present only when a native subagent produced the text. See ToolUseSubagent. */
+      subagent?: ToolUseSubagent }
+  // No `subagent` member, deliberately: subagents never produce token-level deltas. The CLI's
+  // stream_event serializer hardcodes `parent_tool_use_id: null`, and the branch that DOES attach
+  // subagent linkage re-emits only complete `assistant`/`user` messages. So every delta belongs to
+  // the main agent, and a subagent's complete message must not consume the delta cursor.
   | { type: 'assistant_delta'; text: string; blockId: string }
   | { type: 'tool_use'; toolUseId: string; name: string; input: unknown;
       /** Present only when a native subagent made the call. See ToolUseSubagent. */
       subagent?: ToolUseSubagent }
-  | { type: 'tool_result'; toolUseId: string; ok: boolean; content: string }
+  | { type: 'tool_result'; toolUseId: string; ok: boolean; content: string;
+      /** Present only when the result belongs to a native subagent's own call. */
+      subagent?: ToolUseSubagent }
   // Derived semantic event emitted ALONGSIDE the raw `tool_use` for a TodoWrite call, never
   // instead of it: the raw call is required-sink evidence (production-attempt-journal → ATIF
   // tool_calls) and dropping it would put a hole in the trajectory. Same family as

@@ -98,6 +98,16 @@ const PLAN_ENTER_TOOL_NAMES = new Set([
  *
  * @see DR-0012 §3.4 — cost reconstructed from per-message usage; per-message dedup avoids double-counting.
  */
+/** This path reads the session JSONL, which marks subagent records with `isSidechain` but does not
+ *  carry the parent Agent/Task call's tool_use id — the parentUuid chain would have to be walked to
+ *  recover it, and there is no verified sidechain sample to write that against, so it stays null
+ *  rather than guessed. Consumers already tolerate a null parent. */
+function sidechainAttribution(raw: any): ToolUseSubagent | undefined {
+  return raw?.isSidechain === true
+    ? { parentToolUseId: null, type: null, description: null }
+    : undefined;
+}
+
 export class JsonlEventNormalizer {
   private seenMsgIds: Set<string> = new Set();
   private currentTurnUsages: PerMessageUsage[] = [];
@@ -133,9 +143,7 @@ export class JsonlEventNormalizer {
     // not carry the parent Agent/Task call's tool_use id — the parentUuid chain would have to be
     // walked to recover it, and there is no verified sidechain sample to write that against, so it
     // stays null rather than guessed. Consumers already tolerate a null parent.
-    const subagent: ToolUseSubagent | undefined = raw?.isSidechain === true
-      ? { parentToolUseId: null, type: null }
-      : undefined;
+    const subagent = sidechainAttribution(raw);
     const msgId: string | undefined = msg.id;
     const isNewMessage = !!msgId && !this.seenMsgIds.has(msgId);
     if (isNewMessage) {
@@ -144,7 +152,8 @@ export class JsonlEventNormalizer {
         usage: (msg.usage as ClaudeUsage) || {},
         model: typeof msg.model === 'string' ? msg.model : '',
       });
-      this.turnCount += 1;
+      // Main-agent messages only, matching the print path: a subagent's turns are its own.
+      if (!subagent) this.turnCount += 1;
     }
 
     const model = typeof msg.model === 'string' ? msg.model : undefined;
@@ -155,6 +164,7 @@ export class JsonlEventNormalizer {
           type: 'assistant_text', text: block.text,
           blockId: typeof block.id === 'string' ? block.id : msgId,
           ...(model !== undefined ? { model } : {}),
+          ...(subagent ? { subagent } : {}),
         });
       } else if (block.type === 'tool_use') {
         const toolUseId = typeof block.id === 'string' ? block.id : '';
@@ -193,7 +203,7 @@ export class JsonlEventNormalizer {
       // thinking blocks intentionally not surfaced (per existing -p adapter behavior)
     }
 
-    if (isNewMessage) {
+    if (isNewMessage && !subagent) {
       events.push({ type: 'turn_progress', numTurns: this.turnCount });
     }
 
@@ -204,6 +214,7 @@ export class JsonlEventNormalizer {
     const events: NormalizedEvent[] = [];
     const content = raw.message?.content;
     if (!Array.isArray(content)) return events;
+    const subagent = sidechainAttribution(raw);
     for (const block of content) {
       if (!block || block.type !== 'tool_result') continue;
       const toolUseId = typeof block.tool_use_id === 'string' ? block.tool_use_id : '';
@@ -220,7 +231,10 @@ export class JsonlEventNormalizer {
       } else {
         contentStr = JSON.stringify(block.content ?? '');
       }
-      events.push({ type: 'tool_result', toolUseId, ok, content: contentStr });
+      events.push({
+        type: 'tool_result', toolUseId, ok, content: contentStr,
+        ...(subagent ? { subagent } : {}),
+      });
     }
     return events;
   }

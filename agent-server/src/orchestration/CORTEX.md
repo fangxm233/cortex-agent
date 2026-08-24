@@ -25,6 +25,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | resume-dispatcher.ts | runner | Resumes paused work under runtime settings |
 | session-compact.ts | control | compacts an idle session's context |
 | session-events.ts | events | publishes session state events on the bus |
+| subagent-rows.ts | util | maps native-subagent attribution to history and payload fields |
 | session-rewind.ts | chat | restores and pins snapshots before Web resend |
 | session-retention-controller.ts | timer | serializes startup and periodic retention sweeps |
 | session-send.ts | chat | forwards admitted Web user turns |

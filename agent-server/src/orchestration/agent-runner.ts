@@ -18,6 +18,9 @@ import type { Session } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory, summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
+import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
+import { SUBAGENT_SPAWN_TOOLS } from '../agent-adapter/normalize/event-types.js';
+import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
 import { consumePendingTurnSupersession, finishTurnTracking, handleAgentSuccess, handleAgentError, initTurnTracking } from './lifecycle.js';
@@ -78,7 +81,7 @@ interface AgentCallbacks {
   onFallback: (...args: any[]) => Promise<void>;
   onAssistantMsg: ((text: string) => void) & { stream?: OutputStream };
   onProgress: (progress: any) => void;
-  onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
+  onToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
   /** Latest task list, used to keep the platform status line in step with the agent's plan. */
   onTodoUpdate: ((snapshot: TodoSnapshot) => void) | null;
 }
@@ -322,19 +325,30 @@ export class AgentRunner {
     // messages only. Lives for the turn; sealed in the finally below.
     const deltaStream = createSessionDeltaStream({ sessionId, channel });
     const debugEnabled = isDebugMode();
-    const persistToolUse = (name: string, input: any, toolUseId: string): void => {
+    const persistToolUse = (
+      name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent,
+    ): void => {
       const toolInput = summarizeToolInputForHistory(input);
       const ts = new Date().toISOString();
+      // A main-agent call to Agent/Task anchors the group it is about to spawn: it carries the id
+      // its children will carry, so the client can open the block exactly where the call happened.
+      const ref = subagent
+        ? subagentRowRef(subagent)
+        : (SUBAGENT_SPAWN_TOOLS.has(name) && toolUseId ? { id: toolUseId } : undefined);
       recordHistory(
         conversationHistory.appendTool(sessionId, {
           toolName: name,
           toolInput,
           ts,
+          ...(ref ? { subagent: ref } : {}),
           ...(debugEnabled ? { toolUseId, fullInput: input } : {}),
         }),
         debugEnabled ? () => publishSessionDebugUpdated({ sessionId, channel }) : undefined,
       );
-      publishSessionMessage({ sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts });
+      publishSessionMessage({
+        sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
+        ...subagentPayloadFields(ref),
+      });
     };
     const persistToolResult = debugEnabled
       ? (toolUseId: string, content: string, isError: boolean): void => {
@@ -388,20 +402,27 @@ export class AgentRunner {
           sessionLease = null;
         },
         onAssistantDelta: deltaStream ? (text: string, blockId: string) => deltaStream.onDelta(text, blockId) : null,
-        onAssistantMessage: (text: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: NoticeAction) => {
+        onAssistantMessage: (text: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: NoticeAction, subagent?: ToolUseSubagent) => {
           // Drain this block's preview FIRST: the authoritative message must never be overtaken by
           // a delta still sitting in the coalescer, or the UI would replace the row and then append
           // a stale fragment to it.
           if (blockId) deltaStream?.flush(blockId);
-          callbacks.onAssistantMsg(text);
+          const ref = subagent ? subagentRowRef(subagent) : undefined;
+          // A subagent's prose is working notes addressed to its parent, not an answer addressed to
+          // the user. Chat platforms get the live counter on the spawning call's trace line instead
+          // (see tool-trace); the full text stays in the transcript, where it can be grouped.
+          if (!ref) callbacks.onAssistantMsg(text);
           if (sessionId && text) {
             const ts = new Date().toISOString();
-            recordHistory(conversationHistory.appendAssistant(sessionId, { text, ts, noticeLevel, noticeAction }));
+            recordHistory(conversationHistory.appendAssistant(sessionId, {
+              text, ts, noticeLevel, noticeAction, ...(ref ? { subagent: ref } : {}),
+            }));
             publishSessionMessage({
               sessionId, channel, role: 'assistant', text, ts,
               ...(blockId ? { blockId } : {}),
               ...(noticeLevel ? { noticeLevel } : {}),
               ...(noticeAction ? { noticeAction } : {}),
+              ...subagentPayloadFields(ref),
             });
           }
         },
@@ -570,7 +591,7 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
   result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number;
   userMessage: string; executionId: string | null; sessionName: string; sessionId: string | null;
   threadAnchorId: string | null; messageTs: string; callbacks: AgentCallbacks; projectId: string;
-  continuationToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
+  continuationToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
   continuationToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   continuationContextUsage: ((usage: ContextUsage) => void) | null;
   registerContinuationSink?: ((sink: ContinuationSink) => void) | null;
@@ -683,7 +704,10 @@ function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination,
   const onAssistantMsg: AgentCallbacks['onAssistantMsg'] = toolTrace
     ? Object.assign((text: string) => { toolTrace.flush(); baseAssistantMsg(text); }, { stream: baseAssistantMsg.stream })
     : baseAssistantMsg;
-  const onToolUse = toolTrace ? (name: string, input: any) => toolTrace.onToolUse(name, input) : null;
+  const onToolUse = toolTrace
+    ? (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) =>
+        toolTrace.onToolUse(name, input, subagent, toolUseId)
+    : null;
 
   setStreamingCallback(channel, onAssistantMsg);
 
@@ -737,13 +761,16 @@ function recordHistory(p: Promise<unknown>, onPersisted?: () => void): void {
 
 /** Compose two optional onToolUse callbacks so both fire on each tool_use event. */
 function composeToolUse(
-  a: ((name: string, input: any, toolUseId: string) => void) | null,
-  b: ((name: string, input: any, toolUseId: string) => void) | null,
-): ((name: string, input: any, toolUseId: string) => void) | null {
+  a: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null,
+  b: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null,
+): ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null {
   if (!a && !b) return null;
   if (!a) return b;
   if (!b) return a;
-  return (name, input, toolUseId) => { a(name, input, toolUseId); b(name, input, toolUseId); };
+  return (name, input, toolUseId, subagent) => {
+    a(name, input, toolUseId, subagent);
+    b(name, input, toolUseId, subagent);
+  };
 }
 
 /** Route generic PI extension dialogs through the shared platform interaction UI. */
