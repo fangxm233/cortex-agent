@@ -7,6 +7,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
+import { requestLoopbackJson } from '@core/loopback-http.js';
 
 /** Daemon webhook base — same loopback + token seam the thread/task MCP tools use. */
 const WEBHOOK_BASE = `http://127.0.0.1:${process.env.WEBHOOK_PORT || '3001'}`;
@@ -37,14 +38,14 @@ export function registerUiFileTools(server: McpServer): void {
         if (!fs.existsSync(resolved)) throw new Error(`File not found: ${resolved}`);
         if (!fs.statSync(resolved).isFile()) throw new Error(`Not a file: ${resolved}`);
 
-        const res = await fetch(`${WEBHOOK_BASE}/webhook/ui-file`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' },
-          body: JSON.stringify({ sessionId, filePath: resolved, fileName: file_name, caption }),
-        });
-        const data = await res.json() as any;
-        if (!data.success) throw new Error(data.error || 'send_file failed');
-        const meta = data.data;
+        const { body } = await requestLoopbackJson(
+          'POST',
+          `${WEBHOOK_BASE}/webhook/ui-file`,
+          { sessionId, filePath: resolved, fileName: file_name, caption },
+          { 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' },
+        );
+        if (!body.success) throw new Error(body.error || 'send_file failed');
+        const meta = body.data;
         return { content: [{ type: 'text', text: `Sent file to the user: ${meta.name} (${meta.size} bytes)` }] };
       } catch (e) {
         return { content: [{ type: 'text', text: `Failed to send file: ${(e as Error).message}` }], isError: true };

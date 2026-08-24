@@ -22,6 +22,7 @@ import {
 } from './defaults.js';
 import { getSettings } from '@core/settings.js';
 import { materializeMcpToolAllowlistConfigs } from '@core/config-generator.js';
+import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
 import type { McpComposition } from '../types.js';
 import { buildHooksSettings } from './hooks-builder.js';
 
@@ -277,6 +278,7 @@ function setIfPresent(env: NodeJS.ProcessEnv, key: string, value?: string | null
  *  (we deliberately do NOT set DISABLE_TELEMETRY / NONESSENTIAL_TRAFFIC, which would). Must be set
  *  AFTER the CLAUDE_CODE* strip loop. See code.claude.com/docs/en/env-vars. */
 function applyClaudeStartupEnv(env: NodeJS.ProcessEnv): void {
+  env.MCP_TOOL_TIMEOUT = String(MCP_INFRASTRUCTURE_TIMEOUT_MS);
   env.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
   env.DISABLE_AUTOUPDATER = '1';                                  // no npm registry update check at launch
   env.CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL = '1'; // skip first-run marketplace install

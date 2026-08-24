@@ -7,7 +7,7 @@ Translates Claude stream and transcript events into the normalized event schema.
 |---|---|---|
 | adapter.ts | adapter | pools sessions by route and interaction surface |
 | adapter-tui.ts | adapter | runs TUI sessions with frozen tool surfaces |
-| spawn-args.ts | core | Builds Claude args and shared interaction tools |
+| spawn-args.ts | core | Builds Claude args, env and MCP deadline |
 | mcp-config.ts | core | Writes private MCP and proxy configs |
 | remote-mcp-proxy.ts | core | Proxies remote MCP without redirects |
 | defaults.ts | config | Claude timeout, MCP composition and tool constants |

@@ -244,6 +244,12 @@ execution registry). Instead, they communicate through two paths:
    executions.json) directly, using the same repository layer as the main
    server process.
 
+MCP calls and loopback HTTP requests share a 30-minute-30-second infrastructure
+deadline. Tool-specific business deadlines remain authoritative: shell commands
+use their `timeout` argument, while human and manager interactions retain their
+30-minute response window. The extra 30 seconds lets a business timeout return
+its result before an outer transport deadline closes the request.
+
 ## Plugin-provided MCP servers
 
 Target-scoped third-party MCP belongs in a portable Agent Plugins package under `$CORTEX_HOME/plugins/<plugin-id>/`. The package declares servers in root `mcp.json`, and **Settings → Plugins** assigns the package to an agent or template slot. The schema supports `stdio`, `streamable-http`, and legacy `sse`; [Skills and Plugins](./skills-and-plugins.md#portable-mcp-servers) documents the complete package and trust model.

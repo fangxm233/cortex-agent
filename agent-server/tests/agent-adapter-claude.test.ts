@@ -1323,6 +1323,21 @@ test('buildClaudeEnv — strips non-auth CLAUDE_CODE_* and preserves an admitted
   }
 });
 
+test('buildClaudeEnv — defaults MCP calls to the shared 30m30s deadline', () => {
+  const defaultEnv = buildClaudeEnv('C1', 'sid-1');
+  const overriddenEnv = buildClaudeEnv('C1', 'sid-2', null, null, undefined, {
+    MCP_TOOL_TIMEOUT: '90000',
+  });
+  const deletedEnv = buildClaudeEnv(
+    'C1', 'sid-3', null, null, undefined, undefined, undefined, undefined,
+    ['MCP_TOOL_TIMEOUT'],
+  );
+
+  assert.equal(defaultEnv.MCP_TOOL_TIMEOUT, '1830000');
+  assert.equal(overriddenEnv.MCP_TOOL_TIMEOUT, '90000');
+  assert.equal(deletedEnv.MCP_TOOL_TIMEOUT, undefined);
+});
+
 test('buildClaudeEnv — extraEnv survives CLAUDE_CODE_* strip and can override DISABLE_AUTO_MEMORY', () => {
   const env = buildClaudeEnv('C1', 'sid-1', null, null, 'http://127.0.0.1:9880/m/qwen-ksu/anthropic', {
     CLAUDE_CODE_ATTRIBUTION_HEADER: '0',

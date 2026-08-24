@@ -159,7 +159,11 @@ function fakeHandle(
   stateName: string,
   options: {
     listTools?: () => Promise<{ tools: Array<{ name: string; description?: string; inputSchema: Record<string, unknown> }> }>;
-    callTool?: (params: { name: string; arguments?: Record<string, unknown> }) => Promise<any>;
+    callTool?: (
+      params: { name: string; arguments?: Record<string, unknown> },
+      resultSchema?: unknown,
+      requestOptions?: { signal?: AbortSignal; timeout?: number; maxTotalTimeout?: number },
+    ) => Promise<any>;
     close?: () => Promise<void>;
   } = {},
 ): McpClientHandle {
@@ -553,6 +557,28 @@ test('plugin config envelope failures are reported while built-ins still registe
   assert.deepEqual(spawned, ['core', 'tasks', 'manager-qa', 'ext']);
   assert.equal(failures.length, 1);
   assert.match(failures[0], /hash mismatch/);
+});
+
+test('bridged MCP calls use the shared 30m30s infrastructure deadline', async () => {
+  const harness = createPiHarness();
+  const calls: any[][] = [];
+  const deps = bridgeDeps({
+    env: { CORTEX_PI_SUBAGENT: '1' },
+    spawnClient: async (state) => fakeHandle(state.name, {
+      callTool: async (...args) => {
+        calls.push(args);
+        return { content: [{ type: 'text', text: 'ok' }] };
+      },
+    }),
+  });
+  await installMcpBridge(harness.pi, deps);
+  await harness.fire('before_agent_start');
+  const controller = new AbortController();
+  await harness.tools.get('core_tool')!.execute('call-1', {}, controller.signal, undefined, {} as any);
+
+  assert.equal(calls[0][2].signal, controller.signal);
+  assert.equal(calls[0][2].timeout, 1_830_000);
+  assert.equal(calls[0][2].maxTotalTimeout, 1_830_000);
 });
 
 test('bridged MCP errors reject the PI tool call with the server message', async () => {

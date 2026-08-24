@@ -184,6 +184,8 @@ MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-ser
 
 2. **共享文件访问** — 调度、费用和执行工具直接读取和写入 `~/.cortex/data/` 中的共享数据文件（schedules.json、costs.jsonl、executions.json），使用与主服务器进程相同的仓库层。
 
+MCP 调用与 loopback HTTP 请求统一使用 30 分 30 秒的基础设施 deadline。工具自身的业务 deadline 仍然优先：shell 命令使用其 `timeout` 参数，人工及 manager 交互保留 30 分钟响应窗口。额外 30 秒用于让业务超时结果在外层 transport 关闭请求前正常返回。
+
 ## 插件提供的 MCP servers {#plugin-provided-mcp-servers}
 
 按 target 分配的第三方 MCP 应放入 `$CORTEX_HOME/plugins/<plugin-id>/` 下的 portable Agent Plugins package。Package 在根目录 `mcp.json` 声明 servers，再由 **Settings → Plugins** 分配给 agent 或 template slot。Schema 支持 `stdio`、`streamable-http` 与 legacy `sse`；完整 package 与 trust model 见[技能与插件](./skills-and-plugins.md#portable-mcp-servers)。

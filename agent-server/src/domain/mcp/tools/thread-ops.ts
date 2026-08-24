@@ -5,21 +5,21 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { requestLoopbackJson } from '@core/loopback-http.js';
 
 // Thread operations proxied through the daemon webhook (separate process, no shared memory with
 // the thread runner / store / live PlatformAdapter, all of which live in the daemon).
 const WEBHOOK_BASE = `http://127.0.0.1:${process.env.WEBHOOK_PORT || '3001'}`;
 
 async function proxyThreadOp(action: string, payload: Record<string, any>): Promise<any> {
-  const res = await fetch(`${WEBHOOK_BASE}/webhook/thread-op`, {
-    method: 'POST',
-    // Bearer token for the webhook auth gate. Inherited from the daemon's env (see core/auth.ts).
-    headers: { 'Content-Type': 'application/json', 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' },
-    body: JSON.stringify({ action, ...payload }),
-  });
-  const data = await res.json() as any;
-  if (!data.success) throw new Error(data.error || 'thread-op failed');
-  return data.data;
+  const { body } = await requestLoopbackJson(
+    'POST',
+    `${WEBHOOK_BASE}/webhook/thread-op`,
+    { action, ...payload },
+    { 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' },
+  );
+  if (!body.success) throw new Error(body.error || 'thread-op failed');
+  return body.data;
 }
 
 export function registerThreadTools(server: McpServer): void {

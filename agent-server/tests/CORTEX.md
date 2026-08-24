@@ -11,14 +11,14 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapters, usage pull and event normalization |
-| agent-adapter-claude.test.ts | test | Claude interaction tools, pools, hooks and proxy |
+| agent-adapter-claude.test.ts | test | Claude env, interactions, pools, hooks and proxy |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-custom-catalog.test.ts | test | provider definitions and frozen caps reaching spawn catalogs |
 | agent-adapter-pi-event-parser.test.ts | test | PI tool, dialog, lifecycle and usage events |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts and task guards |
 | agent-adapter-pi-mcp-config.test.ts | test | PI MCP config privacy and reloads |
-| agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP interaction gates, errors and isolation |
+| agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP deadlines, gates, errors and isolation |
 | agent-adapter-pi-quota-probe.test.ts | test | PI quota labels, persistence, and throttle failure parity |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
 | agent-adapter-pi-subagent.test.ts | test | PI role schema, env isolation and usage |

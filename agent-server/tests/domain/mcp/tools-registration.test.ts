@@ -1,11 +1,15 @@
-// input:  task-operation tool registration with mocked remote-command fetch
+// input:  task-operation tools with mocked loopback requests
 // output: remote bash timeout and compact mutation response contracts
 // pos:    MCP remote-operation boundary tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
+import { requestLoopbackJson } from '../../../src/core/loopback-http.js';
 import { registerTaskOpsTools } from '../../../src/domain/mcp/tools/task-ops.js';
+
+vi.mock('../../../src/core/loopback-http.js', () => ({ requestLoopbackJson: vi.fn() }));
+const requestMock = vi.mocked(requestLoopbackJson);
 
 function captureRemoteTools(): Map<string, any[]> {
   const tools = new Map<string, any[]>();
@@ -20,12 +24,13 @@ function captureRemoteMutationHandlers(): Map<string, (...args: any[]) => Promis
   return new Map([...captureRemoteTools()].map(([name, args]) => [name, args.at(-1)]));
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => requestMock.mockReset());
 
 test('remote_bash accepts integer seconds and converts them only at the internal boundary', async () => {
-  const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-    json: async () => ({ success: true, data: { stdout: '', stderr: '', exitCode: 0 } }),
-  } as Response);
+  requestMock.mockResolvedValue({
+    status: 200,
+    body: { success: true, data: { stdout: '', stderr: '', exitCode: 0 } },
+  });
   const tools = captureRemoteTools();
   const registration = tools.get('remote_bash')!;
   const schema = registration[2].timeout;
@@ -40,7 +45,7 @@ test('remote_bash accepts integer seconds and converts them only at the internal
   await handler({ device: 'lab', command: 'true' }, {});
   await handler({ device: 'lab', command: 'true', timeout: 2 }, {});
 
-  const bodies = fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+  const bodies = requestMock.mock.calls.map((call) => call[2] as any);
   assert.equal(bodies[0].params.timeout, 120_000);
   assert.equal(bodies[0].timeout, 125_000);
   assert.equal(bodies[1].params.timeout, 2_000);
@@ -49,8 +54,9 @@ test('remote_bash accepts integer seconds and converts them only at the internal
 
 test('remote_write and remote_edit return compact confirmations without file snapshots', async () => {
   const canary = 'PRIVATE_FILE_CONTENT_CANARY';
-  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-    json: async () => ({
+  requestMock.mockResolvedValue({
+    status: 200,
+    body: {
       success: true,
       data: {
         success: true,
@@ -58,8 +64,8 @@ test('remote_write and remote_edit return compact confirmations without file sna
         originalFile: canary,
         newContent: `${canary}-after`,
       },
-    }),
-  } as Response);
+    },
+  });
   const handlers = captureRemoteMutationHandlers();
 
   const written = await handlers.get('remote_write')!(

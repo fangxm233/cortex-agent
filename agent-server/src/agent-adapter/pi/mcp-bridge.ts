@@ -20,6 +20,7 @@ import {
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Type } from '@sinclair/typebox';
 import { createLogger } from '@core/log.js';
+import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
 import {
   MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER, parseMcpToolAllowlist,
   validateMcpToolAllowlist,
@@ -453,7 +454,11 @@ class McpBridgeSession {
         const result = await handle.client.callTool(
           { name: tool.name, arguments: params as Record<string, unknown> },
           undefined,
-          signal ? { signal } : undefined,
+          {
+            ...(signal ? { signal } : {}),
+            timeout: MCP_INFRASTRUCTURE_TIMEOUT_MS,
+            maxTotalTimeout: MCP_INFRASTRUCTURE_TIMEOUT_MS,
+          },
         );
         const content = (result.content as any[]).map(mapMcpContent);
         if (result.isError) {

@@ -5,20 +5,21 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { requestLoopbackJson } from '@core/loopback-http.js';
 
 const WEBHOOK_BASE = `http://127.0.0.1:${process.env.WEBHOOK_PORT || '3001'}`;
 const POLL_INTERVAL_MS = 3000;
 const TIMEOUT_MS = parseInt(process.env.CORTEX_ASK_MANAGER_TIMEOUT_MS || '1800000', 10) || 1800000;
 
 async function proxyQa(action: string, payload: Record<string, any>): Promise<any> {
-  const res = await fetch(`${WEBHOOK_BASE}/webhook/manager-qa`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' },
-    body: JSON.stringify({ action, ...payload }),
-  });
-  const data = await res.json() as any;
-  if (!data.success) throw new Error(data.error || 'manager-qa failed');
-  return data.data;
+  const { body } = await requestLoopbackJson(
+    'POST',
+    `${WEBHOOK_BASE}/webhook/manager-qa`,
+    { action, ...payload },
+    { 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' },
+  );
+  if (!body.success) throw new Error(body.error || 'manager-qa failed');
+  return body.data;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

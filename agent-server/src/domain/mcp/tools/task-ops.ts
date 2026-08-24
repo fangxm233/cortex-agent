@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { pathToFileURL } from 'url';
 import { WORKSPACE_DIR } from '@core/utils.js';
+import { requestLoopbackJson } from '@core/loopback-http.js';
 import { cortexMDContentBlocks, type CortexMDEntry } from './cortex-md.js';
 
 // Remote device commands proxied through app.ts webhook (separate process, no shared memory with client-manager)
@@ -18,20 +19,21 @@ const WEBHOOK_BASE = `http://127.0.0.1:${process.env.WEBHOOK_PORT || '3001'}`;
 const webhookAuthHeader = (): Record<string, string> => ({ 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' });
 
 async function proxyGetOnlineDevices(): Promise<string[]> {
-  const res = await fetch(`${WEBHOOK_BASE}/webhook/devices`, { headers: webhookAuthHeader() });
-  const data = await res.json() as any;
-  return data.devices || [];
+  const { body } = await requestLoopbackJson(
+    'GET', `${WEBHOOK_BASE}/webhook/devices`, undefined, webhookAuthHeader(),
+  );
+  return body.devices || [];
 }
 
 async function proxySendCommand(device: string, action: string, params: Record<string, any>, timeout?: number): Promise<any> {
-  const res = await fetch(`${WEBHOOK_BASE}/webhook/remote-command`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...webhookAuthHeader() },
-    body: JSON.stringify({ device, action, params, timeout }),
-  });
-  const data = await res.json() as any;
-  if (!data.success) throw new Error(data.error || 'Command failed');
-  return data.data;
+  const { body } = await requestLoopbackJson(
+    'POST',
+    `${WEBHOOK_BASE}/webhook/remote-command`,
+    { device, action, params, timeout },
+    webhookAuthHeader(),
+  );
+  if (!body.success) throw new Error(body.error || 'Command failed');
+  return body.data;
 }
 
 async function deviceListDescription(): Promise<string> {
