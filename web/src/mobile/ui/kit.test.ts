@@ -16,7 +16,10 @@ import {
 describe('MBottomSheet viewport containment', () => {
   it('caps the sheet height and scrolls overflowing content', () => {
     const html = renderToStaticMarkup(
-      createElement(MBottomSheet, { onClose: () => {} }, createElement('div', null, 'rows')),
+      createElement(MBottomSheet, {
+        onClose: () => {},
+        children: createElement('div', null, 'rows'),
+      }),
     );
 
     expect(html).toContain('max-height:calc(100% - max(12px, env(safe-area-inset-top)))');
