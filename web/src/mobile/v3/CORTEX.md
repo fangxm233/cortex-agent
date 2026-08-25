@@ -63,8 +63,8 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MMemoryFileScreen.tsx | screen | Binds one memory file by path parameter |
 | MMemoryFileView.tsx | view | Read-only markdown file with header metaline |
 | m-memory-file-vm.ts | vm | Derives basename, byte size and metaline |
-| MMachinesScreen.tsx | screen | Binds the machine list, expand state and probe |
-| MMachinesView.tsx | view | Expandable machine cards with probe telemetry |
+| MMachinesScreen.tsx | screen | Binds machine probes and registration approval requests |
+| MMachinesView.tsx | view | Expandable machine cards with telemetry and Add action |
 | MMachinesView.test.tsx | test | Tests collapsed and expanded panel gating |
 | m-machines-vm.ts | vm | Maps machine records to cards and online counts |
 | m-machines-vm.test.ts | test | Unit tests for the machines view model |
@@ -72,19 +72,26 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MDaemonView.tsx | view | Shows daemon processes, restart and disconnect controls |
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
-| MSettingsScreen.tsx | screen | Loads settings, account and machine data |
-| MSettingsView.tsx | view | Settings with runtime state and config drill-ins |
-| MSettingsView.test.tsx | test | Tests mobile settings drill-in wiring |
+| MSettingsScreen.tsx | screen | Loads canonical settings summaries and live connection state |
+| MSettingsView.tsx | view | Lists all desktop sections with honest mobile capabilities |
+| MSettingsView.test.tsx | test | Tests canonical order, routing and live connection copy |
+| MSettingsControls.tsx | view | Supplies compact rows, fields and toggles for settings |
+| MPlatformScreen.tsx | screen | Shows redacted platform state and queues reconnect approval |
+| MProfilesScreen.tsx | screen | Selects defaults and creates, edits or removes profiles |
+| MBudgetScreen.tsx | screen | Edits global and project daily or monthly budgets |
+| MBudgetScreen.test.ts | test | Tests complete-pair mobile budget initialization |
+| MMcpScreen.tsx | screen | Lists configured MCP servers read-only |
+| MRuntimeSettingsScreen.tsx | screen | Edits Notifications and Advanced runtime settings |
 | MAppearanceScreen.tsx | screen | Binds device-local appearance state and back route |
 | MAppearanceView.tsx | view | Language, theme, background, accent and motion controls |
 | MAppearanceView.test.tsx | test | Tests mobile appearance control wiring |
 | MUsageScreen.tsx | screen | Binds localized Usage thresholds, saves, refresh, and settings back route |
 | MUsageView.tsx | view | Keeps drill header above usage controls |
 | MUsageView.test.tsx | test | Tests status omission, row saves, config gating, and refresh |
-| m-settings-vm.ts | vm | Maps config, costs and mounted hooks |
-| m-settings-vm.test.ts | test | Tests mobile settings data mapping |
-| MAccountsScreen.tsx | screen | Loads account status and serializes logout actions |
-| MAccountsView.tsx | view | Keeps drill header above account actions |
+| m-settings-vm.ts | vm | Maps canonical config, cost and registry summaries |
+| m-settings-vm.test.ts | test | Tests runtime source and summary data mapping |
+| MAccountsScreen.tsx | screen | Loads account state and binds login, logout and rescan |
+| MAccountsView.tsx | view | Shows account actions and the model rescan control |
 | MAccountsView.test.tsx | test | Tests account permissions, pending actions and credential redaction |
 | MAccountsView.custom.test.tsx | test | Tests custom-provider edit actions and delete confirmation |
 | MCustomProviderSheet.tsx | view | Bottom-sheet editor for one custom PI provider |

@@ -231,17 +231,26 @@ export interface MCustomProvidersProps {
   onDelete: (name: string) => void;
 }
 
-export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, custom }: {
+export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, custom, onRescan, rescanning }: {
   vm: MAccountsVm;
   onBack: () => void;
   onLogin: (target: AccountActionTarget) => void;
   onLogout: (target: AccountActionTarget) => void;
   actionsDisabled: boolean;
   custom?: MCustomProvidersProps;
+  onRescan?: () => void;
+  rescanning?: boolean;
 }) {
   const L = useVocab();
+  const trailing = onRescan ? (
+    <button type="button" data-accounts-sync disabled={rescanning} onClick={onRescan}
+      style={{ border: `1px solid ${MC.hairline}`, borderRadius: 8, padding: '5px 8px',
+        background: MC.card, color: MC.run, fontSize: 10, fontWeight: 650 }}>
+      {L.accountsSyncModels}
+    </button>
+  ) : <span style={{ font: `500 10px ${MONO}`, color: MC.muted }}>{vm.piProviders.length} PI</span>;
   const header = (
-    <MDrillHeader onBack={onBack} trailing={<span style={{ font: `500 10px ${MONO}`, color: MC.muted }}>{vm.piProviders.length} PI</span>}>
+    <MDrillHeader onBack={onBack} trailing={trailing}>
       <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{L.accountsTitle}</div>
     </MDrillHeader>
   );

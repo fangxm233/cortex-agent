@@ -1,5 +1,5 @@
-// input:  auth status/logout tRPC, LoginFlow, mobile navigation
-// output: data-bound accounts screen with serialized logout
+// input:  auth status/actions tRPC, LoginFlow, mobile navigation
+// output: accounts screen with login, logout, rescan and provider CRUD
 // pos:    Mobile accounts query and mutation container
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -46,6 +46,15 @@ export function MAccountsScreen() {
     onError: error => toast({ title: `${L.accountsLogoutFailed}: ${error.message}`, tone: 'failed' }),
   }));
   const onLogout = (target: AccountActionTarget) => logout.mutate(target);
+  const syncGateway = useMutation(trpc.auth.syncGateway.mutationOptions({
+    onSuccess: (result) => {
+      if (!result.configured) return toast({ title: L.accountsSyncModelsEmpty, tone: 'waiting' });
+      void queryClient.invalidateQueries(trpc.auth.status.queryFilter({}));
+      void queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
+      toast({ title: L.accountsSyncModelsDone, tone: 'done' });
+    },
+    onError: error => toast({ title: `${L.accountsSyncModelsFailed}: ${error.message}`, tone: 'failed' }),
+  }));
 
   const [draft, setDraft] = useState<CustomProviderFormState | null>(null);
   const [creating, setCreating] = useState(false);
@@ -90,7 +99,7 @@ export function MAccountsScreen() {
       else removeCustom.mutate({ name });
     },
   };
-  const busy = logout.isPending || saveCustom.isPending || removeCustom.isPending;
+  const busy = logout.isPending || saveCustom.isPending || removeCustom.isPending || syncGateway.isPending;
 
   return (
     <MScreen label={L.accountsTitle}>
@@ -101,6 +110,7 @@ export function MAccountsScreen() {
           : <MAccountsView
               vm={vm} onBack={() => navigate('/m/settings')}
               onLogin={openLogin} onLogout={onLogout} actionsDisabled={busy}
+              onRescan={() => syncGateway.mutate({})} rescanning={busy}
               custom={custom}
             />}
       {draft ? (

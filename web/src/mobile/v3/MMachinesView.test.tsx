@@ -13,7 +13,7 @@ import type { MMachinesVm } from './m-machines-vm';
 const copy: MMachinesCopy = {
   title: 'Machines', online: 'Online', offline: 'Offline', hb: 'HB', lastHb: 'last HB',
   gpu: 'GPU', running: 'running', daemon: 'daemon', onlineWord: 'online', retry: 'Retry',
-  logs: 'Logs', registered: 'registered', editDesktop: 'edit on desktop', empty: 'No machines',
+  logs: 'Logs', registered: 'registered', editDesktop: 'edit on desktop', add: 'Add machine', empty: 'No machines',
   probing: 'Probing…', probeFailed: 'Probe failed', noGpu: 'No GPU reported',
   offlineNoTelemetry: 'Offline — no live telemetry', up: 'up', uptime: 'uptime', path: 'path',
 };

@@ -1,13 +1,14 @@
-// 1k 机器 — the machines registry, drilled from the project page (scheme 1e→1k). NON-Tab drill page
-// (the shell hides the Tab bar for /m/machines). Real tRPC: `machines.list` for the roster and
-// `machines.detail` for the expanded card's live probe (GPU telemetry + host vitals + running runs).
-// Back → the project page (1e). Editing the registry lives on desktop settings.
+// input:  machine queries, approval mutation and mobile navigation
+// output: mobile machine telemetry and registration request screen
+// pos:    Mobile Machines query container
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useLang } from '@/i18n';
+import { useToast } from '@/design';
+import { useLang, useVocab } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { buildMachineDetailVm, formatUptime } from '@/features/workbench/machine-detail-vm';
@@ -32,6 +33,7 @@ const COPY: { en: MMachinesCopy; zh: MMachinesCopy } = {
     logs: 'Logs',
     registered: 'registered',
     editDesktop: 'edit on desktop',
+    add: 'Add machine',
     empty: 'No machines',
     probing: 'Probing…',
     probeFailed: 'Probe failed',
@@ -55,6 +57,7 @@ const COPY: { en: MMachinesCopy; zh: MMachinesCopy } = {
     logs: '查看日志',
     registered: '台注册',
     editDesktop: '编辑走桌面设置',
+    add: '添加机器',
     empty: '暂无机器',
     probing: '探测中…',
     probeFailed: '探测失败',
@@ -70,6 +73,8 @@ export function MMachinesScreen() {
   const trpc = useTRPC();
   const navigate = useNavigate();
   const lang = useLang();
+  const L = useVocab();
+  const { toast } = useToast();
   const copy = pickCopy(lang, COPY);
   const now = Date.now();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -90,6 +95,15 @@ export function MMachinesScreen() {
     enabled: expandedOnline,
     refetchInterval: expandedOnline ? PROBE_REFRESH_MS : false,
   });
+
+  const addMachine = useMutation(trpc.approvals.request.mutationOptions({
+    onSuccess: () => toast({ title: L.stToastQueuedApproval, tone: 'waiting' }),
+    onError: (error) => toast({ title: `${L.stToastCouldNotQueue}: ${error.message}`, tone: 'failed' }),
+  }));
+  const requestAdd = () => {
+    const machineName = window.prompt(L.stAddMachinePrompt)?.trim();
+    if (machineName) addMachine.mutate({ kind: 'add-machine', machineName });
+  };
 
   const panel = useMemo<MMachineDetailPanel | null>(() => {
     if (!expandedOnline) return null;
@@ -117,6 +131,8 @@ export function MMachinesScreen() {
           expanded={expanded}
           onToggle={(name) => setExpanded((prev) => (prev === name ? null : name))}
           panel={panel}
+          onAdd={requestAdd}
+          addDisabled={addMachine.isPending}
         />
       )}
     </MScreen>

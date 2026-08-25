@@ -1,5 +1,5 @@
 // input:  shared accounts VM, provider rows, action spies
-// output: mobile capability, pending-action, and credential-safety tests
+// output: mobile capability, rescan, pending and credential-safety tests
 // pos:    Verifies the mobile accounts drill-in view
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -95,6 +95,17 @@ describe('MAccountsView', () => {
 
     expect(actions(renderer, 'deepseek', 'login')[0]?.props.disabled).toBe(true);
     expect(actions(renderer, 'openrouter', 'logout')[0]?.props.disabled).toBe(true);
+  });
+
+  it('runs the model rescan from the drill header', () => {
+    const onRescan = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<LangProvider><MAccountsView vm={buildAccountsVm(status)} onBack={() => {}}
+        onLogin={() => {}} onLogout={() => {}} actionsDisabled={false} onRescan={onRescan} /></LangProvider>);
+    });
+    act(() => renderer.root.findByProps({ 'data-accounts-sync': true }).props.onClick());
+    expect(onRescan).toHaveBeenCalledOnce();
   });
 
   it('shows only status, source, and expiry metadata, never credential detail', () => {

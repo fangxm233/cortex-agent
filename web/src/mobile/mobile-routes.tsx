@@ -1,5 +1,5 @@
-// input:  mobile shell and tab/drill screen components
-// output: mobile route table including the settings drill-in sub-screens
+// input:  mobile shell, tab screens and complete settings drill-ins
+// output: mobile route table with canonical settings detail routes
 // pos:    Mobile router route declarations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -25,6 +25,11 @@ import { MHooksScreen } from './v3/MHooksScreen';
 import { MDaemonScreen } from './v3/MDaemonScreen';
 import { MUsageScreen } from './v3/MUsageScreen';
 import { MAppearanceScreen } from './v3/MAppearanceScreen';
+import { MPlatformScreen } from './v3/MPlatformScreen';
+import { MProfilesScreen } from './v3/MProfilesScreen';
+import { MBudgetScreen } from './v3/MBudgetScreen';
+import { MMcpScreen } from './v3/MMcpScreen';
+import { MAdvancedScreen, MNotificationsScreen } from './v3/MRuntimeSettingsScreen';
 
 // Mobile v3 route table (scheme-mobile.dc.html §1). Four bottom-Tab routes (会话/线程/任务/项目) +
 // drill-in sub-screens (1b/1f/1g/1h/1i/1j/1j-file/1k/1l/1l-h/1r) which hide the Tab bar (see
@@ -57,6 +62,12 @@ export const mobileRoutes: RouteObject[] = [
       { path: '/m/settings', element: <MSettingsScreen /> },
       { path: '/m/settings/accounts', element: <MAccountsScreen /> },
       { path: '/m/settings/appearance', element: <MAppearanceScreen /> },
+      { path: '/m/settings/platform', element: <MPlatformScreen /> },
+      { path: '/m/settings/profiles', element: <MProfilesScreen /> },
+      { path: '/m/settings/budget', element: <MBudgetScreen /> },
+      { path: '/m/settings/mcp', element: <MMcpScreen /> },
+      { path: '/m/settings/notifications', element: <MNotificationsScreen /> },
+      { path: '/m/settings/advanced', element: <MAdvancedScreen /> },
       { path: '/m/settings/hooks', element: <MHooksScreen /> },
       { path: '/m/settings/usage', element: <MUsageScreen /> },
       { path: '/m/daemon', element: <MDaemonScreen /> },

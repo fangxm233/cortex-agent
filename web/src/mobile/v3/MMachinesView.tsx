@@ -1,11 +1,9 @@
+// input:  machine list/detail view models and mobile callbacks
+// output: expandable machine cards with registration action
+// pos:    Presentational mobile Machines view
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1k L556-599)
-//
-// 1k 机器 — the machines registry, drilled from the project page (1e→1k). NON-Tab drill page: the shell
-// hides the Tab bar for /m/machines. Pure presentational view (render-testable without tRPC providers);
-// the container (MMachinesScreen) binds `machines.list`, the `machines.detail` probe and navigation.
-//
-// Cards expand one at a time. The expanded panel renders real probe telemetry (per-GPU util/VRAM/temp,
-// host meters, the runs holding each GPU) — the scheme's mocked bars are now backed by machines.detail.
 import { type ReactNode } from 'react';
 import { MDrillHeader, MScrollBody, MCard, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
 import type { MachineDetailVm, MachineGpuRow, MachineRunRow } from '@/features/workbench/machine-detail-vm';
@@ -25,6 +23,7 @@ export interface MMachinesCopy {
   logs: string;
   registered: string;
   editDesktop: string;
+  add: string;
   empty: string;
   probing: string;
   probeFailed: string;
@@ -303,6 +302,8 @@ export function MMachinesView({
   panel,
   onRetry,
   onLogs,
+  onAdd,
+  addDisabled,
 }: {
   vm: MMachinesVm;
   copy: MMachinesCopy;
@@ -314,6 +315,8 @@ export function MMachinesView({
   panel: MMachineDetailPanel | null;
   onRetry?: (name: string) => void;
   onLogs?: (name: string) => void;
+  onAdd?: () => void;
+  addDisabled?: boolean;
 }) {
   return (
     <>
@@ -346,6 +349,11 @@ export function MMachinesView({
             />
           ),
         )}
+        {onAdd && <button type="button" data-machine-add onClick={onAdd} disabled={addDisabled}
+          style={{ border: `1px solid ${MC.runBorder}`, borderRadius: 9, padding: '9px 12px',
+            background: MC.runBg, color: MC.run, fontSize: 11, fontWeight: 650 }}>
+          {copy.add}
+        </button>}
         {vm.cards.length > 0 && <RegistryFooter vm={vm} copy={copy} />}
       </MScrollBody>
     </>
