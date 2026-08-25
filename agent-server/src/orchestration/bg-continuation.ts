@@ -44,7 +44,10 @@ export interface ContinuationSinkDeps {
  */
 export function buildContinuationSink(deps: ContinuationSinkDeps): ContinuationSink {
   return {
-    onAssistantText: (text: string) => deps.stream.emitText(text),
+    // Chat platforms show the ANSWER. A subagent's prose is working notes addressed to its
+    // parent, so it is withheld here exactly as it is during a normal turn (agent-runner only
+    // calls onAssistantMsg for untagged text); the trace line still counts its work.
+    onAssistantText: (text: string, _model, subagent) => { if (!subagent) deps.stream.emitText(text); },
     onToolUse: deps.onToolUse || undefined,
     onToolResult: deps.onToolResult || undefined,
     onContextUsage: deps.onContextUsage || undefined,

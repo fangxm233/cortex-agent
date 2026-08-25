@@ -13,8 +13,8 @@ interface FakeTimer { fn: () => void; ms: number; id: number }
 
 function makeHarness() {
   const statuses: Array<{ running: boolean; backgroundRunning: boolean }> = [];
-  const assistants: string[] = [];
-  const tools: Array<{ name: string; input: any }> = [];
+  const assistants: Array<{ text: string; subagent: any }> = [];
+  const tools: Array<{ name: string; input: any; subagent: any }> = [];
   const contexts: number[] = [];
   const track: number[] = [];
   let sink: ContinuationSink | null = null;
@@ -35,8 +35,8 @@ function makeHarness() {
       registerAbort: (a) => { abort = a; },
       track: (d) => track.push(d),
       publishStatus: (p) => statuses.push(p),
-      publishAssistant: (text) => assistants.push(text),
-      publishTool: (name, input) => tools.push({ name, input }),
+      publishAssistant: (text, subagent) => assistants.push({ text, subagent }),
+      publishTool: (name, input, _id, subagent) => tools.push({ name, input, subagent }),
       publishContextUsage: (usage) => contexts.push(usage.contextWindow),
       guardTimers: timers,
     });
@@ -85,8 +85,8 @@ test('holdWebForBg: continuation assistant text, tool call, and context stream a
   h.sink.onContextUsage?.({
     usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact',
   });
-  assert.deepEqual(h.assistants, ['background done: OK'], 'empty text is dropped');
-  assert.deepEqual(h.tools, [{ name: 'Bash', input: { command: 'echo hi' } }]);
+  assert.deepEqual(h.assistants.map((a) => a.text), ['background done: OK'], 'empty text is dropped');
+  assert.deepEqual(h.tools, [{ name: 'Bash', input: { command: 'echo hi' }, subagent: undefined }]);
   assert.deepEqual(h.contexts, [1_000_000]);
 });
 
@@ -120,7 +120,7 @@ test('holdWebForBg: max-wait cap → publish running:false but keep sink for a l
   // A very late continuation still streams and re-seals (no throw).
   h.sink.onAssistantText('late background result');
   h.sink.onResult({ pendingBackgroundTasks: 0 } as any);
-  assert.deepEqual(h.assistants, ['late background result'], 'late output still delivered');
+  assert.deepEqual(h.assistants.map((a) => a.text), ['late background result'], 'late output still delivered');
 });
 
 test('holdWebForBg: interrupted continuation → seal idle (never leaves the session running)', () => {
@@ -184,4 +184,24 @@ test('holdWebForBg: abort after a max-wait release still seals only once', () =>
   assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false });
   assert.equal(h.statuses.length, after + 1, 'abort seals the still-registered hold');
   assert.deepEqual(h.track, [+1, -1], 'bracket not double-released');
+});
+
+test('holdWebForBg: a background subagent\'s output keeps its attribution', () => {
+  // The subagent that a turn spawned in the background finishes AFTER that turn ends, so its
+  // output arrives through the continuation sink rather than the in-turn path. When this seam
+  // dropped the attribution, the subagent's final report was published as the agent's own prose
+  // — surfacing in the NEXT turn, ungrouped.
+  const h = makeHarness();
+  h.install({ pendingBackgroundTasks: 1 });
+
+  const subagent = { parentToolUseId: 'toolu_bg', type: 'Explore', description: 'survey', model: 'claude-haiku-4-5' };
+  h.sink.onAssistantText('subagent findings', null, subagent as any);
+  h.sink.onToolUse?.('Grep', { pattern: 'x' }, 'toolu_child', subagent as any);
+  h.sink.onAssistantText('the agent speaking for itself');
+
+  assert.deepEqual(h.assistants, [
+    { text: 'subagent findings', subagent },
+    { text: 'the agent speaking for itself', subagent: undefined },
+  ]);
+  assert.deepEqual(h.tools, [{ name: 'Grep', input: { pattern: 'x' }, subagent }]);
 });

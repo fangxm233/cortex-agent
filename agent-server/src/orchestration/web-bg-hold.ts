@@ -15,6 +15,7 @@
 import { createLogger } from '@core/log.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { ContinuationSink } from '../agent-adapter/types.js';
+import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import { startBgWaitGuard, type BgWaitGuard } from './bg-wait-guard.js';
 
 const log = createLogger('web-bg-hold');
@@ -27,10 +28,12 @@ export interface WebBgHoldDeps {
   /** Publish a session.status delta. During the hold: running:true, backgroundRunning:true;
    *  on seal: running:false. */
   publishStatus: (p: { running: boolean; backgroundRunning: boolean }) => void;
-  /** Append + publish a continuation assistant message (history record + session.message). */
-  publishAssistant: (text: string) => void;
+  /** Append + publish a continuation assistant message (history record + session.message).
+   *  `subagent` is set when a native subagent produced the text — without it the transcript
+   *  cannot tell a subagent's working notes from the agent's own answer. */
+  publishAssistant: (text: string, subagent?: ToolUseSubagent) => void;
   /** Append + publish a continuation tool call (history record + session.message). */
-  publishTool: (name: string, input: any, toolUseId: string) => void;
+  publishTool: (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void;
   /** Persist a complete normalized continuation tool result in DEBUG mode. */
   publishToolResult?: (toolUseId: string, content: string, isError: boolean) => void;
   /** Persist and publish an exact continuation context snapshot. */
@@ -104,8 +107,12 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
   });
 
   const sink: ContinuationSink = {
-    onAssistantText: (text: string) => { if (text) deps.publishAssistant(text); },
-    onToolUse: (name: string, input: any, toolUseId?: string) => deps.publishTool(name, input, toolUseId ?? ''),
+    // A background subagent finishes AFTER the turn that spawned it has ended, so its output
+    // arrives here rather than through the in-turn path. Dropping the attribution at this seam
+    // published the subagent's final report as the agent's own prose, in the NEXT turn.
+    onAssistantText: (text: string, _model, subagent) => { if (text) deps.publishAssistant(text, subagent); },
+    onToolUse: (name: string, input: any, toolUseId?: string, subagent?: ToolUseSubagent) =>
+      deps.publishTool(name, input, toolUseId ?? '', subagent),
     onToolResult: (toolUseId: string, content: string, isError: boolean) => deps.publishToolResult?.(toolUseId, content, isError),
     onContextUsage: (usage: ContextUsage) => deps.publishContextUsage?.(usage),
     onResult: (cont: AgentResult) => {

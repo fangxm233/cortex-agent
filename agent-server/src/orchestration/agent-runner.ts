@@ -547,10 +547,18 @@ export class AgentRunner {
           registerAbort: (abort) => bgHeldSessions.setAbort(sid, abort),
           track: trackPendingTask,
           publishStatus: ({ running, backgroundRunning }) => publishSessionStatus({ sessionId: sid, channel, running, backgroundRunning }),
-          publishAssistant: (text) => {
+          publishAssistant: (text, subagent) => {
             const ts = new Date().toISOString();
-            recordHistory(conversationHistory.appendAssistant(sid, { text, ts }));
-            publishSessionMessage({ sessionId: sid, channel, role: 'assistant', text, ts });
+            // Same rule as the in-turn path: a subagent's prose is persisted WITH its attribution
+            // so the transcript can fold it into that subagent's block, instead of reading as the
+            // agent's own answer arriving out of nowhere one turn late.
+            const ref = subagent ? subagentRowRef(subagent) : undefined;
+            recordHistory(conversationHistory.appendAssistant(sid, {
+              text, ts, ...(ref ? { subagent: ref } : {}),
+            }));
+            publishSessionMessage({
+              sessionId: sid, channel, role: 'assistant', text, ts, ...subagentPayloadFields(ref),
+            });
           },
           publishTool: persistToolUse,
           publishToolResult: persistToolResult ?? undefined,

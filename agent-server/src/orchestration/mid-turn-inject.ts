@@ -17,6 +17,8 @@ import { randomUUID } from 'node:crypto';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../agent-adapter/capabilities.js';
 import type { Backend, ContinuationSink, InjectionAckSink, UserMessage } from '../agent-adapter/types.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
+import { SUBAGENT_SPAWN_TOOLS, type ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
+import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { PendingInjectionRecord } from '@store/pending-injection-repo.js';
@@ -354,17 +356,26 @@ function handleContinuationAssistant(
   channel: string,
   streamAssistant: ((text: string) => void) | null,
   text: string,
+  subagent?: ToolUseSubagent,
 ): void {
   if (!text) return;
   if (!state.continuationRunning) {
     state.continuationRunning = true;
     deps.publishStatus({ sessionId, channel, running: true });
   }
-  try { streamAssistant?.(text); }
-  catch (error) { log.warn('injection stream callback threw:', (error as Error).message); }
+  // Streamed text is the reply the user reads, so a subagent's working notes stay out of it —
+  // but they are still recorded, tagged, so the transcript can fold them into that subagent's
+  // block rather than showing them as the agent speaking a turn later.
+  const ref = subagent ? subagentRowRef(subagent) : undefined;
+  if (!ref) {
+    try { streamAssistant?.(text); }
+    catch (error) { log.warn('injection stream callback threw:', (error as Error).message); }
+  }
   const ts = deps.now();
-  deps.appendAssistant(sessionId, { text, ts });
-  deps.publishMessage({ sessionId, channel, role: 'assistant', text, ts });
+  deps.appendAssistant(sessionId, { text, ts, ...(ref ? { subagent: ref } : {}) });
+  deps.publishMessage({
+    sessionId, channel, role: 'assistant', text, ts, ...subagentPayloadFields(ref),
+  });
 }
 
 function handleContinuationTool(
@@ -374,14 +385,24 @@ function handleContinuationTool(
   name: string,
   input: unknown,
   toolUseId: string,
+  subagent?: ToolUseSubagent,
 ): void {
   const ts = deps.now();
   const toolInput = deps.summarizeToolInput?.(input) ?? '';
+  // A main-agent Agent/Task call anchors the block it is about to spawn, exactly as the in-turn
+  // path does; a subagent's own call carries that same id so the two meet.
+  const ref = subagent
+    ? subagentRowRef(subagent)
+    : (SUBAGENT_SPAWN_TOOLS.has(name) && toolUseId ? { id: toolUseId } : undefined);
   deps.appendTool(sessionId, {
     toolName: name, toolInput, ts,
+    ...(ref ? { subagent: ref } : {}),
     ...(deps.captureDebug ? { toolUseId, fullInput: input } : {}),
   });
-  deps.publishMessage({ sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts });
+  deps.publishMessage({
+    sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
+    ...subagentPayloadFields(ref),
+  });
 }
 
 async function handleContinuationResult(
@@ -411,8 +432,10 @@ function registerSinks(
     onUndelivered: ({ text }) => handleUndelivered(state, text),
   });
   proc.setContinuationSink?.({
-    onAssistantText: (text) => handleContinuationAssistant(deps, state, sessionId, channel, stream, text),
-    onToolUse: (name, input, toolUseId) => handleContinuationTool(deps, sessionId, channel, name, input, toolUseId),
+    onAssistantText: (text, _model, subagent) =>
+      handleContinuationAssistant(deps, state, sessionId, channel, stream, text, subagent),
+    onToolUse: (name, input, toolUseId, subagent) =>
+      handleContinuationTool(deps, sessionId, channel, name, input, toolUseId, subagent),
     onToolResult: (toolUseId, content, isError) => {
       if (deps.captureDebug) deps.appendToolResult?.(sessionId, { toolUseId, content, isError });
     },

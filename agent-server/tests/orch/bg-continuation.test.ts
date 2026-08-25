@@ -277,3 +277,18 @@ test('shouldHoldWebForBg: hold gates mirror shouldHoldForBg but scoped to web:',
     resetSettingsForTests();
   }
 });
+
+test('buildContinuationSink: a subagent\'s continuation prose stays out of the chat reply', () => {
+  // The OutputStream IS the answer the user reads on Slack/Feishu. During a normal turn
+  // agent-runner only forwards untagged text to it; the continuation seam must hold the same
+  // line, or a background subagent's working notes get appended to the reply a turn later.
+  const { emitted, stream } = makeStream();
+  const sink = buildContinuationSink({ stream, onWaiting: () => {}, onComplete: () => {}, onRateLimited: () => {} });
+
+  sink.onAssistantText('subagent working notes', null, {
+    parentToolUseId: 'toolu_bg', type: 'Explore', description: 'survey', model: 'claude-haiku-4-5',
+  } as any);
+  sink.onAssistantText('the answer itself');
+
+  assert.deepEqual(emitted, ['the answer itself']);
+});
