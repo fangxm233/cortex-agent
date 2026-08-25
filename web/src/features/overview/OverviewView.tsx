@@ -1,5 +1,5 @@
 // input:  project cost, schedules, executions, issues and notes
-// output: desktop project Overview with note and schedule actions
+// output: desktop project Overview with note and schedule CRUD actions
 // pos:    Project dashboard center pane
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -132,6 +132,13 @@ export function OverviewView(): JSX.Element {
 
   const resume = useMutation(
     trpc.schedules.resume.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(trpc.schedules.list.queryFilter());
+      },
+    }),
+  );
+  const remove = useMutation(
+    trpc.schedules.remove.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries(trpc.schedules.list.queryFilter());
       },
@@ -513,6 +520,18 @@ export function OverviewView(): JSX.Element {
                       style={{ padding: 0, border: 0, background: 'none', fontSize: 10.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
                     >
                       {L.scEditSchedule}
+                    </button>
+                    <button
+                      type="button"
+                      data-schedule-delete={s.id}
+                      onClick={() => {
+                        if (!remove.isPending && globalThis.confirm(`${L.delete} "${s.message}"?`)) {
+                          remove.mutate({ scheduleId: s.id });
+                        }
+                      }}
+                      style={{ padding: 0, border: 0, background: 'none', fontSize: 10.5, fontWeight: 600, color: 'var(--proto-danger)', cursor: remove.isPending ? 'not-allowed' : 'pointer' }}
+                    >
+                      {L.delete}
                     </button>
                     {s.paused && (
                       <button

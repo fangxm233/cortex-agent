@@ -1,16 +1,17 @@
 // input:  OverviewView with schedule and provider mocks
-// output: schedule edit and resume interaction regressions
+// output: schedule edit, delete and resume interaction regressions
 // pos:    Overview schedule action integration tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 
 const adapter = vi.hoisted(() => ({
   openEdit: vi.fn(),
+  remove: vi.fn<(args: { scheduleId: string }) => Promise<unknown>>(),
   resume: vi.fn<(args: { scheduleId: string }) => Promise<unknown>>(),
 }));
 
@@ -51,6 +52,10 @@ vi.mock('@/lib/trpc', () => ({
       resume: { mutationOptions: (options: object) => ({
         ...options,
         mutationFn: (args: { scheduleId: string }) => adapter.resume(args),
+      }) },
+      remove: { mutationOptions: (options: object) => ({
+        ...options,
+        mutationFn: (args: { scheduleId: string }) => adapter.remove(args),
       }) },
     },
     executions: { list: staticQuery('executions.list', []) },
@@ -107,8 +112,14 @@ async function mount(): Promise<ReactTestRenderer> {
 
 beforeEach(() => {
   adapter.openEdit.mockReset();
+  adapter.remove.mockReset();
+  adapter.remove.mockResolvedValue({});
   adapter.resume.mockReset();
   adapter.resume.mockResolvedValue({});
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('Overview schedule actions', () => {
@@ -118,6 +129,19 @@ describe('Overview schedule actions', () => {
     act(() => renderer.root.findByProps({ 'data-schedule-edit': schedule.id }).props.onClick());
 
     expect(adapter.openEdit).toHaveBeenCalledWith(schedule);
+  });
+
+  it('deletes the selected schedule only after confirmation', async () => {
+    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+    vi.stubGlobal('confirm', confirm);
+    const renderer = await mount();
+    const deleteButton = renderer.root.findByProps({ 'data-schedule-delete': schedule.id });
+
+    act(() => deleteButton.props.onClick());
+    expect(adapter.remove).not.toHaveBeenCalled();
+
+    await act(async () => deleteButton.props.onClick());
+    expect(adapter.remove).toHaveBeenCalledWith({ scheduleId: schedule.id });
   });
 
   it('keeps resume available for a paused schedule', async () => {
