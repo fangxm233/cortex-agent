@@ -135,7 +135,7 @@ test('wait is rejected with a checkpoint hint when the artifact was not edited t
   const { json } = await postThreadOp({ action: 'control', threadId: t.id, control: { action: 'wait' } });
   assert.equal(json.success, false);
   assert.match(json.error, /checkpoint/i, 'error must tell the agent to update the artifact');
-  assert.match(json.error, /delegations|decisions|remaining plan|assumptions/i, 'error names the checkpoint structure');
+  assert.match(json.error, /thread_wait/, 'error points at the thread_wait tool description for the checkpoint structure');
   assert.equal(threadStore.get(t.id)!.metadata?.pendingControl ?? null, null, 'no control intent persisted');
 });
 

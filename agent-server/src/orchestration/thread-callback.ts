@@ -74,7 +74,7 @@ export function buildChildResultNotice(child: ThreadRecord): string {
   lines.push('1. Read the actual deliverable; check it against done_when item by item; for code, run the tests.');
   lines.push('2. Passes → distill the key conclusions into your artifact and continue your plan.');
   lines.push('3. Fails → write out the expected/actual gap and your failure hypothesis; if CORTEX_TASK_ID is set, use the Write tool to stage child JSON at a per-task unique path, run cortex-task spawn --task-file <path>, and call thread_wait; otherwise call thread_abort.');
-  lines.push('4. Cannot judge, or a directional question → call the thread_abort tool (with a one-line diagnosis) to escalate to your manager.');
+  lines.push('4. Cannot judge, or a directional question → thread_abort.');
   return lines.join('\n');
 }
 
@@ -291,7 +291,7 @@ export function buildDeadlockNotice(stuck: string[], blockers: string[]): string
     'No event will ever wake you for these — you must act:',
     '1. Diagnose the blocked task(s): read their blocked_by and outputs (cortex-task show / tree).',
     '2. Fixable → cortex-task unblock and revise, or rebuild the subtasks (decompose --keep-parent), then call thread_wait.',
-    '3. Beyond your authority or a directional question → call the thread_abort tool (with a one-line diagnosis) to escalate.',
+    '3. Beyond your authority or a directional question → thread_abort.',
   ].join('\n');
 }
 
@@ -396,7 +396,7 @@ export function buildTaskResultNotice(task: Task, kind: 'completed' | 'blocked')
     lines.push('1. Read the actual output (code/docs/experiment records); check it against done_when item by item; for code, run the tests.');
     lines.push('2. Passes → distill the key conclusions into your artifact and continue your plan.');
     lines.push(`3. Fails → cortex-task uncomplete then revise the task, or add a revision subtask with decompose --keep-parent, then call thread_wait.`);
-    lines.push('4. Directional question → call the thread_abort tool (with a one-line diagnosis) to escalate.');
+    lines.push('4. Directional question → thread_abort.');
   } else {
     lines.push(`[Subtask blocked — escalation signal] #${task.id} ${task.text}`);
     lines.push(`Blocked by: ${task.blocked_by || '(unrecorded)'}`);
@@ -404,7 +404,7 @@ export function buildTaskResultNotice(task: Task, kind: 'completed' | 'blocked')
     lines.push('This is the subtask escalating: it cannot finish on its own. You must handle it:');
     lines.push('1. Diagnose the cause (read its output/logs; a too-big cause = your original decomposition needs revising).');
     lines.push('2. Fixable → cortex-task unblock and revise the task description/done_when, or rebuild a revised subtask (decompose --keep-parent), then call thread_wait.');
-    lines.push('3. Beyond your authority or a directional question → call the thread_abort tool (with a one-line diagnosis) to escalate upward.');
+    lines.push('3. Beyond your authority or a directional question → thread_abort.');
   }
   lines.push('', SAFE_TASK_CHILD_CREATION);
   return lines.join('\n');

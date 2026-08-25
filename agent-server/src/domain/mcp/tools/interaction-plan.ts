@@ -27,18 +27,7 @@ export interface CallToolResultShape {
 // =====================================================================================
 
 const PLAN_ENTER_REMINDER = `\
-You have entered Cortex plan mode.
-
-Protocol:
-  1. Investigate using read-only tools (Read/Glob/Grep/WebSearch). Do not edit files yet.
-  2. Write your plan to a file under \`plan/\` using the Write tool.
-  3. When the plan is ready for human review, call \`cortex_plan_exit\` with:
-       - plan_file_path: the absolute path of the plan file
-       - summary: a one-paragraph summary surfaced to the user
-     This blocks until the human approves, denies, or requests revisions.
-  4. On approval, proceed with implementation. On denial, revise the plan and call cortex_plan_exit again.
-
-Native backend plan tools are disabled for this protocol. Cortex routes approval through
+Cortex plan mode is active. Native backend plan tools are disabled: approval is routed through
 cortex_plan_exit so the interaction channel stays the single source of truth for plan history.`;
 
 export function runPlanEnter(args: { reasoning?: string }): CallToolResultShape {

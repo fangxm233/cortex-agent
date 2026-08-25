@@ -142,26 +142,14 @@ export function pickStepTemplate(agentConfig: AgentSlotConfig, stage: string | n
 /** System-level protocol preamble injected into every step prompt of threads that own a workspace artifact. */
 export const THREAD_PROTOCOL_PREAMBLE = [
   '[Cortex Thread Protocol]',
-  'You are executing inside a Cortex thread. Control of the thread is done by calling tools, NOT by',
-  'writing markers in the artifact — the artifact is plain prose and mentioning a control keyword in',
-  'it does nothing.',
-  'If the task cannot be completed (missing dependencies, contradictory requirements, or repeated',
-  'unrecoverable failures), call the `thread_abort` tool with a kind (too-big | mis-scoped |',
-  'blocked-external) and a one-line diagnosis to terminate the thread — terminal state `aborted`,',
-  'distinct from `failed`. Use this only when truly blocked: normal retries, minor issues, or',
-  'disagreements with the plan are not abort cases.',
-  'Decomposition: if your task is actually several independently verifiable units, call the',
-  '`thread_split` tool with the subtasks instead of grinding through it.',
+  'You are executing inside a Cortex thread. Control it by calling the `thread_abort` /',
+  '`thread_split` / `thread_wait` tools (each tool description states when and how) — the',
+  'artifact is plain prose, and writing a control keyword into it does nothing.',
   'Task-backed delegation (DR-0014): when CORTEX_TASK_ID is set, stage each child task as JSON',
   'with the Write tool at a per-task unique path, then run `cortex-task spawn --task-file <path>`.',
-  'Do not use shared staging filenames or place task text,',
-  'why, or done-when in shell arguments. Call `thread_wait` to suspend; you are re-entered once',
-  'ALL awaited children finish, with their results injected. Acceptance before trust: verify each child',
-  'deliverable against its done_when',
-  'yourself (read files, run tests) — never accept a child\'s self-report as evidence.',
-  'Checkpoint gate (DR-0017): thread_wait is REJECTED unless you updated your artifact during the',
-  'current step — write your checkpoint (delegations & acceptance criteria / decisions made /',
-  'remaining plan / assumptions) to the artifact before suspending.',
+  'Do not use shared staging filenames or place task text, why, or done-when in shell arguments.',
+  'Acceptance before trust: verify each child deliverable against its done_when yourself',
+  '(read files, run tests) — never accept a child\'s self-report as evidence.',
 ].join('\n');
 
 // --- Prompt assembly ---

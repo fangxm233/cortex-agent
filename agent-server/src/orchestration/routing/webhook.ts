@@ -327,7 +327,7 @@ function createWebhookHandler(_options: {
             }
             const guard = checkSpawnGuards(parentThread);
             if (guard.ok === false) {
-              return reply({ success: false, error: `${guard.reason}. Do NOT retry this spawn — fold the remaining work into your own step, or escalate by calling the thread_abort tool with a diagnosis.` });
+              return reply({ success: false, error: `${guard.reason}. Do NOT retry this spawn — fold the remaining work into your own step, or escalate with thread_abort.` });
             }
             if (process.env.CORTEX_WEBHOOK_SINGLE_ROOT === '1') {
               // The admitted root template is whatever the launcher attested for the arm it
@@ -544,7 +544,7 @@ function createWebhookHandler(_options: {
             // while the artifact still matches its step-start baseline; abort/split are exempt
             // (escalation must never be blocked). Fails open when no baseline is recorded.
             if (control.action === 'wait' && isArtifactUnchangedSinceStepStart(threadId)) {
-              return reply({ success: false, error: 'checkpoint gate (DR-0017): your artifact has not been updated during this step. Before suspending, write your checkpoint into the artifact — current delegations & their acceptance criteria, decisions made, remaining plan, assumptions — then call thread_wait again.' });
+              return reply({ success: false, error: 'checkpoint gate (DR-0017): your artifact has not been updated during this step. Write your checkpoint into the artifact (see the thread_wait tool description for what it must contain), then call thread_wait again.' });
             }
             const requestedAtStep = t.currentStepIndex;
             await threadStore.mutate(threadId, (r) => {

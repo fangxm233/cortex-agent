@@ -158,9 +158,8 @@ export function buildQuestionNotice(q: { questionId: string; fromTaskId: string 
     '',
     `Question: ${q.question}`,
     '',
-    'Answer with the answer_subtask tool (after answering you automatically return to waiting on your subtasks):',
+    'Answer with the answer_subtask tool:',
     `    answer_subtask(question_id="${q.questionId}", answer="<your answer>")`,
-    'If you are also unsure (it concerns a higher-level planning intent), call ask_manager to ask your own manager, then answer this subtask once you have their reply.',
   ].join('\n');
 }
 
@@ -176,7 +175,7 @@ export function buildOriginSessionNotice(q: { questionId: string; fromTaskId: st
     `Question: ${q.question}`,
     '',
     'Resolve it one of two ways — a prose reply in this channel is NOT delivered to the subtask:',
-    `1. If you can answer from your own context / the task spec / the repo, answer the subtask directly with the answer_subtask tool:`,
+    `1. Answer the subtask directly with the answer_subtask tool:`,
     `       answer_subtask(question_id="${q.questionId}", answer="<your answer>")`,
     '2. If you genuinely cannot and it needs the human who owns this work, ask the human in this channel — their next reply here is delivered to the subtask as the answer.',
   ].join('\n');
@@ -306,7 +305,7 @@ export async function askManager(
   if (managerThreadId) return askLiveManager(thread, normalized, managerThreadId, deps);
   const channel = findEscalationChannel(thread, deps);
   if (channel) return askOrigin(thread, normalized, channel, deps);
-  return { ok: false, error: 'no manager and no origin channel to escalate to — use your best judgment, record the assumption, or call thread_abort with a diagnosis' };
+  return { ok: false, error: 'no manager and no origin channel to escalate to — use your best judgment, record the assumption, or call thread_abort' };
 }
 
 /** Manager answers a subtask question. Records the answer and forces the manager back to waiting

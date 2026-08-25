@@ -314,25 +314,6 @@ function buildDispatchPrompt(task: any): string {
   ];
   sections.push(isolation.join('\n'));
 
-  const escalation = [
-    '## If This Task Is Mis-Scoped (thread_abort)',
-    '',
-    'If during execution you discover this task is far bigger than its description suggests, or its scope is wrong (multiple independent work units crammed together, missing prerequisites, contradictory requirements), do NOT grind through it. Call the `thread_abort` tool:',
-    '',
-    '    thread_abort(kind="too-big", diagnosis="<one-line diagnosis of what the real structure is>")',
-    '',
-    'The task will be blocked with your diagnosis and escalated: its manager (or a human) re-plans the decomposition with full context. A precise diagnosis is the most valuable thing you can produce here — it beats a half-done grind every time. (Use kind="too-big" or "mis-scoped" for structural problems, "blocked-external" for a missing external resource.) If instead you can already see the right decomposition, call `thread_split` with the subtasks.',
-    '',
-    '## If The Planning Intent Is Unclear (ask_manager)',
-    '',
-    'If during execution you hit confusion, a contradiction, or an ambiguous/under-specified intent — and you cannot settle it by reading the deliverable, code, or task spec yourself — do NOT guess and do NOT abort. Ask the manager who planned this task:',
-    '',
-    '    ask_manager(question="<a specific, self-contained question about the planning intent>")',
-    '',
-    'This is lighter than thread_abort: it does not give up the task. The call blocks until the manager (or, at the top of the tree, a human) replies, then returns their answer so you can continue. Use it for genuine planning questions ("did you mean approach A or B?", "two done_when conditions conflict — which wins?"), not for things you can verify yourself.',
-  ];
-  sections.push(escalation.join('\n'));
-
   const completion = [
     '## When Done',
     '',

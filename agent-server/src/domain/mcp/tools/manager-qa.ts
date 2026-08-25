@@ -45,7 +45,7 @@ async function handleAskManager(question: string) {
       }
     }
     return {
-      content: [{ type: 'text' as const, text: `ask_manager timed out after ${Math.round(TIMEOUT_MS / 60000)} min with no reply (${reg.target}). Proceed with your best judgment and record the assumption explicitly, or call thread_abort with a diagnosis if you cannot.` }],
+      content: [{ type: 'text' as const, text: `ask_manager timed out after ${Math.round(TIMEOUT_MS / 60000)} min with no reply (${reg.target}). Proceed with your best judgment and record the assumption explicitly, or call thread_abort if you cannot.` }],
       isError: true,
     };
   } catch (error) {
