@@ -22,6 +22,7 @@ import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
 import { SUBAGENT_SPAWN_TOOLS } from '../agent-adapter/normalize/event-types.js';
 import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
+import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
 import { consumePendingTurnSupersession, finishTurnTracking, handleAgentSuccess, handleAgentError, initTurnTracking } from './lifecycle.js';
 import { buildSessionTag, buildUserProcessingMessage, makeFallbackNotifier, makeStreamingMessageCallback, computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
@@ -46,7 +47,7 @@ import { recordResume } from '@domain/costs/resume-registry.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { getAgent } from '@domain/threads/index.js';
 import { runConversation } from './conversation-runner.js';
-import { acquireBrowser, releaseBrowser } from '@platform/browser/managed-browser.js';
+import { acquireBrowser, releaseBrowser, backendSupportsBrowser } from '@platform/browser/managed-browser.js';
 import { tryAnswerFromHuman } from './manager-qa.js';
 import { shouldHoldForBg, shouldHoldWebForBg } from './bg-continuation.js';
 import { holdWebForBg } from './web-bg-hold.js';
@@ -90,6 +91,18 @@ interface AgentCallbacks {
 interface SessionUseLease {
   session: Session;
   release: () => void;
+}
+
+/** The session's backend decides whether a browser can be driven at all; the profile's
+ *  `claudeBackend` decides whether it is the print adapter — the only one wired for it. */
+function browserBackendSupported(channel: string, backend: string): boolean {
+  let claudeBackend: string | null = null;
+  try {
+    claudeBackend = resolveProfileConfig(getActiveProfile(channel)).claudeBackend;
+  } catch {
+    // Unknown profile: fall back to the backend alone rather than refusing outright.
+  }
+  return backendSupportsBrowser(backend, claudeBackend);
 }
 
 function acceptUserMessage(opts: {
@@ -407,7 +420,9 @@ export class AgentRunner {
     // tools" instead of failing it — the session is still worth running.
     let browserHeld = false;
     let browserCdpEndpoint: string | null = null;
-    if (sessionBrowser) {
+    if (sessionBrowser && !browserBackendSupported(channel, backend)) {
+      log.warn(`session opted into the browser but the ${backend} backend cannot use it — skipping`);
+    } else if (sessionBrowser) {
       try {
         browserCdpEndpoint = (await acquireBrowser()).cdpEndpoint;
         browserHeld = true;

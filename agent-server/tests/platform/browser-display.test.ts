@@ -4,7 +4,7 @@
 // >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import { decideDisplay, type DisplayProbe } from '@platform/browser/display.js';
-import { resolveChromeBinary } from '@platform/browser/managed-browser.js';
+import { resolveChromeBinary, backendSupportsBrowser } from '@platform/browser/managed-browser.js';
 
 const base: DisplayProbe = {
   platform: 'linux',
@@ -87,5 +87,21 @@ describe('decideDisplay: override', () => {
 describe('resolveChromeBinary', () => {
   it('rejects an override that does not exist rather than spawning a bogus path', () => {
     expect(resolveChromeBinary({ CORTEX_BROWSER_BINARY: '/nonexistent/chrome' } as NodeJS.ProcessEnv)).toBeNull();
+  });
+});
+
+describe('backendSupportsBrowser', () => {
+  it('accepts the Claude print adapter, the only one that composes the browser MCP config', () => {
+    expect(backendSupportsBrowser('claude', 'print')).toBe(true);
+    expect(backendSupportsBrowser('claude', null)).toBe(true);
+  });
+
+  it('refuses PI, whose MCP bridge never sees the endpoint', () => {
+    // Starting Chrome here would burn a browser nobody can drive — worse than not starting it.
+    expect(backendSupportsBrowser('pi')).toBe(false);
+  });
+
+  it('refuses the Claude TUI adapter, which builds its args separately', () => {
+    expect(backendSupportsBrowser('claude', 'tui')).toBe(false);
   });
 });

@@ -45,6 +45,18 @@ let refs = 0;
 let idleTimer: NodeJS.Timeout | null = null;
 let restartTimes: number[] = [];
 
+/**
+ * Can this backend actually receive the browser tools?
+ *
+ * Only the Claude print adapter composes the Playwright MCP config. PI has its own MCP bridge and
+ * the Claude TUI adapter builds its args separately — neither reads the endpoint. Starting Chrome
+ * for them would burn a browser nobody can drive and leave the user staring at a window their agent
+ * cannot see, so the honest answer is to not start it at all.
+ */
+export function backendSupportsBrowser(backend: string, claudeBackend?: string | null): boolean {
+  return backend === 'claude' && claudeBackend !== 'tui';
+}
+
 /** Acquire the shared browser, starting it on first use. Every caller MUST pair this with
  *  {@link releaseBrowser} — the refcount is what keeps Chrome alive. */
 export async function acquireBrowser(): Promise<ManagedBrowser> {
