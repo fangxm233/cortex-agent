@@ -35,14 +35,7 @@
   --browser-theme-color: color-mix(in srgb, var(--accent-main) 100%, transparent);
 
   /* Appearance-control affordances. Each reads the LIVE palette parameters, so the slider tracks
-     re-tint as the hue moves. The `--sw-*` inputs are set per preset chip by PaletteControls, which
-     keeps the preset numbers in TypeScript and the colour maths here (TSX may hold no colour literals). */
-  --preset-swatch: linear-gradient(
-    135deg,
-    oklch(calc(0.93 + var(--sw-bg-light, 0)) calc(0.007 * var(--sw-bg-chroma, 1)) var(--sw-bg-hue, 264)) 0 34%,
-    oklch(calc(0.5 - var(--sw-ink-contrast, 0)) calc(0.025 * var(--sw-ink-chroma, 1)) var(--sw-ink-hue, 263)) 34% 67%,
-    oklch(0.52 calc(0.18 * var(--sw-accent-chroma, 1)) var(--sw-accent-hue, 274)) 67% 100%
-  );
+     re-tint as the hue moves. */
   --bg-chroma-track: linear-gradient(90deg, oklch(0.93 0 var(--bg-hue)), oklch(0.93 0.028 var(--bg-hue)));
   --bg-light-track: linear-gradient(90deg, oklch(0.728 0.007 var(--bg-hue)), oklch(0.978 0.007 var(--bg-hue)));
   --ink-chroma-track: linear-gradient(90deg, oklch(0.5 0 var(--ink-hue)), oklch(0.5 0.1 var(--ink-hue)));
@@ -265,15 +258,15 @@
 
   --brand-badge-bg: var(--accent-badge);
   --brand-badge-border: transparent;
-  --brand-badge-core: #ffffff;
+  --brand-badge-core: oklch(calc(1 + var(--ink-contrast)) 0 var(--ink-hue));
   --brand-badge-arc: #ffffff;
 
-  --state-ink: #ebedf2;
+  --state-ink: oklch(calc(0.946 + var(--ink-contrast)) calc(0.007 * var(--ink-chroma)) var(--ink-hue));
   --state-run: var(--accent-main);
   --state-wait: #e2b95b;
   --state-done: #57c48a;
   --state-fail: #ed7b72;
-  --state-gray: #262c37;
+  --state-gray: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
 
   --pill-running-bg: var(--accent-soft);
   --pill-running-fg: var(--accent-main);
@@ -283,12 +276,12 @@
   --pill-done-fg: #57c48a;
   --pill-failed-bg: rgba(224, 107, 98, 0.16);
   --pill-failed-fg: #ed7b72;
-  --pill-cancelled-bg: #262b34;
+  --pill-cancelled-bg: oklch(calc(0.288 + 0.45 * var(--bg-light)) calc(0.018 * var(--bg-chroma)) var(--bg-hue));
   --pill-cancelled-fg: #99a2b2;
 
-  --ink-solid-bg: #ebedf2;
+  --ink-solid-bg: oklch(calc(0.946 + var(--ink-contrast)) calc(0.007 * var(--ink-chroma)) var(--ink-hue));
   --ink-solid-fg: #14171b;
-  --ink-solid-hover: #d5dae2;
+  --ink-solid-hover: oklch(calc(0.887 + var(--ink-contrast)) calc(0.0122 * var(--ink-chroma)) var(--ink-hue));
   --ink-solid-fg-dim: rgba(20, 23, 27, 0.5);
   --run-dot: var(--accent-mid);
   --border-card: rgba(255, 255, 255, 0.1);
@@ -329,25 +322,25 @@
 
   --media-label-bg: rgba(20, 23, 27, 0.82);
   --media-label-bg-soft: rgba(20, 23, 27, 0.68);
-  --cmdk-panel-bg: #1e232c;
-  --cmdk-row-selected: #262c37;
-  --cmdk-row-hover: #232833;
+  --cmdk-panel-bg: oklch(calc(0.255 + 0.45 * var(--bg-light)) calc(0.0186 * var(--bg-chroma)) var(--bg-hue));
+  --cmdk-row-selected: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
+  --cmdk-row-hover: oklch(calc(0.277 + 0.45 * var(--bg-light)) calc(0.0216 * var(--bg-chroma)) var(--bg-hue));
   --log-bg: #14181f;
   --log-fg: #c9ceda;
 
-  --m-canvas: #0e1116;
-  --m-page-header: #0e1116;
-  --m-card: #1b2029;
-  --m-tabbar-bg: #12151b;
-  --m-sheet-bg: #1b2029;
-  --m-ink: #f2f3f7;
-  --m-sub: #99a2b2;
-  --m-body: #c9ceda;
-  --m-muted: #7e8798;
-  --m-faint: #566070;
-  --m-hairline: #20252e;
-  --m-divider: #232833;
-  --m-card-border: #262c37;
+  --m-canvas: oklch(calc(0.177 + var(--bg-light)) calc(0.0114 * var(--bg-chroma)) var(--bg-hue));
+  --m-page-header: oklch(calc(0.177 + var(--bg-light)) calc(0.0114 * var(--bg-chroma)) var(--bg-hue));
+  --m-card: oklch(calc(0.243 + 0.45 * var(--bg-light)) calc(0.0188 * var(--bg-chroma)) var(--bg-hue));
+  --m-tabbar-bg: oklch(calc(0.195 + var(--bg-light)) calc(0.013 * var(--bg-chroma)) var(--bg-hue));
+  --m-sheet-bg: oklch(calc(0.243 + 0.45 * var(--bg-light)) calc(0.0188 * var(--bg-chroma)) var(--bg-hue));
+  --m-ink: oklch(calc(0.965 + var(--ink-contrast)) calc(0.0054 * var(--ink-chroma)) var(--ink-hue));
+  --m-sub: oklch(calc(0.71 + var(--ink-contrast)) calc(0.0255 * var(--ink-chroma)) var(--ink-hue));
+  --m-body: oklch(calc(0.851 + var(--ink-contrast)) calc(0.0175 * var(--ink-chroma)) var(--ink-hue));
+  --m-muted: oklch(calc(0.622 + var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
+  --m-faint: oklch(calc(0.486 + var(--ink-contrast)) calc(0.0286 * var(--ink-chroma)) var(--ink-hue));
+  --m-hairline: oklch(calc(0.263 + 0.45 * var(--bg-light)) calc(0.0184 * var(--bg-chroma)) var(--bg-hue));
+  --m-divider: oklch(calc(0.277 + 0.45 * var(--bg-light)) calc(0.0216 * var(--bg-chroma)) var(--bg-hue));
+  --m-card-border: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
   --m-run: var(--accent-main);
   --m-run-bg: var(--accent-soft);
   --m-run-border: var(--accent-border);
@@ -362,8 +355,8 @@
   --m-fail: #ed7b72;
   --m-fail-bg: rgba(224, 107, 98, 0.16);
   --m-fail-border: #4a2e2b;
-  --m-gray: #262b34;
-  --m-gray-ink: #7e8798;
+  --m-gray: oklch(calc(0.288 + 0.45 * var(--bg-light)) calc(0.018 * var(--bg-chroma)) var(--bg-hue));
+  --m-gray-ink: oklch(calc(0.622 + var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
 }
 
 :root[data-accent='custom'] {
@@ -398,4 +391,19 @@
 }
 :root[data-accent-intensity='vivid'] {
   --accent-chroma: 1.45;
+}
+
+/* Preset chip preview. This MUST be declared on the swatch element rather than on `:root` as a
+   token: `var()` inside a custom property is substituted where that property is DECLARED, so a
+   `:root`-level token would resolve the `--sw-*` inputs against `:root` (i.e. always the fallbacks)
+   and inherit the same gradient to every chip. Declaring the real `background-image` here defers
+   substitution to the element, where PaletteControls sets `--sw-*` inline. The preset numbers stay
+   in TypeScript and the colour maths stays here, so no TSX holds a colour literal. */
+[data-preset-swatch] {
+  background-image: linear-gradient(
+    135deg,
+    oklch(calc(0.93 + var(--sw-bg-light, 0)) calc(0.007 * var(--sw-bg-chroma, 1)) var(--sw-bg-hue, 264)) 0 38%,
+    oklch(calc(0.5 - var(--sw-ink-contrast, 0)) calc(0.025 * var(--sw-ink-chroma, 1)) var(--sw-ink-hue, 263)) 38% 62%,
+    oklch(0.52 calc(0.18 * var(--sw-accent-chroma, 1)) var(--sw-accent-hue, 274)) 62% 100%
+  );
 }

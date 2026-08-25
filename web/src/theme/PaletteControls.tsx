@@ -22,7 +22,7 @@ export interface PaletteControlsCopy {
   presetNames: Record<string, string>;
 }
 
-// The chip preview is painted by --preset-swatch from these numbers; see public/theme.css.
+// The chip preview is painted by the [data-preset-swatch] rule from these numbers; see public/theme.css.
 function swatchVars(preset: PalettePreset): CSSProperties {
   return {
     '--sw-bg-hue': preset.palette.bgHue,
@@ -59,9 +59,10 @@ function PresetChip({ preset, label, active, onPick }: {
     >
       <span
         aria-hidden
+        data-preset-swatch
         style={{
-          ...swatchVars(preset), width: 16, height: 16, borderRadius: '50%', flex: 'none',
-          background: 'var(--preset-swatch)', border: '1px solid var(--proto-line-3)',
+          ...swatchVars(preset), width: 18, height: 18, borderRadius: '50%', flex: 'none',
+          border: '1px solid var(--proto-line-3)',
         }}
       />
       {label}

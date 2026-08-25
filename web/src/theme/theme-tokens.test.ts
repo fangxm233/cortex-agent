@@ -23,7 +23,6 @@ const THEME_CONSTANT_TOKENS = new Set([
   '--ink-hue',
   '--ink-chroma',
   '--ink-contrast',
-  '--preset-swatch',
   '--bg-chroma-track',
   '--bg-light-track',
   '--ink-chroma-track',
@@ -138,6 +137,53 @@ describe('shared theme tokens', () => {
       const tokens = [...cssBlock(css, selector).matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]);
       expect(tokens.length).toBeGreaterThan(0);
       expect(tokens.filter((token) => !base.has(token))).toEqual([]);
+    }
+  });
+
+  // The palette is only adjustable to the extent that tokens actually read the parameters. A token
+  // left as a raw hex would simply stop responding to the sliders, silently and per-token.
+  it('derives the background and text families from the palette parameters', () => {
+    const css = readFileSync(THEME_PATH, 'utf8');
+    const blocks = { light: cssBlock(css, ':root'), dark: cssBlock(css, "[data-theme='dark']") };
+    const families = {
+      '--bg-hue': ['--surface-base', '--proto-base', '--proto-card', '--proto-rail', '--proto-gray',
+        '--proto-line', '--proto-line-3', '--proto-disabled', '--m-canvas', '--m-card',
+        '--m-hairline', '--cmdk-panel-bg'],
+      '--ink-hue': ['--proto-ink', '--proto-ink-2', '--proto-muted', '--proto-muted-2',
+        '--proto-faint', '--m-ink', '--m-sub', '--m-muted', '--state-ink', '--ink-solid-bg'],
+    };
+
+    for (const [theme, block] of Object.entries(blocks)) {
+      for (const [param, tokens] of Object.entries(families)) {
+        for (const token of tokens) {
+          expect(cssValue(block, token), `${theme} ${token}`).toContain(`var(${param})`);
+        }
+      }
+    }
+  });
+
+  // `var()` inside a custom property is substituted where the property is DECLARED. A `:root` token
+  // referencing the per-chip `--sw-*` inputs therefore resolves them against `:root` -- always the
+  // fallbacks -- and inherits one identical gradient to every preset chip. Keep the paint on the
+  // element so substitution is deferred to where PaletteControls sets the inputs.
+  it('paints the preset swatch on the element, not through an inherited root token', () => {
+    const css = readFileSync(THEME_PATH, 'utf8');
+    for (const sel of [':root', "[data-theme='dark']"]) {
+      expect(cssBlock(css, sel), `${sel} may not resolve --sw-* inputs`).not.toContain('var(--sw-');
+    }
+    const swatch = cssBlock(css, '[data-preset-swatch]');
+    expect(swatch).toContain('background-image:');
+    for (const input of ['--sw-bg-hue', '--sw-ink-hue', '--sw-accent-hue']) {
+      expect(swatch, `swatch reads ${input}`).toContain(`var(${input}`);
+    }
+  });
+
+  // getPropertyValue does not evaluate colour functions, so the chrome colour has to stay in a form
+  // the theme.ts probe can read back off a real element as numeric sRGB.
+  it('keeps the browser chrome colour resolvable to sRGB', () => {
+    const css = readFileSync(THEME_PATH, 'utf8');
+    for (const sel of [':root', "[data-theme='dark']"]) {
+      expect(cssValue(cssBlock(css, sel), '--browser-theme-color')).toContain('color-mix(in srgb');
     }
   });
 
