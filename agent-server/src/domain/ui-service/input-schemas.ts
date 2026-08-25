@@ -196,7 +196,7 @@ export const sessionsSendInput = z.object({
     path: z.string(),
     size: z.number(),
     mimeType: z.string(),
-    type: z.enum(['image', 'video', 'file']),
+    type: z.enum(['image', 'video', 'file', 'view']),
   })).optional(),
 });
 
