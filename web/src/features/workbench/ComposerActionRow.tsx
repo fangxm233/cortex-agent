@@ -49,8 +49,10 @@ export function ComposerSlashMenu({ suggestions, onPick }: {
   );
 }
 
-export function ComposerActionRow({ profileControl, hint, onAttach, onCommands }: {
+export function ComposerActionRow({ profileControl, browserControl, hint, onAttach, onCommands }: {
   profileControl: ReactNode;
+  /** Present only while composing a draft — browser access is chosen before the session exists. */
+  browserControl?: ReactNode;
   hint: string;
   onAttach: () => void;
   onCommands: () => void;
@@ -61,6 +63,7 @@ export function ComposerActionRow({ profileControl, hint, onAttach, onCommands }
   return (
     <div data-composer-actions style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 0 }}>
       {profileControl}
+      {browserControl}
       <span
         data-chip="attach"
         onClick={onAttach}

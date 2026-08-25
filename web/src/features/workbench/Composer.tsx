@@ -27,6 +27,7 @@ import { apiBase, authHeaders } from '@/lib/desktop-config';
 import { ComposerStatusLine } from './ComposerStatusLine';
 import { TodoRail } from './TodoRail';
 import { ComposerActionRow, ComposerSlashMenu } from './ComposerActionRow';
+import { BrowserOptInChip } from './BrowserOptIn';
 import { SessionProfileSelectorView, useSessionProfileSelection } from './SessionProfileSelector';
 import type { ContextCompactAction } from './ContextUsageControl';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
@@ -220,6 +221,9 @@ export function Composer({
   const { openDoc } = useDocViewer();
   const { selectCreatedSession, setSelectedSession } = useSelectedSession();
   const profileSelection = useSessionProfileSelection({ sessionId, currentProfile, hasHistory, isDraft });
+  // Draft-only: the browser tool set is fixed when the agent process spawns, so this is a
+  // creation-time choice, not a session setting.
+  const [browserDevice, setBrowserDevice] = useState<string | null>(null);
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
   const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
@@ -541,6 +545,7 @@ export function Composer({
       mutate: () => isDraft
         ? createAndSendMut.mutateAsync({
             projectId, profileName: draftProfile ?? undefined, text,
+            ...(browserDevice ? { browser: { device: browserDevice } } : {}),
             draftUploadId: sent.draftUploadId,
             ...(metas.length > 0 ? { attachments: metas } : {}),
           } as any)
@@ -966,6 +971,9 @@ export function Composer({
 
                     <ComposerActionRow
                       profileControl={<SessionProfileSelectorView selection={profileSelection} />}
+                      browserControl={isDraft
+                        ? <BrowserOptInChip device={browserDevice} onChange={setBrowserDevice} />
+                        : undefined}
                       hint={hasAttachments ? L.wbAttachHint : composerHint}
                       onAttach={() => fileInputRef.current?.click()}
                       onCommands={() => { setComposer('/'); setSlashOpen(true); }}
