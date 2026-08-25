@@ -4,7 +4,8 @@
 // >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
-  listenerProbes, parseNetstatListeners, WINDOWS_LISTENER_COMMAND,
+  listenerProbes, parseLsofListeners, parseNetstatListeners, parseProcNetTcp,
+  MACOS_LISTENER_COMMAND, PROC_LISTENER_COMMAND, WINDOWS_LISTENER_COMMAND,
 } from '@platform/ui-http/device-listeners.js';
 
 // Captured verbatim from `my-pc` (Windows 11, code page 65001).
@@ -68,6 +69,89 @@ describe('parseNetstatListeners', () => {
   });
 });
 
+// Captured verbatim from `lsof -nP -iTCP -sTCP:LISTEN -F cn` on this host.
+const LSOF = `p128818
+cnode
+f19
+n127.0.0.1:4851
+p607824
+ccloudflared
+f10
+n127.0.0.1:20241
+p634234
+cnode
+f18
+n*:8899
+p1170040
+cssh
+f5
+n127.0.0.1:812
+`;
+
+describe('parseLsofListeners', () => {
+  it('reads the field format so the command name is not truncated', () => {
+    // The default lsof table cuts COMMAND to nine characters — `cloudflared` arrives as
+    // `cloudflar`, which is a mangled label rather than a useful one.
+    expect(parseLsofListeners(LSOF)).toEqual([
+      { port: 4851, address: '127.0.0.1', process: 'node' },
+      { port: 8899, address: '*', process: 'node' },
+      { port: 20241, address: '127.0.0.1', process: 'cloudflared' },
+    ]);
+  });
+
+  it('drops privileged ports and ignores unparseable lines', () => {
+    expect(parseLsofListeners(LSOF).some((p) => p.port === 812)).toBe(false);
+    expect(parseLsofListeners('')).toEqual([]);
+    expect(parseLsofListeners('lsof: command not found')).toEqual([]);
+  });
+
+  it('is what macOS gets, since it has neither ss nor /proc', () => {
+    const probes = listenerProbes('darwin');
+    expect(probes.map((p) => p.command)).toEqual([MACOS_LISTENER_COMMAND]);
+    expect(MACOS_LISTENER_COMMAND).toContain('-F cn');
+  });
+});
+
+// Captured verbatim from /proc/net/tcp and /proc/net/tcp6 on this host.
+const PROC = `  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+   0: 3500007F:0035 00000000:0000 0A 00000000:00000000 00:00000000 00000000   101        0 318922432 1 0000000000000000 100 0 0 10 5
+   1: 0100007F:4F11 00000000:0000 0A 00000000:00000000 00:00000000 00000000 1508620272        0 328212430 2 0000000000000000 100 0 0 10 0
+   2: 0100007F:0BB9 00000000:0000 0A 00000000:00000000 00:00000000 00000000 1508620272        0 385693029 1 0000000000000000 100 0 0 10 0
+   3: 1401A8C0:1F90 0100007F:9C40 01 00000000:00000000 00:00000000 00000000 1508620272        0 385693031 1 0000000000000000 100 0 0 10 0
+  sl  local_address                         remote_address                        st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+   0: 00000000000000000000000000000000:22C3 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000 1508620272        0 160761918 1 0000000000000000 100 0 0 10 0
+`;
+
+describe('parseProcNetTcp', () => {
+  it('decodes the little-endian hex tables both families use', () => {
+    expect(parseProcNetTcp(PROC)).toEqual([
+      { port: 3001, address: '127.0.0.1', process: null },  // 0BB9
+      { port: 8899, address: '[::]', process: null },       // 22C3
+      { port: 20241, address: '127.0.0.1', process: null }, // 4F11
+    ]);
+  });
+
+  it('drops non-listening rows, privileged ports and LAN-only binds', () => {
+    const ports = parseProcNetTcp(PROC).map((p) => p.port);
+    expect(ports).not.toContain(8080); // st 01 — established, not LISTEN
+    expect(ports).not.toContain(53); // 0035, below 1024
+    // 1401A8C0 is 192.168.1.20 — the reverse channel dials loopback, so it could never reach it.
+    expect(parseProcNetTcp(PROC).some((p) => p.address.startsWith('192.'))).toBe(false);
+  });
+
+  it('reports no process names, which is the price of needing no package', () => {
+    // /proc gives a socket inode; resolving it means walking every /proc/<pid>/fd symlink.
+    expect(parseProcNetTcp(PROC).every((p) => p.process === null)).toBe(true);
+  });
+
+  it('backs up ss on a Linux box with no iproute2', () => {
+    // BusyBox has no `ss` applet and Alpine does not install iproute2, so a container device would
+    // otherwise report an empty list — which reads as "nothing is running there".
+    const commands = listenerProbes('linux').map((p) => p.command);
+    expect(commands).toEqual(['ss -ltnpH', 'ss -ltnH', PROC_LISTENER_COMMAND]);
+  });
+});
+
 describe('listenerProbes', () => {
   it('asks Windows for netstat, without -p TCP', () => {
     const probes = listenerProbes('win32');
@@ -79,9 +163,10 @@ describe('listenerProbes', () => {
     expect(WINDOWS_LISTENER_COMMAND).toContain('MSYS_NO_PATHCONV=1');
   });
 
-  it('keeps the privileged/unprivileged ss pair everywhere else', () => {
-    for (const platform of ['linux', 'darwin', '']) {
-      expect(listenerProbes(platform).map((p) => p.command)).toEqual(['ss -ltnpH', 'ss -ltnH']);
+  it('falls back to ss plus /proc for anything not explicitly handled', () => {
+    for (const platform of ['linux', 'freebsd', '']) {
+      expect(listenerProbes(platform).map((p) => p.command))
+        .toEqual(['ss -ltnpH', 'ss -ltnH', PROC_LISTENER_COMMAND]);
     }
   });
 });

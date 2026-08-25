@@ -11,6 +11,12 @@ import { parseSsListeners, type ListeningPort } from './port-forward.js';
  * for `localhost:PORT` and to the user typing a port by hand. We do the scan, because the Ports
  * list is opened by a human at human intervals rather than polled every two seconds — the cost VS
  * Code was avoiding is not one we pay.
+ *
+ * Each platform gets an ORDERED list of probes and the first that produces output wins, because
+ * every single command here is missing somewhere real: `ss` needs iproute2, which BusyBox does not
+ * provide and Alpine does not install; `/proc` is absent on macOS; `lsof` is preinstalled on macOS
+ * but not on a slim Linux image. An empty list is the worst possible answer — it reads as "nothing
+ * is running there" rather than as "we could not look".
  */
 
 /** Same floor as the local forward: nothing a dev server needs lives below 1024. */
@@ -86,22 +92,103 @@ export function parseNetstatListeners(stdout: string): ListeningPort[] {
   return [...out.values()].sort((a, b) => a.port - b.port);
 }
 
+// ── macOS ─────────────────────────────────────────────────────────────────────
+
+/**
+ * macOS has neither `ss` nor `/proc`. `lsof` is preinstalled (`/usr/sbin/lsof`) and is the only
+ * thing that reports both the port and the owning process without elevation.
+ *
+ * `-F cn` is the machine-readable field format: `p<pid>`, `c<command>`, `n<address>` one per line.
+ * The default table truncates the command to nine characters (`cloudflar`), so the field form is
+ * not a style choice — it is the difference between a usable label and a mangled one.
+ */
+export const MACOS_LISTENER_COMMAND = 'lsof -nP -iTCP -sTCP:LISTEN -F cn';
+
+export function parseLsofListeners(stdout: string): ListeningPort[] {
+  const out = new Map<number, ListeningPort>();
+  let command: string | null = null;
+  for (const raw of stdout.split('\n')) {
+    const line = raw.trim();
+    const tag = line[0];
+    const value = line.slice(1);
+    // A `p` record opens a process block; every `n` until the next `p` belongs to it.
+    if (tag === 'p') command = null;
+    else if (tag === 'c') command = value || null;
+    else if (tag === 'n') {
+      const idx = value.lastIndexOf(':');
+      if (idx < 0) continue;
+      const port = Number(value.slice(idx + 1));
+      if (!Number.isInteger(port) || port < MIN_PORT) continue;
+      const address = value.slice(0, idx);
+      if (!REACHABLE.has(address)) continue;
+      const existing = out.get(port);
+      if (!existing || (!existing.process && command)) out.set(port, { port, address, process: command });
+    }
+  }
+  return [...out.values()].sort((a, b) => a.port - b.port);
+}
+
+// ── Linux without iproute2 ────────────────────────────────────────────────────
+
+/** TCP state for LISTEN in the /proc tables. */
+const TCP_LISTEN = '0A';
+
+/** Hex local addresses we can reach over loopback, in the little-endian form /proc prints. */
+const PROC_REACHABLE = new Map<string, string>([
+  ['00000000', '0.0.0.0'],
+  ['0100007F', '127.0.0.1'],
+  ['00000000000000000000000000000000', '[::]'],
+  ['00000000000000000000000001000000', '[::1]'],
+]);
+
+/**
+ * Last-resort probe for a Linux device with no `ss` — an Alpine or distroless container, where
+ * BusyBox provides no `ss` applet at all. This is what VS Code reads, and it is the one source that
+ * is always present when /proc is mounted.
+ *
+ * The cost is the process name: /proc gives a socket inode, and turning that into a pid means
+ * walking every `/proc/<pid>/fd` symlink. We report null instead — a named port is nicer, but a
+ * listed port is the thing that matters.
+ */
+export function parseProcNetTcp(stdout: string): ListeningPort[] {
+  const out = new Map<number, ListeningPort>();
+  for (const line of stdout.split('\n')) {
+    const parts = line.trim().split(/\s+/);
+    // sl  local_address rem_address st ...
+    if (parts.length < 4 || parts[3] !== TCP_LISTEN) continue;
+    const [hexAddr, hexPort] = parts[1].split(':');
+    const address = PROC_REACHABLE.get(hexAddr?.toUpperCase() ?? '');
+    if (!address) continue;
+    const port = parseInt(hexPort, 16);
+    if (!Number.isInteger(port) || port < MIN_PORT) continue;
+    if (!out.has(port)) out.set(port, { port, address, process: null });
+  }
+  return [...out.values()].sort((a, b) => a.port - b.port);
+}
+
+/** Both families in one read; `2>/dev/null` so a kernel without IPv6 still yields the IPv4 table. */
+export const PROC_LISTENER_COMMAND = 'cat /proc/net/tcp /proc/net/tcp6 2>/dev/null';
+
 export interface ListenerProbe {
   command: string;
   parse: (stdout: string) => ListeningPort[];
 }
 
 /**
- * Commands to try on a device, in order — the first that produces output wins. Linux keeps the
- * privileged/unprivileged `ss` pair; Windows needs only one call because netstat never needs
- * elevation for the parts we read.
+ * Commands to try on a device, in order — the first that produces output wins.
  */
 export function listenerProbes(platform: string): ListenerProbe[] {
   if (platform === 'win32') {
     return [{ command: WINDOWS_LISTENER_COMMAND, parse: parseNetstatListeners }];
   }
+  if (platform === 'darwin') {
+    return [{ command: MACOS_LISTENER_COMMAND, parse: parseLsofListeners }];
+  }
   return [
+    // `ss -p` needs no privileges for own-user sockets, so the named form is tried first.
     { command: 'ss -ltnpH', parse: parseSsListeners },
     { command: 'ss -ltnH', parse: parseSsListeners },
+    // No iproute2 (BusyBox, distroless): ports without names beats no ports.
+    { command: PROC_LISTENER_COMMAND, parse: parseProcNetTcp },
   ];
 }
