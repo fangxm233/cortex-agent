@@ -120,7 +120,7 @@ const ALLOWED_ORIGIN = 'tauri://localhost';
 const BLOCKED_ORIGIN = 'https://evil.example.com';
 
 async function bootTransport(
-  opts: { spaDir?: string; corsOrigins?: string[]; verifyAccessJwt?: AccessJwtVerifier } = {},
+  opts: { spaDir?: string; corsOrigins?: string[]; verifyAccessJwt?: AccessJwtVerifier; portForward?: boolean } = {},
 ) {
   const inst = createUiHttpServer({
     router: fakeRouter,
@@ -298,6 +298,65 @@ async function bootWiring(env: Record<string, string>, spaDir?: string, corsOrig
   const { port } = await awaitListening(inst!.server);
   return { inst: inst!, port };
 }
+
+// ── Port forward: the upgrade path is TOKEN-ONLY ──────────────────────────────
+// The forward hands out a raw TCP channel to the server's loopback. A browser page riding a
+// Cloudflare Access SSO cookie must never be able to open one (and cannot set the token header on
+// a WebSocket handshake), so this gate is the whole boundary — see plan/embedded-browser.md §10.
+describe('transport-host: /forward upgrade gate', () => {
+  async function upgrade(port: number, headers: Record<string, string>): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const req = http.request({
+        host: '127.0.0.1',
+        port,
+        path: '/forward?port=5173',
+        headers: {
+          Connection: 'Upgrade',
+          Upgrade: 'websocket',
+          'Sec-WebSocket-Version': '13',
+          'Sec-WebSocket-Key': Buffer.from('0123456789abcdef').toString('base64'),
+          ...headers,
+        },
+      });
+      req.on('upgrade', (res, socket) => {
+        socket.destroy();
+        resolve(res.statusCode ?? 101);
+      });
+      req.on('response', (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      });
+      // A destroyed socket with no HTTP response at all is the "refused" shape.
+      req.on('error', () => resolve(0));
+      req.end();
+      setTimeout(() => reject(new Error('upgrade timeout')), 4000);
+    });
+  }
+
+  test('refuses an unauthenticated upgrade', async () => {
+    const { port } = await bootTransport();
+    const status = await upgrade(port, {});
+    assert.notEqual(status, 101, 'an unauthenticated upgrade must not succeed');
+  });
+
+  test('refuses a wrong token', async () => {
+    const { port } = await bootTransport();
+    const status = await upgrade(port, { 'x-cortex-token': 'nope' });
+    assert.notEqual(status, 101);
+  });
+
+  test('accepts the configured token', async () => {
+    const { port } = await bootTransport();
+    const status = await upgrade(port, { 'x-cortex-token': TOKEN });
+    assert.equal(status, 101, 'a token-bearing upgrade should switch protocols');
+  });
+
+  test('stays off when portForward is disabled', async () => {
+    const { port } = await bootTransport({ portForward: false });
+    const status = await upgrade(port, { 'x-cortex-token': TOKEN });
+    assert.notEqual(status, 101);
+  });
+});
 
 describe('entry wiring: env gate, AppRouter binding, live CORS, OTA, file routes', () => {
   const CORS_ORIGIN = 'tauri://localhost';
