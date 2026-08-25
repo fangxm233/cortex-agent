@@ -83,7 +83,7 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MMcpScreen.tsx | screen | Lists configured MCP servers read-only |
 | MRuntimeSettingsScreen.tsx | screen | Edits Notifications and Advanced runtime settings |
 | MAppearanceScreen.tsx | screen | Binds device-local appearance state and back route |
-| MAppearanceView.tsx | view | Language, theme, background, accent and motion controls |
+| MAppearanceView.tsx | view | Language, theme, palette, accent and motion controls |
 | MAppearanceView.test.tsx | test | Tests mobile appearance control wiring |
 | MUsageScreen.tsx | screen | Binds localized Usage thresholds, saves, refresh, and settings back route |
 | MUsageView.tsx | view | Keeps drill header above usage controls |

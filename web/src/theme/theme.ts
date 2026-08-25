@@ -1,13 +1,11 @@
 // input:  localStorage, matchMedia, document root
-// output: Theme, accent, surface, and motion resolve/persist/apply helpers
+// output: Theme, accent, and motion resolve/persist/apply helpers
 // pos:    Device-local appearance preference utilities
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 export type Theme = 'light' | 'dark' | 'system';
 export type ResolvedTheme = Exclude<Theme, 'system'>;
 export type AccentHue = number | null;
-/** Background tone: the default cast, a neutral grey, or a high-separation surround (OLED black in dark). */
-export type SurfaceTone = 'default' | 'neutral' | 'contrast';
 /** Chroma scale applied to every derived accent step. */
 export type AccentIntensity = 'soft' | 'normal' | 'vivid';
 /** Animation policy; `system` defers to `prefers-reduced-motion`. */
@@ -15,16 +13,13 @@ export type MotionMode = 'system' | 'full' | 'reduced';
 
 export const THEME_STORAGE_KEY = 'cortex.theme';
 export const ACCENT_HUE_STORAGE_KEY = 'cortex.accent-hue';
-export const SURFACE_TONE_STORAGE_KEY = 'cortex.surface';
 export const ACCENT_INTENSITY_STORAGE_KEY = 'cortex.accent-intensity';
 export const MOTION_STORAGE_KEY = 'cortex.motion';
 export const DEFAULT_THEME: Theme = 'light';
 export const DEFAULT_ACCENT_HUE = 274;
-export const DEFAULT_SURFACE_TONE: SurfaceTone = 'default';
 export const DEFAULT_ACCENT_INTENSITY: AccentIntensity = 'normal';
 export const DEFAULT_MOTION_MODE: MotionMode = 'system';
 
-const SURFACE_TONES: readonly SurfaceTone[] = ['default', 'neutral', 'contrast'];
 const ACCENT_INTENSITIES: readonly AccentIntensity[] = ['soft', 'normal', 'vivid'];
 const MOTION_MODES: readonly MotionMode[] = ['system', 'full', 'reduced'];
 
@@ -120,18 +115,6 @@ function storeOption<T extends string>(key: string, value: T, fallback: T): void
   }
 }
 
-export function parseStoredSurfaceTone(stored: string | null): SurfaceTone {
-  return parseOption(stored, SURFACE_TONES, DEFAULT_SURFACE_TONE);
-}
-
-export function readStoredSurfaceTone(): SurfaceTone {
-  return readOption(SURFACE_TONE_STORAGE_KEY, SURFACE_TONES, DEFAULT_SURFACE_TONE);
-}
-
-export function storeSurfaceTone(tone: SurfaceTone): void {
-  storeOption(SURFACE_TONE_STORAGE_KEY, tone, DEFAULT_SURFACE_TONE);
-}
-
 export function parseStoredAccentIntensity(stored: string | null): AccentIntensity {
   return parseOption(stored, ACCENT_INTENSITIES, DEFAULT_ACCENT_INTENSITY);
 }
@@ -164,12 +147,37 @@ export function watchSystemTheme(onChange: (prefersDark: boolean) => void): () =
   return () => query.removeEventListener('change', handleChange);
 }
 
+/** `color(srgb r g b)` / `rgb(r, g, b)` -> `#rrggbb`; anything else yields null. */
+function toHexColor(computed: string): string | null {
+  const parts = computed.match(/[\d.]+/g);
+  if (!parts || parts.length < 3) return null;
+  const srgb = /^color/.test(computed);
+  const channels = parts.slice(0, 3).map((part) => {
+    const value = Number(part);
+    return Math.max(0, Math.min(255, Math.round(srgb ? value * 255 : value)));
+  });
+  return `#${channels.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+}
+
+// The token resolves through color-mix(), and custom properties are not colour-evaluated by
+// getPropertyValue — so the value has to be read back off a real element's `color`.
 function syncBrowserThemeColor(): void {
   if (typeof getComputedStyle !== 'function') return;
-  const color = getComputedStyle(document.documentElement)
-    .getPropertyValue('--browser-theme-color')
-    .trim();
-  if (color) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  const probe = document.createElement('span');
+  probe.style.cssText = 'display:none;color:var(--browser-theme-color)';
+  document.documentElement.appendChild(probe);
+  const computed = getComputedStyle(probe).color;
+  probe.remove();
+  const hex = toHexColor(computed);
+  if (hex) meta.setAttribute('content', hex);
+}
+
+/** Re-reads the browser chrome colour after a palette change. */
+export function refreshBrowserThemeColor(): void {
+  if (typeof document === 'undefined') return;
+  syncBrowserThemeColor();
 }
 
 /** Applies the preference through the existing light/dark CSS-variable cascade. */
@@ -193,15 +201,6 @@ export function applyAccentHue(hue: AccentHue): void {
     root.setAttribute('data-accent', 'custom');
     root.style.setProperty('--accent-hue', String(hue));
   }
-  syncBrowserThemeColor();
-}
-
-/** Surface tone repaints the base surround, so the browser chrome color is re-read after it. */
-export function applySurfaceTone(tone: SurfaceTone): void {
-  if (typeof document === 'undefined') return;
-  const root = document.documentElement;
-  if (tone === 'default') root.removeAttribute('data-surface');
-  else root.setAttribute('data-surface', tone);
   syncBrowserThemeColor();
 }
 

@@ -17,6 +17,17 @@ const RAW_COLOR = /#[\da-f]{3,8}\b|(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|
 const THEME_CONSTANT_TOKENS = new Set([
   '--accent-hue',
   '--accent-chroma',
+  '--bg-hue',
+  '--bg-chroma',
+  '--bg-light',
+  '--ink-hue',
+  '--ink-chroma',
+  '--ink-contrast',
+  '--preset-swatch',
+  '--bg-chroma-track',
+  '--bg-light-track',
+  '--ink-chroma-track',
+  '--ink-contrast-track',
   '--accent-default-swatch',
   '--accent-swatch-blue',
   '--accent-swatch-teal',
@@ -121,27 +132,12 @@ describe('shared theme tokens', () => {
     const variants = [
       ":root[data-accent-intensity='soft']",
       ":root[data-accent-intensity='vivid']",
-      ":root:not([data-theme='dark'])[data-surface='neutral']",
-      ":root:not([data-theme='dark'])[data-surface='contrast']",
-      "[data-theme='dark'][data-surface='neutral']",
-      "[data-theme='dark'][data-surface='contrast']",
     ];
 
     for (const selector of variants) {
       const tokens = [...cssBlock(css, selector).matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]);
       expect(tokens.length).toBeGreaterThan(0);
       expect(tokens.filter((token) => !base.has(token))).toEqual([]);
-    }
-  });
-
-  // `:root[data-surface=…]` outranks the bare `[data-theme='dark']` base block, so a light surface
-  // block without the `:not` guard would repaint dark mode with light surfaces.
-  it('keeps the light surface variants out of dark mode', () => {
-    const css = readFileSync(THEME_PATH, 'utf8');
-
-    for (const tone of ['neutral', 'contrast']) {
-      expect(css).toContain(`:root:not([data-theme='dark'])[data-surface='${tone}']`);
-      expect(css).not.toMatch(new RegExp(`(^|\\n):root\\[data-surface='${tone}'\\]`));
     }
   });
 

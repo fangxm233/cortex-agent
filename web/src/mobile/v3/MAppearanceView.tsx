@@ -9,11 +9,14 @@ import { MScreen, MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
 import type { Lang } from '@/i18n';
 import {
   AccentPicker,
+  PaletteControls,
   type AccentHue,
   type AccentIntensity,
   type AccentPickerCopy,
   type MotionMode,
-  type SurfaceTone,
+  type Palette,
+  type PaletteControlsCopy,
+  type PaletteKey,
   type Theme,
 } from '@/theme';
 
@@ -24,10 +27,7 @@ export interface MAppearanceCopy {
   themeLight: string;
   themeDark: string;
   themeSystem: string;
-  surface: string;
-  surfaceDefault: string;
-  surfaceNeutral: string;
-  surfaceContrast: string;
+  palette: PaletteControlsCopy;
   accent: string;
   accentDefault: string;
   accentBlue: string;
@@ -148,8 +148,11 @@ export function MAppearanceView({
   onSetLang,
   theme,
   onSetTheme,
-  surfaceTone,
-  onSetSurfaceTone,
+  palette,
+  onSetPaletteValue,
+  activePreset,
+  onPickPreset,
+  onResetPalette,
   accentHue,
   onSetAccentHue,
   accentIntensity,
@@ -163,8 +166,11 @@ export function MAppearanceView({
   onSetLang: (lang: Lang) => void;
   theme: Theme;
   onSetTheme: (theme: Theme) => void;
-  surfaceTone: SurfaceTone;
-  onSetSurfaceTone: (tone: SurfaceTone) => void;
+  palette: Palette;
+  onSetPaletteValue: (key: PaletteKey, value: number) => void;
+  activePreset: string | null;
+  onPickPreset: (id: string) => void;
+  onResetPalette: () => void;
   accentHue: AccentHue;
   onSetAccentHue: (hue: AccentHue) => void;
   accentIntensity: AccentIntensity;
@@ -203,15 +209,12 @@ export function MAppearanceView({
         </Card>
 
         <Card>
-          <ChoiceRow
-            divider title={copy.surface} ariaLabel={copy.surface} value={surfaceTone}
-            options={[
-              { id: 'default', label: copy.surfaceDefault },
-              { id: 'neutral', label: copy.surfaceNeutral },
-              { id: 'contrast', label: copy.surfaceContrast },
-            ] as const}
-            onChange={onSetSurfaceTone}
-          />
+          <div style={{ ...rowStyle(true), display: 'block' }}>
+            <PaletteControls
+              palette={palette} copy={copy.palette} activePreset={activePreset}
+              onPickPreset={onPickPreset} onChange={onSetPaletteValue} onReset={onResetPalette}
+            />
+          </div>
           <AccentRow copy={copy} hue={accentHue} onChange={onSetAccentHue} />
           <ChoiceRow
             divider={false} title={copy.accentIntensity} ariaLabel={copy.accentIntensity}
@@ -238,7 +241,7 @@ export function MAppearanceView({
         </Card>
 
         <div style={{ padding: '2px 4px', font: `400 9.5px ${MONO}`, color: MC.faint }}>
-          localStorage · cortex.lang · cortex.theme · cortex.surface · cortex.accent-hue ·
+          localStorage · cortex.lang · cortex.theme · cortex.palette · cortex.accent-hue ·
           cortex.accent-intensity · cortex.motion
         </div>
       </MScrollBody>

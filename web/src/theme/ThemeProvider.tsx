@@ -1,5 +1,5 @@
 // input:  React context, persisted appearance helpers, system scheme
-// output: ThemeProvider and hooks for theme, accent, surface, and motion
+// output: ThemeProvider and hooks for theme, palette, accent, and motion
 // pos:    React owner for global device-local appearance state
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -8,37 +8,46 @@ import {
   applyAccentHue,
   applyAccentIntensity,
   applyMotionMode,
-  applySurfaceTone,
   applyTheme,
   readStoredAccentHue,
   readStoredAccentIntensity,
   readStoredMotionMode,
-  readStoredSurfaceTone,
   readStoredTheme,
   storeAccentHue,
   storeAccentIntensity,
   storeMotionMode,
-  storeSurfaceTone,
   storeTheme,
   watchSystemTheme,
   DEFAULT_ACCENT_HUE,
   type AccentHue,
   type AccentIntensity,
   type MotionMode,
-  type SurfaceTone,
   type Theme,
 } from './theme';
+import {
+  applyPalette,
+  readStoredPalette,
+  storePalette,
+  DEFAULT_PALETTE,
+  type Palette,
+  type PaletteKey,
+} from './palette';
+import { PALETTE_PRESETS, matchPreset } from './palette-presets';
 
 interface ThemeContextValue {
   theme: Theme;
   accentHue: AccentHue;
   accentIntensity: AccentIntensity;
-  surfaceTone: SurfaceTone;
+  palette: Palette;
+  /** Id of the preset the current colour state matches exactly, else `null` (custom). */
+  activePreset: string | null;
   motionMode: MotionMode;
   setTheme: (theme: Theme) => void;
   setAccentHue: (hue: AccentHue) => void;
   setAccentIntensity: (intensity: AccentIntensity) => void;
-  setSurfaceTone: (tone: SurfaceTone) => void;
+  setPaletteValue: (key: PaletteKey, value: number) => void;
+  applyPreset: (id: string) => void;
+  resetPalette: () => void;
   setMotionMode: (mode: MotionMode) => void;
   toggleTheme: () => void;
 }
@@ -101,15 +110,23 @@ function useAccentPreference() {
   return { accentHue, accentIntensity, setAccentHue, setAccentIntensity };
 }
 
-function useSurfacePreference() {
-  const [surfaceTone, setSurfaceToneState] = useState<SurfaceTone>(readStoredSurfaceTone);
-  useEffect(() => applySurfaceTone(surfaceTone), [surfaceTone]);
-  const setSurfaceTone = useCallback((next: SurfaceTone) => {
-    setSurfaceToneState(next);
-    storeSurfaceTone(next);
-    applySurfaceTone(next);
+function usePalettePreference() {
+  const [palette, setPaletteState] = useState<Palette>(readStoredPalette);
+  useEffect(() => applyPalette(palette), [palette]);
+  const commitPalette = useCallback((next: Palette) => {
+    setPaletteState(next);
+    storePalette(next);
+    applyPalette(next);
   }, []);
-  return { surfaceTone, setSurfaceTone };
+  const setPaletteValue = useCallback((key: PaletteKey, value: number) => {
+    setPaletteState((prev) => {
+      const next = { ...prev, [key]: value };
+      storePalette(next);
+      applyPalette(next);
+      return next;
+    });
+  }, []);
+  return { palette, commitPalette, setPaletteValue };
 }
 
 function useMotionPreference() {
@@ -127,14 +144,32 @@ function useMotionPreference() {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const themePreference = useThemePreference();
   const accentPreference = useAccentPreference();
-  const surfacePreference = useSurfacePreference();
+  const palettePreference = usePalettePreference();
   const motionPreference = useMotionPreference();
+  const { commitPalette, palette, setPaletteValue } = palettePreference;
+  const { accentHue, accentIntensity, setAccentHue, setAccentIntensity } = accentPreference;
+
+  // A preset is the whole colour state, so it writes palette and accent together rather than
+  // leaving the accent behind at whatever the previous preset chose.
+  const applyPreset = useCallback((id: string) => {
+    const preset = PALETTE_PRESETS.find((entry) => entry.id === id);
+    if (!preset) return;
+    commitPalette({ ...preset.palette });
+    setAccentIntensity(preset.accentIntensity);
+    setAccentHue(preset.accentHue);
+  }, [commitPalette, setAccentHue, setAccentIntensity]);
+
+  const resetPalette = useCallback(() => commitPalette({ ...DEFAULT_PALETTE }), [commitPalette]);
+  const activePreset = matchPreset(palette, accentHue, accentIntensity);
+
   const value = useMemo<ThemeContextValue>(
-    () => ({ ...themePreference, ...accentPreference, ...surfacePreference, ...motionPreference }),
+    () => ({
+      ...themePreference, ...accentPreference, ...motionPreference,
+      palette, setPaletteValue, applyPreset, resetPalette, activePreset,
+    }),
     [themePreference.theme, themePreference.setTheme, themePreference.toggleTheme,
-      accentPreference.accentHue, accentPreference.setAccentHue,
-      accentPreference.accentIntensity, accentPreference.setAccentIntensity,
-      surfacePreference.surfaceTone, surfacePreference.setSurfaceTone,
+      accentHue, setAccentHue, accentIntensity, setAccentIntensity,
+      palette, setPaletteValue, applyPreset, resetPalette, activePreset,
       motionPreference.motionMode, motionPreference.setMotionMode],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
@@ -170,12 +205,24 @@ export function useSetAccentIntensity(): (intensity: AccentIntensity) => void {
   return useThemeContext().setAccentIntensity;
 }
 
-export function useSurfaceTone(): SurfaceTone {
-  return useThemeContext().surfaceTone;
+export function usePalette(): Palette {
+  return useThemeContext().palette;
 }
 
-export function useSetSurfaceTone(): (tone: SurfaceTone) => void {
-  return useThemeContext().setSurfaceTone;
+export function useSetPaletteValue(): (key: PaletteKey, value: number) => void {
+  return useThemeContext().setPaletteValue;
+}
+
+export function useActivePreset(): string | null {
+  return useThemeContext().activePreset;
+}
+
+export function useApplyPreset(): (id: string) => void {
+  return useThemeContext().applyPreset;
+}
+
+export function useResetPalette(): () => void {
+  return useThemeContext().resetPalette;
 }
 
 export function useMotionMode(): MotionMode {

@@ -5,13 +5,21 @@
 
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import { DEFAULT_PALETTE } from '@/theme';
 import { MAppearanceView, type MAppearanceCopy } from './MAppearanceView';
 
 const copy: MAppearanceCopy = {
   title: 'Appearance', language: 'Language',
   theme: 'Theme', themeLight: 'Light', themeDark: 'Dark', themeSystem: 'System',
-  surface: 'Background', surfaceDefault: 'Default', surfaceNeutral: 'Neutral',
-  surfaceContrast: 'Contrast',
+  palette: {
+    presets: 'Presets', custom: 'Custom', reset: 'Reset',
+    background: 'Background', foreground: 'Foreground',
+    hue: 'Hue', tint: 'Tint', lightness: 'Light', contrast: 'Contrast',
+    presetNames: {
+      default: 'Default', graphite: 'Graphite', sepia: 'Sepia', indigo: 'Indigo',
+      forest: 'Forest', rose: 'Rose', deep: 'Deep',
+    },
+  },
   accent: 'Accent', accentDefault: 'Default', accentBlue: 'Blue', accentTeal: 'Teal',
   accentViolet: 'Violet', accentRose: 'Rose', accentOrange: 'Orange',
   accentCustom: 'Custom hue', accentReset: 'Reset',
@@ -24,7 +32,8 @@ function renderAppearance(overrides: Partial<Parameters<typeof MAppearanceView>[
   return create(
     <MAppearanceView
       copy={copy} lang="en" onSetLang={() => {}} theme="system" onSetTheme={() => {}}
-      surfaceTone="default" onSetSurfaceTone={() => {}}
+      palette={DEFAULT_PALETTE} onSetPaletteValue={() => {}}
+      activePreset="default" onPickPreset={() => {}} onResetPalette={() => {}}
       accentHue={null} onSetAccentHue={() => {}}
       accentIntensity="normal" onSetAccentIntensity={() => {}}
       motionMode="system" onSetMotionMode={() => {}}
@@ -52,11 +61,13 @@ describe('MAppearanceView', () => {
     expect(onSetAccentHue).toHaveBeenCalledWith(10);
   });
 
-  it('routes surface tone selections', () => {
-    const onSetSurfaceTone = vi.fn();
-    clickOption(renderAppearance({ onSetSurfaceTone }), 'Contrast');
+  it('routes palette preset selections', () => {
+    const onPickPreset = vi.fn();
+    const renderer = renderAppearance({ onPickPreset });
 
-    expect(onSetSurfaceTone).toHaveBeenCalledWith('contrast');
+    act(() => renderer.root.findByProps({ 'data-palette-preset': 'deep' }).props.onClick());
+
+    expect(onPickPreset).toHaveBeenCalledWith('deep');
   });
 
   it('routes accent intensity selections', () => {

@@ -33,10 +33,16 @@
           document.documentElement.setAttribute('data-accent', 'custom');
           document.documentElement.style.setProperty('--accent-hue', String(accentHue));
         }
-        var surface = null;
-        try { surface = window.localStorage.getItem('cortex.surface'); } catch (e) {}
-        if (surface === 'neutral' || surface === 'contrast') {
-          document.documentElement.setAttribute('data-surface', surface);
+        var palette = null;
+        try { palette = JSON.parse(window.localStorage.getItem('cortex.palette') || 'null'); } catch (e) {}
+        if (palette && typeof palette === 'object') {
+          var props = { bgHue: '--bg-hue', bgChroma: '--bg-chroma', bgLight: '--bg-light',
+            inkHue: '--ink-hue', inkChroma: '--ink-chroma', inkContrast: '--ink-contrast' };
+          for (var key in props) {
+            if (typeof palette[key] === 'number' && isFinite(palette[key])) {
+              document.documentElement.style.setProperty(props[key], String(palette[key]));
+            }
+          }
         }
         var intensity = null;
         try { intensity = window.localStorage.getItem('cortex.accent-intensity'); } catch (e) {}
@@ -48,9 +54,24 @@
         if (motion === 'full' || motion === 'reduced') {
           document.documentElement.setAttribute('data-motion', motion);
         }
-        var chrome = getComputedStyle(document.documentElement).getPropertyValue('--browser-theme-color').trim();
         var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta && chrome) meta.setAttribute('content', chrome);
+        if (meta) {
+          var probe = document.createElement('span');
+          probe.style.cssText = 'display:none;color:var(--browser-theme-color)';
+          document.documentElement.appendChild(probe);
+          var computed = getComputedStyle(probe).color;
+          probe.remove();
+          var parts = computed.match(/[\d.]+/g);
+          if (parts && parts.length >= 3) {
+            var scale = /^color/.test(computed) ? 255 : 1;
+            var hex = '#';
+            for (var n = 0; n < 3; n++) {
+              var ch = Math.max(0, Math.min(255, Math.round(Number(parts[n]) * scale)));
+              hex += ('0' + ch.toString(16)).slice(-2);
+            }
+            meta.setAttribute('content', hex);
+          }
+        }
       } catch (e) {}
     })();
 

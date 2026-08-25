@@ -1,4 +1,4 @@
-// input:  Local language/theme/accent providers and settings cards
+// input:  Local language/theme/palette providers and settings cards
 // output: Desktop appearance settings panel
 // pos:    Device-local desktop appearance controls
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -7,12 +7,16 @@ import type { ReactNode } from 'react';
 import { useVocab, useLang, useSetLang, type Lang } from '@/i18n';
 import {
   AccentPicker,
+  PaletteControls,
   useAccentHue,
   useSetAccentHue,
   useAccentIntensity,
   useSetAccentIntensity,
-  useSurfaceTone,
-  useSetSurfaceTone,
+  usePalette,
+  useSetPaletteValue,
+  useActivePreset,
+  useApplyPreset,
+  useResetPalette,
   useMotionMode,
   useSetMotionMode,
   useTheme,
@@ -20,7 +24,7 @@ import {
   type AccentIntensity,
   type AccentPickerCopy,
   type MotionMode,
-  type SurfaceTone,
+  type PaletteControlsCopy,
   type Theme,
 } from '@/theme';
 import { SCard } from './settings-ui';
@@ -92,14 +96,28 @@ function AppearanceCards() {
   const setAccentHue = useSetAccentHue();
   const accentIntensity = useAccentIntensity();
   const setAccentIntensity = useSetAccentIntensity();
-  const surfaceTone = useSurfaceTone();
-  const setSurfaceTone = useSetSurfaceTone();
+  const palette = usePalette();
+  const setPaletteValue = useSetPaletteValue();
+  const activePreset = useActivePreset();
+  const applyPreset = useApplyPreset();
+  const resetPalette = useResetPalette();
   const motionMode = useMotionMode();
   const setMotionMode = useSetMotionMode();
   const accentCopy: AccentPickerCopy = {
     label: L.stAccentLabel, default: L.stAccentDefault, blue: L.stAccentBlue,
     teal: L.stAccentTeal, violet: L.stAccentViolet, rose: L.stAccentRose,
     orange: L.stAccentOrange, custom: L.stAccentCustom, reset: L.stAccentReset,
+  };
+  const paletteCopy: PaletteControlsCopy = {
+    presets: L.stPalettePresets, custom: L.stPaletteCustom, reset: L.stPaletteReset,
+    background: L.stPaletteBackground, foreground: L.stPaletteForeground,
+    hue: L.stPaletteHue, tint: L.stPaletteTint,
+    lightness: L.stPaletteLightness, contrast: L.stPaletteContrast,
+    presetNames: {
+      default: L.stPresetDefault, graphite: L.stPresetGraphite, sepia: L.stPresetSepia,
+      indigo: L.stPresetIndigo, forest: L.stPresetForest, rose: L.stPresetRose,
+      deep: L.stPresetDeep,
+    },
   };
   const cardStyle = { marginTop: 12, padding: '14px 16px' };
   return (
@@ -111,7 +129,12 @@ function AppearanceCards() {
         <SettingRow title={L.stThemeLabel} hint={L.stThemeHint} control={<Segmented<Theme> value={theme} options={[{ id: 'light', label: L.stThemeLight }, { id: 'dark', label: L.stThemeDark }, { id: 'system', label: L.stThemeSystem }]} onChange={setTheme} dataAttr="data-theme-option" />} />
       </SCard>
       <SCard style={cardStyle}>
-        <SettingRow title={L.stSurfaceLabel} hint={L.stSurfaceHint} control={<Segmented<SurfaceTone> value={surfaceTone} options={[{ id: 'default', label: L.stSurfaceDefault }, { id: 'neutral', label: L.stSurfaceNeutral }, { id: 'contrast', label: L.stSurfaceContrast }]} onChange={setSurfaceTone} dataAttr="data-surface-option" />} />
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.stPaletteLabel}</div>
+        <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', margin: '3px 0 14px', lineHeight: 1.5 }}>{L.stPaletteHint}</div>
+        <PaletteControls
+          palette={palette} copy={paletteCopy} activePreset={activePreset}
+          onPickPreset={applyPreset} onChange={setPaletteValue} onReset={resetPalette}
+        />
       </SCard>
       <SCard style={cardStyle}>
         <SettingRow title={L.stAccentLabel} hint={L.stAccentHint} control={<AccentPicker hue={accentHue} copy={accentCopy} onChange={setAccentHue} />} />
@@ -131,7 +154,7 @@ export function AppearancePanel() {
     <div style={{ marginTop: 12, maxWidth: 760 }}>
       <AppearanceCards />
       <div style={{ marginTop: 10, font: `400 9.5px ${MONO}`, color: 'var(--proto-faint)', paddingLeft: 2 }}>
-        localStorage · cortex.lang · cortex.theme · cortex.surface · cortex.accent-hue · cortex.accent-intensity · cortex.motion
+        localStorage · cortex.lang · cortex.theme · cortex.palette · cortex.accent-hue · cortex.accent-intensity · cortex.motion
       </div>
     </div>
   );

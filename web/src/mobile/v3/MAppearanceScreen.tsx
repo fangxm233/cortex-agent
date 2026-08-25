@@ -9,7 +9,8 @@ import {
   useAccentHue, useSetAccentHue,
   useAccentIntensity, useSetAccentIntensity,
   useMotionMode, useSetMotionMode,
-  useSurfaceTone, useSetSurfaceTone,
+  usePalette, useSetPaletteValue,
+  useActivePreset, useApplyPreset, useResetPalette,
   useTheme, useSetTheme,
 } from '@/theme';
 import { pickCopy } from '@/mobile/ui/format';
@@ -20,7 +21,15 @@ const COPY: { en: MAppearanceCopy; zh: MAppearanceCopy } = {
     title: 'Appearance',
     language: 'Language',
     theme: 'Theme', themeLight: 'Light', themeDark: 'Dark', themeSystem: 'System',
-    surface: 'Background', surfaceDefault: 'Default', surfaceNeutral: 'Neutral', surfaceContrast: 'Contrast',
+    palette: {
+      presets: 'Presets', custom: 'custom', reset: 'Reset',
+      background: 'Background', foreground: 'Foreground',
+      hue: 'Hue', tint: 'Tint', lightness: 'Light', contrast: 'Contrast',
+      presetNames: {
+        default: 'Default', graphite: 'Graphite', sepia: 'Sepia', indigo: 'Indigo',
+        forest: 'Forest', rose: 'Rose', deep: 'Deep',
+      },
+    },
     accent: 'Accent color', accentDefault: 'Default indigo', accentBlue: 'Blue', accentTeal: 'Teal',
     accentViolet: 'Violet', accentRose: 'Rose', accentOrange: 'Orange',
     accentCustom: 'Custom accent hue', accentReset: 'Reset',
@@ -32,7 +41,15 @@ const COPY: { en: MAppearanceCopy; zh: MAppearanceCopy } = {
     title: '外观',
     language: '语言',
     theme: '主题', themeLight: '浅色', themeDark: '深色', themeSystem: '跟随系统',
-    surface: '底色', surfaceDefault: '默认', surfaceNeutral: '中性', surfaceContrast: '高对比',
+    palette: {
+      presets: '预设', custom: '自定义', reset: '恢复默认',
+      background: '背景', foreground: '前景',
+      hue: '色相', tint: '着色', lightness: '明度', contrast: '对比',
+      presetNames: {
+        default: '默认', graphite: '石墨', sepia: '暖褐', indigo: '靛青',
+        forest: '森林', rose: '玫瑰', deep: '深邃',
+      },
+    },
     accent: '强调色', accentDefault: '默认靛蓝', accentBlue: '蓝色', accentTeal: '青色',
     accentViolet: '紫色', accentRose: '玫红', accentOrange: '橙色',
     accentCustom: '自定义强调色色相', accentReset: '恢复默认',
@@ -48,8 +65,11 @@ export function MAppearanceScreen() {
   const setLang = useSetLang();
   const theme = useTheme();
   const setTheme = useSetTheme();
-  const surfaceTone = useSurfaceTone();
-  const setSurfaceTone = useSetSurfaceTone();
+  const palette = usePalette();
+  const setPaletteValue = useSetPaletteValue();
+  const activePreset = useActivePreset();
+  const applyPreset = useApplyPreset();
+  const resetPalette = useResetPalette();
   const accentHue = useAccentHue();
   const setAccentHue = useSetAccentHue();
   const accentIntensity = useAccentIntensity();
@@ -63,8 +83,11 @@ export function MAppearanceScreen() {
       onSetLang={setLang}
       theme={theme}
       onSetTheme={setTheme}
-      surfaceTone={surfaceTone}
-      onSetSurfaceTone={setSurfaceTone}
+      palette={palette}
+      onSetPaletteValue={setPaletteValue}
+      activePreset={activePreset}
+      onPickPreset={applyPreset}
+      onResetPalette={resetPalette}
       accentHue={accentHue}
       onSetAccentHue={setAccentHue}
       accentIntensity={accentIntensity}

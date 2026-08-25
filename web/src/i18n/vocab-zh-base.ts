@@ -576,7 +576,7 @@ export const zhBase = {
   stNavAdvanced: '高级',
 
   // ── Settings section meta subs ──
-  stMetaAppearanceSub: '语言、主题、底色、强调色与动效。即时生效，并记住在本设备上。',
+  stMetaAppearanceSub: '语言、主题、配色、强调色与动效。即时生效，并记住在本设备上。',
   stMetaPlatformSub: 'config/.env — 守护进程启动时加载一次；唯一需要重启的配置',
   stMetaAccountsSub: 'Claude Code 凭据与 auth.status 返回的全部 PI provider',
   stMetaProfilesSub: 'config/profiles.json — 每次 agent 启动时读取，无需重启',
@@ -612,12 +612,25 @@ export const zhBase = {
   stAccentIntensityNormal: '标准',
   stAccentIntensityVivid: '鲜明',
 
-  // ── Appearance / surface tone control ──
-  stSurfaceLabel: '底色',
-  stSurfaceHint: '卡片背后的底色。高对比在浅色下拉开卡片与背景的距离，在深色下使用适合 OLED 的纯黑。',
-  stSurfaceDefault: '默认',
-  stSurfaceNeutral: '中性',
-  stSurfaceContrast: '高对比',
+  // ── Appearance / palette control ──
+  stPaletteLabel: '配色',
+  stPaletteHint: '所有背景与文字颜色都由这几个参数推导。预设会一次写入全部值；拖动任意滑块即变为自定义。',
+  stPalettePresets: '预设',
+  stPaletteCustom: '自定义',
+  stPaletteReset: '恢复默认',
+  stPaletteBackground: '背景',
+  stPaletteForeground: '前景',
+  stPaletteHue: '色相',
+  stPaletteTint: '着色',
+  stPaletteLightness: '明度',
+  stPaletteContrast: '对比',
+  stPresetDefault: '默认',
+  stPresetGraphite: '石墨',
+  stPresetSepia: '暖褐',
+  stPresetIndigo: '靛青',
+  stPresetForest: '森林',
+  stPresetRose: '玫瑰',
+  stPresetDeep: '深邃',
 
   // ── Appearance / motion control ──
   stMotionLabel: '动效',

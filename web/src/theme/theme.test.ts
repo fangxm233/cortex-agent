@@ -1,4 +1,4 @@
-// input:  theme/accent/surface/motion persistence, DOM application, watcher
+// input:  theme, palette, accent, motion persistence and DOM application
 // output: Regression coverage for device-local appearance preferences
 // pos:    Unit tests for appearance preference utilities
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -9,35 +9,35 @@ import {
   applyAccentHue,
   applyAccentIntensity,
   applyMotionMode,
-  applySurfaceTone,
   applyTheme,
   parseStoredAccentHue,
   parseStoredAccentIntensity,
   parseStoredMotionMode,
-  parseStoredSurfaceTone,
   readStoredAccentHue,
-  readStoredSurfaceTone,
   resolveEffectiveTheme,
   resolveInitialTheme,
   storeAccentHue,
-  storeSurfaceTone,
   watchSystemTheme,
 } from './theme';
+import {
+  DEFAULT_PALETTE,
+  applyPalette,
+  parseStoredPalette,
+  readStoredPalette,
+  storePalette,
+} from './palette';
 
 /** Stubs a document root that records attribute writes, for the `apply*` helpers. */
 function stubRoot() {
   const setAttribute = vi.fn();
   const removeAttribute = vi.fn();
+  const setProperty = vi.fn();
+  const removeProperty = vi.fn();
   vi.stubGlobal('document', {
-    documentElement: {
-      setAttribute,
-      removeAttribute,
-      style: { setProperty: vi.fn(), removeProperty: vi.fn() },
-    },
+    documentElement: { setAttribute, removeAttribute, style: { setProperty, removeProperty } },
     querySelector: vi.fn(() => null),
   });
-  vi.stubGlobal('getComputedStyle', vi.fn(() => ({ getPropertyValue: () => '' })));
-  return { setAttribute, removeAttribute };
+  return { setAttribute, removeAttribute, setProperty, removeProperty };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -73,18 +73,21 @@ describe('applyTheme', () => {
   it('syncs the document theme and browser chrome token', () => {
     const setRootAttribute = vi.fn();
     const setMetaAttribute = vi.fn();
+    const remove = vi.fn();
     vi.stubGlobal('document', {
-      documentElement: { setAttribute: setRootAttribute, removeAttribute: vi.fn(), style: {} },
+      documentElement: {
+        setAttribute: setRootAttribute, removeAttribute: vi.fn(), style: {}, appendChild: vi.fn(),
+      },
       querySelector: vi.fn(() => ({ setAttribute: setMetaAttribute })),
+      createElement: vi.fn(() => ({ style: {}, remove })),
     });
-    vi.stubGlobal('getComputedStyle', vi.fn(() => ({
-      getPropertyValue: () => '#12151a',
-    })));
+    vi.stubGlobal('getComputedStyle', vi.fn(() => ({ color: 'rgb(18, 21, 26)' })));
 
     applyTheme('dark', false);
 
     expect(setRootAttribute).toHaveBeenCalledWith('data-theme', 'dark');
     expect(setMetaAttribute).toHaveBeenCalledWith('content', '#12151a');
+    expect(remove).toHaveBeenCalledOnce();
   });
 });
 
@@ -137,38 +140,44 @@ describe('accent hue', () => {
   });
 });
 
-describe('surface tone', () => {
-  it('falls back to the default for anything outside the known tones', () => {
-    expect(parseStoredSurfaceTone('neutral')).toBe('neutral');
-    expect(parseStoredSurfaceTone('contrast')).toBe('contrast');
-    for (const invalid of [null, '', 'oled', 'default']) {
-      expect(parseStoredSurfaceTone(invalid)).toBe('default');
-    }
+describe('palette', () => {
+  it('parses a complete in-range palette and clamps invalid fields', () => {
+    const parsed = parseStoredPalette(JSON.stringify({
+      bgHue: 400, bgChroma: -1, bgLight: -0.123,
+      inkHue: 42, inkChroma: 2.5, inkContrast: 0.2,
+    }));
+
+    expect(parsed).toEqual({
+      bgHue: 359, bgChroma: 0, bgLight: -0.125,
+      inkHue: 42, inkChroma: 2.5, inkContrast: 0.06,
+    });
+    expect(parseStoredPalette('{bad json')).toEqual(DEFAULT_PALETTE);
   });
 
-  // The default is represented by the ABSENCE of the entry, so it is removed rather than written.
-  it('persists only non-default tones', () => {
-    const getItem = vi.fn(() => 'contrast');
+  it('reads, writes, and removes the device-local palette', () => {
+    const custom = { ...DEFAULT_PALETTE, bgHue: 120 };
+    const getItem = vi.fn(() => JSON.stringify(custom));
     const setItem = vi.fn();
     const removeItem = vi.fn();
     vi.stubGlobal('window', { localStorage: { getItem, setItem, removeItem } });
 
-    expect(readStoredSurfaceTone()).toBe('contrast');
-    storeSurfaceTone('neutral');
-    storeSurfaceTone('default');
+    expect(readStoredPalette()).toEqual(custom);
+    storePalette(custom);
+    storePalette(DEFAULT_PALETTE);
 
-    expect(setItem).toHaveBeenCalledWith('cortex.surface', 'neutral');
-    expect(removeItem).toHaveBeenCalledWith('cortex.surface');
+    expect(getItem).toHaveBeenCalledWith('cortex.palette');
+    expect(setItem).toHaveBeenCalledWith('cortex.palette', JSON.stringify(custom));
+    expect(removeItem).toHaveBeenCalledWith('cortex.palette');
   });
 
-  it('applies and clears the document attribute', () => {
-    const { setAttribute, removeAttribute } = stubRoot();
+  it('writes custom CSS parameters and clears defaults', () => {
+    const { setProperty, removeProperty } = stubRoot();
 
-    applySurfaceTone('contrast');
-    expect(setAttribute).toHaveBeenCalledWith('data-surface', 'contrast');
+    applyPalette({ ...DEFAULT_PALETTE, bgHue: 120, inkContrast: 0.02 });
 
-    applySurfaceTone('default');
-    expect(removeAttribute).toHaveBeenCalledWith('data-surface');
+    expect(setProperty).toHaveBeenCalledWith('--bg-hue', '120');
+    expect(setProperty).toHaveBeenCalledWith('--ink-contrast', '0.02');
+    expect(removeProperty).toHaveBeenCalledWith('--bg-chroma');
   });
 });
 

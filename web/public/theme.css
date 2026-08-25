@@ -6,6 +6,17 @@
 :root {
   --accent-hue: 274;
   --accent-chroma: 1;
+  /* Background family: every surface, card, rail and divider derives from these. `--bg-light` is a
+     lightness offset applied at full weight to the ground and at 0.45 to everything drawn on it, so
+     darkening the background never turns the cards grey. */
+  --bg-hue: 264;
+  --bg-chroma: 1;
+  --bg-light: 0;
+  /* Foreground family: the text ramp. Kept separate from the background because re-hueing text is
+     perceptually ~4x more visible than re-hueing a near-white surface (oklab dE 0.05 vs 0.014). */
+  --ink-hue: 263;
+  --ink-chroma: 1;
+  --ink-contrast: 0;
   --accent-main: #4655d4;
   --accent-soft: #eef0fa;
   --accent-border: #c9cff2;
@@ -21,33 +32,47 @@
   --accent-swatch-rose: oklch(0.62 0.18 10);
   --accent-swatch-orange: oklch(0.68 0.16 55);
   --accent-spectrum: linear-gradient(90deg, oklch(0.62 0.18 0), oklch(0.68 0.16 60), oklch(0.72 0.15 120), oklch(0.68 0.14 180), oklch(0.62 0.18 240), oklch(0.62 0.18 300), oklch(0.62 0.18 360));
-  --browser-theme-color: var(--accent-main);
+  --browser-theme-color: color-mix(in srgb, var(--accent-main) 100%, transparent);
 
-  --surface-base: #e9e7e2;
-  --surface-canvas: #ffffff;
-  --surface-canvas-alt: #f7f8fa;
-  --surface-rail: #fbfbfc;
-  --surface-raised: #f1f2f5;
+  /* Appearance-control affordances. Each reads the LIVE palette parameters, so the slider tracks
+     re-tint as the hue moves. The `--sw-*` inputs are set per preset chip by PaletteControls, which
+     keeps the preset numbers in TypeScript and the colour maths here (TSX may hold no colour literals). */
+  --preset-swatch: linear-gradient(
+    135deg,
+    oklch(calc(0.93 + var(--sw-bg-light, 0)) calc(0.007 * var(--sw-bg-chroma, 1)) var(--sw-bg-hue, 264)) 0 34%,
+    oklch(calc(0.5 - var(--sw-ink-contrast, 0)) calc(0.025 * var(--sw-ink-chroma, 1)) var(--sw-ink-hue, 263)) 34% 67%,
+    oklch(0.52 calc(0.18 * var(--sw-accent-chroma, 1)) var(--sw-accent-hue, 274)) 67% 100%
+  );
+  --bg-chroma-track: linear-gradient(90deg, oklch(0.93 0 var(--bg-hue)), oklch(0.93 0.028 var(--bg-hue)));
+  --bg-light-track: linear-gradient(90deg, oklch(0.728 0.007 var(--bg-hue)), oklch(0.978 0.007 var(--bg-hue)));
+  --ink-chroma-track: linear-gradient(90deg, oklch(0.5 0 var(--ink-hue)), oklch(0.5 0.1 var(--ink-hue)));
+  --ink-contrast-track: linear-gradient(90deg, oklch(0.56 0.025 var(--ink-hue)), oklch(0.44 0.025 var(--ink-hue)));
 
-  --proto-base: #e9e7e2;
-  --proto-card: #ffffff;
-  --proto-card-transparent: rgba(255, 255, 255, 0);
-  --proto-rail: #fbfbfc;
-  --proto-alt: #f7f8fa;
-  --proto-gray: #f1f2f5;
-  --proto-ink: #191c22;
-  --proto-ink-2: #22262e;
-  --proto-ink-3: #383e48;
-  --proto-muted: #5b6472;
-  --proto-muted-2: #8a93a2;
-  --proto-muted-3: #98a1b0;
-  --proto-faint: #b6bdc9;
-  --proto-disabled: #d9dce3;
-  --proto-line: #e7e9ee;
-  --proto-line-2: #eff1f5;
-  --proto-line-3: #d9dce3;
-  --proto-line-4: #e3e6f0;
-  --proto-line-soft: #f3f4f7;
+  --surface-base: oklch(calc(0.928 + var(--bg-light)) calc(0.007 * var(--bg-chroma)) var(--bg-hue));
+  --surface-canvas: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
+  --surface-canvas-alt: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
+  --surface-rail: oklch(calc(0.988 + 0.45 * var(--bg-light)) calc(0.0013 * var(--bg-chroma)) var(--bg-hue));
+  --surface-raised: oklch(calc(0.961 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
+
+  --proto-base: oklch(calc(0.928 + var(--bg-light)) calc(0.007 * var(--bg-chroma)) var(--bg-hue));
+  --proto-card: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
+  --proto-card-transparent: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue) / 0);
+  --proto-rail: oklch(calc(0.988 + 0.45 * var(--bg-light)) calc(0.0013 * var(--bg-chroma)) var(--bg-hue));
+  --proto-alt: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
+  --proto-gray: oklch(calc(0.961 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
+  --proto-ink: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
+  --proto-ink-2: oklch(calc(0.268 - var(--ink-contrast)) calc(0.016 * var(--ink-chroma)) var(--ink-hue));
+  --proto-ink-3: oklch(calc(0.362 - var(--ink-contrast)) calc(0.0191 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted: oklch(calc(0.501 - var(--ink-contrast)) calc(0.025 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-2: oklch(calc(0.661 - var(--ink-contrast)) calc(0.0246 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-3: oklch(calc(0.707 - var(--ink-contrast)) calc(0.0242 * var(--ink-chroma)) var(--ink-hue));
+  --proto-faint: oklch(calc(0.797 - var(--ink-contrast)) calc(0.0186 * var(--ink-chroma)) var(--ink-hue));
+  --proto-disabled: oklch(calc(0.894 + 0.45 * var(--bg-light)) calc(0.0101 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line: oklch(calc(0.934 + 0.45 * var(--bg-light)) calc(0.0071 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line-2: oklch(calc(0.958 + 0.45 * var(--bg-light)) calc(0.0058 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line-3: oklch(calc(0.894 + 0.45 * var(--bg-light)) calc(0.0101 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line-4: oklch(calc(0.926 + 0.45 * var(--bg-light)) calc(0.0139 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line-soft: oklch(calc(0.967 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
   --proto-accent: var(--accent-main);
   --proto-accent-bg: var(--accent-soft);
   --proto-accent-border: var(--accent-border);
@@ -66,17 +91,17 @@
   --proto-danger: #c03d33;
   --proto-danger-bg: #fbedeb;
 
-  --brand-badge-bg: #ffffff;
-  --brand-badge-border: #e7e9ee;
-  --brand-badge-core: #191c22;
+  --brand-badge-bg: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
+  --brand-badge-border: oklch(calc(0.934 + 0.45 * var(--bg-light)) calc(0.0071 * var(--bg-chroma)) var(--bg-hue));
+  --brand-badge-core: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
   --brand-badge-arc: var(--accent-main);
 
-  --state-ink: #191c22;
+  --state-ink: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
   --state-run: var(--accent-main);
   --state-wait: #a96b0b;
   --state-done: #23854f;
   --state-fail: #c03d33;
-  --state-gray: #f1f2f5;
+  --state-gray: oklch(calc(0.961 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
 
   --pill-running-bg: var(--accent-soft);
   --pill-running-fg: var(--accent-main);
@@ -86,12 +111,12 @@
   --pill-done-fg: #23854f;
   --pill-failed-bg: #fbedeb;
   --pill-failed-fg: #c03d33;
-  --pill-cancelled-bg: #f1f2f5;
+  --pill-cancelled-bg: oklch(calc(0.961 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
   --pill-cancelled-fg: #8a93a2;
 
-  --ink-solid-bg: #191c22;
+  --ink-solid-bg: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
   --ink-solid-fg: #ffffff;
-  --ink-solid-hover: #32363e;
+  --ink-solid-hover: oklch(calc(0.332 - var(--ink-contrast)) calc(0.0152 * var(--ink-chroma)) var(--ink-hue));
   --ink-solid-fg-dim: rgba(255, 255, 255, 0.55);
   --run-dot: var(--accent-main);
   --border-card: rgba(0, 0, 0, 0.08);
@@ -146,26 +171,26 @@
   --media-panel-shadow: 0 12px 48px rgba(0, 0, 0, 0.35);
   --media-glyph-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
 
-  --cmdk-panel-bg: #ffffff;
-  --cmdk-row-selected: #f5f6fd;
+  --cmdk-panel-bg: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
+  --cmdk-row-selected: oklch(calc(0.974 + 0.45 * var(--bg-light)) calc(0.0094 * var(--bg-chroma)) var(--bg-hue));
   --cmdk-row-hover: var(--accent-soft);
   --log-bg: #12151a;
   --log-fg: #c9ceda;
   --log-border: #2a2f3a;
 
-  --m-canvas: #f2f2f7;
-  --m-page-header: #ffffff;
-  --m-card: #ffffff;
-  --m-tabbar-bg: #ffffff;
-  --m-sheet-bg: #f7f8fa;
-  --m-ink: #191c22;
-  --m-sub: #5b6472;
-  --m-body: #22262e;
-  --m-muted: #8a93a2;
-  --m-faint: #b6bdc9;
-  --m-hairline: #e7e9ee;
-  --m-divider: #f3f4f7;
-  --m-card-border: #e7e9ee;
+  --m-canvas: oklch(calc(0.963 + var(--bg-light)) calc(0.0066 * var(--bg-chroma)) var(--bg-hue));
+  --m-page-header: oklch(calc(1 + var(--bg-light)) 0 var(--bg-hue));
+  --m-card: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
+  --m-tabbar-bg: oklch(calc(1 + var(--bg-light)) 0 var(--bg-hue));
+  --m-sheet-bg: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
+  --m-ink: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
+  --m-sub: oklch(calc(0.501 - var(--ink-contrast)) calc(0.025 * var(--ink-chroma)) var(--ink-hue));
+  --m-body: oklch(calc(0.268 - var(--ink-contrast)) calc(0.016 * var(--ink-chroma)) var(--ink-hue));
+  --m-muted: oklch(calc(0.661 - var(--ink-contrast)) calc(0.0246 * var(--ink-chroma)) var(--ink-hue));
+  --m-faint: oklch(calc(0.797 - var(--ink-contrast)) calc(0.0186 * var(--ink-chroma)) var(--ink-hue));
+  --m-hairline: oklch(calc(0.934 + 0.45 * var(--bg-light)) calc(0.0071 * var(--bg-chroma)) var(--bg-hue));
+  --m-divider: oklch(calc(0.967 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
+  --m-card-border: oklch(calc(0.934 + 0.45 * var(--bg-light)) calc(0.0071 * var(--bg-chroma)) var(--bg-hue));
   --m-run: var(--accent-main);
   --m-run-bg: var(--accent-soft);
   --m-run-border: var(--accent-border);
@@ -180,8 +205,8 @@
   --m-fail: #c03d33;
   --m-fail-bg: #fbedeb;
   --m-fail-border: #eed3d0;
-  --m-gray: #f1f2f5;
-  --m-gray-ink: #8a93a2;
+  --m-gray: oklch(calc(0.961 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
+  --m-gray-ink: oklch(calc(0.661 - var(--ink-contrast)) calc(0.0246 * var(--ink-chroma)) var(--ink-hue));
 }
 
 [data-theme='dark'] {
@@ -193,33 +218,33 @@
   --accent-badge: #4655d4;
   --accent-focus: rgba(139, 150, 242, 0.18);
   --accent-shadow: rgba(139, 150, 242, 0.2);
-  --browser-theme-color: #12151a;
+  --browser-theme-color: color-mix(in srgb, var(--surface-base) 100%, transparent);
 
-  --surface-base: #12151a;
-  --surface-canvas: #12151a;
-  --surface-canvas-alt: #171a21;
-  --surface-rail: #171a21;
-  --surface-raised: #262c37;
+  --surface-base: oklch(calc(0.195 + var(--bg-light)) calc(0.0112 * var(--bg-chroma)) var(--bg-hue));
+  --surface-canvas: oklch(calc(0.195 + 0.45 * var(--bg-light)) calc(0.0112 * var(--bg-chroma)) var(--bg-hue));
+  --surface-canvas-alt: oklch(calc(0.218 + 0.45 * var(--bg-light)) calc(0.0145 * var(--bg-chroma)) var(--bg-hue));
+  --surface-rail: oklch(calc(0.218 + 0.45 * var(--bg-light)) calc(0.0145 * var(--bg-chroma)) var(--bg-hue));
+  --surface-raised: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
 
-  --proto-base: #12151a;
-  --proto-card: #1e232c;
-  --proto-card-transparent: rgba(30, 35, 44, 0);
-  --proto-rail: #171a21;
-  --proto-alt: #1a1f29;
-  --proto-gray: #262c37;
-  --proto-ink: #ebedf2;
-  --proto-ink-2: #c9ceda;
-  --proto-ink-3: #aab2c0;
-  --proto-muted: #99a2b2;
-  --proto-muted-2: #7e8798;
-  --proto-muted-3: #6e7787;
-  --proto-faint: #566070;
-  --proto-disabled: #454e5e;
-  --proto-line: #2c323e;
-  --proto-line-2: #232833;
-  --proto-line-3: #3a4250;
-  --proto-line-4: #2a303c;
-  --proto-line-soft: #232833;
+  --proto-base: oklch(calc(0.195 + var(--bg-light)) calc(0.0112 * var(--bg-chroma)) var(--bg-hue));
+  --proto-card: oklch(calc(0.255 + 0.45 * var(--bg-light)) calc(0.0186 * var(--bg-chroma)) var(--bg-hue));
+  --proto-card-transparent: oklch(calc(0.255 + 0.45 * var(--bg-light)) calc(0.0186 * var(--bg-chroma)) var(--bg-hue) / 0);
+  --proto-rail: oklch(calc(0.218 + 0.45 * var(--bg-light)) calc(0.0145 * var(--bg-chroma)) var(--bg-hue));
+  --proto-alt: oklch(calc(0.239 + 0.45 * var(--bg-light)) calc(0.0207 * var(--bg-chroma)) var(--bg-hue));
+  --proto-gray: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
+  --proto-ink: oklch(calc(0.946 + var(--ink-contrast)) calc(0.007 * var(--ink-chroma)) var(--ink-hue));
+  --proto-ink-2: oklch(calc(0.851 + var(--ink-contrast)) calc(0.0175 * var(--ink-chroma)) var(--ink-hue));
+  --proto-ink-3: oklch(calc(0.762 + var(--ink-contrast)) calc(0.0219 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted: oklch(calc(0.71 + var(--ink-contrast)) calc(0.0255 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-2: oklch(calc(0.622 + var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-3: oklch(calc(0.567 + var(--ink-contrast)) calc(0.027 * var(--ink-chroma)) var(--ink-hue));
+  --proto-faint: oklch(calc(0.486 + var(--ink-contrast)) calc(0.0286 * var(--ink-chroma)) var(--ink-hue));
+  --proto-disabled: oklch(calc(0.422 + 0.45 * var(--bg-light)) calc(0.0291 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line: oklch(calc(0.316 + 0.45 * var(--bg-light)) calc(0.0231 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line-2: oklch(calc(0.277 + 0.45 * var(--bg-light)) calc(0.0216 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line-3: oklch(calc(0.377 + 0.45 * var(--bg-light)) calc(0.0263 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line-4: oklch(calc(0.309 + 0.45 * var(--bg-light)) calc(0.0232 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line-soft: oklch(calc(0.277 + 0.45 * var(--bg-light)) calc(0.0216 * var(--bg-chroma)) var(--bg-hue));
   --proto-accent: var(--accent-main);
   --proto-accent-bg: var(--accent-soft);
   --proto-accent-border: var(--accent-border);
@@ -373,99 +398,4 @@
 }
 :root[data-accent-intensity='vivid'] {
   --accent-chroma: 1.45;
-}
-
-/* ── Surface tone ─────────────────────────────────────────────────────────────
-   `neutral` drops the warm/blue cast of the default surround; `contrast` pushes
-   the surround away from the cards (light) and goes true black for OLED (dark).
-   The light blocks carry `:not([data-theme='dark'])` because `:root[data-…]`
-   outranks the bare `[data-theme='dark']` base block and would otherwise repaint
-   dark mode with light values. */
-:root:not([data-theme='dark'])[data-surface='neutral'] {
-  --surface-base: #e8eaee;
-  --proto-base: #e8eaee;
-  /* The mobile canvas carries a lilac cast by default; neutral flattens it to plain grey, so the
-     option is not a no-op on phones (where `--proto-base` is never the visible surround). */
-  --m-canvas: #f0f0f1;
-  --m-sheet-bg: #f6f6f7;
-}
-:root:not([data-theme='dark'])[data-surface='contrast'] {
-  --surface-base: #d8dae1;
-  --proto-base: #d8dae1;
-  --proto-line: #dcdfe7;
-  --proto-line-2: #e6e9ef;
-  --m-canvas: #e6e8ee;
-  --m-hairline: #dcdfe7;
-  --m-divider: #e9ebf0;
-  --m-card-border: #dcdfe7;
-}
-
-[data-theme='dark'][data-surface='neutral'] {
-  --surface-base: #151517;
-  --surface-canvas: #151517;
-  --surface-canvas-alt: #1a1a1c;
-  --surface-rail: #1a1a1c;
-  --surface-raised: #2a2a2d;
-  --proto-base: #151517;
-  --proto-card: #212124;
-  --proto-card-transparent: rgba(33, 33, 36, 0);
-  --proto-rail: #1a1a1c;
-  --proto-alt: #1c1c1f;
-  --proto-gray: #2a2a2d;
-  --proto-line: #2f2f33;
-  --proto-line-2: #252527;
-  --proto-line-3: #3d3d42;
-  --proto-line-4: #2c2c30;
-  --proto-line-soft: #252527;
-  --state-gray: #2a2a2d;
-  --pill-cancelled-bg: #2a2a2d;
-  --panel-translucent-bg: rgba(33, 33, 36, 0.98);
-  --cmdk-panel-bg: #212124;
-  --cmdk-row-selected: #2a2a2d;
-  --cmdk-row-hover: #252527;
-  --browser-theme-color: #151517;
-  --m-canvas: #101012;
-  --m-page-header: #101012;
-  --m-card: #1e1e21;
-  --m-tabbar-bg: #141416;
-  --m-sheet-bg: #1e1e21;
-  --m-hairline: #232326;
-  --m-divider: #262629;
-  --m-card-border: #2a2a2d;
-  --m-gray: #2a2a2d;
-}
-[data-theme='dark'][data-surface='contrast'] {
-  --surface-base: #000000;
-  --surface-canvas: #000000;
-  --surface-canvas-alt: #08090b;
-  --surface-rail: #08090b;
-  --surface-raised: #23262d;
-  --proto-base: #000000;
-  --proto-card: #14171d;
-  --proto-card-transparent: rgba(20, 23, 29, 0);
-  --proto-rail: #08090b;
-  --proto-alt: #0d0f13;
-  --proto-gray: #1d2027;
-  --proto-line: #262a33;
-  --proto-line-2: #1a1d23;
-  --proto-line-3: #383d47;
-  --proto-line-4: #23272f;
-  --proto-line-soft: #1a1d23;
-  --state-gray: #1d2027;
-  --pill-cancelled-bg: #1d2027;
-  --panel-translucent-bg: rgba(16, 19, 25, 0.98);
-  --cmdk-panel-bg: #14171d;
-  --cmdk-row-selected: #1d2027;
-  --cmdk-row-hover: #1a1d23;
-  --log-bg: #000000;
-  --browser-theme-color: #000000;
-  --m-canvas: #000000;
-  --m-page-header: #000000;
-  --m-card: #101319;
-  --m-tabbar-bg: #000000;
-  --m-sheet-bg: #101319;
-  --m-hairline: #1b1f26;
-  --m-divider: #202430;
-  --m-card-border: #23272f;
-  --m-gray: #1d2027;
 }

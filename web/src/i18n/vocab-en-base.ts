@@ -576,7 +576,7 @@ export const enBase = {
   stNavAdvanced: 'Advanced',
 
   // ── Settings section meta subs ──
-  stMetaAppearanceSub: 'Language, theme, background tone, accent color, and motion. Applies instantly and is remembered on this device.',
+  stMetaAppearanceSub: 'Language, theme, palette, accent color, and motion. Applies instantly and is remembered on this device.',
   stMetaPlatformSub: 'config/.env — loaded once at daemon startup; the only restart-required config',
   stMetaAccountsSub: 'Claude Code credentials and every PI provider reported by auth.status',
   stMetaProfilesSub: 'config/profiles.json — read on every agent spawn, no restart needed',
@@ -612,12 +612,25 @@ export const enBase = {
   stAccentIntensityNormal: 'Normal',
   stAccentIntensityVivid: 'Vivid',
 
-  // ── Appearance / surface tone control ──
-  stSurfaceLabel: 'Background tone',
-  stSurfaceHint: 'How the surround behind the cards is painted. Contrast separates cards further in light mode and goes true black on OLED in dark mode.',
-  stSurfaceDefault: 'Default',
-  stSurfaceNeutral: 'Neutral',
-  stSurfaceContrast: 'Contrast',
+  // ── Appearance / palette control ──
+  stPaletteLabel: 'Palette',
+  stPaletteHint: 'Every surface and text colour derives from these. Presets set them all at once; moving any slider makes the palette custom.',
+  stPalettePresets: 'Presets',
+  stPaletteCustom: 'custom',
+  stPaletteReset: 'Reset',
+  stPaletteBackground: 'Background',
+  stPaletteForeground: 'Foreground',
+  stPaletteHue: 'Hue',
+  stPaletteTint: 'Tint',
+  stPaletteLightness: 'Light',
+  stPaletteContrast: 'Contrast',
+  stPresetDefault: 'Default',
+  stPresetGraphite: 'Graphite',
+  stPresetSepia: 'Sepia',
+  stPresetIndigo: 'Indigo',
+  stPresetForest: 'Forest',
+  stPresetRose: 'Rose',
+  stPresetDeep: 'Deep',
 
   // ── Appearance / motion control ──
   stMotionLabel: 'Motion',
