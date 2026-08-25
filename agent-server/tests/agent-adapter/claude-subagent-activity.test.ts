@@ -15,10 +15,11 @@ interface Seen {
   assistantText: string[];
   toolUses: Array<{ name: string; toolUseId: string }>;
   progress: Array<{ num_turns: number }>;
+  attributions: Array<{ from: 'assistant' | 'tool' | 'result'; subagent: any }>;
 }
 
 function seen(): Seen {
-  return { census: [], assistantText: [], toolUses: [], progress: [] };
+  return { census: [], assistantText: [], toolUses: [], progress: [], attributions: [] };
 }
 
 function turnFor(out: Seen) {
@@ -27,12 +28,18 @@ function turnFor(out: Seen) {
     resultData: null, planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
     askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
     onProgress: (p: any) => { out.progress.push(p); },
-    onAssistantMessage: (text: string) => { out.assistantText.push(text); },
-    onAssistantDelta: null,
-    onToolUse: (name: string, _input: unknown, toolUseId: string) => {
-      out.toolUses.push({ name, toolUseId });
+    onAssistantMessage: (text: string, _blockId?: string, _model?: string | null, subagent?: any) => {
+      out.assistantText.push(text);
+      if (subagent) out.attributions.push({ from: 'assistant', subagent });
     },
-    onToolResult: null,
+    onAssistantDelta: null,
+    onToolUse: (name: string, _input: unknown, toolUseId: string, subagent?: any) => {
+      out.toolUses.push({ name, toolUseId });
+      if (subagent) out.attributions.push({ from: 'tool', subagent });
+    },
+    onToolResult: (_id: string, _ok: boolean, _content: string, subagent?: any) => {
+      if (subagent) out.attributions.push({ from: 'result', subagent });
+    },
     onCompact: null,
     onContextUsage: null,
     onSubagentActivity: (parentToolUseId: string, subagentType: string | null, kind: string) => {
@@ -154,4 +161,48 @@ test('a main-agent line after a subagent line counts only the main agent\'s turn
   assert.equal(s.currentTurn.turnCount, 1);
   assert.equal(s.currentTurn.subagentTurnCount, 1);
   assert.deepEqual(out.progress.map((p: any) => p.num_turns), [1]);
+});
+
+test('subagent attribution names the model that answered, on prose and on tool calls alike', (t) => {
+  // There is no `subagent_model` on the wire — the CLI's assistant event extends the base message
+  // with only subagent_type and task_description — so the model has to come off `message.model`,
+  // which is whatever actually produced the message. Both block kinds ride the same envelope, so
+  // both must carry it: the tool call is usually what arrives first.
+  const out = seen();
+  const s = sessionWith(out, t);
+
+  s.handleLine(JSON.stringify({
+    type: 'assistant',
+    message: {
+      id: 'm-sub', model: 'claude-haiku-4-5-20260101',
+      content: [
+        { type: 'text', text: 'looking' },
+        { type: 'tool_use', id: 'toolu_child', name: 'Grep', input: {} },
+      ],
+    },
+    parent_tool_use_id: 'toolu_agent_1',
+    subagent_type: 'explore',
+    task_description: 'map the event flow',
+  }));
+
+  assert.deepEqual(out.attributions.map((a) => a.from), ['assistant', 'tool']);
+  for (const a of out.attributions) {
+    assert.equal(a.subagent.model, 'claude-haiku-4-5-20260101');
+    assert.equal(a.subagent.parentToolUseId, 'toolu_agent_1');
+    assert.equal(a.subagent.type, 'explore');
+  }
+});
+
+test('a user-envelope tool result reports a null model rather than inventing one', (t) => {
+  // tool_result rides a `user` message, which carries no `model`. Null means unknown; it must NOT
+  // be back-filled from the main agent, whose model may well differ from the subagent's.
+  const out = seen();
+  const s = sessionWith(out, t);
+
+  s.handleLine(userLine({ parent_tool_use_id: 'toolu_agent_1', subagent_type: 'explore' }));
+
+  const results = out.attributions.filter((a) => a.from === 'result');
+  assert.equal(results.length, 1);
+  assert.equal(results[0].subagent.model, null);
+  assert.equal(results[0].subagent.parentToolUseId, 'toolu_agent_1');
 });

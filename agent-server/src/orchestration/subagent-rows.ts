@@ -18,16 +18,18 @@ export function subagentRowRef(subagent: ToolUseSubagent): SubagentRowRef {
     id: subagent.parentToolUseId || ANONYMOUS_SUBAGENT_ID,
     type: subagent.type,
     description: subagent.description ?? null,
+    model: subagent.model ?? null,
   };
 }
 
 /** The same reference as the optional fields a `session.message` payload spreads. */
 export function subagentPayloadFields(ref?: SubagentRowRef):
-  { subagentId?: string; subagentType?: string; subagentDescription?: string } {
+  { subagentId?: string; subagentType?: string; subagentDescription?: string; subagentModel?: string } {
   if (!ref) return {};
   return {
     subagentId: ref.id,
     ...(ref.type ? { subagentType: ref.type } : {}),
     ...(ref.description ? { subagentDescription: ref.description } : {}),
+    ...(ref.model ? { subagentModel: ref.model } : {}),
   };
 }

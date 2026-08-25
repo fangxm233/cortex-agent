@@ -582,8 +582,9 @@ test('Normalizer attributes sidechain calls to a subagent and drops their task l
   const calls = out.filter(e => e.type === 'tool_use');
   assert.equal(calls.length, 1);
   // The session JSONL has no parent tool id to offer, so the parent stays null rather than guessed.
+  // This record carries no model either, so that stays null too.
   assert.deepEqual((calls[0] as any).subagent, {
-    parentToolUseId: null, type: null, description: null,
+    parentToolUseId: null, type: null, description: null, model: null,
   });
   // A subagent keeps its own plan; letting it through would clobber the main agent's progress.
   assert.equal(out.filter(e => e.type === 'todo_update').length, 0);
@@ -594,12 +595,14 @@ test('Normalizer attributes sidechain assistant text and tool results, and exclu
   const sidechain = n.consume({
     type: 'assistant',
     isSidechain: true,
-    message: { id: 'msg_sub_text', content: [{ type: 'text', text: 'looking around' }] },
+    message: { id: 'msg_sub_text', model: 'claude-haiku-4-5', content: [{ type: 'text', text: 'looking around' }] },
   });
   const texts = sidechain.filter(e => e.type === 'assistant_text');
   assert.equal(texts.length, 1);
+  // This path cannot name the spawning call or the declared type, but it CAN name the model: a
+  // sidechain record's `message.model` is whatever answered, and that was the subagent.
   assert.deepEqual((texts[0] as any).subagent, {
-    parentToolUseId: null, type: null, description: null,
+    parentToolUseId: null, type: null, description: null, model: 'claude-haiku-4-5',
   });
   // A subagent's messages are its own turns, so they must not move the main agent's progress.
   assert.equal(sidechain.filter(e => e.type === 'turn_progress').length, 0);
@@ -610,8 +613,10 @@ test('Normalizer attributes sidechain assistant text and tool results, and exclu
     message: { content: [{ type: 'tool_result', tool_use_id: 'tu_sub', content: 'ok' }] },
   }).filter(e => e.type === 'tool_result');
   assert.equal(results.length, 1);
+  // A `user` envelope has no message.model — unknown stays null rather than borrowing the main
+  // agent's, which may not be the model the subagent ran on.
   assert.deepEqual((results[0] as any).subagent, {
-    parentToolUseId: null, type: null, description: null,
+    parentToolUseId: null, type: null, description: null, model: null,
   });
 
   // The main agent's own turn still counts from one — the sidechain message above did not consume it.

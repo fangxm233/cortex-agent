@@ -39,6 +39,7 @@ export interface LiveSessionMessage {
   subagentId?: string;
   subagentType?: string;
   subagentDescription?: string;
+  subagentModel?: string;
 }
 
 // ── Token-level streaming (`session.message.delta`) ─────────────────────────────────────────────
@@ -259,8 +260,11 @@ export type ChatRow =
   // what was asked for. `children` is an ordinary ChatRow list, rendered by the same renderer.
   // `status` is derived, not reported: a batch of subagents is finished the moment the main agent
   // does anything again, which is what closes them (see buildTranscriptRows).
+  // `model` is what actually answered, not what was requested: the CLI ships no `subagent_model`,
+  // so it comes off `message.model` of the subagent's own messages and is therefore null until the
+  // subagent has said something — the anchor alone cannot know it.
   | { kind: 'subagent'; id: string; agentType: string | null; description: string | null;
-      status: 'running' | 'done'; toolCount: number; children: ChatRow[] };
+      model: string | null; status: 'running' | 'done'; toolCount: number; children: ChatRow[] };
 
 export interface BuildOpts {
   /** True while the session is actively producing output — marks the last assistant row's caret. */
@@ -307,6 +311,18 @@ const SCHEDULED_PREFIX = '[Scheduled Task]';
 /** Map a live `session.message` event into a `TranscriptMessage` (same shape the fetched DTO uses).
  *  `elapsedMs` is null for live-tail messages — the backend derives real per-message elapsed at read
  *  time, so it reconciles when the transcript refetches after the stream settles. */
+/**
+ * Display form of a subagent's model id.
+ *
+ * Only two shapes are stripped, both unambiguous: a leading `claude-` vendor prefix and a trailing
+ * `-YYYYMMDD` release date. Anything else is shown verbatim — an id we do not recognise is reported
+ * as it was reported to us rather than guessed at, since the whole point of the chip is to say
+ * which model actually answered.
+ */
+export function subagentModelLabel(model: string): string {
+  return model.replace(/^claude-/, '').replace(/-\d{8}$/, '');
+}
+
 export function liveToMessage(m: LiveSessionMessage): TranscriptMessage {
   const isTool = m.role === 'tool';
   return {
@@ -323,6 +339,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessage {
     ...(m.subagentId ? { subagentId: m.subagentId } : {}),
     ...(m.subagentType ? { subagentType: m.subagentType } : {}),
     ...(m.subagentDescription ? { subagentDescription: m.subagentDescription } : {}),
+    ...(m.subagentModel ? { subagentModel: m.subagentModel } : {}),
   };
 }
 
@@ -603,6 +620,7 @@ export function buildTranscriptRows(
       if (!existing.row.description && m.subagentDescription) {
         existing.row.description = m.subagentDescription;
       }
+      if (!existing.row.model && m.subagentModel) existing.row.model = m.subagentModel;
       return existing;
     }
     flushTools(top);
@@ -611,6 +629,7 @@ export function buildTranscriptRows(
       id,
       agentType: m.subagentType ?? null,
       description: m.subagentDescription ?? null,
+      model: m.subagentModel ?? null,
       status: 'running',
       toolCount: 0,
       children: [],

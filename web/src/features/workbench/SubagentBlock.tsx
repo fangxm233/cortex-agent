@@ -5,12 +5,21 @@
 
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
+import { subagentModelLabel } from './transcript-vm';
 
 const mono = "'IBM Plex Mono',monospace";
 
 const typeChipStyle: CSSProperties = {
   font: `600 9px ${mono}`, color: 'var(--proto-muted)',
   background: 'var(--proto-gray)', padding: '1.5px 7px',
+  borderRadius: 5, flex: 'none',
+};
+/** Outlined rather than filled, so the pair reads as one identity at two weights: the type is what
+ *  was asked for, the model is merely what served it. Omitted entirely when unknown — an empty slot
+ *  would claim we know the model is nothing, and a just-spawned subagent has not answered yet. */
+const modelChipStyle: CSSProperties = {
+  font: `600 9px ${mono}`, color: 'var(--proto-muted-3)',
+  border: '1px solid var(--proto-line-2)', padding: '1.5px 7px',
   borderRadius: 5, flex: 'none',
 };
 const descStyle: CSSProperties = {
@@ -63,9 +72,10 @@ function boxStyle(hover: boolean): CSSProperties {
  * rows with the same renderer the top level uses — the caller passes them in as `children` rather
  * than the block reaching back into the row renderer, which would be a cycle.
  */
-export function SubagentBlock({ agentType, description, status, toolCount, children }: {
+export function SubagentBlock({ agentType, description, model, status, toolCount, children }: {
   agentType: string | null;
   description: string | null;
+  model: string | null;
   status: 'running' | 'done';
   toolCount: number;
   children: ReactNode;
@@ -90,6 +100,7 @@ export function SubagentBlock({ agentType, description, status, toolCount, child
           aria-label={status === 'running' ? L.subagentRunning : undefined}
         />
         <span style={typeChipStyle}>{agentType || L.subagentFallbackLabel}</span>
+        {model ? <span style={modelChipStyle}>{subagentModelLabel(model)}</span> : null}
         <span style={descStyle}>{label}</span>
         <span style={metaStyle}>{tools}</span>
       </div>

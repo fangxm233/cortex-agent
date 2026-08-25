@@ -872,6 +872,9 @@ export interface TranscriptMessage {
   subagentType?: string;
   /** The spawning call's task description as the backend reports it. */
   subagentDescription?: string;
+  /** The model that produced this row, as the subagent's own messages report it. Absent on the
+   *  anchor and on history written before the field existed — absent means unknown. */
+  subagentModel?: string;
   ts: string;
   /**
    * Real elapsed since the previous message in the session's chronological stream, in ms

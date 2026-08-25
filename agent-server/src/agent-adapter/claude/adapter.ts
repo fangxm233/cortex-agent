@@ -144,6 +144,7 @@ function subagentAttribution(data: any): ToolUseSubagent | undefined {
     parentToolUseId,
     type: typeof data?.subagent_type === 'string' ? data.subagent_type : null,
     description: typeof data?.task_description === 'string' ? data.task_description : null,
+    model: typeof data?.message?.model === 'string' ? data.message.model : null,
   };
 }
 

@@ -265,6 +265,7 @@ export async function handleSessionsTranscript(
       ...(ev.subagentId !== undefined ? { subagentId: ev.subagentId } : {}),
       ...(ev.subagentType !== undefined ? { subagentType: ev.subagentType } : {}),
       ...(ev.subagentDescription !== undefined ? { subagentDescription: ev.subagentDescription } : {}),
+      ...(ev.subagentModel !== undefined ? { subagentModel: ev.subagentModel } : {}),
     });
     prevMs = curValid ? curMs : null;
   }

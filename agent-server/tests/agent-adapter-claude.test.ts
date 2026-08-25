@@ -1793,6 +1793,7 @@ test('Claude print tags a subagent\'s text and keeps it out of the turn\'s answe
   assert.equal(texts[0].subagent, undefined);
   assert.deepEqual(texts[1].subagent, {
     parentToolUseId: 'tu_agent_1', type: 'explore', description: 'map the event flow',
+    model: 'claude-sonnet-4-5',
   });
   assert.equal(texts[2].subagent, undefined);
 

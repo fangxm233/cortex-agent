@@ -106,13 +106,15 @@ describe('useSessionMessageLiveSync message authority snapshot', () => {
         payload: {
           sessionId: 's1', role: 'tool', text: '', toolName: 'Bash', toolInput: 'ls',
           subagentId: 'toolu_01abc', subagentType: 'Explore',
-          subagentDescription: 'Survey the repo', ts: '2026-08-01T01:00:00.000Z',
+          subagentDescription: 'Survey the repo', subagentModel: 'claude-haiku-4-5',
+          ts: '2026-08-01T01:00:00.000Z',
         },
       });
     });
 
     expect(observed?.getMessageSnapshot().liveTail[0]).toMatchObject({
       subagentId: 'toolu_01abc', subagentType: 'Explore', subagentDescription: 'Survey the repo',
+      subagentModel: 'claude-haiku-4-5',
     });
   });
 

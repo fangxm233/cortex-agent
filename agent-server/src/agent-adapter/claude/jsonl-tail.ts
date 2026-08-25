@@ -103,9 +103,16 @@ const PLAN_ENTER_TOOL_NAMES = new Set([
  *  recover it, and there is no verified sidechain sample to write that against, so it stays null
  *  rather than guessed. Consumers already tolerate a null parent. */
 function sidechainAttribution(raw: any): ToolUseSubagent | undefined {
-  return raw?.isSidechain === true
-    ? { parentToolUseId: null, type: null, description: null }
-    : undefined;
+  if (raw?.isSidechain !== true) return undefined;
+  // This path can attest THAT a record is a subagent's but not which call spawned it, so the parent
+  // and the declared type stay null. The model is the one thing it CAN name: `message.model` is
+  // whatever answered, and a sidechain record's answer came from the subagent.
+  return {
+    parentToolUseId: null,
+    type: null,
+    description: null,
+    model: typeof raw?.message?.model === 'string' ? raw.message.model : null,
+  };
 }
 
 export class JsonlEventNormalizer {

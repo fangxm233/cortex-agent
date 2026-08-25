@@ -75,6 +75,10 @@ export interface HistoryEvent {
   subagentType?: string;
   /** The spawning call's task description, as the CLI reports it. */
   subagentDescription?: string;
+  /** The model that produced the row, as the subagent's own messages report it. Absent on the
+   *  anchor (nothing has answered yet) and on rows read back from history written before this
+   *  field existed — absent means unknown, never "same as the main agent". */
+  subagentModel?: string;
   /** Sensitive lossless fields captured only by DEBUG-enabled orchestration. */
   debug?: HistoryDebugDetails;
   /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (LEGACY interaction rows only). */
@@ -115,6 +119,7 @@ interface RawEvent {
   subagentId?: string;
   subagentType?: string;
   subagentDescription?: string;
+  subagentModel?: string;
   /** DEBUG-only correlation and lossless payload fields. */
   toolUseId?: string;
   fullInput?: unknown;
@@ -153,27 +158,30 @@ export interface SubagentRowRef {
   id: string;
   type?: string | null;
   description?: string | null;
+  model?: string | null;
 }
 
 /** Carry the persisted subagent fields back onto a read-time event, omitting absent ones so a
  *  pre-existing history line still reads as plain main-agent output. */
 function subagentReadFields(ev: RawEvent):
-  { subagentId?: string; subagentType?: string; subagentDescription?: string } {
+  { subagentId?: string; subagentType?: string; subagentDescription?: string; subagentModel?: string } {
   if (!ev.subagentId) return {};
   return {
     subagentId: ev.subagentId,
     ...(ev.subagentType ? { subagentType: ev.subagentType } : {}),
     ...(ev.subagentDescription ? { subagentDescription: ev.subagentDescription } : {}),
+    ...(ev.subagentModel ? { subagentModel: ev.subagentModel } : {}),
   };
 }
 
 function subagentRowFields(ref?: SubagentRowRef):
-  { subagentId?: string; subagentType?: string; subagentDescription?: string } {
+  { subagentId?: string; subagentType?: string; subagentDescription?: string; subagentModel?: string } {
   if (!ref) return {};
   return {
     subagentId: ref.id,
     ...(ref.type ? { subagentType: ref.type } : {}),
     ...(ref.description ? { subagentDescription: ref.description } : {}),
+    ...(ref.model ? { subagentModel: ref.model } : {}),
   };
 }
 

@@ -38,6 +38,12 @@ export interface ToolUseSubagent {
   /** The spawning call's task description, when the source reports one. Reads far better than the
    *  truncated prompt fragment a consumer would otherwise scrape off the parent's tool input. */
   description?: string | null;
+  /** The model that produced this message. There is no `subagent_model` on the wire — the CLI's
+   *  assistant event extends the base message with only `subagent_type` and `task_description` —
+   *  so this is `message.model`, i.e. whatever actually answered. Null on `user`-envelope events
+   *  (tool results carry no message) and on the spawning call itself, which happens before the
+   *  subagent has said anything. Consumers fill it in from whichever event reports it first. */
+  model?: string | null;
 }
 
 interface CostRecordEvent {

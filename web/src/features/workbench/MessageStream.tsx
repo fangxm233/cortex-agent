@@ -717,6 +717,7 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
         <SubagentBlock
           agentType={row.agentType}
           description={row.description}
+          model={row.model}
           status={row.status}
           toolCount={row.toolCount}
         >

@@ -20,6 +20,7 @@ import {
   finalizeAssistantPreview,
   applyDelivered,
   reconcilePendingUserMessages,
+  subagentModelLabel,
   type ChatRow,
   type LiveSessionMessage,
   type PendingUserMessage,
@@ -919,6 +920,35 @@ describe('buildTranscriptRows — native subagent grouping', () => {
   const msg = (o: Partial<Parameters<typeof buildTranscriptRows>[0]['turns'][0]['messages'][0]> & { type: 'user' | 'assistant' | 'tool' }) =>
     ({ text: null, toolName: null, toolInput: null, ts: T, elapsedMs: null, ...o }) as any;
 
+  it('takes the model from the first subagent row that reports one, not from the anchor', () => {
+    // The CLI ships no `subagent_model`; the model is `message.model` off the subagent's own
+    // messages, so the spawning call — which happens before the subagent has answered — cannot
+    // know it. It must fill in later, exactly like agentType and description do.
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'user', text: 'go' }),
+        msg({ type: 'tool', toolName: 'Task', toolInput: 'survey', subagentId: 'tu_m' }),
+        msg({ type: 'tool', toolName: 'Grep', toolInput: 'x', subagentId: 'tu_m', subagentType: 'explore', subagentModel: 'claude-haiku-4-5-20260101' }),
+        msg({ type: 'assistant', text: 'notes', subagentId: 'tu_m', subagentModel: 'claude-sonnet-4-6' }),
+      ] }]),
+      [],
+    );
+    const block = rows.find((r) => r.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>;
+    // First reporter wins — a later row must not relabel work already attributed.
+    expect(block.model).toBe('claude-haiku-4-5-20260101');
+  });
+
+  it('leaves the model null while only the anchor is known', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'tool', toolName: 'Task', toolInput: 'survey', subagentId: 'tu_n' }),
+      ] }]),
+      [],
+    );
+    const block = rows.find((r) => r.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(block.model).toBeNull();
+  });
+
   it('keeps the block running through a quiet gap that clears the streaming flag', () => {
     // `streaming` is a 2.5s quiet-gap timer, so it drops between events INSIDE a live turn. Deriving
     // the block's state from it made the badge blink on and off for the whole run; `running` is the
@@ -1038,5 +1068,19 @@ describe('buildTranscriptRows — native subagent grouping', () => {
     expect(liveToMessage(live)).toMatchObject({
       subagentId: 'tu_a', subagentType: 'explore', subagentDescription: 'map it',
     });
+  });
+});
+
+describe('subagentModelLabel', () => {
+  it('strips only the vendor prefix and the release date', () => {
+    expect(subagentModelLabel('claude-sonnet-4-6-20260101')).toBe('sonnet-4-6');
+    expect(subagentModelLabel('claude-haiku-4-5')).toBe('haiku-4-5');
+  });
+
+  it('shows an unrecognised id verbatim rather than guessing at it', () => {
+    expect(subagentModelLabel('gpt-4o')).toBe('gpt-4o');
+    expect(subagentModelLabel('deepseek-v3')).toBe('deepseek-v3');
+    // 6 digits is not a release date — truncating here would invent a different model name.
+    expect(subagentModelLabel('some-model-202601')).toBe('some-model-202601');
   });
 });
