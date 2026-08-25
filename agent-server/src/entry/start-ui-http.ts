@@ -14,6 +14,7 @@ import { createUiHttpServer } from '@platform/ui-http/ui-http-server.js';
 import type { UiHttpServer, CustomRouteHandler } from '@platform/ui-http/ui-http-server.js';
 import { createOtaRoutes } from '@platform/ui-http/ui-ota.js';
 import { createAppUpdateRoutes } from '@platform/ui-http/app-update.js';
+import { createForwardRoutes } from '@platform/ui-http/port-forward.js';
 import { accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
 import type { AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import type { UiService } from '@domain/ui-service/types.js';
@@ -341,6 +342,10 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
       // (capped at this server's version) so the shell can offer a one-prompt update. JSON only —
       // the binaries download straight from the GitHub CDN. Same auth gate as tRPC.
       ...createAppUpdateRoutes(),
+      // Listening-port discovery for the desktop port forward: tells the shell which loopback
+      // services exist here so the Ports list can offer them. Same auth gate as tRPC.
+      ...createForwardRoutes(),
     },
+    portForward: env.CORTEX_PORT_FORWARD !== '0',
   });
 }

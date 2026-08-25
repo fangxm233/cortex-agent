@@ -1,5 +1,5 @@
 // input:  tRPC router, auth accessors, SPA, per-request CORS source
-// output: authenticated HTTP/SSE server with static and custom routes
+// output: authenticated HTTP/SSE server with static routes, custom routes and the port forward
 // pos:    Web UI HTTP transport host
 // >>> If I am updated, update CORTEX.md <<<
 
@@ -11,6 +11,7 @@ import type { AnyRouter } from '@trpc/server';
 import { AUTH_HEADER, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import type { AccessJwtVerifier } from './access-jwt.js';
+import { FORWARD_PATH, createPortForward } from './port-forward.js';
 
 const log = createLogger('ui-http');
 
@@ -60,6 +61,11 @@ export interface UiHttpServerOptions {
    * file upload). Auth-gated with the same dual-path check as tRPC paths.
    */
   customRoutes?: Record<string, CustomRouteHandler>;
+  /**
+   * Mount the TCP-over-WebSocket port forward on `/forward` (desktop shell → a loopback service on
+   * this host). Defaults to on; `CORTEX_PORT_FORWARD=0` at the call site turns it off.
+   */
+  portForward?: boolean;
 }
 
 /** Handler for a custom API route mounted on the HTTP server. Receives the raw request
@@ -278,6 +284,28 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
     },
   });
 
+  // ── Port forward (upgrade path) ─────────────────────────────────────────────
+  // Deliberately TOKEN-ONLY: the Access-JWT leg is NOT accepted here. A browser page riding an
+  // Access SSO cookie must never be able to open a raw TCP forward, and only a native client can
+  // set `x-cortex-token` on a WebSocket handshake anyway. See plan/embedded-browser.md §10.
+  const forward = opts.portForward === false ? null : createPortForward();
+  if (forward) {
+    server.on('upgrade', (req, socket, head) => {
+      const pathname = (req.url ?? '').split('?')[0];
+      if (pathname !== FORWARD_PATH) {
+        socket.destroy();
+        return;
+      }
+      if (!isAuthorized(req, opts.getToken)) {
+        log.warn(`forward auth rejected: ${req.url}`);
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      forward.handleUpgrade(req, socket, head);
+    });
+  }
+
   server.listen(opts.port, host, () => {
     const addr = server.address();
     const boundPort = addr && typeof addr !== 'string' ? addr.port : opts.port;
@@ -286,6 +314,7 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
 
   const close = (): Promise<void> =>
     new Promise((resolve) => {
+      forward?.close();
       // Force-close keep-alive + live SSE sockets, else server.close() would hang on them.
       server.closeAllConnections?.();
       server.close(() => resolve());

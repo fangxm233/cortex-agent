@@ -5,8 +5,9 @@ Also serves the desktop frontend update bundle and the app shell update manifest
 
 | filename | role | function |
 |---|---|---|
-| ui-http-server.ts | http | Hosts authenticated tRPC, SPA, and live CORS |
+| ui-http-server.ts | http | Hosts authenticated tRPC, SPA, live CORS and the port-forward upgrade |
 | access-jwt.ts | auth | Verifies Cloudflare Access browser tokens |
+| port-forward.ts | http | Forwards a loopback TCP service over WebSocket and lists listening ports |
 | ui-ota.ts | http | Serves the frontend update manifest and bundle |
 | app-update.ts | http | Advertises native app releases from GitHub |
 | zip-writer.ts | util | Packs in-memory files into a ZIP archive |
