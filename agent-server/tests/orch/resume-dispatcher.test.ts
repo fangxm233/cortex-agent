@@ -64,10 +64,13 @@ test('isAutoResumeEnabled defaults true, false only for 0/false', async () => {
   resetSettingsForTests();
 });
 
-test('buildResumeReminder is wrapped in a system-reminder', () => {
-  const r = buildResumeReminder();
-  assert.ok(r.startsWith('<system-reminder>'));
-  assert.ok(r.trimEnd().endsWith('</system-reminder>'));
+test('buildResumeReminder returns the concise system reminder', () => {
+  assert.equal(buildResumeReminder(), [
+    '<system-reminder>',
+    'The previous turn was interrupted by an API error. The provider has recovered; you may continue.',
+    'This message is only a resume signal; it should not change your original task.',
+    '</system-reminder>',
+  ].join('\n'));
 });
 
 test('agent terminal events wake requeued resume work', async () => {
