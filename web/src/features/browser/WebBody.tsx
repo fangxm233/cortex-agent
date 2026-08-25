@@ -1,4 +1,4 @@
-// input:  a docked WebItem, the app/API origins and the pinned-preview dock
+// input:  a docked WebItem, the app/API origins, the port forward and the pinned-preview dock
 // output: the browser pane body — address bar, navigation, viewport presets and the frame
 // pos:    desktop browser pane; all pure model logic lives in browser-target.ts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiBase } from '@/lib/desktop-config';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { usePinnedPreview } from '@/features/media/PinnedPreviewProvider';
+import { canForward, listRemotePorts, startForward, type ListeningPort } from './forward';
 import {
   EMPTY_HISTORY,
   VIEWPORT_PRESETS,
@@ -44,6 +45,9 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
   const [reloadNonce, setReloadNonce] = useState(0);
   const [viewport, setViewport] = useState(VIEWPORT_PRESETS[0]);
   const [rejected, setRejected] = useState<string | null>(null);
+  const [portsOpen, setPortsOpen] = useState(false);
+  const [ports, setPorts] = useState<ListeningPort[] | null>(null);
+  const [portsError, setPortsError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const url = currentUrl(history);
@@ -84,6 +88,29 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
     setRejected(null);
     setHistory((h) => pushHistory(h, next));
     show(webItem(next));
+  };
+
+  // A server-side port becomes previewable by forwarding it to a real local port first; without
+  // the native shell (browser mode) the loopback address only resolves when the UI is being viewed
+  // on the server itself, which is exactly what it then means.
+  const openPort = async (port: number): Promise<void> => {
+    setPortsOpen(false);
+    try {
+      const url = canForward() ? (await startForward(port)).url : `http://127.0.0.1:${port}/`;
+      navigate(url);
+    } catch (e) {
+      setRejected((e as Error).message);
+    }
+  };
+
+  const togglePorts = (): void => {
+    const next = !portsOpen;
+    setPortsOpen(next);
+    if (!next) return;
+    setPortsError(null);
+    listRemotePorts()
+      .then(setPorts)
+      .catch((e: Error) => setPortsError(e.message));
   };
 
   const step = (dir: 'back' | 'forward'): void => {
@@ -153,8 +180,67 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
             <option key={p.id} value={p.id}>{p.label}</option>
           ))}
         </select>
+        <button
+          type="button"
+          title="Ports listening on the server"
+          onClick={togglePorts}
+          style={{
+            height: 26,
+            flex: 'none',
+            padding: '0 8px',
+            borderRadius: 7,
+            border: portsOpen ? '1.5px solid var(--proto-accent)' : '1px solid var(--proto-line)',
+            background: portsOpen ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
+            color: portsOpen ? 'var(--proto-accent)' : 'var(--proto-muted)',
+            font: `600 10.5px ${MONO}`,
+            cursor: 'pointer',
+          }}
+        >
+          Ports
+        </button>
         <NavBtn title="Open in system browser" disabled={url === null} onClick={() => { if (url) void openExternalUrl(url); }}>↗</NavBtn>
       </div>
+
+      {portsOpen && (
+        <div style={{ flex: 'none', maxHeight: 190, overflow: 'auto', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-card)' }}>
+          {portsError ? (
+            <PortsNote>{portsError}</PortsNote>
+          ) : ports === null ? (
+            <PortsNote>Loading…</PortsNote>
+          ) : ports.length === 0 ? (
+            <PortsNote>Nothing is listening on the server’s loopback.</PortsNote>
+          ) : (
+            ports.map((p) => (
+              <button
+                key={p.port}
+                type="button"
+                onClick={() => void openPort(p.port)}
+                style={{
+                  display: 'flex',
+                  width: '100%',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '6px 12px',
+                  border: 'none',
+                  borderBottom: '1px solid var(--proto-line)',
+                  background: 'transparent',
+                  color: 'var(--proto-ink)',
+                  font: `500 11px ${MONO}`,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>{p.port}</span>
+                <span style={{ color: 'var(--proto-muted-2)' }}>{p.process ?? '—'}</span>
+                <span style={{ marginLeft: 'auto', color: 'var(--proto-faint)' }}>{p.address}</span>
+              </button>
+            ))
+          )}
+          {!canForward() && (
+            <PortsNote>Forwarding needs the desktop app — these open as plain localhost here.</PortsNote>
+          )}
+        </div>
+      )}
 
       {rejected && (
         <div style={{ flex: 'none', padding: '6px 10px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-gray)', color: 'var(--proto-danger, #c0392b)', font: `500 10.5px ${MONO}` }}>
@@ -185,6 +271,12 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
         )}
       </div>
     </div>
+  );
+}
+
+function PortsNote({ children }: { children: React.ReactNode }): JSX.Element {
+  return (
+    <div style={{ padding: '8px 12px', color: 'var(--proto-muted-2)', font: `500 10.5px ${MONO}` }}>{children}</div>
   );
 }
 
