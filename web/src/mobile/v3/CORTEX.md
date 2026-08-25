@@ -11,7 +11,7 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MChatView.test.tsx | test | Tests Todo, chat controls, turn copy and long-press |
 | m-chat-vm.ts | vm | Chat rows, status, attachments, menu placement |
 | m-chat-vm.test.ts | test | Tests chat status, profiles and transcript row state |
-| MInteractionCards.tsx | view | Ask-user and plan-approval cards for chat |
+| MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |
 | MSessionListScreen.tsx | screen | Binds sessions and sentinel-safe Scheduled drill-down |
 | MSessionListView.tsx | view | Day-grouped session rows with clock entry |
 | MScheduleSheet.tsx | view | Scheduled bottom sheet with run drill-down |

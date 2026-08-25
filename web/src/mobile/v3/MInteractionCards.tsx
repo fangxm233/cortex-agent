@@ -22,7 +22,6 @@ export interface MIntCopy {
   confirm: string;
   queued: string;
   multiTag: string;
-  askFooter: string;
   ttlSuffix: string;
   planPendingPill: string;
   planApprovedPill: string;
@@ -43,11 +42,10 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     askPill: 'Agent 提问',
     answeredPill: '✓ 已回答',
     defaultBadge: '默认',
-    customOption: '自定义…',
+    customOption: '自定义…（在底部输入）',
     confirm: '确认',
     queued: '待答',
     multiTag: '多选',
-    askFooter: '答一题进一题 · 全答完继续',
     ttlSuffix: '后按默认继续',
     planPendingPill: '计划待批',
     planApprovedPill: '✓ 计划已批准',
@@ -66,11 +64,10 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     askPill: 'Agent question',
     answeredPill: '✓ answered',
     defaultBadge: 'default',
-    customOption: 'Custom…',
+    customOption: 'Custom… (type below)',
     confirm: 'Confirm',
     queued: 'queued',
     multiTag: 'multi',
-    askFooter: 'one at a time · continues when all answered',
     ttlSuffix: 'until defaults apply',
     planPendingPill: 'Plan pending',
     planApprovedPill: '✓ Plan approved',
@@ -288,12 +285,6 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
         return null;
       })}
 
-      {/* footer (scheme 5b L256; `来自 X` source has no entity field → omitted, GAP) */}
-      {pending && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderTop: '1px solid var(--proto-line-2)', font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)', marginTop: 12 }}>
-          <span style={{ marginLeft: 'auto' }}>{copy.askFooter}</span>
-        </div>
-      )}
     </div>
   );
 }
