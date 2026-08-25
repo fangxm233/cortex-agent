@@ -87,6 +87,26 @@ describe('useSessionMessageLiveSync message authority snapshot', () => {
     expect(observed?.getMessageSnapshot().liveTail[0]).toMatchObject({ authAction });
   });
 
+  it('carries native-subagent attribution onto the live row', () => {
+    // The live tail rebuilds the payload field by field. Dropping these three made every subagent
+    // row look like the main agent's own output until the transcript refetched, so its prose sat in
+    // the main stream and its tool chips visibly jumped into the block afterwards.
+    act(() => {
+      harness.liveHandler?.({
+        type: 'session.message',
+        payload: {
+          sessionId: 's1', role: 'tool', text: '', toolName: 'Bash', toolInput: 'ls',
+          subagentId: 'toolu_01abc', subagentType: 'Explore',
+          subagentDescription: 'Survey the repo', ts: '2026-08-01T01:00:00.000Z',
+        },
+      });
+    });
+
+    expect(observed?.getMessageSnapshot().liveTail[0]).toMatchObject({
+      subagentId: 'toolu_01abc', subagentType: 'Explore', subagentDescription: 'Survey the repo',
+    });
+  });
+
   it('updates synchronously for pending and delivered events before consumers render state', () => {
     const readSnapshot = observed?.getMessageSnapshot;
     const initialRender = observed;

@@ -919,6 +919,26 @@ describe('buildTranscriptRows — native subagent grouping', () => {
   const msg = (o: Partial<Parameters<typeof buildTranscriptRows>[0]['turns'][0]['messages'][0]> & { type: 'user' | 'assistant' | 'tool' }) =>
     ({ text: null, toolName: null, toolInput: null, ts: T, elapsedMs: null, ...o }) as any;
 
+  it('keeps a backgrounded subagent running while the main agent works alongside it', () => {
+    // `run_in_background` lets the main agent keep calling tools while the subagent runs, so its
+    // rows interleave. The block must reopen rather than freeze at 'done' or split in two.
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'user', text: 'go' }),
+        msg({ type: 'tool', toolName: 'Task', toolInput: 'survey', subagentId: 'tu_bg' }),
+        msg({ type: 'tool', toolName: 'Grep', toolInput: 'x', subagentId: 'tu_bg' }),
+        msg({ type: 'tool', toolName: 'Bash', toolInput: 'main-agent work' }),
+        msg({ type: 'tool', toolName: 'Read', toolInput: 'y', subagentId: 'tu_bg' }),
+      ] }]),
+      [],
+      { streaming: true },
+    );
+    const blocks = rows.filter((r) => r.kind === 'subagent') as Array<Extract<ChatRow, { kind: 'subagent' }>>;
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].status).toBe('running');
+    expect(blocks[0].toolCount).toBe(2);
+  });
+
   it('folds a subagent\'s work into a block anchored at the spawning call', () => {
     const rows = buildTranscriptRows(
       tx([{ turnIndex: 0, messages: [

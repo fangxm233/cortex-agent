@@ -584,6 +584,11 @@ export function buildTranscriptRows(
   const openBlock = (m: TranscriptMessage, id: string) => {
     const existing = blocks.get(id);
     if (existing) {
+      // A backgrounded subagent runs WHILE the main agent keeps working, so main-agent rows land
+      // between its rows and `closeOpenBlocks` marks it done prematurely. Another row from the same
+      // subagent proves it was still going; the block reopens rather than fragmenting into a second
+      // one, and the last main-agent row after it genuinely ends leaves it done.
+      existing.row.status = 'running';
       // The anchor carries the description, the child rows carry the declared type — whichever
       // arrives second fills in what the first could not know.
       if (!existing.row.agentType && m.subagentType) existing.row.agentType = m.subagentType;

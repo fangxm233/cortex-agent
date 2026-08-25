@@ -7,6 +7,7 @@ import { getAdapter } from '../../agent-adapter/index.js';
 import type {
   AgentAdapter, AgentCompactResult, AgentProcess, AgentSpawnConfig, Backend, NormalizedEvent,
 } from '../../agent-adapter/index.js';
+import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import {
   canAwaitBgContinuation, shouldAwaitBgInline, waitForBgContinuation,
 } from '../../agent-adapter/bg-wait.js';
@@ -71,17 +72,23 @@ class AttemptNoticeTracker {
     this.forward = original.onAssistantMessage ?? null;
     this.generateNotices = original.channel?.startsWith('web:') === true;
     this.options = this.forward
-      ? { ...original, onAssistantMessage: (text, blockId, level, action) => this.observe(text, blockId, level, action) }
+      ? { ...original, onAssistantMessage: (text, blockId, level, action, subagent) => this.observe(text, blockId, level, action, subagent) }
       : original;
   }
 
-  private observe(text: string, blockId?: string, level?: ChatNoticeLevel, action?: NoticeAction): void {
+  private observe(
+    text: string, blockId?: string, level?: ChatNoticeLevel, action?: NoticeAction,
+    subagent?: ToolUseSubagent,
+  ): void {
     if (level === 'error' && this.generateNotices && isApiRateLimitError(text)) {
       this.heldError = { text, ...(blockId ? { blockId } : {}) };
       return;
     }
     if (level === 'error') this.attemptHasErrorNotice = true;
-    this.forward?.(text, blockId, level, action);
+    // Forward the subagent attribution too. This wrapper sits on EVERY assistant message (tool
+    // calls bypass it), so dropping the argument here silently untagged every subagent's prose
+    // while its tool calls stayed attributed.
+    this.forward?.(text, blockId, level, action, subagent);
   }
 
   /** Release a held rate-limit card. Every settle path calls this except the resumable one,

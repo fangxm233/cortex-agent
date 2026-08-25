@@ -308,7 +308,7 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; attachments?: LiveSessionMessage['attachments'] }
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentType?: string; subagentDescription?: string; attachments?: LiveSessionMessage['attachments'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
@@ -344,6 +344,12 @@ export function useSessionMessageLiveSync(
         authAction: p.authAction,
         ts: p.ts ?? new Date().toISOString(),
         blockId: p.blockId,
+        // Without these the live row is indistinguishable from the main agent's own output: it
+        // renders at the top level while the turn runs, then jumps into its subagent block when
+        // the transcript refetches.
+        subagentId: p.subagentId,
+        subagentType: p.subagentType,
+        subagentDescription: p.subagentDescription,
         attachments: p.attachments,
       };
       // The authoritative text for a previewed block: retire the preview in the SAME state update

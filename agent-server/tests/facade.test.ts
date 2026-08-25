@@ -322,6 +322,29 @@ test('a held rate-limit card is replaced by the auto-resume warning when the pro
   }], 'a paused turn reports the resume promise, not the API error');
 });
 
+test('the notice wrapper forwards native-subagent attribution', async (t) => {
+  // This wrapper sits on EVERY assistant message while tool calls bypass it. When it took only
+  // four parameters it silently swallowed the fifth, so a subagent's prose reached the transcript
+  // untagged and leaked into the main stream while that same subagent's tool rows stayed grouped.
+  const facade = await getFacade();
+  const seen: Array<{ text: string; subagent?: unknown }> = [];
+  const tracker = new facade._test.AttemptNoticeTracker({
+    channel: 'web:subagent',
+    isUserInitiated: true,
+    onAssistantMessage: (text: string, _b?: string, _l?: string, _a?: unknown, subagent?: unknown) =>
+      seen.push({ text, subagent }),
+  });
+
+  const subagent = { parentToolUseId: 'toolu_01abc', type: 'Explore', description: 'Survey the repo' };
+  tracker.options.onAssistantMessage('subagent notes', undefined, undefined, undefined, subagent);
+  tracker.options.onAssistantMessage('main agent answer');
+
+  assert.deepEqual(seen, [
+    { text: 'subagent notes', subagent },
+    { text: 'main agent answer', subagent: undefined },
+  ]);
+});
+
 test('the auto-resume warning carries the cancel-resume action', async (t) => {
   const rl = await initThrottle(['plan']);
   t.onTestFinished(() => rl._testReset());
