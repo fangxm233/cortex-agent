@@ -1,9 +1,9 @@
 // input:  notes context, localized copy and workbench navigation
-// output: 400px notes pane with click-selected CRUD actions
+// output: hosted notes pane with click-selected CRUD actions
 // pos:    Desktop project notes drawer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { NotesCopy } from './notes-copy';
 import type { NoteRowVm, NotesVm } from './notes-vm';
@@ -138,7 +138,13 @@ function CompletedRow({ row, busy, onReopen }: { row: NoteRowVm; busy: boolean; 
   );
 }
 
-export interface NotesPaneViewProps extends PaneActions {
+interface NotesPaneChromeProps {
+  headerIcon?: ReactNode;
+  headerAction?: ReactNode;
+  visible?: boolean;
+}
+
+export interface NotesPaneViewProps extends PaneActions, NotesPaneChromeProps {
   vm: NotesVm;
   copy: NotesCopy;
   busy: boolean;
@@ -148,30 +154,45 @@ export interface NotesPaneViewProps extends PaneActions {
   onClearCompleted: () => Promise<unknown>;
 }
 
-function usePaneEffects(targetId: string | null, onClose: () => void) {
+function usePaneEffects(targetId: string | null, onClose: () => void, visible: boolean) {
   useEffect(() => {
-    if (!targetId) return;
+    if (!visible || !targetId) return;
     document.getElementById(`note-${targetId}`)?.scrollIntoView({ block: 'center' });
-  }, [targetId]);
+  }, [targetId, visible]);
   useEffect(() => {
+    if (!visible) return;
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [onClose]);
+  }, [onClose, visible]);
+}
+
+function NotesPaneHeader({ copy, activeCount, headerIcon, headerAction, onClose }: {
+  copy: NotesCopy;
+  activeCount: number;
+  headerIcon?: ReactNode;
+  headerAction?: ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px 8px 16px', borderBottom: '1px solid var(--proto-line-2)' }}>
+      {headerIcon && <span aria-hidden="true" style={{ color: 'var(--proto-muted-2)', display: 'grid', placeItems: 'center' }}>{headerIcon}</span>}
+      <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{copy.title}</span>
+      <span style={{ font: "600 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', background: 'var(--proto-line-2)', padding: '2px 8px', borderRadius: 999 }}>{activeCount}</span>
+      <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>context/NOTES.md</span>
+      {headerAction}
+      <button type="button" onClick={onClose} style={{ font: "500 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)', border: '1px solid var(--proto-line)', borderRadius: 5, padding: '2px 6px', background: 'transparent', cursor: 'pointer' }}>{copy.escape}</button>
+    </div>
+  );
 }
 
 export function NotesPaneView(props: NotesPaneViewProps) {
   const [completedOpen, setCompletedOpen] = useState(true);
-  usePaneEffects(props.targetId, props.onClose);
+  usePaneEffects(props.targetId, props.onClose, props.visible !== false);
   const actions: PaneActions = props;
   return (
-    <aside data-notes-pane="" style={{ width: 400, flex: 'none', background: 'var(--proto-card)', borderLeft: '1px solid var(--proto-line)', boxShadow: 'var(--shadow-side-panel)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '13px 16px 11px', borderBottom: '1px solid var(--proto-line-2)' }}>
-        <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{props.copy.title}</span>
-        <span style={{ font: "600 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', background: 'var(--proto-line-2)', padding: '2px 8px', borderRadius: 999 }}>{props.vm.activeCount}</span>
-        <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>context/NOTES.md</span>
-        <button type="button" onClick={props.onClose} style={{ font: "500 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)', border: '1px solid var(--proto-line)', borderRadius: 5, padding: '2px 6px', background: 'transparent', cursor: 'pointer' }}>{props.copy.escape}</button>
-      </div>
+    <aside data-notes-pane="" style={{ width: '100%', flex: 1, background: 'var(--proto-card)', boxShadow: 'var(--shadow-side-panel)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <NotesPaneHeader copy={props.copy} activeCount={props.vm.activeCount} headerIcon={props.headerIcon} headerAction={props.headerAction} onClose={props.onClose} />
       <AddInput copy={props.copy} busy={props.busy} onAdd={props.onAdd} />
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '10px 14px 14px' }}>
         <div style={{ padding: '6px 2px 7px', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', color: 'var(--proto-muted-3)' }}>{props.copy.todo} · {props.vm.activeCount}</div>
@@ -188,11 +209,12 @@ export function NotesPaneView(props: NotesPaneViewProps) {
   );
 }
 
-export function NotesPane() {
+export function NotesPane(props: NotesPaneChromeProps = {}) {
   const notes = useNotes();
   const navigate = useNavigate();
   return (
     <NotesPaneView
+      {...props}
       vm={notes.vm}
       copy={notes.copy}
       busy={notes.busy}
