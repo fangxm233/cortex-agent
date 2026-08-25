@@ -413,7 +413,7 @@ function AgentFileGroup({ attachments }: { attachments: Attachment[] }): JSX.Ele
   const files = attachments.filter((a) => a.type !== 'view' && mediaKindOf(a.type) === null);
   return (
     // A view is a surface, not a chip: it takes the wider column so charts and tables are legible.
-    <div style={{ maxWidth: views.length > 0 ? '92%' : '75%', width: views.length > 0 ? '92%' : undefined, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10 }}>
+    <div style={{ maxWidth: views.length > 0 ? '92%' : '75%', width: views.length > 0 ? '92%' : undefined, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10, marginInline: views.length > 0 ? 'auto' : undefined }}>
       {media.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {media.map((a, i) => <AgentMediaPreview key={`media-${i}`} a={a} />)}
