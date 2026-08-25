@@ -11,6 +11,7 @@ use serde::Serialize;
 use tauri::State;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::broadcast;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
 
@@ -44,6 +45,10 @@ pub struct ForwardInfo {
 struct Entry {
     info: ForwardInfo,
     task: tauri::async_runtime::JoinHandle<()>,
+    /// Tears down relays that are ALREADY established. Closing the listener only stops new
+    /// connections, and a browser holds its keep-alive socket open for a minute or more — so
+    /// without this, "stop" would leave the page still loading through a tunnel the user closed.
+    shutdown: broadcast::Sender<()>,
 }
 
 #[derive(Default)]
@@ -81,7 +86,7 @@ async fn bind_local(preferred: u16) -> Result<(TcpListener, u16), String> {
 /// One accepted local connection ⇄ one server WebSocket ⇄ one TCP connection on the server.
 /// No multiplexing: per-stream flow control would have to be re-invented, and the browser opens
 /// its own sockets anyway.
-async fn relay(mut tcp: TcpStream, ws_url: String, token: String) {
+async fn relay(mut tcp: TcpStream, ws_url: String, token: String, mut shutdown: broadcast::Receiver<()>) {
     let mut request = match ws_url.into_client_request() {
         Ok(r) => r,
         Err(e) => {
@@ -120,6 +125,7 @@ async fn relay(mut tcp: TcpStream, ws_url: String, token: String) {
                     }
                 }
             },
+            _ = shutdown.recv() => break,
             msg = stream.next() => match msg {
                 Some(Ok(Message::Binary(data))) => {
                     if writer.write_all(&data).await.is_err() {
@@ -161,6 +167,8 @@ pub async fn forward_start(
     let ws_url = forward_ws_url(&server_url, port)?;
 
     let (listener, local_port) = bind_local(port).await?;
+    let (shutdown, _) = broadcast::channel::<()>(1);
+    let relay_shutdown = shutdown.clone();
     let info = ForwardInfo {
         remote_port: port,
         local_port,
@@ -174,7 +182,8 @@ pub async fn forward_start(
                     let _ = tcp.set_nodelay(true);
                     let ws_url = ws_url.clone();
                     let token = token.clone();
-                    tauri::async_runtime::spawn(relay(tcp, ws_url, token));
+                    let rx = relay_shutdown.subscribe();
+                    tauri::async_runtime::spawn(relay(tcp, ws_url, token, rx));
                 }
                 Err(e) => {
                     eprintln!("forward: accept failed: {e}");
@@ -185,15 +194,22 @@ pub async fn forward_start(
     });
 
     eprintln!("forward: 127.0.0.1:{local_port} → server :{port}");
-    state.entries.lock().unwrap().insert(port, Entry { info: info.clone(), task });
+    state
+        .entries
+        .lock()
+        .unwrap()
+        .insert(port, Entry { info: info.clone(), task, shutdown });
     Ok(info)
 }
 
-/// Stop a forward. Already-open relays end when their sockets close.
+/// Stop a forward: close the listener AND tear down every relay it opened.
 #[tauri::command]
 pub fn forward_stop(state: State<'_, ForwardState>, port: u16) -> bool {
     match state.entries.lock().unwrap().remove(&port) {
         Some(entry) => {
+            // Send before aborting the accept loop: a receiver-less send is a no-op, which is the
+            // correct behaviour when no connection was ever made.
+            let _ = entry.shutdown.send(());
             entry.task.abort();
             eprintln!("forward: stopped :{port}");
             true

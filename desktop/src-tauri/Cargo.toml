@@ -70,7 +70,7 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 # the **webpki roots** matches the OTA client's choice: the platform verifier needs an OS trust store
 # we never wire up, and ring (installed as the process default CryptoProvider in `run()`) is the
 # backend both paths share. Android never compiles this: the shell has no port forward there.
-tokio = { version = "1", features = ["net", "io-util", "rt", "macros", "time"] }
+tokio = { version = "1", features = ["net", "io-util", "rt", "macros", "time", "sync"] }
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "handshake", "rustls-tls-webpki-roots"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
