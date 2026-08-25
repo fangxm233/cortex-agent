@@ -12,6 +12,7 @@ import { getMachineRegistry, type MachineEntry, type MachineRegistry } from '../
 import { STORE_DIR, CONFIG_DIR } from '@core/utils.js';
 import { AUTH_HEADER, getClientToken, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
+import { claimStream, parseStreamId, cancelStreamsFor } from './reverse-stream.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
 import { readTasks, findTask } from '../tasks/system/task-lifecycle-edit.js';
 import { taskMutator } from '../tasks/mutator.js';
@@ -86,7 +87,19 @@ function startClientManager(port: number): void {
   });
   log.info(`WebSocket server started on port ${port}`);
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
+    // A reverse-stream callback rides this same port and token, distinguished only by path. It
+    // carries raw bytes, never control JSON, so it must be handed off BEFORE the message loop —
+    // and an unknown id is closed rather than trusted.
+    const streamId = parseStreamId(req.url);
+    if (streamId) {
+      if (!claimStream(streamId, ws)) {
+        log.warn('reverse callback with an unknown stream id — closing');
+        ws.close(4004, 'Unknown stream');
+      }
+      return;
+    }
+
     let deviceName: string | null = null;
 
     ws.on('message', (raw) => {
@@ -160,6 +173,9 @@ function startClientManager(port: number): void {
           log.info(`Device disconnected: ${deviceName}`);
           devices.delete(deviceName);
           emitDisconnected(deviceName, reason.toString().trim() || undefined);
+          // Nobody should wait out the full claim timeout for a device that just left.
+          const dropped = cancelStreamsFor(deviceName);
+          if (dropped > 0) log.info(`cancelled ${dropped} pending reverse stream(s) for ${deviceName}`);
           // Reject all pending commands for this device
           for (const [id, pending] of pendingCommands) {
             if (pending.device === deviceName) {

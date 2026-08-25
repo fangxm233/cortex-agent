@@ -7,6 +7,7 @@ Covers client deployment, updates, the connection registry, and the client daemo
 |---|---|---|
 | client-bootstrap.ts | cli | Deploys cortex-client to a remote device |
 | client-hot-reload.ts | core | Updates and restarts clients to the latest build |
-| client-manager.ts | core | Routes clients and fences remote task callbacks |
+| client-manager.ts | core | Routes clients, reverse-stream callbacks, and fences remote task callbacks |
+| reverse-stream.ts | core | Mints and pairs device-dialed streams for server→device connections |
 | cortex-client-config.ts | config | Resolves client connection URL and auth headers |
 | cortex-client.ts | entry | Runs the client daemon on a remote device |
