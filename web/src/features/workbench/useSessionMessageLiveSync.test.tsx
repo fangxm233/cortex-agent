@@ -1,6 +1,6 @@
-// input:  mounted session live-sync hook and captured pending/delivery events
-// output: synchronous message and auth-action authority regression
-// pos:    Verifies live authority is readable before React renders queued state
+// input:  mounted live-sync hook and captured message/Todo events
+// output: message authority and Todo session-isolation regressions
+// pos:    Verifies session-scoped live state before and after renders
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
@@ -45,11 +45,20 @@ vi.mock('./useAssistantDeltaStream', () => ({ useAssistantDeltaStream: () => {} 
 import { useSessionMessageLiveSync, type SessionLiveState } from './useSessionMessageLiveSync';
 
 const TRANSCRIPT = { sessionId: 's1', turns: [], pendingUserMessages: [] };
+const TODO_SNAPSHOT = {
+  items: [{ content: 'Inspect state', activeForm: 'Inspecting state', status: 'in_progress' as const }],
+  total: 1,
+  completed: 0,
+  activeLabel: 'Inspecting state',
+  updatedAt: 1,
+};
 let observed: SessionLiveState | null = null;
 let mounted: ReactTestRenderer | null = null;
 
-function Probe(): null {
-  observed = useSessionMessageLiveSync('s1', false, false, { transcript: TRANSCRIPT });
+function Probe({ sessionId = 's1' }: { sessionId?: string }): null {
+  observed = useSessionMessageLiveSync(sessionId, false, false, {
+    transcript: sessionId === TRANSCRIPT.sessionId ? TRANSCRIPT : null,
+  });
   return null;
 }
 
@@ -105,6 +114,20 @@ describe('useSessionMessageLiveSync message authority snapshot', () => {
     expect(observed?.getMessageSnapshot().liveTail[0]).toMatchObject({
       subagentId: 'toolu_01abc', subagentType: 'Explore', subagentDescription: 'Survey the repo',
     });
+  });
+
+  it('does not carry a Todo delta into the next selected session', () => {
+    act(() => {
+      harness.liveHandler?.({
+        type: 'session.todos',
+        payload: { sessionId: 's1', snapshot: TODO_SNAPSHOT },
+      });
+    });
+    expect(observed?.todos).toEqual(TODO_SNAPSHOT);
+
+    act(() => mounted?.update(<Probe sessionId="s2" />));
+
+    expect(observed?.todos).toBeNull();
   });
 
   it('updates synchronously for pending and delivered events before consumers render state', () => {

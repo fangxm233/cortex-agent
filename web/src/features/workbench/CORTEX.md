@@ -66,7 +66,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | composer-slash.ts | util | Resolves shared UI-local slash actions |
 | composer-slash.test.ts | test | Tests shortcut parsing, availability and local dispatch |
 | ContextUsageControl.tsx | view | Context usage bar, details and compact action |
-| TodoRail.tsx | view | Expandable task-list rail above the composer |
+| TodoRail.tsx | view | Shows a summary or click-to-collapse full task list |
+| TodoRail.test.tsx | test | Tests expanded task-list interaction |
 | todo-vm.ts | vm | Validates task snapshots and builds rail rows |
 | todo-vm.test.ts | test | Tests payload validation, resolution and rail rows |
 | ContextUsageControl.test.tsx | test | Unit tests for context control visibility |
@@ -77,8 +78,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useRevealedText.ts | hook | Drives the frame loop revealing streamed text |
 | reveal-pacing.ts | util | Computes how much streamed text to show |
 | reveal-pacing.test.ts | test | Unit tests for reveal pacing |
-| useSessionMessageLiveSync.ts | hook | Streams messages with notice action metadata |
-| useSessionMessageLiveSync.test.tsx | test | Tests message authority and auth action retention |
+| useSessionMessageLiveSync.ts | hook | Streams session-scoped messages and runtime snapshots |
+| useSessionMessageLiveSync.test.tsx | test | Tests message authority and Todo isolation |
+| useSessionsLiveSync.test.tsx | test | Tests rail-wide session snapshot refresh |
 | useMarkSessionRead.ts | hook | Marks the visible session read |
 | SessionIdModal.tsx | view | Shows session identifiers with copy actions |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |

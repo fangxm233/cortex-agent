@@ -1,9 +1,9 @@
 // input:  task-list snapshot, language, persisted expand state
-// output: one-line task-list rail above the composer, expandable to the full list
+// output: collapsed summary or full click-to-collapse task list
 // pos:    Session task-list surface in the desktop chat
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import type { TodoSnapshot, TodoStatus } from '@cortex-agent/ui-contract';
 import { todoRailViewModel, type TodoRowViewModel } from './todo-vm';
 
@@ -118,77 +118,74 @@ export function TodoRail({ sessionId, todos, lang }: TodoRailProps): JSX.Element
   if (!vm) return null;
   const L = COPY[lang];
   const accent = vm.allDone ? 'var(--proto-success)' : 'var(--proto-accent)';
+  const collapseOnKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    toggle();
+  };
 
   return (
     <div
       data-todo-rail={open ? 'expanded' : 'collapsed'}
+      onClick={open ? toggle : undefined}
+      onKeyDown={open ? collapseOnKeyDown : undefined}
+      role={open ? 'button' : undefined}
+      tabIndex={open ? 0 : undefined}
+      aria-expanded={open ? true : undefined}
+      aria-label={open ? L.label : undefined}
       style={{
         border: '1px solid var(--proto-line)',
         borderRadius: 8,
         background: 'var(--proto-alt)',
         marginBottom: 8,
         overflow: 'hidden',
+        cursor: open ? 'pointer' : undefined,
         animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
       }}
     >
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={open}
-        aria-label={L.label}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          width: '100%',
-          minHeight: 29,
-          padding: '0 10px',
-          background: 'transparent',
-          border: 'none',
-          cursor: 'pointer',
-          textAlign: 'left',
-          font: 'inherit',
-          color: 'inherit',
-        }}
-      >
-        <StatusDot status={vm.allDone ? 'completed' : 'in_progress'} allDone={vm.allDone} />
-        <span style={{ font: `600 10.5px ${MONO}`, color: accent, flex: 'none' }}>{vm.counts}</span>
-        <span
+      {!open && (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={false}
+          aria-label={L.label}
           style={{
-            fontSize: 12,
-            color: vm.activeLabel ? 'var(--proto-muted-2)' : 'var(--proto-faint)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            width: '100%',
+            minHeight: 29,
+            padding: '0 10px',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            textAlign: 'left',
+            font: 'inherit',
+            color: 'inherit',
           }}
         >
-          {vm.activeLabel ?? L.empty}
-        </span>
-        <span
-          style={{
-            marginLeft: 'auto',
-            flex: 'none',
-            fontSize: 9,
-            color: 'var(--proto-muted-2)',
-            transform: open ? 'rotate(90deg)' : undefined,
-          }}
-        >
-          ▸
-        </span>
-      </button>
+          <StatusDot status={vm.allDone ? 'completed' : 'in_progress'} allDone={vm.allDone} />
+          <span style={{ font: `600 10.5px ${MONO}`, color: accent, flex: 'none' }}>{vm.counts}</span>
+          <span
+            style={{
+              fontSize: 12,
+              color: vm.activeLabel ? 'var(--proto-muted-2)' : 'var(--proto-faint)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              minWidth: 0,
+            }}
+          >
+            {vm.activeLabel ?? L.empty}
+          </span>
+          <span style={{ marginLeft: 'auto', flex: 'none', fontSize: 9, color: 'var(--proto-muted-2)' }}>
+            ▸
+          </span>
+        </button>
+      )}
       {open && (
-        <div
-          style={{
-            maxHeight: EXPANDED_MAX_HEIGHT,
-            overflowY: 'auto',
-            padding: '4px 12px 11px',
-            borderTop: '1px solid var(--proto-line)',
-          }}
-        >
-          <div style={{ paddingTop: 8 }}>
-            {vm.rows.map((row) => <TodoRow key={row.key} row={row} />)}
-          </div>
+        <div style={{ maxHeight: EXPANDED_MAX_HEIGHT, overflowY: 'auto', padding: '12px 12px 11px' }}>
+          {vm.rows.map((row) => <TodoRow key={row.key} row={row} />)}
         </div>
       )}
     </div>

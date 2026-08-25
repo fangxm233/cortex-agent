@@ -1,5 +1,5 @@
 // input:  shared SSE context/notices, React Query, durable snapshots
-// output: message/auth-action authority and live session state
+// output: session-scoped message, Todo and live runtime state
 // pos:    React bridge from session events to desktop/mobile chat rows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -127,7 +127,7 @@ export function useSessionMessageLiveSync(
   // Live agent-turn count from the `session.turn` delta. Null until the first event for this session.
   const [liveTurns, setLiveTurns] = useState<number | null>(null);
   const [liveContextUsage, setLiveContextUsage] = useState<SessionContextUsage | null>(null);
-  const [liveTodos, setLiveTodos] = useState<TodoSnapshot | null>(null);
+  const [liveTodos, setLiveTodos] = useState<{ sessionId: string; snapshot: TodoSnapshot } | null>(null);
   // The assistant block being previewed plus finalized block ids. The latter span the shared
   // message stream and scoped delta stream, preventing a late delta from reopening a settled row.
   const [assistantPreview, setAssistantPreview] = useState<AssistantPreviewState>(initialAssistantPreviewState);
@@ -160,6 +160,7 @@ export function useSessionMessageLiveSync(
     setStatusBackground(null);
     setLiveTurns(null);
     setLiveContextUsage(null);
+    setLiveTodos(null);
     setAssistantPreview(initialAssistantPreviewState());
     deliveredPendingIdsRef.current.clear();
     setPending([]);
@@ -238,7 +239,7 @@ export function useSessionMessageLiveSync(
         // Replace-all: the newest snapshot is complete, so a missed event costs nothing and there
         // is no merge to get wrong.
         const snapshot = todoSnapshotFromLivePayload(raw.payload);
-        if (snapshot) setLiveTodos(snapshot);
+        if (snapshot) setLiveTodos({ sessionId, snapshot });
         return;
       }
       if (raw.type === 'session.context-usage') {
@@ -376,7 +377,8 @@ export function useSessionMessageLiveSync(
   const running = resolveRunning(statusRunning, snapshotRunning, streaming);
   const backgroundRunning = resolveBackgroundRunning(statusBackground, snapshotBackgroundRunning);
   const contextUsage = resolveContextUsage(liveContextUsage, options.contextUsage);
-  const todos = resolveTodos(liveTodos, options.todos);
+  const currentLiveTodos = liveTodos?.sessionId === sessionId ? liveTodos.snapshot : null;
+  const todos = resolveTodos(currentLiveTodos, options.todos);
   return {
     liveTail, getMessageSnapshot, streaming, running, backgroundRunning, liveTurns,
     contextUsage, todos, streamingText: assistantPreview.active?.text ?? null, pendingUser,
