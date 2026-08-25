@@ -1,6 +1,6 @@
-// input:  vitest + orchestration/routing/commands/cancel (cancelBgHolds seams) + bgHeldSessions
-// output: Stop-during-background-hold spec — kill the pooled process, then seal the hold
-// pos:    regression for "Stop button does nothing while the session shows Background"
+// input:  vitest, cancel seams, foreground session start, bgHeldSessions
+// output: Stop and foreground-supersession background-hold regressions
+// pos:    Background-hold cancellation and busy-release regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // The bug: holdWebForBg is installed AFTER teardownExecution removed the execution from
@@ -12,6 +12,7 @@ import { test, beforeEach } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { cancelBgHolds } from '../../src/orchestration/routing/commands/cancel.js';
+import { beginForegroundSession } from '../../src/orchestration/agent-runner.js';
 import { bgHeldSessions } from '../../src/core/bg-held-sessions.js';
 
 beforeEach(() => bgHeldSessions.clear());
@@ -77,4 +78,32 @@ test('end-to-end against the real registry: held session is found by channel and
   assert.equal(sealed, 1);
   assert.equal(bgHeldSessions.has('sess-1'), false, 'hold cleared');
   assert.equal(cancelBgHolds('web:live', { killPooled: () => true }), 0, 'second Stop finds nothing');
+});
+
+test('new foreground turn releases the old hold before publishing running:true', () => {
+  const order: string[] = [];
+  bgHeldSessions.onSessionStatus({
+    sessionId: 'sess-1', channel: 'web:live', running: true, backgroundRunning: true,
+  });
+  bgHeldSessions.setAbort('sess-1', () => {
+    order.push('release-old-hold');
+    bgHeldSessions.onSessionStatus({
+      sessionId: 'sess-1', channel: 'web:live', running: false, backgroundRunning: false,
+    });
+  });
+
+  beginForegroundSession('sess-1', 'web:live', {
+    abortHold: (sessionId) => bgHeldSessions.abort(sessionId),
+    publishRunning: () => order.push('publish-running'),
+  });
+
+  assert.deepEqual(order, ['release-old-hold', 'publish-running']);
+  assert.equal(bgHeldSessions.has('sess-1'), false, 'superseded hold no longer owns busy state');
+
+  beginForegroundSession('sess-1', 'web:live', {
+    abortHold: (sessionId) => bgHeldSessions.abort(sessionId),
+    publishRunning: () => order.push('publish-running-again'),
+  });
+  assert.deepEqual(order, ['release-old-hold', 'publish-running', 'publish-running-again'],
+    'the old hold releases exactly once');
 });

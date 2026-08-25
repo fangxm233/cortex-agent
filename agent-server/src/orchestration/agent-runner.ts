@@ -121,6 +121,27 @@ export interface AgentRunnerCtx {
   mutationRelease?: TurnMutationRelease;
 }
 
+interface ForegroundSessionDeps {
+  abortHold: (sessionId: string) => unknown;
+  publishRunning: (event: { sessionId: string; channel: string; running: boolean }) => void;
+}
+
+/** A foreground turn supersedes any background-only hold on the same session. Release the old
+ * busy bracket before publishing running:true; the reverse order lets the status subscriber erase
+ * the abort handle while its guard remains live until the 30-minute cap. */
+export function beginForegroundSession(
+  sessionId: string | null,
+  channel: string,
+  deps: ForegroundSessionDeps = {
+    abortHold: (id) => bgHeldSessions.abort(id),
+    publishRunning: publishSessionStatus,
+  },
+): void {
+  if (!sessionId) return;
+  deps.abortHold(sessionId);
+  deps.publishRunning({ sessionId, channel, running: true });
+}
+
 export class AgentRunner {
   readonly _enqueue: Enqueuer;
   readonly _track: Tracker;
@@ -318,7 +339,7 @@ export class AgentRunner {
     // 4. Run the conversation turn directly (no thread). The Cancel button is attached once the
     //    execution record exists (execution-scoped cancel), via onExecutionStarted.
     // Emit the REAL running state for the S4 chat indicator: true now, false in the finally below.
-    if (sessionId) publishSessionStatus({ sessionId, channel, running: true });
+    beginForegroundSession(sessionId, channel);
     let capturedExecutionId: string | null = null;
     // Web background-task hold: when set, the turn ended with a live background task and a
     // ContinuationSink was registered to stream the spontaneous continuation. The hold owns the

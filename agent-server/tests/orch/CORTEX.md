@@ -11,7 +11,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | bg-continuation.test.ts | test | Covers reset-isolated continuation dispatch |
 | bg-wait-guard.test.ts | test | Covers background wait bracket, grace and cap |
 | busy-tracker.test.ts | test | Covers busy counter publish and aggregation |
-| cancel-bg-hold.test.ts | test | Covers stop during a background hold |
+| cancel-bg-hold.test.ts | test | Covers stopping and superseding background holds |
 | channel-queue.test.ts | test | Covers per-channel queue serialization |
 | dispatch-reconciler.test.ts | test | Covers optional stale-dispatch reconciliation |
 | edit-handler.test.ts | test | Covers PI restore identity and edit retry routing |
