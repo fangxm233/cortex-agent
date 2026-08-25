@@ -62,6 +62,7 @@ import {
 } from '@/features/workbench/interaction-vm';
 import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, type MChatEditCopy, type MMsgMenu, type MEditMode } from './MChatView';
 import { DEFAULT_BROWSER_DEVICE } from '@/features/workbench/BrowserOptIn';
+import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
 import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';
 import {
@@ -388,6 +389,16 @@ export function MChatScreen(): JSX.Element {
   // Browser control is chosen on the draft only: the agent's tool set is fixed when its process
   // spawns, so a live session can report it but never change it.
   const [draftBrowserDevice, setDraftBrowserDevice] = useState<string | null>(null);
+  const [browserSheetOpen, setBrowserSheetOpen] = useState(false);
+  const [browserDevices, setBrowserDevices] = useState<ForwardDevice[]>([]);
+  // Read when the sheet opens rather than held: devices come and go, and a stale list would offer a
+  // machine that is no longer connected.
+  useEffect(() => {
+    if (!browserSheetOpen) return;
+    let alive = true;
+    listForwardDevices().then((d) => { if (alive) setBrowserDevices(d); }).catch(() => { if (alive) setBrowserDevices([]); });
+    return () => { alive = false; };
+  }, [browserSheetOpen]);
   const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
   const transitionProfile = resolveTransitionProfile(
     active?.profileName,
@@ -871,9 +882,17 @@ export function MChatScreen(): JSX.Element {
         profileChipLabel={profileChipLabel(effectiveProfile, profiles)}
         browserDevice={isDraft ? draftBrowserDevice : (active?.browser?.device ?? null)}
         browserChipLabel={vocab.wbBrowser}
-        onToggleBrowser={isDraft
-          ? () => setDraftBrowserDevice((d) => (d === null ? DEFAULT_BROWSER_DEVICE : null))
-          : undefined}
+        onOpenBrowser={isDraft ? () => setBrowserSheetOpen(true) : undefined}
+        browserSheet={browserSheetOpen ? {
+          items: [
+            { device: null, label: vocab.wbBrowserOffOption, sub: '' },
+            { device: DEFAULT_BROWSER_DEVICE, label: DEFAULT_BROWSER_DEVICE, sub: vocab.wbBrowserThisHost },
+            ...browserDevices.map((d) => ({ device: d.device, label: d.device, sub: d.platform })),
+          ],
+          title: vocab.wbBrowser,
+          onClose: () => setBrowserSheetOpen(false),
+          onPick: (device: string | null) => { setDraftBrowserDevice(device); setBrowserSheetOpen(false); },
+        } : undefined}
         onOpenProfile={() => setProfileOpen(true)}
         contextUsage={contextUsage}
         contextUsageSupported={!!active?.contextCompactionSupported}

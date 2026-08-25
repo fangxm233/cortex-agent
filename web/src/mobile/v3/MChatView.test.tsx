@@ -299,13 +299,13 @@ describe('MChatView browser chip', () => {
   });
 
   it('is an editable toggle on a draft', () => {
-    const html = renderComposer({ browserDevice: null, onToggleBrowser: () => {} });
+    const html = renderComposer({ browserDevice: null, onOpenBrowser: () => {} });
     expect(chip(html)).toContain('data-editable="true"');
     expect(chip(html)).toContain('data-active="false"');
   });
 
   it('shows the chosen device once it is on', () => {
-    const html = renderComposer({ browserDevice: 'server', onToggleBrowser: () => {}, browserChipLabel: 'Browser' });
+    const html = renderComposer({ browserDevice: 'server', onOpenBrowser: () => {}, browserChipLabel: 'Browser' });
     expect(chip(html)).toContain('data-active="true"');
     expect(html).toContain('Browser · server');
   });

@@ -47,7 +47,8 @@ import { recordResume } from '@domain/costs/resume-registry.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { getAgent } from '@domain/threads/index.js';
 import { runConversation } from './conversation-runner.js';
-import { acquireBrowser, releaseBrowser, backendSupportsBrowser } from '@platform/browser/managed-browser.js';
+import { acquireBrowser, releaseBrowser, backendSupportsBrowser, BROWSER_DEVICE_SERVER } from '@platform/browser/managed-browser.js';
+import { acquireDeviceBrowser, releaseDeviceBrowser } from '@domain/remote/device-browser.js';
 import { tryAnswerFromHuman } from './manager-qa.js';
 import { shouldHoldForBg, shouldHoldWebForBg } from './bg-continuation.js';
 import { holdWebForBg } from './web-bg-hold.js';
@@ -418,16 +419,22 @@ export class AgentRunner {
     // (rather than inside the adapter) keeps the spawn path synchronous and gives us one obvious
     // place to pair with a release. A browser that cannot start degrades the turn to "no browser
     // tools" instead of failing it — the session is still worth running.
-    let browserHeld = false;
+    let browserHeld: 'server' | string | null = null;
     let browserCdpEndpoint: string | null = null;
     if (sessionBrowser && !browserBackendSupported(channel, backend)) {
       log.warn(`session opted into the browser but the ${backend} backend cannot use it — skipping`);
     } else if (sessionBrowser) {
+      const device = sessionBrowser.device;
       try {
-        browserCdpEndpoint = (await acquireBrowser()).cdpEndpoint;
-        browserHeld = true;
+        // `server` is this host's own Chrome; anything else is a Chrome the device launches for us,
+        // reachable only because the reverse channel maps its debugging port onto a local one. Both
+        // hand back a plain http://127.0.0.1:<port>, so nothing downstream knows the difference.
+        browserCdpEndpoint = device === BROWSER_DEVICE_SERVER
+          ? (await acquireBrowser()).cdpEndpoint
+          : (await acquireDeviceBrowser(device)).cdpEndpoint;
+        browserHeld = device;
       } catch (error) {
-        log.warn(`browser session requested but Chrome could not start: ${(error as Error).message}`);
+        log.warn(`browser session requested on "${device}" but Chrome could not start: ${(error as Error).message}`);
       }
     }
     try {
@@ -559,7 +566,8 @@ export class AgentRunner {
         sessionName, sessionId, threadAnchorId, userMessageTs: messageTs, userMessage,
       });
     } finally {
-      if (browserHeld) releaseBrowser();
+      if (browserHeld === BROWSER_DEVICE_SERVER) releaseBrowser();
+      else if (browserHeld) releaseDeviceBrowser(browserHeld);
       sessionLease?.release();
       finishTurnTracking(channel, turnTrackingToken);
       // The turn is over (successfully, in error, or cancelled): no preview may outlive it.

@@ -34,7 +34,7 @@ import { TodoRail, type TodoRailLanguage } from '@/features/workbench/TodoRail';
 import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
 import { useVocab } from '@/i18n';
-import { assistantTurnCopyTargets, regenNoteIndexes, messageTimeLabel, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
+import { assistantTurnCopyTargets, regenNoteIndexes, messageTimeLabel, subagentModelLabel, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import {
   interactionView,
@@ -760,6 +760,11 @@ function MSubagentBlock({ row, unit }: {
         <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>
           {row.agentType || L.subagentFallbackLabel}
         </span>
+        {row.model ? (
+          <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-muted-3)', border: '1px solid var(--proto-line-2)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>
+            {subagentModelLabel(row.model)}
+          </span>
+        ) : null}
         <span style={{ font: `400 11px ${MONO}`, color: MC.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{label}</span>
         <span style={{ font: `400 10px ${MONO}`, flex: 'none' }}>{`${row.toolCount} ${unit}`}</span>
       </div>
@@ -1184,6 +1189,50 @@ export function ProfileSheet({ items, copy, onClose, onPick }: { items: ProfileS
   );
 }
 
+export interface BrowserSheetItem {
+  /** null is the "off" row. */
+  device: string | null;
+  label: string;
+  sub: string;
+}
+
+/**
+ * Which machine's browser this session will drive. The device matters as much as the switch: a
+ * browser on the server draws on the server's display, while one on your own laptop opens a window
+ * in front of you and inherits the logins already in that profile.
+ */
+export function BrowserSheet({ items, title, current, onClose, onPick }: {
+  items: BrowserSheetItem[];
+  title: string;
+  current: string | null;
+  onClose: () => void;
+  onPick: (device: string | null) => void;
+}): JSX.Element {
+  return (
+    <MBottomSheet onClose={onClose}>
+      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}>
+        <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{title}</span>
+      </div>
+      <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>
+        {items.map((it, i) => (
+          <div
+            key={it.device ?? '__off__'}
+            data-device={it.device ?? '__off__'}
+            onClick={() => onPick(it.device)}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: i < items.length - 1 ? '1px solid var(--proto-line-soft)' : undefined, cursor: 'pointer' }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{it.label}</span>
+              {it.sub && <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 3 }}>{it.sub}</div>}
+            </div>
+            {it.device === current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
+          </div>
+        ))}
+      </div>
+    </MBottomSheet>
+  );
+}
+
 // ── the ＋ leading button + profile chip (composer chrome) ────────────────────
 function PlusButton({ onClick }: { onClick: () => void }): JSX.Element {
   return (
@@ -1217,13 +1266,13 @@ function ProfileChip({ label, onClick }: { label: string; onClick: () => void })
  * session. It cannot be changed once the session exists, because the agent's tool set is fixed when
  * its process spawns — offering a switch there would promise something the running process cannot do.
  */
-function BrowserChip({ device, label, onToggle }: {
+function BrowserChip({ device, label, onOpen }: {
   device: string | null;
   label: string;
-  onToggle?: () => void;
+  onOpen?: () => void;
 }): JSX.Element {
   const active = device !== null;
-  const editable = typeof onToggle === 'function';
+  const editable = typeof onOpen === 'function';
   return (
     <button
       type="button"
@@ -1231,7 +1280,7 @@ function BrowserChip({ device, label, onToggle }: {
       data-active={active ? 'true' : 'false'}
       data-editable={editable ? 'true' : 'false'}
       disabled={!editable}
-      onClick={onToggle}
+      onClick={onOpen}
       style={{
         display: 'flex', alignItems: 'center', gap: 6, flex: 'none',
         border: `1px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`,
@@ -1243,6 +1292,7 @@ function BrowserChip({ device, label, onToggle }: {
       <span style={{ font: `600 10px ${MONO}`, color: active ? MC.run : MC.muted }}>
         {active ? `${label} · ${device}` : label}
       </span>
+      {editable && <span style={{ fontSize: 7.5, color: MC.muted }}>▾</span>}
     </button>
   );
 }
@@ -1329,7 +1379,13 @@ export interface MChatViewProps {
    *  rendered in tests without a LangProvider. */
   browserChipLabel?: string;
   /** Present only on a draft — the tool set is fixed when the agent process spawns. */
-  onToggleBrowser?: () => void;
+  onOpenBrowser?: () => void;
+  browserSheet?: {
+    items: BrowserSheetItem[];
+    title: string;
+    onClose: () => void;
+    onPick: (device: string | null) => void;
+  };
   contextUsage?: SessionContextUsage | null;
   contextUsageSupported?: boolean;
   contextUsageLang?: 'en' | 'zh';
@@ -1436,11 +1492,11 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       {/* Composer meta row: profile on the left, compact context usage right-aligned. */}
       <div data-mobile-composer-meta-row="true" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 7px' }}>
         <ProfileChip label={props.profileChipLabel} onClick={props.onOpenProfile} />
-        {(props.onToggleBrowser || props.browserDevice) && (
+        {(props.onOpenBrowser || props.browserDevice) && (
           <BrowserChip
             device={props.browserDevice ?? null}
             label={props.browserChipLabel ?? 'Browser'}
-            onToggle={props.onToggleBrowser}
+            onOpen={props.onOpenBrowser}
           />
         )}
         {(props.contextUsageSupported || props.contextUsage != null) ? (
@@ -1561,6 +1617,15 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       )}
       {props.attachMenuOpen && (
         <AttachMenu copy={copy} onClose={props.onAttachClose} onCamera={props.onCamera} onLibrary={props.onLibrary} onFile={props.onFile} />
+      )}
+      {props.browserSheet && (
+        <BrowserSheet
+          items={props.browserSheet.items}
+          title={props.browserSheet.title}
+          current={props.browserDevice ?? null}
+          onClose={props.browserSheet.onClose}
+          onPick={props.browserSheet.onPick}
+        />
       )}
       {props.profileSheet && (
         <ProfileSheet items={props.profileSheet.items} copy={copy} onClose={props.profileSheet.onClose} onPick={props.profileSheet.onPick} />

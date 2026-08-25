@@ -204,6 +204,8 @@ export const enBase = {
   wbBrowserOff: 'Give this session browser control (Chrome on the server). Only new sessions can opt in.',
   wbBrowserOn: 'This session controls Chrome on the server — take it over from your desktop session to log in.',
   wbBrowserFixed: 'This session was created with browser control. It cannot be changed — the tool set is fixed when the agent starts.',
+  wbBrowserOffOption: 'Off',
+  wbBrowserThisHost: 'this host',
   wbBrowserRunning: 'Chrome is running',
   wbBrowserStopped: 'Chrome starts on demand',
   wbBrowserAttached: 'it opens on the server\u2019s desktop{where} \u2014 connect to that desktop to take it over and log in.',

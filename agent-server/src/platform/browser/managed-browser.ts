@@ -54,6 +54,10 @@ let restartTimes: number[] = [];
  * asymmetric — starting Chrome for a backend that cannot drive it burns a browser nobody can use
  * and leaves the user staring at a window their agent cannot see.
  */
+/** The device name meaning "this host". Kept next to the local browser rather than in the remote
+ *  domain, because it is precisely the value that means "no device is involved". */
+export const BROWSER_DEVICE_SERVER = 'server';
+
 export function backendSupportsBrowser(backend: string, _claudeBackend?: string | null): boolean {
   return backend === 'claude' || backend === 'pi';
 }

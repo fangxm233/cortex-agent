@@ -2,11 +2,16 @@
 // output: pinned opt-in semantics for session-creation browser access
 // pos:    Specification for choosing browser control before a session exists
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
 import { BrowserOptInChip, DEFAULT_BROWSER_DEVICE } from './BrowserOptIn';
 import { ComposerActionRow } from './ComposerActionRow';
+
+beforeEach(() => {
+  // The menu reads the connected devices when it opens; no device is the ordinary case.
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, data: { devices: [] } }) })));
+});
 
 function renderChip(device: string | null, onChange = vi.fn()) {
   const renderer = create(
@@ -23,21 +28,35 @@ describe('BrowserOptInChip', () => {
     expect(chip.props['data-active']).toBe('false');
   });
 
-  it('turning it on names the device the browser will run on', () => {
-    const { chip, onChange } = renderChip(null);
-    act(() => chip.props.onClick());
+  it('offers a device menu rather than a bare toggle', () => {
+    // Where the browser runs matters as much as whether it runs: the server draws on the server's
+    // display, a device opens a window on the screen in front of you.
+    const { renderer, chip } = renderChip(null);
+    act(() => chip.props.onClick({ stopPropagation: () => {} }));
+    const rows = renderer.root.findAllByProps({ 'data-menu': 'browser' });
+    expect(rows).toHaveLength(1);
+  });
+
+  it('picking this host names it as the device', () => {
+    const { renderer, chip, onChange } = renderChip(null);
+    act(() => chip.props.onClick({ stopPropagation: () => {} }));
+    const row = renderer.root.findByProps({ 'data-device': DEFAULT_BROWSER_DEVICE });
+    act(() => row.props.onClick({ stopPropagation: () => {} }));
     expect(onChange).toHaveBeenCalledWith(DEFAULT_BROWSER_DEVICE);
   });
 
   it('turning it off clears the device rather than keeping a stale one', () => {
-    const { chip, onChange } = renderChip(DEFAULT_BROWSER_DEVICE);
-    act(() => chip.props.onClick());
+    const { renderer, chip, onChange } = renderChip(DEFAULT_BROWSER_DEVICE);
+    act(() => chip.props.onClick({ stopPropagation: () => {} }));
+    const row = renderer.root.findByProps({ 'data-device': '__off__' });
+    act(() => row.props.onClick({ stopPropagation: () => {} }));
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
   it('shows which device is selected once on', () => {
     const { chip } = renderChip('server');
-    expect(JSON.stringify(chip.props.children)).toContain('server');
+    // The chip's own label, not the menu — the menu is only built once it is opened.
+    expect(chip.props.children.find((c: unknown) => typeof c === 'string')).toContain('server');
   });
 });
 

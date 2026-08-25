@@ -204,6 +204,8 @@ export const zhBase = {
   wbBrowserOff: '让这个会话可以操作浏览器（服务器上的 Chrome）。只有新会话能开启。',
   wbBrowserOn: '这个会话可以操作服务器上的 Chrome —— 需要登录时从你的桌面接管它。',
   wbBrowserFixed: '这个会话是带浏览器建的。不能改 —— 工具集在 agent 启动时就固定了。',
+  wbBrowserOffOption: '关闭',
+  wbBrowserThisHost: '本机',
   wbBrowserRunning: 'Chrome 正在运行',
   wbBrowserStopped: 'Chrome 按需启动',
   wbBrowserAttached: '它开在服务器的桌面{where} \u2014\u2014 连过去接管它就能登录。',
