@@ -6,7 +6,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | filename | role | function |
 |---|---|---|
 | WorkbenchPage.tsx | entry | Composes panes and global workbench actions |
-| LeftRail.tsx | view | Project, session and SCHEDULED sibling navigation zones |
+| LeftRail.tsx | view | Bounded project, session and SCHEDULED navigation zones |
 | left-rail-projects.ts | vm | Builds ordered project rows with badges |
 | left-rail-projects.test.ts | test | Tests project activity ordering, hotkeys and attention counts |
 | project-menu.ts | vm | Counts per-project running and attention badges |

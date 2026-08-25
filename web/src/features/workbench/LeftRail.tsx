@@ -1,5 +1,5 @@
 // input:  tRPC data, shared project/session/modal contexts
-// output: desktop rail with project/session/schedule zones
+// output: desktop rail with bounded project/session/schedule zones
 // pos:    Owns workbench navigation and global-overlay triggers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -496,7 +496,11 @@ export function LeftRail(): JSX.Element {
             )
           )}
         </div>
-        {schedOpen && scheduleRows.map(renderScheduleRow)}
+        {schedOpen && (
+          <div data-scroll="scheduled" style={{ maxHeight: 230, overflowY: 'auto' }}>
+            {scheduleRows.map(renderScheduleRow)}
+          </div>
+        )}
       </div>
     );
   };
