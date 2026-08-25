@@ -15,6 +15,9 @@ import { zhDivider } from '@/mobile/screens/mobile-session-vm';
 export interface MobileChatRowOpts {
   /** The session is actively producing output (the live-stream idle heuristic). */
   streaming?: boolean;
+  /** The session is genuinely executing — decides whether a subagent block still reads as running.
+   *  Unlike `streaming` this does not drop during a quiet gap inside a turn. */
+  running?: boolean;
   /** Text accumulated for the assistant block being written right now (token-level streaming). */
   streamingText?: string | null;
   /** Messages written into the running turn's backend that the model has not read yet. */
@@ -44,6 +47,7 @@ export function buildMobileChatRows(
 ): ChatRow[] {
   return buildTranscriptRows(transcript, liveTail, {
     streaming: opts.streaming,
+    running: opts.running,
     streamingText: opts.streamingText,
     pendingUser: opts.pendingUser,
     stripScheduledPrefix: opts.stripScheduledPrefix,

@@ -265,6 +265,14 @@ export type ChatRow =
 export interface BuildOpts {
   /** True while the session is actively producing output — marks the last assistant row's caret. */
   streaming?: boolean;
+  /**
+   * Whether the session is genuinely executing (status snapshot + delta), which is what decides
+   * if a subagent block may still show as running. NOT the same as `streaming`: that one is a
+   * 2.5s quiet-gap timer that drops between events mid-turn, so deriving the block's state from
+   * it made the badge blink on and off for the whole run. Falls back to `streaming` when the
+   * caller has no status of its own.
+   */
+  running?: boolean;
   /** Injected clock for deterministic day-relative divider labels (defaults to Date.now). */
   now?: Date;
   /**
@@ -676,9 +684,10 @@ export function buildTranscriptRows(
     }
   }
   flushAll();
-  // Anything still open when the stream is settled was finished by a turn that ended, not by a
+  // Anything still open when the turn is over was finished by a turn that ended, not by a
   // main-agent row we can point at. Only a live session may leave a block genuinely running.
-  if (!opts.streaming && !opts.streamingText) closeOpenBlocks();
+  const sessionLive = opts.running ?? (opts.streaming === true || !!opts.streamingText);
+  if (!sessionLive) closeOpenBlocks();
 
   // The in-flight block, after every persisted/live message and after any tool row of this turn.
   // Flagged `preview`: this is the only row whose text is still arriving, so it is the only one the

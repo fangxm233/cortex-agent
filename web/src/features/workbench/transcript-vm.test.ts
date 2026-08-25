@@ -919,6 +919,23 @@ describe('buildTranscriptRows — native subagent grouping', () => {
   const msg = (o: Partial<Parameters<typeof buildTranscriptRows>[0]['turns'][0]['messages'][0]> & { type: 'user' | 'assistant' | 'tool' }) =>
     ({ text: null, toolName: null, toolInput: null, ts: T, elapsedMs: null, ...o }) as any;
 
+  it('keeps the block running through a quiet gap that clears the streaming flag', () => {
+    // `streaming` is a 2.5s quiet-gap timer, so it drops between events INSIDE a live turn. Deriving
+    // the block's state from it made the badge blink on and off for the whole run; `running` is the
+    // session's real execution state and does not flicker.
+    const turns = [{ turnIndex: 0, messages: [
+      msg({ type: 'user', text: 'go' }),
+      msg({ type: 'tool', toolName: 'Task', toolInput: 'survey', subagentId: 'tu_q' }),
+      msg({ type: 'tool', toolName: 'Grep', toolInput: 'x', subagentId: 'tu_q' }),
+    ] }];
+    const quiet = buildTranscriptRows(tx(turns), [], { streaming: false, running: true });
+    expect((quiet.find((r) => r.kind === 'subagent') as any).status).toBe('running');
+
+    // Once the session is no longer executing the block settles, regardless of the timer.
+    const settled = buildTranscriptRows(tx(turns), [], { streaming: true, running: false });
+    expect((settled.find((r) => r.kind === 'subagent') as any).status).toBe('done');
+  });
+
   it('keeps a backgrounded subagent running while the main agent works alongside it', () => {
     // `run_in_background` lets the main agent keep calling tools while the subagent runs, so its
     // rows interleave. The block must reopen rather than freeze at 'done' or split in two.
@@ -931,7 +948,7 @@ describe('buildTranscriptRows — native subagent grouping', () => {
         msg({ type: 'tool', toolName: 'Read', toolInput: 'y', subagentId: 'tu_bg' }),
       ] }]),
       [],
-      { streaming: true },
+      { running: true },
     );
     const blocks = rows.filter((r) => r.kind === 'subagent') as Array<Extract<ChatRow, { kind: 'subagent' }>>;
     expect(blocks).toHaveLength(1);

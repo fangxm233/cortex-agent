@@ -132,10 +132,11 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
     () => buildTranscriptRows(transcript, liveTail, {
-      streaming, streamingText, pendingUser: optimistic.pendingUser, formatDivider: formatDividerFromVocab(L),
+      streaming, running, streamingText, pendingUser: optimistic.pendingUser,
+      formatDivider: formatDividerFromVocab(L),
       stripScheduledPrefix: !!active?.scheduleId || isScheduledRun,
     }),
-    [transcript, liveTail, streaming, streamingText, optimistic.pendingUser, L, active?.scheduleId, isScheduledRun],
+    [transcript, liveTail, streaming, running, streamingText, optimistic.pendingUser, L, active?.scheduleId, isScheduledRun],
   );
   const turns = turnCount(transcriptQuery.data);
   // The composer status line shows the REAL agent-turn count (the number that grows as the agent

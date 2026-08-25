@@ -315,10 +315,10 @@ export function MChatScreen(): JSX.Element {
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
     () => buildMobileChatRows(transcript, liveTail, {
-      streaming, streamingText, pendingUser: optimistic.pendingUser,
+      streaming, running, streamingText, pendingUser: optimistic.pendingUser,
       stripScheduledPrefix: !!active?.scheduleId || isScheduledRun,
     }),
-    [transcript, liveTail, streaming, streamingText, optimistic.pendingUser, active?.scheduleId, isScheduledRun],
+    [transcript, liveTail, streaming, running, streamingText, optimistic.pendingUser, active?.scheduleId, isScheduledRun],
   );
   const turns = resolveTurns(liveTurns, active?.numTurns ?? null);
   const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);

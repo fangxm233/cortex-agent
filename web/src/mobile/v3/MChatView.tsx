@@ -44,7 +44,7 @@ import {
   type AskAnswerState,
 } from '@/features/workbench/interaction-vm';
 import { toolChips } from '@/mobile/screens/mobile-session-vm';
-import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
+import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { downloadFile } from '@/lib/files';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { useDocViewer } from '@/features/media/DocViewer';
@@ -752,12 +752,15 @@ function MSubagentBlock({ row, unit }: {
         style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', fontSize: 11.5, color: MC.faint, minWidth: 0 }}
       >
         <span style={{ fontSize: 9, flex: 'none' }}>{expanded ? '\u25be' : '\u25b8'}</span>
+        <MDot
+          color={row.status === 'running' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}
+          pulse={row.status === 'running'}
+        />
         <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>
           {row.agentType || L.subagentFallbackLabel}
         </span>
         <span style={{ font: `400 11px ${MONO}`, color: MC.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{label}</span>
         <span style={{ font: `400 10px ${MONO}`, flex: 'none' }}>{`${row.toolCount} ${unit}`}</span>
-        {row.status === 'running' ? <span style={{ font: `400 10px ${MONO}`, flex: 'none' }}>{L.subagentRunning}</span> : null}
       </div>
       {expanded && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 11px 10px', borderTop: '1px solid var(--proto-line-soft)' }}>

@@ -20,6 +20,17 @@ const descStyle: CSSProperties = {
 const metaStyle: CSSProperties = {
   font: `400 10.5px ${mono}`, color: 'var(--proto-muted)', flex: 'none',
 };
+
+/** Same dot the composer status line uses, so "this is still working" reads identically wherever it
+ *  appears. It holds its slot when idle rather than unmounting, so expanding or finishing a block
+ *  never shifts the header text sideways. */
+function statusDotStyle(running: boolean): CSSProperties {
+  return {
+    width: 6, height: 6, borderRadius: '50%', flex: 'none',
+    background: running ? 'var(--proto-accent)' : 'var(--proto-line-3)',
+    ...(running ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
+  };
+}
 const bodyStyle: CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 16,
   padding: '10px 13px 12px',
@@ -71,10 +82,13 @@ export function SubagentBlock({ agentType, description, status, toolCount, child
         style={headerStyle(hover)}
       >
         <span style={{ fontSize: 9, color: 'var(--proto-faint)', flex: 'none' }}>{expanded ? '▾' : '▸'}</span>
+        <span
+          style={statusDotStyle(status === 'running')}
+          aria-label={status === 'running' ? L.subagentRunning : undefined}
+        />
         <span style={typeChipStyle}>{agentType || L.subagentFallbackLabel}</span>
         <span style={descStyle}>{label}</span>
         <span style={metaStyle}>{tools}</span>
-        {status === 'running' ? <span style={metaStyle}>{L.subagentRunning}</span> : null}
       </div>
       {expanded ? <div style={bodyStyle}>{children}</div> : null}
     </div>

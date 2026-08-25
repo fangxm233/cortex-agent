@@ -27,16 +27,17 @@ export function ThreadStepChat({ sessionId, live }: { sessionId: string | null; 
   });
 
   // Only subscribe to the live stream for the running step (passing '' disables the subscription).
-  const { liveTail, streaming } = useSessionMessageLiveSync(live && sessionId ? sessionId : '');
+  const { liveTail, streaming, running } = useSessionMessageLiveSync(live && sessionId ? sessionId : '');
 
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
     () =>
       buildTranscriptRows(transcript, live ? liveTail : [], {
         streaming: live && streaming,
+        running: live && running,
         formatDivider: formatDividerFromVocab(L),
       }),
-    [transcript, liveTail, streaming, live, L],
+    [transcript, liveTail, streaming, running, live, L],
   );
 
   const muted: React.CSSProperties = { fontSize: 11.5, color: 'var(--proto-muted-3)', padding: '2px 0' };
