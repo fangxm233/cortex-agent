@@ -12,6 +12,8 @@ import {
   EMPTY_HISTORY,
   VIEWPORT_PRESETS,
   WEB_SANDBOX,
+  FRAME_REFUSED_HINT,
+  frameRefusedEmbedding,
   canGoBack,
   canGoForward,
   currentUrl,
@@ -45,12 +47,29 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
   const [reloadNonce, setReloadNonce] = useState(0);
   const [viewport, setViewport] = useState(VIEWPORT_PRESETS[0]);
   const [rejected, setRejected] = useState<string | null>(null);
+  /** Set when a load event fires but nothing was actually displayed — see frameRefusedEmbedding. */
+  const [refused, setRefused] = useState(false);
   const [portsOpen, setPortsOpen] = useState(false);
   const [ports, setPorts] = useState<ListeningPort[] | null>(null);
   const [portsError, setPortsError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
 
   const url = currentUrl(history);
+
+  // The flag describes ONE frame instance; a new url or a reload must start from "unknown" again.
+  useEffect(() => { setRefused(false); }, [url, reloadNonce]);
+
+  const onFrameLoad = (): void => {
+    let documentReachable = false;
+    try {
+      documentReachable = !!frameRef.current?.contentDocument;
+    } catch {
+      // A SecurityError means a real cross-origin document is in there — the load succeeded.
+      documentReachable = false;
+    }
+    setRefused(frameRefusedEmbedding({ loaded: true, documentReachable }));
+  };
 
   // An item swapped in from outside (a future agent push, or a second open) navigates the pane.
   useEffect(() => {
@@ -242,6 +261,20 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
         </div>
       )}
 
+      {refused && url !== null && (
+        <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-gray)', color: 'var(--proto-muted-2)', font: `500 10.5px ${MONO}` }}>
+          <span>{FRAME_REFUSED_HINT}</span>
+          <button
+            type="button"
+            data-action="open-external"
+            onClick={() => void openExternalUrl(url)}
+            style={{ border: '1px solid var(--proto-line)', borderRadius: 6, background: 'transparent', color: 'var(--proto-accent)', font: `600 10.5px ${MONO}`, padding: '1px 7px', cursor: 'pointer' }}
+          >
+            ↗
+          </button>
+        </div>
+      )}
+
       {rejected && (
         <div style={{ flex: 'none', padding: '6px 10px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-gray)', color: 'var(--proto-danger, #c0392b)', font: `500 10.5px ${MONO}` }}>
           {rejected}
@@ -257,6 +290,8 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
         ) : (
           <iframe
             key={`${url}#${reloadNonce}`}
+            ref={frameRef}
+            onLoad={onFrameLoad}
             src={url}
             title={item.name}
             sandbox={WEB_SANDBOX}

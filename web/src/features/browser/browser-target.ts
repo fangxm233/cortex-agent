@@ -95,6 +95,27 @@ export function previewOriginConflict(url: string, origins: (string | undefined 
  *  granted: a framed page must never be able to navigate the whole app away. */
 export const WEB_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups';
 
+// ── Embedding refusal ─────────────────────────────────────────────────────────
+
+/**
+ * Did the frame refuse to embed the target?
+ *
+ * A site opts out of framing with `X-Frame-Options` or a `frame-ancestors` CSP, and the engine
+ * enforces that below us — the frame simply never navigates. The observable difference: a page that
+ * really loaded is cross-origin, and a cross-origin `contentDocument` reads as null by spec, while a
+ * blocked frame is still sitting on the initial same-origin blank document we can touch. So a load
+ * event we can still see through means nothing was ever displayed.
+ *
+ * `previewOriginConflict` already refuses same-origin targets, which is what makes this test
+ * unambiguous: a reachable document here can only mean the frame stayed put.
+ */
+export function frameRefusedEmbedding(probe: { loaded: boolean; documentReachable: boolean }): boolean {
+  return probe.loaded && probe.documentReachable;
+}
+
+/** Shown when the target refuses framing. Names the cause, because a blank pane reads as OUR bug. */
+export const FRAME_REFUSED_HINT = 'This site refuses to be embedded (X-Frame-Options). Open it in a real browser:';
+
 // ── History ───────────────────────────────────────────────────────────────────
 // The pane owns its own back/forward stack. A cross-origin iframe's internal history is invisible
 // to us (and `history.back()` on it is not reachable), so navigation means re-pointing `src`.

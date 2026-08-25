@@ -15,6 +15,8 @@ import {
   normalizeBrowserUrl,
   previewOriginConflict,
   pushHistory,
+  frameRefusedEmbedding,
+  FRAME_REFUSED_HINT,
 } from './browser-target';
 
 describe('normalizeBrowserUrl', () => {
@@ -128,5 +130,27 @@ describe('browserItemName', () => {
   it('shows host:port and a non-root path', () => {
     expect(browserItemName('http://127.0.0.1:5173/')).toBe('127.0.0.1:5173');
     expect(browserItemName('http://localhost:3000/admin')).toBe('localhost:3000/admin');
+  });
+});
+
+describe('frameRefusedEmbedding', () => {
+  it('reads a still-reachable document after load as a refusal', () => {
+    // A page that really loaded is cross-origin, so its contentDocument is null. Reaching one means
+    // the frame never left the blank document it started on.
+    expect(frameRefusedEmbedding({ loaded: true, documentReachable: true })).toBe(true);
+  });
+
+  it('treats an unreachable document as a successful load', () => {
+    expect(frameRefusedEmbedding({ loaded: true, documentReachable: false })).toBe(false);
+  });
+
+  it('claims nothing before the load event', () => {
+    // Mid-load the frame is legitimately still on the blank document; calling that a refusal would
+    // flash the banner on every navigation.
+    expect(frameRefusedEmbedding({ loaded: false, documentReachable: true })).toBe(false);
+  });
+
+  it('names the cause and does not blame the pane', () => {
+    expect(FRAME_REFUSED_HINT).toMatch(/X-Frame-Options/);
   });
 });
