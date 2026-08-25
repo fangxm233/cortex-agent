@@ -569,7 +569,7 @@ export const zhBase = {
   stNavAdvanced: '高级',
 
   // ── Settings section meta subs ──
-  stMetaAppearanceSub: '语言、浅色/深色/跟随系统主题与强调色。即时生效，并记住在本设备上。',
+  stMetaAppearanceSub: '语言、主题、底色、强调色与动效。即时生效，并记住在本设备上。',
   stMetaPlatformSub: 'config/.env — 守护进程启动时加载一次；唯一需要重启的配置',
   stMetaAccountsSub: 'Claude Code 凭据与 auth.status 返回的全部 PI provider',
   stMetaProfilesSub: 'config/profiles.json — 每次 agent 启动时读取，无需重启',
@@ -599,6 +599,25 @@ export const zhBase = {
   stAccentOrange: '橙色',
   stAccentCustom: '自定义强调色色相',
   stAccentReset: '恢复默认',
+  stAccentIntensityLabel: '强调色浓度',
+  stAccentIntensityHint: '调整强调色的鲜艳程度。在默认靛蓝上调整时会自动转为自定义强调色，否则不会生效。',
+  stAccentIntensitySoft: '柔和',
+  stAccentIntensityNormal: '标准',
+  stAccentIntensityVivid: '鲜明',
+
+  // ── Appearance / surface tone control ──
+  stSurfaceLabel: '底色',
+  stSurfaceHint: '卡片背后的底色。高对比在浅色下拉开卡片与背景的距离，在深色下使用适合 OLED 的纯黑。',
+  stSurfaceDefault: '默认',
+  stSurfaceNeutral: '中性',
+  stSurfaceContrast: '高对比',
+
+  // ── Appearance / motion control ──
+  stMotionLabel: '动效',
+  stMotionHint: '面板、弹窗与消息的动画。跟随系统会读取操作系统的"减弱动态效果"设置。',
+  stMotionSystem: '跟随系统',
+  stMotionFull: '完整',
+  stMotionReduced: '减弱',
 
   // ── Appearance / language control ──
   stLangLabel: '语言',

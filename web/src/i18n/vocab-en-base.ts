@@ -569,7 +569,7 @@ export const enBase = {
   stNavAdvanced: 'Advanced',
 
   // ── Settings section meta subs ──
-  stMetaAppearanceSub: 'Language, light/dark/system theme, and accent color. Applies instantly and is remembered on this device.',
+  stMetaAppearanceSub: 'Language, theme, background tone, accent color, and motion. Applies instantly and is remembered on this device.',
   stMetaPlatformSub: 'config/.env — loaded once at daemon startup; the only restart-required config',
   stMetaAccountsSub: 'Claude Code credentials and every PI provider reported by auth.status',
   stMetaProfilesSub: 'config/profiles.json — read on every agent spawn, no restart needed',
@@ -599,6 +599,25 @@ export const enBase = {
   stAccentOrange: 'Orange',
   stAccentCustom: 'Custom accent hue',
   stAccentReset: 'Reset',
+  stAccentIntensityLabel: 'Accent intensity',
+  stAccentIntensityHint: 'Scales how saturated the accent is. Leaving the default indigo adopts it as a custom accent so the change is visible.',
+  stAccentIntensitySoft: 'Soft',
+  stAccentIntensityNormal: 'Normal',
+  stAccentIntensityVivid: 'Vivid',
+
+  // ── Appearance / surface tone control ──
+  stSurfaceLabel: 'Background tone',
+  stSurfaceHint: 'How the surround behind the cards is painted. Contrast separates cards further in light mode and goes true black on OLED in dark mode.',
+  stSurfaceDefault: 'Default',
+  stSurfaceNeutral: 'Neutral',
+  stSurfaceContrast: 'Contrast',
+
+  // ── Appearance / motion control ──
+  stMotionLabel: 'Motion',
+  stMotionHint: 'Panel, modal, and message animations. System follows the OS reduce-motion setting.',
+  stMotionSystem: 'System',
+  stMotionFull: 'Full',
+  stMotionReduced: 'Reduced',
 
   // ── Appearance / language control ──
   stLangLabel: 'Language',

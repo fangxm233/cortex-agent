@@ -1,16 +1,32 @@
 // input:  localStorage, matchMedia, document root
-// output: Theme and accent resolve, persist, apply, and watch helpers
+// output: Theme, accent, surface, and motion resolve/persist/apply helpers
 // pos:    Device-local appearance preference utilities
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 export type Theme = 'light' | 'dark' | 'system';
 export type ResolvedTheme = Exclude<Theme, 'system'>;
 export type AccentHue = number | null;
+/** Background tone: the default cast, a neutral grey, or a high-separation surround (OLED black in dark). */
+export type SurfaceTone = 'default' | 'neutral' | 'contrast';
+/** Chroma scale applied to every derived accent step. */
+export type AccentIntensity = 'soft' | 'normal' | 'vivid';
+/** Animation policy; `system` defers to `prefers-reduced-motion`. */
+export type MotionMode = 'system' | 'full' | 'reduced';
 
 export const THEME_STORAGE_KEY = 'cortex.theme';
 export const ACCENT_HUE_STORAGE_KEY = 'cortex.accent-hue';
+export const SURFACE_TONE_STORAGE_KEY = 'cortex.surface';
+export const ACCENT_INTENSITY_STORAGE_KEY = 'cortex.accent-intensity';
+export const MOTION_STORAGE_KEY = 'cortex.motion';
 export const DEFAULT_THEME: Theme = 'light';
 export const DEFAULT_ACCENT_HUE = 274;
+export const DEFAULT_SURFACE_TONE: SurfaceTone = 'default';
+export const DEFAULT_ACCENT_INTENSITY: AccentIntensity = 'normal';
+export const DEFAULT_MOTION_MODE: MotionMode = 'system';
+
+const SURFACE_TONES: readonly SurfaceTone[] = ['default', 'neutral', 'contrast'];
+const ACCENT_INTENSITIES: readonly AccentIntensity[] = ['soft', 'normal', 'vivid'];
+const MOTION_MODES: readonly MotionMode[] = ['system', 'full', 'reduced'];
 
 /** The persisted theme choice, else the OS `prefers-color-scheme`, else the default. Pure over its
  *  inputs so it is testable without a DOM. */
@@ -80,6 +96,66 @@ export function storeAccentHue(hue: AccentHue): void {
   }
 }
 
+function parseOption<T extends string>(stored: string | null, allowed: readonly T[], fallback: T): T {
+  return allowed.includes(stored as T) ? (stored as T) : fallback;
+}
+
+function readOption<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    return parseOption(window.localStorage.getItem(key), allowed, fallback);
+  } catch {
+    return fallback;
+  }
+}
+
+/** Persists `value`, dropping the entry entirely when it is the default (keeps localStorage clean). */
+function storeOption<T extends string>(key: string, value: T, fallback: T): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (value === fallback) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function parseStoredSurfaceTone(stored: string | null): SurfaceTone {
+  return parseOption(stored, SURFACE_TONES, DEFAULT_SURFACE_TONE);
+}
+
+export function readStoredSurfaceTone(): SurfaceTone {
+  return readOption(SURFACE_TONE_STORAGE_KEY, SURFACE_TONES, DEFAULT_SURFACE_TONE);
+}
+
+export function storeSurfaceTone(tone: SurfaceTone): void {
+  storeOption(SURFACE_TONE_STORAGE_KEY, tone, DEFAULT_SURFACE_TONE);
+}
+
+export function parseStoredAccentIntensity(stored: string | null): AccentIntensity {
+  return parseOption(stored, ACCENT_INTENSITIES, DEFAULT_ACCENT_INTENSITY);
+}
+
+export function readStoredAccentIntensity(): AccentIntensity {
+  return readOption(ACCENT_INTENSITY_STORAGE_KEY, ACCENT_INTENSITIES, DEFAULT_ACCENT_INTENSITY);
+}
+
+export function storeAccentIntensity(intensity: AccentIntensity): void {
+  storeOption(ACCENT_INTENSITY_STORAGE_KEY, intensity, DEFAULT_ACCENT_INTENSITY);
+}
+
+export function parseStoredMotionMode(stored: string | null): MotionMode {
+  return parseOption(stored, MOTION_MODES, DEFAULT_MOTION_MODE);
+}
+
+export function readStoredMotionMode(): MotionMode {
+  return readOption(MOTION_STORAGE_KEY, MOTION_MODES, DEFAULT_MOTION_MODE);
+}
+
+export function storeMotionMode(mode: MotionMode): void {
+  storeOption(MOTION_STORAGE_KEY, mode, DEFAULT_MOTION_MODE);
+}
+
 export function watchSystemTheme(onChange: (prefersDark: boolean) => void): () => void {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {};
   const query = window.matchMedia('(prefers-color-scheme: dark)');
@@ -118,4 +194,29 @@ export function applyAccentHue(hue: AccentHue): void {
     root.style.setProperty('--accent-hue', String(hue));
   }
   syncBrowserThemeColor();
+}
+
+/** Surface tone repaints the base surround, so the browser chrome color is re-read after it. */
+export function applySurfaceTone(tone: SurfaceTone): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (tone === 'default') root.removeAttribute('data-surface');
+  else root.setAttribute('data-surface', tone);
+  syncBrowserThemeColor();
+}
+
+export function applyAccentIntensity(intensity: AccentIntensity): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (intensity === 'normal') root.removeAttribute('data-accent-intensity');
+  else root.setAttribute('data-accent-intensity', intensity);
+  syncBrowserThemeColor();
+}
+
+/** `system` leaves the attribute off so the `prefers-reduced-motion` media rule governs. */
+export function applyMotionMode(mode: MotionMode): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (mode === 'system') root.removeAttribute('data-motion');
+  else root.setAttribute('data-motion', mode);
 }

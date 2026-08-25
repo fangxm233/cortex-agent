@@ -1,4 +1,4 @@
-// input:  theme/accent persistence, DOM application, system watcher
+// input:  theme/accent/surface/motion persistence, DOM application, watcher
 // output: Regression coverage for device-local appearance preferences
 // pos:    Unit tests for appearance preference utilities
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -7,14 +7,38 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_THEME,
   applyAccentHue,
+  applyAccentIntensity,
+  applyMotionMode,
+  applySurfaceTone,
   applyTheme,
   parseStoredAccentHue,
+  parseStoredAccentIntensity,
+  parseStoredMotionMode,
+  parseStoredSurfaceTone,
   readStoredAccentHue,
+  readStoredSurfaceTone,
   resolveEffectiveTheme,
   resolveInitialTheme,
   storeAccentHue,
+  storeSurfaceTone,
   watchSystemTheme,
 } from './theme';
+
+/** Stubs a document root that records attribute writes, for the `apply*` helpers. */
+function stubRoot() {
+  const setAttribute = vi.fn();
+  const removeAttribute = vi.fn();
+  vi.stubGlobal('document', {
+    documentElement: {
+      setAttribute,
+      removeAttribute,
+      style: { setProperty: vi.fn(), removeProperty: vi.fn() },
+    },
+    querySelector: vi.fn(() => null),
+  });
+  vi.stubGlobal('getComputedStyle', vi.fn(() => ({ getPropertyValue: () => '' })));
+  return { setAttribute, removeAttribute };
+}
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -110,6 +134,82 @@ describe('accent hue', () => {
     applyAccentHue(null);
     expect(removeAttribute).toHaveBeenCalledWith('data-accent');
     expect(removeProperty).toHaveBeenCalledWith('--accent-hue');
+  });
+});
+
+describe('surface tone', () => {
+  it('falls back to the default for anything outside the known tones', () => {
+    expect(parseStoredSurfaceTone('neutral')).toBe('neutral');
+    expect(parseStoredSurfaceTone('contrast')).toBe('contrast');
+    for (const invalid of [null, '', 'oled', 'default']) {
+      expect(parseStoredSurfaceTone(invalid)).toBe('default');
+    }
+  });
+
+  // The default is represented by the ABSENCE of the entry, so it is removed rather than written.
+  it('persists only non-default tones', () => {
+    const getItem = vi.fn(() => 'contrast');
+    const setItem = vi.fn();
+    const removeItem = vi.fn();
+    vi.stubGlobal('window', { localStorage: { getItem, setItem, removeItem } });
+
+    expect(readStoredSurfaceTone()).toBe('contrast');
+    storeSurfaceTone('neutral');
+    storeSurfaceTone('default');
+
+    expect(setItem).toHaveBeenCalledWith('cortex.surface', 'neutral');
+    expect(removeItem).toHaveBeenCalledWith('cortex.surface');
+  });
+
+  it('applies and clears the document attribute', () => {
+    const { setAttribute, removeAttribute } = stubRoot();
+
+    applySurfaceTone('contrast');
+    expect(setAttribute).toHaveBeenCalledWith('data-surface', 'contrast');
+
+    applySurfaceTone('default');
+    expect(removeAttribute).toHaveBeenCalledWith('data-surface');
+  });
+});
+
+describe('accent intensity', () => {
+  it('falls back to normal for anything outside the known levels', () => {
+    expect(parseStoredAccentIntensity('soft')).toBe('soft');
+    expect(parseStoredAccentIntensity('vivid')).toBe('vivid');
+    for (const invalid of [null, '', 'loud']) {
+      expect(parseStoredAccentIntensity(invalid)).toBe('normal');
+    }
+  });
+
+  it('applies and clears the document attribute', () => {
+    const { setAttribute, removeAttribute } = stubRoot();
+
+    applyAccentIntensity('vivid');
+    expect(setAttribute).toHaveBeenCalledWith('data-accent-intensity', 'vivid');
+
+    applyAccentIntensity('normal');
+    expect(removeAttribute).toHaveBeenCalledWith('data-accent-intensity');
+  });
+});
+
+describe('motion mode', () => {
+  it('falls back to system for anything outside the known modes', () => {
+    expect(parseStoredMotionMode('reduced')).toBe('reduced');
+    expect(parseStoredMotionMode('full')).toBe('full');
+    for (const invalid of [null, '', 'none']) {
+      expect(parseStoredMotionMode(invalid)).toBe('system');
+    }
+  });
+
+  // `system` leaves the attribute off so the prefers-reduced-motion media rule governs.
+  it('applies explicit modes and clears the attribute for system', () => {
+    const { setAttribute, removeAttribute } = stubRoot();
+
+    applyMotionMode('reduced');
+    expect(setAttribute).toHaveBeenCalledWith('data-motion', 'reduced');
+
+    applyMotionMode('system');
+    expect(removeAttribute).toHaveBeenCalledWith('data-motion');
   });
 });
 

@@ -5,6 +5,7 @@
 
 :root {
   --accent-hue: 274;
+  --accent-chroma: 1;
   --accent-main: #4655d4;
   --accent-soft: #eef0fa;
   --accent-border: #c9cff2;
@@ -341,23 +342,130 @@
 }
 
 :root[data-accent='custom'] {
-  --accent-main: oklch(0.52 0.18 var(--accent-hue));
-  --accent-soft: oklch(0.96 0.03 var(--accent-hue));
-  --accent-border: oklch(0.85 0.07 var(--accent-hue));
-  --accent-mid: oklch(0.72 0.12 var(--accent-hue));
-  --accent-strong: oklch(0.45 0.17 var(--accent-hue));
+  --accent-main: oklch(0.52 calc(0.18 * var(--accent-chroma)) var(--accent-hue));
+  --accent-soft: oklch(0.96 calc(0.03 * var(--accent-chroma)) var(--accent-hue));
+  --accent-border: oklch(0.85 calc(0.07 * var(--accent-chroma)) var(--accent-hue));
+  --accent-mid: oklch(0.72 calc(0.12 * var(--accent-chroma)) var(--accent-hue));
+  --accent-strong: oklch(0.45 calc(0.17 * var(--accent-chroma)) var(--accent-hue));
   --accent-badge: var(--accent-main);
-  --accent-focus: oklch(0.52 0.18 var(--accent-hue) / 0.1);
-  --accent-shadow: oklch(0.52 0.18 var(--accent-hue) / 0.12);
+  --accent-focus: oklch(0.52 calc(0.18 * var(--accent-chroma)) var(--accent-hue) / 0.1);
+  --accent-shadow: oklch(0.52 calc(0.18 * var(--accent-chroma)) var(--accent-hue) / 0.12);
 }
 
 [data-theme='dark'][data-accent='custom'] {
-  --accent-main: oklch(0.76 0.14 var(--accent-hue));
-  --accent-soft: oklch(0.68 0.14 var(--accent-hue) / 0.16);
-  --accent-border: oklch(0.42 0.08 var(--accent-hue));
-  --accent-mid: oklch(0.69 0.17 var(--accent-hue));
-  --accent-strong: oklch(0.69 0.17 var(--accent-hue));
-  --accent-badge: oklch(0.52 0.18 var(--accent-hue));
-  --accent-focus: oklch(0.76 0.14 var(--accent-hue) / 0.18);
-  --accent-shadow: oklch(0.76 0.14 var(--accent-hue) / 0.2);
+  --accent-main: oklch(0.76 calc(0.14 * var(--accent-chroma)) var(--accent-hue));
+  --accent-soft: oklch(0.68 calc(0.14 * var(--accent-chroma)) var(--accent-hue) / 0.16);
+  --accent-border: oklch(0.42 calc(0.08 * var(--accent-chroma)) var(--accent-hue));
+  --accent-mid: oklch(0.69 calc(0.17 * var(--accent-chroma)) var(--accent-hue));
+  --accent-strong: oklch(0.69 calc(0.17 * var(--accent-chroma)) var(--accent-hue));
+  --accent-badge: oklch(0.52 calc(0.18 * var(--accent-chroma)) var(--accent-hue));
+  --accent-focus: oklch(0.76 calc(0.14 * var(--accent-chroma)) var(--accent-hue) / 0.18);
+  --accent-shadow: oklch(0.76 calc(0.14 * var(--accent-chroma)) var(--accent-hue) / 0.2);
+}
+
+/* ── Accent intensity ─────────────────────────────────────────────────────────
+   Scales the chroma of every derived accent step. Theme-independent, so one
+   block each. Only the `data-accent='custom'` palette reads `--accent-chroma`;
+   the built-in indigo is a fixed brand color, so the provider adopts the
+   default hue as a custom accent whenever intensity leaves `normal`. */
+:root[data-accent-intensity='soft'] {
+  --accent-chroma: 0.55;
+}
+:root[data-accent-intensity='vivid'] {
+  --accent-chroma: 1.45;
+}
+
+/* ── Surface tone ─────────────────────────────────────────────────────────────
+   `neutral` drops the warm/blue cast of the default surround; `contrast` pushes
+   the surround away from the cards (light) and goes true black for OLED (dark).
+   The light blocks carry `:not([data-theme='dark'])` because `:root[data-…]`
+   outranks the bare `[data-theme='dark']` base block and would otherwise repaint
+   dark mode with light values. */
+:root:not([data-theme='dark'])[data-surface='neutral'] {
+  --surface-base: #e8eaee;
+  --proto-base: #e8eaee;
+  /* The mobile canvas carries a lilac cast by default; neutral flattens it to plain grey, so the
+     option is not a no-op on phones (where `--proto-base` is never the visible surround). */
+  --m-canvas: #f0f0f1;
+  --m-sheet-bg: #f6f6f7;
+}
+:root:not([data-theme='dark'])[data-surface='contrast'] {
+  --surface-base: #d8dae1;
+  --proto-base: #d8dae1;
+  --proto-line: #dcdfe7;
+  --proto-line-2: #e6e9ef;
+  --m-canvas: #e6e8ee;
+  --m-hairline: #dcdfe7;
+  --m-divider: #e9ebf0;
+  --m-card-border: #dcdfe7;
+}
+
+[data-theme='dark'][data-surface='neutral'] {
+  --surface-base: #151517;
+  --surface-canvas: #151517;
+  --surface-canvas-alt: #1a1a1c;
+  --surface-rail: #1a1a1c;
+  --surface-raised: #2a2a2d;
+  --proto-base: #151517;
+  --proto-card: #212124;
+  --proto-card-transparent: rgba(33, 33, 36, 0);
+  --proto-rail: #1a1a1c;
+  --proto-alt: #1c1c1f;
+  --proto-gray: #2a2a2d;
+  --proto-line: #2f2f33;
+  --proto-line-2: #252527;
+  --proto-line-3: #3d3d42;
+  --proto-line-4: #2c2c30;
+  --proto-line-soft: #252527;
+  --state-gray: #2a2a2d;
+  --pill-cancelled-bg: #2a2a2d;
+  --panel-translucent-bg: rgba(33, 33, 36, 0.98);
+  --cmdk-panel-bg: #212124;
+  --cmdk-row-selected: #2a2a2d;
+  --cmdk-row-hover: #252527;
+  --browser-theme-color: #151517;
+  --m-canvas: #101012;
+  --m-page-header: #101012;
+  --m-card: #1e1e21;
+  --m-tabbar-bg: #141416;
+  --m-sheet-bg: #1e1e21;
+  --m-hairline: #232326;
+  --m-divider: #262629;
+  --m-card-border: #2a2a2d;
+  --m-gray: #2a2a2d;
+}
+[data-theme='dark'][data-surface='contrast'] {
+  --surface-base: #000000;
+  --surface-canvas: #000000;
+  --surface-canvas-alt: #08090b;
+  --surface-rail: #08090b;
+  --surface-raised: #23262d;
+  --proto-base: #000000;
+  --proto-card: #14171d;
+  --proto-card-transparent: rgba(20, 23, 29, 0);
+  --proto-rail: #08090b;
+  --proto-alt: #0d0f13;
+  --proto-gray: #1d2027;
+  --proto-line: #262a33;
+  --proto-line-2: #1a1d23;
+  --proto-line-3: #383d47;
+  --proto-line-4: #23272f;
+  --proto-line-soft: #1a1d23;
+  --state-gray: #1d2027;
+  --pill-cancelled-bg: #1d2027;
+  --panel-translucent-bg: rgba(16, 19, 25, 0.98);
+  --cmdk-panel-bg: #14171d;
+  --cmdk-row-selected: #1d2027;
+  --cmdk-row-hover: #1a1d23;
+  --log-bg: #000000;
+  --browser-theme-color: #000000;
+  --m-canvas: #000000;
+  --m-page-header: #000000;
+  --m-card: #101319;
+  --m-tabbar-bg: #000000;
+  --m-sheet-bg: #101319;
+  --m-hairline: #1b1f26;
+  --m-divider: #202430;
+  --m-card-border: #23272f;
+  --m-gray: #1d2027;
 }

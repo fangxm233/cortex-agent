@@ -276,7 +276,7 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
       )}
 
       {rejected && (
-        <div style={{ flex: 'none', padding: '6px 10px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-gray)', color: 'var(--proto-danger, #c0392b)', font: `500 10.5px ${MONO}` }}>
+        <div style={{ flex: 'none', padding: '6px 10px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-gray)', color: 'var(--proto-danger)', font: `500 10.5px ${MONO}` }}>
           {rejected}
         </div>
       )}

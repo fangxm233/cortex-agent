@@ -1,5 +1,5 @@
-// input:  mobile settings/accounts models, appearance, UI primitives
-// output: fixed-header settings with appearance and config drill-ins
+// input:  mobile settings and accounts models, UI primitives
+// output: fixed-header settings with runtime state and config drill-ins
 // pos:    Presentational mobile settings view
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -7,8 +7,7 @@
 import { type ReactNode } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { BUILD_STAMP } from '@/lib/build-info';
-import { useVocab, type Lang } from '@/i18n';
-import { AccentPicker, type AccentHue, type AccentPickerCopy, type Theme } from '@/theme';
+import { useVocab } from '@/i18n';
 import type { MSettingsVm } from './m-settings-vm';
 import type { ProfileSheetItem } from './m-chat-vm';
 import type { AccountsSummaryVm } from './m-accounts-vm';
@@ -24,19 +23,7 @@ export interface MSettingsCopy {
   profileSheetTitle: string; // `全局默认 Profile`
   profileSheetCurrent: string; // `当前`
   profileSheetFooter: string; // `切换后新会话 / 新线程使用`
-  theme: string; // `主题`
-  themeLight: string; // `浅色`
-  themeDark: string; // `深色`
-  themeSystem: string; // `跟随系统`
-  accent: string;
-  accentDefault: string;
-  accentBlue: string;
-  accentTeal: string;
-  accentViolet: string;
-  accentRose: string;
-  accentOrange: string;
-  accentCustom: string;
-  accentReset: string;
+  appearance: string; // `外观`, drill-in into /m/settings/appearance
   budget: string;
   budgetUnit: string; // `日`
   usage: string;
@@ -44,7 +31,6 @@ export interface MSettingsCopy {
   notifySub: string;
   autoResume: string;
   autoResumeSub: string;
-  language: string; // `语言`
   platform: string; // `Platform`
   desktopEdit: string; // `桌面编辑`
   templates: string; // `Thread templates`
@@ -158,102 +144,6 @@ function DesktopPill({ children }: { children: ReactNode }) {
   );
 }
 
-function SegmentItem<T extends string>({ id, label, active, onChange }: {
-  id: T;
-  label: string;
-  active: boolean;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <button
-      type="button" aria-pressed={active} onClick={() => onChange(id)}
-      style={{
-        border: 0, fontSize: 11, fontWeight: 600, padding: '3px 10px', cursor: 'pointer',
-        background: active ? 'var(--ink-solid-bg)' : 'transparent',
-        color: active ? 'var(--ink-solid-fg)' : MC.muted,
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function Segmented<T extends string>({ value, options, onChange, ariaLabel }: {
-  value: T;
-  options: readonly { id: T; label: string }[];
-  onChange: (value: T) => void;
-  ariaLabel?: string;
-}) {
-  return (
-    <div role="group" aria-label={ariaLabel} style={{ display: 'flex', border: `1px solid ${MC.hairline}`, borderRadius: 6, overflow: 'hidden', flex: 'none' }}>
-      {options.map((option) => (
-        <SegmentItem key={option.id} {...option} active={value === option.id} onChange={onChange} />
-      ))}
-    </div>
-  );
-}
-
-function LangToggle({ lang, onSetLang }: { lang: Lang; onSetLang: (l: Lang) => void }) {
-  return (
-    <Segmented
-      ariaLabel="Language"
-      value={lang}
-      options={[
-        { id: 'en', label: 'EN' },
-        { id: 'zh', label: '中' },
-      ]}
-      onChange={onSetLang}
-    />
-  );
-}
-
-function ThemeToggle({
-  theme,
-  onSetTheme,
-  lightLabel,
-  darkLabel,
-  systemLabel,
-}: {
-  theme: Theme;
-  onSetTheme: (t: Theme) => void;
-  lightLabel: string;
-  darkLabel: string;
-  systemLabel: string;
-}) {
-  return (
-    <Segmented
-      ariaLabel="Theme"
-      value={theme}
-      options={[
-        { id: 'light', label: lightLabel },
-        { id: 'dark', label: darkLabel },
-        { id: 'system', label: systemLabel },
-      ]}
-      onChange={onSetTheme}
-    />
-  );
-}
-
-function MobileAccentSetting({ copy, hue, onChange }: {
-  copy: MSettingsCopy;
-  hue: AccentHue;
-  onChange: (hue: AccentHue) => void;
-}) {
-  const pickerCopy: AccentPickerCopy = {
-    label: copy.accent, default: copy.accentDefault, blue: copy.accentBlue,
-    teal: copy.accentTeal, violet: copy.accentViolet, rose: copy.accentRose,
-    orange: copy.accentOrange, custom: copy.accentCustom, reset: copy.accentReset,
-  };
-  return (
-    <div style={{ ...rowStyle(false), display: 'block' }}>
-      <div style={TITLE}>{copy.accent}</div>
-      <div style={{ marginTop: 9 }}>
-        <AccentPicker hue={hue} copy={pickerCopy} onChange={onChange} compact />
-      </div>
-    </div>
-  );
-}
-
 // ── Hooks: one drill-in row into /m/settings/hooks (plan §6) ──────────────────
 // The count is the cheap 4-field `config.get` summary already loaded for this screen; the full
 // declarations (matcher, run, mounts, script health) are fetched by the hooks screen itself.
@@ -275,16 +165,17 @@ function HooksDrillRow({ vm, copy, onOpenHooks }: { vm: MSettingsVm; copy: MSett
   );
 }
 
-function UsageDrillRow({ copy, onOpenUsage }: { copy: MSettingsCopy; onOpenUsage: () => void }) {
+// Title on the left, chevron on the right — the plain drill-in shape (外观 / 用量).
+function DrillRow({ label, entry, onOpen }: { label: string; entry: string; onOpen: () => void }) {
   return (
     <button
       type="button"
-      data-usage-entry="mobile"
-      aria-label={copy.usage}
-      onClick={onOpenUsage}
+      data-settings-entry={entry}
+      aria-label={label}
+      onClick={onOpen}
       style={{ ...rowStyle(false), width: '100%', border: 0, background: 'transparent', textAlign: 'left', font: 'inherit', cursor: 'pointer' }}
     >
-      <span style={TITLE}>{copy.usage}</span>
+      <span style={TITLE}>{label}</span>
       <span style={{ marginLeft: 'auto', ...CHEV }}>›</span>
     </button>
   );
@@ -293,12 +184,6 @@ function UsageDrillRow({ copy, onOpenUsage }: { copy: MSettingsCopy; onOpenUsage
 export function MSettingsView({
   vm,
   copy,
-  lang,
-  onSetLang,
-  theme,
-  onSetTheme,
-  accentHue,
-  onSetAccentHue,
   onBack,
   onOpenDaemon,
   onlineMachines,
@@ -306,6 +191,7 @@ export function MSettingsView({
   onOpenHooks,
   accountsSummary,
   onOpenAccounts,
+  onOpenAppearance,
   onOpenUsage,
   profileSheet,
   onOpenProfile,
@@ -314,12 +200,6 @@ export function MSettingsView({
 }: {
   vm: MSettingsVm;
   copy: MSettingsCopy;
-  lang: Lang;
-  onSetLang: (lang: Lang) => void;
-  theme: Theme;
-  onSetTheme: (theme: Theme) => void;
-  accentHue: AccentHue;
-  onSetAccentHue: (hue: AccentHue) => void;
   onBack: () => void;
   onOpenDaemon: () => void;
   /** Real machines.list online count for the 机器 drill-in row (moved off the Projects tab). */
@@ -328,6 +208,7 @@ export function MSettingsView({
   onOpenHooks: () => void;
   accountsSummary: AccountsSummaryVm;
   onOpenAccounts: () => void;
+  onOpenAppearance: () => void;
   onOpenUsage: () => void;
   profileSheet: ProfileSheetItem[] | null;
   onOpenProfile: () => void;
@@ -448,36 +329,21 @@ export function MSettingsView({
             </div>
             <ReadOnlyToggle on={vm.notifyOn} label={copy.notify} />
           </div>
-          <div style={rowStyle(true)}>
+          <div style={rowStyle(false)}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={TITLE}>{copy.autoResume}</div>
               <div style={SUB}>{copy.autoResumeSub}</div>
             </div>
             <ReadOnlyToggle on={vm.autoResumeOn} label={copy.autoResume} />
           </div>
-          <div style={rowStyle(true)}>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={TITLE}>{copy.language}</div>
-            </div>
-            <LangToggle lang={lang} onSetLang={onSetLang} />
-          </div>
-          <div style={rowStyle(true)}>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={TITLE}>{copy.theme}</div>
-            </div>
-            <ThemeToggle
-              theme={theme}
-              onSetTheme={onSetTheme}
-              lightLabel={copy.themeLight}
-              darkLabel={copy.themeDark}
-              systemLabel={copy.themeSystem}
-            />
-          </div>
-          <MobileAccentSetting copy={copy} hue={accentHue} onChange={onSetAccentHue} />
         </Card>
 
         <Card>
-          <UsageDrillRow copy={copy} onOpenUsage={onOpenUsage} />
+          <DrillRow label={copy.appearance} entry="appearance" onOpen={onOpenAppearance} />
+        </Card>
+
+        <Card>
+          <DrillRow label={copy.usage} entry="usage" onOpen={onOpenUsage} />
         </Card>
 
         <Card>

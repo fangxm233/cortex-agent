@@ -17,8 +17,8 @@ Panels read snapshots; Usage independently queries the shared web usage feature.
 | AuthLoginEntry.test.tsx | test | Tests non-stacked settings-to-login handoff |
 | RuntimeSettingsPanels.tsx | view | Edits runtime switches, retention days, and job cadence selections |
 | RuntimeSettingsPanels.test.tsx | test | Tests runtime state, validation, failures and production writes |
-| AppearancePanel.tsx | view | Edits device-local language, theme and accent |
-| AppearancePanel.test.tsx | test | Tests system theme and accent control wiring |
+| AppearancePanel.tsx | view | Edits language, theme, background, accent and motion |
+| AppearancePanel.test.tsx | test | Tests theme, surface, accent and motion wiring |
 | BudgetPanel.tsx | view | Writes global and per-project daily/monthly spend limits |
 | budget-vm.ts | vm | Resolves budget scope and builds chips, payload and spend bar |
 | budget-vm.test.ts | test | Tests budget scope, parsing, payloads and percentage arithmetic |

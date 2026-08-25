@@ -1,5 +1,5 @@
-// input:  config/cost/auth queries, appearance state, navigation
-// output: mobile settings with appearance, Usage, and config drill-ins
+// input:  config/cost/auth queries and navigation
+// output: mobile settings with runtime state and config drill-ins
 // pos:    Mobile settings query and mutation container
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -8,8 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useLang, useSetLang } from '@/i18n';
-import { useAccentHue, useSetAccentHue, useTheme, useSetTheme } from '@/theme';
+import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MSettingsView, type MSettingsCopy } from './MSettingsView';
@@ -30,19 +29,7 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     profileSheetTitle: 'Global default profile',
     profileSheetCurrent: 'current',
     profileSheetFooter: 'Applies to new sessions and new threads',
-    theme: 'Theme',
-    themeLight: 'Light',
-    themeDark: 'Dark',
-    themeSystem: 'System',
-    accent: 'Accent color',
-    accentDefault: 'Default indigo',
-    accentBlue: 'Blue',
-    accentTeal: 'Teal',
-    accentViolet: 'Violet',
-    accentRose: 'Rose',
-    accentOrange: 'Orange',
-    accentCustom: 'Custom accent hue',
-    accentReset: 'Reset',
+    appearance: 'Appearance',
     budget: 'Budget',
     budgetUnit: '/day',
     usage: 'Usage',
@@ -50,7 +37,6 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     notifySub: 'push on · long task > 10m · approvals instant',
     autoResume: 'Auto-resume on limit',
     autoResumeSub: 'resume threads after rate-limit clears',
-    language: 'Language',
     platform: 'Platform',
     desktopEdit: 'Edit on desktop',
     templates: 'Thread templates',
@@ -68,19 +54,7 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     profileSheetTitle: '全局默认 Profile',
     profileSheetCurrent: '当前',
     profileSheetFooter: '切换后新会话 / 新线程使用',
-    theme: '主题',
-    themeLight: '浅色',
-    themeDark: '深色',
-    themeSystem: '跟随系统',
-    accent: '强调色',
-    accentDefault: '默认靛蓝',
-    accentBlue: '蓝色',
-    accentTeal: '青色',
-    accentViolet: '紫色',
-    accentRose: '玫红',
-    accentOrange: '橙色',
-    accentCustom: '自定义强调色色相',
-    accentReset: '恢复默认',
+    appearance: '外观',
     budget: '预算',
     budgetUnit: '日',
     usage: '用量',
@@ -88,7 +62,6 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     notifySub: '推送开 · 长任务 > 10m · 审批即时',
     autoResume: '限额自动续跑',
     autoResumeSub: 'rate-limit 解除后自动恢复线程',
-    language: '语言',
     platform: 'Platform',
     desktopEdit: '桌面编辑',
     templates: 'Thread templates',
@@ -111,13 +84,7 @@ export function MSettingsScreen() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const lang = useLang();
-  const setLang = useSetLang();
-  const theme = useTheme();
-  const setTheme = useSetTheme();
-  const accentHue = useAccentHue();
-  const setAccentHue = useSetAccentHue();
-  const copy = pickCopy(lang, COPY);
+  const copy = pickCopy(useLang(), COPY);
 
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const costQuery = useQuery(trpc.cost.summary.queryOptions({}));
@@ -163,12 +130,6 @@ export function MSettingsScreen() {
     <MSettingsView
       vm={vm}
       copy={copy}
-      lang={lang}
-      onSetLang={setLang}
-      theme={theme}
-      onSetTheme={setTheme}
-      accentHue={accentHue}
-      onSetAccentHue={setAccentHue}
       onBack={() => navigate('/m/project')}
       onOpenDaemon={() => navigate('/m/daemon')}
       onlineMachines={onlineMachines}
@@ -176,6 +137,7 @@ export function MSettingsScreen() {
       onOpenHooks={() => navigate('/m/settings/hooks')}
       accountsSummary={accountsSummary}
       onOpenAccounts={() => navigate('/m/settings/accounts')}
+      onOpenAppearance={() => navigate('/m/settings/appearance')}
       onOpenUsage={() => navigate('/m/settings/usage')}
       profileSheet={profileSheet}
       onOpenProfile={() => setProfileOpen(true)}

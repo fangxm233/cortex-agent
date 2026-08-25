@@ -246,3 +246,35 @@
     transform: translateY(0);
   }
 }
+
+/*
+ * Reduced motion (`data-motion` on <html>, owned by src/theme).
+ * `reduced` always collapses animation and transition; the absent attribute and
+ * the explicit `system` value defer to the OS preference; `full` opts back into
+ * animation even when the OS asks for less. Durations collapse to ~0 instead of
+ * `animation: none` so that animation-driven end states and `animationend`
+ * listeners still settle and fire.
+ */
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) *,
+  :root:not([data-motion='full']) *::before,
+  :root:not([data-motion='full']) *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}

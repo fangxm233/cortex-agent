@@ -32,6 +32,21 @@
           document.documentElement.setAttribute('data-accent', 'custom');
           document.documentElement.style.setProperty('--accent-hue', String(accentHue));
         }
+        var surface = null;
+        try { surface = window.localStorage.getItem('cortex.surface'); } catch (e) {}
+        if (surface === 'neutral' || surface === 'contrast') {
+          document.documentElement.setAttribute('data-surface', surface);
+        }
+        var intensity = null;
+        try { intensity = window.localStorage.getItem('cortex.accent-intensity'); } catch (e) {}
+        if (intensity === 'soft' || intensity === 'vivid') {
+          document.documentElement.setAttribute('data-accent-intensity', intensity);
+        }
+        var motion = null;
+        try { motion = window.localStorage.getItem('cortex.motion'); } catch (e) {}
+        if (motion === 'full' || motion === 'reduced') {
+          document.documentElement.setAttribute('data-motion', motion);
+        }
         var chrome = getComputedStyle(document.documentElement).getPropertyValue('--browser-theme-color').trim();
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta && chrome) meta.setAttribute('content', chrome);

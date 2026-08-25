@@ -9,9 +9,18 @@ import {
   AccentPicker,
   useAccentHue,
   useSetAccentHue,
+  useAccentIntensity,
+  useSetAccentIntensity,
+  useSurfaceTone,
+  useSetSurfaceTone,
+  useMotionMode,
+  useSetMotionMode,
   useTheme,
   useSetTheme,
+  type AccentIntensity,
   type AccentPickerCopy,
+  type MotionMode,
+  type SurfaceTone,
   type Theme,
 } from '@/theme';
 import { SCard } from './settings-ui';
@@ -71,6 +80,8 @@ function SettingRow({ title, hint, control }: { title: string; hint: string; con
   );
 }
 
+// One card per setting, in the order a user reasons about appearance: what language the UI speaks,
+// then the light/dark frame, then the surfaces inside it, then the accent on top, then motion.
 function AppearanceCards() {
   const L = useVocab();
   const theme = useTheme();
@@ -79,21 +90,37 @@ function AppearanceCards() {
   const setLang = useSetLang();
   const accentHue = useAccentHue();
   const setAccentHue = useSetAccentHue();
+  const accentIntensity = useAccentIntensity();
+  const setAccentIntensity = useSetAccentIntensity();
+  const surfaceTone = useSurfaceTone();
+  const setSurfaceTone = useSetSurfaceTone();
+  const motionMode = useMotionMode();
+  const setMotionMode = useSetMotionMode();
   const accentCopy: AccentPickerCopy = {
     label: L.stAccentLabel, default: L.stAccentDefault, blue: L.stAccentBlue,
     teal: L.stAccentTeal, violet: L.stAccentViolet, rose: L.stAccentRose,
     orange: L.stAccentOrange, custom: L.stAccentCustom, reset: L.stAccentReset,
   };
+  const cardStyle = { marginTop: 12, padding: '14px 16px' };
   return (
     <>
       <SCard style={{ padding: '14px 16px' }}>
         <SettingRow title={L.stLangLabel} hint={L.stLangHint} control={<Segmented<Lang> value={lang} options={[{ id: 'en', label: L.stLangEnglish }, { id: 'zh', label: L.stLangChinese }]} onChange={setLang} dataAttr="data-lang-option" />} />
       </SCard>
-      <SCard style={{ marginTop: 12, padding: '14px 16px' }}>
+      <SCard style={cardStyle}>
         <SettingRow title={L.stThemeLabel} hint={L.stThemeHint} control={<Segmented<Theme> value={theme} options={[{ id: 'light', label: L.stThemeLight }, { id: 'dark', label: L.stThemeDark }, { id: 'system', label: L.stThemeSystem }]} onChange={setTheme} dataAttr="data-theme-option" />} />
       </SCard>
-      <SCard style={{ marginTop: 12, padding: '14px 16px' }}>
+      <SCard style={cardStyle}>
+        <SettingRow title={L.stSurfaceLabel} hint={L.stSurfaceHint} control={<Segmented<SurfaceTone> value={surfaceTone} options={[{ id: 'default', label: L.stSurfaceDefault }, { id: 'neutral', label: L.stSurfaceNeutral }, { id: 'contrast', label: L.stSurfaceContrast }]} onChange={setSurfaceTone} dataAttr="data-surface-option" />} />
+      </SCard>
+      <SCard style={cardStyle}>
         <SettingRow title={L.stAccentLabel} hint={L.stAccentHint} control={<AccentPicker hue={accentHue} copy={accentCopy} onChange={setAccentHue} />} />
+      </SCard>
+      <SCard style={cardStyle}>
+        <SettingRow title={L.stAccentIntensityLabel} hint={L.stAccentIntensityHint} control={<Segmented<AccentIntensity> value={accentIntensity} options={[{ id: 'soft', label: L.stAccentIntensitySoft }, { id: 'normal', label: L.stAccentIntensityNormal }, { id: 'vivid', label: L.stAccentIntensityVivid }]} onChange={setAccentIntensity} dataAttr="data-accent-intensity-option" />} />
+      </SCard>
+      <SCard style={cardStyle}>
+        <SettingRow title={L.stMotionLabel} hint={L.stMotionHint} control={<Segmented<MotionMode> value={motionMode} options={[{ id: 'system', label: L.stMotionSystem }, { id: 'full', label: L.stMotionFull }, { id: 'reduced', label: L.stMotionReduced }]} onChange={setMotionMode} dataAttr="data-motion-option" />} />
       </SCard>
     </>
   );
@@ -104,7 +131,7 @@ export function AppearancePanel() {
     <div style={{ marginTop: 12, maxWidth: 760 }}>
       <AppearanceCards />
       <div style={{ marginTop: 10, font: `400 9.5px ${MONO}`, color: 'var(--proto-faint)', paddingLeft: 2 }}>
-        localStorage · cortex.lang · cortex.theme · cortex.accent-hue
+        localStorage · cortex.lang · cortex.theme · cortex.surface · cortex.accent-hue · cortex.accent-intensity · cortex.motion
       </div>
     </div>
   );

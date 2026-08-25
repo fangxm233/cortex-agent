@@ -1,5 +1,5 @@
 // input:  shared palette CSS, runtime UI source, native shell HTML
-// output: token, accent-alias, no-flash, and raw-color regressions
+// output: token, variant, accent-alias, no-flash, and raw-color regressions
 // pos:    Guards appearance coverage across web, mobile, and shell
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -16,6 +16,7 @@ const THEME_PATH = join(WEB_ROOT, 'public', 'theme.css');
 const RAW_COLOR = /#[\da-f]{3,8}\b|(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\s*\(/i;
 const THEME_CONSTANT_TOKENS = new Set([
   '--accent-hue',
+  '--accent-chroma',
   '--accent-default-swatch',
   '--accent-swatch-blue',
   '--accent-swatch-teal',
@@ -110,6 +111,38 @@ describe('shared theme tokens', () => {
     expect(missingDark).toEqual([]);
     expect(unknownDark).toEqual([]);
     expect(unknownConstants).toEqual([]);
+  });
+
+  // A typo in a variant block is silent — the declaration just never reaches anything — so every
+  // token an appearance variant overrides must already exist in the base palette.
+  it('only overrides tokens the base palette defines from the appearance variant blocks', () => {
+    const css = readFileSync(THEME_PATH, 'utf8');
+    const base = new Set([...cssBlock(css, ':root').matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
+    const variants = [
+      ":root[data-accent-intensity='soft']",
+      ":root[data-accent-intensity='vivid']",
+      ":root:not([data-theme='dark'])[data-surface='neutral']",
+      ":root:not([data-theme='dark'])[data-surface='contrast']",
+      "[data-theme='dark'][data-surface='neutral']",
+      "[data-theme='dark'][data-surface='contrast']",
+    ];
+
+    for (const selector of variants) {
+      const tokens = [...cssBlock(css, selector).matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]);
+      expect(tokens.length).toBeGreaterThan(0);
+      expect(tokens.filter((token) => !base.has(token))).toEqual([]);
+    }
+  });
+
+  // `:root[data-surface=…]` outranks the bare `[data-theme='dark']` base block, so a light surface
+  // block without the `:not` guard would repaint dark mode with light surfaces.
+  it('keeps the light surface variants out of dark mode', () => {
+    const css = readFileSync(THEME_PATH, 'utf8');
+
+    for (const tone of ['neutral', 'contrast']) {
+      expect(css).toContain(`:root:not([data-theme='dark'])[data-surface='${tone}']`);
+      expect(css).not.toMatch(new RegExp(`(^|\\n):root\\[data-surface='${tone}'\\]`));
+    }
   });
 
   it('routes shared accent semantics through palette primitives', () => {

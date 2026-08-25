@@ -1,5 +1,5 @@
 // input:  Desktop appearance panel with mocked preference providers
-// output: Theme-system and accent-control wiring regression coverage
+// output: Theme, surface, accent, intensity, and motion wiring coverage
 // pos:    Interaction test for desktop appearance settings
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -10,6 +10,9 @@ import { AppearancePanel } from './AppearancePanel';
 
 const setTheme = vi.fn();
 const setAccentHue = vi.fn();
+const setAccentIntensity = vi.fn();
+const setSurfaceTone = vi.fn();
+const setMotionMode = vi.fn();
 
 vi.mock('@/i18n', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/i18n')>();
@@ -24,6 +27,12 @@ vi.mock('@/theme', async (importOriginal) => {
     useSetTheme: () => setTheme,
     useAccentHue: () => null,
     useSetAccentHue: () => setAccentHue,
+    useAccentIntensity: () => 'normal',
+    useSetAccentIntensity: () => setAccentIntensity,
+    useSurfaceTone: () => 'default',
+    useSetSurfaceTone: () => setSurfaceTone,
+    useMotionMode: () => 'system',
+    useSetMotionMode: () => setMotionMode,
   };
 });
 
@@ -36,5 +45,17 @@ describe('AppearancePanel', () => {
 
     expect(setTheme).toHaveBeenCalledWith('system');
     expect(setAccentHue).toHaveBeenCalledWith(190);
+  });
+
+  it('routes surface, intensity, and motion selections', () => {
+    const renderer = create(<AppearancePanel />);
+
+    act(() => renderer.root.findByProps({ 'data-surface-option': 'contrast' }).props.onClick());
+    act(() => renderer.root.findByProps({ 'data-accent-intensity-option': 'vivid' }).props.onClick());
+    act(() => renderer.root.findByProps({ 'data-motion-option': 'reduced' }).props.onClick());
+
+    expect(setSurfaceTone).toHaveBeenCalledWith('contrast');
+    expect(setAccentIntensity).toHaveBeenCalledWith('vivid');
+    expect(setMotionMode).toHaveBeenCalledWith('reduced');
   });
 });
