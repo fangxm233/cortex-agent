@@ -51,6 +51,9 @@ export interface RunAgentOptions {
   trackSessionId?: string | null;
   sessionKey?: string | null;
   channel?: string;
+  /** CDP endpoint for a browser-enabled session (plan/embedded-browser.md §17); null for the
+   *  overwhelming majority of runs, which get no browser tools. */
+  browserCdpEndpoint?: string | null;
   files?: unknown[];
   /** Best-effort synchronous event observers; failures are logged and ignored. */
   observers?: RunObserver[];
@@ -326,6 +329,7 @@ function adapterSpawnFields(
     isUserInitiated: !!options.isUserInitiated,
     rawTools: typeof options.tools === 'string' ? options.tools : undefined,
     anthropicBaseUrl: route?.ANTHROPIC_BASE_URL,
+    browserCdpEndpoint: options.browserCdpEndpoint ?? undefined,
   };
 }
 

@@ -184,8 +184,15 @@ export const projectsCreateInput = z.object({
   name: z.string(),
 });
 
+/** Per-session browser opt-in. `device` names where Chrome runs; 'server' is the only value until
+ *  the cortex-client reverse channel exists. Absent → the session gets no browser tools. */
+export const sessionBrowserInput = z.object({
+  device: z.string(),
+});
+
 export const sessionsCreateInput = z.object({
   projectId: z.string().optional(),
+  browser: sessionBrowserInput.nullish(),
 });
 
 export const sessionsSendInput = z.object({
@@ -245,6 +252,7 @@ export const sessionsRewindInput = z.object({
 export const sessionsCreateAndSendInput = z.object({
   projectId: z.string(),
   profileName: z.string().optional(),
+  browser: sessionBrowserInput.nullish(),
   text: z.string(),
   draftUploadId: z.string().uuid().optional(),
   attachments: z.array(z.object({

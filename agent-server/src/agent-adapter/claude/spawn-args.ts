@@ -64,6 +64,9 @@ export interface ClaudeSpawnOptions {
    *  originate from the Web UI (channel carries the `web:` prefix), enabling the send_file tool.
    *  Direct composition only. */
   loadWebMcp?: boolean;
+  /** Path to a Playwright MCP config for a browser-enabled session. Absent → the session gets zero
+   *  browser tools, which is the default and the reason this is opt-in at all. */
+  browserMcpConfigPath?: string | null;
   /** Thinking level from the profile's `thinking` field → `--effort <level>`
    *  (low/medium/high/xhigh/max). Absent → no flag. */
   thinking?: string | null;
@@ -97,6 +100,7 @@ function appendDirectMcpConfigs(
   if (options.loadSlackMcp && isDirect) configs.push(SLACK_MCP_CONFIG);
   if (options.loadFeishuMcp && isDirect) configs.push(FEISHU_MCP_CONFIG);
   if (options.loadWebMcp && isDirect) configs.push(WEB_MCP_CONFIG);
+  if (options.browserMcpConfigPath && isDirect) configs.push(options.browserMcpConfigPath);
 }
 
 function resolveMcpConfigs(

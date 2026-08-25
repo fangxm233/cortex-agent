@@ -130,6 +130,9 @@ export interface AgentSpawnConfig {
   rawTools?: string;
   /** DR-0008 Phase 3 cleanup target. Per-request ANTHROPIC_BASE_URL override (gateway-routed mode URL). */
   anthropicBaseUrl?: string;
+  /** CDP endpoint of the browser this session opted into. Present → Playwright MCP is added to the
+   *  spawn; absent → the session has no browser tools at all. */
+  browserCdpEndpoint?: string;
 
   // --- PI-specific passthroughs; other backends ignore these ---
   /** PI provider name / protocol (e.g. "anthropic", "deepseek", "openai-codex"). Sourced from the

@@ -17,4 +17,5 @@ Concrete SDK integrations live in adapters/.
 | adapters/ | subdir | Concrete platform adapter implementations |
 | tui/ | subdir | TUI wire protocol contract |
 | ui-http/ | subdir | Web UI HTTP and SSE transport host |
+| browser/ | subdir | Managed Chrome for browser-enabled sessions |
 | utils/ | subdir | Shared platform utilities |

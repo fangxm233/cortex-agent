@@ -10,6 +10,7 @@ import { setActiveProfile } from '@domain/agents/index.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import * as sessionBackup from './session-backup.js';
 import type { SessionOrigin } from '@store/session-registry-repo.js';
+import type { SessionBrowserOption } from '@store/session-registry-journal.js';
 
 export const SESSION_BACKENDS = ['claude', 'pi'] as const;
 
@@ -18,7 +19,7 @@ export interface SessionRegistryWriter {
   registerSession(name: string, opts: {
     sessionId: string; channel: string; backend: string;
     kind: 'local' | 'scheduled'; origin?: SessionOrigin; projectId: string;
-    label?: string | null; profileName?: string | null;
+    label?: string | null; profileName?: string | null; browser?: SessionBrowserOption | null;
   }): Promise<void>;
 }
 
@@ -33,6 +34,8 @@ export interface RegisterNamedSessionOpts {
   origin?: SessionOrigin;
   label?: string | null;
   profileName?: string | null;
+  /** Opt-in browser access for this session; null/absent means no browser tools at all. */
+  browser?: SessionBrowserOption | null;
 }
 
 /** Generate a fresh session name and register a registry record for sessionId. Returns the name.
@@ -49,6 +52,7 @@ export async function registerNamedSession(store: SessionRegistryWriter, opts: R
     projectId: opts.projectId,
     label: opts.label ?? null,
     profileName: opts.profileName ?? null,
+    browser: opts.browser ?? null,
   });
   return name;
 }
@@ -75,7 +79,7 @@ export interface CreateDirectSessionDeps {
  *  resumes THIS session rather than spawning a new one. */
 export async function createDirectSession(
   deps: CreateDirectSessionDeps,
-  opts: { projectId: string; sessionId?: string; profileName?: string | null },
+  opts: { projectId: string; sessionId?: string; profileName?: string | null; browser?: SessionBrowserOption | null },
 ): Promise<{ sessionId: string; sessionName: string; channel: string }> {
   const sessionId = opts.sessionId ?? crypto.randomUUID();
   const channel = `web:${sessionId}`;
@@ -95,6 +99,7 @@ export async function createDirectSession(
     projectId: opts.projectId,
     origin: 'direct',
     profileName: opts.profileName ?? null,
+    browser: opts.browser ?? null,
   });
   await deps.setChannelSession(channel, sessionId, backend);
   await deps.initConversation(channel, { sessionId, sessionName, backend });

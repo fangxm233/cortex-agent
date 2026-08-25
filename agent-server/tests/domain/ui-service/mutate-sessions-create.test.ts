@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { handleCreateSession } from '../../../src/domain/ui-service/mutate/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
-interface CreateCall { projectId: string }
+interface CreateCall { projectId: string; browser?: { device: string } | null }
 
 function makeDeps(sink: CreateCall[], sessionId = 'sess-new'): UiServiceDeps {
   return {
     projectStore: { getDefault: () => ({ id: 'general', name: 'general', kind: 'general', contextDir: '/g' }) },
-    createDirectSession: async (opts: { projectId: string }) => {
+    createDirectSession: async (opts: CreateCall) => {
       sink.push(opts);
       return { sessionId, sessionName: 'cortex-new', channel: `web:${sessionId}` };
     },
@@ -20,14 +20,21 @@ test('sessions.create returns the new session id', async () => {
   const res = await handleCreateSession(makeDeps(sink), { projectId: 'nimbus' });
   assert.equal(res.ok, true);
   if (res.ok) assert.deepEqual(res.data, { sessionId: 'sess-new' });
-  assert.deepEqual(sink, [{ projectId: 'nimbus' }], 'creates under the requested project');
+  // browser: null is the default — a session gets browser tools only when it explicitly asks.
+  assert.deepEqual(sink, [{ projectId: 'nimbus', browser: null }], 'creates under the requested project');
 });
 
 test('sessions.create falls back to the default project when projectId is omitted', async () => {
   const sink: CreateCall[] = [];
   const res = await handleCreateSession(makeDeps(sink), {});
   assert.equal(res.ok, true);
-  assert.deepEqual(sink, [{ projectId: 'general' }], 'uses the default project id');
+  assert.deepEqual(sink, [{ projectId: 'general', browser: null }], 'uses the default project id');
+});
+
+test('sessions.create forwards an explicit browser opt-in', async () => {
+  const sink: CreateCall[] = [];
+  await handleCreateSession(makeDeps(sink), { projectId: 'nimbus', browser: { device: 'server' } });
+  assert.deepEqual(sink, [{ projectId: 'nimbus', browser: { device: 'server' } }]);
 });
 
 test('sessions.create propagates a creation failure as an Err', async () => {

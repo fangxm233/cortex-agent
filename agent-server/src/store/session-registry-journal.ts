@@ -26,6 +26,14 @@ export interface PendingSessionDelete {
   cleanup: SessionDeleteCleanup;
 }
 
+/** Per-session browser opt-in (plan/embedded-browser.md §17). Absent/null means the session gets
+ *  ZERO browser tools — the whole point of making this opt-in is that ~24 Playwright tools are not
+ *  worth their context cost in a session that never browses. `device` names WHERE the browser runs;
+ *  only 'server' exists until the cortex-client reverse channel lands. */
+export interface SessionBrowserOption {
+  device: string;
+}
+
 export interface SessionRecord {
   name: string;
   sessionId: string;
@@ -42,6 +50,7 @@ export interface SessionRecord {
   lastReadAt?: string | null;
   scheduleId?: string | null;
   contextUsage?: unknown;
+  browser?: SessionBrowserOption | null;
 }
 
 export type SessionRegistryEvent =

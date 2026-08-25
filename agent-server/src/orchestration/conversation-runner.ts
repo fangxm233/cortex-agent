@@ -46,6 +46,9 @@ export interface RunConversationOptions {
   scheduleTaskId?: string | null;
   /** Profile override for `__active__` agents (used by scheduler). */
   profileOverride?: string | null;
+  /** CDP endpoint of the browser this session opted into, or null for the usual no-browser session.
+   *  Non-null is what turns the Playwright MCP server on for this spawn. */
+  browserCdpEndpoint?: string | null;
   /** Fired once the execution record is created, before the agent starts — lets the caller
    *  attach an execution-scoped Cancel button to the status message. */
   onExecutionStarted?: (executionId: string) => void | Promise<void>;
@@ -182,6 +185,8 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     trigger,
     threadId: null,
     useCoreMcp: false,
+    // Only a session that opted in carries an endpoint, so only it gets browser tools.
+    browserCdpEndpoint: opts.browserCdpEndpoint ?? null,
     mcpToolAllowlist: agentConfig.mcpToolAllowlist,
     sessionName: opts.sessionName,
     claudeAgent: agentConfig.claudeAgent || null,

@@ -65,6 +65,7 @@ import {
   validateClaudeSupplementalMcpConfig,
   writeClaudeSupplementalMcpConfig,
 } from './mcp-config.js';
+import { writeBrowserMcpConfig } from './browser-mcp.js';
 
 const log = createLogger('claude-bridge');
 
@@ -204,6 +205,10 @@ interface ClaudeSessionOptions {
   mcpToolAllowlist?: string[];
   supplementalMcpConfigPath?: string | null;
   supplementalMcpConfigIdentity?: string | null;
+  /** Playwright MCP config for a browser-enabled session. Kept separate from the supplemental
+   *  (plugin) config because a session can legitimately have both. */
+  browserMcpConfigPath?: string | null;
+  browserMcpConfigIdentity?: string | null;
   pluginCapabilityFingerprint?: string | null;
   disableHooks?: boolean;
   streamDeltas?: boolean;
@@ -248,6 +253,7 @@ function deriveClaudeSpawnOptions(fields: ClaudeSpawnFields): ClaudeSpawnOptions
     mcpConfigPaths: fields.mcpConfigPaths,
     mcpToolAllowlist: fields.mcpToolAllowlist,
     supplementalMcpConfigPath: fields.supplementalMcpConfigPath,
+    browserMcpConfigPath: fields.browserMcpConfigPath,
     disableHooks: fields.disableHooks,
     streamDeltas: fields.streamDeltas,
   };
@@ -266,6 +272,9 @@ interface ClaudeSpawnCompatibility {
   mcpConfigPaths: string[];
   mcpToolAllowlist: string[] | null;
   supplementalMcpConfigIdentity: string | null;
+  /** Turning the browser on or off must force a FRESH process: a pooled Claude keeps whatever MCP
+   *  set it was spawned with, so without this the toggle would silently no-op until the process died. */
+  browserMcpConfigIdentity: string | null;
 }
 
 function cloneTextArray(values: string[] | null | undefined): string[] {
@@ -298,6 +307,7 @@ function sameClaudeSpawnCompatibility(
     && left.tools === right.tools
     && left.pluginCapabilityFingerprint === right.pluginCapabilityFingerprint
     && left.supplementalMcpConfigIdentity === right.supplementalMcpConfigIdentity
+    && left.browserMcpConfigIdentity === right.browserMcpConfigIdentity
     && sameTextArray(left.pluginDirs, right.pluginDirs)
     && sameTextArray(left.mcpConfigPaths, right.mcpConfigPaths)
     && sameOptionalTextArray(left.mcpToolAllowlist, right.mcpToolAllowlist);
@@ -316,6 +326,7 @@ function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCom
     mcpConfigPaths: cloneTextArray(options.mcpConfigPaths),
     mcpToolAllowlist: optionalTextArray(options.mcpToolAllowlist),
     supplementalMcpConfigIdentity: options.supplementalMcpConfigIdentity ?? null,
+    browserMcpConfigIdentity: options.browserMcpConfigIdentity ?? null,
   };
 }
 
@@ -371,6 +382,7 @@ class ClaudeSession {
   private mcpConfigPaths: string[] | undefined;
   private mcpToolAllowlist: string[] | undefined;
   private supplementalMcpConfigPath: string | null;
+  private browserMcpConfigPath: string | null;
   private compatibility: ClaudeSpawnCompatibility;
   private disableHooks: boolean;
   private streamDeltas: boolean | undefined;
@@ -441,6 +453,7 @@ class ClaudeSession {
     this.mcpConfigPaths = options.mcpConfigPaths;
     this.mcpToolAllowlist = options.mcpToolAllowlist;
     this.supplementalMcpConfigPath = options.supplementalMcpConfigPath ?? null;
+    this.browserMcpConfigPath = options.browserMcpConfigPath ?? null;
     this.compatibility = compatibilityFromOptions(options);
     this.disableHooks = options.disableHooks === true;
     this.streamDeltas = options.streamDeltas;
@@ -476,6 +489,7 @@ class ClaudeSession {
       mcpConfigPaths: this.mcpConfigPaths,
       mcpToolAllowlist: this.mcpToolAllowlist,
       supplementalMcpConfigPath: this.supplementalMcpConfigPath,
+      browserMcpConfigPath: this.browserMcpConfigPath,
       disableHooks: this.disableHooks,
       streamDeltas: this.streamDeltas,
     });
@@ -1511,6 +1525,11 @@ function sessionRuntimeOptions(
   composition: McpComposition,
 ): Partial<ClaudeSessionOptions> {
   const supplemental = supplementalMcpConfig(config, composition);
+  // Only a direct session can carry browser tools — thread/dispatch workers run unattended, where a
+  // shared browser would be a cross-run side channel rather than a feature.
+  const browser = config.browserCdpEndpoint && composition === 'direct'
+    ? writeBrowserMcpConfig(config.browserCdpEndpoint)
+    : null;
   return {
     anthropicBaseUrl: config.anthropicBaseUrl,
     extraEnv: config.env,
@@ -1521,6 +1540,8 @@ function sessionRuntimeOptions(
     mcpToolAllowlist: config.mcpToolAllowlist,
     supplementalMcpConfigPath: supplemental?.path ?? null,
     supplementalMcpConfigIdentity: supplemental?.identity ?? null,
+    browserMcpConfigPath: browser?.path ?? null,
+    browserMcpConfigIdentity: browser?.identity ?? null,
     pluginCapabilityFingerprint: config.pluginCapabilityFingerprint ?? null,
     disableHooks: config.disableHooks,
     streamDeltas: config.streamDeltas,
@@ -1569,6 +1590,7 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
     mcpConfigPaths: opts.mcpConfigPaths,
     mcpToolAllowlist: opts.mcpToolAllowlist,
     supplementalMcpConfigPath: opts.supplementalMcpConfigPath,
+    browserMcpConfigPath: opts.browserMcpConfigPath,
     disableHooks: opts.disableHooks,
     streamDeltas: opts.streamDeltas,
   });

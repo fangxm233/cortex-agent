@@ -19,6 +19,7 @@ import {
   shouldCompactSessionRegistry,
   type PendingSessionDelete,
   type SessionDeleteCleanup,
+  type SessionBrowserOption,
   type SessionOrigin,
   type SessionRecord,
   type SessionRegistryJournalOptions,
@@ -43,7 +44,7 @@ export type SessionRegistryData = Record<string, Session>;
 export type SessionRegistryRepoOptions = SessionRegistryJournalOptions;
 
 type UpdateFields = Partial<Pick<Session,
-  'lastUsedAt' | 'label' | 'profileName' | 'backendSessionId' | 'contextUsage'
+  'lastUsedAt' | 'label' | 'profileName' | 'backendSessionId' | 'contextUsage' | 'browser'
 >> & { sessionId?: never };
 
 function cloneSession(record: SessionRecord): Session {
@@ -125,6 +126,7 @@ export class SessionRegistryRepo {
     profileName?: string | null;
     backendSessionId?: string | null;
     scheduleId?: string | null;
+    browser?: SessionBrowserOption | null;
   }): Promise<void> {
     const now = new Date().toISOString();
     return this.appendPut({
@@ -141,6 +143,7 @@ export class SessionRegistryRepo {
       profileName: opts.profileName ?? null,
       backendSessionId: opts.backendSessionId ?? null,
       scheduleId: opts.scheduleId ?? null,
+      browser: opts.browser ?? null,
     });
   }
 

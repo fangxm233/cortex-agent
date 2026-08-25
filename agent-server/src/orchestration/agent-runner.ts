@@ -46,6 +46,7 @@ import { recordResume } from '@domain/costs/resume-registry.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { getAgent } from '@domain/threads/index.js';
 import { runConversation } from './conversation-runner.js';
+import { acquireBrowser, releaseBrowser } from '@platform/browser/managed-browser.js';
 import { tryAnswerFromHuman } from './manager-qa.js';
 import { shouldHoldForBg, shouldHoldWebForBg } from './bg-continuation.js';
 import { holdWebForBg } from './web-bg-hold.js';
@@ -257,12 +258,15 @@ export class AgentRunner {
     let backendSessionId: string | null;
     let projectId: string;
     let sessionLease: SessionUseLease | null = null;
+    /** Opt-in browser access, read off the session record (plan/embedded-browser.md §17). */
+    let sessionBrowser: { device: string } | null = null;
     if (sessionId) {
       sessionLease = await acquireSessionUseLease(sessionId);
       if (!sessionLease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
       sessionName = sessionLease.session.name;
       backendSessionId = effectiveBackendSessionId(sessionLease.session);
       projectId = sessionLease.session.projectId ?? 'general';
+      sessionBrowser = sessionLease.session.browser ?? null;
     } else {
       sessionId = crypto.randomUUID();
       projectId = (await adapter.resolveInboundProject(channel)) ?? 'general';
@@ -376,9 +380,24 @@ export class AgentRunner {
         log.warn('continuation context persistence failed:', (error as Error).message);
       });
     };
+    // A browser-enabled session holds the shared Chrome for the duration of its turn. Acquiring here
+    // (rather than inside the adapter) keeps the spawn path synchronous and gives us one obvious
+    // place to pair with a release. A browser that cannot start degrades the turn to "no browser
+    // tools" instead of failing it — the session is still worth running.
+    let browserHeld = false;
+    let browserCdpEndpoint: string | null = null;
+    if (sessionBrowser) {
+      try {
+        browserCdpEndpoint = (await acquireBrowser()).cdpEndpoint;
+        browserHeld = true;
+      } catch (error) {
+        log.warn(`browser session requested but Chrome could not start: ${(error as Error).message}`);
+      }
+    }
     try {
       const convResult = await runConversation({
         adapter, channel,
+        browserCdpEndpoint,
         userMessage: agentMessage,
         trackSessionId: sessionId,
         projectId,
@@ -504,6 +523,7 @@ export class AgentRunner {
         sessionName, sessionId, threadAnchorId, userMessageTs: messageTs, userMessage,
       });
     } finally {
+      if (browserHeld) releaseBrowser();
       sessionLease?.release();
       finishTurnTracking(channel, turnTrackingToken);
       // The turn is over (successfully, in error, or cancelled): no preview may outlive it.
