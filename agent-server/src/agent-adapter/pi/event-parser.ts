@@ -4,10 +4,11 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { ContextUsage } from '@core/types/agent-types.js';
-import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
+import type { NormalizedEvent, QuestionSpec, ToolUseSubagent } from '../normalize/event-types.js';
 import { toCanonical } from '../normalize/tool-names.js';
 import { parseTodoWrite } from '../normalize/todo.js';
 import { decodeQuotaNotice } from '@domain/costs/codex-quota.js';
+import { decodeSubagentNotice, type SubagentNotice } from './subagent-notice.js';
 
 interface PIPendingCompletion {
   numTurns: number;
@@ -382,6 +383,31 @@ function sumNullableCosts(left: number | null, right: number | null): number | n
   return (left ?? 0) + (right ?? 0);
 }
 
+/** One forwarded child event → the normalized event it stands for, attributed to the child that
+ *  produced it. `parentToolUseId` is the notice's `ref` (`${agentCallId}#${childIndex}`), so each
+ *  child of a parallel batch groups on its own rather than merging into one indistinct block. */
+function subagentEvents(notice: SubagentNotice): NormalizedEvent[] {
+  const subagent: ToolUseSubagent = {
+    parentToolUseId: notice.ref,
+    type: notice.type || null,
+    description: notice.description || null,
+    model: notice.model,
+  };
+  if (notice.kind === 'tool_use') {
+    return [{
+      type: 'tool_use', toolUseId: notice.toolUseId!, name: notice.name!,
+      input: notice.input ?? {}, subagent,
+    }];
+  }
+  if (notice.kind === 'tool_result') {
+    return [{
+      type: 'tool_result', toolUseId: notice.toolUseId!,
+      ok: notice.ok !== false, content: notice.content ?? '', subagent,
+    }];
+  }
+  return [{ type: 'assistant_text', text: notice.text!, subagent }];
+}
+
 function handleExtensionUiRequest(ev: Record<string, unknown>): NormalizedEvent[] {
   const id = ev['id'];
   const method = ev['method'];
@@ -392,7 +418,12 @@ function handleExtensionUiRequest(ev: Record<string, unknown>): NormalizedEvent[
   // is a real user notification and keeps falling through to the drop below.
   if (method === 'notify') {
     const reading = decodeQuotaNotice(ev['message']);
-    return reading ? [{ type: 'rate_limit', raw: reading }] : [];
+    if (reading) return [{ type: 'rate_limit', raw: reading }];
+    // A PI subagent is a separate process; its output reaches us only because subagent.ts
+    // deliberately forwards it over this same channel (see subagent-notice.ts).
+    const notice = decodeSubagentNotice(ev['message']);
+    if (notice) return subagentEvents(notice);
+    return [];
   }
 
   // Only dialog methods produce ask_user_question; fire-and-forget methods → [].

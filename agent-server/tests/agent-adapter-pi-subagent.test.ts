@@ -16,6 +16,7 @@ import {
   type SubagentToolDeps,
 } from '../src/agent-adapter/pi/subagent.js';
 import { PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/spawn-args.js';
+import { createPIEventParserState, piRpcLineToNormalized } from '../src/agent-adapter/pi/event-parser.js';
 
 class StubChild extends EventEmitter {
   readonly stdout = new PassThrough();
@@ -614,5 +615,127 @@ test('parallel abort propagates to every active child', async () => {
     await assert.rejects(run, /aborted/i);
   } finally {
     harness.cleanup();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Native-subagent attribution (option B): the child's stream, carried out
+// ---------------------------------------------------------------------------
+
+/** The parent PI process would deliver each notice as an `extension_ui_request`/`notify` on its
+ *  RPC stream; this is that hop, so the test covers the real seam rather than the codec alone. */
+function throughRpc(notices: string[]) {
+  const state = createPIEventParserState();
+  return notices.flatMap((message) => piRpcLineToNormalized(
+    JSON.stringify({ type: 'extension_ui_request', id: 'ui-1', method: 'notify', message }),
+    state,
+  ));
+}
+
+function notifyHarness(role: { model?: string; tools?: string } = {}) {
+  const h = createHarness(role);
+  const notices: string[] = [];
+  return { ...h, notices, ctx: (root: string) => ({ ...context(root), ui: { notify: (m: string) => notices.push(m) } }) };
+}
+
+test('a PI subagent\'s tool calls and prose reach the parent stream, attributed to that child', async () => {
+  // PI subagents are separate processes: nothing they emit reaches the parent on its own, and the
+  // parent used to keep only `message_end` and throw the rest away. These events exist in the
+  // parent's stream at all only because subagent.ts forwards them over ctx.ui.notify.
+  const h = notifyHarness({ model: 'role-model' });
+  try {
+    const run = h.tool.execute('tool-parent', singleParams(), undefined, undefined, h.ctx(h.root));
+    await waitForCalls(h.calls, 1);
+    const child = h.calls[0].child;
+
+    child.stdout.write(`${JSON.stringify({
+      type: 'tool_execution_start', toolCallId: 'c1', toolName: 'grep', args: { pattern: 'x' },
+    })}\n`);
+    child.stdout.write(`${JSON.stringify({
+      type: 'tool_execution_end', toolCallId: 'c1', isError: false,
+      result: { content: [{ type: 'text', text: 'two hits' }] },
+    })}\n`);
+    // A message_end that names its model — that is the only place the subagent's model exists.
+    child.stdout.write(`${JSON.stringify({
+      type: 'message_end',
+      message: { role: 'assistant', model: 'child-model', content: [{ type: 'text', text: 'child answer' }], usage: {}, stopReason: 'stop' },
+    })}\n`);
+    child.emit('close', 0);
+    await run;
+
+    const events = throughRpc(h.notices);
+    assert.deepEqual(events.map((e: any) => e.type), ['tool_use', 'tool_result', 'assistant_text']);
+
+    // Every row names the child that produced it. The ref carries the child index because one
+    // `agent` call may spawn up to eight.
+    for (const e of events as any[]) {
+      assert.equal(e.subagent.parentToolUseId, 'tool-parent#0');
+      assert.equal(e.subagent.type, 'explore');
+      assert.equal(e.subagent.description, 'Inspect code');
+    }
+    // Child tool ids are namespaced: two parallel children number their calls independently.
+    assert.equal((events[0] as any).toolUseId, 'tool-parent#0:c1');
+    assert.equal((events[0] as any).name, 'grep');
+    assert.deepEqual((events[0] as any).input, { pattern: 'x' });
+    assert.equal((events[1] as any).content, 'two hits');
+    assert.equal((events[2] as any).text, 'child answer');
+    // The model is the one that ANSWERED, read off the child's own message.
+    assert.equal((events[2] as any).subagent.model, 'child-model');
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('parallel children keep separate blocks, keyed by task position not completion order', async () => {
+  const h = notifyHarness({ model: 'role-model' });
+  try {
+    const run = h.tool.execute(
+      'tool-parent',
+      { parallel: [
+        { description: 'first', prompt: 'a', subagent_type: 'explore' },
+        { description: 'second', prompt: 'b', subagent_type: 'explore' },
+      ] },
+      undefined, undefined, h.ctx(h.root),
+    );
+    await waitForCalls(h.calls, 2);
+
+    // Second child finishes FIRST — attribution must follow the task position regardless.
+    h.calls[1].child.stdout.write(`${JSON.stringify({
+      type: 'tool_execution_start', toolCallId: 'c1', toolName: 'read', args: {},
+    })}\n`);
+    finish(h.calls[1].child, 'second done');
+    finish(h.calls[0].child, 'first done');
+    await run;
+
+    const events = throughRpc(h.notices) as any[];
+    const byRef = new Map<string, string[]>();
+    for (const e of events) {
+      const list = byRef.get(e.subagent.parentToolUseId) ?? [];
+      list.push(e.type);
+      byRef.set(e.subagent.parentToolUseId, list);
+    }
+    assert.deepEqual([...byRef.keys()].sort(), ['tool-parent#0', 'tool-parent#1']);
+    assert.deepEqual(byRef.get('tool-parent#1'), ['tool_use', 'assistant_text']);
+    assert.deepEqual(byRef.get('tool-parent#0'), ['assistant_text']);
+    const descriptions = new Map(events.map((e) => [e.subagent.parentToolUseId, e.subagent.description]));
+    assert.equal(descriptions.get('tool-parent#0'), 'first');
+    assert.equal(descriptions.get('tool-parent#1'), 'second');
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('a session with no UI channel still runs the subagent, just without attribution', async () => {
+  // ctx.ui.notify is absent outside --mode rpc. Attribution is a nicety; the subagent itself and
+  // its returned output must not depend on the channel existing.
+  const h = createHarness({ model: 'role-model' });
+  try {
+    const run = h.tool.execute('tool-parent', singleParams(), undefined, undefined, context(h.root));
+    await waitForCalls(h.calls, 1);
+    finish(h.calls[0].child, 'child answer');
+    const result = await run;
+    assert.match(result.content[0].text, /child answer/);
+  } finally {
+    h.cleanup();
   }
 });

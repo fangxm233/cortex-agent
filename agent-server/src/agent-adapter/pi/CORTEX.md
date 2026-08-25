@@ -23,6 +23,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools.
 | web-fetch.ts | tool | fetches bounded HTTP(S) and strips data images |
 | web-search.ts | tool | routes and decodes provider-side search responses |
 | subagent.ts | tool | runs isolated role-scoped PI children |
+| subagent-notice.ts | codec | carries a child's events out to the server for attribution |
 | tool-shims.ts | bridge | gates PI-local Agent, todo, and web tools |
 | quota-probe.ts | bridge | reports provider quota read off response headers |
 | quota-sink.ts | core | persists labeled quota under routed provider keys and feeds throttle |

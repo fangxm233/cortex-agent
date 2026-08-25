@@ -19,6 +19,7 @@ import { PI_AGENT_DIR, ensurePIAgentRoles } from './agent-dir.js';
 import { MCP_BRIDGE_PATH, TOOL_SHIMS_PATH } from './defaults.js';
 import type { ExtensionContext, ToolDefinition } from './pi-ext-types.js';
 import { PI_INTERACTION_BRIDGE_ENV } from './spawn-args.js';
+import { encodeSubagentNotice, type SubagentNotice } from './subagent-notice.js';
 
 export const MAX_SUBAGENT_TASKS = 8;
 export const MAX_SUBAGENT_CONCURRENCY = 8;
@@ -122,6 +123,9 @@ export interface SubagentToolDeps {
   toolShimsPath: string;
   mcpBridgePath: string;
   killGraceMs: number;
+  /** Override the child→server channel. Tests substitute a recorder; production leaves it unset
+   *  and the real `ctx.ui.notify` channel is built per call. */
+  channel?: (parentToolCallId: string, ctx: ExtensionContext) => SubagentChannel | undefined;
 }
 
 interface ChildAccumulator {
@@ -140,6 +144,86 @@ interface Invocation {
 interface PromptFile {
   filePath: string | null;
   cleanup(): void;
+}
+
+/** Called for every event a child emits, with the accumulator so the notice can name the model as
+ *  soon as the child has reported one. Best-effort by contract — see processEvent. */
+type ChildEventForwarder = (event: Record<string, unknown>, acc: ChildAccumulator) => void;
+
+/** Carries one running child's events out to the server. Built per `agent` call so it can stamp
+ *  the parent's tool-call id, and per child so it can stamp which of up to eight it is. */
+export interface SubagentChannel {
+  forChild(index: number, task: { description: string; subagent_type: string }): ChildEventForwarder;
+}
+
+/** The real channel: PI's `ctx.ui.notify`, the one fire-and-forget message an extension gets on
+ *  the RPC stream. Absent (or throwing) simply costs attribution — the subagent still runs and its
+ *  final output still returns through the tool result, exactly as before. */
+export function subagentChannel(
+  parentToolCallId: string,
+  ctx: { ui?: { notify?: (message: string) => void } } | undefined,
+): SubagentChannel | undefined {
+  const notify = ctx?.ui?.notify;
+  if (typeof notify !== 'function' || !parentToolCallId) return undefined;
+  const send = (message: string): void => {
+    try { notify.call(ctx!.ui, message); } catch { /* best-effort */ }
+  };
+  return {
+    forChild(index, task) {
+      const ref = `${parentToolCallId}#${index}`;
+      return (event, acc) => {
+        for (const notice of noticesFor(ref, task, acc, event)) send(encodeSubagentNotice(notice));
+      };
+    },
+  };
+}
+
+/** Translate one child stdout event into the notices the transcript can render. Returns [] for
+ *  everything else — deltas, lifecycle, usage — so the channel stays quiet between real actions. */
+function noticesFor(
+  ref: string,
+  task: { description: string; subagent_type: string },
+  acc: ChildAccumulator,
+  event: Record<string, unknown>,
+): SubagentNotice[] {
+  const base = {
+    ref, type: task.subagent_type, description: task.description,
+    model: acc.model ?? null,
+  };
+  const type = event.type;
+  if (type === 'tool_execution_start') {
+    const id = event.toolCallId;
+    const name = event.toolName;
+    if (typeof id !== 'string' || typeof name !== 'string') return [];
+    return [{ ...base, kind: 'tool_use', toolUseId: `${ref}:${id}`, name, input: event.args ?? {} }];
+  }
+  if (type === 'tool_execution_end') {
+    const id = event.toolCallId;
+    if (typeof id !== 'string') return [];
+    return [{
+      ...base, kind: 'tool_result', toolUseId: `${ref}:${id}`,
+      ok: event.isError !== true, content: toolResultText(event.result),
+    }];
+  }
+  const message = messageEndMessage(event);
+  if (!message || message.role !== 'assistant') return [];
+  // `model` is read off THIS message, not the accumulator, because the accumulator has not yet
+  // recorded it when the forwarder runs — the notice would otherwise lag one message behind.
+  const model = typeof message.model === 'string' ? message.model : base.model;
+  const text = textFromMessage(message);
+  return text ? [{ ...base, model, kind: 'assistant_text', text }] : [];
+}
+
+function toolResultText(result: unknown): string {
+  if (typeof result === 'string') return result;
+  if (!result || typeof result !== 'object') return '';
+  const content = (result as Record<string, unknown>).content;
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .filter((b) => b && typeof b === 'object' && (b as Record<string, unknown>).type === 'text')
+    .map((b) => String((b as Record<string, unknown>).text ?? ''))
+    .join('');
 }
 
 interface ChildCollectionState {
@@ -346,10 +430,17 @@ function recordUsage(accumulator: ChildAccumulator, message: Record<string, unkn
   });
 }
 
-function parseEventMessage(line: string): Record<string, unknown> | null {
+function parseEventLine(line: string): Record<string, unknown> | null {
   if (!line.trim()) return null;
-  let event: Record<string, unknown>;
-  try { event = JSON.parse(line) as Record<string, unknown>; } catch { return null; }
+  try {
+    const event = JSON.parse(line) as unknown;
+    return event && typeof event === 'object' && !Array.isArray(event)
+      ? event as Record<string, unknown>
+      : null;
+  } catch { return null; }
+}
+
+function messageEndMessage(event: Record<string, unknown>): Record<string, unknown> | null {
   if (event.type !== 'message_end' || !event.message || typeof event.message !== 'object') return null;
   return event.message as Record<string, unknown>;
 }
@@ -383,8 +474,22 @@ function recordAssistantMessage(
   recordTerminalState(accumulator, message);
 }
 
-function processEvent(accumulator: ChildAccumulator, line: string): void {
-  const message = parseEventMessage(line);
+function processEvent(
+  accumulator: ChildAccumulator,
+  line: string,
+  forward?: ChildEventForwarder,
+): void {
+  const event = parseEventLine(line);
+  if (!event) return;
+  // Forward FIRST and unconditionally: the accumulator only ever cared about `message_end`, but
+  // the transcript wants the child's tool calls too, and those are exactly the events that used
+  // to be dropped here. The model is read off the accumulator so a notice can name it as soon as
+  // the child's first message reports one.
+  if (forward) {
+    try { forward(event, accumulator); }
+    catch { /* the channel is best-effort: a broken notice must not fail the subagent */ }
+  }
+  const message = messageEndMessage(event);
   if (!message) return;
   recordUsage(accumulator, message);
   recordAssistantMessage(accumulator, message);
@@ -429,6 +534,7 @@ function runChild(
   ctx: ExtensionContext,
   signal: AbortSignal | undefined,
   deps: SubagentToolDeps,
+  forward?: ChildEventForwarder,
 ): Promise<SubagentResult> {
   const promptFile = createPromptFile(role);
   const args = buildChildArgs(task, role, ctx, promptFile.filePath, deps);
@@ -438,14 +544,16 @@ function runChild(
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  return collectChild(child, task, signal, deps.killGraceMs).finally(promptFile.cleanup);
+  return collectChild(child, task, signal, deps.killGraceMs, forward).finally(promptFile.cleanup);
 }
 
-function consumeStdout(state: ChildCollectionState, chunk: unknown): void {
+function consumeStdout(
+  state: ChildCollectionState, chunk: unknown, forward?: ChildEventForwarder,
+): void {
   state.buffer += String(chunk);
   const lines = state.buffer.split('\n');
   state.buffer = lines.pop() ?? '';
-  for (const line of lines) processEvent(state.accumulator, line);
+  for (const line of lines) processEvent(state.accumulator, line, forward);
 }
 
 function abortChild(child: ChildProcess, state: ChildCollectionState, graceMs: number): void {
@@ -481,6 +589,7 @@ function collectChild(
   task: SubagentTask,
   signal: AbortSignal | undefined,
   killGraceMs: number,
+  forward?: ChildEventForwarder,
 ): Promise<SubagentResult> {
   return new Promise((resolve, reject) => {
     const state: ChildCollectionState = {
@@ -488,7 +597,7 @@ function collectChild(
       buffer: '', stderr: '', closed: false, aborted: false, killTimer: null,
     };
     const onAbort = () => abortChild(child, state, killGraceMs);
-    child.stdout?.on('data', (chunk) => consumeStdout(state, chunk));
+    child.stdout?.on('data', (chunk) => consumeStdout(state, chunk, forward));
     child.stderr?.on('data', (chunk) => { state.stderr += chunk.toString(); });
     child.once('error', (error) => {
       markChildClosed(state);
@@ -523,10 +632,11 @@ async function runTask(
   ctx: ExtensionContext,
   signal: AbortSignal | undefined,
   deps: SubagentToolDeps,
+  forward?: ChildEventForwarder,
 ): Promise<SubagentResult> {
   const role = findRole(roles, task.subagent_type);
   try {
-    const result = await runChild(task, role, ctx, signal, deps);
+    const result = await runChild(task, role, ctx, signal, deps, forward);
     if (!result.model) result.model = selectedModel(task, role, ctx).model;
     return result;
   } catch (error) {
@@ -547,7 +657,7 @@ function parallelContent(results: SubagentResult[]): string {
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
-  execute: (item: T) => Promise<R>,
+  execute: (item: T, index: number) => Promise<R>,
 ): Promise<R[]> {
   const results = new Array<R>(items.length);
   let nextIndex = 0;
@@ -555,7 +665,7 @@ async function mapWithConcurrency<T, R>(
     for (;;) {
       const index = nextIndex++;
       if (index >= items.length) return;
-      results[index] = await execute(items[index]);
+      results[index] = await execute(items[index], index);
     }
   };
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, worker);
@@ -569,9 +679,12 @@ async function executeParallel(
   ctx: ExtensionContext,
   signal: AbortSignal | undefined,
   deps: SubagentToolDeps,
+  channel?: SubagentChannel,
 ): Promise<SubagentResult[]> {
-  return mapWithConcurrency(tasks, MAX_SUBAGENT_CONCURRENCY, (task) => (
-    runTask(task, roles, ctx, signal, deps)
+  // The index is the task's position, not completion order: parallel children finish out of
+  // order, and a block keyed by arrival would rename itself as the race resolves.
+  return mapWithConcurrency(tasks, MAX_SUBAGENT_CONCURRENCY, (task, index) => (
+    runTask(task, roles, ctx, signal, deps, channel?.forChild(index, task))
   ));
 }
 
@@ -581,12 +694,14 @@ async function executeChain(
   ctx: ExtensionContext,
   signal: AbortSignal | undefined,
   deps: SubagentToolDeps,
+  channel?: SubagentChannel,
 ): Promise<SubagentResult[]> {
   const results: SubagentResult[] = [];
   let previous = '';
+  let index = 0;
   for (const original of tasks) {
     const task = { ...original, prompt: original.prompt.replace(/\{previous\}/g, previous) };
-    const result = await runTask(task, roles, ctx, signal, deps);
+    const result = await runTask(task, roles, ctx, signal, deps, channel?.forChild(index++, task));
     results.push(result);
     if (isFailed(result)) break;
     previous = result.output;
@@ -623,17 +738,19 @@ async function executeInvocation(
   ctx: ExtensionContext,
   signal: AbortSignal | undefined,
   deps: SubagentToolDeps,
+  channel?: SubagentChannel,
 ) {
   for (const task of invocation.tasks) findRole(roles, task.subagent_type);
   if (invocation.mode === 'parallel') {
-    const results = await executeParallel(invocation.tasks, roles, ctx, signal, deps);
+    const results = await executeParallel(invocation.tasks, roles, ctx, signal, deps, channel);
     return buildToolResult(invocation.mode, results);
   }
   if (invocation.mode === 'chain') {
-    const results = await executeChain(invocation.tasks, roles, ctx, signal, deps);
+    const results = await executeChain(invocation.tasks, roles, ctx, signal, deps, channel);
     return buildToolResult(invocation.mode, results);
   }
-  const result = await runTask(invocation.tasks[0], roles, ctx, signal, deps);
+  const task = invocation.tasks[0];
+  const result = await runTask(task, roles, ctx, signal, deps, channel?.forChild(0, task));
   return buildToolResult(invocation.mode, [result]);
 }
 
@@ -688,10 +805,13 @@ export function createSubagentTool(
     label: 'Agent',
     description: toolDescription(modelOptions),
     parameters: SubagentParameters,
-    async execute(_id, params, signal, _update, ctx) {
+    async execute(toolCallId, params, signal, _update, ctx) {
       deps.ensureRoles();
       const invocation = resolveInvocation(params as SubagentParams);
-      return executeInvocation(invocation, loadRoles(deps.agentDir), ctx, signal, deps);
+      return executeInvocation(
+        invocation, loadRoles(deps.agentDir), ctx, signal, deps,
+        deps.channel?.(toolCallId, ctx) ?? subagentChannel(toolCallId, ctx),
+      );
     },
   };
 }
