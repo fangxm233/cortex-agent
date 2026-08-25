@@ -12,4 +12,6 @@ Provides SPA commands, native plugins, frontend delivery, and updates.
 | frontend.rs | core | Resolves OTA files and embedded shell assets |
 | ota.rs | core | fetches and stages new frontend versions |
 | setup.rs | core | installs, configures and starts a local server |
+| forward.rs | core | forwards a server loopback port to a local port (desktop) |
+| forward_stub.rs | core | refusing stand-in for the forward on Android |
 | seed.rs | util | supplies the initial frontend on Android |

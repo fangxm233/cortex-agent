@@ -1,5 +1,5 @@
 // input:  app config, credential store, OTA modules, native plugins
-// output: Tauri commands, custom scheme, desktop/mobile window
+// output: Tauri commands, custom scheme, port forward, desktop/mobile window
 // pos:    Cortex native shell composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -22,6 +22,15 @@ macro_rules! shell_log {
         { eprintln!($($arg)*); }
     }};
 }
+
+// Port forward (plan/embedded-browser.md §4): a real local listener relaying TCP over the server's
+// authenticated `/forward` WebSocket. Desktop only — the Android shell gets a refusing stub so the
+// command list and managed state stay identical on every platform.
+#[cfg(not(target_os = "android"))]
+mod forward;
+#[cfg(target_os = "android")]
+#[path = "forward_stub.rs"]
+mod forward;
 
 mod creds;
 // frontend (custom-scheme asset resolver) + ota (self-updating SPA) now run on BOTH desktop and
@@ -556,6 +565,7 @@ pub fn run() {
             config: Mutex::new(ConnectionConfig::default()),
             app_update: Mutex::new(None),
         })
+        .manage(forward::ForwardState::default())
         .invoke_handler(tauri::generate_handler![
             get_connection_config,
             set_connection_config,
@@ -575,6 +585,9 @@ pub fn run() {
             setup::setup_enable_ui,
             setup::setup_start_daemon,
             setup::setup_enable_autostart,
+            forward::forward_start,
+            forward::forward_stop,
+            forward::forward_list,
         ]);
 
     // Both platforms: serve the SPA over the custom `cortexui://` scheme from the active frontend

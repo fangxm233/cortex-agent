@@ -65,6 +65,14 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 #     apple-native          → macOS Keychain
 #     sync-secret-service   → Linux Secret Service (D-Bus); crypto-rust = pure-Rust session crypto (no OpenSSL)
 [target.'cfg(not(target_os = "android"))'.dependencies]
+# Port forwarding (desktop only — see src/forward.rs). tokio gives the local TcpListener and the
+# per-connection relay tasks; tokio-tungstenite dials the server's `/forward` WebSocket. rustls with
+# the **webpki roots** matches the OTA client's choice: the platform verifier needs an OS trust store
+# we never wire up, and ring (installed as the process default CryptoProvider in `run()`) is the
+# backend both paths share. Android never compiles this: the shell has no port forward there.
+tokio = { version = "1", features = ["net", "io-util", "rt", "macros", "time"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "handshake", "rustls-tls-webpki-roots"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 
 # ── Android-only dependencies ──
