@@ -2,8 +2,9 @@
 // output: a composer chip that turns browser control on for the session about to be created
 // pos:    Session-creation surface for the managed browser
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
+import { fetchBrowserStatus, takeoverHint, type BrowserStatus } from './browser-status';
 
 /** The only device that can host the browser today. When the cortex-client reverse channel lands,
  *  this becomes a picker over connected devices (plan/embedded-browser.md §17.4, §18). */
@@ -36,12 +37,30 @@ export function BrowserOptInChip({ device, onChange }: {
   const [hover, setHover] = useState(false);
   const active = device !== null;
   const editable = typeof onChange === 'function';
+  // Only a live browser session asks the server where its browser is — a draft has none yet, and a
+  // session without browser access has nothing to take over.
+  const [status, setStatus] = useState<BrowserStatus | null>(null);
+  useEffect(() => {
+    if (editable || !active) return;
+    let alive = true;
+    fetchBrowserStatus().then((s) => { if (alive) setStatus(s); }).catch(() => { /* tooltip stays basic */ });
+    return () => { alive = false; };
+  }, [editable, active]);
+
+  const hint = status
+    ? takeoverHint(status, {
+        attached: L.wbBrowserAttached, virtual: L.wbBrowserVirtual, headless: L.wbBrowserHeadless,
+        running: L.wbBrowserRunning, stopped: L.wbBrowserStopped,
+      })
+    : null;
   return (
     <span
       data-chip="browser"
       data-active={active ? 'true' : 'false'}
       data-editable={editable ? 'true' : 'false'}
-      title={editable ? (active ? L.wbBrowserOn : L.wbBrowserOff) : L.wbBrowserFixed}
+      title={editable
+        ? (active ? L.wbBrowserOn : L.wbBrowserOff)
+        : hint ? `${L.wbBrowserFixed}\n${hint}` : L.wbBrowserFixed}
       onClick={editable ? () => onChange!(active ? null : DEFAULT_BROWSER_DEVICE) : undefined}
       onMouseEnter={() => { if (editable) setHover(true); }}
       onMouseLeave={() => setHover(false)}

@@ -55,6 +55,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | Composer.test.tsx | test | Tests local shortcuts and rejected-send state |
 | ComposerActionRow.tsx | view | Renders profile, browser, attach and local command controls |
 | BrowserOptIn.tsx | view | Chooses browser control for the session about to be created |
+| browser-status.ts | model | Fetches browser status and phrases the takeover hint |
 | ComposerActionRow.test.tsx | test | Tests composer actions and slash-menu callbacks |
 | ComposerStatusLine.tsx | view | Status row above the input with an accessory |
 | composer-draft.ts | util | Persists, restores and prefills drafts |
