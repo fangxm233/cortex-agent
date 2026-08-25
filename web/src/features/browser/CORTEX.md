@@ -9,6 +9,6 @@ target must never share an origin with the app page or the API. Design: `plan/em
 |---|---|---|
 | WebBody.tsx | view | Address bar, navigation, viewport presets and the preview frame |
 | BrowserButton.tsx | view | Chat-header control that docks the browser pane |
-| forward.ts | core | Starts/lists port forwards and reads the server's listening ports |
+| forward.ts | core | Starts/lists port forwards and reads server and device listening ports |
 | browser-target.ts | vm | URL normalization, the origin guard, history math and viewport presets |
 | browser-target.test.ts | test | Pins the origin guard, URL rules and history behaviour |

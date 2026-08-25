@@ -14,4 +14,5 @@ agent-server, and supervises long-running jobs on the local device.
 | cortex-run-watcher.ts | entry | Supervises a spawned run and records state |
 | log.ts | util | Provides console and rotating file logging |
 | paths.ts | util | Defines client data, config and log paths |
+| reverse-stream.ts | core | Dials back a WebSocket per requested TCP connection to a local service |
 | server-url.ts | util | Resolves the server WebSocket URL |

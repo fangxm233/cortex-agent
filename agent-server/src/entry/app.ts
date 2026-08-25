@@ -7,6 +7,7 @@ import * as os from 'node:os';
 import * as path from 'path';
 import { extractTuiAdapter } from '@platform/index.js';
 import { stopBrowser } from '@platform/browser/managed-browser.js';
+import { stopAllDevicePorts } from '@domain/remote/device-port.js';
 import type { PlatformAdapter } from '@platform/index.js';
 // Gate for the in-core Web UI transport: static import is @trpc-free (node builtins + an erased
 // type only); the transport (which pulls @trpc/server + jose) is dynamic-imported inside the gate,
@@ -399,6 +400,8 @@ process.on('SIGTERM', async () => {
   // A Chrome that outlives the daemon keeps the profile locked, so the next launch would attach to
   // an instance nothing is supervising.
   stopBrowser();
+  // Device ports are loopback listeners held by this process; nothing reclaims them on its behalf.
+  stopAllDevicePorts();
   await _uiHttpServer?.close().catch(() => {});
   stopDiskMonitor();
   // Stop scheduler timers BEFORE draining repo writes — otherwise a late-firing

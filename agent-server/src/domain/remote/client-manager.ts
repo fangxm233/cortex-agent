@@ -280,6 +280,23 @@ function isDeviceOnline(device: string): boolean {
 
 // --- Command routing ---
 
+/**
+ * Send one fire-and-forget JSON message over a device's control socket. `sendCommand` is a
+ * request/response round trip; the reverse channel's `open-stream` has no reply on this socket at
+ * all — the device answers by dialing a new WebSocket back, so there is nothing to await here.
+ */
+function sendControlMessage(device: string, message: Record<string, unknown>): void {
+  const info = devices.get(device);
+  if (!info) throw new Error(`Device "${device}" is not online`);
+  if (info.ws.readyState !== WebSocket.OPEN) {
+    devices.delete(device);
+    emitDisconnected(device, 'WebSocket is not open');
+    throw new Error(`Device "${device}" WebSocket is not open`);
+  }
+  info.ws.send(JSON.stringify(message));
+}
+
+
 function sendCommand(device: string, command: CommandParams): Promise<any> {
   const info = devices.get(device);
   if (!info) {
@@ -625,6 +642,7 @@ export {
   getOnlineDevices,
   isDeviceOnline,
   sendCommand,
+  sendControlMessage,
   startRemoteClient,
   startAllRemoteClients,
   buildRemoteSpawnCommand,

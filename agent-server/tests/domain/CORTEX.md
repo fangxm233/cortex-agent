@@ -24,6 +24,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 | costs/ | subdir | cost attribution and summary reporting |
 | hook-view.test.ts | test | mount targets, result modes and apply time |
 | mcp/ | subdir | MCP tool registration and handlers |
+| remote/ | subdir | reverse stream pairing and device port mapping |
 | sessions/ | subdir | session registration and lifecycle |
 | system/ | subdir | self-diagnosis and operator notices |
 | tasks/ | subdir | task mutation, locking, and write guards |

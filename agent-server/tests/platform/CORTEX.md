@@ -7,7 +7,10 @@ gateway and wire protocol, and the Web UI HTTP transport.
 |---|---|---|
 | adapter-factory.test.ts | test | Covers reset-isolated admin fallback chains |
 | app-update.test.ts | test | Covers app shell update manifest and route |
+| browser-display.test.ts | test | Covers the display-selection ladder across platforms |
+| browser-status.test.ts | test | Covers the takeover answer the UI renders |
 | composite-adapter.test.ts | test | Covers fan-out and nullable live settings |
+| device-ports.test.ts | test | Covers device listing, remote port discovery and port mapping |
 | tui-gateway.test.ts | test | Covers TUI gateway sessions and delivery |
 | tui-protocol.test.ts | test | Covers TUI frame parsing and encoding |
 | tui-transcript.test.ts | test | Covers TUI transcript replay building |

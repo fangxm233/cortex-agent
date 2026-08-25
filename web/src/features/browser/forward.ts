@@ -64,3 +64,54 @@ export async function listRemotePorts(): Promise<ListeningPort[]> {
   const body = (await res.json()) as { ok?: boolean; data?: { ports?: ListeningPort[] } };
   return body.data?.ports ?? [];
 }
+
+// ── Ports on other machines ───────────────────────────────────────────────────
+// A device runs cortex-client, which is outbound-only, so nothing here dials INTO it. The server
+// asks the device over its existing control socket to dial back, and hands us a plain loopback port
+// on the server (plan/embedded-browser.md §18). From this side a device port is therefore just a
+// server port — the desktop forward above tunnels it the rest of the way unchanged.
+
+export interface ForwardDevice {
+  device: string;
+  platform: string;
+}
+
+export interface DevicePortMapping {
+  device: string;
+  remoteHost: string;
+  remotePort: number;
+  /** Port on the SERVER. Feed it to `startForward` to reach it from this machine. */
+  localPort: number;
+}
+
+async function forwardApi<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${apiBase()}${path}`, {
+    ...init,
+    headers: { ...authHeaders(), ...(init?.body ? { 'Content-Type': 'application/json' } : {}) },
+  });
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: T; error?: string };
+  if (!res.ok || !body.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+  return body.data as T;
+}
+
+/** Devices currently connected to the server. Empty is normal — most setups have none. */
+export async function listForwardDevices(): Promise<ForwardDevice[]> {
+  const data = await forwardApi<{ devices: ForwardDevice[] }>('/api/forward/devices');
+  return data.devices ?? [];
+}
+
+/** Ports listening on one device's loopback. */
+export async function listDeviceRemotePorts(device: string): Promise<ListeningPort[]> {
+  const data = await forwardApi<{ ports: ListeningPort[] }>(
+    `/api/forward/device-ports?device=${encodeURIComponent(device)}`,
+  );
+  return data.ports ?? [];
+}
+
+/** Map a device port onto a server port. Idempotent per (device, port) on the server side. */
+export async function openDeviceForward(device: string, port: number): Promise<DevicePortMapping> {
+  return forwardApi<DevicePortMapping>('/api/forward/device-port', {
+    method: 'POST',
+    body: JSON.stringify({ device, port }),
+  });
+}

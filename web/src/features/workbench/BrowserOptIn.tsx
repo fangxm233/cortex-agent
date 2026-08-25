@@ -6,8 +6,9 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
 import { fetchBrowserStatus, takeoverHint, type BrowserStatus } from './browser-status';
 
-/** The only device that can host the browser today. When the cortex-client reverse channel lands,
- *  this becomes a picker over connected devices (plan/embedded-browser.md §17.4, §18). */
+/** The only device that can host the browser today. The reverse channel (§18) now carries bytes to
+ *  a device's ports, but a device has no MANAGED Chrome to point at — cortex-client does not launch
+ *  or supervise one. Until it does, this stays a single device rather than a picker. */
 export const DEFAULT_BROWSER_DEVICE = 'server';
 
 function chipStyle(active: boolean, hover: boolean): CSSProperties {

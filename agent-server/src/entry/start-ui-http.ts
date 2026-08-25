@@ -16,6 +16,9 @@ import { createOtaRoutes } from '@platform/ui-http/ui-ota.js';
 import { createAppUpdateRoutes } from '@platform/ui-http/app-update.js';
 import { createForwardRoutes } from '@platform/ui-http/port-forward.js';
 import { createBrowserStatusRoutes } from '@platform/ui-http/browser-status.js';
+import { createDevicePortRoutes } from '@platform/ui-http/device-ports.js';
+import { getOnlineDevices, sendCommand } from '@domain/remote/client-manager.js';
+import { openDevicePort, listDevicePorts } from '@domain/remote/device-port.js';
 import { accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
 import type { AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import type { UiService } from '@domain/ui-service/types.js';
@@ -349,6 +352,18 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
       // Browser takeover: tells the UI where the managed Chrome draws, so "how do I log in?" has
       // an answer on screen instead of only in the daemon log.
       ...createBrowserStatusRoutes(),
+      // The same discovery and mapping for ports that live on a connected device instead of here.
+      // A device is outbound-only, so the server asks it to dial back and hands out a loopback port
+      // that stands in for the remote one (plan/embedded-browser.md §18).
+      ...createDevicePortRoutes({
+        listDevices: getOnlineDevices,
+        runOnDevice: async (device, command) => {
+          const result = await sendCommand(device, { action: 'bash', params: { command }, timeout: 10_000 });
+          return typeof result?.stdout === 'string' ? result.stdout : '';
+        },
+        openDevicePort,
+        listDevicePorts,
+      }),
     },
     portForward: env.CORTEX_PORT_FORWARD !== '0',
   });

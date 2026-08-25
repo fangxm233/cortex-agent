@@ -11,3 +11,4 @@ Covers client deployment, updates, the connection registry, and the client daemo
 | reverse-stream.ts | core | Mints and pairs device-dialed streams for server→device connections |
 | cortex-client-config.ts | config | Resolves client connection URL and auth headers |
 | cortex-client.ts | entry | Runs the client daemon on a remote device |
+| device-port.ts | core | Maps a port on a device onto a loopback port on this server |

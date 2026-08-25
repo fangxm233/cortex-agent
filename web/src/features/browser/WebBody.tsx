@@ -7,7 +7,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiBase } from '@/lib/desktop-config';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { usePinnedPreview } from '@/features/media/PinnedPreviewProvider';
-import { canForward, listRemotePorts, startForward, type ListeningPort } from './forward';
+import {
+  canForward, listDeviceRemotePorts, listForwardDevices, listRemotePorts, openDeviceForward,
+  startForward, type ForwardDevice, type ListeningPort,
+} from './forward';
 import {
   EMPTY_HISTORY,
   VIEWPORT_PRESETS,
@@ -52,6 +55,9 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
   const [portsOpen, setPortsOpen] = useState(false);
   const [ports, setPorts] = useState<ListeningPort[] | null>(null);
   const [portsError, setPortsError] = useState<string | null>(null);
+  /** '' is the server itself — the only host that needs no reverse channel. */
+  const [portDevice, setPortDevice] = useState('');
+  const [devices, setDevices] = useState<ForwardDevice[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
 
@@ -115,21 +121,47 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
   const openPort = async (port: number): Promise<void> => {
     setPortsOpen(false);
     try {
-      const url = canForward() ? (await startForward(port)).url : `http://127.0.0.1:${port}/`;
+      // A device port is mapped onto a server port first; from there it is indistinguishable from
+      // anything else the server is listening on, so the desktop forward handles it unchanged.
+      const serverPort = portDevice === ''
+        ? port
+        : (await openDeviceForward(portDevice, port)).localPort;
+      const url = canForward()
+        ? (await startForward(serverPort)).url
+        : `http://127.0.0.1:${serverPort}/`;
       navigate(url);
     } catch (e) {
       setRejected((e as Error).message);
     }
   };
 
+  const loadPorts = (device: string): void => {
+    setPorts(null);
+    setPortsError(null);
+    const list = device === '' ? listRemotePorts() : listDeviceRemotePorts(device);
+    list.then(setPorts).catch((e: Error) => setPortsError(e.message));
+  };
+
+  const pickDevice = (device: string): void => {
+    setPortDevice(device);
+    loadPorts(device);
+  };
+
   const togglePorts = (): void => {
     const next = !portsOpen;
     setPortsOpen(next);
     if (!next) return;
-    setPortsError(null);
-    listRemotePorts()
-      .then(setPorts)
-      .catch((e: Error) => setPortsError(e.message));
+    // Devices come and go; a stale list would offer a machine that is no longer connected, and a
+    // selection left pointing at one would silently query nothing.
+    listForwardDevices()
+      .then((list) => {
+        setDevices(list);
+        const stillThere = portDevice === '' || list.some((d) => d.device === portDevice);
+        const device = stillThere ? portDevice : '';
+        setPortDevice(device);
+        loadPorts(device);
+      })
+      .catch(() => { setDevices([]); setPortDevice(''); loadPorts(''); });
   };
 
   const step = (dir: 'back' | 'forward'): void => {
@@ -201,7 +233,7 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
         </select>
         <button
           type="button"
-          title="Ports listening on the server"
+          title="Ports listening on the server or a connected device"
           onClick={togglePorts}
           style={{
             height: 26,
@@ -222,16 +254,28 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
 
       {portsOpen && (
         <div style={{ flex: 'none', maxHeight: 190, overflow: 'auto', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-card)' }}>
+          {devices.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderBottom: '1px solid var(--proto-line)' }}>
+              <DeviceTab active={portDevice === ''} onClick={() => pickDevice('')}>server</DeviceTab>
+              {devices.map((d) => (
+                <DeviceTab key={d.device} active={portDevice === d.device} onClick={() => pickDevice(d.device)}>
+                  {d.device}
+                </DeviceTab>
+              ))}
+            </div>
+          )}
           {portsError ? (
             <PortsNote>{portsError}</PortsNote>
           ) : ports === null ? (
             <PortsNote>Loading…</PortsNote>
           ) : ports.length === 0 ? (
-            <PortsNote>Nothing is listening on the server’s loopback.</PortsNote>
+            <PortsNote>
+              Nothing is listening on {portDevice === '' ? 'the server’s' : `${portDevice}’s`} loopback.
+            </PortsNote>
           ) : (
             ports.map((p) => (
               <button
-                key={p.port}
+                key={`${portDevice}:${p.port}`}
                 type="button"
                 onClick={() => void openPort(p.port)}
                 style={{
@@ -306,6 +350,31 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
         )}
       </div>
     </div>
+  );
+}
+
+function DeviceTab({ children, active, onClick }: {
+  children: React.ReactNode;
+  active: boolean;
+  onClick: () => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        height: 22,
+        padding: '0 8px',
+        borderRadius: 6,
+        border: active ? '1.5px solid var(--proto-accent)' : '1px solid var(--proto-line)',
+        background: active ? 'var(--proto-accent-bg)' : 'transparent',
+        color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
+        font: `600 10px ${MONO}`,
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
