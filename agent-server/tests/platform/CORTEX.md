@@ -10,6 +10,7 @@ gateway and wire protocol, and the Web UI HTTP transport.
 | browser-display.test.ts | test | Covers the display-selection ladder across platforms |
 | browser-status.test.ts | test | Covers the takeover answer the UI renders |
 | composite-adapter.test.ts | test | Covers fan-out and nullable live settings |
+| device-listeners.test.ts | test | Covers the Windows netstat parse and per-platform probe choice |
 | device-ports.test.ts | test | Covers device listing, remote port discovery and port mapping |
 | tui-gateway.test.ts | test | Covers TUI gateway sessions and delivery |
 | tui-protocol.test.ts | test | Covers TUI frame parsing and encoding |

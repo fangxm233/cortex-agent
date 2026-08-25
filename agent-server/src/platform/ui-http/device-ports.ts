@@ -5,7 +5,8 @@
 
 import type * as http from 'http';
 import { createLogger } from '@core/log.js';
-import { parseSsListeners, type ListeningPort } from './port-forward.js';
+import type { ListeningPort } from './port-forward.js';
+import { listenerProbes } from './device-listeners.js';
 
 const log = createLogger('device-ports');
 
@@ -36,12 +37,17 @@ export interface DevicePortDeps {
   listDevicePorts: () => DevicePortMapping[];
 }
 
-/** `ss` on the device, with the same privilege fallback the server uses on itself. */
+/**
+ * Discover a device's listening ports with whatever its platform actually has — `ss` on Linux,
+ * `netstat` on Windows. Getting this wrong is not a degraded answer but an empty one, which reads
+ * as "nothing is running there".
+ */
 async function listRemoteListeners(deps: DevicePortDeps, device: string): Promise<ListeningPort[]> {
-  for (const cmd of ['ss -ltnpH', 'ss -ltnH']) {
+  const platform = deps.listDevices().find((d) => d.device === device)?.platform ?? '';
+  for (const probe of listenerProbes(platform)) {
     try {
-      const stdout = await deps.runOnDevice(device, cmd);
-      if (stdout.trim() !== '') return parseSsListeners(stdout);
+      const stdout = await deps.runOnDevice(device, probe.command);
+      if (stdout.trim() !== '') return probe.parse(stdout);
     } catch (err) {
       log.warn(`port discovery on ${device} failed: ${(err as Error).message}`);
       return [];
