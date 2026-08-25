@@ -1,5 +1,5 @@
-// input:  mounted mobile chat, mutations and captured route state
-// output: optimistic-send and local slash-action specifications
+// input:  mounted mobile chat, Todo state, mutations and routes
+// output: Todo wiring, optimistic-send and slash-action specifications
 // pos:    Mounted mobile composer integration specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -22,6 +22,7 @@ const harness = vi.hoisted(() => ({
   navigate: vi.fn(),
   invalidateQueries: vi.fn(),
   liveState: {} as any,
+  liveSyncArgs: null as any[] | null,
 }));
 
 vi.mock('@tanstack/react-query', async (importOriginal) => {
@@ -98,13 +99,16 @@ vi.mock('@/mobile/current-project', () => ({
 }));
 
 vi.mock('@/features/workbench/useSessionMessageLiveSync', () => ({
-  useSessionMessageLiveSync: () => ({
-    ...harness.liveState,
-    getMessageSnapshot: () => ({
-      liveTail: harness.liveState.liveTail,
-      pendingUser: harness.liveState.pendingUser,
-    }),
-  }),
+  useSessionMessageLiveSync: (...args: any[]) => {
+    harness.liveSyncArgs = args;
+    return {
+      ...harness.liveState,
+      getMessageSnapshot: () => ({
+        liveTail: harness.liveState.liveTail,
+        pendingUser: harness.liveState.pendingUser,
+      }),
+    };
+  },
 }));
 
 vi.mock('@/features/workbench/useSessionCompact', () => ({
@@ -132,6 +136,7 @@ vi.mock('./MChatView', async () => {
         onSend: props.onSend,
         onSlashPick: props.onSlashPick,
         slashSuggestions: props.slashSuggestions,
+        'data-todo-count': props.todos?.total ?? 0,
       },
       props.rows
         .filter((row: { kind: string }) => row.kind === 'user')
@@ -210,11 +215,31 @@ beforeEach(() => {
   harness.navigate.mockReset();
   harness.invalidateQueries.mockReset();
   harness.liveState = emptyLiveState();
+  harness.liveSyncArgs = null;
 });
 
 afterEach(() => {
   if (mounted) act(() => mounted?.unmount());
   mounted = null;
+});
+
+describe('mobile Todo state', () => {
+  it('hydrates live sync from the selected session and forwards the resolved snapshot', () => {
+    const todos = {
+      items: [{ content: 'Inspect state', activeForm: 'Inspecting state', status: 'in_progress' }],
+      total: 1,
+      completed: 0,
+      activeLabel: 'Inspecting state',
+      updatedAt: 1,
+    };
+    harness.sessions = [{ ...SESSION, todos }];
+    harness.liveState = { ...emptyLiveState(), todos };
+
+    mounted = mountChat();
+
+    expect(harness.liveSyncArgs?.[3].todos).toBe(todos);
+    expect(view(mounted).props['data-todo-count']).toBe(1);
+  });
 });
 
 describe('mobile UI slash shortcuts', () => {

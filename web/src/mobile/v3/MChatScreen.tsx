@@ -1,5 +1,5 @@
-// input:  mobile session queries, UI shortcuts and chat mutations
-// output: MChatScreen live chat with local slash actions
+// input:  mobile session queries, live Todo/message state, mutations
+// output: MChatScreen chat with Todo rail and local slash actions
 // pos:    Mobile session detail state and data orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -281,12 +281,15 @@ export function MChatScreen(): JSX.Element {
   // seconds later. The opt-in costs one SSE connection, so no other consumer of this hook asks for
   // it — notably the plan reading page (MPlanReadScreen), which renders no chat. `transcript` is
   // passed back in only so a pending row self-heals if its delivered event is lost to a dropped frame.
-  const { liveTail, getMessageSnapshot, streaming, running, liveTurns, contextUsage, streamingText, pendingUser } =
-    useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
-      deltas: true,
-      transcript: transcriptQuery.data ?? null,
-      contextUsage: active?.contextUsage ?? null,
-    });
+  const {
+    liveTail, getMessageSnapshot, streaming, running, liveTurns, contextUsage, todos,
+    streamingText, pendingUser,
+  } = useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
+    deltas: true,
+    transcript: transcriptQuery.data ?? null,
+    contextUsage: active?.contextUsage ?? null,
+    todos: active?.todos ?? null,
+  });
   // A sent message shows in the stream on the frame it is sent (same reconciliation the desktop
   // chat uses), instead of vanishing until the server echoes it back.
   const optimistic = useOptimisticUserMessages({
@@ -847,6 +850,9 @@ export function MChatScreen(): JSX.Element {
         onShowOriginal={(edited) => setOriginalSheet({ text: edited.originalText })}
         originalSheet={originalSheet ? { text: originalSheet.text, onClose: () => setOriginalSheet(null) } : null}
         streamKey={sessionId}
+        sessionId={sessionId}
+        todos={todos}
+        todoLang={lang}
         composerValue={text}
         onComposerChange={setText}
         onSend={onSend}

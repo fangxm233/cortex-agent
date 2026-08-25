@@ -1,5 +1,5 @@
-// input:  mobile rows, slash suggestions and send availability
-// output: Mobile message and composer interaction contracts
+// input:  mobile rows, Todo snapshots, slash and send state
+// output: Mobile Todo, message and composer interaction contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { ComposerFullscreen, MComposer } from '@/mobile/ui/kit';
+import type { TodoSnapshot } from '@cortex-agent/ui-contract';
 import type { ChatRow } from '@/features/workbench/transcript-vm';
 import { MChatStream, MChatView, type MChatCopy, type MChatEditCopy } from './MChatView';
 
@@ -105,6 +106,35 @@ describe('MChatView slash shortcuts', () => {
 
     expect(onSlashPick).toHaveBeenCalledOnce();
     expect(onSlashPick.mock.calls[0][0].command).toBe('/new');
+  });
+});
+
+describe('MChatView Todo rail', () => {
+  it('shows the selected session Todo summary above the composer', () => {
+    const todos: TodoSnapshot = {
+      items: [
+        { content: 'Inspect state', activeForm: 'Inspecting state', status: 'in_progress' },
+        { content: 'Apply fix', activeForm: 'Applying fix', status: 'pending' },
+      ],
+      total: 2,
+      completed: 0,
+      activeLabel: 'Inspecting state',
+      updatedAt: 1,
+    };
+    const html = renderToStaticMarkup(
+      <MChatView
+        {...baseProps}
+        status={{ running: true, tone: 'running', text: 'running' }}
+        rows={[]}
+        sessionId="s1"
+        todos={todos}
+        todoLang="en"
+      />,
+    );
+
+    expect(html).toContain('data-todo-rail="collapsed"');
+    expect(html).toContain('0/2');
+    expect(html).toContain('Inspecting state');
   });
 });
 

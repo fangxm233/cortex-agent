@@ -1,6 +1,6 @@
 // input:  task-list snapshot, language, persisted expand state
 // output: collapsed summary or full click-to-collapse task list
-// pos:    Session task-list surface in the desktop chat
+// pos:    Shared session task-list surface above chat composers
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';

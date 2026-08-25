@@ -1,5 +1,5 @@
-// input:  Mobile chat rows, interactions, and composer state
-// output: Mobile chat stream, controls, and sheets
+// input:  Mobile chat rows, Todo snapshots, interactions, composer state
+// output: Mobile chat stream, task rail, controls, and sheets
 // pos:    Mobile chat presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -19,7 +19,7 @@
 // the model has not read yet (`pending`) is pinned below everything, the preview included, and says
 // so with dimmed text alone: the same ink bubble, full opacity, no icon, badge or spinner.
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import type { SessionContextUsage } from '@cortex-agent/ui-contract';
+import type { SessionContextUsage, TodoSnapshot } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';
 import {
@@ -30,6 +30,7 @@ import {
   type ContextCompactAction,
 } from '@/features/workbench/ContextUsageControl';
 import { useRevealedText } from '@/features/workbench/useRevealedText';
+import { TodoRail, type TodoRailLanguage } from '@/features/workbench/TodoRail';
 import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
 import { useVocab } from '@/i18n';
@@ -1265,6 +1266,10 @@ export interface MChatViewProps {
   originalSheet?: { text: string; onClose: () => void } | null;
   /** Identity of the live stream the rows belong to (the session) — see MChatStream. */
   streamKey?: string;
+  /** Selected-session Todo snapshot shown immediately above the composer. */
+  sessionId?: string;
+  todos?: TodoSnapshot | null;
+  todoLang?: TodoRailLanguage;
   // composer
   composerValue: string;
   onComposerChange: (v: string) => void;
@@ -1399,7 +1404,14 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       </div>
     </>
   );
-  const above = composerMode;
+  const above = (
+    <>
+      {props.sessionId && props.todos ? (
+        <TodoRail sessionId={props.sessionId} todos={props.todos} lang={props.todoLang ?? 'en'} />
+      ) : null}
+      {composerMode}
+    </>
+  );
   const commandMenu = !props.editing && !props.rejectBar
     && props.slashSuggestions?.length && props.onSlashPick
     ? <MobileSlashMenu suggestions={props.slashSuggestions} onPick={props.onSlashPick} />
