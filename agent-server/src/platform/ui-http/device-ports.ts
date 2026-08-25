@@ -5,8 +5,7 @@
 
 import type * as http from 'http';
 import { createLogger } from '@core/log.js';
-import type { ListeningPort } from './port-forward.js';
-import { listenerProbes } from './device-listeners.js';
+import { listenerProbes, type ListeningPort } from './listening-ports.js';
 
 const log = createLogger('device-ports');
 

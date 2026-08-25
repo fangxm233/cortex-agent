@@ -1,4 +1,4 @@
-// input:  authenticated WebSocket upgrades, a port policy, and `ss` output
+// input:  authenticated WebSocket upgrades, a port policy, and this host's listening ports
 // output: a TCP-over-WebSocket forward plus the listening-port discovery route
 // pos:    Web UI transport host — the tunnel-traversing half of the desktop port forward
 // >>> If I am updated, update CORTEX.md <<<
@@ -10,6 +10,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { createLogger } from '@core/log.js';
+import { listenerProbes, MIN_FORWARDABLE_PORT, type ListeningPort } from './listening-ports.js';
 
 const log = createLogger('port-forward');
 const execFileAsync = promisify(execFile);
@@ -27,10 +28,6 @@ export const FORWARD_PATH = '/forward';
 
 /** Discovery route: which loopback ports are currently listening on this host. */
 export const FORWARD_PORTS_PATH = '/api/forward/ports';
-
-/** Privileged ports are never forwarded — nothing a dev server needs lives below 1024, and the
- *  accident (forwarding 22 or 3389) is worse than the inconvenience. */
-const MIN_FORWARDABLE_PORT = 1024;
 
 /** Bound so a leaking client cannot exhaust file descriptors. */
 const MAX_CONCURRENT = 64;
@@ -65,62 +62,24 @@ export function parseForwardTarget(rawUrl: string): ForwardTarget | null {
   return { host, port };
 }
 
-// ── Discovery ─────────────────────────────────────────────────────────────────
-
-export interface ListeningPort {
-  port: number;
-  /** Bound address as reported by `ss` — 127.0.0.1, 0.0.0.0, *, [::], … */
-  address: string;
-  /** Best-effort process name, or null when `ss` could not attribute it (no permission). */
-  process: string | null;
-}
-
-/**
- * Parse `ss -ltnH` (with or without `-p`) into listening ports reachable over loopback.
- *
- * Lines look like:
- *   LISTEN 0 511 127.0.0.1:5173 0.0.0.0:* users:(("node",pid=1,fd=24))
- *   LISTEN 0 4096 *:3005 *:*
- * A port bound only to a non-loopback interface is dropped: the forward connects to 127.0.0.1,
- * so listing it would offer a target that cannot actually be reached.
- */
-export function parseSsListeners(stdout: string): ListeningPort[] {
-  const out = new Map<number, ListeningPort>();
-  for (const line of stdout.split('\n')) {
-    const parts = line.trim().split(/\s+/);
-    if (parts.length < 4) continue;
-    const local = parts[3];
-    const idx = local.lastIndexOf(':');
-    if (idx < 0) continue;
-    const port = Number(local.slice(idx + 1));
-    if (!Number.isInteger(port) || port < MIN_FORWARDABLE_PORT) continue;
-    const address = local.slice(0, idx);
-    const loopback = address === '127.0.0.1' || address === '[::1]' || address === '*' || address === '0.0.0.0' || address === '[::]';
-    if (!loopback) continue;
-    const proc = /users:\(\("([^"]+)"/.exec(line);
-    const existing = out.get(port);
-    // Prefer the entry that carries a process name.
-    if (!existing || (!existing.process && proc)) {
-      out.set(port, { port, address, process: proc ? proc[1] : null });
-    }
-  }
-  return [...out.values()].sort((a, b) => a.port - b.port);
-}
-
 async function listListeningPorts(): Promise<ListeningPort[]> {
-  try {
-    const { stdout } = await execFileAsync('ss', ['-ltnpH'], { timeout: 3000 });
-    return parseSsListeners(stdout);
-  } catch {
-    // `-p` needs no privileges for own-user sockets, but `ss` may be absent entirely.
+  if (process.platform === 'win32') {
+    // The probe chain's Windows form assumes git-bash (MSYS_NO_PATHCONV, `/FO`), which is a
+    // cortex-client assumption, not a daemon one. The daemon is not deployed on Windows.
+    log.warn('port discovery is not implemented for a Windows-hosted daemon');
+    return [];
+  }
+  let lastError = 'no probe produced output';
+  for (const probe of listenerProbes(process.platform)) {
     try {
-      const { stdout } = await execFileAsync('ss', ['-ltnH'], { timeout: 3000 });
-      return parseSsListeners(stdout);
+      const { stdout } = await execFileAsync('sh', ['-c', probe.command], { timeout: 3000 });
+      if (stdout.trim() !== '') return probe.parse(stdout);
     } catch (e) {
-      log.warn(`port discovery unavailable: ${(e as Error).message}`);
-      return [];
+      lastError = (e as Error).message;
     }
   }
+  log.warn(`port discovery unavailable: ${lastError}`);
+  return [];
 }
 
 /** Discovery route, mounted through `customRoutes` so it inherits the same auth gate. */

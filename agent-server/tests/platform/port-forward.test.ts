@@ -11,7 +11,6 @@ import {
   FORWARD_PATH,
   createPortForward,
   parseForwardTarget,
-  parseSsListeners,
 } from '../../src/platform/ui-http/port-forward.js';
 
 describe('parseForwardTarget', () => {
@@ -37,35 +36,6 @@ describe('parseForwardTarget', () => {
   });
 });
 
-describe('parseSsListeners', () => {
-  const sample = [
-    'LISTEN 0      511        127.0.0.1:5173       0.0.0.0:*    users:(("node",pid=11,fd=24))',
-    'LISTEN 0      4096             *:3005             *:*      users:(("node",pid=12,fd=30))',
-    'LISTEN 0      128        10.18.108.4:9000     0.0.0.0:*',
-    'LISTEN 0      128          [::1]:6080          [::]:*',
-    'LISTEN 0      128        127.0.0.1:22          0.0.0.0:*',
-  ].join('\n');
-
-  it('keeps loopback-reachable ports with their process name', () => {
-    const got = parseSsListeners(sample);
-    expect(got.map((p) => p.port)).toEqual([3005, 5173, 6080]);
-    expect(got.find((p) => p.port === 5173)?.process).toBe('node');
-    expect(got.find((p) => p.port === 6080)?.process).toBeNull();
-  });
-
-  it('drops ports bound only to an external interface', () => {
-    expect(parseSsListeners(sample).some((p) => p.port === 9000)).toBe(false);
-  });
-
-  it('drops privileged ports', () => {
-    expect(parseSsListeners(sample).some((p) => p.port === 22)).toBe(false);
-  });
-
-  it('survives junk', () => {
-    expect(parseSsListeners('')).toEqual([]);
-    expect(parseSsListeners('garbage line\nLISTEN')).toEqual([]);
-  });
-});
 
 // ── End-to-end: a real TCP echo server reached through the forward ────────────
 

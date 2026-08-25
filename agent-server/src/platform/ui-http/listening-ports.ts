@@ -1,9 +1,8 @@
-// input:  a device's platform, and the stdout of the listening-port command run there
-// output: which command to run on that device, and the ports it reports
-// pos:    Web UI transport host — platform dispatch for device port discovery
+// input:  a platform, and the stdout of the listening-port command run on it
+// output: which command to run there, and the listening ports it reports
+// pos:    Web UI transport host — platform dispatch for port discovery, local and remote
 // >>> If I am updated, update CORTEX.md <<<
 
-import { parseSsListeners, type ListeningPort } from './port-forward.js';
 
 /**
  * VS Code does not solve this problem at all: its candidate finder is gated behind `isLinux` and
@@ -19,8 +18,10 @@ import { parseSsListeners, type ListeningPort } from './port-forward.js';
  * is running there" rather than as "we could not look".
  */
 
-/** Same floor as the local forward: nothing a dev server needs lives below 1024. */
-const MIN_PORT = 1024;
+/** Privileged ports are never offered — nothing a dev server needs lives below 1024, and the
+ *  accident (forwarding 22 or 3389) is worse than the inconvenience. */
+export const MIN_FORWARDABLE_PORT = 1024;
+const MIN_PORT = MIN_FORWARDABLE_PORT;
 
 /** Marks where netstat output ends and the pid→name table begins in one round trip. */
 const TASKLIST_MARKER = '#--tasklist--#';
@@ -91,6 +92,57 @@ export function parseNetstatListeners(stdout: string): ListeningPort[] {
   }
   return [...out.values()].sort((a, b) => a.port - b.port);
 }
+
+// ── Linux ─────────────────────────────────────────────────────────────────────
+
+export interface ListeningPort {
+  port: number;
+  /** Bound address as reported by `ss` — 127.0.0.1, 0.0.0.0, *, [::], … */
+  address: string;
+  /** Best-effort process name, or null when `ss` could not attribute it (no permission). */
+  process: string | null;
+}
+
+/**
+ * Parse `ss -ltnH` (with or without `-p`) into listening ports reachable over loopback.
+ *
+ * Lines look like:
+ *   LISTEN 0 511 127.0.0.1:5173 0.0.0.0:* users:(("node",pid=1,fd=24))
+ *   LISTEN 0 4096 *:3005 *:*
+ * A port bound only to a non-loopback interface is dropped: the forward connects to 127.0.0.1,
+ * so listing it would offer a target that cannot actually be reached.
+ */
+export function parseSsListeners(stdout: string): ListeningPort[] {
+  const out = new Map<number, ListeningPort>();
+  for (const line of stdout.split('\n')) {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 4) continue;
+    const local = parts[3];
+    const idx = local.lastIndexOf(':');
+    if (idx < 0) continue;
+    const port = Number(local.slice(idx + 1));
+    if (!Number.isInteger(port) || port < MIN_FORWARDABLE_PORT) continue;
+    const address = local.slice(0, idx);
+    const loopback = address === '127.0.0.1' || address === '[::1]' || address === '*' || address === '0.0.0.0' || address === '[::]';
+    if (!loopback) continue;
+    const proc = /users:\(\("([^"]+)"/.exec(line);
+    const existing = out.get(port);
+    // Prefer the entry that carries a process name.
+    if (!existing || (!existing.process && proc)) {
+      out.set(port, { port, address, process: proc ? proc[1] : null });
+    }
+  }
+  return [...out.values()].sort((a, b) => a.port - b.port);
+}
+
+/**
+ * Discover this host's own listening ports, using the same probe chain the device half uses.
+ *
+ * Sharing it is not tidiness: `ss` alone means an empty list on a container image without iproute2
+ * and on macOS, and this half was the narrower one — a device could report ports its own server
+ * could not. The commands are module constants with no interpolation, so running them through a
+ * shell introduces nothing to inject.
+ */
 
 // ── macOS ─────────────────────────────────────────────────────────────────────
 

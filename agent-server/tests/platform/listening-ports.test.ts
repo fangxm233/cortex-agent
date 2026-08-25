@@ -1,12 +1,12 @@
-// input:  real netstat/tasklist output from a Windows device
-// output: pinned platform dispatch and the Windows listening-port parse
-// pos:    tests for device port discovery across platforms
+// input:  real ss / netstat / lsof / proc output from each supported platform
+// output: pinned platform dispatch and the listening-port parse for each
+// pos:    tests for port discovery across platforms
 // >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
-  listenerProbes, parseLsofListeners, parseNetstatListeners, parseProcNetTcp,
+  listenerProbes, parseLsofListeners, parseNetstatListeners, parseProcNetTcp, parseSsListeners,
   MACOS_LISTENER_COMMAND, PROC_LISTENER_COMMAND, WINDOWS_LISTENER_COMMAND,
-} from '@platform/ui-http/device-listeners.js';
+} from '@platform/ui-http/listening-ports.js';
 
 // Captured verbatim from `my-pc` (Windows 11, code page 65001).
 const NETSTAT = `
@@ -168,5 +168,35 @@ describe('listenerProbes', () => {
       expect(listenerProbes(platform).map((p) => p.command))
         .toEqual(['ss -ltnpH', 'ss -ltnH', PROC_LISTENER_COMMAND]);
     }
+  });
+});
+
+describe('parseSsListeners', () => {
+  const sample = [
+    'LISTEN 0      511        127.0.0.1:5173       0.0.0.0:*    users:(("node",pid=11,fd=24))',
+    'LISTEN 0      4096             *:3005             *:*      users:(("node",pid=12,fd=30))',
+    'LISTEN 0      128        10.18.108.4:9000     0.0.0.0:*',
+    'LISTEN 0      128          [::1]:6080          [::]:*',
+    'LISTEN 0      128        127.0.0.1:22          0.0.0.0:*',
+  ].join('\n');
+
+  it('keeps loopback-reachable ports with their process name', () => {
+    const got = parseSsListeners(sample);
+    expect(got.map((p) => p.port)).toEqual([3005, 5173, 6080]);
+    expect(got.find((p) => p.port === 5173)?.process).toBe('node');
+    expect(got.find((p) => p.port === 6080)?.process).toBeNull();
+  });
+
+  it('drops ports bound only to an external interface', () => {
+    expect(parseSsListeners(sample).some((p) => p.port === 9000)).toBe(false);
+  });
+
+  it('drops privileged ports', () => {
+    expect(parseSsListeners(sample).some((p) => p.port === 22)).toBe(false);
+  });
+
+  it('survives junk', () => {
+    expect(parseSsListeners('')).toEqual([]);
+    expect(parseSsListeners('garbage line\nLISTEN')).toEqual([]);
   });
 });
