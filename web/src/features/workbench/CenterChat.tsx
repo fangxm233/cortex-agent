@@ -215,6 +215,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
         elapsed={elapsed}
         isDraft={isDraft}
         currentProfile={active?.profileName ?? null}
+        sessionBrowser={active?.browser ?? null}
         hasHistory={hasHistory}
         draftProfile={draftProfile}
         draftReloadToken={draftReloadToken}

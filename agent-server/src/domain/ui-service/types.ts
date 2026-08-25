@@ -740,6 +740,10 @@ export interface SessionInfo {
   /** The session's active agent profile (registry record). Null when never explicitly set — the
    *  client falls back to the config default. Kept in sync by the shared profile-switch rule. */
   profileName: string | null;
+  /** Browser control this session opted into at creation, or null. Fixed for the session's life:
+   *  the agent's tool set is decided when its process spawns, so this is a fact to display, not a
+   *  setting to flip. */
+  browser?: { device: string } | null;
   /** Latest backend context occupancy, or null until a supported backend reports one. Optional only
    *  for rolling compatibility with older servers/fixtures; current sessions.list always supplies it. */
   contextUsage?: SessionContextUsage | null;

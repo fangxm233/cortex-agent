@@ -116,6 +116,7 @@ export async function handleSessionsList(
       resumable: s.kind !== 'scheduled',
       label: s.label ?? null,
       profileName: s.profileName ?? null,
+      browser: s.browser ?? null,
       contextUsage: s.contextUsage ?? null,
       todos: deps.getSessionTodos?.(s.sessionId) ?? null,
       contextCompactionSupported: deps.supportsSessionCompaction?.(s) ?? false,

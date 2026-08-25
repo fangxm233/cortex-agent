@@ -52,3 +52,25 @@ describe('ComposerActionRow browser slot', () => {
     expect(renderer.root.findAllByProps({ 'data-chip': 'browser' })).toHaveLength(0);
   });
 });
+
+describe('BrowserOptInChip on an existing session', () => {
+  it('reports the device without offering a control', () => {
+    const onChange = vi.fn();
+    const renderer = create(
+      <LangProvider>
+        <BrowserOptInChip device="server" />
+      </LangProvider>,
+    );
+    const chip = renderer.root.findByProps({ 'data-chip': 'browser' });
+    expect(chip.props['data-editable']).toBe('false');
+    // No click handler at all — a running agent's tool set cannot change, so a control that looked
+    // clickable would be a lie.
+    expect(chip.props.onClick).toBeUndefined();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('explains why it cannot be changed', () => {
+    const { chip } = renderChip('server');
+    expect(typeof chip.props.title).toBe('string');
+  });
+});

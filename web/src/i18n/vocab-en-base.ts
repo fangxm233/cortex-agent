@@ -203,6 +203,7 @@ export const enBase = {
   wbBrowser: 'browser',
   wbBrowserOff: 'Give this session browser control (Chrome on the server). Only new sessions can opt in.',
   wbBrowserOn: 'This session controls Chrome on the server — take it over from your desktop session to log in.',
+  wbBrowserFixed: 'This session was created with browser control. It cannot be changed — the tool set is fixed when the agent starts.',
   wbAttachPath: '→ workspace/attachments/',
   wbFileDownload: 'Download',
   wbFileCopyPath: 'Copy path',

@@ -28,20 +28,24 @@ function chipStyle(active: boolean, hover: boolean): CSSProperties {
  */
 export function BrowserOptInChip({ device, onChange }: {
   device: string | null;
-  onChange: (device: string | null) => void;
+  /** Omitted for a session that already exists: the chip then only REPORTS what it was created
+   *  with. Offering a control there would promise a change the running process cannot make. */
+  onChange?: (device: string | null) => void;
 }): JSX.Element {
   const L = useVocab();
   const [hover, setHover] = useState(false);
   const active = device !== null;
+  const editable = typeof onChange === 'function';
   return (
     <span
       data-chip="browser"
       data-active={active ? 'true' : 'false'}
-      title={active ? L.wbBrowserOn : L.wbBrowserOff}
-      onClick={() => onChange(active ? null : DEFAULT_BROWSER_DEVICE)}
-      onMouseEnter={() => setHover(true)}
+      data-editable={editable ? 'true' : 'false'}
+      title={editable ? (active ? L.wbBrowserOn : L.wbBrowserOff) : L.wbBrowserFixed}
+      onClick={editable ? () => onChange!(active ? null : DEFAULT_BROWSER_DEVICE) : undefined}
+      onMouseEnter={() => { if (editable) setHover(true); }}
       onMouseLeave={() => setHover(false)}
-      style={chipStyle(active, hover)}
+      style={{ ...chipStyle(active, hover), cursor: editable ? 'pointer' : 'default' }}
     >
       {active ? `${L.wbBrowser} · ${device}` : L.wbBrowser}
     </span>

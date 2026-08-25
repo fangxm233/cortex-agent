@@ -173,6 +173,7 @@ export function Composer({
   cost,
   elapsed,
   isDraft = false,
+  sessionBrowser = null,
   currentProfile,
   hasHistory,
   draftProfile = null,
@@ -199,6 +200,8 @@ export function Composer({
   cost: number | null;
   elapsed: string;
   isDraft?: boolean;
+  /** Browser control an EXISTING session was created with. Read-only — fixed at spawn. */
+  sessionBrowser?: { device: string } | null;
   currentProfile: string | null;
   hasHistory: boolean;
   draftProfile?: string | null;
@@ -973,7 +976,11 @@ export function Composer({
                       profileControl={<SessionProfileSelectorView selection={profileSelection} />}
                       browserControl={isDraft
                         ? <BrowserOptInChip device={browserDevice} onChange={setBrowserDevice} />
-                        : undefined}
+                        // A live session shows what it was created with, without pretending it can
+                        // be changed now.
+                        : sessionBrowser
+                          ? <BrowserOptInChip device={sessionBrowser.device} />
+                          : undefined}
                       hint={hasAttachments ? L.wbAttachHint : composerHint}
                       onAttach={() => fileInputRef.current?.click()}
                       onCommands={() => { setComposer('/'); setSlashOpen(true); }}
