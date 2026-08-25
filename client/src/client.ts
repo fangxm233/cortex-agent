@@ -12,6 +12,7 @@ import { execBash, execBashBackground, spawnCommand } from './command-exec.js';
 import { createLogger } from './log.js';
 import { CONFIG_DIR } from './paths.js';
 import { resolveClientToken, buildClientHeaders } from './auth-headers.js';
+import { isOpenStream, openReverseStream } from './reverse-stream.js';
 import { resolveServerUrl } from './server-url.js';
 import {
   handleCortexRunLaunch,
@@ -610,6 +611,12 @@ function connect() {
     try {
       msg = JSON.parse(raw.toString());
     } catch {
+      return;
+    }
+
+    if (isOpenStream(msg)) {
+      // Byte transport, not a command: it gets its own socket and never touches the result path.
+      openReverseStream(msg, { controlUrl: SERVER_URL, headers: buildClientHeaders(CLIENT_TOKEN) });
       return;
     }
 

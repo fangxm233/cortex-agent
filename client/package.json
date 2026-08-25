@@ -23,7 +23,7 @@
     "start": "node dist/client.js",
     "build": "tsc && node scripts/copy-assets.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test --test-force-exit --test-timeout=15000 src/cortex-run-watcher.test.ts tests/client/cortex-run-launch.test.ts tests/client/auth-headers.test.ts tests/client/command-exec.test.ts tests/client/server-url.test.ts"
+    "test": "node --import tsx --test --test-force-exit --test-timeout=15000 src/cortex-run-watcher.test.ts tests/client/cortex-run-launch.test.ts tests/client/auth-headers.test.ts tests/client/command-exec.test.ts tests/client/server-url.test.ts tests/client/reverse-stream.test.ts"
   },
   "dependencies": {
     "ws": "^8.21.1"
