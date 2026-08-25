@@ -148,8 +148,6 @@ export const THREAD_PROTOCOL_PREAMBLE = [
   'Task-backed delegation (DR-0014): when CORTEX_TASK_ID is set, stage each child task as JSON',
   'with the Write tool at a per-task unique path, then run `cortex-task spawn --task-file <path>`.',
   'Do not use shared staging filenames or place task text, why, or done-when in shell arguments.',
-  'Acceptance before trust: verify each child deliverable against its done_when yourself',
-  '(read files, run tests) — never accept a child\'s self-report as evidence.',
 ].join('\n');
 
 // --- Prompt assembly ---
@@ -340,8 +338,8 @@ export function buildConversationPrompt(
     prefixes.push(
       `[Session Project] This session is bound to the project "${project.id}".\n`
       + `Project context directory: ${project.contextDir}\n`
-      + `Treat messages in this session as pertaining to this project unless stated otherwise. `
-      + `project-related findings and status updates there.`,
+      + `Treat messages in this session as pertaining to this project unless stated otherwise, `
+      + `and record project-related findings and status updates there.`,
     );
   }
   if (prefixes.length > 0) prompt = prefixes.join('\n\n') + '\n\n' + prompt;
