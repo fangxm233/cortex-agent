@@ -1396,6 +1396,9 @@ function matchesTuiSession(
     && session.mcpComposition === composition
     && session.pluginCapabilityFingerprint === (options.pluginCapabilityFingerprint ?? null)
     && session.supplementalMcpConfigIdentity === (options.supplementalMcpConfigIdentity ?? null)
+    // TUI processes are pooled and long-lived; without this term, turning the browser on or off
+    // would silently do nothing until the existing pane happened to die.
+    && session.browserMcpConfigIdentity === (options.browserMcpConfigIdentity ?? null)
     && session.tools === (options.tools ?? null)
     && sameTextArray(session.pluginDirs, cloneTextArray(options.pluginDirs))
     && sameTextArray(session.mcpConfigPaths, cloneTextArray(options.mcpConfigPaths))
@@ -1435,6 +1438,8 @@ function tuiSessionConfig(
     disableHooks: options.disableHooks,
     pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
     supplementalMcpConfigIdentity: options.supplementalMcpConfigIdentity ?? null,
+    browserMcpConfigPath: options.browserMcpConfigPath ?? null,
+    browserMcpConfigIdentity: options.browserMcpConfigIdentity ?? null,
     callbackSource: options.callbackSource,
     scheduleTaskId: options.scheduleTaskId,
     anthropicBaseUrl: options.anthropicBaseUrl,

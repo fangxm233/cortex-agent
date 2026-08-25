@@ -91,17 +91,19 @@ describe('resolveChromeBinary', () => {
 });
 
 describe('backendSupportsBrowser', () => {
-  it('accepts the Claude print adapter, the only one that composes the browser MCP config', () => {
+  it('accepts every spawn path that composes the browser MCP server', () => {
+    // Claude print and TUI both append a --mcp-config file; PI writes the same descriptor into the
+    // envelope its MCP bridge reads.
     expect(backendSupportsBrowser('claude', 'print')).toBe(true);
+    expect(backendSupportsBrowser('claude', 'tui')).toBe(true);
     expect(backendSupportsBrowser('claude', null)).toBe(true);
+    expect(backendSupportsBrowser('pi')).toBe(true);
   });
 
-  it('refuses PI, whose MCP bridge never sees the endpoint', () => {
-    // Starting Chrome here would burn a browser nobody can drive — worse than not starting it.
-    expect(backendSupportsBrowser('pi')).toBe(false);
-  });
-
-  it('refuses the Claude TUI adapter, which builds its args separately', () => {
-    expect(backendSupportsBrowser('claude', 'tui')).toBe(false);
+  it('still refuses a backend nobody has wired', () => {
+    // Starting Chrome for a backend that cannot drive it burns a browser nobody can use, so this
+    // stays a check rather than becoming `true`.
+    expect(backendSupportsBrowser('codex')).toBe(false);
+    expect(backendSupportsBrowser('')).toBe(false);
   });
 });

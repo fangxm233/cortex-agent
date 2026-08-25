@@ -276,3 +276,45 @@ describe('MChatStream long-press anchor', () => {
     expect(held).toEqual([[0, 512]]);
   });
 });
+
+describe('MChatView browser chip', () => {
+  function chip(html: string): string | null {
+    return html.match(/<button[^>]*data-chip="browser"[^>]*>/)?.[0] ?? null;
+  }
+
+  function renderComposer(props: Record<string, unknown>): string {
+    return renderToStaticMarkup(
+      <MChatView
+        {...baseProps}
+        {...props}
+        status={{ running: false, tone: 'idle', text: 'status' }}
+        rows={[]}
+      />,
+    );
+  }
+
+  it('is absent when the session has no browser and none can be chosen', () => {
+    // A live session that never opted in must not grow a control that would do nothing.
+    expect(chip(renderComposer({}))).toBeNull();
+  });
+
+  it('is an editable toggle on a draft', () => {
+    const html = renderComposer({ browserDevice: null, onToggleBrowser: () => {} });
+    expect(chip(html)).toContain('data-editable="true"');
+    expect(chip(html)).toContain('data-active="false"');
+  });
+
+  it('shows the chosen device once it is on', () => {
+    const html = renderComposer({ browserDevice: 'server', onToggleBrowser: () => {}, browserChipLabel: 'Browser' });
+    expect(chip(html)).toContain('data-active="true"');
+    expect(html).toContain('Browser · server');
+  });
+
+  it('reports without offering a change on a live session', () => {
+    // The agent's tool set is fixed when its process spawns, so a switch here would promise
+    // something the running process cannot do.
+    const html = renderComposer({ browserDevice: 'server' });
+    expect(chip(html)).toContain('data-editable="false"');
+    expect(chip(html)).toContain('disabled=""');
+  });
+});

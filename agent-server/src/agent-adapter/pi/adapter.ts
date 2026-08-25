@@ -16,6 +16,7 @@ import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { buildPiEnv, buildSpawnArgs, type PISpawnOptions } from './spawn-args.js';
 import { writePiPluginMcpConfig } from './mcp-config.js';
+import { browserMcpServer } from '../browser-mcp-server.js';
 import { createLineSplitter, encodeCommand } from './framing.js';
 import { piRpcLineToNormalized, createPIEventParserState, piContextUsageFromStats, type PIEventParserState } from './event-parser.js';
 import {
@@ -975,8 +976,17 @@ function spawnPluginMcpPath(
   subagentMarker: string | undefined,
 ): string | undefined {
   if (!allowsPluginMcp(composition, subagentMarker)) return undefined;
-  if (!config.mcpServers || config.mcpServers.length === 0) return undefined;
-  return writePiPluginMcpConfig(config.mcpServers).path;
+  const servers = [...(config.mcpServers ?? [])];
+  // Browser control rides the same envelope as any other plugin server — PI has no `--mcp-config`,
+  // so this file (named to the bridge through CORTEX_PI_PLUGIN_MCP_CONFIG_PATH) is the only way in.
+  // Gated on `direct` for the same reason Claude is: an unattended worker sharing one browser is a
+  // cross-run side channel, not a feature.
+  if (config.browserCdpEndpoint && composition === 'direct') {
+    servers.push(browserMcpServer(config.browserCdpEndpoint));
+  }
+  // The check is on the FINAL list: a session whose only server is the browser still needs the file.
+  if (servers.length === 0) return undefined;
+  return writePiPluginMcpConfig(servers).path;
 }
 
 function buildSpawnEnvironment(
@@ -1341,3 +1351,9 @@ export class PIAdapter implements AgentAdapter {
     return Array.from(this.sessions.keys());
   }
 }
+
+/** Test-only seam (prefixed with `_` by convention), mirroring the Claude adapter's `_test`. */
+export const _test = {
+  buildSpawnEnvironment,
+  spawnPluginMcpPath,
+};

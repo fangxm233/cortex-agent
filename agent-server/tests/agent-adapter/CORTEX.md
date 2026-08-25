@@ -23,6 +23,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | normalize-assistant-delta.test.ts | test | delta event union and backend capability |
 | normalize.test.ts | test | normalized event parser edge cases |
 | pi-adapter.test.ts | test | PI RPC to normalized event replay |
+| pi-browser-mcp.test.ts | test | PI browser opt-in, envelope contents and pool identity |
 | pi-context-usage-probe.test.ts | test | PI end-of-turn context usage probe |
 | pi-discovery.test.ts | test | forced PI provider refresh and retry policy |
 | pi-mid-turn-inject.test.ts | test | PI switch guard and mid-turn prompt steering |

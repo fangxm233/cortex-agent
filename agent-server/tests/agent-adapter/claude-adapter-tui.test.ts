@@ -746,3 +746,23 @@ test('respawn after external tmux death stops the previous jsonl tail (no double
   tails[1].finishTurn();
   await p2;
 });
+
+test('TUI spawn forwards the browser MCP config, so the browser opt-in reaches this backend too', async (t) => {
+  // The TUI adapter builds its own args; before this was threaded, a session that opted into the
+  // browser got a Chrome nobody could drive, with no error anywhere.
+  const { deps, tmuxCalls, tails } = makeDeps();
+  const sess = makeSession(deps, {
+    browserMcpConfigPath: '/fixture/browser-playwright.json',
+  });
+  t.onTestFinished(() => { sess.kill(); });
+
+  const turnPromise = sess.sendMessage('hi', {});
+  await new Promise(r => setImmediate(r));
+
+  const script = launcherScriptFor(tmuxCalls.find(c => c.args[0] === 'new-session')!);
+  assert.ok(script.includes('--mcp-config'));
+  assert.ok(script.includes('/fixture/browser-playwright.json'));
+
+  tails[0].finishTurn();
+  await turnPromise;
+});

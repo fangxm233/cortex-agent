@@ -48,13 +48,14 @@ let restartTimes: number[] = [];
 /**
  * Can this backend actually receive the browser tools?
  *
- * Only the Claude print adapter composes the Playwright MCP config. PI has its own MCP bridge and
- * the Claude TUI adapter builds its args separately — neither reads the endpoint. Starting Chrome
- * for them would burn a browser nobody can drive and leave the user staring at a window their agent
- * cannot see, so the honest answer is to not start it at all.
+ * All three spawn paths compose it now, by three different routes: Claude print and Claude TUI both
+ * append a `--mcp-config` file, and PI writes the same server descriptor into the envelope its MCP
+ * bridge reads. The check stays rather than becoming `true` because the cost of getting it wrong is
+ * asymmetric — starting Chrome for a backend that cannot drive it burns a browser nobody can use
+ * and leaves the user staring at a window their agent cannot see.
  */
-export function backendSupportsBrowser(backend: string, claudeBackend?: string | null): boolean {
-  return backend === 'claude' && claudeBackend !== 'tui';
+export function backendSupportsBrowser(backend: string, _claudeBackend?: string | null): boolean {
+  return backend === 'claude' || backend === 'pi';
 }
 
 /** Acquire the shared browser, starting it on first use. Every caller MUST pair this with

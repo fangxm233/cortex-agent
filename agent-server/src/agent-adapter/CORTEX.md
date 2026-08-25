@@ -9,6 +9,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 | types.ts | types | Shared adapter, usage, tool-gate and plugin contracts |
 | mcp-private-dir.ts | util | Guards private physical MCP directories |
 | mcp-remote-fetch.ts | util | Rejects remote MCP HTTP redirects |
+| browser-mcp-server.ts | core | Defines the Playwright MCP server every backend uses for browser control |
 | capabilities.ts | core | Declares shared interaction backend capabilities |
 | bg-wait.ts | core | emits exact continuation request accounting |
 | event-tee.ts | core | fans out run events and enforces required sinks |

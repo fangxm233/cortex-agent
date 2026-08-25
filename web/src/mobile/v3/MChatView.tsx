@@ -749,11 +749,12 @@ function MSubagentBlock({ row, unit }: {
     <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8 }}>
       <div
         onClick={() => setExpanded(!expanded)}
+        role="button"
+        aria-expanded={expanded}
         style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', fontSize: 11.5, color: MC.faint, minWidth: 0 }}
       >
-        <span style={{ fontSize: 9, flex: 'none' }}>{expanded ? '\u25be' : '\u25b8'}</span>
         <MDot
-          color={row.status === 'running' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}
+          color={row.status === 'running' ? 'var(--proto-accent)' : 'var(--proto-success)'}
           pulse={row.status === 'running'}
         />
         <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>
@@ -1211,6 +1212,41 @@ function ProfileChip({ label, onClick }: { label: string; onClick: () => void })
   );
 }
 
+/**
+ * Browser control, mirroring the desktop chip: a toggle on a draft, a plain indicator on a live
+ * session. It cannot be changed once the session exists, because the agent's tool set is fixed when
+ * its process spawns — offering a switch there would promise something the running process cannot do.
+ */
+function BrowserChip({ device, label, onToggle }: {
+  device: string | null;
+  label: string;
+  onToggle?: () => void;
+}): JSX.Element {
+  const active = device !== null;
+  const editable = typeof onToggle === 'function';
+  return (
+    <button
+      type="button"
+      data-chip="browser"
+      data-active={active ? 'true' : 'false'}
+      data-editable={editable ? 'true' : 'false'}
+      disabled={!editable}
+      onClick={onToggle}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6, flex: 'none',
+        border: `1px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`,
+        background: active ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
+        borderRadius: 999, padding: '4px 10px',
+        cursor: editable ? 'pointer' : 'default',
+      }}
+    >
+      <span style={{ font: `600 10px ${MONO}`, color: active ? MC.run : MC.muted }}>
+        {active ? `${label} · ${device}` : label}
+      </span>
+    </button>
+  );
+}
+
 function MobileSlashMenu({ suggestions, onPick }: {
   suggestions: SlashSuggestion[];
   onPick: (suggestion: SlashSuggestion) => void;
@@ -1287,6 +1323,13 @@ export interface MChatViewProps {
   stopEnabled?: boolean;
   profileChipLabel: string;
   onOpenProfile: () => void;
+  /** Browser control for this session: null when it has none and none can be chosen. */
+  browserDevice?: string | null;
+  /** Passed in rather than read from the vocab here, like `profileChipLabel` — this view is
+   *  rendered in tests without a LangProvider. */
+  browserChipLabel?: string;
+  /** Present only on a draft — the tool set is fixed when the agent process spawns. */
+  onToggleBrowser?: () => void;
   contextUsage?: SessionContextUsage | null;
   contextUsageSupported?: boolean;
   contextUsageLang?: 'en' | 'zh';
@@ -1393,6 +1436,13 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       {/* Composer meta row: profile on the left, compact context usage right-aligned. */}
       <div data-mobile-composer-meta-row="true" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 7px' }}>
         <ProfileChip label={props.profileChipLabel} onClick={props.onOpenProfile} />
+        {(props.onToggleBrowser || props.browserDevice) && (
+          <BrowserChip
+            device={props.browserDevice ?? null}
+            label={props.browserChipLabel ?? 'Browser'}
+            onToggle={props.onToggleBrowser}
+          />
+        )}
         {(props.contextUsageSupported || props.contextUsage != null) ? (
           <span data-context-usage-position="composer-profile" style={{ marginLeft: 'auto', display: 'inline-flex', flex: 'none' }}>
             <ContextUsageBar

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
-import { useLang } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { useMobileProject } from '@/mobile/current-project';
 import {
@@ -61,6 +61,7 @@ import {
   type PlanCardModel,
 } from '@/features/workbench/interaction-vm';
 import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, type MChatEditCopy, type MMsgMenu, type MEditMode } from './MChatView';
+import { DEFAULT_BROWSER_DEVICE } from '@/features/workbench/BrowserOptIn';
 import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';
 import {
@@ -240,6 +241,7 @@ export function MChatScreen(): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const lang = useLang();
+  const vocab = useVocab();
   const copy = pickCopy(lang, COPY);
   const { currentProjectId } = useMobileProject();
   const { sessionId: routeParam } = useParams<{ sessionId: string }>();
@@ -383,6 +385,9 @@ export function MChatScreen(): JSX.Element {
   const profiles = configQuery.data?.profiles?.profiles ?? [];
   const defaultProfile = configQuery.data?.profiles?.defaultProfile ?? null;
   const [draftProfile, setDraftProfile] = useState<string | null>(null);
+  // Browser control is chosen on the draft only: the agent's tool set is fixed when its process
+  // spawns, so a live session can report it but never change it.
+  const [draftBrowserDevice, setDraftBrowserDevice] = useState<string | null>(null);
   const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
   const transitionProfile = resolveTransitionProfile(
     active?.profileName,
@@ -697,6 +702,7 @@ export function MChatScreen(): JSX.Element {
             profileName: draftProfile ?? undefined,
             text: t,
             draftUploadId: sent.draftUploadId,
+            ...(draftBrowserDevice ? { browser: { device: draftBrowserDevice } } : {}),
             ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}),
           } as never)
         : sendMut.mutateAsync({ sessionId, text: t, ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}) } as never),
@@ -863,6 +869,11 @@ export function MChatScreen(): JSX.Element {
         onStop={onStop}
         stopEnabled={!cancelMut.isPending}
         profileChipLabel={profileChipLabel(effectiveProfile, profiles)}
+        browserDevice={isDraft ? draftBrowserDevice : (active?.browser?.device ?? null)}
+        browserChipLabel={vocab.wbBrowser}
+        onToggleBrowser={isDraft
+          ? () => setDraftBrowserDevice((d) => (d === null ? DEFAULT_BROWSER_DEVICE : null))
+          : undefined}
         onOpenProfile={() => setProfileOpen(true)}
         contextUsage={contextUsage}
         contextUsageSupported={!!active?.contextCompactionSupported}

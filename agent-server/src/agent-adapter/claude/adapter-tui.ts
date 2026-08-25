@@ -93,6 +93,8 @@ export interface ClaudeTuiSessionConfig {
   disableHooks?: boolean;
   pluginCapabilityFingerprint?: string | null;
   supplementalMcpConfigIdentity?: string | null;
+  browserMcpConfigPath?: string | null;
+  browserMcpConfigIdentity?: string | null;
   // -- runtime context surfaced to MCP servers via env --
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
@@ -164,6 +166,7 @@ export class ClaudeTuiSession {
   readonly jsonlPath: string;
   readonly pluginCapabilityFingerprint: string | null;
   readonly supplementalMcpConfigIdentity: string | null;
+  readonly browserMcpConfigIdentity: string | null;
   /** Endpoint plus credential digests of the route this tmux session was launched on. */
   readonly routeIdentity: string;
   readonly pluginDirs: string[];
@@ -209,6 +212,7 @@ export class ClaudeTuiSession {
     this.jsonlPath = computeJsonlPath(this.cwd, this.sessionId);
     this.pluginCapabilityFingerprint = config.pluginCapabilityFingerprint ?? null;
     this.supplementalMcpConfigIdentity = config.supplementalMcpConfigIdentity ?? null;
+    this.browserMcpConfigIdentity = config.browserMcpConfigIdentity ?? null;
     this.routeIdentity = claudeRouteIdentity(config);
     this.pluginDirs = [...(config.pluginDirs ?? [])];
     this.tools = config.tools ?? null;
@@ -241,6 +245,12 @@ export class ClaudeTuiSession {
     const configPath = this.config.supplementalMcpConfigPath;
     const identity = this.supplementalMcpConfigIdentity;
     if (configPath && identity) validateClaudeSupplementalMcpConfig(configPath, identity);
+    // Same content check for the browser config: both are written by us and named by their hash,
+    // so a mismatch means the file on disk is not the one this session was configured with.
+    const browserPath = this.config.browserMcpConfigPath;
+    if (browserPath && this.browserMcpConfigIdentity) {
+      validateClaudeSupplementalMcpConfig(browserPath, this.browserMcpConfigIdentity);
+    }
   }
 
   private tuiSpawnArgs(): string[] {
@@ -258,6 +268,7 @@ export class ClaudeTuiSession {
       mcpConfigPaths: this.config.mcpConfigPaths ?? null,
       mcpToolAllowlist: this.config.mcpToolAllowlist ?? null,
       supplementalMcpConfigPath: this.config.supplementalMcpConfigPath ?? null,
+      browserMcpConfigPath: this.config.browserMcpConfigPath ?? null,
       disableHooks: this.config.disableHooks,
       needsResume: this.needsResume,
       sessionId: this.sessionId,
