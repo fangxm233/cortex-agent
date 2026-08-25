@@ -6,8 +6,9 @@
 import { useEffect, useRef, type ReactNode, type Ref } from 'react';
 import { PdfBody, TextBody } from './DocViewer';
 import { HtmlBody } from './HtmlBody';
+import { WebBody } from '@/features/browser/WebBody';
 import type { MediaItem } from './MediaViewer';
-import { isDocPreviewItem, previewDownloadPath, splitFromDrag, type PreviewItem } from './pinned-preview';
+import { isDocPreviewItem, isWebPreviewItem, previewDownloadPath, splitFromDrag, type PreviewItem } from './pinned-preview';
 import { usePinnedPreview } from './PinnedPreviewProvider';
 import { useDownloadFile } from './useDownloadFile';
 import { useMediaSrc } from './useMediaSrc';
@@ -78,6 +79,7 @@ function PinnedPreviewPanel({
   rootRef?: Ref<HTMLDivElement>;
 }): JSX.Element {
   const isDoc = !!item && isDocPreviewItem(item);
+  const isWeb = !!item && isWebPreviewItem(item);
   const downloadPath = item ? previewDownloadPath(item) : null;
   return (
     <div
@@ -143,6 +145,8 @@ function PinnedPreviewPanel({
       >
         {!item ? (
           <Centered>{PINNED_PREVIEW_EMPTY_HINT}</Centered>
+        ) : isWeb ? (
+          <WebBody item={item} />
         ) : isDocPreviewItem(item) ? (
           item.kind === 'pdf' ? <PdfBody item={item} />
             : item.kind === 'html' ? <HtmlBody item={item} mode="expanded" />

@@ -21,6 +21,7 @@ Cross-cutting concerns that any surface can pull in (live stream, media preview,
 | command-palette/ | subdir | Global search and command overlay |
 | notifications/ | subdir | In-app toasts for replies and notices |
 | media/ | subdir | Image, video and document previewers |
+| browser/ | subdir | Docked web preview pane and its address bar |
 | live/ | subdir | The single live event stream and fan-out |
 | connection/ | subdir | Connectivity status for the daemon badge |
 | rate-limit/ | subdir | Provider throttle times and waiting counts |

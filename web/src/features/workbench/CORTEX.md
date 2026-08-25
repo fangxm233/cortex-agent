@@ -26,7 +26,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | SessionProfileSelector.test.tsx | test | Tests profile routing and selection interactions |
 | CenterChat.tsx | view | Reconciles chat state and local command controls |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
-| ChatHeader.tsx | view | Session title, command, notes and session menu |
+| ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
 | MessageStream.tsx | view | Renders transcript with stable message action rows |
 | ChatMarkdown.tsx | view | Renders Markdown with optional KaTeX formulas |
 | ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior and untrusted-input safety |

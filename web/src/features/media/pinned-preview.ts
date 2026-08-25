@@ -5,6 +5,7 @@
 
 import type { MediaItem } from './MediaViewer';
 import type { DocItem } from './DocViewer';
+import type { WebItem } from '@/features/browser/browser-target';
 
 // Pure logic for the PINNED (docked) preview mode — the second way to preview a file on the desktop
 // workbench. Default mode is the full-screen modal (MediaViewer / DocViewer); pinning docks the
@@ -13,7 +14,7 @@ import type { DocItem } from './DocViewer';
 // Type-only imports here (erased at build time) — no runtime dependency on the viewer components,
 // so the providers can import this module without a cycle.
 
-export type PreviewItem = MediaItem | DocItem;
+export type PreviewItem = MediaItem | DocItem | WebItem;
 
 /** localStorage keys — mirrors the `cortex.*` UI-pref convention (theme / lang / railProjectsH). */
 export const PREVIEW_PINNED_KEY = 'cortex.previewPinned';
@@ -69,8 +70,15 @@ export function isDocPreviewItem(item: PreviewItem): item is DocItem {
   return item.kind === 'pdf' || item.kind === 'text' || item.kind === 'html';
 }
 
+/** A live web page docked in the pane (browser mode) rather than a file preview. */
+export function isWebPreviewItem(item: PreviewItem): item is WebItem {
+  return item.kind === 'web';
+}
+
 /** The workspace path a docked preview can download, or null for a local composer object URL
- *  (staged file with no workspace path yet) — the pane hides its download action then. */
+ *  (staged file with no workspace path yet) — the pane hides its download action then.
+ *  A web page has no workspace bytes at all. */
 export function previewDownloadPath(item: PreviewItem): string | null {
+  if (isWebPreviewItem(item)) return null;
   return item.path ?? null;
 }

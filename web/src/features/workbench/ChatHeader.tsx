@@ -1,4 +1,4 @@
-// input:  Session title, identifiers, command palette and project notes
+// input:  Session title, identifiers, command palette, browser dock and project notes
 // output: Desktop chat header navigation controls
 // pos:    Desktop chat header controls
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useVocab } from '@/i18n';
 import { SessionIdModal } from './SessionIdModal';
 import { NotesButton } from '@/features/notes/NotesButton';
+import { BrowserButton } from '@/features/browser/BrowserButton';
 import { useNotes } from '@/features/notes/NotesProvider';
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -77,6 +78,7 @@ export function ChatHeader({
           ⌘K
         </span>
         <span style={{ width: 1, height: 18, background: 'var(--proto-line)', flex: 'none' }} />
+        <BrowserButton />
         <NotesButton
           count={notes.vm.activeCount}
           active={notes.isOpen}
