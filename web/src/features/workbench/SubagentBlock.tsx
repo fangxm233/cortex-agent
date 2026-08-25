@@ -21,13 +21,15 @@ const metaStyle: CSSProperties = {
   font: `400 10.5px ${mono}`, color: 'var(--proto-muted)', flex: 'none',
 };
 
-/** Same dot the composer status line uses, so "this is still working" reads identically wherever it
- *  appears. It holds its slot when idle rather than unmounting, so expanding or finishing a block
- *  never shifts the header text sideways. */
+/** The dot stands where the disclosure caret used to, so the row leads with state instead of with
+ *  chrome. Pulsing accent while the subagent works, `--proto-success` once it is done — the same
+ *  green `TaskRow` uses for a finished task. It never unmounts, so a block settling does not shift
+ *  the header text sideways. With the caret gone, `aria-expanded` on the header carries the
+ *  open/closed state that the triangle used to show. */
 function statusDotStyle(running: boolean): CSSProperties {
   return {
     width: 6, height: 6, borderRadius: '50%', flex: 'none',
-    background: running ? 'var(--proto-accent)' : 'var(--proto-line-3)',
+    background: running ? 'var(--proto-accent)' : 'var(--proto-success)',
     ...(running ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
   };
 }
@@ -79,9 +81,10 @@ export function SubagentBlock({ agentType, description, status, toolCount, child
         onClick={() => setExpanded(!expanded)}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
+        role="button"
+        aria-expanded={expanded}
         style={headerStyle(hover)}
       >
-        <span style={{ fontSize: 9, color: 'var(--proto-faint)', flex: 'none' }}>{expanded ? '▾' : '▸'}</span>
         <span
           style={statusDotStyle(status === 'running')}
           aria-label={status === 'running' ? L.subagentRunning : undefined}
