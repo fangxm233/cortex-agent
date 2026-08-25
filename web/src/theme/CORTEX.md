@@ -13,5 +13,6 @@ The provider persists the controls and applies them through shared semantic toke
 | PaletteControls.tsx | view | Edits palette presets and individual parameters |
 | AccentPicker.tsx | view | Selects preset or continuous accent hues |
 | AccentPicker.test.tsx | test | Tests accent preset, slider and reset interactions |
+| palette.test.ts | test | Tests palette clamping, storage and DOM application |
 | theme.test.ts | test | Tests stored appearance state and DOM application |
 | theme-tokens.test.ts | test | Guards aliases, no-flash, and raw-color boundaries |
