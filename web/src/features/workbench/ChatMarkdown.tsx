@@ -1,9 +1,9 @@
 // input:  Markdown AST and optional KaTeX
-// output: Chat-styled Markdown with safe formula rendering
+// output: Width-bounded chat Markdown with safe formula rendering
 // pos:    Shared assistant Markdown renderer
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { parseBlocks, type Block, type InlineNode } from '@/features/memory/markdown';
@@ -19,9 +19,9 @@ function MathMarkup({ text, display }: { text: string; display: boolean }): JSX.
     maxExpand: 1000,
     maxSize: 50,
   });
-  const style = display
-    ? { overflowX: 'auto' as const, overflowY: 'hidden' as const, maxWidth: '100%' }
-    : undefined;
+  const style: CSSProperties = display
+    ? { overflowX: 'auto', overflowY: 'hidden', maxWidth: '100%' }
+    : { display: 'inline-block', maxWidth: '100%', overflowX: 'auto', overflowY: 'hidden', verticalAlign: 'bottom' };
   const Tag = display ? 'div' : 'span';
   return <Tag style={style} dangerouslySetInnerHTML={{ __html: markup }} />;
 }

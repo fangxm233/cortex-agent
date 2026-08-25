@@ -8,7 +8,7 @@ Shows the memory file tree, rendered Markdown, line diff counts and per-line bla
 | MemoryPage.tsx | entry | Route frame assembling rails around the view |
 | MemoryView.tsx | view | Center pane with file tree, diff toggle and body |
 | MarkdownView.tsx | view | Renders parsed markdown nodes as styled elements |
-| markdown.ts | core | Parses frontmatter, Markdown and opt-in math nodes |
+| markdown.ts | core | Parses frontmatter, Markdown and code-safe opt-in math |
 | markdown.test.ts | test | Tests Markdown and math parser behavior |
 | memory-vm.ts | vm | Derives tree rows, diffs and blame groups |
 | memory-vm.test.ts | test | Tests tree selection and blame-row state |

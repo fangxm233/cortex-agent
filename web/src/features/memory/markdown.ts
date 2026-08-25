@@ -1,5 +1,5 @@
 // input:  Markdown source and optional math parsing mode
-// output: Frontmatter, block, and inline AST nodes
+// output: Frontmatter, block, and code-safe inline AST nodes
 // pos:    Pure Markdown parser shared by memory and chat views
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -105,6 +105,7 @@ function isEscaped(text: string, index: number): boolean {
 
 function findClosingDollar(text: string, open: number): number {
   for (let index = open + 1; index < text.length; index++) {
+    if (text[index] === '`' && !isEscaped(text, index)) return -1;
     const previous = text[index - 1];
     const next = text[index + 1] ?? '';
     const adjacentDollar = previous === '$' || next === '$';

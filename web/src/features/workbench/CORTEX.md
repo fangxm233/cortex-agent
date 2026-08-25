@@ -28,7 +28,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
 | MessageStream.tsx | view | Renders transcript with stable message action rows |
-| ChatMarkdown.tsx | view | Renders Markdown with optional KaTeX formulas |
+| ChatMarkdown.tsx | view | Renders Markdown with width-bounded KaTeX formulas |
 | ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior and untrusted-input safety |
 | ChatNotice.tsx | view | Localized semantic notices with optional actions |
 | ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
