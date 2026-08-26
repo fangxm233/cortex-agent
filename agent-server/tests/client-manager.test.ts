@@ -1,5 +1,5 @@
-// input:  Vitest, client manager, WebSockets, HookBus mock
-// output: Client lifecycle hooks, commands and authentication tests
+// input:  Vitest, client manager, WebSockets, SSH route fakes
+// output: Client lifecycle, route, command and authentication tests
 // pos:    Verifies remote client registration and routing
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -22,9 +22,11 @@ import {
   stopClientManager,
   buildRemoteSpawnCommand,
   buildRemoteInstallCommand,
+  clientPids,
   startRemoteClient,
   _setSshExecForTesting,
   _setMachineRegistryProviderForTesting,
+  _setTunnelSupervisorForTesting,
   _getRestartTimerCount,
   _testReset,
 } from '../src/domain/remote/client-manager.js';
@@ -248,23 +250,33 @@ test('WS handshake accepts a connection carrying the correct token', async (t) =
 
 // --- Remote spawn injects the client token so SSH-launched clients can authenticate ---
 
-test('buildRemoteSpawnCommand injects CORTEX_CLIENT_TOKEN on Linux remotes when given a token', () => {
-  const cmd = buildRemoteSpawnCommand({ cortexPath: '/home/x', gpuCount: 0, ssh: 'user@host' }, 'sektok123');
+test('buildRemoteSpawnCommand injects token and managed URL on Linux remotes', () => {
+  const cmd = buildRemoteSpawnCommand(
+    { cortexPath: '/home/x', gpuCount: 0, ssh: 'user@host' },
+    'sektok123',
+    'ws://127.0.0.1:13002',
+  );
   assert.match(cmd, /CORTEX_CLIENT_TOKEN='sektok123'/);
+  assert.match(cmd, /CORTEX_SERVER_URL='ws:\/\/127\.0\.0\.1:13002'/);
   assert.match(cmd, /nohup cortex-client/);
   assert.match(cmd, /echo \$!/);
 });
 
-test('buildRemoteSpawnCommand injects CORTEX_CLIENT_TOKEN on Windows remotes when given a token', () => {
-  const cmd = buildRemoteSpawnCommand({ cortexPath: 'D:\\x', gpuCount: 0, ssh: 'user@host', win: true }, 'sektok123');
-  assert.match(cmd, /CORTEX_CLIENT_TOKEN=sektok123/);
+test('buildRemoteSpawnCommand injects token and managed URL on Windows remotes', () => {
+  const cmd = buildRemoteSpawnCommand(
+    { cortexPath: 'D:\\x', gpuCount: 0, ssh: 'user@host', win: true },
+    'sektok123',
+    'ws://127.0.0.1:13002',
+  );
+  assert.match(cmd, /set CORTEX_CLIENT_TOKEN=sektok123&&/);
+  assert.match(cmd, /set CORTEX_SERVER_URL=ws:\/\/127\.0\.0\.1:13002&&/);
   assert.match(cmd, /cmd\.exe \/c/);
   assert.match(cmd, /cortex-client/);
 });
 
-test('buildRemoteSpawnCommand omits the token env when none is provided (back-compat)', () => {
+test('buildRemoteSpawnCommand omits managed env when none is provided (back-compat)', () => {
   const cmd = buildRemoteSpawnCommand({ cortexPath: '/home/x', gpuCount: 0, ssh: 'user@host' });
-  assert.doesNotMatch(cmd, /CORTEX_CLIENT_TOKEN/);
+  assert.doesNotMatch(cmd, /CORTEX_CLIENT_TOKEN|CORTEX_SERVER_URL/);
   assert.match(cmd, /^nohup cortex-client/);
 });
 
@@ -298,7 +310,7 @@ test('buildRemoteSpawnCommand uses reg.clientCommand over the default on Linux',
 
 test('buildRemoteSpawnCommand uses reg.clientCommand over the default on Windows', () => {
   const cmd = buildRemoteSpawnCommand({ cortexPath: 'D:\\x', gpuCount: 0, ssh: 'user@host', win: true, clientCommand: 'my-cortex-client' }, 'sektok123');
-  assert.match(cmd, /cmd\.exe \/c set CORTEX_CLIENT_TOKEN=sektok123 && my-cortex-client/);
+  assert.match(cmd, /cmd\.exe \/c set CORTEX_CLIENT_TOKEN=sektok123&&my-cortex-client/);
   assert.match(cmd, /Invoke-WmiMethod -Class Win32_Process -Name Create/);
 });
 
@@ -346,6 +358,35 @@ test('buildRemoteInstallCommand falls back to the default when installCommand is
 //     on my-pc), `startRemoteClient` previously only logged a WARN and returned —
 //     no retry was scheduled. Combined with the WMI bug above, this caused my-pc to
 //     stay silently offline for 3 days. Fix: always schedule a retry on spawn failure.
+test('SSH-routed client waits for its tunnel and launches with the loopback URL', async (t) => {
+  const port = await findEphemeralPort();
+  const ensure = vi.fn().mockResolvedValue(undefined);
+  const stopAll = vi.fn().mockResolvedValue(undefined);
+  _setTunnelSupervisorForTesting({ ensure, stopAll, resume: vi.fn() });
+  _setMachineRegistryProviderForTesting(() => ({
+    worker: {
+      cortexPath: '/home/worker', gpuCount: 1, ssh: 'user@worker',
+      clientConnection: 'ssh-reverse', clientReversePort: 13002,
+    },
+  }));
+  const ssh = vi.fn(async (_host: string, command: string) => {
+    if (command.includes('kill -0')) return 'dead';
+    return '4321';
+  });
+  _setSshExecForTesting(ssh);
+  startClientManager(port);
+  t.onTestFinished(async () => { await stopClientManager(); _testReset(); });
+
+  await startRemoteClient('worker');
+
+  assert.deepEqual(ensure.mock.calls[0][0], {
+    device: 'worker', host: 'user@worker', remotePort: 13002, serverPort: port,
+  });
+  const launch = ssh.mock.calls.find(([, command]) => command.includes('nohup'))?.[1] ?? '';
+  assert.match(launch, /CORTEX_SERVER_URL='ws:\/\/127\.0\.0\.1:13002'/);
+  assert.equal(clientPids.get('worker'), 4321);
+});
+
 test('startRemoteClient schedules a retry when remote returns empty PID', async (t) => {
   t.onTestFinished(() => _testReset());
 

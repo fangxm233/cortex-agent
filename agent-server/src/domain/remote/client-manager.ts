@@ -1,5 +1,5 @@
-// input:  cortex-client WebSockets, tasks, executions, machine registry
-// output: client lifecycle, commands, fenced task callbacks
+// input:  cortex-client WS, SSH tunnels, tasks, machine registry
+// output: client routes, lifecycle, commands, fenced callbacks
 // pos:    Registers, routes and restarts remote clients
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -17,6 +17,7 @@ import { emitCortexEvent } from '@core/hook-bus.js';
 import { readTasks, findTask } from '../tasks/system/task-lifecycle-edit.js';
 import { taskMutator } from '../tasks/mutator.js';
 import { setExecutionGpuByTaskId, type ExecutionGpuInfo } from '../executions/registry.js';
+import { SshTunnelSupervisor, type SshTunnelSpec } from './client-ssh-tunnel.js';
 
 const log = createLogger('client-manager');
 
@@ -50,6 +51,10 @@ const devices = new Map<string, DeviceInfo>();
 const pendingCommands = new Map<string, PendingCommand>();
 let wss: WebSocketServer | null = null;
 let heartbeatCheckInterval: ReturnType<typeof setInterval> | null = null;
+let clientManagerPort: number | null = null;
+type TunnelController = Pick<SshTunnelSupervisor, 'ensure' | 'stopAll' | 'resume'>;
+let tunnelSupervisor: TunnelController = new SshTunnelSupervisor();
+const routeSnapshots = new Map<string, Pick<MachineEntry, 'ssh' | 'clientConnection' | 'clientReversePort'>>();
 
 const HEARTBEAT_TIMEOUT_MS = 15_000; // 3 missed 5s heartbeats
 const DEFAULT_COMMAND_TIMEOUT_MS = 120_000; // 2 min for bash
@@ -67,6 +72,9 @@ function startClientManager(port: number): void {
     log.warn('Already running');
     return;
   }
+
+  clientManagerPort = port;
+  tunnelSupervisor.resume();
 
   // Authenticate at the HTTP upgrade (before the WS is established): the client must send a
   // valid bearer token in the `x-cortex-token` header. Fail-closed — an unset server token or
@@ -231,31 +239,30 @@ function startClientManager(port: number): void {
   });
 }
 
-function stopClientManager(): void {
-  if (heartbeatCheckInterval) {
-    clearInterval(heartbeatCheckInterval);
-    heartbeatCheckInterval = null;
-  }
+async function stopClientManager(): Promise<void> {
+  if (heartbeatCheckInterval) clearInterval(heartbeatCheckInterval);
+  heartbeatCheckInterval = null;
+  for (const [, timer] of restartTimers) clearTimeout(timer);
+  restartTimers.clear();
 
-  // Reject all pending commands
   for (const [id, pending] of pendingCommands) {
     clearTimeout(pending.timer);
     pending.reject(new Error('Client manager shutting down'));
     pendingCommands.delete(id);
   }
-
-  // Close all connections
   for (const [, info] of devices) {
     try { info.ws.close(1001, 'Server shutting down'); } catch {}
     emitDisconnected(info.device, 'Server shutting down');
   }
   devices.clear();
 
-  if (wss) {
-    wss.close();
-    wss = null;
-    log.info('WebSocket server stopped');
-  }
+  const server = wss;
+  wss = null;
+  if (server) server.close();
+  await tunnelSupervisor.stopAll();
+  routeSnapshots.clear();
+  clientManagerPort = null;
+  if (server) log.info('WebSocket server stopped');
 }
 
 // --- Device queries ---
@@ -385,22 +392,27 @@ let _getRegistryImpl: () => MachineRegistry = getMachineRegistry;
  * Linux note: the shell handles PATH lookup; `nohup` detaches and `echo $!`
  * returns the child PID on stdout.
  */
-function buildRemoteSpawnCommand(reg: MachineEntry, clientToken?: string): string {
+function buildRemoteSpawnCommand(
+  reg: MachineEntry,
+  clientToken?: string,
+  serverUrl?: string,
+): string {
   const token = clientToken?.trim();
-  // Launch command is configurable per machine (machines.json `clientCommand`); defaults
-  // to a bare `cortex-client`. Override for non-login-PATH cases, e.g. `bash -lc cortex-client`
-  // on nvm machines so the login profile resolves node + cortex-client.
+  const url = serverUrl?.trim();
   const launch = reg.clientCommand?.trim() || 'cortex-client';
   if (reg.win) {
-    // Inject the token via `cmd.exe /c set ... && <launch>` so the WMI-spawned process
-    // sees CORTEX_CLIENT_TOKEN. Tokens are hex (no shell metacharacters), so no escaping needed.
-    const inner = token
-      ? `cmd.exe /c set CORTEX_CLIENT_TOKEN=${token} && ${launch}`
-      : `cmd.exe /c ${launch}`;
+    const env = [
+      token ? `set CORTEX_CLIENT_TOKEN=${token}` : '',
+      url ? `set CORTEX_SERVER_URL=${url}` : '',
+    ].filter(Boolean);
+    const inner = `cmd.exe /c ${[...env, launch].join('&&')}`;
     return `powershell -Command "(Invoke-WmiMethod -Class Win32_Process -Name Create -ArgumentList '${inner}').ProcessId"`;
   }
-  // Single-quote the token for the remote shell (hex value has no quotes to escape).
-  const envPrefix = token ? `CORTEX_CLIENT_TOKEN='${token}' ` : '';
+  const env = [
+    token ? `CORTEX_CLIENT_TOKEN='${token}'` : '',
+    url ? `CORTEX_SERVER_URL='${url}'` : '',
+  ].filter(Boolean).join(' ');
+  const envPrefix = env ? `${env} ` : '';
   return `${envPrefix}nohup ${launch} > /dev/null 2>&1 & echo $!`;
 }
 
@@ -425,8 +437,74 @@ function buildRemoteInstallCommand(reg: MachineEntry, remoteTgzPath: string): st
     : `${tmpl} ${remoteTgzPath}`;
 }
 
+const ROUTE_OWNERSHIP_FILE = path.join(STORE_DIR, 'client-routes.json');
+
+function loadRouteOwnership(): Record<string, string> {
+  try { return JSON.parse(fs.readFileSync(ROUTE_OWNERSHIP_FILE, 'utf8')); } catch { return {}; }
+}
+
+function setRouteOwnership(device: string, route: string): void {
+  const routes = loadRouteOwnership();
+  routes[device] = route;
+  fs.mkdirSync(STORE_DIR, { recursive: true });
+  fs.writeFileSync(ROUTE_OWNERSHIP_FILE, JSON.stringify(routes, null, 2));
+}
+
+function managedEntry(device: string): MachineEntry | undefined {
+  const live = _getRegistryImpl()[device];
+  if (!live) return undefined;
+  let route = routeSnapshots.get(device);
+  if (!route) {
+    route = {
+      ssh: live.ssh,
+      clientConnection: live.clientConnection,
+      clientReversePort: live.clientReversePort,
+    };
+    routeSnapshots.set(device, route);
+  }
+  return { ...live, ...route };
+}
+
+function managedServerUrl(reg: MachineEntry): string | undefined {
+  if (reg.clientConnection !== 'ssh-reverse') return undefined;
+  if (clientManagerPort === null) throw new Error('Client manager is not started');
+  return `ws://127.0.0.1:${reg.clientReversePort ?? clientManagerPort}`;
+}
+
+function tunnelSpec(device: string, reg: MachineEntry): SshTunnelSpec | null {
+  if (reg.clientConnection !== 'ssh-reverse') return null;
+  if (!reg.ssh || clientManagerPort === null) throw new Error(`SSH reverse route is not ready for ${device}`);
+  return {
+    device,
+    host: reg.ssh,
+    remotePort: reg.clientReversePort ?? clientManagerPort,
+    serverPort: clientManagerPort,
+  };
+}
+
+async function ensureManagedRoute(device: string, reg: MachineEntry): Promise<void> {
+  const spec = tunnelSpec(device, reg);
+  if (spec) await tunnelSupervisor.ensure(spec);
+}
+
+function expectedRouteOwnership(reg: MachineEntry): string {
+  return managedServerUrl(reg) ?? 'direct';
+}
+
+async function stopMismatchedRemoteClient(device: string, reg: MachineEntry): Promise<void> {
+  const pid = clientPids.get(device);
+  if (!pid || !reg.ssh) return;
+  const owned = loadRouteOwnership()[device];
+  const expected = expectedRouteOwnership(reg);
+  if (owned === expected || (!owned && expected === 'direct')) return;
+  const cmd = reg.win ? `taskkill /pid ${pid} /f /t 2>nul || echo ok` : `kill ${pid} 2>/dev/null || true`;
+  await _sshExecImpl(reg.ssh, cmd, 10000);
+  clientPids.delete(device);
+  log.info(`Stopped client on ${device} to switch route ${owned} → ${expected}`);
+}
+
 async function isRemotePidAlive(device: string): Promise<boolean> {
-  const reg = _getRegistryImpl()[device];
+  const reg = managedEntry(device);
   if (!reg?.ssh) return false;
   const pid = clientPids.get(device);
   if (!pid) return false;
@@ -441,16 +519,35 @@ async function isRemotePidAlive(device: string): Promise<boolean> {
   }
 }
 
-async function startRemoteClient(device: string): Promise<void> {
-  const reg = _getRegistryImpl()[device];
-  if (!reg) return;
+async function launchRemoteClient(device: string): Promise<boolean> {
+  const reg = managedEntry(device);
+  if (!reg?.ssh) return false;
+  await ensureManagedRoute(device, reg);
+  const command = buildRemoteSpawnCommand(reg, getClientToken(), managedServerUrl(reg));
+  const pidStr = await _sshExecImpl(reg.ssh, command, 30000);
+  const pid = parseInt(pidStr);
+  if (isNaN(pid) || pid <= 0) return false;
+  clientPids.set(device, pid);
+  setRouteOwnership(device, expectedRouteOwnership(reg));
+  log.info(`Started client on ${device} (PID ${pid})`);
+  return true;
+}
 
-  // Check if already online via WebSocket
+async function startRemoteClient(device: string): Promise<void> {
+  const reg = managedEntry(device);
+  if (!reg) return;
   if (devices.has(device)) return;
 
-  // Check if existing PID still alive
-  if (reg.ssh && await isRemotePidAlive(device)) {
-    log.info(`Client on ${device} already running (PID ${clientPids.get(device)}), waiting for reconnect...`);
+  try {
+    await ensureManagedRoute(device, reg);
+    if (reg.ssh) await stopMismatchedRemoteClient(device, reg);
+    if (reg.ssh && await isRemotePidAlive(device)) {
+      log.info(`Client on ${device} already running (PID ${clientPids.get(device)}), waiting for reconnect...`);
+      return;
+    }
+  } catch (err) {
+    log.error(`Failed to prepare client route on ${device}: ${(err as Error).message} — scheduling retry`);
+    scheduleRestart(device);
     return;
   }
 
@@ -486,13 +583,8 @@ async function startRemoteClient(device: string): Promise<void> {
   // restart, because scheduleRestart() is otherwise only triggered by disconnect or
   // heartbeat-timeout of an already-connected device.
   try {
-    const pidStr = await _sshExecImpl(reg.ssh, buildRemoteSpawnCommand(reg, getClientToken()), 30000);
-    const pid = parseInt(pidStr);
-    if (!isNaN(pid) && pid > 0) {
-      clientPids.set(device, pid);
-      log.info(`Started client on ${device} (PID ${pid})`);
-    } else {
-      log.warn(`Failed to parse PID for ${device}: "${pidStr}" — scheduling retry`);
+    if (!await launchRemoteClient(device)) {
+      log.warn(`Failed to parse PID for ${device} — scheduling retry`);
       scheduleRestart(device);
     }
   } catch (err) {
@@ -541,12 +633,15 @@ async function startAllRemoteClients(): Promise<void> {
 // before module state leaks between tests.
 function _setSshExecForTesting(fn: SshExec): void { _sshExecImpl = fn; }
 function _setMachineRegistryProviderForTesting(fn: () => MachineRegistry): void { _getRegistryImpl = fn; }
+function _setTunnelSupervisorForTesting(supervisor: TunnelController): void { tunnelSupervisor = supervisor; }
 function _getRestartTimerCount(): number { return restartTimers.size; }
 function _testReset(): void {
   for (const [, timer] of restartTimers) clearTimeout(timer);
   restartTimers.clear();
+  routeSnapshots.clear();
   _sshExecImpl = sshExec;
   _getRegistryImpl = getMachineRegistry;
+  tunnelSupervisor = new SshTunnelSupervisor();
 }
 
 // --- Task callback handler (DR-0011 §4.4) ---
@@ -644,6 +739,7 @@ export {
   sendCommand,
   sendControlMessage,
   startRemoteClient,
+  launchRemoteClient,
   startAllRemoteClients,
   buildRemoteSpawnCommand,
   buildRemoteInstallCommand,
@@ -652,6 +748,7 @@ export {
   // Test-only hooks (prefixed with _ by convention).
   _setSshExecForTesting,
   _setMachineRegistryProviderForTesting,
+  _setTunnelSupervisorForTesting,
   _getRestartTimerCount,
   _testReset,
 };

@@ -68,8 +68,9 @@ Each `cortex-client` instance:
 ### Prerequisites
 
 - Node.js ≥ 20
-- Network path from the remote machine to the agent-server on port 3002
-  (WebSocket)
+- Either a direct WebSocket path from the remote machine to the agent-server,
+  or an SSH path from the agent-server to the remote machine for a managed
+  reverse route
 - Network path from the agent-server to the remote machine on port 22 (SSH),
   if the server needs to start/restart the client remotely
 
@@ -166,8 +167,17 @@ Each entry:
   with its token injection and the `nohup`/`echo $!` (Linux) or `cmd.exe`-wrapped WMI
   (Windows) launch machinery.
 
-The file is hot-reloaded via `fs.watch()` — changes take effect within a few
-hundred milliseconds without restarting the server.
+`clientConnection` selects the route. Its default, `direct`, uses the URL from
+`cortex-client.json`. Setting it to `ssh-reverse` makes the server maintain an
+SSH reverse tunnel and inject a loopback WebSocket URL when it launches the
+client. `clientReversePort` optionally selects the loopback port on the remote
+machine; it defaults to the server's client port and must be between 1024 and
+65535. An SSH reverse route requires `ssh`.
+
+The file is watched via `fs.watch()`. General registry readers see updates
+within a few hundred milliseconds. Managed client route fields are snapshotted
+when client startup begins, so changes to `clientConnection`,
+`clientReversePort`, or the associated `ssh` target require a server restart.
 
 ## Network topology
 
@@ -229,19 +239,46 @@ The client then dials the tunnel over wss/443:
 Both sides connect outbound to Cloudflare's edge, so neither needs a public IP
 or port forwarding, and WebSocket upgrades pass through the tunnel transparently.
 
-### STCP tunnel
+### Managed SSH reverse route
 
-For machines behind restrictive firewalls where even Tailscale can't establish
-a direct connection, use an STCP reverse tunnel. The remote machine forwards
-the server's port back to itself:
+When the server can SSH into the remote machine, Cortex can carry the client
+WebSocket back through a persistent reverse forward. Configure the machine on
+the server as follows:
 
-```bash
-# On the remote machine (or via SSH):
-ssh -R 3002:localhost:3002 user@lab2
+```json
+{
+  "worker": {
+    "cortexPath": "/srv/workspace",
+    "gpuCount": 1,
+    "ssh": "user@worker",
+    "clientConnection": "ssh-reverse",
+    "clientReversePort": 13002
+  }
+}
 ```
 
-Then the client connects to `localhost:3002`. This is how `lab-ksu` connects
-in the current setup.
+The server supervises `ssh -N -R
+127.0.0.1:13002:127.0.0.1:3002 user@worker`, waits for the SSH control socket,
+and launches the client with `CORTEX_SERVER_URL=ws://127.0.0.1:13002`. The
+remote listener binds only to loopback. Tunnel failure has its own capped
+retry loop, while the client keeps its normal WebSocket reconnect behavior.
+The token remains required inside the SSH tunnel.
+
+Use a different `clientReversePort` if the default port is already occupied on
+the remote machine. SSH aliases and `ProxyCommand` entries in `~/.ssh/config`
+work because the configured `ssh` value is passed as one OpenSSH host argument.
+
+### Externally managed reverse tunnel
+
+A separately supervised SSH tunnel can provide the same network path:
+
+```bash
+ssh -N -R 127.0.0.1:3002:127.0.0.1:3002 user@server
+```
+
+In that arrangement, configure the client with
+`"serverUrl": "ws://127.0.0.1:3002"` and leave `clientConnection` as `direct`,
+because Cortex does not own the tunnel process.
 
 ### Connection troubleshooting
 
@@ -255,9 +292,12 @@ in the current setup.
 
 ## WebSocket protocol
 
-The protocol between agent-server and cortex-client is a simple JSON message
-stream over plain WebSocket. There is no TLS, no authentication token, and no
-shared secret. Security relies on the network perimeter.
+The protocol between agent-server and cortex-client is a JSON message stream
+over WebSocket. Every HTTP upgrade must carry the shared
+`CORTEX_CLIENT_TOKEN` in the `x-cortex-token` header; missing or mismatched
+tokens are rejected with HTTP 401. TLS depends on the selected route: a
+`wss://` endpoint provides TLS, while direct loopback and SSH-reverse routes
+use `ws://` inside their protected transport.
 
 ### Client → Server
 
@@ -303,7 +343,9 @@ lifecycle:
    spawns or SSH-launches `cortex-client` on each machine. For local machines
    (no `ssh` field), it spawns directly. For remote machines, it runs
    `ssh user@host "nohup cortex-client > /dev/null 2>&1 & echo $!"` (Linux)
-   or uses WMI (Windows).
+   or uses WMI (Windows). An `ssh-reverse` machine first gets a supervised
+   reverse tunnel; normal startup and hot reload share the same route-aware
+   launcher and remote PID tracking.
 
 2. **Heartbeat monitoring** — every 5 seconds, the server checks that each
    connected device has sent a heartbeat within the last 15 seconds.
@@ -409,9 +451,9 @@ tail -f ~/.cortex/logs/daemon.log | grep client-manager
 The remote client system operates with these security constraints:
 
 - The client runs as the same user who started it — no privilege escalation
-- The WebSocket protocol has no authentication. Any process that can reach
-  port 3002 can impersonate a device. Protect the port at the network level
-  (firewall, Tailscale ACLs, or localhost binding)
+- Every client WebSocket upgrade requires `CORTEX_CLIENT_TOKEN`. Network
+  controls such as a firewall, Tailscale ACL, localhost binding, or an SSH
+  reverse route remain defense in depth
 - The server's SSH access to remote machines is governed by the SSH key of the
   user running agent-server. The agent cannot escalate beyond what that user
   can do

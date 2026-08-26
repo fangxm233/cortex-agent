@@ -59,7 +59,7 @@ Cortex 可以将工作分发到远程机器：运行命令、读写文件、搜�
 ### 前置条件 {#prerequisites}
 
 - Node.js ≥ 20
-- 从远程机器到 agent-server 端口 3002 的网络路径（WebSocket）
+- 从远程机器到 agent-server 的直接 WebSocket 路径，或者从 agent-server 到远程机器、用于托管反向路由的 SSH 路径
 - 从 agent-server 到远程机器端口 22 的网络路径（SSH），如果服务器需要远程启动/重启客户端
 
 ### 安装 {#installation}
@@ -134,7 +134,9 @@ cortex-client
 - `win`（可选）— 对 Windows 目标设为 `true`（更改 SSH 命令语法）
 - `clientCommand`（可选）— 服务器（通过 SSH）启动该机器上 `cortex-client` 所用的命令，默认为裸的 `cortex-client`。当 `cortex-client` 不在该机器**非登录** SSH 的 PATH 上时需要覆盖它——最常见的是 `nvm` 安装：二进制位于 `~/.nvm/...` 下，只有在登录 profile 运行后才出现在 PATH 上。这种情况设为 `"clientCommand": "bash -lc cortex-client"`，让登录 shell 解析出 node 与 `cortex-client`。服务器仍会用其 token 注入及 `nohup`/`echo $!`（Linux）或 `cmd.exe` 包裹的 WMI（Windows）启动机制来包裹这条命令。
 
-文件通过 `fs.watch()` 热重载——更改在几百毫秒内生效，无需重启服务器。
+`clientConnection` 选择连接路由。默认值 `direct` 使用 `cortex-client.json` 中的 URL；设为 `ssh-reverse` 时，服务器会维护 SSH 反向隧道，并在启动客户端时注入 loopback WebSocket URL。`clientReversePort` 可选，用于指定远程机器上的 loopback 端口；默认等于服务器 client 端口，取值必须在 1024 到 65535 之间。SSH 反向路由必须配置 `ssh`。
+
+文件通过 `fs.watch()` 监视，普通注册表读取方会在几百毫秒内看到更新。托管 client 的路由字段在启动时生成快照，因此修改 `clientConnection`、`clientReversePort` 或对应的 `ssh` 目标后需要重启服务器。
 
 ## 网络拓扑 {#network-topology}
 
@@ -189,16 +191,35 @@ ingress:
 
 两端都是向 Cloudflare 边缘拨出，所以谁都不需要公网 IP 或端口转发，WebSocket 升级也会透明地穿过隧道。
 
-### STCP 隧道 {#stcp-tunnel}
+### 托管 SSH 反向路由 {#managed-ssh-reverse-route}
 
-对于在限制性防火墙后即使 Tailscale 也无法建立直接连接的机器，使用 STCP 反向隧道。远程机器将服务器端口转发回自己：
+当服务器可以 SSH 进入远程机器时，Cortex 可以通过持久 reverse forward 承载 client WebSocket。在服务器的机器注册表中配置：
 
-```bash
-# 在远程机器上（或通过 SSH）：
-ssh -R 3002:localhost:3002 user@lab2
+```json
+{
+  "worker": {
+    "cortexPath": "/srv/workspace",
+    "gpuCount": 1,
+    "ssh": "user@worker",
+    "clientConnection": "ssh-reverse",
+    "clientReversePort": 13002
+  }
+}
 ```
 
-然后客户端连接到 `localhost:3002`。这是当前设置中 `lab-ksu` 的连接方式。
+服务器监督 `ssh -N -R 127.0.0.1:13002:127.0.0.1:3002 user@worker`，等待 SSH control socket 就绪，再以 `CORTEX_SERVER_URL=ws://127.0.0.1:13002` 启动客户端。远程 listener 只绑定 loopback。隧道故障使用独立且有上限的重试循环，客户端保留原有 WebSocket 重连行为。即使流量位于 SSH 隧道内，client token 仍然必须提供。
+
+如果默认端口已被远程机器占用，可以设置不同的 `clientReversePort`。`~/.ssh/config` 中的 SSH alias 和 `ProxyCommand` 可以直接使用，因为配置的 `ssh` 值会作为一个 OpenSSH host 参数传入。
+
+### 外部托管的反向隧道 {#externally-managed-reverse-tunnel}
+
+独立进程监督器也可以提供同一网络路径：
+
+```bash
+ssh -N -R 127.0.0.1:3002:127.0.0.1:3002 user@server
+```
+
+这种情况下，把 client 配为 `"serverUrl": "ws://127.0.0.1:3002"`，并让 `clientConnection` 保持 `direct`，因为隧道进程不由 Cortex 管理。
 
 ### 连接故障排除 {#connection-troubleshooting}
 
@@ -212,7 +233,7 @@ ssh -R 3002:localhost:3002 user@lab2
 
 ## WebSocket 协议 {#websocket-protocol}
 
-agent-server 和 cortex-client 之间的协议是纯 WebSocket 上的简单 JSON 消息流。没有 TLS、没有认证令牌、没有共享密钥。安全依赖于网络边界。
+agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息流。每次 HTTP upgrade 都必须在 `x-cortex-token` header 中携带共享的 `CORTEX_CLIENT_TOKEN`；缺失或不匹配的 token 会被 HTTP 401 拒绝。TLS 取决于所选路由：`wss://` endpoint 提供 TLS，直接 loopback 和 SSH reverse route 则在受保护的 transport 内使用 `ws://`。
 
 ### 客户端 → 服务器 {#client-server}
 
@@ -252,7 +273,7 @@ agent-server 和 cortex-client 之间的协议是纯 WebSocket 上的简单 JSON
 
 agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期：
 
-1. **启动时** — `startAllRemoteClients()` 遍历 `machines.json` 并在每台机器上生成或通过 SSH 启动 `cortex-client`。对于本地机器（无 `ssh` 字段），直接生成。对于远程机器，运行 `ssh user@host "nohup cortex-client > /dev/null 2>&1 & echo $!"`（Linux）或使用 WMI（Windows）。
+1. **启动时** — `startAllRemoteClients()` 遍历 `machines.json` 并在每台机器上生成或通过 SSH 启动 `cortex-client`。对于本地机器（无 `ssh` 字段），直接生成。对于远程机器，运行 `ssh user@host "nohup cortex-client > /dev/null 2>&1 & echo $!"`（Linux）或使用 WMI（Windows）。`ssh-reverse` 机器会先建立受监督的反向隧道；正常启动和 hot reload 共用同一个 route-aware launcher 与远程 PID 追踪。
 
 2. **心跳监控** — 每 5 秒，服务器检查每个连接的设备是否在最近 15 秒内发送了心跳。错过的心跳触发断开连接和自动重启尝试。
 
@@ -326,7 +347,7 @@ tail -f ~/.cortex/logs/daemon.log | grep client-manager
 远程客户端系统以以下安全约束运行：
 
 - 客户端以启动它的同一用户身份运行——没有权限提升
-- WebSocket 协议没有认证。任何可以到达端口 3002 的进程都可以冒充设备。在网络级别保护端口（防火墙、Tailscale ACL 或 localhost 绑定）
+- 每次 client WebSocket upgrade 都必须携带 `CORTEX_CLIENT_TOKEN`。防火墙、Tailscale ACL、localhost 绑定或 SSH 反向路由仍作为纵深防御
 - 服务器对远程机器的 SSH 访问由运行 agent-server 的用户的 SSH 密钥控制。智能体不能越权超过该用户的能力
 - 针对远程设备的 MCP 工具受 [safety-and-approvals.md](./safety-and-approvals.md) 中记录的相同安全边界规则约束
 - `cortex-client` npm 包不安装 postinstall 脚本，不使用 Node.js 内置之外的本地附加组件，除 `ws` 外没有外部依赖

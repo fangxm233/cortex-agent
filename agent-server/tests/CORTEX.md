@@ -43,6 +43,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | cli.test.ts | test | cortex CLI routing, auth JSON framing and daemon control |
 | client-hot-reload.test.ts | test | local cortex-client dev and release update flows |
 | client-manager.test.ts | test | client lifecycle hooks, auth and commands |
+| client-ssh-tunnel.test.ts | test | SSH reverse-route lifecycle and recovery |
 | codex-quota.test.ts | test | Codex quota headers and the notice wire form |
 | command-handlers.test.ts | test | bang routing, profiles, auth and usage actions |
 | command-interactive.test.ts | test | interactive command router and handlers |

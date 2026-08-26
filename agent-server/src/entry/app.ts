@@ -397,7 +397,7 @@ process.on('SIGTERM', async () => {
   }).catch(() => {});
   await stopBuiltinJobs();
   await retentionController.stop().catch(() => {});
-  closeAllSessions(); closeAllAdapters().catch(() => {}); stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
+  closeAllSessions(); closeAllAdapters().catch(() => {}); await stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
   // A Chrome that outlives the daemon keeps the profile locked, so the next launch would attach to
   // an instance nothing is supervising.
   stopBrowser();

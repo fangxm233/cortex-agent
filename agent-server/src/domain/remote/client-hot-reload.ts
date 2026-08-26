@@ -1,12 +1,12 @@
-// input:  client source builds, npm registry, machine registry
-// output: client update checks and local/remote process restarts
+// input:  client builds, npm registry, managed client launcher
+// output: client updates and route-aware process restarts
 // pos:    Cortex-client hot-reload coordinator
 // >>> If I am updated, update CORTEX.md <<<
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync, execFile, execFileSync, spawn } from 'child_process';
 import { getMachineRegistry, type MachineEntry } from '../tasks/dispatch-utils.js';
-import { sshExec, clientPids, buildRemoteSpawnCommand, buildRemoteInstallCommand } from './client-manager.js';
+import { sshExec, clientPids, launchRemoteClient, buildRemoteInstallCommand } from './client-manager.js';
 import { STORE_DIR, withNpmPrefix } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
@@ -301,16 +301,7 @@ async function restartClientOnDevice(
 ): Promise<boolean> {
   try {
     if (!reg.ssh) return restartLocalClient(device, localEntry);
-    if (reg.win) {
-      const wmiArg = 'cmd.exe /c cortex-client';
-      await sshExec(reg.ssh,
-        `powershell -Command "(Invoke-WmiMethod -Class Win32_Process -Name Create -ArgumentList '${wmiArg}').ProcessId"`,
-        30000
-      );
-    } else {
-      await sshExec(reg.ssh, buildRemoteSpawnCommand(reg), 30000);
-    }
-    return true;
+    return await launchRemoteClient(device);
   } catch (err) {
     log.warn(`Failed to restart client on ${device}: ${(err as Error).message}`);
     return false;

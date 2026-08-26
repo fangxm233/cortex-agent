@@ -21,6 +21,10 @@ export interface MachineEntry {
   gpuCount: number;
   ssh?: string;
   win?: boolean;
+  /** Route used by cortex-client to reach the server. Defaults to direct. */
+  clientConnection?: 'direct' | 'ssh-reverse';
+  /** Remote loopback port for an SSH reverse route. Defaults to the server client port. */
+  clientReversePort?: number;
   /**
    * Command the server runs (over SSH) to launch cortex-client on this machine.
    * Defaults to `cortex-client`. Override for machines where a bare `cortex-client`
@@ -51,6 +55,25 @@ let _loaded = false;
 let _watchMonitor: WatchMonitor | null = null;
 let _reloadTimer: ReturnType<typeof setTimeout> | null = null;
 
+export function validateMachineEntry(name: string, entry: MachineEntry): void {
+  if (typeof entry.cortexPath !== 'string' || typeof entry.gpuCount !== 'number') {
+    throw new Error(`Invalid machine entry "${name}": requires cortexPath (string) and gpuCount (number)`);
+  }
+  const mode = entry.clientConnection ?? 'direct';
+  if (mode !== 'direct' && mode !== 'ssh-reverse') {
+    throw new Error(`Invalid machine entry "${name}": clientConnection must be direct or ssh-reverse`);
+  }
+  if (mode === 'ssh-reverse' && !entry.ssh?.trim()) {
+    throw new Error(`Invalid machine entry "${name}": ssh-reverse requires ssh`);
+  }
+  if (entry.clientReversePort !== undefined) {
+    if (mode !== 'ssh-reverse') throw new Error(`Invalid machine entry "${name}": clientReversePort requires ssh-reverse`);
+    if (!Number.isInteger(entry.clientReversePort) || entry.clientReversePort < 1024 || entry.clientReversePort > 65535) {
+      throw new Error(`Invalid machine entry "${name}": clientReversePort must be an integer in 1024..65535`);
+    }
+  }
+}
+
 // --- Admin notification (hot-reload → Slack) ---
 let _adminNotifier: ((text: string) => void) | null = null;
 export function setAdminNotifier(fn: (text: string) => void): void { _adminNotifier = fn; }
@@ -65,12 +88,7 @@ function loadMachinesFromFile(failOnError = true): void {
     const raw = readFileSync(MACHINES_FILE, 'utf-8');
     const parsed = JSON.parse(raw) as MachineRegistry;
 
-    // Basic validation: ensure every entry has cortexPath and gpuCount
-    for (const [name, entry] of Object.entries(parsed)) {
-      if (typeof entry.cortexPath !== 'string' || typeof entry.gpuCount !== 'number') {
-        throw new Error(`Invalid machine entry "${name}": requires cortexPath (string) and gpuCount (number)`);
-      }
-    }
+    for (const [name, entry] of Object.entries(parsed)) validateMachineEntry(name, entry);
 
     const oldKeys = Object.keys(_registry).sort().join(',');
     const newKeys = Object.keys(parsed).sort().join(',');
