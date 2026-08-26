@@ -1,5 +1,5 @@
 // input:  selected session, live snapshots and UI shortcut actions
-// output: reconciled chat with animated draft composer layout
+// output: reconciled chat, startup status and animated composer
 // pos:    Workbench conversation pane orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useMemo } from 'react';
@@ -242,6 +242,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           rejectOptimistic={optimistic.reject}
           showStatus={!preFirstMessage}
           statusStarting={optimistic.pendingUser.length > 0}
+          turnProgressStarted={liveTurns !== null || streaming}
           compactAction={active?.contextCompactionSupported ? compactAction : undefined}
           todos={todos}
           onOpenSettings={onOpenSettings}

@@ -1,5 +1,5 @@
 // input:  shared English product copy
-// output: English base vocabulary including subagent prompt labels
+// output: English base vocabulary including browser status labels
 // pos:    Base English web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -207,6 +207,7 @@ export const enBase = {
   wbBrowserOffOption: 'Off',
   wbBrowserThisHost: 'this host',
   wbBrowserRunning: 'Chrome is running',
+  wbBrowserStarting: 'Starting Chrome on {device} and connecting browser tools…',
   wbBrowserStopped: 'Chrome starts on demand',
   wbBrowserAttached: 'it opens on the server\u2019s desktop{where} \u2014 connect to that desktop to take it over and log in.',
   wbBrowserVirtual: 'it opens on a virtual display \u2014 nobody can watch it without a VNC bridge, so logins must already be in the profile.',

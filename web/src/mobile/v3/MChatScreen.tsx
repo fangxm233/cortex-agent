@@ -1,5 +1,5 @@
-// input:  mobile session queries, live Todo/message state, mutations
-// output: MChatScreen chat with Todo rail and local slash actions
+// input:  mobile session queries, browser/live state and mutations
+// output: mobile chat with startup status, Todo and slash actions
 // pos:    Mobile session detail state and data orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -22,6 +22,7 @@ import { runOptimisticMutation } from '@/features/workbench/optimistic-message';
 import { useInteractionActions } from '@/features/workbench/useInteractionActions';
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
 import { useSessionCompact } from '@/features/workbench/useSessionCompact';
+import { browserStartupHint, browserStartupPending } from '@/features/workbench/browser-status';
 import { buildProfileOptions, currentBackendOf } from '@/features/workbench/profile-menu';
 import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction,
@@ -289,7 +290,7 @@ export function MChatScreen(): JSX.Element {
   // it — notably the plan reading page (MPlanReadScreen), which renders no chat. `transcript` is
   // passed back in only so a pending row self-heals if its delivered event is lost to a dropped frame.
   const {
-    liveTail, getMessageSnapshot, streaming, running, liveTurns, contextUsage, todos,
+    liveTail, getMessageSnapshot, streaming, running, backgroundRunning, liveTurns, contextUsage, todos,
     streamingText, pendingUser,
   } = useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
     deltas: true,
@@ -773,6 +774,14 @@ export function MChatScreen(): JSX.Element {
   // overrides the whole line with the amber Agent 已暂停 state (scheme 5a/5b/6a).
   const cost = active?.costUsd ?? null;
   const hasRun = !isDraft && turns != null;
+  const statusRunning = running || optimistic.pendingUser.length > 0;
+  const statusBrowserDevice = active?.browser?.device ?? draftBrowserDevice;
+  const browserStarting = browserStartupPending({
+    running: statusRunning,
+    backgroundRunning,
+    device: statusBrowserDevice,
+    turnProgressStarted: liveTurns !== null || streaming,
+  });
   const status = pendingInteraction
     ? interactionHeaderStatus(
         pendingInteraction.detail.kind,
@@ -780,7 +789,9 @@ export function MChatScreen(): JSX.Element {
         pendingAskModel?.questions.length ?? 1,
         lang,
       )
-    : chatHeaderStatus(running, turns, elapsed, cost, hasRun);
+    : browserStarting && statusBrowserDevice
+      ? { running: true, tone: 'running' as const, text: browserStartupHint(statusBrowserDevice, vocab.wbBrowserStarting) }
+      : chatHeaderStatus(statusRunning, turns, elapsed, cost, hasRun);
 
   // ── interaction props for the view ──
   const intCopy = pickCopy(lang, M_INT_COPY);

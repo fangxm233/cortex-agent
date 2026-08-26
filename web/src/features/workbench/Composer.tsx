@@ -1,5 +1,5 @@
-// input:  session/profile state, UI shortcuts, media and drafts
-// output: guarded composer with slash actions and run status
+// input:  session/browser state, UI shortcuts, media and drafts
+// output: guarded composer with browser startup and run status
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
@@ -25,6 +25,7 @@ import {
 } from './composer-draft';
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 import { ComposerStatusLine } from './ComposerStatusLine';
+import { browserStartupHint, browserStartupPending } from './browser-status';
 import { TodoRail } from './TodoRail';
 import { ComposerActionRow, ComposerSlashMenu, type ComposerBrowserControl } from './ComposerActionRow';
 import { SessionProfileSelectorView, useSessionProfileSelection } from './SessionProfileSelector';
@@ -188,6 +189,7 @@ export function Composer({
   rejectOptimistic,
   showStatus = true,
   statusStarting = false,
+  turnProgressStarted = false,
   contextControl,
   todos,
   compactAction,
@@ -220,6 +222,8 @@ export function Composer({
   showStatus?: boolean;
   /** A locally queued message reads as running before the authoritative session event arrives. */
   statusStarting?: boolean;
+  /** True after this turn emits its first agent progress or streamed output. */
+  turnProgressStarted?: boolean;
   /** Context-usage ring (modal trigger), rendered in the toolbar right cluster beside the profile. */
   contextControl?: ReactNode;
   todos?: TodoSnapshot | null;
@@ -368,6 +372,13 @@ export function Composer({
   // or created-but-unused) shows just `idle` — no placeholder metrics until a turn produces real values.
   const hasRun = !isDraft && turns != null;
   const statusRunning = running || statusStarting;
+  const statusBrowserDevice = sessionBrowser?.device ?? browserDevice;
+  const browserStarting = browserStartupPending({
+    running: statusRunning,
+    backgroundRunning,
+    device: statusBrowserDevice,
+    turnProgressStarted,
+  });
 
   const slashProfiles = profileSelection.options.map((option) => ({
     name: option.name, detail: option.sub, disabled: option.disabled,
@@ -1116,9 +1127,11 @@ export function Composer({
         {showStatus && (
           <ComposerStatusLine
             running={statusRunning}
-            text={statusRunning
-              ? `${backgroundRunning ? L.pillBackground : L.pillRunning} · ${elapsed} · ${turnsText}`
-              : (hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle)}
+            text={browserStarting && statusBrowserDevice
+              ? browserStartupHint(statusBrowserDevice, L.wbBrowserStarting)
+              : statusRunning
+                ? `${backgroundRunning ? L.pillBackground : L.pillRunning} · ${elapsed} · ${turnsText}`
+                : (hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle)}
           />
         )}
       </div>

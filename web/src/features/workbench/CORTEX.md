@@ -24,7 +24,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
 | SessionProfileSelector.tsx | view | Shares guarded profile state with composer controls |
 | SessionProfileSelector.test.tsx | test | Tests profile routing and selection interactions |
-| CenterChat.tsx | view | Reconciles chat state and animates composer placement |
+| CenterChat.tsx | view | Reconciles chat state, startup progress and composer placement |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
 | MessageStream.tsx | view | Renders transcript, centered HTML views and message actions |
@@ -52,11 +52,12 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Unified input card with toolbar and gated run status |
-| Composer.test.tsx | test | Tests local shortcuts and rejected-send state |
+| Composer.tsx | view | Unified input card with browser startup and run status |
+| Composer.test.tsx | test | Tests shortcuts, startup status and rejected sends |
 | ComposerActionRow.tsx | view | Toolbar row: ＋ menu left, profile/context/send right |
 | BrowserOptIn.tsx | model | Browser device options for the composer ＋ menu |
-| browser-status.ts | model | Fetches browser status and phrases the takeover hint |
+| browser-status.ts | model | Phrases browser takeover and turn-start hints |
+| browser-status.test.ts | test | Tests takeover and startup hint states |
 | ComposerActionRow.test.tsx | test | Tests ＋-menu actions, browser page and slash menu |
 | ComposerStatusLine.tsx | view | Status line of running/idle meta below the composer |
 | composer-draft.ts | util | Persists, restores and prefills drafts |

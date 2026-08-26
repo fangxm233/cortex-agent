@@ -5,7 +5,7 @@ Framework-free view models map records to slots and have colocated unit tests.
 
 | filename | role | function |
 |---|---|---|
-| MChatScreen.tsx | screen | Routes chat, Todo snapshots, sends and slash actions |
+| MChatScreen.tsx | screen | Routes chat, browser startup, Todo, sends and slash actions |
 | MChatScreen.optimistic.test.tsx | test | Tests Todo wiring, optimistic sends and shortcuts |
 | MChatView.tsx | view | Renders prompts, counts, messages and toolbar composer |
 | MChatView.test.tsx | test | Tests prompts, counts, Todo, ＋ menu and copy |

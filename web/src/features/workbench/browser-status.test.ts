@@ -1,9 +1,9 @@
-// input:  browser status payloads
-// output: pinned takeover sentences for each display mode
-// pos:    unit tests for browser takeover reporting
+// input:  browser status and turn-start payloads
+// output: takeover sentences and startup-window regressions
+// pos:    Unit tests for browser status reporting
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it } from 'vitest';
-import { takeoverHint, type BrowserStatus } from './browser-status';
+import { browserStartupHint, browserStartupPending, takeoverHint, type BrowserStatus } from './browser-status';
 
 const T = {
   attached: 'desktop{where} — connect to take over',
@@ -45,5 +45,29 @@ describe('takeoverHint', () => {
     // macOS/Windows have no DISPLAY; "desktop ()" would read as a bug.
     const line = takeoverHint(status({ display: null }), T);
     expect(line).not.toContain('()');
+  });
+});
+
+describe('browser startup hint', () => {
+  it('covers the foreground wait before the first agent progress', () => {
+    expect(browserStartupPending({
+      running: true, backgroundRunning: false, device: 'my-pc', turnProgressStarted: false,
+    })).toBe(true);
+  });
+
+  it('stops after progress and never replaces background status', () => {
+    expect(browserStartupPending({
+      running: true, backgroundRunning: false, device: 'my-pc', turnProgressStarted: true,
+    })).toBe(false);
+    expect(browserStartupPending({
+      running: true, backgroundRunning: true, device: 'my-pc', turnProgressStarted: false,
+    })).toBe(false);
+  });
+
+  it('requires browser opt-in and inserts the selected device', () => {
+    expect(browserStartupPending({
+      running: true, backgroundRunning: false, device: null, turnProgressStarted: false,
+    })).toBe(false);
+    expect(browserStartupHint('my-pc', 'Starting Chrome on {device}…')).toBe('Starting Chrome on my-pc…');
   });
 });

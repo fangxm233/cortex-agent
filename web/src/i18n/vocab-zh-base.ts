@@ -1,5 +1,5 @@
 // input:  shared Chinese product copy
-// output: Chinese base vocabulary including subagent prompt labels
+// output: Chinese base vocabulary including browser status labels
 // pos:    Base Chinese web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -207,6 +207,7 @@ export const zhBase = {
   wbBrowserOffOption: '关闭',
   wbBrowserThisHost: '本机',
   wbBrowserRunning: 'Chrome 正在运行',
+  wbBrowserStarting: '正在启动 {device} 上的 Chrome 并连接浏览器工具…',
   wbBrowserStopped: 'Chrome 按需启动',
   wbBrowserAttached: '它开在服务器的桌面{where} \u2014\u2014 连过去接管它就能登录。',
   wbBrowserVirtual: '它开在虚拟显示口 \u2014\u2014 没有 VNC 桥接就看不到，所以登录状态得事先在 profile 里。',

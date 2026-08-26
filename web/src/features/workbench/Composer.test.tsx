@@ -2,6 +2,7 @@
 // output: local slash routing and failed-send render regressions
 // pos:    Desktop composer behavior specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import type { ComponentProps } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
@@ -56,7 +57,10 @@ vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: v
 
 import { Composer, ComposerSendFailure } from './Composer';
 
-function mountComposer(compact: () => void): ReactTestRenderer {
+function mountComposer(
+  compact: () => void,
+  overrides: Partial<ComponentProps<typeof Composer>> = {},
+): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => { renderer = create(
     <LangProvider>
@@ -74,6 +78,7 @@ function mountComposer(compact: () => void): ReactTestRenderer {
         rejectOptimistic={() => true}
         compactAction={{ onCompact: compact, pending: false, disabled: false, status: null, error: null, disabledReason: null }}
         onOpenSettings={harness.openSettings}
+        {...overrides}
       />
     </LangProvider>,
   ); });
@@ -102,6 +107,40 @@ describe('Composer UI slash shortcuts', () => {
     expect(harness.pickProfile).toHaveBeenCalledWith('execute');
     expect(harness.openSettings).toHaveBeenCalledOnce();
     expect(harness.send).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+});
+
+describe('Composer browser startup status', () => {
+  it('names the Chrome device until agent progress begins', () => {
+    const renderer = mountComposer(() => {}, {
+      turns: null,
+      sessionBrowser: { device: 'my-pc' },
+      turnProgressStarted: false,
+    });
+    expect(JSON.stringify(renderer.toJSON())).toContain('Starting Chrome on my-pc and connecting browser tools');
+
+    act(() => renderer.update(
+      <LangProvider>
+        <Composer
+          sessionId="s1"
+          running
+          turns={1}
+          cost={null}
+          elapsed="1s"
+          currentProfile="plan"
+          hasHistory
+          sessionBrowser={{ device: 'my-pc' }}
+          turnProgressStarted
+          prepareOptimistic={() => ({ clientId: 'c1' }) as never}
+          enqueueOptimistic={() => {}}
+          acceptOptimistic={() => true}
+          rejectOptimistic={() => true}
+        />
+      </LangProvider>,
+    ));
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Starting Chrome');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Running');
     act(() => renderer.unmount());
   });
 });

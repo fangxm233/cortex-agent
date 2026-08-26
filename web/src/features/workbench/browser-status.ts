@@ -1,6 +1,6 @@
-// input:  the server's browser status payload
-// output: a fetcher plus the human sentence that answers "how do I log in?"
-// pos:    Client half of browser takeover reporting
+// input:  browser status payloads and live turn-start state
+// output: browser takeover and startup hints
+// pos:    Browser status presentation model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 
@@ -22,6 +22,19 @@ export async function fetchBrowserStatus(): Promise<BrowserStatus> {
   const body = await res.json();
   if (!body?.ok) throw new Error(body?.error ?? 'browser status failed');
   return body.data as BrowserStatus;
+}
+
+export function browserStartupPending(input: {
+  running: boolean;
+  backgroundRunning: boolean;
+  device: string | null;
+  turnProgressStarted: boolean;
+}): boolean {
+  return input.running && !input.backgroundRunning && input.device !== null && !input.turnProgressStarted;
+}
+
+export function browserStartupHint(device: string, template: string): string {
+  return template.replace('{device}', device);
 }
 
 /**
