@@ -1,6 +1,6 @@
-// input:  raw address-bar text, page/API origins, and navigation intents
-// output: normalized preview URLs, an origin guard, history math and viewport presets
-// pos:    pure browser-pane model; no DOM, no I/O
+// input:  address text, origins, navigation and tab intents
+// output: URL guards, history, tab state and viewport presets
+// pos:    Pure browser-pane and tab-workspace model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // The docked browser pane previews HTTP services that are reachable from THIS machine — a local
@@ -178,3 +178,71 @@ export const VIEWPORT_PRESETS: ViewportPreset[] = [
   { id: 'tablet', label: '768', width: 768 },
   { id: 'phone', label: '390', width: 390 },
 ];
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
+export interface BrowserTabState {
+  id: string;
+  history: BrowserHistory;
+  draft: string;
+  viewportId: ViewportPreset['id'];
+  reloadNonce: number;
+  rejected: string | null;
+  refused: boolean;
+}
+
+export interface BrowserTabsState {
+  tabs: BrowserTabState[];
+  activeId: string;
+}
+
+export function createBrowserTab(id: string): BrowserTabState {
+  return {
+    id,
+    history: EMPTY_HISTORY,
+    draft: '',
+    viewportId: 'fit',
+    reloadNonce: 0,
+    rejected: null,
+    refused: false,
+  };
+}
+
+export function createBrowserTabs(id: string): BrowserTabsState {
+  return { tabs: [createBrowserTab(id)], activeId: id };
+}
+
+export function activeBrowserTab(state: BrowserTabsState): BrowserTabState {
+  return state.tabs.find((tab) => tab.id === state.activeId) ?? state.tabs[0]!;
+}
+
+export function addBrowserTab(state: BrowserTabsState, tab: BrowserTabState): BrowserTabsState {
+  return { tabs: [...state.tabs, tab], activeId: tab.id };
+}
+
+export function selectBrowserTab(state: BrowserTabsState, id: string): BrowserTabsState {
+  if (id === state.activeId || !state.tabs.some((tab) => tab.id === id)) return state;
+  return { ...state, activeId: id };
+}
+
+export function updateBrowserTab(
+  state: BrowserTabsState,
+  id: string,
+  update: (tab: BrowserTabState) => BrowserTabState,
+): BrowserTabsState {
+  if (!state.tabs.some((tab) => tab.id === id)) return state;
+  return { ...state, tabs: state.tabs.map((tab) => (tab.id === id ? update(tab) : tab)) };
+}
+
+export function closeBrowserTab(
+  state: BrowserTabsState,
+  id: string,
+  replacement: BrowserTabState,
+): BrowserTabsState {
+  const index = state.tabs.findIndex((tab) => tab.id === id);
+  if (index < 0) return state;
+  if (state.tabs.length === 1) return createBrowserTabs(replacement.id);
+  const tabs = state.tabs.filter((tab) => tab.id !== id);
+  if (state.activeId !== id) return { ...state, tabs };
+  return { tabs, activeId: tabs[Math.min(index, tabs.length - 1)]!.id };
+}

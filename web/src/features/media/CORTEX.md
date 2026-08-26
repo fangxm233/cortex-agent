@@ -13,7 +13,8 @@ Non-previewable types fall back to an authenticated download; also owns the dock
 | html-sandbox.test.ts | test | Pins the view isolation boundary and the wrapper |
 | useViewHeight.ts | hook | Content height a view frame reports, source-checked |
 | PinnedPreviewProvider.tsx | provider | Holds pinned split-preview state and dock gating |
-| PinnedPreviewPane.tsx | view | Renders the docked pane and its drag divider |
+| PinnedPreviewPane.tsx | view | Hosts dock content and keeps browser tabs alive |
+| PinnedPreviewPane.test.tsx | test | Tests browser lifetime across dock visibility |
 | pinned-preview.ts | core | Parses pin state and routes preview items (file or web) |
 | pinned-preview.test.ts | test | Unit tests for the pinned preview model |
 | media-kind.ts | util | Maps an attachment type to image, video or none |

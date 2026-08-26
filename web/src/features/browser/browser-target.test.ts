@@ -1,12 +1,19 @@
-// input:  browser-target pure helpers
-// output: pinned behaviour for URL normalization, the origin guard and history math
-// pos:    unit tests for the browser pane model
+// input:  browser URL, history and tab helpers
+// output: regressions for guards, history and independent tabs
+// pos:    Unit tests for the browser workspace model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
   EMPTY_HISTORY,
   WEB_SANDBOX,
+  activeBrowserTab,
+  addBrowserTab,
   browserItemName,
+  closeBrowserTab,
+  createBrowserTab,
+  createBrowserTabs,
+  selectBrowserTab,
+  updateBrowserTab,
   canGoBack,
   canGoForward,
   currentUrl,
@@ -130,6 +137,63 @@ describe('browserItemName', () => {
   it('shows host:port and a non-root path', () => {
     expect(browserItemName('http://127.0.0.1:5173/')).toBe('127.0.0.1:5173');
     expect(browserItemName('http://localhost:3000/admin')).toBe('localhost:3000/admin');
+  });
+});
+
+describe('browser tabs', () => {
+  it('creates one blank active tab', () => {
+    const state = createBrowserTabs('tab-a');
+    expect(state.activeId).toBe('tab-a');
+    expect(state.tabs).toEqual([createBrowserTab('tab-a')]);
+    expect(currentUrl(activeBrowserTab(state).history)).toBeNull();
+  });
+
+  it('keeps every tab pane state independent', () => {
+    let state = createBrowserTabs('tab-a');
+    state = updateBrowserTab(state, 'tab-a', (tab) => ({
+      ...tab,
+      history: pushHistory(tab.history, 'http://a/'),
+      draft: 'draft-a',
+      viewportId: 'phone',
+      reloadNonce: 2,
+      rejected: 'error-a',
+      refused: true,
+    }));
+    state = addBrowserTab(state, createBrowserTab('tab-b'));
+    state = updateBrowserTab(state, 'tab-b', (tab) => ({
+      ...tab,
+      history: pushHistory(tab.history, 'http://b/'),
+      draft: 'draft-b',
+      viewportId: 'desktop',
+    }));
+
+    const a = state.tabs.find((tab) => tab.id === 'tab-a');
+    const b = state.tabs.find((tab) => tab.id === 'tab-b');
+    expect(a).toMatchObject({ draft: 'draft-a', viewportId: 'phone', reloadNonce: 2, rejected: 'error-a', refused: true });
+    expect(currentUrl(a!.history)).toBe('http://a/');
+    expect(b).toMatchObject({ draft: 'draft-b', viewportId: 'desktop', reloadNonce: 0, rejected: null, refused: false });
+    expect(currentUrl(b!.history)).toBe('http://b/');
+  });
+
+  it('selects tabs without changing their contents', () => {
+    const original = addBrowserTab(createBrowserTabs('tab-a'), createBrowserTab('tab-b'));
+    const selected = selectBrowserTab(original, 'tab-a');
+    expect(selected.activeId).toBe('tab-a');
+    expect(selected.tabs).toBe(original.tabs);
+  });
+
+  it('selects an adjacent tab after close and replaces the final tab with blank', () => {
+    let state = addBrowserTab(createBrowserTabs('tab-a'), createBrowserTab('tab-b'));
+    state = addBrowserTab(state, createBrowserTab('tab-c'));
+    state = selectBrowserTab(state, 'tab-b');
+    state = closeBrowserTab(state, 'tab-b', createBrowserTab('unused'));
+    expect(state.activeId).toBe('tab-c');
+    expect(state.tabs.map((tab) => tab.id)).toEqual(['tab-a', 'tab-c']);
+
+    state = closeBrowserTab(selectBrowserTab(state, 'tab-a'), 'tab-a', createBrowserTab('unused-2'));
+    expect(state.activeId).toBe('tab-c');
+    state = closeBrowserTab(state, 'tab-c', createBrowserTab('tab-new'));
+    expect(state).toEqual(createBrowserTabs('tab-new'));
   });
 });
 

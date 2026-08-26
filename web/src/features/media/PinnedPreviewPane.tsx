@@ -1,12 +1,13 @@
-// input:  pinned-preview state, media/document renderers, and pointer/download actions
-// output: dock-host registration and the active docked preview pane
-// pos:    desktop preview surface; presentational panel and copy stay module-internal
+// input:  preview state, browser workspace and media renderers
+// output: docked pane with browser keep-alive across visibility
+// pos:    Desktop preview pane and browser lifetime host
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useEffect, useRef, type ReactNode, type Ref } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { PdfBody, TextBody } from './DocViewer';
 import { HtmlBody } from './HtmlBody';
 import { WebBody } from '@/features/browser/WebBody';
+import type { WebItem } from '@/features/browser/browser-target';
 import type { MediaItem } from './MediaViewer';
 import { isDocPreviewItem, isWebPreviewItem, previewDownloadPath, splitFromDrag, type PreviewItem } from './pinned-preview';
 import { usePinnedPreview } from './PinnedPreviewProvider';
@@ -65,6 +66,8 @@ function Centered({ children, failed }: { children: ReactNode; failed?: boolean 
 /** Presentational docked pane — chrome + body. State/wiring lives in `PinnedPreviewPane`. */
 function PinnedPreviewPanel({
   item,
+  browserItem,
+  visible,
   split,
   onClose,
   onResizeStart,
@@ -72,6 +75,8 @@ function PinnedPreviewPanel({
   rootRef,
 }: {
   item: PreviewItem | null;
+  browserItem: WebItem | null;
+  visible: boolean;
   split: number;
   onClose: () => void;
   onResizeStart: (e: React.MouseEvent) => void;
@@ -90,7 +95,7 @@ function PinnedPreviewPanel({
         flexShrink: 1,
         flexBasis: 0,
         minWidth: 0,
-        display: 'flex',
+        display: visible ? 'flex' : 'none',
         flexDirection: 'column',
         minHeight: 0,
         background: 'var(--proto-card)',
@@ -143,17 +148,23 @@ function PinnedPreviewPanel({
             : { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
         }
       >
-        {!item ? (
+        {browserItem && (
+          <div
+            data-browser-keepalive=""
+            style={{ flex: 1, minHeight: 0, display: isWeb ? 'flex' : 'none', flexDirection: 'column' }}
+          >
+            <WebBody item={isWeb ? item : browserItem} />
+          </div>
+        )}
+        {!isWeb && (!item ? (
           <Centered>{PINNED_PREVIEW_EMPTY_HINT}</Centered>
-        ) : isWeb ? (
-          <WebBody item={item} />
         ) : isDocPreviewItem(item) ? (
           item.kind === 'pdf' ? <PdfBody item={item} />
             : item.kind === 'html' ? <HtmlBody item={item} mode="expanded" />
             : <TextBody item={item} />
         ) : (
           <PinnedMediaBody item={item as MediaItem} />
-        )}
+        ))}
       </div>
     </div>
   );
@@ -179,10 +190,14 @@ const btnStyle: React.CSSProperties = {
  *  docked pane while pinned mode is on. Rendered by the workbench frame only. */
 export function PinnedPreviewPane(): JSX.Element | null {
   const { pinned, item, split, unpin, setSplit, registerHost } = usePinnedPreview();
+  const [browserItem, setBrowserItem] = useState<WebItem | null>(null);
   const paneRef = useRef<HTMLDivElement | null>(null);
   const dl = useDownloadFile();
 
   useEffect(() => registerHost(), [registerHost]);
+  useEffect(() => {
+    if (item && isWebPreviewItem(item)) setBrowserItem(item);
+  }, [item]);
 
   // Divider drag: the resizable region is the chat pane + this pane (the two rails are fixed-width),
   // measured from this pane and its preceding sibling at drag start.
@@ -211,13 +226,16 @@ export function PinnedPreviewPane(): JSX.Element | null {
     window.addEventListener('mouseup', onUp);
   };
 
-  if (!pinned) return null;
+  const retainedBrowser = item && isWebPreviewItem(item) ? item : browserItem;
+  if (!pinned && !retainedBrowser) return null;
 
   const path = item ? previewDownloadPath(item) : null;
   return (
     <PinnedPreviewPanel
       rootRef={paneRef}
       item={item}
+      browserItem={retainedBrowser}
+      visible={pinned}
       split={split}
       onClose={unpin}
       onResizeStart={onResizeStart}
