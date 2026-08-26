@@ -1,5 +1,5 @@
 // input:  context snapshot, compact action, modal/surface
-// output: shared context bar/details and desktop context modal
+// output: shared context ring/details and desktop context modal
 // pos:    Cross-surface context usage presentation primitives
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -62,7 +62,7 @@ export function ContextUsageControl({ usage, supported, variant, lang, compactAc
     <Modal
       title={contextUsageTitle(lang)}
       trigger={(
-        <ContextUsageBar
+        <ContextUsageRing
           usage={usage}
           variant={variant}
           lang={lang}
@@ -76,23 +76,30 @@ export function ContextUsageControl({ usage, supported, variant, lang, compactAc
   );
 }
 
-export interface ContextUsageBarProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
+export interface ContextUsageRingProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   usage: SessionContextUsage | null;
   variant: ContextSurface;
   lang: ContextLanguage;
 }
 
-const TRIGGER_STYLE: CSSProperties = { border: 0, background: 'transparent', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--proto-muted)', cursor: 'pointer', flex: 'none' };
-const PERCENT_STYLE: CSSProperties = { minWidth: 26, font: "600 10px 'IBM Plex Mono', ui-monospace, Menlo, monospace", color: 'var(--proto-muted)', textAlign: 'right', whiteSpace: 'nowrap' };
+const TRIGGER_STYLE: CSSProperties = { border: 0, background: 'transparent', padding: 0, display: 'inline-flex', alignItems: 'center', color: 'var(--proto-muted)', cursor: 'pointer', flex: 'none' };
 
-export const ContextUsageBar = forwardRef<HTMLButtonElement, ContextUsageBarProps>(function ContextUsageBar(
+/** Compact circular usage gauge — the composer-toolbar form of context usage. The percent lives in
+ *  the tooltip/aria label rather than beside the ring, so the control stays icon-sized. */
+export const ContextUsageRing = forwardRef<HTMLButtonElement, ContextUsageRingProps>(function ContextUsageRing(
   { usage, variant, lang, style, ...buttonProps },
   ref,
 ): JSX.Element {
   const copy = COPY[lang];
   const vm = contextUsageViewModel(usage);
+  const size = variant === 'desktop' ? 20 : 22;
+  const stroke = 2.5;
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const filled = circumference * ((vm.progress ?? 0) / 100);
+  const label = `${copy.usage}: ${vm.percentLabel}`;
   return (
-    <button {...buttonProps} ref={ref} type="button" data-context-usage-bar={variant} data-context-usage-presentation={variant === 'mobile' ? 'sheet-trigger' : 'modal-trigger'} aria-label={`${copy.usage}: ${vm.percentLabel}`} style={{ ...TRIGGER_STYLE, ...style }}>
+    <button {...buttonProps} ref={ref} type="button" data-context-usage-ring={variant} data-context-usage-presentation={variant === 'mobile' ? 'sheet-trigger' : 'modal-trigger'} aria-label={label} title={label} style={{ ...TRIGGER_STYLE, ...style }}>
       <span
         data-context-usage-track={variant}
         role="progressbar"
@@ -100,11 +107,25 @@ export const ContextUsageBar = forwardRef<HTMLButtonElement, ContextUsageBarProp
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={vm.progress ?? undefined}
-        style={{ display: 'block', width: variant === 'desktop' ? 64 : 48, height: 4, borderRadius: 999, background: 'var(--proto-line-3)', overflow: 'hidden' }}
+        style={{ display: 'inline-flex' }}
       >
-        <span style={{ display: 'block', height: '100%', width: `${vm.progress ?? 0}%`, borderRadius: 999, background: 'var(--proto-accent)' }} />
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--proto-line-3)" strokeWidth={stroke} />
+          {vm.progress != null && vm.progress > 0 && (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke="var(--proto-accent)"
+              strokeWidth={stroke}
+              strokeLinecap="round"
+              strokeDasharray={`${filled} ${circumference}`}
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            />
+          )}
+        </svg>
       </span>
-      <span style={PERCENT_STYLE}>{vm.percentLabel}</span>
     </button>
   );
 });

@@ -642,9 +642,8 @@ function SecondarySendKey({ enabled, onSend }: { enabled: boolean; onSend?: () =
       onClick={onSend}
       style={{
         flex: 'none',
-        width: 38,
-        height: 38,
-        marginBottom: 4,
+        width: 36,
+        height: 36,
         borderRadius: 12,
         background: MC.card,
         border: `1.5px solid ${enabled ? MC.ink : 'var(--proto-line-3)'}`,
@@ -656,7 +655,7 @@ function SecondarySendKey({ enabled, onSend }: { enabled: boolean; onSend?: () =
         cursor: enabled ? 'pointer' : 'default',
       }}
     >
-      <svg width={15} height={15} viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.8">
+      <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.8">
         <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />
       </svg>
     </button>
@@ -682,21 +681,24 @@ function useAutosize(
   }, [ref, value, max, onMultiline]);
 }
 
-// ── MComposer — the bottom message composer (scheme 1b L165-168 · 2a growth) ───
-// `above` renders composer chips (profile chip / status line / attachment chips). The field is a
-// growable textarea: a single line reads as the 46px pill; typing rows grows it (radius 14→16) up to
-// a 5-line cap, then it scrolls internally and a top-right Expand button opens the full-screen editor
-// (2b). Enter inserts a newline — sending is the button only, on this surface and in the full-screen
-// editor. While the session is `running` a Stop button (white square on ink) takes the primary key so
-// the running agent turn can be cancelled, and Send stays reachable as a smaller outlined key to its
-// left — sending INTO a live turn is mid-turn injection, not a mistake, and hiding Send put it out of
-// reach on a phone entirely. Every send affordance is gated by the one `sendEnabled` predicate, so
-// the buttons agree with each other and an empty composer is inert rather than firing a no-op.
+// ── MComposer — the bottom message composer (unified card · 2a growth) ────────
+// `above` renders composer chrome that stays outside the card (Todo rail / edit·reject bars /
+// attachment chips). The card itself holds the full-width growable textarea on top and one toolbar
+// row underneath: `leading` (the ＋ menu button) left, `tools` (profile chip · context ring) and the
+// send/stop cluster right. The field grows to a 5-line cap, then scrolls internally and a top-right
+// Expand button opens the full-screen editor (2b). Enter inserts a newline — sending is the button
+// only, on this surface and in the full-screen editor. While the session is `running` a Stop button
+// (white square on ink) takes the primary key so the running agent turn can be cancelled, and Send
+// stays reachable as an outlined key to its left — sending INTO a live turn is mid-turn injection,
+// not a mistake, and hiding Send put it out of reach on a phone entirely. Every send affordance is
+// gated by the one `sendEnabled` predicate, so the buttons agree with each other and an empty
+// composer is inert rather than firing a no-op.
 export function MComposer({
   placeholder,
   above,
   commandMenu,
   leading,
+  tools,
   sendEnabled = true,
   value,
   onChange,
@@ -713,6 +715,8 @@ export function MComposer({
   above?: ReactNode;
   commandMenu?: ReactNode;
   leading?: ReactNode;
+  /** Toolbar controls between ＋ and the send cluster (profile chip, context ring). */
+  tools?: ReactNode;
   sendEnabled?: boolean;
   value?: string;
   onChange?: (v: string) => void;
@@ -751,24 +755,20 @@ export function MComposer({
     >
       {above}
       {!expanded ? commandMenu : null}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-        {leading}
-        <div
-          style={{
-            flex: 1,
-            minWidth: 0,
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            minHeight: COMPOSER_MIN_H,
-            border: `1.5px solid ${tone === 'amber' ? MC.amber : tone === 'accent' || focused ? MC.run : 'var(--proto-line-3)'}`,
-            borderRadius: multiline ? 16 : 14,
-            background: MC.card,
-            boxShadow: tone === 'amber' ? 'var(--focus-ring-amber)' : tone === 'accent' || focused ? 'var(--focus-ring-accent)' : undefined,
-            boxSizing: 'border-box',
-            padding: `0 ${showExpand ? 34 : 14}px 0 14px`,
-          }}
-        >
+      {/* Unified composer card: full-width input on top, one toolbar row below. The focus/tone
+          ring wraps the whole card — input and controls read as one surface. */}
+      <div
+        data-composer-card
+        style={{
+          border: `1.5px solid ${tone === 'amber' ? MC.amber : tone === 'accent' || focused ? MC.run : 'var(--proto-line-3)'}`,
+          borderRadius: 18,
+          background: MC.card,
+          boxShadow: tone === 'amber' ? 'var(--focus-ring-amber)' : tone === 'accent' || focused ? 'var(--focus-ring-accent)' : undefined,
+          boxSizing: 'border-box',
+          padding: '2px 10px 8px 12px',
+        }}
+      >
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', padding: `0 ${showExpand ? 28 : 2}px 0 2px` }}>
           <textarea
             ref={taRef}
             rows={1}
@@ -784,7 +784,7 @@ export function MComposer({
               border: 'none',
               outline: 'none',
               background: 'transparent',
-              padding: `${COMPOSER_PAD_V}px 0`,
+              padding: `${COMPOSER_PAD_V}px 0 6px`,
               margin: 0,
               maxHeight: COMPOSER_MAX_H,
               fontSize: 13.5,
@@ -801,8 +801,8 @@ export function MComposer({
               onClick={() => setExpanded(true)}
               style={{
                 position: 'absolute',
-                top: 9,
-                right: 9,
+                top: 8,
+                right: 0,
                 width: 22,
                 height: 22,
                 borderRadius: 7,
@@ -818,55 +818,60 @@ export function MComposer({
             </button>
           )}
         </div>
-        {/* Running: the secondary Send sits LEFT of the primary Stop, so Stop keeps the far-right
-            key it has always occupied and the new affordance costs no muscle memory. Idle: the
-            single primary Send. */}
-        {running && <SecondarySendKey enabled={sendEnabled} onSend={onSend} />}
-        {running ? (
-          <button
-            type="button"
-            aria-label="Stop"
-            disabled={!stopEnabled}
-            onClick={onStop}
-            style={{
-              flex: 'none',
-              width: 46,
-              height: 46,
-              borderRadius: 14,
-              background: MC.inkSolid,
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: stopEnabled ? 1 : 0.45,
-              cursor: stopEnabled ? 'pointer' : 'default',
-            }}
-          >
-            <span style={{ width: 14, height: 14, background: MC.inkSolidFg, borderRadius: 3 }} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            aria-label="Send"
-            disabled={!sendEnabled}
-            onClick={onSend}
-            style={{
-              flex: 'none',
-              width: 46,
-              height: 46,
-              borderRadius: 14,
-              background: MC.inkSolid,
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: sendEnabled ? 1 : 0.45,
-              cursor: sendEnabled ? 'pointer' : 'default',
-            }}
-          >
-            <SendGlyph />
-          </button>
-        )}
+        {/* Toolbar row: ＋ left; profile/context and the send cluster right. Running: the secondary
+            Send sits LEFT of the primary Stop, so Stop keeps the far-right key it has always
+            occupied and the affordance costs no muscle memory. Idle: the single primary Send. */}
+        <div data-composer-toolbar style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {leading}
+          <span style={{ marginLeft: 'auto' }} />
+          {tools}
+          {running && <SecondarySendKey enabled={sendEnabled} onSend={onSend} />}
+          {running ? (
+            <button
+              type="button"
+              aria-label="Stop"
+              disabled={!stopEnabled}
+              onClick={onStop}
+              style={{
+                flex: 'none',
+                width: 36,
+                height: 36,
+                borderRadius: 12,
+                background: MC.inkSolid,
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: stopEnabled ? 1 : 0.45,
+                cursor: stopEnabled ? 'pointer' : 'default',
+              }}
+            >
+              <span style={{ width: 12, height: 12, background: MC.inkSolidFg, borderRadius: 3 }} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              aria-label="Send"
+              disabled={!sendEnabled}
+              onClick={onSend}
+              style={{
+                flex: 'none',
+                width: 36,
+                height: 36,
+                borderRadius: 12,
+                background: MC.inkSolid,
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: sendEnabled ? 1 : 0.45,
+                cursor: sendEnabled ? 'pointer' : 'default',
+              }}
+            >
+              <SendGlyph size={15} />
+            </button>
+          )}
+        </div>
       </div>
       {expanded && (
         <ComposerFullscreen

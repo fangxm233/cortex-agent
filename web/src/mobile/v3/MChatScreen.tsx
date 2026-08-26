@@ -94,6 +94,8 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     attachCamera: '拍照',
     attachLibrary: '照片图库',
     attachFile: '选择文件',
+    attachBrowser: '浏览器',
+    attachCommands: '命令',
 
     attachPlaceholder: '补充说明…',
     profileTitle: 'Profile',
@@ -118,6 +120,8 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     attachCamera: 'Take photo',
     attachLibrary: 'Photo library',
     attachFile: 'Choose file',
+    attachBrowser: 'Browser',
+    attachCommands: 'Commands',
 
     attachPlaceholder: 'Add a note…',
     profileTitle: 'Profile',
@@ -881,7 +885,6 @@ export function MChatScreen(): JSX.Element {
         stopEnabled={!cancelMut.isPending}
         profileChipLabel={profileChipLabel(effectiveProfile, profiles)}
         browserDevice={isDraft ? draftBrowserDevice : (active?.browser?.device ?? null)}
-        browserChipLabel={vocab.wbBrowser}
         onOpenBrowser={isDraft ? () => setBrowserSheetOpen(true) : undefined}
         browserSheet={browserSheetOpen ? {
           items: [

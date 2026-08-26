@@ -27,6 +27,8 @@ const copy: MChatCopy = {
   attachCamera: 'camera',
   attachLibrary: 'library',
   attachFile: 'file',
+  attachBrowser: 'browser',
+  attachCommands: 'commands',
   attachPlaceholder: 'attachment',
   profileTitle: 'profile',
   profileSubtitle: 'profile-subtitle',
@@ -305,44 +307,65 @@ describe('MChatStream long-press anchor', () => {
   });
 });
 
-describe('MChatView browser chip', () => {
-  function chip(html: string): string | null {
-    return html.match(/<button[^>]*data-chip="browser"[^>]*>/)?.[0] ?? null;
+describe('MChatView ＋ menu', () => {
+  function browserRow(html: string): string | null {
+    return html.match(/<div[^>]*data-plus-item="browser"[^>]*>/)?.[0] ?? null;
   }
 
-  function renderComposer(props: Record<string, unknown>): string {
+  function renderMenu(props: Record<string, unknown>): string {
     return renderToStaticMarkup(
       <MChatView
         {...baseProps}
         {...props}
+        attachMenuOpen
         status={{ running: false, tone: 'idle', text: 'status' }}
         rows={[]}
       />,
     );
   }
 
-  it('is absent when the session has no browser and none can be chosen', () => {
-    // A live session that never opted in must not grow a control that would do nothing.
-    expect(chip(renderComposer({}))).toBeNull();
+  it('always offers the local slash commands row', () => {
+    expect(renderMenu({})).toContain('data-plus-item="commands"');
   });
 
-  it('is an editable toggle on a draft', () => {
-    const html = renderComposer({ browserDevice: null, onOpenBrowser: () => {} });
-    expect(chip(html)).toContain('data-editable="true"');
-    expect(chip(html)).toContain('data-active="false"');
+  it('inserting a slash routes through the composer change handler', () => {
+    const onComposerChange = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <MChatView
+          {...baseProps}
+          onComposerChange={onComposerChange}
+          attachMenuOpen
+          status={{ running: false, tone: 'idle', text: 'status' }}
+          rows={[]}
+        />,
+      );
+    });
+    act(() => renderer.root.findByProps({ 'data-plus-item': 'commands' }).props.onClick());
+    expect(onComposerChange).toHaveBeenCalledWith('/');
+  });
+
+  it('omits the browser row when the session has no browser and none can be chosen', () => {
+    // A live session that never opted in must not grow a control that would do nothing.
+    expect(browserRow(renderMenu({}))).toBeNull();
+  });
+
+  it('is an editable row on a draft', () => {
+    const html = renderMenu({ browserDevice: null, onOpenBrowser: () => {} });
+    expect(browserRow(html)).toContain('data-editable="true"');
   });
 
   it('shows the chosen device once it is on', () => {
-    const html = renderComposer({ browserDevice: 'server', onOpenBrowser: () => {}, browserChipLabel: 'Browser' });
-    expect(chip(html)).toContain('data-active="true"');
-    expect(html).toContain('Browser · server');
+    const html = renderMenu({ browserDevice: 'server', onOpenBrowser: () => {} });
+    expect(browserRow(html)).toContain('data-editable="true"');
+    expect(html).toContain('server');
   });
 
   it('reports without offering a change on a live session', () => {
     // The agent's tool set is fixed when its process spawns, so a switch here would promise
     // something the running process cannot do.
-    const html = renderComposer({ browserDevice: 'server' });
-    expect(chip(html)).toContain('data-editable="false"');
-    expect(chip(html)).toContain('disabled=""');
+    const html = renderMenu({ browserDevice: 'server' });
+    expect(browserRow(html)).toContain('data-editable="false"');
   });
 });

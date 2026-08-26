@@ -16,10 +16,13 @@ export function ProfileMenu({
   options,
   onPick,
   placement = 'below',
+  align = 'left',
 }: {
   options: ProfileOption[];
   onPick: (name: string) => void;
   placement?: 'above' | 'below';
+  /** 'right' anchors the menu to the selector's right edge — for chips near the card's right side. */
+  align?: 'left' | 'right';
 }): JSX.Element {
   const L = useVocab();
   const [hover, setHover] = useState<string | null>(null);
@@ -29,8 +32,8 @@ export function ProfileMenu({
       data-menu="profile"
       style={{
         position: 'absolute',
-        left: 0,
-        ...(placement === 'above' ? { bottom: 26 } : { top: 26 }),
+        ...(align === 'right' ? { right: 0 } : { left: 0 }),
+        ...(placement === 'above' ? { bottom: 36 } : { top: 36 }),
         background: 'var(--proto-card)',
         border: '1px solid var(--proto-line)',
         borderRadius: 8,

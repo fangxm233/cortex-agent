@@ -228,7 +228,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
         compactAction={active?.contextCompactionSupported ? compactAction : undefined}
         todos={todos}
         onOpenSettings={onOpenSettings}
-        statusAccessory={(active?.contextCompactionSupported || contextUsage !== null) ? (
+        contextControl={(active?.contextCompactionSupported || contextUsage !== null) ? (
           <ContextUsageControl
             usage={contextUsage}
             supported={!!active?.contextCompactionSupported}

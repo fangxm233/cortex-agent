@@ -26,15 +26,16 @@ import {
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 import { ComposerStatusLine } from './ComposerStatusLine';
 import { TodoRail } from './TodoRail';
-import { ComposerActionRow, ComposerSlashMenu } from './ComposerActionRow';
-import { BrowserOptInChip } from './BrowserOptIn';
+import { ComposerActionRow, ComposerSlashMenu, type ComposerBrowserControl } from './ComposerActionRow';
 import { SessionProfileSelectorView, useSessionProfileSelection } from './SessionProfileSelector';
 import type { ContextCompactAction } from './ContextUsageControl';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
 import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
 
-// Composer — extended with file attachment support (15a 附件输入与消息).
-// Three entry points for files: "+ attach" button · paste (clipboard images) · drag & drop.
+// Composer — a unified card: full-width input on top, one toolbar row below. The toolbar keeps the
+// ＋ menu (attach · browser opt-in · local slash commands) on the left and the profile chip, context
+// ring and Send/Stop cluster on the right.
+// Three entry points for files: ＋ menu "attach" · paste (clipboard images) · drag & drop.
 // Files upload to the server's tmp/attachments/<sessionId>/ and are referenced by path.
 // Attachment chips show type badges, filenames, sizes, upload progress, and remove buttons.
 // The send button enables when text is non-empty OR uploaded attachments are present.
@@ -183,7 +184,7 @@ export function Composer({
   enqueueOptimistic,
   acceptOptimistic,
   rejectOptimistic,
-  statusAccessory,
+  contextControl,
   todos,
   compactAction,
   onOpenSettings = () => {},
@@ -211,7 +212,8 @@ export function Composer({
   enqueueOptimistic: (message: OptimisticUserMessage) => void;
   acceptOptimistic: (clientId: string, createdSessionId?: string) => boolean;
   rejectOptimistic: (clientId: string, error: Error) => boolean;
-  statusAccessory?: ReactNode;
+  /** Context-usage ring (modal trigger), rendered in the toolbar right cluster beside the profile. */
+  contextControl?: ReactNode;
   todos?: TodoSnapshot | null;
   compactAction?: ContextCompactAction;
   onOpenSettings?: () => void;
@@ -349,11 +351,6 @@ export function Composer({
   const hasText = !!composer.trim();
   const canSend = (hasText || doneAttachments.length > 0) && (!!sessionId || isDraft) && !sendMut.isPending && !createAndSendMut.isPending;
   const composerBorder = slashOpen ? 'var(--proto-accent)' : dragOver ? 'var(--proto-accent)' : 'var(--proto-line-3)';
-  // While running, the hint advertises BOTH actions the composer offers: ⏎ appends the message to
-  // the turn already in flight, esc stops it. It used to name only the stop shortcut even though
-  // ⏎ was live, which made sending mid-turn feel like a slip rather than a choice. The status line
-  // directly above already carries the "Running" label, so the word is not repeated here.
-  const composerHint = running ? `⏎ ${L.wbSend} · ${L.wbEscToStop}` : `⏎ ${L.wbSend} · ⇧⏎ ${L.wbNewline}`;
   const sendBg = canSend ? 'var(--proto-ink)' : 'var(--proto-line-3)';
   // Real agent-turn count; render — when unknown (no run yet / running turn before first progress).
   const turnsText = turns == null ? DASH : `${turns} ${L.wbTurnsUnit}`;
@@ -923,143 +920,131 @@ export function Composer({
                   pointerEvents: dragOver ? 'none' : 'auto',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Attachment chips row */}
-                    {hasAttachments && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexWrap: 'wrap',
-                          gap: 8,
-                          padding: '2px 2px 10px',
-                          borderBottom: '1px solid var(--proto-line-2)',
-                        }}
-                      >
-                        {attachments.map(renderChip)}
-                      </div>
-                    )}
-
-                    {/* Text input */}
-                    <textarea
-                      ref={inputRef}
-                      data-composer-input
-                      rows={1}
-                      value={composer}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setComposer(v);
-                        setSendError(null);
-                        setSlashOpen(v.startsWith('/'));
-                        // Height is re-fit by the useLayoutEffect on `composer`.
-                      }}
-                      onKeyDown={onKey}
-                      onPaste={onPaste}
-                      placeholder={hasAttachments ? L.wbAttachPlaceholder : L.composerPh}
-                      style={{
-                        width: '100%',
-                        fontSize: 13.5,
-                        lineHeight: 1.5,
-                        color: 'var(--proto-ink)',
-                        fontFamily: 'inherit',
-                        padding: hasAttachments ? '11px 2px' : '2px 0',
-                        border: 'none',
-                        outline: 'none',
-                        resize: 'none',
-                        background: 'transparent',
-                        maxHeight: 160,
-                        overflowY: 'auto',
-                      }}
-                    />
-
-                    <ComposerActionRow
-                      profileControl={<SessionProfileSelectorView selection={profileSelection} />}
-                      browserControl={isDraft
-                        ? <BrowserOptInChip device={browserDevice} onChange={setBrowserDevice} />
-                        // A live session shows what it was created with, without pretending it can
-                        // be changed now.
-                        : sessionBrowser
-                          ? <BrowserOptInChip device={sessionBrowser.device} />
-                          : undefined}
-                      hint={hasAttachments ? L.wbAttachHint : composerHint}
-                      onAttach={() => fileInputRef.current?.click()}
-                      onCommands={() => { setComposer('/'); setSlashOpen(true); }}
-                    />
-                  </div>
-
-                  {/* Send + Stop.
-                      Send is ALWAYS rendered. While a turn is running the composer still sends —
-                      the server injects the text into the live turn rather than queuing it behind
-                      that turn — but the only affordance for it used to be ⏎, with just a Stop
-                      button on screen. Showing send as the secondary action next to Stop makes the
-                      keyboard behaviour visible instead of accidental. */}
+                {/* Attachment chips row */}
+                {hasAttachments && (
                   <div
                     style={{
-                      flex: 'none',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      marginTop: hasAttachments ? 2 : 0,
+                      flexWrap: 'wrap',
+                      gap: 8,
+                      padding: '2px 2px 10px',
+                      borderBottom: '1px solid var(--proto-line-2)',
                     }}
                   >
-                    <button
-                      type="button"
-                      data-action="send"
-                      aria-label={L.wbSend}
-                      title={running ? `${L.wbSend} · ⏎` : undefined}
-                      disabled={!canSend}
-                      onClick={doSend}
-                      style={{
-                        flex: 'none',
-                        width: running ? 30 : 34,
-                        height: running ? 30 : 34,
-                        padding: 0,
-                        borderRadius: running ? 9 : 10,
-                        // Running: outlined/secondary so Stop stays the primary action.
-                        background: running ? 'transparent' : sendBg,
-                        border: running ? `1.5px solid ${canSend ? 'var(--proto-accent-border)' : 'var(--proto-line)'}` : 'none',
-                        boxSizing: 'border-box',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: canSend ? 'pointer' : 'default',
-                      }}
-                    >
-                      <svg
-                        width={running ? 12 : 14}
-                        height={running ? 12 : 14}
-                        viewBox="0 0 14 14"
-                        fill="none"
-                        stroke={running ? (canSend ? 'var(--proto-accent)' : 'var(--proto-line-3)') : 'var(--ink-solid-fg)'}
-                        strokeWidth="1.8"
-                      >
-                        <path d="M7 12V2M3 6l4-4 4 4" />
-                      </svg>
-                    </button>
-                    {running && (
-                      <div
-                        data-action="stop"
-                        title={`${L.stop} · esc`}
-                        onClick={doStop}
-                        onMouseEnter={() => setBtnHover(true)}
-                        onMouseLeave={() => setBtnHover(false)}
+                    {attachments.map(renderChip)}
+                  </div>
+                )}
+
+                {/* Text input — full card width; every control lives in the toolbar row below. */}
+                <textarea
+                  ref={inputRef}
+                  data-composer-input
+                  rows={1}
+                  value={composer}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setComposer(v);
+                    setSendError(null);
+                    setSlashOpen(v.startsWith('/'));
+                    // Height is re-fit by the useLayoutEffect on `composer`.
+                  }}
+                  onKeyDown={onKey}
+                  onPaste={onPaste}
+                  placeholder={hasAttachments ? L.wbAttachPlaceholder : L.composerPh}
+                  style={{
+                    width: '100%',
+                    fontSize: 13.5,
+                    lineHeight: 1.5,
+                    color: 'var(--proto-ink)',
+                    fontFamily: 'inherit',
+                    padding: hasAttachments ? '11px 2px' : '2px 0',
+                    border: 'none',
+                    outline: 'none',
+                    resize: 'none',
+                    background: 'transparent',
+                    maxHeight: 160,
+                    overflowY: 'auto',
+                  }}
+                />
+
+                {/* Toolbar: ＋ menu left; profile, context ring and Send/Stop right.
+                    Send is ALWAYS rendered. While a turn is running the composer still sends —
+                    the server injects the text into the live turn rather than queuing it behind
+                    that turn. Showing send as the secondary action next to Stop makes the
+                    keyboard behaviour (⏎ mid-turn) visible instead of accidental. */}
+                <ComposerActionRow
+                  browser={isDraft
+                    ? { device: browserDevice, onChange: setBrowserDevice } satisfies ComposerBrowserControl
+                    // A live session shows what it was created with, without pretending it can
+                    // be changed now.
+                    : sessionBrowser
+                      ? { device: sessionBrowser.device }
+                      : null}
+                  onAttach={() => fileInputRef.current?.click()}
+                  onCommands={() => { setComposer('/'); setSlashOpen(true); }}
+                  profileControl={<SessionProfileSelectorView selection={profileSelection} />}
+                  contextControl={contextControl}
+                  sendControl={(
+                    <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <button
+                        type="button"
+                        data-action="send"
+                        aria-label={L.wbSend}
+                        title={`${L.wbSend} · ⏎`}
+                        disabled={!canSend}
+                        onClick={doSend}
                         style={{
                           flex: 'none',
-                          width: 34,
-                          height: 34,
-                          borderRadius: 10,
-                          background: btnHover ? 'var(--ink-solid-hover)' : 'var(--proto-ink)',
+                          width: running ? 30 : 34,
+                          height: running ? 30 : 34,
+                          padding: 0,
+                          borderRadius: running ? 8 : 10,
+                          // Running: outlined/secondary so Stop stays the primary action.
+                          background: running ? 'transparent' : sendBg,
+                          border: running ? `1.5px solid ${canSend ? 'var(--proto-accent-border)' : 'var(--proto-line)'}` : 'none',
+                          boxSizing: 'border-box',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          cursor: cancelMut.isPending ? 'default' : 'pointer',
+                          cursor: canSend ? 'pointer' : 'default',
                         }}
                       >
-                        <span style={{ width: 11, height: 11, background: 'var(--proto-card)', borderRadius: 2 }} />
-                      </div>
-                    )}
-                  </div>
-                </div>
+                        <svg
+                          width={running ? 12 : 14}
+                          height={running ? 12 : 14}
+                          viewBox="0 0 14 14"
+                          fill="none"
+                          stroke={running ? (canSend ? 'var(--proto-accent)' : 'var(--proto-line-3)') : 'var(--ink-solid-fg)'}
+                          strokeWidth="1.8"
+                        >
+                          <path d="M7 12V2M3 6l4-4 4 4" />
+                        </svg>
+                      </button>
+                      {running && (
+                        <div
+                          data-action="stop"
+                          title={`${L.stop} · esc`}
+                          onClick={doStop}
+                          onMouseEnter={() => setBtnHover(true)}
+                          onMouseLeave={() => setBtnHover(false)}
+                          style={{
+                            flex: 'none',
+                            width: 34,
+                            height: 34,
+                            borderRadius: 10,
+                            background: btnHover ? 'var(--ink-solid-hover)' : 'var(--proto-ink)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: cancelMut.isPending ? 'default' : 'pointer',
+                          }}
+                        >
+                          <span style={{ width: 11, height: 11, background: 'var(--proto-card)', borderRadius: 2 }} />
+                        </div>
+                      )}
+                    </span>
+                  )}
+                />
               </div>
 
               {/* Floating overlay when dragging with existing attachments */}
@@ -1120,7 +1105,6 @@ export function Composer({
           text={running
             ? `${backgroundRunning ? L.pillBackground : L.pillRunning} · ${elapsed} · ${turnsText}`
             : (hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle)}
-          accessory={statusAccessory}
         />
       </div>
     </div>

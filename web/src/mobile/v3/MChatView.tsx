@@ -7,8 +7,9 @@
 // (1b L136-168 · 1o L753-786 · 1p L799-845 · 5a reject composer L200-218). Raw px/hex/font/svg by
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
-// Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer
-// hosts local slash suggestions beside its profile and context controls.
+// Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer is a
+// unified card: full-width input on top, one toolbar row below (＋ menu left; profile chip, context
+// ring and Send/Stop right). Browser opt-in and local slash commands fold into the ＋ menu.
 // Collapsed tool calls share Desktop width measurement and end hidden items with numeric +N.
 //
 // Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
@@ -24,7 +25,7 @@ import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';
 import {
   ContextCompactFooter,
-  ContextUsageBar,
+  ContextUsageRing,
   ContextUsageDetails,
   contextUsageTitle,
   type ContextCompactAction,
@@ -79,6 +80,9 @@ export interface MChatCopy {
   attachCamera: string;
   attachLibrary: string;
   attachFile: string;
+  /** ＋ menu rows folded in beside the file pickers: browser opt-in and local slash commands. */
+  attachBrowser: string;
+  attachCommands: string;
 
   attachPlaceholder: string;
   profileTitle: string;
@@ -1046,14 +1050,30 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
 }
 
 // ── 1o ＋ attach menu (scheme L783-787) ───────────────────────────────────────
-export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile }: { copy: MChatCopy; onClose: () => void; onCamera: () => void; onLibrary: () => void; onFile: () => void }): JSX.Element {
-  const row = (label: string, on: () => void, icon: ReactNode, last?: boolean): JSX.Element => (
+export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser, onCommands }: {
+  copy: MChatCopy;
+  onClose: () => void;
+  onCamera: () => void;
+  onLibrary: () => void;
+  onFile: () => void;
+  /** Browser opt-in row — absent when the session has no browser and none can be chosen. `onOpen`
+   *  (draft only) opens the device sheet; without it the row just reports the fixed device. */
+  browser?: { device: string | null; onOpen?: () => void };
+  /** Inserts a leading `/` into the composer, surfacing the local slash commands. */
+  onCommands: () => void;
+}): JSX.Element {
+  const row = (label: string, on: (() => void) | undefined, icon: ReactNode, opts?: { last?: boolean; value?: string; itemKey?: string }): JSX.Element => (
     <div
-      onClick={() => { on(); onClose(); }}
-      style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: last ? undefined : '1px solid var(--proto-line-2)', cursor: 'pointer' }}
+      data-plus-item={opts?.itemKey}
+      data-editable={opts?.itemKey === 'browser' ? (on ? 'true' : 'false') : undefined}
+      onClick={on ? () => { on(); onClose(); } : undefined}
+      style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: opts?.last ? undefined : '1px solid var(--proto-line-2)', cursor: on ? 'pointer' : 'default', opacity: on ? 1 : 0.6 }}
     >
       {icon}
       <span style={{ fontSize: 13, color: MC.ink }}>{label}</span>
+      {opts?.value != null && (
+        <span style={{ marginLeft: 'auto', font: `500 10px ${MONO}`, color: MC.run }}>{opts.value}</span>
+      )}
     </div>
   );
   return (
@@ -1064,7 +1084,7 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile }: { cop
           position: 'absolute',
           left: 14,
           bottom: 90,
-          width: 196,
+          width: 208,
           background: 'var(--panel-translucent-bg)',
           border: '1px solid var(--panel-translucent-border)',
           borderRadius: 13,
@@ -1087,7 +1107,18 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile }: { cop
           copy.attachFile,
           onFile,
           <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke={MC.ink} strokeWidth="1.4"><path d="M3 1.5h5.5L11.5 4v8.5h-8.5z" /><path d="M8.5 1.5V4H11" /></svg>,
-          true,
+        )}
+        {browser && row(
+          copy.attachBrowser,
+          browser.onOpen,
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.5"><circle cx="8" cy="8" r="6.5" /><path d="M1.5 8h13M8 1.5c-1.8 1.8-2.7 4-2.7 6.5S6.2 13.2 8 14.5c1.8-1.3 2.7-4 2.7-6.5S9.8 3.3 8 1.5z" /></svg>,
+          { itemKey: 'browser', value: browser.device ?? undefined },
+        )}
+        {row(
+          copy.attachCommands,
+          onCommands,
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.6"><path d="M10.5 2.5 5.5 13.5" /></svg>,
+          { last: true, itemKey: 'commands' },
         )}
       </div>
     </>
@@ -1243,14 +1274,16 @@ export function BrowserSheet({ items, title, current, onClose, onPick }: {
   );
 }
 
-// ── the ＋ leading button + profile chip (composer chrome) ────────────────────
+// ── the ＋ toolbar button + profile chip (composer toolbar chrome) ─────────────
+// Rounded-rect family, matching the desktop toolbar: controls 34px tall / radius 10, the send key
+// 36 / radius 12. No pill shapes.
 function PlusButton({ onClick }: { onClick: () => void }): JSX.Element {
   return (
     <button
       type="button"
       aria-label="Attach"
       onClick={onClick}
-      style={{ flex: 'none', width: 46, height: 46, borderRadius: 14, border: `1.5px solid ${MC.run}`, background: 'var(--proto-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.run, fontSize: 22, fontWeight: 300, cursor: 'pointer' }}
+      style={{ flex: 'none', width: 34, height: 34, borderRadius: 10, border: `1px solid ${MC.hairline}`, background: MC.card, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, fontSize: 19, fontWeight: 300, lineHeight: 1, cursor: 'pointer', padding: 0 }}
     >
       ＋
     </button>
@@ -1262,47 +1295,11 @@ function ProfileChip({ label, onClick }: { label: string; onClick: () => void })
     <button
       type="button"
       onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-card)', borderRadius: 999, padding: '4px 10px', flex: 'none', cursor: 'pointer' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--proto-accent-bg)', background: MC.card, borderRadius: 10, height: 34, padding: '0 12px', boxSizing: 'border-box', flex: 'none', minWidth: 0, cursor: 'pointer' }}
     >
-      <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run }} />
-      <span style={{ font: `600 10px ${MONO}`, color: MC.run }}>{label}</span>
-      <span style={{ fontSize: 7.5, color: MC.muted }}>▾</span>
-    </button>
-  );
-}
-
-/**
- * Browser control, mirroring the desktop chip: a toggle on a draft, a plain indicator on a live
- * session. It cannot be changed once the session exists, because the agent's tool set is fixed when
- * its process spawns — offering a switch there would promise something the running process cannot do.
- */
-function BrowserChip({ device, label, onOpen }: {
-  device: string | null;
-  label: string;
-  onOpen?: () => void;
-}): JSX.Element {
-  const active = device !== null;
-  const editable = typeof onOpen === 'function';
-  return (
-    <button
-      type="button"
-      data-chip="browser"
-      data-active={active ? 'true' : 'false'}
-      data-editable={editable ? 'true' : 'false'}
-      disabled={!editable}
-      onClick={onOpen}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 6, flex: 'none',
-        border: `1px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`,
-        background: active ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
-        borderRadius: 999, padding: '4px 10px',
-        cursor: editable ? 'pointer' : 'default',
-      }}
-    >
-      <span style={{ font: `600 10px ${MONO}`, color: active ? MC.run : MC.muted }}>
-        {active ? `${label} · ${device}` : label}
-      </span>
-      {editable && <span style={{ fontSize: 7.5, color: MC.muted }}>▾</span>}
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run, flex: 'none' }} />
+      <span style={{ font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      <span style={{ fontSize: 8, color: MC.muted, flex: 'none' }}>▾</span>
     </button>
   );
 }
@@ -1385,9 +1382,6 @@ export interface MChatViewProps {
   onOpenProfile: () => void;
   /** Browser control for this session: null when it has none and none can be chosen. */
   browserDevice?: string | null;
-  /** Passed in rather than read from the vocab here, like `profileChipLabel` — this view is
-   *  rendered in tests without a LangProvider. */
-  browserChipLabel?: string;
   /** Present only on a draft — the tool set is fixed when the agent process spawns. */
   onOpenBrowser?: () => void;
   browserSheet?: {
@@ -1499,28 +1493,24 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           ))}
         </div>
       )}
-      {/* Composer meta row: profile on the left, compact context usage right-aligned. */}
-      <div data-mobile-composer-meta-row="true" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 7px' }}>
-        <ProfileChip label={props.profileChipLabel} onClick={props.onOpenProfile} />
-        {(props.onOpenBrowser || props.browserDevice) && (
-          <BrowserChip
-            device={props.browserDevice ?? null}
-            label={props.browserChipLabel ?? 'Browser'}
-            onOpen={props.onOpenBrowser}
+    </>
+  );
+  // Composer toolbar right cluster: profile chip, then the context ring at its right, beside Send.
+  // Hidden in edit/reject modes — those replace the composer chrome entirely.
+  const composerTools = props.editing || props.rejectBar ? undefined : (
+    <>
+      <ProfileChip label={props.profileChipLabel} onClick={props.onOpenProfile} />
+      {(props.contextUsageSupported || props.contextUsage != null) ? (
+        <span data-context-usage-position="composer-toolbar" style={{ display: 'inline-flex', flex: 'none' }}>
+          <ContextUsageRing
+            usage={props.contextUsage ?? null}
+            variant="mobile"
+            lang={props.contextUsageLang ?? 'en'}
+            onClick={props.onContextUsageOpen}
+            data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined}
           />
-        )}
-        {(props.contextUsageSupported || props.contextUsage != null) ? (
-          <span data-context-usage-position="composer-profile" style={{ marginLeft: 'auto', display: 'inline-flex', flex: 'none' }}>
-            <ContextUsageBar
-              usage={props.contextUsage ?? null}
-              variant="mobile"
-              lang={props.contextUsageLang ?? 'en'}
-              onClick={props.onContextUsageOpen}
-              data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined}
-            />
-          </span>
-        ) : null}
-      </div>
+        </span>
+      ) : null}
     </>
   );
   const above = (
@@ -1584,6 +1574,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           onStop={props.onStop}
           stopEnabled={props.stopEnabled}
           leading={props.editing || props.rejectBar ? undefined : <PlusButton onClick={props.onPlus} />}
+          tools={composerTools}
           above={above}
           commandMenu={commandMenu}
           onPlus={props.onPlus}
@@ -1626,7 +1617,15 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         </MBottomSheet>
       )}
       {props.attachMenuOpen && (
-        <AttachMenu copy={copy} onClose={props.onAttachClose} onCamera={props.onCamera} onLibrary={props.onLibrary} onFile={props.onFile} />
+        <AttachMenu
+          copy={copy}
+          onClose={props.onAttachClose}
+          onCamera={props.onCamera}
+          onLibrary={props.onLibrary}
+          onFile={props.onFile}
+          browser={(props.onOpenBrowser || props.browserDevice) ? { device: props.browserDevice ?? null, onOpen: props.onOpenBrowser } : undefined}
+          onCommands={() => props.onComposerChange('/')}
+        />
       )}
       {props.browserSheet && (
         <BrowserSheet

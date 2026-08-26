@@ -52,14 +52,13 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Routes local shortcuts and guarded message sends |
+| Composer.tsx | view | Unified composer card: input above one toolbar row |
 | Composer.test.tsx | test | Tests local shortcuts and rejected-send state |
-| ComposerActionRow.tsx | view | Renders profile, browser, attach and local command controls |
-| BrowserOptIn.tsx | view | Chooses browser control without hover guidance |
-| BrowserOptIn.test.tsx | test | Tests browser selection and no-hover behavior |
+| ComposerActionRow.tsx | view | Toolbar row: ＋ menu left, profile/context/send right |
+| BrowserOptIn.tsx | model | Browser device options for the composer ＋ menu |
 | browser-status.ts | model | Fetches browser status and phrases the takeover hint |
-| ComposerActionRow.test.tsx | test | Tests composer actions and slash-menu callbacks |
-| ComposerStatusLine.tsx | view | Status row above the input with an accessory |
+| ComposerActionRow.test.tsx | test | Tests ＋-menu actions, browser page and slash menu |
+| ComposerStatusLine.tsx | view | Status line of running/idle meta below the composer |
 | composer-draft.ts | util | Persists, restores and prefills drafts |
 | composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |
 | optimistic-message.ts | vm | Reconciles local sends with source-aware message evidence |
@@ -68,7 +67,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | optimistic-message.integration.test.tsx | test | Tests mounted pending sends, restoration and authority races |
 | composer-slash.ts | util | Resolves shared UI-local slash actions |
 | composer-slash.test.ts | test | Tests shortcut parsing, availability and local dispatch |
-| ContextUsageControl.tsx | view | Context usage bar, details and compact action |
+| ContextUsageControl.tsx | view | Context usage ring, details and compact action |
 | TodoRail.tsx | shared | Shows composer Todo summary or click-to-collapse list |
 | TodoRail.test.tsx | test | Tests expanded task-list interaction |
 | todo-vm.ts | vm | Validates task snapshots and builds rail rows |

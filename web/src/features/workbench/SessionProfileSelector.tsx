@@ -11,7 +11,7 @@ import { ProfileMenu } from './ProfileMenu';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { resolveTransitionProfile } from './selected-session';
 
-const CHIP_FONT = "500 10.5px 'IBM Plex Mono',monospace";
+const CHIP_FONT = "500 11.5px 'IBM Plex Mono',monospace";
 
 interface SessionProfileSelectorProps {
   sessionId: string;
@@ -92,13 +92,13 @@ export function SessionProfileSelectorView({ selection }: { selection: ProfileSe
       onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}
       style={{
         position: 'relative', font: CHIP_FONT, border: `1px solid ${hover ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`,
-        color: hover ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '2px 7px', borderRadius: 6,
-        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
+        color: hover ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '0 11px', height: 30, borderRadius: 8,
+        boxSizing: 'border-box', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none',
       }}
     >
       {L.wbProfile} · {selection.effectiveProfile}
       <span style={{ fontSize: 8, color: 'var(--proto-faint)' }}>▾</span>
-      {open ? <ProfileMenu options={selection.options} placement="above" onPick={(name) => { close(); selection.pick(name); }} /> : null}
+      {open ? <ProfileMenu options={selection.options} placement="above" align="right" onPick={(name) => { close(); selection.pick(name); }} /> : null}
     </span>
   );
 }
