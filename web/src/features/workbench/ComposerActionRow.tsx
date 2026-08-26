@@ -91,6 +91,20 @@ function MenuIcon({ kind }: { kind: 'attach' | 'browser' | 'commands' }): JSX.El
   );
 }
 
+/** The ＋ mark as line art. The text glyph (U+FF0B) hangs ~1px below the optical centre of its em
+ *  box and renders hairline-thin at this size, so the button draws the strokes itself. */
+function PlusGlyph({ size = 13 }: { size?: number }): JSX.Element {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" strokeWidth={1.7} strokeLinecap="round"
+      aria-hidden="true" style={{ display: 'block', flex: 'none' }}
+    >
+      <path d="M8 2.4v11.2M2.4 8h11.2" />
+    </svg>
+  );
+}
+
 /**
  * The ＋ button and its menu — the single left-side entry point of the composer toolbar. Rarely-used
  * controls (attach, browser opt-in, local slash commands) fold in here so the toolbar itself stays
@@ -127,10 +141,10 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
           color: active ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
           background: 'var(--proto-card)',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 17, fontWeight: 300, lineHeight: 1, cursor: 'pointer',
+          lineHeight: 0, cursor: 'pointer',
         }}
       >
-        ＋
+        <PlusGlyph />
       </button>
       {open && (
         <span
