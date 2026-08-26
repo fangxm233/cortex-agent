@@ -108,7 +108,7 @@ The thickest layer. Contains 14 subdirectories, each encapsulating a domain conc
 | `scheduling/` | Persisted schedule engine plus settings-backed built-in job controller. `Scheduler` hot-reloads user schedules; built-in task dispatch, archive, and memory-index jobs own daemon timers |
 | `memory/` | Memory/index management. `memory-index-regen.ts` rebuilds index.md from YAML frontmatter. File watcher for context changes. CORTEX.md scanning and injection |
 | `monitor/` | GPU and disk resource monitoring |
-| `remote/` | Remote device management via WebSocket. SSH-based client deployment, hot-reload via npm update |
+| `remote/` | Remote device management via WebSocket. SSH-based client bootstrap; clients self-update from server-pushed bundles |
 | `threads/` | Full thread system: state machine, runner, template loading, prompt building, hook execution, artifact I/O, auto-thread logic |
 | `mcp/` | MCP server implementation. 16 Cortex MCP tools across 8 tool modules (see [mcp.md](./mcp.md)) |
 

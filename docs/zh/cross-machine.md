@@ -64,13 +64,22 @@ Cortex 可以将工作分发到远程机器：运行命令、读写文件、搜�
 
 ### 安装 {#installation}
 
-在每台远程机器上：
+客户端以两个自包含 bundle 的形式分发——`client.mjs`（daemon）和 `cortex-run-watcher.mjs`（长任务看护进程）——按托管布局放在每台设备上：
 
-```bash
-npm install -g @cortex-agent/client
+```
+~/.cortex/client/
+├── current/    # 正在运行的版本（client.mjs + cortex-run-watcher.mjs）
+└── previous/   # 上一个版本，保留用于手动回滚
 ```
 
-这会将 `cortex-client` 放到 PATH 上。客户端除 Node.js 外没有运行时依赖——它只使用 Node 内置模块（`fs`、`child_process`、`ws`）。
+设备上不经由 npm 安装任何东西；唯一要求是 Node.js。服务器的 bootstrap CLI 端到端部署一台设备——检查 SSH 与 Node.js、把 bundle 传到 `~/.cortex/client/current/`、写入客户端配置，并设置 systemd user service（Linux）或启动脚本：
+
+```bash
+node --import tsx src/domain/remote/client-bootstrap.ts \
+  --host user@machine --device-name lab --server-host 10.18.108.245
+```
+
+当设备的托管安装损坏或被清空时，bootstrap 也是救援路径。手动管理的场景可以 `npm i -g @cortex-agent/client` 获得同一 daemon 的 `cortex-client` 命令；这样的客户端首次连接时会被服务器收编进托管布局（见下方客户端更新）。
 
 ### 配置 {#configuration}
 
@@ -132,7 +141,7 @@ cortex-client
 - `gpuCount`（必需）— GPU 数量（非 GPU 机器为 0）
 - `ssh`（可选）— SSH 连接的 `user@host`。如果省略，假设机器是本地的，不需要 SSH
 - `win`（可选）— 对 Windows 目标设为 `true`（更改 SSH 命令语法）
-- `clientCommand`（可选）— 服务器（通过 SSH）启动该机器上 `cortex-client` 所用的命令，默认为裸的 `cortex-client`。当 `cortex-client` 不在该机器**非登录** SSH 的 PATH 上时需要覆盖它——最常见的是 `nvm` 安装：二进制位于 `~/.nvm/...` 下，只有在登录 profile 运行后才出现在 PATH 上。这种情况设为 `"clientCommand": "bash -lc cortex-client"`，让登录 shell 解析出 node 与 `cortex-client`。服务器仍会用其 token 注入及 `nohup`/`echo $!`（Linux）或 `cmd.exe` 包裹的 WMI（Windows）启动机制来包裹这条命令。
+- `clientCommand`（可选）— 服务器（通过 SSH）启动该机器上客户端所用的命令，默认为 `node "$HOME/.cortex/client/current/client.mjs"`（Linux）或 `node "%USERPROFILE%\.cortex\client\current\client.mjs"`（Windows）。当 `node` 不在该机器**非登录** SSH 的 PATH 上时需要覆盖它——最常见的是 `nvm` 安装：node 位于 `~/.nvm/...` 下。这种情况写绝对 node 路径，例如 `"/home/u/.nvm/versions/node/v20.19.5/bin/node /home/u/.cortex/client/current/client.mjs"`。服务器会用其 token 注入及 `nohup`/`echo $!`（Linux）或 `cmd.exe` 包裹的 WMI（Windows）启动机制来包裹这条命令。
 
 `clientConnection` 选择连接路由。默认值 `direct` 使用 `cortex-client.json` 中的 URL；设为 `ssh-reverse` 时，服务器会维护 SSH 反向隧道，并在启动客户端时注入 loopback WebSocket URL。`clientReversePort` 可选，用于指定远程机器上的 loopback 端口；默认等于服务器 client 端口，取值必须在 1024 到 65535 之间。SSH 反向路由必须配置 `ssh`。
 
@@ -237,9 +246,9 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 
 ### 客户端 → 服务器 {#client-server}
 
-**Hello**（连接时立即发送）：
+**Hello**（连接时立即发送）。`bundleHash` 标识客户端正在运行的 bundle（对 `client.mjs` + `cortex-run-watcher.mjs` 的 sha256）；服务器用它与期望 bundle 对比，决定是否推送更新：
 ```json
-{ "type": "hello", "device": "lab", "platform": "linux", "capabilities": ["rg"] }
+{ "type": "hello", "device": "lab", "platform": "linux", "capabilities": ["rg"], "bundleHash": "cebdfcd6…" }
 ```
 
 **心跳**（每 5 秒）：
@@ -252,6 +261,11 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 { "type": "result", "id": "cmd-abc123", "success": true, "data": { "stdout": "..." } }
 ```
 
+**更新结果**（响应服务器的 `update` 推送）：
+```json
+{ "type": "update-result", "device": "lab", "hash": "cebdfcd6…", "ok": true }
+```
+
 ### 服务器 → 客户端 {#server-client}
 
 **命令**：
@@ -260,6 +274,11 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 ```
 
 支持的动作：`bash`、`read`、`write`、`edit`、`glob`、`grep`、`cortex-run.launch`、`cortex-run.cancel`。
+
+**更新**（当设备 hello 上报的 bundle 与期望不一致时推送；`files` 以 base64 携带完整 artifact）：
+```json
+{ "type": "update", "updateId": "a1b2c3", "version": "2026.7.30-dev", "hash": "cebdfcd6…", "files": [ { "name": "client.mjs", "data": "…" }, { "name": "cortex-run-watcher.mjs", "data": "…" } ] }
+```
 
 ### 错误代码 {#error-codes}
 
@@ -273,7 +292,7 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 
 agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期：
 
-1. **启动时** — `startAllRemoteClients()` 遍历 `machines.json` 并在每台机器上生成或通过 SSH 启动 `cortex-client`。对于本地机器（无 `ssh` 字段），直接生成。对于远程机器，运行 `ssh user@host "nohup cortex-client > /dev/null 2>&1 & echo $!"`（Linux）或使用 WMI（Windows）。`ssh-reverse` 机器会先建立受监督的反向隧道；正常启动和 hot reload 共用同一个 route-aware launcher 与远程 PID 追踪。
+1. **启动时** — `startAllRemoteClients()` 遍历 `machines.json` 并在每台机器上启动客户端。对于本地机器（无 `ssh` 字段），直接生成 `node ~/.cortex/client/current/client.mjs`。对于远程机器，通过 SSH 以 `nohup`/`echo $!`（Linux）或 WMI（Windows）运行启动命令。`ssh-reverse` 机器会先建立受监督的反向隧道；启动和自动重启共用同一个 route-aware launcher 与远程 PID 追踪。
 
 2. **心跳监控** — 每 5 秒，服务器检查每个连接的设备是否在最近 15 秒内发送了心跳。错过的心跳触发断开连接和自动重启尝试。
 
@@ -282,6 +301,14 @@ agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期�
 4. **PID 追踪** — 对于通过 SSH 启动的客户端，服务器在 `~/.cortex/data/client-pids.json` 中记录远程 PID，以便在尝试重启前检查进程是否仍然存活。
 
 5. **命令路由** — 当智能体调用 `remote_bash({ device: "lab", ... })` 时，MCP 服务器向 `client-manager` 发送 HTTP 请求，后者在其设备映射中查找 `lab` 的 WebSocket 连接并发送命令。仅在线设备接收命令——如果目标设备离线，工具调用返回错误。
+
+## 客户端更新 {#client-updates}
+
+客户端自我更新；服务器只负责发布期望的 bundle。服务器启动时解析该 bundle——dev 模式用 esbuild 从 client repo 构建，release 模式从 npm 拉取最新发布的 `@cortex-agent/client`（按版本缓存）——并计算其 hash。每个设备的 hello 携带客户端自己的 bundle hash；与期望 hash 不一致时，服务器通过既有 WebSocket 推送带完整 artifact 的 `update` 消息。
+
+客户端把文件写入 `~/.cortex/client/next/`、校验 hash、把 `current/` 轮换到 `previous/`、`next/` 轮换到 `current/`，回报 `update-result`，关闭 socket，从 `current/` 生成后继进程并退出。后继进程带新 hash 重连，服务器据此记录收敛。任何失败（hash 错误、磁盘不可写）都不触碰正在运行的版本——设备继续以旧 bundle 在线，服务器得知原因。同一设备上失败的安装 10 分钟内不重试。
+
+由于触发点就是 hello 本身，设备在任何连接时刻收敛：服务器带新构建重启后、设备离线多日后归来、或 bootstrap 刚完成之后。不存在定时更新任务。如果新 bundle 启动即崩溃，SSH 监督会持续拉起 `current/`；恢复手段是在设备上执行 `mv ~/.cortex/client/previous ~/.cortex/client/current`，或重新 bootstrap。
 
 ## 客户端重连行为 {#client-side-reconnect-behavior}
 

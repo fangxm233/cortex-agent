@@ -76,15 +76,30 @@ Each `cortex-client` instance:
 
 ### Installation
 
-On each remote machine:
+The client ships as two self-contained bundles — `client.mjs` (the daemon) and
+`cortex-run-watcher.mjs` (the long-running-job watchdog) — that live on each
+device under the managed layout:
 
-```bash
-npm install -g @cortex-agent/client
+```
+~/.cortex/client/
+├── current/    # the running version (client.mjs + cortex-run-watcher.mjs)
+└── previous/   # the prior version, kept for manual rollback
 ```
 
-This puts `cortex-client` on the PATH. The client has no runtime dependencies
-beyond Node.js — it uses only Node built-in modules (`fs`, `child_process`,
-`ws`).
+Nothing is installed through npm on the device; the only requirement is Node.js.
+The server's bootstrap CLI deploys a device end to end — it checks SSH and
+Node.js, ships the bundle into `~/.cortex/client/current/`, writes the client
+config, and sets up a systemd user service (Linux) or a start script:
+
+```bash
+node --import tsx src/domain/remote/client-bootstrap.ts \
+  --host user@machine --device-name lab --server-host 10.18.108.245
+```
+
+Bootstrap is also the rescue path when a device's managed install is broken
+or wiped. For a hand-managed setup, `npm i -g @cortex-agent/client` provides
+the same daemon as a `cortex-client` binary; the server adopts such a client
+into the managed layout the first time it connects (see client updates below).
 
 ### Configuration
 
@@ -159,13 +174,14 @@ Each entry:
 - `win` (optional) — set to `true` for Windows targets (changes the SSH
   command syntax)
 - `clientCommand` (optional) — the command the server runs (over SSH) to launch
-  `cortex-client` on this machine. Defaults to a bare `cortex-client`. Override it
-  when `cortex-client` isn't on the machine's non-login SSH PATH — most commonly an
-  `nvm` install, where the binary lives under `~/.nvm/...` and only appears on PATH
-  after the login profile runs. In that case set `"clientCommand": "bash -lc cortex-client"`
-  so a login shell resolves node and `cortex-client`. The server still wraps this command
-  with its token injection and the `nohup`/`echo $!` (Linux) or `cmd.exe`-wrapped WMI
-  (Windows) launch machinery.
+  the client on this machine. Defaults to
+  `node "$HOME/.cortex/client/current/client.mjs"` (Linux) or
+  `node "%USERPROFILE%\.cortex\client\current\client.mjs"` (Windows). Override it
+  when `node` isn't on the machine's non-login SSH PATH — most commonly an `nvm`
+  install, where node lives under `~/.nvm/...`; set an absolute node path, e.g.
+  `"/home/u/.nvm/versions/node/v20.19.5/bin/node /home/u/.cortex/client/current/client.mjs"`.
+  The server wraps this command with its token injection and the
+  `nohup`/`echo $!` (Linux) or `cmd.exe`-wrapped WMI (Windows) launch machinery.
 
 `clientConnection` selects the route. Its default, `direct`, uses the URL from
 `cortex-client.json`. Setting it to `ssh-reverse` makes the server maintain an
@@ -301,9 +317,12 @@ use `ws://` inside their protected transport.
 
 ### Client → Server
 
-**Hello** (sent immediately on connect):
+**Hello** (sent immediately on connect). `bundleHash` identifies the client's
+running bundle (sha256 over `client.mjs` + `cortex-run-watcher.mjs`); the
+server compares it against the desired bundle to decide whether to push an
+update:
 ```json
-{ "type": "hello", "device": "lab", "platform": "linux", "capabilities": ["rg"] }
+{ "type": "hello", "device": "lab", "platform": "linux", "capabilities": ["rg"], "bundleHash": "cebdfcd6…" }
 ```
 
 **Heartbeat** (every 5 seconds):
@@ -316,6 +335,11 @@ use `ws://` inside their protected transport.
 { "type": "result", "id": "cmd-abc123", "success": true, "data": { "stdout": "..." } }
 ```
 
+**Update result** (in response to a server `update` push):
+```json
+{ "type": "update-result", "device": "lab", "hash": "cebdfcd6…", "ok": true }
+```
+
 ### Server → Client
 
 **Command**:
@@ -325,6 +349,12 @@ use `ws://` inside their protected transport.
 
 Supported actions: `bash`, `read`, `write`, `edit`, `glob`, `grep`,
 `cortex-run.launch`, `cortex-run.cancel`.
+
+**Update** (pushed when a device's hello reports a diverged bundle; `files`
+carry the complete artifact as base64):
+```json
+{ "type": "update", "updateId": "a1b2c3", "version": "2026.7.30-dev", "hash": "cebdfcd6…", "files": [ { "name": "client.mjs", "data": "…" }, { "name": "cortex-run-watcher.mjs", "data": "…" } ] }
+```
 
 ### Error codes
 
@@ -340,12 +370,12 @@ The `client-manager.ts` module in agent-server manages the remote client
 lifecycle:
 
 1. **At startup** — `startAllRemoteClients()` iterates `machines.json` and
-   spawns or SSH-launches `cortex-client` on each machine. For local machines
-   (no `ssh` field), it spawns directly. For remote machines, it runs
-   `ssh user@host "nohup cortex-client > /dev/null 2>&1 & echo $!"` (Linux)
-   or uses WMI (Windows). An `ssh-reverse` machine first gets a supervised
-   reverse tunnel; normal startup and hot reload share the same route-aware
-   launcher and remote PID tracking.
+   spawns or SSH-launches the client on each machine. For local machines
+   (no `ssh` field), it spawns `node ~/.cortex/client/current/client.mjs`
+   directly. For remote machines, it runs the launch command over SSH with
+   `nohup`/`echo $!` (Linux) or WMI (Windows). An `ssh-reverse` machine first
+   gets a supervised reverse tunnel; startup and automatic restart share the
+   same route-aware launcher and remote PID tracking.
 
 2. **Heartbeat monitoring** — every 5 seconds, the server checks that each
    connected device has sent a heartbeat within the last 15 seconds.
@@ -364,6 +394,32 @@ lifecycle:
    looks up the WebSocket connection for `lab` in its devices map and sends
    the command. Only online devices receive commands — if the target device
    is offline, the tool call returns an error.
+
+## Client updates
+
+Clients update themselves; the server only publishes the desired bundle. At
+startup the server resolves that bundle — in dev mode by building the client
+repo with esbuild, in release mode by fetching the latest published
+`@cortex-agent/client` from npm (cached per version) — and computes its hash.
+Every device hello carries the client's own bundle hash; when it differs from
+the desired hash, the server pushes an `update` message with the complete
+artifact over the existing WebSocket.
+
+The client writes the files into `~/.cortex/client/next/`, verifies the hash,
+rotates `current/` to `previous/` and `next/` to `current/`, reports
+`update-result`, closes its socket, spawns its successor from `current/` and
+exits. The successor reconnects with the new hash, which the server logs as
+convergence. Any failure (bad hash, unwritable disk) leaves the running
+version untouched — the device stays online on its old bundle and the server
+is told why. A failed install is not retried on the same device for 10
+minutes.
+
+Because the trigger is the hello itself, devices converge whenever they
+connect: after a server restart with a new build, after a device comes back
+from days offline, or right after a bootstrap. There is no scheduled update
+job. If a new bundle crashes on startup, the SSH supervision keeps relaunching
+`current/`; recovery is `mv ~/.cortex/client/previous ~/.cortex/client/current`
+on the device, or a fresh bootstrap.
 
 ## Client-side reconnect behavior
 
