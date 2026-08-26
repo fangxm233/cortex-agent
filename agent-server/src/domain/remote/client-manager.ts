@@ -536,7 +536,7 @@ async function launchRemoteClient(device: string): Promise<boolean> {
 async function startRemoteClient(device: string): Promise<void> {
   const reg = managedEntry(device);
   if (!reg) return;
-  if (devices.has(device)) return;
+  if (devices.has(device) && reg.clientConnection !== 'ssh-reverse') return;
 
   try {
     await ensureManagedRoute(device, reg);
