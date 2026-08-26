@@ -21,7 +21,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP concurrency, gates, errors and isolation |
 | agent-adapter-pi-quota-probe.test.ts | test | PI quota labels, persistence, and throttle failure parity |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
-| agent-adapter-pi-subagent.test.ts | test | PI role schema, env isolation and usage |
+| agent-adapter-pi-subagent.test.ts | test | PI schema, chain prompts, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI-local shims, dialogs and web tools |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
 | agent-adapter-pi.test.ts | test | PI interaction env, RPC lifecycle and resume |
@@ -173,7 +173,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | thread-wait-deadlock.test.ts | test | stuck wait-set detection and wake |
 | thread-wait-tasks.test.ts | test | manager suspension on child tasks |
 | threads/ | subdir | thread config, template and transcript tests |
-| tool-trace.test.ts | test | tool-trace gating, grouping, ordering and flush |
+| tool-trace.test.ts | test | Agent prompts, tool grouping, ordering and flush |
 | tui/ | subdir | TUI rendering, hooks and protocol tests |
 | ui-service-compact.test.ts | test | session compact mutation outcome mapping |
 | update-prompt-slack.test.ts | test | Slack update prompt buttons and timeout |

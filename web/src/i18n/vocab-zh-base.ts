@@ -1,5 +1,5 @@
 // input:  shared Chinese product copy
-// output: first Chinese vocabulary chunk
+// output: Chinese base vocabulary including subagent prompt labels
 // pos:    Base Chinese web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -105,6 +105,7 @@ export const zhBase = {
   toolCallsUnit: '次工具调用',
   toolCallUnit: '次工具调用',
   subagentFallbackLabel: '子 agent',
+  subagentPromptLabel: '完整 Prompt',
   subagentRunning: '运行中',
   needsApproval: '需要审批',
   subthreads: '子线程',

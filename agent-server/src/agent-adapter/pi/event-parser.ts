@@ -1,5 +1,5 @@
 // input:  PI RPC JSONL and parser state
-// output: Normalized tool, dialog, lifecycle, and usage events
+// output: Normalized events including attributed runtime prompts
 // pos:    Translates PI RPC events
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -391,6 +391,7 @@ function subagentEvents(notice: SubagentNotice): NormalizedEvent[] {
     parentToolUseId: notice.ref,
     type: notice.type || null,
     description: notice.description || null,
+    ...(notice.prompt ? { prompt: notice.prompt } : {}),
     model: notice.model,
   };
   if (notice.kind === 'tool_use') {

@@ -14,4 +14,4 @@ expansion, step lifecycle, provider-outage recovery, and transcripts.
 | thread-live-step-ids.test.ts | test | Covers step session ids and thread events |
 | thread-provider-outage.test.ts | test | Covers outage backoff, cap and session reuse |
 | thread-rate-limit-resume.test.ts | test | Covers provider-attributed pause and resume |
-| thread-transcript.test.ts | test | Covers transcript ordering, notices and content |
+| thread-transcript.test.ts | test | Covers prompt attribution, ordering and notices |

@@ -1,5 +1,5 @@
 // input:  shared SSE context/notices, React Query, durable snapshots
-// output: session-scoped message, Todo and live runtime state
+// output: live messages with spawn prompts, Todo, and runtime state
 // pos:    React bridge from session events to desktop/mobile chat rows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -309,7 +309,7 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentType?: string; subagentDescription?: string; subagentModel?: string; attachments?: LiveSessionMessage['attachments'] }
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; attachments?: LiveSessionMessage['attachments'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
@@ -349,6 +349,7 @@ export function useSessionMessageLiveSync(
         // renders at the top level while the turn runs, then jumps into its subagent block when
         // the transcript refetches.
         subagentId: p.subagentId,
+        subagentSpawns: p.subagentSpawns,
         subagentType: p.subagentType,
         subagentDescription: p.subagentDescription,
         subagentModel: p.subagentModel,

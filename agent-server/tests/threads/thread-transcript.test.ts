@@ -1,5 +1,5 @@
 // input:  transcript recorder, fake history, DEBUG gate
-// output: notice, prompt, tool, and result tests
+// output: prompt, ownership, notice, tool, and result tests
 // pos:    Thread-step transcript recorder tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -62,6 +62,31 @@ test('DEBUG recorder preserves the complete step prompt, tool input, result, and
   assert.equal(calls[1].arg.toolUseId, 'toolu-thread');
   assert.deepEqual(calls[2].arg, { toolUseId: 'toolu-thread', content: 'complete\nresult', isError: true });
   assert.deepEqual(debugUpdates, ['updated', 'updated', 'updated'], 'prompt, tool input, and result refresh only after each DEBUG append settles');
+});
+
+test('recorder preserves subagent spawns and child ownership in history and live publish', async () => {
+  const { writer, calls } = makeFakeHistory();
+  const published: PersistedTranscriptEvent[] = [];
+  const rec = createStepTranscriptRecorder(writer, 'track-subagent', (ev) => published.push(ev));
+  const prompt = 'Map the thread path.\nKeep all details.';
+
+  rec.recordTool('Agent', {
+    description: 'Map thread path', prompt, subagent_type: 'explore',
+  }, 'toolu-parent');
+  rec.recordAssistant('child notes', undefined, {
+    parentToolUseId: 'toolu-parent', type: 'explore', description: 'Map thread path', model: 'model-x',
+  });
+  await rec.settle();
+
+  assert.deepEqual(calls[0].arg.subagentSpawns, [{
+    id: 'toolu-parent', type: 'explore', description: 'Map thread path', prompt,
+  }]);
+  assert.deepEqual(published[0].subagentSpawns, calls[0].arg.subagentSpawns);
+  assert.equal(calls[0].arg.subagent.id, 'toolu-parent', 'old clients retain the single-spawn anchor id');
+  assert.equal(published[0].subagentId, 'toolu-parent');
+  assert.equal(calls[1].arg.subagent.id, 'toolu-parent');
+  assert.equal(published[1].subagentId, 'toolu-parent');
+  assert.equal(published[1].subagentModel, 'model-x');
 });
 
 test('recorder preserves warning level in history and live publish', async () => {

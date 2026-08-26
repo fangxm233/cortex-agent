@@ -1,5 +1,5 @@
 // input:  Vitest, MockAdapter, OutputStream, runtime settings
-// output: tool-trace gating, grouping, ordering, and flush regressions
+// output: prompt completeness, grouping, ordering, and trace regressions
 // pos:    Covers runtime enablement and mutable-tail behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -14,6 +14,7 @@ import {
 import type { Destination, OutputStream } from '../src/platform/index.js';
 import { ToolTrace, createToolTrace, isToolTraceEnabled } from '../src/platform/tool-trace.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
+import { subagentSpawnsFromToolCall } from '../src/agent-adapter/normalize/event-types.js';
 
 function testDest(channel: string): Destination {
   return { type: 'interactive-reply', conduit: channel, sessionId: '' };
@@ -24,6 +25,28 @@ async function settle(stream: OutputStream): Promise<void> {
   await new Promise(resolve => setImmediate(resolve));
   await stream.flush();
 }
+
+test('subagent spawn parser preserves exact prompts and backend child ids', () => {
+  assert.deepEqual(subagentSpawnsFromToolCall('Agent', {
+    description: 'one', prompt: 'line 1\nline 2', subagent_type: 'explore', model: 'model-a',
+  }, 'tu_claude'), [{
+    id: 'tu_claude', type: 'explore', description: 'one', prompt: 'line 1\nline 2', requestedModel: 'model-a',
+  }]);
+  assert.deepEqual(subagentSpawnsFromToolCall('agent', {
+    chain: [
+      { description: 'first', prompt: 'Begin with {previous}', subagent_type: 'explore' },
+      { description: 'second', prompt: '{previous}\nfinish', subagent_type: 'reviewer' },
+    ],
+  }, 'tu_pi').map((spawn) => ({ id: spawn.id, prompt: spawn.prompt })), [
+    { id: 'tu_pi#0', prompt: 'Begin with ' },
+  ], 'only the definitely-started first chain child is announced at call time');
+  assert.deepEqual(subagentSpawnsFromToolCall('agent', { parallel: ['bad', null] }, 'tu_bad'), []);
+  assert.deepEqual(
+    subagentSpawnsFromToolCall('mcp__third_party__agent', { prompt: 'private MCP input' }, 'tu_mcp'),
+    [],
+    'an MCP tool named agent is not a native subagent spawn',
+  );
+});
 
 beforeEach(() => { _testSetRetryDelays([0, 0, 0, 0]); });
 afterEach(() => { _testResetRetryDelays(); });
@@ -150,6 +173,31 @@ test('ToolTrace folds a subagent\'s calls into one live line per spawning call',
   // The children's own tool names never reach the chat surface.
   assert.ok(!final.includes('Grep'));
   assert.ok(!final.includes('a.ts'));
+});
+
+test('ToolTrace emits every complete Agent prompt before the compact activity line', async () => {
+  const adapter = new MockAdapter();
+  const stream = new SlackOutputStream(adapter as any, testDest('C1'));
+  const trace = new ToolTrace(stream, { slotPrefix: '*[writer]*' });
+  const first = 'First line.\n\n' + 'A'.repeat(180);
+  const second = 'Second line.\nKeep this newline.';
+
+  trace.onToolUse('agent', {
+    parallel: [
+      { description: 'first child', prompt: first, subagent_type: 'explore' },
+      { description: 'second child', prompt: second, subagent_type: 'reviewer' },
+    ],
+  }, undefined, 'tu_batch');
+  await settle(stream);
+
+  const all = [
+    ...adapter.posted.map((entry) => entry.content.text),
+    ...adapter.updated.map((entry) => entry.content.text),
+  ].join('\n');
+  assert.match(all, /\*\[writer\]\* \*\*Agent prompt — first child\*\*/);
+  assert.ok(all.includes(first), 'the first multiline prompt is not shortened to the activity-line limit');
+  assert.ok(all.includes(second), 'every PI batch child prompt is emitted');
+  assert.match(all, /Agent .*×2/);
 });
 
 test('ToolTrace keeps main-agent calls in their own group after a subagent batch', async () => {

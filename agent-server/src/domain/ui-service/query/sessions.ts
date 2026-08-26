@@ -1,5 +1,5 @@
 // input:  session/history stores plus process DEBUG size policy
-// output: session snapshots with compact support and transcript DTOs
+// output: session snapshots and transcripts with spawn metadata
 // pos:    Authoritative query boundary for session transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -263,6 +263,7 @@ export async function handleSessionsTranscript(
       // Native-subagent grouping. Reloading a transcript must reproduce the same blocks the live
       // stream drew, so these ride the snapshot exactly as they ride `session.message`.
       ...(ev.subagentId !== undefined ? { subagentId: ev.subagentId } : {}),
+      ...(ev.subagentSpawns !== undefined ? { subagentSpawns: ev.subagentSpawns } : {}),
       ...(ev.subagentType !== undefined ? { subagentType: ev.subagentType } : {}),
       ...(ev.subagentDescription !== undefined ? { subagentDescription: ev.subagentDescription } : {}),
       ...(ev.subagentModel !== undefined ? { subagentModel: ev.subagentModel } : {}),

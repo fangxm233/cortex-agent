@@ -1,5 +1,5 @@
 // input:  mounted live-sync hook and captured message/Todo events
-// output: message authority and Todo session-isolation regressions
+// output: message/prompt authority and Todo isolation regressions
 // pos:    Verifies session-scoped live state before and after renders
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -116,6 +116,24 @@ describe('useSessionMessageLiveSync message authority snapshot', () => {
       subagentId: 'toolu_01abc', subagentType: 'Explore', subagentDescription: 'Survey the repo',
       subagentModel: 'claude-haiku-4-5',
     });
+  });
+
+  it('carries complete subagent spawn metadata onto a live anchor row', () => {
+    const subagentSpawns = [{
+      id: 'toolu_batch#0', type: 'explore', description: 'Survey the repo',
+      prompt: 'Line one.\n\nLine two stays intact.',
+    }];
+    act(() => {
+      harness.liveHandler?.({
+        type: 'session.message',
+        payload: {
+          sessionId: 's1', role: 'tool', text: '', toolName: 'agent', toolInput: '[batch]',
+          subagentSpawns, ts: '2026-08-01T01:00:00.000Z',
+        },
+      });
+    });
+
+    expect(observed?.getMessageSnapshot().liveTail[0].subagentSpawns).toEqual(subagentSpawns);
   });
 
   it('does not carry a Todo delta into the next selected session', () => {

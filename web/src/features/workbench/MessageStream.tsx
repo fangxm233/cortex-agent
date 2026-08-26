@@ -1,5 +1,5 @@
 // input:  ChatRows, notices, interactions, and edits
-// output: Scroll-stable transcript and inspectors
+// output: Scroll-stable transcript, prompt cards, and inspectors
 // pos:    Desktop workbench message presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -717,6 +717,7 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
         <SubagentBlock
           agentType={row.agentType}
           description={row.description}
+          prompt={row.prompt}
           model={row.model}
           status={row.status}
           toolCount={row.toolCount}

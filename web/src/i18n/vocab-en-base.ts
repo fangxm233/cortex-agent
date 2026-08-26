@@ -1,5 +1,5 @@
 // input:  shared English product copy
-// output: first English vocabulary chunk
+// output: English base vocabulary including subagent prompt labels
 // pos:    Base English web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -105,6 +105,7 @@ export const enBase = {
   toolCallsUnit: 'tool calls',
   toolCallUnit: 'tool call',
   subagentFallbackLabel: 'subagent',
+  subagentPromptLabel: 'Prompt',
   subagentRunning: 'running',
   needsApproval: 'Approval required',
   subthreads: 'subthreads',

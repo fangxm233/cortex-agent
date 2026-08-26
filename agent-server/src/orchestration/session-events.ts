@@ -1,11 +1,12 @@
 // input:  session/context payloads, chat notices, and the shared EventBus
-// output: context/compact/message/status/turn/todos/rewind publishers
+// output: session publishers including complete subagent spawn metadata
 // pos:    Orchestration bus seam; missing bus remains a no-op
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { ChatNoticeLevel, NoticeAction, SessionContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
+import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
 
 export interface SessionMessagePayload {
   sessionId: string;
@@ -36,6 +37,8 @@ export interface SessionMessagePayload {
    *  own row (the group anchor) and by every row the subagent produced under it. Absent = main
    *  agent. `sidechain` when the source cannot name the parent. */
   subagentId?: string;
+  /** Complete prompts for children spawned by this main-agent tool row. */
+  subagentSpawns?: SubagentSpawnRef[];
   subagentType?: string;
   subagentDescription?: string;
   /** The model that produced the row, from the subagent's own messages. Absent until the subagent
@@ -90,6 +93,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.pending !== undefined ? { pending: p.pending } : {}),
     ...(p.pendingId !== undefined ? { pendingId: p.pendingId } : {}),
     ...(p.subagentId !== undefined ? { subagentId: p.subagentId } : {}),
+    ...(p.subagentSpawns !== undefined ? { subagentSpawns: p.subagentSpawns } : {}),
     ...(p.subagentType !== undefined ? { subagentType: p.subagentType } : {}),
     ...(p.subagentDescription !== undefined ? { subagentDescription: p.subagentDescription } : {}),
     ...(p.subagentModel !== undefined ? { subagentModel: p.subagentModel } : {}),

@@ -1,5 +1,5 @@
 // input:  history writer, DEBUG gate, step events
-// output: persisted step messages, notices, and tools
+// output: persisted step rows with subagent prompts and ownership
 // pos:    Thread-step transcript recorder
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,14 +7,16 @@ import { summarizeToolInputForHistory } from '@store/conversation-history-repo.j
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import type { ChatNoticeLevel } from '@core/types/agent-types.js';
+import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall, type SubagentSpawnRef, type ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
+import type { SubagentRowRef } from '@store/conversation-history-repo.js';
 
 const log = createLogger('thread-transcript');
 
 /** The subset of ConversationHistoryRepo the recorder needs — injectable for tests. */
 export interface HistoryWriter {
   appendUser(sessionId: string, opts: { text: string; ts?: string; agentMessage?: string }): Promise<void>;
-  appendAssistant(sessionId: string, opts: { text: string; ts?: string; noticeLevel?: ChatNoticeLevel }): Promise<void>;
-  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string; toolUseId?: string; fullInput?: unknown }): Promise<void>;
+  appendAssistant(sessionId: string, opts: { text: string; ts?: string; noticeLevel?: ChatNoticeLevel; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void>;
+  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void>;
   appendToolResult(sessionId: string, opts: { toolUseId: string; content: string; isError: boolean }): Promise<void>;
 }
 
@@ -27,12 +29,17 @@ export interface PersistedTranscriptEvent {
   toolName?: string;
   toolInput?: string;
   noticeLevel?: ChatNoticeLevel;
+  subagentId?: string;
+  subagentSpawns?: SubagentSpawnRef[];
+  subagentType?: string;
+  subagentDescription?: string;
+  subagentModel?: string;
 }
 
 export interface StepTranscriptRecorder {
   recordUser(text: string): void;
-  recordAssistant(text: string, noticeLevel?: ChatNoticeLevel): void;
-  recordTool(name: string, input: any, toolUseId?: string): void;
+  recordAssistant(text: string, noticeLevel?: ChatNoticeLevel, subagent?: ToolUseSubagent): void;
+  recordTool(name: string, input: any, toolUseId?: string, subagent?: ToolUseSubagent): void;
   /** DEBUG-only result sidecar; no-op when the process-wide mode was disabled at creation. */
   recordToolResult(toolUseId: string, content: string, isError: boolean): void;
   /** Resolves once every append issued so far has settled. Never rejects — a failed
@@ -43,6 +50,23 @@ export interface StepTranscriptRecorder {
 /** Create a live per-event recorder for a single thread step, keyed by the step's track
  *  sessionId. Each record*() call publishes synchronously (emission order) via `onEvent` and
  *  chains the history append behind the previous one (per-recorder order = emission order). */
+function subagentFields(subagent?: ToolUseSubagent): { ref?: SubagentRowRef; event: Partial<PersistedTranscriptEvent> } {
+  if (!subagent) return { event: {} };
+  const ref = {
+    id: subagent.parentToolUseId || 'sidechain', type: subagent.type,
+    description: subagent.description ?? null, model: subagent.model ?? null,
+  };
+  return {
+    ref,
+    event: {
+      subagentId: ref.id,
+      ...(ref.type ? { subagentType: ref.type } : {}),
+      ...(ref.description ? { subagentDescription: ref.description } : {}),
+      ...(ref.model ? { subagentModel: ref.model } : {}),
+    },
+  };
+}
+
 export function createStepTranscriptRecorder(
   history: HistoryWriter,
   sessionId: string,
@@ -73,24 +97,41 @@ export function createStepTranscriptRecorder(
         ...(debugEnabled ? { agentMessage: text } : {}),
       }));
     },
-    recordAssistant(text: string, noticeLevel?: ChatNoticeLevel): void {
+    recordAssistant(text: string, noticeLevel?: ChatNoticeLevel, subagent?: ToolUseSubagent): void {
       const ts = new Date().toISOString();
       const notice = noticeLevel ? { noticeLevel } : {};
+      const { ref, event } = subagentFields(subagent);
+      const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
+      const spawnEvent = attributedSpawn ? { subagentSpawns: [attributedSpawn] } : {};
       push(
-        { role: 'assistant', ts, text, ...notice },
-        () => history.appendAssistant(sessionId, { text, ts, ...notice }),
+        { role: 'assistant', ts, text, ...notice, ...event, ...spawnEvent },
+        () => history.appendAssistant(sessionId, {
+          text, ts, ...notice, ...(ref ? { subagent: ref } : {}), ...spawnEvent,
+        }),
       );
     },
-    recordTool(name: string, input: any, toolUseId = ''): void {
+    recordTool(name: string, input: any, toolUseId = '', subagent?: ToolUseSubagent): void {
       const ts = new Date().toISOString();
       const toolInput = summarizeToolInputForHistory(input);
-      push({ role: 'tool', ts, toolName: name, toolInput },
-        () => history.appendTool(sessionId, {
-          toolName: name,
-          toolInput,
-          ts,
-          ...(debugEnabled ? { toolUseId, fullInput: input } : {}),
-        }));
+      const { ref, event } = subagentFields(subagent);
+      const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
+      const subagentSpawns = attributedSpawn
+        ? [attributedSpawn]
+        : subagent ? [] : subagentSpawnsFromToolCall(name, input, toolUseId);
+      const legacyAnchor = !subagent && name !== 'agent' && subagentSpawns.length === 1
+        ? { id: subagentSpawns[0].id }
+        : undefined;
+      const rowRef = ref ?? legacyAnchor;
+      const anchorEvent = legacyAnchor ? { subagentId: legacyAnchor.id } : {};
+      push({
+        role: 'tool', ts, toolName: name, toolInput, ...event, ...anchorEvent,
+        ...(subagentSpawns.length ? { subagentSpawns } : {}),
+      }, () => history.appendTool(sessionId, {
+        toolName: name, toolInput, ts,
+        ...(rowRef ? { subagent: rowRef } : {}),
+        ...(subagentSpawns.length ? { subagentSpawns } : {}),
+        ...(debugEnabled ? { toolUseId, fullInput: input } : {}),
+      }));
     },
     recordToolResult(toolUseId: string, content: string, isError: boolean): void {
       if (!debugEnabled) return;

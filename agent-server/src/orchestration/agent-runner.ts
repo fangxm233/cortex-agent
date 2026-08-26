@@ -1,5 +1,5 @@
 // input:  User turns, files, mutation leases, callbacks
-// output: Provider runs, tool traces, generic dialog routing
+// output: Provider runs, attributed transcripts, traces, dialogs
 // pos:    Runs plain user messages and injections
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -19,7 +19,7 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory, summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
-import { SUBAGENT_SPAWN_TOOLS } from '../agent-adapter/normalize/event-types.js';
+import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall } from '../agent-adapter/normalize/event-types.js';
 import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
@@ -369,24 +369,30 @@ export class AgentRunner {
     ): void => {
       const toolInput = summarizeToolInputForHistory(input);
       const ts = new Date().toISOString();
-      // A main-agent call to Agent/Task anchors the group it is about to spawn: it carries the id
-      // its children will carry, so the client can open the block exactly where the call happened.
-      const ref = subagent
-        ? subagentRowRef(subagent)
-        : (SUBAGENT_SPAWN_TOOLS.has(name) && toolUseId ? { id: toolUseId } : undefined);
+      const ref = subagent ? subagentRowRef(subagent) : undefined;
+      const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
+      const subagentSpawns = attributedSpawn
+        ? [attributedSpawn]
+        : subagent ? [] : subagentSpawnsFromToolCall(name, input, toolUseId);
+      const legacyAnchor = !subagent && name !== 'agent' && subagentSpawns.length === 1
+        ? { id: subagentSpawns[0].id }
+        : undefined;
+      const rowRef = ref ?? legacyAnchor;
       recordHistory(
         conversationHistory.appendTool(sessionId, {
           toolName: name,
           toolInput,
           ts,
-          ...(ref ? { subagent: ref } : {}),
+          ...(rowRef ? { subagent: rowRef } : {}),
+          ...(subagentSpawns.length ? { subagentSpawns } : {}),
           ...(debugEnabled ? { toolUseId, fullInput: input } : {}),
         }),
         debugEnabled ? () => publishSessionDebugUpdated({ sessionId, channel }) : undefined,
       );
       publishSessionMessage({
         sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
-        ...subagentPayloadFields(ref),
+        ...(subagentSpawns.length ? { subagentSpawns } : {}),
+        ...subagentPayloadFields(rowRef),
       });
     };
     const persistToolResult = debugEnabled
@@ -470,6 +476,7 @@ export class AgentRunner {
           // a stale fragment to it.
           if (blockId) deltaStream?.flush(blockId);
           const ref = subagent ? subagentRowRef(subagent) : undefined;
+          const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
           // A subagent's prose is working notes addressed to its parent, not an answer addressed to
           // the user. Chat platforms get the live counter on the spawning call's trace line instead
           // (see tool-trace); the full text stays in the transcript, where it can be grouped.
@@ -477,13 +484,16 @@ export class AgentRunner {
           if (sessionId && text) {
             const ts = new Date().toISOString();
             recordHistory(conversationHistory.appendAssistant(sessionId, {
-              text, ts, noticeLevel, noticeAction, ...(ref ? { subagent: ref } : {}),
+              text, ts, noticeLevel, noticeAction,
+              ...(ref ? { subagent: ref } : {}),
+              ...(attributedSpawn ? { subagentSpawns: [attributedSpawn] } : {}),
             }));
             publishSessionMessage({
               sessionId, channel, role: 'assistant', text, ts,
               ...(blockId ? { blockId } : {}),
               ...(noticeLevel ? { noticeLevel } : {}),
               ...(noticeAction ? { noticeAction } : {}),
+              ...(attributedSpawn ? { subagentSpawns: [attributedSpawn] } : {}),
               ...subagentPayloadFields(ref),
             });
           }

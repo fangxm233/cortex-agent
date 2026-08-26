@@ -1,5 +1,5 @@
 // input:  PI Agent tool, parent env, stub child processes
-// output: Schema, execution, isolation, and usage regressions
+// output: Schema, chain prompt, isolation, and usage regressions
 // pos:    Tests PI subagent contracts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -681,6 +681,34 @@ test('a PI subagent\'s tool calls and prose reach the parent stream, attributed 
     assert.equal((events[2] as any).text, 'child answer');
     // The model is the one that ANSWERED, read off the child's own message.
     assert.equal((events[2] as any).subagent.model, 'child-model');
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('later chain children report substituted runtime prompts once when they start', async () => {
+  const h = notifyHarness({ model: 'role-model' });
+  try {
+    const run = h.tool.execute(
+      'tool-parent',
+      { chain: [
+        { description: 'first', prompt: 'seed', subagent_type: 'explore' },
+        { description: 'second', prompt: 'Use {previous} now', subagent_type: 'explore' },
+      ] },
+      undefined, undefined, h.ctx(h.root),
+    );
+    await waitForCalls(h.calls, 1);
+    finish(h.calls[0].child, 'RESULT');
+    await waitForCalls(h.calls, 2);
+    finish(h.calls[1].child, 'done');
+    await run;
+
+    const events = throughRpc(h.notices) as any[];
+    const first = events.filter((event) => event.subagent.parentToolUseId === 'tool-parent#0');
+    const second = events.filter((event) => event.subagent.parentToolUseId === 'tool-parent#1');
+    assert.equal(first.some((event) => event.subagent.prompt), false, 'the first prompt was already announced on the parent call');
+    assert.equal(second[0].subagent.prompt, 'Use RESULT now');
+    assert.equal(second.filter((event) => event.subagent.prompt).length, 1);
   } finally {
     h.cleanup();
   }

@@ -1,5 +1,5 @@
 // input:  transcript DTOs with DEBUG warnings, notices, pending data
-// output: ChatRows, turn-copy targets, previews, and reconciliation
+// output: ChatRows with spawn prompts, previews, and reconciliation
 // pos:    Shared desktop/mobile transcript view-model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type {
@@ -19,6 +19,16 @@ import type { Vocab } from '@/i18n';
 // It also says WHICH row is still being written (`preview` on the assistant row) — the one row whose
 // text is still arriving, and therefore the only one the render paces.
 
+export interface SubagentSpawnView {
+  id: string;
+  type?: string;
+  description?: string;
+  prompt: string;
+  requestedModel?: string;
+}
+
+type TranscriptMessageWithSpawns = TranscriptMessage & { subagentSpawns?: SubagentSpawnView[] };
+
 /** A live `session.message` event payload (the tRPC subscribe UiEvent.payload for that event). */
 export interface LiveSessionMessage {
   sessionId: string;
@@ -37,6 +47,7 @@ export interface LiveSessionMessage {
   blockId?: string;
   /** Native-subagent grouping key — see ChatRow's `subagent` variant. */
   subagentId?: string;
+  subagentSpawns?: SubagentSpawnView[];
   subagentType?: string;
   subagentDescription?: string;
   subagentModel?: string;
@@ -264,7 +275,7 @@ export type ChatRow =
   // so it comes off `message.model` of the subagent's own messages and is therefore null until the
   // subagent has said something — the anchor alone cannot know it.
   | { kind: 'subagent'; id: string; agentType: string | null; description: string | null;
-      model: string | null; status: 'running' | 'done'; toolCount: number; children: ChatRow[] };
+      prompt: string | null; model: string | null; status: 'running' | 'done'; toolCount: number; children: ChatRow[] };
 
 export interface BuildOpts {
   /** True while the session is actively producing output — marks the last assistant row's caret. */
@@ -323,7 +334,7 @@ export function subagentModelLabel(model: string): string {
   return model.replace(/^claude-/, '').replace(/-\d{8}$/, '');
 }
 
-export function liveToMessage(m: LiveSessionMessage): TranscriptMessage {
+export function liveToMessage(m: LiveSessionMessage): TranscriptMessageWithSpawns {
   const isTool = m.role === 'tool';
   return {
     type: m.role,
@@ -337,6 +348,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessage {
     ...(m.noticeAction ? { noticeAction: m.noticeAction } : {}),
     ...(m.authAction ? { authAction: m.authAction } : {}),
     ...(m.subagentId ? { subagentId: m.subagentId } : {}),
+    ...(m.subagentSpawns?.length ? { subagentSpawns: m.subagentSpawns } : {}),
     ...(m.subagentType ? { subagentType: m.subagentType } : {}),
     ...(m.subagentDescription ? { subagentDescription: m.subagentDescription } : {}),
     ...(m.subagentModel ? { subagentModel: m.subagentModel } : {}),
@@ -489,15 +501,16 @@ interface RowSink {
 
 /** Both spellings ship: `Agent` in current backends, `Task` historically and in session JSONL. */
 function isSubagentSpawnTool(toolName: string | null | undefined): boolean {
-  return toolName === 'Agent' || toolName === 'Task';
+  return toolName === 'Agent' || toolName === 'Task' || toolName === 'agent';
 }
 
-function msgKey(m: TranscriptMessage): string {
+function msgKey(m: TranscriptMessageWithSpawns): string {
   // Interaction entities have a stable id — key on it so a status change (pending → approved)
   // REPLACES the row instead of duplicating it.
   if (m.type === 'interaction' && m.interaction?.id) return `interaction|${m.interaction.id}`;
   const noticeId = m.authAction?.noticeId ?? '';
-  return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}|${m.noticeLevel ?? ''}|${noticeId}`;
+  const spawnIds = m.subagentSpawns?.map((spawn) => spawn.id).join(',') ?? '';
+  return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}|${spawnIds}|${m.noticeLevel ?? ''}|${noticeId}`;
 }
 
 // Relative-day label matching the prototype divider vocabulary (TODAY / YESTERDAY / "MON D"),
@@ -570,15 +583,17 @@ export function buildTranscriptRows(
 ): ChatRow[] {
   const now = opts.now ?? new Date();
 
-  const flat: (TranscriptMessage & { turnIndex?: number })[] = [];
+  const flat: (TranscriptMessageWithSpawns & { turnIndex?: number })[] = [];
   const seen = new Set<string>();
-  const push = (m: TranscriptMessage, turnIndex?: number): void => {
+  const push = (m: TranscriptMessageWithSpawns, turnIndex?: number): void => {
     const k = msgKey(m);
     if (seen.has(k)) return;
     seen.add(k);
     flat.push(turnIndex !== undefined ? { ...m, turnIndex } : m);
   };
-  for (const turn of transcript.turns) for (const m of turn.messages) push(m, turn.turnIndex);
+  for (const turn of transcript.turns) {
+    for (const m of turn.messages) push(m as TranscriptMessageWithSpawns, turn.turnIndex);
+  }
   for (const lm of liveTail) push(liveToMessage(lm));
 
   const rows: ChatRow[] = [];
@@ -606,7 +621,11 @@ export function buildTranscriptRows(
   const closeOpenBlocks = (): void => {
     for (const b of blocks.values()) b.row.status = 'done';
   };
-  const openBlock = (m: TranscriptMessage, id: string) => {
+  const openBlock = (
+    m: TranscriptMessage,
+    id: string,
+    spawn?: SubagentSpawnView,
+  ) => {
     const existing = blocks.get(id);
     if (existing) {
       // A backgrounded subagent runs WHILE the main agent keeps working, so main-agent rows land
@@ -616,10 +635,12 @@ export function buildTranscriptRows(
       existing.row.status = 'running';
       // The anchor carries the description, the child rows carry the declared type — whichever
       // arrives second fills in what the first could not know.
-      if (!existing.row.agentType && m.subagentType) existing.row.agentType = m.subagentType;
-      if (!existing.row.description && m.subagentDescription) {
-        existing.row.description = m.subagentDescription;
+      if (!existing.row.agentType && (m.subagentType || spawn?.type)) {
+        existing.row.agentType = m.subagentType ?? spawn?.type ?? null;
       }
+      if (m.subagentDescription) existing.row.description = m.subagentDescription;
+      else if (!existing.row.description && spawn?.description) existing.row.description = spawn.description;
+      if (!existing.row.prompt && spawn?.prompt) existing.row.prompt = spawn.prompt;
       if (!existing.row.model && m.subagentModel) existing.row.model = m.subagentModel;
       return existing;
     }
@@ -627,8 +648,9 @@ export function buildTranscriptRows(
     const row: Extract<ChatRow, { kind: 'subagent' }> = {
       kind: 'subagent',
       id,
-      agentType: m.subagentType ?? null,
-      description: m.subagentDescription ?? null,
+      agentType: m.subagentType ?? spawn?.type ?? null,
+      description: m.subagentDescription ?? spawn?.description ?? null,
+      prompt: spawn?.prompt ?? null,
       model: m.subagentModel ?? null,
       status: 'running',
       toolCount: 0,
@@ -648,8 +670,14 @@ export function buildTranscriptRows(
       rows.push({ kind: 'divider', text: label });
       curDay = day;
     }
-    // The spawning call becomes the block header rather than a chip of its own: the header already
-    // says what was asked for, and a duplicate `Task` chip beside it reads as a second call.
+    // New anchors describe one or more children explicitly. One PI `agent` call may represent a
+    // parallel/chain batch, while Claude Agent/Task calls contain one child.
+    if (m.subagentSpawns?.length) {
+      for (const spawn of m.subagentSpawns) openBlock(m, spawn.id, spawn);
+      if (m.type === 'tool' && isSubagentSpawnTool(m.toolName)) continue;
+    }
+    // Legacy histories overloaded `subagentId` onto the spawning call. Keep rendering them with
+    // their compact summary, but never mistake that lossy fallback for a complete prompt.
     const isAnchor = m.type === 'tool' && !!m.subagentId && isSubagentSpawnTool(m.toolName);
     if (isAnchor) {
       const block = openBlock(m, m.subagentId!);

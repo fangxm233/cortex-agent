@@ -1,5 +1,5 @@
 // input:  session JSONL, notice metadata, interactions, DEBUG sidecars
-// output: ConversationHistoryRepo and grouped transcript reads
+// output: history store with grouped rows and one-time spawn prompts
 // pos:    Canonical per-session transcript file store
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -8,6 +8,7 @@ import { promises as fs } from 'fs';
 import { STORE_DIR } from '@core/paths.js';
 import type { ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
+import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
 
 const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 
@@ -71,6 +72,8 @@ export interface HistoryEvent {
    *  produced under it. Absent = main agent. `sidechain` when the source attests a subagent
    *  without naming the parent (session-JSONL path) — those collapse into one anonymous group. */
   subagentId?: string;
+  /** Children spawned by this main-agent tool row; each complete prompt is stored once here. */
+  subagentSpawns?: SubagentSpawnRef[];
   /** Declared subagent type, e.g. `explore`. Reported on the subagent's own rows, not the anchor. */
   subagentType?: string;
   /** The spawning call's task description, as the CLI reports it. */
@@ -117,6 +120,7 @@ interface RawEvent {
   toolName?: string;
   toolInput?: string;
   subagentId?: string;
+  subagentSpawns?: SubagentSpawnRef[];
   subagentType?: string;
   subagentDescription?: string;
   subagentModel?: string;
@@ -267,17 +271,18 @@ export class ConversationHistoryRepo {
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event.
    *  Optional `attachments` carry agent-sent files (20a) — the assistant-side mirror of the user
    *  composer's uploads. Present only for the file-send path; ordinary assistant text omits it. */
-  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; subagent?: SubagentRowRef }): Promise<void> {
+  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
     return this.append(sessionId, {
       type: 'assistant', text: opts.text, ts: opts.ts ?? nowIso(),
       attachments: opts.attachments, noticeLevel: opts.noticeLevel, noticeAction: opts.noticeAction,
+      ...(opts.subagentSpawns?.length ? { subagentSpawns: opts.subagentSpawns } : {}),
       ...subagentRowFields(opts.subagent),
     });
   }
 
   /** Append a tool call.
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event. */
-  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef }): Promise<void> {
+  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
     return this.append(sessionId, {
       type: 'tool',
       toolName: opts.toolName,
@@ -285,6 +290,7 @@ export class ConversationHistoryRepo {
       ts: opts.ts ?? nowIso(),
       toolUseId: opts.toolUseId,
       fullInput: opts.fullInput,
+      ...(opts.subagentSpawns?.length ? { subagentSpawns: opts.subagentSpawns } : {}),
       ...subagentRowFields(opts.subagent),
     });
   }
@@ -452,6 +458,7 @@ export class ConversationHistoryRepo {
             ...(hasAttachments ? { attachments: ev.attachments } : {}),
             ...(ev.noticeLevel ? { noticeLevel: ev.noticeLevel } : {}),
             ...(ev.noticeAction ? { noticeAction: ev.noticeAction } : {}),
+            ...(ev.subagentSpawns?.length ? { subagentSpawns: ev.subagentSpawns } : {}),
             ...subagentReadFields(ev),
           });
         }
@@ -463,6 +470,7 @@ export class ConversationHistoryRepo {
           ts: ev.ts,
           turnIndex: Math.max(0, turnIndex),
           ...(ev.fullInput !== undefined ? { debug: { toolInput: ev.fullInput } } : {}),
+          ...(ev.subagentSpawns?.length ? { subagentSpawns: ev.subagentSpawns } : {}),
           ...subagentReadFields(ev),
         };
         events.push(tool);

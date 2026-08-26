@@ -1,5 +1,5 @@
-// input:  one native subagent's grouped rows and its header facts
-// output: a collapsible block that keeps a subagent's work out of the main stream
+// input:  one subagent's identity, complete prompt, and grouped rows
+// output: collapsible subagent block with an unabridged prompt
 // pos:    desktop workbench subagent presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -47,6 +47,14 @@ const bodyStyle: CSSProperties = {
   padding: '10px 13px 12px',
   borderTop: '1px solid var(--proto-line-soft)',
 };
+const promptStyle: CSSProperties = {
+  margin: 0, font: `400 11px/1.55 ${mono}`, color: 'var(--proto-ink-2)',
+  whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', wordBreak: 'break-word',
+};
+const promptLabelStyle: CSSProperties = {
+  font: `600 9px ${mono}`, color: 'var(--proto-muted-3)', marginBottom: 5,
+  textTransform: 'uppercase', letterSpacing: '.05em',
+};
 
 function headerStyle(hover: boolean): CSSProperties {
   return {
@@ -72,9 +80,10 @@ function boxStyle(hover: boolean): CSSProperties {
  * rows with the same renderer the top level uses — the caller passes them in as `children` rather
  * than the block reaching back into the row renderer, which would be a cycle.
  */
-export function SubagentBlock({ agentType, description, model, status, toolCount, children }: {
+export function SubagentBlock({ agentType, description, prompt, model, status, toolCount, children }: {
   agentType: string | null;
   description: string | null;
+  prompt: string | null;
   model: string | null;
   status: 'running' | 'done';
   toolCount: number;
@@ -104,7 +113,17 @@ export function SubagentBlock({ agentType, description, model, status, toolCount
         <span style={descStyle}>{label}</span>
         <span style={metaStyle}>{tools}</span>
       </div>
-      {expanded ? <div style={bodyStyle}>{children}</div> : null}
+      {expanded ? (
+        <div style={bodyStyle}>
+          {prompt ? (
+            <div>
+              <div style={promptLabelStyle}>{L.subagentPromptLabel}</div>
+              <pre style={promptStyle}>{prompt}</pre>
+            </div>
+          ) : null}
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }

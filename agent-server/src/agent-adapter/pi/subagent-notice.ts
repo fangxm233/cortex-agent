@@ -1,5 +1,5 @@
 // input:  one PI subagent child's stdout event, plus which child produced it
-// output: the prefixed notice that carries it across the process boundary, and its decoder
+// output: attributed child notices with one-time runtime prompts
 // pos:    PI subagent event codec — the child→server channel for subagent attribution
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -23,6 +23,8 @@ export interface SubagentNotice {
   type: string;
   /** The task description, which reads far better than the prompt's opening fragment. */
   description: string;
+  /** Exact runtime prompt, present only on the first forwarded event of a PI chain child. */
+  prompt?: string;
   /** The model that answered, once the child has reported one. Null until then — never guessed
    *  from the parent, whose model may differ. */
   model: string | null;
@@ -66,6 +68,7 @@ export function decodeSubagentNotice(message: unknown): SubagentNotice | null {
     kind,
     type: typeof parsed.type === 'string' ? parsed.type : '',
     description: typeof parsed.description === 'string' ? parsed.description : '',
+    ...(typeof parsed.prompt === 'string' ? { prompt: parsed.prompt } : {}),
     model: typeof parsed.model === 'string' ? parsed.model : null,
   };
   if (kind === 'tool_use') {

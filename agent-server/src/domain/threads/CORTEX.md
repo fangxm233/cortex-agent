@@ -20,7 +20,7 @@ Consumed by the orchestration and UI layers through the index barrel.
 | state-machine.ts | state | drives lifecycle and inherits benchmark evidence |
 | runner.ts | runtime | Runs scoped steps with persisted evidence identity |
 | hook-runner.ts | hook | Adapts lifecycle hooks to HookBus and hook agents |
-| thread-transcript.ts | record | records step messages, notices and tools |
+| thread-transcript.ts | record | Records attributed step rows and spawn prompts |
 | tree.ts | tree | resolves ancestry and tracks spawn facts and guards |
 | contract.ts | contract | builds delegation contracts and goal chains |
 | auto-thread.ts | util | decides auto compound and merges final outputs |

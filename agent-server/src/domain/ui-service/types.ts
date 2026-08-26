@@ -1,5 +1,5 @@
 // input:  domain types, auth flows, settings, and usage/throttle state
-// output: UI DTOs/maps incl per-window policy, plugin, auth, and usage ops
+// output: UI DTOs/maps incl subagent spawns, policy, auth, and usage
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -32,6 +32,7 @@ export type {
   TodoStatus,
 } from '@core/types/agent-types.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
+import type { SubagentSpawnRef } from '../../agent-adapter/normalize/event-types.js';
 import type {
   HookBackend,
   HookEvent,
@@ -864,10 +865,10 @@ export interface TranscriptMessage {
   /** Present on a user message that replaced an earlier one via edit+rewind (sessions.rewind):
    *  the original text/ts backing the「已编辑」badge + hover/tap original-message card. */
   edited?: { originalText: string; originalTs: string };
-  /** Native-subagent grouping key — the `Agent`/`Task` call's tool_use id. Carried by that call's
-   *  own row, which therefore anchors the group where it belongs in the stream, and by every row
-   *  the subagent produced under it. Absent = main agent. */
+  /** Native-subagent grouping key on rows produced by one child. Absent = main agent. */
   subagentId?: string;
+  /** Complete prompts for every child spawned by this main-agent tool row. */
+  subagentSpawns?: SubagentSpawnRef[];
   /** Declared subagent type, e.g. `explore`. Reported on the subagent's rows, not the anchor. */
   subagentType?: string;
   /** The spawning call's task description as the backend reports it. */

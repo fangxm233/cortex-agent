@@ -1,5 +1,5 @@
 // input:  mobile rows, Todo snapshots, slash and send state
-// output: Mobile Todo, message and composer interaction contracts
+// output: Mobile prompt, Todo, message, and composer contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { ComposerFullscreen, MComposer } from '@/mobile/ui/kit';
+import { LangProvider } from '@/i18n';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
 import type { ChatRow } from '@/features/workbench/transcript-vm';
 import { MChatStream, MChatView, type MChatCopy, type MChatEditCopy } from './MChatView';
@@ -236,6 +237,31 @@ describe('MChatStream assistant turn copy', () => {
     act(() => buttons[0].props.onClick());
     expect(writeText).toHaveBeenCalledWith('part one\n\npart two');
     vi.unstubAllGlobals();
+  });
+});
+
+describe('MChatStream subagent prompt', () => {
+  it('reveals the complete multiline prompt in the mobile card', () => {
+    const prompt = 'First line.\n\n' + 'B'.repeat(180) + '\nFinal line.';
+    const rows: ChatRow[] = [{
+      kind: 'subagent', id: 'tu_a', agentType: 'explore', description: 'Inspect mobile',
+      prompt, model: null, status: 'done', toolCount: 0,
+      children: [{ kind: 'assistant', text: 'child output', streaming: false }],
+    }];
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <LangProvider>
+          <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" />
+        </LangProvider>,
+      );
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).not.toContain(prompt);
+    act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain(prompt.replace(/\n/g, '\\n'));
+    expect(rendered).toContain('child output');
   });
 });
 

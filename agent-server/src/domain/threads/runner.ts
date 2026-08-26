@@ -1,5 +1,5 @@
 // input:  thread state, tool gates, buffered input, throttle, hooks
-// output: evidence-bound runs, notices, and transcripts
+// output: evidence-bound runs, attributed transcripts, and notices
 // pos:    Thread step runtime and lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -343,7 +343,12 @@ async function buildStepConfig(
         role: ev.role, text: ev.text ?? '',
         ...(ev.toolName !== undefined ? { toolName: ev.toolName } : {}),
         ...(ev.toolInput !== undefined ? { toolInput: ev.toolInput } : {}),
-        ...(ev.noticeLevel !== undefined ? { noticeLevel: ev.noticeLevel } : {}), ts: ev.ts,
+        ...(ev.noticeLevel !== undefined ? { noticeLevel: ev.noticeLevel } : {}),
+        ...(ev.subagentId !== undefined ? { subagentId: ev.subagentId } : {}),
+        ...(ev.subagentSpawns !== undefined ? { subagentSpawns: ev.subagentSpawns } : {}),
+        ...(ev.subagentType !== undefined ? { subagentType: ev.subagentType } : {}),
+        ...(ev.subagentDescription !== undefined ? { subagentDescription: ev.subagentDescription } : {}),
+        ...(ev.subagentModel !== undefined ? { subagentModel: ev.subagentModel } : {}), ts: ev.ts,
       });
     },
     () => jobCtx.bus?.publish({
@@ -420,12 +425,14 @@ function setupStepCallbacks(
     // downstream agents read, and interleaving a child's working notes into it would corrupt the
     // handoff. Its activity still shows on the trace line (see tool-trace).
     if (!subagent) streamAssistantMessage(text);
-    if (text) recorder.recordAssistant(text, noticeLevel);
+    if (text && subagent) recorder.recordAssistant(text, noticeLevel, subagent);
+    else if (text) recorder.recordAssistant(text, noticeLevel);
   };
   const onToolUse = (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => {
     stepCtx.sawActivity = true;
     composedToolUse?.(name, input, toolUseId, subagent);
-    recorder.recordTool(name, input, toolUseId);
+    if (subagent) recorder.recordTool(name, input, toolUseId, subagent);
+    else recorder.recordTool(name, input, toolUseId);
   };
   const onToolResult = (toolUseId: string, content: string, isError: boolean) => {
     recorder.recordToolResult(toolUseId, content, isError);

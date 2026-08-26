@@ -1,5 +1,5 @@
 // input:  ChatNoticeLevel and SessionContextUsage
-// output: CortexEvent with task provenance and auth notice actions
+// output: CortexEvent with task, auth, and subagent spawn metadata
 // pos:    Typed event contract for the shared EventBus
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -10,6 +10,7 @@ import type {
   SessionContextUsage,
   TodoSnapshot,
 } from '@core/types/agent-types.js';
+import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
 
 export type AuthErrorKind = 'login_required' | 'oauth_expired' | 'invalid_api_key' | 'unauthorized' | 'invalid_grant';
 
@@ -26,7 +27,7 @@ export type CortexEvent =
   // `subagentId` groups rows a native subagent produced under one `Agent`/`Task` call. It is set on
   // the spawning call's own row too, which therefore anchors the group at the right position in the
   // stream; every later row carrying the same id is that subagent's work. Absent = main agent.
-  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string; blockId?: string; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; authAction?: AuthNoticeAction; pending?: boolean; pendingId?: string; subagentId?: string; subagentType?: string; subagentDescription?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[] }
+  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string; blockId?: string; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; authAction?: AuthNoticeAction; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: SubagentSpawnRef[]; subagentType?: string; subagentDescription?: string; subagentModel?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[] }
   // Token-level preview of an assistant text block still being generated. `text` is the INCREMENT
   // since the previous event of that `blockId`, never the accumulated total; `seq` starts at 0 per
   // block. Superseded by the `session.message` carrying the same `blockId`, which is authoritative.

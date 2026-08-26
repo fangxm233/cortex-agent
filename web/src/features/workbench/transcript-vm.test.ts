@@ -1,5 +1,5 @@
 // input:  transcript helpers, DEBUG warnings, notices, pending fixtures
-// output: turn-copy, notice, streaming, and pending regressions
+// output: spawn prompt, grouping, streaming, and pending regressions
 // pos:    Workbench transcript view-model specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -920,6 +920,51 @@ describe('buildTranscriptRows — native subagent grouping', () => {
   const msg = (o: Partial<Parameters<typeof buildTranscriptRows>[0]['turns'][0]['messages'][0]> & { type: 'user' | 'assistant' | 'tool' }) =>
     ({ text: null, toolName: null, toolInput: null, ts: T, elapsedMs: null, ...o }) as any;
 
+  it('builds one card per structured spawn and preserves complete multiline prompts', () => {
+    const first = 'Inspect desktop.\n\n' + 'A'.repeat(180);
+    const second = 'Inspect mobile.\nKeep formatting.';
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'user', text: 'go' }),
+        msg({
+          type: 'tool', toolName: 'agent', toolInput: '[batch]',
+          subagentSpawns: [
+            { id: 'tu_batch#0', type: 'explore', description: 'desktop', prompt: first },
+            { id: 'tu_batch#1', type: 'reviewer', description: 'mobile', prompt: second },
+          ],
+        } as any),
+        msg({ type: 'assistant', text: 'desktop notes', subagentId: 'tu_batch#0', subagentDescription: 'desktop exact' }),
+        msg({ type: 'assistant', text: 'mobile notes', subagentId: 'tu_batch#1' }),
+      ] }]),
+      [],
+    );
+
+    const blocks = rows.filter((row) => row.kind === 'subagent') as Array<Extract<ChatRow, { kind: 'subagent' }>>;
+    expect(blocks.map((block) => block.id)).toEqual(['tu_batch#0', 'tu_batch#1']);
+    expect(blocks.map((block) => block.prompt)).toEqual([first, second]);
+    expect(blocks[0].description).toBe('desktop exact');
+    expect(rows.some((row) => row.kind === 'tools')).toBe(false);
+  });
+
+  it('uses a chain child runtime prompt without dropping the same child row', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({
+          type: 'assistant', text: 'chain child notes', subagentId: 'tu_chain#1',
+          subagentDescription: 'second child',
+          subagentSpawns: [{
+            id: 'tu_chain#1', type: 'explore', description: 'second child',
+            prompt: 'Use the actual previous result now',
+          }],
+        } as any),
+      ] }]),
+      [],
+    );
+    const block = rows.find((row) => row.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(block.prompt).toBe('Use the actual previous result now');
+    expect(block.children).toMatchObject([{ kind: 'assistant', text: 'chain child notes' }]);
+  });
+
   it('takes the model from the first subagent row that reports one, not from the anchor', () => {
     // The CLI ships no `subagent_model`; the model is `message.model` off the subagent's own
     // messages, so the spawning call — which happens before the subagent has answered — cannot
@@ -1068,6 +1113,15 @@ describe('buildTranscriptRows — native subagent grouping', () => {
     expect(liveToMessage(live)).toMatchObject({
       subagentId: 'tu_a', subagentType: 'explore', subagentDescription: 'map it',
     });
+  });
+
+  it('carries structured spawns from a live session.message', () => {
+    const subagentSpawns = [{ id: 'tu_a', description: 'map it', prompt: 'full\nprompt' }];
+    const live: LiveSessionMessage = {
+      sessionId: 's1', role: 'tool', text: '', toolName: 'Agent', toolInput: 'map it', ts: T,
+      subagentSpawns,
+    };
+    expect(liveToMessage(live).subagentSpawns).toEqual(subagentSpawns);
   });
 });
 

@@ -1,5 +1,5 @@
 // input:  isolated session JSONL plus visible/debug/notice/source-id APIs
-// output: grouping, notice preservation, idempotency, rewind, and DEBUG regressions
+// output: grouping, spawn prompts, notices, rewind, and DEBUG regressions
 // pos:    Backend-independent conversation-history store specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first import — repoints CORTEX_HOME before paths bind
@@ -30,6 +30,27 @@ test('DEBUG prompt and tool metadata round-trip without replacing the compact tr
   assert.equal(h!.events[1].toolInput, 'printf "secret\\n"', 'compact summary remains available');
   assert.deepEqual(h!.events[1].debug?.toolInput, fullInput);
   assert.deepEqual(h!.events[1].debug?.toolResult, { content: 'line 1\nline 2\nfull result', isError: false });
+});
+
+test('subagent spawn metadata round-trips complete multiline prompts once on the anchor', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-subagent-spawn';
+  const prompt = 'Inspect every renderer.\n\nReturn exact file:line evidence without truncation.';
+  const subagentSpawns = [{
+    id: 'toolu-agent#0', type: 'explore', description: 'Inspect renderers',
+    prompt, requestedModel: 'anthropic/claude-haiku-4-5',
+  }];
+  await repo.appendUser(sid, { text: 'go' });
+  await repo.appendTool(sid, { toolName: 'agent', toolInput: 'Inspect renderers', subagentSpawns });
+  await repo.appendAssistant(sid, {
+    text: 'child notes',
+    subagent: { id: 'toolu-agent#0', type: 'explore', description: 'Inspect renderers' },
+  });
+
+  const h = await repo.getHistory(sid);
+  assert.deepEqual(h!.events[1].subagentSpawns, subagentSpawns);
+  assert.equal(h!.events[2].subagentId, 'toolu-agent#0');
+  assert.equal(h!.events[2].subagentSpawns, undefined, 'prompt is not duplicated onto child rows');
 });
 
 test('orphan DEBUG metadata is ignored instead of creating visible transcript rows', async () => {

@@ -1,5 +1,5 @@
 // input:  live execution, lazy platform files, path/pending seams
-// output: injected turns, resolved files, DEBUG prompts
+// output: injected turns, files, DEBUG and subagent metadata
 // pos:    Busy-channel injection branch of AgentRunner.route
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -17,11 +17,12 @@ import { randomUUID } from 'node:crypto';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../agent-adapter/capabilities.js';
 import type { Backend, ContinuationSink, InjectionAckSink, UserMessage } from '../agent-adapter/types.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
-import { SUBAGENT_SPAWN_TOOLS, type ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
+import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall, type SubagentSpawnRef, type ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { PendingInjectionRecord } from '@store/pending-injection-repo.js';
+import type { SubagentRowRef } from '@store/conversation-history-repo.js';
 import { createLogger } from '@core/log.js';
 import { resolveWorkspaceRelPath } from '@core/paths.js';
 import { getSettings } from '@core/settings.js';
@@ -51,12 +52,14 @@ export interface MidTurnInjectDeps {
   getLiveExecutions: (channel: string) => LiveExecutionLike[];
   /** Captured while the running turn still owns it, before a spontaneous turn starts. */
   getStreamingCallback: (channel: string) => ((text: string) => void) | null;
-  appendAssistant: (sessionId: string, opts: { text: string; ts: string }) => void;
-  appendTool: (sessionId: string, opts: { toolName: string; toolInput: string; ts: string; toolUseId?: string; fullInput?: unknown }) => void;
+  appendAssistant: (sessionId: string, opts: { text: string; ts: string; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }) => void;
+  appendTool: (sessionId: string, opts: { toolName: string; toolInput: string; ts: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }) => void;
   appendToolResult?: (sessionId: string, opts: { toolUseId: string; content: string; isError: boolean }) => void;
   publishMessage: (ev: {
     sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; ts: string;
     toolName?: string; toolInput?: string; attachments?: AttachmentMeta[]; pending?: boolean; pendingId?: string;
+    subagentId?: string; subagentSpawns?: SubagentSpawnRef[]; subagentType?: string;
+    subagentDescription?: string; subagentModel?: string;
   }) => void;
   publishDelivered: (ev: { sessionId: string; channel: string; pendingId: string; messageTs: string; committedTs: string }) => void;
   publishStatus: (ev: { sessionId: string; channel: string; running: boolean }) => void;
@@ -367,14 +370,20 @@ function handleContinuationAssistant(
   // but they are still recorded, tagged, so the transcript can fold them into that subagent's
   // block rather than showing them as the agent speaking a turn later.
   const ref = subagent ? subagentRowRef(subagent) : undefined;
+  const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
   if (!ref) {
     try { streamAssistant?.(text); }
     catch (error) { log.warn('injection stream callback threw:', (error as Error).message); }
   }
   const ts = deps.now();
-  deps.appendAssistant(sessionId, { text, ts, ...(ref ? { subagent: ref } : {}) });
+  deps.appendAssistant(sessionId, {
+    text, ts, ...(ref ? { subagent: ref } : {}),
+    ...(attributedSpawn ? { subagentSpawns: [attributedSpawn] } : {}),
+  });
   deps.publishMessage({
-    sessionId, channel, role: 'assistant', text, ts, ...subagentPayloadFields(ref),
+    sessionId, channel, role: 'assistant', text, ts,
+    ...(attributedSpawn ? { subagentSpawns: [attributedSpawn] } : {}),
+    ...subagentPayloadFields(ref),
   });
 }
 
@@ -389,19 +398,25 @@ function handleContinuationTool(
 ): void {
   const ts = deps.now();
   const toolInput = deps.summarizeToolInput?.(input) ?? '';
-  // A main-agent Agent/Task call anchors the block it is about to spawn, exactly as the in-turn
-  // path does; a subagent's own call carries that same id so the two meet.
-  const ref = subagent
-    ? subagentRowRef(subagent)
-    : (SUBAGENT_SPAWN_TOOLS.has(name) && toolUseId ? { id: toolUseId } : undefined);
+  const ref = subagent ? subagentRowRef(subagent) : undefined;
+  const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
+  const subagentSpawns = attributedSpawn
+    ? [attributedSpawn]
+    : subagent ? [] : subagentSpawnsFromToolCall(name, input, toolUseId);
+  const legacyAnchor = !subagent && name !== 'agent' && subagentSpawns.length === 1
+    ? { id: subagentSpawns[0].id }
+    : undefined;
+  const rowRef = ref ?? legacyAnchor;
   deps.appendTool(sessionId, {
     toolName: name, toolInput, ts,
-    ...(ref ? { subagent: ref } : {}),
+    ...(rowRef ? { subagent: rowRef } : {}),
+    ...(subagentSpawns.length ? { subagentSpawns } : {}),
     ...(deps.captureDebug ? { toolUseId, fullInput: input } : {}),
   });
   deps.publishMessage({
     sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
-    ...subagentPayloadFields(ref),
+    ...(subagentSpawns.length ? { subagentSpawns } : {}),
+    ...subagentPayloadFields(rowRef),
   });
 }
 

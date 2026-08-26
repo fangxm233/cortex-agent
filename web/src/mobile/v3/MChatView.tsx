@@ -1,5 +1,5 @@
 // input:  Mobile chat rows, Todo snapshots, interactions, composer state
-// output: Mobile chat stream, task rail, controls, and sheets
+// output: Mobile chat with full subagent prompts, controls, and sheets
 // pos:    Mobile chat presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -770,6 +770,16 @@ function MSubagentBlock({ row, unit }: {
       </div>
       {expanded && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 11px 10px', borderTop: '1px solid var(--proto-line-soft)' }}>
+          {row.prompt ? (
+            <div>
+              <div style={{ font: `600 9px ${MONO}`, color: MC.faint, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                {L.subagentPromptLabel}
+              </div>
+              <pre style={{ margin: 0, font: `400 10.5px/1.55 ${MONO}`, color: MC.body, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                {row.prompt}
+              </pre>
+            </div>
+          ) : null}
           {calls.length > 0 && <ToolCallsRow count={calls.length} calls={calls} unit={unit} />}
           {texts.map((t, index) => (
             <div key={index} style={{ fontSize: 12.5, lineHeight: 1.6, color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>

@@ -1,5 +1,5 @@
 // input:  histories, pending data, DEBUG gate and warning env
-// output: transcript grouping, interactions, DEBUG and warning tests
+// output: transcript grouping, spawn prompts, interactions, DEBUG tests
 // pos:    Authoritative sessions.transcript handler specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -82,6 +82,24 @@ test('sessions.transcript groups user/assistant/tool events by turn', async () =
 
   assert.equal(out.turns[1].turnIndex, 1);
   assert.equal(out.turns[1].messages.length, 2);
+});
+
+test('sessions.transcript exposes complete subagent spawn metadata outside DEBUG', async () => {
+  const subagentSpawns = [{
+    id: 'toolu-agent#0', type: 'explore', description: 'Inspect renderers',
+    prompt: 'First line.\n\nSecond line remains complete.', requestedModel: 'model-y',
+  }];
+  const history: SessionHistory = {
+    sessionId: 'sess-subagent',
+    events: [
+      { type: 'user', text: 'go', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0 },
+      { type: 'tool', toolName: 'agent', toolInput: 'Inspect renderers', subagentSpawns, ts: '2026-07-07T00:00:01.000Z', turnIndex: 0 },
+    ],
+  };
+
+  const out = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-subagent' });
+  assert.deepEqual(out.turns[0].messages[1].subagentSpawns, subagentSpawns);
+  assert.equal(out.turns[0].messages[1].debug, undefined);
 });
 
 test('sessions.transcript exposes an assistant notice level', async () => {

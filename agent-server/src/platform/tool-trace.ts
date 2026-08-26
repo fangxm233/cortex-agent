@@ -1,5 +1,5 @@
 // input:  OutputStream, icons, runtime settings
-// output: ToolTrace, factory, and enablement gate
+// output: ToolTrace with full Agent prompts and compact activity
 // pos:    Renders compact tool-use traces through OutputStream
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -8,8 +8,8 @@ import type { OutputStream, MutableRegion } from '@platform/index.js';
 import { Icons } from '../core/icons.js';
 import { getSettings } from '@core/settings.js';
 import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
-import { SUBAGENT_SPAWN_TOOLS } from '../agent-adapter/normalize/event-types.js';
-import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
+import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall } from '../agent-adapter/normalize/event-types.js';
+import type { SubagentSpawnRef, ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 
 const MAX_LINE_LEN = 120;
 const ELLIPSIS = '…';
@@ -186,25 +186,34 @@ export class ToolTrace {
   onToolUse(name: string, input: any, subagent?: ToolUseSubagent, toolUseId?: string): void {
     if (!name) return;
     if (subagent) {
+      const spawn = subagentSpawnFromAttribution(subagent);
+      if (spawn) this.trackSubagentSpawns([spawn]);
       this.trackSubagentCall(subagent);
       return;
     }
-    if (SUBAGENT_SPAWN_TOOLS.has(stripMcpPrefix(name)) && toolUseId) {
-      this.trackSubagentSpawn(toolUseId, input || {});
+    const spawns = subagentSpawnsFromToolCall(name, input, toolUseId ?? '');
+    if (spawns.length) {
+      this.trackSubagentSpawns(spawns);
       return;
     }
     this.trackMainCall(name, input);
   }
 
-  /** The main agent asked for a subagent. Seed it at zero so the line appears the moment the call
-   *  is made, then grows — rather than materialising only once the child's first tool lands. */
-  private trackSubagentSpawn(toolUseId: string, input: any): void {
-    this.openSubagentGroup();
-    if (!this.subagents.has(toolUseId)) {
-      this.subagents.set(toolUseId, {
-        label: subagentLabel(input.description, input.subagent_type),
-        count: 0,
-      });
+  /** Emit complete prompts once, then keep the existing compact mutable activity counter. */
+  private trackSubagentSpawns(spawns: SubagentSpawnRef[]): void {
+    for (const spawn of spawns) {
+      const prefix = this.prefix ? `${this.prefix} ` : '';
+      if (spawn.prompt) this.stream.emitText(`${prefix}**Agent prompt — ${subagentLabel(spawn.description, spawn.type)}**\n\n${spawn.prompt}`);
+    }
+    const continuing = this.groupKey === SUBAGENT_GROUP_KEY;
+    if (!continuing) this.subagents.clear();
+    this.groupKey = SUBAGENT_GROUP_KEY;
+    this.groupSummaries = [];
+    this.region = null;
+    for (const spawn of spawns) {
+      if (!this.subagents.has(spawn.id)) {
+        this.subagents.set(spawn.id, { label: subagentLabel(spawn.description, spawn.type), count: 0 });
+      }
     }
     this.renderSubagents();
   }

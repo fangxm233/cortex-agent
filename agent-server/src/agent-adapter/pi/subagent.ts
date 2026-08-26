@@ -1,5 +1,5 @@
 // input:  PI roles, model options, child processes, TypeBox
-// output: Isolated PI Agent execution, schema, and usage
+// output: PI Agent execution with runtime chain prompt notices
 // pos:    Orchestrates PI subagents and parses their streams
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -153,7 +153,7 @@ type ChildEventForwarder = (event: Record<string, unknown>, acc: ChildAccumulato
 /** Carries one running child's events out to the server. Built per `agent` call so it can stamp
  *  the parent's tool-call id, and per child so it can stamp which of up to eight it is. */
 export interface SubagentChannel {
-  forChild(index: number, task: { description: string; subagent_type: string }): ChildEventForwarder;
+  forChild(index: number, task: { description: string; prompt: string; subagent_type: string }): ChildEventForwarder;
 }
 
 /** The real channel: PI's `ctx.ui.notify`, the one fire-and-forget message an extension gets on
@@ -162,6 +162,7 @@ export interface SubagentChannel {
 export function subagentChannel(
   parentToolCallId: string,
   ctx: { ui?: { notify?: (message: string) => void } } | undefined,
+  forwardRuntimePrompt = false,
 ): SubagentChannel | undefined {
   const notify = ctx?.ui?.notify;
   if (typeof notify !== 'function' || !parentToolCallId) return undefined;
@@ -171,8 +172,14 @@ export function subagentChannel(
   return {
     forChild(index, task) {
       const ref = `${parentToolCallId}#${index}`;
+      let promptPending = forwardRuntimePrompt && index > 0;
       return (event, acc) => {
-        for (const notice of noticesFor(ref, task, acc, event)) send(encodeSubagentNotice(notice));
+        const notices = noticesFor(ref, task, acc, event);
+        for (let i = 0; i < notices.length; i++) {
+          const withPrompt = promptPending && i === 0 ? { ...notices[i], prompt: task.prompt } : notices[i];
+          send(encodeSubagentNotice(withPrompt));
+        }
+        if (notices.length) promptPending = false;
       };
     },
   };
@@ -810,7 +817,7 @@ export function createSubagentTool(
       const invocation = resolveInvocation(params as SubagentParams);
       return executeInvocation(
         invocation, loadRoles(deps.agentDir), ctx, signal, deps,
-        deps.channel?.(toolCallId, ctx) ?? subagentChannel(toolCallId, ctx),
+        deps.channel?.(toolCallId, ctx) ?? subagentChannel(toolCallId, ctx, invocation.mode === 'chain'),
       );
     },
   };
