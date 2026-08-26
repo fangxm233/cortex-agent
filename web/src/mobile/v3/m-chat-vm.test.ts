@@ -1,5 +1,5 @@
 // input:  Mobile chat view models and Vitest
-// output: Mobile chat status/profile/row-model regressions
+// output: Mobile chat status/profile-label/row-model regressions
 // pos:    Verifies mobile chat pure presentation logic
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -8,6 +8,7 @@ import {
   chatHeaderStatus,
   interactionHeaderStatus,
   effectiveProfileName,
+  profileChipLabel,
   buildProfileSheetItems,
   buildMobileChatRows,
 } from './m-chat-vm';
@@ -65,6 +66,12 @@ describe('effectiveProfileName', () => {
     expect(effectiveProfileName(null, profiles, 'default')).toBe('default');
     expect(effectiveProfileName(null, profiles, null)).toBe('default');
     expect(effectiveProfileName(null, [], null)).toBe('—');
+  });
+});
+
+describe('profileChipLabel', () => {
+  it('shows only the profile name in the composer selector', () => {
+    expect(profileChipLabel('default')).toBe('default');
   });
 });
 

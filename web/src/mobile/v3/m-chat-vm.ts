@@ -1,5 +1,5 @@
 // input:  Session DTOs and shared transcript/interaction view models
-// output: Chat rows, status, profile, attachment, action-menu placement
+// output: Chat rows, status, profile labels, attachment/menu placement
 // pos:    Pure presentation logic for the mobile session chat
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
@@ -135,11 +135,9 @@ export function effectiveProfileName(
   return profileName ?? defaultProfile ?? profiles[0]?.name ?? '—';
 }
 
-/** Composer profile-chip label (scheme 1b L162): `name · model` (model falls back to backend). */
-export function profileChipLabel(name: string, profiles: ConfigProfileEntry[]): string {
-  const p = profiles.find((x) => x.name === name);
-  const detail = p?.model ?? p?.backend ?? null;
-  return detail ? `${name} · ${detail}` : name;
+/** Composer profile-chip label: the configured profile name only. */
+export function profileChipLabel(name: string): string {
+  return name;
 }
 
 /** Sub-label for a profile row in the 1p sheet: `model · thinking · backend`

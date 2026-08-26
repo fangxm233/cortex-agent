@@ -5,12 +5,12 @@ Framework-free view models map records to slots and have colocated unit tests.
 
 | filename | role | function |
 |---|---|---|
-| MChatScreen.tsx | screen | Routes chat, browser startup, Todo, sends and slash actions |
+| MChatScreen.tsx | screen | Routes chat, name-only profile chip, sends and actions |
 | MChatScreen.optimistic.test.tsx | test | Tests Todo wiring, optimistic sends and shortcuts |
 | MChatView.tsx | view | Renders prompts, counts, messages and toolbar composer |
 | MChatView.test.tsx | test | Tests prompts, counts, Todo, ＋ menu and copy |
-| m-chat-vm.ts | vm | Chat rows, status, attachments, menu placement |
-| m-chat-vm.test.ts | test | Tests chat status, profiles and transcript row state |
+| m-chat-vm.ts | vm | Builds chat rows, profile labels and menu placement |
+| m-chat-vm.test.ts | test | Tests chat status, profile labels and row state |
 | MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |
 | MSessionListScreen.tsx | screen | Binds sessions and sentinel-safe Scheduled drill-down |
 | MSessionListView.tsx | view | Day-grouped session rows with clock entry |

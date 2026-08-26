@@ -1,5 +1,5 @@
 // input:  mobile session queries, browser/live state and mutations
-// output: mobile chat with startup status, Todo and slash actions
+// output: mobile chat with name-only profile chip, Todo and actions
 // pos:    Mobile session detail state and data orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -896,7 +896,7 @@ export function MChatScreen(): JSX.Element {
         composerPlaceholder={composerPlaceholder}
         onStop={onStop}
         stopEnabled={!cancelMut.isPending}
-        profileChipLabel={profileChipLabel(effectiveProfile, profiles)}
+        profileChipLabel={profileChipLabel(effectiveProfile)}
         browserDevice={isDraft ? draftBrowserDevice : (active?.browser?.device ?? null)}
         onOpenBrowser={isDraft ? () => setBrowserSheetOpen(true) : undefined}
         browserSheet={browserSheetOpen ? {
