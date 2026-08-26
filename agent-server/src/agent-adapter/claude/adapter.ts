@@ -1803,6 +1803,7 @@ export class ClaudeAdapter implements AgentAdapter {
         }
       },
       events: stream.iterable,
+      setContinuationSink(sink: ContinuationSink): void { session.setContinuationSink(sink); },
       async close(): Promise<void> { stream.close(); },
       kill(): boolean { return session.kill(); },
     };

@@ -98,20 +98,19 @@ const PLAN_ENTER_TOOL_NAMES = new Set([
  *
  * @see DR-0012 §3.4 — cost reconstructed from per-message usage; per-message dedup avoids double-counting.
  */
-/** This path reads the session JSONL, which marks subagent records with `isSidechain` but does not
- *  carry the parent Agent/Task call's tool_use id — the parentUuid chain would have to be walked to
- *  recover it, and there is no verified sidechain sample to write that against, so it stays null
- *  rather than guessed. Consumers already tolerate a null parent. */
-function sidechainAttribution(raw: any): ToolUseSubagent | undefined {
-  if (raw?.isSidechain !== true) return undefined;
-  // This path can attest THAT a record is a subagent's but not which call spawned it, so the parent
-  // and the declared type stay null. The model is the one thing it CAN name: `message.model` is
-  // whatever answered, and a sidechain record's answer came from the subagent.
+/** The main transcript can only attest `isSidechain`; a sidecar mux may supplement the parent
+ *  call metadata. Facts reported by the child itself take precedence over that supplement. */
+function sidechainAttribution(
+  raw: any, supplement?: ToolUseSubagent,
+): ToolUseSubagent | undefined {
+  if (raw?.isSidechain !== true && !supplement) return undefined;
   return {
-    parentToolUseId: null,
-    type: null,
-    description: null,
-    model: typeof raw?.message?.model === 'string' ? raw.message.model : null,
+    parentToolUseId: supplement?.parentToolUseId ?? null,
+    type: typeof raw?.attributionAgent === 'string'
+      ? raw.attributionAgent : supplement?.type ?? null,
+    description: supplement?.description ?? null,
+    model: typeof raw?.message?.model === 'string'
+      ? raw.message.model : supplement?.model ?? null,
   };
 }
 
@@ -120,11 +119,11 @@ export class JsonlEventNormalizer {
   private currentTurnUsages: PerMessageUsage[] = [];
   private turnCount = 0;
 
-  consume(raw: any): NormalizedEvent[] {
+  consume(raw: any, subagentSupplement?: ToolUseSubagent): NormalizedEvent[] {
     if (!raw || typeof raw !== 'object' || typeof raw.type !== 'string') return [];
     switch (raw.type) {
-      case 'assistant': return this.handleAssistant(raw);
-      case 'user': return this.handleUser(raw);
+      case 'assistant': return this.handleAssistant(raw, subagentSupplement);
+      case 'user': return this.handleUser(raw, subagentSupplement);
       case 'system': {
         if (raw.subtype === 'turn_duration') return this.handleTurnDuration(raw);
         const fallback = parseModelFallbackEvent(raw);
@@ -143,14 +142,10 @@ export class JsonlEventNormalizer {
     }
   }
 
-  private handleAssistant(raw: any): NormalizedEvent[] {
+  private handleAssistant(raw: any, supplement?: ToolUseSubagent): NormalizedEvent[] {
     const events: NormalizedEvent[] = [];
     const msg = raw.message || {};
-    // This path reads the session JSONL, which marks subagent records with `isSidechain` but does
-    // not carry the parent Agent/Task call's tool_use id — the parentUuid chain would have to be
-    // walked to recover it, and there is no verified sidechain sample to write that against, so it
-    // stays null rather than guessed. Consumers already tolerate a null parent.
-    const subagent = sidechainAttribution(raw);
+    const subagent = sidechainAttribution(raw, supplement);
     const msgId: string | undefined = msg.id;
     const isNewMessage = !!msgId && !this.seenMsgIds.has(msgId);
     if (isNewMessage) {
@@ -217,11 +212,11 @@ export class JsonlEventNormalizer {
     return events;
   }
 
-  private handleUser(raw: any): NormalizedEvent[] {
+  private handleUser(raw: any, supplement?: ToolUseSubagent): NormalizedEvent[] {
     const events: NormalizedEvent[] = [];
     const content = raw.message?.content;
     if (!Array.isArray(content)) return events;
-    const subagent = sidechainAttribution(raw);
+    const subagent = sidechainAttribution(raw, supplement);
     for (const block of content) {
       if (!block || block.type !== 'tool_result') continue;
       const toolUseId = typeof block.tool_use_id === 'string' ? block.tool_use_id : '';
@@ -392,6 +387,11 @@ export class JsonlTail extends EventEmitter {
       clearTimeout(this.pollTimer);
       this.pollTimer = null;
     }
+  }
+
+  /** Read bytes currently visible on disk without waiting for the next poll tick. */
+  flush(): void {
+    if (!this.stopped) this.readNewBytes();
   }
 
   private schedulePoll(): void {

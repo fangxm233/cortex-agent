@@ -3,12 +3,16 @@
 // pos:    Runs Claude TUI sessions under tmux
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
 import * as path from 'path';
 import { createLogger } from '@core/log.js';
+import type { AgentResult } from '@core/types/agent-types.js';
 import { TmuxControl } from './tmux-control.js';
-import { JsonlTail, JsonlEventNormalizer } from './jsonl-tail.js';
+import { JsonlTail, JsonlEventNormalizer, type JsonlTailOptions } from './jsonl-tail.js';
+import {
+  ClaudeSubagentJsonlMux, type SubagentEventSource, type SubagentTerminal,
+  type SubagentTailLike,
+} from './subagent-jsonl-mux.js';
 import {
   CancelledError,
   TUI_TMUX_NAME_PREFIX,
@@ -27,27 +31,27 @@ import {
 } from './spawn-args.js';
 import { validateClaudeSupplementalMcpConfig } from './mcp-config.js';
 import { buildPrompt, mergeSubstantialOutput } from './event-parser.js';
-import type { NormalizedEvent } from '../normalize/event-types.js';
-import { resolveMcpComposition, type McpComposition } from '../types.js';
+import { SUBAGENT_SPAWN_TOOLS, type NormalizedEvent } from '../normalize/event-types.js';
+import {
+  resolveMcpComposition, type ContinuationSink, type McpComposition,
+} from '../types.js';
 import { usageToCost } from './cost-from-usage.js';
 
 const log = createLogger('claude-tui');
-
+const MAX_BUFFERED_CONTINUATION_ITEMS = 2_000;
 // =====================================================================================
 //  Types
 // =====================================================================================
 
 /** Subset of JsonlTail surface the session depends on — lets tests inject a mock. */
-export interface JsonlTailLike extends EventEmitter {
-  start(): Promise<void>;
-  stop(): Promise<void>;
+export interface JsonlTailLike extends SubagentTailLike {
   readonly path?: string;
 }
 
 export interface TuiSessionDeps {
   tmux: TmuxControl;
   /** Factory creating a tail for the given jsonl path. Defaults to real JsonlTail in production. */
-  tailFactory: (jsonlPath: string) => JsonlTailLike;
+  tailFactory: (jsonlPath: string, options?: JsonlTailOptions) => JsonlTailLike;
   /** @deprecated No longer used — the jsonl file appears only after the first submit, so there is
    *  nothing to wait for at spawn. Kept so existing callers/tests construct without changes. */
   waitForJsonlMs?: number;
@@ -63,6 +67,9 @@ export interface TuiSessionDeps {
   paneReadyTimeoutMs?: number;
   /** Poll interval (ms) for the pane-readiness wait. Defaults to PANE_READY_POLL_MS. */
   paneReadyPollMs?: number;
+  /** Test overrides for sidecar discovery and terminal settling. */
+  subagentPollIntervalMs?: number;
+  subagentSettleMs?: number;
 }
 
 export interface ClaudeTuiSessionConfig {
@@ -118,6 +125,8 @@ export interface TuiAgentResult {
   exitedPlanMode: boolean;
   askUserQuestions: Array<{ toolUseId: string; questions: any[] }>;
   finalOutput: string | null;
+  pendingBackgroundTasks: number;
+  undeliveredBackgroundTasks: number;
 }
 
 export interface SendMessageOptions {
@@ -129,6 +138,10 @@ export interface SendMessageOptions {
   onEvent?: ((event: NormalizedEvent) => void) | null;
   files?: any[];
 }
+
+type BufferedContinuation =
+  | { kind: 'event'; event: NormalizedEvent }
+  | { kind: 'result'; result: AgentResult };
 
 interface PendingTurn {
   resolve: (value: TuiAgentResult) => void;
@@ -183,7 +196,13 @@ export class ClaudeTuiSession {
   private readonly config: ClaudeTuiSessionConfig;
 
   private tail: JsonlTailLike | null = null;
+  private subagentMux: ClaudeSubagentJsonlMux | null = null;
   private normalizer: JsonlEventNormalizer = new JsonlEventNormalizer();
+  private continuationSink: ContinuationSink | null = null;
+  private readonly continuationBuffer: BufferedContinuation[] = [];
+  private readonly turnSubagents = new Set<string>();
+  private readonly detachedSubagents = new Set<string>();
+  private readonly closedSubagents = new Set<string>();
   private alive = false;
   private needsResume: boolean;
 
@@ -317,16 +336,29 @@ export class ClaudeTuiSession {
     this.needsResume = true;
   }
 
-  /** Replace spawn-bound tail and normalizer state without waiting for the transcript to appear. */
+  /** Replace spawn-bound tails and normalizer state without waiting for transcripts to appear. */
   private async replaceTail(): Promise<void> {
-    if (this.tail) {
-      try { await this.tail.stop(); } catch { /* best effort */ }
-      this.tail = null;
-    }
+    await this.stopTails();
     this.normalizer = new JsonlEventNormalizer();
+    this.subagentMux = new ClaudeSubagentJsonlMux({
+      parentJsonlPath: this.jsonlPath,
+      tailFactory: this.tailFactory,
+      pollIntervalMs: this.config.deps.subagentPollIntervalMs,
+      settleMs: this.config.deps.subagentSettleMs,
+      onEvent: (event, source) => this.handleSubagentEvent(event, source),
+      onTerminal: (terminal) => this.handleSubagentTerminal(terminal),
+    });
+    await this.subagentMux.start();
     this.tail = this.tailFactory(this.jsonlPath);
     this.tail.on('event', (raw) => this.handleRawEvent(raw));
     await this.tail.start();
+  }
+
+  private async stopTails(): Promise<void> {
+    const tails = [this.tail?.stop(), this.subagentMux?.stop()].filter(Boolean);
+    this.tail = null;
+    this.subagentMux = null;
+    await Promise.all(tails.map((pending) => pending!.catch(() => {})));
   }
 
   private activateSpawnedSession(): void {
@@ -431,13 +463,51 @@ export class ClaudeTuiSession {
   // -----------------------------------------------------------------------------
 
   private handleRawEvent(raw: any): void {
-    // First jsonl line of the turn proves Claude started producing output — disarm the fast-fail
-    // watchdog; from here the per-event turnIdleTimer governs stalls.
+    // Observe lifecycle metadata even between turns: background task notifications arrive when no
+    // per-turn event stream is open, but they still close sidecar tails and continuation holds.
+    this.subagentMux?.observeParent(raw);
     this.clearFirstEventWatchdog();
     this.resetIdleTimer();
     this.bumpTurnIdleTimer();
     const events = this.normalizer.consume(raw);
     for (const ev of events) this.handleNormalizedEvent(ev);
+  }
+
+  private handleSubagentEvent(event: NormalizedEvent, source: SubagentEventSource): void {
+    if (this.detachedSubagents.has(source.parentToolUseId)) {
+      this.deliverOrBuffer({ kind: 'event', event });
+      return;
+    }
+    if (this.closedSubagents.has(source.parentToolUseId) || !this.currentTurn) {
+      log.info(`late synchronous subagent event outside owning turn: ${event.type}`);
+      return;
+    }
+    try { this.currentTurn.options.onEvent?.(event); }
+    catch (error) { log.warn(`onEvent threw: ${(error as Error).message}`); }
+  }
+
+  private handleSubagentTerminal(terminal: SubagentTerminal): void {
+    if (this.detachedSubagents.delete(terminal.parentToolUseId)) {
+      this.deliverOrBuffer({ kind: 'result', result: this.backgroundResult(terminal) });
+    }
+    this.closedSubagents.delete(terminal.parentToolUseId);
+  }
+
+  private backgroundResult(terminal: SubagentTerminal): AgentResult {
+    return {
+      sessionId: this.sessionId,
+      total_cost_usd: null,
+      num_turns: 0,
+      rateLimited: false,
+      rateLimitMessage: null,
+      planFilePath: null,
+      enteredPlanMode: false,
+      exitedPlanMode: false,
+      askUserQuestions: [],
+      finalOutput: null,
+      pendingBackgroundTasks: terminal.pendingBackgroundTasks,
+      undeliveredBackgroundTasks: 0,
+    };
   }
 
   private handleNormalizedEvent(ev: NormalizedEvent): void {
@@ -446,6 +516,9 @@ export class ClaudeTuiSession {
       // Out-of-turn events are dropped (logged for diagnostics).
       log.info(`event outside turn: ${ev.type}`);
       return;
+    }
+    if (ev.type === 'tool_use' && SUBAGENT_SPAWN_TOOLS.has(ev.name)) {
+      this.turnSubagents.add(ev.toolUseId);
     }
     // Fire onEvent first so adapter-level wrappers see EVERY event, including ones
     // (cost_record, turn_complete, tool_result, ask_user_question, plan_*) that don't
@@ -514,6 +587,13 @@ export class ClaudeTuiSession {
     // --resume rather than --session-id (which would collide with the persisted jsonl).
 
     const finalOutput = mergeSubstantialOutput(turn.finalOutput, turn.longestOutput);
+    const pendingBackgroundTasks = this.subagentMux?.pendingBackgroundTasks ?? 0;
+    const activeSubagents = this.subagentMux?.activeParentToolUseIds() ?? new Set<string>();
+    for (const id of this.turnSubagents) {
+      if (activeSubagents.has(id)) this.detachedSubagents.add(id);
+      else this.closedSubagents.add(id);
+    }
+    this.turnSubagents.clear();
     const result: TuiAgentResult = {
       sessionId: this.sessionId,
       total_cost_usd: turn.turnTotalCost,
@@ -525,8 +605,42 @@ export class ClaudeTuiSession {
       exitedPlanMode: turn.exitedPlanMode,
       askUserQuestions: turn.askUserQuestions,
       finalOutput,
+      pendingBackgroundTasks,
+      undeliveredBackgroundTasks: 0,
     };
     turn.resolve(result);
+  }
+
+  setContinuationSink(sink: ContinuationSink): void {
+    this.continuationSink = sink;
+    for (const item of this.continuationBuffer.splice(0)) this.deliverContinuation(item, sink);
+  }
+
+  private deliverOrBuffer(item: BufferedContinuation): void {
+    if (this.continuationSink) {
+      this.deliverContinuation(item, this.continuationSink);
+      return;
+    }
+    if (this.continuationBuffer.length >= MAX_BUFFERED_CONTINUATION_ITEMS) {
+      const eventIndex = this.continuationBuffer.findIndex((entry) => entry.kind === 'event');
+      this.continuationBuffer.splice(eventIndex >= 0 ? eventIndex : 0, 1);
+    }
+    this.continuationBuffer.push(item);
+  }
+
+  private deliverContinuation(item: BufferedContinuation, sink: ContinuationSink): void {
+    if (item.kind === 'result') {
+      sink.onResult(item.result);
+      return;
+    }
+    const event = item.event;
+    if (event.type === 'assistant_text') {
+      sink.onAssistantText(event.text, event.model, event.subagent);
+    } else if (event.type === 'tool_use') {
+      sink.onToolUse?.(event.name, event.input, event.toolUseId, event.subagent);
+    } else if (event.type === 'tool_result') {
+      sink.onToolResult?.(event.toolUseId, event.content, !event.ok, event.subagent);
+    }
   }
 
   // -----------------------------------------------------------------------------
@@ -594,10 +708,12 @@ export class ClaudeTuiSession {
     this.clearFirstEventWatchdog();
     this.idleTimer = this.maxTimer = this.turnIdleTimer = null;
     this.alive = false;
-    if (this.tail) {
-      this.tail.stop().catch(() => { /* best effort */ });
-      this.tail = null;
-    }
+    void this.stopTails();
+    this.continuationSink = null;
+    this.continuationBuffer.length = 0;
+    this.turnSubagents.clear();
+    this.detachedSubagents.clear();
+    this.closedSubagents.clear();
     // graceful: do NOT tmux kill-session — let the user keep observing
     if (this.currentTurn) {
       const t = this.currentTurn;
@@ -614,10 +730,12 @@ export class ClaudeTuiSession {
     this.idleTimer = this.maxTimer = this.turnIdleTimer = null;
     const wasAlive = this.alive;
     this.alive = false;
-    if (this.tail) {
-      this.tail.stop().catch(() => {});
-      this.tail = null;
-    }
+    void this.stopTails();
+    this.continuationSink = null;
+    this.continuationBuffer.length = 0;
+    this.turnSubagents.clear();
+    this.detachedSubagents.clear();
+    this.closedSubagents.clear();
     try { this.tmux.killSession(this.tmuxName); } catch { /* best effort */ }
     if (this.currentTurn) {
       const t = this.currentTurn;
@@ -675,6 +793,8 @@ export function resolveTuiResume(
  * Convenience factory: real JsonlTail wired to the path. Used by production code; tests inject
  * a custom factory instead.
  */
-export function defaultTailFactory(jsonlPath: string): JsonlTailLike {
-  return new JsonlTail(jsonlPath) as unknown as JsonlTailLike;
+export function defaultTailFactory(
+  jsonlPath: string, options?: JsonlTailOptions,
+): JsonlTailLike {
+  return new JsonlTail(jsonlPath, options) as unknown as JsonlTailLike;
 }

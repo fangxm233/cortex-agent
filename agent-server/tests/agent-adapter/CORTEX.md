@@ -13,6 +13,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | claude-context-usage.test.ts | test | Claude context and four-way result accounting |
 | claude-cost-from-usage.test.ts | test | Claude TUI cost reconstruction from usage |
 | claude-jsonl-tail.test.ts | test | Claude transcript and exact accounting events |
+| claude-subagent-jsonl-mux.test.ts | test | Claude TUI sidecar attribution and lifecycle |
 | claude-mid-turn-inject.test.ts | test | Claude mid-turn user message injection |
 | claude-print-resume.test.ts | test | print-mode resume guard on fresh sessions |
 | claude-stream-deltas.test.ts | test | Claude delta and reported model parsing |

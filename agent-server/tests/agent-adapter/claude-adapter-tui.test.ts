@@ -53,9 +53,11 @@ class MockTail extends EventEmitter {
   stopped = false;
   startCalls = 0;
   stopCalls = 0;
+  flushCalls = 0;
   constructor(public readonly path: string) { super(); }
   async start(): Promise<void> { this.started = true; this.startCalls++; }
   async stop(): Promise<void> { this.stopped = true; this.stopCalls++; }
+  flush(): void { this.flushCalls++; }
   /** Drive the session by simulating a jsonl line being parsed and emitted. */
   push(raw: any): void { this.emit('event', raw); }
   /** Convenience: simulate a `system/turn_duration` boundary. */
@@ -82,6 +84,8 @@ function makeDeps(): {
     waitForJsonlMs: 0, // skip the file-wait poll in tests
     pasteSubmitDelayMs: 0, // submit synchronously in tests (no Ink TUI to settle)
     paneReadyTimeoutMs: 0, // skip pane-readiness poll in tests (mocked tmux renders no pane)
+    subagentPollIntervalMs: 5,
+    subagentSettleMs: 10,
   };
   return { deps, tmuxCalls, tails };
 }
@@ -96,6 +100,14 @@ function makeSession(deps: TuiSessionDeps, overrides: Partial<ConstructorParamet
     deps,
     ...overrides,
   });
+}
+
+async function waitUntil(check: () => boolean, timeoutMs = 500): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!check()) {
+    if (Date.now() >= deadline) throw new Error('condition timed out');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }
 
 // =====================================================================================
@@ -560,6 +572,124 @@ test('onEvent callback fires for every NormalizedEvent including turn_complete',
   assert.ok(types.includes('turn_progress'));
   assert.ok(types.includes('cost_record'));
   assert.ok(types.includes('turn_complete'));
+});
+
+test('background sidecar events stay with the originating continuation across the next turn', async (t) => {
+  const { deps, tails } = makeDeps();
+  const sess = makeSession(deps);
+  const sidecarDir = path.join(path.dirname(sess.jsonlPath), 'sid-aaaa-bbbb', 'subagents');
+  fs.rmSync(sidecarDir, { recursive: true, force: true });
+  t.onTestFinished(() => {
+    sess.kill();
+    fs.rmSync(sidecarDir, { recursive: true, force: true });
+  });
+
+  const firstEvents: any[] = [];
+  const first = sess.sendMessage('start child', { onEvent: (event) => firstEvents.push(event) });
+  await new Promise((resolve) => setImmediate(resolve));
+  const parentTail = tails[0];
+  parentTail.push({
+    type: 'assistant',
+    message: { id: 'main-1', content: [{
+      type: 'tool_use', id: 'parent-agent', name: 'Agent',
+      input: { prompt: 'inspect', description: 'Inspect code', subagent_type: 'explore' },
+    }] },
+  });
+  parentTail.push({
+    type: 'user', toolUseResult: {
+      status: 'async_launched', agentId: 'child-a', resolvedModel: 'claude-sonnet-5',
+    },
+    message: { content: [{ type: 'tool_result', tool_use_id: 'parent-agent', content: 'launched' }] },
+  });
+  fs.mkdirSync(sidecarDir, { recursive: true });
+  fs.writeFileSync(path.join(sidecarDir, 'agent-child-a.jsonl'), `${JSON.stringify({
+    type: 'user', isSidechain: true, agentId: 'child-a',
+    message: { role: 'user', content: 'inspect' },
+  })}\n`);
+  await waitUntil(() => tails.length === 2);
+  parentTail.finishTurn();
+  const firstResult = await first as any;
+  assert.equal(firstResult.pendingBackgroundTasks, 1);
+
+  const continuationText: any[] = [];
+  const continuationResults: any[] = [];
+  sess.setContinuationSink({
+    onAssistantText: (text, model, subagent) => continuationText.push({ text, model, subagent }),
+    onResult: (result) => continuationResults.push(result),
+  });
+
+  const secondEvents: any[] = [];
+  const second = sess.sendMessage('next turn', { onEvent: (event) => secondEvents.push(event) });
+  await new Promise((resolve) => setImmediate(resolve));
+  tails[1].push({
+    type: 'assistant', isSidechain: true, agentId: 'child-a', attributionAgent: 'Explore',
+    message: {
+      id: 'child-msg', model: 'claude-sonnet-5',
+      content: [{ type: 'text', text: 'child report' }],
+    },
+  });
+  assert.equal(continuationText.length, 1);
+  assert.equal(continuationText[0].text, 'child report');
+  assert.equal(continuationText[0].subagent.parentToolUseId, 'parent-agent');
+  assert.equal(secondEvents.some((event) => event.type === 'assistant_text' && event.text === 'child report'), false);
+
+  const notification = '<task-notification><task-id>child-a</task-id>'
+    + '<tool-use-id>parent-agent</tool-use-id><status>completed</status></task-notification>';
+  parentTail.push({ type: 'queue-operation', content: notification });
+  await waitUntil(() => continuationResults.length === 1);
+  assert.equal(continuationResults[0].pendingBackgroundTasks, 0);
+  assert.equal(tails[1].flushCalls, 1);
+  assert.equal(tails[1].stopCalls, 1);
+
+  parentTail.finishTurn();
+  await second;
+});
+
+test('late synchronous sidecar bytes never leak into the next turn', async (t) => {
+  const { deps, tails } = makeDeps();
+  deps.subagentSettleMs = 200;
+  const sess = makeSession(deps);
+  const sidecarDir = path.join(path.dirname(sess.jsonlPath), 'sid-aaaa-bbbb', 'subagents');
+  fs.rmSync(sidecarDir, { recursive: true, force: true });
+  t.onTestFinished(() => {
+    sess.kill();
+    fs.rmSync(sidecarDir, { recursive: true, force: true });
+  });
+
+  const first = sess.sendMessage('run sync child', {});
+  await new Promise((resolve) => setImmediate(resolve));
+  const parentTail = tails[0];
+  parentTail.push({
+    type: 'assistant', message: { id: 'main-sync', content: [{
+      type: 'tool_use', id: 'parent-sync', name: 'Agent',
+      input: { prompt: 'sync prompt', description: 'Sync child', subagent_type: 'explore' },
+    }] },
+  });
+  fs.mkdirSync(sidecarDir, { recursive: true });
+  fs.writeFileSync(path.join(sidecarDir, 'agent-sync-a.jsonl'), `${JSON.stringify({
+    type: 'user', isSidechain: true, agentId: 'sync-a',
+    message: { role: 'user', content: 'sync prompt' },
+  })}\n`);
+  await waitUntil(() => tails.length === 2);
+  parentTail.push({
+    type: 'user', toolUseResult: { status: 'completed', agentId: 'sync-a' },
+    message: { content: [{ type: 'tool_result', tool_use_id: 'parent-sync', content: 'done' }] },
+  });
+  parentTail.finishTurn();
+  const firstResult = await first as any;
+  assert.equal(firstResult.pendingBackgroundTasks, 0);
+
+  const secondEvents: any[] = [];
+  const second = sess.sendMessage('next', { onEvent: (event) => secondEvents.push(event) });
+  await new Promise((resolve) => setImmediate(resolve));
+  tails[1].push({
+    type: 'assistant', isSidechain: true, agentId: 'sync-a', attributionAgent: 'Explore',
+    message: { id: 'late-sync', content: [{ type: 'text', text: 'late child bytes' }] },
+  });
+  assert.equal(secondEvents.some((event) => event.text === 'late child bytes'), false);
+
+  parentTail.finishTurn();
+  await second;
 });
 
 test('when tmux dies between turns, second sendMessage re-spawns with --resume', async (t) => {
