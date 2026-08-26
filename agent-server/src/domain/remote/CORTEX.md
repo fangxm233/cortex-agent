@@ -5,8 +5,8 @@ Covers client deployment, updates, the connection registry, and the client daemo
 
 | filename | role | function |
 |---|---|---|
-| client-bootstrap.ts | cli | Deploys cortex-client to a remote device |
-| client-hot-reload.ts | core | Restarts local and remote clients onto current builds |
+| client-bootstrap.ts | cli | Ships the managed client bundle to a remote device |
+| client-hot-reload.ts | core | Publishes the desired client bundle; devices self-update on hello |
 | client-manager.ts | core | Routes clients, reverse-stream callbacks, and fences remote task callbacks |
 | client-ssh-tunnel.ts | core | Supervises SSH reverse routes for remote clients |
 | reverse-stream.ts | core | Mints and pairs device-dialed streams for server→device connections |

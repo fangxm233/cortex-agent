@@ -41,7 +41,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | claim-recovery.test.ts | test | Generation-fenced orphan claim recovery |
 | cli-utils.test.ts | test | shared CLI error rendering |
 | cli.test.ts | test | cortex CLI routing, auth JSON framing and daemon control |
-| client-hot-reload.test.ts | test | local cortex-client dev and release update flows |
+| client-hot-reload.test.ts | test | hello-driven bundle push decisions and convergence |
 | client-manager.test.ts | test | client lifecycle hooks, auth and commands |
 | client-ssh-tunnel.test.ts | test | SSH reverse-route lifecycle and recovery |
 | codex-quota.test.ts | test | Codex quota headers and the notice wire form |

@@ -1,45 +1,51 @@
-// input:  client builds, npm registry, managed client launcher
-// output: client updates and route-aware process restarts
-// pos:    Cortex-client hot-reload coordinator
+// input:  client repo builds (dev) or the npm registry client package (release)
+// output: bundle pushes over device WebSockets and convergence notices
+// pos:    Publishes the desired client bundle; each device installs it itself
 // >>> If I am updated, update CORTEX.md <<<
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync, execFile, execFileSync, spawn } from 'child_process';
-import { getMachineRegistry, type MachineEntry } from '../tasks/dispatch-utils.js';
-import { sshExec, clientPids, launchRemoteClient, buildRemoteInstallCommand } from './client-manager.js';
-import { STORE_DIR, withNpmPrefix } from '@core/utils.js';
+import * as os from 'os';
+import * as crypto from 'crypto';
+import { execSync } from 'child_process';
+import {
+  setClientUpdateHooks,
+  getOnlineDevices,
+  sendControlMessage,
+} from './client-manager.js';
+import { STORE_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 
 const log = createLogger('client-hot-reload');
 
-const VERSION_FILE = path.join(STORE_DIR, 'client-version.json');
+/** The complete update artifact, hashed in this exact order on both ends. */
+const BUNDLE_FILES = ['client.mjs', 'cortex-run-watcher.mjs'];
+
+/** After a failed install, do not re-push the same bundle to that device for this long. */
+const PUSH_RETRY_COOLDOWN_MS = 10 * 60_000;
+/** An unanswered push is considered in-flight (no re-push) for this long. */
+const PUSH_INFLIGHT_MS = 2 * 60_000;
 
 // --- Types ---
 
-interface DeviceResult {
-  device: string;
-  updated: boolean;
-  restarted: boolean;
-  oldVersion?: string;
-  newVersion?: string;
-  error?: string;
+interface ClientBundle {
+  version: string;
+  hash: string;
+  files: Array<{ name: string; data: string }>; // data is base64
 }
 
-interface ClientUpdateResult {
-  mode: 'dev' | 'release';
-  oldVersion: string | null;
-  newVersion: string;
-  devices: DeviceResult[];
-  duration: number;
+interface PushAttempt {
+  hash: string;
+  at: number;
+  /** null = in flight, false = install failed, true = installed (awaiting reconnect). */
+  ok: boolean | null;
 }
 
-interface StoredState {
-  mode: 'dev' | 'release';
-  dev?: { mtime: number; tgzPath: string };
-  release?: { version: string };
-  updatedAt: string;
-}
+// --- State ---
+
+let _bundle: ClientBundle | null = null;
+const _lastPush = new Map<string, PushAttempt>();
+let _notify: (text: string) => void = () => {};
 
 // --- Mode detection ---
 
@@ -72,553 +78,198 @@ function resolveClientRepo(): string | null {
   return null;
 }
 
-// --- Version state persistence ---
+// --- Bundle resolution ---
 
-function loadStoredState(): StoredState | null {
-  try {
-    return JSON.parse(fs.readFileSync(VERSION_FILE, 'utf8'));
-  } catch {
+function loadBundleFromDir(dir: string, version: string): ClientBundle | null {
+  const files: Array<{ name: string; data: string }> = [];
+  const h = crypto.createHash('sha256');
+  for (const name of BUNDLE_FILES) {
+    const p = path.join(dir, name);
+    if (!fs.existsSync(p)) return null;
+    const buf = fs.readFileSync(p);
+    h.update(buf);
+    files.push({ name, data: buf.toString('base64') });
+  }
+  return { version, hash: h.digest('hex'), files };
+}
+
+/** Dev mode: bundle straight from the client repo (esbuild, sub-second). */
+function buildDevBundle(): ClientBundle | null {
+  const repo = resolveClientRepo();
+  if (!repo) {
+    log.warn('Dev mode: client repo not found — client hot-reload idle');
     return null;
   }
-}
-
-function saveDevState(mtime: number, tgzPath: string): void {
-  fs.mkdirSync(STORE_DIR, { recursive: true });
-  fs.writeFileSync(VERSION_FILE, JSON.stringify({
-    mode: 'dev' as const,
-    dev: { mtime, tgzPath },
-    updatedAt: new Date().toISOString(),
-  }, null, 2));
-}
-
-function saveReleaseState(version: string): void {
-  fs.mkdirSync(STORE_DIR, { recursive: true });
-  fs.writeFileSync(VERSION_FILE, JSON.stringify({
-    mode: 'release' as const,
-    release: { version },
-    updatedAt: new Date().toISOString(),
-  }, null, 2));
-}
-
-// --- Dev mode: client build ---
-
-function buildClient(repoPath: string): { tgzPath: string; mtime: number } | null {
   try {
-    log.info(`Building client in ${repoPath}...`);
-
-    // Step 1: build
-    const buildStart = Date.now();
-    execSync('npm run build', { cwd: repoPath, encoding: 'utf8', timeout: 120000, stdio: 'pipe' });
-    log.info(`  build: ${Date.now() - buildStart}ms`);
-
-    // Step 2: clean old tgz
-    try {
-      const oldTgzs = fs.readdirSync(repoPath).filter(f =>
-        f.startsWith('cortex-agent-client-') && f.endsWith('.tgz')
-      );
-      for (const f of oldTgzs) {
-        fs.unlinkSync(path.join(repoPath, f));
-      }
-    } catch {}
-
-    // Step 3: pack
-    const packStart = Date.now();
-    execSync('npm pack', { cwd: repoPath, encoding: 'utf8', timeout: 60000, stdio: 'pipe' });
-    log.info(`  pack: ${Date.now() - packStart}ms`);
-
-    // Step 4: find the produced tgz
-    const candidates = fs.readdirSync(repoPath)
-      .filter(f => f.startsWith('cortex-agent-client-') && f.endsWith('.tgz'))
-      .map(f => ({ f, mtime: fs.statSync(path.join(repoPath, f)).mtimeMs }))
-      .sort((a, b) => b.mtime - a.mtime);
-
-    if (candidates.length === 0) {
-      log.error('Build succeeded but no cortex-agent-client-*.tgz found');
-      return null;
-    }
-
-    const tgzPath = path.join(repoPath, candidates[0].f);
-    log.info(`Client built: ${candidates[0].f} (mtime=${candidates[0].mtime})`);
-    return { tgzPath, mtime: candidates[0].mtime };
+    const start = Date.now();
+    execSync('npm run bundle', { cwd: repo, encoding: 'utf8', timeout: 120000, stdio: 'pipe' });
+    log.info(`Client bundle built in ${Date.now() - start}ms`);
   } catch (err) {
-    log.error(`Client build failed: ${(err as Error).message}`);
+    log.error(`Client bundle build failed: ${(err as Error).message}`);
     return null;
   }
-}
-
-// --- Dev mode: SCP to remote ---
-
-function scpToRemote(host: string, localPath: string, remotePath: string, timeout = 60000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile('scp', [
-      '-o', 'ConnectTimeout=10',
-      '-o', 'StrictHostKeyChecking=no',
-      localPath,
-      `${host}:${remotePath}`,
-    ], { timeout }, (err, stdout, stderr) => {
-      if (err) reject(new Error(`SCP error: ${err.message}\n${stderr}`));
-      else resolve(stdout.trim());
-    });
-  });
-}
-
-// --- Release mode: npm global prefix resolution ---
-
-const CLIENT_PKG = '@cortex-agent/client';
-
-/**
- * The client is installed as the `cortex-client` binary — resolve the npm global
- * prefix from it (see resolveNpmGlobalPrefix), so the version probe and the update
- * both act on the root the client actually lives in rather than npm's default.
- */
-function clientNpmArgs(args: string[]): string[] {
-  return withNpmPrefix(args, 'cortex-client');
-}
-
-/**
- * Remote counterpart of resolveNpmGlobalPrefix: same derivation, done in the
- * remote shell (the prefix is a property of the remote host, not of this one).
- * Windows hosts keep the plain command — npm there installs into the roaming
- * prefix owned by the user, so EACCES is not a failure mode.
- */
-function buildRemoteNpmUpdateCommand(reg: MachineEntry): string {
-  const plain = `npm update -g ${CLIENT_PKG} 2>&1`;
-  if (reg.win) return plain;
-  return [
-    'b="$(command -v cortex-client 2>/dev/null)"; p=""',
-    '[ -n "$b" ] && p="$(dirname "$(dirname "$b")")"',
-    `if [ -n "$p" ] && [ -d "$p/lib/node_modules" ]; then npm update -g --prefix "$p" ${CLIENT_PKG} 2>&1; else ${plain}; fi`,
-  ].join('; ');
-}
-
-// --- Release mode: npm registry helpers ---
-
-function getNpmRegistryVersion(): string | null {
+  let version = 'dev';
   try {
-    const result = execSync('npm view @cortex-agent/client version 2>/dev/null || true', {
-      encoding: 'utf8',
-      timeout: 15000,
-      stdio: 'pipe',
-    }).trim();
-    return result || null;
-  } catch {
-    return null;
-  }
+    version = `${JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8')).version}-dev`;
+  } catch {}
+  return loadBundleFromDir(path.join(repo, 'dist'), version);
 }
 
-function getLocalInstalledVersion(): string | null {
-  // Must use the same prefix as the update below, or the probe reads a different
-  // (empty) global root and reports the client as missing on every check.
-  let out = '';
+/** Release mode: latest published client package, bundle files cached per version. */
+function fetchReleaseBundle(): ClientBundle | null {
+  let version = '';
   try {
-    out = execFileSync('npm', clientNpmArgs(['ls', '-g', CLIENT_PKG, '--json']), {
-      encoding: 'utf8',
-      timeout: 15000,
-      stdio: 'pipe',
+    version = execSync('npm view @cortex-agent/client version', {
+      encoding: 'utf8', timeout: 30000, stdio: 'pipe',
     }).trim();
   } catch (err) {
-    // `npm ls` exits non-zero when the package is absent, but still prints JSON.
-    out = String((err as { stdout?: unknown })?.stdout ?? '').trim();
-  }
-  try {
-    return JSON.parse(out)?.dependencies?.[CLIENT_PKG]?.version || null;
-  } catch {
+    log.warn(`Release mode: npm registry unreachable — client hot-reload idle (${(err as Error).message})`);
     return null;
   }
-}
+  if (!version) return null;
 
-function npmUpdateLocal(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile('npm', clientNpmArgs(['update', '-g', CLIENT_PKG]), { timeout: 120000 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(`npm update error: ${err.message}\n${stderr}`));
-      else resolve(stdout.trim());
-    });
-  });
-}
+  const cacheDir = path.join(STORE_DIR, 'client-bundles', version);
+  const cached = loadBundleFromDir(cacheDir, version);
+  if (cached) return cached;
 
-async function getRemoteInstalledVersion(reg: MachineEntry): Promise<string | null> {
-  const host = reg.ssh!;
+  let tmp: string | null = null;
   try {
-    // Same prefix caveat as the local probe: read the root the client is installed in.
-    const cmd = reg.win
-      ? `npm ls -g ${CLIENT_PKG} --json 2>/dev/null || true`
-      : [
-          'b="$(command -v cortex-client 2>/dev/null)"; p=""',
-          '[ -n "$b" ] && p="$(dirname "$(dirname "$b")")"',
-          `if [ -n "$p" ] && [ -d "$p/lib/node_modules" ]; then npm ls -g --prefix "$p" ${CLIENT_PKG} --json 2>/dev/null || true; else npm ls -g ${CLIENT_PKG} --json 2>/dev/null || true; fi`,
-        ].join('; ');
-    const result = await sshExec(host, cmd, 15000);
-    try {
-      const parsed = JSON.parse(result);
-      return parsed?.dependencies?.['@cortex-agent/client']?.version || null;
-    } catch {
-      return null;
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-client-bundle-'));
+    execSync(`npm pack @cortex-agent/client@${version}`, { cwd: tmp, encoding: 'utf8', timeout: 60000, stdio: 'pipe' });
+    const tgz = fs.readdirSync(tmp).find((f) => f.endsWith('.tgz'));
+    if (!tgz) throw new Error('npm pack produced no tgz');
+    execSync(`tar -xzf ${JSON.stringify(tgz)}`, { cwd: tmp, encoding: 'utf8', timeout: 30000, stdio: 'pipe' });
+    fs.mkdirSync(cacheDir, { recursive: true });
+    for (const name of BUNDLE_FILES) {
+      fs.copyFileSync(path.join(tmp, 'package', 'dist', name), path.join(cacheDir, name));
     }
-  } catch {
+  } catch (err) {
+    log.error(`Release mode: failed to fetch client ${version}: ${(err as Error).message}`);
     return null;
+  } finally {
+    if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
   }
+  return loadBundleFromDir(cacheDir, version);
 }
 
-// --- Per-device operations ---
-
-async function killClientOnDevice(device: string, reg: MachineEntry): Promise<boolean> {
-  const pid = clientPids.get(device);
-  if (!pid) return false;
-
-  try {
-    if (!reg.ssh) {
-      try { process.kill(pid, 'SIGTERM'); } catch {}
-    } else if (reg.win) {
-      await sshExec(reg.ssh, `taskkill /pid ${pid} /f /t 2>nul || echo ok`, 10000);
-    } else {
-      await sshExec(reg.ssh, `kill ${pid} 2>/dev/null || true`, 10000);
-    }
-    clientPids.delete(device);
-    return true;
-  } catch {
-    return false;
-  }
+function resolveBundle(): ClientBundle | null {
+  return isDevMode() ? buildDevBundle() : fetchReleaseBundle();
 }
 
-function restartLocalClient(device: string, entryPath?: string): boolean {
-  const command = entryPath ? process.execPath : 'cortex-client';
-  const args = entryPath ? [entryPath] : [];
-  const child = spawn(command, args, { detached: true, stdio: 'ignore' });
-  child.on('error', (err) => {
-    log.warn(`Local client respawn error on ${device}: ${(err as Error).message}`);
-  });
-  child.unref();
-  if (!child.pid) return false;
-  clientPids.set(device, child.pid);
-  log.info(`Restarted local client on ${device} (PID ${child.pid})`);
+// --- Push decision ---
+
+/** Pure decision: push when the device diverges, unless the same bundle is in
+ *  flight or recently failed on that device. */
+function shouldPush(
+  reported: string | null,
+  bundleHash: string,
+  last: PushAttempt | undefined,
+  now: number,
+): boolean {
+  if (reported === bundleHash) return false;
+  if (last && last.hash === bundleHash) {
+    if (last.ok === false && now - last.at < PUSH_RETRY_COOLDOWN_MS) return false;
+    if (last.ok === null && now - last.at < PUSH_INFLIGHT_MS) return false;
+    if (last.ok === true && now - last.at < PUSH_INFLIGHT_MS) return false; // installed, awaiting respawn+reconnect
+  }
   return true;
 }
 
-async function restartClientOnDevice(
-  device: string,
-  reg: MachineEntry,
-  localEntry?: string,
-): Promise<boolean> {
+function short(hash: string | null): string {
+  return hash ? hash.slice(0, 12) : 'none';
+}
+
+// Injectable so tests exercise push decisions without a live WebSocket.
+type SendControl = (device: string, message: Record<string, unknown>) => void;
+let _send: SendControl = sendControlMessage;
+
+function pushTo(device: string): void {
+  if (!_bundle) return;
+  _send(device, {
+    type: 'update',
+    updateId: crypto.randomBytes(6).toString('hex'),
+    version: _bundle.version,
+    hash: _bundle.hash,
+    files: _bundle.files,
+  });
+  _lastPush.set(device, { hash: _bundle.hash, at: Date.now(), ok: null });
+  log.info(`Pushed bundle ${short(_bundle.hash)} (v${_bundle.version}) to ${device}`);
+}
+
+// --- Hooks (wired into client-manager) ---
+
+function onHello(device: string, bundleHash: string | null): void {
+  if (!_bundle) return; // bundle still resolving; the post-resolve sweep covers this hello
+  if (bundleHash === _bundle.hash) {
+    const last = _lastPush.get(device);
+    if (last && last.hash === _bundle.hash) {
+      _lastPush.delete(device);
+      log.info(`${device} converged on ${short(_bundle.hash)} (v${_bundle.version})`);
+      _notify(`${Icons.ok} client on \`${device}\` updated → \`${short(_bundle.hash)}\` (v${_bundle.version})`);
+    }
+    return;
+  }
+  if (!shouldPush(bundleHash, _bundle.hash, _lastPush.get(device), Date.now())) return;
   try {
-    if (!reg.ssh) return restartLocalClient(device, localEntry);
-    return await launchRemoteClient(device);
+    pushTo(device);
   } catch (err) {
-    log.warn(`Failed to restart client on ${device}: ${(err as Error).message}`);
-    return false;
+    log.warn(`Push to ${device} failed: ${(err as Error).message}`);
   }
 }
 
-// --- Dev mode: full per-device update ---
-
-interface LocalDevUpdateDeps {
-  kill: () => Promise<boolean>;
-  restart: (entryPath: string) => Promise<boolean>;
-}
-
-async function updateClientDevLocal(
-  device: string,
-  tgzPath: string,
-  deps: LocalDevUpdateDeps,
-): Promise<DeviceResult> {
-  const res: DeviceResult = { device, updated: false, restarted: false };
-  try {
-    await deps.kill();
-    res.updated = true;
-    const entryPath = path.join(path.dirname(tgzPath), 'dist', 'client.js');
-    res.restarted = await deps.restart(entryPath);
-  } catch (err) {
-    res.error = (err as Error).message;
-    log.warn(`  ${device}: local dev update failed — ${res.error}`);
+function onUpdateResult(device: string, result: { ok: boolean; hash?: string; error?: string }): void {
+  const last = _lastPush.get(device);
+  if (last) last.ok = result.ok;
+  if (result.ok) {
+    log.info(`${device} installed ${short(result.hash ?? null)} — awaiting reconnect`);
+  } else {
+    log.warn(`${device} update failed: ${result.error ?? 'unknown error'}`);
+    _notify(`${Icons.error} client update failed on \`${device}\`: ${result.error ?? 'unknown error'}`);
   }
-  return res;
 }
 
-async function removeRemotePackage(reg: MachineEntry, remotePath: string): Promise<void> {
-  try {
-    await sshExec(reg.ssh!, `rm -f ${remotePath}`, 10000);
-  } catch {}
-}
+// --- Entry ---
 
-async function updateRemoteClientDev(
-  device: string,
-  reg: MachineEntry,
-  tgzPath: string,
-  tgzName: string,
-): Promise<DeviceResult> {
-  const res: DeviceResult = { device, updated: false, restarted: false };
-  try {
-    await killClientOnDevice(device, reg);
-    const remotePath = `/tmp/${tgzName}`;
-    log.info(`  ${device}: SCP ${tgzName} → ${reg.ssh}:/tmp/`);
-    await scpToRemote(reg.ssh!, tgzPath, remotePath, 60000);
-    const install = `${buildRemoteInstallCommand(reg, remotePath)} 2>&1`;
-    const output = await sshExec(reg.ssh!, install, 60000);
-    log.info(`  ${device}: npm install -g output: ${output.slice(0, 200)}`);
-    res.updated = true;
-    await removeRemotePackage(reg, remotePath);
-    res.restarted = await restartClientOnDevice(device, reg);
-  } catch (err) {
-    res.error = (err as Error).message;
-    log.warn(`  ${device}: dev update failed — ${res.error}`);
-  }
-  return res;
-}
-
-async function updateClientDev(
-  device: string,
-  reg: MachineEntry,
-  tgzPath: string,
-  tgzName: string,
-): Promise<DeviceResult> {
-  if (reg.ssh) return updateRemoteClientDev(device, reg, tgzPath, tgzName);
-  return updateClientDevLocal(device, tgzPath, {
-    kill: () => killClientOnDevice(device, reg),
-    restart: (entry) => restartClientOnDevice(device, reg, entry),
+/**
+ * Register the update hooks (synchronously, before devices say hello), then
+ * resolve the desired bundle and sweep devices that connected meanwhile.
+ * From then on every hello is compared against the bundle hash — reconnecting
+ * or newly bootstrapped devices converge without any scheduled job.
+ */
+function initClientHotReload(notify: (text: string) => void): void {
+  _notify = notify;
+  setClientUpdateHooks({ onHello, onUpdateResult });
+  setImmediate(() => {
+    const bundle = resolveBundle();
+    if (!bundle) return;
+    _bundle = bundle;
+    log.info(`Client bundle ready: ${short(bundle.hash)} (v${bundle.version})`);
+    for (const d of getOnlineDevices()) onHello(d.device, d.bundleHash);
   });
 }
 
-// --- Release mode: local (same-machine) update ---
+// --- Test hooks ---
 
-// Injectable operations so the local-update flow is unit-testable without
-// touching npm / processes.
-interface LocalUpdateDeps {
-  getInstalledVersion: () => string | null;
-  kill: () => Promise<boolean>;
-  npmUpdate: () => Promise<string>;
-  restart: () => Promise<boolean>;
-}
-
-async function updateClientReleaseLocal(
-  device: string,
-  latestVersion: string,
-  deps: LocalUpdateDeps,
-): Promise<DeviceResult> {
-  const res: DeviceResult = { device, updated: false, restarted: false, oldVersion: '?', newVersion: latestVersion };
-
-  try {
-    const localVer = deps.getInstalledVersion();
-    res.oldVersion = localVer || '?';
-
-    if (localVer === latestVersion) {
-      log.info(`  ${device}: already at latest (${latestVersion})`);
-      return res;
-    }
-
-    // 1. Kill the running local client (frees the device name for reconnect)
-    await deps.kill();
-
-    // 2. npm update -g locally
-    const updateOutput = await deps.npmUpdate();
-    res.updated = true;
-    log.info(`  ${device}: local npm update output: ${updateOutput.slice(0, 200)}`);
-
-    // 3. Respawn the local client on the new binary
-    res.restarted = await deps.restart();
-  } catch (err) {
-    res.error = (err as Error).message;
-    log.warn(`  ${device}: local release update failed — ${res.error}`);
-    // The client was already killed. A failed update must not leave the device
-    // offline — bring it back up on the old binary.
-    try {
-      res.restarted = await deps.restart();
-    } catch {}
-  }
-
-  return res;
-}
-
-// --- Release mode: full per-device update ---
-
-async function updateClientRelease(
-  device: string,
-  reg: MachineEntry,
-  latestVersion: string,
-): Promise<DeviceResult> {
-  const res: DeviceResult = { device, updated: false, restarted: false, oldVersion: '?', newVersion: latestVersion };
-
-  if (!reg.ssh) {
-    // Local same-machine client: update via local npm + process.kill + detached respawn.
-    return updateClientReleaseLocal(device, latestVersion, {
-      getInstalledVersion: getLocalInstalledVersion,
-      kill: () => killClientOnDevice(device, reg),
-      npmUpdate: npmUpdateLocal,
-      restart: () => restartClientOnDevice(device, reg),
-    });
-  }
-
-  try {
-    // 1. Check remote installed version
-    const remoteVer = await getRemoteInstalledVersion(reg);
-    res.oldVersion = remoteVer || '?';
-
-    if (remoteVer === latestVersion) {
-      log.info(`  ${device}: already at latest (${latestVersion})`);
-      return res;
-    }
-
-    // 2. Kill existing client
-    await killClientOnDevice(device, reg);
-
-    // 3. npm update (prefix resolved in the remote shell — see buildRemoteNpmUpdateCommand)
-    const updateOutput = await sshExec(reg.ssh, buildRemoteNpmUpdateCommand(reg), 60000);
-    res.updated = true;
-    log.info(`  ${device}: npm update output: ${updateOutput.slice(0, 200)}`);
-
-    // 4. Restart client
-    res.restarted = await restartClientOnDevice(device, reg);
-  } catch (err) {
-    res.error = (err as Error).message;
-    log.warn(`  ${device}: release update failed — ${res.error}`);
-  }
-
-  return res;
-}
-
-// --- Main check-and-update ---
-
-async function checkAndUpdateClients(): Promise<ClientUpdateResult | null> {
-  const dev = isDevMode();
-  const stored = loadStoredState();
-  const start = Date.now();
-
-  if (dev) {
-    return checkAndUpdateDev(stored, start);
-  } else {
-    return checkAndUpdateRelease(stored, start);
-  }
-}
-
-async function checkAndUpdateDev(stored: StoredState | null, start: number): Promise<ClientUpdateResult | null> {
-  const clientRepo = resolveClientRepo();
-  if (!clientRepo) {
-    log.warn('Dev mode: CORTEX_REPO is set but client repo not found — skipping update');
-    return null;
-  }
-
-  // Build client from source
-  const built = buildClient(clientRepo);
-  if (!built) {
-    log.error('Dev mode: client build failed — skipping update');
-    return null;
-  }
-
-  const tgzName = path.basename(built.tgzPath);
-
-  // First run or mode change: save state, skip update
-  if (!stored || stored.mode !== 'dev') {
-    const label = !stored ? 'First run' : 'Mode changed to dev';
-    log.info(`Dev mode — ${label}: saving client mtime=${built.mtime}, skipping update`);
-    saveDevState(built.mtime, built.tgzPath);
-    return null;
-  }
-
-  // Compare mtime
-  const oldMtime = stored.dev?.mtime ?? 0;
-  if (built.mtime === oldMtime) {
-    log.info(`Dev mode: client tgz mtime unchanged (${built.mtime}) — skipping update`);
-    return null;
-  }
-
-  log.info(`Dev mode: client tgz changed — mtime ${oldMtime} → ${built.mtime}`);
-
-  const registry = getMachineRegistry();
-  const devices = await Promise.all(
-    Object.entries(registry).map(async ([device, reg]): Promise<DeviceResult> => {
-      return updateClientDev(device, reg, built.tgzPath, tgzName);
-    })
-  );
-
-  const duration = Date.now() - start;
-  saveDevState(built.mtime, built.tgzPath);
-
-  for (const d of devices) {
-    const status = d.updated && d.restarted ? 'OK' : (d.error ? 'FAIL' : 'SKIP');
-    log.info(`  ${d.device}: ${status}${d.error ? ` (${d.error})` : ''}`);
-  }
-
-  return {
-    mode: 'dev',
-    oldVersion: String(oldMtime),
-    newVersion: String(built.mtime),
-    devices,
-    duration,
-  };
-}
-
-async function checkAndUpdateRelease(stored: StoredState | null, start: number): Promise<ClientUpdateResult | null> {
-  // Get latest version from npm registry
-  const latestVersion = getNpmRegistryVersion();
-  if (!latestVersion) {
-    log.warn('Release mode: could not fetch latest version from npm registry — skipping update');
-    return null;
-  }
-
-  // First run or mode change: save state, skip update
-  if (!stored || stored.mode !== 'release') {
-    const label = !stored ? 'First run' : 'Mode changed to release';
-    log.info(`Release mode — ${label}: saving version ${latestVersion}, skipping update`);
-    saveReleaseState(latestVersion);
-    return null;
-  }
-
-  // Compare versions
-  const oldVersion = stored.release?.version ?? '?';
-  if (oldVersion === latestVersion) {
-    log.info(`Release mode: version unchanged (${latestVersion}) — skipping update`);
-    return null;
-  }
-
-  log.info(`Release mode: new version available — ${oldVersion} → ${latestVersion}`);
-
-  const registry = getMachineRegistry();
-  const devices = await Promise.all(
-    Object.entries(registry).map(async ([device, reg]): Promise<DeviceResult> => {
-      return updateClientRelease(device, reg, latestVersion);
-    })
-  );
-
-  const duration = Date.now() - start;
-  saveReleaseState(latestVersion);
-
-  for (const d of devices) {
-    const status = d.updated && d.restarted ? 'OK' : (d.error ? 'FAIL' : 'SKIP');
-    log.info(`  ${d.device}: ${status}${d.error ? ` (${d.error})` : ''}`);
-  }
-
-  return {
-    mode: 'release',
-    oldVersion,
-    newVersion: latestVersion,
-    devices,
-    duration,
-  };
-}
-
-// --- Slack message formatting ---
-
-function formatUpdateSlackMessage(result: ClientUpdateResult): string {
-  const modeLabel = result.mode === 'dev' ? '[dev]' : '[release]';
-  const versionLabel = result.mode === 'dev'
-    ? `mtime \`${result.oldVersion}\` → \`${result.newVersion}\``
-    : `\`${result.oldVersion}\` → \`${result.newVersion}\``;
-
-  const lines: string[] = [
-    `${Icons.refresh} *Client hot-reload ${modeLabel}*  ${versionLabel}  (${(result.duration / 1000).toFixed(1)}s)`,
-  ];
-
-  for (const d of result.devices) {
-    const icon = d.updated && d.restarted ? Icons.ok : Icons.error;
-    lines.push(`  ${d.device}: ${icon}${d.error ? `  _${d.error}_` : ''}`);
-  }
-
-  return lines.join('\n');
+function _setBundleForTesting(bundle: ClientBundle | null): void { _bundle = bundle; }
+function _setSendForTesting(fn: SendControl): void { _send = fn; }
+function _setNotifyForTesting(fn: (text: string) => void): void { _notify = fn; }
+function _testReset(): void {
+  _bundle = null;
+  _lastPush.clear();
+  _notify = () => {};
+  _send = sendControlMessage;
 }
 
 export {
-  checkAndUpdateClients,
-  formatUpdateSlackMessage,
-  updateClientDevLocal,
-  updateClientReleaseLocal,
-  buildRemoteNpmUpdateCommand,
+  initClientHotReload,
+  resolveBundle,
+  loadBundleFromDir,
+  shouldPush,
+  onHello as _onHelloForTesting,
+  onUpdateResult as _onUpdateResultForTesting,
+  _setBundleForTesting,
+  _setSendForTesting,
+  _setNotifyForTesting,
+  _testReset,
 };
-export type { ClientUpdateResult, DeviceResult, LocalDevUpdateDeps, LocalUpdateDeps };
+export type { ClientBundle, PushAttempt };

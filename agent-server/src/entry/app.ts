@@ -43,7 +43,7 @@ import { sendStartupDmIfConfigured } from './startup-notify.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
 import { startGateway, stopGateway } from '@domain/costs/gateway-manager.js';
 import { startClientManager, stopClientManager, startAllRemoteClients, getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
-import { checkAndUpdateClients, formatUpdateSlackMessage } from '@domain/remote/client-hot-reload.js';
+import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
 import { checkServerUpdate } from '@domain/system/server-update-check.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { threadStore } from '@store/thread-repo.js';
@@ -736,17 +736,7 @@ process.on('SIGTERM', async () => {
 
   startClientHotReloadJob(
     getSettings().clientHotReloadEnabled,
-    async () => {
-      try {
-        const updateResult = await checkAndUpdateClients();
-        if (updateResult) {
-          log.info(`Client hot-reload: ${updateResult.devices.length} devices updated in ${updateResult.duration}ms`);
-          await emitSystemNotice(adapter, { text: formatUpdateSlackMessage(updateResult) });
-        }
-      } catch (e) {
-        log.error(`Client hot-reload check failed: ${(e as Error).message}`);
-      }
-    },
+    () => initClientHotReload((text) => { void emitSystemNotice(adapter, { text }); }),
     startAllRemoteClients,
   );
 

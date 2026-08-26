@@ -21,7 +21,6 @@ import {
   startClientManager,
   stopClientManager,
   buildRemoteSpawnCommand,
-  buildRemoteInstallCommand,
   clientPids,
   startRemoteClient,
   _setSshExecForTesting,
@@ -258,7 +257,7 @@ test('buildRemoteSpawnCommand injects token and managed URL on Linux remotes', (
   );
   assert.match(cmd, /CORTEX_CLIENT_TOKEN='sektok123'/);
   assert.match(cmd, /CORTEX_SERVER_URL='ws:\/\/127\.0\.0\.1:13002'/);
-  assert.match(cmd, /nohup cortex-client/);
+  assert.match(cmd, /nohup node "\$HOME\/\.cortex\/client\/current\/client\.mjs"/);
   assert.match(cmd, /echo \$!/);
 });
 
@@ -271,19 +270,19 @@ test('buildRemoteSpawnCommand injects token and managed URL on Windows remotes',
   assert.match(cmd, /set CORTEX_CLIENT_TOKEN=sektok123&&/);
   assert.match(cmd, /set CORTEX_SERVER_URL=ws:\/\/127\.0\.0\.1:13002&&/);
   assert.match(cmd, /cmd\.exe \/c/);
-  assert.match(cmd, /cortex-client/);
+  assert.match(cmd, /client\.mjs/);
 });
 
 test('buildRemoteSpawnCommand omits managed env when none is provided (back-compat)', () => {
   const cmd = buildRemoteSpawnCommand({ cortexPath: '/home/x', gpuCount: 0, ssh: 'user@host' });
   assert.doesNotMatch(cmd, /CORTEX_CLIENT_TOKEN|CORTEX_SERVER_URL/);
-  assert.match(cmd, /^nohup cortex-client/);
+  assert.match(cmd, /^nohup node/);
 });
 
-test('buildRemoteSpawnCommand wraps Windows cortex-client invocation with cmd.exe /c', () => {
+test('buildRemoteSpawnCommand wraps the Windows launch with cmd.exe /c', () => {
   const cmd = buildRemoteSpawnCommand({ cortexPath: 'D:\\x', gpuCount: 0, ssh: 'user@host', win: true });
-  // Must include the cmd.exe wrapper so PATH lookup resolves cortex-client.cmd.
-  assert.match(cmd, /cmd\.exe \/c cortex-client/);
+  // Must include the cmd.exe wrapper so cmd resolves node and expands %USERPROFILE%.
+  assert.match(cmd, /cmd\.exe \/c node/);
   // Must still be a PowerShell WMI Win32_Process.Create call (server-side parser
   // expects the ProcessId on stdout).
   assert.match(cmd, /Invoke-WmiMethod -Class Win32_Process -Name Create/);
@@ -292,7 +291,7 @@ test('buildRemoteSpawnCommand wraps Windows cortex-client invocation with cmd.ex
 
 test('buildRemoteSpawnCommand uses nohup + echo $! on Linux remotes', () => {
   const cmd = buildRemoteSpawnCommand({ cortexPath: '/home/x', gpuCount: 0, ssh: 'user@host' });
-  assert.match(cmd, /^nohup cortex-client/);
+  assert.match(cmd, /^nohup node "\$HOME\/\.cortex\/client\/current\/client\.mjs"/);
   assert.match(cmd, /echo \$!/);
 });
 
@@ -302,10 +301,10 @@ test('buildRemoteSpawnCommand uses nohup + echo $! on Linux remotes', () => {
 // loads the login profile so nvm puts node + cortex-client on PATH) while keeping the
 // nohup/echo-$! (Linux) and cmd.exe-wrap WMI (Windows) machinery + token injection intact.
 test('buildRemoteSpawnCommand uses reg.clientCommand over the default on Linux', () => {
-  const cmd = buildRemoteSpawnCommand({ cortexPath: '/home/nvidia', gpuCount: 8, ssh: 'nvidia@server-nvidia', clientCommand: 'bash -lc cortex-client' }, 'sektok123');
+  const cmd = buildRemoteSpawnCommand({ cortexPath: '/home/nvidia', gpuCount: 8, ssh: 'nvidia@server-nvidia', clientCommand: 'bash -lc my-client' }, 'sektok123');
   assert.match(cmd, /CORTEX_CLIENT_TOKEN='sektok123'/);
-  assert.match(cmd, /nohup bash -lc cortex-client > \/dev\/null 2>&1 & echo \$!/);
-  assert.doesNotMatch(cmd, /nohup cortex-client\b/); // bare default must be replaced
+  assert.match(cmd, /nohup bash -lc my-client > \/dev\/null 2>&1 & echo \$!/);
+  assert.doesNotMatch(cmd, /client\.mjs/); // managed default must be replaced
 });
 
 test('buildRemoteSpawnCommand uses reg.clientCommand over the default on Windows', () => {
@@ -314,44 +313,9 @@ test('buildRemoteSpawnCommand uses reg.clientCommand over the default on Windows
   assert.match(cmd, /Invoke-WmiMethod -Class Win32_Process -Name Create/);
 });
 
-test('buildRemoteSpawnCommand falls back to cortex-client when clientCommand is blank', () => {
+test('buildRemoteSpawnCommand falls back to the managed default when clientCommand is blank', () => {
   const cmd = buildRemoteSpawnCommand({ cortexPath: '/home/x', gpuCount: 0, ssh: 'user@host', clientCommand: '   ' });
-  assert.match(cmd, /^nohup cortex-client > \/dev\/null/);
-});
-
-test('buildRemoteInstallCommand defaults to bare npm install -g <tgz> when unset', () => {
-  const cmd = buildRemoteInstallCommand({ cortexPath: '/home/x', gpuCount: 0, ssh: 'user@host' }, '/tmp/cortex-agent-client-2026.6.22.tgz');
-  assert.equal(cmd, 'npm install -g /tmp/cortex-agent-client-2026.6.22.tgz');
-});
-
-test('buildRemoteInstallCommand substitutes the {tgz} placeholder in a custom command', () => {
-  const cmd = buildRemoteInstallCommand(
-    { cortexPath: '/home/fangxm', gpuCount: 2, ssh: 'fangxm@lab', installCommand: "bash -lc 'source ~/.nvm/nvm.sh && npm install -g {tgz}'" },
-    '/tmp/cortex-agent-client-2026.6.22.tgz',
-  );
-  assert.equal(cmd, "bash -lc 'source ~/.nvm/nvm.sh && npm install -g /tmp/cortex-agent-client-2026.6.22.tgz'");
-  assert.doesNotMatch(cmd, /\{tgz\}/);
-});
-
-test('buildRemoteInstallCommand replaces every {tgz} occurrence', () => {
-  const cmd = buildRemoteInstallCommand(
-    { cortexPath: '/home/x', gpuCount: 0, ssh: 'user@host', installCommand: 'echo {tgz} && npm install -g {tgz}' },
-    '/tmp/c.tgz',
-  );
-  assert.equal(cmd, 'echo /tmp/c.tgz && npm install -g /tmp/c.tgz');
-});
-
-test('buildRemoteInstallCommand appends the tgz path when the template has no placeholder', () => {
-  const cmd = buildRemoteInstallCommand(
-    { cortexPath: '/home/x', gpuCount: 0, ssh: 'user@host', installCommand: '/home/x/.nvm/versions/node/v20.19.5/bin/npm install -g' },
-    '/tmp/c.tgz',
-  );
-  assert.equal(cmd, '/home/x/.nvm/versions/node/v20.19.5/bin/npm install -g /tmp/c.tgz');
-});
-
-test('buildRemoteInstallCommand falls back to the default when installCommand is blank', () => {
-  const cmd = buildRemoteInstallCommand({ cortexPath: '/home/x', gpuCount: 0, ssh: 'user@host', installCommand: '   ' }, '/tmp/c.tgz');
-  assert.equal(cmd, 'npm install -g /tmp/c.tgz');
+  assert.match(cmd, /^nohup node "\$HOME\/\.cortex\/client\/current\/client\.mjs" > \/dev\/null/);
 });
 
 // --- Regression: when SSH spawn returns an unparseable PID (the live failure mode

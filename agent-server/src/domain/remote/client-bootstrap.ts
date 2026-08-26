@@ -1,8 +1,12 @@
 // Cortex client bootstrap — one-time SSH deployment.
-// Installs cortex-client as a global npm package and sets up systemd auto-start.
-import { execFile, spawn } from 'child_process';
+// Ships the managed client bundle to ~/.cortex/client/current/ and sets up auto-start.
+// Also the rescue path when a device's managed install is broken or wiped.
+import { execFile } from 'child_process';
+import * as fs from 'fs';
 import * as os from 'os';
+import * as path from 'path';
 import { createLogger } from '@core/log.js';
+import { resolveBundle } from './client-hot-reload.js';
 
 const log = createLogger('client-bootstrap');
 
@@ -56,6 +60,15 @@ function sshExec(command: string, timeout = 30000): Promise<string> {
   });
 }
 
+function scpTo(localPath: string, remotePath: string, timeout = 60000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile('scp', ['-o', 'StrictHostKeyChecking=no', localPath, `${sshHost}:${remotePath}`], { timeout }, (err, _stdout, stderr) => {
+      if (err) reject(new Error(`SCP error: ${err.message}\n${stderr}`));
+      else resolve();
+    });
+  });
+}
+
 // --- Bootstrap steps ---
 
 async function main() {
@@ -85,14 +98,27 @@ async function main() {
     process.exit(1);
   }
 
-  // Step 3: Install cortex-client globally
-  console.log('[3/5] Installing cortex-client...');
-  try {
-    const installOutput = await sshExec('npm install -g cortex-client 2>&1', 120000);
-    console.log(`  ${installOutput}`);
-  } catch (e) {
-    log.error(`npm install -g cortex-client failed: ${(e as Error).message}`);
+  // Step 3: Ship the managed bundle to ~/.cortex/client/current/
+  console.log('[3/5] Deploying client bundle...');
+  const bundle = resolveBundle();
+  if (!bundle) {
+    log.error('No client bundle available (dev: client repo build failed; release: npm registry unreachable).');
     process.exit(1);
+  }
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-client-deploy-'));
+  try {
+    await sshExec('mkdir -p ~/.cortex/client/current');
+    for (const file of bundle.files) {
+      const local = path.join(tmp, file.name);
+      fs.writeFileSync(local, Buffer.from(file.data, 'base64'), { mode: 0o755 });
+      await scpTo(local, `.cortex/client/current/${file.name}`);
+    }
+    console.log(`  Deployed bundle ${bundle.hash.slice(0, 12)} (v${bundle.version}) → ~/.cortex/client/current/`);
+  } catch (e) {
+    log.error(`Bundle deployment failed: ${(e as Error).message}`);
+    process.exit(1);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 
   // Step 4: Write client config
@@ -128,7 +154,7 @@ After=network.target
 
 [Service]
 Type=simple
-${tokenEnvLine}ExecStart=/usr/bin/env cortex-client
+${tokenEnvLine}ExecStart=/usr/bin/env node %h/.cortex/client/current/client.mjs
 Restart=always
 RestartSec=5
 
@@ -145,12 +171,12 @@ WantedBy=default.target
   } else {
     // Non-Linux: just create a wrapper script
     const tokenExport = clientToken ? `export CORTEX_CLIENT_TOKEN=${clientToken}\n` : '';
-    const startScript = `#!/bin/bash\n${tokenExport}exec cortex-client\n`;
+    const startScript = `#!/bin/bash\n${tokenExport}exec node "$HOME/.cortex/client/current/client.mjs"\n`;
     await sshExec(`mkdir -p ~/.cortex/bin`);
     await sshExec(`cat > ~/.cortex/bin/start-client.sh << 'SHEOF'\n${startScript}\nSHEOF`);
     await sshExec(`chmod +x ~/.cortex/bin/start-client.sh`);
     console.log(`  Created start script: ~/.cortex/bin/start-client.sh`);
-    console.log('  Start manually: nohup cortex-client &');
+    console.log('  Start manually: nohup node ~/.cortex/client/current/client.mjs &');
   }
 
   console.log('\n=== Bootstrap complete ===\n');

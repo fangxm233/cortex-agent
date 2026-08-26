@@ -13,30 +13,24 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-test('disabled client hot reload starts remote clients without arming the probe timer', () => {
-  vi.useFakeTimers();
-  const runProbe = vi.fn();
-  const startAllRemoteClients = vi.fn();
+test('disabled client hot reload starts remote clients without initializing the publisher', () => {
+  const initHotReload = vi.fn();
+  const startAllRemoteClients = vi.fn().mockResolvedValue(undefined);
 
-  startClientHotReloadJob(false, runProbe, startAllRemoteClients);
+  startClientHotReloadJob(false, initHotReload, startAllRemoteClients);
 
-  assert.equal(vi.getTimerCount(), 0);
-  assert.equal(runProbe.mock.calls.length, 0);
+  assert.equal(initHotReload.mock.calls.length, 0);
   assert.equal(startAllRemoteClients.mock.calls.length, 1);
 });
 
-test('enabled client hot reload preserves the delayed probe then remote-client startup', async () => {
-  vi.useFakeTimers();
+test('enabled client hot reload initializes the publisher before starting remote clients', () => {
   const order: string[] = [];
-  const runProbe = vi.fn(async () => { order.push('probe'); });
+  const initHotReload = vi.fn(() => { order.push('init'); });
   const startAllRemoteClients = vi.fn(async () => { order.push('clients'); });
 
-  startClientHotReloadJob(true, runProbe, startAllRemoteClients);
+  startClientHotReloadJob(true, initHotReload, startAllRemoteClients);
 
-  assert.equal(vi.getTimerCount(), 1);
-  assert.equal(runProbe.mock.calls.length, 0);
-  await vi.advanceTimersByTimeAsync(2_000);
-  assert.deepEqual(order, ['probe', 'clients']);
+  assert.deepEqual(order, ['init', 'clients']);
 });
 
 test('store archive setting controls whether the daily interval is armed', async () => {

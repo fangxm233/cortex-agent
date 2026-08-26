@@ -1,5 +1,5 @@
 // input:  cortex-client WS, SSH tunnels, tasks, machine registry
-// output: client routes, lifecycle, commands, fenced callbacks
+// output: client routes, lifecycle, commands, update hooks, fenced callbacks
 // pos:    Registers, routes and restarts remote clients
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFile, spawn } from 'child_process';
 import { getMachineRegistry, type MachineEntry, type MachineRegistry } from '../tasks/dispatch-utils.js';
-import { STORE_DIR, CONFIG_DIR } from '@core/utils.js';
+import { STORE_DIR, CONFIG_DIR, DATA_DIR } from '@core/utils.js';
 import { AUTH_HEADER, getClientToken, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import { claimStream, parseStreamId, cancelStreamsFor } from './reverse-stream.js';
@@ -29,8 +29,20 @@ interface DeviceInfo {
   capabilities: string[];
   connectedAt: Date;
   lastHeartbeat: Date;
+  /** Client-reported bundle identity (hello). Null for clients outside the managed layout. */
+  bundleHash: string | null;
   ws: WebSocket;
 }
+
+/** Client self-update wiring (set by client-hot-reload at boot). */
+interface ClientUpdateHooks {
+  /** A device said hello with its bundle hash — decide whether to push a bundle. */
+  onHello: (device: string, bundleHash: string | null) => void;
+  /** A device reported the outcome of an update install. */
+  onUpdateResult: (device: string, result: { ok: boolean; hash?: string; error?: string }) => void;
+}
+let updateHooks: ClientUpdateHooks | null = null;
+function setClientUpdateHooks(hooks: ClientUpdateHooks): void { updateHooks = hooks; }
 
 interface PendingCommand {
   resolve: (result: any) => void;
@@ -133,16 +145,34 @@ function startClientManager(port: number): void {
           return;
         }
 
+        const bundleHash = typeof msg.bundleHash === 'string' && msg.bundleHash ? msg.bundleHash : null;
         devices.set(deviceName, {
           device: deviceName,
           platform: msg.platform || 'unknown',
           capabilities: msg.capabilities || [],
           connectedAt: new Date(),
           lastHeartbeat: new Date(),
+          bundleHash,
           ws,
         });
         log.info(`Device connected: ${deviceName} (${msg.platform || 'unknown'})`);
         void emitCortexEvent('cortex:client.connected', { device: deviceName }).catch(() => {});
+        try { updateHooks?.onHello(deviceName, bundleHash); } catch (e) {
+          log.warn(`onHello hook failed for ${deviceName}: ${(e as Error).message}`);
+        }
+        return;
+      }
+
+      if (msg.type === 'update-result' && deviceName) {
+        try {
+          updateHooks?.onUpdateResult(deviceName, {
+            ok: !!msg.ok,
+            hash: typeof msg.hash === 'string' ? msg.hash : undefined,
+            error: typeof msg.error === 'string' ? msg.error : undefined,
+          });
+        } catch (e) {
+          log.warn(`onUpdateResult hook failed for ${deviceName}: ${(e as Error).message}`);
+        }
         return;
       }
 
@@ -267,8 +297,8 @@ async function stopClientManager(): Promise<void> {
 
 // --- Device queries ---
 
-function getOnlineDevices(): Array<{ device: string; platform: string; connectedAt: Date; lastHeartbeat: Date; capabilities: string[] }> {
-  const result: Array<{ device: string; platform: string; connectedAt: Date; lastHeartbeat: Date; capabilities: string[] }> = [];
+function getOnlineDevices(): Array<{ device: string; platform: string; connectedAt: Date; lastHeartbeat: Date; capabilities: string[]; bundleHash: string | null }> {
+  const result: Array<{ device: string; platform: string; connectedAt: Date; lastHeartbeat: Date; capabilities: string[]; bundleHash: string | null }> = [];
   for (const [, info] of devices) {
     result.push({
       device: info.device,
@@ -276,6 +306,7 @@ function getOnlineDevices(): Array<{ device: string; platform: string; connected
       connectedAt: info.connectedAt,
       lastHeartbeat: info.lastHeartbeat,
       capabilities: info.capabilities,
+      bundleHash: info.bundleHash,
     });
   }
   return result;
@@ -378,19 +409,29 @@ type SshExec = (host: string, command: string, timeout?: number) => Promise<stri
 let _sshExecImpl: SshExec = sshExec;
 let _getRegistryImpl: () => MachineRegistry = getMachineRegistry;
 
+/** Managed bundle entry for the same-machine client (shares the server's CORTEX home). */
+function localClientEntryPath(): string {
+  return path.join(DATA_DIR, 'client', 'current', 'client.mjs');
+}
+
+/** Default launch: node on the managed bundle. Shell/cmd expands the home variable. */
+function defaultClientLaunch(reg: MachineEntry): string {
+  return reg.win
+    ? 'node "%USERPROFILE%\\.cortex\\client\\current\\client.mjs"'
+    : 'node "$HOME/.cortex/client/current/client.mjs"';
+}
+
 /**
  * Build the shell command run over SSH to spawn cortex-client on a remote device.
  *
- * Windows note: WMI `Win32_Process.Create` does NOT perform PATH lookup, and
- * `cortex-client` installed by npm on Windows is a `.cmd` shim
- * (e.g. `C:\Users\<u>\AppData\Roaming\npm\cortex-client.cmd`). Passing the bare
- * name returns ReturnValue=9 (Path Not Found) with an empty ProcessId, which
- * over SSH serializes to "" and the parent caller logs
- * `Failed to parse PID for <device>: ""`. Wrapping with `cmd.exe /c` makes cmd
- * do the PATH lookup and run the .cmd shim correctly.
+ * Windows note: WMI `Win32_Process.Create` does NOT perform PATH lookup, so the
+ * launch is wrapped with `cmd.exe /c`, which resolves `node` and expands
+ * `%USERPROFILE%`.
  *
  * Linux note: the shell handles PATH lookup; `nohup` detaches and `echo $!`
- * returns the child PID on stdout.
+ * returns the child PID on stdout. Machines where `node` is not on the
+ * non-interactive SSH PATH (nvm installs) set an absolute node path in
+ * machines.json `clientCommand`.
  */
 function buildRemoteSpawnCommand(
   reg: MachineEntry,
@@ -399,7 +440,7 @@ function buildRemoteSpawnCommand(
 ): string {
   const token = clientToken?.trim();
   const url = serverUrl?.trim();
-  const launch = reg.clientCommand?.trim() || 'cortex-client';
+  const launch = reg.clientCommand?.trim() || defaultClientLaunch(reg);
   if (reg.win) {
     const env = [
       token ? `set CORTEX_CLIENT_TOKEN=${token}` : '',
@@ -414,27 +455,6 @@ function buildRemoteSpawnCommand(
   ].filter(Boolean).join(' ');
   const envPrefix = env ? `${env} ` : '';
   return `${envPrefix}nohup ${launch} > /dev/null 2>&1 & echo $!`;
-}
-
-/**
- * Build the shell command run over SSH to install the client tgz on a remote device
- * during a dev-mode hot-reload.
- *
- * Defaults to a bare `npm install -g <tgz>`. Install command is configurable per machine
- * (machines.json `installCommand`) for hosts where `npm` is not on the non-interactive
- * SSH PATH — e.g. nvm installs, where node/npm are only sourced in a login/interactive
- * profile, so a plain `ssh host 'npm install -g …'` fails with "command not found".
- * The template may contain the `{tgz}` placeholder for the remote tgz path; if the
- * placeholder is absent, the path is appended. Examples of an override:
- *   "bash -lc 'source ~/.nvm/nvm.sh && npm install -g {tgz}'"
- *   "/home/u/.nvm/versions/node/v20.19.5/bin/npm install -g"
- */
-function buildRemoteInstallCommand(reg: MachineEntry, remoteTgzPath: string): string {
-  const tmpl = reg.installCommand?.trim();
-  if (!tmpl) return `npm install -g ${remoteTgzPath}`;
-  return tmpl.includes('{tgz}')
-    ? tmpl.replaceAll('{tgz}', remoteTgzPath)
-    : `${tmpl} ${remoteTgzPath}`;
 }
 
 const ROUTE_OWNERSHIP_FILE = path.join(STORE_DIR, 'client-routes.json');
@@ -552,20 +572,20 @@ async function startRemoteClient(device: string): Promise<void> {
     return;
   }
 
-  // Local device (no SSH): spawn cortex-client (config managed by LLM)
+  // Local device (no SSH): spawn the managed bundle on the server's own node.
   if (!reg.ssh) {
+    const entry = localClientEntryPath();
+    if (!fs.existsSync(entry)) {
+      log.warn(`Managed client bundle missing at ${entry} — skipping local client spawn on ${device}`);
+      return;
+    }
     try {
-      const child = spawn('cortex-client', [], {
+      const child = spawn(process.execPath, [entry], {
         detached: true,
         stdio: 'ignore',
       });
       child.on('error', (err) => {
-        const e = err as NodeJS.ErrnoException;
-        if (e.code === 'ENOENT') {
-          log.warn(`cortex-client binary not found on PATH — skipping local client spawn on ${device} (install with: npm i -g cortex-client)`);
-        } else {
-          log.error(`Local client spawn error on ${device}: ${e.message}`);
-        }
+        log.error(`Local client spawn error on ${device}: ${(err as Error).message}`);
       });
       child.unref();
       if (child.pid) {
@@ -739,11 +759,12 @@ export {
   isDeviceOnline,
   sendCommand,
   sendControlMessage,
+  setClientUpdateHooks,
   startRemoteClient,
   launchRemoteClient,
   startAllRemoteClients,
   buildRemoteSpawnCommand,
-  buildRemoteInstallCommand,
+  localClientEntryPath,
   clientPids,
   sshExec,
   // Test-only hooks (prefixed with _ by convention).

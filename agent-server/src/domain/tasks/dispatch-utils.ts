@@ -27,23 +27,12 @@ export interface MachineEntry {
   clientReversePort?: number;
   /**
    * Command the server runs (over SSH) to launch cortex-client on this machine.
-   * Defaults to `cortex-client`. Override for machines where a bare `cortex-client`
-   * isn't on the non-login SSH PATH — e.g. nvm installs need `bash -lc cortex-client`
-   * so the login profile puts node + cortex-client on PATH. The token-injection and
+   * Defaults to `node` on the managed bundle at ~/.cortex/client/current/client.mjs.
+   * Override for machines where `node` isn't on the non-login SSH PATH (absolute
+   * nvm bin path) or where CORTEX_HOME is relocated. The token-injection and
    * nohup/echo-$! (Linux) / cmd.exe-wrap WMI (Windows) machinery wraps this command.
    */
   clientCommand?: string;
-  /**
-   * Command the server runs (over SSH) to install the client tgz on this machine
-   * during a dev-mode hot-reload. Defaults to `npm install -g <tgz>`. Override for
-   * machines where a bare `npm` is not on the non-interactive SSH PATH (e.g. nvm
-   * installs, where npm is only sourced in a login/interactive profile).
-   * The template may contain the `{tgz}` placeholder for the remote tgz path; if the
-   * placeholder is absent, the path is appended. Examples:
-   *   "bash -lc 'source ~/.nvm/nvm.sh && npm install -g {tgz}'"
-   *   "/home/u/.nvm/versions/node/v20.19.5/bin/npm install -g"
-   */
-  installCommand?: string;
 }
 
 export type MachineRegistry = Record<string, MachineEntry>;
