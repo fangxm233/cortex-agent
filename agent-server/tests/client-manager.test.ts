@@ -358,6 +358,40 @@ test('buildRemoteInstallCommand falls back to the default when installCommand is
 //     on my-pc), `startRemoteClient` previously only logged a WARN and returned —
 //     no retry was scheduled. Combined with the WMI bug above, this caused my-pc to
 //     stay silently offline for 3 days. Fix: always schedule a retry on spawn failure.
+test('SSH-routed startup does not spawn a duplicate when the client connects while the tunnel starts', async (t) => {
+  const port = await findEphemeralPort();
+  let ws: WebSocket | null = null;
+  const ensure = vi.fn(async () => {
+    ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
+    await new Promise<void>((resolve, reject) => {
+      ws!.once('open', resolve);
+      ws!.once('error', reject);
+    });
+    ws.send(JSON.stringify({ type: 'hello', device: 'managed-service', platform: 'linux', capabilities: [] }));
+    await waitFor(() => isDeviceOnline('managed-service'));
+  });
+  _setTunnelSupervisorForTesting({ ensure, stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn() });
+  _setMachineRegistryProviderForTesting(() => ({
+    'managed-service': {
+      cortexPath: '/home/worker', gpuCount: 1, ssh: 'user@worker',
+      clientConnection: 'ssh-reverse',
+    },
+  }));
+  const ssh = vi.fn(async () => '9999');
+  _setSshExecForTesting(ssh);
+  startClientManager(port);
+  t.onTestFinished(async () => {
+    try { ws?.close(); } catch {}
+    await stopClientManager();
+    _testReset();
+  });
+
+  await startRemoteClient('managed-service');
+
+  assert.equal(ssh.mock.calls.length, 0);
+  assert.equal(clientPids.get('managed-service'), undefined);
+});
+
 test('SSH-routed client waits for its tunnel and launches with the loopback URL', async (t) => {
   const port = await findEphemeralPort();
   const ensure = vi.fn().mockResolvedValue(undefined);

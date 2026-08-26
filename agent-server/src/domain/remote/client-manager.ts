@@ -540,6 +540,7 @@ async function startRemoteClient(device: string): Promise<void> {
 
   try {
     await ensureManagedRoute(device, reg);
+    if (devices.has(device)) return;
     if (reg.ssh) await stopMismatchedRemoteClient(device, reg);
     if (reg.ssh && await isRemotePidAlive(device)) {
       log.info(`Client on ${device} already running (PID ${clientPids.get(device)}), waiting for reconnect...`);
