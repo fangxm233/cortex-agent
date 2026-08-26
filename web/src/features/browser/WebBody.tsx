@@ -40,7 +40,7 @@ import {
 } from './browser-target';
 
 const MONO = "'IBM Plex Mono',monospace";
-const EMPTY_HINT = 'Enter a port (5173) or a URL. Remote dev servers appear here once forwarded.';
+const EMPTY_HINT = 'Enter a port or a URL. Remote dev servers appear here once forwarded.';
 const INVALID_ADDRESS = 'Not a previewable address — use http(s), a host:port, or a bare port.';
 const ORIGIN_CONFLICT = 'Refused: that is this app’s own origin. Previewing it would hand the page your session.';
 
@@ -268,7 +268,7 @@ function BrowserToolbar({ tab, url, inputRef, portsOpen, onStep, onReload, onDra
         ref={inputRef}
         value={tab.draft}
         spellCheck={false}
-        placeholder="5173 or http://host:port"
+        placeholder="Port or http://host:port"
         onChange={(event) => onDraft(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter') onNavigate();
