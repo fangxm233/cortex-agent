@@ -12,6 +12,7 @@ import type {
 } from 'node:child_process';
 import type { AgentProcessSpawner } from '../src/agent-adapter/types.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { encodeSubagentNotice } from '../src/agent-adapter/pi/subagent-notice.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 
@@ -117,6 +118,35 @@ async function runBlock(
     resetSettingsForTests();
   }
 }
+
+test('PI keeps attribution on a subagent assistant message instead of merging it into main text', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'stream-subagent-text', resume: false });
+  await Promise.resolve();
+  const child = stub.children[0]!;
+
+  pushLine(child, {
+    type: 'extension_ui_request', id: 'ui-subagent', method: 'notify',
+    message: encodeSubagentNotice({
+      ref: 'agent-call#0', type: 'explore', description: 'Inspect adapter',
+      model: 'gpt-5.4-mini', kind: 'assistant_text', text: 'child report',
+    }),
+  });
+  pushLine(child, { type: 'message_end' });
+
+  const events = await collect(proc, 2);
+  child.emit('close', 0, null);
+  await proc.close();
+
+  const text = events.find((event) => event.type === 'assistant_text');
+  assert.ok(text && text.type === 'assistant_text');
+  assert.equal(text.text, 'child report');
+  assert.deepEqual(text.subagent, {
+    parentToolUseId: 'agent-call#0', type: 'explore',
+    description: 'Inspect adapter', model: 'gpt-5.4-mini',
+  });
+});
 
 // --- (a) per-delta assistant_delta with a stable, shared blockId ---
 

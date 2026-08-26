@@ -678,6 +678,13 @@ class PISession {
       this.turnStream?.push(evt);
       return;
     }
+    // Forwarded subagent prose is already a complete message, not a token delta. Putting it in the
+    // main-agent text buffer would erase attribution when flushTextBuffer reconstructs the event.
+    if (evt.type === 'assistant_text' && evt.subagent) {
+      this.flushTextBuffer();
+      this.turnStream?.push(evt);
+      return;
+    }
     if (evt.type !== 'assistant_text') {
       this.flushTextBuffer();
       this.turnStream?.push(evt);
