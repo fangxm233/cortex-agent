@@ -1,5 +1,5 @@
 // input:  one subagent's identity, complete prompt, and grouped rows
-// output: collapsible subagent block with an unabridged prompt
+// output: prompt block with a right-aligned tool-call count
 // pos:    desktop workbench subagent presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -27,7 +27,7 @@ const descStyle: CSSProperties = {
   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
 };
 const metaStyle: CSSProperties = {
-  font: `400 10.5px ${mono}`, color: 'var(--proto-muted)', flex: 'none',
+  font: `400 10.5px ${mono}`, color: 'var(--proto-muted)', flex: 'none', marginLeft: 'auto',
 };
 
 /** The dot stands where the disclosure caret used to, so the row leads with state instead of with

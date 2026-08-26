@@ -173,7 +173,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | thread-wait-deadlock.test.ts | test | stuck wait-set detection and wake |
 | thread-wait-tasks.test.ts | test | manager suspension on child tasks |
 | threads/ | subdir | thread config, template and transcript tests |
-| tool-trace.test.ts | test | Agent prompts, tool grouping, ordering and flush |
+| tool-trace.test.ts | test | Platform prompt visibility, grouping and flush |
 | tui/ | subdir | TUI rendering, hooks and protocol tests |
 | ui-service-compact.test.ts | test | session compact mutation outcome mapping |
 | update-prompt-slack.test.ts | test | Slack update prompt buttons and timeout |

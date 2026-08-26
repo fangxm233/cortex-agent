@@ -1,5 +1,5 @@
 // input:  Mobile chat rows, Todo snapshots, interactions, composer state
-// output: Mobile chat with full subagent prompts, controls, and sheets
+// output: Mobile chat with prompts and right-aligned Agent counts
 // pos:    Mobile chat presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -766,7 +766,7 @@ function MSubagentBlock({ row, unit }: {
           </span>
         ) : null}
         <span style={{ font: `400 11px ${MONO}`, color: MC.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{label}</span>
-        <span style={{ font: `400 10px ${MONO}`, flex: 'none' }}>{`${row.toolCount} ${unit}`}</span>
+        <span style={{ font: `400 10px ${MONO}`, flex: 'none', marginLeft: 'auto' }}>{`${row.toolCount} ${unit}`}</span>
       </div>
       {expanded && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 11px 10px', borderTop: '1px solid var(--proto-line-soft)' }}>

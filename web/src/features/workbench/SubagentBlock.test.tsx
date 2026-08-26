@@ -1,5 +1,5 @@
 // input:  subagent identity, complete prompt, and folded child content
-// output: desktop subagent disclosure behavior tests
+// output: desktop prompt disclosure and count alignment tests
 // pos:    Desktop subagent card presentation contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -30,6 +30,8 @@ describe('SubagentBlock', () => {
     });
 
     expect(JSON.stringify(renderer.toJSON())).not.toContain(prompt);
+    const count = renderer.root.findAll((node) => node.type === 'span' && node.children.join('') === '1 tool call')[0];
+    expect(count.props.style.marginLeft).toBe('auto');
     act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain(prompt.replace(/\n/g, '\\n'));

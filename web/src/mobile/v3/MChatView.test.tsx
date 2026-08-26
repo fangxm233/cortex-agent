@@ -1,5 +1,5 @@
 // input:  mobile rows, Todo snapshots, slash and send state
-// output: Mobile prompt, Todo, message, and composer contracts
+// output: Mobile prompt/count, Todo, message, and composer contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -258,6 +258,8 @@ describe('MChatStream subagent prompt', () => {
     });
 
     expect(JSON.stringify(renderer.toJSON())).not.toContain(prompt);
+    const count = renderer.root.findAll((node) => node.type === 'span' && node.children.join('') === '0 tools')[0];
+    expect(count.props.style.marginLeft).toBe('auto');
     act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain(prompt.replace(/\n/g, '\\n'));

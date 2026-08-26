@@ -1,6 +1,7 @@
 // input:  nothing (pure types module)
-// output: OutputStream / MutableRegion / OpenOutputStreamOpts types
+// output: OutputStream types with optional prompt-display capability
 // pos:    Platform-neutral output streaming interface
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { MessageRef, Destination, RichBlock, ActionElement, DurableHooks } from './types.js';
 
@@ -10,6 +11,9 @@ export interface MutableRegion {
 }
 
 export interface OutputStream {
+  /** Only terminal-native streams opt in; chat platforms keep Agent traces compact. */
+  readonly showFullSubagentPrompts?: boolean;
+
   /** Emit committed assistant text — a hard boundary for aggregation. */
   emitText(text: string): void;
 

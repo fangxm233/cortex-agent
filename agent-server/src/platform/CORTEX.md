@@ -8,11 +8,11 @@ Concrete SDK integrations live in adapters/.
 | index.ts | entry | Exports platform APIs, synthetic callback identity, and live update helpers |
 | adapter.ts | interface | Defines adapter lifecycle and live updates |
 | types.ts | types | Message, block, and modal type definitions |
-| output-stream.ts | interface | OutputStream and MutableRegion contracts |
+| output-stream.ts | interface | Defines streams and prompt-display capability |
 | output-stream-chunk.ts | util | Splits long text into postable chunks |
 | output-stream-helpers.ts | util | Posts a single message via a temporary stream |
 | interactive-builder.ts | builder | Builds question and plan approval components |
-| tool-trace.ts | ui | Shows full Agent prompts and compact tool activity |
+| tool-trace.ts | ui | Shows compact activity and TUI-only Agent prompts |
 | testing.ts | testing | Records calls and supports nullable admin updates |
 | adapters/ | subdir | Concrete platform adapter implementations |
 | tui/ | subdir | TUI wire protocol contract |

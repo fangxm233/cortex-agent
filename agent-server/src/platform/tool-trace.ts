@@ -1,5 +1,5 @@
 // input:  OutputStream, icons, runtime settings
-// output: ToolTrace with full Agent prompts and compact activity
+// output: compact traces plus TUI-only full Agent prompts
 // pos:    Renders compact tool-use traces through OutputStream
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -203,7 +203,9 @@ export class ToolTrace {
   private trackSubagentSpawns(spawns: SubagentSpawnRef[]): void {
     for (const spawn of spawns) {
       const prefix = this.prefix ? `${this.prefix} ` : '';
-      if (spawn.prompt) this.stream.emitText(`${prefix}**Agent prompt — ${subagentLabel(spawn.description, spawn.type)}**\n\n${spawn.prompt}`);
+      if (spawn.prompt && this.stream.showFullSubagentPrompts) {
+        this.stream.emitText(`${prefix}**Agent prompt — ${subagentLabel(spawn.description, spawn.type)}**\n\n${spawn.prompt}`);
+      }
     }
     const continuing = this.groupKey === SUBAGENT_GROUP_KEY;
     if (!continuing) this.subagents.clear();

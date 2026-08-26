@@ -37,8 +37,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | transcript-vm.ts | vm | Builds chat rows and assistant turn-copy targets |
 | transcript-vm.test.ts | test | Tests transcript rows, turn copy and auth actions |
 | ToolCallsRow.tsx | view | Expands tool chips with row-scoped debug actions |
-| SubagentBlock.tsx | view | Folds one native subagent's prompt and rows into a block |
-| SubagentBlock.test.tsx | test | Tests complete prompt disclosure in the subagent block |
+| SubagentBlock.tsx | view | Shows prompt rows with a right-aligned tool count |
+| SubagentBlock.test.tsx | test | Tests prompt disclosure and count alignment |
 | tool-call-overflow.ts | util | Computes visible tool chips and hidden count |
 | useToolCallOverflow.ts | hook | Measures chip widths and recomputes on resize |
 | InteractionCards.tsx | view | Ask-user and plan-approval cards in the stream |

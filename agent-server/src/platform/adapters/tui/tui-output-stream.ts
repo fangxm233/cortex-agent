@@ -1,5 +1,5 @@
 // input:  OutputStream interface, TuiConnection, protocol types
-// output: TuiOutputStream — OutputStream impl emitting WS frames
+// output: TUI stream with full subagent-prompt display capability
 // pos:    TUI adapter — no coalescing, client groups by streamId
 // >>> If I am updated, update the folder's CORTEX.md <<<
 
@@ -20,6 +20,7 @@ function nextRegionId(): string {
 }
 
 export class TuiOutputStream implements OutputStream {
+  readonly showFullSubagentPrompts = true;
   private conn: TuiConnection;
   private streamId: string;
   private seq: number;

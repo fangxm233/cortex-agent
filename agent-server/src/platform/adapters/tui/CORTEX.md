@@ -9,7 +9,7 @@ Holds per-connection state and emits assistant output as protocol frames.
 | tui-gateway.ts | adapter | Serves TUI WebSocket clients as a PlatformAdapter |
 | tui-connection.ts | connection | Wraps one WebSocket client connection |
 | tui-conduit-state.ts | state | Tracks session and project per conduit |
-| tui-output-stream.ts | stream | Emits assistant output as stream frames |
+| tui-output-stream.ts | stream | Emits frames and opts into full Agent prompts |
 | tui-transcript.ts | format | Rebuilds past messages into replay frames |
 | tui-notifications.ts | notify | Fans project reports and notices to clients |
 | ports.ts | types | Boundary types for transcript and queue input |

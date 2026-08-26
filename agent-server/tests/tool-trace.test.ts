@@ -1,11 +1,11 @@
 // input:  Vitest, MockAdapter, OutputStream, runtime settings
-// output: prompt completeness, grouping, ordering, and trace regressions
+// output: platform prompt visibility, grouping, ordering, and trace tests
 // pos:    Covers runtime enablement and mutable-tail behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
-import { MockAdapter } from '../src/platform/testing.js';
+import { MockAdapter, MockOutputStream } from '../src/platform/testing.js';
 import {
   SlackOutputStream,
   _testSetRetryDelays,
@@ -175,7 +175,7 @@ test('ToolTrace folds a subagent\'s calls into one live line per spawning call',
   assert.ok(!final.includes('a.ts'));
 });
 
-test('ToolTrace emits every complete Agent prompt before the compact activity line', async () => {
+test('ToolTrace keeps Slack Agent activity compact without emitting prompts', async () => {
   const adapter = new MockAdapter();
   const stream = new SlackOutputStream(adapter as any, testDest('C1'));
   const trace = new ToolTrace(stream, { slotPrefix: '*[writer]*' });
@@ -194,10 +194,25 @@ test('ToolTrace emits every complete Agent prompt before the compact activity li
     ...adapter.posted.map((entry) => entry.content.text),
     ...adapter.updated.map((entry) => entry.content.text),
   ].join('\n');
-  assert.match(all, /\*\[writer\]\* \*\*Agent prompt — first child\*\*/);
-  assert.ok(all.includes(first), 'the first multiline prompt is not shortened to the activity-line limit');
-  assert.ok(all.includes(second), 'every PI batch child prompt is emitted');
+  assert.ok(!all.includes(first));
+  assert.ok(!all.includes(second));
   assert.match(all, /Agent .*×2/);
+});
+
+test('ToolTrace emits complete Agent prompts only for an opted-in TUI stream', () => {
+  const adapter = new MockAdapter();
+  const stream = new MockOutputStream(adapter, testDest('T1'));
+  Object.assign(stream, { showFullSubagentPrompts: true });
+  const trace = new ToolTrace(stream);
+  const prompt = 'First line.\n\n' + 'A'.repeat(180);
+
+  trace.onToolUse('Agent', {
+    description: 'inspect cards', prompt, subagent_type: 'explore',
+  }, undefined, 'tu_tui');
+
+  const text = stream.segments.filter((segment) => segment.kind === 'text').map((segment) => segment.text).join('\n');
+  assert.ok(text.includes(prompt));
+  assert.match(text, /Agent prompt — inspect cards/);
 });
 
 test('ToolTrace keeps main-agent calls in their own group after a subagent batch', async () => {
