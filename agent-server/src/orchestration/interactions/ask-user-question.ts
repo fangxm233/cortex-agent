@@ -108,13 +108,8 @@ function registerHookResolver(requestId, resolver) {
   pendingHookResolvers.set(requestId, resolver);
 }
 
-/** If the group is in hook mode and all answers collected, resolve the hook and return true.
- *  For PI backend: if a running execution with an agentProcess exists, send extension_ui_response directly. */
-function tryResolveHook(group) {
-  if (!group.hookRequestId) { log.info('tryResolveHook: no hookRequestId'); return false; }
-  if (group.answers.size !== group.questions.length) { log.info(`tryResolveHook: incomplete ${group.answers.size}/${group.questions.length}`); return false; }
-
-  // Build answers
+/** Build the webhook answer payload keyed by the original question text. */
+function collectHookAnswers(group) {
   const answers = {};
   for (const q of group.questions) {
     const answer = group.answers.get(q.pendingId);
@@ -122,28 +117,30 @@ function tryResolveHook(group) {
       answers[q.question] = Array.isArray(answer.value) ? answer.value.join(', ') : answer.value;
     }
   }
-  // PI branch: resolve by sending extension_ui_response to the running PI process.
-  // Use extensionUiId (the original PI extension_ui_request id) when available;
-  // fall back to group.toolUseId for legacy / non-PI paths.
-  // NOTE: Check for sendExtensionUiResponse capability directly instead of exec.backend,
-  // because the profile's backend (which determines the adapter) may differ from
-  // getActiveBackend() (which is stored in exec.backend).
-  const exec = runningExecutions.getByChannel(group.channel).find(e => e.agentProcess) ?? null;
-  if (exec && exec.agentProcess) {
-    const proc = exec.agentProcess as any;
-    if (typeof proc.sendExtensionUiResponse === 'function') {
-      const piId = group.extensionUiId || group.toolUseId;
-      if (piId) {
-        const value = Object.values(answers).join('\n');
-        log.info(`sendExtensionUiResponse id=${piId}`);
-        proc.sendExtensionUiResponse(piId, { value });
-        deleteGroup(group.groupId);
-        return true;
-      }
-    }
-  }
+  return answers;
+}
 
-  // Claude branch: resolve via hook callback
+/** Resolve a native PI dialog only when its real extension request ID is present. */
+function tryResolvePiExtension(group, answers): boolean {
+  if (!group.extensionUiId) return false;
+  const exec = runningExecutions.getByChannel(group.channel).find(e => e.agentProcess) ?? null;
+  if (!exec?.agentProcess) return false;
+  const proc = exec.agentProcess as any;
+  if (typeof proc.sendExtensionUiResponse !== 'function') return false;
+  const value = Object.values(answers).join('\n');
+  log.info(`sendExtensionUiResponse id=${group.extensionUiId}`);
+  proc.sendExtensionUiResponse(group.extensionUiId, { value });
+  deleteGroup(group.groupId);
+  return true;
+}
+
+/** Resolve a complete group through its native PI or blocking webhook channel. */
+function tryResolveHook(group) {
+  if (!group.hookRequestId) { log.info('tryResolveHook: no hookRequestId'); return false; }
+  if (group.answers.size !== group.questions.length) { log.info(`tryResolveHook: incomplete ${group.answers.size}/${group.questions.length}`); return false; }
+  const answers = collectHookAnswers(group);
+  if (tryResolvePiExtension(group, answers)) return true;
+
   const resolver = pendingHookResolvers.get(group.hookRequestId);
   if (!resolver) return false;
   resolver({ answers });

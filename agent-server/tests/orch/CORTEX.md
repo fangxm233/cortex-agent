@@ -7,7 +7,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 |---|---|---|
 | agent-runner-wake-guard.test.ts | test | Covers synthetic wake notice routing guard |
 | agent-runner.test.ts | test | Covers routing, download reuse and supersession |
-| ask-user-question-pi.test.ts | test | Covers PI ask-user-question resolution |
+| ask-user-question-pi.test.ts | test | Covers native PI and MCP-over-PI answer routing |
 | bg-continuation.test.ts | test | Covers reset-isolated continuation dispatch |
 | bg-wait-guard.test.ts | test | Covers background wait bracket, grace and cap |
 | busy-tracker.test.ts | test | Covers busy counter publish and aggregation |

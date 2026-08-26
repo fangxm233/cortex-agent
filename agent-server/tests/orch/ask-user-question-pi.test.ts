@@ -1,6 +1,6 @@
 // input:  ask-user-question.tryResolveHook, RunningExecutions
-// output: regression tests for PI branch in tryResolveHook — sendExtensionUiResponse routing
-// pos:    verifies S3 invariant: PI ask-user-question resolves via extension_ui_response, not new turn
+// output: regression tests for native PI and MCP-over-PI routing
+// pos:    verifies extension UI and webhook resolver separation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -17,7 +17,7 @@ function makeMockPIProcess() {
   };
 }
 
-test('tryResolveHook PI branch — sends extension_ui_response with joined answer values', async (t) => {
+test('tryResolveHook native PI branch — sends extension_ui_response with joined answer values', async (t) => {
   const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
   const mockProc = makeMockPIProcess();
 
@@ -34,7 +34,7 @@ test('tryResolveHook PI branch — sends extension_ui_response with joined answe
 
   const group = askUser.createHookGroup('req-pi-ask', 'C_PI_ASK', 'sess-pi-ask', [
     { header: 'Pick', question: 'Which one?', options: [{ label: 'A', description: 'First' }, { label: 'B', description: 'Second' }] },
-  ]);
+  ], 'ui-req-pi-ask');
 
   // Simulate answer collection
   const pendingId = group.questions[0].pendingId;
@@ -43,11 +43,11 @@ test('tryResolveHook PI branch — sends extension_ui_response with joined answe
   const resolved = askUser.tryResolveHook(group);
   assert.equal(resolved, true, 'tryResolveHook should return true for PI branch');
   assert.equal(mockProc.calls.length, 1);
-  assert.equal(mockProc.calls[0].id, 'req-pi-ask');
+  assert.equal(mockProc.calls[0].id, 'ui-req-pi-ask');
   assert.deepEqual(mockProc.calls[0].payload, { value: 'A' });
 });
 
-test('tryResolveHook PI branch — multi-question joins answers with newline', async (t) => {
+test('tryResolveHook native PI branch — multi-question joins answers with newline', async (t) => {
   const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
   const mockProc = makeMockPIProcess();
 
@@ -65,7 +65,7 @@ test('tryResolveHook PI branch — multi-question joins answers with newline', a
   const group = askUser.createHookGroup('req-pi-ask2', 'C_PI_ASK2', 'sess-pi-ask2', [
     { header: 'Color', question: 'Favorite color?', options: [{ label: 'Red', description: 'R' }] },
     { header: 'Size', question: 'T-shirt size?', options: [{ label: 'M', description: 'Medium' }] },
-  ]);
+  ], 'ui-req-pi-ask2');
 
   group.answers.set(group.questions[0].pendingId, { value: 'Red' });
   group.answers.set(group.questions[1].pendingId, { value: 'M' });
@@ -73,7 +73,36 @@ test('tryResolveHook PI branch — multi-question joins answers with newline', a
   const resolved = askUser.tryResolveHook(group);
   assert.equal(resolved, true);
   assert.equal(mockProc.calls.length, 1);
+  assert.equal(mockProc.calls[0].id, 'ui-req-pi-ask2');
   assert.equal(mockProc.calls[0].payload.value, 'Red\nM');
+});
+
+test('tryResolveHook MCP-over-PI branch — resolves blocking webhook instead of extension UI', async (t) => {
+  const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
+  const mockProc = makeMockPIProcess();
+
+  runningExecutions.register({
+    threadId: null,
+    channel: 'C_PI_MCP_ASK',
+    agentSlotId: null,
+    executionId: 'exec-pi-mcp-ask',
+    kill: () => true,
+    backend: 'pi',
+    agentProcess: mockProc,
+  });
+  t.onTestFinished(() => { runningExecutions.remove('exec-pi-mcp-ask'); });
+
+  let resolvedAnswers: Record<string, string> | null = null;
+  askUser.registerHookResolver('req-pi-mcp-ask', (data) => { resolvedAnswers = data.answers; });
+  const group = askUser.createHookGroup('req-pi-mcp-ask', 'C_PI_MCP_ASK', 'sess-pi-mcp-ask', [
+    { header: 'Deploy', question: 'Deploy now?', options: [{ label: 'Yes', description: 'Deploy' }] },
+  ]);
+  group.answers.set(group.questions[0].pendingId, { value: 'Yes' });
+
+  const resolved = askUser.tryResolveHook(group);
+  assert.equal(resolved, true);
+  assert.deepEqual(resolvedAnswers, { 'Deploy now?': 'Yes' });
+  assert.equal(mockProc.calls.length, 0, 'MCP request ID must not be sent as a PI extension UI ID');
 });
 
 test('tryResolveHook — non-PI backend falls through to Claude resolver', async (t) => {
