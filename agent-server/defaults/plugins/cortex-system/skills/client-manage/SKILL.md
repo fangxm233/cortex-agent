@@ -2,7 +2,7 @@
 name: client-manage
 description: "Use when creating, deploying, updating, or troubleshooting cortex-client instances on remote devices"
 author: Cortex
-version: 1.2.0
+version: 1.3.0
 allowed-tools:
   - Read
   - Write
@@ -109,7 +109,7 @@ Read `machines.json` on the server for the current device list. Key fields per d
 - `cortexPath` — Path to user's workspace on the device
 - `gpuCount` — Number of GPUs
 - `win` — `true` for Windows
-- `clientCommand` — (optional) command the server runs over SSH to launch the client; defaults to `cortex-client`. Override on machines where `cortex-client` isn't on the **non-login** SSH PATH — e.g. nvm installs: set `"bash -lc cortex-client"` so a login shell resolves node + cortex-client. See Troubleshooting.
+- `clientCommand` — (optional) command the server runs over SSH to launch the client; defaults to `node "$HOME/.cortex/client/current/client.mjs"` (`%USERPROFILE%` on Windows). Override on machines where `node` isn't on the **non-login** SSH PATH — e.g. nvm installs: set an absolute node path like `"/home/u/.nvm/versions/node/v20.19.5/bin/node /home/u/.cortex/client/current/client.mjs"`. See Troubleshooting.
 
 ## Bootstrap — New Device
 
@@ -117,15 +117,24 @@ Read `machines.json` on the server for the current device list. Key fields per d
 
 Edit `machines.json` on the server to add the device entry.
 
-### 2. Install cortex-client
+### 2. Deploy the client bundle
+
+The client is two self-contained files under `~/.cortex/client/current/` on the device — no npm install. Either run the bootstrap CLI (does steps 2-3 plus systemd setup):
 
 ```bash
-# Build from source
-cd <cortex-repo>/client && npm run build && npm pack
+cd <cortex-repo>/agent-server && node --import tsx src/domain/remote/client-bootstrap.ts \
+  --host user@host --device-name <device-name> --server-host <serverHost>
+```
 
-# Transfer and install
-scp cortex-agent-client-*.tgz user@host:~/
-ssh user@host "npm install -g ./cortex-agent-client-*.tgz"
+or place the bundle by hand:
+
+```bash
+# Build from source (dev) — produces dist/client.mjs + dist/cortex-run-watcher.mjs
+cd <cortex-repo>/client && npm run bundle
+
+# Ship to the device
+ssh user@host "mkdir -p ~/.cortex/client/current"
+scp dist/client.mjs dist/cortex-run-watcher.mjs user@host:.cortex/client/current/
 ```
 
 ### 3. Write the config
@@ -176,10 +185,19 @@ ssh user@host "tail -20 ~/.cortex/logs/client-\$(date +%Y%m%d).log"
 
 ### Update cortex-client
 
+Updates are automatic: every client reports its bundle hash in its hello, and the server pushes the desired bundle over the WebSocket when they differ. The client installs into `~/.cortex/client/next/`, verifies the hash, rotates `current/`→`previous/`, re-execs itself and reconnects. No manual npm/scp step exists in the normal path.
+
+To force a refresh, kill the client — the server relaunches it and the reconnect hello triggers the push if the device is behind:
+
 ```bash
-# Update and restart
-ssh user@host "npm update -g @cortex-agent/client && pkill -f 'node.*cortex-client'"
-# Server's client-manager will restart it automatically via scheduleRestart()
+ssh user@host "pkill -f client.mjs"
+```
+
+If a bad bundle leaves the client unable to start, roll back or redeploy:
+
+```bash
+ssh user@host "rm -rf ~/.cortex/client/current && mv ~/.cortex/client/previous ~/.cortex/client/current"
+# or re-run the bootstrap deployment (step 2 above)
 ```
 
 ### Edit the config
@@ -203,11 +221,11 @@ ssh user@host "pkill -f 'node.*cortex-client'"
 
 | Symptom | Likely Cause | Check |
 |---------|-------------|-------|
-| "Device is not online" | Client process died | `ssh user@host "pgrep -f cortex-client"` |
+| "Device is not online" | Client process died | `ssh user@host "pgrep -f client.mjs"` |
 | Client exits on start | Config missing or bad serverHost | Check `~/.cortex/config/cortex-client.json` exists and serverHost is reachable |
-| "Device already connected" | Stale process | `ssh user@host "pkill -f cortex-client"`, server will restart |
+| "Device already connected" | Stale process | `ssh user@host "pkill -f client.mjs"`, server will restart |
 | WebSocket connect EHOSTUNREACH | Wrong serverHost | Verify with `/dev/tcp` test, fix the IP |
 | `Unexpected server response: 401` | Missing/mismatched `CORTEX_CLIENT_TOKEN` | Ensure the client's env has the server's token (see Authentication); restart the client |
-| Exit code 127 | cortex-client binary not on PATH | `ssh user@host "which cortex-client"`, reinstall with `npm i -g` |
-| Runs when started by hand but never reconnects after an auto-restart (nvm machines) | Server's SSH auto-restart uses a **non-login** shell where nvm's `node`/`cortex-client` aren't on PATH — `ssh user@host "which cortex-client"` returns empty | Set `clientCommand: "bash -lc cortex-client"` in `machines.json` (login shell loads nvm), or symlink `node`+`cortex-client` into `/usr/local/bin` |
+| Exit code 127 | `node` not on the non-login SSH PATH, or bundle missing | `ssh user@host "which node; ls ~/.cortex/client/current"`; set an absolute node path in `clientCommand`, or redeploy the bundle |
+| Runs when started by hand but never reconnects after an auto-restart (nvm machines) | Server's SSH auto-restart uses a **non-login** shell where nvm's `node` isn't on PATH — `ssh user@host "which node"` returns empty | Set an absolute node path in `clientCommand` in `machines.json` |
 | Server can't SSH to device | SSH key or tunnel issue | `ssh user@host hostname` from server |
