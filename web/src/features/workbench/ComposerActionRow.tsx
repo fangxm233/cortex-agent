@@ -61,9 +61,35 @@ export interface ComposerBrowserControl {
 }
 
 const MENU_ROW_STYLE: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 10, minHeight: 32, padding: '0 13px',
+  display: 'flex', alignItems: 'center', gap: 9, minHeight: 32, padding: '0 13px',
   cursor: 'pointer', fontSize: 12, color: 'var(--proto-ink)',
 };
+
+/** Row glyphs for the ＋ menu — same 16-unit line-art family the mobile attach menu uses, so the
+ *  two surfaces read as one menu. Muted stroke: the label carries the row, the icon only anchors it. */
+function MenuIcon({ kind }: { kind: 'attach' | 'browser' | 'commands' }): JSX.Element {
+  const common = { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--proto-muted-2)', style: { flex: 'none' } } as const;
+  if (kind === 'attach') {
+    return (
+      <svg {...common} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14.29 7.37l-6.13 6.13a4 4 0 0 1-5.66-5.66l5.71-5.71A2.67 2.67 0 1 1 12 5.89l-5.73 5.71a1.33 1.33 0 0 1-1.89-1.89l5.66-5.65" />
+      </svg>
+    );
+  }
+  if (kind === 'browser') {
+    return (
+      <svg {...common} strokeWidth={1.4}>
+        <circle cx="8" cy="8" r="6.3" />
+        <path d="M1.7 8h12.6M8 1.7c-1.8 1.8-2.7 4-2.7 6.3s.9 4.5 2.7 6.3c1.8-1.8 2.7-4 2.7-6.3S9.8 3.5 8 1.7z" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common} strokeWidth={1.6} strokeLinecap="round">
+      <path d="M10.3 2.6 5.7 13.4" />
+    </svg>
+  );
+}
 
 /**
  * The ＋ button and its menu — the single left-side entry point of the composer toolbar. Rarely-used
@@ -97,7 +123,7 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
         onMouseLeave={() => setHover(false)}
         style={{
           width: 30, height: 30, borderRadius: '50%', boxSizing: 'border-box', padding: 0, flex: 'none',
-          border: `1px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`,
+          border: `1.5px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
           color: active ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
           background: 'var(--proto-card)',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -123,6 +149,7 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
                 onClick={(e) => { e.stopPropagation(); close(); onAttach(); }}
                 style={MENU_ROW_STYLE}
               >
+                <MenuIcon kind="attach" />
                 {L.wbAttach}
                 <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>{L.wbAttachHint}</span>
               </span>
@@ -133,6 +160,7 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
                   onClick={browserEditable ? (e) => { e.stopPropagation(); setPage('browser'); } : undefined}
                   style={{ ...MENU_ROW_STYLE, cursor: browserEditable ? 'pointer' : 'default', opacity: browserEditable ? 1 : 0.6 }}
                 >
+                  <MenuIcon kind="browser" />
                   {L.wbBrowser}
                   <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, font: `500 10px ${MONO}`, color: browser.device ? 'var(--proto-accent)' : 'var(--proto-muted-3)' }}>
                     {browser.device ?? L.wbBrowserOffOption}
@@ -145,7 +173,8 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
                 onClick={(e) => { e.stopPropagation(); close(); onCommands(); }}
                 style={MENU_ROW_STYLE}
               >
-                <span style={{ font: `600 12px ${MONO}` }}>/</span> {L.commands}
+                <MenuIcon kind="commands" />
+                {L.commands}
               </span>
             </>
           ) : (

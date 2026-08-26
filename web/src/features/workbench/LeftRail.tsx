@@ -952,12 +952,20 @@ export function LeftRail(): JSX.Element {
         >
           {BUILD_STAMP}
         </span>
+        {/* Settings is a gear key, not a word: the footer already carries the theme toggle and the
+            build stamp, and a label here made the row read as three competing texts. */}
         <span
           {...hp('settings')}
           onClick={openSettings}
-          style={{ fontSize: 11.5, color: isHover('settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)', cursor: 'pointer' }}
+          role="button"
+          title={L.settings}
+          aria-label={L.settings}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 2, cursor: 'pointer', color: isHover('settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)' }}
         >
-          {L.settings}
+          <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
         </span>
       </div>
 
