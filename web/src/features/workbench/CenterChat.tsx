@@ -1,5 +1,5 @@
 // input:  selected session, live snapshots and UI shortcut actions
-// output: reconciled desktop chat with local command controls
+// output: reconciled chat with animated draft composer layout
 // pos:    Workbench conversation pane orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useMemo } from 'react';
@@ -138,6 +138,9 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
     }),
     [transcript, liveTail, streaming, running, streamingText, optimistic.pendingUser, L, active?.scheduleId, isScheduledRun],
   );
+  // A New Session is only a draft until its first optimistic row is enqueued. Keep this derived from
+  // rendered evidence so a rejected create-and-send naturally returns to the centered start state.
+  const preFirstMessage = isDraft && rows.length === 0;
   const turns = turnCount(transcriptQuery.data);
   // The composer status line shows the REAL agent-turn count (the number that grows as the agent
   // works), NOT the number of user-message rounds (`turns`). Snapshot + delta: the live `session.turn`
@@ -199,45 +202,61 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
         backendSessionId={active?.backendSessionId ?? null}
         sessionName={active?.name ?? null}
       />
-      <MessageStream
-        rows={rows}
-        loading={!!sessionId && transcriptQuery.isPending}
-        inlineThreadCard={sessionId ? <InlineThreadCardProto sessionId={sessionId} /> : undefined}
-        interactionActions={interactionActions}
-        edit={edit}
-        streamKey={sessionId}
-      />
-      <Composer
-        sessionId={sessionId}
-        running={running}
-        backgroundRunning={backgroundRunning}
-        turns={agentTurns}
-        cost={active?.costUsd ?? null}
-        elapsed={elapsed}
-        isDraft={isDraft}
-        currentProfile={active?.profileName ?? null}
-        sessionBrowser={active?.browser ?? null}
-        hasHistory={hasHistory}
-        draftProfile={draftProfile}
-        draftReloadToken={draftReloadToken}
-        projectId={currentProjectId ?? 'general'}
-        prepareOptimistic={optimistic.prepare}
-        enqueueOptimistic={optimistic.enqueue}
-        acceptOptimistic={optimistic.accept}
-        rejectOptimistic={optimistic.reject}
-        compactAction={active?.contextCompactionSupported ? compactAction : undefined}
-        todos={todos}
-        onOpenSettings={onOpenSettings}
-        contextControl={(active?.contextCompactionSupported || contextUsage !== null) ? (
-          <ContextUsageControl
-            usage={contextUsage}
-            supported={!!active?.contextCompactionSupported}
-            variant="desktop"
-            lang={lang}
-            compactAction={active?.contextCompactionSupported ? compactAction : undefined}
-          />
-        ) : undefined}
-      />
+      <div
+        data-chat-phase={preFirstMessage ? 'pre-start' : 'active'}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'grid',
+          gridTemplateRows: preFirstMessage
+            ? 'minmax(0, 1fr) auto minmax(0, 1fr)'
+            : 'minmax(0, 1fr) auto minmax(0, 0fr)',
+          transition: 'grid-template-rows 420ms cubic-bezier(.22,1,.36,1)',
+        }}
+      >
+        <MessageStream
+          rows={rows}
+          loading={!!sessionId && transcriptQuery.isPending}
+          inlineThreadCard={sessionId ? <InlineThreadCardProto sessionId={sessionId} /> : undefined}
+          interactionActions={interactionActions}
+          edit={edit}
+          streamKey={sessionId}
+        />
+        <Composer
+          sessionId={sessionId}
+          running={running}
+          backgroundRunning={backgroundRunning}
+          turns={agentTurns}
+          cost={active?.costUsd ?? null}
+          elapsed={elapsed}
+          isDraft={isDraft}
+          currentProfile={active?.profileName ?? null}
+          sessionBrowser={active?.browser ?? null}
+          hasHistory={hasHistory}
+          draftProfile={draftProfile}
+          draftReloadToken={draftReloadToken}
+          projectId={currentProjectId ?? 'general'}
+          prepareOptimistic={optimistic.prepare}
+          enqueueOptimistic={optimistic.enqueue}
+          acceptOptimistic={optimistic.accept}
+          rejectOptimistic={optimistic.reject}
+          showStatus={!preFirstMessage}
+          statusStarting={optimistic.pendingUser.length > 0}
+          compactAction={active?.contextCompactionSupported ? compactAction : undefined}
+          todos={todos}
+          onOpenSettings={onOpenSettings}
+          contextControl={(active?.contextCompactionSupported || contextUsage !== null) ? (
+            <ContextUsageControl
+              usage={contextUsage}
+              supported={!!active?.contextCompactionSupported}
+              variant="desktop"
+              lang={lang}
+              compactAction={active?.contextCompactionSupported ? compactAction : undefined}
+            />
+          ) : undefined}
+        />
+        <div aria-hidden="true" style={{ minHeight: 0 }} />
+      </div>
       {isScheduledRun && (
         <div
           style={{

@@ -1,5 +1,5 @@
 // input:  mounted CenterChat/Composer, deferred mutations, captured live events
-// output: optimistic-send authority and concurrent-submission regressions
+// output: optimistic-send, layout-phase, and submission regressions
 // pos:    Mounted desktop optimistic sender integration specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -262,6 +262,34 @@ afterEach(() => {
 });
 
 describe('mounted optimistic sender wiring', () => {
+  it('centers an untouched New Session, then moves and shows running for its first optimistic send', async () => {
+    const gate = deferred<{ sessionId: string; acceptedAt: string }>();
+    harness.sessions = [];
+    harness.selection = selection(true);
+    harness.createAndSendMutateAsync.mockReturnValue(gate.promise);
+    mounted = mountCenterChat();
+
+    const initialLayout = mounted.root.findByProps({ 'data-chat-phase': 'pre-start' });
+    expect(initialLayout.props.style.gridTemplateRows).toBe('minmax(0, 1fr) auto minmax(0, 1fr)');
+    expect(mounted.root.findAllByProps({ 'data-composer-status-line': 'true' })).toHaveLength(0);
+
+    typeAndSend(mounted, 'start here');
+
+    const activeLayout = mounted.root.findByProps({ 'data-chat-phase': 'active' });
+    expect(activeLayout.props.style.gridTemplateRows).toBe('minmax(0, 1fr) auto minmax(0, 0fr)');
+    expect(renderedUsers(mounted)).toEqual(['start here']);
+    expect(JSON.stringify(mounted.toJSON())).toContain('Running');
+
+    await act(async () => {
+      gate.reject(new Error('offline'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mounted.root.findByProps({ 'data-chat-phase': 'pre-start' })).toBeTruthy();
+    expect(mounted.root.findAllByProps({ 'data-composer-status-line': 'true' })).toHaveLength(0);
+  });
+
   it('renders an existing-session send before settlement and trusts pending authority before rejection', async () => {
     const gate = deferred<{ accepted: boolean }>();
     harness.sendMutateAsync.mockReturnValue(gate.promise);

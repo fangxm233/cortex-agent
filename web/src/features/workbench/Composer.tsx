@@ -1,5 +1,5 @@
 // input:  session/profile state, UI shortcuts, media and drafts
-// output: guarded desktop composer with local slash actions
+// output: guarded composer with slash actions and run status
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
@@ -186,6 +186,8 @@ export function Composer({
   enqueueOptimistic,
   acceptOptimistic,
   rejectOptimistic,
+  showStatus = true,
+  statusStarting = false,
   contextControl,
   todos,
   compactAction,
@@ -214,6 +216,10 @@ export function Composer({
   enqueueOptimistic: (message: OptimisticUserMessage) => void;
   acceptOptimistic: (clientId: string, settled?: { acceptedAt?: string; createdSessionId?: string }) => boolean;
   rejectOptimistic: (clientId: string, error: Error) => boolean;
+  /** The untouched New Session hides status until its first optimistic message appears. */
+  showStatus?: boolean;
+  /** A locally queued message reads as running before the authoritative session event arrives. */
+  statusStarting?: boolean;
   /** Context-usage ring (modal trigger), rendered in the toolbar right cluster beside the profile. */
   contextControl?: ReactNode;
   todos?: TodoSnapshot | null;
@@ -361,6 +367,7 @@ export function Composer({
   // A session has run at least one turn once it carries a turn count. A fresh/never-run session (draft
   // or created-but-unused) shows just `idle` — no placeholder metrics until a turn produces real values.
   const hasRun = !isDraft && turns != null;
+  const statusRunning = running || statusStarting;
 
   const slashProfiles = profileSelection.options.map((option) => ({
     name: option.name, detail: option.sub, disabled: option.disabled,
@@ -1106,12 +1113,14 @@ export function Composer({
         {/* Session meta, below the input: it is low-frequency reference information and reads as a
             footer for the composer, so the rail above the input keeps the position closest to the
             user's gaze. */}
-        <ComposerStatusLine
-          running={running}
-          text={running
-            ? `${backgroundRunning ? L.pillBackground : L.pillRunning} · ${elapsed} · ${turnsText}`
-            : (hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle)}
-        />
+        {showStatus && (
+          <ComposerStatusLine
+            running={statusRunning}
+            text={statusRunning
+              ? `${backgroundRunning ? L.pillBackground : L.pillRunning} · ${elapsed} · ${turnsText}`
+              : (hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle)}
+          />
+        )}
       </div>
     </div>
   );

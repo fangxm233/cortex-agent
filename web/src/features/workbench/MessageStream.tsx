@@ -1,5 +1,5 @@
 // input:  ChatRows, notices, interactions, and edits
-// output: Scroll-stable transcript, prompt cards, and inspectors
+// output: Scroll-stable transcript, prompt cards, and message actions
 // pos:    Desktop workbench message presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -573,30 +573,6 @@ function AssistantBlock({ text, attachments, editCopy, copyText, regen, preview,
   );
 }
 
-// Empty session — 1:1 from prototype.dc.html L133–143 (chatEmpty). EN copy verbatim from support.js.
-function EmptyChat(): JSX.Element {
-  const L = useVocab();
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 13, padding: '88px 20px 40px', textAlign: 'center' }}>
-      <div aria-label="Cortex" style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--brand-badge-bg)', border: '1px solid var(--brand-badge-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {/* 25c 皮层弧 C (scheme.dc.html §25c) — follows theme */}
-        <svg width={28} height={28} viewBox="0 0 64 64" fill="none" aria-hidden="true">
-          <circle cx={33} cy={32} r={5} fill="var(--brand-badge-core)" />
-          <path d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36" stroke="var(--brand-badge-arc)" strokeWidth={5} strokeLinecap="round" />
-          <path d="M48.6 17.95A21 21 0 1 0 48.6 46.05" stroke="var(--brand-badge-arc)" strokeWidth={5} strokeLinecap="round" />
-        </svg>
-      </div>
-      <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.wbEmptyTitle}</div>
-      <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', lineHeight: 1.7, maxWidth: 420 }}>
-        {L.wbEmptyBody}
-      </div>
-      <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', lineHeight: 1.7, maxWidth: 430 }}>
-        {L.wbEmptyHint}
-      </div>
-    </div>
-  );
-}
-
 /** One-line summary row for resolved / expired / cancelled interactions (and legacy rows). */
 function InteractionSummaryRow({ tone, label, text }: { tone: 'done' | 'rejected' | 'inactive'; label: string; text: string }): JSX.Element {
   const color = tone === 'rejected' ? 'var(--proto-danger)' : tone === 'inactive' ? 'var(--proto-muted-3)' : 'var(--proto-success)';
@@ -807,7 +783,6 @@ export function ChatRows({ rows, interactionActions, edit, streamKey }: { rows: 
 }
 
 export function MessageStream({ rows, loading, inlineThreadCard, interactionActions, edit, streamKey }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string }): JSX.Element {
-  const populated = rows.length > 0;
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   // Whether the view is currently pinned to the bottom. Starts pinned; a user scroll-up releases it,
@@ -847,7 +822,6 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
   return (
     <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
       <div ref={contentRef} style={{ width: '100%', maxWidth: 756, margin: '0 auto', padding: '22px 32px 12px' }}>
-        {!populated && !loading && <EmptyChat />}
         <ChatRows rows={rows} interactionActions={interactionActions} edit={edit} streamKey={streamKey} />
         {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
       </div>
