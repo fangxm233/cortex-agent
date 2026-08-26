@@ -216,10 +216,14 @@ export async function handleCortexRunLaunch(
     throw new Error(`cwd does not exist: ${cwd}`);
   }
 
-  // Spawn watcher detached (DR-0011 §4.5)
-  const watcherEntry = path.join(__dirname, 'cortex-run-watcher.js');
+  // Spawn watcher detached (DR-0011 §4.5). The watcher lives beside this entry:
+  // .mjs in the bundled layout, .js in the tsc dist. process.execPath (not PATH
+  // lookup) so the watcher runs on the exact node that runs the client.
+  const watcherEntry = ['cortex-run-watcher.mjs', 'cortex-run-watcher.js']
+    .map((n) => path.join(__dirname, n))
+    .find((p) => fs.existsSync(p)) ?? path.join(__dirname, 'cortex-run-watcher.js');
   const watcher = _spawn(
-    'node',
+    process.execPath,
     [
       watcherEntry,
       '--name',

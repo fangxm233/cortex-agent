@@ -4,9 +4,9 @@
   "type": "module",
   "license": "MIT",
   "description": "Cortex remote agent client — receives commands from @cortex-agent/server via WebSocket",
-  "main": "dist/client.js",
+  "main": "dist/client.mjs",
   "bin": {
-    "cortex-client": "dist/client.js"
+    "cortex-client": "dist/client.mjs"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -19,17 +19,19 @@
     "access": "public"
   },
   "scripts": {
-    "prepare": "cp ../README.md . && npm run build",
-    "start": "node dist/client.js",
+    "prepare": "cp ../README.md . && npm run build && npm run bundle",
+    "start": "node dist/client.mjs",
     "build": "tsc && node scripts/copy-assets.js",
+    "bundle": "node scripts/bundle.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test --test-force-exit --test-timeout=15000 src/cortex-run-watcher.test.ts tests/client/cortex-run-launch.test.ts tests/client/auth-headers.test.ts tests/client/command-exec.test.ts tests/client/server-url.test.ts tests/client/reverse-stream.test.ts"
+    "test": "node --import tsx --test --test-force-exit --test-timeout=15000 src/cortex-run-watcher.test.ts tests/client/cortex-run-launch.test.ts tests/client/auth-headers.test.ts tests/client/command-exec.test.ts tests/client/server-url.test.ts tests/client/reverse-stream.test.ts tests/client/self-update.test.ts"
   },
   "dependencies": {
     "ws": "^8.21.1"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "esbuild": "^0.28.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },

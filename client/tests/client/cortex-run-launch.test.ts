@@ -212,7 +212,7 @@ describe('handleCortexRunLaunch', () => {
     assert.ok(pid.length > 0);
 
     assert.strictEqual(spawnCalls.length, 1);
-    assert.strictEqual(spawnCalls[0].cmd, 'node');
+    assert.strictEqual(spawnCalls[0].cmd, process.execPath);
     assert.ok(spawnCalls[0].args.includes('--name'));
     assert.ok(spawnCalls[0].args.includes('test-launch'));
     assert.ok(spawnCalls[0].args.includes('--state-dir'));

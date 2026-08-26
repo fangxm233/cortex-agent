@@ -21,6 +21,7 @@ import {
   findRunDirByCallbackId,
   tryUnlink,
 } from './cortex-run-launch.js';
+import { computeSelfBundleHash, handleUpdateMessage, defaultRespawn } from './self-update.js';
 
 const log = createLogger('cortex-client');
 
@@ -102,6 +103,8 @@ const DEVICE_NAME = CONFIG.deviceName;
 const CLIENT_TOKEN = CONFIG.clientToken;
 const PLATFORM = process.platform;
 const HEARTBEAT_INTERVAL_MS = 5000;
+// Reported in hello; the server pushes a bundle update when this differs from its artifact.
+const BUNDLE_HASH = computeSelfBundleHash();
 
 // --- Utility functions ---
 
@@ -587,6 +590,7 @@ function connect() {
       device: DEVICE_NAME,
       platform: PLATFORM,
       capabilities,
+      bundleHash: BUNDLE_HASH,
     }));
 
     if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -617,6 +621,28 @@ function connect() {
     if (isOpenStream(msg)) {
       // Byte transport, not a command: it gets its own socket and never touches the result path.
       openReverseStream(msg, { controlUrl: SERVER_URL, headers: buildClientHeaders(CLIENT_TOKEN) });
+      return;
+    }
+
+    if (msg.type === 'update') {
+      const currentWs = ws;
+      handleUpdateMessage(msg, {
+        sendResult: (ok, error) => {
+          if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+            currentWs.send(JSON.stringify({
+              type: 'update-result',
+              updateId: msg.updateId,
+              device: DEVICE_NAME,
+              hash: msg.hash,
+              ok,
+              ...(error ? { error } : {}),
+            }));
+          }
+        },
+        closeWs: () => { try { currentWs?.close(1000, 'self-update'); } catch {} },
+        respawn: defaultRespawn,
+        exit: (code) => process.exit(code),
+      });
       return;
     }
 

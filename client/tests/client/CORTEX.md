@@ -9,4 +9,5 @@ launch, cancel, callback, and command execution handlers.
 | command-exec.test.ts | test | Covers timeout and process-tree termination |
 | cortex-run-launch.test.ts | test | Covers launch/cancel, callback payloads, orphan recovery and file utilities |
 | reverse-stream.test.ts | test | Covers the loopback-only target policy, callback URLs and stream teardown |
+| self-update.test.ts | test | Covers bundle install, rotation, hash identity and failure containment |
 | server-url.test.ts | test | Covers server URL precedence and defaults |

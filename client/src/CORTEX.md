@@ -15,4 +15,5 @@ agent-server, and supervises long-running jobs on the local device.
 | log.ts | util | Provides console and rotating file logging |
 | paths.ts | util | Defines client data, config and log paths |
 | reverse-stream.ts | core | Dials back a WebSocket per requested TCP connection to a local service |
+| self-update.ts | core | Installs server-pushed bundles and re-execs the daemon |
 | server-url.ts | util | Resolves the server WebSocket URL |
