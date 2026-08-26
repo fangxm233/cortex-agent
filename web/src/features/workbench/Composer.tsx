@@ -43,6 +43,8 @@ import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-
 const mono = "'IBM Plex Mono',monospace";
 const DASH = '—';
 const UPLOAD_PATH = '/api/attachments/upload';
+// Auto-grow cap: ~15 lines at 13.5px × 1.5 line-height (≈20.25px/line), then internal scroll.
+const COMPOSER_MAX_HEIGHT = 305;
 
 export function ComposerSendFailure({ error }: { error: string }): JSX.Element {
   const L = useVocab();
@@ -249,7 +251,7 @@ export function Composer({
   const autoGrow = (el: HTMLTextAreaElement | null): void => {
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+    el.style.height = Math.min(el.scrollHeight, COMPOSER_MAX_HEIGHT) + 'px';
   };
 
   // Re-fit the textarea height whenever `composer` changes for any reason — not just
@@ -962,7 +964,7 @@ export function Composer({
                     outline: 'none',
                     resize: 'none',
                     background: 'transparent',
-                    maxHeight: 160,
+                    maxHeight: COMPOSER_MAX_HEIGHT,
                     overflowY: 'auto',
                   }}
                 />
