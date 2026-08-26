@@ -99,9 +99,12 @@ test('an accepted send reserves mutation admission before its first asynchronous
   });
   const adapter = new MockAdapter();
 
-  assert.deepEqual(await acceptSend(channel, 'ordinary', adapter, runner), {
-    ok: true, data: { accepted: true },
-  });
+  const accepted = await acceptSend(channel, 'ordinary', adapter, runner);
+  assert.equal(accepted.ok, true);
+  if (accepted.ok) {
+    assert.equal(accepted.data.accepted, true);
+    assert.match(accepted.data.acceptedAt, /^\d{4}-\d{2}-\d{2}T/);
+  }
   const rewind = await rewindWebSession(
     { sessionId: 'track-race', channel, turnIndex: 0, text: 'edited', adapter: adapter as any },
     makeRewindDeps(channel),
@@ -146,9 +149,12 @@ test('a rewind transfers its admission to the edited resend ahead of waiting sen
     deps,
   );
   await markerEntered.promise;
-  assert.deepEqual(await acceptSend(channel, 'ordinary', adapter, runner), {
-    ok: true, data: { accepted: true },
-  });
+  const accepted = await acceptSend(channel, 'ordinary', adapter, runner);
+  assert.equal(accepted.ok, true);
+  if (accepted.ok) {
+    assert.equal(accepted.data.accepted, true);
+    assert.match(accepted.data.acceptedAt, /^\d{4}-\d{2}-\d{2}T/);
+  }
   releaseMarker.resolve();
 
   assert.deepEqual(await rewind, { ok: true });

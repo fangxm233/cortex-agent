@@ -1906,6 +1906,11 @@ export interface SessionsSendReturn {
   /** The message was accepted and routed. Assistant output returns via the `session.message`
    *  stream event, NOT this return (fire-and-forget). */
   accepted: boolean;
+  /** Server clock at acceptance, taken BEFORE the message is routed — so every timestamp the
+   *  message later carries (history row, pending injection record) is at or after it. A client
+   *  whose own clock differs from the server's uses this to order its optimistic row against
+   *  server-written rows instead of trusting the browser clock. */
+  acceptedAt: string;
 }
 
 export interface SessionsCancelReturn {
@@ -1930,6 +1935,8 @@ export interface SessionsSetProfileReturn {
 export interface SessionsCreateAndSendReturn {
   /** The id of the newly created session (the client transitions from draft to this session). */
   sessionId: string;
+  /** Server clock at acceptance — see `SessionsSendReturn.acceptedAt`. */
+  acceptedAt: string;
 }
 
 export interface ThreadsCancelReturn {

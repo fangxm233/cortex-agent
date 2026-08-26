@@ -37,9 +37,11 @@ export interface OptimisticUserMessages {
   prepare: (text: string, attachments?: Attachment[]) => OptimisticUserMessage;
   /** Shows the row. Call before awaiting the mutation. */
   enqueue: (message: OptimisticUserMessage) => void;
-  /** Settles a send. With a created session id the draft row is re-targeted at it; the return
-   *  value then says whether this surface should follow the send into that session. */
-  accept: (clientId: string, createdSessionId?: string) => boolean;
+  /** Settles a send. The server's acceptance time restates the row on the server's clock, so a
+   *  browser clock that differs from it cannot misorder the row against server-written rows. With
+   *  a created session id the draft row is re-targeted at it; the return value then says whether
+   *  this surface should follow the send into that session. */
+  accept: (clientId: string, settled?: { acceptedAt?: string; createdSessionId?: string }) => boolean;
   /** Drops the row and reports whether the composer should take its content back — false when the
    *  server actually accepted the message and only the response was lost. */
   reject: (clientId: string) => boolean;
@@ -104,13 +106,14 @@ export function useOptimisticUserMessages(input: OptimisticUserMessagesInput): O
     update((current) => [...current, message]);
   }, [update]);
 
-  const accept = useCallback((clientId: string, createdSessionId?: string) => {
+  const accept = useCallback((clientId: string, settled?: { acceptedAt?: string; createdSessionId?: string }) => {
+    const createdSessionId = settled?.createdSessionId;
     const message = messagesRef.current.find((item) => item.clientId === clientId);
     const selectCreated = !!createdSessionId && !!message
       && shouldSelectCreatedSession(message, projectRef.current, draftActiveRef.current);
     update((current) => createdSessionId
-      ? promoteOptimisticUserMessage(current, clientId, createdSessionId)
-      : acceptOptimisticUserMessage(current, clientId));
+      ? promoteOptimisticUserMessage(current, clientId, createdSessionId, settled?.acceptedAt)
+      : acceptOptimisticUserMessage(current, clientId, settled?.acceptedAt));
     return createdSessionId ? selectCreated : true;
   }, [update]);
 

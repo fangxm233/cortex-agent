@@ -212,7 +212,7 @@ export function Composer({
   projectId?: string;
   prepareOptimistic: (text: string, attachments?: AttachmentMeta[]) => OptimisticUserMessage;
   enqueueOptimistic: (message: OptimisticUserMessage) => void;
-  acceptOptimistic: (clientId: string, createdSessionId?: string) => boolean;
+  acceptOptimistic: (clientId: string, settled?: { acceptedAt?: string; createdSessionId?: string }) => boolean;
   rejectOptimistic: (clientId: string, error: Error) => boolean;
   /** Context-usage ring (modal trigger), rendered in the toolbar right cluster beside the profile. */
   contextControl?: ReactNode;
@@ -542,7 +542,9 @@ export function Composer({
     const sentKey = draftKey;
     const sentIdentity = draftIdentity;
     setSendError(null);
-    const mutation = runOptimisticMutation<{ sessionId: string } | { accepted: boolean }>({
+    const mutation = runOptimisticMutation<
+      { sessionId: string; acceptedAt: string } | { accepted: boolean; acceptedAt: string }
+    >({
       message,
       mutate: () => isDraft
         ? createAndSendMut.mutateAsync({
@@ -555,14 +557,16 @@ export function Composer({
       onEnqueue: enqueueOptimistic,
       onAccepted: (entry, data) => {
         if ('sessionId' in data) {
-          const selectCreated = acceptOptimistic(entry.clientId, data.sessionId);
+          const selectCreated = acceptOptimistic(entry.clientId, {
+            acceptedAt: data.acceptedAt, createdSessionId: data.sessionId,
+          });
           queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
           if (selectCreated) {
             draftUploadId.current = null;
             selectCreatedSession(data.sessionId);
           }
         } else {
-          acceptOptimistic(entry.clientId);
+          acceptOptimistic(entry.clientId, { acceptedAt: data.acceptedAt });
         }
       },
       onRejected: (entry, error) => rejectOptimistic(entry.clientId, error),

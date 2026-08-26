@@ -180,16 +180,30 @@ function promotedAttachments(attachments: Attachment[] | undefined, sessionId: s
   }));
 }
 
+/**
+ * The send timestamp, restated on the server's clock once the server has acknowledged it.
+ *
+ * A local row is born stamped with the browser clock, which is NOT the clock that writes every row
+ * it will be compared against. A browser running even a second ahead of the server would reject the
+ * server's own record of the message it just sent as "older than my send" and keep the row queued
+ * forever. `acceptedAt` is read before the message is routed, so every timestamp the message later
+ * carries is at or after it, and the comparison becomes server clock against server clock.
+ */
+function stampAccepted(message: OptimisticUserMessage, acceptedAt?: string): OptimisticUserMessage {
+  return acceptedAt ? { ...message, ts: acceptedAt } : message;
+}
+
 export function promoteOptimisticUserMessage(
   messages: OptimisticUserMessage[],
   clientId: string,
   sessionId: string,
+  acceptedAt?: string,
 ): OptimisticUserMessage[] {
   return messages.map((message) => message.clientId === clientId
-    ? {
+    ? stampAccepted({
         ...message, target: { kind: 'session', sessionId }, phase: 'accepted',
         attachments: promotedAttachments(message.attachments, sessionId),
-      }
+      }, acceptedAt)
     : message);
 }
 
@@ -204,8 +218,11 @@ export function shouldSelectCreatedSession(
 export function acceptOptimisticUserMessage(
   messages: OptimisticUserMessage[],
   clientId: string,
+  acceptedAt?: string,
 ): OptimisticUserMessage[] {
-  return messages.map((message) => message.clientId === clientId ? { ...message, phase: 'accepted' } : message);
+  return messages.map((message) => message.clientId === clientId
+    ? stampAccepted({ ...message, phase: 'accepted' }, acceptedAt)
+    : message);
 }
 
 export function removeOptimisticUserMessage(

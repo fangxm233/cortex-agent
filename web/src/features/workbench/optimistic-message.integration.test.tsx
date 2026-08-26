@@ -312,7 +312,8 @@ describe('mounted optimistic sender wiring', () => {
   });
 
   it('keeps a create-and-send row through deferred promotion, ordinary live, and transcript authority', async () => {
-    const gate = deferred<{ sessionId: string }>();
+    const acceptedAt = '2026-08-01T01:00:00.000Z';
+    const gate = deferred<{ sessionId: string; acceptedAt: string }>();
     harness.sessions = [];
     harness.selection = selection(true);
     harness.createAndSendMutateAsync.mockReturnValue(gate.promise);
@@ -324,7 +325,7 @@ describe('mounted optimistic sender wiring', () => {
     expect(renderedUsers(mounted)).toEqual(['new conversation']);
 
     await act(async () => {
-      gate.resolve({ sessionId: 's-new' });
+      gate.resolve({ sessionId: 's-new', acceptedAt });
       await gate.promise;
       await Promise.resolve();
     });
@@ -332,7 +333,7 @@ describe('mounted optimistic sender wiring', () => {
     expect(harness.selectCreatedSession).toHaveBeenCalledWith('s-new');
     expect(renderedUsers(mounted)).toEqual(['new conversation']);
 
-    const committedTs = new Date(Date.now() + 1000).toISOString();
+    const committedTs = '2026-08-01T01:00:01.000Z';
     act(() => {
       publishLiveState({
         ...emptyLiveState(),

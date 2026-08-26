@@ -68,6 +68,10 @@ test('sessions.send accepts after touchForUse and a later sweep can select the s
 
   const sweepResult = await repo.beginDeleteExpired(new Date('2100-01-01T00:00:00.000Z'), []);
   assert.deepEqual(touched, ['track-touch']);
-  assert.deepEqual(sendResult, { ok: true, data: { accepted: true } });
+  assert.equal(sendResult.ok, true);
+  if (sendResult.ok) {
+    assert.equal(sendResult.data.accepted, true);
+    assert.match(sendResult.data.acceptedAt, /^\d{4}-\d{2}-\d{2}T/);
+  }
   assert.deepEqual(sweepResult.map((entry) => entry.session.sessionId), ['track-touch']);
 });

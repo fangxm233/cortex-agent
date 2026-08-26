@@ -73,13 +73,14 @@ export async function handleSendSession(
     }
     channel = adopted.channel;
   }
+  const acceptedAt = new Date().toISOString();
   deps.sendSessionMessage({
     sessionId: args.sessionId,
     channel,
     text: args.text,
     attachments: args.attachments,
   });
-  return { ok: true, data: { accepted: true } };
+  return { ok: true, data: { accepted: true, acceptedAt } };
 }
 
 // S4 chat Stop: cancel the agent(s) currently running for this session. Resolves the session's
@@ -172,6 +173,7 @@ export async function handleCreateAndSend(
     });
   }
 
+  const acceptedAt = new Date().toISOString();
   deps.sendSessionMessage({
     sessionId,
     channel,
@@ -179,7 +181,7 @@ export async function handleCreateAndSend(
     attachments: attachments.length > 0 ? attachments : undefined,
   });
 
-  return { ok: true, data: { sessionId } };
+  return { ok: true, data: { sessionId, acceptedAt } };
 }
 
 // Switch the session's active profile under the shared profile-switch rule (the same

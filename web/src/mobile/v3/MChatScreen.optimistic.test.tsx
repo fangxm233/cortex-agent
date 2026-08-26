@@ -300,7 +300,8 @@ describe('mobile optimistic sender wiring', () => {
   });
 
   it('hands the row over to the transcript without doubling it', async () => {
-    const gate = deferred<{ accepted: boolean }>();
+    const acceptedAt = '2026-08-01T01:00:00.000Z';
+    const gate = deferred<{ accepted: boolean; acceptedAt: string }>();
     harness.sendMutateAsync.mockReturnValue(gate.promise);
     mounted = mountChat();
 
@@ -308,11 +309,11 @@ describe('mobile optimistic sender wiring', () => {
     expect(renderedUsers(mounted)).toEqual(['handed over']);
 
     await act(async () => {
-      gate.resolve({ accepted: true });
+      gate.resolve({ accepted: true, acceptedAt });
       await gate.promise;
     });
 
-    const committedTs = new Date(Date.now() + 1000).toISOString();
+    const committedTs = '2026-08-01T01:00:01.000Z';
     harness.transcripts.s1 = {
       sessionId: 's1', pendingUserMessages: [],
       turns: [{

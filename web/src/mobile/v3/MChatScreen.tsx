@@ -709,7 +709,9 @@ export function MChatScreen(): JSX.Element {
       ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
     };
     const sentKey = draftKey;
-    const mutation = runOptimisticMutation<{ sessionId: string } | { accepted: boolean }>({
+    const mutation = runOptimisticMutation<
+      { sessionId: string; acceptedAt: string } | { accepted: boolean; acceptedAt: string }
+    >({
       message: optimistic.prepare(t, doneMetas),
       mutate: () => isDraft
         ? createAndSendMut.mutateAsync({
@@ -724,10 +726,10 @@ export function MChatScreen(): JSX.Element {
       onEnqueue: optimistic.enqueue,
       onAccepted: (entry, data) => {
         if (!('sessionId' in data)) {
-          optimistic.accept(entry.clientId);
+          optimistic.accept(entry.clientId, { acceptedAt: data.acceptedAt });
           return;
         }
-        optimistic.accept(entry.clientId, data.sessionId);
+        optimistic.accept(entry.clientId, { acceptedAt: data.acceptedAt, createdSessionId: data.sessionId });
         setPendingCreatedSession({ sessionId: data.sessionId, profileName: draftProfile });
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
         navigate(`/m/session/${data.sessionId}`, { replace: true });

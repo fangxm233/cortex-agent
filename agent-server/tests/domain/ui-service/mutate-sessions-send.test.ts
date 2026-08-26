@@ -52,7 +52,10 @@ test('sessions.send awaits admission touch before routing to the session channel
 
   const res = await pending;
   assert.equal(res.ok, true);
-  if (res.ok) assert.deepEqual(res.data, { accepted: true });
+  if (res.ok) {
+    assert.equal(res.data.accepted, true);
+    assert.match(res.data.acceptedAt, /^\d{4}-\d{2}-\d{2}T/);
+  }
   assert.equal(sink.length, 1);
   assert.equal(sink[0].sessionId, 'sess-1');
   assert.equal(sink[0].channel, 'C123');

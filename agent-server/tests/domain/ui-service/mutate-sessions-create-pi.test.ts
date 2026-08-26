@@ -94,7 +94,11 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
     timeline.push('response');
     await visible;
 
-    assert.deepEqual(response, { ok: true, data: { sessionId: 'session-new' } });
+    assert.equal(response.ok, true);
+    if (response.ok) {
+      assert.equal(response.data.sessionId, 'session-new');
+      assert.match(response.data.acceptedAt, /^\d{4}-\d{2}-\d{2}T/);
+    }
     assert.deepEqual(timeline, [
       'user-event-published',
       'pi-spawn',

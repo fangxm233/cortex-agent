@@ -7,6 +7,7 @@ import type { SessionTranscript } from '@cortex-agent/ui-contract';
 import { applyDelivered, buildTranscriptRows, type LiveSessionMessage, type PendingUserMessage } from './transcript-vm';
 import { mergeRestoredDraft } from './composer-draft';
 import {
+  acceptOptimisticUserMessage,
   createOptimisticUserMessage,
   hasAuthoritativeMatch,
   promoteOptimisticUserMessage,
@@ -194,6 +195,46 @@ describe('optimistic user reconciliation', () => {
     });
 
     expect(reconcileOptimisticUserMessages([local], serverBehind).matchedClientIds).toEqual(['local-1']);
+  });
+
+  it('settles a send whose browser clock ran ahead of the server once acceptance restates its time', () => {
+    // The browser stamps the row two seconds into the server's future, so the server's own record
+    // of that very message looks older than the send and can never retire it.
+    const skewed = createOptimisticUserMessage({
+      clientId: 'local-skew', target: { kind: 'session', sessionId: 's1' }, text: 'ahead', ts: T2,
+    }, [], authority());
+    const committed = authority({ transcript: transcript([user('ahead', T1)]) });
+
+    expect(renderedUsers([skewed], committed)).toEqual(['ahead', 'ahead']);
+
+    // The server reports when it accepted the send, on its own clock, before it routed anything.
+    const accepted = acceptOptimisticUserMessage([skewed], 'local-skew', T0);
+
+    expect(accepted[0].ts).toBe(T0);
+    expect(reconcileOptimisticUserMessages(accepted, committed).settledClientIds).toEqual(['local-skew']);
+    expect(renderedUsers(accepted, committed)).toEqual(['ahead']);
+  });
+
+  it('still refuses a message older than the server accepted this send', () => {
+    const skewed = createOptimisticUserMessage({
+      clientId: 'local-skew', target: { kind: 'session', sessionId: 's1' }, text: 'ahead', ts: T2,
+    }, [], authority());
+    const accepted = acceptOptimisticUserMessage([skewed], 'local-skew', T1);
+    const older = authority({ transcript: transcript([user('ahead', T0)]) });
+
+    expect(reconcileOptimisticUserMessages(accepted, older).matchedClientIds).toEqual([]);
+    expect(renderedUsers(accepted, older)).toEqual(['ahead', 'ahead']);
+  });
+
+  it('restates a created-session draft row on the server clock as it is promoted', () => {
+    const draft = createOptimisticUserMessage({
+      clientId: 'local-draft', target: { kind: 'draft', projectId: 'atlas' }, text: 'first', ts: T2,
+    }, [], authority());
+    const promoted = promoteOptimisticUserMessage([draft], 'local-draft', 's-new', T0)[0];
+    const created = authority({ transcript: { ...transcript([user('first', T1)]), sessionId: 's-new' } });
+
+    expect(promoted.ts).toBe(T0);
+    expect(hasAuthoritativeMatch(promoted, created)).toBe(true);
   });
 
   it('does not let a recent older transcript response consume a send made while it was loading', () => {
