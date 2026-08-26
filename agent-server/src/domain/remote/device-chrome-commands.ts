@@ -41,41 +41,79 @@ export function chromeCandidates(platform: string): string[] {
 
 /** Names looked up on PATH after the absolute candidates miss. */
 const PATH_CANDIDATES = ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'chrome'];
+const WINDOWS_TASK_NAME = 'Cortex Managed Browser';
 
-/**
- * Launch (or adopt) the managed Chrome and print the port it is listening on.
- *
- * Adoption first: a device Chrome outlives one turn on purpose, because the whole point of a managed
- * instance is that the human logs in once and the agent inherits the session. A stale port file from
- * a Chrome that has since died is not detected here — the server verifies through the tunnel and
- * relaunches, which is one check instead of shipping an HTTP client to every device.
- */
-export function chromeLaunchCommand(platform: string): string {
+/** Windows OpenSSH and WMI both run in Session 0. The client stays there, but this task uses the
+ * logged-in user's interactive token so Chrome itself appears on that user's desktop. */
+const WINDOWS_LAUNCH_SCRIPT = `
+$ErrorActionPreference = "Stop"
+$profile = Join-Path $env:USERPROFILE ".cortex\\browser\\profile"
+$portFile = Join-Path $profile "${PORT_FILE}"
+New-Item -ItemType Directory -Force -Path $profile | Out-Null
+if ((Test-Path -LiteralPath $portFile) -and (Get-Item -LiteralPath $portFile).Length -gt 0) {
+  Get-Content -LiteralPath $portFile -TotalCount 1
+  exit 0
+}
+$candidates = @(
+  (Join-Path $env:ProgramFiles "Google\\Chrome\\Application\\chrome.exe"),
+  (Join-Path ([Environment]::GetEnvironmentVariable("ProgramFiles(x86)")) "Google\\Chrome\\Application\\chrome.exe"),
+  (Join-Path $env:LOCALAPPDATA "Google\\Chrome\\Application\\chrome.exe")
+)
+$chrome = $candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
+if (-not $chrome) {
+  foreach ($name in @("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome")) {
+    $found = Get-Command $name -ErrorAction SilentlyContinue
+    if ($found) { $chrome = $found.Source; break }
+  }
+}
+if (-not $chrome) { [Console]::Error.WriteLine("chrome-not-found"); exit 3 }
+$user = (Get-CimInstance Win32_ComputerSystem).UserName
+if (-not $user) { [Console]::Error.WriteLine("no-interactive-user"); exit 5 }
+$current = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+if ($user -ine $current) { [Console]::Error.WriteLine("interactive-user-mismatch"); exit 6 }
+$quote = [char]34
+$arguments = "--remote-debugging-port=0 --remote-debugging-address=127.0.0.1 --user-data-dir=$quote$profile$quote --no-first-run --no-default-browser-check about:blank"
+$action = New-ScheduledTaskAction -Execute $chrome -Argument $arguments
+$principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName "${WINDOWS_TASK_NAME}" -Action $action -Principal $principal -Settings $settings -Force | Out-Null
+Start-ScheduledTask -TaskName "${WINDOWS_TASK_NAME}"
+for ($i = 0; $i -lt 60; $i++) {
+  if ((Test-Path -LiteralPath $portFile) -and (Get-Item -LiteralPath $portFile).Length -gt 0) { break }
+  Start-Sleep -Milliseconds 500
+}
+if (-not ((Test-Path -LiteralPath $portFile) -and (Get-Item -LiteralPath $portFile).Length -gt 0)) {
+  [Console]::Error.WriteLine("chrome-did-not-listen")
+  exit 4
+}
+Get-Content -LiteralPath $portFile -TotalCount 1
+`.trim();
+
+function unixChromeLaunchCommand(platform: string): string {
   const absolute = chromeCandidates(platform)
-    .map((p) => `  [ -f "${p}" ] && { CHROME="${p}"; }`)
-    .join('\n');
+    .map((p) => `  [ -f "${p}" ] && { CHROME="${p}"; }`).join('\n');
   return [
-    `PROFILE="$HOME/${DEVICE_PROFILE_PATH}"`,
-    `PORTFILE="$PROFILE/${PORT_FILE}"`,
+    `PROFILE="$HOME/${DEVICE_PROFILE_PATH}"`, `PORTFILE="$PROFILE/${PORT_FILE}"`,
     'mkdir -p "$PROFILE"',
-    // Already listening as far as this device can tell — hand the port back and let the server judge.
-    'if [ -s "$PORTFILE" ]; then head -1 "$PORTFILE"; exit 0; fi',
-    'CHROME=""',
+    'if [ -s "$PORTFILE" ]; then head -1 "$PORTFILE"; exit 0; fi', 'CHROME=""',
     ...(absolute ? [`if [ -z "$CHROME" ]; then :\n${absolute}\nfi`] : []),
-    `for b in ${PATH_CANDIDATES.join(' ')}; do`,
-    '  [ -n "$CHROME" ] && break',
-    '  p=$(command -v "$b" 2>/dev/null) && CHROME="$p"',
-    'done',
+    `for b in ${PATH_CANDIDATES.join(' ')}; do`, '  [ -n "$CHROME" ] && break',
+    '  p=$(command -v "$b" 2>/dev/null) && CHROME="$p"', 'done',
     '[ -n "$CHROME" ] || { echo "chrome-not-found" >&2; exit 3; }',
-    // --remote-debugging-address is loopback-only: this is an unauthenticated remote-control port,
-    // and the reverse channel is what carries it off the machine, not the network.
     'nohup "$CHROME" --remote-debugging-port=0 --remote-debugging-address=127.0.0.1'
       + ' --user-data-dir="$PROFILE" --no-first-run --no-default-browser-check'
       + ' about:blank >/dev/null 2>&1 &',
     'for _ in $(seq 1 60); do [ -s "$PORTFILE" ] && break; sleep 0.5; done',
-    '[ -s "$PORTFILE" ] || { echo "chrome-did-not-listen" >&2; exit 4; }',
-    'head -1 "$PORTFILE"',
+    '[ -s "$PORTFILE" ] || { echo "chrome-did-not-listen" >&2; exit 4; }', 'head -1 "$PORTFILE"',
   ].join('\n');
+}
+
+/** Launch (or adopt) managed Chrome and print its debugging port. */
+export function chromeLaunchCommand(platform: string): string {
+  if (platform === 'win32') {
+    return `powershell.exe -NoProfile -Command '${WINDOWS_LAUNCH_SCRIPT}' </dev/null`;
+  }
+  return unixChromeLaunchCommand(platform);
 }
 
 /**
@@ -88,13 +126,15 @@ export function chromeLaunchCommand(platform: string): string {
 export function chromeStopCommand(platform: string): string {
   const profile = `"$HOME/${DEVICE_PROFILE_PATH}"`;
   if (platform === 'win32') {
-    // Stop-Process must swallow its own errors: killing the browser process takes the renderers with
-    // it, so by the time the loop reaches them they are already gone.
-    const ps = "Get-CimInstance Win32_Process -Filter \\\"Name='chrome.exe'\\\""
-      + " | Where-Object { $_.CommandLine -like '*" + DEVICE_PROFILE_PATH.replace(/\//g, '*') + "*' }"
-      + ' | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }';
+    const script = [
+      '$ErrorActionPreference = "SilentlyContinue"',
+      `Stop-ScheduledTask -TaskName "${WINDOWS_TASK_NAME}" -ErrorAction SilentlyContinue`,
+      'Get-CimInstance Win32_Process | Where-Object {',
+      '  $_.Name -eq "chrome.exe" -and $_.CommandLine -like "*.cortex*browser*profile*"',
+      '} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }',
+    ].join('\n');
     return [
-      `powershell -NoProfile -Command "${ps}" >/dev/null 2>&1 || true`,
+      `powershell.exe -NoProfile -Command '${script}' </dev/null >/dev/null 2>&1 || true`,
       `rm -f ${profile}/${PORT_FILE}`,
     ].join('\n');
   }
@@ -102,9 +142,4 @@ export function chromeStopCommand(platform: string): string {
     `pkill -f -- ${profile} >/dev/null 2>&1 || true`,
     `rm -f ${profile}/${PORT_FILE}`,
   ].join('\n');
-}
-
-/** Forget a stale port file so the next launch cannot adopt a Chrome that is no longer there. */
-export function chromeResetPortFileCommand(): string {
-  return `rm -f "$HOME/${DEVICE_PROFILE_PATH}/${PORT_FILE}"`;
 }

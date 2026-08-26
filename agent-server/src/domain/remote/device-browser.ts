@@ -6,9 +6,7 @@
 import { createLogger } from '@core/log.js';
 import { sendCommand, getOnlineDevices } from './client-manager.js';
 import { closeDevicePort, openDevicePort } from './device-port.js';
-import {
-  chromeLaunchCommand, chromeResetPortFileCommand, chromeStopCommand,
-} from './device-chrome-commands.js';
+import { chromeLaunchCommand, chromeStopCommand } from './device-chrome-commands.js';
 
 const log = createLogger('device-browser');
 
@@ -124,11 +122,11 @@ export async function acquireDeviceBrowser(device: string): Promise<DeviceBrowse
 
   let entry = await launchAndMap(device, platform);
   if (!await verifyEndpoint(entry.cdpEndpoint)) {
-    // The launch command adopts an existing port file without checking it; this is where a Chrome
-    // that died since writing it gets caught. Exactly one retry — a second failure is a real fault.
-    log.info(`${device}: adopted debugging port ${entry.remotePort} is dead — resetting and relaunching`);
+    // A dead listener may leave Chrome holding the private profile. Removing only its port file
+    // makes the next launch adopt that orphan, so stop the profile-owned process before one retry.
+    log.info(`${device}: adopted debugging port ${entry.remotePort} is dead — stopping and relaunching`);
     closeDevicePort(device, entry.remotePort);
-    await runOnDevice(device, chromeResetPortFileCommand(), 10_000);
+    await runOnDevice(device, chromeStopCommand(platform), 30_000);
     entry = await launchAndMap(device, platform);
     if (!await verifyEndpoint(entry.cdpEndpoint)) {
       closeDevicePort(device, entry.remotePort);

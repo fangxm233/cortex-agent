@@ -86,18 +86,19 @@ describe('acquireDeviceBrowser', () => {
     expect(deviceBrowserStatus()[0].refs).toBe(2);
   });
 
-  it('resets the port file and relaunches when the adopted port is dead', async () => {
-    // The launch command adopts an existing port file without checking it — this is where a Chrome
-    // that died since writing it gets caught. Observed for real: a stale file named a dead port.
+  it('stops the orphan and relaunches when the adopted port is dead', async () => {
+    // A dead CDP listener can leave Chrome holding the private profile. Removing only the port file
+    // makes Chrome adopt the orphan instead of starting a fresh listener, so retry must stop it.
     sendCommand
       .mockResolvedValueOnce({ stdout: '49170\n', exitCode: 0 })  // adopted, dead
-      .mockResolvedValueOnce({ stdout: '', exitCode: 0 })         // reset port file
+      .mockResolvedValueOnce({ stdout: '', exitCode: 0 })         // stop orphan and clear port file
       .mockResolvedValueOnce({ stdout: '54964\n', exitCode: 0 }); // relaunched, live
     alive.add(54964 - 10000);
     const b = await acquireDeviceBrowser('my-pc');
     expect(b.remotePort).toBe(54964);
     expect(closeDevicePort).toHaveBeenCalledWith('my-pc', 49170);
-    expect(sendCommand.mock.calls[1][1].params.command).toContain('rm -f');
+    expect(sendCommand.mock.calls[1][1].params.command).toContain('Stop-Process');
+    expect(sendCommand.mock.calls[1][1].params.command).toContain('Stop-ScheduledTask');
   });
 
   it('gives up after one retry rather than looping', async () => {

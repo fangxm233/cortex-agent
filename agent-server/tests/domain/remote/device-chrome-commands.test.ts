@@ -4,8 +4,7 @@
 // >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
-  chromeCandidates, chromeLaunchCommand, chromeResetPortFileCommand, chromeStopCommand,
-  DEVICE_PROFILE_PATH,
+  chromeCandidates, chromeLaunchCommand, chromeStopCommand, DEVICE_PROFILE_PATH,
 } from '@domain/remote/device-chrome-commands.js';
 
 describe('chromeLaunchCommand', () => {
@@ -17,7 +16,8 @@ describe('chromeLaunchCommand', () => {
     // DevToolsActivePort means the device needs no HTTP client to prove Chrome came up.
     expect(win).toContain('--remote-debugging-port=0');
     expect(win).toContain('DevToolsActivePort');
-    expect(win).toContain('head -1 "$PORTFILE"');
+    expect(win).toContain('Get-Content -LiteralPath $portFile -TotalCount 1');
+    expect(linux).toContain('head -1 "$PORTFILE"');
   });
 
   it('keeps the debugging port on loopback', () => {
@@ -27,25 +27,32 @@ describe('chromeLaunchCommand', () => {
   });
 
   it('uses a private profile, which Chrome 136+ requires for remote debugging', () => {
-    for (const cmd of [win, linux]) {
-      expect(cmd).toContain(`--user-data-dir="$PROFILE"`);
-      expect(cmd).toContain(`PROFILE="$HOME/${DEVICE_PROFILE_PATH}"`);
-    }
+    expect(win).toContain(`.cortex\\browser\\profile`);
+    expect(win).toContain('--user-data-dir=$quote$profile$quote');
+    expect(linux).toContain(`--user-data-dir="$PROFILE"`);
+    expect(linux).toContain(`PROFILE="$HOME/${DEVICE_PROFILE_PATH}"`);
   });
 
   it('adopts an existing browser before launching another', () => {
     // A device Chrome outlives one turn on purpose — that is what lets a human log in once.
-    expect(win).toContain('if [ -s "$PORTFILE" ]; then head -1 "$PORTFILE"; exit 0; fi');
+    expect(win).toContain('Get-Content -LiteralPath $portFile -TotalCount 1');
+    expect(linux).toContain('if [ -s "$PORTFILE" ]; then head -1 "$PORTFILE"; exit 0; fi');
   });
 
-  it('reaches ProgramFiles(x86) through printenv, since bash cannot name it', () => {
-    // `${PROGRAMFILES(X86)}` is a bash syntax error: parentheses are not allowed inside ${...}.
-    expect(win).toContain(`printenv 'ProgramFiles(x86)'`);
-    expect(win).not.toContain('${PROGRAMFILES(X86)}');
+  it('launches Windows Chrome through an interactive scheduled task', () => {
+    expect(win).toContain('New-ScheduledTaskPrincipal');
+    expect(win).toContain('-LogonType Interactive');
+    expect(win).toContain('Register-ScheduledTask');
+    expect(win).toContain('Start-ScheduledTask');
+    expect(win).toContain('</dev/null');
+    expect(win).not.toContain('nohup "$CHROME"');
+    expect(win).not.toContain('--headless');
+    expect(win).not.toContain('CORTEX_CLIENT_TOKEN');
   });
 
-  it('sets no `set -u`, which would abort on any unset Windows variable', () => {
-    expect(win.split('\n')[0]).not.toBe('set -u');
+  it('fails explicitly when no matching desktop user is active', () => {
+    expect(win).toContain('no-interactive-user');
+    expect(win).toContain('interactive-user-mismatch');
   });
 
   it('falls back to PATH lookups where there is no fixed install location', () => {
@@ -69,10 +76,13 @@ describe('chromeStopCommand', () => {
     expect(chromeStopCommand('win32')).toContain('.cortex*browser*profile');
   });
 
-  it('swallows its own errors on Windows', () => {
+  it('stops the Windows task and swallows already-dead process errors', () => {
     // Killing the browser process takes the renderers with it, so the rest of the enumeration is
     // already stale by the time the loop reaches it.
-    expect(chromeStopCommand('win32')).toContain('-ErrorAction SilentlyContinue');
+    const win = chromeStopCommand('win32');
+    expect(win).toContain('Stop-ScheduledTask');
+    expect(win).toContain('-ErrorAction SilentlyContinue');
+    expect(win).toContain('</dev/null');
   });
 
   it('always clears the port file, so the next launch cannot adopt a dead browser', () => {
@@ -80,7 +90,6 @@ describe('chromeStopCommand', () => {
       expect(chromeStopCommand(platform)).toContain('rm -f');
       expect(chromeStopCommand(platform)).toContain('DevToolsActivePort');
     }
-    expect(chromeResetPortFileCommand()).toContain('DevToolsActivePort');
   });
 });
 

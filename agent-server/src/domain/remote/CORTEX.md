@@ -12,5 +12,5 @@ Covers client deployment, updates, the connection registry, and the client daemo
 | cortex-client-config.ts | config | Resolves client connection URL and auth headers |
 | cortex-client.ts | entry | Runs the client daemon on a remote device |
 | device-browser.ts | core | Launches and holds a managed Chrome on a device, reachable as a local endpoint |
-| device-chrome-commands.ts | core | Builds the device-side shell that starts and stops that Chrome |
+| device-chrome-commands.ts | core | Builds interactive Windows and direct Unix Chrome commands |
 | device-port.ts | core | Maps a port on a device onto a loopback port on this server |
