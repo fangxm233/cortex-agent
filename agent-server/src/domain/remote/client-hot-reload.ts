@@ -1,10 +1,7 @@
-// Client hot-reload — two modes:
-//   Dev mode  (CORTEX_REPO set):    build client from source, check tgz mtime,
-//                                   SCP to remotes + npm install -g + restart.
-//   Release mode (CORTEX_REPO unset): check npm registry vs installed version,
-//                                   npm update -g + restart. Covers remote devices
-//                                   (over SSH) AND the local same-machine client
-//                                   (local npm + process.kill + detached respawn).
+// input:  client source builds, npm registry, machine registry
+// output: client update checks and local/remote process restarts
+// pos:    Cortex-client hot-reload coordinator
+// >>> If I am updated, update CORTEX.md <<<
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync, execFile, execFileSync, spawn } from 'child_process';
@@ -283,24 +280,27 @@ async function killClientOnDevice(device: string, reg: MachineEntry): Promise<bo
   }
 }
 
-async function restartClientOnDevice(device: string, reg: MachineEntry): Promise<boolean> {
+function restartLocalClient(device: string, entryPath?: string): boolean {
+  const command = entryPath ? process.execPath : 'cortex-client';
+  const args = entryPath ? [entryPath] : [];
+  const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+  child.on('error', (err) => {
+    log.warn(`Local client respawn error on ${device}: ${(err as Error).message}`);
+  });
+  child.unref();
+  if (!child.pid) return false;
+  clientPids.set(device, child.pid);
+  log.info(`Restarted local client on ${device} (PID ${child.pid})`);
+  return true;
+}
+
+async function restartClientOnDevice(
+  device: string,
+  reg: MachineEntry,
+  localEntry?: string,
+): Promise<boolean> {
   try {
-    if (!reg.ssh) {
-      // Local device: spawn a detached cortex-client (mirrors client-manager
-      // startRemoteClient local branch). PATH now resolves to the just-updated
-      // global binary. Env (incl. CORTEX_CLIENT_TOKEN) is inherited from the server.
-      const child = spawn('cortex-client', [], { detached: true, stdio: 'ignore' });
-      child.on('error', (err) => {
-        log.warn(`Local client respawn error on ${device}: ${(err as Error).message}`);
-      });
-      child.unref();
-      if (child.pid) {
-        clientPids.set(device, child.pid);
-        log.info(`Restarted local client on ${device} (PID ${child.pid})`);
-        return true;
-      }
-      return false;
-    }
+    if (!reg.ssh) return restartLocalClient(device, localEntry);
     if (reg.win) {
       const wmiArg = 'cmd.exe /c cortex-client';
       await sshExec(reg.ssh,
@@ -319,48 +319,71 @@ async function restartClientOnDevice(device: string, reg: MachineEntry): Promise
 
 // --- Dev mode: full per-device update ---
 
-async function updateClientDev(
+interface LocalDevUpdateDeps {
+  kill: () => Promise<boolean>;
+  restart: (entryPath: string) => Promise<boolean>;
+}
+
+async function updateClientDevLocal(
+  device: string,
+  tgzPath: string,
+  deps: LocalDevUpdateDeps,
+): Promise<DeviceResult> {
+  const res: DeviceResult = { device, updated: false, restarted: false };
+  try {
+    await deps.kill();
+    res.updated = true;
+    const entryPath = path.join(path.dirname(tgzPath), 'dist', 'client.js');
+    res.restarted = await deps.restart(entryPath);
+  } catch (err) {
+    res.error = (err as Error).message;
+    log.warn(`  ${device}: local dev update failed — ${res.error}`);
+  }
+  return res;
+}
+
+async function removeRemotePackage(reg: MachineEntry, remotePath: string): Promise<void> {
+  try {
+    await sshExec(reg.ssh!, `rm -f ${remotePath}`, 10000);
+  } catch {}
+}
+
+async function updateRemoteClientDev(
   device: string,
   reg: MachineEntry,
   tgzPath: string,
   tgzName: string,
 ): Promise<DeviceResult> {
   const res: DeviceResult = { device, updated: false, restarted: false };
-
-  if (!reg.ssh) {
-    res.error = 'Local client dev-update not supported (use npm install -g with tgz manually)';
-    return res;
-  }
-
   try {
-    // 1. Kill existing client
     await killClientOnDevice(device, reg);
-
-    // 2. SCP tgz to remote
-    const remoteTmpPath = `/tmp/${tgzName}`;
+    const remotePath = `/tmp/${tgzName}`;
     log.info(`  ${device}: SCP ${tgzName} → ${reg.ssh}:/tmp/`);
-    await scpToRemote(reg.ssh, tgzPath, remoteTmpPath, 60000);
-
-    // 3. Install from tgz (command configurable per machine — machines.json `installCommand`,
-    //    e.g. wrap in a login/interactive shell on nvm hosts where npm is off the SSH PATH)
-    const installCmd = `${buildRemoteInstallCommand(reg, remoteTmpPath)} 2>&1`;
-    const installOutput = await sshExec(reg.ssh, installCmd, 60000);
-    log.info(`  ${device}: npm install -g output: ${installOutput.slice(0, 200)}`);
+    await scpToRemote(reg.ssh!, tgzPath, remotePath, 60000);
+    const install = `${buildRemoteInstallCommand(reg, remotePath)} 2>&1`;
+    const output = await sshExec(reg.ssh!, install, 60000);
+    log.info(`  ${device}: npm install -g output: ${output.slice(0, 200)}`);
     res.updated = true;
-
-    // 4. Clean up remote tgz
-    try {
-      await sshExec(reg.ssh, `rm -f ${remoteTmpPath}`, 10000);
-    } catch {}
-
-    // 5. Restart client
+    await removeRemotePackage(reg, remotePath);
     res.restarted = await restartClientOnDevice(device, reg);
   } catch (err) {
     res.error = (err as Error).message;
     log.warn(`  ${device}: dev update failed — ${res.error}`);
   }
-
   return res;
+}
+
+async function updateClientDev(
+  device: string,
+  reg: MachineEntry,
+  tgzPath: string,
+  tgzName: string,
+): Promise<DeviceResult> {
+  if (reg.ssh) return updateRemoteClientDev(device, reg, tgzPath, tgzName);
+  return updateClientDevLocal(device, tgzPath, {
+    kill: () => killClientOnDevice(device, reg),
+    restart: (entry) => restartClientOnDevice(device, reg, entry),
+  });
 }
 
 // --- Release mode: local (same-machine) update ---
@@ -603,7 +626,8 @@ function formatUpdateSlackMessage(result: ClientUpdateResult): string {
 export {
   checkAndUpdateClients,
   formatUpdateSlackMessage,
+  updateClientDevLocal,
   updateClientReleaseLocal,
   buildRemoteNpmUpdateCommand,
 };
-export type { ClientUpdateResult, DeviceResult, LocalUpdateDeps };
+export type { ClientUpdateResult, DeviceResult, LocalDevUpdateDeps, LocalUpdateDeps };

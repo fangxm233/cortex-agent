@@ -1,12 +1,15 @@
-// input:  Node test runner, client-hot-reload updateClientReleaseLocal
-// output: local-client release-update branch coverage (DI deps)
-// pos:    release-mode local cortex-client auto-update (mirror of remote path)
+// input:  Vitest, client-hot-reload local update helpers
+// output: local dev/release client update lifecycle coverage
+// pos:    Same-machine cortex-client hot-reload regression tests
+// >>> If I am updated, update CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
+  updateClientDevLocal,
   updateClientReleaseLocal,
   buildRemoteNpmUpdateCommand,
+  type LocalDevUpdateDeps,
   type LocalUpdateDeps,
 } from '../src/domain/remote/client-hot-reload.js';
 import { resolveNpmGlobalPrefix } from '../src/core/utils.js';
@@ -35,6 +38,40 @@ function makeDeps(overrides: Partial<LocalUpdateDeps> & { installed?: string | n
   };
   return { deps, calls };
 }
+
+test('local dev update restarts the freshly built client entry', async () => {
+  const calls: string[] = [];
+  const deps: LocalDevUpdateDeps = {
+    kill: async () => { calls.push('kill'); return true; },
+    restart: async (entry) => { calls.push(`restart:${entry}`); return true; },
+  };
+  const res = await updateClientDevLocal('local', '/repo/client/client-build.tgz', deps);
+  assert.deepEqual(calls, ['kill', 'restart:/repo/client/dist/client.js']);
+  assert.equal(res.updated, true);
+  assert.equal(res.restarted, true);
+  assert.equal(res.error, undefined);
+});
+
+test('local dev update reports a failed restart', async () => {
+  const deps: LocalDevUpdateDeps = {
+    kill: async () => true,
+    restart: async () => false,
+  };
+  const res = await updateClientDevLocal('local', '/repo/client/client-build.tgz', deps);
+  assert.equal(res.updated, true);
+  assert.equal(res.restarted, false);
+});
+
+test('local dev update captures lifecycle errors', async () => {
+  const deps: LocalDevUpdateDeps = {
+    kill: async () => { throw new Error('cannot stop client'); },
+    restart: async () => true,
+  };
+  const res = await updateClientDevLocal('local', '/repo/client/client-build.tgz', deps);
+  assert.match(res.error ?? '', /cannot stop client/);
+  assert.equal(res.updated, false);
+  assert.equal(res.restarted, false);
+});
 
 test('already at latest: no kill/update/restart, not marked updated', async () => {
   const { deps, calls } = makeDeps({ installed: '2026.6.1' });
