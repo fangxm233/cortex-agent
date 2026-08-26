@@ -1,11 +1,10 @@
-// input:  current browser opt-in for a draft session, and the connected devices
-// output: a composer chip that picks which machine's browser the session will drive
-// pos:    Session-creation surface for the managed browser
+// input:  current browser opt-in and connected devices
+// output: a composer chip that picks the browser host
+// pos:    Managed-browser choice and live-session indicator
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
 import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
-import { fetchBrowserStatus, takeoverHint, type BrowserStatus } from './browser-status';
 
 /** This host's own Chrome. Any other value names a device, whose Chrome is launched by its
  *  cortex-client and reached through the reverse channel (plan/embedded-browser.md §18). */
@@ -72,16 +71,6 @@ export function BrowserOptInChip({ device, onChange }: {
   const close = useCallback(() => setOpen(false), []);
   useDismissMenu(open, close);
 
-  // Only a live browser session asks the server where its browser is — a draft has none yet, and a
-  // session without browser access has nothing to take over.
-  const [status, setStatus] = useState<BrowserStatus | null>(null);
-  useEffect(() => {
-    if (editable || !active) return;
-    let alive = true;
-    fetchBrowserStatus().then((s) => { if (alive) setStatus(s); }).catch(() => { /* tooltip stays basic */ });
-    return () => { alive = false; };
-  }, [editable, active]);
-
   // Devices come and go; the list is read when the menu opens rather than held, so it cannot offer
   // a machine that has since disconnected.
   useEffect(() => {
@@ -90,13 +79,6 @@ export function BrowserOptInChip({ device, onChange }: {
     listForwardDevices().then((d) => { if (alive) setDevices(d); }).catch(() => { if (alive) setDevices([]); });
     return () => { alive = false; };
   }, [open]);
-
-  const hint = status
-    ? takeoverHint(status, {
-        attached: L.wbBrowserAttached, virtual: L.wbBrowserVirtual, headless: L.wbBrowserHeadless,
-        running: L.wbBrowserRunning, stopped: L.wbBrowserStopped,
-      })
-    : null;
 
   const options: DeviceOption[] = [
     { device: null, label: L.wbBrowserOffOption, sub: '' },
@@ -109,9 +91,6 @@ export function BrowserOptInChip({ device, onChange }: {
       data-chip="browser"
       data-active={active ? 'true' : 'false'}
       data-editable={editable ? 'true' : 'false'}
-      title={editable
-        ? (active ? L.wbBrowserOn : L.wbBrowserOff)
-        : hint ? `${L.wbBrowserFixed}\n${hint}` : L.wbBrowserFixed}
       onClick={editable ? (e) => { e.stopPropagation(); setOpen((o) => !o); } : undefined}
       onMouseEnter={() => { if (editable) setHover(true); }}
       onMouseLeave={() => setHover(false)}

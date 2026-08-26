@@ -1,6 +1,6 @@
-// input:  the draft browser opt-in chip
-// output: pinned opt-in semantics for session-creation browser access
-// pos:    Specification for choosing browser control before a session exists
+// input:  the browser opt-in chip
+// output: pinned selection, read-only, and no-hover semantics
+// pos:    Browser control chip behavior specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
@@ -88,8 +88,15 @@ describe('BrowserOptInChip on an existing session', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it('explains why it cannot be changed', () => {
-    const { chip } = renderChip('server');
-    expect(typeof chip.props.title).toBe('string');
+  it('does not show browser guidance as native hover text', () => {
+    const editable = renderChip('server').chip;
+    const renderer = create(
+      <LangProvider>
+        <BrowserOptInChip device="server" />
+      </LangProvider>,
+    );
+    const readonly = renderer.root.findByProps({ 'data-chip': 'browser' });
+    expect(editable.props.title).toBeUndefined();
+    expect(readonly.props.title).toBeUndefined();
   });
 });
