@@ -96,7 +96,7 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         style={{
-          width: 30, height: 30, borderRadius: 8, boxSizing: 'border-box', padding: 0, flex: 'none',
+          width: 30, height: 30, borderRadius: '50%', boxSizing: 'border-box', padding: 0, flex: 'none',
           border: `1px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`,
           color: active ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
           background: 'var(--proto-card)',

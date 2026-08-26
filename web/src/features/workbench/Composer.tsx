@@ -998,7 +998,7 @@ export function Composer({
                           width: running ? 30 : 34,
                           height: running ? 30 : 34,
                           padding: 0,
-                          borderRadius: running ? 8 : 10,
+                          borderRadius: '50%',
                           // Running: outlined/secondary so Stop stays the primary action.
                           background: running ? 'transparent' : sendBg,
                           border: running ? `1.5px solid ${canSend ? 'var(--proto-accent-border)' : 'var(--proto-line)'}` : 'none',
@@ -1031,7 +1031,7 @@ export function Composer({
                             flex: 'none',
                             width: 34,
                             height: 34,
-                            borderRadius: 10,
+                            borderRadius: '50%',
                             background: btnHover ? 'var(--ink-solid-hover)' : 'var(--proto-ink)',
                             display: 'flex',
                             alignItems: 'center',

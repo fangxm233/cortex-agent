@@ -92,7 +92,7 @@ export function SessionProfileSelectorView({ selection }: { selection: ProfileSe
       onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}
       style={{
         position: 'relative', font: CHIP_FONT, border: `1px solid ${hover ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`,
-        color: hover ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '0 11px', height: 30, borderRadius: 8,
+        color: hover ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '0 12px', height: 30, borderRadius: 999,
         boxSizing: 'border-box', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none',
       }}
     >

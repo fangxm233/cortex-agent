@@ -1275,15 +1275,15 @@ export function BrowserSheet({ items, title, current, onClose, onPick }: {
 }
 
 // ── the ＋ toolbar button + profile chip (composer toolbar chrome) ─────────────
-// Rounded-rect family, matching the desktop toolbar: controls 34px tall / radius 10, the send key
-// 36 / radius 12. No pill shapes.
+// Shape family shared with the desktop toolbar: icon keys are circles (＋ / send / stop / ring),
+// labelled chips are pills. Only the popover menus stay rounded rects.
 function PlusButton({ onClick }: { onClick: () => void }): JSX.Element {
   return (
     <button
       type="button"
       aria-label="Attach"
       onClick={onClick}
-      style={{ flex: 'none', width: 34, height: 34, borderRadius: 10, border: `1px solid ${MC.hairline}`, background: MC.card, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, fontSize: 19, fontWeight: 300, lineHeight: 1, cursor: 'pointer', padding: 0 }}
+      style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: `1px solid ${MC.hairline}`, background: MC.card, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, fontSize: 19, fontWeight: 300, lineHeight: 1, cursor: 'pointer', padding: 0 }}
     >
       ＋
     </button>
@@ -1295,7 +1295,7 @@ function ProfileChip({ label, onClick }: { label: string; onClick: () => void })
     <button
       type="button"
       onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--proto-accent-bg)', background: MC.card, borderRadius: 10, height: 34, padding: '0 12px', boxSizing: 'border-box', flex: 'none', minWidth: 0, cursor: 'pointer' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--proto-accent-bg)', background: MC.card, borderRadius: 999, height: 34, padding: '0 13px', boxSizing: 'border-box', flex: 'none', minWidth: 0, cursor: 'pointer' }}
     >
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run, flex: 'none' }} />
       <span style={{ font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
