@@ -1,11 +1,13 @@
-// input:  subagent identity, complete prompt, and folded child content
-// output: desktop prompt disclosure and count alignment tests
+// input:  subagent identity, folded rows, and turn-copy actions
+// output: prompt disclosure, count alignment, and copy isolation tests
 // pos:    Desktop subagent card presentation contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
+import type { ChatRow } from './transcript-vm';
+import { ChatRows } from './MessageStream';
 import { SubagentBlock } from './SubagentBlock';
 
 describe('SubagentBlock', () => {
@@ -36,5 +38,31 @@ describe('SubagentBlock', () => {
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain(prompt.replace(/\n/g, '\\n'));
     expect(rendered).toContain('child output');
+  });
+
+  it('keeps one outer turn-copy action after an expanded subagent', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'question' },
+      { kind: 'assistant', text: 'main answer', streaming: false },
+      {
+        kind: 'subagent', id: 'tu_a', agentType: 'explore', description: 'Inspect renderers',
+        prompt: 'inspect everything', model: 'model-x', status: 'done', toolCount: 1,
+        children: [{ kind: 'assistant', text: 'child output', streaming: false }],
+      },
+    ];
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<LangProvider><ChatRows rows={rows} /></LangProvider>);
+    });
+
+    expect(renderer.root.findAllByProps({ 'data-assistant-turn-copy': 'true' })).toHaveLength(1);
+    act(() => renderer.root.findByProps({ 'aria-expanded': false }).props.onClick());
+    const actions = renderer.root.findAllByProps({ 'data-assistant-turn-copy': 'true' });
+    expect(actions).toHaveLength(1);
+    act(() => actions[0].findByProps({ title: 'Copy' }).props.onClick());
+    expect(writeText).toHaveBeenCalledWith('main answer');
+    vi.unstubAllGlobals();
   });
 });

@@ -7,8 +7,8 @@ Framework-free view models map records to slots and have colocated unit tests.
 |---|---|---|
 | MChatScreen.tsx | screen | Routes chat, name-only profile chip, sends and actions |
 | MChatScreen.optimistic.test.tsx | test | Tests Todo wiring, optimistic sends and shortcuts |
-| MChatView.tsx | view | Renders chat and a truncating profile composer chip |
-| MChatView.test.tsx | test | Tests chat, Todo, composer controls and profile layout |
+| MChatView.tsx | view | Renders chat, turn-tail copy and profile composer |
+| MChatView.test.tsx | test | Tests turn-tail copy, Todo and composer layout |
 | m-chat-vm.ts | vm | Builds chat rows, profile labels and menu placement |
 | m-chat-vm.test.ts | test | Tests chat status, profile labels and row state |
 | MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |

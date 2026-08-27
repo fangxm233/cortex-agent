@@ -1,5 +1,5 @@
 // input:  Mobile chat rows, Todo snapshots, interactions, composer state
-// output: Mobile chat with prompts, counts and a shrinkable profile chip
+// output: Mobile chat with turn-tail actions and composer controls
 // pos:    Mobile chat presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -977,6 +977,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
           {row.kind === 'subagent' && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
               <MSubagentBlock row={row} unit={toolCallsUnit} />
+              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}
           {row.kind === 'tools' && (
@@ -993,6 +994,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
                 onNoticeAction={interactions?.onCancelResume}
                 noticeActionDone={interactions?.resumeCancelled}
               />
+              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}
           {row.kind === 'assistant' && (
@@ -1019,6 +1021,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
           {row.kind === 'interaction' && (
             <div style={{ display: 'flex', flexDirection: 'column', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}) }}>
               <MInteractionRow row={row} interactions={interactions} />
+              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}
         </Fragment>

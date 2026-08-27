@@ -33,18 +33,18 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | CenterChat.tsx | view | Reconciles chat state, startup progress and composer placement |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
-| MessageStream.tsx | view | Renders transcript, centered HTML views and message actions |
+| MessageStream.tsx | view | Renders transcript with one turn-tail copy action |
 | ChatMarkdown.tsx | view | Renders Markdown with width-bounded KaTeX formulas |
 | ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior and untrusted-input safety |
 | ChatNotice.tsx | view | Localized semantic notices with optional actions |
 | ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
 | MessageEdit.tsx | view | Bare message actions, edit box and rewind |
 | chat-content.ts | types | Defines chat types and local shortcut catalog |
-| transcript-vm.ts | vm | Builds day-grouped chat rows and turn-copy targets |
-| transcript-vm.test.ts | test | Tests transcript rows, turn copy and auth actions |
+| transcript-vm.ts | vm | Builds chat rows and finds substantive turn tails |
+| transcript-vm.test.ts | test | Tests transcript rows, turn tails and auth actions |
 | ToolCallsRow.tsx | view | Expands tool chips and lazy-loads DEBUG details |
 | SubagentBlock.tsx | view | Shows prompt rows with a right-aligned tool count |
-| SubagentBlock.test.tsx | test | Tests prompt disclosure and count alignment |
+| SubagentBlock.test.tsx | test | Tests prompt disclosure and nested copy isolation |
 | tool-call-overflow.ts | util | Computes bounded visible and hidden tool counts |
 | tool-call-overflow.test.ts | test | Tests counts beyond the measured chip prefix |
 | useToolCallOverflow.ts | hook | Measures a bounded chip prefix on resize |

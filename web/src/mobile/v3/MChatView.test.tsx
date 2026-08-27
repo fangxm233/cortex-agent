@@ -1,5 +1,5 @@
 // input:  mobile rows, Todo snapshots, slash, send and profile state
-// output: Mobile prompt/count, Todo, message, and composer contracts
+// output: Mobile turn-copy, Todo, message, and composer contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -247,13 +247,20 @@ describe('MChatStream assistant turn copy', () => {
       { kind: 'tools', count: 1, calls: [{ kind: 'read', input: 'a.md' }] },
       { kind: 'assistant', text: 'part two', streaming: false },
       { kind: 'tools', count: 1, calls: [{ kind: 'bash', input: 'pwd' }] },
+      {
+        kind: 'subagent', id: 'tu_a', agentType: 'explore', description: 'inspect',
+        prompt: 'inspect', model: 'model-x', status: 'done', toolCount: 1,
+        children: [{ kind: 'assistant', text: 'child detail', streaming: false }],
+      },
       { kind: 'user', text: 'second' },
       { kind: 'assistant', text: 'next turn', streaming: false },
     ];
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(
-        <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" />,
+        <LangProvider>
+          <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" />
+        </LangProvider>,
       );
     });
 

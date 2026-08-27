@@ -1,5 +1,5 @@
 // input:  transcript DTOs with DEBUG warnings, notices, pending data
-// output: ChatRows with grouped tools, dividers, and reconciliation
+// output: ChatRows, turn-tail copy targets, and reconciliation
 // pos:    Shared desktop/mobile transcript view-model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type {
@@ -468,7 +468,7 @@ export function regenNoteIndexes(rows: ChatRow[]): Set<number> {
   return out;
 }
 
-/** Whole-turn assistant text, keyed by its final assistant row or any trailing tool row. */
+/** Whole-turn assistant text, keyed by the final substantive row in that turn. */
 export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
   const targets = new Map<number, string>();
   let texts: string[] = [];
@@ -482,12 +482,10 @@ export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
     const row = rows[i];
     if (row.kind === 'user') {
       flush();
-    } else if (row.kind === 'assistant' && row.text.length > 0) {
-      texts.push(row.text);
-      tailIndex = i;
-    } else if (row.kind === 'tools' && tailIndex != null) {
-      tailIndex = i;
+      continue;
     }
+    if (row.kind === 'assistant' && row.text.length > 0) texts.push(row.text);
+    if (row.kind !== 'divider' && texts.length > 0) tailIndex = i;
   }
   flush();
   return targets;

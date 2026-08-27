@@ -1,5 +1,5 @@
 // input:  ChatRows, notices, interactions, and edits
-// output: Scroll-stable transcript, prompt cards, and message actions
+// output: Transcript with turn-tail actions and message controls
 // pos:    Desktop workbench message presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -533,6 +533,7 @@ function TurnCopyAction({ text, copy }: { text?: string; copy?: MEditCopy }): JS
   if (!text || !copy) return null;
   return (
     <div
+      data-assistant-turn-copy="true"
       className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
       style={{ height: 26, marginTop: 4, display: 'flex', alignItems: 'center' }}
     >
@@ -682,27 +683,38 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
       return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} />;
     case 'notice':
       return (
-        <ChatNotice
-          level={row.level} text={row.text} authAction={row.authAction}
-          noticeAction={row.noticeAction}
-          onNoticeAction={interactionActions?.cancelResume}
-          noticeActionDone={interactionActions?.resumeCancelled}
-        />
+        <div className="group">
+          <ChatNotice
+            level={row.level} text={row.text} authAction={row.authAction}
+            noticeAction={row.noticeAction}
+            onNoticeAction={interactionActions?.cancelResume}
+            noticeActionDone={interactionActions?.resumeCancelled}
+          />
+          <TurnCopyAction text={assistantCopyText} copy={editCopy} />
+        </div>
       );
     case 'interaction':
-      return <InteractionRowCard row={row} actions={interactionActions} />;
+      return (
+        <div className="group">
+          <InteractionRowCard row={row} actions={interactionActions} />
+          <TurnCopyAction text={assistantCopyText} copy={editCopy} />
+        </div>
+      );
     case 'subagent':
       return (
-        <SubagentBlock
-          agentType={row.agentType}
-          description={row.description}
-          prompt={row.prompt}
-          model={row.model}
-          status={row.status}
-          toolCount={row.toolCount}
-        >
-          <ChatRows rows={row.children} interactionActions={interactionActions} streamKey={streamKey} />
-        </SubagentBlock>
+        <div className="group">
+          <SubagentBlock
+            agentType={row.agentType}
+            description={row.description}
+            prompt={row.prompt}
+            model={row.model}
+            status={row.status}
+            toolCount={row.toolCount}
+          >
+            <ChatRows rows={row.children} interactionActions={interactionActions} streamKey={streamKey} turnCopy={false} />
+          </SubagentBlock>
+          <TurnCopyAction text={assistantCopyText} copy={editCopy} />
+        </div>
       );
     default:
       return null;
@@ -715,14 +727,14 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
  *  sec-23 message-edit state when an `edit` context is passed (the workbench center chat): the edited
  *  bubble becomes an in-place EditBox, later rows dim under a「将被回退」badge, and submit fires
  *  the rewind. */
-export function ChatRows({ rows, interactionActions, edit, streamKey }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string }): JSX.Element {
+export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy = true }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string; turnCopy?: boolean }): JSX.Element {
   const lang = useLang();
   const editCopy = lang === 'zh' ? M_EDIT_COPY.zh : M_EDIT_COPY.en;
   // The row currently being edited (a user row with a turnIndex). Reset when the row set changes
   // shape enough that the anchor no longer matches (guard inside the render below).
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const regenIdx = regenNoteIndexes(rows);
-  const assistantCopies = assistantTurnCopyTargets(rows);
+  const assistantCopies = turnCopy ? assistantTurnCopyTargets(rows) : new Map<number, string>();
 
   const editingRow = editingIdx != null ? rows[editingIdx] : null;
   const editingValid = !!edit && !!editingRow && editingRow.kind === 'user' && editingRow.turnIndex !== undefined;

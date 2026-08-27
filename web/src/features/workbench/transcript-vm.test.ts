@@ -53,6 +53,21 @@ describe('assistantTurnCopyTargets', () => {
     ]);
   });
 
+  it('moves the target past trailing subagents and interaction content', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'question' },
+      { kind: 'assistant', text: 'main answer', streaming: false },
+      {
+        kind: 'subagent', id: 'tu_a', agentType: 'explore', description: 'inspect',
+        prompt: 'inspect', model: 'model-x', status: 'done', toolCount: 1,
+        children: [{ kind: 'assistant', text: 'child detail', streaming: false }],
+      },
+      { kind: 'interaction', subtype: 'plan', text: 'approval requested' },
+    ];
+
+    expect([...assistantTurnCopyTargets(rows)]).toEqual([[3, 'main answer']]);
+  });
+
   it('ignores empty assistant text and turns without assistant text', () => {
     const rows: ChatRow[] = [
       { kind: 'assistant', text: '', streaming: false },
