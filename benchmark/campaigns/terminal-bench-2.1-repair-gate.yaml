@@ -1,0 +1,110 @@
+# input:  one Cortex arm, one task whose own dependencies quote a stranger's home directory
+# output: proof that a repaired trial publishes an envelope and a score, before 254 paid trials run
+# pos:    Terminal-Bench 2.1 repair gate
+#
+# Gates three fixes at once, on the cheapest input that exercises all of them.
+#
+# `build-cython-ext` installs `pyknotid`, whose own source hardcodes its author's
+# `/home/asandy/knotcatalogue/...`. Under the old leak rule that string was a host disclosure, and
+# the trial was refused at publication after the verifier had already scored it 1. Five arms lost a
+# solved task to it on 2026-08-27; forty-six trials in total.
+#
+# Being a `cortex` arm rather than a vendor baseline, it also runs `cortex-evidence-export`, which
+# is where the other sixteen died. A gate on `pi-cdx` would prove nothing about that path.
+#
+# What "pass" means here: reward 1.0, a published envelope, and a clean leak scan. Reward 0 with an
+# envelope would still prove the harness fixes and disprove nothing about them, but it is not what
+# this task did before, so read it as a signal to look rather than to launch.
+#
+#   benchmark/harness/scripts/bench --config ../campaigns/terminal-bench-2.1-repair-gate.yaml --run
+
+schema_version: cortex-bench-campaign/1
+campaign: tb21-repair-gate
+paid: true
+trials_dir: /home/xinmin/cortex-benchmark/runs/tb21-repair-gate
+cli_version: "2026.8.6"
+concurrency: 1
+
+timeouts:
+  agent_seconds: 4200
+  verifier_seconds: 3600
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: https://chatgpt.com/backend-api
+  route_identity_host: chatgpt.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: paid-codex-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_CODEX_CREDENTIAL
+  forbidden_environment:
+    host_forbidden: CORTEX_BENCH_PAID_FORBIDDEN
+  forbidden_argv_environment:
+    host_argv: CORTEX_BENCH_PAID_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_PAID_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_PAID_IDENTITY
+
+docker_network:
+  subnet_pool: 172.27.16.0/20
+  subnet_prefix: 24
+
+# Without these three fields this campaign would be bounded by one access token's lifetime, which
+# no 89-task segment fits inside. The refresh token is named here and read from the auth file at
+# execution time; refreshing happens in the host proxy process and the container still sees only
+# a dummy.
+proxy:
+  credential_env: CORTEX_BENCH_CODEX_CREDENTIAL
+  refresh_credential_env: CORTEX_BENCH_CODEX_REFRESH
+  token_endpoint_url: https://auth.openai.com/oauth/token
+  oauth_client_id: app_EMoamEEZ73f0CkXaXp7hrann
+  request_body_limit_bytes: 67108864
+  response_body_limit_bytes: 67108864
+  listen_host: 0.0.0.0
+
+runtimes:
+  node: /home/xinmin/cortex-benchmark/runtimes/node
+  pi: /home/xinmin/cortex-benchmark/runtimes/pi
+  codex: /home/xinmin/cortex-benchmark/runtimes/codex
+  verifier: /home/xinmin/cortex-benchmark/runtimes/verifier
+
+arms:
+  - name: cx-dir
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi, verifier]
+    orchestration:
+      mode: direct
+      ask_manager: false
+    limits:
+      max_provider_requests: 1000
+      max_cost_usd: "10.00"
+      deadline_seconds: 3600
+      max_output_tokens: 131072
+
+
+
+# `open`, matching every campaign whose scores these are compared against. See campaigns/CORTEX.md
+# for what that costs a score.
+network:
+  mode: open
+
+task_source:
+  kind: external
+  root: /home/xinmin/cortex-benchmark/assets/terminal-bench-2.1-7131e437/tasks
+  inventory: ../external-suites/terminal-bench-2.1-7131e437-images.json
+  select:
+    mode: include
+    ids: [build-cython-ext]
+
+comparisons: []
