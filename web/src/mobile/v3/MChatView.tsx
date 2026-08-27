@@ -21,6 +21,7 @@
 // so with dimmed text alone: the same ink bubble, full opacity, no icon, badge or spinner.
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { SessionContextUsage, TodoSnapshot } from '@cortex-agent/ui-contract';
+import { PlusGlyph } from '@/design';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';
 import {
@@ -1283,9 +1284,9 @@ function PlusButton({ onClick }: { onClick: () => void }): JSX.Element {
       type="button"
       aria-label="Attach"
       onClick={onClick}
-      style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: `1.5px solid var(--proto-line-3)`, background: MC.card, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, fontSize: 19, fontWeight: 300, lineHeight: 1, cursor: 'pointer', padding: 0 }}
+      style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: `1.5px solid var(--proto-line-3)`, background: MC.card, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, lineHeight: 0, cursor: 'pointer', padding: 0 }}
     >
-      ＋
+      <PlusGlyph size={15} />
     </button>
   );
 }

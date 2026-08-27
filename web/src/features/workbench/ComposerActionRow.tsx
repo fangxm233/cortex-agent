@@ -3,6 +3,7 @@
 // pos:    Groups composer shortcuts and controls under the input
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';
 import type { SlashSuggestion } from './composer-slash';
 import { useBrowserDeviceOptions } from './BrowserOptIn';
@@ -87,20 +88,6 @@ function MenuIcon({ kind }: { kind: 'attach' | 'browser' | 'commands' }): JSX.El
   return (
     <svg {...common} strokeWidth={1.6} strokeLinecap="round">
       <path d="M10.3 2.6 5.7 13.4" />
-    </svg>
-  );
-}
-
-/** The ＋ mark as line art. The text glyph (U+FF0B) hangs ~1px below the optical centre of its em
- *  box and renders hairline-thin at this size, so the button draws the strokes itself. */
-function PlusGlyph({ size = 13 }: { size?: number }): JSX.Element {
-  return (
-    <svg
-      width={size} height={size} viewBox="0 0 16 16" fill="none"
-      stroke="currentColor" strokeWidth={1.7} strokeLinecap="round"
-      aria-hidden="true" style={{ display: 'block', flex: 'none' }}
-    >
-      <path d="M8 2.4v11.2M2.4 8h11.2" />
     </svg>
   );
 }

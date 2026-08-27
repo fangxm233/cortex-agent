@@ -6,6 +6,7 @@
 export { TONES, statusTone, type Tone } from './tone';
 export { StatusPill, type StatusPillProps } from './StatusPill';
 export { MonoText, type MonoTextProps } from './MonoText';
+export { PlusGlyph, type PlusGlyphProps } from './PlusGlyph';
 export { ID, type IDProps } from './ID';
 export { Card, CardHeader, CardBody, type CardProps } from './Card';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';

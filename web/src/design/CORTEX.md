@@ -11,6 +11,7 @@ Interactive parts wrap Radix for accessibility; pure modules hold the tested sta
 | SectionHeader.tsx | core | Section title with count, actions and description |
 | StatusPill.tsx | core | Status badge colored by resolved tone |
 | MonoText.tsx | core | Text in the monospace data style |
+| PlusGlyph.tsx | core | The plus mark as centered line art |
 | ID.tsx | core | Identifier with click-to-copy |
 | Tabs.tsx | core | Tab set as data-driven form and styled parts |
 | Tooltip.tsx | core | Hover tooltip plus its provider export |

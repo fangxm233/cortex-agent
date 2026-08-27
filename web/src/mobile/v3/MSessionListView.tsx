@@ -3,6 +3,7 @@
 // pos:    Presentational mobile session-list screen
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1a L86-128)
+import { PlusGlyph } from '@/design';
 import { MScreen, MTabHeader, MScrollBody, MCard, MGroupLabel, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { sessionStatusLine, type MSessionGroup } from './m-session-list-vm';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
@@ -36,12 +37,11 @@ function NewButton({ onClick }: { onClick: () => void }) {
         alignItems: 'center',
         justifyContent: 'center',
         color: 'var(--ink-solid-fg)',
-        fontSize: 17,
-        fontWeight: 400,
+        lineHeight: 0,
         cursor: 'pointer',
       }}
     >
-      ＋
+      <PlusGlyph size={15} strokeWidth={1.9} />
     </button>
   );
 }

@@ -5,6 +5,7 @@
 
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
 import type { CostSummary } from '@cortex-agent/ui-contract';
+import { PlusGlyph } from '@/design';
 import { MScreen, MTabHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
 import { budgetPercent, formatMoney } from '@/features/overview/overview-vm';
 import type { MProjectSwitchRow } from './m-project-vm';
@@ -478,7 +479,7 @@ const NEW_PROJECT_STYLE = { display: 'flex', alignItems: 'center', gap: 9, backg
 function NewProjectButton({ copy, onClick }: { copy: MProjectCopy; onClick: () => void }) {
   return (
     <div onClick={onClick} style={NEW_PROJECT_STYLE}>
-      <span style={{ fontSize: 15, color: MC.run, fontWeight: 400 }}>＋</span>
+      <span style={{ color: MC.run, display: 'flex' }}><PlusGlyph size={14} /></span>
       <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.run }}>{copy.newProject}</span>
     </div>
   );

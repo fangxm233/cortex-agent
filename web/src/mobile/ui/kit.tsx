@@ -10,6 +10,7 @@
 // (MobileShell) owns the viewport + bottom Tab bar; a screen renders <MScreen> with its own header,
 // scroll body, and optional footer. Composer variants share an optional local-command menu slot.
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { PlusGlyph } from '@/design';
 import { useBackDismiss } from '@/mobile/use-back-dismiss';
 
 // ── Palette (scheme-mobile.dc.html system tokens, L57-73) ─────────────────────
@@ -1045,8 +1046,8 @@ export function ComposerFullscreen({
             borderTop: `1px solid ${MC.divider}`,
           }}
         >
-          <button type="button" aria-label="Attach" onClick={onPlus} style={{ ...toolBtn, fontSize: 15, fontWeight: 400 }}>
-            ＋
+          <button type="button" aria-label="Attach" onClick={onPlus} style={toolBtn}>
+            <PlusGlyph />
           </button>
           <button
             type="button"
