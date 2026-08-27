@@ -1,8 +1,8 @@
 // input:  tRPC data, shared project/session/modal contexts
-// output: desktop rail with bounded project/session/schedule zones
+// output: collapsible desktop rail with bounded project/session/schedule zones
 // pos:    Owns workbench navigation and global-overlay triggers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
@@ -33,6 +33,7 @@ import {
   PROJECTS_ZONE_DEFAULT_H,
 } from './left-rail-projects';
 import { NewProjectModal } from './NewProjectModal';
+import { PaneToggle } from './PaneToggle';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { useCurrentProject } from './CurrentProjectProvider';
@@ -43,10 +44,15 @@ import { useTheme, useSetTheme } from '@/theme';
 import { DaemonStatusModal } from './DaemonStatusModal';
 import { useSessionsLiveSync } from './useSessionsLiveSync';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
-import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';
-import { BUILD_STAMP } from '@/lib/build-info';
-import { DesktopRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
+import { connectionDot, connectionLabelKey, type ConnectionDot } from '@/features/connection/connection-status';
+import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
+import { PlusGlyph } from '@/design';
 const mono = "'IBM Plex Mono',monospace";
+const RAIL_WIDTH = 340;
+// Mirrors the right panel's icon rail (RightPanel PANEL_RAIL_WIDTH) so both collapsed edges read
+// as the same object: a 26px square of content inside 8px gutters.
+const RAIL_COLLAPSED_WIDTH = 42;
+const RAIL_COLLAPSED_KEY = 'cortex:left-rail-collapsed';
 const ZONE_H_KEY = 'cortex.railProjectsH';
 const SCHED_OPEN_KEY = 'cortex.railSchedOpen';
 
@@ -70,6 +76,125 @@ function ClockIcon({ size, color }: { size: number; color: string }): JSX.Elemen
   );
 }
 
+// 25c 皮层弧 C — 两弧一核成 C / 由核向外的信号 (scheme.dc.html §25c)
+function BrandMark({ size }: { size: number }): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <circle cx={33} cy={32} r={6} fill="var(--brand-badge-core)" />
+      <path d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36" stroke="var(--brand-badge-arc)" strokeWidth={6} strokeLinecap="round" />
+      <path d="M48.6 17.95A21 21 0 1 0 48.6 46.05" stroke="var(--brand-badge-arc)" strokeWidth={6} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Brand badge carrying the live UI↔server link as a presence dot on its corner. The status used to
+// be a dot + word occupying the header's right end, which is also the only free corner a collapse
+// control can hold; binding connectivity to the app's own mark says the same thing in no width, and
+// the word survives in the tooltip and in the daemon modal this opens.
+function BrandBadge({ dot, label, onClick }: { dot: ConnectionDot; label: string; onClick: () => void }): JSX.Element {
+  return (
+    <div
+      role="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      style={{
+        position: 'relative',
+        width: 26,
+        height: 26,
+        borderRadius: 7,
+        background: 'var(--brand-badge-bg)',
+        border: '1px solid var(--brand-badge-border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        flex: 'none',
+      }}
+    >
+      <BrandMark size={19} />
+      <span
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          right: -3,
+          bottom: -3,
+          width: 9,
+          height: 9,
+          borderRadius: '50%',
+          background: dot.color,
+          border: '2px solid var(--proto-rail)',
+          ...(dot.pulse ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
+        }}
+      />
+    </div>
+  );
+}
+
+function GearIcon({ size = 15 }: { size?: number }): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+// Borderless 28px square for the collapsed rail's bottom cluster — the same footprint as PaneToggle
+// so the whole icon column shares one optical width.
+function RailIconButton({ label, color, onClick, onMouseEnter, onMouseLeave, children }: {
+  label: string;
+  color: string;
+  onClick: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{
+        width: 28,
+        height: 28,
+        border: 0,
+        borderRadius: 7,
+        background: 'transparent',
+        color,
+        display: 'grid',
+        placeItems: 'center',
+        padding: 0,
+        cursor: 'pointer',
+        flex: 'none',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function useRailCollapsed() {
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(RAIL_COLLAPSED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(RAIL_COLLAPSED_KEY, String(collapsed));
+    } catch {
+      /* persistence is best-effort */
+    }
+  }, [collapsed]);
+  return [collapsed, setCollapsed] as const;
+}
+
 export function LeftRail(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
@@ -81,6 +206,10 @@ export function LeftRail(): JSX.Element {
   // Live UI↔server connectivity for the daemon badge (green connected / amber (re)connecting /
   // red disconnected) — replaces the former always-green hard-code.
   const connStatus = useConnectionStatus();
+  // Collapsed rail (mirrors the right panel): the pane animates down to an icon column of the brand
+  // badge, the project squares and the bottom cluster. Declared here because the project
+  // scroll-into-view effect below reads it.
+  const [collapsed, setCollapsed] = useRailCollapsed();
   const rateLimitStatus = useRateLimitStatus();
   const connDot = connectionDot(connStatus);
   const connLabel = L[connectionLabelKey(connStatus)];
@@ -191,14 +320,16 @@ export function LeftRail(): JSX.Element {
 
   // Keep the active row visible inside the zone's internal scroller (20 real projects vs the
   // design's 4 — without this a switch via ⌘k or derivation can leave the active row folded).
+  // Two scrollers, because the expanded zone stays mounted (display:none) while collapsed so its
+  // scroll position survives the round trip — a single ref would be claimed by the hidden one.
   const projectsScrollRef = useRef<HTMLDivElement | null>(null);
+  const collapsedProjectsRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!activeProjectId) return;
-    const el = projectsScrollRef.current?.querySelector(
-      `[data-project-row="${CSS.escape(activeProjectId)}"]`,
-    );
-    el?.scrollIntoView({ block: 'nearest' });
-  }, [activeProjectId, projectRows.length]);
+    const selector = `[data-project-row="${CSS.escape(activeProjectId)}"]`;
+    const host = collapsed ? collapsedProjectsRef.current : projectsScrollRef.current;
+    host?.querySelector(selector)?.scrollIntoView({ block: 'nearest' });
+  }, [activeProjectId, projectRows.length, collapsed]);
 
   // Draggable divider: adjusts the PROJECTS zone height (rows scroll internally, header pinned).
   const [zoneH, setZoneH] = useState(initialZoneH);
@@ -505,70 +636,135 @@ export function LeftRail(): JSX.Element {
     );
   };
 
+  // COLLAPSED RAIL — the pane folded to an icon column: brand badge (identity + link), the expand
+  // toggle, the project squares (⌘1–9 still drive them), then the bottom cluster. Sessions and
+  // SCHEDULED have no honest icon form, so they simply wait for the expand — the same trade the
+  // right panel's rail makes. The theme toggle drops out too; Settings → Appearance still holds it.
+  const railDivider = <div aria-hidden="true" style={{ width: 20, height: 1, background: 'var(--proto-line)', margin: '3px 0', flex: 'none' }} />;
+  const renderCollapsedProject = (row: (typeof projectRows)[number]) => {
+    const tone = row.badgeCount > 0
+      ? (row.badgeTone === 'action' ? 'var(--proto-amber)' : 'var(--proto-accent)')
+      : row.running > 0
+        ? 'var(--proto-accent)'
+        : null;
+    return (
+      <button
+        key={row.id}
+        type="button"
+        data-project-row={row.id}
+        aria-label={row.id}
+        aria-pressed={row.active}
+        title={row.id}
+        onClick={() => onSwitchProject(row.id)}
+        style={{
+          position: 'relative',
+          width: 26,
+          height: 26,
+          border: 0,
+          borderRadius: 7,
+          padding: 0,
+          cursor: 'pointer',
+          flex: 'none',
+          background: row.active ? 'var(--proto-accent)' : 'var(--proto-accent-bg)',
+          color: row.active ? 'var(--ink-solid-fg)' : 'var(--proto-accent)',
+          font: `600 9px ${mono}`,
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        {row.initials}
+        {tone && (
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              right: -2,
+              top: -2,
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: tone,
+              border: '2px solid var(--proto-rail)',
+            }}
+          />
+        )}
+      </button>
+    );
+  };
+  const renderCollapsedRail = () => (
+    <nav
+      aria-label={L.lrRailNavigation}
+      style={{ width: RAIL_COLLAPSED_WIDTH - 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: '14px 0 12px' }}
+    >
+      <BrandBadge dot={connDot} label={`${L.dmDaemon} · ${connLabel}`} onClick={() => setDaemonOpen(true)} />
+      <PaneToggle side="left" expanded={false} label={L.lrExpandRail} onClick={() => setCollapsed(false)} />
+      {railDivider}
+      <div
+        ref={collapsedProjectsRef}
+        style={{ flex: 1, minHeight: 0, width: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
+      >
+        {projectRows.map(renderCollapsedProject)}
+      </div>
+      {railDivider}
+      <RailIconButton
+        label={L.wbNewShort}
+        color={isHover('crail:new') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)'}
+        onClick={onNewSession}
+        {...hp('crail:new')}
+      >
+        <PlusGlyph size={14} />
+      </RailIconButton>
+      {rateLimitStatus && (
+        <RailIconButton label={rateLimitStatus.label} color="var(--pill-waiting-fg)" onClick={() => setCollapsed(false)}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--pill-waiting-fg)', animation: 'cxpulse 2s ease-in-out infinite' }} />
+        </RailIconButton>
+      )}
+      {hasPendingApprovals && (
+        <RailIconButton label={pendingLabel} color="var(--proto-amber-fg)" onClick={() => approvals.open()}>
+          <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 8, background: 'var(--proto-amber)', color: 'var(--ink-solid-fg)', font: `600 9px ${mono}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            {pendingCount}
+          </span>
+        </RailIconButton>
+      )}
+      <RailIconButton
+        label={L.settings}
+        color={isHover('crail:settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)'}
+        onClick={openSettings}
+        {...hp('crail:settings')}
+      >
+        <GearIcon />
+      </RailIconButton>
+    </nav>
+  );
+
   return (
     <div
       data-pane="left"
+      data-collapsed={collapsed || undefined}
       style={{
-        width: 340,
+        width: collapsed ? RAIL_COLLAPSED_WIDTH : RAIL_WIDTH,
+        transition: 'width 220ms cubic-bezier(0.22, 1, 0.36, 1)',
         flex: 'none',
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--proto-rail)',
         borderRight: '1px solid var(--proto-line)',
         minHeight: 0,
+        overflow: 'hidden',
       }}
     >
-      {/* header: cx logo + Cortex + daemon status (22a L43–47) */}
+      {collapsed && renderCollapsedRail()}
+      {/* The expanded tree stays mounted at its full width while collapsed, so the session list keeps
+          its scroll position and the pane slides out of view instead of reflowing into 42px. */}
+      <div style={{ display: collapsed ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: RAIL_WIDTH }}>
+      {/* header: brand badge (carries the link dot) + wordmark + collapse toggle. Each rail corner
+          now holds exactly one job — identity here, panel control opposite, appearance and settings
+          in the footer — and the throttle/approval banners moved to the attention zone above it. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '16px 16px 10px', flex: 'none' }}>
-        <div
-          aria-label="Cortex"
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 7,
-            background: 'var(--brand-badge-bg)',
-            border: '1px solid var(--brand-badge-border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {/* 25c 皮层弧 C — 两弧一核成 C / 由核向外的信号 (scheme.dc.html §25c) */}
-          <svg width={19} height={19} viewBox="0 0 64 64" fill="none" aria-hidden="true">
-            <circle cx={33} cy={32} r={6} fill="var(--brand-badge-core)" />
-            <path
-              d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36"
-              stroke="var(--brand-badge-arc)"
-              strokeWidth={6}
-              strokeLinecap="round"
-            />
-            <path
-              d="M48.6 17.95A21 21 0 1 0 48.6 46.05"
-              stroke="var(--brand-badge-arc)"
-              strokeWidth={6}
-              strokeLinecap="round"
-            />
-          </svg>
-        </div>
+        <BrandBadge dot={connDot} label={`${L.dmDaemon} · ${connLabel}`} onClick={() => setDaemonOpen(true)} />
         <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          <DesktopRateLimitStatus status={rateLimitStatus} />
-          <div
-            onClick={() => setDaemonOpen(true)}
-            title={L.dmDaemon}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5, fontSize: 10,
-              color: connDot.color, fontWeight: 600, cursor: 'pointer', flex: 'none',
-            }}
-          >
-            <span
-              style={{
-                width: 6, height: 6, borderRadius: '50%', background: connDot.color,
-                ...(connDot.pulse ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
-              }}
-            />
-            {connLabel}
-          </div>
+        <div style={{ marginLeft: 'auto', display: 'flex' }}>
+          <PaneToggle side="left" expanded label={L.lrCollapseRail} onClick={() => setCollapsed(true)} />
         </div>
       </div>
 
@@ -875,13 +1071,17 @@ export function LeftRail(): JSX.Element {
 
       {renderScheduledSection()}
 
-      {/* approval-pending banner — ALL-projects aggregate (real approvals.list; opens the center) */}
+      {/* attention zone — everything that appears intermittently and asks for attention stacks here,
+          just above the footer, so the header keeps a fixed three-element layout no matter what the
+          system is doing. Throttle carries the waiting tokens, approvals the amber ones. */}
+      {(rateLimitStatus || hasPendingApprovals) && (
+      <div style={{ margin: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: 8, flex: 'none' }}>
+      <RailRateLimitStatus status={rateLimitStatus} />
       {hasPendingApprovals && (
         <div
           {...hp('approval')}
           onClick={() => approvals.open()}
           style={{
-            margin: '0 12px 10px',
             padding: '9px 12px',
             background: 'var(--proto-amber-bg)',
             border: '1px solid ' + (isHover('approval') ? 'var(--proto-amber)' : 'var(--proto-amber-border)'),
@@ -906,6 +1106,8 @@ export function LeftRail(): JSX.Element {
           <div style={{ fontSize: 11.5, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>{pendingLabel}</div>
           <div style={{ marginLeft: 'auto', color: 'var(--proto-amber-accent)', fontSize: 11 }}>→</div>
         </div>
+      )}
+      </div>
       )}
 
       {/* footer: theme (☀/☾) toggle + Settings. The language switch moved to Settings → Appearance. */}
@@ -937,36 +1139,21 @@ export function LeftRail(): JSX.Element {
             ☾
           </span>
         </div>
-        {/* Frontend build stamp (Vite-injected, see lib/build-info.ts) — changes every build so an
-            OTA frontend swap is verifiable on-device. Content hash / build id, never a fabricated semver. */}
-        <span
-          title={`frontend build ${BUILD_STAMP}`}
-          style={{
-            marginLeft: 'auto',
-            fontFamily: "'IBM Plex Mono',monospace",
-            fontSize: 9.5,
-            color: 'var(--proto-muted-2)',
-            opacity: 0.7,
-            userSelect: 'text',
-          }}
-        >
-          {BUILD_STAMP}
-        </span>
-        {/* Settings is a gear key, not a word: the footer already carries the theme toggle and the
-            build stamp, and a label here made the row read as three competing texts. */}
+        {/* Settings is a gear key, not a word: a label here made the row read as competing texts. The
+            build stamp that used to sit between them now lives in the daemon modal, which is the
+            system-status surface it belonged to. */}
         <span
           {...hp('settings')}
           onClick={openSettings}
           role="button"
           title={L.settings}
           aria-label={L.settings}
-          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 2, cursor: 'pointer', color: isHover('settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)' }}
+          style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 2, cursor: 'pointer', color: isHover('settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)' }}
         >
-          <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
-            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
+          <GearIcon />
         </span>
+      </div>
+
       </div>
 
       {newProjOpen && <NewProjectModal onClose={() => setNewProjOpen(false)} />}

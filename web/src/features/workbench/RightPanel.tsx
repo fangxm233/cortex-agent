@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { TasksPanel } from '@/features/tasks/TasksPanel';
 import { actionableOpenCount } from '@/features/tasks/group-tasks';
+import { PaneToggle } from './PaneToggle';
 import { RightThreadCard } from './RightThreadCard';
 import { RightMachinesTab } from './RightMachinesTab';
 import { onlineMachineCount, rightPanelBudget } from './right-panel-vm';
@@ -58,42 +59,6 @@ function PanelIcon({ target, size = 14 }: { target: PanelTarget; size?: number }
   );
 }
 
-function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
-  const path = direction === 'left' ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6';
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d={path} />
-    </svg>
-  );
-}
-
-function PanelToggle({ expanded, label, onClick }: { expanded: boolean; label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-expanded={expanded}
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      style={{
-        width: 28,
-        height: 28,
-        border: '1px solid var(--proto-line)',
-        borderRadius: 7,
-        background: 'transparent',
-        color: 'var(--proto-muted-2)',
-        display: 'grid',
-        placeItems: 'center',
-        padding: 0,
-        cursor: 'pointer',
-        flex: 'none',
-      }}
-    >
-      <ChevronIcon direction={expanded ? 'right' : 'left'} />
-    </button>
-  );
-}
-
 function PanelRailButton({ target, label, active, onClick }: {
   target: PanelTarget;
   label: string;
@@ -137,7 +102,7 @@ function RightPanelRail({ active, labels, navigationLabel, expandLabel, onExpand
   const workTargets: Tab[] = ['threads', 'tasks', 'machines'];
   return (
     <nav aria-label={navigationLabel} style={{ width: PANEL_RAIL_WIDTH - 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '7px 0 8px' }}>
-      <PanelToggle expanded={false} label={expandLabel} onClick={onExpand} />
+      <PaneToggle side="right" expanded={false} label={expandLabel} onClick={onExpand} />
       <div aria-hidden="true" style={{ width: 20, height: 1, background: 'var(--proto-line)', margin: '3px 0' }} />
       {workTargets.map((target) => <PanelRailButton key={target} target={target} label={labels[target]} active={active === target} onClick={() => onSelect(target)} />)}
       <div style={{ marginTop: 'auto' }}>
@@ -171,7 +136,7 @@ export function RightPanel(): JSX.Element {
     notes.close();
     setTab(target);
   };
-  const collapseAction = <PanelToggle expanded label={L.rpCollapsePanel} onClick={() => setCollapsed(true)} />;
+  const collapseAction = <PaneToggle side="right" expanded label={L.rpCollapsePanel} onClick={() => setCollapsed(true)} />;
   return (
     <aside data-pane="right" data-collapsed={collapsed || undefined} style={{ width: collapsed ? PANEL_RAIL_WIDTH : PANEL_WIDTH, transition: 'width 220ms cubic-bezier(0.22, 1, 0.36, 1)', flex: 'none', background: 'var(--proto-rail)', borderLeft: '1px solid var(--proto-line)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
       {collapsed && <RightPanelRail active={active} labels={labels} navigationLabel={L.rpPanelNavigation} expandLabel={L.rpExpandPanel} onExpand={() => setCollapsed(false)} onSelect={select} />}

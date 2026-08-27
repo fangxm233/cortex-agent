@@ -8,6 +8,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { isNativeShell } from '@/lib/desktop-config';
 import { disconnectShell } from '@/lib/shell-connection';
+import { BUILD_STAMP } from '@/lib/build-info';
 
 // Daemon status modal — 1:1 from scheme.dc.html #17a (L2376–2441).
 // Opened by clicking the daemon badge in the LeftRail header.
@@ -138,6 +139,9 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>
               {L.dmDaemon}
             </div>
+            {/* Frontend build stamp (Vite-injected, see lib/build-info.ts) — changes every build so an
+                OTA frontend swap is verifiable on-device. Content hash / build id, never a fabricated
+                semver. It reads here rather than in the rail footer: this is the system-status surface. */}
             <div
               style={{
                 font: "400 10px 'IBM Plex Mono',monospace",
@@ -145,7 +149,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                 marginTop: 1,
               }}
             >
-              local
+              local · build {BUILD_STAMP}
             </div>
           </div>
           <span

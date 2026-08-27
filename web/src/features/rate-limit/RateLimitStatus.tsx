@@ -17,10 +17,14 @@ interface StatusProps {
 
 // Radix Popover.Trigger (asChild) injects its interaction props (onClick, aria-*, data-state)
 // into this element — they MUST be spread onto the real <button> or the popover never opens.
-const DesktopTrigger = forwardRef<
+//
+// Rail banner trigger — the left rail stacks throttle and approvals in one attention zone above the
+// footer, so this keeps the approvals banner's SHAPE (full-width row, pulsing dot, label) while
+// carrying the waiting tokens, which is what distinguishes "wait it out" from "act on it".
+const RailBannerTrigger = forwardRef<
   HTMLButtonElement,
   { label: string } & ButtonHTMLAttributes<HTMLButtonElement>
->(function DesktopTrigger({ label, ...triggerProps }, ref) {
+>(function RailBannerTrigger({ label, ...triggerProps }, ref) {
   return (
     <button
       ref={ref}
@@ -29,28 +33,42 @@ const DesktopTrigger = forwardRef<
       aria-label="Rate limit status"
       title={label}
       style={{
+        width: '100%',
+        padding: '9px 12px',
         border: '1px solid var(--pill-waiting-bg)',
         background: 'var(--pill-waiting-bg)',
         color: 'var(--pill-waiting-fg)',
-        borderRadius: 999,
-        padding: '3px 7px',
-        maxWidth: 178,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-        font: "600 9px 'IBM Plex Mono',monospace",
+        borderRadius: 9,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
         cursor: 'pointer',
+        textAlign: 'left',
+        font: "600 10px 'IBM Plex Mono',monospace",
       }}
     >
-      {label}
+      <span
+        aria-hidden="true"
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          background: 'var(--pill-waiting-fg)',
+          flex: 'none',
+          animation: 'cxpulse 2s ease-in-out infinite',
+        }}
+      />
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {label}
+      </span>
     </button>
   );
 });
 
-export function DesktopRateLimitStatus({ status }: StatusProps): JSX.Element | null {
+export function RailRateLimitStatus({ status }: StatusProps): JSX.Element | null {
   if (!status) return null;
   return (
-    <Popover trigger={<DesktopTrigger label={status.label} />} side="bottom" align="center">
+    <Popover trigger={<RailBannerTrigger label={status.label} />} side="top" align="center">
       <RateLimitDetails status={status} />
     </Popover>
   );

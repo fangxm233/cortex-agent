@@ -6,7 +6,7 @@
 export { buildRateLimitView, formatRateLimitCountdown, type RateLimitView } from './rate-limit-vm';
 export { useRateLimitStatus } from './useRateLimitStatus';
 export {
-  DesktopRateLimitStatus,
+  RailRateLimitStatus,
   MobileRateLimitStatus,
   MobileRateLimitSheet,
   RateLimitDetails,

@@ -6,7 +6,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | filename | role | function |
 |---|---|---|
 | WorkbenchPage.tsx | entry | Composes panes and global workbench actions |
-| LeftRail.tsx | view | Bounded project, session and SCHEDULED navigation zones |
+| LeftRail.tsx | view | Collapsible project, session and SCHEDULED navigation zones |
 | left-rail-projects.ts | vm | Builds ordered project rows with badges |
 | left-rail-projects.test.ts | test | Tests project activity ordering, hotkeys and attention counts |
 | project-menu.ts | vm | Counts per-project running and attention badges |
@@ -87,6 +87,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useMarkSessionRead.ts | hook | Marks the visible session read |
 | SessionIdModal.tsx | view | Shows session identifiers with copy actions |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
+| PaneToggle.tsx | view | Chevron button collapsing either side pane, mirrored per side |
 | RightPanel.tsx | view | Animates scoped work tabs or notes into an icon rail |
 | right-panel-vm.ts | vm | Formats budget, thread and machine metadata |
 | right-panel-vm.test.ts | test | Tests budget, thread and machine view models |
@@ -107,6 +108,6 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | SelectedSessionProvider.tsx | provider | Shares sessions and external draft prefill |
 | selected-session.ts | vm | Resolves selected session and transition profile |
 | selected-session.test.ts | test | Unit tests for session selection |
-| DaemonStatusModal.tsx | view | Daemon and server processes with restart |
+| DaemonStatusModal.tsx | view | Daemon and server processes, frontend build stamp and restart |
 | DebugDetailsModal.tsx | view | Inspector dialog with scoped hover controls |
 | debug-inspector.test.tsx | test | Tests hover scope, counting and debug formatting |
