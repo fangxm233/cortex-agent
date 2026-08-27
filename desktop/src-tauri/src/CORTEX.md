@@ -6,7 +6,7 @@ Provides SPA commands, native plugins, frontend delivery, and updates.
 | filename | role | function |
 |---|---|---|
 | main.rs | entry | starts the native application |
-| lib.rs | core | Builds plugins, commands, scheme, and app window |
+| lib.rs | core | Builds the shell and isolates frame initialization |
 | creds.rs | core | stores and loads the server credentials |
 | app_update.rs | core | checks, downloads and installs shell updates |
 | frontend.rs | core | Resolves OTA files and embedded shell assets |

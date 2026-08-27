@@ -1,5 +1,5 @@
 // input:  app config, credential store, OTA modules, native plugins
-// output: Tauri commands, custom scheme, port forward, desktop/mobile window
+// output: guarded shell config, title bridge, commands and app window
 // pos:    Cortex native shell composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -484,13 +484,70 @@ const SHELL_FLAG: &str = "window.__CORTEX_DESKTOP__ = true;\n";
 /// null there, so the async `get_connection_config` fills in the freshly-saved creds.
 fn init_script(config: &ConnectionConfig) -> String {
     // Serialize via serde so serverUrl/token are correctly JSON-escaped (quotes, backslashes, etc.),
-    // never string-interpolated raw. `ConnectionConfig` serializes to {"serverUrl":…,"token":…},
-    // exactly the shape readDesktopConfig() expects. A serialize failure (unreachable for two
-    // Option<String>) falls back to the null literal, i.e. the async-IPC-only behaviour.
+    // never string-interpolated raw. A serialize failure falls back to async-IPC-only behaviour.
     let baked = serde_json::to_string(config)
         .unwrap_or_else(|_| r#"{"serverUrl":null,"token":null}"#.to_string());
-    format!("{SHELL_FLAG}window.__CORTEX_DESKTOP_CONFIG = {baked};\n{INIT_SCRIPT}")
+    format!(r#"
+(function () {{
+  if (window !== window.top) return;
+  // macOS/Linux: cortexui://localhost; Windows/Android: http://cortexui.localhost.
+  var shellOrigin = location.port === '' && (
+    (location.protocol === '{FRONTEND_SCHEME}:' && location.hostname === 'localhost') ||
+    (location.protocol === 'http:' && location.hostname === '{FRONTEND_SCHEME}.localhost')
+  );
+  if (!shellOrigin) return;
+  {SHELL_FLAG}window.__CORTEX_DESKTOP_CONFIG = {baked};
+  {INIT_SCRIPT}
+}}());
+"#)
 }
+
+const TITLE_BRIDGE_SCRIPT: &str = r#"
+(function () {
+  if (window === window.top || window.parent !== window.top) return;
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+  var lastTitle;
+  var observedHead;
+  var headObserver;
+  function report(phase, force) {
+    var title = document.title || '';
+    if (!force && title === lastTitle) return;
+    lastTitle = title;
+    window.parent.postMessage({
+      type: '__cortexBrowserTitle:v1',
+      title: title,
+      href: location.href,
+      timeOrigin: performance.timeOrigin,
+      phase: phase
+    }, '*');
+  }
+  function bindHead() {
+    if (document.head === observedHead) return false;
+    if (headObserver) headObserver.disconnect();
+    observedHead = document.head;
+    if (!observedHead) return false;
+    headObserver = new MutationObserver(function () { report('update', false); });
+    headObserver.observe(observedHead, { childList: true, subtree: true, characterData: true });
+    return true;
+  }
+  function start() {
+    bindHead();
+    report('load', true);
+    if (!document.documentElement) return;
+    new MutationObserver(function () {
+      if (bindHead()) report('update', false);
+    }).observe(document.documentElement, { childList: true });
+  }
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted) report('restore', true);
+  });
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
+}());
+"#;
 
 const INIT_SCRIPT: &str = r#"
 // Refresh path: re-read the current credentials via IPC and overwrite the baked value. Normally a
@@ -676,6 +733,7 @@ pub fn run() {
                 "main",
                 tauri::WebviewUrl::CustomProtocol(url.parse().expect("valid cortexui:// url")),
             )
+            .initialization_script_for_all_frames(TITLE_BRIDGE_SCRIPT)
             .initialization_script(&init_script(&baked_config));
             // Desktop-only window chrome (Android manages its own full-screen activity).
             // `disable_drag_drop_handler()` turns OFF Tauri's native OS-level file drag-drop
@@ -834,6 +892,36 @@ mod tests {
             server_version: None,
         });
         assert!(script.contains("\"mode\":\"local\""));
+    }
+
+    #[test]
+    fn credential_script_guards_secrets_before_any_assignment_or_ipc() {
+        let script = init_script(&ConnectionConfig {
+            server_url: Some("https://cortex.example.com".into()),
+            token: Some("secret-token".into()),
+            ..ConnectionConfig::default()
+        });
+        let guard = script.find("window !== window.top").expect("top-frame guard");
+        let config = script.find("__CORTEX_DESKTOP_CONFIG").expect("baked config");
+        let invoke = script.find("get_connection_config").expect("refresh invoke");
+        assert!(guard < config && guard < invoke);
+        assert!(script.contains("location.protocol === 'cortexui:'"));
+        assert!(script.contains("location.hostname === 'localhost'"));
+        assert!(script.contains("location.hostname === 'cortexui.localhost'"));
+        assert!(script.contains("location.port === ''"));
+    }
+
+    #[test]
+    fn title_bridge_contains_no_shell_credentials_or_ipc() {
+        assert!(TITLE_BRIDGE_SCRIPT.contains("document.title"));
+        assert!(TITLE_BRIDGE_SCRIPT.contains("postMessage"));
+        assert!(TITLE_BRIDGE_SCRIPT.contains("performance.timeOrigin"));
+        assert!(TITLE_BRIDGE_SCRIPT.contains("event.persisted"));
+        assert!(TITLE_BRIDGE_SCRIPT.contains("'restore'"));
+        assert!(TITLE_BRIDGE_SCRIPT.contains("__cortexBrowserTitle"));
+        assert!(!TITLE_BRIDGE_SCRIPT.contains("secret-token"));
+        assert!(!TITLE_BRIDGE_SCRIPT.contains("__CORTEX_DESKTOP_CONFIG"));
+        assert!(!TITLE_BRIDGE_SCRIPT.contains("get_connection_config"));
     }
 
     #[test]

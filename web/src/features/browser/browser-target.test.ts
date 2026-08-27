@@ -1,5 +1,5 @@
-// input:  browser URL, history and tab helpers
-// output: regressions for guards, history and ordered tabs
+// input:  browser URL, history, title and forward helpers
+// output: regressions for guards, history and tab identity
 // pos:    Unit tests for the browser workspace model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -8,7 +8,10 @@ import {
   WEB_SANDBOX,
   activeBrowserTab,
   addBrowserTab,
+  applyBrowserTitle,
   browserItemName,
+  browserTabForwardSource,
+  browserTabLabel,
   closeBrowserTab,
   createBrowserTab,
   createBrowserTabs,
@@ -147,6 +150,44 @@ describe('browser tabs', () => {
     expect(state.activeId).toBe('tab-a');
     expect(state.tabs).toEqual([createBrowserTab('tab-a')]);
     expect(currentUrl(activeBrowserTab(state).history)).toBeNull();
+    expect(activeBrowserTab(state)).toMatchObject({ pageTitle: null, titleTimeOrigin: 0, documentGeneration: 0, forward: null });
+  });
+
+  it('keeps the page title and forwarded source as separate tab labels', () => {
+    const targetUrl = 'http://127.0.0.1:41235/';
+    const ready = {
+      ...createBrowserTab('tab-a'),
+      history: pushHistory(EMPTY_HISTORY, targetUrl),
+      pageTitle: 'Robot Dashboard',
+      forward: { status: 'ready' as const, device: 'my-pc', originalPort: 6006, targetUrl },
+    };
+    expect(browserTabLabel(ready)).toBe('Robot Dashboard');
+    expect(browserTabForwardSource(ready)).toBe('my-pc:6006');
+    expect(browserTabForwardSource({
+      ...ready,
+      history: pushHistory(ready.history, 'https://example.com/'),
+    })).toBeNull();
+  });
+
+  it('shows a connecting source before the forwarded URL exists', () => {
+    const tab = {
+      ...createBrowserTab('tab-a'),
+      forward: { status: 'connecting' as const, operationId: 7, device: 'lab', originalPort: 3000 },
+    };
+    expect(browserTabLabel(tab)).toBe('New tab');
+    expect(browserTabForwardSource(tab)).toBe('lab:3000');
+  });
+
+  it('orders title loads but accepts a BFCache document restore', () => {
+    const tab = { ...createBrowserTab('tab-a'), pageTitle: 'New title', titleTimeOrigin: 2000 };
+    expect(applyBrowserTitle(tab, 'Old title', 1000, 'load')).toBe(tab);
+    const newest = applyBrowserTitle(tab, 'Newest title', 3000, 'load');
+    expect(newest).toMatchObject({ pageTitle: 'Newest title', titleTimeOrigin: 3000 });
+    expect(applyBrowserTitle(newest, 'Restored title', 1000, 'restore')).toMatchObject({
+      pageTitle: 'Restored title',
+      titleTimeOrigin: 1000,
+    });
+    expect(applyBrowserTitle(newest, 'Wrong document', 1000, 'update')).toBe(newest);
   });
 
   it('keeps every tab pane state independent', () => {

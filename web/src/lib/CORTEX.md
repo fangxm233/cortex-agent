@@ -7,7 +7,7 @@ Builds the tRPC client, reads native-shell credentials and moves workspace files
 |---|---|---|
 | trpc.ts | core | Creates the tRPC client and React context |
 | trpc.test.ts | test | Unit tests for URL and headers per transport mode |
-| desktop-config.ts | util | Detects native shells and supplies auth details |
+| desktop-config.ts | util | Detects guarded native shells and supplies auth details |
 | desktop-config.test.ts | test | Unit tests for shell detection and auth headers |
 | external-navigation.ts | util | Opens HTTP links in browser and native shells |
 | external-navigation.test.ts | test | Tests native opener and legacy fallback paths |

@@ -1,11 +1,13 @@
 // input:  address text, origins, navigation and tab intents
-// output: URL guards, history, ordered tab state and viewports
+// output: URL guards, history, title/forward tab state and viewports
 // pos:    Pure browser-pane and tab-workspace model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // The docked browser pane previews HTTP services that are reachable from THIS machine — a local
 // dev server, or a remote one surfaced by the port forward (see plan/embedded-browser.md §4).
 // Everything here is pure so the pane itself stays a thin view.
+
+import type { FrameTitlePhase } from './frame-title';
 
 /** A web page docked in the preview pane. Joins `PreviewItem` alongside MediaItem / DocItem. */
 export interface WebItem {
@@ -181,12 +183,20 @@ export const VIEWPORT_PRESETS: ViewportPreset[] = [
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
+export type BrowserForwardState =
+  | { status: 'connecting'; operationId: number; device: string; originalPort: number }
+  | { status: 'ready'; device: string; originalPort: number; targetUrl: string };
+
 export interface BrowserTabState {
   id: string;
   history: BrowserHistory;
   draft: string;
   viewportId: ViewportPreset['id'];
   reloadNonce: number;
+  documentGeneration: number;
+  pageTitle: string | null;
+  titleTimeOrigin: number;
+  forward: BrowserForwardState | null;
   rejected: string | null;
   refused: boolean;
 }
@@ -203,9 +213,36 @@ export function createBrowserTab(id: string): BrowserTabState {
     draft: '',
     viewportId: 'fit',
     reloadNonce: 0,
+    documentGeneration: 0,
+    pageTitle: null,
+    titleTimeOrigin: 0,
+    forward: null,
     rejected: null,
     refused: false,
   };
+}
+
+export function browserTabLabel(tab: BrowserTabState): string {
+  const url = currentUrl(tab.history);
+  return tab.pageTitle ?? (url ? browserItemName(url) : 'New tab');
+}
+
+export function applyBrowserTitle(
+  tab: BrowserTabState,
+  title: string | null,
+  timeOrigin: number,
+  phase: FrameTitlePhase,
+): BrowserTabState {
+  if (phase === 'load' && timeOrigin < tab.titleTimeOrigin) return tab;
+  if (phase === 'update' && timeOrigin !== tab.titleTimeOrigin) return tab;
+  return { ...tab, pageTitle: title, titleTimeOrigin: timeOrigin };
+}
+
+export function browserTabForwardSource(tab: BrowserTabState): string | null {
+  if (!tab.forward) return null;
+  if (tab.forward.status === 'ready' && tab.forward.targetUrl !== currentUrl(tab.history)) return null;
+  const device = tab.forward.device === '' ? 'server' : tab.forward.device;
+  return `${device}:${tab.forward.originalPort}`;
 }
 
 export function createBrowserTabs(id: string): BrowserTabsState {

@@ -1,12 +1,16 @@
+// input:  Tauri-injected shell flags and connection config
+// output: shell detection, API base and authenticated headers
+// pos:    Native-shell environment adapter
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import type { RemoteConfig } from './trpc';
 
 /**
  * Read desktop-mode credentials injected by the Tauri initialization_script.
  *
- * The initialization_script runs an async `invoke('get_connection_config')` IPC
- * call that resolves in microseconds — well before the React bundle finishes
- * downloading and this module executes. The resolved value is stored in
- * `window.__CORTEX_DESKTOP_CONFIG` (≡ `globalThis.__CORTEX_DESKTOP_CONFIG`).
+ * The initialization script synchronously bakes the launch-time config into
+ * `window.__CORTEX_DESKTOP_CONFIG` before the React bundle runs. An async
+ * `get_connection_config` IPC call refreshes it after first-run connection.
  *
  * Returns undefined in browser / ui-http mode (no Tauri shell, global never set).
  *
@@ -70,9 +74,9 @@ export function isMobileShell(): boolean {
 /**
  * True when running inside ANY native Tauri shell (desktop OR mobile/Android).
  *
- * Both shells load the SPA over an asset-style protocol at a real file path
- * (`cortexui://localhost/index.html` on desktop, `http://tauri.localhost/index.html`
- * on Android) which a BrowserRouter cannot match. This is the single predicate the
+ * Both shells load the SPA over the `cortexui` custom protocol: `cortexui://localhost`
+ * on macOS/Linux and `http://cortexui.localhost` on Windows/Android. These asset URLs do
+ * not match BrowserRouter paths. This is the single predicate the
  * router configs use to pick a path-independent HashRouter — so it stays correct on
  * Android, where only `__CORTEX_MOBILE__` (not `__CORTEX_DESKTOP__`) is set.
  */
