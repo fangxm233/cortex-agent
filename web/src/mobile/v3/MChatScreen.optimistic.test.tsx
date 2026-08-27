@@ -1,5 +1,5 @@
-// input:  mounted mobile chat, Todo state, mutations and routes
-// output: Todo wiring, optimistic-send and slash-action specifications
+// input:  Mounted mobile chat, live run status, Todo state, mutations, and routes
+// output: Status priority, Todo wiring, optimistic-send, and slash-action specifications
 // pos:    Mounted mobile composer integration specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -137,6 +137,9 @@ vi.mock('./MChatView', async () => {
         onSlashPick: props.onSlashPick,
         slashSuggestions: props.slashSuggestions,
         'data-todo-count': props.todos?.total ?? 0,
+        'data-status-text': props.status.text,
+        'data-status-running': props.status.running,
+        'data-status-tone': props.status.tone,
       },
       props.rows
         .filter((row: { kind: string }) => row.kind === 'user')
@@ -168,13 +171,14 @@ function emptyLiveState(): {
   liveTail: LiveSessionMessage[];
   streaming: boolean;
   running: boolean;
+  backgroundRunning: boolean;
   liveTurns: number | null;
   contextUsage: null;
   streamingText: string | null;
   pendingUser: PendingUserMessage[];
 } {
   return {
-    liveTail: [], streaming: false, running: false,
+    liveTail: [], streaming: false, running: false, backgroundRunning: false,
     liveTurns: null, contextUsage: null, streamingText: null, pendingUser: [],
   };
 }
@@ -221,6 +225,71 @@ beforeEach(() => {
 afterEach(() => {
   if (mounted) act(() => mounted?.unmount());
   mounted = null;
+});
+
+describe('mobile chat run status priority', () => {
+  it('uses the live backgroundRunning fact and suppresses browser-starting copy', () => {
+    harness.sessions = [{
+      ...SESSION,
+      running: true,
+      backgroundRunning: true,
+      browser: { device: 'my-pc' },
+      numTurns: 2,
+    }];
+    harness.liveState = {
+      ...emptyLiveState(), running: true, backgroundRunning: true, liveTurns: 2,
+    };
+
+    mounted = mountChat();
+
+    expect(view(mounted).props['data-status-text']).toContain('Background ·');
+    expect(view(mounted).props['data-status-text']).not.toContain('Starting Chrome');
+    expect(view(mounted).props['data-status-running']).toBe(true);
+  });
+
+  it('keeps browser-starting ahead of an ordinary foreground status', () => {
+    harness.sessions = [{ ...SESSION, running: true, browser: { device: 'my-pc' } }];
+    harness.liveState = { ...emptyLiveState(), running: true };
+
+    mounted = mountChat();
+
+    expect(view(mounted).props['data-status-text']).toContain('Starting Chrome on my-pc');
+    expect(view(mounted).props['data-status-running']).toBe(true);
+  });
+
+  it('keeps a pending interaction ahead of browser and background status', () => {
+    harness.sessions = [{
+      ...SESSION,
+      running: true,
+      backgroundRunning: true,
+      browser: { device: 'my-pc' },
+      numTurns: 1,
+    }];
+    harness.liveState = {
+      ...emptyLiveState(), running: true, backgroundRunning: true, liveTurns: 1,
+    };
+    harness.transcripts.s1 = {
+      sessionId: 's1',
+      pendingUserMessages: [],
+      turns: [{
+        turnIndex: 0,
+        messages: [{
+          type: 'interaction', text: 'Plan', toolName: null, toolInput: null,
+          ts: '2026-08-27T00:00:00.000Z', elapsedMs: null, subtype: 'plan-pending',
+          interaction: {
+            id: 'plan-1', kind: 'plan-approval', status: 'pending',
+            payload: { planContent: '# Plan', planFilePath: null },
+          },
+        }],
+      }],
+    };
+
+    mounted = mountChat();
+
+    expect(view(mounted).props['data-status-text']).toBe('plan pending · agent paused');
+    expect(view(mounted).props['data-status-tone']).toBe('waiting');
+    expect(view(mounted).props['data-status-running']).toBe(false);
+  });
 });
 
 describe('mobile Todo state', () => {

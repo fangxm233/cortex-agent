@@ -1,9 +1,10 @@
-// input:  Mobile chat view models and Vitest
-// output: Mobile chat status/profile-label/row-model regressions
+// input:  Mobile chat view models, shared run-status facts, and Vitest
+// output: Mobile localized run-status/profile-label/row-model regressions
 // pos:    Verifies mobile chat pure presentation logic
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
+import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';
 import {
   chatHeaderStatus,
   interactionHeaderStatus,
@@ -29,22 +30,41 @@ const profiles: ConfigProfileEntry[] = [
   profile({ name: 'deep', model: 'opus-4.5', backend: 'pi' }),
 ];
 
+const STATUS_COPY = {
+  foreground: 'running', background: 'background', idle: 'idle', turnsUnit: 'turns',
+};
+
+function runStatus(running: boolean, backgroundRunning: boolean, hasRun: boolean) {
+  return deriveSessionRunStatus({ running, backgroundRunning, hasRun });
+}
+
 describe('chatHeaderStatus', () => {
-  it('classifies running and completed sessions without exposing mid-turn cost', () => {
-    const running = chatHeaderStatus(true, 12, '2m 4s', 0.42, true);
+  it('formats foreground and completed sessions without exposing mid-turn cost', () => {
+    const running = chatHeaderStatus(runStatus(true, false, true), 12, '2m 4s', 0.42, STATUS_COPY);
     expect(running.running).toBe(true);
     expect(running.tone).toBe('running');
+    expect(running.text).toBe('running · 2m 4s · 12 turns');
     expect(running.text).not.toContain('$');
 
-    const completed = chatHeaderStatus(false, 12, '2m 4s', 0.42, true);
+    const completed = chatHeaderStatus(runStatus(false, false, true), 12, '2m 4s', 0.42, STATUS_COPY);
     expect(completed.running).toBe(false);
     expect(completed.tone).toBe('idle');
-    expect(completed.text).toContain('$0.42');
+    expect(completed.text).toBe('idle · 2m 4s · 12 turns · $0.42');
+  });
+
+  it('renders a background hold with background copy and an active tone', () => {
+    const background = chatHeaderStatus(runStatus(true, true, true), 12, '2m 4s', 0.42, STATUS_COPY);
+    expect(background).toEqual({
+      running: true,
+      tone: 'running',
+      text: 'background · 2m 4s · 12 turns',
+    });
   });
 
   it('keeps never-run sessions free of stale metrics', () => {
-    const fresh = chatHeaderStatus(false, 3, '10s', 0.1, false);
+    const fresh = chatHeaderStatus(runStatus(false, false, false), 3, '10s', 0.1, STATUS_COPY);
     expect(fresh.running).toBe(false);
+    expect(fresh.text).toBe('idle');
     expect(fresh.text).not.toContain('3');
     expect(fresh.text).not.toContain('$');
   });

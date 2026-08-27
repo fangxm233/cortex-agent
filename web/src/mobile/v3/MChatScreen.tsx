@@ -1,5 +1,5 @@
-// input:  Mobile session queries, live state, controller modules, and mutations
-// output: Mobile chat with profile, Todo, attachments, interactions, and actions
+// input:  Mobile session queries, live/shared run state, controllers, and mutations
+// output: Mobile chat with prioritized status, profile, Todo, attachments, and interactions
 // pos:    Mobile session detail data orchestration and presentation composition
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -23,6 +23,7 @@ import { useInteractionActions } from '@/features/workbench/useInteractionAction
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
 import { useSessionCompact } from '@/features/workbench/useSessionCompact';
 import { browserStartupHint, browserStartupPending } from '@/features/workbench/browser-status';
+import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';
 import { buildProfileOptions, currentBackendOf } from '@/features/workbench/profile-menu';
 import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction,
@@ -626,18 +627,17 @@ export function MChatScreen(): JSX.Element {
     }
   }
 
-  // Header status = running snapshot + real agent-turn count + current/last-turn elapsed + last-run
-  // cost — same progressive readout as the desktop composer (running: time+turns; idle-after-a-turn:
-  // +cost; fresh: bare idle). A draft or never-run session shows just `idle`. A pending interaction
-  // overrides the whole line with the amber Agent 已暂停 state (scheme 5a/5b/6a).
+  // Shared facts classify foreground/background/idle/fresh; mobile maps its own copy. Interaction
+  // remains the highest-priority override, followed by browser startup, then the ordinary run line.
   const cost = active?.costUsd ?? null;
   const hasRun = !isDraft && turns != null;
-  const statusRunning = running || optimistic.pendingUser.length > 0;
+  const runStatus = deriveSessionRunStatus({
+    running: running || optimistic.pendingUser.length > 0, backgroundRunning, hasRun,
+  });
+  const statusCopy = { foreground: vocab.pillRunning, background: vocab.pillBackground, idle: vocab.wbIdle, turnsUnit: vocab.wbTurnsUnit };
   const statusBrowserDevice = active?.browser?.device ?? draftBrowserDevice;
   const browserStarting = browserStartupPending({
-    running: statusRunning,
-    backgroundRunning,
-    device: statusBrowserDevice,
+    running: runStatus.active, backgroundRunning, device: statusBrowserDevice,
     turnProgressStarted: liveTurns !== null || streaming,
   });
   const status = pendingInteraction
@@ -649,7 +649,7 @@ export function MChatScreen(): JSX.Element {
       )
     : browserStarting && statusBrowserDevice
       ? { running: true, tone: 'running' as const, text: browserStartupHint(statusBrowserDevice, vocab.wbBrowserStarting) }
-      : chatHeaderStatus(statusRunning, turns, elapsed, cost, hasRun);
+      : chatHeaderStatus(runStatus, turns, elapsed, cost, statusCopy);
 
   // ── interaction props for the view ──
   const intCopy = pickCopy(lang, M_INT_COPY);

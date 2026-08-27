@@ -1,5 +1,5 @@
-// input:  Desktop composer, UI handlers and bilingual vocabulary
-// output: local slash routing and failed-send render regressions
+// input:  Desktop composer, session status facts, UI handlers, and bilingual vocabulary
+// output: Slash routing, run-status priority, and failed-send render regressions
 // pos:    Desktop composer behavior specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ComponentProps } from 'react';
@@ -141,6 +141,17 @@ describe('Composer browser startup status', () => {
     ));
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Starting Chrome');
     expect(JSON.stringify(renderer.toJSON())).toContain('Running');
+    act(() => renderer.unmount());
+  });
+});
+
+describe('Composer session run status', () => {
+  it('renders an active background hold with background copy', () => {
+    const renderer = mountComposer(() => {}, { backgroundRunning: true });
+    const output = JSON.stringify(renderer.toJSON());
+
+    expect(output).toContain('Background · 1s · 1 turns');
+    expect(output).not.toContain('Running · 1s');
     act(() => renderer.unmount());
   });
 });

@@ -1,5 +1,5 @@
-// input:  Session DTOs and shared transcript/interaction view models
-// output: Chat rows, status, profile labels, attachment/menu placement
+// input:  Session DTOs, shared run-status facts, and transcript/interaction view models
+// output: Chat rows, localized status, profile labels, and attachment/menu placement
 // pos:    Pure presentation logic for the mobile session chat
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
@@ -10,6 +10,7 @@ import {
   type PendingUserMessage,
 } from '@/features/workbench/transcript-vm';
 import { zhDivider } from '@/mobile/screens/mobile-session-vm';
+import type { SessionRunStatus } from '@/features/workbench/session-run-status';
 
 /** What the mobile chat's rows are built from beyond the fetched transcript + live tail. */
 export interface MobileChatRowOpts {
@@ -59,10 +60,10 @@ export function buildMobileChatRows(
 export interface ChatHeaderStatus {
   running: boolean;
   /**
-   * Header status line, mirroring the web composer (Composer.tsx):
-   *   • running          → `running · {elapsed} · {turns}` (cost is not known mid-turn)
-   *   • idle after a turn → `idle · {elapsed} · {turns} · {cost}`
-   *   • fresh / never-run → bare `idle`
+   * Header status line, mirroring the desktop composer from shared locale-free status facts:
+   *   • foreground/background → localized label + elapsed + turns (cost is not final mid-run)
+   *   • idle after a turn     → localized idle + elapsed + turns + cost
+   *   • fresh / never-run     → bare localized idle
    * `turns`/`cost` render as `—` when unknown.
    * A pending interaction overrides the whole line (interactionHeaderStatus, scheme §5/§6):
    *   • plan  → `计划待批 · Agent 已暂停`
@@ -80,27 +81,34 @@ function fmtCost(v: number): string {
   return '$' + v.toFixed(2);
 }
 
+export interface ChatRunStatusCopy {
+  foreground: string;
+  background: string;
+  idle: string;
+  turnsUnit: string;
+}
+
 /**
- * Header status line — real running snapshot+delta + real agent-turn count + current/last-turn elapsed
- * + last-run cost. Same progressive logic as the desktop composer: running shows time + turns; an
- * idle-after-a-turn session adds the finalized cost; a fresh/never-run session shows just `idle`.
+ * Maps the shared locale-free session facts into mobile copy. The screen retains ownership of
+ * interaction/browser priority while this formatter owns only the ordinary progressive run line.
  */
 export function chatHeaderStatus(
-  running: boolean,
+  status: SessionRunStatus,
   turns: number | null,
   elapsed: string,
   cost: number | null,
-  hasRun: boolean,
+  copy: ChatRunStatusCopy,
 ): ChatHeaderStatus {
-  const turnsText = turns == null ? DASH : `${turns} turns`;
-  if (running) {
-    return { running: true, tone: 'running', text: `running · ${elapsed} · ${turnsText}` };
-  }
-  if (!hasRun) {
-    return { running: false, tone: 'idle', text: 'idle' };
-  }
-  const costText = cost == null ? DASH : fmtCost(cost);
-  return { running: false, tone: 'idle', text: `idle · ${elapsed} · ${turnsText} · ${costText}` };
+  const turnsText = turns == null ? DASH : `${turns} ${copy.turnsUnit}`;
+  const label = status.phase === 'background'
+    ? copy.background
+    : status.phase === 'foreground'
+      ? copy.foreground
+      : copy.idle;
+  const text = status.showMetrics
+    ? [label, elapsed, turnsText, ...(status.showCost ? [cost == null ? DASH : fmtCost(cost)] : [])].join(' · ')
+    : label;
+  return { running: status.active, tone: status.active ? 'running' : 'idle', text };
 }
 
 /**

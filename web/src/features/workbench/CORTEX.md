@@ -61,11 +61,13 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Orchestrates the unified input card, drafts, uploads and run status |
+| Composer.tsx | view | Orchestrates the unified input card, drafts, uploads and shared run status |
+| session-run-status.ts | vm | Derives locale-free foreground, background, idle and fresh session facts |
+| session-run-status.test.ts | test | Tests run phases, active tone, metrics and finalized-cost visibility |
 | ComposerAttachmentChip.tsx | view | Renders pending media and document-aware composer attachment chips |
 | ComposerSendFailure.tsx | view | Presents localized rejected-send draft restoration feedback |
 | composer-attachments.ts | model | Owns pending attachment types, accessors, upload transport and restore helpers |
-| Composer.test.tsx | test | Tests shortcuts, startup status and rejected sends |
+| Composer.test.tsx | test | Tests shortcuts, browser/background status and rejected sends |
 | ComposerActionRow.tsx | view | Toolbar row: ＋ menu and browser capsule left, profile/context/send right |
 | BrowserOptIn.tsx | model | Browser device options for the composer ＋ menu |
 | browser-status.ts | model | Phrases browser takeover and turn-start hints |

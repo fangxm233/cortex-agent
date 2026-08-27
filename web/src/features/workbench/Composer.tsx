@@ -1,5 +1,5 @@
-// input:  Session/browser state, UI shortcuts, attachment modules, and drafts
-// output: Guarded composer orchestration with browser startup and run status
+// input:  Session/browser state, shared run-status facts, shortcuts, attachments, and drafts
+// output: Guarded composer orchestration with prioritized browser and session status
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
@@ -32,6 +32,7 @@ import { SessionProfileSelectorView, useSessionProfileSelection } from './Sessio
 import type { ContextCompactAction } from './ContextUsageControl';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
 import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
+import { deriveSessionRunStatus } from './session-run-status';
 
 // Composer — a unified card: full-width input on top, one toolbar row below. The toolbar keeps the
 // ＋ menu (attach · browser opt-in · local slash commands) on the left and the profile chip, context
@@ -248,10 +249,17 @@ export function Composer({
   // A session has run at least one turn once it carries a turn count. A fresh/never-run session (draft
   // or created-but-unused) shows just `idle` — no placeholder metrics until a turn produces real values.
   const hasRun = !isDraft && turns != null;
-  const statusRunning = running || statusStarting;
+  const runStatus = deriveSessionRunStatus({
+    running: running || statusStarting, backgroundRunning, hasRun,
+  });
+  const runStatusLabel = runStatus.phase === 'background' ? L.pillBackground
+    : runStatus.phase === 'foreground' ? L.pillRunning
+      : L.wbIdle;
+  const statusMetrics = [runStatusLabel, elapsed, turnsText, ...(runStatus.showCost ? [costText] : [])];
+  const runStatusText = runStatus.showMetrics ? statusMetrics.join(' · ') : runStatusLabel;
   const statusBrowserDevice = sessionBrowser?.device ?? browserDevice;
   const browserStarting = browserStartupPending({
-    running: statusRunning,
+    running: runStatus.active,
     backgroundRunning,
     device: statusBrowserDevice,
     turnProgressStarted,
@@ -780,12 +788,10 @@ export function Composer({
             user's gaze. */}
         {showStatus && (
           <ComposerStatusLine
-            running={statusRunning}
+            running={runStatus.active}
             text={browserStarting && statusBrowserDevice
               ? browserStartupHint(statusBrowserDevice, L.wbBrowserStarting)
-              : statusRunning
-                ? `${backgroundRunning ? L.pillBackground : L.pillRunning} · ${elapsed} · ${turnsText}`
-                : (hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle)}
+              : runStatusText}
           />
         )}
       </div>
