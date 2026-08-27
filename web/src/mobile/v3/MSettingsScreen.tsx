@@ -1,5 +1,5 @@
-// input:  config/auth/machine queries, canonical account VM, and connection state
-// output: immediately rendered mobile settings index with shared account summary
+// input:  config/auth queries, shared account facts, machine roster, and connection state
+// output: immediately rendered mobile settings index with shared summaries
 // pos:    Mobile settings query adapter preserving the current settings presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
+import { useMachinesResource } from '@/features/machines/useMachinesResource';
 import type { SettingsSectionKey } from '@/features/settings/settings-nav';
 import { useLang } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -44,12 +45,12 @@ export function MSettingsScreen() {
   const connectionStatus = useConnectionStatus();
   const config = useQuery(trpc.config.get.queryOptions({}));
   const auth = useQuery(trpc.auth.status.queryOptions({}));
-  const machines = useQuery(trpc.machines.list.queryOptions({}));
+  const machines = useMachinesResource();
   const vm = useMemo(() => buildMSettingsVm(config.data ?? EMPTY_SNAPSHOT, undefined), [config.data]);
   const accounts = useMemo(() => auth.data ? buildAccountsVm(auth.data).summary
     : { claudeLoggedIn: false, piLoggedInCount: 0 }, [auth.data]);
   return <MSettingsView vm={vm} copy={copy} connectionStatus={connectionStatus}
-    accountsSummary={accounts} onlineMachines={onlineMachineCount(machines.data ?? [])}
+    accountsSummary={accounts} onlineMachines={onlineMachineCount(machines.machines)}
     onBack={() => navigate('/m/project')} onOpenDaemon={() => navigate('/m/daemon')}
     onOpenSection={(section) => navigate(SECTION_PATH[section])} />;
 }

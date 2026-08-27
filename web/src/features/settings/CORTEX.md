@@ -6,8 +6,9 @@ Panels keep their presentation while canonical controllers and VMs in this folde
 | filename | role | function |
 |---|---|---|
 | SettingsProvider.tsx | provider | Provides global open and close for the modal |
-| SettingsModal.tsx | view | Routes panels and lets Usage own its title/action header |
-| SettingsPanels.tsx | view | Renders non-runtime platform and config sections |
+| SettingsModal.tsx | view | Routes independently-owned panels and lets Usage own its title/action header |
+| SettingsPanels.tsx | view | Renders non-runtime platform and config sections except Machines |
+| MachinesPanel.tsx | view | Keeps the desktop registry table and approval-gated Add action over the shared machines resource |
 | AccountsPanel.tsx | view | Presents desktop account cards over the shared account owner and VM |
 | AccountsPanel.test.tsx | test | Tests desktop account permissions, actions, redaction and rescans |
 | accounts-vm.ts | vm | Canonically derives secret-free desktop/mobile account cards, groups and summaries |

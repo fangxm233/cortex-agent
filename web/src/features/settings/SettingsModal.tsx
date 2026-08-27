@@ -1,5 +1,5 @@
 // input:  config/usage queries, independently-owned settings panels and login handoff
-// output: settings shell with bounded panels and controller-owned Profiles section
+// output: settings shell routing controller-owned Profiles and Machines sections
 // pos:    Desktop settings modal and section router
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -12,7 +12,8 @@ import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { getSettingsNav, getSectionMeta, type SettingsSectionKey } from './settings-nav';
-import { PlatformPanel, MachinesPanel, McpPanel } from './SettingsPanels';
+import { PlatformPanel, McpPanel } from './SettingsPanels';
+import { MachinesPanel } from './MachinesPanel';
 import { ProfilesPanel } from './ProfilesPanel';
 import { AdvancedPanel, NotificationsPanel } from './RuntimeSettingsPanels';
 import { BudgetPanel } from './BudgetPanel';
@@ -177,7 +178,6 @@ interface SectionContentProps {
   configLoading: boolean;
   configError: { message: string } | null;
   onReconnect: (platform: 'slack' | 'feishu') => void;
-  onAddMachine: (machineName: string) => void;
   onPluginDirtyChange: (dirty: boolean) => void;
 }
 
@@ -255,7 +255,6 @@ function SettingsBody(props: SettingsBodyProps) {
     onPluginDirtyChange: props.onPluginDirtyChange,
     configError: config.isError ? config.error : null,
     onReconnect: (platform: 'slack' | 'feishu') => actions.requestApproval.mutate({ kind: 'reconnect-platform', platform }),
-    onAddMachine: (machineName: string) => actions.requestApproval.mutate({ kind: 'add-machine', machineName }),
   };
   return (
     <>
@@ -281,7 +280,7 @@ const PANEL_RENDERERS: Partial<Record<SettingsSectionKey, PanelRenderer>> = {
   platform: (props) => <PlatformPanel snapshot={props.snapshot} onReconnect={props.onReconnect} />,
   profiles: (props) => <ProfilesPanel snapshot={props.snapshot} />,
   budget: (props) => <BudgetPanel snapshot={props.snapshot} cost={props.cost} />,
-  machines: (props) => <MachinesPanel snapshot={props.snapshot} onAddMachine={props.onAddMachine} />,
+  machines: () => <MachinesPanel />,
   templates: () => <TemplatesPanel />,
   mcp: (props) => <McpPanel snapshot={props.snapshot} />,
   notifications: (props) => <NotificationsPanel snapshot={props.snapshot} />,

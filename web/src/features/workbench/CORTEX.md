@@ -101,14 +101,12 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | SessionIdModal.tsx | view | Shows session identifiers with success-only shared copy feedback |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
 | PaneToggle.tsx | view | Chevron button collapsing either side pane, mirrored per side |
-| RightPanel.tsx | view | Animates scoped work tabs or notes into an icon rail |
+| RightPanel.tsx | view | Animates scoped work tabs or notes and adapts the shared machine roster count |
 | right-panel-vm.ts | vm | Formats canonical USD budget plus thread and machine metadata |
 | right-panel-vm.test.ts | test | Tests budget, thread and machine view models |
 | RightThreadCard.tsx | view | Opens run, task and thread details from activity rows |
 | RightThreadCard.test.tsx | test | Tests waiting-task click delegation |
-| RightMachinesTab.tsx | view | Expandable machine cards with live probe telemetry |
-| machine-detail-vm.ts | vm | Maps the machine probe to meters, GPU and run rows |
-| machine-detail-vm.test.ts | test | Tests machine meters, GPU ownership, process bounds and probe errors |
+| RightMachinesTab.tsx | view | Adapts the shared machines resource into independently expandable desktop telemetry cards |
 | scope.ts | util | Groups active and historical threads |
 | scope.test.ts | test | Tests fixed thread lifecycle groups |
 | useRecentNow.ts | hook | Ticks recent lists once per minute |

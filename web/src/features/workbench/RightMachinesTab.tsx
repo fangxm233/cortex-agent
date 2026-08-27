@@ -1,29 +1,23 @@
-// input:  machine queries, telemetry view model, and localized labels
-// output: themed expandable machine status cards
-// pos:    Desktop right-panel machine list
+// input:  shared machines resource/detail facts and localized desktop labels
+// output: themed independently expandable machine status cards
+// pos:    Desktop right-panel adapter and machine list view
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
-import { machinePill } from './right-panel-vm';
+import { useMachinesResource, type MachineDetailResource } from '@/features/machines/useMachinesResource';
 import {
-  buildMachineDetailVm,
   formatSince,
-  formatUptime,
   type MachineGpuRow,
   type MachineMeter,
   type MachineRunRow,
-} from './machine-detail-vm';
+} from '@/features/machines/machine-detail-vm';
+import { machinePill } from './right-panel-vm';
 
 // Machines tab — 1:1 from prototype.dc.html L1237–1274. Collapsed cards show machines.list
 // (name / online pill / GPU ×N / live-runs). Expanding a card lazily fetches machines.detail: a live
 // probe of the device (GPU telemetry, host vitals) joined with its running dispatch executions.
 // The probe is an RPC round trip, so it only runs while a card is open and stops when it closes.
-
-const LIST_REFRESH_MS = 10_000;
-const PROBE_REFRESH_MS = 5_000;
 
 // Server-rack icon: two shelf rows with a status LED each (14×14 viewport, stroke 1.6).
 const MACHINE_ICON = (
@@ -87,8 +81,7 @@ function MeterRow({ meters }: { meters: MachineMeter[] }) {
 }
 
 function GpuRow({ gpu }: { gpu: MachineGpuRow }) {
-  return (
-    <div style={{ padding: '6px 14px', borderTop: '1px solid var(--proto-line-soft)' }}>
+  return <div style={{ padding: '6px 14px', borderTop: '1px solid var(--proto-line-soft)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, font: META_FONT, color: 'var(--proto-muted)' }}>
         <span style={{ color: 'var(--proto-ink-3)', fontWeight: 600 }}>{gpu.index}</span>
         <span style={{ color: 'var(--proto-muted-2)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -114,8 +107,7 @@ function GpuRow({ gpu }: { gpu: MachineGpuRow }) {
           +{gpu.hiddenProcessCount}
         </div>
       )}
-    </div>
-  );
+    </div>;
 }
 
 function RunRow({ run }: { run: MachineRunRow }) {
@@ -166,190 +158,123 @@ function Notice({ text, tone }: { text: string; tone: 'muted' | 'danger' }) {
   );
 }
 
-/** Expanded body. Probing only happens for online machines; everything else renders from machines.list. */
-function MachineDetailBody({ machine }: { machine: MachineInfo }) {
+/** Expanded body consumes shared lifecycle facts; the desktop keeps its own telemetry JSX. */
+function MachineDetailBody({ detail }: { detail: MachineDetailResource }) {
   const L = useVocab();
-  const trpc = useTRPC();
-  const query = useQuery({
-    ...trpc.machines.detail.queryOptions({ machine: machine.name }),
-    enabled: machine.online,
-    refetchInterval: machine.online ? PROBE_REFRESH_MS : false,
-  });
-
-  if (!machine.online) {
-    return (
-      <>
-        <Notice text={L.mOfflineNoTelemetry} tone="muted" />
-        <MetaFooter machine={machine} uptime="" />
-      </>
-    );
-  }
-  if (query.isPending) return <Notice text={L.mProbing} tone="muted" />;
-  if (query.isError) return <Notice text={L.mProbeFailed} tone="danger" />;
-
-  const vm = buildMachineDetailVm(query.data);
-  return (
-    <>
-      {vm.probeError && <Notice text={`${L.mProbeFailed}: ${vm.probeError}`} tone="danger" />}
-      {vm.meters.length > 0 && <MeterRow meters={vm.meters} />}
-      {vm.gpus.map((gpu) => (
-        <GpuRow key={gpu.index} gpu={gpu} />
-      ))}
-      {!vm.probeError && vm.gpus.length === 0 && <Notice text={L.mNoGpuReported} tone="muted" />}
-      {vm.liveRuns.length > 0 && (
-        <div style={{ padding: '8px 14px', borderTop: '1px solid var(--proto-line-soft)', display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {vm.liveRuns.map((run) => (
-            <RunRow key={run.key} run={run} />
-          ))}
-        </div>
-      )}
-      <MetaFooter machine={machine} uptime={formatUptime(query.data.vitals?.uptimeSec ?? null)} />
-    </>
-  );
+  if (detail.status === 'offline') return <>
+    <Notice text={L.mOfflineNoTelemetry} tone="muted" />
+    <MetaFooter machine={detail.machine} uptime="" />
+  </>;
+  if (detail.status === 'probing') return <Notice text={L.mProbing} tone="muted" />;
+  if (detail.status === 'error' || !detail.facts) return <Notice text={L.mProbeFailed} tone="danger" />;
+  const vm = detail.facts;
+  return <>
+    {vm.probeError && <Notice text={`${L.mProbeFailed}: ${vm.probeError}`} tone="danger" />}
+    {vm.meters.length > 0 && <MeterRow meters={vm.meters} />}
+    {vm.gpus.map((gpu) => <GpuRow key={gpu.index} gpu={gpu} />)}
+    {!vm.probeError && vm.gpus.length === 0 && <Notice text={L.mNoGpuReported} tone="muted" />}
+    {vm.liveRuns.length > 0 && <div style={{ padding: '8px 14px', borderTop: '1px solid var(--proto-line-soft)', display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {vm.liveRuns.map((run) => <RunRow key={run.key} run={run} />)}
+    </div>}
+    <MetaFooter machine={detail.machine} uptime={detail.uptime} />
+  </>;
 }
 
-function MachineCard({ machine }: { machine: MachineInfo }) {
-  const L = useVocab();
-  const [open, setOpen] = useState(false);
+function MachineCardTitle({ machine, open }: { machine: MachineInfo; open: boolean }) {
   const pill = machinePill(machine.online);
   const iconColor = machine.online ? 'var(--proto-accent)' : 'var(--proto-muted-2)';
+  return <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <span style={{ display: 'inline-flex', color: 'var(--proto-muted-3)' }}><Chevron open={open} /></span>
+    <span style={{ display: 'inline-flex', color: iconColor }}>{MACHINE_ICON}</span>
+    <span style={{ font: `600 12.5px ${MONO}`, color: 'var(--proto-ink)' }}>{machine.name}</span>
+    <span style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, padding: '2px 8px',
+      borderRadius: 999, background: pill.bg, color: pill.fg }}>{pill.text}</span>
+  </div>;
+}
 
-  const subParts: string[] = [];
-  if (machine.gpuCount != null) subParts.push(`${L.mGpu} ×${machine.gpuCount}`);
-  subParts.push(machine.os);
-  if (machine.liveRuns > 0) subParts.push(`${machine.liveRuns} ${L.mLiveRuns}`);
+function MachineCardMeta({ machine }: { machine: MachineInfo }) {
+  const L = useVocab();
+  const parts = [machine.gpuCount == null ? '' : `${L.mGpu} ×${machine.gpuCount}`, machine.os,
+    machine.liveRuns > 0 ? `${machine.liveRuns} ${L.mLiveRuns}` : ''].filter(Boolean);
+  return <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
+    <span style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)', paddingLeft: 17 }}>
+      {parts.join(' · ')}
+    </span>
+    {machine.liveRuns > 0 && <span style={{ marginLeft: 'auto', width: 6, height: 6,
+      borderRadius: '50%', background: 'var(--proto-accent)', flexShrink: 0,
+      animation: 'cxpulse 1.6s ease-in-out infinite' }} />}
+  </div>;
+}
 
-  return (
-    <div
-      style={{
-        background: 'var(--proto-card)',
-        border: '1px solid var(--proto-line)',
-        borderRadius: 10,
-        boxShadow: 'var(--shadow-card-subtle)',
-      }}
-    >
-      <div
-        role="button"
-        aria-expanded={open}
-        onClick={() => setOpen((prev) => !prev)}
-        style={{
-          padding: '11px 14px 9px',
-          cursor: 'pointer',
-          borderBottom: `1px solid ${open ? 'var(--proto-line-soft)' : 'transparent'}`,
-        }}
-      >
-        {/* header row: chevron · icon · name · pill */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ display: 'inline-flex', color: 'var(--proto-muted-3)' }}>
-            <Chevron open={open} />
-          </span>
-          <span style={{ display: 'inline-flex', color: iconColor }}>{MACHINE_ICON}</span>
-          <span style={{ font: `600 12.5px ${MONO}`, color: 'var(--proto-ink)' }}>{machine.name}</span>
-          <span
-            style={{
-              marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, padding: '2px 8px',
-              borderRadius: 999, background: pill.bg, color: pill.fg,
-            }}
-          >
-            {pill.text}
-          </span>
-        </div>
-        {/* sub-line: GPU count · os · live-runs indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
-          <span style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)', paddingLeft: 17 }}>
-            {subParts.join(' · ')}
-          </span>
-          {machine.liveRuns > 0 && (
-            <span
-              style={{
-                marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%',
-                background: 'var(--proto-accent)', flexShrink: 0,
-                animation: 'cxpulse 1.6s ease-in-out infinite',
-              }}
-            />
-          )}
-        </div>
-      </div>
-      {open && <MachineDetailBody machine={machine} />}
+function MachineCard({ machine, open, detail, onToggle }: {
+  machine: MachineInfo; open: boolean; detail: MachineDetailResource | undefined; onToggle: () => void;
+}) {
+  return <div style={{ background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
+    borderRadius: 10, boxShadow: 'var(--shadow-card-subtle)' }}>
+    <div role="button" aria-expanded={open} onClick={onToggle}
+      style={{ padding: '11px 14px 9px', cursor: 'pointer',
+        borderBottom: `1px solid ${open ? 'var(--proto-line-soft)' : 'transparent'}` }}>
+      <MachineCardTitle machine={machine} open={open} />
+      <MachineCardMeta machine={machine} />
     </div>
-  );
+    {open && detail && <MachineDetailBody detail={detail} />}
+  </div>;
+}
+
+function MachinesHeader({ count }: { count: string }) {
+  const L = useVocab();
+  return <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px',
+    borderBottom: '1px solid var(--proto-line-2)', flex: 'none' }}>
+    <span style={{ fontSize: 10.5, color: 'var(--proto-muted)' }}>{L.machines}</span>
+    <span style={{ marginLeft: 'auto', font: `500 10.5px ${MONO}`, color: 'var(--proto-muted)' }}>{count}</span>
+  </div>;
+}
+
+function MachineListState({ loading, error, empty }: { loading: boolean; error: boolean; empty: boolean }) {
+  const L = useVocab();
+  if (loading) return <div style={{ textAlign: 'center', fontSize: 11,
+    color: 'var(--proto-muted-3)', padding: '24px 0' }}>{L.rpLoadingMachines}</div>;
+  if (error) return <div style={{ textAlign: 'center', fontSize: 11,
+    color: 'var(--proto-danger)', padding: '24px 0' }}>{L.rpFailedLoadMachines}</div>;
+  if (!empty) return null;
+  return <div style={{ textAlign: 'center', padding: '26px 12px',
+    border: '1px dashed var(--proto-line)', borderRadius: 10 }}>
+    <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.mNoMachines}</div>
+    <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', marginTop: 4,
+      lineHeight: 1.6 }}>{L.rpNoMachinesHint}</div>
+  </div>;
+}
+
+interface RightMachinesViewProps {
+  machines: MachineInfo[];
+  loading: boolean;
+  error: boolean;
+  expanded: ReadonlySet<string>;
+  detailFor: (name: string) => MachineDetailResource | undefined;
+  onToggle: (name: string) => void;
+}
+
+export function RightMachinesView(props: RightMachinesViewProps) {
+  const count = !props.loading && !props.error ? String(props.machines.length) : '—';
+  return <><MachinesHeader count={count} />
+    <div style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column',
+      gap: 10, overflow: 'auto', minHeight: 0 }}>
+      {props.machines.map((machine) => <MachineCard key={machine.name} machine={machine}
+        open={props.expanded.has(machine.name)} detail={props.detailFor(machine.name)}
+        onToggle={() => props.onToggle(machine.name)} />)}
+      <MachineListState loading={props.loading} error={props.error} empty={props.machines.length === 0} />
+    </div>
+  </>;
 }
 
 export function RightMachinesTab() {
-  const L = useVocab();
-  const trpc = useTRPC();
-  const machinesQuery = useQuery({
-    ...trpc.machines.list.queryOptions({}),
-    // Connect/disconnect is not pushed to the UI, so the roster is polled to stay honest.
-    refetchInterval: LIST_REFRESH_MS,
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const machines = useMachinesResource([...expanded]);
+  const toggle = (name: string) => setExpanded((current) => {
+    const next = new Set(current);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    return next;
   });
-  const machines = machinesQuery.data ?? [];
-  const countLabel = machinesQuery.isSuccess ? String(machines.length) : '—';
-
-  return (
-    <>
-      {/* aggregate header (prototype L1237–1243): label + machine count */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '10px 18px',
-          borderBottom: '1px solid var(--proto-line-2)',
-          flex: 'none',
-        }}
-      >
-        <span style={{ fontSize: 10.5, color: 'var(--proto-muted)' }}>{L.machines}</span>
-        <span style={{ marginLeft: 'auto', font: `500 10.5px ${MONO}`, color: 'var(--proto-muted)' }}>
-          {countLabel}
-        </span>
-      </div>
-
-      {/* machine list body */}
-      <div
-        style={{
-          flex: 1,
-          padding: '12px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-          overflow: 'auto',
-          minHeight: 0,
-        }}
-      >
-        {machines.map((m) => (
-          <MachineCard key={m.name} machine={m} />
-        ))}
-
-        {/* empty state — neutral placeholder names (atlas, nimbus), no private machine names */}
-        {machinesQuery.isSuccess && machines.length === 0 && (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '26px 12px',
-              border: '1px dashed var(--proto-line)',
-              borderRadius: 10,
-            }}
-          >
-            <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.mNoMachines}</div>
-            <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', marginTop: 4, lineHeight: 1.6 }}>
-              {L.rpNoMachinesHint}
-            </div>
-          </div>
-        )}
-
-        {machinesQuery.isPending && (
-          <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--proto-muted-3)', padding: '24px 0' }}>
-            {L.rpLoadingMachines}
-          </div>
-        )}
-
-        {machinesQuery.isError && (
-          <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--proto-danger)', padding: '24px 0' }}>
-            {L.rpFailedLoadMachines}
-          </div>
-        )}
-      </div>
-    </>
-  );
+  return <RightMachinesView machines={machines.machines} loading={machines.loading}
+    error={!!machines.error} expanded={expanded} detailFor={machines.detailFor} onToggle={toggle} />;
 }

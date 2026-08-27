@@ -1,6 +1,6 @@
 // input:  MachineDetail DTO (machines.detail live probe)
 // output: buildMachineDetailVm + formatSince/formatUptime/shortenGpuName
-// pos:    pure view-model for the expanded machine card, shared by desktop and mobile
+// pos:    Shared locale- and CSS-free machine detail facts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { MachineDetail, MachineGpu, MachineLiveRun, MachineVitals } from '@cortex-agent/ui-contract';

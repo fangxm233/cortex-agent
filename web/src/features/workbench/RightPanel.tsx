@@ -1,6 +1,6 @@
-// input:  project data, cost summary, threads, notes state
+// input:  project data, cost summary, threads, notes and shared machine roster
 // output: animated collapsible desktop right pane with icon navigation
-// pos:    Workbench right-side pane host
+// pos:    Workbench right-side pane host and machine-count adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { useEffect, useState, type ReactNode } from 'react';
@@ -19,6 +19,7 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useVocab } from '@/i18n';
 import { NotesPane } from '@/features/notes/NotesPane';
 import { useNotes } from '@/features/notes/NotesProvider';
+import { useMachinesResource } from '@/features/machines/useMachinesResource';
 
 // RIGHT PANEL — 1:1 from prototype.dc.html L1091–1276 (Stage-R RB sibling C, task 1e96). Exact inline
 // styles / px / hex / font / weight / EN copy reproduced verbatim; real tRPC data (cost.summary /
@@ -65,8 +66,7 @@ function PanelRailButton({ target, label, active, onClick }: {
   active: boolean;
   onClick: () => void;
 }) {
-  return (
-    <button
+  return <button
       type="button"
       aria-label={label}
       aria-pressed={active}
@@ -87,8 +87,7 @@ function PanelRailButton({ target, label, active, onClick }: {
       }}
     >
       <PanelIcon target={target} size={15} />
-    </button>
-  );
+    </button>;
 }
 
 function RightPanelRail({ active, labels, navigationLabel, expandLabel, onExpand, onSelect }: {
@@ -197,7 +196,7 @@ function useRightPanelData(tab: Tab) {
   const costQuery = useQuery({ ...trpc.cost.summary.queryOptions({ projectId }), enabled: !!projectId });
   const threadsQuery = useQuery(trpc.threads.list.queryOptions({ projectId }));
   const tasksQuery = useQuery(trpc.tasks.list.queryOptions({ ...(projectId ? { projectId } : {}) }));
-  const machinesQuery = useQuery({ ...trpc.machines.list.queryOptions({}), refetchInterval: 10_000 });
+  const machines = useMachinesResource();
   const threadGroups = groupThreads(threadsQuery.data ?? []);
   return {
     projectId,
@@ -206,7 +205,7 @@ function useRightPanelData(tab: Tab) {
     threadsReady: threadsQuery.isSuccess,
     activeThreadCount: threadGroups.find((group) => group.kind === 'active')?.threads.length ?? 0,
     openTaskCount: tasksQuery.data ? actionableOpenCount(tasksQuery.data) : 0,
-    machineCount: onlineMachineCount(machinesQuery.data),
+    machineCount: onlineMachineCount(machines.machines),
     budget: rightPanelBudget(costQuery.data?.today, costQuery.data?.dailyBudget),
   };
 }

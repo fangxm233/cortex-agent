@@ -1,22 +1,20 @@
-// input:  machine queries, approval mutation and mobile navigation
-// output: mobile machine telemetry and registration request screen
-// pos:    Mobile Machines query container
+// input:  shared machines resource, mobile navigation, copy and toast feedback
+// output: single-expand mobile telemetry and registration-request screen
+// pos:    Mobile Machines resource adapter
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import type { MachineInfo } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useLang, useVocab } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { MScreen, MC } from '@/mobile/ui/kit';
-import { buildMachineDetailVm, formatUptime } from '@/features/workbench/machine-detail-vm';
+import {
+  useMachinesResource,
+  type MachineDetailResource,
+  type MachinesResource,
+} from '@/features/machines/useMachinesResource';
 import { MMachinesView, type MMachinesCopy, type MMachineDetailPanel } from './MMachinesView';
 import { buildMMachinesVm } from './m-machines-vm';
-
-const LIST_REFRESH_MS = 10_000;
-const PROBE_REFRESH_MS = 5_000;
 
 const COPY: { en: MMachinesCopy; zh: MMachinesCopy } = {
   en: {
@@ -69,72 +67,42 @@ const COPY: { en: MMachinesCopy; zh: MMachinesCopy } = {
   },
 };
 
-export function MMachinesScreen() {
-  const trpc = useTRPC();
-  const navigate = useNavigate();
-  const lang = useLang();
+function detailPanel(detail: MachineDetailResource | undefined): MMachineDetailPanel | null {
+  if (!detail || detail.status === 'offline') return null;
+  if (detail.status === 'error') return { status: 'error', vm: null, uptime: '' };
+  if (detail.status === 'probing') return { status: 'probing', vm: null, uptime: '' };
+  return { status: 'ready', vm: detail.facts, uptime: detail.uptime };
+}
+
+function useAddMachine(resource: MachinesResource) {
   const L = useVocab();
   const { toast } = useToast();
-  const copy = pickCopy(lang, COPY);
-  const now = Date.now();
-  const [expanded, setExpanded] = useState<string | null>(null);
-
-  const machinesQuery = useQuery({
-    ...trpc.machines.list.queryOptions({}),
-    // Connect/disconnect is not pushed to the UI, so the roster is polled to stay honest.
-    refetchInterval: LIST_REFRESH_MS,
-  });
-  const machines = useMemo<MachineInfo[]>(() => machinesQuery.data ?? [], [machinesQuery.data]);
-  const vm = useMemo(() => buildMMachinesVm(machines, now), [machines, now]);
-
-  // Probing is an RPC round trip to the device, so it runs only while a card is open — and never for
-  // an offline machine, which can only time out.
-  const expandedOnline = machines.some((m) => m.name === expanded && m.online);
-  const detailQuery = useQuery({
-    ...trpc.machines.detail.queryOptions({ machine: expanded ?? '' }),
-    enabled: expandedOnline,
-    refetchInterval: expandedOnline ? PROBE_REFRESH_MS : false,
-  });
-
-  const addMachine = useMutation(trpc.approvals.request.mutationOptions({
-    onSuccess: () => toast({ title: L.stToastQueuedApproval, tone: 'waiting' }),
-    onError: (error) => toast({ title: `${L.stToastCouldNotQueue}: ${error.message}`, tone: 'failed' }),
-  }));
-  const requestAdd = () => {
-    const machineName = window.prompt(L.stAddMachinePrompt)?.trim();
-    if (machineName) addMachine.mutate({ kind: 'add-machine', machineName });
+  return async () => {
+    const name = window.prompt(L.stAddMachinePrompt)?.trim();
+    if (!name) return;
+    try {
+      await resource.requestAddMachine(name);
+      toast({ title: L.stToastQueuedApproval, tone: 'waiting' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast({ title: `${L.stToastCouldNotQueue}: ${message}`, tone: 'failed' });
+    }
   };
+}
 
-  const panel = useMemo<MMachineDetailPanel | null>(() => {
-    if (!expandedOnline) return null;
-    if (detailQuery.isError) return { status: 'error', vm: null, uptime: '' };
-    if (!detailQuery.data) return { status: 'probing', vm: null, uptime: '' };
-    return {
-      status: 'ready',
-      vm: buildMachineDetailVm(detailQuery.data, now),
-      uptime: formatUptime(detailQuery.data.vitals?.uptimeSec ?? null),
-    };
-  }, [expandedOnline, detailQuery.isError, detailQuery.data, now]);
-
-  // retry-connect / view-logs are inert here (守则11 no-fabrication): re-establishing a client
-  // WebSocket or streaming a client's logs needs a daemon-side op with no browser-safe tRPC surface.
-  // Left unwired (no-op) — mirrors the desktop settings machines pattern; registry edits go to desktop.
-  return (
-    <MScreen label="1k 机器">
-      {machinesQuery.isLoading ? (
-        <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
-      ) : (
-        <MMachinesView
-          vm={vm}
-          copy={copy}
-          onBack={() => navigate('/m/settings')}
-          expanded={expanded}
-          onToggle={(name) => setExpanded((prev) => (prev === name ? null : name))}
-          panel={panel}
-          onAdd={requestAdd}
-          addDisabled={addMachine.isPending}
-        />
-      )}
-    </MScreen>
-  );
+export function MMachinesScreen() {
+  const navigate = useNavigate();
+  const copy = pickCopy(useLang(), COPY);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const resource = useMachinesResource(expanded ? [expanded] : []);
+  const vm = useMemo(() => buildMMachinesVm(resource.machines, Date.now()), [resource.machines]);
+  const panel = detailPanel(expanded ? resource.detailFor(expanded) : undefined);
+  const requestAdd = useAddMachine(resource);
+  // retry-connect / view-logs remain inert: no browser-safe daemon operation exists.
+  return <MScreen label="1k 机器">{resource.loading
+    ? <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
+    : <MMachinesView vm={vm} copy={copy} onBack={() => navigate('/m/settings')}
+      expanded={expanded} onToggle={(name) => setExpanded((old) => old === name ? null : name)}
+      panel={panel} onAdd={requestAdd} addDisabled={resource.addPending} />}
+  </MScreen>;
 }

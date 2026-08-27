@@ -1,7 +1,7 @@
-// Pure view-model for the 1k 机器 screen (scheme-mobile.dc.html 1k L556-599). The machines registry
-// drilled from the project page (1e→1k). Maps the REAL `MachineInfo` DTO (machines.json static config +
-// live client-manager + executionRegistry) into card slots. Reuses the machine-domain logic from the
-// prior 12c impl (machineCardVm / fmtConnectedZh) so mobile stays single-sourced.
+// input:  shared machine roster DTOs, wall-clock time and canonical formatters
+// output: mobile-only machine card slots and online totals
+// pos:    Pure view-model for the 1k Machines screen
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // 守则11 no-fabrication — every rendered field has a real DTO source or is explicitly omitted:
 //   • per-GPU util / VRAM bars and the running-run NAME live in the machines.detail probe, which the
@@ -10,7 +10,7 @@
 //   • heartbeat → fmtConnectedZh(lastHeartbeat); '—' when offline (DTO gives null timestamps offline).
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { machineCardVm, fmtConnectedZh } from '@/mobile/screens/mobile-machines-vm';
-import { formatSince } from '@/features/workbench/machine-detail-vm';
+import { formatSince } from '@/features/machines/machine-detail-vm';
 
 export interface MMachineCard {
   name: string;

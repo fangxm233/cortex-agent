@@ -20,6 +20,7 @@ Cross-cutting concerns that desktop and mobile both consume (attachments, live s
 | notes/ | subdir | Private project notes on desktop surfaces |
 | schedule/ | subdir | Shared create/edit controller and desktop schedule overlay |
 | settings/ | subdir | Settings modal and its panels |
+| machines/ | subdir | Shared polled machine roster, expanded-detail lifecycle and locale-free facts |
 | command-palette/ | subdir | Global search and command overlay |
 | notifications/ | subdir | In-app toasts for replies and notices |
 | media/ | subdir | Image, video and document previewers |

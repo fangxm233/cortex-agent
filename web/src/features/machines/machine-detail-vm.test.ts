@@ -1,3 +1,8 @@
+// input:  machine detail DTO fixtures and deterministic wall-clock values
+// output: locale-free meter, GPU, run, timing and probe-error fact regressions
+// pos:    Shared machine detail view-model specification
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, expect, it } from 'vitest';
 import type { MachineDetail } from '@cortex-agent/ui-contract';
 import { buildMachineDetailVm } from './machine-detail-vm';
@@ -52,30 +57,19 @@ describe('meters', () => {
   });
 });
 
-describe('gpu rows', () => {
-  const gpus = [
-    {
-      index: 0,
-      name: 'NVIDIA RTX 6000 Ada Generation',
-      utilPercent: 62,
-      memUsedMb: 24576,
-      memTotalMb: 49152,
-      tempC: 71,
-      powerW: 280,
-      processes: [{ pid: '41233', name: '/usr/bin/python3', memoryMb: 24000 }],
-    },
-    {
-      index: 1,
-      name: 'NVIDIA RTX 6000 Ada Generation',
-      utilPercent: 0,
-      memUsedMb: 4,
-      memTotalMb: 49152,
-      tempC: 38,
-      powerW: 21,
-      processes: [],
-    },
-  ];
+const gpus = [
+  {
+    index: 0, name: 'NVIDIA RTX 6000 Ada Generation', utilPercent: 62,
+    memUsedMb: 24576, memTotalMb: 49152, tempC: 71, powerW: 280,
+    processes: [{ pid: '41233', name: '/usr/bin/python3', memoryMb: 24000 }],
+  },
+  {
+    index: 1, name: 'NVIDIA RTX 6000 Ada Generation', utilPercent: 0,
+    memUsedMb: 4, memTotalMb: 49152, tempC: 38, powerW: 21, processes: [],
+  },
+];
 
+describe('gpu rows', () => {
   it('maps utilisation and memory percentages for each card', () => {
     expect(buildMachineDetailVm(detail({ gpus })).gpus[0]).toMatchObject({
       index: 0,
@@ -102,6 +96,9 @@ describe('gpu rows', () => {
     expect(buildMachineDetailVm(detail({ gpus, liveRuns })).gpus[0].owners).toEqual([]);
   });
 
+});
+
+describe('gpu processes', () => {
   it('shows compute processes with basenames and GB memory', () => {
     const vm = buildMachineDetailVm(detail({ gpus }));
     expect(vm.gpus[0].processes).toEqual([{ pid: '41233', name: 'python3', memText: '23.4 GB' }]);

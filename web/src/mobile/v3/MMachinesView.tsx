@@ -1,12 +1,12 @@
-// input:  machine list/detail view models and mobile callbacks
-// output: expandable machine cards with registration action
+// input:  mobile roster model, shared detail facts and mobile callbacks
+// output: single-expand machine cards with registration action
 // pos:    Presentational mobile Machines view
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1k L556-599)
 import { type ReactNode } from 'react';
 import { MDrillHeader, MScrollBody, MCard, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
-import type { MachineDetailVm, MachineGpuRow, MachineRunRow } from '@/features/workbench/machine-detail-vm';
+import type { MachineDetailVm, MachineGpuRow, MachineRunRow } from '@/features/machines/machine-detail-vm';
 import type { MMachinesVm, MMachineCard } from './m-machines-vm';
 
 export interface MMachinesCopy {

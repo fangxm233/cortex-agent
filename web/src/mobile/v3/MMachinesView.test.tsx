@@ -1,12 +1,12 @@
-// input:  machines view-model, expand panel state, machines copy
+// input:  mobile roster model, shared detail facts, expansion state and copy
 // output: collapsed vs expanded machine card rendering regressions
-// pos:    Verifies the mobile Machines expand panel gating
+// pos:    Verifies the mobile Machines view gating
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { MachineDetail } from '@cortex-agent/ui-contract';
-import { buildMachineDetailVm } from '@/features/workbench/machine-detail-vm';
+import { buildMachineDetailVm } from '@/features/machines/machine-detail-vm';
 import { MMachinesView, type MMachinesCopy, type MMachineDetailPanel } from './MMachinesView';
 import type { MMachinesVm } from './m-machines-vm';
 

@@ -74,8 +74,8 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MMemoryFileScreen.tsx | screen | Binds one memory file by canonical path parameter |
 | MMemoryFileView.tsx | view | Clean read-only markdown file with header metaline |
 | m-memory-file-vm.ts | vm | Derives basename and missing-aware canonical byte metadata |
-| MMachinesScreen.tsx | screen | Binds machine probes and registration approval requests |
-| MMachinesView.tsx | view | Expandable machine cards with telemetry and Add action |
+| MMachinesScreen.tsx | screen | Adapts the shared machines resource to single expansion, navigation and approval feedback |
+| MMachinesView.tsx | view | Keeps mobile-only expandable telemetry cards and Add action |
 | MMachinesView.test.tsx | test | Tests collapsed and expanded panel gating |
 | m-machines-vm.ts | vm | Maps machine records to cards and online counts |
 | m-machines-vm.test.ts | test | Unit tests for the machines view model |
@@ -83,7 +83,7 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MDaemonView.tsx | view | Shows daemon processes, restart and disconnect controls |
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
-| MSettingsScreen.tsx | screen | Renders settings immediately and hydrates config plus shared account summaries |
+| MSettingsScreen.tsx | screen | Renders settings immediately from config, account summaries and the shared machine roster |
 | MSettingsView.tsx | view | Keeps Daemon and Profile cards above rows with canonical account facts |
 | MSettingsView.test.tsx | test | Tests canonical order, routing and live connection copy |
 | MSettingsControls.tsx | view | Supplies compact rows, toggles and field-local validation feedback |
